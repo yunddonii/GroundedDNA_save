@@ -573,6 +573,10 @@ class SigLIP2SemanticOTModel(nn.Module):
         # sigmoid(-3.0) ≈ 0.0474 and the global codeword is added very softly
         # at the start of training. There are 5 gates -- one per local codebook.
         self.use_stop_grad_global: bool = bool(getattr(args, "use_stop_grad_global", True))
+        # v23b: optionally skip the entire `q_local + sigmoid(alpha) * q_global`
+        # blending step before the codon heads. When True, each local codon
+        # head sees the local codeword in isolation (no C_global injection).
+        self.disable_global_gate: bool = bool(getattr(args, "disable_global_gate", False))
         gate_init = float(getattr(args, "global_gate_init_logit", -3.0))
         self.global_gate_logits = nn.Parameter(
             torch.full((NUM_LOCAL_PARTS,), gate_init, dtype=torch.float32)
@@ -993,14 +997,22 @@ class SigLIP2SemanticOTModel(nn.Module):
 
         # 7) gated global addition: blend C_global codeword into local codewords
         #    q_conditioned_m = q_local_m + sigmoid(alpha_m) * (sg)q_global
+        # `--disable_global_gate` skips the addition entirely (v23b ablation).
         q_global_cw = quantized_tokens[:, 0, :]                # [B, D]
         q_local_cw  = quantized_tokens[:, 1:, :]               # [B, 5, D]
 
-        q_global_for_local = q_global_cw.detach() if self.use_stop_grad_global else q_global_cw
-        gate_values = torch.sigmoid(self.global_gate_logits)   # [5]
-        # broadcast: gate [5] -> [1, 5, 1], q_global_for_local [B, D] -> [B, 1, D]
-        global_addition  = gate_values.view(1, -1, 1) * q_global_for_local.unsqueeze(1)  # [B, 5, D]
-        q_conditioned_local = q_local_cw + global_addition                                # [B, 5, D]
+        if self.disable_global_gate:
+            # No C_global -> C_1..5 conditioning. Each codon head sees its own
+            # codeword only. `gate_values` is reported as all-zero for logging.
+            q_conditioned_local = q_local_cw
+            gate_values = torch.zeros(NUM_LOCAL_PARTS, device=q_local_cw.device,
+                                       dtype=q_local_cw.dtype)
+        else:
+            q_global_for_local = q_global_cw.detach() if self.use_stop_grad_global else q_global_cw
+            gate_values = torch.sigmoid(self.global_gate_logits)   # [5]
+            # broadcast: gate [5] -> [1, 5, 1], q_global_for_local [B, D] -> [B, 1, D]
+            global_addition  = gate_values.view(1, -1, 1) * q_global_for_local.unsqueeze(1)  # [B, 5, D]
+            q_conditioned_local = q_local_cw + global_addition                                # [B, 5, D]
         head_inputs = torch.cat(
             [q_global_cw.unsqueeze(1), q_conditioned_local], dim=1,
         )                                                       # [B, 6, D]

@@ -157,6 +157,11 @@ class Config():
                  'text TOKENS. Requires the cache to have been built with '
                  '--save_text_tokens. Option B for fixing the SigLIP2 text '
                  'cross-slot collapse (~cos 0.88 -> cos ?).')
+        siglip2_arg.add_argument('--disable_global_gate', dest='disable_global_gate',
+            action='store_true', default=False,
+            help='Skip the C_0 -> C_1..5 gated addition before the codon '
+                 'heads. Each local codon head sees its own codeword in '
+                 'isolation (v23b ablation).')
         siglip2_arg.add_argument('--text_attn_num_heads', type=int, default=4,
             help='Number of heads in the visual-cross-attention text pooling '
                  'block (use_text_token_attention).')

@@ -15,6 +15,60 @@ Format conventions:
 
 ---
 
+## 2026-05-14 — v23a (mean-pool text) reverted, v23b (no global gate) → Pareto step
+
+🔴 v23a reverted · 🟢 v23b kept as available ablation.
+
+**v23a** — replace SigLIP2's `pooler_output` with the mean of valid token
+features as the per-slot pooled text embedding. Hypothesis: pooler is
+last-token pool and lands on near-identical vectors per image (cos 0.88).
+Token mean is empirically more diverse (cos 0.78), so this should propagate
+to more discriminative routing centroids.
+
+Result: stopped mid-training around epoch 30 — mid-eval mAP tracked
+v20-K64 within 0.005 but unique stayed in the same 0.10 band. Effect was
+not large enough to be worth a full 60-epoch run, given v23b was already
+queued. The (small) `--text_pool_mode mean` code path was removed from
+the source tree on revert.
+
+**v23b** — disable the gated C_0 → C_1..5 codeword addition before the
+codon heads. Each local codon head now sees its own quantised codeword in
+isolation (no global blending). New CLI flag `--disable_global_gate`.
+
+Setup: v20-K64 base (K=64, hashnet binary, siglip2_global) + only the
+new flag.
+
+Result (Flickr25k, single seed):
+
+| run                                    |   mAP   | unique  | dup    | dead  | pos→neg gap |
+|----------------------------------------|--------:|--------:|-------:|------:|------------:|
+| v20-K64 (with C_0 gate)                | 0.7892  | 0.0982  | 0.9018 | 0.005 | 5.20 |
+| **v23b (no C_0 gate)**                 | **0.7877** | **0.1107** | 0.8893 | 0.005 | 5.05 |
+| Δ                                      | −0.0015 | **+0.013** | −0.013 |  0    | −0.15 |
+
+- mAP regression is within noise (0.0015 / 0.78 ≈ 0.2%).
+- Unique codes: **2,256 → 2,556** for the same 23K DB → +300 distinct
+  hashes (+13.3%) at essentially zero retrieval cost.
+- Per-codebook perplexity unchanged (mean 52.2 → 51.8), so the gain isn't
+  from reviving dead codewords — it's purely from undoing the redundancy
+  the C_0 addition was injecting into every local codon head.
+
+This is the first ablation that genuinely moves the Pareto frontier on
+the (mAP, unique) plane near our best operating point. The codebook
+geometry diagnostic earlier in the log warned about exactly this: adding
+the C_0 codeword vector (whose codewords are nearly orthogonal, low
+effective rank 2.5) to each local codeword (clustered around its own
+centroid, low effective rank 3.4) was contaminating the local hashes
+with a shared additive offset and reducing the count of distinct hash
+patterns the model could produce.
+
+Decision: keep `--disable_global_gate` in the tree as a recommended
+toggle for "compositional-code-prioritising" runs. v20-K64 (with gate)
+keeps the absolute mAP record by 0.0015; v23b is the better choice when
+unique-code count matters for the paper claim.
+
+---
+
 ## 2026-05-14 — Repository placed under git version control
 
 🟢 active — pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
