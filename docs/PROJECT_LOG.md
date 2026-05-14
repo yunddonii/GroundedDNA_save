@@ -201,6 +201,64 @@ Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
 
 ---
 
+## 2026-05-14 — v26a / v26b: V3 prompt × current SOTA setups → both regress
+
+🟡 superseded — V3 prompt helps v6 (MSE form) but not v18+ (hashnet form).
+
+Observation that triggered the experiment: the standalone v6+V3-prompt
+run from 2026-05-13 (`260513+flickr25k_setting1_v6_promptv3`) showed an
+unusually healthy hash-utilisation profile — unique 0.4553 (vs V1's
+0.3958) with mAP 0.7543 (vs V1's 0.7556, basically tied). User noted
+that signal and asked to retest V3 prompt under the current best setups.
+
+Two parallel runs (Flickr25k, 60 epochs):
+
+- **v26a** = v20-K64 (K=64, hashnet binary, with global gate) + V3 prompt.
+- **v26b** = v23b (K=64, hashnet binary, no global gate) + V3 prompt.
+
+Result table comparing each V3 variant to its V1 sibling:
+
+| run                            |   mAP  | Δ mAP   | unique | Δ unique | dup    | gap |
+|--------------------------------|-------:|--------:|-------:|---------:|-------:|----:|
+| v6  V1 prompt (MSE)            | 0.7556 |   —     | 0.3958 |    —     | 0.6042 | 2.86 |
+| v6  V3 prompt (MSE)            | 0.7543 | −0.001  | 0.4553 |  +0.06   | 0.5447 | 2.77 |
+| v20-K64 V1 (hashnet, gate)     | 0.7892 |   —     | 0.0982 |    —     | 0.9018 | 5.20 |
+| **v26a V3 (hashnet, gate)**    | 0.7765 | **−0.013** | 0.1402 |  +0.042  | 0.8598 | 4.41 |
+| v23b V1 (hashnet, no gate)     | 0.7877 |   —     | 0.1107 |    —     | 0.8893 | 5.05 |
+| **v26b V3 (hashnet, no gate)** | 0.7664 | **−0.021** | 0.1102 |   ≈ 0    | 0.8898 | 4.37 |
+
+Findings:
+
+1. **V3-prompt effect is loss-form dependent.** Under MSE-Jaccard (v6) it
+   gives a strict diversity win (unique +0.06) at essentially zero mAP
+   cost. Under the hashnet binary form (v20-K64 / v23b) the cost flips:
+   mAP regresses 0.013–0.021 and the diversity gain is at best modest.
+
+2. **The "no gate" + V3 combo is the worst.** v26b loses both axes: mAP
+   −0.021 vs v23b AND unique barely changes (0.110 vs 0.111). The two
+   diversity mechanisms (gate-removal and richer prompt) are not
+   complementary — they collapse to the same operating point in the
+   logistic-loss regime.
+
+3. **Why MSE responds to V3 but hashnet does not.** MSE-Jaccard makes the
+   per-pair target a sharp function of label overlap, so any extra
+   per-sample text variation flows through to per-sample code variation.
+   The hashnet binary logistic only cares about sign-of-score, so all
+   positives are pushed into the same `score > 0` half-plane regardless
+   of how nuanced the underlying text was — the V3 prompt's extra
+   information has nowhere to land.
+
+Decision: keep V3 prompt available (cache stays at
+`./cache/flickr25k_qwen_v3.jsonl` and `./cache/flickr25k_siglip2_v3/`)
+for any future MSE-form ablations or for cross-dataset narratives, but
+do not adopt it as the default on the current hashnet-based runs. The
+Pareto frontier is unchanged: v20-K64 (max mAP), v23b (mAP-tied at
+slightly higher unique), v24b (balanced — high unique).
+
+Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
+
+---
+
 ## 2026-05-14 — Repository placed under git version control
 
 🟢 active — pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
