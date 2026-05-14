@@ -67,6 +67,8 @@ toggle for "compositional-code-prioritising" runs. v20-K64 (with gate)
 keeps the absolute mAP record by 0.0015; v23b is the better choice when
 unique-code count matters for the paper claim.
 
+Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
+
 ---
 
 ## 2026-05-14 — Repository placed under git version control
