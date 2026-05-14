@@ -1,0 +1,55 @@
+# --------------------------------------------------------------
+# GroundedDNA — version-control exclusions
+# --------------------------------------------------------------
+# Large artefacts / experimental scratch space the user explicitly
+# asked to keep out of the GitHub mirror (see README + PROJECT_LOG).
+
+# experimental results / parameter dumps
+result/
+result_baseline/
+params/
+params_baseline/
+compress_baseline/
+
+# archived run snapshots
+backup/
+
+# slide / report exports
+slides_assets/
+
+# pre-extracted feature caches + Qwen text caches + training logs
+cache/
+
+# dataset directories — exclude the actual image folders and raw archives
+# but keep the per-dataset `setting1/*.txt` split files because they define
+# the train / db / test partitions and are needed to reproduce results.
+# `images` / `val_image` are symlinks pointing to non-portable absolute paths
+# on the dev machine, so excluding them avoids broken-symlink commits.
+dataset/*/images
+dataset/*/images/
+dataset/*/image
+dataset/*/val_image
+dataset/*/comp/
+dataset/*/past/
+dataset/*/*.tar.gz
+dataset/*/*.zip
+dataset/CIFAR10/cifar-10-batches-py/
+dataset/CIFAR10/cifar-10-python.tar.gz
+
+# any hidden / private dotted folders (.claude, .conda, .vscode, ...)
+.*/
+!.gitignore
+!.github/
+
+# python build artefacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.ipynb_checkpoints/
+
+# generic
+*.log
+*.tmp
+*.swp
+.DS_Store
