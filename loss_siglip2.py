@@ -433,7 +433,15 @@ class DNACodonHashLoss(nn.Module):
             loss_hash = self._loss_hash_hashnet(u, S, mask)
         else:
             loss_hash = self._loss_hash(u, S, mask)
-        # hard-path retrieval loss via STE (None-safe)
+        # hard-path retrieval loss via STE (None-safe).
+        # NOTE: We deliberately keep `loss_hash_hard` on the MSE-Jaccard form
+        # even when `lambda_hash_type=hashnet`. The v25 ablation showed that
+        # the mixed combo (logistic soft / MSE-Jaccard hard) is what actually
+        # produces v23b's unique-code-ratio 0.111: the Jaccard target on the
+        # hard path injects a graduated per-image target that prevents same-
+        # label clusters from collapsing onto a single hash. Switching the
+        # hard path to hashnet form (v25a: −0.027 mAP, unique 0.044) or
+        # disabling it (v25b: −0.025 mAP, unique 0.051) both regress.
         if u_st is not None:
             loss_hash_hard = self._loss_hash_hard(u_st, S, mask)
         else:

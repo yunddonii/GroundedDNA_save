@@ -151,6 +151,56 @@ Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
 
 ---
 
+## 2026-05-14 — v25a / v25b: `loss_hash_hard` form ablation
+
+🔴 both reverted — confirms that the **mixed loss form** in v23b is intentional.
+
+User question: should the STE hard-code retrieval loss (`loss_hash_hard`,
+λ=0.5) follow the same form as `loss_hash`? It is currently always MSE-
+Jaccard even when `lambda_hash_type=hashnet`. Two ablations launched in
+parallel from the v23b setup (K=64, no global gate):
+
+- **v25a**: route the STE hard code through `_loss_hash_hashnet` whenever
+  `lambda_hash_type=hashnet` so soft and hard paths share the logistic form.
+- **v25b**: `--lambda_hash_hard 0.0` — disable the hard-path loss entirely.
+
+Result (Flickr25k):
+
+| run                                |   mAP  | Δ vs v23b | unique | dup    | gap |
+|------------------------------------|-------:|----------:|-------:|-------:|----:|
+| v23b (mixed form)                  | 0.7877 |    —      | 0.1107 | 0.8893 | 5.05 |
+| **v25a (hashnet form on hard)**    | 0.7608 | **−0.027** | 0.0444 | 0.9556 | 4.63 |
+| **v25b (lambda_hash_hard=0)**      | 0.7631 | **−0.025** | 0.0512 | 0.9488 | 5.00 |
+
+Both regress on **both axes** — mAP AND unique simultaneously. The
+unique-code count drops to 0.044 / 0.051 (half of v23b) which contradicts
+the prior hypothesis that "hard MSE-Jaccard was the collision source".
+
+Reinterpretation: the soft-and-hard combination is doing complementary
+work:
+
+- `loss_hash` (hashnet binary) gives a **margin signal** — push positives
+  above 0, negatives below 0 — but lets all positives pile onto one
+  cluster.
+- `loss_hash_hard` (MSE-Jaccard on STE-quantised codes) supplies a
+  **graduated target** per pair (Jaccard ∈ [0,1] instead of {0,1}). For
+  partial-overlap positives it asks for `sim_dna ≈ 0.33` not `sim_dna ≈ 1`,
+  which gives the model room to spread same-cluster samples across nearby
+  codes instead of merging them.
+
+Remove or homogenise that signal and the model collapses onto fewer
+hash codes (unique 0.11 → 0.04) AND the hard path loses its train↔test
+bridge (mAP −0.025).
+
+The forward branch was reverted to "soft → hashnet if selected; hard →
+always MSE-Jaccard". The comment in the code documents the rationale so
+future passes don't try the same thing again. `--lambda_hash_hard` stays
+in the CLI as a tunable knob (with the v25b result as warning).
+
+Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
+
+---
+
 ## 2026-05-14 — Repository placed under git version control
 
 🟢 active — pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
