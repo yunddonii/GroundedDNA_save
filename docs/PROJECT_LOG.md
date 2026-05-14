@@ -201,6 +201,46 @@ Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
 
 ---
 
+## 2026-05-14 — v27a: unsupervised hash target (frozen SigLIP2 cosine) [running]
+
+🟢 new ablation — replaces the label-derived Jaccard pairwise similarity
+in `loss_hash` / `loss_hash_hard` with the frozen SigLIP2 visual_global
+cosine similarity, rescaled `(cos+1)/2 ∈ [0,1]`. Goal: put GroundedDNA in
+the same supervision regime as the four unsupervised baselines (CIBHash,
+CIMON, SPQ, MLS3RDUH) so the comparison is apples-to-apples.
+
+Motivation:
+- The current best v18-family loss treats Jaccard of `multi_hot_labels`
+  as the pairwise target — that is a label-supervised signal, structurally
+  identical to HashNet / DPSH / CSQ / OrthoHash. Calling our method
+  "compositional unsupervised" while the hash supervision itself is fully
+  supervised is misleading.
+- CIBHash / CIMON / SPQ / MLS3RDUH all sidestep labels by deriving the
+  pairwise target from feature-space proximity (NtXent positives, spectral
+  pseudo-labels, kNN graphs). Using SigLIP2's frozen visual_global cosine
+  is the cleanest version of that pattern given our existing cache.
+
+Implementation (`loss_siglip2.py` + `config.py`, ~25 LoC additive):
+- New CLI flag `--hash_target_mode {jaccard, siglip_cos}`. Default
+  `jaccard` preserves the legacy supervised behaviour bit-perfectly.
+- New helper `build_siglip_cos_similarity(visual_global_feat)` returns
+  `[B, B]` in `[0, 1]` from the frozen SigLIP2 image embedding (detached).
+- `DNACodonHashLoss.forward` branches on `hash_target_mode`: when set to
+  `siglip_cos` it pulls `outputs["visual_global_feat"]` (always populated
+  by `model_siglip2.forward`, both for the live and the cached path).
+  When `jaccard`, the label-similarity matrix path is untouched.
+- The criterion still accepts `multi_hot_labels` in unsupervised mode;
+  they are silently unused. No data-pipeline change needed.
+
+Pareto target for v27a: regress mAP gracefully (expect 0.70-0.76) while
+unique stays comparable to v24b's 0.324 — the SigLIP2 cosine target is
+much smoother than binary Jaccard, so same-class pairs no longer get
+forced onto an identical score.
+
+Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
+
+---
+
 ## 2026-05-14 — v26a / v26b: V3 prompt × current SOTA setups → both regress
 
 🟡 superseded — V3 prompt helps v6 (MSE form) but not v18+ (hashnet form).
@@ -256,6 +296,80 @@ Pareto frontier is unchanged: v20-K64 (max mAP), v23b (mAP-tied at
 slightly higher unique), v24b (balanced — high unique).
 
 Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
+
+---
+
+## 2026-05-14 — MSCOCO baseline comparison in 4-base DNA space (fair-axis ablation)
+
+🟢 reference
+
+Motivation: the existing 2026-05-12 cross-dataset table compares baselines
+in their native **36-bit binary** space against our model in **18-base
+DNA** space. The two spaces use different distance metrics (signed binary
+Hamming vs base-level Hamming) and different "unique code" semantics
+(36-bit string vs 18-base sequence), which makes the mAP / unique trade-off
+not directly comparable. This ablation forces every method onto the same
+DNA axis.
+
+Procedure:
+1. Re-train OrthoHash / HashNet / DPSH on MSCOCO setting1 (60 epochs,
+   36-bit head on cached SigLIP2, identical optimiser to the 2026-05-12
+   run). CSQ skipped — its 260512 run had failed to produce a result.
+   Trial names: `<method>_mscoco_dnacompare` under
+   `result_baseline/260514/`, checkpoints at `params/260514/`.
+2. Re-extract sign-binary codes `{-1,+1}^36` on query (5,000) and DB
+   (107,218).
+3. Convert to 18-base DNA: reshape `[N, 36] → [N, 18, 2]`, map
+   `{00=A, 01=C, 10=G, 11=T}` (same `BASE_TO_BITS` convention as
+   `dna_utils/dna_code_utils.py`).
+4. Run `evaluation_siglip2.evaluate_retrieval(..., distance_mode='base')`
+   — base-level Hamming, multi-hot Jaccard relevance. `unique_code_ratio`
+   computed over the full 18-base sequences.
+5. Compare to Ours v6_promptv3, which already produces base codes
+   natively (`result/260514+mscoco_setting1_v6_promptv3.../`).
+
+Conversion + eval script: `/tmp/convert_baseline_to_dna_eval.py`. Summary
+dump: `cache/baseline_mscoco_dna/summary.json`.
+
+| Method               | mAP (base) | Δ vs native binary mAP | Unique DNA codes / 107,218 | Unique % |
+|----------------------|-----------:|-----------------------:|---------------------------:|---------:|
+| **OrthoHash**        | **0.6025** | −0.022 (was 0.6243)    | 88,774                     | 82.80%   |
+| **HashNet**          |   0.6015   | −0.006 (was 0.6076)    | 31,489                     | 29.37%   |
+| **Ours v6_promptv3** |   0.5339   | (DNA-native, no Δ)     | 21,688                     | **20.23%** |
+| **DPSH**             |   0.4637   | +0.007 (was 0.4567)    |    138                     |  0.13%   |
+
+Findings:
+
+1. **mAP gap survives the axis change.** OrthoHash / HashNet stay ahead of
+   v6_promptv3 by +0.07 even after collapsing their 36-bit space into 18
+   base pairs. The base-mode handicap (1-bit-different and 2-bits-different
+   pairs both count as one mismatch) costs them at most −0.022 mAP, not
+   enough to close the gap.
+
+2. **Compression axis is where our model wins.** v6_promptv3 produces 4×
+   fewer unique DB codes than OrthoHash (21.7k vs 88.8k) and ~1.5× fewer
+   than HashNet. That's by design — the codebook-VQ + DNA construction
+   actively shares codes across semantically similar images, whereas
+   OrthoHash's 36 bits are effectively unconstrained random per image.
+
+3. **DPSH is degenerate.** 138 unique codes across 107K images = 99.87%
+   collapse. Its mAP 0.4637 is therefore not a meaningful retrieval signal
+   — it ranks within a tiny number of equivalence classes. Should be
+   excluded from any "compactness vs retrieval" discussion.
+
+4. **No apples-to-apples Pareto neighbour.** None of the binary baselines
+   live in our compression regime (20% unique). Reporting this as
+   "Pareto-incomparable" is more honest than reporting only mAP.
+
+Practical implication for the paper: when claiming retrieval mAP we should
+report the **native distance** for each method (OrthoHash 0.6243 vs Ours
+0.5339), not the base-mode rewrite — base mode unfairly handicaps the
+binary baselines. The DNA-axis numbers above are the right context for
+the **compression** claim (unique-code ratio), not the retrieval claim.
+
+CSQ MSCOCO still missing — its 260512 trial folder contains only
+`config.json`. Re-add to a future re-run if a 4-method baseline panel is
+needed.
 
 ---
 

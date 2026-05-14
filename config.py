@@ -261,6 +261,19 @@ class Config():
                  "v18 behaviour). Setting <1.0 leaves a residual degree of "
                  "freedom inside each same-powerset cluster -> distinct codes "
                  "per cluster -> higher unique_code_ratio. Try 0.95 or 0.90.")
+        # ---------- Unsupervised hash target (v27a) ---------------------
+        # Replaces the label-derived Jaccard pairwise similarity S used by
+        # loss_hash / loss_hash_hard with a self-supervised similarity
+        # computed from the frozen SigLIP2 visual_global embedding. Makes
+        # the retrieval objective truly unsupervised (cf. CIBHash, CIMON,
+        # SPQ, MLS3RDUH). 'jaccard' (default) preserves legacy supervised
+        # behaviour. 'siglip_cos' rescales cosine sim ∈ [-1, 1] → [0, 1].
+        loss_arg.add_argument('--hash_target_mode',    type=str, default='jaccard',
+            choices=['jaccard', 'siglip_cos'],
+            help="How to build the pairwise similarity target S for "
+                 "loss_hash/loss_hash_hard. 'jaccard' uses multi_hot labels "
+                 "(supervised). 'siglip_cos' uses frozen SigLIP2 visual_global "
+                 "cosine similarity rescaled to [0,1] (unsupervised).")
         loss_arg.add_argument('--lambda_wasserstein',  type=float, default=0.0,
             help="Weight for the entropic-OT Wasserstein loss (per-sample "
                  "<pi, cost> from the Sinkhorn router, restored for v24a). "

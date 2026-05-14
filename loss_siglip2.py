@@ -85,6 +85,23 @@ def build_label_similarity(
     )
 
 
+def build_siglip_cos_similarity(
+    visual_global_feat: torch.Tensor,
+) -> torch.Tensor:
+    """Return self-supervised pairwise similarity from frozen SigLIP2 features.
+
+    visual_global_feat : [B, D_proj]   SigLIP2 image embedding (frozen).
+    Returns S ∈ [0, 1] via S = (cos_sim + 1) / 2, fully detached.
+
+    Used when `hash_target_mode == 'siglip_cos'` (v27a) to remove the label
+    signal from loss_hash / loss_hash_hard and run a truly unsupervised
+    setting comparable to CIBHash / CIMON / SPQ / MLS3RDUH.
+    """
+    v = F.normalize(visual_global_feat.detach().float(), dim=-1)   # [B, D]
+    cos = v @ v.T                                                  # [B, B] ∈ [-1, 1]
+    return ((cos + 1.0) * 0.5).clamp(0.0, 1.0)                     # [B, B] ∈ [ 0, 1]
+
+
 # --------------------------------------------------------------- main loss
 
 class DNACodonHashLoss(nn.Module):
@@ -136,6 +153,11 @@ class DNACodonHashLoss(nn.Module):
         # codes within the cluster -> higher unique_code_ratio. Default 1.0
         # disables the cap and reproduces v18.
         self.hashnet_S_cap     = float(getattr(cfg, "hashnet_S_cap",   1.0))
+        # v27a: source of the pairwise similarity target S for
+        # loss_hash / loss_hash_hard. 'jaccard' (default) uses multi_hot
+        # labels (supervised). 'siglip_cos' substitutes the frozen SigLIP2
+        # visual_global cosine similarity rescaled to [0,1] (unsupervised).
+        self.hash_target_mode  = str  (getattr(cfg, "hash_target_mode", "jaccard"))
         self.lambda_vq         = float(getattr(cfg, "lambda_vq",        0.25))
         self.lambda_quant      = float(getattr(cfg, "lambda_quant",     0.05))
         self.lambda_anchor     = float(getattr(cfg, "lambda_anchor",    0.05))
@@ -424,7 +446,18 @@ class DNACodonHashLoss(nn.Module):
 
         device = u.device
         B = u.shape[0]
-        S = build_label_similarity(labels=labels, multi_hot_labels=multi_hot_labels).to(device)
+        if self.hash_target_mode == "siglip_cos":
+            vg = outputs.get("visual_global_feat")
+            if vg is None:
+                raise ValueError(
+                    "[DNACodonHashLoss] hash_target_mode='siglip_cos' requires "
+                    "outputs['visual_global_feat']. Either run with a SigLIP2 "
+                    "feature cache that includes visual_global or feed live "
+                    "pixel_values so the model populates it."
+                )
+            S = build_siglip_cos_similarity(vg).to(device)
+        else:
+            S = build_label_similarity(labels=labels, multi_hot_labels=multi_hot_labels).to(device)
         mask = get_off_diagonal_mask(B, device)
 
         # ---- individual losses -------------------------------------------
