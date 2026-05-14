@@ -15,7 +15,13 @@ Format conventions:
 
 ---
 
-## Current state (as of 2026-05-13)
+## 2026-05-14 — Repository placed under git version control
+
+🟢 active — pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
+
+---
+
+## Current state (as of 2026-05-14)
 
 - **Best Flickr25k**: **v18** = v6 baseline + `loss_hash` replaced with
   HashNet-style class-weighted logistic likelihood on the DNA continuous
