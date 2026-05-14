@@ -269,11 +269,20 @@ class Config():
         # SPQ, MLS3RDUH). 'jaccard' (default) preserves legacy supervised
         # behaviour. 'siglip_cos' rescales cosine sim ∈ [-1, 1] → [0, 1].
         loss_arg.add_argument('--hash_target_mode',    type=str, default='jaccard',
-            choices=['jaccard', 'siglip_cos'],
+            choices=['jaccard', 'siglip_cos', 'siglip_cos_topk'],
             help="How to build the pairwise similarity target S for "
                  "loss_hash/loss_hash_hard. 'jaccard' uses multi_hot labels "
                  "(supervised). 'siglip_cos' uses frozen SigLIP2 visual_global "
-                 "cosine similarity rescaled to [0,1] (unsupervised).")
+                 "cosine similarity rescaled to [0,1] (unsupervised, but "
+                 "v27a showed it collapses because the cos distribution is "
+                 "narrow around 0.7-0.9). 'siglip_cos_topk' binarizes the "
+                 "cosine sim at the (1 - siglip_cos_pos_rate) quantile "
+                 "within the batch -> top fraction get S=1, rest S=0 "
+                 "(CIBHash/CIMON-style pseudo-positives, v27b).")
+        loss_arg.add_argument('--siglip_cos_pos_rate',  type=float, default=0.2,
+            help="When hash_target_mode='siglip_cos_topk', fraction of "
+                 "off-diagonal pairs marked positive (S=1). Default 0.2 "
+                 "(top-20% feature-similar pairs are pseudo-positives).")
         loss_arg.add_argument('--lambda_wasserstein',  type=float, default=0.0,
             help="Weight for the entropic-OT Wasserstein loss (per-sample "
                  "<pi, cost> from the Sinkhorn router, restored for v24a). "

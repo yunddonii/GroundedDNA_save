@@ -201,43 +201,70 @@ Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
 
 ---
 
-## 2026-05-14 — v27a: unsupervised hash target (frozen SigLIP2 cosine) [running]
+## 2026-05-14 — v27b: unsupervised hash target (SigLIP2 cos top-k pseudo-positives) [running]
 
-🟢 new ablation — replaces the label-derived Jaccard pairwise similarity
-in `loss_hash` / `loss_hash_hard` with the frozen SigLIP2 visual_global
-cosine similarity, rescaled `(cos+1)/2 ∈ [0,1]`. Goal: put GroundedDNA in
-the same supervision regime as the four unsupervised baselines (CIBHash,
-CIMON, SPQ, MLS3RDUH) so the comparison is apples-to-apples.
+🟢 follow-up to v27a — replaces the continuous cosine target with a
+binary {0, 1} top-k pseudo-label scheme to fix v27a's collapse. The top
+`siglip_cos_pos_rate=0.2` fraction of off-diagonal pairs (ranked by
+SigLIP2 visual_global cosine within each batch) get S=1, the rest S=0.
 
-Motivation:
-- The current best v18-family loss treats Jaccard of `multi_hot_labels`
-  as the pairwise target — that is a label-supervised signal, structurally
+Why v27a failed (diagnosed below) and v27b should fix it:
+- SigLIP2 image embeddings on Flickr25k have cosine sim distributed in
+  roughly `[0.5, 0.9]` (natural-image features sit on a narrow cone). The
+  rescale `(cos+1)/2` yields S ≈ 0.85 for nearly every pair.
+- HashNet logistic with `S_target ≈ 0.85` everywhere computes gradient
+  `sigmoid(score) − 0.85`, i.e. **monotonically positive** for almost all
+  pairs: every pair pushes its `score → +∞`. All sample codes collapse
+  to a single positive cluster.
+
+v27b mechanism:
+- Binarize via `tau = quantile(cos_offdiag, 0.8)` within each batch, so
+  exactly 20% of off-diagonal pairs are positive and 80% are negative.
+  Mirrors CIBHash (NtXent positive/negative split), CIMON (binarized
+  spectral pseudo-labels), MLS3RDUH (binary kNN graph).
+- The HashNet logistic now sees a mix of S=1 and S=0 targets, restoring
+  the contrastive pressure that spreads codes across the codebook.
+
+Implementation:
+- New helper `build_siglip_cos_topk_similarity(visual_global, pos_rate)`
+  in `loss_siglip2.py`.
+- New `--hash_target_mode siglip_cos_topk` and `--siglip_cos_pos_rate 0.2`
+  CLI flags in `config.py`. The continuous `siglip_cos` mode is retained
+  for the record but expected to remain useless on natural-image data.
+
+Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
+
+---
+
+## 2026-05-14 — v27a: unsupervised hash target (frozen SigLIP2 cosine) [collapsed → killed]
+
+🔴 reverted — continuous SigLIP2 cosine target collapses on natural-image
+data (Flickr25k cos distribution is narrow around 0.7–0.9 → S target is
+near-uniform 0.85 → HashNet logistic pushes every pair into the same
+positive code cluster).
+
+| run                              | epoch |   mAP  | unique | dead  |
+|----------------------------------|------:|-------:|-------:|------:|
+| v24b (supervised, SOTA balanced) |  60   | 0.7742 | 0.3242 | 0.000 |
+| v27a (siglip_cos)                |   9   | 0.5393 | 0.0005 | 0.875 |
+| v27a (siglip_cos)                |  14   | 0.5393 | 0.0005 | 0.844 |
+| v27a (siglip_cos)                |  19   | 0.5393 | 0.0005 | 0.794 |
+
+mAP perfectly flat across three checkpoints — fully degenerate state.
+Killed at epoch 19; result directory deleted to keep `result/` clean. The
+`siglip_cos` mode remains in the codebase (gated by `--hash_target_mode`)
+as a documented negative finding and the starting point for the v27b fix.
+
+Original motivation (kept for context):
+- The v18-family loss treats Jaccard of `multi_hot_labels` as the
+  pairwise target — that is a label-supervised signal, structurally
   identical to HashNet / DPSH / CSQ / OrthoHash. Calling our method
   "compositional unsupervised" while the hash supervision itself is fully
   supervised is misleading.
-- CIBHash / CIMON / SPQ / MLS3RDUH all sidestep labels by deriving the
+- CIBHash / CIMON / SPQ / MLS3RDUH sidestep labels by deriving the
   pairwise target from feature-space proximity (NtXent positives, spectral
-  pseudo-labels, kNN graphs). Using SigLIP2's frozen visual_global cosine
-  is the cleanest version of that pattern given our existing cache.
-
-Implementation (`loss_siglip2.py` + `config.py`, ~25 LoC additive):
-- New CLI flag `--hash_target_mode {jaccard, siglip_cos}`. Default
-  `jaccard` preserves the legacy supervised behaviour bit-perfectly.
-- New helper `build_siglip_cos_similarity(visual_global_feat)` returns
-  `[B, B]` in `[0, 1]` from the frozen SigLIP2 image embedding (detached).
-- `DNACodonHashLoss.forward` branches on `hash_target_mode`: when set to
-  `siglip_cos` it pulls `outputs["visual_global_feat"]` (always populated
-  by `model_siglip2.forward`, both for the live and the cached path).
-  When `jaccard`, the label-similarity matrix path is untouched.
-- The criterion still accepts `multi_hot_labels` in unsupervised mode;
-  they are silently unused. No data-pipeline change needed.
-
-Pareto target for v27a: regress mAP gracefully (expect 0.70-0.76) while
-unique stays comparable to v24b's 0.324 — the SigLIP2 cosine target is
-much smoother than binary Jaccard, so same-class pairs no longer get
-forced onto an identical score.
-
-Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
+  pseudo-labels, kNN graphs). v27a was the simplest version of that — and
+  it failed because the cos distribution on natural images is too narrow.
 
 ---
 

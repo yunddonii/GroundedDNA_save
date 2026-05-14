@@ -96,10 +96,51 @@ def build_siglip_cos_similarity(
     Used when `hash_target_mode == 'siglip_cos'` (v27a) to remove the label
     signal from loss_hash / loss_hash_hard and run a truly unsupervised
     setting comparable to CIBHash / CIMON / SPQ / MLS3RDUH.
+
+    NOTE: v27a empirically collapses (mAP 0.54, unique 5e-4) because the
+    SigLIP2 cos distribution is narrow around [0.7, 0.9], so the rescaled
+    S target is ~0.85 for all pairs — the HashNet logistic then pushes
+    every pair toward the same positive code. Use
+    `build_siglip_cos_topk_similarity` (v27b) for a binarized variant
+    that mixes positive and negative pseudo-labels.
     """
     v = F.normalize(visual_global_feat.detach().float(), dim=-1)   # [B, D]
     cos = v @ v.T                                                  # [B, B] ∈ [-1, 1]
     return ((cos + 1.0) * 0.5).clamp(0.0, 1.0)                     # [B, B] ∈ [ 0, 1]
+
+
+def build_siglip_cos_topk_similarity(
+    visual_global_feat: torch.Tensor,
+    pos_rate: float = 0.2,
+) -> torch.Tensor:
+    """Binary pseudo-label pairwise similarity from SigLIP2 cos top-k.
+
+    visual_global_feat : [B, D_proj]   SigLIP2 image embedding (frozen).
+    pos_rate           : fraction of off-diagonal pairs marked positive.
+
+    Returns S ∈ {0, 1} where the top `pos_rate` fraction of off-diagonal
+    cosine similarities (within the batch) are 1 and the rest are 0.
+    Diagonal is forced to 1 (self-similarity).
+
+    Self-supervised replacement for the supervised Jaccard target. The
+    binarization fixes v27a's collapse: half the pairs now provide a
+    "stay apart" signal, restoring the contrastive pressure that the
+    HashNet logistic needs to spread codes across the codebook. Matches
+    the operational pattern of CIBHash (NtXent positives), CIMON (spectral
+    pseudo-labels), and MLS3RDUH (kNN graph).
+    """
+    v = F.normalize(visual_global_feat.detach().float(), dim=-1)   # [B, D]
+    cos = v @ v.T                                                  # [B, B] ∈ [-1, 1]
+    B = cos.shape[0]
+    mask = ~torch.eye(B, dtype=torch.bool, device=cos.device)      # [B, B]
+    offdiag = cos[mask]                                            # [B*(B-1)]
+    rate = float(pos_rate)
+    rate = max(min(rate, 1.0 - 1e-6), 1e-6)
+    tau = torch.quantile(offdiag, 1.0 - rate)                       # scalar
+    S = (cos > tau).to(cos.dtype)                                   # [B, B]
+    # Diagonal: always self-similar (mirrors Jaccard / one-hot conventions).
+    S = S.masked_fill(~mask, 1.0)
+    return S
 
 
 # --------------------------------------------------------------- main loss
@@ -158,6 +199,7 @@ class DNACodonHashLoss(nn.Module):
         # labels (supervised). 'siglip_cos' substitutes the frozen SigLIP2
         # visual_global cosine similarity rescaled to [0,1] (unsupervised).
         self.hash_target_mode  = str  (getattr(cfg, "hash_target_mode", "jaccard"))
+        self.siglip_cos_pos_rate = float(getattr(cfg, "siglip_cos_pos_rate", 0.2))
         self.lambda_vq         = float(getattr(cfg, "lambda_vq",        0.25))
         self.lambda_quant      = float(getattr(cfg, "lambda_quant",     0.05))
         self.lambda_anchor     = float(getattr(cfg, "lambda_anchor",    0.05))
@@ -446,16 +488,19 @@ class DNACodonHashLoss(nn.Module):
 
         device = u.device
         B = u.shape[0]
-        if self.hash_target_mode == "siglip_cos":
+        if self.hash_target_mode in ("siglip_cos", "siglip_cos_topk"):
             vg = outputs.get("visual_global_feat")
             if vg is None:
                 raise ValueError(
-                    "[DNACodonHashLoss] hash_target_mode='siglip_cos' requires "
+                    "[DNACodonHashLoss] hash_target_mode='siglip_cos*' requires "
                     "outputs['visual_global_feat']. Either run with a SigLIP2 "
                     "feature cache that includes visual_global or feed live "
                     "pixel_values so the model populates it."
                 )
-            S = build_siglip_cos_similarity(vg).to(device)
+            if self.hash_target_mode == "siglip_cos_topk":
+                S = build_siglip_cos_topk_similarity(vg, pos_rate=self.siglip_cos_pos_rate).to(device)
+            else:
+                S = build_siglip_cos_similarity(vg).to(device)
         else:
             S = build_label_similarity(labels=labels, multi_hot_labels=multi_hot_labels).to(device)
         mask = get_off_diagonal_mask(B, device)
