@@ -205,6 +205,7 @@ def main(args: Config):
         'loss_anchor',
         'loss_dna', 'loss_entropy', 'loss_base_balance',
         'loss_bu', 'loss_cb_balance', 'loss_cb_uncorr',
+        'loss_wasserstein',
     ]
 
     # ---------- per-epoch CSV logger ---------------------------------------

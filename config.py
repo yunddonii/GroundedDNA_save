@@ -261,6 +261,10 @@ class Config():
                  "v18 behaviour). Setting <1.0 leaves a residual degree of "
                  "freedom inside each same-powerset cluster -> distinct codes "
                  "per cluster -> higher unique_code_ratio. Try 0.95 or 0.90.")
+        loss_arg.add_argument('--lambda_wasserstein',  type=float, default=0.0,
+            help="Weight for the entropic-OT Wasserstein loss (per-sample "
+                 "<pi, cost> from the Sinkhorn router, restored for v24a). "
+                 "v11 found 0.05 to be the Flickr sweet spot.")
         loss_arg.add_argument('--eta_base_balance',    type=float, default=1.0,
             help="Coefficient on the per-position base-balance term inside "
                  "loss_dna (= loss_entropy + eta * loss_base_balance). v18 "

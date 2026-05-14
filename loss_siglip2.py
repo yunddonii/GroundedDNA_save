@@ -118,6 +118,12 @@ class DNACodonHashLoss(nn.Module):
         #              reduce the 60% Flickr collision rate.
         self.lambda_hash_type  = str  (getattr(cfg, "lambda_hash_type", "mse"))
         self.hashnet_alpha     = float(getattr(cfg, "hashnet_alpha",    1.0))
+        # Wasserstein alignment loss (R4 in v11, restored for v24a).
+        # Uses the per-sample <pi, cost> already computed by the Sinkhorn
+        # router; adding it as a loss term pulls the visual_adapter +
+        # text_adapter into a shared space where the OT transport cost is
+        # small. Default 0.0 keeps it off; v11 sweet spot was 0.05.
+        self.lambda_wasserstein = float(getattr(cfg, "lambda_wasserstein", 0.0))
         # If True, the hashnet logistic uses fractional Jaccard S instead of
         # binary any-shared S. Preserves per-label-combo granularity in the
         # target probability so different powerset combinations get different
@@ -443,6 +449,12 @@ class DNACodonHashLoss(nn.Module):
         )
         dna_components = self._loss_dna(u)
         bu_components  = self._loss_bu(distances)
+        # Wasserstein alignment: per-sample <pi, cost> from the router (None-safe).
+        ot = outputs.get("ot_cost")
+        if ot is not None:
+            loss_wasserstein = ot.mean()
+        else:
+            loss_wasserstein = u.new_zeros(())
 
         loss_dna = dna_components["loss_dna"]
         loss_bu  = bu_components ["loss_bu"]
@@ -462,6 +474,7 @@ class DNACodonHashLoss(nn.Module):
             + self.lambda_anchor     * loss_anchor
             + self.lambda_dna        * loss_dna
             + eff_lambda_bu          * loss_bu
+            + self.lambda_wasserstein * loss_wasserstein
         )
 
         return {
@@ -471,6 +484,7 @@ class DNACodonHashLoss(nn.Module):
             "loss_vq":           loss_vq,
             "loss_quant":        loss_quant,
             "loss_anchor":       loss_anchor,
+            "loss_wasserstein":  loss_wasserstein,
             "loss_dna":          loss_dna,
             "loss_bu":           loss_bu,
             "loss_entropy":      dna_components["loss_entropy"],

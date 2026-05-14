@@ -71,6 +71,86 @@ Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
 
 ---
 
+## 2026-05-14 — v24a (Wasserstein restored + no gate), v24b (Jaccard + no gate)
+
+🟢 v24b is a **new Pareto point** (mAP > v6, unique 3x v23b). v24a is
+inactive (no net benefit over v23b).
+
+Goal: revisit two previously-killed loss/target choices now that v23b has
+opened the (mAP ≈ 0.788, unique ≈ 0.11) corner of the frontier without a
+C_0 gate.
+
+### v24a — Wasserstein restored, K=64, no gate
+
+R4's `lambda_wasserstein` (v11 sweet spot 0.05) was removed during the
+2026-05-13 cleanup. The Sinkhorn router still computes `ot_cost`; we
+re-added the loss term plus its config / train-types entry. Smoke test
+confirmed gradient flow.
+
+| run                            |   mAP  | unique | dup    | dead  | pos→neg gap |
+|--------------------------------|-------:|-------:|-------:|------:|------------:|
+| v23b (no gate, binary S)       | 0.7877 | 0.1107 | 0.8893 | 0.005 | 5.05 |
+| **v24a (v23b + Wasserstein 0.05)** | 0.7881 | 0.0734 | 0.9266 | 0.000 | **5.38** |
+
+mAP is statistically tied with v23b (+0.0004). The Wasserstein term
+widened the pos→neg Hamming gap from 5.05 to 5.38 (best of any variant
+so far), but it collapsed the per-image unique count: 0.111 → 0.073, the
+LOWEST in the v18-derived line. Net result: the extra OT alignment
+trades unique codes for margin without buying any mAP. Not Pareto-
+improving on v23b. `--lambda_wasserstein` stays in the tree but
+defaults to 0.
+
+### v24b — Jaccard target + no gate, K=64
+
+The other never-combined ablation: replace binary `S = any-shared` with
+fractional `S = Jaccard`, on top of v23b (no gate). Hypothesis: with the
+gate gone, the model has the structural room to honour Jaccard's
+graduated target probabilities instead of collapsing all positive pairs
+onto a single cluster.
+
+| run                            |   mAP  | unique | dup    | dead  | pos→neg gap |
+|--------------------------------|-------:|-------:|-------:|------:|------------:|
+| v19a (Jaccard + gate, K=32)    | 0.7728 | 0.2240 | 0.7760 | 0.000 | 3.90 |
+| v23b (binary + no gate, K=64)  | 0.7877 | 0.1107 | 0.8893 | 0.005 | 5.05 |
+| **v24b (Jaccard + no gate, K=64)** | 0.7742 | **0.3237** | 0.6763 | 0.000 | 3.81 |
+| v6 (MSE-Jaccard, K=32)         | 0.7556 | 0.3958 | 0.6042 | 0.000 | 2.86 |
+
+v24b is now the strongest "balanced" variant on the (mAP, unique) plane:
+- vs v6 baseline (the prior balanced anchor): mAP +0.0186, unique only
+  drops 0.07 (0.396 → 0.324).
+- vs v19a (previous Pareto balanced point): mAP +0.0014, unique
+  **+0.0997** (0.224 → 0.324) — strict Pareto-dominate.
+- vs v23b (current default operating point): mAP −0.014, unique **+0.213**
+  (0.111 → 0.324) — different trade-off, not a strict dominance.
+
+Mid-eval trajectory was characteristic: starts low (ep10 mAP 0.7343 with
+unique 0.435) because Jaccard granular targets need more time to settle,
+then climbs to 0.76 range while unique stays 0.6+. The final hash code
+fans out into 7,448 distinct hashes for 23K DB images vs v18's 2,243.
+
+Updated Pareto frontier:
+```
+mAP
+0.79  v20-K64 ⭐ (max)   v18   v24a   v23b
+0.78
+0.77                                          ⭐ v24b ⭐ (max-balance)
+0.76                            v19a
+0.75  v6
+      +-----------+-----------+-----------+-----------> unique
+      0.10        0.20        0.30        0.40
+```
+
+### Recommendation
+
+Paper-wise, **report both v20-K64 and v24b** — same dataset, same backbone,
+same training budget, just different `lambda_hash_type` and target form.
+The pair gives a clean (high-mAP) ↔ (high-unique-compositional) trade-off
+story instead of forcing one number to do everything.
+
+Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
+
+---
+
 ## 2026-05-14 — Repository placed under git version control
 
 🟢 active — pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
