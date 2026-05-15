@@ -201,7 +201,73 @@ Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
 
 ---
 
-## 2026-05-14 — v27b: unsupervised hash target (SigLIP2 cos top-k pseudo-positives) [running]
+## 2026-05-15 — Unsupervised baseline comparison: v27b vs CIBHash / CIMON / MLS3RDUH
+
+🔴 honest finding — under a fully unsupervised supervision regime,
+GroundedDNA (v27b) underperforms two of the three unsupervised baselines
+we managed to run on the same Flickr25k setting1, same backbone (frozen
+SigLIP2-base), same 36-bit storage, and same train / query / database
+splits.
+
+Result table (Flickr25k setting1, 60 epoch, bs=64, frozen SigLIP2):
+
+| Method        | Supervision           | mAP    | P@1    | P@100  | P@1000 |
+|---------------|-----------------------|-------:|-------:|-------:|-------:|
+| CIBHash       | NtXent (paired aug)   | **0.6543** | 0.8350 | 0.8111 | 0.7648 |
+| CIMON         | NtXent + spectral PL  | 0.6456 | 0.8355 | 0.7943 | 0.7454 |
+| MLS3RDUH      | kNN graph + LogCosh   | 0.5947 | 0.6780 | 0.6796 | 0.6645 |
+| **v27b (ours)** | SigLIP2 cos top-k 20% | 0.5639 | 0.6665 | 0.6531 | 0.6174 |
+| SPQ           | (not runnable; `baseline/SPQ.py` is incomplete — `_get_fixed_config_dict` syntax error at line 176, `_train_model` never implemented). | — | — | — | — |
+
+Gap interpretation:
+
+1. **CIBHash / CIMON beat v27b by ~0.08–0.09 mAP.** Both use paired
+   augmentations of the *same* image as positive contrastive pairs. That
+   is a very sharp positive signal (near-identity), much stronger than
+   v27b's "top-20% batch-cosine pairs are positive" heuristic. The
+   advantage is essentially the supervision-strength gap between
+   augmentation-based contrastive (per-image positive guarantee) and
+   batch-similarity pseudo-labels (noisy, variable per batch).
+
+2. **MLS3RDUH beats v27b by ~0.03 mAP.** It computes a kNN affinity
+   graph over training-set features (not just within-batch), so its
+   positive set is *globally* informed instead of per-batch. v27b's
+   top-k pseudo-positives drift batch-to-batch.
+
+3. **The compositional claim is not validated by mAP alone.** Our
+   38-LoC pseudo-positive scheme, applied to the rest of the
+   GroundedDNA stack (codebooks, OT routing, codon heads), produces a
+   weaker retrieval signal than the simpler CIBHash architecture
+   (single Linear head + NtXent on aug pairs).
+
+Implications for the paper narrative:
+- "GroundedDNA is unsupervised" cannot honestly mean "beats supervised
+  baselines without labels". It means "operates without labels and
+  produces a structured / interpretable code".
+- The retrieval-mAP comparison in an unsupervised setting must include
+  CIBHash / CIMON as lower bounds we currently miss.
+- A natural next experiment: feed CIBHash's NtXent paired-aug positive
+  signal (instead of batch top-k cos) into the GroundedDNA loss. That
+  isolates "supervision quality" from "architectural overhead" and may
+  recover some of the gap.
+
+Infrastructure work landed for this comparison (committed `5075b00`):
+- `extract_siglip2_features.py --save_aug_views K --aug_only` produces
+  `visual_global_aug{0..K-1}.f16.npy` per image so paired-aug baselines
+  can use the frozen-backbone cache.
+- `baseline/base_model.py` `CachedFeatureDataset` now honors
+  `paired_aug` and `return_index`. `_build_method` registers
+  `cibhash`, `cimon`, `mls3rduh`. `init_experiment` propagates the
+  per-baseline `_get_fixed_config_dict()` flags into `load_dataset`
+  (was previously hardcoded False — silent bug).
+- `baseline/MLS3RDUH.py` adds `SigLIP2` to the `dim_feature` mapping.
+- SPQ deliberately not registered: source file is incomplete.
+
+Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
+
+---
+
+## 2026-05-14 — v27b: unsupervised hash target (SigLIP2 cos top-k pseudo-positives) [completed]
 
 🟢 follow-up to v27a — replaces the continuous cosine target with a
 binary {0, 1} top-k pseudo-label scheme to fix v27a's collapse. The top
