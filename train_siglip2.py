@@ -53,33 +53,48 @@ os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 # ----------------------------- flat save-path helper
 
 def _resolve_save_path(args: Config) -> str:
-    """Build a flat result directory tailored for SigLIP2 runs.
+    """Build a flat result directory with a consistent naming schema.
 
     Schema:
-        result/<date>+<tag>+bs+<batch_size>+e+<epoch>+proj_lr+<proj_lr>/
-            ├── model_state_dict.pth          (final-epoch checkpoint)
-            ├── criterion_state_dict.pth      (final; preserves EMA buffer)
-            ├── log.csv                       (per-epoch metrics, append mode)
-            ├── args.txt                      (Config.print_info dump)
-            ├── train/  val/                  (tensorboard event subdirs)
-            ├── config.pt                     (Config.save_arg() output)
-            └── extract_db.npz / extract_query.npz / evaluation_*.json
-                                              (extraction & evaluation outputs)
+        result/<date>+<dataset>_<setting>_<user_tag>+bs+<bs>+e+<epoch>+proj_lr+<lr>/
+
+    The `<dataset>_<setting>_` prefix is auto-prepended (lowercased) so all
+    run directories on disk are uniformly tagged with the dataset and
+    split they correspond to. If `--tag` already starts with that prefix
+    (e.g. legacy callers passed `--tag flickr25k_setting1_v18_xxx`), it is
+    used verbatim to avoid double-prefixing.
+
+    Schema artifacts inside the directory:
+        model_state_dict.pth        (final-epoch checkpoint)
+        criterion_state_dict.pth    (final; preserves EMA buffer)
+        log.csv                     (per-epoch metrics, append mode)
+        args.txt                    (Config.print_info dump)
+        train/  val/                (tensorboard event subdirs)
+        config.pt                   (Config.save_arg() output)
+        extract_{db,query}.npz / evaluation_*.json
+                                    (extraction & evaluation outputs)
 
     Trailing separator preserved so the legacy
     ``Config.print_info()`` line ``open(self.save_log_path + 'args.txt', ...)``
     (no separator between path and filename) resolves correctly.
     """
-    tag = str(args.date)
-    if args.tag is not None:
-        for t in args.tag:
-            tag = "+".join([tag, t])
+    auto_prefix = f"{str(args.dataset).lower()}_{str(args.setting)}"
+    user_tag_parts = args.tag if args.tag is not None else []
+    user_tag = "_".join(user_tag_parts) if user_tag_parts else ""
+    if user_tag and user_tag.startswith(auto_prefix):
+        full_tag = user_tag                              # already prefixed
+    elif user_tag:
+        full_tag = f"{auto_prefix}_{user_tag}"           # auto-prepend
+    else:
+        full_tag = auto_prefix                           # no user tag
+
+    tag = f"{args.date}+{full_tag}"
     for k, v in [
         ("bs",      args.batch_size),
         ("e",       args.epoch),
         ("proj_lr", args.proj_lr),
     ]:
-        tag = "+".join([tag, k, str(v)])
+        tag = f"{tag}+{k}+{v}"
 
     base = os.path.join(
         os.path.dirname(os.path.realpath(__file__)),

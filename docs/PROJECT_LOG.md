@@ -201,6 +201,233 @@ Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
 
 ---
 
+## 2026-05-15 — Result-directory naming convention (auto-prefix dataset+setting)
+
+🟢 infrastructure — `train_siglip2._resolve_save_path` now auto-prepends
+`<dataset.lower()>_<setting>_` to the user `--tag` when the user tag does
+not already start with that prefix.
+
+Schema for all *future* runs:
+`result/<date>+<dataset>_<setting>_<user_tag>+bs+<bs>+e+<epoch>+proj_lr+<lr>/`
+
+Example: `--tag v31a_per_codebook_ntxent` on Flickr25k setting1
+becomes `result/260515+flickr25k_setting1_v31a_per_codebook_ntxent+bs+64+e+60+proj_lr+0.001/`.
+
+Background: v28a/b/c, v29, v30a/b/c launches dropped the
+`flickr25k_setting1_` prefix (we passed bare `--tag v28a_unsup_recon_pixel`
+etc.), breaking the existing `260513+flickr25k_setting1_v18_hashnetloss`
+convention. Folders for completed v28a/v28b were renamed in-place to add
+the missing prefix; v29 / v30a / v30b / v30c were left untouched while
+training was active (open file handles) and will be renamed after the
+runs finish. The `_resolve_save_path` change covers everything launched
+from now on without requiring discipline at the CLI.
+
+---
+
+## 2026-05-15 — v31 prep: per-codebook NtXent + per-codebook unique-rate metric
+
+🟢 infrastructure — added the building blocks for an upcoming v31
+ablation that asks "is each codebook independently discriminative?"
+(compositional independence test).
+
+Code changes:
+- `loss_siglip2._loss_ntxent_dna_per_codebook(u_st_v1, u_st_v2, T)`
+  reshapes the [B, 18, 4] DNA code into 6 codebook groups of [B, 3, 4]
+  and runs an independent NtXent on each, averaging the 6 losses.
+- `--ntxent_mode {global, per_codebook}` flag selects between v29's
+  whole-code NtXent and the per-codebook variant.
+- `evaluation_siglip2.evaluate_code_collapse` returns
+  `per_codebook_unique_count` / `per_codebook_unique_ratio` /
+  `mean_per_codebook_unique_ratio` -- the same "distinct-code count"
+  measurement we already report for the full 18-base hash, but applied
+  to each codebook's 3-base block in isolation. High per-codebook
+  unique_ratio == codebook independently discriminates samples; low ==
+  the codebook is mostly redundant or collapsed.
+- `train_siglip2.py` mid-eval CSV / stdout now logs
+  `eval_mean_per_codebook_unique_ratio` so we can track compositional
+  independence across epochs.
+
+v31 launch plans:
+- v31a (additive): `λ_global=1.0`, plus `λ_per_codebook≈0.2` -- safest;
+  keeps v29 retrieval signal and adds compositional-independence pressure.
+- v31b (replace): `λ_global=0`, `λ_per_codebook=1.0` -- aggressive;
+  tests whether per-codebook contrastive alone is sufficient.
+
+v31b is launch-deferred until paired-aug tokens are cached (see next
+entry) to avoid the ~5x live-backbone slowdown.
+
+---
+
+## 2026-05-15 — Cached paired-aug visual_tokens (v29+ training speedup)
+
+🟢 infrastructure — paired-aug NtXent training previously ran the
+(frozen) SigLIP2 backbone live on `img_tr1` / `img_tr2` every step,
+limiting throughput to ~1 it/s. We now precompute K augmented
+visual_tokens + visual_global views per image and cache them as
+`visual_{tokens,global}_aug{i}.f16.npy`, restoring ~5-8 it/s.
+
+Code changes:
+- `extract_siglip2_features.py --save_aug_views K` now allocates BOTH
+  `visual_global_aug{i}.f16.npy` (existing) and
+  `visual_tokens_aug{i}.f16.npy` (new). Each step runs `vision_model`
+  once (so the token-axis output is captured) plus `get_image_features`
+  for the projection head.
+- `dataloaders._SigLIP2FeatureCache` scans the cache dir for
+  `visual_{tokens,global}_aug{i}` pairs and exposes them as
+  `cached_visual_{tokens,global}_aug{i}` per row.
+- `train_siglip2.py`: when `--use_paired_aug_ntxent` is on AND the
+  cache exposes the aug pair, view-1 forward consumes
+  `cached_*_aug0` and view-2 forward consumes `cached_*_aug1` --
+  both via the cached-features path inside the model. PIL decode is
+  also disabled in that case. When the cache is absent, falls back
+  to the original live-backbone path. A single startup line prints
+  which path is in use.
+
+Disk impact: each aug view is `[N=27000, 196, 768]` fp16 ≈ 8.1 GB on
+Flickr25k; two views = 16.2 GB additional cache. Acceptable.
+
+The Flickr25k cache build (`/home/yschoi/GroundedDNA/cache/flickr25k_siglip2/`)
+was re-run on 2026-05-15 with `--save_aug_views 2 --aug_only` so the
+existing deterministic visual_tokens / visual_global cache is preserved.
+
+---
+
+## 2026-05-15 — v30a / v30b / v30c: adapter-capacity ablation under v29 NtXent loss
+
+🟡 in progress — v30a finished epoch 9 with mAP=0.6568 (v29 epoch 9:
+0.6627, Δ=−0.006). v30b / v30c still training.
+
+Question: does the 2-layer MLP adapter (~2.36M params per branch) actually
+contribute under v29's paired-aug NtXent loss, or is a flat
+LayerNorm+Linear (~0.59M, CIBHash-style) enough?
+
+| Run | adapter | hidden | d_model | params/adapter |
+|-----|---------|-------:|-------:|---------------:|
+| v29  (baseline) | MLP | 1536 | 768 | 2.36M |
+| **v30a** | MLP | 768  | 768 | 1.18M |
+| **v30b** | Linear (LayerNorm + single Linear) | n/a | 768 | 0.59M |
+| **v30c** | Linear (LayerNorm + single Linear) | n/a | 384 | 0.30M |
+
+Code: new `_LinearAdapter` class in `models/adapters.py` plus
+`--adapter_type {mlp, linear}`, `--adapter_hidden_dim`,
+`--adapter_dropout` CLI flags. `d_model` is divisible by 3 in all three
+variants so the codon head's per-position split stays valid.
+
+Hypothesis: with paired-aug NtXent producing such a sharp signal,
+overparameterised adapters mostly add optimization friction and
+overfit Flickr25k's 5K train samples. Reducing capacity should keep
+mAP within ±0.01 while shifting representational burden onto the
+codebook (the part we actually want to interpret).
+
+Final comparison + decision pending v30b/c completion.
+
+---
+
+## 2026-05-15 — v29: paired-aug NtXent on DNA codes (clear new SOTA among our runs)
+
+🟢 active — replaces v27b's batch top-k cosine pseudo-positive with a
+CIBHash-style instance-discrimination contrast on the DNA code itself
+(STE one-hot per position). Same image's two augmented views are positive;
+all other batch samples are negative.
+
+| Epoch | mAP | unique (test) | dead |
+|------:|----:|--------------:|----:|
+|   9   | 0.6627 | 0.4138 | 0.047 |
+|  19   | 0.6596 | 0.5272 | 0.008 |
+|  29   | 0.6603 | 0.5227 | 0.000 |
+|  39   | 0.6517 | 0.5262 | 0.003 |
+|  49   | 0.6510 | 0.5383 | 0.003 |
+
+vs v27b (cos top-k) and CIBHash (best unsupervised baseline):
+
+| Method | mAP | unique (test) |
+|--------|----:|--------------:|
+| v27b (ours, cos top-k 20%)        | 0.5639 | 0.302 |
+| CIBHash (NtXent on Linear(768, 36)) | 0.6543 | 0.997 |
+| **v29 (ours, NtXent on DNA code)** | **0.6627 (peak ep 9)** | 0.41-0.54 |
+
+Key observations:
+1. **Loss matters more than capacity.** Same backbone + same compositional
+   architecture as v27b, only the retrieval signal changed. mAP jumped
+   from 0.5639 to 0.6627 in 9 epochs and exceeded CIBHash by +0.008.
+2. **mAP peaked early, drifts down with longer training.** Epoch 9 was
+   the maximum; by epoch 49 mAP had drifted to 0.65. Suggests either
+   LR-schedule-driven late overfitting or insufficient regularisation
+   at the codebook-utilisation level.
+3. **unique-code count rises monotonically (0.41 → 0.54)** while mAP is
+   slowly drifting down. Codes get more diverse but not more
+   retrieval-discriminative -- evidence the architecture is *not*
+   collapsing, just slowly drifting in code space.
+4. **CIBHash unique 0.997 vs ours 0.54** -- CIBHash's contrast on a flat
+   36-bit binary code naturally hits the per-image unique limit because
+   the loss directly supervises 36 independent bits with K=2 each.
+   Our 6×3-codon code with K=64 codewords per slot has a discrete
+   bottleneck that caps unique below the per-image guarantee at small B.
+5. **Why CIBHash leads on unique despite lower-than-ours mAP:** the
+   CIBHash design is simply better tuned to "frozen feature + tiny
+   projection head" -- discussed in detail in the
+   `CIBHash가 sota를 기록하고 있는 원인 분석` thread on 2026-05-15.
+
+Code path: `--use_paired_aug_ntxent --lambda_ntxent 1.0
+--ntxent_temperature 0.3 --hash_target_mode siglip_cos_topk
+--lambda_hash 0.0 --lambda_hash_hard 0.0`. `lambda_hash_*` zeroed so
+NtXent is the only retrieval signal; hash_target_mode kept on
+siglip_cos_topk just to satisfy the criterion's "S must come from
+somewhere" assertion when `multi_hot_labels=None`.
+
+Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
+
+---
+
+## 2026-05-15 — v28a / v28b: reconstruction-decoder ablation on top of v27b
+
+🟡 superseded by v29 (NtXent gives much stronger retrieval signal).
+
+Tested whether attaching a decoder that maps the 6 selected codewords
+back to either the raw image (v28a) or the cached SigLIP2
+visual_global (v28b) helps fix v27b's noisy batch-top-k positive signal.
+
+Final results (Flickr25k setting1, 60 epoch):
+
+| Run     | Decoder           | mAP    | unique | dead   |
+|---------|-------------------|-------:|-------:|-------:|
+| v27b    | none              | 0.5639 | 0.302  | 0.000  |
+| **v28a** | PixelDecoder (~18M params) | 0.5514 | 0.240 | 0.065 |
+| **v28b** | FeatureDecoder (~16M params) | **0.5648** | 0.210 | 0.000 |
+
+Findings:
+1. **Reconstruction did not move mAP.** Both v28a and v28b stay within
+   ±0.01 of v27b. The pixel target slightly *hurts* (−0.013) because
+   it forces the codebook to encode low-level texture that's irrelevant
+   for retrieval; the SigLIP2-feature target is neutral (slightly +).
+2. **Codebook utilisation got better, retrieval did not.** v28b's
+   codebook ended at dead=0.0 with healthy per-slot histograms, but
+   the discriminative quality of those codes did not improve.
+3. **Decoder is dropped going forward (v29).** The reconstruction
+   signal optimises a different objective (inversion) than retrieval,
+   and on the small Flickr25k train set (5K images) the extra
+   parameter budget is not paying for itself.
+
+Both modules (`PixelDecoder`, `FeatureDecoder`) and the loss term
+(`lambda_recon`) are kept in the codebase behind `--use_decoder` for
+future use on larger datasets where the inversion signal might pay off.
+
+Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
+
+---
+
+## 2026-05-15 — Architecture diagram for v29 (forward + losses)
+
+🟢 reference — `docs/architecture_v29.png` rendered by
+`scripts/draw_architecture.py`. Solid arrows = data flow, dashed red
+arrows = loss targets. Detail boxes for the Sinkhorn-OT router
+(6 sub-steps), per-slot VQ codebook (6 × K=64 grid drawn), 6 codon
+heads, and all 7 active loss terms (`L_ntxent`, `L_vq`, `L_quant`,
+`L_anchor`, `L_dna`, `L_bu`, `L_wass`). Disabled losses (`L_hash`,
+`L_hash_hard`, `L_recon`) listed in a side panel.
+
+---
+
 ## 2026-05-15 — Unsupervised baseline comparison: v27b vs CIBHash / CIMON / MLS3RDUH
 
 🔴 honest finding — under a fully unsupervised supervision regime,
@@ -472,18 +699,44 @@ needed.
 
 ---
 
-## Current state (as of 2026-05-14)
+## Current state (as of 2026-05-15)
 
-- **Best Flickr25k**: **v18** = v6 baseline + `loss_hash` replaced with
-  HashNet-style class-weighted logistic likelihood on the DNA continuous
-  code. Final mAP **0.7883** — exceeds every binary baseline incl.
-  HashNet's own 0.7800 and our prior best (v11 R4 Wasserstein 0.7624).
-- **Standard baseline**: **v6** = `sinkhorn router + c_global_source=siglip2_global + K=32, 6 codebooks × 3 codons × 2 bits = 36-bit DNA hash`. SigLIP2 backbone frozen; only adapter + codebooks + codon head are trained. 7 active loss terms after the cleanup. mAP 0.7556 with the MSE-Jaccard form of `loss_hash`.
-- **R-series archive**: R1/R2/R3/R4 + v15 codebook-orthogonality result dirs are in `backup/results_R_series/` with per-experiment summary in the README there. The corresponding loss / config / output-dict code paths were removed from the main tree on 2026-05-13.
-- **MSCOCO**: v6 = mAP **0.5243**. Underperforms OrthoHash / HashNet baselines.
-  V2 prompt redesign brought MSCOCO to mAP **0.5385** (+0.014). v18 form not yet tested on MSCOCO.
+- **Best supervised Flickr25k**: **v18** (HashNet-style logistic on
+  continuous DNA code) -- mAP **0.7883**. Above every binary baseline
+  incl. HashNet's own 0.7800.
+- **Best supervised + diversity-balanced Flickr25k**: **v24b** -- mAP
+  **0.7742**, unique 0.324. Trade-off point between v18 (max mAP) and
+  unique.
+- **Best unsupervised Flickr25k (ours)**: **v29** (paired-aug NtXent on
+  DNA codes) -- peak mAP **0.6627** at epoch 9, unique 0.41 →
+  trajectory drifts to ~0.65 mAP / 0.54 unique by epoch 49. **Exceeds
+  CIBHash (0.6543)** -- the strongest unsupervised baseline -- by
+  +0.008 mAP while keeping our 6-codebook compositional structure.
+- **Strongest unsupervised baseline (external)**: **CIBHash** -- mAP
+  0.6543, unique 0.997. Beats us on unique purely because of its flat
+  36-bit binary code design; we beat it on mAP.
+- **Active loss set in v29**: 6 terms -- `loss_ntxent` (★ primary),
+  `loss_vq`, `loss_quant`, `loss_anchor`, `loss_dna`, `loss_bu`.
+  `loss_hash` / `loss_hash_hard` / `loss_recon` / `loss_wasserstein`
+  all disabled (λ=0) in v29.
+- **Ablation runs in flight (2026-05-15)**: v30a/b/c (adapter-capacity
+  ablation under v29 loss) and v31 prep (per-codebook NtXent + new
+  `per_codebook_unique_ratio` metric).
+- **Standard supervised baseline**: **v6** = `sinkhorn router +
+  c_global_source=siglip2_global + K=32, 6 codebooks × 3 codons × 2 bits
+  = 36-bit DNA hash`. SigLIP2 frozen; only adapter + codebooks +
+  codon head are trained. mAP 0.7556 with MSE-Jaccard loss_hash.
+- **R-series archive**: R1/R2/R3/R4 + v15 codebook-orthogonality result
+  dirs are in `backup/results_R_series/` with per-experiment summary in
+  the README there. The corresponding loss / config / output-dict code
+  paths were removed from the main tree on 2026-05-13.
+- **MSCOCO**: v6 = mAP **0.5243**; v6+V2 prompt = **0.5385**. v18/v29
+  form not yet tested on MSCOCO.
 - **CIFAR10**: v6 = mAP **0.5335**, top-1 vs all four binary baselines.
-- **NUS-WIDE**: cache build still running (SigLIP2 done; Qwen 10% complete, ~50h ETA).
+- **NUS-WIDE**: cache build paused.
+- **Result directory naming convention**: `<date>+<dataset>_<setting>_<user_tag>+bs+<bs>+e+<epoch>+proj_lr+<lr>/`.
+  Enforced automatically by `train_siglip2._resolve_save_path` since
+  2026-05-15; see entry above for the migration.
 
 ---
 
