@@ -723,6 +723,16 @@ class SigLIP2SemanticOTModel(nn.Module):
             ]
         )
 
+        # ---------- v32: train-only text injection into quantizer ------
+        # When `text_inject_train_only=add`, the routed visual tokens are
+        # combined with the per-codebook text token *during training only*
+        # before codebook lookup. The codeword embeddings absorb text-
+        # semantic structure but at inference / eval we use the visual
+        # token unchanged (no captions required at deploy). Default off.
+        self.text_inject_train_only = str(getattr(args, "text_inject_train_only", "none"))
+        self.text_inject_alpha      = float(getattr(args, "text_inject_alpha", 0.0))
+        self.text_inject_detach     = bool(getattr(args, "text_inject_detach", True))
+
         # ---------- optional reconstruction decoder (v28 ablation) -----
         # `decoder_target='siglip_feat'` -> FeatureDecoder (cheap MLP, target
         # is the cached visual_global). 'pixel' -> PixelDecoder (~21M params,
@@ -1132,8 +1142,26 @@ class SigLIP2SemanticOTModel(nn.Module):
             [global_visual_token.unsqueeze(1), local_semantic_visual_tokens], dim=1,
         )                                                                              # [B, 6, D]
 
-        # 6) per-part codebook quantization
-        q_out = self.quantizer(semantic_visual_tokens)
+        # 6) v32: train-only text injection into the quantizer input.
+        # When `--text_inject_train_only=add` and the text path is active,
+        # we add `alpha * t_m` to each routed visual token *before*
+        # codebook lookup, so the codeword embeddings absorb text-semantic
+        # structure during training. At eval/inference we skip this so the
+        # forward pass stays text-free (no Qwen captions needed). When
+        # `text_inject_detach=True` (variant b) the text gradient is cut
+        # so only the codebook moves, not the text adapter.
+        quant_input = semantic_visual_tokens
+        if (
+            self.training
+            and self.text_inject_train_only == "add"
+            and self.text_inject_alpha > 0.0
+            and text_part_tokens is not None
+            and text_part_tokens.shape == semantic_visual_tokens.shape
+        ):
+            t_used = text_part_tokens.detach() if self.text_inject_detach else text_part_tokens
+            quant_input = semantic_visual_tokens + self.text_inject_alpha * t_used
+
+        q_out = self.quantizer(quant_input)
         quantized_tokens     = q_out["quantized_tokens"]      # [B, 6, D]   STE
         quantized_tokens_raw = q_out["quantized_tokens_raw"]  # [B, 6, D]   pure codewords
         codebook_indices     = q_out["codebook_indices"]      # [B, 6]

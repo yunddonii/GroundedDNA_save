@@ -177,6 +177,26 @@ class Config():
             help='Skip the C_0 -> C_1..5 gated addition before the codon '
                  'heads. Each local codon head sees its own codeword in '
                  'isolation (v23b ablation).')
+        # v32 text-injection ablation: at train time only, add per-part
+        # text token to the routed visual token before codebook lookup.
+        # The codeword embeddings absorb text-semantic structure during
+        # training, but at inference we keep the forward pass text-free.
+        siglip2_arg.add_argument('--text_inject_train_only', dest='text_inject_train_only',
+            type=str, default='none', choices=['none', 'add'],
+            help="Train-only text injection mode. 'add' = "
+                 "z' = z_v + alpha * t (combined before quantizer; "
+                 "skipped at eval). 'none' = legacy v29 behaviour.")
+        siglip2_arg.add_argument('--text_inject_alpha', dest='text_inject_alpha',
+            type=float, default=0.2,
+            help="Mixing weight for the train-only text injection. "
+                 "Small values (0.1-0.3) keep the train-test shift small.")
+        siglip2_arg.add_argument('--text_inject_detach', dest='text_inject_detach',
+            action='store_true', default=True,
+            help="Detach the text features so the gradient only updates "
+                 "the codebook / encoder, not the text adapter (v32 "
+                 "variant b). Pass --no_text_inject_detach to override.")
+        siglip2_arg.add_argument('--no_text_inject_detach', dest='text_inject_detach',
+            action='store_false')
         siglip2_arg.add_argument('--text_attn_num_heads', type=int, default=4,
             help='Number of heads in the visual-cross-attention text pooling '
                  'block (use_text_token_attention).')
