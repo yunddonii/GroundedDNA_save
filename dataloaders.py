@@ -57,6 +57,23 @@ class _SigLIP2FeatureCache:
             print(f"[siglip2-cache] loaded token-level text cache from {cache_dir} "
                   f"(text_tokens {self.text_tokens.shape}).")
 
+        # Optional paired-augmentation visual feature cache. Files are
+        # produced by `extract_siglip2_features.py --save_aug_views K`.
+        # Used by v29+ paired-aug NtXent so the model doesn't have to run
+        # the SigLIP2 backbone live on each augmented view at train time.
+        self.visual_tokens_aug = []   # list of memmaps [N, num_patches, H_v]
+        self.visual_global_aug = []   # list of memmaps [N, D_proj]
+        for i in range(8):  # arbitrary upper bound; stop at first missing pair
+            t_p = os.path.join(cache_dir, f"visual_tokens_aug{i}.f16.npy")
+            g_p = os.path.join(cache_dir, f"visual_global_aug{i}.f16.npy")
+            if not (os.path.exists(t_p) and os.path.exists(g_p)):
+                break
+            self.visual_tokens_aug.append(np.load(t_p, mmap_mode="r"))
+            self.visual_global_aug.append(np.load(g_p, mmap_mode="r"))
+        if self.visual_tokens_aug:
+            print(f"[siglip2-cache] loaded {len(self.visual_tokens_aug)} "
+                  f"paired-aug view(s) from {cache_dir}.")
+
     def lookup_row(self, image_id: str) -> Optional[int]:
         return self.id_to_row.get(image_id)
 
@@ -71,6 +88,13 @@ class _SigLIP2FeatureCache:
         if self.text_tokens is not None:
             out["cached_text_tokens"]     = torch.from_numpy(np.asarray(self.text_tokens    [row_idx], dtype=np.float32))
             out["cached_text_token_mask"] = torch.from_numpy(np.asarray(self.text_token_mask[row_idx], dtype=np.bool_))
+        # Paired-augmentation views (built by `--save_aug_views K`).
+        # Exposed as cached_visual_{tokens,global}_aug{i}. Trainer can
+        # use these as view-1/view-2 inputs to skip the live backbone
+        # during paired-aug NtXent training.
+        for i, (tk, gl) in enumerate(zip(self.visual_tokens_aug, self.visual_global_aug)):
+            out[f"cached_visual_tokens_aug{i}"] = torch.from_numpy(np.asarray(tk[row_idx], dtype=np.float32))
+            out[f"cached_visual_global_aug{i}"] = torch.from_numpy(np.asarray(gl[row_idx], dtype=np.float32))
         return out
 
 

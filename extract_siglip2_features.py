@@ -370,16 +370,26 @@ def main() -> int:
     # cache stays unchanged so retrieval eval is unaffected.
     if int(args.save_aug_views) > 0:
         K = int(args.save_aug_views)
-        aug_paths = []
-        aug_mms = []
+        aug_paths: list = []
+        aug_global_mms: list = []
+        aug_token_mms: list = []
         for i in range(K):
-            p = os.path.join(args.cache_dir, f"visual_global_aug{i}.f16.npy")
-            mm = np.lib.format.open_memmap(p, mode="w+", dtype=np_dtype, shape=(N, D_proj))
-            aug_paths.append(p)
-            aug_mms.append(mm)
+            pg = os.path.join(args.cache_dir, f"visual_global_aug{i}.f16.npy")
+            pt = os.path.join(args.cache_dir, f"visual_tokens_aug{i}.f16.npy")
+            mm_g = np.lib.format.open_memmap(
+                pg, mode="w+", dtype=np_dtype, shape=(N, D_proj),
+            )
+            mm_t = np.lib.format.open_memmap(
+                pt, mode="w+", dtype=np_dtype, shape=(N, num_tokens, H_v),
+            )
+            aug_paths.append(pg)
+            aug_paths.append(pt)
+            aug_global_mms.append(mm_g)
+            aug_token_mms.append(mm_t)
         aug_transform = _build_aug_transform()
         print(f"[extract] running vision tower {K} extra times with aug transform "
-              f"(bs={args.batch_size}, workers={args.num_workers}) ...")
+              f"(bs={args.batch_size}, workers={args.num_workers}) -- "
+              f"saving BOTH visual_global_aug* and visual_tokens_aug* ...")
 
         if args.mode == "cifar10":
             for view_idx in range(K):
@@ -387,9 +397,12 @@ def main() -> int:
                     end = min(start + bs, N)
                     batch_pil = [Image.fromarray(arrays[i]) for i in range(start, end)]
                     batch_pix = torch.stack([aug_transform(im) for im in batch_pil]).to(args.device)
+                    v_feat = backbone.vision_model(pixel_values=batch_pix)
+                    token_feat = v_feat.last_hidden_state                       # [b, num_tokens, H_v]
                     g_feat = backbone.model.get_image_features(pixel_values=batch_pix)
                     g_feat = coerce_pooled_to_tensor(g_feat)
-                    aug_mms[view_idx][start:end] = g_feat.detach().cpu().numpy().astype(np_dtype)
+                    aug_global_mms[view_idx][start:end] = g_feat.detach().cpu().numpy().astype(np_dtype)
+                    aug_token_mms[view_idx][start:end]  = token_feat.detach().cpu().numpy().astype(np_dtype)
         else:
             from torch.utils.data import Dataset as _TDS, DataLoader as _TDL
 
@@ -414,18 +427,23 @@ def main() -> int:
                     aug_dl, total=(N + bs - 1) // bs, desc=f"aug{view_idx}",
                 ):
                     pix_batch = pix_batch.to(args.device, non_blocking=True)
+                    v_feat = backbone.vision_model(pixel_values=pix_batch)
+                    token_feat = v_feat.last_hidden_state                       # [b, num_tokens, H_v]
                     g_feat = backbone.model.get_image_features(pixel_values=pix_batch)
                     g_feat = coerce_pooled_to_tensor(g_feat)
                     g_np = g_feat.detach().cpu().numpy().astype(np_dtype)
+                    t_np = token_feat.detach().cpu().numpy().astype(np_dtype)
                     ok_np = ok_batch.numpy().astype(bool)
                     if (~ok_np).any():
                         g_np[~ok_np] = 0
+                        t_np[~ok_np] = 0
                     ids = idx_batch.numpy()
-                    aug_mms[view_idx][ids] = g_np
+                    aug_global_mms[view_idx][ids] = g_np
+                    aug_token_mms[view_idx][ids]  = t_np
 
-        for mm in aug_mms:
+        for mm in aug_global_mms + aug_token_mms:
             mm.flush()
-        del aug_mms
+        del aug_global_mms, aug_token_mms
         for p in aug_paths:
             paths[os.path.basename(p).replace(".f16.npy", "")] = p
 

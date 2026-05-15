@@ -133,15 +133,29 @@ def main(args: Config):
 
     qwen_text_cache_path = getattr(args, "qwen_text_cache_path", None)
     feature_cache_dir    = getattr(args, "siglip2_feature_cache_dir", None)
-    # v28a (PixelDecoder) and v29 (paired-aug NtXent) both need the raw
-    # image at training time -- v28a as a reconstruction target, v29 as
-    # paired SimCLR-style augmented views. We keep the PIL decode active
-    # whenever either is on. The flag is a no-op for v27b/v28b.
+    # v28a (PixelDecoder) needs the raw pixel image as reconstruction
+    # target. v29 (paired-aug NtXent) needs paired augmented views: if
+    # the SigLIP2 cache contains `visual_{tokens,global}_aug{0,1}.f16.npy`
+    # the trainer uses them directly and we can skip the live PIL decode;
+    # otherwise we fall back to live-decode + live backbone.
+    _aug_cache_present = (
+        feature_cache_dir is not None
+        and os.path.exists(os.path.join(feature_cache_dir, "visual_tokens_aug0.f16.npy"))
+        and os.path.exists(os.path.join(feature_cache_dir, "visual_tokens_aug1.f16.npy"))
+    )
     force_pixel_decode = bool(
         (getattr(args, "use_decoder", False)
          and getattr(args, "decoder_target", "siglip_feat") == "pixel")
-        or getattr(args, "use_paired_aug_ntxent", False)
+        or (getattr(args, "use_paired_aug_ntxent", False) and not _aug_cache_present)
     )
+    if getattr(args, "use_paired_aug_ntxent", False):
+        if _aug_cache_present:
+            print(f"[train_siglip2] paired-aug NtXent: using CACHED aug views "
+                  f"from {feature_cache_dir} (live backbone skipped).")
+        else:
+            print(f"[train_siglip2] paired-aug NtXent: aug cache NOT found in "
+                  f"{feature_cache_dir}; falling back to live PIL decode + "
+                  f"live backbone (slow).")
     # v29 needs strong CIBHash-style augmentations on the paired views.
     # The default `get_transform('train')` is too weak (color jitter 0,
     # scale (1.0, 1.0)), which would make img_tr1 ≈ img_tr2 and turn the
@@ -269,16 +283,33 @@ def main(args: Config):
             cached_ht  = batch.get("has_text",                 None)
             cached_tt  = batch.get("cached_text_tokens",       None)
             cached_ttm = batch.get("cached_text_token_mask",   None)
-            # v29 paired-aug NtXent (train-only): bypass cache entirely
-            # and feed two augmented views (img_tr1, img_tr2) live through
-            # the (frozen) backbone. The cache only holds the deterministic
-            # view, which would defeat the purpose of contrastive training.
-            v29_train = bool(
+            # v29 paired-aug NtXent (train-only): prefer the cached
+            # `visual_{tokens,global}_aug{0,1}` views when present
+            # (built by extract_siglip2_features.py --save_aug_views 2).
+            # If they are not in the batch, fall back to running the
+            # live backbone on img_tr1 / img_tr2.
+            v29_aug_cached = bool(
                 train and getattr(args, 'use_paired_aug_ntxent', False)
+                and ('cached_visual_tokens_aug0' in batch)
+                and ('cached_visual_tokens_aug1' in batch)
+            )
+            v29_aug_live = bool(
+                train and getattr(args, 'use_paired_aug_ntxent', False)
+                and (not v29_aug_cached)
                 and ('img_tr1' in batch) and ('img_tr2' in batch)
             )
-            if v29_train:
+            v29_train = v29_aug_cached or v29_aug_live
+            if v29_train and not v29_aug_cached:
+                # live-backbone path: drop the deterministic cache so the
+                # encoder runs on img_tr1 (and img_tr2 for view 2).
                 cached_vt = cached_vg = cached_tp = cached_ht = None
+                cached_tt = cached_ttm = None
+            if v29_aug_cached:
+                # cached-aug path: replace the deterministic view-1 cache
+                # with the aug-0 tensors so view-1 forward uses aug-0.
+                cached_vt = batch['cached_visual_tokens_aug0']
+                cached_vg = batch['cached_visual_global_aug0']
+                cached_tp = cached_ht = None
                 cached_tt = cached_ttm = None
             using_cache = cached_vt is not None
             if using_cache:
@@ -326,16 +357,21 @@ def main(args: Config):
             )
 
             # ---- v29 paired-aug NtXent: forward a SECOND augmented view --
-            # Train-only path. Forces live backbone (cached_*=None) on
-            # `img_tr2`, no text routing (text path is unchanged across
-            # augmentations so it would be redundant). The resulting DNA
-            # code is contrasted against `out['dna_hash_code_st']` inside
-            # the criterion.
+            # Train-only path. If the cached aug-1 features are available
+            # (built by extract_siglip2_features.py --save_aug_views 2),
+            # use them directly -- no live backbone forward needed. Falls
+            # back to running the encoder on `img_tr2` when no cache.
             out_view2 = None
-            if (
-                train and getattr(args, 'use_paired_aug_ntxent', False)
-                and ('img_tr2' in batch)
-            ):
+            if v29_aug_cached:
+                out_view2 = model(
+                    pixel_values=None,
+                    part_input_ids=None,
+                    part_attention_mask=None,
+                    return_routing=True,
+                    cached_visual_tokens_raw=batch['cached_visual_tokens_aug1'].to(args.device),
+                    cached_visual_global=batch['cached_visual_global_aug1'].to(args.device),
+                )
+            elif v29_aug_live and ('img_tr2' in batch):
                 pix_v2 = batch['img_tr2'].to(args.device)
                 out_view2 = model(
                     pixel_values=pix_v2,
