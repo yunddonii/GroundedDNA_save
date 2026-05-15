@@ -206,6 +206,12 @@ class DNACodonHashLoss(nn.Module):
         # v29 NtXent contrastive loss on DNA codes (paired-aug).
         self.lambda_ntxent      = float(getattr(cfg, "lambda_ntxent",      0.0))
         self.ntxent_temperature = float(getattr(cfg, "ntxent_temperature", 0.3))
+        # v31 ablation: NtXent target granularity.
+        # 'global' contrasts full DNA code (v29 default).
+        # 'per_codebook' computes 6 NtXents (one per codebook's 3-codon
+        # group) and averages -- forces each codebook to discriminate
+        # independently (compositional-independence test).
+        self.ntxent_mode        = str  (getattr(cfg, "ntxent_mode",        "global"))
         self.lambda_vq         = float(getattr(cfg, "lambda_vq",        0.25))
         self.lambda_quant      = float(getattr(cfg, "lambda_quant",     0.05))
         self.lambda_anchor     = float(getattr(cfg, "lambda_anchor",    0.05))
@@ -401,6 +407,46 @@ class DNACodonHashLoss(nn.Module):
             torch.arange(0, B,     device=sim.device),
         ])                                                              # [2B]
         return F.cross_entropy(sim, pos_idx)
+
+    def _loss_ntxent_dna_per_codebook(
+        self,
+        u_st_view1: torch.Tensor,
+        u_st_view2: torch.Tensor,
+        temperature: float,
+        num_codebooks: int = 6,
+    ) -> torch.Tensor:
+        """Per-codebook NtXent (v31b).
+
+        Splits the [B, 18, 4] DNA code into 6 codebook groups
+        [B, 6, 3, 4], runs an independent NtXent on each codebook's
+        3-codon block, and averages the 6 losses.
+
+        Forces each codebook to *independently* discriminate samples ->
+        compositional-independence test. Cross-codebook redundancy is
+        penalized (each codebook gets its own gradient signal).
+        """
+        B, R, C = u_st_view1.shape
+        assert R % num_codebooks == 0, (
+            f"[ntxent_per_codebook] DNA length {R} not divisible by "
+            f"num_codebooks={num_codebooks}"
+        )
+        chunk = R // num_codebooks                              # 3
+        u1 = u_st_view1.view(B, num_codebooks, chunk, C)         # [B, 6, 3, 4]
+        u2 = u_st_view2.view(B, num_codebooks, chunk, C)
+        N = 2 * B
+        T = max(float(temperature), 1e-6)
+        eye = torch.eye(N, device=u_st_view1.device, dtype=torch.bool)
+        pos_idx = torch.cat([
+            torch.arange(B, 2 * B, device=u_st_view1.device),
+            torch.arange(0, B,     device=u_st_view1.device),
+        ])
+        loss_sum = u_st_view1.new_zeros(())
+        for m in range(num_codebooks):
+            z = torch.cat([u1[:, m], u2[:, m]], dim=0)            # [2B, 3, 4]
+            sim = torch.einsum("brc,src->bsr", z, z).mean(dim=-1)  # [2B, 2B]
+            sim = (sim / T).masked_fill(eye, -1e9)
+            loss_sum = loss_sum + F.cross_entropy(sim, pos_idx)
+        return loss_sum / num_codebooks
 
     def _loss_recon(
         self,
@@ -634,9 +680,14 @@ class DNACodonHashLoss(nn.Module):
                     "[DNACodonHashLoss] paired-aug NtXent requires both "
                     "outputs and outputs_view2 to contain dna_hash_code_st."
                 )
-            loss_ntxent = self._loss_ntxent_dna(
-                u_st_v1, u_st_v2, temperature=self.ntxent_temperature,
-            )
+            if self.ntxent_mode == "per_codebook":
+                loss_ntxent = self._loss_ntxent_dna_per_codebook(
+                    u_st_v1, u_st_v2, temperature=self.ntxent_temperature,
+                )
+            else:
+                loss_ntxent = self._loss_ntxent_dna(
+                    u_st_v1, u_st_v2, temperature=self.ntxent_temperature,
+                )
         else:
             loss_ntxent = u.new_zeros(())
 

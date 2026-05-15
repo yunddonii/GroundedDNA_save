@@ -336,6 +336,15 @@ class Config():
                  "similarity-target retrieval signal entirely).")
         loss_arg.add_argument('--ntxent_temperature',    type=float, default=0.3,
             help="Temperature for the NtXent softmax. CIBHash uses 0.3.")
+        loss_arg.add_argument('--ntxent_mode',           type=str, default='global',
+            choices=['global', 'per_codebook'],
+            help="NtXent target granularity (v31 ablation). "
+                 "'global' (default, v29) contrasts whole-image DNA "
+                 "codes [B, 18, 4]. 'per_codebook' (v31b) computes 6 "
+                 "separate NtXents on each codebook's 3-codon group "
+                 "[B, 3, 4], summed -> each codebook is forced to "
+                 "independently discriminate samples (compositional "
+                 "independence test).")
         loss_arg.add_argument('--lambda_wasserstein',  type=float, default=0.0,
             help="Weight for the entropic-OT Wasserstein loss (per-sample "
                  "<pi, cost> from the Sinkhorn router, restored for v24a). "

@@ -200,6 +200,24 @@ def evaluate_code_collapse(
     unique_ratio = float(unique_count / N) if N > 0 else 0.0
     duplicate_rate = float(1.0 - unique_ratio)
 
+    # ---- per-codebook unique-rate (compositional measure, v31) -----
+    # Reshape [N, R=18] -> [N, M=6, R/M=3]. For each codebook m, count
+    # how many distinct 3-base sequences appear in the split. Strong
+    # per-codebook unique_rate => each codebook independently
+    # discriminates samples (compositional independence). Weak =>
+    # codebooks are mostly redundant or collapsed.
+    per_cb_unique_count: list = [0] * M
+    per_cb_unique_ratio: list = [0.0] * M
+    if R % M == 0:
+        bi_per_cb = bi.reshape(N, M, R // M)
+        for m in range(M):
+            uniq = {tuple(row) for row in bi_per_cb[:, m, :].tolist()}
+            per_cb_unique_count[m] = int(len(uniq))
+            per_cb_unique_ratio[m] = float(len(uniq) / N) if N > 0 else 0.0
+    mean_per_cb_unique_ratio = (
+        float(np.mean(per_cb_unique_ratio)) if per_cb_unique_ratio else 0.0
+    )
+
     return {
         "codebook_entropy":             cb_entropy.tolist(),
         "codebook_normalized_entropy":  cb_norm_entropy.tolist(),
@@ -212,6 +230,9 @@ def evaluate_code_collapse(
         "mean_base_normalized_entropy": float(np.mean(base_norm_entropy)),
         "unique_code_ratio":            unique_ratio,
         "duplicate_rate":               duplicate_rate,
+        "per_codebook_unique_count":    per_cb_unique_count,
+        "per_codebook_unique_ratio":    per_cb_unique_ratio,
+        "mean_per_codebook_unique_ratio": mean_per_cb_unique_ratio,
     }
 
 

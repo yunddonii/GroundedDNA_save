@@ -249,6 +249,7 @@ def main(args: Config):
         "eval_unique_code_ratio",
         "eval_duplicate_rate",
         "eval_mean_base_normalized_entropy",
+        "eval_mean_per_codebook_unique_ratio",
     ]
     csv_path = os.path.join(args.save_log_path, "log.csv")
     csv_logger = EpochCSVLogger(csv_path, csv_fields)
@@ -461,12 +462,16 @@ def main(args: Config):
                     "eval_unique_code_ratio":            collapse["unique_code_ratio"],
                     "eval_duplicate_rate":               collapse["duplicate_rate"],
                     "eval_mean_base_normalized_entropy": collapse["mean_base_normalized_entropy"],
+                    "eval_mean_per_codebook_unique_ratio": collapse.get(
+                        "mean_per_codebook_unique_ratio", 0.0,
+                    ),
                 }
                 for k, v in eval_row.items():
                     val_writer.add_scalar(f"eval/{k}", float(v), e)
                 print(
                     f"[mid-eval] epoch {e}: mAP={retrieval['mAP']:.4f}, "
                     f"unique={collapse['unique_code_ratio']:.4f}, "
+                    f"per-cb-unique={collapse.get('mean_per_codebook_unique_ratio', 0.0):.4f}, "
                     f"dead={float(np.mean(collapse['dead_code_ratio'])):.4f}"
                 )
             except Exception as ex:
