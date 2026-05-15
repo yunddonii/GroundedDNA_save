@@ -200,6 +200,9 @@ class DNACodonHashLoss(nn.Module):
         # visual_global cosine similarity rescaled to [0,1] (unsupervised).
         self.hash_target_mode  = str  (getattr(cfg, "hash_target_mode", "jaccard"))
         self.siglip_cos_pos_rate = float(getattr(cfg, "siglip_cos_pos_rate", 0.2))
+        # v28 reconstruction loss (pixel or siglip_feat decoder).
+        self.lambda_recon       = float(getattr(cfg, "lambda_recon",       0.0))
+        self.decoder_target     = str  (getattr(cfg, "decoder_target",     "siglip_feat"))
         self.lambda_vq         = float(getattr(cfg, "lambda_vq",        0.25))
         self.lambda_quant      = float(getattr(cfg, "lambda_quant",     0.05))
         self.lambda_anchor     = float(getattr(cfg, "lambda_anchor",    0.05))
@@ -348,6 +351,30 @@ class DNACodonHashLoss(nn.Module):
         sim_hard = torch.einsum("brc,src->bsr", u_st, u_st).mean(dim=-1)   # [B, B]
         return F.mse_loss(sim_hard[mask], S[mask])
 
+    def _loss_recon(
+        self,
+        recon: torch.Tensor,
+        target: torch.Tensor,
+        target_kind: str,
+    ) -> torch.Tensor:
+        """Reconstruction loss for the v28 decoder ablation.
+
+        target_kind = 'pixel'        : MSE on ImageNet-normalized pixels.
+        target_kind = 'siglip_feat'  : 1 - cosine(recon, target). Bounded
+                                       in [0, 2]. Matches the cos geometry
+                                       used elsewhere for SigLIP2 features.
+        """
+        if target_kind == "pixel":
+            return F.mse_loss(recon, target)
+        if target_kind == "siglip_feat":
+            r = F.normalize(recon,  dim=-1)
+            t = F.normalize(target.detach(), dim=-1)
+            return (1.0 - (r * t).sum(dim=-1)).mean()
+        raise ValueError(
+            f"[loss_recon] unknown decoder_target {target_kind!r}; "
+            f"expected 'pixel' or 'siglip_feat'."
+        )
+
     def _loss_quant(
         self, continuous_code: torch.Tensor, dna_hash_code_hard: torch.Tensor,
     ) -> torch.Tensor:
@@ -464,6 +491,7 @@ class DNACodonHashLoss(nn.Module):
         labels: Optional[torch.Tensor] = None,
         multi_hot_labels: Optional[torch.Tensor] = None,
         epoch: Optional[int] = None,
+        pixel_target: Optional[torch.Tensor] = None,
     ) -> Dict[str, torch.Tensor]:
         # ---- pull required tensors from the model output dict ------------
         u                            = outputs.get("continuous_code")          # [B, 18, 4]
@@ -542,6 +570,32 @@ class DNACodonHashLoss(nn.Module):
         else:
             loss_wasserstein = u.new_zeros(())
 
+        # v28 reconstruction loss (None-safe). Active only when the model
+        # was built with --use_decoder; otherwise outputs['reconstruction']
+        # is None and we skip the term entirely.
+        recon = outputs.get("reconstruction")
+        if recon is not None and self.lambda_recon > 0.0:
+            tk = outputs.get("reconstruction_target", self.decoder_target)
+            if tk == "siglip_feat":
+                target = outputs.get("visual_global_feat")
+                if target is None:
+                    raise ValueError(
+                        "[DNACodonHashLoss] decoder_target='siglip_feat' but "
+                        "outputs['visual_global_feat'] is None."
+                    )
+            elif tk == "pixel":
+                if pixel_target is None:
+                    raise ValueError(
+                        "[DNACodonHashLoss] decoder_target='pixel' but "
+                        "pixel_target was not passed to forward()."
+                    )
+                target = pixel_target
+            else:
+                raise ValueError(f"[loss] unknown decoder_target {tk!r}")
+            loss_recon = self._loss_recon(recon, target, tk)
+        else:
+            loss_recon = u.new_zeros(())
+
         loss_dna = dna_components["loss_dna"]
         loss_bu  = bu_components ["loss_bu"]
 
@@ -561,6 +615,7 @@ class DNACodonHashLoss(nn.Module):
             + self.lambda_dna        * loss_dna
             + eff_lambda_bu          * loss_bu
             + self.lambda_wasserstein * loss_wasserstein
+            + self.lambda_recon       * loss_recon
         )
 
         return {
@@ -571,6 +626,7 @@ class DNACodonHashLoss(nn.Module):
             "loss_quant":        loss_quant,
             "loss_anchor":       loss_anchor,
             "loss_wasserstein":  loss_wasserstein,
+            "loss_recon":        loss_recon,
             "loss_dna":          loss_dna,
             "loss_bu":           loss_bu,
             "loss_entropy":      dna_components["loss_entropy"],

@@ -387,6 +387,96 @@ class CodonHead(nn.Module):
 
 
 # =====================================================================
+# Reconstruction decoders (v28 ablation, 2026-05-15)
+# =====================================================================
+# Both take the 6 selected codewords (quantized_tokens, [B, 6, D])
+# concatenated to [B, 6*D] and predict a reconstruction target.
+# v28a uses PixelDecoder (target = raw image),
+# v28b uses FeatureDecoder (target = frozen SigLIP2 visual_global).
+#
+# Goal: replace v27b's noisy batch-cosine pseudo-positive with a strong,
+# dense per-sample unsupervised signal that forces each codebook to encode
+# information actually useful for image recovery -- the natural
+# architectural justification for the "compositional code" claim.
+
+class FeatureDecoder(nn.Module):
+    """Reconstruct frozen SigLIP2 visual_global from 6 concatenated codewords.
+
+    Input  : [B, 6 * D]   (concat of quantized_tokens flattened on dim 1)
+    Output : [B, D_proj]  (MSE / cosine target = cached visual_global)
+
+    Lightweight 2-layer MLP. Default hidden = 4*D_proj. Output normalized
+    to unit length so cosine similarity with the cached SigLIP2 feature is
+    well-behaved (matches the cos-similarity geometry we already use for
+    the v27 unsupervised positive signal).
+    """
+    def __init__(self, d_model: int, d_proj: int, num_codebooks: int = 6,
+                 hidden_mult: int = 4):
+        super().__init__()
+        in_dim = num_codebooks * d_model
+        hid    = hidden_mult * d_proj
+        self.net = nn.Sequential(
+            nn.Linear(in_dim, hid),
+            nn.GELU(),
+            nn.Linear(hid, d_proj),
+        )
+
+    def forward(self, codewords: torch.Tensor) -> torch.Tensor:
+        # codewords [B, 6, D] -> [B, 6*D] -> [B, D_proj]
+        B = codewords.shape[0]
+        flat = codewords.reshape(B, -1)
+        return self.net(flat)
+
+
+class PixelDecoder(nn.Module):
+    """Reconstruct a 224x224 RGB image from 6 concatenated codewords.
+
+    Input  : [B, 6 * D]
+    Output : [B, 3, 224, 224]    (in the same ImageNet-normalized space the
+                                  dataloader feeds to SigLIP2 as input)
+
+    Architecture (bottlenecked: ~15M params, not 100M+):
+        Linear (6D     -> 1024)             # bottleneck projection
+        GELU
+        Linear (1024   -> 256 * 7 * 7)
+        Reshape to [B, 256, 7, 7]
+        ConvTranspose stack: 7 -> 14 -> 28 -> 56 -> 112 -> 224
+        (no activation on the last layer; the loss compares against
+        ImageNet-normalized pixel values which can take any sign).
+
+    Avoiding a single huge Linear(4608, 25088) is critical -- that one
+    projection alone is ~115M params and slows training without buying
+    additional capacity.
+    """
+    def __init__(self, d_model: int, num_codebooks: int = 6,
+                 bottleneck: int = 1024):
+        super().__init__()
+        in_dim = num_codebooks * d_model
+        self.in_proj = nn.Sequential(
+            nn.Linear(in_dim, bottleneck),
+            nn.GELU(),
+            nn.Linear(bottleneck, 256 * 7 * 7),
+        )
+        self.deconv = nn.Sequential(
+            nn.ConvTranspose2d(256, 128, kernel_size=4, stride=2, padding=1),  # 7  -> 14
+            nn.GELU(),
+            nn.ConvTranspose2d(128,  64, kernel_size=4, stride=2, padding=1),  # 14 -> 28
+            nn.GELU(),
+            nn.ConvTranspose2d( 64,  32, kernel_size=4, stride=2, padding=1),  # 28 -> 56
+            nn.GELU(),
+            nn.ConvTranspose2d( 32,  16, kernel_size=4, stride=2, padding=1),  # 56 -> 112
+            nn.GELU(),
+            nn.ConvTranspose2d( 16,   3, kernel_size=4, stride=2, padding=1),  # 112-> 224
+        )
+
+    def forward(self, codewords: torch.Tensor) -> torch.Tensor:
+        B = codewords.shape[0]
+        x = self.in_proj(codewords.reshape(B, -1))
+        x = x.view(B, 256, 7, 7)
+        return self.deconv(x)
+
+
+# =====================================================================
 # Top-level model
 # =====================================================================
 
@@ -603,6 +693,31 @@ class SigLIP2SemanticOTModel(nn.Module):
                 for _ in range(self.num_codebooks)
             ]
         )
+
+        # ---------- optional reconstruction decoder (v28 ablation) -----
+        # `decoder_target='siglip_feat'` -> FeatureDecoder (cheap MLP, target
+        # is the cached visual_global). 'pixel' -> PixelDecoder (~21M params,
+        # ConvTranspose stack to 224x224). Off by default; enabled via
+        # --use_decoder + --decoder_target.
+        self.use_decoder    = bool(getattr(args, "use_decoder", False))
+        self.decoder_target = str (getattr(args, "decoder_target", "siglip_feat"))
+        if self.use_decoder:
+            if self.decoder_target == "pixel":
+                self.decoder = PixelDecoder(
+                    d_model=self.d_model, num_codebooks=self.num_codebooks,
+                )
+            elif self.decoder_target == "siglip_feat":
+                self.decoder = FeatureDecoder(
+                    d_model=self.d_model, d_proj=self.proj_dim,
+                    num_codebooks=self.num_codebooks,
+                )
+            else:
+                raise ValueError(
+                    f"[model_siglip2] unknown decoder_target {self.decoder_target!r}; "
+                    f"choose 'pixel' or 'siglip_feat'."
+                )
+        else:
+            self.decoder = None
 
         # ---------- freezing --------------------------------------------
         if bool(getattr(args, "freeze_backbone", True)):
@@ -1106,4 +1221,17 @@ class SigLIP2SemanticOTModel(nn.Module):
             "dna_hash_code_st":                  dna_hash_code_st,                   # [B, 18, 4]
             "base_indices":                      base_indices,                       # [B, 18]
         })
+
+        # 11) optional reconstruction head (v28a / v28b)
+        # Concatenate the 6 STE-quantized codewords and decode either to a
+        # 224x224 RGB image (v28a) or to the cached SigLIP2 visual_global
+        # (v28b). `quantized_tokens` carries the STE so gradient flows back
+        # to the codebooks AND the encoder.
+        if self.decoder is not None:
+            recon = self.decoder(quantized_tokens)               # [B, 3, 224, 224] or [B, D_proj]
+            out["reconstruction"]        = recon
+            out["reconstruction_target"] = self.decoder_target   # 'pixel' or 'siglip_feat'
+        else:
+            out["reconstruction"]        = None
+            out["reconstruction_target"] = None
         return out

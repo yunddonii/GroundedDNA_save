@@ -133,6 +133,14 @@ def main(args: Config):
 
     qwen_text_cache_path = getattr(args, "qwen_text_cache_path", None)
     feature_cache_dir    = getattr(args, "siglip2_feature_cache_dir", None)
+    # v28a (PixelDecoder) needs the raw image as reconstruction target, so
+    # we keep the PIL decode active even when the SigLIP2 feature cache is
+    # loaded. v28b (FeatureDecoder) only needs cached visual_global -- no
+    # decode needed. The flag is a no-op when --use_decoder is off.
+    force_pixel_decode = bool(
+        getattr(args, "use_decoder", False)
+        and getattr(args, "decoder_target", "siglip_feat") == "pixel"
+    )
     trainset, testset, _ = load_dataset(
         args.dataset_dir, args.dataset, setting='setting1',
         train_transform=transform, test_transform=test_transform,
@@ -140,6 +148,7 @@ def main(args: Config):
         return_index=True, return_paired_aug_img=True,
         qwen_text_cache_path=qwen_text_cache_path,
         siglip2_feature_cache_dir=feature_cache_dir,
+        force_pixel_decode=force_pixel_decode,
     )
     if feature_cache_dir is not None:
         print(f"[train_siglip2] using cached SigLIP2 features from {feature_cache_dir}; "
@@ -206,6 +215,7 @@ def main(args: Config):
         'loss_dna', 'loss_entropy', 'loss_base_balance',
         'loss_bu', 'loss_cb_balance', 'loss_cb_uncorr',
         'loss_wasserstein',
+        'loss_recon',
     ]
 
     # ---------- per-epoch CSV logger ---------------------------------------
@@ -292,11 +302,20 @@ def main(args: Config):
                 single_labels = single_labels.to(args.device)
 
             # ---- loss -----------------------------------------------------
+            # pixel target for v28a: ImageNet-normalized image tensors. The
+            # dataloader keeps them under 'pixel_values' (or 'img') even when
+            # cached SigLIP2 features are loaded -- needed by PixelDecoder's
+            # MSE target. Use the cached visual_global path (out["visual_global_feat"])
+            # for v28b -- handled inside the criterion.
+            pixel_target = batch.get('pixel_values', batch.get('img', None))
+            if pixel_target is not None:
+                pixel_target = pixel_target.to(args.device)
             loss_dict = criterion(
                 outputs=out,
                 labels=single_labels,
                 multi_hot_labels=mh_labels,
                 epoch=epoch,
+                pixel_target=pixel_target,
             )
             loss = loss_dict['loss']
 

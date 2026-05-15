@@ -381,10 +381,16 @@ class ImgRtvDataset(Dataset):
                  qwen_text_cache_path: Optional[str] = None,
                  siglip2_tokenizer_name: str = "google/siglip2-base-patch16-224",
                  siglip2_text_max_length: int = 64,
-                 siglip2_feature_cache_dir: Optional[str] = None):
+                 siglip2_feature_cache_dir: Optional[str] = None,
+                 force_pixel_decode: bool = False):
         # path-keyed SigLIP2 feature cache (built by extract_siglip2_features.py
         # in --imagenet100 mode). Loaded after self.img_paths is populated.
         self._siglip2_feature_cache_dir = siglip2_feature_cache_dir
+        # `force_pixel_decode=True` keeps the PIL decode active even when the
+        # SigLIP2 feature cache is loaded -- needed when the model has a pixel
+        # reconstruction decoder (v28a) and requires the raw image as target.
+        # When False (default), we skip the decode for speed.
+        self._force_pixel_decode = bool(force_pixel_decode)
         self._feat_cache: Optional[_SigLIP2FeatureCache] = None
         self._feat_cache_rows: Optional[np.ndarray] = None
         self.loader = self.default_loader
@@ -487,7 +493,9 @@ class ImgRtvDataset(Dataset):
         # decode + resize entirely -- pixel_values won't be consumed and the
         # SigLIP2 trainer does not read img_tr1/img_tr2 either (legacy fields).
         # For ImageNet 224x224 JPEGs this avoids 100K+ disk reads per epoch.
-        skip_image_decode = (self._feat_cache is not None)
+        # Override: `force_pixel_decode=True` is set when v28a (pixel decoder)
+        # needs the raw image as a reconstruction target.
+        skip_image_decode = (self._feat_cache is not None) and not self._force_pixel_decode
         if not skip_image_decode:
             img = self.loader(img_name)
             img_i = self.default_transform(img)
@@ -563,7 +571,8 @@ class ImgRtvCIFAR10(CIFAR10):
                  qwen_text_cache_path: Optional[str] = None,
                  siglip2_tokenizer_name: str = "google/siglip2-base-patch16-224",
                  siglip2_text_max_length: int = 64,
-                 siglip2_feature_cache_dir: Optional[str] = None) -> None:
+                 siglip2_feature_cache_dir: Optional[str] = None,
+                 force_pixel_decode: bool = False) -> None:
 
         # CIFAR10 has no stable per-image filesystem path, so the Qwen cache
         # is keyed by md5 of the raw image bytes instead (see `_cifar10_image_id`).
@@ -572,6 +581,9 @@ class ImgRtvCIFAR10(CIFAR10):
         self._siglip2_tokenizer_name   = siglip2_tokenizer_name
         self._siglip2_text_max_length  = siglip2_text_max_length
         self._siglip2_feature_cache_dir = siglip2_feature_cache_dir
+        # Mirror of ImgRtvDataset.force_pixel_decode (v28a path); CIFAR10 in
+        # cached mode also short-circuits the PIL decode without it.
+        self._force_pixel_decode = bool(force_pixel_decode)
         self._part_tokens = None
         self._feat_cache: Optional[_SigLIP2FeatureCache] = None
         self._feat_cache_rows: Optional[np.ndarray] = None
@@ -721,13 +733,15 @@ def load_dataset(dataset_dir, dataset_name, setting,
                  qwen_text_cache_path: Optional[str] = None,
                  siglip2_tokenizer_name: str = "google/siglip2-base-patch16-224",
                  siglip2_text_max_length: int = 64,
-                 siglip2_feature_cache_dir: Optional[str] = None):
+                 siglip2_feature_cache_dir: Optional[str] = None,
+                 force_pixel_decode: bool = False):
     root = os.path.join(dataset_dir, dataset_name)
     extra_kwargs = dict(
         qwen_text_cache_path=qwen_text_cache_path,
         siglip2_tokenizer_name=siglip2_tokenizer_name,
         siglip2_text_max_length=siglip2_text_max_length,
         siglip2_feature_cache_dir=siglip2_feature_cache_dir,
+        force_pixel_decode=force_pixel_decode,
     )
     if load_train:
         train_dataset = DATASET[dataset_name](

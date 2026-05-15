@@ -283,6 +283,24 @@ class Config():
             help="When hash_target_mode='siglip_cos_topk', fraction of "
                  "off-diagonal pairs marked positive (S=1). Default 0.2 "
                  "(top-20% feature-similar pairs are pseudo-positives).")
+        # ---------- v28: reconstruction decoder -------------------------
+        # Adds a decoder head that maps the 6 selected codewords back to
+        # either the original RGB image (v28a) or the cached SigLIP2
+        # visual_global (v28b). Provides a strong dense per-sample
+        # unsupervised signal that fixes v27b's batch-cosine pseudo-positive
+        # weakness. Off by default.
+        loss_arg.add_argument('--use_decoder',          action='store_true', default=False,
+            help="Attach a decoder head (PixelDecoder or FeatureDecoder) "
+                 "that reconstructs from the 6 selected codewords. Adds a "
+                 "loss_recon term to the aggregator (weight --lambda_recon).")
+        loss_arg.add_argument('--decoder_target',       type=str, default='siglip_feat',
+            choices=['pixel', 'siglip_feat'],
+            help="What the decoder reconstructs. 'siglip_feat' targets the "
+                 "frozen SigLIP2 visual_global (v28b, fast MLP). 'pixel' "
+                 "targets the 224x224 RGB image (v28a, ConvTranspose stack).")
+        loss_arg.add_argument('--lambda_recon',         type=float, default=1.0,
+            help="Weight on loss_recon. Default 1.0 puts it on par with "
+                 "loss_hash. Set 0 to disable even when --use_decoder is on.")
         loss_arg.add_argument('--lambda_wasserstein',  type=float, default=0.0,
             help="Weight for the entropic-OT Wasserstein loss (per-sample "
                  "<pi, cost> from the Sinkhorn router, restored for v24a). "
