@@ -35,23 +35,42 @@ Format conventions:
   continuous DNA code) -- mAP **0.7883**. Above every binary baseline
   incl. HashNet's own 0.7800.
 - **Best supervised + diversity-balanced Flickr25k**: **v24b** -- mAP
-  **0.7742**, unique 0.324. Trade-off point between v18 (max mAP) and
-  unique.
-- **Best unsupervised Flickr25k (ours)**: **v29** (paired-aug NtXent on
-  DNA codes) -- peak mAP **0.6627** at epoch 9, unique 0.41 →
-  trajectory drifts to ~0.65 mAP / 0.54 unique by epoch 49. **Exceeds
-  CIBHash (0.6543)** -- the strongest unsupervised baseline -- by
-  +0.008 mAP while keeping our 6-codebook compositional structure.
-- **Strongest unsupervised baseline (external)**: **CIBHash** -- mAP
-  0.6543, unique 0.997. Beats us on unique purely because of its flat
-  36-bit binary code design; we beat it on mAP.
-- **Active loss set in v29**: 6 terms -- `loss_ntxent` (★ primary),
-  `loss_vq`, `loss_quant`, `loss_anchor`, `loss_dna`, `loss_bu`.
-  `loss_hash` / `loss_hash_hard` / `loss_recon` / `loss_wasserstein`
-  all disabled (λ=0) in v29.
-- **Ablation runs in flight (2026-05-15)**: v30a/b/c (adapter-capacity
-  ablation under v29 loss) and v31 prep (per-codebook NtXent + new
-  `per_codebook_unique_ratio` metric).
+  **0.7742**, unique 0.324.
+- **Best unsupervised Flickr25k (ours)**: **v30a** (v29 NtXent +
+  half-size MLP adapter, hidden=768) -- mAP **0.6646**, unique
+  0.4299, dead 0.003. Beats CIBHash 0.6543 by +0.010.
+- **Unsupervised leaderboard (Flickr25k setting1, 36-bit, frozen SigLIP2, 60 epoch)**:
+
+  | Run | Adapter / variant | mAP | unique (test) | per-cb-unique | dead |
+  |-----|-------------------|----:|--------------:|--------------:|-----:|
+  | **v30a** ★ | MLP h=768 (half v29) | **0.6646** | 0.4299 | — | 0.003 |
+  | **v30c** | Linear d=384 | 0.6628 | 0.5171 | — | 0.000 |
+  | **v31b** | per-codebook NtXent | 0.6590 | 0.6321 | 0.0099 | 0.000 |
+  | **v29**  | global NtXent baseline | 0.6580 | 0.5257 | — | 0.000 |
+  | CIBHash (external) | flat Linear(768,36) + NtXent | 0.6543 | 0.997 | — | — |
+  | CIMON (external) | spectral-PL + NtXent | 0.6456 | 0.881 | — | — |
+  | MLS3RDUH (external) | kNN graph + LogCosh | 0.5947 | 0.184 | — | — |
+  | v32 | + train-only text inject α=0.2 | 0.6422 | 0.3422 | 0.0040 | 0.000 |
+  | v28b | + FeatureDecoder (recon) | 0.5648 | 0.4057 | — | 0.003 |
+  | v27b | SigLIP2 cos top-k 20% | 0.5639 | 0.302 | — | 0.000 |
+  | v28a | + PixelDecoder (recon) | 0.5514 | 0.4425 | — | 0.146 |
+  | v30b | Linear d=768 (collapse) 🔴 | 0.5399 | 0.0005 | — | 0.628 |
+
+- **Active loss set in v30a / v29 / v31b**: 6 terms -- `loss_ntxent`
+  (★ primary), `loss_vq`, `loss_quant`, `loss_anchor`, `loss_dna`,
+  `loss_bu`. `loss_hash` / `loss_hash_hard` / `loss_recon` /
+  `loss_wasserstein` all disabled (λ=0).
+- **Adapter capacity sweet spot**: MLP hidden=768 (v30a, 1.18M params)
+  or Linear at d=384 (v30c, 0.30M). v29's hidden=1536 (2.36M) overfits
+  Flickr25k 5K train images; Linear at full d=768 (v30b) is too
+  underparameterised and collapses.
+- **Negative results catalogued (2026-05-15)**:
+  - v27a (continuous siglip_cos target) → collapse.
+  - v28a/b (recon decoder) → flat / mild regression.
+  - v30b (Linear d=768) → collapse.
+  - v32 (train-only text inject α=0.2 detach) → mAP −0.016 vs v29
+    (train-test distribution shift dominated; smaller α or anneal
+    might still help).
 - **Standard supervised baseline**: **v6** = `sinkhorn router +
   c_global_source=siglip2_global + K=32, 6 codebooks × 3 codons × 2 bits
   = 36-bit DNA hash`. SigLIP2 frozen; only adapter + codebooks +
@@ -60,13 +79,17 @@ Format conventions:
   dirs are in `backup/results_R_series/` with per-experiment summary in
   the README there. The corresponding loss / config / output-dict code
   paths were removed from the main tree on 2026-05-13.
-- **MSCOCO**: v6 = mAP **0.5243**; v6+V2 prompt = **0.5385**. v18/v29
-  form not yet tested on MSCOCO.
+- **MSCOCO**: v6 = mAP **0.5243**; v6+V2 prompt = **0.5385**. v18 / v29 /
+  v30a form not yet tested on MSCOCO.
 - **CIFAR10**: v6 = mAP **0.5335**, top-1 vs all four binary baselines.
 - **NUS-WIDE**: cache build paused.
 - **Result directory naming convention**: `<date>+<dataset>_<setting>_<user_tag>+bs+<bs>+e+<epoch>+proj_lr+<lr>/`.
   Enforced automatically by `train_siglip2._resolve_save_path` since
-  2026-05-15; see entry above for the migration.
+  2026-05-15.
+- **Layout policy**: `## Current state` pinned at top, dated sections
+  reverse-chronological (newest first), `## Infrastructure` pinned at
+  bottom. Re-enforced via `python scripts/reorder_project_log.py`
+  (idempotent).
 
 ---
 
@@ -82,92 +105,158 @@ Format conventions:
 
 ---
 
-## 2026-05-15 — v31 prep: per-codebook NtXent + per-codebook unique-rate metric
+## 2026-05-15 — v32: train-only text injection into quantizer (regression)
 
-🟢 infrastructure — added the building blocks for an upcoming v31
-ablation that asks "is each codebook independently discriminative?"
-(compositional independence test).
+🔴 reverted — `z' = z_v + 0.2 * sg(t)` at train time, fall back to z_v
+at eval. The codeword embeddings were supposed to absorb text-semantic
+structure during training while keeping the inference path text-free,
+but the train-test distribution shift dominated and mAP dropped by
+~0.02 vs v29.
 
-Code changes:
-- `loss_siglip2._loss_ntxent_dna_per_codebook(u_st_v1, u_st_v2, T)`
-  reshapes the [B, 18, 4] DNA code into 6 codebook groups of [B, 3, 4]
-  and runs an independent NtXent on each, averaging the 6 losses.
-- `--ntxent_mode {global, per_codebook}` flag selects between v29's
-  whole-code NtXent and the per-codebook variant.
-- `evaluation_siglip2.evaluate_code_collapse` returns
-  `per_codebook_unique_count` / `per_codebook_unique_ratio` /
-  `mean_per_codebook_unique_ratio` -- the same "distinct-code count"
-  measurement we already report for the full 18-base hash, but applied
-  to each codebook's 3-base block in isolation. High per-codebook
-  unique_ratio == codebook independently discriminates samples; low ==
-  the codebook is mostly redundant or collapsed.
-- `train_siglip2.py` mid-eval CSV / stdout now logs
-  `eval_mean_per_codebook_unique_ratio` so we can track compositional
-  independence across epochs.
+| Epoch | mAP | unique (test) | per-cb-unique | dead |
+|------:|----:|--------------:|--------------:|-----:|
+|   9   | 0.6378 | 0.1850 | 0.0032 | 0.063 |
+|  19   | 0.6399 | 0.3120 | 0.0039 | 0.013 |
+|  29   | 0.6341 | 0.3130 | 0.0040 | 0.000 |
+|  39   | 0.6351 | 0.3327 | 0.0040 | 0.003 |
+|  49   | 0.6387 | 0.3453 | 0.0039 | 0.000 |
+|  59   | 0.6387 | 0.3422 | 0.0040 | 0.000 |
+| **final eval** | **0.6422** | 0.1063 | 0.0003 | 0.000 |
 
-v31 launch plans:
-- v31a (additive): `λ_global=1.0`, plus `λ_per_codebook≈0.2` -- safest;
-  keeps v29 retrieval signal and adds compositional-independence pressure.
-- v31b (replace): `λ_global=0`, `λ_per_codebook=1.0` -- aggressive;
-  tests whether per-codebook contrastive alone is sufficient.
+Compared to v29 (0.6580 final) the text-inject path cost −0.016 mAP and
+also dropped diversity. The hypothesis (text-bias the codeword centroids
+during training, then look up unbiased visual at test) failed because
+the codeword centroids that the codebook learned were systematically
+shifted by `0.2·t` away from the test-time visual feature distribution
+— at lookup time many samples picked a "wrong" closest codeword.
 
-v31b is launch-deferred until paired-aug tokens are cached (see next
-entry) to avoid the ~5x live-backbone slowdown.
+Why this is a useful negative result:
+1. **Train-test distribution shift dominates** even at α=0.2 with the
+   text gradient detached. The codebook commit loss `MSE(q, sg(z))` is
+   tight enough that the shift is preserved through training rather than
+   being smoothed out.
+2. **SigLIP2 text-pooled vectors are near-uniform across slots**
+   (cos sim ~0.88 cross-slot, recorded in the v22 thread). Adding a
+   near-uniform shift to all six visual slots collapses inter-codebook
+   diversity rather than enriching it.
+3. **per-codebook unique = 0.0040 — same as v31b** while total unique
+   collapsed to 0.34 (vs v31b's 0.65). So text injection both fails to
+   help per-codebook independence AND removes total compositional
+   diversity.
+
+Variants worth considering before declaring the entire direction dead:
+- (b') smaller α (e.g. 0.05) — minimum train-test shift.
+- (c) anneal α → 0 over training so the codebook's late-stage learning
+  matches inference distribution.
+- separate per-codebook text projections (v22a-style) so the injected
+  signal differs per slot and breaks the cross-slot uniformity.
+
+Code: `--text_inject_train_only {none, add}`,
+`--text_inject_alpha`, `--text_inject_detach` (default True) flags
+in `config.py`; logic in `model_siglip2.SigLIP2SemanticOTModel.forward`
+inserted between routing and quantization.
+
+Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
 
 ---
 
----
+## 2026-05-15 — v31b: per-codebook NtXent (compositional-independence ablation)
+
+🟢 active — replaces v29's single global NtXent on the whole 18-base
+DNA code with 6 separate NtXents on each codebook's 3-codon block,
+averaged. Question asked: "does forcing each codebook to discriminate
+independently raise per-codebook unique_rate without hurting mAP?"
+
+| Epoch | mAP | total unique (test) | per-cb-unique | dead |
+|------:|----:|--------------------:|--------------:|-----:|
+|   9   | 0.6583 | 0.6033 | 0.0085 | 0.008 |
+|  19   | 0.6569 | 0.6255 | 0.0098 | 0.003 |
+|  29   | 0.6598 | 0.6512 | 0.0102 | 0.000 |
+|  39   | 0.6588 | 0.6230 | 0.0100 | 0.000 |
+|  49   | 0.6589 | 0.6285 | 0.0099 | 0.000 |
+|  59   | 0.6562 | 0.6321 | 0.0099 | 0.000 |
+| **final eval** | **0.6590** | 0.3651 (db) | 0.0009 (db) | 0.000 |
+
+Comparison vs v29 (global NtXent):
+
+|        | v29 final | v31b final | Δ |
+|--------|----------:|-----------:|---|
+| mAP    | 0.6580 | 0.6590 | +0.001 (tied) |
+| unique (test ep59) | 0.5257 | 0.6321 | +0.106 |
+| per-cb-unique | (no metric) | 0.0099 | — |
+| dead   | 0.000  | 0.000  | — |
+
+Hypothesis vs reality:
+- **Hypothesis**: per-codebook NtXent forces each codebook to identify
+  samples on its own → per-cb-unique rises to 0.4-0.55.
+- **Reality**: per-cb-unique only ~0.01 (each codebook still uses
+  ~20 distinct 3-base codes out of 2000 queries) — single codebook
+  alone is FAR from being a 1-of-2000 discriminator.
+- **What actually happened**: total unique (18-base) jumped from 0.53
+  to 0.65 even though each codebook stays heavy-collapsed. The 6
+  codebooks landed on DIFFERENT collapse patterns, so the combined
+  18-base code is more diverse than under v29's global loss.
+
+Reframed interpretation: per-codebook NtXent does not produce
+*independent discriminators* (each codebook can't separate 2000
+samples into 64 codes by itself). It produces *orthogonal collapse
+patterns* — 6 weak hashers whose Cartesian product is much more
+diverse than 6 redundant ones. mAP is preserved because the joint
+code remains discriminative, and total compositional diversity
+improves "for free".
+
+Code: `--ntxent_mode per_codebook` toggles the variant. Implemented
+in `loss_siglip2._loss_ntxent_dna_per_codebook`. The companion
+`per_codebook_unique_ratio` metric (added in `evaluation_siglip2`
+for this run) lets us measure the per-codebook collapse degree
+directly.
+
+v31a (additive: keep global + add per-codebook regularizer at λ=0.2)
+not yet launched. Likely to land between v29 and v31b on both axes.
+
+Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
 
 ---
 
----
+## 2026-05-15 — v30 final results (adapter-capacity ablation under v29 loss)
 
----
-
----
-
----
-
-## 2026-05-15 — v30a / v30b / v30c: adapter-capacity ablation under v29 NtXent loss
-
-🟡 in progress — v30a finished epoch 9 with mAP=0.6568 (v29 epoch 9:
-0.6627, Δ=−0.006). v30b / v30c still training.
+🟢 v30a / v30c kept as available variants · 🔴 v30b reverted (collapses).
 
 Question: does the 2-layer MLP adapter (~2.36M params per branch) actually
 contribute under v29's paired-aug NtXent loss, or is a flat
 LayerNorm+Linear (~0.59M, CIBHash-style) enough?
 
-| Run | adapter | hidden | d_model | params/adapter |
-|-----|---------|-------:|-------:|---------------:|
-| v29  (baseline) | MLP | 1536 | 768 | 2.36M |
-| **v30a** | MLP | 768  | 768 | 1.18M |
-| **v30b** | Linear (LayerNorm + single Linear) | n/a | 768 | 0.59M |
-| **v30c** | Linear (LayerNorm + single Linear) | n/a | 384 | 0.30M |
+| Run | Adapter | params / branch | final mAP | Δ vs v29 | unique (test ep59) | dead | Status |
+|-----|---------|---:|---:|---:|---:|---:|---|
+| v29  (baseline) | MLP hidden=1536, d=768 | 2.36M | 0.6580 |  —    | 0.5257 | 0.000 | reference |
+| **v30a** | MLP hidden=768, d=768 | 1.18M | **0.6646** | **+0.007** | 0.4299 | 0.003 | 🟢 best mAP |
+| **v30b** | Linear (LayerNorm + single Linear), d=768 | 0.59M | 0.5399 | −0.118 | 0.0005 | 0.628 | 🔴 collapsed |
+| **v30c** | Linear (LayerNorm + single Linear), d=384 | 0.30M | 0.6628 | +0.005 | 0.5171 | 0.000 | 🟢 lightweight option |
 
-Code: new `_LinearAdapter` class in `models/adapters.py` plus
-`--adapter_type {mlp, linear}`, `--adapter_hidden_dim`,
-`--adapter_dropout` CLI flags. `d_model` is divisible by 3 in all three
-variants so the codon head's per-position split stays valid.
+Findings:
+1. **Smaller MLP wins** — v30a (hidden 768, half of v29's 1536) gives
+   the best mAP (0.6646) among ALL our runs to date. Confirms the
+   hypothesis that v29's adapter is overparameterised for Flickr25k's
+   5K train images and the paired-aug NtXent signal.
+2. **Linear at full d=768 collapses immediately** — v30b stuck at
+   mAP=0.5393 / unique=0.0005 from epoch 9 onwards. A bare
+   LayerNorm+Linear at the SigLIP2 projection dim cannot keep the
+   routing geometry from degenerating under NtXent + frozen backbone.
+   Same collapse signature as v27a (siglip_cos continuous target).
+3. **Linear at d=384 works fine** — v30c (LayerNorm + single Linear,
+   d=384) reaches mAP=0.6628, only −0.002 below v30a despite having
+   ~4x fewer adapter params. The dim reduction from 768→384 gives the
+   single Linear enough relative capacity to find a stable mapping.
+4. **Adapter capacity sweet spot**: MLP hidden=768 (v30a, 1.18M params)
+   or Linear at d=384 (v30c, 0.30M). Anything smaller (Linear at d=768)
+   is too underparameterised.
 
-Hypothesis: with paired-aug NtXent producing such a sharp signal,
-overparameterised adapters mostly add optimization friction and
-overfit Flickr25k's 5K train samples. Reducing capacity should keep
-mAP within ±0.01 while shifting representational burden onto the
-codebook (the part we actually want to interpret).
+Decision: **adopt v30a as the new SOTA-equivalent baseline** (best mAP,
+similar wall-clock to v29 since cached-features path dominates). v30c
+kept as the lightweight reference for downstream comparison. v30b
+documented as a clear failure mode.
 
-Final comparison + decision pending v30b/c completion.
-
----
-
----
-
----
-
----
-
----
-
----
+Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
 
 ---
 
