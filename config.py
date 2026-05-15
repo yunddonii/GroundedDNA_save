@@ -301,6 +301,26 @@ class Config():
         loss_arg.add_argument('--lambda_recon',         type=float, default=1.0,
             help="Weight on loss_recon. Default 1.0 puts it on par with "
                  "loss_hash. Set 0 to disable even when --use_decoder is on.")
+        # ---------- v29: paired-aug NtXent on DNA code ------------------
+        # CIBHash-style instance-discrimination contrastive loss applied
+        # directly on the DNA code (forward = STE one-hot per position).
+        # Requires the dataloader to return paired augmented views per
+        # image (img_tr1, img_tr2) and the trainer to forward the model
+        # twice. Goal: replace v27b's noisy batch top-k pseudo-positive
+        # with the sharper "same image, different view" positive signal
+        # that drove CIBHash to mAP 0.6543 vs our 0.5639 on Flickr25k.
+        loss_arg.add_argument('--use_paired_aug_ntxent', action='store_true', default=False,
+            help="Enable paired-augmentation NtXent loss on DNA codes. "
+                 "Requires force_pixel_decode + paired_aug in dataloader; "
+                 "the trainer runs the model twice (once per view) and "
+                 "the criterion contrasts the two DNA codes per image.")
+        loss_arg.add_argument('--lambda_ntxent',         type=float, default=1.0,
+            help="Weight on loss_ntxent_dna. With --use_paired_aug_ntxent "
+                 "set to 1.0 you typically also want --lambda_hash 0 and "
+                 "--lambda_hash_hard 0 (NtXent replaces the pairwise "
+                 "similarity-target retrieval signal entirely).")
+        loss_arg.add_argument('--ntxent_temperature',    type=float, default=0.3,
+            help="Temperature for the NtXent softmax. CIBHash uses 0.3.")
         loss_arg.add_argument('--lambda_wasserstein',  type=float, default=0.0,
             help="Weight for the entropic-OT Wasserstein loss (per-sample "
                  "<pi, cost> from the Sinkhorn router, restored for v24a). "

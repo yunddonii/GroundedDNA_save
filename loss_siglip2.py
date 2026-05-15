@@ -203,6 +203,9 @@ class DNACodonHashLoss(nn.Module):
         # v28 reconstruction loss (pixel or siglip_feat decoder).
         self.lambda_recon       = float(getattr(cfg, "lambda_recon",       0.0))
         self.decoder_target     = str  (getattr(cfg, "decoder_target",     "siglip_feat"))
+        # v29 NtXent contrastive loss on DNA codes (paired-aug).
+        self.lambda_ntxent      = float(getattr(cfg, "lambda_ntxent",      0.0))
+        self.ntxent_temperature = float(getattr(cfg, "ntxent_temperature", 0.3))
         self.lambda_vq         = float(getattr(cfg, "lambda_vq",        0.25))
         self.lambda_quant      = float(getattr(cfg, "lambda_quant",     0.05))
         self.lambda_anchor     = float(getattr(cfg, "lambda_anchor",    0.05))
@@ -351,6 +354,54 @@ class DNACodonHashLoss(nn.Module):
         sim_hard = torch.einsum("brc,src->bsr", u_st, u_st).mean(dim=-1)   # [B, B]
         return F.mse_loss(sim_hard[mask], S[mask])
 
+    def _loss_ntxent_dna(
+        self,
+        u_st_view1: torch.Tensor,
+        u_st_view2: torch.Tensor,
+        temperature: float,
+    ) -> torch.Tensor:
+        """SimCLR / CIBHash-style NtXent contrastive loss on DNA codes.
+
+        u_st_view1, u_st_view2 : [B, 18, 4]   (STE one-hot per position)
+            Two augmented views of the same B images. The forward path is
+            hard one-hot; gradient flows through STE back to the codebooks
+            and encoder.
+
+        Similarity:
+            sim_dna(u_i, u_j) = mean over 18 positions of <u_i[r,:], u_j[r,:]>
+                              = expected fraction of agreeing positions
+                              ∈ [0, 1]
+            (Same definition `_loss_hash_*` already use, so the geometry
+             is consistent with the rest of the loss.)
+
+        NtXent:
+            z = [u_view1; u_view2]                                  # [2B, 18, 4]
+            sim_matrix[i, j] = sim_dna(z[i], z[j])                  # [2B, 2B]
+            logits = sim_matrix / temperature
+            For row i, positive = (i + B) mod 2B; mask out self;
+            softmax CE → encourages positive to dominate the row.
+
+        Per-image positive guarantee replaces v27b's batch top-k cosine
+        pseudo-positive (noisy, drifts batch-to-batch).
+        """
+        B = u_st_view1.shape[0]
+        z = torch.cat([u_st_view1, u_st_view2], dim=0)                  # [2B, 18, 4]
+        sim = torch.einsum("brc,src->bsr", z, z).mean(dim=-1)            # [2B, 2B]
+        sim = sim / max(float(temperature), 1e-6)
+
+        # Mask out the diagonal (self-similarity).
+        N = 2 * B
+        eye = torch.eye(N, device=sim.device, dtype=torch.bool)
+        sim = sim.masked_fill(eye, -1e9)
+
+        # Positive index: row i in [0, B) pairs with i+B; row i in [B, 2B)
+        # pairs with i-B. Cross-entropy target = positive index.
+        pos_idx = torch.cat([
+            torch.arange(B, 2 * B, device=sim.device),
+            torch.arange(0, B,     device=sim.device),
+        ])                                                              # [2B]
+        return F.cross_entropy(sim, pos_idx)
+
     def _loss_recon(
         self,
         recon: torch.Tensor,
@@ -492,6 +543,7 @@ class DNACodonHashLoss(nn.Module):
         multi_hot_labels: Optional[torch.Tensor] = None,
         epoch: Optional[int] = None,
         pixel_target: Optional[torch.Tensor] = None,
+        outputs_view2: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, torch.Tensor]:
         # ---- pull required tensors from the model output dict ------------
         u                            = outputs.get("continuous_code")          # [B, 18, 4]
@@ -570,6 +622,24 @@ class DNACodonHashLoss(nn.Module):
         else:
             loss_wasserstein = u.new_zeros(())
 
+        # v29 paired-aug NtXent on DNA codes (None-safe). Requires the
+        # trainer to forward the model on a second augmented view per image
+        # and pass that output dict via `outputs_view2`. Both view dicts
+        # must contain `dna_hash_code_st` of shape [B, 18, 4].
+        if (outputs_view2 is not None) and (self.lambda_ntxent > 0.0):
+            u_st_v1 = outputs.get("dna_hash_code_st")
+            u_st_v2 = outputs_view2.get("dna_hash_code_st")
+            if u_st_v1 is None or u_st_v2 is None:
+                raise ValueError(
+                    "[DNACodonHashLoss] paired-aug NtXent requires both "
+                    "outputs and outputs_view2 to contain dna_hash_code_st."
+                )
+            loss_ntxent = self._loss_ntxent_dna(
+                u_st_v1, u_st_v2, temperature=self.ntxent_temperature,
+            )
+        else:
+            loss_ntxent = u.new_zeros(())
+
         # v28 reconstruction loss (None-safe). Active only when the model
         # was built with --use_decoder; otherwise outputs['reconstruction']
         # is None and we skip the term entirely.
@@ -616,6 +686,7 @@ class DNACodonHashLoss(nn.Module):
             + eff_lambda_bu          * loss_bu
             + self.lambda_wasserstein * loss_wasserstein
             + self.lambda_recon       * loss_recon
+            + self.lambda_ntxent      * loss_ntxent
         )
 
         return {
@@ -627,6 +698,7 @@ class DNACodonHashLoss(nn.Module):
             "loss_anchor":       loss_anchor,
             "loss_wasserstein":  loss_wasserstein,
             "loss_recon":        loss_recon,
+            "loss_ntxent":       loss_ntxent,
             "loss_dna":          loss_dna,
             "loss_bu":           loss_bu,
             "loss_entropy":      dna_components["loss_entropy"],

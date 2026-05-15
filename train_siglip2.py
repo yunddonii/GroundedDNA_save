@@ -133,14 +133,31 @@ def main(args: Config):
 
     qwen_text_cache_path = getattr(args, "qwen_text_cache_path", None)
     feature_cache_dir    = getattr(args, "siglip2_feature_cache_dir", None)
-    # v28a (PixelDecoder) needs the raw image as reconstruction target, so
-    # we keep the PIL decode active even when the SigLIP2 feature cache is
-    # loaded. v28b (FeatureDecoder) only needs cached visual_global -- no
-    # decode needed. The flag is a no-op when --use_decoder is off.
+    # v28a (PixelDecoder) and v29 (paired-aug NtXent) both need the raw
+    # image at training time -- v28a as a reconstruction target, v29 as
+    # paired SimCLR-style augmented views. We keep the PIL decode active
+    # whenever either is on. The flag is a no-op for v27b/v28b.
     force_pixel_decode = bool(
-        getattr(args, "use_decoder", False)
-        and getattr(args, "decoder_target", "siglip_feat") == "pixel"
+        (getattr(args, "use_decoder", False)
+         and getattr(args, "decoder_target", "siglip_feat") == "pixel")
+        or getattr(args, "use_paired_aug_ntxent", False)
     )
+    # v29 needs strong CIBHash-style augmentations on the paired views.
+    # The default `get_transform('train')` is too weak (color jitter 0,
+    # scale (1.0, 1.0)), which would make img_tr1 ≈ img_tr2 and turn the
+    # NtXent task into a trivial identity match. Override with a SimCLR
+    # transform when --use_paired_aug_ntxent is on.
+    if getattr(args, "use_paired_aug_ntxent", False):
+        from torchvision import transforms as T
+        cj = T.ColorJitter(0.4, 0.4, 0.4, 0.1)
+        transform = T.Compose([
+            T.RandomResizedCrop(224, scale=(0.5, 1.0)),
+            T.RandomHorizontalFlip(p=0.5),
+            T.RandomApply([cj], p=0.8),
+            T.RandomGrayscale(p=0.2),
+            T.ToTensor(),
+            T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+        ])
     trainset, testset, _ = load_dataset(
         args.dataset_dir, args.dataset, setting='setting1',
         train_transform=transform, test_transform=test_transform,
@@ -216,6 +233,7 @@ def main(args: Config):
         'loss_bu', 'loss_cb_balance', 'loss_cb_uncorr',
         'loss_wasserstein',
         'loss_recon',
+        'loss_ntxent',
     ]
 
     # ---------- per-epoch CSV logger ---------------------------------------
@@ -250,6 +268,17 @@ def main(args: Config):
             cached_ht  = batch.get("has_text",                 None)
             cached_tt  = batch.get("cached_text_tokens",       None)
             cached_ttm = batch.get("cached_text_token_mask",   None)
+            # v29 paired-aug NtXent (train-only): bypass cache entirely
+            # and feed two augmented views (img_tr1, img_tr2) live through
+            # the (frozen) backbone. The cache only holds the deterministic
+            # view, which would defeat the purpose of contrastive training.
+            v29_train = bool(
+                train and getattr(args, 'use_paired_aug_ntxent', False)
+                and ('img_tr1' in batch) and ('img_tr2' in batch)
+            )
+            if v29_train:
+                cached_vt = cached_vg = cached_tp = cached_ht = None
+                cached_tt = cached_ttm = None
             using_cache = cached_vt is not None
             if using_cache:
                 cached_vt = cached_vt.to(args.device)
@@ -262,13 +291,18 @@ def main(args: Config):
                 part_input_ids = None
                 part_attn      = None
             else:
-                pixel_values = batch.get("pixel_values", batch.get("img", None))
-                if pixel_values is None:
-                    raise RuntimeError(
-                        "[train_siglip2] batch must contain 'pixel_values' / 'img' "
-                        "or cached SigLIP2 features."
-                    )
-                pixel_values = pixel_values.to(args.device)
+                # v29 path: use img_tr1 as view-1 input. Otherwise default
+                # to the deterministic pixel_values.
+                if v29_train:
+                    pixel_values = batch['img_tr1'].to(args.device)
+                else:
+                    pixel_values = batch.get("pixel_values", batch.get("img", None))
+                    if pixel_values is None:
+                        raise RuntimeError(
+                            "[train_siglip2] batch must contain 'pixel_values' / 'img' "
+                            "or cached SigLIP2 features."
+                        )
+                    pixel_values = pixel_values.to(args.device)
                 if 'part_input_ids' in batch and 'part_attention_mask' in batch:
                     part_input_ids = batch['part_input_ids'].to(args.device)
                     part_attn      = batch['part_attention_mask'].to(args.device)
@@ -289,6 +323,25 @@ def main(args: Config):
                 cached_text_tokens=cached_tt,
                 cached_text_token_mask=cached_ttm,
             )
+
+            # ---- v29 paired-aug NtXent: forward a SECOND augmented view --
+            # Train-only path. Forces live backbone (cached_*=None) on
+            # `img_tr2`, no text routing (text path is unchanged across
+            # augmentations so it would be redundant). The resulting DNA
+            # code is contrasted against `out['dna_hash_code_st']` inside
+            # the criterion.
+            out_view2 = None
+            if (
+                train and getattr(args, 'use_paired_aug_ntxent', False)
+                and ('img_tr2' in batch)
+            ):
+                pix_v2 = batch['img_tr2'].to(args.device)
+                out_view2 = model(
+                    pixel_values=pix_v2,
+                    part_input_ids=None,
+                    part_attention_mask=None,
+                    return_routing=True,
+                )
 
             # ---- labels ----------------------------------------------------
             mh_labels = batch.get('label',
@@ -316,6 +369,7 @@ def main(args: Config):
                 multi_hot_labels=mh_labels,
                 epoch=epoch,
                 pixel_target=pixel_target,
+                outputs_view2=out_view2,
             )
             loss = loss_dict['loss']
 
