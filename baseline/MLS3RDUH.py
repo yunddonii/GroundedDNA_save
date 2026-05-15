@@ -255,6 +255,11 @@ class MLS3RDUH(DeepHashBase):
             dim_feature = 4096
         elif config["backbone"] == "ViT":
             dim_feature = 768
+        elif config["backbone"] in ("SigLIP2", "siglip2", "SigLIP2-cached"):
+            dim_feature = 768
+        else:
+            raise ValueError(f"[MLS3RDUH] unknown backbone {config['backbone']!r} -- "
+                             "add a dim_feature mapping above.")
         
         similarity = generate_similarity_matrix(train_loader, len(trainset), model, dim_feature, num_class, config["k_nn"], config["o_nn"], config["alpha"], device) 
         

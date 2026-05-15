@@ -234,7 +234,10 @@ class BackboneWithEncoder(nn.Module):
     def forward(self, img: torch.Tensor) -> Dict[str, torch.Tensor]:
         feat = self.backbone(img)
         cont = self.encoder_layers(feat)
-        return {'continuous_code': cont, 'cnn_feat': feat}
+        # `backbone_last_output` is an alias used by some baselines (MLS3RDUH's
+        # HashNet wrapper). Same tensor as `cnn_feat`; both keys provided for
+        # cross-baseline compatibility.
+        return {'continuous_code': cont, 'cnn_feat': feat, 'backbone_last_output': feat}
 
 
 # Mimic the original `backbone_dict[name]` factory signature.
@@ -256,9 +259,21 @@ class CachedFeatureDataset(Dataset):
         'img'   : float32 [D_proj=768]   (the cached SigLIP2 visual_global)
         'label' : int64  [n_class]       (multi-hot; one-hot for single-class)
         'image_path' : str              (cache image_id, for reference)
+
+    Optional augmented-view paths (set via `paired_aug=True`) populate two
+    extra keys with cached auxiliary `visual_global_aug{0,1}.f16.npy` views:
+        'img_tr1' : float32 [D_proj]
+        'img_tr2' : float32 [D_proj]
+    These are required by CIBHash / CIMON's NtXent training. Built by
+    `extract_siglip2_features.py --save_aug_views 2`.
+
+    `return_index=True` adds:
+        'idx'   : int       row index within this split (0-based)
+    Required by MLS3RDUH for its kNN-graph index lookup.
     """
     def __init__(self, dataset_name: str, setting: str, mode: str,
-                 dataset_dir: str, cache_dir: Optional[str] = None):
+                 dataset_dir: str, cache_dir: Optional[str] = None,
+                 paired_aug: bool = False, return_index: bool = False):
         self.dataset_name = dataset_name
         self.setting = setting
         self.mode = mode
@@ -267,11 +282,29 @@ class CachedFeatureDataset(Dataset):
             if cache_dir is None:
                 raise KeyError(f'no default cache_dir for {dataset_name}')
         self.cache_dir = cache_dir
+        self.paired_aug = bool(paired_aug)
+        self.return_index = bool(return_index)
         # cache memmaps
         ids = json.load(open(os.path.join(cache_dir, 'image_ids.json')))
         self.id_to_row = {iid: i for i, iid in enumerate(ids)}
         self.visual_global = np.load(
             os.path.join(cache_dir, 'visual_global.f16.npy'), mmap_mode='r')
+        # Optional augmented views (lazily; only required when paired_aug=True).
+        self.visual_global_aug0 = None
+        self.visual_global_aug1 = None
+        if self.paired_aug:
+            for k in ('aug0', 'aug1'):
+                p = os.path.join(cache_dir, f'visual_global_{k}.f16.npy')
+                if not os.path.exists(p):
+                    raise FileNotFoundError(
+                        f"[CachedFeatureDataset] paired_aug=True but {p} is "
+                        f"missing. Build it with "
+                        f"`extract_siglip2_features.py --save_aug_views 2 --aug_only`."
+                    )
+            self.visual_global_aug0 = np.load(
+                os.path.join(cache_dir, 'visual_global_aug0.f16.npy'), mmap_mode='r')
+            self.visual_global_aug1 = np.load(
+                os.path.join(cache_dir, 'visual_global_aug1.f16.npy'), mmap_mode='r')
         # build (rows, labels, paths) for this split
         if dataset_name == 'CIFAR10':
             self._build_cifar10(setting, mode, dataset_dir)
@@ -346,7 +379,13 @@ class CachedFeatureDataset(Dataset):
         r = int(self.rows[idx])
         feat = torch.from_numpy(np.asarray(self.visual_global[r], dtype=np.float32))   # [D_proj]
         lbl  = torch.from_numpy(self.labels[idx]).float()                               # [n_class]
-        return {'img': feat, 'label': lbl, 'image_path': self.paths[idx]}
+        out: Dict[str, Any] = {'img': feat, 'label': lbl, 'image_path': self.paths[idx]}
+        if self.paired_aug and self.visual_global_aug0 is not None:
+            out['img_tr1'] = torch.from_numpy(np.asarray(self.visual_global_aug0[r], dtype=np.float32))
+            out['img_tr2'] = torch.from_numpy(np.asarray(self.visual_global_aug1[r], dtype=np.float32))
+        if self.return_index:
+            out['idx'] = idx
+        return out
 
 
 def load_dataset(dataset_root: str, dataset_name: str, setting: str,
@@ -354,10 +393,19 @@ def load_dataset(dataset_root: str, dataset_name: str, setting: str,
                  load_train: bool = True, load_test: bool = True, load_database: bool = True,
                  return_index: bool = False, return_paired_aug_img: bool = False,
                  cache_dir: Optional[str] = None) -> Tuple[Optional[Dataset], Optional[Dataset], Optional[Dataset]]:
-    """Replaces lib.dataloaders.load_dataset. Cached-feature backed."""
+    """Replaces lib.dataloaders.load_dataset. Cached-feature backed.
+
+    Train split honors `return_index` and `return_paired_aug_img` so
+    unsupervised baselines (CIBHash / CIMON NtXent, MLS3RDUH kNN graph) get
+    the auxiliary fields they expect. Test/database splits stay deterministic
+    (single-feature, no aug pairs) so retrieval evaluation is unaffected.
+    """
     train = test = db = None
     if load_train:
-        train = CachedFeatureDataset(dataset_name, setting, 'train', dataset_root, cache_dir)
+        train = CachedFeatureDataset(
+            dataset_name, setting, 'train', dataset_root, cache_dir,
+            paired_aug=return_paired_aug_img, return_index=return_index,
+        )
     if load_test:
         test = CachedFeatureDataset(dataset_name, setting, 'test', dataset_root, cache_dir)
     if load_database:
@@ -764,6 +812,7 @@ class DeepHashBase(metaclass=ABCMeta):
 def _build_method(method: str) -> 'DeepHashBase':
     """Lazy-import the chosen baseline class. Avoids circular imports during file modify."""
     method = method.lower()
+    # Supervised (label-driven) baselines.
     if method == 'dpsh':
         from baseline.DPSH import DPSH; return DPSH()
     if method == 'hashnet':
@@ -772,13 +821,28 @@ def _build_method(method: str) -> 'DeepHashBase':
         from baseline.CSQ import CSQ; return CSQ()
     if method == 'orthohash':
         from baseline.OrthoHash import OrthoHash; return OrthoHash()
-    raise SystemExit(f'unknown method: {method!r}. Available: dpsh hashnet csq orthohash')
+    # Unsupervised baselines (v27b comparison set, 2026-05-14).
+    # SPQ is intentionally NOT registered: baseline/SPQ.py is incomplete
+    # (`_get_fixed_config_dict` syntax error at line 176, `_train_model`
+    # never implemented). Reimplementing it properly would require porting
+    # the original PQ+CQC training loop -- left as future work.
+    if method == 'cibhash':
+        from baseline.CIBHash import CIBHash; return CIBHash()
+    if method == 'cimon':
+        from baseline.CIMON import CIMON; return CIMON()
+    if method == 'mls3rduh':
+        from baseline.MLS3RDUH import MLS3RDUH; return MLS3RDUH()
+    raise SystemExit(
+        f'unknown method: {method!r}. Available supervised: dpsh hashnet csq orthohash. '
+        f'Available unsupervised: cibhash cimon mls3rduh (spq stub is incomplete, see baseline/SPQ.py).'
+    )
 
 
 def main() -> int:
     pre = argparse.ArgumentParser(add_help=False)
     pre.add_argument('--method', type=str, required=True,
-                     help='dpsh / hashnet / csq / orthohash')
+                     help='Supervised: dpsh / hashnet / csq / orthohash. '
+                          'Unsupervised: cibhash / cimon / mls3rduh.')
     pre_args, remaining = pre.parse_known_args()
     obj = _build_method(pre_args.method)
     parser = obj.get_parser()

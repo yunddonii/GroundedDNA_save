@@ -131,6 +131,22 @@ _default_transform = transforms.Compose([
 ])
 
 
+# SimCLR / CIBHash-style augmentation. Used by `--save_aug_views K` to cache
+# K additional SigLIP2 visual_global views per image so downstream
+# unsupervised baselines (CIBHash, CIMON) get the augmentation pairs they
+# need without running the backbone live.
+def _build_aug_transform() -> "transforms.Compose":
+    color_jitter = transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
+    return transforms.Compose([
+        transforms.RandomResizedCrop(224, scale=(0.5, 1.0)),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.RandomApply([color_jitter], p=0.8),
+        transforms.RandomGrayscale(p=0.2),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
+    ])
+
+
 @torch.no_grad()
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -167,6 +183,14 @@ def main() -> int:
     ap.add_argument("--dtype", default="float16", choices=["float16", "float32"])
     ap.add_argument("--num_workers", type=int, default=4,
                     help="Parallel workers for ImageNet PIL decode + transform.")
+    ap.add_argument("--save_aug_views", type=int, default=0,
+        help="If > 0, additionally cache K SigLIP2 visual_global views per "
+             "image generated with a SimCLR/CIBHash-style random aug transform. "
+             "Saved as `visual_global_aug{0..K-1}.f16.npy`. Required by "
+             "CIBHash / CIMON unsupervised baselines (paired-aug NtXent).")
+    ap.add_argument("--aug_only", action="store_true", default=False,
+        help="Skip the deterministic visual + text extraction and ONLY produce "
+             "the aug views (assumes the deterministic cache already exists).")
     args = ap.parse_args()
 
     # mode-aware defaults
@@ -253,25 +277,30 @@ def main() -> int:
         "image_ids":     os.path.join(args.cache_dir, "image_ids.json"),
         "meta":          os.path.join(args.cache_dir, "meta.json"),
     }
-    print(f"[extract] visual_tokens shape -> [{N}, {num_tokens}, {H_v}]"
-          f" ~ {N * num_tokens * H_v * 2 / 1e9:.1f} GB at fp16")
-    visual_tokens_mm = np.lib.format.open_memmap(
-        paths["visual_tokens"], mode="w+", dtype=np_dtype,
-        shape=(N, num_tokens, H_v),
-    )
-    visual_global_mm = np.lib.format.open_memmap(
-        paths["visual_global"], mode="w+", dtype=np_dtype,
-        shape=(N, D_proj),
-    )
+    bs = args.batch_size
+    if not args.aug_only:
+        print(f"[extract] visual_tokens shape -> [{N}, {num_tokens}, {H_v}]"
+              f" ~ {N * num_tokens * H_v * 2 / 1e9:.1f} GB at fp16")
+        visual_tokens_mm = np.lib.format.open_memmap(
+            paths["visual_tokens"], mode="w+", dtype=np_dtype,
+            shape=(N, num_tokens, H_v),
+        )
+        visual_global_mm = np.lib.format.open_memmap(
+            paths["visual_global"], mode="w+", dtype=np_dtype,
+            shape=(N, D_proj),
+        )
+    else:
+        print(f"[extract] aug_only=True -> reusing existing visual_global cache (skipping step 4).")
+        visual_tokens_mm = None
+        visual_global_mm = None
 
     # ---- 4. extract VISUAL features --------------------------------------
-    print(f"[extract] running vision tower (bs={args.batch_size}, workers={args.num_workers}) ...")
-    bs = args.batch_size
-
-    # For ImageNet we use a torch DataLoader to overlap PIL decode + transform
-    # with GPU forward via num_workers. For CIFAR everything is already in
-    # memory so the simple batch loop is faster.
-    if args.mode == "cifar10":
+    if args.aug_only:
+        # Skip the entire deterministic visual extraction body. The aug-view
+        # loop in step 4b uses the same `arrays` / `image_paths` / `backbone`
+        # that we already prepared above.
+        pass
+    elif args.mode == "cifar10":
         for start in tqdm(range(0, N, bs), desc="visual"):
             end = min(start + bs, N)
             batch_pil  = [Image.fromarray(arrays[i]) for i in range(start, end)]
@@ -328,8 +357,100 @@ def main() -> int:
             ids = idx_batch.numpy()
             visual_tokens_mm[ids] = tok_np
             visual_global_mm[ids] = g_np
-    visual_tokens_mm.flush(); del visual_tokens_mm
-    visual_global_mm.flush(); del visual_global_mm
+    if visual_tokens_mm is not None:
+        visual_tokens_mm.flush(); del visual_tokens_mm
+    if visual_global_mm is not None:
+        visual_global_mm.flush(); del visual_global_mm
+
+    # ---- 4b. optional augmented visual_global views ----------------------
+    # Used by unsupervised baselines (CIBHash / CIMON NtXent) that need
+    # paired views per image. We re-run the vision tower K extra times with
+    # a SimCLR-style random aug transform and save each view as a separate
+    # `visual_global_aug{i}.f16.npy` file. The deterministic visual_global
+    # cache stays unchanged so retrieval eval is unaffected.
+    if int(args.save_aug_views) > 0:
+        K = int(args.save_aug_views)
+        aug_paths = []
+        aug_mms = []
+        for i in range(K):
+            p = os.path.join(args.cache_dir, f"visual_global_aug{i}.f16.npy")
+            mm = np.lib.format.open_memmap(p, mode="w+", dtype=np_dtype, shape=(N, D_proj))
+            aug_paths.append(p)
+            aug_mms.append(mm)
+        aug_transform = _build_aug_transform()
+        print(f"[extract] running vision tower {K} extra times with aug transform "
+              f"(bs={args.batch_size}, workers={args.num_workers}) ...")
+
+        if args.mode == "cifar10":
+            for view_idx in range(K):
+                for start in tqdm(range(0, N, bs), desc=f"aug{view_idx}"):
+                    end = min(start + bs, N)
+                    batch_pil = [Image.fromarray(arrays[i]) for i in range(start, end)]
+                    batch_pix = torch.stack([aug_transform(im) for im in batch_pil]).to(args.device)
+                    g_feat = backbone.model.get_image_features(pixel_values=batch_pix)
+                    g_feat = coerce_pooled_to_tensor(g_feat)
+                    aug_mms[view_idx][start:end] = g_feat.detach().cpu().numpy().astype(np_dtype)
+        else:
+            from torch.utils.data import Dataset as _TDS, DataLoader as _TDL
+
+            class _AugPathDS(_TDS):
+                def __init__(self, paths, transform):
+                    self.paths = paths
+                    self.transform = transform
+                def __len__(self): return len(self.paths)
+                def __getitem__(self, idx):
+                    try:
+                        im = Image.open(self.paths[idx]).convert("RGB")
+                        return idx, self.transform(im), 1
+                    except Exception:
+                        return idx, self.transform(Image.new("RGB", (224, 224), 0)), 0
+
+            for view_idx in range(K):
+                aug_ds = _AugPathDS(image_paths, aug_transform)
+                aug_dl = _TDL(aug_ds, batch_size=bs, shuffle=False,
+                              num_workers=int(args.num_workers), pin_memory=True,
+                              persistent_workers=(int(args.num_workers) > 0))
+                for idx_batch, pix_batch, ok_batch in tqdm(
+                    aug_dl, total=(N + bs - 1) // bs, desc=f"aug{view_idx}",
+                ):
+                    pix_batch = pix_batch.to(args.device, non_blocking=True)
+                    g_feat = backbone.model.get_image_features(pixel_values=pix_batch)
+                    g_feat = coerce_pooled_to_tensor(g_feat)
+                    g_np = g_feat.detach().cpu().numpy().astype(np_dtype)
+                    ok_np = ok_batch.numpy().astype(bool)
+                    if (~ok_np).any():
+                        g_np[~ok_np] = 0
+                    ids = idx_batch.numpy()
+                    aug_mms[view_idx][ids] = g_np
+
+        for mm in aug_mms:
+            mm.flush()
+        del aug_mms
+        for p in aug_paths:
+            paths[os.path.basename(p).replace(".f16.npy", "")] = p
+
+    # ---- 4c. aug_only short-circuit --------------------------------------
+    # When the user passed --aug_only, skip the text extraction entirely
+    # (the deterministic visual + text cache already existed and we just
+    # appended the aug views above).
+    if args.aug_only:
+        print("[extract] aug_only=True -> skipping text extraction.")
+        # Still update meta.json so downstream knows aug views are present.
+        if int(args.save_aug_views) > 0:
+            meta_p = os.path.join(args.cache_dir, "meta.json")
+            if os.path.exists(meta_p):
+                with open(meta_p, "r") as f:
+                    meta = json.load(f)
+            else:
+                meta = {}
+            meta["save_aug_views"] = int(args.save_aug_views)
+            with open(meta_p, "w") as f:
+                json.dump(meta, f, indent=2)
+        print("[extract] done (aug_only):")
+        for k, p in paths.items():
+            sz_mb = os.path.getsize(p) / 1e6 if os.path.exists(p) else 0.0
+            print(f"  {k:<22s} {p}  ({sz_mb:.1f} MB)")
+        return 0
 
     # ---- 5. text features (per-part global, 6 per image) -----------------
     text_part_mm = np.lib.format.open_memmap(
