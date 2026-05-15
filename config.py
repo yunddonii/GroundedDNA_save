@@ -104,6 +104,21 @@ class Config():
                  'features directly. Big speedup for frozen-backbone runs.')
         siglip2_arg.add_argument('--d_model', dest='d_model', type=int, default=None,
             help='Adapter output dim; None = use SigLIP2 projection_dim.')
+        # v30 ablation: control adapter capacity. 'mlp' (default) keeps
+        # the LayerNorm + Linear(D, 2D) + GELU + Dropout + Linear(2D, D)
+        # + residual block. 'linear' swaps it for LayerNorm + Linear(D, D)
+        # (no hidden, no GELU) -- ~5x fewer trainable params, closer in
+        # spirit to CIBHash's 30K-param flat projection.
+        siglip2_arg.add_argument('--adapter_type', dest='adapter_type',
+            type=str, default='mlp', choices=['mlp', 'linear'],
+            help="visual/text adapter architecture (default mlp).")
+        siglip2_arg.add_argument('--adapter_hidden_dim', dest='adapter_hidden_dim',
+            type=int, default=None,
+            help="MLP hidden dim (only used when adapter_type=mlp). "
+                 "Default = 2 * d_model.")
+        siglip2_arg.add_argument('--adapter_dropout', dest='adapter_dropout',
+            type=float, default=0.0,
+            help="Dropout inside the MLP adapter (only used when adapter_type=mlp).")
         siglip2_arg.add_argument('--use_gumbel_softmax', dest='use_gumbel_softmax',
             action='store_true', default=True,
             help='Use Gumbel-Softmax for the codon hard path (default: True).')

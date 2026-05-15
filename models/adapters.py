@@ -74,3 +74,53 @@ class TextAdapter(_MLPAdapter):
     Output shape:          [B, M, out_dim]
     """
     pass
+
+
+# =====================================================================
+# Linear adapter (v30 ablation, 2026-05-15)
+# =====================================================================
+# Single-Linear projection (LayerNorm -> Linear, no GELU, no hidden), so
+# the only trainable params are the in_dim*out_dim weight + bias + the
+# affine LayerNorm. Used to test whether the 2-layer MLP capacity in
+# `_MLPAdapter` is actually needed: with only 30K params CIBHash hits
+# mAP 0.6543 on Flickr25k using a flat Linear(768, 36); we want to see
+# how a comparable minimal projection behaves inside our compositional
+# pipeline.
+
+class _LinearAdapter(nn.Module):
+    """LayerNorm + single Linear projection (no MLP).
+
+    Forward:
+        x [..., in_dim]  ->  LayerNorm  ->  Linear  ->  (+ x if in==out and residual=True)
+        ->  [..., out_dim]
+
+    Params: in_dim * (out_dim + 1) + 2 * in_dim   (LN gamma/beta).
+    For 768 -> 768 this is ~0.59M (vs ~2.36M for the 2-layer MLP).
+    """
+    def __init__(
+        self,
+        in_dim: int,
+        out_dim: int,
+        residual: bool = True,
+    ) -> None:
+        super().__init__()
+        self.in_dim  = int(in_dim)
+        self.out_dim = int(out_dim)
+        self.norm = nn.LayerNorm(in_dim)
+        self.fc   = nn.Linear(in_dim, out_dim)
+        self.residual = bool(residual and (in_dim == out_dim))
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        h = self.norm(x)
+        h = self.fc(h)
+        if self.residual:
+            h = h + x
+        return h
+
+
+class VisualLinearAdapter(_LinearAdapter):
+    pass
+
+
+class TextLinearAdapter(_LinearAdapter):
+    pass

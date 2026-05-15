@@ -47,7 +47,10 @@ import torch.nn.functional as F
 from models.pretrained_backbone import build_pretrained_backbone, DEFAULT_BACKBONE
 from models.visual_encoder import VisualEncoder
 from models.text_encoder import TextEncoder
-from models.adapters import VisualAdapter, TextAdapter
+from models.adapters import (
+    VisualAdapter, TextAdapter,
+    VisualLinearAdapter, TextLinearAdapter,
+)
 from models.semantic_router import SemanticSinkhornRouter, SemanticAttentionRouter
 
 
@@ -523,7 +526,8 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.proj_dim: int = int(proj_dim)
         d_model_arg = getattr(args, "d_model", None)
         self.d_model: int = int(d_model_arg) if d_model_arg is not None else int(proj_dim)
-        adapter_hidden  = int(getattr(args, "adapter_hidden_dim", self.d_model * 2))
+        adapter_hidden  = getattr(args, "adapter_hidden_dim", None)
+        adapter_hidden  = int(adapter_hidden) if adapter_hidden is not None else int(self.d_model * 2)
         adapter_dropout = float(getattr(args, "adapter_dropout", 0.0))
 
         # ---------- C_global slot source ---------------------------------
@@ -545,13 +549,21 @@ class SigLIP2SemanticOTModel(nn.Module):
 
         # SigLIP2 vision tower last_hidden_state dim != projection dim in
         # general, so the visual adapter input is the vision tower hidden_dim.
-        self.visual_adapter = VisualAdapter(
-            in_dim=self.visual_encoder.hidden_dim,   # H_v
-            out_dim=self.d_model,                    # D
-            hidden_dim=adapter_hidden,
-            dropout=adapter_dropout,
-            residual=True,                           # auto-disabled if H_v != D
-        )
+        self.adapter_type = str(getattr(args, "adapter_type", "mlp"))
+        if self.adapter_type == "linear":
+            self.visual_adapter = VisualLinearAdapter(
+                in_dim=self.visual_encoder.hidden_dim,
+                out_dim=self.d_model,
+                residual=True,
+            )
+        else:
+            self.visual_adapter = VisualAdapter(
+                in_dim=self.visual_encoder.hidden_dim,   # H_v
+                out_dim=self.d_model,                    # D
+                hidden_dim=adapter_hidden,
+                dropout=adapter_dropout,
+                residual=True,                           # auto-disabled if H_v != D
+            )
         # The text branch consumes the per-part global feature (already in
         # SigLIP2 projection space, dim == proj_dim) and adapts to d_model.
         #
@@ -572,24 +584,41 @@ class SigLIP2SemanticOTModel(nn.Module):
         # 1 global + 5 local = 6 codebook slots total
         _n_text_slots = 1 + NUM_LOCAL_PARTS
         if self.per_slot_text_adapter:
-            self.text_adapter = nn.ModuleList([
-                TextAdapter(
+            if self.adapter_type == "linear":
+                self.text_adapter = nn.ModuleList([
+                    TextLinearAdapter(
+                        in_dim=int(proj_dim),
+                        out_dim=self.d_model,
+                        residual=True,
+                    )
+                    for _ in range(_n_text_slots)
+                ])
+            else:
+                self.text_adapter = nn.ModuleList([
+                    TextAdapter(
+                        in_dim=int(proj_dim),
+                        out_dim=self.d_model,
+                        hidden_dim=adapter_hidden,
+                        dropout=adapter_dropout,
+                        residual=True,
+                    )
+                    for _ in range(_n_text_slots)
+                ])
+        else:
+            if self.adapter_type == "linear":
+                self.text_adapter = TextLinearAdapter(
                     in_dim=int(proj_dim),
                     out_dim=self.d_model,
-                    hidden_dim=adapter_hidden,
-                    dropout=adapter_dropout,
                     residual=True,
                 )
-                for _ in range(_n_text_slots)
-            ])
-        else:
-            self.text_adapter = TextAdapter(
-                in_dim=int(proj_dim),                # D_proj
-                out_dim=self.d_model,                # D
-                hidden_dim=adapter_hidden,
-                dropout=adapter_dropout,
-                residual=True,                       # auto-disabled if D_proj != D
-            )
+            else:
+                self.text_adapter = TextAdapter(
+                    in_dim=int(proj_dim),                # D_proj
+                    out_dim=self.d_model,                # D
+                    hidden_dim=adapter_hidden,
+                    dropout=adapter_dropout,
+                    residual=True,                       # auto-disabled if D_proj != D
+                )
 
         # ---------- Optional: visual-cross-attention text pooling (Option B / v22b)
         # When `--use_text_token_attention` is set, the model expects per-image
