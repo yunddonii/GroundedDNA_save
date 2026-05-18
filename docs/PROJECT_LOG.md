@@ -108,6 +108,75 @@ Format conventions:
 
 ---
 
+## 2026-05-18 — v38 / v39: V1 reproducibility + V3 prompts under text-on regime
+
+🟢 v38 confirms our pipeline is bit-for-bit deterministic.
+🔴 v39 confirms V3 prompts do not recover the text-on regression.
+
+**v38** = v35f reproduction with the *same* V1 Qwen prompts. Mid-eval
+and final mAPs are byte-for-byte identical to v35f (mAP=0.6073, all
+mid-evals match to 4 decimal places). This is the result of an
+intentional determinism block in `config.set_random_seed(42)` invoked
+at the top of `train_siglip2.main`: torch / cuda / numpy / python /
+PYTHONHASHSEED all seeded, cuDNN deterministic (and disabled),
+CUBLAS_WORKSPACE_CONFIG fixed. With the same hyperparams + cache,
+the model trains identically.
+
+**Implication**: single-seed comparisons in the v29+ family are
+*not* noisy — every reported Δ between runs reflects the genuine
+hyperparameter effect, not random variance. (Multi-seed averaging
+would still be needed for paper-grade robustness claims, but
+ablation-vs-ablation comparisons we've been doing are clean.)
+
+**v39** = same setup as v38 / v35f, but Qwen text cache swapped from
+V1 to V3 (scene-aware caption-style sentences, Option D, built
+2026-05-13). Built a hybrid cache `flickr25k_siglip2_v3plus/` that
+symlinks V3 text_part with V1 visual + aug + metadata.
+
+Mid-eval trajectory (test split):
+
+| ep | v38 (V1) | v39 (V3) |
+|---:|---:|---:|
+|  9 | 0.5960 | 0.5964 |
+| 19 | 0.6063 | 0.5974 |
+| 29 | 0.6010 | 0.6068 |
+| 39 | 0.6075 | 0.5959 |
+| 49 | 0.6019 | **0.6123** |
+| 59 | 0.6070 | 0.6017 |
+| **final** | **0.6073** | **0.6019** |
+
+V3 trajectory has a brief late peak (ep 49 = 0.6123) that doesn't
+sustain. Final mAP is −0.005 vs V1 (within noise).
+
+Compositional metric (B1 centered text lift, B2 visual_global lift),
+v39 uses the V3 text features for B1 evaluation:
+
+| Run | B1 | B2 |
+|-----|---:|---:|
+| v35f / v38 (V1) | 0.0046 | 0.0157 |
+| **v39 (V3)** | **0.0063** | **0.0204** |
+
+V3 gives a modest compositional bump (+0.002 B1, +0.005 B2). Per-
+codebook B1 means show the gain is concentrated in cb 2 (0.006 vs
+V1's 0.002) and cb 5 (0.006 vs 0.004); cb 1, 3, 4 are unchanged.
+So V3's richer captions help *some* codebooks differentiate but the
+remaining local codebooks still collapse.
+
+Net read: **V3 makes a fractional Pareto trade — −0.005 mAP for
++0.005 compositional** — neither side wins decisively. Combined
+with v37a/b's failure, this rules out the "fix it with better
+prompts" branch of the recovery plan. The text-on regression on
+v34's paired-aug NtXent backbone is dominated by SigLIP2 text
+encoder uniformity, which neither structural changes (v22) nor
+caption rewrites (V2/V3) address sufficiently.
+
+Best operating points unchanged: **v34 (text-off, mAP 0.6696)** and
+**v31b (text-off, B1 lift 0.0242)**.
+
+Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
+
+---
+
 ## 2026-05-18 — v37a / v37b: v22 architectural fixes fail to recover text-on regime
 
 🔴 reverted — both `per_slot_text_adapter` (v22a) and
