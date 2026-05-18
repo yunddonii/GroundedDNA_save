@@ -108,6 +108,104 @@ Format conventions:
 
 ---
 
+## 2026-05-19 — v40a–f: soft routing + text-on, per-cb vs global × K ablation
+
+🟢 v40d adopted as the best text-on baseline (mAP 0.6280).
+🟢 v40a adopted as the best text-on compositional variant.
+🔴 v40b is a redundant re-run of v35b (deterministic).
+🔴 v40e (per-cb K=128) regresses vs v40a — per-cb dislikes large K.
+🔴 v40f (lr 2× + bs 2×) catastrophic codebook collapse.
+
+Question matrix: with soft Sinkhorn routing (no top-k mask), text-on
+regime (after the v29 bug fix), V1 Qwen prompts, and v34's MLP
+hidden=768 adapter, what's the best mix of NtXent mode (global vs
+per-codebook) and codebook size K?
+
+| Run | NtXent | K | bs | lr     | mAP    | B1    | B2    | dead | notes |
+|-----|--------|--:|--:|------:|------:|------:|------:|----:|-------|
+| **v40d** ★ | global    | 128 | 64  | 0.001 | **0.6280** | 0.0060 | 0.0150 | 0.65 | best text-on mAP |
+| **v40a** ★ | per-cb    | 64  | 64  | 0.001 | 0.6156 | **0.0126** | **0.0199** | 0.62 | best text-on compositional |
+| v40b  | global    | 64  | 64  | 0.001 | 0.5976 | 0.0041 | 0.0098 | 0.54 | = v35b reproduction |
+| v40e  | per-cb    | 128 | 64  | 0.001 | 0.5932 | 0.0079 | 0.0170 | 0.76 | per-cb regresses w/ K↑ |
+| v40f  | global    | 128 | 128 | 0.002 | 0.5863 | 0.0018 | 0.0146 | **0.81** | 2× lr broke EMA |
+
+(v40c launched as global K=72 + bs=64; killed at ep 39 to free GPU
+for v40f.)
+
+Four firm findings from this matrix:
+
+1. **K↑ + global NtXent → mAP +0.030** (v40b → v40d). The global
+   contrastive loss can productively use more codeword capacity.
+2. **K↑ + per-codebook NtXent → mAP −0.022** (v40a → v40e). Each
+   codebook must still discriminate 2B=128 samples using a 4³=64
+   discrete output space; more codeword embeddings dilute the
+   gradient signal without increasing discrete output capacity.
+3. **Per-codebook NtXent yields better compositional metric**
+   (v40a B1=0.0126 > v40d B1=0.0060) — confirms v31b vs v34 pattern.
+4. **Linear scaling rule (bs × 2 → lr × 2) destroys the EMA codebook**
+   (v40f): dead=0.81, unique=0.001, mAP stuck at 0.58 throughout
+   60 epochs. EMA decay (0.99) is a separate hyperparameter from
+   gradient lr; scaling lr alone breaks the asymmetry. Future
+   experiments should keep lr ≤ 0.0015 with bs ≤ 128, or move to
+   gradient-mode codebook + recompute EMA constants.
+
+Best operating points after v40 (text-on):
+- v40d (global K=128, bs=64, lr=0.001) — best mAP among text-on
+- v40a (per-codebook K=64, bs=64, lr=0.001) — best compositional
+
+Both still −0.04 below the text-off SOTA v34 (0.6696). text-on
+regression is at most partially mitigated by K scaling.
+
+Detailed mid-eval trajectories:
+
+```
+v40a: 0.6321 → 0.6376 → 0.6392 → 0.6159 → 0.6104 → 0.6124 (final 0.6156)
+v40b: 0.5666 → 0.5871 → 0.5997 → 0.6140 → 0.6007 → 0.5977 (final 0.5976)
+v40d: 0.6000 → 0.6197 → 0.6290 → 0.6255 → 0.6259 → 0.6310 (final 0.6280)
+v40e: 0.6013 → 0.5997 → 0.5929 → 0.5963 → 0.5888 → 0.5881 (final 0.5932)
+v40f: 0.5801 → 0.5843 → 0.5775 → 0.5863 → 0.5860 → 0.5872 (final 0.5863)
+```
+
+Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
+
+---
+
+## 2026-05-19 — Comprehensive analysis writeup (docs/ANALYSIS_2026-05-19.md)
+
+🟢 reference — full project synthesis covering 7 sections:
+
+1. User contribution claims (compositional code, text-supervised
+   routing, frozen backbone + tiny head).
+2. Experiment timeline + current leaderboard.
+3. Compositional metric (B1/B2) Pareto comparison.
+4. **5 fundamental problems**:
+   - 4-1 SigLIP2 text encoder cross-slot uniformity (cos sim 0.88)
+   - 4-2 text path always hurts mAP (−0.04 to −0.10) when enabled
+   - 4-3 per-codebook NtXent capacity limit (4³=64 ceiling)
+   - 4-4 compositional metric absolute values small (B1 ~0.02)
+   - 4-5 EMA codebook update lr-sensitivity (v40f catastrophic
+     collapse from 2× lr)
+5. **9 recovery directions** in 3 tiers, with concrete LOC estimates.
+6. Recommended 1-week roadmap.
+7. One-line summary + appendices (current best ops, failed branches
+   to avoid, code-restart pointers).
+
+Headline: v34 (text-off, mAP 0.6696) is our current SOTA but it
+*does not actually use* contribution (2) text-supervised routing.
+The text path is silently disabled — v35a-f confirmed that turning
+it back on regresses mAP everywhere (−0.04 to −0.10) and even
+hurts the compositional metric because SigLIP2 text encoder
+produces near-uniform pooled features across the 6 Qwen
+part-captions, so the 5 local Sinkhorn centroids all point in
+nearly the same direction. The narrative cannot honestly claim
+text-supervised compositional code until that uniformity is fixed.
+
+Top recommended direction: replace SigLIP2 text head with a text
+encoder that's strong on short prompts (CLIP / BERT / E5), OR
+add an explicit cross-slot decorrelation loss on the text adapter.
+
+---
+
 ## 2026-05-18 — v38 / v39: V1 reproducibility + V3 prompts under text-on regime
 
 🟢 v38 confirms our pipeline is bit-for-bit deterministic.
