@@ -108,6 +108,102 @@ Format conventions:
 
 ---
 
+## 2026-05-18 — v37a / v37b: v22 architectural fixes fail to recover text-on regime
+
+🔴 reverted — both `per_slot_text_adapter` (v22a) and
+`use_text_token_attention` (v22b) applied on top of v34 base in
+text-on regime FAIL to recover the regression that text routing
+caused (v35 entry below). The SigLIP2 text uniformity problem is
+not addressable by these adapter / pooling architectural fixes alone.
+
+Setup: v34 base (MLP h=768 adapter, paired-aug NtXent, routing
+top-k=2, global NtXent) + text routing active (fix from 24c78ea) +
+either v22a or v22b structural change in the text branch.
+
+Final mAP results (Flickr25k setting1, 60 epoch):
+
+| Run | Setting | mAP | Δ vs v34 |
+|-----|---------|----:|---:|
+| **v34** (text-off SOTA, reference) | base | **0.6696** | — |
+| v35f (text-on naive restore)       | (no fix) | 0.6073 | −0.062 |
+| **v37a** (text-on + v22a per_slot) | 6 independent text MLPs | **0.5982** | **−0.071** |
+| v37b (text-on + v22b visual-attn)  | cross-attn pooling over text tokens | 0.5721 | −0.098 |
+
+Compositional metric (B1 centered-text lift, B2 visual_global lift):
+
+| Run | B1 | B2 |
+|-----|---:|---:|
+| v34 (text-off)            | 0.0162 | 0.0342 |
+| v31b (text-off, per-cb)   | **0.0242** | **0.0408** |
+| v35f (text-on naive)      | 0.0046 | 0.0157 |
+| v37a (text-on + v22a)     | 0.0042 | 0.0171 |
+| v37b (text-on + v22b)     | 0.0057 | 0.0141 |
+
+Mid-eval trajectory (test split, ep 9 → 59):
+
+```
+v37a: 0.5929 → 0.5881 → 0.5867 → 0.6109* → 0.6004 → 0.6008
+              (peak at ep 39 = 0.6109 was transient; drifted back)
+v37b: 0.5924 → 0.5924 → 0.5786 → 0.5810 → 0.5855 → 0.5719
+              (flat / slow regress throughout)
+```
+
+v37a per_slot_text_adapter showed a brief jump at ep 39 but did
+not sustain it. v37b never recovered from the initial collapse.
+
+Per-codebook B1 means (v37a):
+```
+  cb 0 (C_global, text-free): 0.007
+  cb 1 (local, text-routed):  0.004
+  cb 2 (local, text-routed):  0.004
+  cb 3 (local, text-routed):  0.003
+  cb 4 (local, text-routed):  0.003
+  cb 5 (local, text-routed):  0.008
+```
+
+The five local codebooks still all collapse to ~0.003-0.008 B1
+lift, same pattern as v35d. The independent per-slot MLPs are
+trained but cannot overcome the near-identical SigLIP2 text input
+they receive (cross-slot cos sim ~0.88 baseline). Without
+discriminative input features, six independent linear maps just
+project the same direction six ways.
+
+This means the v22 family of fixes (proposed back in 2026-05-13
+when we first noticed the text uniformity) are insufficient for
+the modern paired-aug NtXent regime as well. The text uniformity
+issue lives at the SigLIP2 text encoder level, not at the
+adapter / pooling level.
+
+Recovery directions (the v22 ablations are now ruled out):
+
+1. **Replace text encoder** — CLIP / BERT instead of SigLIP2 text
+   head. SigLIP2 text head was trained for caption-image alignment
+   on long captions, producing uniform pooled vectors when given
+   short part-specific prompts.
+2. **Cross-slot decorrelation loss** — explicit MSE / cosine
+   penalty on `text_part_tokens[:, m, :] · text_part_tokens[:, m', :]`
+   for m≠m'. Forces the text adapter to project the six inputs
+   into orthogonal directions even when the inputs themselves are
+   near-identical.
+3. **Caption regeneration** — rerun Qwen2.5-VL with prompts
+   designed to force per-part distinctiveness (e.g., comparative
+   prompts: "describe the head differently from the torso").
+   V2 / V3 prompts already exist but never tested under text-on
+   paired-aug regime.
+4. **Drop text path, keep narrative as compositional structure
+   from visual clustering only.** v34 (text-off) is genuinely the
+   strongest configuration; the "text-supervised compositional
+   code" claim may need to soften to "compositional code with
+   text-supervisable routing" — the structure is there, the text
+   supervision currently doesn't help in this setting.
+
+Best operating points unchanged: **v34 (text-off, mAP 0.6696)** and
+**v31b (text-off, B1 lift 0.0242)**.
+
+Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
+
+---
+
 ## 2026-05-18 — v35a-f: re-runs with text routing restored (revealing diagnosis)
 
 🔴 reverted as a direct improvement — **restoring text routing in
