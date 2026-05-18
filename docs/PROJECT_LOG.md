@@ -258,6 +258,91 @@ Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
 
 ---
 
+## 2026-05-18 — Compositional faithfulness evaluation (metrics B + C)
+
+🟢 reference — new evaluation axis to support the "compositional code"
+claim that mAP alone cannot validate. Implemented in
+`compositional_eval.py`; outputs land alongside each result dir as
+`compositional_eval.json` + `codebook_grids/cb*_cw*.png`.
+
+Three intra-cluster cosine-similarity metrics per (codebook m, codeword k):
+
+- **B0 (raw text)**: cosine sim of cached SigLIP2 text_part[:, m, :]
+  across samples that share codeword k in codebook m. SigLIP2 text
+  embeddings have a baseline cos ≈ 0.88 across arbitrary captions, so
+  the raw metric is noise; reported for completeness only.
+- **B1 (centered text)**: same but with per-slot mean subtracted. The
+  baseline drops to 0; the lift = (real - shuffled) measures
+  *within-slot semantic concentration* on top of the SigLIP2-text
+  uniformity.
+- **B2 (visual_global)**: cosine sim of cached SigLIP2 visual_global
+  features (a single 768-d vector per image), pooled by the same
+  codeword groupings. Uses ALL 23K DB samples (not just the 5K
+  captioned ones), and the baseline ~0.695 is meaningful (visual
+  features have real variance across the DB).
+
+For each codebook we report `cluster_real - cluster_shuffled` as
+"compositional lift": positive values mean the codeword grouping is
+more semantically coherent than a random partition of the same sizes.
+
+Results (Flickr25k DB, 60-epoch checkpoints):
+
+| Run | mAP | B1 lift (centered text) | B2 lift (visual_global) | Rank on compositional |
+|-----|----:|------------------------:|------------------------:|----------------------:|
+| **v31b** (per-codebook NtXent) | 0.6590 | **0.0242** | **0.0408** | 1 ★ |
+| v29 (global NtXent baseline) | 0.6580 | 0.0182 | 0.0368 | 2-3 |
+| v30a (smaller MLP) | 0.6646 | 0.0173 | 0.0371 | 2-3 |
+| **v34** (mAP SOTA) | 0.6696 | 0.0162 | 0.0342 | **4 (last)** |
+
+Findings:
+
+1. **mAP ↔ compositional faithfulness Pareto frontier is real.**
+   The best mAP (v34) has the *worst* compositional lift; the best
+   compositional lift (v31b) sits −0.011 below v34 on mAP. The
+   ordering is consistent on both metrics (B1 and B2) and matches the
+   loss-design intent: per-codebook NtXent pushes each codebook to
+   discriminate independently → codewords cluster on more coherent
+   sub-features.
+
+2. **Quantitatively meaningful, qualitatively partial.** B1/B2 lifts
+   are positive and ordered as predicted, but absolute values are
+   small (~0.02-0.04). Codeword image grids show *weak* visual themes
+   (e.g., v34 cb1/cw004 ≈ "cityscape / wide shot"; v31b cb0/cw023 ≈
+   "indoor / close-up object") but no crisp human-readable
+   "dog" / "outdoor" atomic concepts. K=64 codewords per slot may be
+   too many for purely-Flickr25k-driven concepts to emerge clean.
+
+3. **Visual_global lift (B2) is consistently ~2x the centered-text
+   lift (B1).** Confirms that the codebook is doing primarily *visual*
+   clustering (good for retrieval), with text-slot semantics following
+   as a secondary effect. Future captioning improvements could push B1
+   closer to B2.
+
+4. **B0 (raw text) is uninformative** — all 4 models score 0.001-0.003
+   above baseline because SigLIP2 text encoder's per-sample variance
+   is dwarfed by its baseline cosine. The centering step in B1 fixes
+   this; future text-based compositional metrics should always center.
+
+Paper narrative implication: instead of competing with CIBHash on
+mAP alone (where flat 36-bit binary code is inherently better-suited),
+we can present two operating points on the (mAP, compositional-lift)
+Pareto frontier:
+
+- **v34** for the "best retrieval" pitch (vs CIBHash +0.015 mAP).
+- **v31b** for the "structured code" pitch (compositional lift
+  ~50% higher than v34, only −0.011 mAP).
+
+Both are unreachable for flat-code baselines that have no codebook
+structure to begin with.
+
+Code: `compositional_eval.py --result_dir <dir>` runs B0/B1/B2 +
+grid generation. Idempotent; uses the existing extract_db.npz from
+each result dir and the shared SigLIP2 caches. ~330 LoC.
+
+Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
+
+---
+
 ## 2026-05-15 — v32: train-only text injection into quantizer (regression)
 
 🔴 reverted — `z' = z_v + 0.2 * sg(t)` at train time, fall back to z_v
