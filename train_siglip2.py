@@ -315,17 +315,23 @@ def main(args: Config):
             )
             v29_train = v29_aug_cached or v29_aug_live
             if v29_train and not v29_aug_cached:
-                # live-backbone path: drop the deterministic cache so the
-                # encoder runs on img_tr1 (and img_tr2 for view 2).
-                cached_vt = cached_vg = cached_tp = cached_ht = None
+                # live-backbone path: drop the deterministic *visual* cache
+                # so the encoder runs on img_tr1 (and img_tr2 for view 2).
+                # KEEP cached text inputs -- text-supervised compositional
+                # code is a core contribution; routing centroids must come
+                # from the Qwen captions when available. Caption is
+                # image-content-agnostic, so the same text is correct for
+                # both augmented views of the same image.
+                cached_vt = cached_vg = None
                 cached_tt = cached_ttm = None
+                # `cached_tp` and `cached_ht` deliberately preserved.
             if v29_aug_cached:
-                # cached-aug path: replace the deterministic view-1 cache
-                # with the aug-0 tensors so view-1 forward uses aug-0.
+                # cached-aug path: swap visual cache for aug-0 tensors.
+                # Text path preserved as above.
                 cached_vt = batch['cached_visual_tokens_aug0']
                 cached_vg = batch['cached_visual_global_aug0']
-                cached_tp = cached_ht = None
                 cached_tt = cached_ttm = None
+                # `cached_tp` and `cached_ht` deliberately preserved.
             using_cache = cached_vt is not None
             if using_cache:
                 cached_vt = cached_vt.to(args.device)
@@ -372,10 +378,13 @@ def main(args: Config):
             )
 
             # ---- v29 paired-aug NtXent: forward a SECOND augmented view --
-            # Train-only path. If the cached aug-1 features are available
-            # (built by extract_siglip2_features.py --save_aug_views 2),
-            # use them directly -- no live backbone forward needed. Falls
-            # back to running the encoder on `img_tr2` when no cache.
+            # Train-only path. View 2 also uses the SAME text path inputs
+            # as view 1 (cached_tp / cached_ht / live part_input_ids) --
+            # captions describe the original image which is shared
+            # between the two augmented views, so text routing belongs in
+            # both forwards. Without this the text-supervised
+            # compositional-code claim has no training signal at all
+            # under paired-aug NtXent.
             out_view2 = None
             if v29_aug_cached:
                 out_view2 = model(
@@ -385,13 +394,15 @@ def main(args: Config):
                     return_routing=True,
                     cached_visual_tokens_raw=batch['cached_visual_tokens_aug1'].to(args.device),
                     cached_visual_global=batch['cached_visual_global_aug1'].to(args.device),
+                    cached_text_part_raw=cached_tp,
+                    cached_has_text=cached_ht,
                 )
             elif v29_aug_live and ('img_tr2' in batch):
                 pix_v2 = batch['img_tr2'].to(args.device)
                 out_view2 = model(
                     pixel_values=pix_v2,
-                    part_input_ids=None,
-                    part_attention_mask=None,
+                    part_input_ids=part_input_ids,
+                    part_attention_mask=part_attn,
                     return_routing=True,
                 )
 
