@@ -666,6 +666,17 @@ class SigLIP2SemanticOTModel(nn.Module):
                 f"[model_siglip2] router_type must be 'sinkhorn' or 'attention', "
                 f"got {self.router_type!r}"
             )
+        # v33a: epsilon annealing for Sinkhorn router. When both init+final
+        # are set, the effective epsilon is cosine-interpolated from init
+        # (epoch 0) to final (last epoch). Smaller epsilon -> sharper
+        # routing. v33b: top-k mask over per-patch part assignment (k>=M
+        # disables; k=1 = hard argmax).
+        self.sinkhorn_epsilon_init  = getattr(args, "sinkhorn_epsilon_init",  None)
+        self.sinkhorn_epsilon_final = getattr(args, "sinkhorn_epsilon_final", None)
+        self.routing_topk           = getattr(args, "routing_topk",           None)
+        self.total_epochs           = int(getattr(args, "epoch", 60))
+        # mutable per-step state set by trainer via set_current_epoch()
+        self._current_epoch: int = 0
 
         # ---------- codebook quantizer -----------------------------------
         self.num_codebooks: int = int(getattr(args, "num_codebooks", NUM_SEMANTIC_PARTS))
@@ -767,6 +778,25 @@ class SigLIP2SemanticOTModel(nn.Module):
             self.to(self.device)
 
     # ====================================================== sanity helpers
+
+    def set_current_epoch(self, epoch: int) -> None:
+        """Trainer calls this once per epoch so the router can compute the
+        annealed epsilon. v33a only; no-op when annealing is off."""
+        self._current_epoch = int(epoch)
+
+    def _current_sinkhorn_epsilon(self) -> Optional[float]:
+        """Return the annealed Sinkhorn epsilon for the current epoch, or
+        None if annealing is not configured (router falls back to its
+        stored static epsilon)."""
+        eps_i = self.sinkhorn_epsilon_init
+        eps_f = self.sinkhorn_epsilon_final
+        if eps_i is None or eps_f is None:
+            return None
+        t_max = max(self.total_epochs - 1, 1)
+        t = min(max(self._current_epoch, 0), t_max) / t_max
+        # cosine schedule (smooth, no plateau)
+        cos_t = 0.5 * (1.0 + math.cos(math.pi * t))      # 1.0 -> 0.0
+        return float(eps_f) + (float(eps_i) - float(eps_f)) * cos_t
 
     def assert_no_shared_trainable_params(self, verbose: bool = False) -> None:
         v_ids = {id(p) for p in self.visual_adapter.parameters() if p.requires_grad}
@@ -1118,13 +1148,24 @@ class SigLIP2SemanticOTModel(nn.Module):
         if not return_routing:
             return out
 
-        # 4) Sinkhorn OT routing on the 5 LOCAL parts
-        r_out = self.router(
-            visual_tokens=visual_tokens,
-            text_part_tokens=local_centroids,                 # [B, 5, D]
-            visual_mask=visual_attention_mask,
-            part_mask=local_part_mask_used,
-        )
+        # 4) Sinkhorn OT routing on the 5 LOCAL parts.
+        # v33a: pass an annealed epsilon if --sinkhorn_epsilon_init / _final
+        # are set; otherwise router uses its stored static epsilon.
+        # v33b: top-k mask per patch (only for Sinkhorn router; attention
+        # router ignores).
+        router_kwargs = {
+            "visual_tokens":    visual_tokens,
+            "text_part_tokens": local_centroids,              # [B, 5, D]
+            "visual_mask":      visual_attention_mask,
+            "part_mask":        local_part_mask_used,
+        }
+        if self.router_type == "sinkhorn":
+            cur_eps = self._current_sinkhorn_epsilon()
+            if cur_eps is not None:
+                router_kwargs["epsilon_override"] = cur_eps
+            if self.routing_topk is not None:
+                router_kwargs["topk_per_patch"]   = int(self.routing_topk)
+        r_out = self.router(**router_kwargs)
         local_routing_matrix = r_out["routing_matrix"]                                # [B, N, 5]
 
         # explicit re-normalize for numerical stability

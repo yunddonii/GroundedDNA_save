@@ -93,6 +93,8 @@ class SemanticSinkhornRouter(nn.Module):
         text_part_tokens: torch.Tensor,                 # [B, M, D]
         visual_mask:      Optional[torch.Tensor] = None,  # [B, N]
         part_mask:        Optional[torch.Tensor] = None,  # [B, M]
+        epsilon_override: Optional[float] = None,
+        topk_per_patch:   Optional[int]   = None,
     ) -> Dict[str, torch.Tensor]:
         # ---- shape sanity ------------------------------------------------
         B, N, D = visual_tokens.shape
@@ -113,7 +115,8 @@ class SemanticSinkhornRouter(nn.Module):
             cost = 1.0 - sim                             # [B, N, M], >= 0
         else:
             cost = -sim                                  # [B, N, M], in [-1, 1]
-        log_K = -cost / max(self.epsilon, 1e-6)          # [B, N, M]
+        eps_eff = float(epsilon_override) if epsilon_override is not None else self.epsilon
+        log_K = -cost / max(eps_eff, 1e-6)               # [B, N, M]
 
         # ---- 3) marginals (uniform unless masks supplied) ---------------
         device = visual_tokens.device
@@ -135,6 +138,23 @@ class SemanticSinkhornRouter(nn.Module):
         # ---- 4) Sinkhorn iterations in log-space ------------------------
         log_P = _log_sinkhorn(log_K, log_a, log_b, num_iters=self.num_iters)
         P = torch.exp(log_P)                             # [B, N, M]
+
+        # ---- 4b) optional top-k mask per patch (v33b hardening) ---------
+        # Keep only the top-k largest part-assignments per patch (along the
+        # M axis) and zero out the rest, then renormalize each row to keep
+        # patch marginal = a_n. k=1 -> hard argmax (Sinkhorn balance is
+        # broken). k>=M -> no-op. Renormalization is row-wise (per patch),
+        # so each patch's total mass stays the same; the *column* sums
+        # (per-part mass) drift away from the Sinkhorn target.
+        if topk_per_patch is not None and 1 <= int(topk_per_patch) < M:
+            k = int(topk_per_patch)
+            # threshold per patch n: k-th largest value in P[n, :]
+            kth = P.topk(k=k, dim=-1).values[..., -1:]      # [B, N, 1]
+            mask = (P >= kth).to(P.dtype)                    # [B, N, M] in {0,1}
+            P_masked = P * mask
+            row_sum = P_masked.sum(dim=-1, keepdim=True).clamp_min(1e-12)
+            # rescale so each patch row keeps its original marginal a[n]
+            P = P_masked / row_sum * a.unsqueeze(-1)
 
         # ---- 5) weighted pooling: P^T @ V then col-normalize ------------
         # semantic_v[b, m, :] = sum_n P[b, n, m] * v[b, n, :] / sum_n P[b, n, m]

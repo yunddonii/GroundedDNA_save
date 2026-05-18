@@ -476,6 +476,11 @@ def main(args: Config):
         cur_tau = _gumbel_tau_for_epoch(e)
         model.set_gumbel_tau(cur_tau)
 
+        # v33a: propagate current epoch to model so Sinkhorn router can
+        # compute annealed epsilon (no-op when annealing is off).
+        if hasattr(model, "set_current_epoch"):
+            model.set_current_epoch(e)
+
         model.train()
         train_result = one_epoch(train=True, loader=train_loader, epoch=e)
         if scheduler is not None:

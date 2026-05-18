@@ -213,6 +213,24 @@ class Config():
         siglip2_arg.add_argument('--attention_router_temperature',
             dest='attention_router_temperature', type=float, default=0.1,
             help='Softmax temperature for attention router (smaller -> sharper).')
+        # v33a: Sinkhorn epsilon annealing.
+        siglip2_arg.add_argument('--sinkhorn_epsilon_init',
+            dest='sinkhorn_epsilon_init', type=float, default=None,
+            help='If set together with --sinkhorn_epsilon_final, the '
+                 'Sinkhorn router uses a cosine-annealed epsilon from '
+                 '*_init (epoch 0) to *_final (last epoch). Smaller '
+                 'epsilon -> sharper (harder) routing. v33a ablation.')
+        siglip2_arg.add_argument('--sinkhorn_epsilon_final',
+            dest='sinkhorn_epsilon_final', type=float, default=None,
+            help='Companion to --sinkhorn_epsilon_init.')
+        # v33b: top-k routing mask per patch.
+        siglip2_arg.add_argument('--routing_topk',
+            dest='routing_topk', type=int, default=None,
+            help='If set, keep only the top-k largest routing weights per '
+                 'patch (along the M=5 part axis) and renormalize so each '
+                 'patch row keeps its original marginal. k=1 -> hard '
+                 'argmax (Sinkhorn balance broken); k>=M -> no-op. '
+                 'v33b ablation.')
         # ---------- VQ codebook update mode -----------------------------
         # `gradient` (default, legacy) -- codebook is an nn.Parameter,
         #   updated by the VQ loss MSE term. Prone to dead-code collapse.
