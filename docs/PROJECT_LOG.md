@@ -36,14 +36,15 @@ Format conventions:
   incl. HashNet's own 0.7800.
 - **Best supervised + diversity-balanced Flickr25k**: **v24b** -- mAP
   **0.7742**, unique 0.324.
-- **Best unsupervised Flickr25k (ours)**: **v30a** (v29 NtXent +
-  half-size MLP adapter, hidden=768) -- mAP **0.6646**, unique
-  0.4299, dead 0.003. Beats CIBHash 0.6543 by +0.010.
+- **Best unsupervised Flickr25k (ours)**: **v34** (v30a + routing
+  top-k=2) -- mAP **0.6696**, unique 0.3810 (test ep59), dead 0.000.
+  Beats CIBHash 0.6543 by **+0.015**.
 - **Unsupervised leaderboard (Flickr25k setting1, 36-bit, frozen SigLIP2, 60 epoch)**:
 
   | Run | Adapter / variant | mAP | unique (test) | per-cb-unique | dead |
   |-----|-------------------|----:|--------------:|--------------:|-----:|
-  | **v30a** ★ | MLP h=768 (half v29) | **0.6646** | 0.4299 | — | 0.003 |
+  | **v34** ★ | v30a + routing top-k=2 | **0.6696** | 0.3810 | 0.0035 | 0.000 |
+  | **v30a** | MLP h=768 (half v29) | 0.6646 | 0.4299 | — | 0.003 |
   | **v30c** | Linear d=384 | 0.6628 | 0.5171 | — | 0.000 |
   | **v33b** | per-codebook + routing top-k=2 | 0.6594 | 0.6497 | 0.0118 | 0.000 |
   | **v31b** | per-codebook NtXent | 0.6590 | 0.6321 | 0.0099 | 0.000 |
@@ -104,6 +105,83 @@ Format conventions:
 ---
 
 ---
+
+---
+
+## 2026-05-18 — v34: v30a + routing top-k=2 → new unsupervised SOTA (mAP 0.6696)
+
+🟢 active — strict Pareto improvement over v30a on mAP. Adopted as
+the new unsupervised baseline.
+
+Combines v30a's loss + adapter (the previous mAP leader) with v33b's
+routing top-k=2 mask (the previous diversity-improving variant on the
+per-codebook-NtXent setup):
+
+| Setting | v34 | from |
+|---------|-----|------|
+| adapter | MLP hidden=768 | v30a |
+| NtXent mode | **global** | v30a |
+| routing | top-k=2 mask | v33b |
+| rest | siglip_cos_topk, cached aug, K=64, no global gate | v29 |
+
+Mid-eval trajectory (test split):
+
+| Epoch | mAP | unique | per-cb-unique | dead |
+|------:|----:|-------:|--------------:|-----:|
+|   9   | **0.6783** | 0.2843 | 0.0032 | 0.0885 |
+|  19   | 0.6598 | 0.2994 | 0.0032 | 0.0026 |
+|  29   | 0.6646 | 0.3438 | 0.0036 | 0.000 |
+|  39   | 0.6590 | 0.3866 | 0.0036 | 0.000 |
+|  49   | 0.6635 | 0.3684 | 0.0036 | 0.000 |
+|  59   | 0.6666 | 0.3810 | 0.0035 | 0.000 |
+| **final eval** | **0.6696** | 0.1161 (db) | 0.0003 (db) | 0.000 |
+
+Final unsupervised leaderboard (Flickr25k setting1, 36-bit, frozen
+SigLIP2, 60 epoch):
+
+| Rank | Run | Δ vs v34 | mAP |
+|-----:|-----|---------:|----:|
+|  1 | **v34** (★ SOTA) | —      | **0.6696** |
+|  2 | v30a | −0.005 | 0.6646 |
+|  3 | v30c | −0.007 | 0.6628 |
+|  4 | v33b | −0.010 | 0.6594 |
+|  5 | v31b | −0.011 | 0.6590 |
+|  6 | v33a | −0.011 | 0.6584 |
+|  7 | v29  | −0.012 | 0.6580 |
+| ext | CIBHash (best external unsup) | **−0.015** | 0.6543 |
+
+Findings:
+
+1. **Routing-hardening effect depends on loss type.** Combined with
+   *per-codebook NtXent* (v31b → v33b), top-k=2 gave essentially flat
+   mAP (Δ=+0.0004). Combined with *global NtXent* (v30a → v34), the
+   same routing change gave a clean +0.005 mAP gain. The per-codebook
+   loss already pressures each codebook toward orthogonal collapse
+   patterns, so the additional routing hardening has nothing to add;
+   the global loss has slack that the harder routing fills.
+
+2. **Early peak at epoch 9 (mAP=0.6783) is real but not stable.**
+   v34 shows the same "peak-then-drift" pattern as v30a / v33a:
+   the 60-epoch final lands ~0.01 below the early peak. Worth
+   exploring early-stop policies (eval_every smaller + best-checkpoint
+   selection) on the next sweep.
+
+3. **Dead codes appeared at ep 9 (8.8%) but fully recovered by ep 29.**
+   The EMA codebook revive policy is fast enough to recover from
+   transient peakiness when the loss is global NtXent. With
+   per-codebook loss + sharper eps (v33a), recovery did NOT happen
+   (final dead=7.5%).
+
+4. **Compositional diversity dropped a bit.** v34 db unique=0.1161
+   vs v30a's 0.1631 — top-k=2 routing pushed all codeword usage onto
+   a smaller subset of (codebook × codeword) cells. mAP gain comes
+   from sharper alignment, not from richer code space.
+
+Code: launched with v30a's settings (no `--ntxent_mode` flag → defaults
+to `global`) plus `--routing_topk 2`. No new code; this is purely a
+hyperparameter combination.
+
+Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
 
 ---
 
