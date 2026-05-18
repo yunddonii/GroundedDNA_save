@@ -108,6 +108,117 @@ Format conventions:
 
 ---
 
+## 2026-05-18 — v35a-f: re-runs with text routing restored (revealing diagnosis)
+
+🔴 reverted as a direct improvement — **restoring text routing in
+paired-aug NtXent training HURTS both mAP AND the compositional
+metric.** This is an unexpected, important diagnostic that exposes
+a deeper architectural issue: SigLIP2's text encoder produces
+near-uniform pooled features across the 6 Qwen part-captions, and
+that uniformity destabilises local-codebook routing.
+
+Context: v29 implementation silently set `cached_tp = cached_ht = None`
+in both the paired-aug live-backbone and cached-aug paths plus the
+view-2 forward, completely disabling the text→adapter→router branch
+during v29/v30a/v30b/v30c/v31b/v33a/v33b/v34 training. This was a bug
+from the project's perspective (text-supervised compositional code is
+a stated contribution) and is now captured as a permanent feedback
+memory entry (`feedback_text_path_core_contribution.md`). The fix
+preserves cached_tp / cached_ht through the same paths and passes
+them to view-2 as well; smoke test confirmed
+`train_loss_anchor=0.994` (non-zero → text path active).
+
+v35a-f re-run the 6 most meaningful variants with text restored.
+
+Final mAP results (Flickr25k setting1, 60 epoch, 5/6 done; v35a still
+running on bandwidth-starved GPU 1):
+
+| Run | text-off variant | text-off mAP | **text-on mAP** | Δ |
+|-----|------------------|-------------:|---------------:|---:|
+| v35b | v30a (MLP h=768)                | 0.6646 | 0.5976 | −0.067 |
+| v35c | v30c (Linear d=384)             | 0.6628 | 0.5859 | −0.077 |
+| **v35d** | v31b (per-codebook NtXent)  | 0.6590 | **0.6242** | **−0.035** (least loss) |
+| v35e | v33b (per-cb + routing top-k=2) | 0.6594 | 0.6198 | −0.040 |
+| v35f | v34 (v30a + routing top-k=2)    | 0.6696 | 0.6073 | −0.062 |
+
+Compositional metric (B1 centered-text lift, B2 visual_global lift):
+
+| Run | text-off B1 / B2 | **text-on B1 / B2** | Both axes DROPPED |
+|-----|------------------|---------------------|---|
+| v30a → v35b | 0.0173 / 0.0371 | 0.0041 / 0.0098 | ↓ ↓ |
+| v31b → v35d | **0.0242** / **0.0408** | 0.0080 / 0.0167 | ↓ ↓ |
+| v34 → v35f  | 0.0162 / 0.0342 | 0.0046 / 0.0157 | ↓ ↓ |
+
+So both axes regressed. Restoring text routing was supposed to
+strengthen the compositional pitch (each codebook anchored to a
+distinct Qwen part); instead it broke both retrieval AND structure.
+
+Root-cause diagnosis (per-codebook B1 means make it unambiguous):
+
+```
+v35d (v31b + text) per-codebook B1 lift:
+  cb 0 (C_global, not text-routed): 0.032   ← healthy
+  cb 1 (local, text-routed):        0.005   ← collapsed
+  cb 2 (local, text-routed):        0.005   ← collapsed
+  cb 3 (local, text-routed):        0.004   ← collapsed
+  cb 4 (local, text-routed):        0.001   ← collapsed
+  cb 5 (local, text-routed):        0.005   ← collapsed
+```
+
+The 5 LOCAL codebooks (which take text centroids in the Sinkhorn
+router) all collapsed; the GLOBAL codebook (`global_adapter` on
+`visual_global`, text-free) stayed healthy. dead-code ratios stayed
+at 0.5–0.7 throughout training instead of converging to 0 like the
+text-off variants.
+
+This mirrors the v22 finding (2026-05-13): SigLIP2's text encoder
+produces near-uniform pooled features across the six per-part Qwen
+captions (cross-slot cos sim ~0.88). Using those as the 5 local
+centroids means *all 5 centroids point in nearly the same direction*,
+so the OT plan routes patches almost uniformly to all parts → 5 local
+codebooks all see the same patch distribution → collapse into
+redundant degenerate states.
+
+In other words: **text routing as currently wired assumes
+discriminative per-part text features that we do not actually have.**
+The v29 "bug" that silently disabled text routing was accidentally
+the right call because it let local codebooks specialise via pure
+visual clustering instead of being pinned to a near-uniform text
+basis.
+
+Implication for the "text-supervised compositional code" claim:
+not false in principle, but our current text pipeline (SigLIP2 text
+encoder + Qwen 6-part captions) does not yet give us the text
+discriminability needed to instantiate it. Without first fixing that,
+restoring text routing actively harms the result.
+
+Recovery directions (not yet launched):
+
+1. `--per_slot_text_adapter` (v22a style) — six independent text MLPs,
+   one per slot, so SigLIP2's near-identical inputs can be pushed
+   into distinct sub-spaces. v22a regressed in the text-OFF supervised
+   regime (2026-05-13), but the v35 regime (text-on + paired-aug
+   NtXent) is different; worth retrying.
+2. Cross-slot decorrelation loss — explicit penalty on cos sim
+   between any two `text_part_tokens[:, m, :]`. Forces the text
+   adapter to learn discriminative per-slot projections.
+3. Richer Qwen captions — current 6 part-captions may be too generic
+   for SigLIP2's text encoder to differentiate. V2 / V3 scene-aware
+   prompts already exist; retest under text-on.
+4. Switch text encoder — CLIP / BERT on the part-captions, decoupled
+   from SigLIP2's contrastively-trained text head.
+
+Best operating points unchanged:
+
+- **v34 (text off)** stays the unsupervised SOTA on mAP (0.6696).
+- **v31b (text off)** stays the compositional leader (B1=0.0242).
+- v35d (text on) is the best text-restored variant but strictly
+  dominated on both axes; not adopted.
+
+Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
+
+---
+
 ## 2026-05-18 — v34: v30a + routing top-k=2 → new unsupervised SOTA (mAP 0.6696)
 
 🟢 active — strict Pareto improvement over v30a on mAP. Adopted as
