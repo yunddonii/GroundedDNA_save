@@ -29,7 +29,7 @@ Format conventions:
 
 ---
 
-## Current state (as of 2026-05-15)
+## Current state (as of 2026-05-18)
 
 - **Best supervised Flickr25k**: **v18** (HashNet-style logistic on
   continuous DNA code) -- mAP **0.7883**. Above every binary baseline
@@ -45,7 +45,9 @@ Format conventions:
   |-----|-------------------|----:|--------------:|--------------:|-----:|
   | **v30a** ★ | MLP h=768 (half v29) | **0.6646** | 0.4299 | — | 0.003 |
   | **v30c** | Linear d=384 | 0.6628 | 0.5171 | — | 0.000 |
+  | **v33b** | per-codebook + routing top-k=2 | 0.6594 | 0.6497 | 0.0118 | 0.000 |
   | **v31b** | per-codebook NtXent | 0.6590 | 0.6321 | 0.0099 | 0.000 |
+  | v33a | per-codebook + sinkhorn eps anneal | 0.6584 | 0.7515 | 0.0118 | 0.076 ⚠ |
   | **v29**  | global NtXent baseline | 0.6580 | 0.5257 | — | 0.000 |
   | CIBHash (external) | flat Linear(768,36) + NtXent | 0.6543 | 0.997 | — | — |
   | CIMON (external) | spectral-PL + NtXent | 0.6456 | 0.881 | — | — |
@@ -102,6 +104,79 @@ Format conventions:
 ---
 
 ---
+
+---
+
+## 2026-05-18 — v33a / v33b: harden Sinkhorn routing (eps anneal · top-k mask)
+
+🟢 v33b kept as a useful diversity-improving variant on top of v31b.
+🟡 v33a documented but not adopted (introduces dead codes).
+
+Question: routing in v29-family is *soft* (Sinkhorn OT plan gives each
+patch a smooth weight across all 5 local parts). Does *hardening* the
+routing increase per-codebook discrimination (per-cb-unique) and/or
+total compositional diversity without losing retrieval mAP?
+
+Common setting: **v30a + v31b merged** — MLP hidden=768 adapter
+(v30a, 1.18M params/branch) + per-codebook NtXent loss (v31b).
+Two variants:
+
+- **v33a**: epsilon annealing. `eps(t) = 0.01 + (0.1 - 0.01) * (1 + cos(π·t/T))/2`,
+  smoothly shrinks from 0.1 (smooth routing) at epoch 0 to 0.01
+  (near-hard) at epoch 59. Sinkhorn balance preserved (marginals still
+  enforced) but the OT plan becomes peakier as training progresses.
+- **v33b**: top-k mask per patch. After Sinkhorn, keep only the top-k
+  largest part-weights per patch (k=2) and renormalize each row to its
+  original marginal. Each patch now contributes to exactly 2 parts
+  instead of 5 (or fewer with concentrated mass).
+
+Final results (Flickr25k setting1, 60 epoch, cached aug):
+
+| Run        | mAP    | unique (db) | per-cb-unique | dead   | Notes |
+|------------|-------:|------------:|--------------:|-------:|-------|
+| v31b (baseline) | 0.6590 | 0.3651 | 0.0009 | 0.0000 | reference |
+| **v33a** (eps anneal) | 0.6584 | 0.3725 | 0.0010 | **0.0755** | ⚠ dead codes appear |
+| **v33b** (top-k=2)    | **0.6594** | **0.3947** | 0.0010 | 0.0000 | strict Pareto improvement |
+
+Mid-eval trajectory (test split, ep 9-59):
+
+```
+v33a:  mAP 0.667 → 0.658 → 0.659 → 0.657 → 0.659 → 0.657
+       uniq 0.668 → 0.672 → 0.693 → 0.686 → 0.719 → 0.752
+v33b:  mAP 0.659 → 0.663 → 0.658 → 0.657 → 0.654 → 0.657
+       uniq 0.720 → 0.668 → 0.675 → 0.666 → 0.659 → 0.650
+```
+
+v33a peaks early on mAP then drifts; unique grows monotonically.
+v33b is steady on both axes from epoch 9 onwards.
+
+Findings:
+1. **Routing-hardening helps diversity, not mAP.** Both variants give
+   roughly v31b mAP (0.6584–0.6594, Δ within ±0.001) but lift database
+   unique by +0.03 to +0.07.
+2. **v33b is a strict Pareto improvement over v31b** (slightly higher
+   mAP AND higher unique). Adopted as the new compositional-diversity
+   variant.
+3. **v33a develops dead codebook entries** (7.5% per codebook by ep 59).
+   Annealing eps to 0.01 makes the Sinkhorn plan so peaky that some
+   codewords are never selected for an entire batch → EMA revival
+   can't reach them. Useful warning for any future eps schedules.
+4. **Neither variant beats v30a on mAP** (0.6646). Routing-hardening is
+   orthogonal to adapter-capacity reduction; combining v30a's smaller
+   adapter with v33b's top-k=2 router could give the next Pareto point.
+
+Code:
+- `models.semantic_router.SemanticSinkhornRouter.forward` gains
+  `epsilon_override` and `topk_per_patch` kwargs.
+- `model_siglip2.SigLIP2SemanticOTModel`: `set_current_epoch()` setter
+  + `_current_sinkhorn_epsilon()` cosine schedule helper. Router call
+  injects the per-epoch eps and the top-k flag.
+- `train_siglip2.py`: pushes the current epoch to the model at the
+  start of each epoch (immediately after the gumbel-tau anneal).
+- `config.py`: `--sinkhorn_epsilon_init`, `--sinkhorn_epsilon_final`,
+  `--routing_topk` flags.
+
+Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
 
 ---
 
