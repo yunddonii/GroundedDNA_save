@@ -64,6 +64,17 @@ class Config():
         train_arg.add_argument('-lr1', '--backbone_lr', dest='backbone_lr', nargs='?', type=float, default=1e-6, help='Learning rate')
         # train_arg.add_argument('-lr2', '--code_emb_lr', dest='code_emb_lr', nargs='?', type=float, default=1e-3, help='Learning rate')    # legacy train.py / pl_train.py only (code_embedding)
         train_arg.add_argument('-lr3', '--proj_lr', dest='proj_lr', nargs='?', type=float, default=1e-3, help='Learning rate')
+        # v45 (BERT-text): text_adapter often needs a stronger update than
+        # visual_adapter / quantizer / codon_heads, especially when the
+        # text encoder is swapped to BERT (no co-training with images).
+        # When this flag is None (default) the text_adapter shares proj_lr;
+        # when set, it gets its own group with this LR (typically 3-10x).
+        train_arg.add_argument('--text_adapter_lr', dest='text_adapter_lr',
+            type=float, default=None,
+            help='Dedicated learning rate for text_adapter parameters. '
+                 'None (default) -> shares proj_lr. Set higher (e.g. 5e-3) '
+                 'when text encoder is swapped to BERT or when text path '
+                 'needs to catch up.')
         # train_arg.add_argument('-lr4', '--proxy_lr', dest='proxy_lr', nargs='?', type=float, default=1e-6, help='Learning rate')           # never referenced
         train_arg.add_argument('--beta', dest='beta', nargs='?', type=float, default=0.3)
         # train_arg.add_argument('--max_lr', dest='max_lr', nargs='?', type=float, default=0.001, help='maximum learning rate in cosine lr scheduler')  # legacy pl_train.py cosine scheduler only

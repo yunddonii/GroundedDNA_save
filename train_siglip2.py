@@ -244,12 +244,32 @@ def main(args: Config):
 
     # ---------- optimizer ---------------------------------------------------
     backbone_params = [p for p in model.backbone.parameters()             if p.requires_grad]
-    other_params    = [p for n, p in model.named_parameters()
-                       if p.requires_grad and not n.startswith("backbone.")]
+    # v45: allow text_adapter to have its own LR (typically higher than proj_lr).
+    # When --text_adapter_lr is None this collapses to the legacy 2-group setup.
+    text_adapter_lr = getattr(args, "text_adapter_lr", None)
+    if text_adapter_lr is not None:
+        text_adapter_params = [p for n, p in model.named_parameters()
+                               if p.requires_grad and n.startswith("text_adapter.")]
+        other_params        = [p for n, p in model.named_parameters()
+                               if p.requires_grad
+                               and not n.startswith("backbone.")
+                               and not n.startswith("text_adapter.")]
+        n_ta = sum(p.numel() for p in text_adapter_params)
+        n_ot = sum(p.numel() for p in other_params)
+        print(f"[optimizer] text_adapter group: {len(text_adapter_params)} tensors, "
+              f"{n_ta:,} params @ lr={text_adapter_lr}")
+        print(f"[optimizer] other group:        {len(other_params)} tensors, "
+              f"{n_ot:,} params @ lr={args.proj_lr}")
+    else:
+        text_adapter_params = []
+        other_params = [p for n, p in model.named_parameters()
+                        if p.requires_grad and not n.startswith("backbone.")]
     param_groups = []
     if backbone_params:
         param_groups.append({'params': backbone_params, 'lr': args.backbone_lr,
                              'weight_decay': args.weight_decay})
+    if text_adapter_params:
+        param_groups.append({'params': text_adapter_params, 'lr': float(text_adapter_lr)})
     if other_params:
         param_groups.append({'params': other_params, 'lr': args.proj_lr})
     if not param_groups:

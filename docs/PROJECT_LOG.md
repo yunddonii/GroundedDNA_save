@@ -114,6 +114,67 @@ Format conventions:
 
 ---
 
+## 2026-05-19 — v45a: BERT text encoder + V3 cache + text_adapter_lr 5e-3 [discarded]
+
+🔴 **Discarded 2026-05-19** at ep31. Single-run swap of the SigLIP2 text
+encoder for `bert-base-uncased` (CLS-pooled) on V3 captions, with
+`--text_adapter_lr 5e-3` (5× proj_lr) to give the text path stronger
+gradient.
+
+| epoch | mAP | unique | dead |
+|---:|---:|---:|---:|
+| 9 | 0.6124 | 0.108 | 0.594 |
+| 19 | 0.6052 | 0.058 | 0.635 |
+| 29 | 0.6024 | 0.041 | 0.680 |
+| (v43b ep29 ref) | 0.6454 | 0.205 | 0.547 |
+
+**Monotonic degradation across all three measurements** — clearly worse
+trajectory than v43b. Killed at ep31 before completion; result dir
+removed.
+
+**New `extract_bert_text_features.py`** retained in repo. Creates a
+SigLIP2-compatible cache directory by writing a BERT-pooled
+`text_part.f16.npy` and SYMLINKing visual/aug/meta files from a donor
+cache (`flickr25k_siglip2_v3plus_bert/` for V3+BERT). Reusable for any
+future encoder-swap experiment.
+
+**New `--text_adapter_lr` flag** retained in repo (config.py + train
+optimizer split into 3 groups when set). Default None preserves legacy
+behaviour.
+
+**Important diagnostic** (the side-benefit of v45a setup): cross-slot
+text cos sim computed *correctly* (valid 5K subset only — has_text=True
+mask), not contaminated by the 20K placeholder vectors:
+
+| encoder + cache | cross-slot off-diag mean | min | max |
+|---|---:|---:|---:|
+| SigLIP2 V1 (prior published 0.977 figure WRONG) | (n/a -- needs recompute on valid 5K) | | |
+| SigLIP2 V3 | **0.834** | 0.761 | 0.890 |
+| BERT V3 | **0.799** | 0.717 | 0.875 |
+
+Earlier "cos ~0.97" figures from analysis 4-1 and v43b Q4 are
+contamination artifacts — the 20000 has_text=False rows hold identical
+placeholder vectors (cos=1.0 everywhere) that pulled the mean up. The
+true SigLIP2 V3 cross-slot cos is **0.83**, and BERT V3 is **0.80**
+(Δ=-0.035). BERT IS more text-discriminative on per-slot captions, but
+the routing-side benefit (per-codebook codeword grounding) did not
+translate to retrieval gains in v45a — possibly because (a)
+text_adapter_lr=5e-3 was too aggressive (causes text features to
+drift faster than codebook can stabilize), or (b) BERT embeddings are
+in a different geometry from SigLIP2 visual_global, so the cosine
+routing signal is fundamentally noisier when text↔visual aren't
+co-trained.
+
+→ Future BERT experiments would need (a) more conservative
+text_adapter_lr (e.g. 2e-3 or proj_lr), and (b) consider a learned
+projection between BERT space and SigLIP2 visual space.
+
+ANALYSIS_2026-05-19.md §4-1 should be reconciled: the SigLIP2 cross-
+slot uniformity number was inflated; the real cos is 0.83 on V3 valid
+samples, still notably high but less extreme.
+
+---
+
 ## 2026-05-19 — v44a–d: per_slot_text_adapter + L_ortho (B1 ablation) [discarded]
 
 🔴 **Discarded 2026-05-19** before final extraction. All 4 runs (control
