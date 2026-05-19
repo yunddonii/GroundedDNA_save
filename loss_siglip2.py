@@ -218,6 +218,8 @@ class DNACodonHashLoss(nn.Module):
         # available (text path on) AND alpha > 0.
         self.ntxent_dynamic_tau       = bool (getattr(cfg, "ntxent_dynamic_tau",       False))
         self.ntxent_dynamic_tau_alpha = float(getattr(cfg, "ntxent_dynamic_tau_alpha", 0.0))
+        # v44 (B1): cross-slot text orthogonality reg on text_part_tokens.
+        self.lambda_ortho_text        = float(getattr(cfg, "lambda_ortho_text",        0.0))
         self.lambda_vq         = float(getattr(cfg, "lambda_vq",        0.25))
         self.lambda_quant      = float(getattr(cfg, "lambda_quant",     0.05))
         self.lambda_anchor     = float(getattr(cfg, "lambda_anchor",    0.05))
@@ -494,6 +496,40 @@ class DNACodonHashLoss(nn.Module):
                 sim   = (sim / T).masked_fill(eye, -1e9)
             loss_sum = loss_sum + F.cross_entropy(sim, pos_idx)
         return loss_sum / num_codebooks
+
+    def _loss_ortho_text(self, text_part_tokens: torch.Tensor) -> torch.Tensor:
+        """v44 (B1): cross-slot text orthogonality regularizer.
+
+        text_part_tokens : [B, M, D]  post-adapter per-slot text features.
+
+        For each sample b:
+            T_n     = normalize(text_part_tokens[b], dim=-1)   # [M, D]
+            G_b     = T_n @ T_n.T                              # [M, M]
+            L_b     = ((G_b - I)**2).sum() / (M * (M - 1))
+        and average over batch. Note ((G_b - I)**2) has 0 on diag for
+        unit-norm vectors so the (M*(M-1)) normalizer counts only the
+        M(M-1) off-diagonal pair contributions.
+
+        Targets the diagnosed SigLIP2 cross-slot uniformity (V1 cos~0.977,
+        V3 cos~0.967) by pushing the *adapted* text features (which we
+        control via the trainable text_adapter) much further apart.
+        Pairs especially well with --per_slot_text_adapter (6 independent
+        MLPs) since each slot's adapter has the freedom to rotate its
+        output independently.
+        """
+        if text_part_tokens is None:
+            return torch.zeros((), device=self.eps if isinstance(self.eps, torch.Tensor) else None)
+        B, M, _ = text_part_tokens.shape
+        if M < 2:
+            return text_part_tokens.new_zeros(())
+        T_n = F.normalize(text_part_tokens, dim=-1)              # [B, M, D]
+        G   = torch.einsum("bmd,bnd->bmn", T_n, T_n)             # [B, M, M]
+        I   = torch.eye(M, device=G.device, dtype=G.dtype)       # [M, M]
+        diff = G - I                                              # [B, M, M]
+        # ((diff)^2) -- diag should be ~0 for unit vectors; small numerical
+        # noise; off-diag is the cross-slot cosine which we want to push to 0.
+        per_sample = (diff * diff).sum(dim=(1, 2)) / float(M * (M - 1))
+        return per_sample.mean()
 
     def _loss_recon(
         self,
@@ -785,6 +821,13 @@ class DNACodonHashLoss(nn.Module):
         else:
             eff_lambda_bu = self.lambda_bu
 
+        # v44 (B1): cross-slot text orthogonality regularizer. Active only
+        # when text_part_tokens is supplied (text path on) AND lambda > 0.
+        if self.lambda_ortho_text > 0.0 and text_part_tokens is not None:
+            loss_ortho_text = self._loss_ortho_text(text_part_tokens)
+        else:
+            loss_ortho_text = u.new_zeros(())
+
         # ---- total -------------------------------------------------------
         total = (
             self.lambda_hash       * loss_hash
@@ -797,6 +840,7 @@ class DNACodonHashLoss(nn.Module):
             + self.lambda_wasserstein * loss_wasserstein
             + self.lambda_recon       * loss_recon
             + self.lambda_ntxent      * loss_ntxent
+            + self.lambda_ortho_text  * loss_ortho_text
         )
 
         return {
@@ -809,6 +853,7 @@ class DNACodonHashLoss(nn.Module):
             "loss_wasserstein":  loss_wasserstein,
             "loss_recon":        loss_recon,
             "loss_ntxent":       loss_ntxent,
+            "loss_ortho_text":   loss_ortho_text,
             "loss_dna":          loss_dna,
             "loss_bu":           loss_bu,
             "loss_entropy":      dna_components["loss_entropy"],

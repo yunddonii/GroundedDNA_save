@@ -54,12 +54,15 @@ from dna_utils.vlm_qwen25_descriptions import (
     _PROMPT       as _PROMPT_V1,
     _PROMPT_V2,
     _PROMPT_V3,
+    _PROMPT_V4,
     CODEBOOK_KEYS    as _CB_KEYS_V1,
     CODEBOOK_KEYS_V2 as _CB_KEYS_V2,
 )
 # V3 uses the same 6-key schema as V2 (only the prompt content differs --
 # captions instead of bare nouns), so reuse the V2 key tuple.
 _CB_KEYS_V3 = _CB_KEYS_V2
+# V4 reuses the V2/V3 key schema with reframed "evidence-axis" prompt.
+_CB_KEYS_V4 = _CB_KEYS_V2
 
 
 _DEFAULT_EXTS = (".jpg", ".jpeg", ".png", ".webp", ".bmp")
@@ -251,7 +254,7 @@ def main() -> int:
     # shared args
     parser.add_argument("--cache_path", required=True,
                         help="output JSONL path (append-mode safe).")
-    parser.add_argument("--prompt_version", choices=("v1", "v2", "v3"), default="v1",
+    parser.add_argument("--prompt_version", choices=("v1", "v2", "v3", "v4"), default="v1",
                         help="Which prompt schema to use. v1 = legacy "
                              "head/body/limb decomposition. v2 = scene-aware "
                              "with BARE NOUN PHRASES per slot. v3 = scene-aware "
@@ -356,7 +359,10 @@ def main() -> int:
                 yield iid, {"image_path": path}, path
 
     # ---- dispatch to V1 / V2 / V3 prompt + key schema -------------------
-    if args.prompt_version == "v3":
+    if args.prompt_version == "v4":
+        prompt_str = _PROMPT_V4
+        out_keys   = _CB_KEYS_V4
+    elif args.prompt_version == "v3":
         prompt_str = _PROMPT_V3
         out_keys   = _CB_KEYS_V3
     elif args.prompt_version == "v2":

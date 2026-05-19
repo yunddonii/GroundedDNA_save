@@ -431,6 +431,24 @@ class Config():
                  "alpha in [0, 1). alpha=0 -> static base_tau (off). "
                  "alpha=0.5 -> tau in [0.5*base, 1.5*base]. Larger alpha "
                  "is more aggressive but caps at alpha<1 to avoid tau<=0.")
+        # ---------- v44 (B1): cross-slot text orthogonality reg ---------
+        # Pushes the per-slot text_part_tokens (post adapter) apart so the
+        # 6 codebook-routing centroids are not collapsed onto the same
+        # direction. Direct counterpoint to the diagnosed SigLIP2 cross-
+        # slot cos sim ~0.97 (V1) / 0.97 (V3) -- prompt engineering alone
+        # only chips ~0.01 off; this regularizer pushes the *adapted*
+        # text features (which we control) much further apart.
+        # Loss form (per sample b):
+        #     T_n     = normalize(text_part_tokens, dim=-1)  # [M, D]
+        #     G_b     = T_n @ T_n.T                          # [M, M]
+        #     L_ortho = ((G_b - I)**2).sum() / (M * (M - 1))
+        # then averaged over batch. Active only when text_part_tokens
+        # is not None (text path on).
+        loss_arg.add_argument('--lambda_ortho_text',
+            type=float, default=0.0,
+            help="Weight on cross-slot text orthogonality loss "
+                 "(v44 / B1 ablation). 0 disables. Try 0.02-0.1 -- "
+                 "larger values risk dominating loss_ntxent (lambda=1.0).")
         loss_arg.add_argument('--lambda_wasserstein',  type=float, default=0.0,
             help="Weight for the entropic-OT Wasserstein loss (per-sample "
                  "<pi, cost> from the Sinkhorn router, restored for v24a). "

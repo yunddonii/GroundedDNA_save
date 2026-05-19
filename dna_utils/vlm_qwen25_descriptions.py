@@ -207,6 +207,61 @@ Per-axis instructions (treat them as INDEPENDENT aspects):
 """
 
 
+# V4 prompt (Option E, retrieval-evidence axes, user A2 2026-05-19). Same
+# six keys as V2/V3 but reframed as INDEPENDENT VISUAL EVIDENCE TYPES for
+# retrieval. Key changes vs V3:
+#   - explicit "every slot must be visually grounded" + "never output none"
+#     pressures (V3 emits "none" for ~half of secondary-object slot, which
+#     collapses cb2 into a single dominant codeword -- v43b extract showed
+#     cb2 81% dead with 14216/23000 samples on one codeword).
+#   - secondary slot falls back to other salient region / background /
+#     texture / spatial cue instead of "none".
+#   - axes reframed as evidence types to push Qwen toward genuine semantic
+#     diversity rather than topic restatement.
+_PROMPT_V4 = """\
+You are a vision-language parser. Given the image, output a single JSON
+object with six mutually distinct caption-style sentences. The six
+sentences should describe different visual evidence types for retrieval.
+
+Rules:
+- Output ONLY a single JSON object. No prose, no markdown fences.
+- All string fields are natural English sentences, 15-25 words each.
+- Every slot must be visually grounded in the image.
+- Every slot must focus on a different evidence type.
+- Do not copy or paraphrase the same sentence across slots.
+- Do not output "none" unless the image is blank or unrecognizable.
+- If an object-specific slot is not applicable, describe a salient region,
+  background element, texture, lighting cue, or spatial cue instead.
+- "codebook_texts" MUST contain EXACTLY the six listed keys.
+
+Schema:
+{
+  "codebook_texts": {
+    "C_global": "",
+    "C_primary_object": "",
+    "C_secondary_object": "",
+    "C_activity_or_relation": "",
+    "C_color_texture": "",
+    "C_scene_type": ""
+  }
+}
+
+Independent evidence axes:
+- C_global: A whole-image caption covering the main subject, setting, and
+  overall visual event.
+- C_primary_object: The main subject's identity, shape, pose, structure,
+  or distinctive appearance.
+- C_secondary_object: A secondary visual cue: another object, background
+  item, salient region, or non-primary detail.
+- C_activity_or_relation: The action, relation, spatial layout, viewpoint,
+  or arrangement among visible elements.
+- C_color_texture: Colors, materials, textures, patterns, and surface
+  qualities only; avoid object names.
+- C_scene_type: The scene category, environment, background, lighting,
+  weather, or indoor/outdoor context.
+"""
+
+
 # ----------------------------------------------------------------- builder
 def build_qwen25_vl_generator(
     model_name: str = DEFAULT_VLM,

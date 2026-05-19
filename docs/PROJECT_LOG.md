@@ -114,6 +114,49 @@ Format conventions:
 
 ---
 
+## 2026-05-19 — v44a–d: per_slot_text_adapter + L_ortho (B1 ablation) [discarded]
+
+🔴 **Discarded 2026-05-19** before final extraction. All 4 runs (control
+λ=0 + λ ∈ {0.02, 0.05, 0.10}) underperformed v43b baseline at ep59.
+
+| Tag | λ_ortho | mAP ep59 | unique | dead | vs v43b (0.6383) |
+|---|---:|---:|---:|---:|---:|
+| v43b baseline | — | **0.6383** | 0.152 | 0.542 | — |
+| v44a (control: per_slot only) | 0.00 | 0.6245 | 0.046 | 0.492 | −0.014 |
+| v44b | 0.02 | 0.6057 | 0.029 | 0.664 | −0.033 |
+| v44c | 0.05 | 0.6038 | 0.078 | 0.497 | −0.035 |
+| v44d (best of 4) | 0.10 | 0.6257 (ep49) | 0.048 | 0.531 | −0.013 |
+
+**Setup**: v43b + `--per_slot_text_adapter` (text_adapter 1.18M → 14.18M
+trainable params = 6 independent MLPs) + new L_ortho regularizer on
+post-adapter `text_part_tokens` (`L_ortho = ((G - I)**2).sum() / (M*(M-1))`
+averaged over batch). All other hparams = v43b (V3 cache + K=64 + per-cb
+NtXent + dynamic-τ α=0.3 base_τ=0.5).
+
+**Why it failed** (post-hoc):
+1. **Adapter overfitting**: 14M params on 5K Flickr25k train → cold-start
+   cost (ep9 mAP 0.59-0.61 vs v43b ep9 0.6335) never fully recovered.
+2. **Effect redundant with dynamic-τ**: L_ortho pushes per-slot adapter
+   outputs apart, but dynamic-τ already differentiates per-pair push
+   strength using *raw* text cos. Adding another "push apart" signal on
+   the adapted features didn't compound — it competed.
+3. **Wrong target for SigLIP2 uniformity**: L_ortho only affects the
+   *adapted* text path (codebook anchors at inference). The routing
+   step inside training still uses the same near-uniform raw SigLIP2
+   text features (cos ~0.97). Pushing adapter outputs apart fixes
+   downstream anchor diversity but not upstream routing collapse.
+4. **Unique-code regression**: all 4 runs had unique 0.029-0.078 vs
+   v43b's 0.152 — ortho actually *concentrated* codebook usage into
+   fewer codewords (opposite of intended effect).
+
+Code retained (`--lambda_ortho_text` flag in config.py,
+`_loss_ortho_text` in loss_siglip2.py) but inactive by default.
+
+→ user pivoted to A2 (V4 prompt rewrite) — V4 Qwen extraction launched
+on GPU 5 in background; v45 sweep pending V4 cache completion (~3-7h).
+
+---
+
 ## 2026-05-19 — v43a–d: V3 caption cache + K=64 + dynamic-τ (new text-on SOTA)
 
 🟢 Completed 2026-05-19 ~19:30. Pivot from v42 to address the
@@ -170,6 +213,74 @@ materially healthier rather than just the retrieval metric.
 vs full all-time SOTA: v34 (text-off, top-k=2 routing) = **0.6696** is
 still the absolute Flickr25k unsupervised number. v43b closes the
 text-on/text-off gap to −0.031 (from −0.042 at v40d).
+
+### v43b post-hoc diagnostic suite (Q1-Q4, 2026-05-19)
+
+User-requested deep dive on the new SOTA checkpoint. Code dropped into
+`compositional_eval.py` (existing) + ad-hoc numpy scripts.
+
+**Q4: V1 vs V3 SigLIP2 cross-slot cos sim** (per-image avg over N=25000)
+
+|  | off-diag mean | min | max | structure |
+|---|---:|---:|---:|---|
+| V1 (`flickr25k_qwen.jsonl`) | **0.9766** | 0.9747 | 0.9794 | nearly flat (range 0.005) |
+| V3 (`flickr25k_qwen_v3.jsonl`) | **0.9668** | 0.9523 | 0.9780 | structured (range 0.026) |
+
+V3 slot 2 (`C_secondary_object`) is the most distinct (cos 0.952-0.957
+with others); V1 has no slot meaningfully more distinct than others.
+The mean Δ is only −0.01, but V3 actually *moved one slot apart* rather
+than uniformly lowering everything — this is what drives v43b's gains.
+
+Note: ANALYSIS_2026-05-19.md §4-1's "cos ≈ 0.88" figure is incorrect;
+actual V1 is 0.977 (recompute used current cached SigLIP2 features).
+The doc should be reconciled — kept here as the authoritative number.
+
+**Q2: per-codebook codeword usage** (v43b extract_db.npz, N=23000, K=64)
+
+| cb | role (V3 schema) | used/64 | dead% | top-1 count | entropy (max 6 bits) | utilization | Gini |
+|---:|---|---:|---:|---:|---:|---:|---:|
+| 0 | C_global (text-free) | **64** | **0%** | 627 (2.7%) | **5.96** | **99.3%** | 0.128 |
+| 1 | C_primary_object | 26 | 59.4% | 4871 (21%) | 3.82 | 63.7% | 0.831 |
+| **2** | C_secondary_object | **12** | **81.2%** | **14216 (62%)** | 1.79 | 29.8% | 0.957 |
+| 3 | C_activity_or_relation | 40 | 37.5% | 2651 (12%) | 4.10 | 68.4% | 0.798 |
+| 4 | C_color_texture | 32 | 50.0% | 1968 (9%) | 4.24 | 70.7% | 0.766 |
+| 5 | C_scene_type | 25 | 60.9% | 7298 (32%) | 3.07 | 51.2% | 0.902 |
+| overall | | 199/384 | **48.2%** | | | | |
+
+cb0 (text-free C_global) is the only fully-healthy codebook. cb2 has
+the worst collapse — 62% of samples map to codeword #22. This drove
+the A2 pivot: the V3 prompt outputs "none" for C_secondary_object on
+many images, leading to a single dominant codeword.
+
+**Q1: B0/B1/B2 compositional metrics** (`compositional_eval.json`)
+
+| metric | mean lift | per-cb (cb0~5) | dominant cb |
+|---|---:|---|---|
+| B0 (raw text intra-sim) | 0.0020 | 0.003 / 0.001 / 0.002 / 0.003 / 0.001 / 0.002 | (small, base ~0.88) |
+| **B1** (baseline-corrected text) | **0.0194** | 0.024 / 0.008 / **0.110** / 0.017 / 0.005 / 0.016 | **cb2 = 0.110** |
+| **B2** (visual_global intra-sim) | **0.0250** | 0.762 / 0.712 / 0.708 / 0.716 / 0.710 / 0.714 | cb0 highest (visual-only) |
+
+→ cb2 (most cross-slot-distinct in Q4) is also B1 leader (0.110) — direct
+evidence that **text-side cross-slot distinctness drives codebook
+compositional grounding**.
+
+**Comparison with prior compositional champion v40a (V1+per-cb K=64)**
+
+| metric | v40a | **v43b** | Δ |
+|---|---:|---:|---:|
+| mAP | 0.6156 | **0.6383** | **+0.0227** |
+| B1 | 0.0126 | **0.0194** | **+0.0068** |
+| B2 | 0.0199 | **0.0250** | **+0.0051** |
+
+v43b is the **first run to beat v40a on mAP + B1 + B2 simultaneously**.
+
+**Qualitative artifacts** (in v43b result dir):
+- `viz_routing_heatmap.png` — 12 sample-image Sinkhorn attention over
+  the 5 local parts.
+- `viz_codebook_tsne.png` — t-SNE of all 6 codebooks' codewords.
+- `codebook_grids/cb{0-5}_cw{idx}.png` — 30 PNG (6 cb × top-5 codeword
+  × 9-image grid). Useful for cluster meaning inspection;
+  `cb2_cw022.png` shows the dominant "no secondary object" cluster.
 
 ---
 

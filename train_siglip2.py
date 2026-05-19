@@ -297,6 +297,7 @@ def main(args: Config):
         'loss_wasserstein',
         'loss_recon',
         'loss_ntxent',
+        'loss_ortho_text',
     ]
 
     # ---------- per-epoch CSV logger ---------------------------------------
