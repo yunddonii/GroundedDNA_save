@@ -29,16 +29,22 @@ Format conventions:
 
 ---
 
-## Current state (as of 2026-05-18)
+## Current state (as of 2026-05-19)
 
 - **Best supervised Flickr25k**: **v18** (HashNet-style logistic on
   continuous DNA code) -- mAP **0.7883**. Above every binary baseline
   incl. HashNet's own 0.7800.
 - **Best supervised + diversity-balanced Flickr25k**: **v24b** -- mAP
   **0.7742**, unique 0.324.
-- **Best unsupervised Flickr25k (ours)**: **v34** (v30a + routing
-  top-k=2) -- mAP **0.6696**, unique 0.3810 (test ep59), dead 0.000.
-  Beats CIBHash 0.6543 by **+0.015**.
+- **Best unsupervised Flickr25k (ours, text-off)**: **v34** (v30a +
+  routing top-k=2) -- mAP **0.6696**, unique 0.3810 (test ep59),
+  dead 0.000. Beats CIBHash 0.6543 by **+0.015**.
+- **Best unsupervised Flickr25k (ours, text-on)**: **v43b** (V3
+  caption cache + K=64 + dynamic-τ α=0.3 base_τ=0.5) -- mAP
+  **0.6383**, unique 0.152, dead 0.542 (much healthier codebook
+  utilization than any prior text-on run). Beats v40d's prior
+  text-on best of 0.6280 by **+0.010**. Closes text-on/text-off
+  gap to −0.031 (was −0.042 at v40d).
 - **Unsupervised leaderboard (Flickr25k setting1, 36-bit, frozen SigLIP2, 60 epoch)**:
 
   | Run | Adapter / variant | mAP | unique (test) | per-cb-unique | dead |
@@ -108,6 +114,65 @@ Format conventions:
 
 ---
 
+## 2026-05-19 — v43a–d: V3 caption cache + K=64 + dynamic-τ (new text-on SOTA)
+
+🟢 Completed 2026-05-19 ~19:30. Pivot from v42 to address the
+persistent dead-code collapse (v42 dead ≈ 0.72-0.77 across all 4
+α×base_τ settings, unchanged from v40 baselines). Two changes vs v42:
+
+1. **Qwen caption cache: V1 → V3** (`flickr25k_qwen_v3.jsonl` +
+   `flickr25k_siglip2_v3plus` = V3 text features + V1 visual aug
+   cache, the same composite cache used by v39). V3 prompts enforce
+   axis-orthogonal sentence captions (C_primary_object, C_secondary_
+   object, C_activity_or_relation, C_color_texture, C_scene_type), so
+   the cross-slot SigLIP2 cos sim should be lower than V1 (where all
+   6 slots end up describing the same scene topic — see analysis 4-1).
+2. **Codebook size: K=128 → K=64**. With 5K train samples and 6
+   codebooks, K=64 means 384 codewords total vs 768 — closer to a
+   realistic capacity given the data and pushes EMA mass to populate
+   more codewords.
+
+4 parallel runs share the same α × base_τ grid as v42:
+
+| Tag | α | base_τ | GPU | Log |
+|---|---:|---:|---:|---|
+| v43a | 0.3 | 0.3 | 0 | logs/v43a_v3_K64_a03_t03_182024.log |
+| v43b | 0.3 | 0.5 | 2 | logs/v43b_v3_K64_a03_t05_182024.log |
+| v43c | 0.5 | 0.3 | 3 | logs/v43c_v3_K64_a05_t03_182024.log |
+| v43d | 0.5 | 0.5 | 4 | logs/v43d_v3_K64_a05_t05_182024.log |
+
+**Results (mid-eval epoch 59 = final)**:
+
+| Tag | α | base_τ | mAP | unique | dead | Δ mAP vs v40d (text-on best) |
+|---|---:|---:|---:|---:|---:|---:|
+| v40d | — | 0.3 | 0.6280 | (n/a) | (n/a) | — |
+| v43a | 0.3 | 0.3 | 0.6070 | 0.172 | 0.693 | −0.021 |
+| **v43b** ★ | 0.3 | 0.5 | **0.6383** | 0.152 | **0.542** | **+0.010** |
+| v43c | 0.5 | 0.3 | 0.6247 | 0.170 | 0.693 | −0.003 |
+| v43d | 0.5 | 0.5 | 0.6308 | 0.058 | 0.719 | +0.003 |
+
+🟢 **v43b is the new text-on best mAP 0.6383** — beats v40d (0.6280,
+the prior text-on champion) by +0.010, and the dead-code ratio
+drops dramatically to 0.542 (vs ~0.72-0.77 in v42 and ~0.85 in v40e).
+This is the first text-on run where the codebook utilization is
+materially healthier rather than just the retrieval metric.
+
+**Trends in the v43 grid**:
+- α=0.3 + base_τ=0.5 dominates (v43b). Interestingly v43b is the
+  opposite of v42's best (v42d = α=0.5, base_τ=0.5). With V3 text
+  caps that are already more discriminative per slot, the milder α
+  combined with the gentler base_τ regime gives the cleanest signal.
+- All 4 v43 runs show notable dead-code improvement vs v42 same α/τ
+  (e.g. v43b 0.542 vs v42b 0.716, Δ = −0.17).
+- v43c (high α + low base_τ) regresses both axes vs v40d — too
+  aggressive in the V3 setting.
+
+vs full all-time SOTA: v34 (text-off, top-k=2 routing) = **0.6696** is
+still the absolute Flickr25k unsupervised number. v43b closes the
+text-on/text-off gap to −0.031 (from −0.042 at v40d).
+
+---
+
 ## 2026-05-19 — v42a–d: dynamic per-pair NtXent temperature from text similarity (Q2)
 
 🟢 In progress as of 2026-05-19 17:19. 4 parallel runs (α × base_τ grid):
@@ -156,7 +221,33 @@ differ across the grid.
 **Note on naming**: user originally typed "v24" but it was a typo for
 v42 (their Q2 dynamic-τ proposal); confirmed in same message.
 
-Results pending (eval at epoch 60).
+**Results (mid-eval epoch 59 = final, since training stops at ep 60
+and eval is run every 10 epochs)**:
+
+| Tag | α | base_τ | mAP | unique | per-cb-unique | dead | Δ mAP vs v40e |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| v40e baseline | — | 0.3 | 0.5932 | (n/a) | (n/a) | (n/a) | — |
+| v42a | 0.3 | 0.3 | 0.6060 | 0.096 | 0.0037 | 0.766 | +0.013 |
+| v42b | 0.3 | 0.5 | 0.6062 | 0.064 | 0.0024 | 0.716 | +0.013 |
+| v42c | 0.5 | 0.3 | 0.6084 | **0.266** | 0.0040 | 0.766 | +0.015 |
+| **v42d** ★ | 0.5 | 0.5 | **0.6285** | 0.075 | 0.0028 | 0.736 | **+0.035** |
+
+🟡 v42d is the best mAP in the grid; dynamic-τ helps retrieval by
+~+0.013 to +0.035 across all 4 settings (consistent positive signal).
+The uniformity-tolerance dilemma response Wang predicted holds:
+larger α (0.5 > 0.3) is monotonically better on mAP, and v42c shows
+that a more aggressive push (low base_τ + high α) preserves the most
+unique codes (0.266 vs ~0.08 elsewhere).
+
+**However**: dead-code ratio (0.72-0.77) is essentially unchanged
+from v40 baselines — codebook utilization collapse is NOT fixed by
+this loss-level intervention alone. User observation "code collision
+이 심하게 발생하는 것 같아" (severe code collision) was correct
+mid-training (ep 29) and persists at ep 59. Resolving collapse
+requires codebook-level processes (V3 prompts for axis diversity,
+smaller K, dead-revival overhaul, or orthogonality reg).
+
+→ user pivoted to v43 (V3 caption cache + K=64) to address collapse.
 
 ---
 
