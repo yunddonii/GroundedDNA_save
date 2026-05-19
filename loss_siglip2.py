@@ -212,6 +212,12 @@ class DNACodonHashLoss(nn.Module):
         # group) and averages -- forces each codebook to discriminate
         # independently (compositional-independence test).
         self.ntxent_mode        = str  (getattr(cfg, "ntxent_mode",        "global"))
+        # v42 (Q2): dynamic per-pair temperature modulated by text-caption
+        # cosine sim. tau_ij = base_tau * (1 + alpha * cos(text_i, text_j)).
+        # Only used when ntxent_mode='per_codebook' AND text_part_raw is
+        # available (text path on) AND alpha > 0.
+        self.ntxent_dynamic_tau       = bool (getattr(cfg, "ntxent_dynamic_tau",       False))
+        self.ntxent_dynamic_tau_alpha = float(getattr(cfg, "ntxent_dynamic_tau_alpha", 0.0))
         self.lambda_vq         = float(getattr(cfg, "lambda_vq",        0.25))
         self.lambda_quant      = float(getattr(cfg, "lambda_quant",     0.05))
         self.lambda_anchor     = float(getattr(cfg, "lambda_anchor",    0.05))
@@ -414,8 +420,10 @@ class DNACodonHashLoss(nn.Module):
         u_st_view2: torch.Tensor,
         temperature: float,
         num_codebooks: int = 6,
+        text_part_raw: Optional[torch.Tensor] = None,
+        dynamic_tau_alpha: float = 0.0,
     ) -> torch.Tensor:
-        """Per-codebook NtXent (v31b).
+        """Per-codebook NtXent (v31b) with optional v42 dynamic tau.
 
         Splits the [B, 18, 4] DNA code into 6 codebook groups
         [B, 6, 3, 4], runs an independent NtXent on each codebook's
@@ -424,6 +432,21 @@ class DNACodonHashLoss(nn.Module):
         Forces each codebook to *independently* discriminate samples ->
         compositional-independence test. Cross-codebook redundancy is
         penalized (each codebook gets its own gradient signal).
+
+        v42 (Q2): when ``text_part_raw`` is provided and
+        ``dynamic_tau_alpha > 0``, each codebook m uses a per-pair
+        temperature  tau_ij = T * (1 + alpha * cos(t_i^(m), t_j^(m)))
+        so semantically-similar samples get soft push (large tau) and
+        semantically-distant ones get hard push (small tau). Targets
+        the uniformity-tolerance dilemma of Wang et al. CVPR 2021.
+
+        Args:
+            text_part_raw: [B, num_codebooks, D] raw SigLIP2 text-encoder
+                per-slot pooled embeddings (i.e. `cached_text_part_raw`
+                / `outputs['text_global_feat']`). None disables dynamic
+                tau even when alpha > 0.
+            dynamic_tau_alpha: alpha in [0, 1). 0 disables. 0.5 maps to
+                tau in [0.5*base, 1.5*base].
         """
         B, R, C = u_st_view1.shape
         assert R % num_codebooks == 0, (
@@ -440,11 +463,35 @@ class DNACodonHashLoss(nn.Module):
             torch.arange(B, 2 * B, device=u_st_view1.device),
             torch.arange(0, B,     device=u_st_view1.device),
         ])
+
+        # v42 dynamic-tau setup
+        use_dyn = (
+            text_part_raw is not None
+            and float(dynamic_tau_alpha) > 0.0
+            and text_part_raw.shape[0] == B
+            and text_part_raw.shape[1] == num_codebooks
+        )
+        alpha = float(dynamic_tau_alpha)
+        # Clamp alpha < 1 so tau_ij stays strictly positive for cos in [-1, 1].
+        alpha = min(alpha, 0.999)
+        # Floor for tau just in case of numerical noise.
+        tau_floor = 1e-4
+
         loss_sum = u_st_view1.new_zeros(())
         for m in range(num_codebooks):
             z = torch.cat([u1[:, m], u2[:, m]], dim=0)            # [2B, 3, 4]
             sim = torch.einsum("brc,src->bsr", z, z).mean(dim=-1)  # [2B, 2B]
-            sim = (sim / T).masked_fill(eye, -1e9)
+            if use_dyn:
+                # Replicate text slot m across the two augmented views.
+                t_m   = text_part_raw[:, m, :]                    # [B, D]
+                t_all = torch.cat([t_m, t_m], dim=0)              # [2B, D]
+                t_n   = F.normalize(t_all, dim=-1)
+                cos_t = t_n @ t_n.t()                             # [2B, 2B]
+                T_ij  = T * (1.0 + alpha * cos_t)                 # [2B, 2B]
+                T_ij  = T_ij.clamp(min=tau_floor)
+                sim   = (sim / T_ij).masked_fill(eye, -1e9)
+            else:
+                sim   = (sim / T).masked_fill(eye, -1e9)
             loss_sum = loss_sum + F.cross_entropy(sim, pos_idx)
         return loss_sum / num_codebooks
 
@@ -681,8 +728,20 @@ class DNACodonHashLoss(nn.Module):
                     "outputs and outputs_view2 to contain dna_hash_code_st."
                 )
             if self.ntxent_mode == "per_codebook":
+                # v42 (Q2): pull raw SigLIP2 text per-slot embedding from
+                # the model outputs (stored under 'text_global_feat' --
+                # confusingly named but it is the raw cached_text_part_raw
+                # tensor of shape [B, M, D_proj], see model_siglip2.py
+                # build_outputs return dict).
+                _text_anchors = outputs.get("text_global_feat") \
+                    if self.ntxent_dynamic_tau else None
                 loss_ntxent = self._loss_ntxent_dna_per_codebook(
                     u_st_v1, u_st_v2, temperature=self.ntxent_temperature,
+                    text_part_raw=_text_anchors,
+                    dynamic_tau_alpha=(
+                        self.ntxent_dynamic_tau_alpha
+                        if self.ntxent_dynamic_tau else 0.0
+                    ),
                 )
             else:
                 loss_ntxent = self._loss_ntxent_dna(

@@ -108,7 +108,71 @@ Format conventions:
 
 ---
 
-## 2026-05-19 — v41a / v41b: text-supervised codebook initialization (5-G)
+## 2026-05-19 — v42a–d: dynamic per-pair NtXent temperature from text similarity (Q2)
+
+🟢 In progress as of 2026-05-19 17:19. 4 parallel runs (α × base_τ grid):
+
+| Tag | α | base_τ | GPU | Log |
+|---|---:|---:|---:|---|
+| v42a | 0.3 | 0.3 | 0 | logs/v42a_dyn_a03_t03_171944.log |
+| v42b | 0.3 | 0.5 | 2 | logs/v42b_dyn_a03_t05_171944.log |
+| v42c | 0.5 | 0.3 | 3 | logs/v42c_dyn_a05_t03_171944.log |
+| v42d | 0.5 | 0.5 | 4 | logs/v42d_dyn_a05_t05_171944.log |
+
+**Motivation** (user Q2 proposal, informed by Wang et al. CVPR 2021
+"Understanding the Behaviour of Contrastive Loss"). Wang shows the
+NtXent gradient on a negative is `(1/τ)·P_ij` where `P_ij` is the
+softmax-allocated probability — small τ concentrates push on the
+hardest negative ("hardness-aware") but breaks semantic neighborhood
+(uniformity-tolerance dilemma, §4 of the paper). v42 modulates τ per
+(anchor i, negative j) pair using their text-caption cosine similarity:
+
+    τ_ij = base_τ · (1 + α · cos(text_i^(m), text_j^(m)))
+
+so semantically-similar samples get a soft push (large τ → treated as
+"friend"), and semantically-distant ones get a hard push (small τ →
+true negative). The text supervision is consumed *implicitly through
+the loss* rather than as routing signal each forward, which is the
+opposite trade-off from 5-G (= v41, discarded).
+
+**Implementation**:
+- New CLI flags: `--ntxent_dynamic_tau` (bool), `--ntxent_dynamic_tau_alpha`
+  (float, default 0.5; capped <1 inside the loss so τ stays positive).
+- `loss_siglip2.py:411` `_loss_ntxent_dna_per_codebook` accepts
+  optional `text_part_raw: [B, M, D]` + `dynamic_tau_alpha` kwargs.
+  Per codebook m, builds `cos_t = normalize(t_all_m) @ normalize(t_all_m).T`
+  (shape [2B, 2B], view-replicated since captions are image-content-
+  agnostic across the two augmented views), then `T_ij = T · (1 + α·cos_t)`
+  with floor `1e-4`. Falls through to legacy scalar τ when text path
+  off or `alpha == 0`.
+- `DNACodonHashLoss.forward` pulls `outputs["text_global_feat"]`
+  (confusingly named — it is the raw `cached_text_part_raw` tensor, see
+  `model_siglip2.py` build_outputs return dict) and forwards it.
+
+**Baseline (all 4 runs)**: same as v40e per-cb K=128 bs=64. Only
+`--ntxent_temperature` (base τ) and `--ntxent_dynamic_tau_alpha` (α)
+differ across the grid.
+
+**Note on naming**: user originally typed "v24" but it was a typo for
+v42 (their Q2 dynamic-τ proposal); confirmed in same message.
+
+Results pending (eval at epoch 60).
+
+---
+
+## 2026-05-19 — v41a / v41b: text-supervised codebook initialization (5-G) [discarded]
+
+🔴 **Discarded 2026-05-19** before any final results were captured. User
+decided to pivot to v42 (Q2 dynamic-τ) instead. Both runs killed at
+epoch 60 during the post-training extraction phase; result directories
+removed. Implementation kept in code (`--text_init_codebook` flag in
+config.py, `SemanticCodebookQuantizer.initialize_from_text_anchors`
+helper in model_siglip2.py) so the option remains available for
+future ablation.
+
+Original plan / context preserved below for reference:
+
+🟢 In progress as of 2026-05-19 16:30. Two parallel runs:
 
 🟢 In progress as of 2026-05-19 16:30. Two parallel runs:
 

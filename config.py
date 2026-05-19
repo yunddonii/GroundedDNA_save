@@ -407,6 +407,30 @@ class Config():
                  "[B, 3, 4], summed -> each codebook is forced to "
                  "independently discriminate samples (compositional "
                  "independence test).")
+        # ---------- v42 (Q2): dynamic temperature from text similarity ---
+        # Inspired by Wang et al. CVPR 2021 "Understanding the Behaviour of
+        # Contrastive Loss": small tau is hardness-aware (sharp push on
+        # nearest negative) but breaks semantic neighborhood; large tau is
+        # tolerant but loses uniformity. v42 modulates tau per (anchor i,
+        # negative j) pair using their text-caption cosine similarity:
+        #     tau_ij = base_tau * (1 + alpha * cos(text_i, text_j))
+        # so semantically-similar samples get a higher tau (soft push) and
+        # semantically-distant ones get a lower tau (hard push). Only
+        # active for ntxent_mode='per_codebook' (each codebook m uses its
+        # own text slot text_part_raw[:, m, :]).
+        loss_arg.add_argument('--ntxent_dynamic_tau',
+            action='store_true', default=False,
+            help="Enable per-pair dynamic NtXent temperature modulated by "
+                 "text-caption cosine similarity (v42 / Q2 proposal). "
+                 "Requires --ntxent_mode per_codebook and a non-None text "
+                 "path. Off by default (legacy single-tau behaviour).")
+        loss_arg.add_argument('--ntxent_dynamic_tau_alpha',
+            type=float, default=0.5,
+            help="Modulation strength alpha in "
+                 "tau_ij = base_tau * (1 + alpha * cos(text_i, text_j)). "
+                 "alpha in [0, 1). alpha=0 -> static base_tau (off). "
+                 "alpha=0.5 -> tau in [0.5*base, 1.5*base]. Larger alpha "
+                 "is more aggressive but caps at alpha<1 to avoid tau<=0.")
         loss_arg.add_argument('--lambda_wasserstein',  type=float, default=0.0,
             help="Weight for the entropic-OT Wasserstein loss (per-sample "
                  "<pi, cost> from the Sinkhorn router, restored for v24a). "
