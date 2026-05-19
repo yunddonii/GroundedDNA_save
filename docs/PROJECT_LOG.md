@@ -108,7 +108,51 @@ Format conventions:
 
 ---
 
-## 2026-05-19 — v40a–f: soft routing + text-on, per-cb vs global × K ablation
+## 2026-05-19 — v41a / v41b: text-supervised codebook initialization (5-G)
+
+🟢 In progress as of 2026-05-19 16:30. Two parallel runs:
+
+| Tag | Init mode | Baseline | GPU | Log |
+|---|---|---|---|---|
+| v41a | K-means on `text_part_raw` (K=128 centroids per codebook) | v40e (per-cb, K=128, bs=64) | 0 | logs/v41a_163034.log |
+| v41b | random K-sample from `text_part_raw` | v40e | 2 | logs/v41b_163034.log |
+
+**Motivation** (docs/ANALYSIS_2026-05-19.md §5-G): Per-codebook NtXent
+(v40a/e) gives the best B1/B2 compositional lift but mAP regresses
+under text-on. Sinkhorn routing every forward keeps amplifying SigLIP2's
+cross-slot text uniformity (§4-1). 5-G shifts text supervision from
+*every-step routing* to *codebook starting point only*: the K=128
+codewords per codebook are initialized as text-anchor cluster centers
+rather than random Gaussian. Routing path is **kept active** (per
+durable memory `feedback-text-path-core-contribution`).
+
+**Implementation**:
+- New CLI flags in `config.py`: `--text_init_codebook {none,mean,kmeans}`,
+  `--text_init_subset` (default 4096), `--text_init_seed` (default 42).
+- New helper `SemanticCodebookQuantizer.initialize_from_text_anchors(
+  text_anchors, mode, seed)` in `model_siglip2.py:161`:
+  - Per codebook `m`, compute K centroids from `text_anchors[:, m, :]`
+    (sklearn KMeans for kmeans; np.random.choice for mean).
+  - Rescale centers to match VQ-VAE init scale (`1/sqrt(D)`) so VQ-MSE
+    / squared-L2 distance ranges stay comparable.
+  - For EMA mode, also re-seed `cluster_size[m] = N/K` and `embed_avg[m]
+    = centers * cluster_size` so revival doesn't immediately kill the
+    text-seeded codewords.
+- Wired into `train_siglip2.py:211` post-model-build, pre-optimizer:
+  iterate `train_loader` once to gather up to `text_init_subset`
+  `cached_text_part_raw` vectors, call the helper.
+
+**Init timing (smoke + actual)**:
+- mean (K=128, N=4096): ~0.08 s
+- kmeans (K=128, N=4096): ~37 s
+
+**Baseline note**: I originally labeled the baseline "per-cb K=128
+bs=128" in the user-question UI, but v40 never actually ran per-cb with
+bs=128 (bs=128 only ran for v40f/global, which collapsed). Closest
+existing per-cb K=128 baseline is v40e (bs=64). Both v41a/v41b inherit
+v40e's full config.
+
+Results pending (eval at epoch 60).
 
 🟢 v40d adopted as the best text-on baseline (mAP 0.6280).
 🟢 v40a adopted as the best text-on compositional variant.

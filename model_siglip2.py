@@ -158,6 +158,85 @@ class SemanticCodebookQuantizer(nn.Module):
     def num_trainable_codewords(self) -> int:
         return self.codebooks.numel()
 
+    @torch.no_grad()
+    def initialize_from_text_anchors(
+        self,
+        text_anchors: torch.Tensor,
+        mode: str = "kmeans",
+        seed: int = 42,
+    ) -> Dict[str, float]:
+        """5-G: replace random Gaussian codebooks with text-derived vectors.
+
+        Args:
+            text_anchors: [N, M, D] -- collected `cached_text_part_raw`.
+            mode: 'mean' (random K samples) or 'kmeans' (sklearn K-means).
+            seed: random / K-means seed.
+        Returns:
+            diagnostic dict with per-mode timing + per-codebook inertia (kmeans).
+        """
+        import time
+        import numpy as np
+        M_cb, K, D = self.codebooks.shape
+        N, M_in, D_in = text_anchors.shape
+        if M_in != M_cb or D_in != D:
+            raise ValueError(
+                f"[initialize_from_text_anchors] text_anchors shape "
+                f"[N={N}, M={M_in}, D={D_in}] incompatible with codebooks "
+                f"[M={M_cb}, K={K}, D={D}]"
+            )
+        target_std = 1.0 / math.sqrt(self.d_model)
+        diag = {"mode": mode, "N": int(N), "K": int(K), "M": int(M_cb)}
+        t0 = time.time()
+        text_np = text_anchors.detach().cpu().float().numpy()  # [N, M, D]
+
+        for m in range(M_cb):
+            feats = text_np[:, m, :]  # [N, D]
+            if mode == "mean":
+                rng = np.random.default_rng(seed + m)
+                replace = feats.shape[0] < K
+                idx = rng.choice(feats.shape[0], size=K, replace=replace)
+                centers = feats[idx]  # [K, D]
+            elif mode == "kmeans":
+                from sklearn.cluster import KMeans
+                km = KMeans(
+                    n_clusters=K,
+                    random_state=int(seed + m),
+                    n_init=4,
+                    max_iter=100,
+                )
+                km.fit(feats)
+                centers = km.cluster_centers_  # [K, D]
+                diag[f"inertia_m{m}"] = float(km.inertia_)
+            else:
+                raise ValueError(f"[initialize_from_text_anchors] unknown mode={mode!r}")
+
+            centers_t = torch.from_numpy(centers).to(
+                dtype=self.codebooks.dtype, device=self.codebooks.device,
+            )
+            # Rescale to match VQ-VAE init scale (1/sqrt(D)). Per-codeword
+            # norm comparable to legacy Normal(0, 1/sqrt(D)) init keeps the
+            # downstream MSE / squared-L2 distance ranges familiar to the
+            # rest of the training loop.
+            cur_std = centers_t.std()
+            if cur_std > 0:
+                centers_t = centers_t * (target_std / cur_std)
+
+            if self.update_mode == "ema":
+                # tensor write into buffers: shape [K, D]
+                self.codebooks[m].copy_(centers_t)
+                # cluster_size set to N/K so revival doesn't immediately
+                # mark these as dead (revival threshold is relative to
+                # max(cluster_size_in_codebook)).
+                init_cs = max(1.0, float(N) / float(K))
+                self.cluster_size[m].fill_(init_cs)
+                self.embed_avg[m].copy_(centers_t * init_cs)
+            else:
+                # gradient mode: codebook is nn.Parameter
+                self.codebooks.data[m].copy_(centers_t)
+
+        diag["elapsed_sec"] = float(time.time() - t0)
+        return diag
+
     def get_codebook_mean_anchors(self, exclude_global: bool = True) -> torch.Tensor:
         """Return per-part anchor vectors used at inference for OT routing.
 

@@ -208,6 +208,40 @@ def main(args: Config):
         shuffle=False, num_workers=args.num_workers, drop_last=True,
     )
 
+    # ---------- v41 (5-G): text-supervised codebook init --------------------
+    # Replace the random Gaussian codebook init with K vectors derived from
+    # train-set `cached_text_part_raw`. Text routing path is preserved
+    # (still runs every forward) -- this is purely additive supervision for
+    # the codebook starting point. See docs/ANALYSIS_2026-05-19.md sec 5-G.
+    _text_init_mode = str(getattr(args, "text_init_codebook", "none"))
+    if _text_init_mode != "none":
+        _N_target = int(getattr(args, "text_init_subset", 4096))
+        _seed     = int(getattr(args, "text_init_seed",   42))
+        text_buffer = []
+        n_collected = 0
+        print(f"[text_init_codebook] gathering up to {_N_target} text vectors "
+              f"from train_loader for mode={_text_init_mode!r} ...")
+        for _batch in train_loader:
+            _tp = _batch.get("cached_text_part_raw", None)
+            if _tp is None:
+                raise RuntimeError(
+                    "[text_init_codebook] train batch has no "
+                    "'cached_text_part_raw'; rebuild the SigLIP2 feature "
+                    "cache or pass --qwen_text_cache_path."
+                )
+            text_buffer.append(_tp.detach().cpu())
+            n_collected += _tp.shape[0]
+            if n_collected >= _N_target:
+                break
+        text_anchors = torch.cat(text_buffer, dim=0)[:_N_target]  # [N, M, D]
+        print(f"[text_init_codebook] collected text_anchors shape="
+              f"{tuple(text_anchors.shape)}; calling init...")
+        _diag = model.quantizer.initialize_from_text_anchors(
+            text_anchors, mode=_text_init_mode, seed=_seed,
+        )
+        print(f"[text_init_codebook] done: {_diag}")
+        del text_buffer, text_anchors
+
     # ---------- optimizer ---------------------------------------------------
     backbone_params = [p for p in model.backbone.parameters()             if p.requires_grad]
     other_params    = [p for n, p in model.named_parameters()

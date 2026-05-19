@@ -258,6 +258,30 @@ class Config():
         siglip2_arg.add_argument('--codebook_revive_every', dest='codebook_revive_every',
             type=int, default=50,
             help='Run dead-code rejuvenation every N training forwards (steps).')
+        # ---------- v41 (5-G): text-supervised codebook initialization ---
+        # Before training starts, replace the random Gaussian codebook init
+        # with K vectors derived from train-set `cached_text_part_raw`
+        # (SigLIP2 text-encoder pooled embeddings per part). The text path
+        # is KEPT active during training as well (still routes Sinkhorn
+        # centroids each forward) -- this is purely additive supervision
+        # for the codebook's starting point. See docs/ANALYSIS_2026-05-19.md
+        # section 5-G.
+        siglip2_arg.add_argument('--text_init_codebook',
+            dest='text_init_codebook',
+            type=str, default='none', choices=['none', 'mean', 'kmeans'],
+            help="How to initialize codebooks from text part embeddings. "
+                 "'none' (default) = random Gaussian, legacy behaviour. "
+                 "'mean' = K random samples per codebook from train-set "
+                 "text_part_raw (fast, ~1s). 'kmeans' = K-means cluster "
+                 "centers per codebook (slower, ~30s for K=128 N=4096).")
+        siglip2_arg.add_argument('--text_init_subset',
+            dest='text_init_subset', type=int, default=4096,
+            help='Number of train-set text vectors to gather for '
+                 'codebook init (per codebook). Capped at train set size. '
+                 'Default 4096 is enough for stable K-means with K<=128.')
+        siglip2_arg.add_argument('--text_init_seed',
+            dest='text_init_seed', type=int, default=42,
+            help='Random seed for codebook init sampling / K-means n_init.')
         # ---------- Gumbel tau annealing --------------------------------
         # When `gumbel_tau_init` is set we override the static `gumbel_tau`
         # with a cosine schedule from init -> final across `args.epoch`.
