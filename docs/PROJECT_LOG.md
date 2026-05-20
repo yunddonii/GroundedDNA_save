@@ -36,19 +36,22 @@ Format conventions:
   incl. HashNet's own 0.7800.
 - **Best supervised + diversity-balanced Flickr25k**: **v24b** -- mAP
   **0.7742**, unique 0.324.
-- **Best unsupervised Flickr25k (ours, absolute SOTA)**: **v49**
-  (V4 cache + routing_topp 0.7 + sinkhorn ε anneal 1.0→0.1 + dynamic-τ
-  α=0.3 + lambda_wasserstein 0.02 + K=64) -- mAP **0.6705** (peak
-  ep29, exceeds v34's prior text-off all-time best of 0.6696 by
-  +0.0009). dead 0.000, B1 **0.0557**, B2 0.0333. Per-codebook fully
-  healthy (all 6 cb at 100% used, Gini 0.12-0.26, entropy 97-99%).
-  **First time text-on regime exceeds text-off SOTA + contribution #2
-  proven additive rather than trade-off**.
-- **Prior unsupervised text-off champion**: **v34** (v30a + routing
-  top-k=2) -- mAP **0.6696**, unique 0.381, dead 0.000.
-- **Prior unsupervised text-on champion**: **v47** (V4 + topp + ε
-  anneal, no wasserstein) -- mAP 0.6542 peak / 0.6580 final, B1
-  0.0548, dead 0.000.
+- **Best unsupervised Flickr25k (ours, absolute SOTA by peak mAP)**:
+  **v49** (V4 cache + routing_topp 0.7 + sinkhorn ε anneal 1.0→0.1 +
+  dynamic-τ α=0.3 + lambda_wasserstein 0.02 + K=64) -- **mAP 0.6705
+  peak** (ep29, exceeds v34's prior text-off all-time best of 0.6696
+  by +0.0009). final 0.6644. B1 0.0557, B2 0.0333, unique 0.322,
+  dead 0.000.
+- **Best by FINAL-checkpoint mAP**: **v52** (= v49 with
+  `--gumbel_tau_final 0.3 → 0.1`) -- **mAP 0.6691 final** (still
+  monotonically rising at ep59). +0.0047 vs v49 final, +0.026 unique.
+  Likely exceeds v49 peak if extended to e=90.
+- **Unique-code champion**: **v54** (= v49 with
+  `--lambda_ntxent 1.0 → 1.5`) -- mAP 0.6622 final (−0.002 vs v49)
+  but **unique 0.431** (+0.109 vs v49). Trade-off: B1 0.0490 (text
+  grounding ↓) / B2 0.0367 (visual grounding ↑).
+- **Prior text-off champion**: **v34** (v30a + routing top-k=2) --
+  mAP 0.6696, unique 0.381, dead 0.000.
 - **Unsupervised leaderboard (Flickr25k setting1, 36-bit, frozen SigLIP2, 60 epoch)**:
 
   | Run | Adapter / variant | mAP | unique (test) | per-cb-unique | dead |
@@ -118,25 +121,100 @@ Format conventions:
 
 ---
 
-## 2026-05-20 — v51-v54: diversity loss sweep on v49 baseline [in progress]
+## 2026-05-20 — v51-v54: diversity loss sweep + v54 deep dive
 
-🟡 Launched 2026-05-20 15:54, in-flight as of writing. 4 parallel runs
-on GPU 2/3/4/5 targeting **higher unique-code ratio without sacrificing
-v49's mAP 0.6705**. v49 baseline + single-variable changes:
+🟢 4 parallel runs on GPU 2/3/4/5 targeting **higher unique-code ratio
+without sacrificing v49's mAP 0.6705**. v49 baseline + single-variable
+changes:
 
-| Tag | change vs v49 | hypothesis |
+| Tag | change vs v49 |
+|---|---|
+| v51 | `--lambda_dna 0.05 → 0.1` (codon entropy pressure ↑) |
+| v52 | `--gumbel_tau_final 0.3 → 0.1` (sharper final discrete codes) |
+| v53 | (v51 + v52 combined) |
+| v54 | `--lambda_ntxent 1.0 → 1.5` (contrastive push ↑) |
+
+### Full trajectories
+
+| epoch | v49 (base) | v51 (λ_dna) | v52 (gumbel) | v53 (both) | v54 (λ_ntx) |
+|---:|---:|---:|---:|---:|---:|
+| 9 | 0.6656 | 0.6495 | 0.6647 | 0.6544 | 0.6633 |
+| 19 | 0.6674 | 0.6430 | 0.6598 | 0.6474 | 0.6482 |
+| 29 | **0.6705** ★ | 0.6501 | 0.6640 | 0.6534 | 0.6564 |
+| 39 | 0.6681 | 0.6428 | 0.6653 | 0.6500 | 0.6593 |
+| 49 | 0.6666 | 0.6468 | 0.6665 | 0.6493 | 0.6617 |
+| **59 (final)** | 0.6644 | 0.6458 | **0.6691** ★ | 0.6471 | 0.6622 |
+| trajectory | early peak → drift | flat | **단조 상승** | flat | early dip → recover |
+
+### Key findings
+
+**v52 (`gumbel_tau_final 0.1`) — new best FINAL mAP 0.6691**:
+- vs v49 final 0.6644: **+0.0047 mAP**, +0.026 unique (0.348 vs 0.322)
+- Trajectory still rising at ep59 (ep49 → ep59: 0.6665 → 0.6691) —
+  if extended (e.g. e=90) likely to exceed v49's peak 0.6705.
+- Mechanism: sharper final codon Gumbel softmax (0.3 → 0.1) makes the
+  discrete code more deterministic late in training. Slower convergence
+  but eventually-better separation.
+
+**v54 (`lambda_ntxent 1.5`) — unique champion (0.431) with negligible
+mAP loss**:
+- vs v49 final: −0.002 mAP, **+0.109 unique** (0.431 vs 0.322)
+- Trade-off pattern: B1 (text grounding) 0.0490 vs v49 0.0557 [−0.007],
+  B2 (visual grounding) 0.0367 vs v49 0.0333 [+0.003].
+- Mechanism: stronger contrastive push tightens augmented-view pairs
+  (preserves mAP) AND pushes non-pair samples to more distinct codes
+  (unique ↑), but cluster meaning shifts from text-grounded toward
+  visual-grounded.
+
+**v51 (`lambda_dna 0.1`) and v53 (combined)** — both regress mAP
+(−0.019, −0.017) with marginal unique gain. Strong codon entropy
+pressure interferes with paired-aug NtXent's "same view pair → same
+code" signal. Discarded.
+
+### v54 per-codebook deep dive
+
+All 6 cb at 100% used (0/384 dead). Top-1 codeword share 2.45-3.41%
+(very flat — flatter than v49's 2.20-2.83%). Gini 0.131-0.248 (lower
+than v49's 0.121-0.273). Codeword usage is the most uniform across
+all v40+ runs.
+
+Per-cb B1 (text grounding lift):
+
+| cb | v49 B1 | v54 B1 | Δ |
+|---|---:|---:|---:|
+| 0 (global) | 0.071 | 0.075 | +0.004 |
+| 1 (primary_obj) | 0.044 | 0.043 | −0.001 |
+| 2 (secondary_obj) | 0.043 | 0.031 | **−0.012** |
+| 3 (activity) | 0.047 | 0.045 | −0.002 |
+| 4 (color_texture) | 0.038 | 0.032 | −0.006 |
+| 5 (scene_type) | **0.094** | 0.072 | **−0.022** |
+
+→ v54의 NtXent 강화가 *visual* axis (B2) 를 universally +0.01 끌어
+올리는 동시에 *text* axis (B1) 를 cb2/cb5 (가장 text-distinct한 slot)
+에서 −0.01 ~ −0.02 손실. visual-text grounding trade-off가 per-cb
+수준에서도 일관.
+
+### v49 vs v54 — 두 가지 "성격"의 SOTA 후보
+
+| 평가 기준 | v49 우세 | v54 우세 |
 |---|---|---|
-| v51 | `--lambda_dna 0.05 → 0.1` | codon entropy pressure ↑ → harder one-hot per codon → more sample-level discrimination |
-| v52 | `--gumbel_tau_final 0.3 → 0.1` | sharper final discrete codes |
-| v53 | (v51 + v52 combined) | synergy |
-| v54 | `--lambda_ntxent 1.0 → 1.5` | NtXent push ↑ → tighter view-pair clusters |
+| Peak mAP (0.6705) | ✓ | (0.6633) |
+| Final mAP | (0.6644) | (0.6622, −0.002) |
+| B1 text grounding | ✓ 0.0557 | (0.0490) |
+| B2 visual grounding | (0.0333) | ✓ 0.0367 |
+| Unique codes | (0.322) | ✓ 0.431 |
+| Codebook 균등성 | (Gini avg 0.21) | ✓ (Gini avg 0.19) |
 
-**Motivation**: v49 has unique=0.318 (lowest in V4 family) but highest
-mAP. Other V4 variants (v47 unique 0.438, v48 unique 0.493) have lower
-mAP, suggesting inverse relation. The sweep tests whether code-level
-or contrastive-level interventions can break this trade-off.
+v49 = "text-grounded compositional model" (paper's contribution #2 evidence).
+v54 = "visual-grounded uniform compositional model" (diversity story).
+v52 = "long-horizon convergence model" (still rising at e=60, candidate
+for e=90 extension).
 
-Results pending (next mid-eval at ep9).
+### Possible next step
+
+`v52 + e=90` 연장 실험으로 단조 상승 추세 끝까지 검증. 만약 mAP가
+ep59 0.6691 → ep89에 0.6710 이상으로 가면 v49의 peak 0.6705를
+*final* checkpoint 기준으로도 추월하는 첫 결과.
 
 ---
 
@@ -329,6 +407,35 @@ New CLI flag in `config.py`: `--routing_topp` (float in (0, 1]).
 Implementation in `models/semantic_router.py:SemanticSinkhornRouter.forward`
 (top-p mask after Sinkhorn, complementary to existing `--routing_topk`
 fixed-k branch).
+
+---
+
+## 2026-05-20 — V4 cache 3-row patch (im23034 / im9960 / im22899)
+
+🟢 V4 qwen extraction에서 3개 image의 caption이 JSON parse 실패로
+무효 처리 (24,997/25,000 valid 상태였음). 원인:
+
+| image_id | 에러 원인 |
+|---|---|
+| `images/im23034.jpg` | `max_new_tokens=256` 한계로 마지막 sentence 잘림 |
+| `images/im9960.jpg` | 출력 끝에 stray 공백 |
+| `images/im22899.jpg` | Qwen이 `"Keep Clear"` 표지판을 escaping 안 한 quote로 출력 |
+
+**조치**:
+1. im23034 / im9960: `max_new_tokens=512`로 재실행, 둘 다 정상 출력
+2. im22899: 재시도해도 같은 quote 에러 (image 자체가 Keep Clear sign
+   포함) → raw output에서 6 caption 수동 추출 + inner quote 제거 후
+   주입
+3. master `flickr25k_qwen_v4.jsonl`에서 broken entries 3개 제거 + 3개
+   patched entries 추가 → **25,000 valid 전체 복원**
+4. `flickr25k_siglip2_v4plus/text_part.f16.npy` 재추출 (~50초)
+5. cross-slot cos sim 0.7335 그대로 안정 — 3개 추가가 분포에 미미
+
+이로써 v4plus cache가 모든 25K image에 valid V4 caption 보유. v47 이후
+모든 V4-cache 학습은 이 25K 기준으로 진행 (이전 24997도 train 기준
+5000 caption 모두 valid라 학습엔 영향 없었음).
+
+---
 
 ---
 
