@@ -121,6 +121,48 @@ Format conventions:
 
 ---
 
+## 2026-05-20 — v60 + v61: C_0 dynamic-τ design ablations [in progress]
+
+🟡 Launched 2026-05-20 17:58 on GPU 2/3. Two ablations on how dynamic-τ
+treats the **C_0 (global) codebook** in per-codebook NtXent. Both use
+v57 as baseline (current SOTA, wass 0.05).
+
+**Motivation** (C_0 loss-flow analysis):
+- C_0 is text-free in routing (mean-pooled visual, not Sinkhorn-routed)
+  but IS in the per-codebook NtXent loop (m=0).
+- Current dynamic-τ uses `text_part_raw[:, 0, :]` (= C_global caption
+  embedding) to modulate τ_ij for C_0's NtXent.
+- C_global caption is a topic-level summary ("A woman with bold
+  tattoos smokes..."). May not be the right signal for the global
+  codebook's sample-pair modulation.
+
+**Two interventions**:
+
+| Tag | Mechanism | New flag |
+|---|---|---|
+| **v60** | C_0 uses static `base_τ` (no dynamic modulation); C_1-5 keep dynamic-τ as usual | `--ntxent_dynamic_tau_skip_global` |
+| **v61** | C_0's dynamic-τ uses **mean of 5 local text embeddings** instead of `text_part_raw[:, 0, :]` | `--ntxent_global_use_local_mean` |
+
+**Hypotheses**:
+- v60: if C_global is a *bad* signal, static τ may not hurt — tests
+  whether C_0 benefits from dynamic-τ at all.
+- v61: the mean of 5 local-part captions aggregates richer per-aspect
+  similarity. Might be a smoother global signal than C_global alone.
+
+**Implementation** (2 new CLI flags + ~10 lines in
+`_loss_ntxent_dna_per_codebook`):
+- `loss_siglip2.py`: new kwargs `skip_global_dyn` /
+  `global_use_local_mean`. m=0 branch conditionally falls back to
+  static τ (v60) or uses `text_part_raw[:, 1:, :].mean(dim=1)` (v61).
+  C_1-5 unchanged.
+- `config.py` adds two boolean flags.
+
+Other v57 hyperparameters preserved.
+
+Results pending (ep9 mid-eval).
+
+---
+
 ## 2026-05-20 — v57 + v58 + v59: parallel ablations on v49 baseline [logged in above entry]
 
 🟡 Three single-axis ablations launched in parallel on GPU 3/4/5 to

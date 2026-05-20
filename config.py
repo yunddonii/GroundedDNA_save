@@ -487,6 +487,27 @@ class Config():
                  "text-caption cosine similarity (v42 / Q2 proposal). "
                  "Requires --ntxent_mode per_codebook and a non-None text "
                  "path. Off by default (legacy single-tau behaviour).")
+        # v60: skip dynamic-tau for the C_0 (global) codebook only. Uses
+        # static base_tau for m=0 even when dynamic_tau is enabled.
+        # Motivation: C_0 receives whole-image mean-pooled visual; the
+        # C_global Qwen caption is a topic-level summary that may not
+        # be the right signal for per-pair tau modulation.
+        loss_arg.add_argument('--ntxent_dynamic_tau_skip_global',
+            action='store_true', default=False,
+            help='If set, the m=0 (C_global) codebook uses static base_tau '
+                 'in per-codebook NtXent (v60 ablation), even when '
+                 '--ntxent_dynamic_tau is on. C_1..5 still get dynamic '
+                 'modulation as usual.')
+        # v61: use mean of the 5 local text_part_raw vectors as the
+        # similarity source for m=0 (C_global) dynamic-tau, instead of
+        # the C_global caption embedding. Motivation: aggregated local-
+        # part similarity may capture a richer image-level signal than
+        # a single topic-summary embedding.
+        loss_arg.add_argument('--ntxent_global_use_local_mean',
+            action='store_true', default=False,
+            help='If set, when computing dynamic-tau for m=0 use the mean '
+                 'of text_part_raw[:, 1:, :] (5 local parts) instead of '
+                 'text_part_raw[:, 0, :] (C_global caption). v61 ablation.')
         loss_arg.add_argument('--ntxent_dynamic_tau_alpha',
             type=float, default=0.5,
             help="Modulation strength alpha in "

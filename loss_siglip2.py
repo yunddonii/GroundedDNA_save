@@ -218,6 +218,10 @@ class DNACodonHashLoss(nn.Module):
         # available (text path on) AND alpha > 0.
         self.ntxent_dynamic_tau       = bool (getattr(cfg, "ntxent_dynamic_tau",       False))
         self.ntxent_dynamic_tau_alpha = float(getattr(cfg, "ntxent_dynamic_tau_alpha", 0.0))
+        # v60: skip dynamic-tau for m=0 (use static base_tau on C_global)
+        self.ntxent_dynamic_tau_skip_global = bool(getattr(cfg, "ntxent_dynamic_tau_skip_global", False))
+        # v61: for m=0 dynamic-tau, use mean of 5 local text features
+        self.ntxent_global_use_local_mean   = bool(getattr(cfg, "ntxent_global_use_local_mean",   False))
         # v44 (B1): cross-slot text orthogonality reg on text_part_tokens.
         self.lambda_ortho_text        = float(getattr(cfg, "lambda_ortho_text",        0.0))
         self.lambda_vq         = float(getattr(cfg, "lambda_vq",        0.25))
@@ -424,6 +428,8 @@ class DNACodonHashLoss(nn.Module):
         num_codebooks: int = 6,
         text_part_raw: Optional[torch.Tensor] = None,
         dynamic_tau_alpha: float = 0.0,
+        skip_global_dyn: bool = False,
+        global_use_local_mean: bool = False,
     ) -> torch.Tensor:
         """Per-codebook NtXent (v31b) with optional v42 dynamic tau.
 
@@ -483,9 +489,16 @@ class DNACodonHashLoss(nn.Module):
         for m in range(num_codebooks):
             z = torch.cat([u1[:, m], u2[:, m]], dim=0)            # [2B, 3, 4]
             sim = torch.einsum("brc,src->bsr", z, z).mean(dim=-1)  # [2B, 2B]
-            if use_dyn:
-                # Replicate text slot m across the two augmented views.
-                t_m   = text_part_raw[:, m, :]                    # [B, D]
+            # v60: skip dynamic-tau on m=0 if requested
+            use_dyn_this_m = use_dyn and not (m == 0 and skip_global_dyn)
+            if use_dyn_this_m:
+                # v61: for m=0, optionally use the mean of the 5 local text
+                # features as the similarity source instead of the C_global
+                # caption embedding.
+                if m == 0 and global_use_local_mean and text_part_raw.shape[1] >= 2:
+                    t_m = text_part_raw[:, 1:, :].mean(dim=1)     # [B, D] = mean over 5 local slots
+                else:
+                    t_m = text_part_raw[:, m, :]                  # [B, D]
                 t_all = torch.cat([t_m, t_m], dim=0)              # [2B, D]
                 t_n   = F.normalize(t_all, dim=-1)
                 cos_t = t_n @ t_n.t()                             # [2B, 2B]
@@ -778,6 +791,8 @@ class DNACodonHashLoss(nn.Module):
                         self.ntxent_dynamic_tau_alpha
                         if self.ntxent_dynamic_tau else 0.0
                     ),
+                    skip_global_dyn=self.ntxent_dynamic_tau_skip_global,
+                    global_use_local_mean=self.ntxent_global_use_local_mean,
                 )
             else:
                 loss_ntxent = self._loss_ntxent_dna(
