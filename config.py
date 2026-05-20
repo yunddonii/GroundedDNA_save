@@ -123,6 +123,16 @@ class Config():
         siglip2_arg.add_argument('--adapter_type', dest='adapter_type',
             type=str, default='mlp', choices=['mlp', 'linear'],
             help="visual/text adapter architecture (default mlp).")
+        # v59: text-only bottleneck. When set, overrides adapter_hidden_dim
+        # ONLY for the text adapter (visual adapter keeps its own setting).
+        # Use to compress text features through a low-rank bottleneck
+        # (e.g. 768 -> 64 -> 768) while leaving visual capacity intact.
+        siglip2_arg.add_argument('--text_adapter_hidden_dim',
+            dest='text_adapter_hidden_dim',
+            type=int, default=None,
+            help='Override hidden_dim for text_adapter only. None defaults '
+                 'to --adapter_hidden_dim (shared). Set to a small value '
+                 '(e.g. 64, 128) to bottleneck text features asymmetrically.')
         siglip2_arg.add_argument('--adapter_hidden_dim', dest='adapter_hidden_dim',
             type=int, default=None,
             help="MLP hidden dim (only used when adapter_type=mlp). "

@@ -608,6 +608,11 @@ class SigLIP2SemanticOTModel(nn.Module):
         adapter_hidden  = getattr(args, "adapter_hidden_dim", None)
         adapter_hidden  = int(adapter_hidden) if adapter_hidden is not None else int(self.d_model * 2)
         adapter_dropout = float(getattr(args, "adapter_dropout", 0.0))
+        # v59: text-only bottleneck override
+        _text_hidden_override = getattr(args, "text_adapter_hidden_dim", None)
+        text_adapter_hidden = (
+            int(_text_hidden_override) if _text_hidden_override is not None else adapter_hidden
+        )
 
         # ---------- C_global slot source ---------------------------------
         # See docstring on `c_global_source` for behavior.
@@ -677,7 +682,7 @@ class SigLIP2SemanticOTModel(nn.Module):
                     TextAdapter(
                         in_dim=int(proj_dim),
                         out_dim=self.d_model,
-                        hidden_dim=adapter_hidden,
+                        hidden_dim=text_adapter_hidden,
                         dropout=adapter_dropout,
                         residual=True,
                     )
@@ -694,7 +699,7 @@ class SigLIP2SemanticOTModel(nn.Module):
                 self.text_adapter = TextAdapter(
                     in_dim=int(proj_dim),                # D_proj
                     out_dim=self.d_model,                # D
-                    hidden_dim=adapter_hidden,
+                    hidden_dim=text_adapter_hidden,
                     dropout=adapter_dropout,
                     residual=True,                       # auto-disabled if D_proj != D
                 )

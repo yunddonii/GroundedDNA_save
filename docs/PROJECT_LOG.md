@@ -121,6 +121,37 @@ Format conventions:
 
 ---
 
+## 2026-05-20 — v57 + v58 + v59: parallel ablations on v49 baseline [in progress]
+
+🟡 Three single-axis ablations launched in parallel on GPU 3/4/5 to
+probe further improvements over v49's mAP 0.6705 peak / 0.6644 final.
+
+| Tag | Hypothesis | Setting (delta vs v49) |
+|---|---|---|
+| **v57** | Wasserstein λ sweep representative — stronger visual-text alignment | `--lambda_wasserstein 0.02 → 0.05` |
+| **v58** | adapter capacity reduction — smaller MLP as regularizer | `--adapter_hidden_dim 768 → 512` (visual + text both) |
+| **v59** | text-only bottleneck — compress text features through low-rank | `--text_adapter_hidden_dim 128` (new flag, text MLP becomes 768→128→768; visual stays 768→768→768) |
+
+**v59 implementation note**: new CLI flag `--text_adapter_hidden_dim`
+added to enable asymmetric bottleneck (visual stays full-capacity,
+text bottlenecked). When None (default), text shares `--adapter_hidden_dim`
+with visual. Internally `text_adapter_hidden` is computed in
+`model_siglip2.py:__init__` and used at the text_adapter TextAdapter()
+construction site only.
+
+**Motivation behind v59 specifically**: SigLIP2 text encoder produces
+768-d pooled embeddings where cross-slot cos sim ≈ 0.73 (V4 cache). The
+hypothesis is that much of this 768-d capacity carries shared "scene
+topic" content that pollutes the per-slot routing signal. Forcing
+text features through a 128-d bottleneck (and re-expanding to 768) may
+filter out shared-topic dimensions, leaving slot-specific discriminative
+axes more prominent. Aligns with user observation that "long captions
+make text embeddings ambiguous".
+
+Results pending (ep9 mid-eval).
+
+---
+
 ## 2026-05-20 — v55 + v56: relaxed-OT routing (UOT + null centroid) [v55 → retry, v56 discarded]
 
 🔴 Both runs stopped at ep19 with clearly worse-than-v49 trajectories.
@@ -162,13 +193,20 @@ Format conventions:
 - Discarded for now; code retained behind `--use_null_centroid` flag
   for future revisiting with better null design.
 
-Same code/feature setup as before; only v55 retried.
+All three setups DISCARDED.
 
 | Tag | Mechanism | Result |
 |---|---|---|
 | ~~v55 (λ_a=1)~~ | UOT aggressive | failed at ep19: dead 0.232 ↑↑, mAP 0.656 |
-| ~~v55-retry (λ_a=5)~~ | UOT conservative | **stopped at ep25**: dead 0.086 stable but mAP 0.658 declining (v49 ep19=0.667 +0.010 gap), no recovery signal |
+| ~~v55-retry (λ_a=5)~~ | UOT conservative | failed at ep25: dead 0.086 stable but mAP 0.658 declining (v49 ep19=0.667 +0.010 gap), no recovery signal |
 | ~~v56 (null centroid)~~ | extra learnable null part | failed: mAP 0.626 flat |
+
+**v55 family discarded — "uninformative patch rejection" hypothesis
+doesn't hold on Flickr25k 5K-train**. Patches we'd reject still carry
+codebook training signal. Code retained behind `--sinkhorn_lambda_a/_b`
+and `--use_null_centroid` flags for future re-exploration on larger /
+noisier datasets (MSCOCO) where the balanced-Sinkhorn assumption may
+break.
 
 **v55-retry final assessment (ep9/19/25)**:
 
@@ -333,6 +371,28 @@ for e=90 extension).
 `v52 + e=90` 연장 실험으로 단조 상승 추세 끝까지 검증. 만약 mAP가
 ep59 0.6691 → ep89에 0.6710 이상으로 가면 v49의 peak 0.6705를
 *final* checkpoint 기준으로도 추월하는 첫 결과.
+
+---
+
+## 2026-05-20 — v52ext: e=60 → 90 extension of v52 [running, underperforming]
+
+🟡 Launched 2026-05-20 17:13 on GPU 2. Tests whether v52's
+monotonically-rising trajectory (0.6647→0.6691 ep9→59) continues to
+exceed v49's peak 0.6705 if trained for 30 more epochs.
+
+| epoch | v52 (e=60) | v52ext (e=90) | v49 (ref) |
+|---:|---:|---:|---:|
+| 9 | 0.6647 | 0.6618 | 0.6656 |
+| 19 | 0.6598 | 0.6484 | 0.6674 |
+| 29 | 0.6640 | 0.6495 | **0.6705** ★ |
+
+**v52ext is trailing v52 at every epoch** — the cosine LR / gumbel_tau
+schedule scaled to 90 epochs makes early-epoch annealing slower (per-
+epoch updates are gentler). v52's late rise depends on the *specific*
+schedule shape; simply lengthening the schedule does not preserve it.
+
+→ likely conclusion: **e=60 is the right horizon for v52's setup**.
+Extension doesn't help. Will let it run to completion and confirm.
 
 ---
 
