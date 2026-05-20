@@ -256,6 +256,34 @@ class Config():
                  'output is sharp (low epsilon or epsilon-annealed); '
                  'flat softmax over near-uniform text centroids makes '
                  'top-p effectively keep all M parts.')
+        # v55: Unbalanced OT (Chizat et al. NeurIPS 2018). KL-relaxed
+        # marginals let some patches have row sum < 1/N (i.e. patches that
+        # are uninformative — background, blur — can be partially "rejected"
+        # from routing rather than forced into a part). lambda → ∞ recovers
+        # balanced Sinkhorn; lambda → 0 leaves marginal completely free.
+        siglip2_arg.add_argument('--sinkhorn_lambda_a',
+            dest='sinkhorn_lambda_a', type=float, default=None,
+            help='UOT KL penalty on visual marginal. None = balanced (hard '
+                 'constraint). Finite value (e.g. 0.5-5.0) allows some patches '
+                 'to have row sum < a[n] = 1/N — effectively rejecting '
+                 'uninformative tokens from semantic routing.')
+        siglip2_arg.add_argument('--sinkhorn_lambda_b',
+            dest='sinkhorn_lambda_b', type=float, default=None,
+            help='UOT KL penalty on part marginal. None = balanced. Finite '
+                 'allows part loads to be unbalanced (e.g. images with no '
+                 'C_color_texture content can route less mass to that part).')
+        # v56: Null/background centroid. Adds one extra learnable part
+        # (M+1=6 locals) whose codebook column is discarded after routing.
+        # Patches that match none of the 5 semantic part centroids well
+        # route to this null centroid; their mass is then masked out before
+        # codebook usage. Practical alternative to UOT — no Sinkhorn change.
+        siglip2_arg.add_argument('--use_null_centroid',
+            dest='use_null_centroid', action='store_true', default=False,
+            help='Add a learnable null/background centroid to the Sinkhorn '
+                 'router (alongside the 5 text part centroids). After '
+                 'routing, the null column is sliced out, so patches '
+                 'preferring the null get effectively rejected from codebook '
+                 'updates. v56 ablation.')
         # ---------- VQ codebook update mode -----------------------------
         # `gradient` (default, legacy) -- codebook is an nn.Parameter,
         #   updated by the VQ loss MSE term. Prone to dead-code collapse.

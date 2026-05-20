@@ -44,19 +44,42 @@ def _log_sinkhorn(
     log_a: torch.Tensor,    # [B, N]
     log_b: torch.Tensor,    # [B, M]
     num_iters: int = 20,
+    epsilon: float = 0.05,
+    lambda_a: Optional[float] = None,    # KL marginal penalty on visual side
+    lambda_b: Optional[float] = None,    # KL marginal penalty on part side
 ) -> torch.Tensor:
-    """Stable log-space Sinkhorn-Knopp.
+    """Stable log-space Sinkhorn-Knopp (balanced OR unbalanced).
 
-    Returns log_P: [B, N, M] such that  exp(log_P)  has row marginal exp(log_a)
-    and column marginal exp(log_b) (approximately, after num_iters iterations).
+    Balanced mode (default — lambda_a=lambda_b=None):
+        Returns log_P: [B, N, M] such that exp(log_P) has row marginal
+        exp(log_a) and column marginal exp(log_b) exactly (after num_iters).
+
+    Unbalanced OT mode (when lambda_a or lambda_b is finite, Chizat et al.
+    NeurIPS 2018):
+        min <pi, cost> + eps H(pi)
+             + lambda_a · KL(pi · 1 || a)         (visual marginal)
+             + lambda_b · KL(1^T · pi || b)        (part marginal)
+        Update rule: each scaling step multiplied by tau = lambda / (lambda + eps)
+        so as lambda → ∞ we recover balanced Sinkhorn; as lambda → 0 the
+        marginal becomes free. lambda_a finite + lambda_b finite gives
+        full unbalanced OT; only one finite gives semi-unbalanced.
+
+    Effect (v55 motivation): a finite lambda_a allows patches whose total
+    cost to all M parts is high (e.g. background / blur / uninformative
+    regions) to have row sum LESS than 1/N — i.e. they are partially
+    "rejected" from routing rather than forced into some part.
     """
     log_u = torch.zeros_like(log_a)
     log_v = torch.zeros_like(log_b)
+    eps_safe = max(float(epsilon), 1e-12)
+    # tau_a = lambda_a / (lambda_a + eps)  ;  tau_a → 1 as lambda_a → ∞ (balanced)
+    tau_a = 1.0 if lambda_a is None else float(lambda_a) / (float(lambda_a) + eps_safe)
+    tau_b = 1.0 if lambda_b is None else float(lambda_b) / (float(lambda_b) + eps_safe)
     for _ in range(num_iters):
-        # row update : u <- a / (K v)
-        log_u = log_a - torch.logsumexp(log_K + log_v.unsqueeze(1), dim=-1)
-        # col update : v <- b / (K^T u)
-        log_v = log_b - torch.logsumexp(log_K + log_u.unsqueeze(-1), dim=1)
+        # row update : u <- (a / (K v))^tau_a
+        log_u = tau_a * (log_a - torch.logsumexp(log_K + log_v.unsqueeze(1), dim=-1))
+        # col update : v <- (b / (K^T u))^tau_b
+        log_v = tau_b * (log_b - torch.logsumexp(log_K + log_u.unsqueeze(-1), dim=1))
     return log_u.unsqueeze(-1) + log_K + log_v.unsqueeze(1)
 
 
@@ -96,6 +119,8 @@ class SemanticSinkhornRouter(nn.Module):
         epsilon_override: Optional[float] = None,
         topk_per_patch:   Optional[int]   = None,
         topp_per_patch:   Optional[float] = None,
+        uot_lambda_a:     Optional[float] = None,
+        uot_lambda_b:     Optional[float] = None,
     ) -> Dict[str, torch.Tensor]:
         # ---- shape sanity ------------------------------------------------
         B, N, D = visual_tokens.shape
@@ -137,7 +162,16 @@ class SemanticSinkhornRouter(nn.Module):
         log_b = torch.log(b.clamp_min(1e-12))
 
         # ---- 4) Sinkhorn iterations in log-space ------------------------
-        log_P = _log_sinkhorn(log_K, log_a, log_b, num_iters=self.num_iters)
+        # When uot_lambda_a / uot_lambda_b are provided, switches to
+        # unbalanced OT (v55): KL-relaxed marginals let high-cost patches
+        # have row sum < 1/N (effective rejection of "uninformative" tokens).
+        log_P = _log_sinkhorn(
+            log_K, log_a, log_b,
+            num_iters=self.num_iters,
+            epsilon=eps_eff,
+            lambda_a=uot_lambda_a,
+            lambda_b=uot_lambda_b,
+        )
         P = torch.exp(log_P)                             # [B, N, M]
 
         # ---- 4b) optional top-k mask per patch (v33b hardening) ---------
@@ -147,6 +181,11 @@ class SemanticSinkhornRouter(nn.Module):
         # broken). k>=M -> no-op. Renormalization is row-wise (per patch),
         # so each patch's total mass stays the same; the *column* sums
         # (per-part mass) drift away from the Sinkhorn target.
+        # Preserve UOT mass relaxation when topk/topp masks renormalize:
+        # use the actual Sinkhorn row sum (which may be < a[n] under UOT)
+        # instead of forcing back to a[n].
+        target_row_sum = P.sum(dim=-1, keepdim=True).clamp_min(1e-12)  # [B, N, 1]
+
         if topk_per_patch is not None and 1 <= int(topk_per_patch) < M:
             k = int(topk_per_patch)
             # threshold per patch n: k-th largest value in P[n, :]
@@ -154,8 +193,9 @@ class SemanticSinkhornRouter(nn.Module):
             mask = (P >= kth).to(P.dtype)                    # [B, N, M] in {0,1}
             P_masked = P * mask
             row_sum = P_masked.sum(dim=-1, keepdim=True).clamp_min(1e-12)
-            # rescale so each patch row keeps its original marginal a[n]
-            P = P_masked / row_sum * a.unsqueeze(-1)
+            # rescale so each patch row keeps its actual Sinkhorn row sum
+            # (= a[n] in balanced mode; < a[n] for rejected patches in UOT)
+            P = P_masked / row_sum * target_row_sum
 
         # ---- 4c) optional top-p (cumulative-mass) mask per patch (v46) -----
         # Adaptive-k routing: for each patch n, keep the smallest set of parts
@@ -184,7 +224,7 @@ class SemanticSinkhornRouter(nn.Module):
             )                                                                 # [B, N, M] bool
             P_masked = P * keep.to(P.dtype)
             row_sum = P_masked.sum(dim=-1, keepdim=True).clamp_min(1e-12)
-            P = P_masked / row_sum * a.unsqueeze(-1)
+            P = P_masked / row_sum * target_row_sum
 
         # ---- 5) weighted pooling: P^T @ V then col-normalize ------------
         # semantic_v[b, m, :] = sum_n P[b, n, m] * v[b, n, :] / sum_n P[b, n, m]

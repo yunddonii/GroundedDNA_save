@@ -754,6 +754,11 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.sinkhorn_epsilon_final = getattr(args, "sinkhorn_epsilon_final", None)
         self.routing_topk           = getattr(args, "routing_topk",           None)
         self.routing_topp           = getattr(args, "routing_topp",           None)
+        # v55: UOT KL marginal penalties (None = balanced Sinkhorn)
+        self.sinkhorn_lambda_a      = getattr(args, "sinkhorn_lambda_a",      None)
+        self.sinkhorn_lambda_b      = getattr(args, "sinkhorn_lambda_b",      None)
+        # v56: optional learnable null/background centroid
+        self.use_null_centroid      = bool(getattr(args, "use_null_centroid", False))
         self.total_epochs           = int(getattr(args, "epoch", 60))
         # mutable per-step state set by trainer via set_current_epoch()
         self._current_epoch: int = 0
@@ -791,6 +796,17 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.global_gate_logits = nn.Parameter(
             torch.full((NUM_LOCAL_PARTS,), gate_init, dtype=torch.float32)
         )
+
+        # v56: learnable null/background centroid. Acts as an extra "reject"
+        # part the Sinkhorn router can send uninformative patches to. Init
+        # to small random vector so it doesn't dominate any specific direction.
+        if self.use_null_centroid:
+            d_for_null = int(getattr(args, "d_model", 768) or 768)
+            self.null_centroid = nn.Parameter(
+                torch.randn(d_for_null, dtype=torch.float32) * 0.02
+            )
+        else:
+            self.register_parameter("null_centroid", None)
 
         # ---------- per-codebook codon heads -----------------------------
         # 6 SEPARATE CodonHead instances (no weight sharing across codebooks).
@@ -1233,11 +1249,33 @@ class SigLIP2SemanticOTModel(nn.Module):
         # are set; otherwise router uses its stored static epsilon.
         # v33b: top-k mask per patch (only for Sinkhorn router; attention
         # router ignores).
+        # v55: --sinkhorn_lambda_a / _b switches to unbalanced OT (Chizat
+        # et al. NeurIPS 2018) — uninformative patches can have row sum
+        # < 1/N (partial rejection).
+        # v56: --use_null_centroid prepends a learnable null/background
+        # centroid to the 5 text centroids before Sinkhorn, then slices
+        # the null column out post-routing.
+        if self.use_null_centroid and self.null_centroid is not None:
+            # Expand learnable null to per-sample dim and prepend (= part index 5)
+            B_loc = local_centroids.shape[0]
+            null_exp = self.null_centroid.unsqueeze(0).unsqueeze(0).expand(B_loc, 1, -1)  # [B, 1, D]
+            local_centroids_aug = torch.cat([local_centroids, null_exp], dim=1)         # [B, 6, D]
+            if local_part_mask_used is not None:
+                # Always-keep null part in mask
+                ones = torch.ones(B_loc, 1, dtype=local_part_mask_used.dtype,
+                                  device=local_part_mask_used.device)
+                local_part_mask_used_aug = torch.cat([local_part_mask_used, ones], dim=1)
+            else:
+                local_part_mask_used_aug = None
+        else:
+            local_centroids_aug = local_centroids
+            local_part_mask_used_aug = local_part_mask_used
+
         router_kwargs = {
             "visual_tokens":    visual_tokens,
-            "text_part_tokens": local_centroids,              # [B, 5, D]
+            "text_part_tokens": local_centroids_aug,           # [B, 5 or 6, D]
             "visual_mask":      visual_attention_mask,
-            "part_mask":        local_part_mask_used,
+            "part_mask":        local_part_mask_used_aug,
         }
         if self.router_type == "sinkhorn":
             cur_eps = self._current_sinkhorn_epsilon()
@@ -1247,8 +1285,19 @@ class SigLIP2SemanticOTModel(nn.Module):
                 router_kwargs["topk_per_patch"]   = int(self.routing_topk)
             if self.routing_topp is not None:
                 router_kwargs["topp_per_patch"]   = float(self.routing_topp)
+            if self.sinkhorn_lambda_a is not None:
+                router_kwargs["uot_lambda_a"]     = float(self.sinkhorn_lambda_a)
+            if self.sinkhorn_lambda_b is not None:
+                router_kwargs["uot_lambda_b"]     = float(self.sinkhorn_lambda_b)
         r_out = self.router(**router_kwargs)
-        local_routing_matrix = r_out["routing_matrix"]                                # [B, N, 5]
+        full_routing_matrix = r_out["routing_matrix"]              # [B, N, 5 or 6]
+        if self.use_null_centroid and self.null_centroid is not None:
+            # Slice null (last) column out — null mass naturally rejected
+            # from codebook updates. Remaining 5 columns retain whatever
+            # mass the Sinkhorn (balanced or UOT) assigned to real parts.
+            local_routing_matrix = full_routing_matrix[..., :-1]    # [B, N, 5]
+        else:
+            local_routing_matrix = full_routing_matrix              # [B, N, 5]
 
         # explicit re-normalize for numerical stability
         denom = local_routing_matrix.sum(dim=1).clamp_min(1e-6)                       # [B, 5]

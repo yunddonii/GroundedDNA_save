@@ -121,6 +121,57 @@ Format conventions:
 
 ---
 
+## 2026-05-20 — v55 + v56: relaxed-OT routing (UOT + null centroid) [in progress]
+
+🟡 Launched 2026-05-20 16:53. Both runs on v49 baseline. Tests whether
+balanced-Sinkhorn's hard marginal constraint (every patch *must* route
+mass 1/N to the 6 parts) over-routes uninformative tokens (background,
+blur) and dilutes per-cb signal.
+
+| Tag | Mechanism | Settings (delta vs v49) |
+|---|---|---|
+| **v55** | **Unbalanced OT** (Chizat et al. NeurIPS 2018) — KL-relaxed marginal | `--sinkhorn_lambda_a 1.0 --sinkhorn_lambda_b 100.0` |
+| **v56** | **Null/background centroid** — extra learnable "reject" part | `--use_null_centroid` (M+1=6, last column sliced post-routing) |
+
+**Why this matters**: per v49 deep dive, all 6 codebooks at 100%
+utilization with Gini 0.12-0.26 — but B1 per-cb is uneven (cb5=0.094
+high, cb2=0.043 mid, cb1=0.044 mid). If we can stop background patches
+from spreading mass into cb1/cb2/cb3, those cb may grow more specific.
+
+**Implementation** (3 files, ~30 lines total):
+- `models/semantic_router.py:_log_sinkhorn` — added optional
+  `lambda_a`, `lambda_b`, `epsilon` kwargs. UOT update rule:
+  `log_u ← τ_a · (log_a − logsumexp(log_K + log_v))` where
+  `τ_a = λ_a / (λ_a + ε)`. λ → ∞ recovers balanced.
+- `models/semantic_router.py:SemanticSinkhornRouter.forward` — added
+  `uot_lambda_a / uot_lambda_b` kwargs. Critical compatibility fix:
+  topk/topp mask renormalization now preserves the **actual Sinkhorn
+  row sum** instead of forcing back to `a[n]=1/N` (so UOT relaxation
+  isn't overwritten).
+- `model_siglip2.py` — added `self.null_centroid` (`nn.Parameter([D])`,
+  init `Normal(0, 0.02)`). Prepended to 5 local text centroids before
+  Sinkhorn → M+1=6 part router. Post-routing slice `[:, :, :-1]`
+  discards null mass before codebook updates.
+- `config.py` — three new flags.
+
+**Hypothesis**:
+- Background/uninformative patches no longer pollute cb signals →
+  per-cb specialization ↑ → B1/B2 per-cb variance ↓ (more balanced
+  semantic grounding across all 6 cb), B1/B2 mean ↑.
+- Routing matrix becomes sparser (adaptive-mass on top of adaptive-k
+  from `routing_topp`) → distinct codes ↑, unique ↑.
+- mAP potentially +0.001-0.005 or unchanged.
+
+**Risks**:
+- v55: λ_a=1.0 conservative; if too small, codebook signal weakens.
+- v56: null centroid may collapse to degenerate state (zero vector)
+  or fail to converge.
+
+Results pending (next mid-eval at ep9). v52 e=90 extension deferred
+until v55/v56 conclude.
+
+---
+
 ## 2026-05-20 — v51-v54: diversity loss sweep + v54 deep dive
 
 🟢 4 parallel runs on GPU 2/3/4/5 targeting **higher unique-code ratio
