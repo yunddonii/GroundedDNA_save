@@ -121,6 +121,57 @@ Format conventions:
 
 ---
 
+## 2026-05-20 — v60 + v61: C_0 (global codebook) dynamic-τ design ablations — both DISCARDED
+
+🔴 Both ablations on v57 baseline (current SOTA) underperform. Hypothesis
+"C_global Qwen caption is a poor signal for C_0's dynamic-τ" is falsified —
+the current setup is correct.
+
+| Tag | Modification (vs v57) | Mechanism |
+|---|---|---|
+| v60 | `--ntxent_dynamic_tau_skip_global` | C_0 uses static `base_τ` (no dynamic modulation); C_1-5 keep dynamic-τ |
+| v61 | `--ntxent_global_use_local_mean` | C_0's dynamic-τ uses `mean(text_part_raw[:, 1:, :])` instead of `text_part_raw[:, 0, :]` |
+
+**Full trajectory** (Flickr25k setting1, mid-eval mAP per epoch):
+
+| epoch | v57 (SOTA) | v60 | v61 |
+|---:|---:|---:|---:|
+| 9 | **0.6742** | 0.6654 | 0.6633 |
+| 19 | 0.6703 | 0.6609 | 0.6486 |
+| 29 | 0.6647 | 0.6586 | 0.6664 |
+| 39 | 0.6639 | 0.6563 | 0.6628 |
+| 49 | 0.6648 | 0.6614 | 0.6516 |
+| 59 (final mid-eval) | 0.6676 | 0.6611 | 0.6544 |
+
+**Final test eval (saved checkpoint)**:
+
+| Run | mAP test | vs v57 (0.6683 test) |
+|---|---:|---:|
+| **v57** (baseline) | **0.6683** | — |
+| v60 (C_0 static τ) | 0.6605 | **−0.0078** |
+| v61 (C_0 = mean(local)) | 0.6558 | **−0.0125** |
+
+**Trajectory patterns**:
+- v60: monotonic decline ep9→ep49, late recovery (0.6614 ep49 → 0.6611 ep59).
+  Consistent −0.006 ~ −0.008 offset below v57 throughout.
+- v61: large swings (ep19 dip 0.6486 → ep29 spike 0.6664 → ep49 dip 0.6516).
+  Unstable trajectory.
+
+**Implementation** (2 new CLI flags + ~10 lines in
+`_loss_ntxent_dna_per_codebook`):
+- `loss_siglip2.py`: kwargs `skip_global_dyn`, `global_use_local_mean`. m=0
+  branch in per-cb loop conditionally falls back to static τ (v60) or
+  recomputes `t_m = text_part_raw[:, 1:, :].mean(dim=1)` (v61). C_1-5 paths
+  unchanged.
+- `config.py`: 2 boolean flags added.
+
+**Conclusion**: C_0's current dynamic-τ design (using `text_part_raw[:, 0, :]`,
+the C_global Qwen caption embedding) **is the right choice**. Either ablation
+strictly hurts both peak and final mAP. Code retained behind the two flags
+for documentation of the ablation; default behaviour unchanged.
+
+---
+
 ## 2026-05-20 — v57 + v58 + v59: parallel ablations on v49 baseline [logged in above entry]
 
 🟡 Three single-axis ablations launched in parallel on GPU 3/4/5 to
