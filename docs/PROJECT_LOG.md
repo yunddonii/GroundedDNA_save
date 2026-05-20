@@ -121,17 +121,54 @@ Format conventions:
 
 ---
 
-## 2026-05-20 — v55 + v56: relaxed-OT routing (UOT + null centroid) [in progress]
+## 2026-05-20 — v55 + v56: relaxed-OT routing (UOT + null centroid) [v55 → retry, v56 discarded]
 
-🟡 Launched 2026-05-20 16:53. Both runs on v49 baseline. Tests whether
-balanced-Sinkhorn's hard marginal constraint (every patch *must* route
-mass 1/N to the 6 parts) over-routes uninformative tokens (background,
-blur) and dilutes per-cb signal.
+🔴 Both runs stopped at ep19 with clearly worse-than-v49 trajectories.
+
+| | ep9 mAP | ep19 mAP | ep19 dead | ep19 unique |
+|---|---:|---:|---:|---:|
+| v49 ep19 baseline | — | **0.6674** | 0.000 | 0.307 |
+| v55 (UOT λ_a=1) | 0.6548 | 0.6557 | **0.232** ⚠ | 0.354 |
+| v56 (null centroid) | 0.6264 | 0.6258 | 0.008 | 0.374 |
+
+**v55 (UOT λ_a=1.0) failure mode**:
+- dead-code ratio rising fast: ep9 0.190 → ep19 0.232 (= 89 of 384
+  codewords dead and growing). UOT rejection too aggressive — many
+  patches getting row sum << 1/N → some codebook columns receive
+  insufficient training signal → dead. EMA revival can't keep up.
+- mAP flat around 0.655, no recovery signal.
+- **Diagnosis**: λ_a=1.0 too small. With ε starting at 1.0 (cosine
+  annealed from 1.0 → 0.1), τ_a = 1/(1+ε) starts at 0.5 in early
+  epochs (very aggressive rejection). By the time ε reaches 0.1
+  (τ_a ≈ 0.91), codebooks are already damaged.
+- **Retry plan**: v55-retry with `λ_a = 5.0` (5× more conservative).
+  τ_a starts at 5/(5+1) = 0.83 (mostly balanced even at ε=1.0) →
+  patches still get *some* mass to all parts during the noisy early
+  epochs. UOT effect kicks in mainly late (ε=0.1: τ_a = 0.98 ≈
+  balanced, so rejection becomes very mild).
+
+**v56 (null centroid) DISCARDED**:
+- mAP completely flat at 0.626 (−0.04 vs v49). null centroid (init
+  `Normal(0, 0.02)`) absorbs significant routing mass, leaving real 5
+  parts under-trained.
+- per-cb-unique = 0.0063 ≈ v49's 0.0067 → null isn't deepening
+  semantic grounding, just stealing capacity.
+- **Root cause**: a single learned vector competing against 5 fully-
+  formed text centroids ends up at a "central" position in feature
+  space (low cost to many patches) and dominates routing. The null
+  needs an architectural prior (e.g. "always at fixed low-cost
+  threshold", or "trained to be far from any text centroid") to
+  function as intended.
+- Discarded for now; code retained behind `--use_null_centroid` flag
+  for future revisiting with better null design.
+
+Same code/feature setup as before; only v55 retried.
 
 | Tag | Mechanism | Settings (delta vs v49) |
 |---|---|---|
-| **v55** | **Unbalanced OT** (Chizat et al. NeurIPS 2018) — KL-relaxed marginal | `--sinkhorn_lambda_a 1.0 --sinkhorn_lambda_b 100.0` |
-| **v56** | **Null/background centroid** — extra learnable "reject" part | `--use_null_centroid` (M+1=6, last column sliced post-routing) |
+| v55-retry | UOT, more conservative | `--sinkhorn_lambda_a 5.0 --sinkhorn_lambda_b 100.0` |
+| ~~v55 (λ_a=1)~~ | failed: dead 0.232 ↑↑ | discarded |
+| ~~v56 (null centroid)~~ | failed: mAP 0.626 flat | discarded |
 
 **Why this matters**: per v49 deep dive, all 6 codebooks at 100%
 utilization with Gini 0.12-0.26 — but B1 per-cb is uneven (cb5=0.094
