@@ -242,6 +242,20 @@ class Config():
                  'patch row keeps its original marginal. k=1 -> hard '
                  'argmax (Sinkhorn balance broken); k>=M -> no-op. '
                  'v33b ablation.')
+        # v46: adaptive-k routing via cumulative-mass threshold (top-p /
+        # nucleus). For each patch, keep the smallest set of parts whose
+        # sorted probabilities cumulatively reach `topp`. Top-1 always
+        # preserved (every patch must route to at least one part). Lets
+        # clearly-localized patches concentrate on 1-2 parts (forcing
+        # codebook specialization) while ambiguous patches keep more spread.
+        # Mutually compatible with --routing_topk (top-k applied first).
+        siglip2_arg.add_argument('--routing_topp',
+            dest='routing_topp', type=float, default=None,
+            help='Top-p (cumulative-mass) routing threshold per patch. '
+                 'None disables. Try 0.5-0.9. Works best when Sinkhorn '
+                 'output is sharp (low epsilon or epsilon-annealed); '
+                 'flat softmax over near-uniform text centroids makes '
+                 'top-p effectively keep all M parts.')
         # ---------- VQ codebook update mode -----------------------------
         # `gradient` (default, legacy) -- codebook is an nn.Parameter,
         #   updated by the VQ loss MSE term. Prone to dead-code collapse.

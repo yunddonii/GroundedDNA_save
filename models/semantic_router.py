@@ -95,6 +95,7 @@ class SemanticSinkhornRouter(nn.Module):
         part_mask:        Optional[torch.Tensor] = None,  # [B, M]
         epsilon_override: Optional[float] = None,
         topk_per_patch:   Optional[int]   = None,
+        topp_per_patch:   Optional[float] = None,
     ) -> Dict[str, torch.Tensor]:
         # ---- shape sanity ------------------------------------------------
         B, N, D = visual_tokens.shape
@@ -154,6 +155,35 @@ class SemanticSinkhornRouter(nn.Module):
             P_masked = P * mask
             row_sum = P_masked.sum(dim=-1, keepdim=True).clamp_min(1e-12)
             # rescale so each patch row keeps its original marginal a[n]
+            P = P_masked / row_sum * a.unsqueeze(-1)
+
+        # ---- 4c) optional top-p (cumulative-mass) mask per patch (v46) -----
+        # Adaptive-k routing: for each patch n, keep the smallest set of parts
+        # whose probabilities (sorted descending) cumulatively reach `topp`.
+        # Top-1 always kept so every patch routes to at least one part.
+        # Use case: patches that are clearly about one part get k_eff=1
+        # (forcing codebook specialization), ambiguous patches get larger
+        # k_eff (preserving distributed routing). Mutually exclusive with
+        # `topk_per_patch` -- if both are set, top-k runs first then top-p.
+        # Renormalization keeps each patch's row marginal at a[n] (same as
+        # the top-k branch above).
+        if topp_per_patch is not None and 0.0 < float(topp_per_patch) < 1.0:
+            tau = float(topp_per_patch)
+            sorted_P, sorted_idx = P.sort(dim=-1, descending=True)            # [B, N, M]
+            cum = sorted_P.cumsum(dim=-1)                                     # [B, N, M]
+            # keep position i iff cum[..., i-1] < tau (i.e. we haven't yet
+            # passed threshold when entering this position). always keep i=0.
+            prev_cum = torch.cat(
+                [torch.zeros_like(cum[..., :1]), cum[..., :-1]], dim=-1
+            )                                                                 # [B, N, M]
+            keep_sorted = (prev_cum < tau)                                    # [B, N, M] bool
+            keep_sorted[..., 0] = True
+            # scatter back to original part order
+            keep = torch.zeros_like(P, dtype=torch.bool).scatter_(
+                -1, sorted_idx, keep_sorted,
+            )                                                                 # [B, N, M] bool
+            P_masked = P * keep.to(P.dtype)
+            row_sum = P_masked.sum(dim=-1, keepdim=True).clamp_min(1e-12)
             P = P_masked / row_sum * a.unsqueeze(-1)
 
         # ---- 5) weighted pooling: P^T @ V then col-normalize ------------

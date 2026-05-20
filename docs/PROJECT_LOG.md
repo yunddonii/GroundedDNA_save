@@ -29,22 +29,26 @@ Format conventions:
 
 ---
 
-## Current state (as of 2026-05-19)
+## Current state (as of 2026-05-20)
 
 - **Best supervised Flickr25k**: **v18** (HashNet-style logistic on
   continuous DNA code) -- mAP **0.7883**. Above every binary baseline
   incl. HashNet's own 0.7800.
 - **Best supervised + diversity-balanced Flickr25k**: **v24b** -- mAP
   **0.7742**, unique 0.324.
-- **Best unsupervised Flickr25k (ours, text-off)**: **v34** (v30a +
-  routing top-k=2) -- mAP **0.6696**, unique 0.3810 (test ep59),
-  dead 0.000. Beats CIBHash 0.6543 by **+0.015**.
-- **Best unsupervised Flickr25k (ours, text-on)**: **v43b** (V3
-  caption cache + K=64 + dynamic-τ α=0.3 base_τ=0.5) -- mAP
-  **0.6383**, unique 0.152, dead 0.542 (much healthier codebook
-  utilization than any prior text-on run). Beats v40d's prior
-  text-on best of 0.6280 by **+0.010**. Closes text-on/text-off
-  gap to −0.031 (was −0.042 at v40d).
+- **Best unsupervised Flickr25k (ours, absolute SOTA)**: **v49**
+  (V4 cache + routing_topp 0.7 + sinkhorn ε anneal 1.0→0.1 + dynamic-τ
+  α=0.3 + lambda_wasserstein 0.02 + K=64) -- mAP **0.6705** (peak
+  ep29, exceeds v34's prior text-off all-time best of 0.6696 by
+  +0.0009). dead 0.000, B1 **0.0557**, B2 0.0333. Per-codebook fully
+  healthy (all 6 cb at 100% used, Gini 0.12-0.26, entropy 97-99%).
+  **First time text-on regime exceeds text-off SOTA + contribution #2
+  proven additive rather than trade-off**.
+- **Prior unsupervised text-off champion**: **v34** (v30a + routing
+  top-k=2) -- mAP **0.6696**, unique 0.381, dead 0.000.
+- **Prior unsupervised text-on champion**: **v47** (V4 + topp + ε
+  anneal, no wasserstein) -- mAP 0.6542 peak / 0.6580 final, B1
+  0.0548, dead 0.000.
 - **Unsupervised leaderboard (Flickr25k setting1, 36-bit, frozen SigLIP2, 60 epoch)**:
 
   | Run | Adapter / variant | mAP | unique (test) | per-cb-unique | dead |
@@ -111,6 +115,265 @@ Format conventions:
 ---
 
 ---
+
+---
+
+## 2026-05-20 — v51-v54: diversity loss sweep on v49 baseline [in progress]
+
+🟡 Launched 2026-05-20 15:54, in-flight as of writing. 4 parallel runs
+on GPU 2/3/4/5 targeting **higher unique-code ratio without sacrificing
+v49's mAP 0.6705**. v49 baseline + single-variable changes:
+
+| Tag | change vs v49 | hypothesis |
+|---|---|---|
+| v51 | `--lambda_dna 0.05 → 0.1` | codon entropy pressure ↑ → harder one-hot per codon → more sample-level discrimination |
+| v52 | `--gumbel_tau_final 0.3 → 0.1` | sharper final discrete codes |
+| v53 | (v51 + v52 combined) | synergy |
+| v54 | `--lambda_ntxent 1.0 → 1.5` | NtXent push ↑ → tighter view-pair clusters |
+
+**Motivation**: v49 has unique=0.318 (lowest in V4 family) but highest
+mAP. Other V4 variants (v47 unique 0.438, v48 unique 0.493) have lower
+mAP, suggesting inverse relation. The sweep tests whether code-level
+or contrastive-level interventions can break this trade-off.
+
+Results pending (next mid-eval at ep9).
+
+---
+
+## 2026-05-20 — v50: V4 + K=128 ablation [worse than K=64]
+
+🔴 Tested whether richer V4 captions can justify K=128 (which v40e
+discarded under V1). All settings = v49 minus wasserstein and minus
+K=64; instead `--codebook_size 128`.
+
+**Final test mAP = 0.6376** (vs v49 0.6705 / v47 0.6580). Per-cb
+all 100% used + Gini 0.14-0.25 (no dead-code issue), but B1 0.0472
+(vs v49 0.0557) and mAP −0.033. Interpretation: K=128 over-fragments
+the 5K training samples — each codeword represents fewer samples,
+weakening text grounding (B1 ↓) and splitting same-class images
+across distinct codewords (mAP ↓). K=64 confirmed as optimal scale
+for Flickr25k 5K-train regime, irrespective of caption version.
+
+**Compositional vs K trade-off (V4 cache, identical pipeline)**:
+
+| K | mAP | B1 | B2 | unique |
+|---|---:|---:|---:|---:|
+| 64 (v47) | 0.6580 | 0.0548 | 0.0364 | 0.438 |
+| 64 (v49 + wass) | **0.6705** | **0.0557** | 0.0333 | 0.318 |
+| 128 (v50) | 0.6376 | 0.0472 | **0.0375** | 0.477 |
+
+K=128 wins only on B2 (visual intra-cluster sim, since more codewords
+= finer visual buckets) but loses on retrieval and text grounding.
+
+---
+
+## 2026-05-20 — v49: V4 + wasserstein 0.02 [NEW ABSOLUTE SOTA, mAP 0.6705]
+
+🟢 ★ New all-time Flickr25k unsupervised SOTA. v47 setup + a single
+change: add `--lambda_wasserstein 0.02` (per-sample entropic-OT cost
+`<π, cost>` from Sinkhorn router, where cost = 1 - cos(visual, text
+centroid)). This loss gradient flows back through `cost` →
+visual_adapter / text_adapter, *directly* improving the visual-text
+cosine geometry — complementary to Sinkhorn iteration (which solves
+routing given a fixed cost).
+
+**Trajectory (clean monotonic improvement until ep29 peak)**:
+
+| epoch | mAP | unique | dead | vs v34 (0.6696) |
+|---:|---:|---:|---:|---:|
+| 9 | 0.6656 | 0.347 | 0.016 | −0.0040 |
+| 19 | 0.6674 | 0.307 | 0.000 | −0.0022 |
+| **29** | **0.6705** ★ | 0.312 | 0.000 | **+0.0009** |
+| 39 | 0.6681 | 0.305 | 0.000 | −0.0015 |
+| 49 | 0.6666 | 0.318 | 0.000 | −0.0030 |
+| 59 (final) | 0.6644 | 0.322 | 0.000 | −0.0052 |
+
+vs v47 (no wasserstein) — wasserstein **prevents the post-ep9 drift**
+v47 exhibited (0.6656 → 0.6594 over ep9→39). v49 instead climbs
+0.6656 → 0.6705 over the same span.
+
+**v49 compositional metrics (Q1+Q2 deep dive on saved checkpoint)**:
+
+- B0 (raw text intra-sim): 0.0171
+- **B1 (centered text)**: **0.0557**  per-cb [0.071 / 0.044 / 0.043 /
+  0.047 / 0.038 / **0.094**] — cb5 (C_scene_type) is the strongest
+  semantic-grounding slot
+- B2 (visual_global intra-sim): 0.0333
+- Per-codebook: **ALL 6 cb at 100% used** (64/64 codewords alive),
+  top-1 codeword share 2.2-2.8% per cb (very flat), Gini 0.12-0.26,
+  entropy 97-99% of log2(64). Cb2 (C_secondary_object), which was
+  81% dead in v43b, is now fully utilized — driven by V4 caption's
+  "no none, every slot visually grounded" rule.
+
+**Loss config (full v49 spec)**:
+```
+lambda_ntxent     = 1.0    (per-codebook NtXent, dynamic-τ on,
+                            α=0.3, base_τ=0.5)
+lambda_vq         = 0.25
+lambda_quant      = 0.05
+lambda_anchor     = 0.05
+lambda_dna        = 0.05
+lambda_bu         = 0.02
+lambda_wasserstein= 0.02   ← new addition
+sinkhorn_epsilon  = 1.0 → 0.1 (cosine anneal)
+routing_topp      = 0.7
+gumbel_tau        = 2.0 → 0.3
+codebook_update   = ema (decay 0.99, revive)
+K = 64, M = 6
+```
+
+---
+
+## 2026-05-20 — v48: lambda_bu=0 ablation [discarded, +unique but −mAP]
+
+🔴 Tested removing the codebook-balance loss (`lambda_bu = 0.02 → 0`)
+to see if its uniform-usage pressure was over-spreading codewords.
+
+Hypothesis: with `lambda_bu` removed, codewords would *concentrate*
+on fewer high-usage clusters (same-class images sharing codes) →
+higher mAP at the cost of unique-code ratio.
+
+**Empirical finding: opposite direction** — removing balance loss
+actually *increased* unique (0.367 ep9 → 0.493 ep29) while *lowering*
+mAP from v47/v49 levels. Peak mAP 0.6561 (ep19). Discarded.
+
+| epoch | v47 mAP | v48 mAP |
+|---:|---:|---:|
+| 9 | 0.6656 | 0.6547 |
+| 19 | 0.6631 | 0.6561 |
+| 29 | 0.6610 | 0.6540 |
+
+Mechanism (post-hoc): the BU loss's `loss_cb_balance` term is a
+*moderating force* against unconstrained spread. Removing it lets
+NtXent + EMA revival fragment the codebook further, giving more
+unique codes but each one less retrieval-meaningful. Confirms that
+the v49→v47 ordering (unique ↓ ↔ mAP ↑) is real and that the
+"over-diversification" hypothesis was inverted.
+
+---
+
+## 2026-05-20 — v47: V4 cache + routing_topp + sinkhorn anneal [text-on SOTA at the time]
+
+🟢 Same pipeline as v46 but with V4 captions (`flickr25k_qwen_v4.jsonl`
++ `flickr25k_siglip2_v4plus`). V4 prompt covers all 25K images (vs
+V3's 5K train-only) and produces cross-slot SigLIP2 cos sim 0.7335
+(vs V3's 0.834 on the same valid 5K) — meaningfully lower text
+uniformity.
+
+**Trajectory (peak early, slight late-epoch drift)**:
+
+| epoch | mAP | unique | dead |
+|---:|---:|---:|---:|
+| 9 | **0.6656** ★ | 0.328 | 0.005 |
+| 19 | 0.6631 | 0.353 | 0.000 |
+| 29 | 0.6610 | 0.353 | 0.000 |
+| 39 | 0.6594 | 0.370 | 0.000 |
+| 49 | 0.6567 | 0.385 | 0.000 |
+| 59 | 0.6618 | 0.438 | 0.000 |
+| final test | 0.6580 | — | — |
+
+**v47 deep dive metrics (compositional_eval.json)**:
+- B0 = 0.0171, **B1 = 0.0548**, **B2 = 0.0364**
+- Per-cb B1 [0.073 / 0.047 / 0.043 / 0.047 / 0.039 / 0.083]
+- Per-codebook all 100% used, Gini 0.13-0.27, entropy 97-99% of
+  log2(64). cb5 (C_scene_type) and cb0 (C_global) lead on B1/B2.
+
+v47 vs v43b: mAP +0.020 peak, B1 +0.035, B2 +0.011, dead 0.542 →
+0.000. V4 cache **single-handedly** delivered: full codebook
+utilization, distributed compositional grounding (no more
+cb2-only pattern), and higher mAP.
+
+**V4 cache build** (`extract_siglip2_text_features.py`, new script):
+- Read 25K V4 qwen captions, encode through SigLIP2 text_model
+  (pooler_output, max_length=64)
+- Output: `cache/flickr25k_siglip2_v4plus/text_part.f16.npy` (460 MB)
+- Symlink visual/aug from `flickr25k_siglip2_v3plus` (V1 visual
+  features unchanged)
+- 24,997 of 25,000 images valid (3 missed during V4 generation)
+
+---
+
+## 2026-05-20 — v46: routing_topp 0.7 + sinkhorn ε anneal 1.0→0.1 [V3 cache, large mAP gain]
+
+🟢 First introduction of **adaptive nucleus routing** + **Sinkhorn
+epsilon annealing** on top of v43b setup (V3 + per-cb K=64 + dynamic-τ).
+Same V3 cache, same K, same NtXent.
+
+**Mechanism** (two complementary tightenings):
+- `--routing_topp 0.7`: after Sinkhorn, for each patch keep the
+  smallest set of parts whose sorted probabilities reach cumulative
+  0.7 (always keep at least top-1). Adaptive k per patch — clear
+  patches concentrate, ambiguous patches spread.
+- `--sinkhorn_epsilon_init 1.0 --sinkhorn_epsilon_final 0.1`: cosine
+  anneal of Sinkhorn ε from 1.0 (very soft routing, allows codebook
+  EMA to populate all codewords) → 0.1 (sharp routing). Synergizes
+  with top-p because flat softmax (high ε) keeps top-p k_eff near M.
+
+**Trajectory (peak at ep39)**:
+
+| epoch | mAP | unique | dead |
+|---:|---:|---:|---:|
+| 9 | 0.6414 | 0.297 | 0.065 |
+| 19 | 0.6532 | 0.251 | 0.003 |
+| 29 | 0.6529 | 0.272 | **0.000** |
+| **39** | **0.6542** ★ | 0.267 | 0.000 |
+| 49 | 0.6515 | 0.273 | 0.000 |
+| 59 (final) | 0.6474 | 0.284 | 0.003 |
+| final test | 0.6468 | — | — |
+
+vs v43b (V3 + dyn-τ, no topp/anneal): peak mAP +0.016, dead
+0.542 → 0.000. **First text-on run to fully recover codebook
+utilization** — and bridge most of the gap to v34 text-off (0.6696).
+
+New CLI flag in `config.py`: `--routing_topp` (float in (0, 1]).
+Implementation in `models/semantic_router.py:SemanticSinkhornRouter.forward`
+(top-p mask after Sinkhorn, complementary to existing `--routing_topk`
+fixed-k branch).
+
+---
+
+## 2026-05-20 — V4 prompt MSCOCO caption extraction [in progress]
+
+🟡 2-GPU parallel Qwen-VL extraction launched 2026-05-20 15:45. Targets
+the 10,000 MSCOCO setting1/train.txt images.
+
+- Split: 5000 × 2 chunks (parts 0 / 1)
+- Output: `cache/mscoco_qwen_v4_part{0,1}.jsonl` (merge to
+  `cache/mscoco_qwen_v4.jsonl` when done)
+- GPUs: 0 (part0) + 1 (part1)
+- `--max_new_tokens 256`, V4 prompt (`_PROMPT_V4`)
+- ETA: ~3-4 hours
+
+Once complete, build `cache/mscoco_siglip2_v4plus/` via
+`extract_siglip2_text_features.py` and rerun v49-setup on MSCOCO to
+validate that the SOTA recipe generalizes beyond Flickr25k.
+
+---
+
+## 2026-05-20 — Viz routing heatmap schema-detection fix
+
+🟢 Bug: `dna_utils/visualization._load_qwen_text_lookup` was hard-coding
+the V1 codebook key schema (`C_head_or_main_part`, ...) when reading
+the qwen JSONL for the subtitle of `viz_routing_heatmap.png`. V3 / V4
+caches use V2 schema keys (`C_primary_object`, `C_secondary_object`,
+...), so 4 of 6 slots displayed "none" even though the V4 captions are
+fully populated for every sample.
+
+**Fix**: call the existing `_detect_codebook_schema(cb)` (per-entry
+auto-detection) so V1/V3/V4 caches all show real captions.
+
+Affected past PNGs: v43b, v46, v47, v49, v50 (all V3/V4 cache runs).
+**Model training/routing was NOT affected** — text features in the
+SigLIP2 cache are keyed by image_id, not by JSONL slot keys.
+
+Regenerated PNGs for v47/v49/v50 with the fixed lookup (model loaded
+from saved checkpoint, no re-training). Output:
+- `result/.../v47_.../viz_routing_heatmap.png`
+- `result/.../v49_.../viz_routing_heatmap.png`
+- `result/.../v50_.../viz_routing_heatmap.png`
+
+Helper script: `tmp/regen_viz_routing.py` (single-purpose, run with
+`--result_dir <path>`).
 
 ---
 

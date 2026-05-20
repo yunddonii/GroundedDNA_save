@@ -50,11 +50,18 @@ def _denormalize_pil(pixel_values: torch.Tensor) -> np.ndarray:
 
 
 def _load_qwen_text_lookup(jsonl_path: Optional[str]) -> Dict[str, List[str]]:
-    """Return ``image_id -> [6 part strings]`` from the Qwen JSONL cache."""
+    """Return ``image_id -> [6 part strings]`` from the Qwen JSONL cache.
+
+    Auto-detects whether the cache uses V1 keys (C_head_or_main_part, ...)
+    or V2/V3/V4 keys (C_primary_object, ...) per-entry via
+    ``_detect_codebook_schema``. Without this auto-detection the prior
+    implementation always looked up V1 keys, so V3/V4 caches displayed
+    "none" for 4 of 6 slots even though the actual captions were present.
+    """
     if jsonl_path is None or not os.path.exists(jsonl_path):
         return {}
     from .text_description_processor import (
-        CODEBOOK_TEXT_KEYS, DEFAULT_FALLBACK_TEXT,
+        DEFAULT_FALLBACK_TEXT, _detect_codebook_schema,
     )
     out: Dict[str, List[str]] = {}
     with open(jsonl_path, "r") as f:
@@ -67,8 +74,9 @@ def _load_qwen_text_lookup(jsonl_path: Optional[str]) -> Dict[str, List[str]]:
             cb  = row.get("codebook_texts")
             if not iid or not isinstance(cb, dict):
                 continue
+            keys = _detect_codebook_schema(cb)
             out[iid] = [
-                (cb.get(k, "") or DEFAULT_FALLBACK_TEXT) for k in CODEBOOK_TEXT_KEYS
+                (cb.get(k, "") or DEFAULT_FALLBACK_TEXT) for k in keys
             ]
     return out
 

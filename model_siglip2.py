@@ -753,6 +753,7 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.sinkhorn_epsilon_init  = getattr(args, "sinkhorn_epsilon_init",  None)
         self.sinkhorn_epsilon_final = getattr(args, "sinkhorn_epsilon_final", None)
         self.routing_topk           = getattr(args, "routing_topk",           None)
+        self.routing_topp           = getattr(args, "routing_topp",           None)
         self.total_epochs           = int(getattr(args, "epoch", 60))
         # mutable per-step state set by trainer via set_current_epoch()
         self._current_epoch: int = 0
@@ -1244,6 +1245,8 @@ class SigLIP2SemanticOTModel(nn.Module):
                 router_kwargs["epsilon_override"] = cur_eps
             if self.routing_topk is not None:
                 router_kwargs["topk_per_patch"]   = int(self.routing_topk)
+            if self.routing_topp is not None:
+                router_kwargs["topp_per_patch"]   = float(self.routing_topp)
         r_out = self.router(**router_kwargs)
         local_routing_matrix = r_out["routing_matrix"]                                # [B, N, 5]
 
