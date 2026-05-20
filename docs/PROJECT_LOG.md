@@ -29,7 +29,7 @@ Format conventions:
 
 ---
 
-## Current state (as of 2026-05-20)
+## Current state (as of 2026-05-21)
 
 - **Best supervised Flickr25k**: **v18** (HashNet-style logistic on
   continuous DNA code) -- mAP **0.7883**. Above every binary baseline
@@ -42,6 +42,11 @@ Format conventions:
   text-off all-time 0.6696 by +0.0046 peak; exceeds v49 by
   +0.0037 peak / +0.0032 final. All other hyperparameters identical
   to v49.
+- **MSCOCO unsupervised SOTA (ours, generalization check)**: **v63b**
+  (= v57 setup with `--codebook_size 64 → 128`) -- mAP **0.4563 test**
+  on MSCOCO setting1 (107K db). v57's recipe generalizes: only K
+  needed rescaling for the larger train set (10K vs Flickr25k 5K).
+  v63a (K=64 fixed) underperforms at 0.4412.
 - **Previous text-on SOTA by peak**: v49 -- 0.6705 peak / 0.6644 final.
 - **Best by FINAL-checkpoint mAP (pre-v57)**: v52 (= v49 with
   `--gumbel_tau_final 0.3 → 0.1`) -- 0.6691 final. NOT superseded by
@@ -118,6 +123,107 @@ Format conventions:
 ---
 
 ---
+
+---
+
+## 2026-05-21 — v63a / v63b: MSCOCO generalization of v57 setup (K=128 wins)
+
+🟢 First successful generalization of v57 SOTA setup to MSCOCO. Same
+recipe (V4 caption + routing_topp 0.7 + sinkhorn ε anneal 1.0→0.1 +
+dynamic-τ α=0.3 + lambda_wasserstein 0.05) on MSCOCO setting1 with K
+sweep. Detailed analysis: see `docs/ANALYSIS_mscoco_v63.md`.
+
+### Setup
+- Dataset: MSCOCO setting1 (10K train, 5K test, 107K database, 80 class)
+- Cache: `mscoco_qwen_v4.jsonl` (10K V4 captions for train) + new
+  `mscoco_siglip2_v4plus` (full 122K SigLIP2 features + 2 aug views,
+  ~75 GB).
+- Only `--codebook_size` varied across the two runs; everything else
+  identical to v57.
+
+### Results (test mAP from `evaluation_siglip2_base.json`)
+
+| Tag | K | mAP test | unique ratio | largest cluster | dead |
+|---|---:|---:|---:|---:|---:|
+| v63a | 64 | 0.4412 | 0.169 (18071 / 107218) | 322 (0.30%) | 0/384 |
+| **v63b** | **128** | **0.4563** | 0.315 (33788 / 107218) | 182 (0.17%) | 0/768 |
+| Δ (b-a) | | **+0.0151** | +0.146 | −140 | 0 |
+
+### mAP trajectory (mid-eval every 10 epoch)
+
+| epoch | v63a (K=64) | v63b (K=128) | Δ |
+|---:|---:|---:|---:|
+| 9 | 0.4517 | 0.4572 | +0.005 |
+| 19 | 0.4498 | 0.4601 | +0.010 |
+| 29 | 0.4406 | 0.4620 | +0.021 |
+| 39 | 0.4470 | **0.4645** (peak) | +0.018 |
+| 49 | 0.4415 | 0.4605 | +0.019 |
+| 59 (final mid-eval) | 0.4467 | 0.4602 | +0.014 |
+| **final test** | **0.4412** | **0.4563** | **+0.015** |
+
+### Per-codebook usage (both runs)
+
+Both v63a and v63b have **100% codebook utilization** (0/384 and
+0/768 dead respectively). Per-cb Gini ranges:
+- v63a: 0.18-0.22 (entropy 5.89-5.93 of max 6.00)
+- v63b: 0.20-0.28 (entropy 6.81-6.91 of max 7.00)
+
+Equivalent to Flickr25k v57 health (Gini 0.10-0.29). Wasserstein +
+routing_topp + ε anneal stack is **dataset-size-invariant** for
+codebook health.
+
+### Key finding — optimal K scales with train set size
+
+| Dataset | train | best K | reasoning |
+|---|---:|---:|---|
+| Flickr25k | 5K | **64** (v57) | K=128 (v50) over-fragmented |
+| MSCOCO | 10K | **128** (v63b) | K=64 (v63a) under-parameterized |
+
+Rule of thumb: K ≈ train_size / 80. Future generalization
+experiments should sweep K with train size.
+
+### Failed compositional_eval on MSCOCO
+
+`compositional_eval.py` line 124 crashes with `ValueError: zero-size
+array to reduction operation maximum`. Cause: MSCOCO db (107K) has
+**zero images with has_text=True** (only the train 10K subset has V4
+captions, and train is not in db). The script's B0/B1 path requires
+text-feature samples in db, which is empty. B2 (visual_global) was
+not reached because crash occurs first.
+
+Fix options (deferred): (a) compute B1/B2 on train split only;
+(b) generate V4 captions for full 122K MSCOCO; (c) refactor
+compositional_eval.py to skip text metrics when valid_text_idx is
+empty and proceed to B2.
+
+### MSCOCO vs Flickr25k (best-of-each)
+
+| | Flickr25k v57 | MSCOCO v63b |
+|---|---:|---:|
+| mAP test | 0.6683 | 0.4563 |
+| Δ vs same-dataset supervised | −0.120 (v18 0.7883) | **−0.068** (v6 0.5243) |
+
+**MSCOCO unsup gap to sup is SMALLER** (87% reach vs Flickr25k 85%).
+Possible reason: multi-label noise in MSCOCO labels makes supervised
+loss less informative, narrowing the unsupervised gap.
+
+### Implementation note — autopilot pipeline
+
+A bash script (`scripts/mscoco_autopilot.sh`) automated the full
+pipeline:
+1. poll V4 caption extraction completion (8h)
+2. merge V4 part jsonls
+3. extract_siglip2_features pathlist mode (122K, 2 aug views, 1-2h)
+4. launch v63a + v63b in parallel on GPU 0/1
+5. wait for both, compositional eval, sentinel touch
+
+Stage 5 has a known bug: `pgrep -af` self-matches the autopilot's own
+process, so alive count never reaches 0. Killed manually; downstream
+stages (compositional eval, sentinel) executed by hand.
+
+### Code retained
+No code changes for this experiment — only V4 cache extension to MSCOCO,
+launched via `scripts/mscoco_autopilot.sh`.
 
 ---
 
