@@ -164,11 +164,41 @@ Format conventions:
 
 Same code/feature setup as before; only v55 retried.
 
-| Tag | Mechanism | Settings (delta vs v49) |
+| Tag | Mechanism | Result |
 |---|---|---|
-| v55-retry | UOT, more conservative | `--sinkhorn_lambda_a 5.0 --sinkhorn_lambda_b 100.0` |
-| ~~v55 (λ_a=1)~~ | failed: dead 0.232 ↑↑ | discarded |
-| ~~v56 (null centroid)~~ | failed: mAP 0.626 flat | discarded |
+| ~~v55 (λ_a=1)~~ | UOT aggressive | failed at ep19: dead 0.232 ↑↑, mAP 0.656 |
+| ~~v55-retry (λ_a=5)~~ | UOT conservative | **stopped at ep25**: dead 0.086 stable but mAP 0.658 declining (v49 ep19=0.667 +0.010 gap), no recovery signal |
+| ~~v56 (null centroid)~~ | extra learnable null part | failed: mAP 0.626 flat |
+
+**v55-retry final assessment (ep9/19/25)**:
+
+| epoch | mAP | unique | dead |
+|---:|---:|---:|---:|
+| 9 | 0.6605 | 0.362 | 0.089 |
+| 19 | 0.6578 | 0.337 | 0.086 |
+| (vs v49 ep19) | 0.6674 | 0.307 | 0.000 |
+
+λ_a=5 prevented the dead-code explosion of λ_a=1 (kept dead at ~0.09
+instead of 0.23 and growing), but mAP still −0.010 vs v49 with declining
+trajectory. The "uninformative patch rejection" mechanism doesn't help
+this dataset / pipeline — the patches we hypothesized as "background"
+appear to still carry useful codebook training signal. Stopping mass
+flow to them = losing signal.
+
+**UOT (v55 family) DISCARDED**. Code retained (`--sinkhorn_lambda_a`,
+`--sinkhorn_lambda_b` flags + `_log_sinkhorn` UOT branch) for future
+re-exploration with different data (e.g. larger / noisier datasets
+where the "irrelevant background" assumption may actually hold —
+MSCOCO has more diverse backgrounds than Flickr25k).
+
+**Key takeaway for paper / future direction**: balanced Sinkhorn's
+hard marginal constraint is **a feature, not a bug** for Flickr25k 5K
+train regime. Every patch contributing some mass to codebook updates
+is the right inductive bias here. Relaxed-marginal OT becomes
+attractive only when (a) training set is large enough that some patches
+are statistically background, and/or (b) image distribution has more
+heterogeneous content density per image (e.g. natural scene with
+small objects on uniform backgrounds).
 
 **Why this matters**: per v49 deep dive, all 6 codebooks at 100%
 utilization with Gini 0.12-0.26 — but B1 per-cb is uneven (cb5=0.094
