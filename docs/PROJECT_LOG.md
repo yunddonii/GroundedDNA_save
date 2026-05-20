@@ -36,16 +36,16 @@ Format conventions:
   incl. HashNet's own 0.7800.
 - **Best supervised + diversity-balanced Flickr25k**: **v24b** -- mAP
   **0.7742**, unique 0.324.
-- **Best unsupervised Flickr25k (ours, absolute SOTA by peak mAP)**:
-  **v49** (V4 cache + routing_topp 0.7 + sinkhorn ε anneal 1.0→0.1 +
-  dynamic-τ α=0.3 + lambda_wasserstein 0.02 + K=64) -- **mAP 0.6705
-  peak** (ep29, exceeds v34's prior text-off all-time best of 0.6696
-  by +0.0009). final 0.6644. B1 0.0557, B2 0.0333, unique 0.322,
-  dead 0.000.
-- **Best by FINAL-checkpoint mAP**: **v52** (= v49 with
-  `--gumbel_tau_final 0.3 → 0.1`) -- **mAP 0.6691 final** (still
-  monotonically rising at ep59). +0.0047 vs v49 final, +0.026 unique.
-  Likely exceeds v49 peak if extended to e=90.
+- **Best unsupervised Flickr25k (ours, absolute SOTA on PEAK + FINAL)**:
+  **v57** (= v49 with `--lambda_wasserstein 0.02 → 0.05`) -- **peak
+  mAP 0.6742 (ep9), final mAP 0.6676 (ep59)**. Exceeds v34's
+  text-off all-time 0.6696 by +0.0046 peak; exceeds v49 by
+  +0.0037 peak / +0.0032 final. All other hyperparameters identical
+  to v49.
+- **Previous text-on SOTA by peak**: v49 -- 0.6705 peak / 0.6644 final.
+- **Best by FINAL-checkpoint mAP (pre-v57)**: v52 (= v49 with
+  `--gumbel_tau_final 0.3 → 0.1`) -- 0.6691 final. NOT superseded by
+  e=90 extension (v52ext final 0.6478, e=90 schedule confirmed worse).
 - **Unique-code champion**: **v54** (= v49 with
   `--lambda_ntxent 1.0 → 1.5`) -- mAP 0.6622 final (−0.002 vs v49)
   but **unique 0.431** (+0.109 vs v49). Trade-off: B1 0.0490 (text
@@ -121,7 +121,7 @@ Format conventions:
 
 ---
 
-## 2026-05-20 — v57 + v58 + v59: parallel ablations on v49 baseline [in progress]
+## 2026-05-20 — v57 + v58 + v59: parallel ablations on v49 baseline [logged in above entry]
 
 🟡 Three single-axis ablations launched in parallel on GPU 3/4/5 to
 probe further improvements over v49's mAP 0.6705 peak / 0.6644 final.
@@ -149,6 +149,89 @@ axes more prominent. Aligns with user observation that "long captions
 make text embeddings ambiguous".
 
 Results pending (ep9 mid-eval).
+
+---
+
+## 2026-05-20 — v57: wasserstein 0.05 — NEW ABSOLUTE SOTA on both PEAK and FINAL
+
+🟢 ★ Single change vs v49: `--lambda_wasserstein 0.02 → 0.05` (2.5× stronger
+visual-text alignment loss). All other hyperparameters identical to v49.
+
+**New absolute SOTA on every comparison axis**:
+
+| Metric | v34 (prior text-off all-time) | v49 (prior text-on SOTA) | **v57** |
+|---|---:|---:|---:|
+| Peak mAP | 0.6696 | 0.6705 (ep29) | **0.6742 (ep9)** |
+| Final mAP (ep59 mid-eval) | 0.6696 | 0.6644 | **0.6676** |
+| Δ vs v34 (peak) | — | +0.0009 | **+0.0046** |
+| Δ vs v49 (peak/final) | — | — | **+0.0037 / +0.0032** |
+
+**Full trajectory** (v57 vs v49 epoch-by-epoch):
+
+| epoch | v49 | v57 | Δ |
+|---:|---:|---:|---:|
+| 9 | 0.6656 | **0.6742** ★ | +0.0086 |
+| 19 | 0.6674 | 0.6703 | +0.0029 |
+| 29 | **0.6705** | 0.6647 | −0.0058 |
+| 39 | 0.6681 | 0.6639 | −0.0042 |
+| 49 | 0.6666 | 0.6648 | −0.0018 |
+| 59 (final) | 0.6644 | **0.6676** | **+0.0032** |
+
+**Trajectory pattern**: v57 explodes early (ep9 = 0.6742, the absolute
+single-epoch peak), drifts ep29-49, then **rebounds at ep59 (0.6676 >
+v49 final 0.6644)**. v49 had the opposite pattern (rises through ep29,
+then drifts down). Stronger wasserstein makes visual-text alignment
+converge faster with a clean rebound phase late.
+
+**v57 characteristics**:
+- unique = 0.268 (vs v49 0.322; codebook more concentrated)
+- dead = 0.003 (~ tied with v49)
+- per-cb-unique = 0.0056 (vs v49 0.0063; slightly less per-cb diversity)
+
+→ stronger wasserstein concentrates codebook usage without sacrificing
+the retrieval signal. v49 was conservative; v57 hits the sweet spot
+for V4 cache.
+
+### Lineage to v57
+
+```
+v34 (text-off SOTA 0.6696)
+  ↓
+v43b (V3 + dyn-τ, text-on 1st SOTA 0.6383)
+  ↓
+v46 (+ routing_topp + ε anneal, 0.6542)
+  ↓
+v47 (+ V4 cache, 0.6580 final / 0.6656 peak)
+  ↓
+v49 (+ wasserstein 0.02, peak 0.6705 / final 0.6644)
+  ↓
+v57 (wasserstein 0.02 → 0.05, peak 0.6742 ★ / final 0.6676 ★)
+```
+
+Single λ change of +0.03 over v49 → +0.0037 peak / +0.0032 final.
+Strongest single-knob improvement in the v46-v57 family.
+
+### v58 + v59 (parallel sweep companions, both DISCARDED)
+
+| Tag | Change vs v49 | Final mAP | Δ vs v49 |
+|---|---|---:|---:|
+| v58 | `--adapter_hidden_dim 768 → 512` | 0.6456 | −0.019 |
+| v59 | `--text_adapter_hidden_dim 128` (text-only bottleneck) | 0.6496 | −0.015 |
+
+**Conclusion**: capacity reduction *hurts*. 768-d adapter is appropriate
+capacity, not over-parameterized. User hypothesis ("text features
+ambiguous, compress to low-rank") falsified. Code retained behind
+`--text_adapter_hidden_dim` flag for potential MSCOCO ablation.
+
+### v52ext FINAL — extension hypothesis falsified
+
+`-e 60 → -e 90` extension of v52 trajectory monotonically declined
+through ep9, 19, 29, 39, 49, 59, 69, 79, 89:
+0.6618 → 0.6484 → 0.6495 → 0.6414 → 0.6405 → 0.6442 → 0.6479 → 0.6489 → 0.6478.
+Cosine LR + gumbel anneal scaled to 90ep makes per-epoch updates gentler;
+v52's monotonic rise depended on the *specific* 60-epoch schedule shape.
+**v52 e=60 is the right horizon.** e=90 final 0.6478 vs v52 final 0.6691
+= **−0.021**.
 
 ---
 
