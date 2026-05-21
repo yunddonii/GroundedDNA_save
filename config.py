@@ -348,6 +348,17 @@ class Config():
         # ---------- Gumbel tau annealing --------------------------------
         # When `gumbel_tau_init` is set we override the static `gumbel_tau`
         # with a cosine schedule from init -> final across `args.epoch`.
+        # v62 (Option A): residual-conditioned codon head. When >0, each codon
+        # head receives both the quantized codeword AND a residual signal
+        # (z - q) scaled by gamma. Lets two images sharing the same codeword
+        # index produce different codons -> higher unique-code ratio without
+        # breaking compositional structure (codebook indices unchanged).
+        siglip2_arg.add_argument('--codon_residual_gamma',
+            dest='codon_residual_gamma', type=float, default=0.0,
+            help='Weight gamma in [0, 1] for residual-conditioned codon head. '
+                 '0 disables (CodonHead works as before). Try 0.1-0.5. Larger '
+                 'gamma -> more image-specific codon variation, but risks '
+                 'breaking compositional interpretation if too large.')
         siglip2_arg.add_argument('--gumbel_tau_init',  dest='gumbel_tau_init',
             type=float, default=2.0)
         siglip2_arg.add_argument('--gumbel_tau_final', dest='gumbel_tau_final',

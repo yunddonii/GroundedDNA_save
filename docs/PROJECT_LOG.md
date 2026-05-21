@@ -227,6 +227,62 @@ launched via `scripts/mscoco_autopilot.sh`.
 
 ---
 
+## 2026-05-21 — MSCOCO unsupervised baselines (CIBHash / CIMON / MLS3RDUH) — CIBHash beats ours
+
+🟢 First MSCOCO comparison with external unsupervised baselines. All three
+trained on `cache/mscoco_siglip2_v4plus/` (visual + aug views; text unused).
+36-bit code, 60 epoch, bs=64.
+
+### Results (final mAP @ ep 59, test split 5K queries vs db 107K)
+
+| Method | mAP | P@1 | P@10 | P@100 | P@1000 | Trainable |
+|---|---:|---:|---:|---:|---:|---:|
+| **CIBHash** ★ | **0.5051** | **0.7802** | 0.7639 | 0.7408 | 0.6875 | ~28K |
+| CIMON | 0.4777 | — | — | — | — | ~28K |
+| **v63b (ours)** | 0.4563 | 0.5606 | 0.5328 | 0.5370 | 0.5308 | ~3M |
+| MLS3RDUH | 0.4434 | 0.6030 | 0.5557 | 0.5473 | 0.5284 | ~28K |
+
+### Ranking reversal vs Flickr25k
+
+| Dataset | v57/v63b vs CIBHash |
+|---|---|
+| Flickr25k | v57 0.6683 > CIBHash 0.6543 (+0.014) — ours wins |
+| MSCOCO | v63b 0.4563 < CIBHash 0.5051 (−0.049) — **CIBHash wins** |
+
+→ CIBHash's flat `sign(Linear(768, 36))` produces near-unique code (~0.99
+unique). On MSCOCO's fine-grained multi-label retrieval (80 class, 107K db),
+instance-level distinction matters more than semantic grouping; our
+compositional code (32% unique) loses top-rank sharpness.
+
+→ Confirms motivation for **Option A (residual-conditioned codon head, v62)**:
+without breaking compositional structure, increase per-image variation so
+codes are more unique.
+
+### Trade-off pattern (P@1 → P@1000)
+
+| Method | P@1 → P@1000 drop |
+|---|---:|
+| **v63b (ours)** | **−0.030** (most stable) |
+| MLS3RDUH | −0.075 |
+| CIBHash | −0.092 |
+
+v63b is flattest across rank depths — strong tail retrieval but weak top
+ranks. Different retrieval profile than CIBHash (sharp top, drops later).
+
+### v63b's strengths preserved
+- Compositional metric measurable (B0/B1/B2) — flat baselines can't
+- 100% codebook utilization, dead=0
+- Frozen backbone + lean adapter contribution intact
+
+Full analysis: `docs/ANALYSIS_mscoco_unsup_baselines.md`.
+
+### Code / no changes
+Existing `baseline/CIBHash.py`, `baseline/CIMON.py`, `baseline/MLS3RDUH.py`
+launched via `python -m baseline.base_model --method <m> -d MSCOCO`. The
+existing launch infrastructure already supports MSCOCO via NUM_CLASS table.
+
+---
+
 ## 2026-05-20 — v60 + v61: C_0 (global codebook) dynamic-τ design ablations — both DISCARDED
 
 🔴 Both ablations on v57 baseline (current SOTA) underperform. Hypothesis

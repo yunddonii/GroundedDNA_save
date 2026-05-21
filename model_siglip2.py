@@ -419,6 +419,7 @@ class CodonHead(nn.Module):
         d_model: int,
         use_gumbel_softmax: bool = True,
         gumbel_tau: float = 1.0,
+        use_residual: bool = False,
     ) -> None:
         super().__init__()
         if d_model % 3 != 0:
@@ -428,16 +429,41 @@ class CodonHead(nn.Module):
             )
         self.d_model: int = int(d_model)
         self.chunk:   int = self.d_model // 3
+        # v62 (Option A): residual-conditioned codon head. When enabled, the
+        # forward expects an optional `residual` input (= z - q, pre-quant
+        # minus post-quant) and concats `(x, gamma * residual)` -> [2D] then
+        # projects back to D before the per-chunk 4-class head. Allows the
+        # codon head to depend on image-specific residual info in addition
+        # to the quantized codeword index. Disabled by default; checkpoint-
+        # compatible because input_proj is only constructed when used.
+        self.use_residual: bool = bool(use_residual)
+        if self.use_residual:
+            self.input_proj = nn.Linear(2 * self.d_model, self.d_model)
+        else:
+            self.input_proj = None
         self.fc = nn.Linear(self.chunk, 4)
         self.use_gumbel_softmax: bool = bool(use_gumbel_softmax)
         self.gumbel_tau: float = float(gumbel_tau)
 
-    def forward(self, x: torch.Tensor) -> Dict[str, torch.Tensor]:
-        # x: [B, D]
+    def forward(
+        self,
+        x: torch.Tensor,
+        residual: Optional[torch.Tensor] = None,
+        gamma: float = 0.0,
+    ) -> Dict[str, torch.Tensor]:
+        # x: [B, D]; optional residual: [B, D]; gamma: scaling factor
         B, D = x.shape
         assert D == self.d_model, (
             f"[CodonHead] expected last-dim {self.d_model}, got {D}"
         )
+        # v62 residual injection
+        if self.use_residual and residual is not None and gamma > 0:
+            assert residual.shape == x.shape, (
+                f"[CodonHead] residual shape {tuple(residual.shape)} != "
+                f"x shape {tuple(x.shape)}"
+            )
+            combined = torch.cat([x, gamma * residual], dim=-1)          # [B, 2D]
+            x = self.input_proj(combined)                                 # [B, D]
         h      = x.view(B, 3, self.chunk)                                # [B, 3, D/3]
         logits = self.fc(h)                                              # [B, 3, 4]
         cont   = F.softmax(logits, dim=-1)                               # [B, 3, 4]
@@ -824,12 +850,16 @@ class SigLIP2SemanticOTModel(nn.Module):
         # Differentiable hard-code path config (Gumbel-Softmax STE by default).
         self.use_gumbel_softmax: bool = bool(getattr(args, "use_gumbel_softmax", True))
         self.gumbel_tau: float       = float(getattr(args, "gumbel_tau", 1.0))
+        # v62 (Option A): residual-conditioned codon head
+        self.codon_residual_gamma: float = float(getattr(args, "codon_residual_gamma", 0.0))
+        _use_residual_codon = self.codon_residual_gamma > 0.0
         self.codon_heads = nn.ModuleList(
             [
                 CodonHead(
                     self.d_model,
                     use_gumbel_softmax=self.use_gumbel_softmax,
                     gumbel_tau=self.gumbel_tau,
+                    use_residual=_use_residual_codon,
                 )
                 for _ in range(self.num_codebooks)
             ]
@@ -1366,6 +1396,18 @@ class SigLIP2SemanticOTModel(nn.Module):
             [q_global_cw.unsqueeze(1), q_conditioned_local], dim=1,
         )                                                       # [B, 6, D]
 
+        # v62 (Option A): residual for codon-head conditioning.
+        # residual = quant_input - quantized_tokens_raw (per codebook)
+        # When `codon_residual_gamma > 0`, each codon head sees
+        # (codeword, gamma * residual) so that two images with same codeword
+        # index but different residual content get different codon outputs.
+        # Compositional structure preserved (codebook index unchanged); only
+        # codon-level fine variation is enabled.
+        if self.codon_residual_gamma > 0.0:
+            codon_residual = (quant_input - quantized_tokens_raw)  # [B, 6, D]
+        else:
+            codon_residual = None
+
         # 8) per-codebook codon heads -> per-codebook outputs
         codon_logits_list:  list[torch.Tensor] = []
         continuous_list:    list[torch.Tensor] = []
@@ -1374,7 +1416,9 @@ class SigLIP2SemanticOTModel(nn.Module):
         st_list:            list[torch.Tensor] = []
         indices_list:       list[torch.Tensor] = []
         for m, head in enumerate(self.codon_heads):
-            h_out = head(head_inputs[:, m, :])                       # dict
+            r_m = codon_residual[:, m, :] if codon_residual is not None else None
+            h_out = head(head_inputs[:, m, :], residual=r_m,
+                         gamma=self.codon_residual_gamma)            # dict
             codon_logits_list.append(h_out["logits"])                # [B, 3, 4]
             continuous_list.append (h_out["continuous_code"])        # [B, 3, 4]
             hash_list.append       (h_out["dna_hash_code"])          # [B, 3, 4]
