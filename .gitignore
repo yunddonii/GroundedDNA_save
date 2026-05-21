@@ -19,6 +19,10 @@ slides_assets/
 
 # pre-extracted feature caches + Qwen text caches + training logs
 cache/
+logs/
+
+# reference papers / PDFs (not part of the codebase)
+papers/
 
 # dataset directories — exclude the actual image folders and raw archives
 # but keep the per-dataset `setting1/*.txt` split files because they define

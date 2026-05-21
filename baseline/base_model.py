@@ -757,10 +757,16 @@ class DeepHashBase(metaclass=ABCMeta):
         self.result_dir   = self._make_and_register_exp_dirs('result_dir',   config['result_root'],  config['day_info'], config['trial_name'])
         self.compress_dir = self._make_and_register_exp_dirs('compress_dir', config['compress_root'], config['day_info'], config['trial_name'])
         # cached-feature datasets only -- no transforms
+        # Honor each baseline's `_get_fixed_config_dict()` request for
+        # auxiliary fields (paired-aug pairs for CIBHash/CIMON, idx for
+        # CIMON/MLS3RDUH). The keys come from the parent argparse
+        # (`--dataset_return_index`, `--dataset_return_paired_aug_img`)
+        # and are overridden last by the fixed_config dict.
         self.trainset, self.testset, self.dbset = load_dataset(
             config['dataset_root'], config['dataset'], config['setting'],
             None, None,
-            return_index=False, return_paired_aug_img=False,
+            return_index=bool(config.get('dataset_return_index', False)),
+            return_paired_aug_img=bool(config.get('dataset_return_paired_aug_img', False)),
             cache_dir=config.get('cache_dir'),
         )
         self._set_n_class(config['dataset'], config['setting'])

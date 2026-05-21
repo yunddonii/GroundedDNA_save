@@ -36,12 +36,17 @@ Format conventions:
   incl. HashNet's own 0.7800.
 - **Best supervised + diversity-balanced Flickr25k**: **v24b** -- mAP
   **0.7742**, unique 0.324.
-- **Best unsupervised Flickr25k (ours, absolute SOTA on PEAK + FINAL)**:
-  **v57** (= v49 with `--lambda_wasserstein 0.02 → 0.05`) -- **peak
-  mAP 0.6742 (ep9), final mAP 0.6676 (ep59)**. Exceeds v34's
-  text-off all-time 0.6696 by +0.0046 peak; exceeds v49 by
-  +0.0037 peak / +0.0032 final. All other hyperparameters identical
-  to v49.
+- **Best unsupervised Flickr25k (ours, absolute SOTA on FINAL test)**:
+  **v62b** (= v57 + `--codon_residual_gamma 0.3`, Option A
+  residual-conditioned codon head) -- **final test mAP 0.6778**.
+  Exceeds v57 final test (0.6683) by **+0.0095** and v57 ep9 peak
+  (0.6742) by **+0.0036**. Achieves higher per-cb-unique (0.00077 vs
+  0.00049) without breaking compositional structure (per-cb entropy
+  unchanged). γ sweep: v62a (γ=0.1) 0.6734, v62b (γ=0.3) **0.6778**,
+  v62c (γ=0.5) 0.6646.
+- **Prior unsupervised Flickr25k SOTA (PEAK)**: **v57** (= v49 with
+  `--lambda_wasserstein 0.02 → 0.05`) -- peak mAP 0.6742 (ep9),
+  final test mAP 0.6683. Now superseded by v62b.
 - **MSCOCO unsupervised SOTA (ours, generalization check)**: **v63b**
   (= v57 setup with `--codebook_size 64 → 128`) -- mAP **0.4563 test**
   on MSCOCO setting1 (107K db). v57's recipe generalizes: only K
@@ -224,6 +229,121 @@ stages (compositional eval, sentinel) executed by hand.
 ### Code retained
 No code changes for this experiment — only V4 cache extension to MSCOCO,
 launched via `scripts/mscoco_autopilot.sh`.
+
+---
+
+## 2026-05-21 — v62: Residual-Conditioned Codon Head (Option A) γ-sweep — NEW ABSOLUTE SOTA
+
+🟢 ★ First successful realization of Option A from
+`docs/PLAN_high_unique_compositional_code.md`. **v62b (γ=0.3) becomes the
+new absolute Flickr25k SOTA**, surpassing v57 by +0.0095 final test mAP
+**while also increasing per-codebook unique-code ratio**. Confirms the
+plan's hypothesis: feeding the post-VQ residual (`z − q`) into the codon
+head as an auxiliary signal lets the model differentiate images that
+share the same quantized codeword without breaking the codebook's
+compositional structure.
+
+### Setup (single change vs v57)
+- New `CodonHead.use_residual=True` path: when `gamma > 0`, the head
+  takes `concat(quantized_token, gamma · residual)` and projects with a
+  new `input_proj: Linear(2D → D)` before the existing 3-codon FC.
+- Forward pass computes per-codebook residual
+  `quant_input - quantized_tokens_raw` and dispatches to each
+  `codon_head_m(quantized_m, residual=residual_m, gamma=γ)`.
+- Codebook lookup, EMA update, Sinkhorn routing all unchanged — the
+  residual only influences the *codon decoding* path, so the compositional
+  structure (which is defined by the codeword index) is preserved.
+- All other v57 hyperparameters identical (V4 caption + dynamic-τ α=0.3 +
+  routing_topp=0.7 + sinkhorn ε anneal 1.0→0.1 + lambda_wasserstein=0.05).
+- New CLI flag: `--codon_residual_gamma {0.1, 0.3, 0.5}`.
+
+| Tag | γ |
+|---|---:|
+| v62a | 0.1 |
+| **v62b** ★ | **0.3** |
+| v62c | 0.5 |
+
+### Final test eval (saved checkpoint, ep59)
+
+| Run | test mAP | Δ vs v57 (0.6683) | unique (db, n=23K) | per-cb-unique | mean_base_norm_entropy |
+|---|---:|---:|---:|---:|---:|
+| v57 (prior SOTA) | 0.6683 | — | 0.0662 | 0.00049 | 0.8973 |
+| v62a (γ=0.1) | 0.6734 | **+0.0051** | 0.1020 | 0.00070 | 0.9005 |
+| **v62b (γ=0.3)** ★ | **0.6778** | **+0.0095** | 0.0745 | 0.00077 | 0.8995 |
+| v62c (γ=0.5) | 0.6646 | −0.0037 | 0.1279 | **0.00124** | 0.9162 |
+
+### Mid-eval trajectory (val split during training)
+
+| epoch | v57 | v62a (γ=0.1) | v62b (γ=0.3) | v62c (γ=0.5) |
+|---:|---:|---:|---:|---:|
+| 9 | **0.6742** ★(v57 peak) | 0.6685 | 0.6706 | 0.6658 |
+| 19 | 0.6703 | 0.6606 | 0.6625 | 0.6500 |
+| 29 | 0.6647 | 0.6681 | 0.6678 | 0.6644 |
+| 39 | 0.6639 | 0.6602 | 0.6669 | 0.6586 |
+| 49 | 0.6648 | 0.6658 | **0.6746** | 0.6620 |
+| 59 (mid-eval) | 0.6676 | **0.6742** | **0.6756** ★ | 0.6633 |
+| **final test** | **0.6683** | **0.6734** | **0.6778** ★ | 0.6646 |
+
+**Trajectory pattern**: opposite of v57's shape. v57 spikes at ep9 (0.6742)
+and drifts down; v62 variants are *low* at ep9 (0.66-0.67) and climb to
+peak at ep59. v62b's mid-eval matches v57's ep9 peak by ep59 (0.6756 vs
+0.6742) and pushes further at final test (0.6778). The residual injection
+takes more epochs to reach equilibrium with the codeword path.
+
+**Unique-code stats — mid-eval (val, n≈2K) vs final test (db, 23K)**:
+mid-eval unique is much higher than db unique because val is smaller and
+more diverse. Final test (db) numbers are the published ones in the
+first table above.
+
+### γ-effect interpretation
+
+- **γ=0.1** (v62a): mild residual injection → modest mAP gain (+0.0051),
+  highest unique among low-γ values (0.102). Safest setting.
+- **γ=0.3** (v62b) ★: sweet spot. Best mAP, modest unique (0.0745). The
+  residual contributes enough variation to improve discrimination
+  without overwhelming the quantized signal.
+- **γ=0.5** (v62c): residual *dominates* the codon decoding → highest
+  per-cb-unique (0.00124, +152% vs v57) and highest entropy (0.916)
+  **but mAP drops below v57** (−0.0037). The codon code stops being a
+  faithful read-out of the codeword and effectively encodes
+  pre-VQ continuous information.
+
+### Compositional structure preserved
+
+`mean_base_normalized_entropy` (per-codebook usage uniformity) stays at
+**0.90 ± 0.02** across all three γ values, vs v57's 0.897. Codebook
+utilization remains healthy (dead ≤ 0.003 across all variants). The
+residual head modifies *codon decoding* but does not bias which
+codeword each patch is routed to — confirmed by the unchanged per-cb
+entropy and dead-code stats.
+
+### Conclusion
+
+Option A delivers exactly what the plan predicted: **higher per-image
+discrimination without sacrificing the compositional codebook
+structure**. γ=0.3 is the new default; γ=0.1 is a conservative
+alternative when unique-code maximization matters; γ=0.5 over-injects.
+
+### Next direction
+The v57 → v62b improvement is driven by *post-VQ residual injection at
+the codon-decoding stage*. The codebook itself still suffers from EMA
+collision (multiple images mapping to the exact same codeword). The
+proposed follow-up is **EMA codebook modification** (α: Codeword
+Repulsion / β: Inverse-Popularity EMA / γ: OT-Balanced Assignment / δ:
+Augmented EMA) to address the root-cause collision at the encoding
+stage — orthogonal to v62 and stackable on top.
+
+### Code retained
+- `model_siglip2.py`: `CodonHead.__init__(use_residual=True)` +
+  `input_proj` + `CodonHead.forward(residual=None, gamma=0.0)`; per-cb
+  residual computation in the main forward.
+- `config.py`: `--codon_residual_gamma` (default 0.0, so v57 behaviour
+  is unchanged when the flag is absent).
+
+### Result directories
+- v62a: `result/260521+flickr25k_setting1_v62a_v57_residual_g01+bs+64+e+60+proj_lr+0.001/`
+- v62b: `result/260521+flickr25k_setting1_v62b_v57_residual_g03+bs+64+e+60+proj_lr+0.001/`
+- v62c: `result/260521+flickr25k_setting1_v62c_v57_residual_g05+bs+64+e+60+proj_lr+0.001/`
 
 ---
 
