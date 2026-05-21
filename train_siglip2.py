@@ -652,8 +652,14 @@ def main(args: Config):
             n_routing  = int(getattr(args, "viz_routing_samples", 12))
             n_tsne     = int(getattr(args, "viz_tsne_samples",    2000))
             try:
+                # Use trainset for routing visualization: the Qwen V4 cache
+                # is generated for the training subset of each dataset. For
+                # Flickr25k the V4 cache covers all 25K images so either split
+                # would resolve text labels, but for MSCOCO the cache only
+                # holds the 10K train subset -- sampling from testset there
+                # produces empty per-codebook captions in the heatmap.
                 visualize_routing(
-                    model, testset,
+                    model, trainset,
                     save_path=os.path.join(args.save_result_path, "viz_routing_heatmap.png"),
                     qwen_jsonl_path=qwen_jsonl,
                     num_samples=n_routing,

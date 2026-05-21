@@ -111,6 +111,9 @@ class SemanticCodebookQuantizer(nn.Module):
         revive_dead: bool = True,
         revive_threshold: float = 0.01,
         revive_every: int = 1,
+        repel_strength: float = 0.0,
+        repel_sigma_factor: float = 0.5,
+        repel_every: int = 1,
     ) -> None:
         super().__init__()
         self.num_codebooks = int(num_codebooks)
@@ -131,9 +134,21 @@ class SemanticCodebookQuantizer(nn.Module):
         self.revive_dead       = bool(revive_dead)
         self.revive_threshold  = float(revive_threshold)
         self.revive_every      = max(1, int(revive_every))
+        # Option α: Codeword Repulsion. After each EMA update step, push each
+        # codeword away from its closest neighbours within the same codebook.
+        # `strength` is the step-size as a fraction of the unit repulsion
+        # direction; `sigma_factor` controls the Gaussian width relative to
+        # the median pairwise distance per codebook. `repel_every` rate-limits
+        # the operation. Default strength=0 ⇒ disabled (baseline behaviour).
+        self.repel_strength     = float(repel_strength)
+        self.repel_sigma_factor = float(repel_sigma_factor)
+        self.repel_every        = max(1, int(repel_every))
         # internal step counter (training-only)
         self.register_buffer(
             "_revive_step", torch.zeros((), dtype=torch.long), persistent=False,
+        )
+        self.register_buffer(
+            "_ema_step", torch.zeros((), dtype=torch.long), persistent=False,
         )
 
         # codebooks: [M, K, D]
@@ -307,6 +322,47 @@ class SemanticCodebookQuantizer(nn.Module):
         return n_revived
 
     @torch.no_grad()
+    def _codeword_repulsion(self) -> None:
+        """Option α: Gaussian-weighted codeword repulsion (in-place).
+
+        For each codebook, push each codeword away from close neighbours.
+        Force on codeword e_k:
+            F_k = Σ_{j≠k} w_kj · (e_k − e_j) / ||e_k − e_j||
+            w_kj = exp(−||e_k − e_j||² / σ²)
+            σ²   = sigma_factor² · median_{j≠k} ||e_k − e_j||²   (auto, per cb)
+        After applying, mirror the codebook change into ``embed_avg`` so the
+        next EMA step does not immediately undo the displacement.
+        """
+        M, K, D = self.codebooks.shape
+        eye = torch.eye(K, device=self.codebooks.device, dtype=torch.bool)  # [K, K]
+        for m in range(M):
+            e = self.codebooks[m]                                          # [K, D]
+            diff = e.unsqueeze(0) - e.unsqueeze(1)                         # [K, K, D]: diff[i,j] = e[i]-e[j]... wait
+            # NOTE: convention -- diff[i, j, :] should be the vector pointing
+            # FROM j TO i, so adding it to e[i] pushes e[i] further from e[j].
+            # e.unsqueeze(1) is [K, 1, D] (row index = i), broadcast over j.
+            # e.unsqueeze(0) is [1, K, D] (col index = j), broadcast over i.
+            # So `e.unsqueeze(1) - e.unsqueeze(0)` = e[i] - e[j].
+            diff = e.unsqueeze(1) - e.unsqueeze(0)                         # [K, K, D]
+            dist_sq = (diff * diff).sum(-1)                                # [K, K]
+            dist_sq = dist_sq.masked_fill(eye, float("inf"))
+            # auto-sigma per codebook: median over off-diagonal entries
+            finite = dist_sq[~eye].view(K, K - 1)
+            median_dsq = finite.median().clamp_min(1e-6)
+            sigma_sq = median_dsq * (self.repel_sigma_factor ** 2)
+            weights = torch.exp(-dist_sq / sigma_sq.clamp_min(1e-6))       # [K, K]
+            dist = dist_sq.clamp_min(1e-8).sqrt()                          # [K, K]
+            unit = diff / dist.unsqueeze(-1)                               # [K, K, D]
+            force = (weights.unsqueeze(-1) * unit).sum(dim=1)              # [K, D]
+            # apply repulsion
+            self.codebooks[m].add_(force, alpha=self.repel_strength)
+        # sync embed_avg so EMA doesn't snap back next step
+        n_total = self.cluster_size.sum(dim=-1, keepdim=True)
+        K_ = self.codebook_size
+        cs = (self.cluster_size + self.ema_eps) / (n_total + K_ * self.ema_eps) * n_total
+        self.embed_avg.copy_(self.codebooks * cs.unsqueeze(-1))
+
+    @torch.no_grad()
     def _ema_update(self, z: torch.Tensor, indices: torch.Tensor) -> None:
         """In-place EMA update of self.codebooks using new (z, indices) pairs.
 
@@ -332,6 +388,11 @@ class SemanticCodebookQuantizer(nn.Module):
         n_total = self.cluster_size.sum(dim=-1, keepdim=True)                    # [M, 1]
         cs = (self.cluster_size + self.ema_eps) / (n_total + K * self.ema_eps) * n_total  # [M, K]
         self.codebooks.copy_(self.embed_avg / cs.unsqueeze(-1))
+        # Option α: post-EMA codeword repulsion (rate-limited)
+        if self.repel_strength > 0.0:
+            self._ema_step.add_(1)
+            if int(self._ema_step.item()) % self.repel_every == 0:
+                self._codeword_repulsion()
 
     def forward(self, semantic_visual_tokens: torch.Tensor) -> Dict[str, torch.Tensor]:
         # semantic_visual_tokens: [B, M, D]
@@ -420,6 +481,7 @@ class CodonHead(nn.Module):
         use_gumbel_softmax: bool = True,
         gumbel_tau: float = 1.0,
         use_residual: bool = False,
+        head_hidden_dim: int = 0,
     ) -> None:
         super().__init__()
         if d_model % 3 != 0:
@@ -441,7 +503,17 @@ class CodonHead(nn.Module):
             self.input_proj = nn.Linear(2 * self.d_model, self.d_model)
         else:
             self.input_proj = None
-        self.fc = nn.Linear(self.chunk, 4)
+        # v65: light MLP fc head (per-position, shared across 3 positions).
+        # head_hidden_dim=0 (default) preserves the legacy single Linear path.
+        self.head_hidden_dim: int = int(head_hidden_dim)
+        if self.head_hidden_dim > 0:
+            self.fc = nn.Sequential(
+                nn.Linear(self.chunk, self.head_hidden_dim),
+                nn.GELU(),
+                nn.Linear(self.head_hidden_dim, 4),
+            )
+        else:
+            self.fc = nn.Linear(self.chunk, 4)
         self.use_gumbel_softmax: bool = bool(use_gumbel_softmax)
         self.gumbel_tau: float = float(gumbel_tau)
 
@@ -812,6 +884,9 @@ class SigLIP2SemanticOTModel(nn.Module):
             revive_dead=bool(getattr(args, "codebook_revive", True)),
             revive_threshold=float(getattr(args, "codebook_revive_threshold", 0.01)),
             revive_every=int(getattr(args, "codebook_revive_every", 50)),
+            repel_strength=float(getattr(args, "codebook_repel_strength", 0.0)),
+            repel_sigma_factor=float(getattr(args, "codebook_repel_sigma_factor", 0.5)),
+            repel_every=int(getattr(args, "codebook_repel_every", 1)),
         )
 
         # ---------- gated global addition --------------------------------
@@ -853,6 +928,7 @@ class SigLIP2SemanticOTModel(nn.Module):
         # v62 (Option A): residual-conditioned codon head
         self.codon_residual_gamma: float = float(getattr(args, "codon_residual_gamma", 0.0))
         _use_residual_codon = self.codon_residual_gamma > 0.0
+        self.codon_head_hidden_dim: int = int(getattr(args, "codon_head_hidden_dim", 0))
         self.codon_heads = nn.ModuleList(
             [
                 CodonHead(
@@ -860,6 +936,7 @@ class SigLIP2SemanticOTModel(nn.Module):
                     use_gumbel_softmax=self.use_gumbel_softmax,
                     gumbel_tau=self.gumbel_tau,
                     use_residual=_use_residual_codon,
+                    head_hidden_dim=self.codon_head_hidden_dim,
                 )
                 for _ in range(self.num_codebooks)
             ]

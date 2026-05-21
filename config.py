@@ -321,6 +321,21 @@ class Config():
         siglip2_arg.add_argument('--codebook_revive_every', dest='codebook_revive_every',
             type=int, default=50,
             help='Run dead-code rejuvenation every N training forwards (steps).')
+        # Option α: Codeword Repulsion. After each EMA update, push each
+        # codeword in a codebook away from its closest neighbours
+        # (Gaussian-weighted, auto-sigma per codebook). Disabled by default.
+        siglip2_arg.add_argument('--codebook_repel_strength', dest='codebook_repel_strength',
+            type=float, default=0.0,
+            help='Option α: per-step repulsion step size as a multiplier on '
+                 'the unit repulsion direction. 0 (default) disables.')
+        siglip2_arg.add_argument('--codebook_repel_sigma_factor', dest='codebook_repel_sigma_factor',
+            type=float, default=0.5,
+            help='Option α: Gaussian width sigma = sigma_factor * median '
+                 'pairwise distance per codebook. Smaller = sharper '
+                 '(only very close pairs repel).')
+        siglip2_arg.add_argument('--codebook_repel_every', dest='codebook_repel_every',
+            type=int, default=1,
+            help='Option α: apply repulsion every N EMA update steps.')
         # ---------- v41 (5-G): text-supervised codebook initialization ---
         # Before training starts, replace the random Gaussian codebook init
         # with K vectors derived from train-set `cached_text_part_raw`
@@ -359,6 +374,14 @@ class Config():
                  '0 disables (CodonHead works as before). Try 0.1-0.5. Larger '
                  'gamma -> more image-specific codon variation, but risks '
                  'breaking compositional interpretation if too large.')
+        # v65: expand the per-position 4-class fc inside CodonHead into a
+        # small MLP (Linear(chunk, H) -> GELU -> Linear(H, 4)). chunk = D/3 =
+        # 256 in the default setting; head_hidden_dim=0 (default) keeps the
+        # legacy single Linear(256, 4).
+        siglip2_arg.add_argument('--codon_head_hidden_dim',
+            dest='codon_head_hidden_dim', type=int, default=0,
+            help='Hidden dim for the per-position MLP in CodonHead. 0 (default) '
+                 'preserves the legacy single Linear(chunk, 4) path.')
         siglip2_arg.add_argument('--gumbel_tau_init',  dest='gumbel_tau_init',
             type=float, default=2.0)
         siglip2_arg.add_argument('--gumbel_tau_final', dest='gumbel_tau_final',
