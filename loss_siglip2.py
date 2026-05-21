@@ -182,6 +182,10 @@ class DNACodonHashLoss(nn.Module):
         # text_adapter into a shared space where the OT transport cost is
         # small. Default 0.0 keeps it off; v11 sweet spot was 0.05.
         self.lambda_wasserstein = float(getattr(cfg, "lambda_wasserstein", 0.0))
+        # v66: per-codon text-anchored aux CE loss weight. The model computes
+        # `out["loss_text_anchor"]` per forward (sum across 6 codebooks). 0
+        # default keeps the loss off.
+        self.lambda_codon_text_anchor = float(getattr(cfg, "lambda_codon_text_anchor", 0.0))
         # If True, the hashnet logistic uses fractional Jaccard S instead of
         # binary any-shared S. Preserves per-label-combo granularity in the
         # target probability so different powerset combinations get different
@@ -843,6 +847,11 @@ class DNACodonHashLoss(nn.Module):
         else:
             loss_ortho_text = u.new_zeros(())
 
+        # v66: per-codon text-anchored aux CE loss (model computes per forward)
+        loss_text_anchor = outputs.get("loss_text_anchor")
+        if loss_text_anchor is None:
+            loss_text_anchor = u.new_zeros(())
+
         # ---- total -------------------------------------------------------
         total = (
             self.lambda_hash       * loss_hash
@@ -856,6 +865,7 @@ class DNACodonHashLoss(nn.Module):
             + self.lambda_recon       * loss_recon
             + self.lambda_ntxent      * loss_ntxent
             + self.lambda_ortho_text  * loss_ortho_text
+            + self.lambda_codon_text_anchor * loss_text_anchor
         )
 
         return {
@@ -875,4 +885,5 @@ class DNACodonHashLoss(nn.Module):
             "loss_base_balance": dna_components["loss_base_balance"],
             "loss_cb_balance":   bu_components ["loss_cb_balance"],
             "loss_cb_uncorr":    bu_components ["loss_cb_uncorr"],
+            "loss_codon_text_anchor": loss_text_anchor,
         }

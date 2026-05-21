@@ -382,6 +382,23 @@ class Config():
             dest='codon_head_hidden_dim', type=int, default=0,
             help='Hidden dim for the per-position MLP in CodonHead. 0 (default) '
                  'preserves the legacy single Linear(chunk, 4) path.')
+        # v66: Per-Codon Text-Anchored Classifier. Replaces fc with cosine
+        # similarity to a learnable [3, 4, chunk] prototype tensor and adds an
+        # auxiliary CE loss between the visual codon logits and a text-derived
+        # target class (target = argmax(cos(text_chunk, prototype))). Provides
+        # ongoing text supervision directly on the codon decoding stage.
+        # Mutually exclusive with --codon_head_hidden_dim (when this flag is
+        # set, the MLP path is bypassed in favour of the prototype layer).
+        siglip2_arg.add_argument('--codon_text_anchor',
+            dest='codon_text_anchor', action='store_true', default=False,
+            help='Enable per-codon text-anchored prototype classifier (v66).')
+        siglip2_arg.add_argument('--codon_anchor_temperature',
+            dest='codon_anchor_temperature', type=float, default=0.1,
+            help='Temperature for cos-sim prototype logits in CodonHead.')
+        siglip2_arg.add_argument('--lambda_codon_text_anchor',
+            dest='lambda_codon_text_anchor', type=float, default=0.1,
+            help='Loss weight for the v66 text-anchored CE aux loss '
+                 '(applied only when --codon_text_anchor is set).')
         siglip2_arg.add_argument('--gumbel_tau_init',  dest='gumbel_tau_init',
             type=float, default=2.0)
         siglip2_arg.add_argument('--gumbel_tau_final', dest='gumbel_tau_final',

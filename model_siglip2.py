@@ -482,6 +482,8 @@ class CodonHead(nn.Module):
         gumbel_tau: float = 1.0,
         use_residual: bool = False,
         head_hidden_dim: int = 0,
+        use_text_anchor: bool = False,
+        anchor_temperature: float = 0.1,
     ) -> None:
         super().__init__()
         if d_model % 3 != 0:
@@ -491,22 +493,28 @@ class CodonHead(nn.Module):
             )
         self.d_model: int = int(d_model)
         self.chunk:   int = self.d_model // 3
-        # v62 (Option A): residual-conditioned codon head. When enabled, the
-        # forward expects an optional `residual` input (= z - q, pre-quant
-        # minus post-quant) and concats `(x, gamma * residual)` -> [2D] then
-        # projects back to D before the per-chunk 4-class head. Allows the
-        # codon head to depend on image-specific residual info in addition
-        # to the quantized codeword index. Disabled by default; checkpoint-
-        # compatible because input_proj is only constructed when used.
+        # v62 (Option A): residual-conditioned codon head.
         self.use_residual: bool = bool(use_residual)
         if self.use_residual:
             self.input_proj = nn.Linear(2 * self.d_model, self.d_model)
         else:
             self.input_proj = None
-        # v65: light MLP fc head (per-position, shared across 3 positions).
-        # head_hidden_dim=0 (default) preserves the legacy single Linear path.
+        # v66: per-codon text-anchored prototype classifier.
+        # Replaces Linear(chunk, 4) with cosine similarity to a learnable
+        # [3, 4, chunk] prototype tensor. Aux text supervision happens via
+        # `forward(text_chunks=...)` which derives a per-position target class
+        # = argmax(cos(text_chunk, proto)) and returns a CE loss.
+        self.use_text_anchor: bool = bool(use_text_anchor)
+        self.anchor_temperature: float = float(anchor_temperature)
+        # v65: light MLP fc head (mutually exclusive with prototype head).
         self.head_hidden_dim: int = int(head_hidden_dim)
-        if self.head_hidden_dim > 0:
+        if self.use_text_anchor:
+            # learnable prototypes [3, 4, chunk] (per-position, 4 classes A/C/G/T)
+            self.proto = nn.Parameter(
+                torch.randn(3, 4, self.chunk) / math.sqrt(self.chunk)
+            )
+            self.fc = None
+        elif self.head_hidden_dim > 0:
             self.fc = nn.Sequential(
                 nn.Linear(self.chunk, self.head_hidden_dim),
                 nn.GELU(),
@@ -522,8 +530,11 @@ class CodonHead(nn.Module):
         x: torch.Tensor,
         residual: Optional[torch.Tensor] = None,
         gamma: float = 0.0,
+        text_chunks: Optional[torch.Tensor] = None,
     ) -> Dict[str, torch.Tensor]:
         # x: [B, D]; optional residual: [B, D]; gamma: scaling factor
+        # text_chunks: [B, D] -- per-codebook text caption embedding (only used
+        # by the v66 text-anchored prototype path).
         B, D = x.shape
         assert D == self.d_model, (
             f"[CodonHead] expected last-dim {self.d_model}, got {D}"
@@ -537,7 +548,24 @@ class CodonHead(nn.Module):
             combined = torch.cat([x, gamma * residual], dim=-1)          # [B, 2D]
             x = self.input_proj(combined)                                 # [B, D]
         h      = x.view(B, 3, self.chunk)                                # [B, 3, D/3]
-        logits = self.fc(h)                                              # [B, 3, 4]
+        # v66 text-anchored prototype head: cos-sim between h and proto.
+        if self.use_text_anchor:
+            h_n     = F.normalize(h, dim=-1)                              # [B, 3, chunk]
+            proto_n = F.normalize(self.proto, dim=-1)                     # [3, 4, chunk]
+            logits  = torch.einsum('bpc,pkc->bpk', h_n, proto_n) / self.anchor_temperature
+            # text-anchored auxiliary CE loss
+            loss_text_anchor = torch.zeros((), device=x.device, dtype=x.dtype)
+            if text_chunks is not None and self.training:
+                t        = text_chunks.view(B, 3, self.chunk)             # [B, 3, chunk]
+                t_n      = F.normalize(t, dim=-1)
+                text_logits = torch.einsum('bpc,pkc->bpk', t_n, proto_n) / self.anchor_temperature
+                target   = text_logits.argmax(dim=-1).detach()           # [B, 3]
+                loss_text_anchor = F.cross_entropy(
+                    logits.reshape(-1, 4), target.reshape(-1),
+                )
+        else:
+            logits = self.fc(h)                                          # [B, 3, 4]
+            loss_text_anchor = torch.zeros((), device=x.device, dtype=x.dtype)
         cont   = F.softmax(logits, dim=-1)                               # [B, 3, 4]
         idx    = cont.argmax(dim=-1)                                     # [B, 3]
         hard   = F.one_hot(idx, num_classes=4).to(cont.dtype)            # [B, 3, 4]
@@ -563,6 +591,7 @@ class CodonHead(nn.Module):
             "dna_hash_code":      st,       # train: ST, eval: hard
             "dna_hash_code_hard": hard,     # always deterministic one-hot
             "dna_hash_code_st":   st,       # always the gradient-bearing path
+            "loss_text_anchor":   loss_text_anchor,  # scalar (v66 aux CE)
         }
 
 
@@ -929,6 +958,9 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.codon_residual_gamma: float = float(getattr(args, "codon_residual_gamma", 0.0))
         _use_residual_codon = self.codon_residual_gamma > 0.0
         self.codon_head_hidden_dim: int = int(getattr(args, "codon_head_hidden_dim", 0))
+        # v66 text-anchored prototype head (mutually exclusive with codon_head_hidden_dim)
+        self.codon_text_anchor: bool = bool(getattr(args, "codon_text_anchor", False))
+        self.codon_anchor_temperature: float = float(getattr(args, "codon_anchor_temperature", 0.1))
         self.codon_heads = nn.ModuleList(
             [
                 CodonHead(
@@ -937,6 +969,8 @@ class SigLIP2SemanticOTModel(nn.Module):
                     gumbel_tau=self.gumbel_tau,
                     use_residual=_use_residual_codon,
                     head_hidden_dim=self.codon_head_hidden_dim,
+                    use_text_anchor=self.codon_text_anchor,
+                    anchor_temperature=self.codon_anchor_temperature,
                 )
                 for _ in range(self.num_codebooks)
             ]
@@ -1350,6 +1384,7 @@ class SigLIP2SemanticOTModel(nn.Module):
             "dna_hash_code_hard":                 None,
             "dna_hash_code_st":                   None,
             "base_indices":                       None,
+            "loss_text_anchor":                   None,
             "routing_mode":                       routing_mode,
         }
 
@@ -1492,16 +1527,28 @@ class SigLIP2SemanticOTModel(nn.Module):
         hard_list:          list[torch.Tensor] = []
         st_list:            list[torch.Tensor] = []
         indices_list:       list[torch.Tensor] = []
+        # v66 aux: accumulate per-codebook text-anchored CE loss
+        loss_text_anchor_sum: torch.Tensor = torch.zeros(
+            (), device=head_inputs.device, dtype=head_inputs.dtype,
+        )
         for m, head in enumerate(self.codon_heads):
             r_m = codon_residual[:, m, :] if codon_residual is not None else None
+            # v66: per-codebook text caption embedding (post-text_adapter)
+            t_m = (
+                text_part_tokens[:, m, :]
+                if (text_part_tokens is not None and self.codon_text_anchor)
+                else None
+            )
             h_out = head(head_inputs[:, m, :], residual=r_m,
-                         gamma=self.codon_residual_gamma)            # dict
+                         gamma=self.codon_residual_gamma,
+                         text_chunks=t_m)                            # dict
             codon_logits_list.append(h_out["logits"])                # [B, 3, 4]
             continuous_list.append (h_out["continuous_code"])        # [B, 3, 4]
             hash_list.append       (h_out["dna_hash_code"])          # [B, 3, 4]
             hard_list.append       (h_out["dna_hash_code_hard"])     # [B, 3, 4]
             st_list.append         (h_out["dna_hash_code_st"])       # [B, 3, 4]
             indices_list.append    (h_out["base_indices"])           # [B, 3]
+            loss_text_anchor_sum = loss_text_anchor_sum + h_out["loss_text_anchor"]
         codon_logits_per_codebook        = torch.stack(codon_logits_list, dim=1)  # [B, 6, 3, 4]
         continuous_codes_per_codebook    = torch.stack(continuous_list,   dim=1)  # [B, 6, 3, 4]
         dna_hash_codes_per_codebook      = torch.stack(hash_list,         dim=1)  # [B, 6, 3, 4]
@@ -1575,6 +1622,11 @@ class SigLIP2SemanticOTModel(nn.Module):
             "dna_hash_code_hard":                dna_hash_code_hard,                 # [B, 18, 4]
             "dna_hash_code_st":                  dna_hash_code_st,                   # [B, 18, 4]
             "base_indices":                      base_indices,                       # [B, 18]
+
+            # v66 text-anchored prototype head: per-batch CE between visual
+            # codon logits and text-derived target classes, summed across
+            # 6 codebooks. Zero when codon_text_anchor flag is off.
+            "loss_text_anchor":                  loss_text_anchor_sum,
         })
 
         # 11) optional reconstruction head (v28a / v28b)

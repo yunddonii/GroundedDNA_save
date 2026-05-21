@@ -52,6 +52,10 @@ Format conventions:
   on MSCOCO setting1 (107K db). v57's recipe generalizes: only K
   needed rescaling for the larger train set (10K vs Flickr25k 5K).
   v63a (K=64 fixed) underperforms at 0.4412.
+  → ⚠ v62b's residual head does NOT generalize to MSCOCO (mscoco_v62b
+  regressed to 0.4378, −0.0185 vs v63b). Per-dataset SOTA pairs
+  remain: **Flickr25k = v62b (0.6778)**, **MSCOCO = v63b (0.4563)**.
+  See 2026-05-21 v64+v65 entry.
 - **Previous text-on SOTA by peak**: v49 -- 0.6705 peak / 0.6644 final.
 - **Best by FINAL-checkpoint mAP (pre-v57)**: v52 (= v49 with
   `--gumbel_tau_final 0.3 → 0.1`) -- 0.6691 final. NOT superseded by
@@ -128,6 +132,119 @@ Format conventions:
 ---
 
 ---
+
+---
+
+## 2026-05-21 — v66 launched: Per-Codon Text-Anchored Prototype Classifier (Option #2)
+
+🟡 Active. Single Flickr25k run probing whether the structural change
+from `Linear(chunk, 4)` → cos-sim prototype + text-derived CE supervision
+on the codon decoding stage breaks the codon-level collision bottleneck
+discovered on v62b. See `docs/SUMMARY_post_v62b_experiments.md` for the
+motivating analysis.
+
+**Single change vs v62b** (γ=0.3 residual retained):
+- New per-CodonHead parameter `proto: [3, 4, chunk=256]` replaces the legacy
+  `Linear(chunk, 4)`. Codon logits = cos-sim(visual_chunk, proto) / τ.
+- Auxiliary CE loss per (B, position): `target = argmax(cos(text_chunk, proto))`,
+  applied at lambda=0.1 with anchor_temperature=0.1.
+- Text-anchoring is *ongoing* throughout training — prototypes are pulled
+  toward the per-image text caption embedding (post-text_adapter).
+
+**Hyperparameters**: `--codon_text_anchor --codon_anchor_temperature 0.1
+--lambda_codon_text_anchor 0.1`. All other v62b hyperparameters identical.
+
+Result directory: `result/260521+flickr25k_setting1_v66_v62b_textanchor_lam01_T01+bs+64+e+60+proj_lr+0.001/`.
+Full result row will be logged here once ep59 + final test eval lands.
+
+---
+
+## 2026-05-21 — v64 + v65: post-v62b extensions DISCARDED (all underperform v62b/v63b)
+
+🔴 Three single-axis ablations probing whether the codon-level collision
+identified on v62b (codon 4 max-cluster 19.3%, effective K ≈ 9-12 per
+6-bit codon, vs codeword-level K=64 fully utilized) can be fixed by
+EMA-codebook modification (v64) or by expanding codon decoding capacity
+(v65). All discarded — none recovered v62b/v63b.
+
+### Setup (single change vs v57/v62b/v63b baselines)
+
+| Tag | Dataset | Baseline | Change |
+|---|---|---|---|
+| **v64a** | Flickr25k | v57 (no residual) | + EMA codeword repulsion (Gaussian-weighted, auto-sigma; strength=0.01, sigma_factor=0.5, every=10) |
+| **v64b** | MSCOCO | v63b (= v57+K=128) | same EMA repulsion |
+| **mscoco_v62b** | MSCOCO | v63b | + `--codon_residual_gamma 0.3` (port v62b residual head) |
+| **v65a** | Flickr25k | v62b (γ=0.3) | Replace `Linear(chunk, 4)` with `Linear(256, 64) → GELU → Linear(64, 4)` (codon MLP h=64) |
+| **v65b** | Flickr25k | v62b (γ=0.3) | Same MLP with `h=128` |
+
+### Final test mAP (saved checkpoint, ep59; n_q × n_db = 2K×23K Flickr, 5K×107K MSCOCO)
+
+| Run | mAP | Δ vs baseline | unique (db) | per-cb-unique | base-entropy |
+|---|---:|---:|---:|---:|---:|
+| **v62b** (Flickr SOTA, for comparison) | **0.6778** | — | 0.0745 | 0.00077 | 0.900 |
+| v65b (h=128) | 0.6702 | −0.0076 | 0.0797 | 0.00060 | 0.804 |
+| v64a (Flickr+α) | 0.6602 | −0.0081 vs **v57** (0.6683) | 0.0825 | 0.00060 | **0.822** ↓ |
+| v65a (h=64) | 0.6301 | −0.0477 | 0.1013 | 0.00080 | 0.908 |
+| **v63b** (MSCOCO SOTA, for comparison) | **0.4563** | — | 0.315 | 0.00077 | — |
+| v64b (MSCOCO+α) | 0.4470 | −0.0093 | 0.0148 ⚠ | 0.0001 | 0.694 |
+| **mscoco_v62b** | 0.4378 | **−0.0185** | 0.0346 | 0.0002 | 0.862 |
+
+### Key finding — v62b's residual head does NOT generalize to MSCOCO
+
+The most surprising result: porting v62b's exact residual injection
+(`--codon_residual_gamma 0.3`) to MSCOCO REGRESSES from v63b's 0.4563
+to 0.4378 (**−0.0185**). On Flickr25k the same change yielded +0.0095.
+The residual head signal is Flickr25k-specific — likely because:
+- Flickr25k has 5K train images sharing only K=64 codewords per cb
+  (high codeword reuse → residual adds useful per-image variation).
+- MSCOCO has 10K train images spread over K=128 codewords (lower
+  reuse → residual hurts more than helps, possibly because the
+  pre-VQ residual is noisier on the larger, more diverse train set).
+
+This invalidates the working assumption that v62b is the "general"
+SOTA. The per-dataset SOTA pairs are now: **Flickr25k = v62b (0.6778)**,
+**MSCOCO = v63b (0.4563)**.
+
+### Why EMA repulsion (α) under-performed
+
+On both datasets, codeword repulsion at strength=0.01 produced LOWER
+base-entropy (Flickr 0.900→0.822, MSCOCO 0.900→0.694) — i.e. some
+codewords ended up *less* used after repulsion, the OPPOSITE of the
+intended effect. Hypothesis: the Gaussian repulsion push pulls
+codewords *into* sparsely populated regions where no images route,
+making them effectively dead. The auto-sigma (= sigma_factor × median
+pairwise distance) is too large at sigma_factor=0.5 — almost every
+codeword pair gets pushed, including far-apart pairs that should be
+left alone. A much smaller sigma_factor (e.g. 0.1) or strength (e.g.
+0.001) might recover, but the conservative first attempt is dead.
+
+### Why codon MLP (v65) under-performed on Flickr
+
+v65a (h=64) catastrophically dropped mAP −0.0477. v65b (h=128)
+recovered most of the way but still −0.0076 vs v62b. Hypotheses:
+- The single-Linear path in v62b was acting as a *helpful bottleneck*
+  that forced the residual signal to compress before classification.
+  Adding an MLP gives the residual head a way to *bypass* the codon
+  quantization → continuous information leaks straight through the
+  decoder, reducing the discrete bit's utility.
+- h=64 may also have hit a bad init / unlucky training seed; h=128
+  recovers most of the loss. Worth re-running v65a with a different
+  seed before fully discarding.
+
+### Code retained (behind flags, default off)
+- `model_siglip2.py`: `SemanticCodebookQuantizer._codeword_repulsion`,
+  `CodonHead(head_hidden_dim=H)`.
+- `config.py`: `--codebook_repel_strength / sigma_factor / every` and
+  `--codon_head_hidden_dim`.
+- v64a/b/c, mscoco_v62b, v65a/b can be reproduced by passing the
+  appropriate flag values. None of these are the new default.
+
+### Result directories
+- v64a: `result/260521+flickr25k_setting1_v64a_v57_repelStr01_sig05_every10+bs+64+e+60+proj_lr+0.001/`
+- v64b: `result/260521+mscoco_setting1_mscoco_v64b_v63b_repelStr01_sig05_every10+bs+64+e+60+proj_lr+0.001/`
+- mscoco_v62b: `result/260521+mscoco_setting1_mscoco_v62b_v63b_residual_g03+bs+64+e+60+proj_lr+0.001/`
+- v65a: `result/260521+flickr25k_setting1_v65a_v62b_codonMLP_h64+bs+64+e+60+proj_lr+0.001/`
+- v65b: `result/260521+flickr25k_setting1_v65b_v62b_codonMLP_h128+bs+64+e+60+proj_lr+0.001/`
 
 ---
 
