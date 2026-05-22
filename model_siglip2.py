@@ -484,6 +484,9 @@ class CodonHead(nn.Module):
         head_hidden_dim: int = 0,
         use_text_anchor: bool = False,
         anchor_temperature: float = 0.1,
+        position_specific_head: bool = False,
+        residual_split: bool = False,
+        residual_gate: bool = False,
     ) -> None:
         super().__init__()
         if d_model % 3 != 0:
@@ -495,10 +498,23 @@ class CodonHead(nn.Module):
         self.chunk:   int = self.d_model // 3
         # v62 (Option A): residual-conditioned codon head.
         self.use_residual: bool = bool(use_residual)
-        if self.use_residual:
+        # v69b (Exp 2): residual-split — codon position 0,1 from codeword,
+        # position 2 from gamma*residual. Bypasses the concat -> input_proj
+        # path entirely; uses 3 separate Linears.
+        self.residual_split: bool = bool(residual_split)
+        if self.use_residual and not self.residual_split:
             self.input_proj = nn.Linear(2 * self.d_model, self.d_model)
         else:
             self.input_proj = None
+        # v71a (Exp 5): per-codebook learnable residual gate. a, b are scalars.
+        # effective_residual = sigmoid(a * ||z-q|| + b) * residual.
+        self.residual_gate: bool = bool(residual_gate)
+        if self.residual_gate and self.use_residual:
+            self.residual_gate_a = nn.Parameter(torch.zeros(()))
+            self.residual_gate_b = nn.Parameter(torch.zeros(()))
+        else:
+            self.residual_gate_a = None
+            self.residual_gate_b = None
         # v66: per-codon text-anchored prototype classifier.
         # Replaces Linear(chunk, 4) with cosine similarity to a learnable
         # [3, 4, chunk] prototype tensor. Aux text supervision happens via
@@ -508,10 +524,26 @@ class CodonHead(nn.Module):
         self.anchor_temperature: float = float(anchor_temperature)
         # v65: light MLP fc head (mutually exclusive with prototype head).
         self.head_hidden_dim: int = int(head_hidden_dim)
+        # v69a (Exp 1): position-specific Linear(chunk, 4) per codon position
+        # (3 independent layers instead of shared self.fc). Mutually exclusive
+        # with use_text_anchor / head_hidden_dim / residual_split (the last
+        # one already uses 3 separate Linears by its own design).
+        self.position_specific_head: bool = bool(position_specific_head)
         if self.use_text_anchor:
-            # learnable prototypes [3, 4, chunk] (per-position, 4 classes A/C/G/T)
             self.proto = nn.Parameter(
                 torch.randn(3, 4, self.chunk) / math.sqrt(self.chunk)
+            )
+            self.fc = None
+        elif self.residual_split:
+            # v69b: 3 separate Linears — positions 0,1 = semantic, position 2 = residual
+            self.semantic_fc_pos0 = nn.Linear(self.chunk, 4)
+            self.semantic_fc_pos1 = nn.Linear(self.chunk, 4)
+            self.residual_fc      = nn.Linear(self.chunk, 4)
+            self.fc = None
+        elif self.position_specific_head:
+            # v69a: 3 independent Linear(chunk, 4) layers
+            self.fc_pos = nn.ModuleList(
+                [nn.Linear(self.chunk, 4) for _ in range(3)]
             )
             self.fc = None
         elif self.head_hidden_dim > 0:
@@ -539,33 +571,61 @@ class CodonHead(nn.Module):
         assert D == self.d_model, (
             f"[CodonHead] expected last-dim {self.d_model}, got {D}"
         )
-        # v62 residual injection
-        if self.use_residual and residual is not None and gamma > 0:
-            assert residual.shape == x.shape, (
-                f"[CodonHead] residual shape {tuple(residual.shape)} != "
-                f"x shape {tuple(x.shape)}"
-            )
-            combined = torch.cat([x, gamma * residual], dim=-1)          # [B, 2D]
-            x = self.input_proj(combined)                                 # [B, D]
-        h      = x.view(B, 3, self.chunk)                                # [B, 3, D/3]
-        # v66 text-anchored prototype head: cos-sim between h and proto.
-        if self.use_text_anchor:
-            h_n     = F.normalize(h, dim=-1)                              # [B, 3, chunk]
-            proto_n = F.normalize(self.proto, dim=-1)                     # [3, 4, chunk]
-            logits  = torch.einsum('bpc,pkc->bpk', h_n, proto_n) / self.anchor_temperature
-            # text-anchored auxiliary CE loss
+        # Track mean gate value across batch for logging (v71a)
+        gate_mean = torch.zeros((), device=x.device, dtype=x.dtype)
+        residual_active = (
+            self.use_residual and residual is not None and gamma > 0
+        )
+        # v71a (Exp 5): residual gate. effective_residual = sigmoid(a*||r|| + b) * residual
+        if residual_active and self.residual_gate and self.residual_gate_a is not None:
+            r_norm = residual.norm(dim=-1, keepdim=True).detach()         # [B, 1]
+            gate   = torch.sigmoid(
+                self.residual_gate_a * r_norm.squeeze(-1) + self.residual_gate_b
+            )                                                              # [B]
+            gate_mean = gate.mean().detach()
+            residual = gate.unsqueeze(-1) * residual                       # [B, D]
+        # v69b (Exp 2): residual-split path. Bypasses concat/input_proj.
+        if residual_active and self.residual_split:
+            q_chunks = x.view(B, 3, self.chunk)                            # [B, 3, chunk]
+            r_chunks = (gamma * residual).view(B, 3, self.chunk)
+            l0 = self.semantic_fc_pos0(q_chunks[:, 0, :])                  # [B, 4]
+            l1 = self.semantic_fc_pos1(q_chunks[:, 1, :])                  # [B, 4]
+            l2 = self.residual_fc(r_chunks[:, 2, :])                       # [B, 4]
+            logits = torch.stack([l0, l1, l2], dim=1)                      # [B, 3, 4]
             loss_text_anchor = torch.zeros((), device=x.device, dtype=x.dtype)
-            if text_chunks is not None and self.training:
-                t        = text_chunks.view(B, 3, self.chunk)             # [B, 3, chunk]
-                t_n      = F.normalize(t, dim=-1)
-                text_logits = torch.einsum('bpc,pkc->bpk', t_n, proto_n) / self.anchor_temperature
-                target   = text_logits.argmax(dim=-1).detach()           # [B, 3]
-                loss_text_anchor = F.cross_entropy(
-                    logits.reshape(-1, 4), target.reshape(-1),
-                )
         else:
-            logits = self.fc(h)                                          # [B, 3, 4]
-            loss_text_anchor = torch.zeros((), device=x.device, dtype=x.dtype)
+            # v62 residual injection (legacy concat path; only when split is OFF)
+            if residual_active and not self.residual_split:
+                assert residual.shape == x.shape, (
+                    f"[CodonHead] residual shape {tuple(residual.shape)} != "
+                    f"x shape {tuple(x.shape)}"
+                )
+                combined = torch.cat([x, gamma * residual], dim=-1)      # [B, 2D]
+                x = self.input_proj(combined)                             # [B, D]
+            h = x.view(B, 3, self.chunk)                                  # [B, 3, D/3]
+            # v66 text-anchored prototype head
+            if self.use_text_anchor:
+                h_n     = F.normalize(h, dim=-1)
+                proto_n = F.normalize(self.proto, dim=-1)
+                logits  = torch.einsum('bpc,pkc->bpk', h_n, proto_n) / self.anchor_temperature
+                loss_text_anchor = torch.zeros((), device=x.device, dtype=x.dtype)
+                if text_chunks is not None and self.training:
+                    t        = text_chunks.view(B, 3, self.chunk)
+                    t_n      = F.normalize(t, dim=-1)
+                    text_logits = torch.einsum('bpc,pkc->bpk', t_n, proto_n) / self.anchor_temperature
+                    target   = text_logits.argmax(dim=-1).detach()
+                    loss_text_anchor = F.cross_entropy(
+                        logits.reshape(-1, 4), target.reshape(-1),
+                    )
+            elif self.position_specific_head:
+                # v69a: per-position independent Linear(chunk, 4)
+                logits = torch.stack(
+                    [self.fc_pos[p](h[:, p, :]) for p in range(3)], dim=1
+                )                                                          # [B, 3, 4]
+                loss_text_anchor = torch.zeros((), device=x.device, dtype=x.dtype)
+            else:
+                logits = self.fc(h)                                       # [B, 3, 4]
+                loss_text_anchor = torch.zeros((), device=x.device, dtype=x.dtype)
         cont   = F.softmax(logits, dim=-1)                               # [B, 3, 4]
         idx    = cont.argmax(dim=-1)                                     # [B, 3]
         hard   = F.one_hot(idx, num_classes=4).to(cont.dtype)            # [B, 3, 4]
@@ -592,6 +652,7 @@ class CodonHead(nn.Module):
             "dna_hash_code_hard": hard,     # always deterministic one-hot
             "dna_hash_code_st":   st,       # always the gradient-bearing path
             "loss_text_anchor":   loss_text_anchor,  # scalar (v66 aux CE)
+            "residual_gate_mean": gate_mean,         # scalar (v71a logging)
         }
 
 
@@ -683,6 +744,58 @@ class PixelDecoder(nn.Module):
         x = self.in_proj(codewords.reshape(B, -1))
         x = x.view(B, 256, 7, 7)
         return self.deconv(x)
+
+
+# =====================================================================
+# v70a / v72a: small MLP heads from the flattened 18*4=72-dim DNA hash
+# =====================================================================
+
+class HashReconDecoder(nn.Module):
+    """v70a: maps DNA hash (flattened 72-d) back to a SigLIP2 embedding.
+
+    Two-layer MLP. Output is cosine-aligned with a frozen target
+    (visual_global / text_global). Decoder is unused at inference.
+    """
+
+    def __init__(self, in_dim: int = 72, hidden_dim: int = 256, out_dim: int = 768) -> None:
+        super().__init__()
+        self.fc = nn.Sequential(
+            nn.Linear(in_dim, hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, out_dim),
+        )
+
+    def forward(self, hash_flat: torch.Tensor) -> torch.Tensor:
+        # hash_flat: [B, 72]
+        return self.fc(hash_flat)                                          # [B, out_dim]
+
+
+class DualHashProj(nn.Module):
+    """v72a: dual projection heads from flattened DNA hash.
+
+    `semantic_proj` -> cosine alignment with text / visual_global.
+    `instance_proj` -> NtXent across paired-aug views.
+    Both are MLPs; inference unchanged (heads not used at retrieval).
+    """
+
+    def __init__(self, in_dim: int = 72, hidden_dim: int = 256, out_dim: int = 768) -> None:
+        super().__init__()
+        self.semantic_proj = nn.Sequential(
+            nn.Linear(in_dim, hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, out_dim),
+        )
+        self.instance_proj = nn.Sequential(
+            nn.Linear(in_dim, hidden_dim),
+            nn.GELU(),
+            nn.Linear(hidden_dim, out_dim),
+        )
+
+    def forward(self, hash_flat: torch.Tensor) -> Dict[str, torch.Tensor]:
+        return {
+            "semantic": self.semantic_proj(hash_flat),
+            "instance": self.instance_proj(hash_flat),
+        }
 
 
 # =====================================================================
@@ -961,6 +1074,10 @@ class SigLIP2SemanticOTModel(nn.Module):
         # v66 text-anchored prototype head (mutually exclusive with codon_head_hidden_dim)
         self.codon_text_anchor: bool = bool(getattr(args, "codon_text_anchor", False))
         self.codon_anchor_temperature: float = float(getattr(args, "codon_anchor_temperature", 0.1))
+        # v69a / v69b / v71a (Exp 1, 2, 5)
+        self.codon_position_specific_head: bool = bool(getattr(args, "codon_position_specific_head", False))
+        self.codon_residual_split: bool        = bool(getattr(args, "codon_residual_split", False))
+        self.codon_residual_gate: bool         = bool(getattr(args, "codon_residual_gate", False))
         self.codon_heads = nn.ModuleList(
             [
                 CodonHead(
@@ -971,10 +1088,37 @@ class SigLIP2SemanticOTModel(nn.Module):
                     head_hidden_dim=self.codon_head_hidden_dim,
                     use_text_anchor=self.codon_text_anchor,
                     anchor_temperature=self.codon_anchor_temperature,
+                    position_specific_head=self.codon_position_specific_head,
+                    residual_split=self.codon_residual_split,
+                    residual_gate=self.codon_residual_gate,
                 )
                 for _ in range(self.num_codebooks)
             ]
         )
+
+        # ---------- v70a (Exp 3): hash reconstruction decoder ------------
+        self.use_hash_recon: bool = bool(getattr(args, "use_hash_recon", False))
+        self.hash_recon_target: str = str(getattr(args, "hash_recon_target", "siglip_visual"))
+        if self.use_hash_recon:
+            self.hash_recon_decoder = HashReconDecoder(
+                in_dim=NUM_SEMANTIC_PARTS * 3 * 4,                # 6 * 3 * 4 = 72
+                hidden_dim=int(getattr(args, "hash_recon_hidden", 256)),
+                out_dim=self.proj_dim,
+            )
+        else:
+            self.hash_recon_decoder = None
+
+        # ---------- v72a (Exp 6): dual hash projection heads --------------
+        self.use_dual_hash_proj: bool   = bool(getattr(args, "use_dual_hash_proj", False))
+        self.dual_hash_proj_target: str = str(getattr(args, "dual_hash_proj_target", "siglip_visual"))
+        if self.use_dual_hash_proj:
+            self.dual_hash_proj = DualHashProj(
+                in_dim=NUM_SEMANTIC_PARTS * 3 * 4,
+                hidden_dim=int(getattr(args, "dual_hash_proj_hidden", 256)),
+                out_dim=self.proj_dim,
+            )
+        else:
+            self.dual_hash_proj = None
 
         # ---------- v32: train-only text injection into quantizer ------
         # When `text_inject_train_only=add`, the routed visual tokens are
@@ -1385,6 +1529,9 @@ class SigLIP2SemanticOTModel(nn.Module):
             "dna_hash_code_st":                   None,
             "base_indices":                       None,
             "loss_text_anchor":                   None,
+            "hash_recon_pred":                    None,
+            "dual_hash_semantic":                 None,
+            "dual_hash_instance":                 None,
             "routing_mode":                       routing_mode,
         }
 
@@ -1641,4 +1788,20 @@ class SigLIP2SemanticOTModel(nn.Module):
         else:
             out["reconstruction"]        = None
             out["reconstruction_target"] = None
+        # 12) v70a (Exp 3): hash reconstruction decoder (uses ST hash so grad
+        #     flows back to the codon heads / quantizer)
+        if self.hash_recon_decoder is not None:
+            hash_flat = dna_hash_code_st.reshape(B, -1)          # [B, 72]
+            out["hash_recon_pred"] = self.hash_recon_decoder(hash_flat)  # [B, D_proj]
+        else:
+            out["hash_recon_pred"] = None
+        # 13) v72a (Exp 6): dual projection heads from flattened hash
+        if self.dual_hash_proj is not None:
+            hash_flat = dna_hash_code_st.reshape(B, -1)
+            dh = self.dual_hash_proj(hash_flat)
+            out["dual_hash_semantic"] = dh["semantic"]            # [B, D_proj]
+            out["dual_hash_instance"] = dh["instance"]            # [B, D_proj]
+        else:
+            out["dual_hash_semantic"] = None
+            out["dual_hash_instance"] = None
         return out

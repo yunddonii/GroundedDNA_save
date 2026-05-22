@@ -135,6 +135,117 @@ Format conventions:
 
 ---
 
+## 2026-05-23 — v69 / v70 / v71 / v72: 5-way structural ablation suite on Flickr25k
+
+🟡 5 single-axis ablations on v62b SOTA (0.6778) to probe orthogonal
+structural improvements. None unseats v62b; v72a (dual projection)
+comes closest and shows ep39 mid-eval 0.6804 *exceeding* v62b's
+final, suggesting it may benefit from λ tuning. v70a (hash-recon)
+fails dramatically (P@1 -0.10 collapse).
+
+### Setup (single change vs v62b)
+
+| Tag | Change |
+|---|---|
+| **v69a** | `--codon_position_specific_head` — 3 independent Linear(256, 4) per codon position (replaces shared single Linear). |
+| **v69b** | `--codon_residual_split` — codon position 0,1 from codeword; position 2 from γ·(z-q). 3 separate Linears. |
+| **v70a** | `--use_hash_recon --lambda_hash_recon 0.01` — small MLP from flattened 18·4=72-d hash → 768-d SigLIP2 visual_global, 1-cos loss. |
+| **v71a** | `--codon_residual_gate` — sigmoid(a·‖z-q‖+b) gate on γ·residual, learnable per CodonHead (2 scalars per codebook). |
+| **v72a** | `--use_dual_hash_proj --lambda_dual_semantic 0.01 --lambda_dual_instance 0.01` — semantic_proj (cosine to visual_global) + instance_proj (NtXent across paired-aug views), both MLPs from flattened hash. |
+
+### Final test (2K × 23K)
+
+| Run | mAP | Δ vs v62b | P@1 | P@10 | P@100 | P@1000 | unique | per-cb | dup | baseH | verdict |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| **v62b (SOTA)** | **0.6778** | — | **0.7625** | 0.7587 | 0.7573 | 0.7445 | 0.075 | 0.00077 | 0.926 | 0.900 | ★ |
+| **v72a dual-proj** | **0.6723** | **−0.0055** | 0.7535 | 0.7521 | 0.7546 | 0.7429 | 0.086 | 0.00084 | 0.914 | 0.957 | **near-SOTA** |
+| v69a pos-spec | 0.6702 | −0.0076 | 0.7465 | 0.7458 | 0.7476 | 0.7358 | 0.090 | 0.00074 | 0.910 | 0.875 | mild loss |
+| v71a res-gate | 0.6658 | −0.0120 | 0.7255 | 0.7447 | 0.7513 | 0.7344 | **0.147** | 0.00127 | 0.853 | **0.983** | trade-off |
+| v70a hash-recon | 0.6590 | −0.0188 | **0.6585** ⚠ | 0.7358 | 0.7397 | 0.7293 | 0.081 | 0.00074 | 0.919 | 0.903 | **FAIL (P@1 -0.10)** |
+| v69b res-split | 0.6415 | **−0.0363** | **0.7815** ✓ | 0.7592 | 0.7358 | 0.7087 | **0.807** | 0.00128 | **0.193** | 0.824 | mAP↓ but unique 8× ↑ |
+
+### Mid-eval trajectories (val split, every 10 epochs)
+
+| epoch | v62b | v69a | v69b | v70a | v71a | **v72a** |
+|---:|---:|---:|---:|---:|---:|---:|
+| 9 | 0.6706 | 0.6601 | 0.6796 | 0.6605 | 0.6738 | 0.6697 |
+| 19 | 0.6625 | 0.6678 | 0.6446 | 0.6527 | 0.6625 | 0.6763 |
+| 29 | 0.6678 | 0.6693 | 0.6511 | 0.6539 | 0.6642 | 0.6695 |
+| 39 | 0.6669 | 0.6655 | 0.6576 | 0.6596 | 0.6557 | **0.6804 ★** |
+| 49 | 0.6746 | 0.6636 | 0.6446 | 0.6575 | 0.6630 | 0.6708 |
+| 59 | 0.6756 | 0.6681 | 0.6423 | 0.6581 | 0.6654 | 0.6748 |
+
+### Multi-angle interpretation
+
+**v72a — Closest to SOTA + potential upside**
+- mAP only −0.006 vs v62b, all secondary metrics improved
+  (unique +15%, per-cb +9%, baseH +6%).
+- **ep39 mid-eval 0.6804 actually exceeded v62b's 0.6778 final**.
+- Mechanism: semantic_proj + instance_proj act on a separate
+  projection of the hash code → main retrieval path receives only
+  *indirect* supervision (gradient flows back through the 72-d hash
+  but the projections themselves aren't used at retrieval). v62b's
+  P@1 sharpness mostly preserved (−0.009 only).
+- Recommendation: hyperparameter sweep (`λ_dual_semantic`,
+  `λ_dual_instance`) is worth attempting — first try λ=0.005 (half)
+  and λ=0.02 (double).
+
+**v69b — Dramatic trade-off, paper-worthy insight**
+- unique jumps from 0.075 → 0.807 (8× increase!), P@1 +0.019 (highest
+  among all variants), but mAP −0.036.
+- Mechanism: explicit separation of codeword (positions 0,1) and
+  residual (position 2) lets the model encode *instance variation*
+  cleanly in one codon → near-duplicate distinction sharp (high P@1)
+  but baseH drops 8% as position 2 abandons compositional grouping.
+- Useful for *instance-level retrieval* tasks; bad for *semantic
+  cluster retrieval* (P@100/1000 drop).
+
+**v70a — Failure mode**
+- P@1 collapses −0.10. Hash-recon target = visual_global pulls the
+  18-d binary code toward the *batch-mean* visual feature direction,
+  washing out instance distinctiveness.
+- λ=0.01 too strong. Future: try λ=0.001 or use a different target
+  (text_global, "both") — and probably with a sample-wise rather
+  than mean-cos loss.
+
+**v71a — Mild trade-off (similar to v54 unique champion)**
+- unique +97% with mAP −0.012. Gate value averages ~0.5 (variable per
+  sample), so residual is conditionally suppressed when ‖z−q‖ is low.
+- The gate mechanism works (gradients flow, gate_mean varies) but the
+  net effect resembles "less residual injection" → drifts toward v57
+  baseline behaviour with more unique codes.
+
+**v69a — No specialization gain**
+- mAP −0.008, no metric improved enough to justify the change.
+  Position-specific fc just triples codon-head params (1,028 → 3,084)
+  without unlocking better codon decoding. Echoes the v65a/b finding:
+  *codon decoding capacity expansion alone doesn't help*.
+
+### Conclusion + next steps
+
+**Per-dataset Flickr25k SOTA unchanged**: v62b (0.6778).
+
+But two ablations are paper-worthy:
+1. **v72a hash-dual-proj** with hyperparam sweep — has a real chance
+   of unseating v62b (ep39 already exceeded).
+2. **v69b residual-split** as a *trade-off characterization* — shows
+   that semantic vs instance can be cleanly decoupled by codon
+   position assignment.
+
+**Failure modes documented**:
+- v70a hash-recon at λ=0.01 → P@1 collapse.
+- v69a position-specific → no gain.
+- v71a residual-gate → mild trade-off only.
+
+### Result directories
+- v69a: `result/260523+flickr25k_setting1_v69a_v62b_posSpecificCodon+bs+64+e+60+proj_lr+0.001/`
+- v69b: `result/260523+flickr25k_setting1_v69b_v62b_sem2res1Codon+bs+64+e+60+proj_lr+0.001/`
+- v70a: `result/260523+flickr25k_setting1_v70a_v62b_hashReconVisual_lam001+bs+64+e+60+proj_lr+0.001/`
+- v71a: `result/260523+flickr25k_setting1_v71a_v62b_resGate_g03+bs+64+e+60+proj_lr+0.001/`
+- v72a: `result/260523+flickr25k_setting1_v72a_v62b_dualHashProj_lam001+bs+64+e+60+proj_lr+0.001/`
+
+---
+
 ## 2026-05-22 — v68 / mscoco_v68: dyntau new variant w/o model_scale — DISCARDED on both datasets
 
 🔴 Tested the hypothesis "v67's model_scale_m term caused

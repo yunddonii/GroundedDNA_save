@@ -186,6 +186,13 @@ class DNACodonHashLoss(nn.Module):
         # `out["loss_text_anchor"]` per forward (sum across 6 codebooks). 0
         # default keeps the loss off.
         self.lambda_codon_text_anchor = float(getattr(cfg, "lambda_codon_text_anchor", 0.0))
+        # v70a / v72a (Exp 3, 6)
+        self.lambda_hash_recon      = float(getattr(cfg, "lambda_hash_recon",     0.0))
+        self.hash_recon_target_kind = str  (getattr(cfg, "hash_recon_target",     "siglip_visual"))
+        self.lambda_dual_semantic   = float(getattr(cfg, "lambda_dual_semantic",  0.0))
+        self.lambda_dual_instance   = float(getattr(cfg, "lambda_dual_instance",  0.0))
+        self.dual_hash_proj_target_kind = str(getattr(cfg, "dual_hash_proj_target", "siglip_visual"))
+        self.dual_hash_proj_ntxent_tau  = float(getattr(cfg, "dual_hash_proj_ntxent_tau", 0.5))
         # If True, the hashnet logistic uses fractional Jaccard S instead of
         # binary any-shared S. Preserves per-label-combo granularity in the
         # target probability so different powerset combinations get different
@@ -921,6 +928,65 @@ class DNACodonHashLoss(nn.Module):
         if loss_text_anchor is None:
             loss_text_anchor = u.new_zeros(())
 
+        # v70a (Exp 3): hash reconstruction loss
+        # 1 - cos(decoder(hash_st), target.detach())
+        loss_hash_recon = u.new_zeros(())
+        if self.lambda_hash_recon > 0.0:
+            pred = outputs.get("hash_recon_pred")
+            if pred is not None:
+                # build target
+                tgt_v = outputs.get("visual_global_feat")
+                tgt_t = outputs.get("text_global_feat")        # [B, 6, D] or None
+                terms = []
+                if self.hash_recon_target_kind in ("siglip_visual", "both") and tgt_v is not None:
+                    terms.append(
+                        1.0 - F.cosine_similarity(pred, tgt_v.detach(), dim=-1).mean()
+                    )
+                if self.hash_recon_target_kind in ("text_global", "both") and tgt_t is not None:
+                    # use mean of per-slot text features (or just slot 0)
+                    t_pool = tgt_t.mean(dim=1) if tgt_t.dim() == 3 else tgt_t
+                    terms.append(
+                        1.0 - F.cosine_similarity(pred, t_pool.detach(), dim=-1).mean()
+                    )
+                if terms:
+                    loss_hash_recon = sum(terms) / len(terms)
+
+        # v72a (Exp 6): dual projection auxiliary losses
+        # semantic = 1 - cos(semantic_proj, text_global or visual_global.detach())
+        # instance = NtXent on instance_proj between two paired-aug views
+        loss_dual_semantic = u.new_zeros(())
+        loss_dual_instance = u.new_zeros(())
+        if self.lambda_dual_semantic > 0.0:
+            sem_pred = outputs.get("dual_hash_semantic")
+            if sem_pred is not None:
+                if self.dual_hash_proj_target_kind == "siglip_visual":
+                    tgt = outputs.get("visual_global_feat")
+                else:  # text_global
+                    tgt_t = outputs.get("text_global_feat")
+                    tgt = tgt_t.mean(dim=1) if (tgt_t is not None and tgt_t.dim() == 3) else tgt_t
+                if tgt is not None:
+                    loss_dual_semantic = (
+                        1.0 - F.cosine_similarity(sem_pred, tgt.detach(), dim=-1).mean()
+                    )
+        if self.lambda_dual_instance > 0.0 and outputs_view2 is not None:
+            ins1 = outputs.get("dual_hash_instance")
+            ins2 = outputs_view2.get("dual_hash_instance")
+            if ins1 is not None and ins2 is not None:
+                # standard NtXent over batch
+                z1 = F.normalize(ins1, dim=-1)
+                z2 = F.normalize(ins2, dim=-1)
+                z = torch.cat([z1, z2], dim=0)                  # [2B, D]
+                sim = z @ z.t()                                  # [2B, 2B]
+                Nz = z.shape[0]
+                eye_d = torch.eye(Nz, device=z.device, dtype=torch.bool)
+                sim = (sim / float(self.dual_hash_proj_ntxent_tau)).masked_fill(eye_d, -1e9)
+                Bd = z1.shape[0]
+                pos_idx = torch.cat([
+                    torch.arange(Bd, 2 * Bd, device=z.device),
+                    torch.arange(0, Bd,     device=z.device),
+                ])
+                loss_dual_instance = F.cross_entropy(sim, pos_idx)
+
         # ---- total -------------------------------------------------------
         total = (
             self.lambda_hash       * loss_hash
@@ -935,6 +1001,9 @@ class DNACodonHashLoss(nn.Module):
             + self.lambda_ntxent      * loss_ntxent
             + self.lambda_ortho_text  * loss_ortho_text
             + self.lambda_codon_text_anchor * loss_text_anchor
+            + self.lambda_hash_recon      * loss_hash_recon
+            + self.lambda_dual_semantic   * loss_dual_semantic
+            + self.lambda_dual_instance   * loss_dual_instance
         )
 
         return {
@@ -955,4 +1024,7 @@ class DNACodonHashLoss(nn.Module):
             "loss_cb_balance":   bu_components ["loss_cb_balance"],
             "loss_cb_uncorr":    bu_components ["loss_cb_uncorr"],
             "loss_codon_text_anchor": loss_text_anchor,
+            "loss_hash_recon":        loss_hash_recon,
+            "loss_dual_semantic":     loss_dual_semantic,
+            "loss_dual_instance":     loss_dual_instance,
         }

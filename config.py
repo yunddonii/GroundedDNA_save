@@ -399,6 +399,75 @@ class Config():
             dest='lambda_codon_text_anchor', type=float, default=0.1,
             help='Loss weight for the v66 text-anchored CE aux loss '
                  '(applied only when --codon_text_anchor is set).')
+        # v69a (Exp 1): position-specific CodonHead. Replaces the shared
+        # Linear(chunk, 4) with 3 independent Linear(chunk, 4) — one per
+        # codon position. Disabled by default; mutually exclusive with
+        # --codon_text_anchor and --codon_head_hidden_dim (legacy MLP path).
+        siglip2_arg.add_argument('--codon_position_specific_head',
+            dest='codon_position_specific_head', action='store_true', default=False,
+            help='v69a: per-codon-position separate Linear(chunk, 4). 3 fc '
+                 'layers replace the shared one. Allows codon positions 0/1/2 '
+                 'to specialize.')
+        # v69b (Exp 2): residual-split CodonHead. Position 0,1 use the
+        # codeword chunk; position 2 uses gamma * (z - q) chunk. Requires
+        # --codon_residual_gamma > 0. Bypasses the existing concat -> input_proj
+        # path; uses 3 separate Linears (2 semantic + 1 residual).
+        siglip2_arg.add_argument('--codon_residual_split',
+            dest='codon_residual_split', action='store_true', default=False,
+            help='v69b: split codon position 0,1 -> codeword path, '
+                 'position 2 -> gamma * residual path. 3 separate Linears. '
+                 'Falls back to legacy when residual_gamma=0.')
+        # v71a (Exp 5): sample-adaptive residual gate. Multiplies gamma by
+        # sigmoid(a_m * ||residual||_2 + b_m) per codebook before injecting
+        # into the codon head. a_m, b_m are learnable scalars per CodonHead.
+        siglip2_arg.add_argument('--codon_residual_gate',
+            dest='codon_residual_gate', action='store_true', default=False,
+            help='v71a: dataset-/sample-adaptive residual gate '
+                 'sigmoid(a*||z-q|| + b) applied to gamma*residual. '
+                 'Only used when --codon_residual_gamma > 0.')
+        # v70a (Exp 3): final DNA hash reconstruction. Small decoder maps
+        # the flattened hash code [B, 72] back to the SigLIP2 visual_global
+        # or text_global embedding via cosine loss.
+        siglip2_arg.add_argument('--use_hash_recon',
+            dest='use_hash_recon', action='store_true', default=False,
+            help='v70a: add a small MLP decoder mapping the 18*4=72-dim '
+                 'flattened DNA hash to a SigLIP2 embedding target. '
+                 'Inference unchanged (decoder unused at retrieval).')
+        siglip2_arg.add_argument('--hash_recon_target',
+            dest='hash_recon_target', type=str, default='siglip_visual',
+            choices=['siglip_visual', 'text_global', 'both'],
+            help='v70a target embedding for the hash-recon decoder.')
+        siglip2_arg.add_argument('--hash_recon_hidden',
+            dest='hash_recon_hidden', type=int, default=256,
+            help='v70a hidden dim for the hash-recon decoder MLP.')
+        siglip2_arg.add_argument('--lambda_hash_recon',
+            dest='lambda_hash_recon', type=float, default=0.0,
+            help='v70a weight on the 1-cos(decoder(hash), target.detach()) '
+                 'reconstruction loss. 0 = off.')
+        # v72a (Exp 6): dual projection auxiliary heads. Two MLPs from the
+        # flattened hash code [B, 72] -> D_proj for separate semantic
+        # alignment and instance discrimination losses. Inference unchanged.
+        siglip2_arg.add_argument('--use_dual_hash_proj',
+            dest='use_dual_hash_proj', action='store_true', default=False,
+            help='v72a: add semantic_proj + instance_proj heads from the '
+                 'flattened DNA hash. semantic aligns to text/visual global; '
+                 'instance does NtXent across paired-aug views.')
+        siglip2_arg.add_argument('--dual_hash_proj_hidden',
+            dest='dual_hash_proj_hidden', type=int, default=256,
+            help='v72a hidden dim for both projection heads.')
+        siglip2_arg.add_argument('--dual_hash_proj_target',
+            dest='dual_hash_proj_target', type=str, default='siglip_visual',
+            choices=['siglip_visual', 'text_global'],
+            help='v72a semantic-side target embedding.')
+        siglip2_arg.add_argument('--lambda_dual_semantic',
+            dest='lambda_dual_semantic', type=float, default=0.0,
+            help='v72a weight on semantic 1-cos loss.')
+        siglip2_arg.add_argument('--lambda_dual_instance',
+            dest='lambda_dual_instance', type=float, default=0.0,
+            help='v72a weight on instance NtXent loss between two views.')
+        siglip2_arg.add_argument('--dual_hash_proj_ntxent_tau',
+            dest='dual_hash_proj_ntxent_tau', type=float, default=0.5,
+            help='v72a temperature for the instance NtXent on projection.')
         siglip2_arg.add_argument('--gumbel_tau_init',  dest='gumbel_tau_init',
             type=float, default=2.0)
         siglip2_arg.add_argument('--gumbel_tau_final', dest='gumbel_tau_final',
