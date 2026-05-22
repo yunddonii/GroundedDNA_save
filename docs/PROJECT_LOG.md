@@ -137,6 +137,118 @@ Format conventions:
 
 ---
 
+## 2026-05-23 — v73a / v73b / mscoco_v73c: global DNA NtXent auxiliary — DISCARDED (P@1 collapse)
+
+🔴 Added a weak global NtXent on the full 18-codon DNA code on top of
+per-codebook NtXent (Exp 7). Hypothesis: global coherence on the final
+retrieval-time code would complement compositional independence and
+sharpen top-rank retrieval. Result: **all three runs fail**, with
+mscoco_v73c suffering a catastrophic P@1 collapse of -0.20.
+
+### Setup (single addition vs respective baselines)
+
+| Tag | Dataset | Baseline | λ_global | Tag flag |
+|---|---|---|---:|---|
+| **v73a** | Flickr25k | v62b | 0.05 | `--lambda_global_dna_ntxent 0.05` |
+| **v73b** | Flickr25k | v62b | 0.10 | `--lambda_global_dna_ntxent 0.10` |
+| **mscoco_v73c** | MSCOCO | mscoco_v69a (NEW SOTA) | 0.05 | `--codon_position_specific_head --lambda_global_dna_ntxent 0.05` |
+
+Code change: in `_loss_ntxent_dna_per_codebook`'s caller, after
+computing `loss_ntxent` (per-codebook), compute `loss_global =
+_loss_ntxent_dna(...)` with STATIC ntxent_temperature (no dynamic-tau)
+on the full [B, 18, 4] code, then `loss_ntxent += lambda_global *
+loss_global`. λ=0 (default) bit-exact preserves legacy behaviour.
+
+### Final test (Flickr25k 2K × 23K, MSCOCO 5K × 107K)
+
+| Run | mAP | Δ vs base | P@1 | Δ P@1 | P@10 | unique | per-cb | baseH | verdict |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| **v62b (Flickr SOTA)** | **0.6778** | — | **0.7625** | — | 0.7587 | 0.075 | 0.00077 | 0.900 | ★ |
+| v73a (λ=0.05) | 0.6684 | −0.0094 | 0.7015 | **−0.0610** | 0.7294 | 0.081 | 0.00085 | **0.947** | **fail** (P@1 ↓ 6%) |
+| v73b (λ=0.10) | 0.6702 | −0.0076 | 0.7300 | −0.0325 | 0.7559 | 0.088 | 0.00078 | 0.947 | mild fail |
+| **mscoco_v69a (MSCOCO SOTA)** | **0.4795** | — | **0.5830** | — | 0.5685 | 0.016 | 0.00010 | 0.632 | ★ |
+| **mscoco_v73c (λ=0.05)** | **0.4326** | **−0.0469** ⚠ | **0.3828** | **−0.2002** ⚠⚠ | 0.4919 | 0.016 | 0.00009 | 0.653 | **catastrophic fail** |
+
+### Mid-eval trajectories
+
+| epoch | v62b | v73a | v73b | mscoco_v69a | mscoco_v73c |
+|---:|---:|---:|---:|---:|---:|
+| 9 | 0.6706 | 0.6608 | 0.6644 | **0.4948** ★ | 0.4368 |
+| 19 | 0.6625 | 0.6570 | 0.6611 | 0.4887 | 0.4356 |
+| 29 | 0.6678 | 0.6620 | 0.6614 | 0.4938 | 0.4402 |
+| 39 | 0.6669 | 0.6636 | 0.6649 | 0.4902 | 0.4426 |
+| 49 | **0.6746** | 0.6660 | 0.6631 | 0.4895 | 0.4391 |
+| 59 | 0.6756 | 0.6689 | 0.6683 | 0.4849 | 0.4383 |
+
+### Multi-angle interpretation
+
+**mscoco_v73c — catastrophic collapse on the new MSCOCO SOTA**:
+- mAP −0.047, P@1 −0.20 — the largest single-experiment regression
+  observed in this project after v66 (text-anchored prototype collapse).
+- Mechanism: v69a's gain comes from *position-specific decoding* —
+  each codon position learns a *different* 4-class projection of the
+  codeword. The global NtXent loss treats the whole [B, 18, 4] code
+  as one contrastive unit, which **forces all 18 positions to be
+  jointly distinctive in 72-d space**. This:
+  - Pulls position-specific learners back toward a shared subspace
+    (the *exact* axis v69a was decoupling).
+  - Destroys top-1 sharpness (P@1 −0.20) because what made v69a sharp
+    was different positions encoding different 80-class axes; global
+    NtXent collapses these.
+- *Generalisation*: **adding global supervision on top of position-
+  specific structure breaks the specialization**. Position-specific
+  CodonHead and global NtXent are *mutually exclusive* design axes.
+
+**v73a/v73b — mild loss with surprising λ-direction**:
+- v73b (λ=0.10) `>` v73a (λ=0.05) in mAP (0.6702 vs 0.6684).
+- Counter-intuitive: increasing λ_global should weaken local signal
+  more, but here λ=0.10 *less hurtful* than λ=0.05.
+- Hypothesis: at low λ the global signal is noisy *but still steers
+  the loss surface*; at higher λ the global term dominates enough to
+  become a coherent regularizer. Suggests no sweet spot below v62b.
+- P@1 axis hit on both (−0.06, −0.03). Same as mscoco_v73c failure
+  mechanism but milder because v62b doesn't have position-specific
+  decoders to break.
+
+### Cross-dataset confirmation
+
+| Change | Flickr25k effect | MSCOCO effect |
+|---|---|---|
+| `lambda_global_dna_ntxent` alone | mild fail (mAP −0.008, P@1 −0.03 to −0.06) | catastrophic on v69a-baseline (P@1 −0.20) |
+
+Global NtXent is **incompatible with the per-codebook compositional
+training paradigm** at any λ tested. Adding global supervision on top
+of a model already trained for local independence (per-codebook
+NtXent) pulls in opposite directions; the additional gradient
+explicitly contradicts the existing one's *separation* objective.
+
+### Conclusion
+
+**Verdict by user criteria**:
+- v62b/v69a 대비 mAP 또는 P@1 개선 → all fail
+- unique/per-cb-unique/entropy 1개 이상 개선 → marginal (baseH +5% on
+  Flickr only)
+- P@1 크게 하락 X → fail on all three (−3% / −6% / −20%)
+
+**v73 family discarded.**
+
+### Code retained (default-off)
+- `config.py`: `--lambda_global_dna_ntxent` (default 0.0)
+- `loss_siglip2.py`: when ntxent_mode=per_codebook AND λ>0, adds
+  `λ_global · _loss_ntxent_dna(u_st_v1, u_st_v2, base_T)` to
+  `loss_ntxent`. λ=0 = bit-exact legacy.
+
+### Per-dataset SOTA pairs unchanged
+- **Flickr25k**: v62b (0.6778)
+- **MSCOCO**: mscoco_v69a (0.4795)
+
+### Result directories
+- v73a: `result/260523+flickr25k_setting1_v73a_v62b_localGlobalNtXent_lam005+bs+64+e+60+proj_lr+0.001/`
+- v73b: `result/260523+flickr25k_setting1_v73b_v62b_localGlobalNtXent_lam01+bs+64+e+60+proj_lr+0.001/`
+- mscoco_v73c: `result/260523+mscoco_setting1_mscoco_v73c_v69a_localGlobalNtXent_lam005+bs+64+e+60+proj_lr+0.001/`
+
+---
+
 ## 2026-05-23 — MSCOCO 5-way ablation: mscoco_v69a (position-specific CodonHead) becomes NEW MSCOCO SOTA (mAP 0.4795)
 
 🟢 ★ Five single-axis structural changes on v63b SOTA (mAP 0.4563)
