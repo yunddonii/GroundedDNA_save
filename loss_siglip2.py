@@ -524,14 +524,19 @@ class DNACodonHashLoss(nn.Module):
             # v60: skip dynamic-tau on m=0 if requested
             use_dyn_this_m = use_dyn and not (m == 0 and skip_global_dyn)
             if use_dyn_this_m and variant == "neg_only_norm_model":
-                # v67 new variant ---------------------------------------------
+                # v68 (model_scale removed) -----------------------------------
                 # (1) positive pair uses static base_tau (no weakening)
-                # (2) negative pair uses base_tau * model_scale_m * semantic_scale_ij
+                # (2) negative pair uses base_tau * semantic_scale_ij ONLY
                 #   - semantic_scale_ij = clamp(1 + alpha * tanh((cos_t - mu) / std), s_min, s_max)
-                #     where mu, std are computed over OFF-DIAG entries of cos_t
-                #   - model_scale_m  = clamp(1 + beta * (A_m - A0), r_min, r_max)
-                #     A_m = mean_i [(u1_i^m * u2_i^m).sum(-1).mean(-1)] (positive agreement)
+                # The earlier MACL-style model_scale term (depending on A_m =
+                # positive codon agreement) is intentionally removed: the codon
+                # output `u_st` is the same tensor whose loss we are computing,
+                # so coupling tau to A_m closes a loop between similarity and
+                # temperature that is hard to diagnose. v68 isolates the pure
+                # text-affinity effect on the negative-pair temperature.
                 # All tau-modulating quantities are detached.
+                # Config flags model_beta / model_a0 / model_scale_(min,max)
+                # are accepted for backward-compat but unused in this branch.
                 if m == 0 and global_use_local_mean and text_part_raw.shape[1] >= 2:
                     t_m = text_part_raw[:, 1:, :].mean(dim=1)
                 else:
@@ -548,17 +553,8 @@ class DNACodonHashLoss(nn.Module):
                     min=float(semantic_scale_min),
                     max=float(semantic_scale_max),
                 )                                                  # [2B, 2B]
-                # MACL-style per-codebook model scale
-                # one-hot agreement averaged over 3 codon positions, then over batch
-                with torch.no_grad():
-                    pos_agree = (u1[:, m] * u2[:, m]).sum(dim=-1).mean(dim=-1)  # [B]
-                    A_m = pos_agree.mean().detach()                              # scalar
-                    model_scale = (1.0 + float(model_beta) * (A_m - float(model_a0))).clamp(
-                        min=float(model_scale_min),
-                        max=float(model_scale_max),
-                    )
-                # negative-pair tau matrix
-                T_neg = (T * model_scale * semantic_scale).clamp(min=tau_floor)  # [2B, 2B]
+                # negative-pair tau matrix (semantic-only)
+                T_neg = (T * semantic_scale).clamp(min=tau_floor) # [2B, 2B]
                 # positive pair uses static base T; negative pair uses T_neg
                 T_matrix = torch.where(pos_mask, T_neg.new_full((), T), T_neg)
                 T_matrix = T_matrix.clamp(min=tau_floor)

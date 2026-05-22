@@ -135,6 +135,122 @@ Format conventions:
 
 ---
 
+## 2026-05-22 — v68 / mscoco_v68: dyntau new variant w/o model_scale — DISCARDED on both datasets
+
+🔴 Tested the hypothesis "v67's model_scale_m term caused
+self-referential coupling and hurt training; removing it should
+recover SOTA." **Hypothesis falsified.** Removing model_scale further
+hurts mAP on both Flickr25k and MSCOCO. The batch-normalized
+semantic_scale alone is unstable; model_scale was acting as a useful
+brake regularizer, not as noise.
+
+### Setup (single change vs v67)
+
+Modified `_loss_ntxent_dna_per_codebook` `neg_only_norm_model` branch
+in place to drop `A_m` and `model_scale_m`. Negative-pair τ becomes:
+```
+τ_neg_ij = base_τ · semantic_scale_ij           (was base · model_scale · semantic_scale)
+semantic_scale_ij = clamp(1 + α·tanh((cos_t_ij − μ_m)/σ_m), 0.7, 1.3)
+```
+Positive-pair τ remains `base_τ` (v67 modification 1 retained).
+Config flags `--ntxent_dynamic_tau_model_beta/a0/scale_(min,max)` are
+kept for backward-compat but no longer affect the loss.
+
+| Tag | Dataset | Baseline | K | residual γ |
+|---|---|---|---:|---:|
+| **v68** | Flickr25k | v62b | 64 | 0.3 |
+| **mscoco_v68** | MSCOCO | v63b | 128 | 0 |
+
+### Mid-eval trajectory — Flickr25k
+
+| epoch | v62b | v67 | **v68** |
+|---:|---:|---:|---:|
+| 9 | 0.6706 | 0.6586 | **0.6703** ★ (ep9 dip resolved) |
+| 19 | 0.6625 | 0.6690 | 0.6611 |
+| 29 | 0.6678 | 0.6689 | 0.6641 |
+| 39 | 0.6669 | 0.6621 | 0.6618 |
+| 49 | **0.6746** | 0.6664 | 0.6604 |
+| 59 | 0.6756 | 0.6684 | 0.6609 |
+| **final test** | **0.6778** | 0.6674 | **0.6603** |
+
+### Mid-eval trajectory — MSCOCO
+
+| epoch | v63b | mscoco_v67 | **mscoco_v68** |
+|---:|---:|---:|---:|
+| 9 | 0.4572 | 0.4451 | 0.4351 |
+| 19 | 0.4601 | 0.4504 | 0.4384 |
+| 29 | 0.4620 | 0.4541 | 0.4409 |
+| 39 | **0.4645** | 0.4523 | 0.4408 |
+| 49 | 0.4605 | 0.4581 | 0.4385 |
+| 59 | 0.4602 | 0.4575 | 0.4391 |
+| **final test** | **0.4563** | 0.4529 | **0.4346** |
+
+### Final test metrics (full)
+
+| | Flickr25k v68 | vs v62b | vs v67 | MSCOCO v68 | vs v63b | vs v67 |
+|---|---:|---:|---:|---:|---:|---:|
+| mAP | 0.6603 | **−0.0175** | −0.0071 | 0.4346 | **−0.0217** | −0.0183 |
+| P@1 | 0.7480 | −0.0145 | **+0.0215** | 0.5320 | −0.0286 | **+0.0140** |
+| P@10 | 0.7471 | −0.0116 | −0.0141 | 0.5214 | −0.0114 | +0.0223 |
+| unique | 0.0940 | +25% | −35% | 0.0533 | −83% | +132% |
+| per_cb_unique | 0.00081 | +5% | −34% | 0.00018 | −77% | +58% |
+| base_norm_entropy | 0.932 | +3.6% | −1.2% | 0.920 | +39% | +23% |
+
+### Key findings
+
+1. **Removing model_scale fixes ep9 dip on Flickr25k** (v68 ep9 = 0.6703
+   matches v62b's 0.6706) but trajectory drifts down through ep59.
+   model_scale was acting as a *brake* against semantic_scale's
+   batch-relative drift in later epochs.
+2. **P@1 partially recovers** on both datasets (Flickr: +0.022 vs v67;
+   MSCOCO: +0.014 vs v67). Suggests model_scale was actively
+   *hurting* top-rank sharpness — but the gain doesn't compensate
+   the P@10/P@100/P@1000 losses, so net mAP is worse.
+3. **base_normalized_entropy peaks on v68** (Flickr 0.932, MSCOCO 0.920).
+   Codebook utilization is more even than baseline, but unique-code
+   ratio doesn't follow proportionally — codewords are evenly used
+   but many images still map to the same codeword.
+4. **MSCOCO mscoco_v68 still collapses** (unique 0.053 vs v63b 0.315,
+   −83%). Less severe than mscoco_v67's −93%, but still much worse
+   than baseline. Removing model_scale only partially rescued the
+   collapse.
+
+### Conclusion — variant fundamentally flawed for these datasets
+
+The batch-normalized `semantic_scale_ij = 1 + α·tanh((cos − μ)/σ)`
+is the **root cause**, not the model_scale wrapper. Both v67 (with)
+and v68 (without) underperform baselines. The variant introduces a
+batch-dependent τ modulation whose statistics (μ, σ) shift per batch,
+creating unstable contrastive geometry. model_scale was masking this
+by saturating to its upper clamp once `A_m > A0`, providing a
+training-progress-dependent damping; without it the instability is
+fully exposed.
+
+**Verdict**: neither v67 (full) nor v68 (semantic-only) is viable.
+Per-dataset SOTA pairs unchanged: **Flickr25k = v62b (0.6778),
+MSCOCO = v63b (0.4563)**.
+
+### Possible recovery (not launched)
+- Replace **batch-relative** μ, σ with **running EMA** across batches
+  (stable statistics) — would fix the per-batch noise issue.
+- Or use **fixed text-cluster targets** (k-means on text features at
+  start of training) — variant becomes supervised in a stable way.
+- Or revert to legacy `text_cos` (v62b/v63b) and try the orthogonal
+  axes: text-reconstruction head, MSCOCO K sweep.
+
+### Code state
+`loss_siglip2.py` `neg_only_norm_model` branch now reflects v68
+behaviour (no `model_scale_m`). Config flags `model_beta/a0/scale_*`
+retained but unused. `text_cos` variant unchanged (default for v62b/v63b
+reproducibility). Reproducing v67 exactly would require checking out
+commit f99977d.
+
+### Result directories
+- v68 Flickr25k: `result/260522+flickr25k_setting1_v68_v62b_dyntau_semOnly+bs+64+e+60+proj_lr+0.001/`
+- mscoco_v68: `result/260522+mscoco_setting1_mscoco_v68_v63b_dyntau_semOnly+bs+64+e+60+proj_lr+0.001/`
+
+---
+
 ## 2026-05-22 — mscoco_v67: dyntau new variant on MSCOCO — DISCARDED (code collapse)
 
 🔴 Same `--ntxent_dynamic_tau_variant neg_only_norm_model` change ported
