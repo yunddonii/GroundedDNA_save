@@ -247,6 +247,8 @@ class DNACodonHashLoss(nn.Module):
         self.ntxent_dynamic_tau_model_scale_max = float(getattr(cfg, "ntxent_dynamic_tau_model_scale_max", 1.25))
         self.ntxent_dynamic_tau_semantic_scale_min = float(getattr(cfg, "ntxent_dynamic_tau_semantic_scale_min", 0.7))
         self.ntxent_dynamic_tau_semantic_scale_max = float(getattr(cfg, "ntxent_dynamic_tau_semantic_scale_max", 1.3))
+        # v73 (Exp 7): global DNA NtXent auxiliary loss alongside per-codebook
+        self.lambda_global_dna_ntxent = float(getattr(cfg, "lambda_global_dna_ntxent", 0.0))
         # v44 (B1): cross-slot text orthogonality reg on text_part_tokens.
         self.lambda_ortho_text        = float(getattr(cfg, "lambda_ortho_text",        0.0))
         self.lambda_vq         = float(getattr(cfg, "lambda_vq",        0.25))
@@ -874,6 +876,14 @@ class DNACodonHashLoss(nn.Module):
                     semantic_scale_min=self.ntxent_dynamic_tau_semantic_scale_min,
                     semantic_scale_max=self.ntxent_dynamic_tau_semantic_scale_max,
                 )
+                # v73 (Exp 7): add weak global NtXent on the full 18-codon
+                # code with STATIC ntxent_temperature (no dynamic tau).
+                # Re-uses _loss_ntxent_dna so the inner geometry is identical.
+                if self.lambda_global_dna_ntxent > 0.0:
+                    loss_global = self._loss_ntxent_dna(
+                        u_st_v1, u_st_v2, temperature=self.ntxent_temperature,
+                    )
+                    loss_ntxent = loss_ntxent + self.lambda_global_dna_ntxent * loss_global
             else:
                 loss_ntxent = self._loss_ntxent_dna(
                     u_st_v1, u_st_v2, temperature=self.ntxent_temperature,

@@ -47,15 +47,17 @@ Format conventions:
 - **Prior unsupervised Flickr25k SOTA (PEAK)**: **v57** (= v49 with
   `--lambda_wasserstein 0.02 → 0.05`) -- peak mAP 0.6742 (ep9),
   final test mAP 0.6683. Now superseded by v62b.
-- **MSCOCO unsupervised SOTA (ours, generalization check)**: **v63b**
-  (= v57 setup with `--codebook_size 64 → 128`) -- mAP **0.4563 test**
-  on MSCOCO setting1 (107K db). v57's recipe generalizes: only K
-  needed rescaling for the larger train set (10K vs Flickr25k 5K).
-  v63a (K=64 fixed) underperforms at 0.4412.
-  → ⚠ v62b's residual head does NOT generalize to MSCOCO (mscoco_v62b
-  regressed to 0.4378, −0.0185 vs v63b). Per-dataset SOTA pairs
-  remain: **Flickr25k = v62b (0.6778)**, **MSCOCO = v63b (0.4563)**.
-  See 2026-05-21 v64+v65 entry.
+- **MSCOCO unsupervised SOTA (ours, NEW 2026-05-23)**: **mscoco_v69a**
+  (= v63b setup + `--codon_position_specific_head`, 3 independent
+  Linear(chunk, 4) per codon position) -- **mAP 0.4795** test, P@1
+  **0.5830** (vs v63b 0.5606, +0.022). The same change is a mild
+  loss on Flickr25k (v69a 0.6702 vs v62b 0.6778, −0.008) —
+  position-specialization helps MSCOCO's 80-class fine-grained
+  retrieval but not Flickr25k's 24-class semantic grouping.
+  → Per-dataset SOTA pairs: **Flickr25k = v62b (0.6778)**,
+  **MSCOCO = mscoco_v69a (0.4795)**. See 2026-05-23 v69-v72 entries.
+- **Previous MSCOCO SOTA**: v63b (mAP 0.4563). v62b's residual head
+  does NOT generalize to MSCOCO (mscoco_v62b 0.4378, −0.0185).
 - **Previous text-on SOTA by peak**: v49 -- 0.6705 peak / 0.6644 final.
 - **Best by FINAL-checkpoint mAP (pre-v57)**: v52 (= v49 with
   `--gumbel_tau_final 0.3 → 0.1`) -- 0.6691 final. NOT superseded by
@@ -132,6 +134,133 @@ Format conventions:
 ---
 
 ---
+
+---
+
+## 2026-05-23 — MSCOCO 5-way ablation: mscoco_v69a (position-specific CodonHead) becomes NEW MSCOCO SOTA (mAP 0.4795)
+
+🟢 ★ Five single-axis structural changes on v63b SOTA (mAP 0.4563)
+ported to MSCOCO. **mscoco_v69a (position-specific CodonHead) is the
+NEW MSCOCO SOTA** at mAP 0.4795 (+0.0232 vs v63b). The same change
+is a mild loss on Flickr25k (v69a 0.6702 vs v62b 0.6778, −0.008) —
+position-specialization is **dataset-specific in opposite directions**.
+
+### Setup (single change vs v63b)
+
+All experiments use v63b setup (K=128, no residual head). Single
+change per experiment:
+
+| Tag | Change |
+|---|---|
+| **mscoco_v69a** | `--codon_position_specific_head` |
+| mscoco_v69b | `--codon_residual_gamma 0.1 --codon_residual_split` (conservative γ because v63b had γ=0) |
+| mscoco_v70a | `--use_hash_recon --hash_recon_target siglip_visual --lambda_hash_recon 0.01` |
+| mscoco_v71a | `--codon_residual_gamma 0.3 --codon_residual_gate` (gate needs γ>0) |
+| mscoco_v72a | `--use_dual_hash_proj --lambda_dual_semantic 0.01 --lambda_dual_instance 0.01` |
+
+### Final test (5K × 107K)
+
+| Run | mAP | Δ vs v63b | P@1 | P@10 | P@100 | P@1000 | unique | per-cb | dup | baseH | verdict |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| v63b (prev SOTA) | 0.4563 | — | 0.5606 | 0.5328 | 0.5370 | 0.5308 | 0.315 | 0.00077 | 0.685 | ~0.65 | — |
+| **mscoco_v69a** ★ | **0.4795** | **+0.0232** | **0.5830** | 0.5685 | 0.5758 | 0.5732 | 0.016 | 0.00010 | 0.984 | 0.632 | **NEW SOTA** |
+| mscoco_v71a res-gate | 0.4440 | −0.0123 | 0.4754 | 0.5085 | 0.5175 | 0.5104 | 0.019 | 0.00016 | 0.981 | **0.944** | mild loss |
+| mscoco_v72a dual-proj | 0.4432 | −0.0131 | 0.5418 | 0.5396 | 0.5294 | 0.5296 | 0.012 | 0.00008 | 0.988 | 0.640 | mild loss |
+| mscoco_v70a hash-recon | 0.4413 | −0.0150 | 0.4970 | 0.4985 | 0.5170 | 0.5159 | 0.015 | 0.00009 | 0.985 | 0.641 | mild loss |
+| mscoco_v69b res-split-g01 | 0.4362 | −0.0201 | 0.5616 | 0.5579 | 0.5363 | 0.5130 | **0.441** | 0.00022 | 0.559 | 0.789 | trade-off |
+
+### Mid-eval trajectories
+
+| epoch | v63b | mscoco_v69a | mscoco_v69b | mscoco_v70a | mscoco_v71a | mscoco_v72a |
+|---:|---:|---:|---:|---:|---:|---:|
+| 9 | 0.4572 | **0.4948** ★ | 0.4439 | 0.4473 | 0.4448 | 0.4493 |
+| 19 | 0.4601 | 0.4887 | 0.4449 | 0.4443 | 0.4520 | 0.4446 |
+| 29 | 0.4620 | 0.4938 | 0.4353 | 0.4473 | 0.4526 | 0.4496 |
+| 39 | 0.4645 | 0.4902 | 0.4366 | 0.4424 | 0.4466 | 0.4460 |
+| 49 | 0.4605 | 0.4895 | 0.4380 | 0.4451 | 0.4435 | 0.4491 |
+| 59 (mid) | 0.4602 | 0.4849 | 0.4406 | 0.4470 | 0.4476 | 0.4481 |
+| **final** | **0.4563** | **0.4795** | 0.4362 | 0.4413 | 0.4440 | 0.4432 |
+
+mscoco_v69a stays >0.48 throughout training (peaks 0.4948 ep9!) —
+trajectory ~0.025-0.030 above v63b from ep1.
+
+### Cross-dataset comparison (same change, opposite results)
+
+| Change | Flickr25k Δ | MSCOCO Δ |
+|---|---:|---:|
+| position-specific CodonHead | −0.008 (mild loss) | **+0.023 (NEW SOTA)** |
+| residual-split | −0.036 (large loss) | −0.020 (trade-off, unique 0.441) |
+| hash-recon λ=0.01 | −0.019 + P@1 −0.10 | −0.015 + P@1 −0.07 (still bad) |
+| residual-gate | −0.012 | −0.012 (mild loss both) |
+| dual-proj | **−0.006 (near-SOTA)** | −0.013 (mild loss) |
+
+→ Two single-axis changes are *dataset-paradigm-specific* in OPPOSITE
+directions:
+- **Position-specific CodonHead** (Exp 1): MSCOCO ↑, Flickr25k ↓
+- **Dual-projection** (Exp 6): Flickr25k near-SOTA, MSCOCO mild loss
+
+This mirrors the v62b residual-head story: same code, different
+optimal dataset.
+
+### Multi-angle interpretation
+
+**Why mscoco_v69a wins on MSCOCO**:
+- MSCOCO has 80 classes vs Flickr25k's 24 — *richer codon position
+  semantics needed*. Sharing one fc across 3 positions forces the same
+  weight matrix to handle 80-class differentiation 3 times → bottleneck.
+- Position-specific Linears (3,084 params total per codebook = 3×
+  1,028) give each codon position its own subspace. With K=128
+  codebook, the 6×3×4=72-bit code now has 3 distinct decoders per
+  codeword → better fine-grained discrimination.
+- P@1 +0.022 confirms the gain is at the top-rank sharpness, the
+  exact axis where v63b was weak vs CIBHash.
+
+**Why mscoco_v69a's unique drops to 0.016** (vs v63b 0.315):
+- Despite far more discriminative decoding, the same model maps many
+  images to the same hash code. **Discrimination happens at the
+  codeword distance level, not the surface hash code level**.
+- This is *new*: previously high-unique was thought to be required
+  for high mAP. mscoco_v69a shows you can have high mAP with low unique
+  if the codeword distance topology is well-organized.
+- Implication: paper narrative should not over-emphasize unique-code
+  ratio as a primary metric.
+
+**External baseline comparison (MSCOCO)**:
+- Previous gap: v63b 0.4563 < CIBHash 0.5051 (−0.0488)
+- Now: **mscoco_v69a 0.4795 < CIBHash 0.5051 (−0.0256)** — gap halved!
+- Still −0.026 behind CIBHash but the trajectory suggests
+  position-specific decoding + larger K + more parameters could close
+  remaining gap.
+
+### Failure modes
+
+- **mscoco_v70a hash-recon**: P@1 −0.07 (similar collapse pattern as
+  Flickr25k v70a P@1 −0.10). Reconstruction loss pulls hash toward
+  batch-mean visual feature regardless of dataset → confirmed as a
+  general failure mode of the v70a design.
+- **mscoco_v69b res-split-g01**: −0.020 even with conservative γ=0.1.
+  Residual injection in any form regresses on MSCOCO (consistent with
+  earlier mscoco_v62b finding).
+- **mscoco_v71a res-gate**: gate saturates around 0.5 → effectively
+  injects ~half the residual → similar regression pattern as
+  mscoco_v62b (residual gives no benefit on MSCOCO).
+- **mscoco_v72a dual-proj**: closest to v63b among the failures
+  (−0.013). Heads themselves don't hurt much but don't help either —
+  semantic_proj alignment to visual_global is redundant with what
+  the main hash already learns via siglip_cos_topk target.
+
+### Code state
+All v69/v70/v71/v72 changes are behind config flags (default off).
+Per-dataset SOTA reproducible by:
+- **Flickr25k v62b**: `--codon_residual_gamma 0.3`
+- **MSCOCO mscoco_v69a**: `--codon_position_specific_head`
+
+### Result directories
+- mscoco_v69a (★ NEW MSCOCO SOTA): `result/260523+mscoco_setting1_mscoco_v69a_v63b_posSpecificCodon+bs+64+e+60+proj_lr+0.001/`
+- mscoco_v69b: `result/260523+mscoco_setting1_mscoco_v69b_v63b_sem2res1Codon_g01+...`
+- mscoco_v70a: `result/260523+mscoco_setting1_mscoco_v70a_v63b_hashReconVisual_lam001+...`
+- mscoco_v71a: `result/260523+mscoco_setting1_mscoco_v71a_v63b_resGate_g03+...`
+- mscoco_v72a: `result/260523+mscoco_setting1_mscoco_v72a_v63b_dualHashProj_lam001+...`
 
 ---
 

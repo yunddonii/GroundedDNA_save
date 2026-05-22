@@ -669,6 +669,19 @@ class Config():
         loss_arg.add_argument('--ntxent_dynamic_tau_semantic_scale_max',
             type=float, default=1.3,
             help="v67: upper clamp on semantic_scale_ij.")
+        # v73 (Exp 7): global DNA NtXent auxiliary loss alongside per-codebook.
+        # When `ntxent_mode=per_codebook`, also compute the global NtXent
+        # (whole 18-codon DNA code) using static base temperature and add
+        #     loss_ntxent = loss_local + lambda_global * loss_global
+        # Helps the final retrieval-time DNA code regain cross-codebook
+        # coherence that per-codebook NtXent alone can fragment. Default 0
+        # keeps the legacy per-codebook-only behaviour.
+        loss_arg.add_argument('--lambda_global_dna_ntxent',
+            type=float, default=0.0,
+            help='v73: weight for the global-NtXent auxiliary loss on full '
+                 '[B, 18, 4] DNA code (uses static base ntxent_temperature, '
+                 'NO dynamic-tau). Only active when ntxent_mode=per_codebook. '
+                 'Try 0.05 / 0.10. 0 (default) keeps legacy behaviour.')
         # ---------- v44 (B1): cross-slot text orthogonality reg ---------
         # Pushes the per-slot text_part_tokens (post adapter) apart so the
         # 6 codebook-routing centroids are not collapsed onto the same
