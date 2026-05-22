@@ -226,6 +226,20 @@ class DNACodonHashLoss(nn.Module):
         self.ntxent_dynamic_tau_skip_global = bool(getattr(cfg, "ntxent_dynamic_tau_skip_global", False))
         # v61: for m=0 dynamic-tau, use mean of 5 local text features
         self.ntxent_global_use_local_mean   = bool(getattr(cfg, "ntxent_global_use_local_mean",   False))
+        # v67: dynamic-tau variant selector. "text_cos" (default) = legacy v42
+        # per-pair tau = base * (1 + alpha * cos(text_i, text_j)).
+        # "neg_only_norm_model" = (i) positive pair uses static base_tau,
+        # (ii) negative pair uses base_tau * model_scale_m * semantic_scale_ij,
+        # where semantic_scale uses batch-normalized + tanh-clipped text
+        # affinity, and model_scale_m is a MACL-style per-codebook factor
+        # adaptive to current positive alignment A_m. See `_loss_ntxent_dna_per_codebook`.
+        self.ntxent_dynamic_tau_variant = str(getattr(cfg, "ntxent_dynamic_tau_variant", "text_cos"))
+        self.ntxent_dynamic_tau_model_beta      = float(getattr(cfg, "ntxent_dynamic_tau_model_beta",      0.5))
+        self.ntxent_dynamic_tau_model_a0        = float(getattr(cfg, "ntxent_dynamic_tau_model_a0",        0.6))
+        self.ntxent_dynamic_tau_model_scale_min = float(getattr(cfg, "ntxent_dynamic_tau_model_scale_min", 0.75))
+        self.ntxent_dynamic_tau_model_scale_max = float(getattr(cfg, "ntxent_dynamic_tau_model_scale_max", 1.25))
+        self.ntxent_dynamic_tau_semantic_scale_min = float(getattr(cfg, "ntxent_dynamic_tau_semantic_scale_min", 0.7))
+        self.ntxent_dynamic_tau_semantic_scale_max = float(getattr(cfg, "ntxent_dynamic_tau_semantic_scale_max", 1.3))
         # v44 (B1): cross-slot text orthogonality reg on text_part_tokens.
         self.lambda_ortho_text        = float(getattr(cfg, "lambda_ortho_text",        0.0))
         self.lambda_vq         = float(getattr(cfg, "lambda_vq",        0.25))
@@ -434,6 +448,13 @@ class DNACodonHashLoss(nn.Module):
         dynamic_tau_alpha: float = 0.0,
         skip_global_dyn: bool = False,
         global_use_local_mean: bool = False,
+        variant: str = "text_cos",
+        model_beta: float = 0.5,
+        model_a0: float = 0.6,
+        model_scale_min: float = 0.75,
+        model_scale_max: float = 1.25,
+        semantic_scale_min: float = 0.7,
+        semantic_scale_max: float = 1.3,
     ) -> torch.Tensor:
         """Per-codebook NtXent (v31b) with optional v42 dynamic tau.
 
@@ -489,16 +510,61 @@ class DNACodonHashLoss(nn.Module):
         # Floor for tau just in case of numerical noise.
         tau_floor = 1e-4
 
+        # v67: pre-compute positive-pair location mask for the new variant.
+        # pos_idx[i] gives the positive partner of row i; build [N, N] bool.
+        if variant == "neg_only_norm_model":
+            arange_N = torch.arange(N, device=u_st_view1.device)
+            pos_mask = torch.zeros(N, N, device=u_st_view1.device, dtype=torch.bool)
+            pos_mask[arange_N, pos_idx] = True                    # [2B, 2B]
+
         loss_sum = u_st_view1.new_zeros(())
         for m in range(num_codebooks):
             z = torch.cat([u1[:, m], u2[:, m]], dim=0)            # [2B, 3, 4]
             sim = torch.einsum("brc,src->bsr", z, z).mean(dim=-1)  # [2B, 2B]
             # v60: skip dynamic-tau on m=0 if requested
             use_dyn_this_m = use_dyn and not (m == 0 and skip_global_dyn)
-            if use_dyn_this_m:
-                # v61: for m=0, optionally use the mean of the 5 local text
-                # features as the similarity source instead of the C_global
-                # caption embedding.
+            if use_dyn_this_m and variant == "neg_only_norm_model":
+                # v67 new variant ---------------------------------------------
+                # (1) positive pair uses static base_tau (no weakening)
+                # (2) negative pair uses base_tau * model_scale_m * semantic_scale_ij
+                #   - semantic_scale_ij = clamp(1 + alpha * tanh((cos_t - mu) / std), s_min, s_max)
+                #     where mu, std are computed over OFF-DIAG entries of cos_t
+                #   - model_scale_m  = clamp(1 + beta * (A_m - A0), r_min, r_max)
+                #     A_m = mean_i [(u1_i^m * u2_i^m).sum(-1).mean(-1)] (positive agreement)
+                # All tau-modulating quantities are detached.
+                if m == 0 and global_use_local_mean and text_part_raw.shape[1] >= 2:
+                    t_m = text_part_raw[:, 1:, :].mean(dim=1)
+                else:
+                    t_m = text_part_raw[:, m, :]
+                t_all = torch.cat([t_m, t_m], dim=0)              # [2B, D]
+                t_n   = F.normalize(t_all, dim=-1).detach()
+                cos_t = (t_n @ t_n.t()).detach()                  # [2B, 2B]
+                # offdiag normalization
+                offdiag = cos_t[~eye]                             # [N*(N-1)]
+                mu_m  = offdiag.mean()
+                std_m = offdiag.std().clamp_min(1e-6)
+                g_ij  = torch.tanh((cos_t - mu_m) / std_m)        # [2B, 2B] approx in (-1, 1)
+                semantic_scale = (1.0 + alpha * g_ij).clamp(
+                    min=float(semantic_scale_min),
+                    max=float(semantic_scale_max),
+                )                                                  # [2B, 2B]
+                # MACL-style per-codebook model scale
+                # one-hot agreement averaged over 3 codon positions, then over batch
+                with torch.no_grad():
+                    pos_agree = (u1[:, m] * u2[:, m]).sum(dim=-1).mean(dim=-1)  # [B]
+                    A_m = pos_agree.mean().detach()                              # scalar
+                    model_scale = (1.0 + float(model_beta) * (A_m - float(model_a0))).clamp(
+                        min=float(model_scale_min),
+                        max=float(model_scale_max),
+                    )
+                # negative-pair tau matrix
+                T_neg = (T * model_scale * semantic_scale).clamp(min=tau_floor)  # [2B, 2B]
+                # positive pair uses static base T; negative pair uses T_neg
+                T_matrix = torch.where(pos_mask, T_neg.new_full((), T), T_neg)
+                T_matrix = T_matrix.clamp(min=tau_floor)
+                sim = (sim / T_matrix).masked_fill(eye, -1e9)
+            elif use_dyn_this_m:
+                # legacy v42 "text_cos" variant
                 if m == 0 and global_use_local_mean and text_part_raw.shape[1] >= 2:
                     t_m = text_part_raw[:, 1:, :].mean(dim=1)     # [B, D] = mean over 5 local slots
                 else:
@@ -797,6 +863,13 @@ class DNACodonHashLoss(nn.Module):
                     ),
                     skip_global_dyn=self.ntxent_dynamic_tau_skip_global,
                     global_use_local_mean=self.ntxent_global_use_local_mean,
+                    variant=self.ntxent_dynamic_tau_variant,
+                    model_beta=self.ntxent_dynamic_tau_model_beta,
+                    model_a0=self.ntxent_dynamic_tau_model_a0,
+                    model_scale_min=self.ntxent_dynamic_tau_model_scale_min,
+                    model_scale_max=self.ntxent_dynamic_tau_model_scale_max,
+                    semantic_scale_min=self.ntxent_dynamic_tau_semantic_scale_min,
+                    semantic_scale_max=self.ntxent_dynamic_tau_semantic_scale_max,
                 )
             else:
                 loss_ntxent = self._loss_ntxent_dna(

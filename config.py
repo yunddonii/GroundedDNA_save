@@ -566,6 +566,40 @@ class Config():
                  "alpha in [0, 1). alpha=0 -> static base_tau (off). "
                  "alpha=0.5 -> tau in [0.5*base, 1.5*base]. Larger alpha "
                  "is more aggressive but caps at alpha<1 to avoid tau<=0.")
+        # v67: dynamic-tau variant selector. "text_cos" (default) reproduces
+        # the legacy v42 per-pair tau. "neg_only_norm_model" adopts the
+        # MACL/PromptHash-informed redesign: positive pair uses static
+        # base_tau, negative pair uses base * model_scale_m * semantic_scale_ij.
+        loss_arg.add_argument('--ntxent_dynamic_tau_variant',
+            type=str, default='text_cos',
+            choices=['text_cos', 'neg_only_norm_model'],
+            help="Dynamic-tau variant. 'text_cos' = legacy v42 per-pair tau. "
+                 "'neg_only_norm_model' = positive pair uses static base_tau, "
+                 "negative pair uses base * model_scale * semantic_scale "
+                 "where semantic is batch-normalized + tanh-clipped text "
+                 "affinity and model is a MACL-style per-codebook factor.")
+        loss_arg.add_argument('--ntxent_dynamic_tau_model_beta',
+            type=float, default=0.5,
+            help="v67: beta in model_scale_m = clamp(1 + beta * (A_m - A0), "
+                 "r_min, r_max). Larger beta = stronger model-state coupling.")
+        loss_arg.add_argument('--ntxent_dynamic_tau_model_a0',
+            type=float, default=0.6,
+            help="v67: alignment threshold A0 (positive-pair agreement at "
+                 "which model_scale = 1). Below A0 -> tau shrinks (sharper); "
+                 "above -> tau grows (softer).")
+        loss_arg.add_argument('--ntxent_dynamic_tau_model_scale_min',
+            type=float, default=0.75,
+            help="v67: lower clamp on model_scale_m.")
+        loss_arg.add_argument('--ntxent_dynamic_tau_model_scale_max',
+            type=float, default=1.25,
+            help="v67: upper clamp on model_scale_m.")
+        loss_arg.add_argument('--ntxent_dynamic_tau_semantic_scale_min',
+            type=float, default=0.7,
+            help="v67: lower clamp on semantic_scale_ij (negative-pair "
+                 "text-affinity modulation).")
+        loss_arg.add_argument('--ntxent_dynamic_tau_semantic_scale_max',
+            type=float, default=1.3,
+            help="v67: upper clamp on semantic_scale_ij.")
         # ---------- v44 (B1): cross-slot text orthogonality reg ---------
         # Pushes the per-slot text_part_tokens (post adapter) apart so the
         # 6 codebook-routing centroids are not collapsed onto the same

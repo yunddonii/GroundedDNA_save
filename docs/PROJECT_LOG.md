@@ -135,6 +135,133 @@ Format conventions:
 
 ---
 
+## 2026-05-22 — v67: MACL/PromptHash-informed dynamic-τ redesign — DISCARDED (mAP regress, unique +94%)
+
+🔴 Discarded. Aims to fix the three issues identified in our MACL +
+PromptHash literature review: (1) per-pair τ weakens the positive
+pair, (2) raw `cos(text_i, text_j)` is non-normalized, (3) no
+training-state coupling. Implemented as a new
+`--ntxent_dynamic_tau_variant neg_only_norm_model` option (default
+preserves legacy v42 `text_cos` path).
+
+### Setup (single change vs v62b)
+
+- All v62b hyperparameters unchanged.
+- New `--ntxent_dynamic_tau_variant neg_only_norm_model` enables three
+  simultaneous modifications to `_loss_ntxent_dna_per_codebook`:
+  1. **Positive pair uses static base τ** — diagonal `pos_idx` cells of
+     the [2B, 2B] τ matrix get `τ_base` regardless of text similarity
+     (legacy variant multiplied positive τ by `(1 + α·1) = 1 + α` →
+     weakened positive alignment).
+  2. **Batch-normalized + tanh-clipped semantic affinity** — for each
+     codebook m, `g_ij = tanh((cos_t_ij − μ_m)/σ_m)` where μ, σ are
+     computed over off-diagonal `cos(text_i^m, text_j^m)`. The legacy
+     variant used raw `cos_t` whose distribution shifts per batch.
+     Then `semantic_scale_ij = clamp(1 + α·g_ij, 0.7, 1.3)`.
+  3. **MACL-style per-codebook model scale** — `A_m =
+     mean_i (u1^m_i · u2^m_i).sum(-1).mean(-1).detach()` (positive
+     codon agreement). `model_scale_m = clamp(1 + β·(A_m − A0),
+     0.75, 1.25)`, β=0.5, A0=0.6.
+- Final negative τ: `τ_ij = base · model_scale_m · semantic_scale_ij`,
+  positive τ: `base`. All τ-modulating quantities detached.
+
+### Hyperparameters (defaults, used in this run)
+
+| flag | value |
+|---|---:|
+| `--ntxent_dynamic_tau_alpha` (α) | 0.3 |
+| `--ntxent_dynamic_tau_model_beta` (β) | 0.5 |
+| `--ntxent_dynamic_tau_model_a0` (A0) | 0.6 |
+| `--ntxent_dynamic_tau_model_scale_(min,max)` | (0.75, 1.25) |
+| `--ntxent_dynamic_tau_semantic_scale_(min,max)` | (0.7, 1.3) |
+
+### Final test eval (saved checkpoint, ep59, 2K × 23K)
+
+| Metric | v62b (SOTA) | v67 | Δ |
+|---|---:|---:|---:|
+| **mAP** | **0.6778** | **0.6674** | **−0.0104** |
+| unique_code_ratio (db) | 0.0745 | **0.1446** | **+94%** |
+| per_cb_unique | 0.00077 | **0.00123** | +60% |
+| duplicate_rate | 0.926 | 0.855 | −7.6% |
+| mean_base_norm_entropy | 0.900 | **0.943** | +4.8% |
+| P@1 | 0.7625 | 0.7265 | **−0.0360** ⚠ |
+| P@10 | 0.7587 | 0.7612 | +0.0025 |
+| P@100 | 0.7573 | 0.7569 | ~tied |
+| P@1000 | 0.7445 | 0.7427 | ~tied |
+
+### Mid-eval trajectory (val split)
+
+| epoch | v62b | v67 | v62b unique | v67 unique |
+|---:|---:|---:|---:|---:|
+| 9 | **0.6706** | 0.6586 | 0.279 | **0.399** |
+| 19 | 0.6625 | 0.6690 | 0.267 | 0.374 |
+| 29 | 0.6678 | 0.6689 | 0.257 | 0.340 |
+| 39 | 0.6669 | 0.6621 | 0.267 | 0.336 |
+| 49 | 0.6746 | 0.6664 | 0.266 | 0.380 |
+| 59 | 0.6756 | 0.6684 | 0.264 | **0.400** |
+
+### Trajectory shape change
+
+- v62b: peak ep9 (0.6706) → drift down → recover ep59 (0.6756). Late-rising.
+- v67: low ep9 (0.6586) → climbs to ep19 (0.6690) → plateau. **Earlier saturation**.
+  Likely cause: `model_scale_m` saturates at upper clamp (1.25) once `A_m`
+  crosses A0=0.6 (around ep19-29), losing its training-progress signal.
+
+### Trade-off interpretation
+
+v67 achieves exactly what the 3 modifications targeted:
+- Positive alignment preserved (base entropy ↑ +4.8%)
+- Unique-code diversity much higher (+94%)
+- Per-cb compositional diversity ↑ (+60%)
+- Tail retrieval P@10..P@1000 unchanged
+
+But the cost is **−0.036 P@1** → top-1 sharpness lost. The compositional
+codes are more diverse but less *individually sharp* in identifying
+the nearest neighbour. Net effect: −0.0104 mAP.
+
+This is the *same trade-off pattern* as v54 (unique-code champion, mAP
+0.6622 with unique 0.431). v67 sits between v54 and v62b: higher mAP
+than v54 but lower than v62b, with intermediate unique.
+
+### Why mAP drops despite higher unique
+
+Hypothesis: the **batch-normalized affinity** `g_ij = tanh((cos − μ)/σ)`
+*amplifies* relative differences within a batch. In Flickr25k 24-class
+multi-label, most batches have several thematically similar pairs;
+normalization makes these stand out *more* than the legacy raw-cos
+formula, pushing them apart hard enough to break "near-duplicate"
+clusters that legacy retrieval depends on for P@1.
+
+### Conclusion
+
+The 3 modifications **functionally work** (gradients OK, no collapse,
+all sub-mechanisms active per metric deltas). But the *equilibrium*
+they push toward (more unique, less collision) reduces P@1 sharpness
+needed for Flickr25k retrieval. **v62b's legacy v42 `text_cos` variant
+remains SOTA**.
+
+### Possible recovery directions (not launched here)
+- α=0.15 (halve semantic effect)
+- Tighter clamps: semantic [0.85, 1.15], model [0.9, 1.1]
+- A0=0.4 (lower threshold so model_scale doesn't saturate early)
+- Modification 1 (positive-protective) only, skip 2+3
+
+### Code retained (default off)
+- `loss_siglip2.py`: new `variant` branch + 6 new kwargs in
+  `_loss_ntxent_dna_per_codebook`. Default `variant="text_cos"`
+  preserves legacy v42 path bit-exact (verified by smoke test
+  comparing `alpha=0` paths against pure-static loss).
+- `config.py`: `--ntxent_dynamic_tau_variant` + 6 hyperparameter flags
+  (`--ntxent_dynamic_tau_model_beta/a0/scale_min/scale_max`,
+  `--ntxent_dynamic_tau_semantic_scale_min/max`). All default to v67
+  spec values so re-running just needs `--ntxent_dynamic_tau_variant
+  neg_only_norm_model`.
+
+### Result directory
+`result/260522+flickr25k_setting1_v67_v62b_dyntau_negOnlyNormModel+bs+64+e+60+proj_lr+0.001/`
+
+---
+
 ## 2026-05-21 — v66 launched: Per-Codon Text-Anchored Prototype Classifier (Option #2)
 
 🟡 Active. Single Flickr25k run probing whether the structural change
