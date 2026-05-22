@@ -135,6 +135,99 @@ Format conventions:
 
 ---
 
+## 2026-05-22 — mscoco_v67: dyntau new variant on MSCOCO — DISCARDED (code collapse)
+
+🔴 Same `--ntxent_dynamic_tau_variant neg_only_norm_model` change ported
+to MSCOCO baseline (v63b setup: K=128, no residual head). Result:
+**opposite pattern from Flickr25k**. Confirms the variant's effect is
+strongly dataset-dependent (batch-level semantic diversity sensitive).
+
+### Setup (single change vs v63b)
+- v63b hyperparameters unchanged (K=128, no residual head).
+- Added `--ntxent_dynamic_tau_variant neg_only_norm_model` with default
+  v67 hyperparameters (α=0.3, β=0.5, A0=0.6, semantic_clamp=[0.7, 1.3],
+  model_clamp=[0.75, 1.25]).
+- GPU 0, log: `logs/mscoco_v67_v63b_dyntau_negOnlyNormModel_200757.log`.
+
+### Mid-eval trajectory
+
+| epoch | v63b mAP | mscoco_v67 mAP | Δ |
+|---:|---:|---:|---:|
+| 9 | 0.4572 | 0.4451 | −0.0121 |
+| 19 | 0.4601 | 0.4504 | −0.0097 |
+| 29 | 0.4620 | 0.4541 | −0.0079 |
+| 39 | 0.4645 (peak) | 0.4523 | −0.0122 |
+| 49 | 0.4605 | 0.4581 | −0.0024 |
+| 59 (mid) | 0.4602 | 0.4575 | −0.0027 |
+| **final test** | **0.4563** | **0.4529** | **−0.0034** |
+
+mAP gap was narrowing through ep49 (looked recoverable) but final test
+on the full 107K db shows the variant did NOT help.
+
+### Critical finding — code collapse on full MSCOCO db
+
+| Metric | v63b | mscoco_v67 | Δ |
+|---|---:|---:|---:|
+| unique_code_ratio (db) | 0.315 (33,774) | **0.0229 (2,458)** | **−93%** ⚠ |
+| per_cb_unique | 0.00077 | 0.000113 | −85% |
+| duplicate_rate | 0.685 | **0.977** | +29% |
+| base_norm_entropy | ~0.65 | 0.747 | +14% |
+| **P@1** | **0.561** | **0.518** | **−0.043** ⚠ |
+| P@10 | 0.533 | 0.499 | −0.034 |
+| P@100 | 0.537 | 0.526 | −0.011 |
+| P@1000 | 0.531 | 0.518 | −0.013 |
+
+### Flickr25k vs MSCOCO — opposite outcomes
+
+| | Flickr25k v67 | MSCOCO mscoco_v67 |
+|---|---|---|
+| mAP Δ | −0.0104 | −0.0034 |
+| unique Δ | **+94%** | **−93%** |
+| P@1 Δ | −0.036 | −0.043 |
+| Verdict | trade-off (mAP↓ for unique↑) | **collapse** (both mAP↓ AND unique↓) |
+
+### Why opposite — batch-level diversity sensitivity
+
+`semantic_scale_ij = clamp(1 + α·tanh((cos − μ)/σ), 0.7, 1.3)` is a
+*batch-relative* affinity:
+- **Flickr25k (24 class)**: narrow class space → batch frequently has
+  several thematically-similar pairs → σ is small → tanh argument
+  amplified → strong semantic modulation → unique-code increase.
+- **MSCOCO (80 class)**: wide class space → batch has diverse
+  thematic content → σ is large → tanh argument compressed near 0 →
+  semantic_scale ≈ 1 (effect washed out) → modulation barely active
+  but the slight bias toward broader unique codes leads to
+  representation collapse on the 107K db where 80 classes have many
+  intra-class images sharing similar texts.
+
+In addition, K=128 (vs Flickr25k K=64) gives the EMA codebook more
+room to drift; without the strong semantic_scale signal correcting
+per-batch, codewords cluster more densely.
+
+### Conclusion
+
+The `neg_only_norm_model` variant is **dataset-paradigm-specific**.
+Designed to fix MACL/PromptHash-identified math + alignment issues,
+but in practice its core mechanism (batch-normalized text affinity)
+depends on a homogeneous batch class distribution. Discarded on both
+datasets.
+
+**Per-dataset SOTA pairs unchanged**: Flickr25k = v62b (0.6778),
+MSCOCO = v63b (0.4563).
+
+### Result directory
+`result/260522+mscoco_setting1_mscoco_v67_v63b_dyntau_negOnlyNormModel+bs+64+e+60+proj_lr+0.001/`
+
+### Recovery directions (not launched)
+1. Replace batch-normalized `(cos − μ)/σ` with **global** (running-mean)
+   normalization → removes batch-distribution sensitivity.
+2. Use **fixed-cluster targets** (pre-computed text k-means clusters,
+   not batch-relative) → MSCOCO-friendly.
+3. Conditional schedule: apply `neg_only_norm_model` only when class
+   count below threshold (=Flickr25k-like). MSCOCO uses legacy or off.
+
+---
+
 ## 2026-05-22 — v67: MACL/PromptHash-informed dynamic-τ redesign — DISCARDED (mAP regress, unique +94%)
 
 🔴 Discarded. Aims to fix the three issues identified in our MACL +
