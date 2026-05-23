@@ -137,6 +137,114 @@ Format conventions:
 
 ---
 
+## 2026-05-23 — v74 / v75: loss-term ablation reveals **loss_anchor is dead-weight in EMA mode**
+
+🟡 Two single-axis ablations setting individual loss weights to 0 on
+v62b. v74 (`--lambda_anchor 0`) produced **bit-exact identical**
+results to v62b across all 6 mid-eval epochs and the final test —
+this is **proof that `loss_anchor` produces zero gradient when
+`codebook_update=ema`**, a previously-undocumented codebase issue.
+v75 (`--lambda_quant 0`) is a normal mild-loss ablation confirming
+that `loss_quant` IS an active, useful signal.
+
+### Final test (Flickr25k 2K × 23K)
+
+| Run | mAP | Δ vs v62b | P@1 | P@10 | P@100 | P@1000 | unique | per-cb | dup | baseH |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| v62b (SOTA) | 0.6778 | — | 0.7625 | 0.7587 | 0.7573 | 0.7445 | 0.075 | 0.00077 | 0.926 | 0.900 |
+| **v74** (no anchor) | **0.6778** | **0** | **0.7625** | **0.7587** | **0.7573** | **0.7445** | **0.0745** | **0.00077** | **0.9255** | **0.8995** |
+| v75 (no quant) | 0.6651 | −0.0127 | 0.7365 | 0.7495 | 0.7481 | 0.7339 | 0.091 | 0.00080 | 0.909 | 0.954 |
+
+v74 numbers are *bit-exact identical* to v62b — same trajectory ep9
+0.6706 → ep59 0.6756 → final 0.6778, all metrics matching to 4
+decimals.
+
+### Trajectory vs v62b
+
+| epoch | v62b | v74 (no anchor) | v75 (no quant) |
+|---:|---:|---:|---:|
+| 9 | 0.6706 | **0.6706** | 0.6656 |
+| 19 | 0.6625 | **0.6625** | 0.6537 |
+| 29 | 0.6678 | **0.6678** | 0.6615 |
+| 39 | 0.6669 | **0.6669** | **0.6704** (briefly > v62b) |
+| 49 | **0.6746** | **0.6746** | 0.6609 |
+| 59 | 0.6756 | **0.6756** | 0.6635 |
+
+### v74 root cause — gradient chain through `loss_anchor`
+
+```
+EMA mode: self.codebooks = register_buffer(...)              # buffer, NO grad
+quantizer.get_codebook_mean_anchors()                         # buffer slice + normalize -> NO grad
+out["local_codebook_mean_anchors"]                            # NO grad
+
+loss_siglip2._loss_anchor():
+  ema_anchor = self._update_ema_text_anchor(...).detach()     # detached
+  cb_anchor  = F.normalize(local_codebook_mean_anchors, -1)   # NO grad (input has no grad)
+  return (1.0 - (ema_anchor * cb_anchor).sum(-1)).mean()      # gradient is ZERO w.r.t. all params
+
+total_loss += lambda_anchor * loss_anchor                     # constant offset; no learning signal
+```
+
+Both operands of the cosine alignment are detached / buffer-derived,
+so the loss term contributes **no gradient to any trainable
+parameter**. The `lambda_anchor=0.05` weight has been an inert offset
+since EMA codebook mode was adopted (v6 era, 2026-05-13).
+
+In the legacy `codebook_update=gradient` mode (`nn.Parameter`-based
+codebook), `loss_anchor` WAS effective — `local_codebook_mean_anchors`
+inherited gradient from `self.codebooks`. v74 was the first
+intentional ablation that exposed the EMA-mode no-op.
+
+### Implications
+
+1. **No behavioural change needed** — `lambda_anchor=0.05` was
+   contributing a constant ~0.005-0.02 offset to total_loss displays
+   in logs but had zero effect on parameter updates. All prior SOTA
+   numbers (v34, v49, v57, v62b, v63b, mscoco_v69a, etc.) are
+   unchanged.
+2. **Paper narrative**: the loss-component table should drop or
+   asterisk `loss_anchor` — keeping it as "0.05 weight" misleads
+   reviewers about its role.
+3. **Codebase cleanup candidate**: safe to remove the
+   `lambda_anchor * loss_anchor` term entirely (or keep wrapped in
+   an `if codebook_update == "gradient"` guard).
+
+### v75 (no quant) — normal mild trade-off
+
+- mAP −0.013, P@1 −0.026 vs v62b
+- unique +22% (0.075 → 0.091), baseH +6% (0.900 → 0.954)
+- `loss_quant = MSE(continuous_code, dna_hash_code_hard.detach())`
+  pulls codon softmax probs toward their hard one-hot (codon-level
+  commitment). Removing it loosens the codon distribution → more
+  diversity, less top-rank sharpness. Trade-off is real and the
+  default weight 0.05 is well-tuned.
+
+### Verdict
+
+- **v74**: ablation produces nothing new at the metric level (by
+  construction — loss is dead). **But the ablation discovered a
+  codebase issue**, which is high-value for paper narrative + code
+  hygiene.
+- **v75**: mild fail — keep `lambda_quant=0.05` as is.
+
+### Per-dataset SOTA pairs unchanged
+- Flickr25k: v62b (0.6778)
+- MSCOCO: mscoco_v69a (0.4795)
+
+### Follow-up loss-term audit candidates
+Same ablation methodology, set λ=0 and compare to v62b bit-exactly:
+- `--lambda_dna 0` (entropy + base balance) — does the codon entropy
+  reg actually flow gradient under EMA?
+- `--lambda_bu 0` (codebook balance + uncorr) — `_loss_bu` uses
+  `distances` which IS a tensor with grad through z, but worth
+  verifying.
+
+### Result directories
+- v74: `result/260523+flickr25k_setting1_v74_v62b_noAnchor+bs+64+e+60+proj_lr+0.001/`
+- v75: `result/260523+flickr25k_setting1_v75_v62b_noQuant+bs+64+e+60+proj_lr+0.001/`
+
+---
+
 ## 2026-05-23 — v73a / v73b / mscoco_v73c: global DNA NtXent auxiliary — DISCARDED (P@1 collapse)
 
 🔴 Added a weak global NtXent on the full 18-codon DNA code on top of
