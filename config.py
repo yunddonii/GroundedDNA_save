@@ -336,6 +336,25 @@ class Config():
         siglip2_arg.add_argument('--codebook_repel_every', dest='codebook_repel_every',
             type=int, default=1,
             help='Option α: apply repulsion every N EMA update steps.')
+        # v76 (Exp): cosine VQ lookup. Use 1 - cos(z, codeword) instead of
+        # squared L2 for the nearest-neighbor argmin selection. EMA codebook
+        # update logic unchanged (still tracks z mean), but the geometry
+        # used for *lookup* becomes scale-invariant and consistent with the
+        # rest of the model (router, NtXent, anchor, prototype heads).
+        siglip2_arg.add_argument('--vq_distance_mode',
+            dest='vq_distance_mode', type=str, default='euclidean',
+            choices=['euclidean', 'cosine'],
+            help='Distance metric for codebook nearest-neighbour lookup '
+                 'in SemanticCodebookQuantizer. "euclidean" (default) = '
+                 'legacy squared-L2. "cosine" = 1 - cosine_similarity '
+                 '(scale-invariant, consistent with rest of model).')
+        # v76b: also use cosine geometry in loss_vq (the VQ + commitment loss).
+        # Only meaningful when --vq_distance_mode=cosine.
+        siglip2_arg.add_argument('--vq_loss_cosine',
+            dest='vq_loss_cosine', action='store_true', default=False,
+            help='If set, loss_vq becomes (1 - cos) instead of MSE for both '
+                 'codebook and commitment terms. Pair with --vq_distance_mode '
+                 'cosine for the full cosine VQ ablation (v76b).')
         # ---------- v41 (5-G): text-supervised codebook initialization ---
         # Before training starts, replace the random Gaussian codebook init
         # with K vectors derived from train-set `cached_text_part_raw`

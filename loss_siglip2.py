@@ -249,6 +249,9 @@ class DNACodonHashLoss(nn.Module):
         self.ntxent_dynamic_tau_semantic_scale_max = float(getattr(cfg, "ntxent_dynamic_tau_semantic_scale_max", 1.3))
         # v73 (Exp 7): global DNA NtXent auxiliary loss alongside per-codebook
         self.lambda_global_dna_ntxent = float(getattr(cfg, "lambda_global_dna_ntxent", 0.0))
+        # v76b: cosine VQ loss (replaces MSE in _loss_vq with (1 - cos)).
+        # Only meaningful when --vq_distance_mode=cosine.
+        self.vq_loss_cosine = bool(getattr(cfg, "vq_loss_cosine", False))
         # v44 (B1): cross-slot text orthogonality reg on text_part_tokens.
         self.lambda_ortho_text        = float(getattr(cfg, "lambda_ortho_text",        0.0))
         self.lambda_vq         = float(getattr(cfg, "lambda_vq",        0.25))
@@ -662,14 +665,29 @@ class DNACodonHashLoss(nn.Module):
 
         z : semantic_visual_tokens   [B, 6, D]   pre-quantization
         q : quantized_tokens_raw     [B, 6, D]   selected codeword
+
+        v76b: when `--vq_loss_cosine` is set, both terms become
+        (1 - cos(., .)) instead of MSE. This matches the cosine VQ lookup
+        in `SemanticCodebookQuantizer` (--vq_distance_mode=cosine) so the
+        commitment term pulls z toward q in the same geometry used at
+        lookup time.
         """
         if z.shape != q.shape:
             raise ValueError(
                 f"[loss_vq] shape mismatch: semantic_visual_tokens {tuple(z.shape)} "
                 f"vs quantized_tokens_raw {tuple(q.shape)}"
             )
-        codebook_loss   = F.mse_loss(q, z.detach())
-        commitment_loss = F.mse_loss(z, q.detach())
+        if self.vq_loss_cosine:
+            # cos sim per (b, m) -> average. (1 - cos) ∈ [0, 2].
+            codebook_loss   = (
+                1.0 - F.cosine_similarity(q, z.detach(), dim=-1)
+            ).mean()
+            commitment_loss = (
+                1.0 - F.cosine_similarity(z, q.detach(), dim=-1)
+            ).mean()
+        else:
+            codebook_loss   = F.mse_loss(q, z.detach())
+            commitment_loss = F.mse_loss(z, q.detach())
         return codebook_loss + self.beta_vq * commitment_loss
 
     def _loss_anchor(

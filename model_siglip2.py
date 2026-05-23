@@ -114,6 +114,7 @@ class SemanticCodebookQuantizer(nn.Module):
         repel_strength: float = 0.0,
         repel_sigma_factor: float = 0.5,
         repel_every: int = 1,
+        distance_mode: str = "euclidean",
     ) -> None:
         super().__init__()
         self.num_codebooks = int(num_codebooks)
@@ -143,6 +144,13 @@ class SemanticCodebookQuantizer(nn.Module):
         self.repel_strength     = float(repel_strength)
         self.repel_sigma_factor = float(repel_sigma_factor)
         self.repel_every        = max(1, int(repel_every))
+        # v76: distance metric for codebook nearest-neighbour lookup
+        if distance_mode not in ("euclidean", "cosine"):
+            raise ValueError(
+                f"[SemanticCodebookQuantizer] distance_mode must be "
+                f"'euclidean' or 'cosine', got {distance_mode!r}"
+            )
+        self.distance_mode: str = str(distance_mode)
         # internal step counter (training-only)
         self.register_buffer(
             "_revive_step", torch.zeros((), dtype=torch.long), persistent=False,
@@ -408,11 +416,23 @@ class SemanticCodebookQuantizer(nn.Module):
                 f"but quantizer was built with d_model={self.d_model}"
             )
 
-        # squared-L2 distance via expansion (M and K are small here -- 6 and {64,32})
-        # diff: [B, M, K, D] -> distances: [B, M, K]
-        diff = semantic_visual_tokens.unsqueeze(2) - self.codebooks.unsqueeze(0)
-        distances = (diff ** 2).sum(dim=-1)                                # [B, M, K]
-        indices   = distances.argmin(dim=-1)                               # [B, M]
+        # nearest-neighbour distance to codewords (M and K are small -- 6 and {64,128}).
+        # v76: --vq_distance_mode {euclidean (default) | cosine}.
+        if self.distance_mode == "cosine":
+            # 1 - cos(z, codeword). Scale-invariant; consistent with the
+            # router / NtXent / anchor / prototype heads which all use cos.
+            # Use detached z norm for normalization to keep the gradient
+            # path identical to a unit-normalized lookup (otherwise norm
+            # gradient leaks through the lookup distance into z).
+            z_n  = F.normalize(semantic_visual_tokens, dim=-1)                 # [B, M, D]
+            cb_n = F.normalize(self.codebooks, dim=-1)                         # [M, K, D]
+            cos_sim   = torch.einsum("bmd,mkd->bmk", z_n, cb_n)                # [B, M, K]
+            distances = 1.0 - cos_sim                                          # [B, M, K] in [0, 2]
+        else:
+            # squared-L2 (legacy VQ-VAE convention)
+            diff = semantic_visual_tokens.unsqueeze(2) - self.codebooks.unsqueeze(0)
+            distances = (diff ** 2).sum(dim=-1)                                # [B, M, K]
+        indices   = distances.argmin(dim=-1)                                   # [B, M]
 
         # gather quantized embeddings via advanced indexing:
         #   quantized[b, m, :] = codebooks[m, indices[b, m], :]
@@ -1029,6 +1049,7 @@ class SigLIP2SemanticOTModel(nn.Module):
             repel_strength=float(getattr(args, "codebook_repel_strength", 0.0)),
             repel_sigma_factor=float(getattr(args, "codebook_repel_sigma_factor", 0.5)),
             repel_every=int(getattr(args, "codebook_repel_every", 1)),
+            distance_mode=str(getattr(args, "vq_distance_mode", "euclidean")),
         )
 
         # ---------- gated global addition --------------------------------

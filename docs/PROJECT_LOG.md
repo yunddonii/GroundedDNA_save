@@ -137,6 +137,133 @@ Format conventions:
 
 ---
 
+## 2026-05-23 — v76a / v76b: cosine VQ codebook lookup — top-rank sharpens, mAP drops
+
+🟡 Two ablations replacing the legacy squared-L2 codebook lookup with
+cosine distance (1 - cos(z, codeword)) on top of v62b. Motivated by
+the observation that the codebook lookup is the *only* place in the
+model still using Euclidean geometry — everywhere else (router,
+NtXent, anchor, prototype heads, hash recon, dual proj) is cosine.
+
+### Setup (single axis change vs v62b)
+
+| Tag | `--vq_distance_mode` | `--vq_loss_cosine` |
+|---|---|---:|
+| **v76a** | `cosine` | False (MSE loss_vq retained) |
+| **v76b** | `cosine` | **True** (loss_vq = 1-cos) |
+
+Quantizer change ([model_siglip2.py](model_siglip2.py)):
+- when `distance_mode == "cosine"`, compute `distances = 1 -
+  einsum("bmd,mkd->bmk", normalize(z), normalize(codebooks))`.
+- EMA codebook update logic unchanged.
+
+Loss change ([loss_siglip2.py](loss_siglip2.py)):
+- when `vq_loss_cosine=True`, `_loss_vq` becomes
+  `(1 - cos(q, z.detach())) + β · (1 - cos(z, q.detach()))` instead of MSE.
+
+### Final test (Flickr25k 2K × 23K)
+
+| Run | mAP | Δ vs v62b | **P@1** | **Δ P@1** | P@10 | P@100 | P@1000 | unique | per-cb | dup | baseH |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| v62b (SOTA) | **0.6778** | — | 0.7625 | — | 0.7587 | 0.7573 | 0.7445 | 0.075 | 0.00077 | 0.926 | 0.900 |
+| v76a (cos lookup, MSE loss_vq) | 0.6686 | −0.0092 | 0.7150 | **−0.0475** ⚠ | 0.7421 | 0.7444 | 0.7331 | 0.084 | 0.00070 | 0.916 | **0.956** |
+| **v76b (cos lookup + cos loss_vq)** | 0.6569 | −0.0209 | **0.7695** | **+0.0070** ✓ | **0.7702** | 0.7624 | 0.7298 | 0.093 | 0.00070 | 0.907 | 0.788 |
+
+### Mid-eval trajectory
+
+| epoch | v62b | v76a | v76b |
+|---:|---:|---:|---:|
+| 9 | 0.6706 | 0.6571 | 0.6255 (lowest start) |
+| 19 | 0.6625 | 0.6664 | 0.6535 |
+| 29 | 0.6678 | 0.6669 | 0.6458 |
+| 39 | 0.6669 | 0.6517 | 0.6551 |
+| 49 | **0.6746** | 0.6701 | 0.6582 |
+| 59 | 0.6756 | 0.6700 | 0.6585 |
+| **final** | **0.6778** | **0.6686** | 0.6569 |
+
+### loss_vq scale shift (cosine vs MSE)
+
+| | v76a (MSE) | v76b (cos) |
+|---|---:|---:|
+| ep9 | 0.424 | 0.021 |
+| ep59 | 0.438 | 0.011 |
+
+v76a runs MSE on z↔q after a cosine-direction lookup, so z and
+codeword norms drift apart → MSE inflates to 0.4 (not converging in
+scale). v76b's cosine loss settles to ~0.01 as expected.
+
+### Multi-angle interpretation
+
+**v76b discovers a P@1/P@10 vs mAP trade-off**:
+- Top-1: +0.7% (0.7625 → 0.7695)
+- Top-10: +1.2% (0.7587 → 0.7702)
+- Top-100: +0.5% (0.7573 → 0.7624)
+- Top-1000: −1.5% (0.7445 → 0.7298)
+- mAP: −2.1% (mean over rank profile is dragged down by tail loss)
+- → **Cosine VQ creates a top-rank-biased retrieval profile**.
+  Useful for applications that prioritize the nearest 1-10 matches
+  (immediate top-k display, deduplication, near-duplicate detection).
+
+**v76a is the inconsistent design**:
+- Lookup uses cosine (direction-only), loss_vq uses MSE (absolute
+  scale). The two signals conflict — commit loss tries to align z
+  and q in absolute space while lookup only respects direction. Net
+  effect: worst P@1 among all v76 variants (−0.048), no compensating
+  gains.
+- **Lesson**: cosine VQ must be applied consistently (lookup + loss).
+
+**Why does cosine VQ sharpen top-rank?**
+- Cosine codewords spread across the unit sphere via direction.
+  Top-1 similarity decisions become more separable when comparing
+  unit vectors (no scale interference).
+- But the same scale-invariance loses *magnitude information* that
+  helps distinguish many simultaneously-similar samples in deep rank.
+- Confirmed by baseH: v76b's codebook usage is *less* balanced
+  (0.788 vs v62b's 0.900) → frequently-used codewords get sharper,
+  rarely-used ones stay weak → top-rank sharp, tail weak.
+
+### Cross-paradigm comparison (Flickr25k)
+
+| variant | top-rank profile | tail profile | unique | mAP |
+|---|---|---|---|---|
+| L2 (v62b) | balanced | balanced | 0.075 | 0.6778 |
+| cosine consistent (v76b) | sharper | weaker | 0.093 | 0.6569 |
+| cosine inconsistent (v76a) | worse | similar | 0.084 | 0.6686 |
+
+### Verdict by user criteria
+
+| | v76a | v76b |
+|---|---|---|
+| mAP 유지/상승 | ✗ (−0.009) | ✗ (−0.021) |
+| unique/per-cb/entropy 개선 | ✓ (unique +12%, baseH +6%) | ✓ (unique +24%) |
+| P@1 크게 안 하락 | ✗ (−4.8%) | ✓ (**+0.7%**) |
+
+- **v76a**: mild fail — drop and don't recommend.
+- **v76b**: novel trade-off discovery. Paper-worthy as a top-rank
+  optimization variant; not a drop-in v62b replacement.
+
+### Possible follow-ups
+- `mscoco_v76b` on top of `mscoco_v69a` SOTA (cos VQ + position-
+  specific CodonHead — orthogonal axes, may stack).
+- λ-tuning: lower `lambda_vq` for v76b to reduce the codebook
+  commitment pressure that hurts mAP.
+
+### Code retained (default-off)
+- `config.py`: `--vq_distance_mode {euclidean (default), cosine}`,
+  `--vq_loss_cosine` (flag).
+- `model_siglip2.py`: `SemanticCodebookQuantizer(distance_mode=...)`.
+- `loss_siglip2.py`: `_loss_vq` dispatches on `vq_loss_cosine`.
+
+### Per-dataset SOTA pairs unchanged
+- Flickr25k: v62b (0.6778)
+- MSCOCO: mscoco_v69a (0.4795)
+
+### Result directories
+- v76a: `result/260523+flickr25k_setting1_v76a_v62b_cosineVQ+bs+64+e+60+proj_lr+0.001/`
+- v76b: `result/260523+flickr25k_setting1_v76b_v62b_cosineVQ_cosineLossVQ+bs+64+e+60+proj_lr+0.001/`
+
+---
+
 ## 2026-05-23 — v74 / v75: loss-term ablation reveals **loss_anchor is dead-weight in EMA mode**
 
 🟡 Two single-axis ablations setting individual loss weights to 0 on
