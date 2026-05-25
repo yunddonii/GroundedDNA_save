@@ -747,14 +747,21 @@ def main(args: Config):
     if getattr(args, "evaluation", False):
         from extraction_siglip2 import extract_code as _extract_code
         from evaluation_siglip2 import evaluation as _evaluation
-        print("[final-eval] running extraction ...")
-        _extract_code(args)
-        print(f"[final-eval] running evaluation (distance_mode={distance_mode}) ...")
-        _evaluation(
-            args.save_result_path,
-            distance_mode=distance_mode,
-            codebook_size=codebook_size_cf,
-        )
+        try:
+            print("[final-eval] running extraction ...")
+            _extract_code(args)
+        except Exception as ex:
+            print(f"[final-eval] extraction failed: {ex} -- continuing to viz.")
+        try:
+            print(f"[final-eval] running evaluation (distance_mode={distance_mode}) ...")
+            _evaluation(
+                args.save_result_path,
+                distance_mode=distance_mode,
+                codebook_size=codebook_size_cf,
+            )
+        except Exception as ex:
+            print(f"[final-eval] evaluation failed: {ex} -- continuing to viz. "
+                  f"Re-run evaluation_siglip2.py externally to recover metrics.")
 
     # ---------- end-of-training diagnostic plots --------------------------
     # Routing heatmap + per-codebook t-SNE go into the run directory next to
