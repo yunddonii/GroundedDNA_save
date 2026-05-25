@@ -209,7 +209,38 @@ Discarded. Per-dataset MSCOCO SOTA still **mscoco_v69a (mAP 0.4795)**.
 `docs/ANALYSIS_compositional_contribution.md`. Mirrors Flickr25k findings:
 **C_0 (global) is the dominant codebook; C_1-5 are mostly redundant**.
 
-### MSCOCO mscoco_v69a (baseline mAP 0.4795)
+#
+### v63b MSCOCO drop ablation (additional comparison)
+
+For completeness, the same drop ablation on the *previous* MSCOCO SOTA
+v63b (K=128, no position-specific CodonHead) — mAP 0.4563:
+
+| Codebook | mAP | ΔmAP | P@1 Δ |
+|---|---:|---:|---:|
+| baseline | 0.4563 | — | — |
+| **drop C_0** | 0.4370 | **−0.0194** | −0.008 |
+| drop C_1 | 0.4576 | **+0.0013** | −0.002 |
+| drop C_2 | 0.4572 | +0.0008 | +0.003 |
+| drop C_3 | 0.4579 | **+0.0016** | −0.002 |
+| drop C_4 | 0.4579 | **+0.0015** | −0.004 |
+| drop C_5 | 0.4559 | −0.0004 | −0.003 |
+
+→ For v63b's local codebooks (no position-specific decoding), **every
+drop except C_5 IMPROVES mAP slightly** (ΔmAP +0.001 to +0.002). The
+local codebooks are not just redundant — they actively contribute
+slight *noise* to retrieval.
+
+→ mscoco_v69a's gain (mAP +0.023 vs v63b) likely comes from
+**position-specific CodonHead converting the slight-noise local
+codebooks into mild-positive contributors** (v69a's local drops range
+[−0.004, +0.002] vs v63b's [−0.0004, +0.0016] — both shifted negative).
+This is corroborating evidence for the v69a mechanism story (position-
+specific decoder lets local slots specialise, reducing their noise
+contribution).
+
+---
+
+## MSCOCO mscoco_v69a (baseline mAP 0.4795)
 
 | Codebook | mAP | ΔmAP | P@1 Δ |
 |---|---:|---:|---:|
