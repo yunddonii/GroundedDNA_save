@@ -137,6 +137,104 @@ Format conventions:
 
 ---
 
+## 2026-05-25 — v76d (λ_vq=0.05) — DISCARDED, confirms U-shaped λ_vq sweep with v76c sweet spot
+
+🔴 Continued the λ_vq sweep on the cosine-VQ family. v76d further
+reduces `lambda_vq` from v76c's 0.10 to 0.05. Result: mAP **regresses
+from v76c** by −0.007 to 0.6645, and base entropy collapses (0.725 →
+**0.632**), confirming **U-shape sweep with v76c (λ=0.10) at the
+sweet spot**.
+
+### Setup
+- v62b setup + `--vq_distance_mode cosine --vq_loss_cosine`
+- **Single change vs v76c**: `--lambda_vq 0.10 → 0.05`
+- All other v62b hyperparameters unchanged (codon_residual_gamma=0.3,
+  etc.)
+
+### Final test (Flickr25k 2K × 23K)
+
+| Run | λ_vq | distance | mAP | Δ vs v62b | P@1 | P@10 | P@100 | P@1000 | baseH | verdict |
+|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---|
+| v62b (SOTA) | 0.25 | L2 | **0.6778** | — | **0.7625** | 0.7587 | 0.7573 | 0.7445 | 0.900 | ★ |
+| v76b | 0.25 | cos | 0.6569 | −0.0209 | 0.7695 | 0.7702 | 0.7624 | 0.7298 | 0.788 | top-biased |
+| **v76c (best cos)** | **0.10** | cos | **0.6716** | **−0.0062** | 0.7570 | **0.7636** | **0.7617** | **0.7467** | 0.725 | **near-SOTA + deep-rank ↑** |
+| **v76d** | **0.05** | cos | 0.6645 | −0.0133 | 0.7345 | 0.7571 | 0.7474 | 0.7354 | **0.632** | **worse than v76c** |
+
+### Mid-eval trajectory
+
+| epoch | v62b | v76c (λ=0.10) | **v76d (λ=0.05)** |
+|---:|---:|---:|---:|
+| 9 | 0.6706 | 0.6353 | **0.6653** (fast start) |
+| 19 | 0.6625 | 0.6515 | 0.6506 (dip) |
+| 29 | 0.6678 | 0.6533 | 0.6672 |
+| 39 | 0.6669 | **0.6716** | **0.6712** |
+| 49 | **0.6746** | 0.6738 | 0.6675 (drift) |
+| 59 | 0.6756 | 0.6733 | 0.6678 |
+| **final** | **0.6778** | **0.6716** | **0.6645** |
+
+v76d's trajectory is *anti-v76c*: fast early epochs (ep9 0.6653 nearly
+matches v62b's 0.6706), then drifts after ep39 instead of climbing.
+v76c was the opposite (slow start, late climb).
+
+### Multi-angle interpretation
+
+**1. U-shape confirms v76c as cosine VQ sweet spot**:
+- λ=0.25 → 0.10: +0.0147 mAP (v76b → v76c)
+- λ=0.10 → 0.05: −0.0071 mAP (v76c → v76d)
+- Reducing λ_vq is not monotonic improvement; it has a sweet spot.
+
+**2. baseH collapse signals a real degradation**:
+- v62b 0.900 → v76c 0.725 → v76d 0.632
+- baseH measures per-position 4-class entropy. At 0.632 the codon
+  output is far from uniform: most codon positions concentrate on
+  1-2 of the 4 base options → expressive capacity lost → mAP drops.
+- Mechanism: λ_vq=0.05 commit pressure is too weak. The codebook
+  drifts free from z, so the codon head can't reliably encode
+  varied base distributions per position.
+
+**3. Trajectory shape inverted**:
+- v76d ep9 0.6653 (fastest start of the cos series) — weak commit
+  lets early learning freely explore the embedding.
+- v76d ep49+ drift — by mid-training the unmoored codebook stops
+  improving; weak commit can't refine.
+- v76c is opposite: slow start, late climb. Adequate commit lets the
+  codebook gradually align with z.
+
+**4. Commit loss role**:
+- λ_vq controls how strongly z is pulled toward the selected
+  codeword. Too strong (0.25) over-constrains z → top-rank
+  biased. Too weak (0.05) decouples z and codebook → noisy
+  quantization. Mid (0.10) lets z drift slightly so retrieval has
+  variation but stays anchored to a coherent codebook geometry.
+
+### Verdict by user criteria
+
+| | v76d |
+|---|---|
+| v62b 대비 mAP 유지/상승 | ✗ (−0.013) |
+| unique/per-cb/entropy 1개 개선 | ✗ (all worse) |
+| P@1 크게 안 하락 | △ (−0.028) |
+| deep-rank (P@10/100/1000) | ✗ (worse than v76c) |
+
+**Discarded. v76c remains best in cosine VQ family.**
+
+### Cosine VQ family final ranking
+1. **v76c (λ_vq=0.10)**: best cosine VQ result; near-SOTA mAP
+   (−0.006) with deep-rank P@10/P@100/P@1000 all slightly above v62b.
+2. v76b (λ_vq=0.25): top-rank biased; high P@1 / P@10 at cost of
+   −0.021 mAP.
+3. v76a (mixed cos lookup + MSE loss_vq): discarded (worst P@1).
+4. **v76d (λ_vq=0.05)**: discarded; weak commit hurts everything.
+
+### Per-dataset SOTA unchanged
+- Flickr25k: v62b (mAP 0.6778)
+- MSCOCO: mscoco_v69a (mAP 0.4795)
+
+### Result directory
+`result/260525+flickr25k_setting1_v76d_v62b_cosineVQ_lamVQ005+bs+64+e+60+proj_lr+0.001/`
+
+---
+
 ## 2026-05-25 — mscoco_v76b / v76c: cosine VQ follow-ups — v76c near-SOTA with deep-rank improvement
 
 🟡 Two follow-up experiments on the v76 cosine-VQ discovery:
