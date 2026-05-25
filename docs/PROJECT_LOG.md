@@ -144,6 +144,123 @@ Format conventions:
 
 ---
 
+## 2026-05-26 — v78d (Flickr25k K=64→96 + cosine VQ + no warm-start) — DISCARDED (largest v78 regression)
+
+🔴 Combined v78c's cosine VQ + adaptive K with v78a's K range
+(K_init=64). Result: **mAP −0.051 vs v62b**, the largest Flickr25k v78
+regression. Reveals incompatibility between cosine VQ + adaptive K
+split when K_init=64 from-scratch.
+
+### Setup (single change from v78c)
+
+| | v78c | **v78d** |
+|---|---|---|
+| K_init → K_max | 32 → 64 | **64 → 96** |
+| VQ | cosine + cos loss_vq | cosine + cos loss_vq |
+| λ_vq | 0.10 | 0.10 |
+| residual γ | 0.3 | 0.3 |
+| warm-start | None (scratch) | None (scratch) |
+
+### Final test (Flickr25k 2K × 23K)
+
+| Run | K_init→K_max | VQ | warm-start | mAP | Δ vs v62b | P@1 | P@1000 | unique | baseH |
+|---|---|---|---|---:|---:|---:|---:|---:|---:|
+| v62b (SOTA) | 64 | L2 | n/a | **0.6778** | — | **0.7625** | 0.7445 | 0.075 | 0.900 |
+| v76c | 64 | cos | no | 0.6716 | −0.006 | 0.7570 | 0.7467 | 0.072 | 0.725 |
+| v78a | 64→96 | L2 | v62b | 0.6660 | −0.012 | 0.7535 | 0.7329 | 0.072 | 0.907 |
+| v78c | 32→64 | cos | no | 0.6674 | −0.010 | 0.7275 | 0.7418 | **0.099** | 0.728 |
+| v78b | 32→64 | L2 | no | 0.6648 | −0.013 | 0.7470 | 0.7334 | 0.081 | 0.907 |
+| **v78d** | **64→96** | **cos** | **no** | **0.6264** | **−0.051** ⚠ | 0.7400 | 0.7067 | **0.052** | **0.627** |
+
+### Mid-eval trajectory
+
+| ep | mAP | unique | baseH |
+|---:|---:|---:|---:|
+| 9 (pre-split) | 0.6332 | 0.168 | **0.441** (codon collapse) |
+| 19 (after split #1) | 0.6332 | 0.290 | 0.715 |
+| 29 (after split #2) | 0.6404 | 0.248 | 0.671 |
+| 39 (after split #3) | 0.6311 | 0.277 | 0.689 |
+| 49 | 0.6286 | 0.263 | 0.604 |
+| 59 (final mid) | 0.6320 | 0.306 | 0.596 |
+| **final test** | **0.6264** | 0.052 | 0.627 |
+
+ep9 baseH = 0.441 (vs v62b's 0.900) — codon distribution heavily
+biased toward 1-2 of 4 base classes from the very first epoch. Splits
+slightly improve baseH but never recover to v62b levels.
+
+### Split events (cb0 again never splits)
+
+| Split | per_codebook | active_K |
+|---|---|---|
+| ep10 | [0, 1, 2, 3, 3, 3] | [64, 65, 66, 67, 67, 67] |
+| ep20 | [0, 3, 1, 2, 3, 3] | [64, 68, 67, 69, 70, 70] |
+| ep30 | [0, 2, 3, 2, 2, 3] | [64, 70, 70, 71, 72, 73] |
+
+cb0 split count = 0 (consistent with all Flickr25k v78 variants).
+
+### Compatibility matrix — when does cosine VQ + adaptive K work?
+
+| K_init | cosine VQ | warm-start | Result |
+|---:|:---:|:---:|---|
+| 64 | ✓ | n/a (L2 trained) | v76c — works (mAP 0.6716) |
+| 64 | ✗ (L2) | ✓ from v62b | v78a — works (mAP 0.6660) |
+| **32** | ✓ | ✗ (scratch) | v78c — works (mAP 0.6674) |
+| **64** | ✓ | ✗ (scratch) | **v78d — fails (mAP 0.6264)** |
+
+**Cosine VQ + K_init=64 + no warm-start = incompatible.** The
+combination produces baseline-codon collapse (baseH 0.44 → 0.60
+throughout training) which adaptive K split cannot recover.
+
+### Mechanism hypothesis
+
+- Cosine geometry is direction-only. 64 random Gaussian initialised
+  codewords in 768d are nearly orthogonal in pairs but only
+  *weakly differentiated* in angle.
+- Cosine VQ pulls z toward codeword direction without scale info.
+  With 64 weakly-differentiated init codewords, z's collapse onto
+  a narrow region → codon head receives concentrated quantized
+  tokens → 4-way base classification biases to 1-2 classes (baseH
+  collapse).
+- K=32 (v78c) survives because fewer codewords means each has a
+  clearer "neighborhood" in cosine direction space; v62b L2 warm-
+  start (v78a) survives because the initial codebook already has
+  trained structure.
+- Adaptive K split *exacerbates* the issue by adding more codewords
+  via 2-means in an already-collapsed manifold.
+
+### Verdict by user criteria
+
+| | v78d |
+|---|---|
+| mAP 유지/상승 | ✗ (**−0.051**, largest regression) |
+| unique/per-cb/entropy 개선 | ✗ (unique **−32%**, baseH **−0.27**) |
+| P@1 크게 안 하락 | △ (−0.023) |
+
+**Discarded.**
+
+### Paper-worthy negative result
+
+This finding belongs in the limitation section of the paper:
+
+> "Adaptive K codeword split is incompatible with cosine VQ at
+> K_init=64 from-scratch (v78d, mAP −0.051 vs v62b). Smaller
+> K_init=32 (v78c) or L2-trained warm-start (v76c, v78a) recovers
+> compatibility. This suggests cosine VQ requires either fewer
+> codewords for adequate angular differentiation or a pre-trained
+> codebook starting point; combining a large from-scratch cosine
+> codebook with mid-training split disrupts the EMA codeword
+> dynamics beyond recovery within 60 epochs."
+
+### Per-dataset SOTA pairs (unchanged)
+
+- Flickr25k: **v62b** (mAP 0.6778)
+- MSCOCO: **v78a MSCOCO** (mAP 0.4856)
+
+### Result directory
+`result/260526+flickr25k_setting1_v78d_v62b_adaptiveK_64to96_cosineVQ_lamVQ01_split10_20_30+bs+64+e+60+proj_lr+0.001/`
+
+---
+
 ## 2026-05-26 — v78b / v78c: Flickr25k smaller-K-init adaptive K — DISCARDED (no SOTA gain)
 
 🔴 Two follow-ups to v78a Flickr25k's discard. Hypothesis: starting
