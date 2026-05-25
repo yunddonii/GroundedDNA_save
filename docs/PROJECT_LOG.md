@@ -137,6 +137,120 @@ Format conventions:
 
 ---
 
+## 2026-05-25 — v77a (K=192) / v77b (K=256) MSCOCO K sweep from scratch — DISCARDED
+
+🔴 Hypothesis: K=128 (v69a) might be capacity-limited for MSCOCO 80-class
+fine-grained retrieval. Sweep K=192, K=256 from scratch on top of v69a setup.
+**Hypothesis falsified — both K=192 and K=256 regress vs v69a**.
+
+### Setup (single change vs mscoco_v69a)
+- v69a setup: K=128 + position-specific CodonHead + no residual
+- v77a: `--codebook_size 192` (everything else same)
+- v77b: `--codebook_size 256`
+- *From-scratch* training (no warm-start; this is the K-from-scratch
+  contrast against later v78a adaptive K).
+
+### Final test (5K × 107K db)
+
+| Run | K | mAP | Δ vs v69a | P@1 | P@10 | P@100 | P@1000 | unique | per-cb | dup | baseH |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| **mscoco_v69a (SOTA)** | 128 | **0.4795** | — | **0.5830** | 0.5685 | 0.5758 | 0.5732 | 0.0162 | 0.00010 | 0.984 | 0.632 |
+| **mscoco_v77a** | 192 | 0.4408 | **−0.0387** | 0.5096 | 0.4988 | 0.5108 | 0.5068 | 0.0226 | 0.00009 | 0.977 | 0.641 |
+| **mscoco_v77b** | 256 | 0.4472 | **−0.0323** | 0.5418 | 0.5485 | 0.5428 | 0.5320 | 0.0204 | 0.00010 | 0.980 | 0.655 |
+
+Both K=192 and K=256 lose 0.03-0.04 mAP. P@1 drops 0.04-0.07.
+unique_code_ratio improves marginally (0.020-0.023 vs v69a 0.016) — not
+worth the mAP loss.
+
+### Trajectory
+
+| ep | v69a | v77a | v77b |
+|---:|---:|---:|---:|
+| 9 | **0.4948** | 0.4542 | 0.4546 |
+| 19 | 0.4887 | 0.4503 | 0.4512 |
+| 29 | 0.4938 | 0.4474 | 0.4524 |
+| 39 | 0.4902 | 0.4461 | 0.4536 |
+| 49 | 0.4895 | 0.4461 | 0.4537 |
+| 59 | 0.4849 | 0.4456 | 0.4526 |
+
+v77a/b trajectories are *flat* around 0.45 (no improvement after ep9).
+v69a trajectory is also flat but at 0.49 level (already-trained from scratch).
+→ **Larger K from-scratch cannot bootstrap as effectively as K=128**. EMA
+codebook with only 10K MSCOCO train images cannot densely populate K=192
+or K=256 codewords, so most extra capacity remains under-utilised.
+
+### Interpretation
+
+- K=128 represents a *capacity sweet spot* for MSCOCO 10K-train setting.
+  Going larger requires *fewer* training samples per codeword (10K/192
+  ≈ 52 vs 10K/128 ≈ 78), so each codeword gets noisier EMA updates
+  → less coherent codewords → worse retrieval.
+- This *motivates v78a adaptive K* (warm-start K=128 then grow): start
+  with a well-trained K=128 codebook, only grow into the extra slots
+  when high-collision codewords get split with concrete sample
+  evidence.
+
+### Verdict by user criteria
+- mAP 유지/상승: ✗ (both regress)
+- unique 개선: △ (marginal +0.005)
+- P@1: ✗ (both drop 0.04-0.07)
+
+Discarded. Per-dataset MSCOCO SOTA still **mscoco_v69a (mAP 0.4795)**.
+
+### Result directories
+- v77a: `result/260525+mscoco_setting1_mscoco_v77a_v69a_K192+bs+64+e+60+proj_lr+0.001/`
+- v77b: `result/260525+mscoco_setting1_mscoco_v77b_v69a_K256+bs+64+e+60+proj_lr+0.001/`
+
+---
+
+## 2026-05-25 — MSCOCO codebook drop ablation (supplement to compositional analysis)
+
+🟢 MSCOCO drop ablation completes the per-dataset comparison started in
+`docs/ANALYSIS_compositional_contribution.md`. Mirrors Flickr25k findings:
+**C_0 (global) is the dominant codebook; C_1-5 are mostly redundant**.
+
+### MSCOCO mscoco_v69a (baseline mAP 0.4795)
+
+| Codebook | mAP | ΔmAP | P@1 Δ |
+|---|---:|---:|---:|
+| baseline | 0.4795 | — | — |
+| **drop C_0 (global)** | 0.4626 | **−0.0169** | −0.097 |
+| drop C_1 | 0.4771 | −0.0025 | −0.013 |
+| drop C_2 | 0.4762 | −0.0034 | −0.001 |
+| drop C_3 | 0.4785 | −0.0010 | −0.004 |
+| drop C_4 | 0.4814 | **+0.0019** | −0.001 |
+| drop C_5 | 0.4754 | −0.0042 | −0.001 |
+
+### Cross-dataset C_0 dominance confirmed
+
+| Model | C_0 drop ΔmAP | C_1-5 drop ΔmAP range |
+|---|---:|---:|
+| v62b (Flickr) | −0.0038 | [−0.002, +0.001] |
+| v76c (Flickr cosine VQ) | −0.0109 | [−0.002, +0.002] |
+| **mscoco_v69a** | **−0.0169** | [−0.004, +0.002] |
+
+→ C_0 absolute impact is largest on MSCOCO (4-5× Flickr) because MSCOCO
+80-class fine-grained retrieval depends more on the scene-level slot.
+**Strongest evidence yet for "global slot as distinct semantic channel"
+claim**.
+
+P@1 axis: MSCOCO C_0 drop costs P@1 **−0.097** (huge), while Flickr
+v62b's C_0 drop only costs P@1 −0.008. C_0 captures the
+discriminator-critical signal that mscoco_v69a relied on to lift P@1
+from v63b's 0.5606 to 0.5830 (the actual SOTA gain mechanism).
+
+### Implication for paper narrative
+
+Updated claim to add to `docs/ANALYSIS_compositional_contribution.md`:
+
+> "On MSCOCO (80 classes, 107K db), dropping the global codebook C_0
+> reduces P@1 by 9.7 percentage points (0.583 → 0.486), whereas
+> dropping any local codebook (C_1-C_5) changes mAP by less than 0.5%.
+> This is the strongest evidence that the global codebook constitutes
+> a distinct, retrieval-critical semantic channel."
+
+---
+
 ## 2026-05-25 — v76d (λ_vq=0.05) — DISCARDED, confirms U-shaped λ_vq sweep with v76c sweet spot
 
 🔴 Continued the λ_vq sweep on the cosine-VQ family. v76d further
