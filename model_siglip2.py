@@ -115,6 +115,7 @@ class SemanticCodebookQuantizer(nn.Module):
         repel_sigma_factor: float = 0.5,
         repel_every: int = 1,
         distance_mode: str = "euclidean",
+        K_max: int = 0,
     ) -> None:
         super().__init__()
         self.num_codebooks = int(num_codebooks)
@@ -159,9 +160,25 @@ class SemanticCodebookQuantizer(nn.Module):
             "_ema_step", torch.zeros((), dtype=torch.long), persistent=False,
         )
 
-        # codebooks: [M, K, D]
+        # v78a (adaptive K): K_max ≥ codebook_size. Tensor sized K_max so we
+        # can grow the active codeword set via split during training. When
+        # K_max == codebook_size (default), the active mask covers all
+        # codewords and behaviour is bit-exact identical to the legacy path.
+        self.K_max: int = int(K_max) if int(K_max) > 0 else int(self.codebook_size)
+        if self.K_max < self.codebook_size:
+            raise ValueError(
+                f"[SemanticCodebookQuantizer] K_max ({self.K_max}) must be "
+                f">= codebook_size ({self.codebook_size})"
+            )
+        # active_mask [M, K_max]: True = codeword participates in lookup.
+        # Initial state: first `codebook_size` entries active.
+        am = torch.zeros(self.num_codebooks, self.K_max, dtype=torch.bool)
+        am[:, :self.codebook_size] = True
+        self.register_buffer("active_mask", am)
+
+        # codebooks: [M, K_max, D]
         # init: scaled Normal -- standard VQ init at 1/sqrt(D)
-        cb_init = torch.empty(self.num_codebooks, self.codebook_size, self.d_model)
+        cb_init = torch.empty(self.num_codebooks, self.K_max, self.d_model)
         nn.init.normal_(cb_init, mean=0.0, std=1.0 / math.sqrt(self.d_model))
         if self.update_mode == "gradient":
             # legacy path: codebook learns through the VQ MSE term in the loss
@@ -169,11 +186,13 @@ class SemanticCodebookQuantizer(nn.Module):
         else:
             # EMA path (VQ-VAE-2 / DALL-E style):
             # codebook is a buffer updated in-place every training forward.
-            #   cluster_size : [M, K]    EMA-smoothed assignment counts
-            #   embed_avg    : [M, K, D] EMA-smoothed weighted sum of inputs
+            #   cluster_size : [M, K_max]    EMA-smoothed assignment counts
+            #   embed_avg    : [M, K_max, D] EMA-smoothed weighted sum of inputs
+            #   embed_sqavg  : [M, K_max, D] EMA second-moment (v78a, for variance)
             self.register_buffer("codebooks",    cb_init.clone())
-            self.register_buffer("cluster_size", torch.ones(self.num_codebooks, self.codebook_size))
+            self.register_buffer("cluster_size", torch.ones(self.num_codebooks, self.K_max))
             self.register_buffer("embed_avg",    cb_init.clone())
+            self.register_buffer("embed_sqavg",  cb_init.clone() ** 2)
 
     # -------------------------------------------------------- helpers
 
@@ -267,18 +286,21 @@ class SemanticCodebookQuantizer(nn.Module):
             anchor = normalize( normalize(c, dim=-1).mean(dim=0), dim=-1 )
 
         Per-codeword normalization first stops a small number of large-norm
-        codewords from dominating the mean.
-
-        Args:
-            exclude_global: skip codebook 0 (the C_global slot) — local routing
-                            consumes only the 5 local anchors.
-
-        Returns:
-            anchors: [M_local, D] if exclude_global else [M, D]
+        codewords from dominating the mean. With v78a active_mask, only
+        currently-active codewords contribute to the mean.
         """
-        cb = self.codebooks[1:] if exclude_global else self.codebooks   # [M', K, D]
-        cb_n   = F.normalize(cb, dim=-1)                                # [M', K, D]
-        anchors = cb_n.mean(dim=1)                                      # [M', D]
+        if exclude_global:
+            cb       = self.codebooks[1:]                               # [M', K_max, D]
+            mask     = self.active_mask[1:]                             # [M', K_max]
+        else:
+            cb       = self.codebooks
+            mask     = self.active_mask
+        cb_n   = F.normalize(cb, dim=-1)                                # [M', K_max, D]
+        # Mask inactive codewords with zero before averaging; divide by active count.
+        mask_f = mask.unsqueeze(-1).to(cb_n.dtype)                      # [M', K_max, 1]
+        cb_n_masked = cb_n * mask_f
+        n_active = mask.sum(dim=-1, keepdim=True).clamp_min(1).to(cb_n.dtype)  # [M', 1]
+        anchors = cb_n_masked.sum(dim=1) / n_active                     # [M', D]
         anchors = F.normalize(anchors, dim=-1)                          # [M', D]
         return anchors
 
@@ -302,30 +324,33 @@ class SemanticCodebookQuantizer(nn.Module):
         Returns total number of revived codewords across all codebooks.
         """
         B, M, D = z.shape
-        K = self.codebook_size
         assert M == self.num_codebooks, (M, self.num_codebooks)
         n_revived = 0
         for m in range(M):
-            cs   = self.cluster_size[m]                                       # [K]
-            cs_max = cs.max()
+            cs   = self.cluster_size[m]                                       # [K_max]
+            active_m = self.active_mask[m]                                    # [K_max] bool
+            # only consider active codewords for "dead" detection; inactive
+            # are not eligible (their slot is reserved for future split).
+            cs_active = cs[active_m]
+            if cs_active.numel() == 0:
+                continue
+            cs_max = cs_active.max()
             thr  = cs_max * self.revive_threshold
-            dead_mask = cs < thr                                              # [K] bool
+            dead_mask = active_m & (cs < thr)                                 # [K_max] bool
             n_dead = int(dead_mask.sum().item())
             if n_dead == 0:
                 continue
-            # sample fresh z's from the current batch with replacement
             idx_pool   = torch.randint(0, B, (n_dead,), device=z.device)
             new_codes  = z[idx_pool, m, :]                                    # [n_dead, D]
-            # cluster_size to assign: median of currently-active codes (or 1.0
-            # if every code in the codebook was dead).
-            active_cs  = cs[~dead_mask]
-            if active_cs.numel() > 0:
-                init_cs = active_cs.median().clamp_min(1.0)
+            active_alive_cs = cs[active_m & ~dead_mask]
+            if active_alive_cs.numel() > 0:
+                init_cs = active_alive_cs.median().clamp_min(1.0)
             else:
                 init_cs = torch.tensor(1.0, device=cs.device, dtype=cs.dtype)
             self.codebooks[m, dead_mask]    = new_codes
             self.cluster_size[m, dead_mask] = init_cs
             self.embed_avg[m, dead_mask]    = new_codes * init_cs
+            self.embed_sqavg[m, dead_mask]  = (new_codes ** 2) * init_cs
             n_revived += n_dead
         return n_revived
 
@@ -376,31 +401,194 @@ class SemanticCodebookQuantizer(nn.Module):
 
         Shapes:
             z       : [B, M, D]
-            indices : [B, M]
-            cluster_size : [M, K]
-            embed_avg    : [M, K, D]
+            indices : [B, M]                 # values in [0, K_max)
+            cluster_size : [M, K_max]
+            embed_avg    : [M, K_max, D]
+            embed_sqavg  : [M, K_max, D]     # second moment for v78a variance
         """
         B, M, D = z.shape
-        K = self.codebook_size
+        K_eff = self.K_max     # tensor dim = K_max; inactive entries just decay
         assert M == self.num_codebooks, (M, self.num_codebooks)
-        # one-hot per codebook -- [M, B, K]
-        onehot = F.one_hot(indices.transpose(0, 1), num_classes=K).to(z.dtype)  # [M, B, K]
-        cluster_size_b = onehot.sum(dim=1)                                       # [M, K]
+        # one-hot per codebook -- [M, B, K_max]
+        onehot = F.one_hot(indices.transpose(0, 1), num_classes=K_eff).to(z.dtype)
+        cluster_size_b = onehot.sum(dim=1)                                       # [M, K_max]
         z_perm = z.transpose(0, 1)                                               # [M, B, D]
-        # weighted sum of z's mapped to each codeword (per codebook)
-        embed_sum = torch.bmm(onehot.transpose(1, 2), z_perm)                    # [M, K, D]
-        # decay both running stats
+        # weighted sum + sum of squares per (m, k)
+        embed_sum    = torch.bmm(onehot.transpose(1, 2), z_perm)                 # [M, K_max, D]
+        embed_sq_sum = torch.bmm(onehot.transpose(1, 2), z_perm * z_perm)        # [M, K_max, D]
+        # decay running stats
         self.cluster_size.mul_(self.ema_decay).add_(cluster_size_b, alpha=(1.0 - self.ema_decay))
         self.embed_avg   .mul_(self.ema_decay).add_(embed_sum,      alpha=(1.0 - self.ema_decay))
-        # Laplace-smoothed normalization to avoid div-by-zero on dead codes
+        self.embed_sqavg .mul_(self.ema_decay).add_(embed_sq_sum,   alpha=(1.0 - self.ema_decay))
+        # Laplace-smoothed normalization (active codeword count, not K_max)
         n_total = self.cluster_size.sum(dim=-1, keepdim=True)                    # [M, 1]
-        cs = (self.cluster_size + self.ema_eps) / (n_total + K * self.ema_eps) * n_total  # [M, K]
+        cs = (self.cluster_size + self.ema_eps) / (n_total + K_eff * self.ema_eps) * n_total
         self.codebooks.copy_(self.embed_avg / cs.unsqueeze(-1))
         # Option α: post-EMA codeword repulsion (rate-limited)
         if self.repel_strength > 0.0:
             self._ema_step.add_(1)
             if int(self._ema_step.item()) % self.repel_every == 0:
                 self._codeword_repulsion()
+
+    # =================== v78a: adaptive K / codeword split ================
+
+    @torch.no_grad()
+    def warm_start_from_state(
+        self,
+        cb: torch.Tensor,
+        cs: torch.Tensor,
+        ea: torch.Tensor,
+        K_init: int,
+    ) -> None:
+        """Copy an existing K=K_init codebook into the K_max tensor.
+
+        cb, cs, ea : tensors of shapes [M, K_init, D], [M, K_init], [M, K_init, D]
+        Marks the first K_init codewords as active; the rest stay inactive.
+        embed_sqavg is initialised to embed_avg**2 / cluster_size (rough
+        second moment) so variance computation starts from a reasonable
+        prior.
+        """
+        assert cb.shape[0] == self.num_codebooks
+        assert K_init <= self.K_max
+        device, dtype = self.codebooks.device, self.codebooks.dtype
+        self.codebooks[:, :K_init, :].copy_(cb.to(device=device, dtype=dtype))
+        self.cluster_size[:, :K_init].copy_(cs.to(device=device, dtype=dtype))
+        self.embed_avg[:, :K_init, :].copy_(ea.to(device=device, dtype=dtype))
+        # rough second-moment initialisation
+        cs_safe = cs.to(device=device, dtype=dtype).clamp_min(1e-6).unsqueeze(-1)
+        z_mean  = ea.to(device=device, dtype=dtype) / cs_safe
+        self.embed_sqavg[:, :K_init, :].copy_((z_mean ** 2) * cs_safe)
+        # Active mask: first K_init True, rest False
+        self.active_mask.zero_()
+        self.active_mask[:, :K_init] = True
+        print(f"[Quantizer.warm_start] copied K={K_init} into K_max={self.K_max}, "
+              f"active count per codebook = {K_init}")
+
+    @torch.no_grad()
+    def compute_codeword_variance(self) -> torch.Tensor:
+        """Per-codeword feature variance from EMA second moment.
+
+        var(m, k) = mean over D of (E[z^2] − E[z]^2),
+        where E[·] = embed_*_avg / cluster_size.
+
+        Returns [M, K_max] tensor; inactive entries are 0.
+        """
+        cs = self.cluster_size.clamp_min(1e-6).unsqueeze(-1)
+        z_mean = self.embed_avg   / cs                       # [M, K_max, D]
+        z_sqm  = self.embed_sqavg / cs
+        var    = (z_sqm - z_mean ** 2).clamp_min(0)          # [M, K_max, D]
+        var_scalar = var.mean(dim=-1)                        # [M, K_max]
+        var_scalar = var_scalar * self.active_mask.to(var_scalar.dtype)
+        return var_scalar
+
+    @torch.no_grad()
+    def do_split(
+        self,
+        max_splits: int,
+        z_per_cw: "list[list[Optional[torch.Tensor]]]",
+        collision_pressure: Optional[torch.Tensor] = None,
+        min_cluster_for_split: int = 16,
+    ) -> Dict[str, int]:
+        """v78a codeword split.
+
+        Args:
+            max_splits: hard cap on the number of (m, k) splits this call.
+            z_per_cw: nested list, z_per_cw[m][k] = [N_mk, D] tensor of z's
+                that were assigned to codeword k in codebook m during the
+                most recent inference pass (None for inactive / unsampled).
+            collision_pressure: [M, K_max] tensor or None. If None, falls
+                back to using cluster_size as a proxy.
+
+        Returns dict with {"n_split_total", "split_count_per_codebook"}.
+        """
+        device = self.codebooks.device
+        M, K_max = self.active_mask.shape
+
+        usage = self.cluster_size.clone()                                # [M, K_max]
+        variance = self.compute_codeword_variance()                      # [M, K_max]
+        if collision_pressure is None:
+            collision_pressure = usage.clone()
+        cp = collision_pressure.to(device=device, dtype=usage.dtype)
+
+        # split_score(m, k) = usage * variance * collision_pressure
+        score = usage * variance * cp                                    # [M, K_max]
+        # Mask out inactive codewords (can't split inactive) and those with
+        # too few samples
+        score = score * self.active_mask.to(score.dtype)
+        # find inactive slots per codebook
+        n_split_total = 0
+        split_count_per_codebook = [0] * M
+
+        # Greedy: pick the (m, k) pair with highest score globally, split,
+        # repeat until max_splits or no eligible candidates remain.
+        for _ in range(max_splits):
+            inactive_slots_per_m = [
+                (~self.active_mask[m]).nonzero(as_tuple=False).flatten().tolist()
+                for m in range(M)
+            ]
+            # mask out (m, k) for which we have no inactive slot
+            mask_no_slot = torch.tensor(
+                [len(s) == 0 for s in inactive_slots_per_m],
+                device=device,
+            )                                                            # [M]
+            if mask_no_slot.all():
+                break
+            score_local = score.clone()
+            score_local[mask_no_slot] = -1.0
+            # also drop entries whose collected z sample size is below threshold
+            for m in range(M):
+                for k in range(K_max):
+                    if (z_per_cw[m][k] is None or
+                        (z_per_cw[m][k] is not None and z_per_cw[m][k].shape[0] < min_cluster_for_split)):
+                        score_local[m, k] = -1.0
+            if score_local.max() <= 0:
+                break
+            flat_idx = score_local.view(-1).argmax()
+            m = int(flat_idx // K_max)
+            k = int(flat_idx %  K_max)
+            inactive_slots = inactive_slots_per_m[m]
+            if not inactive_slots:
+                score[m, k] = 0
+                continue
+            new_k = inactive_slots[0]
+            # collect z's mapped to codeword k in codebook m
+            z_samples = z_per_cw[m][k]                                   # [N, D]
+            if z_samples.shape[0] < min_cluster_for_split:
+                score[m, k] = 0
+                continue
+            # 2-means via random init from 2 distinct samples + a couple of iterations
+            N, D = z_samples.shape
+            rng = torch.randperm(N, device=z_samples.device)[:2]
+            cA = z_samples[rng[0]].clone()
+            cB = z_samples[rng[1]].clone()
+            for _it in range(5):
+                dA = ((z_samples - cA.unsqueeze(0)) ** 2).sum(-1)
+                dB = ((z_samples - cB.unsqueeze(0)) ** 2).sum(-1)
+                assign = (dB < dA)                                       # True -> B
+                nA = (~assign).sum().clamp_min(1)
+                nB = assign.sum().clamp_min(1)
+                cA = z_samples[~assign].mean(0)
+                cB = z_samples[ assign].mean(0)
+            # apply: codeword k <- cA, new_k <- cB
+            ema_cs_per_side = self.cluster_size[m, k].item() * 0.5
+            self.codebooks[m, k].copy_(cA)
+            self.codebooks[m, new_k].copy_(cB)
+            self.cluster_size[m, k]     = ema_cs_per_side
+            self.cluster_size[m, new_k] = ema_cs_per_side
+            self.embed_avg  [m, k].copy_   (cA * ema_cs_per_side)
+            self.embed_avg  [m, new_k].copy_(cB * ema_cs_per_side)
+            self.embed_sqavg[m, k].copy_   ((cA ** 2) * ema_cs_per_side)
+            self.embed_sqavg[m, new_k].copy_((cB ** 2) * ema_cs_per_side)
+            self.active_mask[m, new_k] = True
+            # zero score of the split-source to prevent re-selection this call
+            score[m, k] = 0
+            split_count_per_codebook[m] += 1
+            n_split_total += 1
+        return {
+            "n_split_total": n_split_total,
+            "split_count_per_codebook": split_count_per_codebook,
+            "active_K_per_codebook": [int(self.active_mask[m].sum().item()) for m in range(M)],
+        }
 
     def forward(self, semantic_visual_tokens: torch.Tensor) -> Dict[str, torch.Tensor]:
         # semantic_visual_tokens: [B, M, D]
@@ -416,22 +604,21 @@ class SemanticCodebookQuantizer(nn.Module):
                 f"but quantizer was built with d_model={self.d_model}"
             )
 
-        # nearest-neighbour distance to codewords (M and K are small -- 6 and {64,128}).
-        # v76: --vq_distance_mode {euclidean (default) | cosine}.
+        # nearest-neighbour distance to codewords. Distance tensor is sized
+        # K_max; inactive codewords are masked with +inf so argmin can never
+        # select them (v78a adaptive K).
         if self.distance_mode == "cosine":
-            # 1 - cos(z, codeword). Scale-invariant; consistent with the
-            # router / NtXent / anchor / prototype heads which all use cos.
-            # Use detached z norm for normalization to keep the gradient
-            # path identical to a unit-normalized lookup (otherwise norm
-            # gradient leaks through the lookup distance into z).
             z_n  = F.normalize(semantic_visual_tokens, dim=-1)                 # [B, M, D]
-            cb_n = F.normalize(self.codebooks, dim=-1)                         # [M, K, D]
-            cos_sim   = torch.einsum("bmd,mkd->bmk", z_n, cb_n)                # [B, M, K]
-            distances = 1.0 - cos_sim                                          # [B, M, K] in [0, 2]
+            cb_n = F.normalize(self.codebooks, dim=-1)                         # [M, K_max, D]
+            cos_sim   = torch.einsum("bmd,mkd->bmk", z_n, cb_n)                # [B, M, K_max]
+            distances = 1.0 - cos_sim                                          # [B, M, K_max] in [0, 2]
         else:
-            # squared-L2 (legacy VQ-VAE convention)
             diff = semantic_visual_tokens.unsqueeze(2) - self.codebooks.unsqueeze(0)
-            distances = (diff ** 2).sum(dim=-1)                                # [B, M, K]
+            distances = (diff ** 2).sum(dim=-1)                                # [B, M, K_max]
+        # v78a: mask inactive codewords from lookup
+        if self.K_max != self.codebook_size or (~self.active_mask).any():
+            inactive = (~self.active_mask).unsqueeze(0)                        # [1, M, K_max]
+            distances = distances.masked_fill(inactive, float("inf"))
         indices   = distances.argmin(dim=-1)                                   # [B, M]
 
         # gather quantized embeddings via advanced indexing:
@@ -1050,6 +1237,7 @@ class SigLIP2SemanticOTModel(nn.Module):
             repel_sigma_factor=float(getattr(args, "codebook_repel_sigma_factor", 0.5)),
             repel_every=int(getattr(args, "codebook_repel_every", 1)),
             distance_mode=str(getattr(args, "vq_distance_mode", "euclidean")),
+            K_max=int(getattr(args, "codebook_K_max", 0)),
         )
 
         # ---------- gated global addition --------------------------------
@@ -1747,7 +1935,7 @@ class SigLIP2SemanticOTModel(nn.Module):
         )
         assert quantized_tokens.shape == (B, NUM_SEMANTIC_PARTS, D)
         assert codebook_indices.shape  == (B, NUM_SEMANTIC_PARTS)
-        assert codebook_distances.shape == (B, NUM_SEMANTIC_PARTS, self.codebook_size)
+        assert codebook_distances.shape == (B, NUM_SEMANTIC_PARTS, self.quantizer.K_max)
         assert head_inputs.shape == (B, NUM_SEMANTIC_PARTS, D)
         assert gate_values.shape == (NUM_LOCAL_PARTS,)
         assert continuous_codes_per_codebook.shape == (B, NUM_SEMANTIC_PARTS, 3, 4)

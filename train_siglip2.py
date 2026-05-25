@@ -107,6 +107,75 @@ def _resolve_save_path(args: Config) -> str:
 
 # ----------------------------- mid-training retrieval eval helper
 
+@torch.no_grad()
+def _collect_split_data(model, loader, device, M: int, K_max: int):
+    """v78a: single-pass sweep over `loader` (train loader expected) to
+    collect, for each (m, k):
+      - List of z_m vectors that landed in codeword k (for 2-means at split)
+      - Collision pressure: average duplicate-group size of the full DNA
+        code among samples that landed in (m, k).
+
+    Returns:
+        z_per_cw: nested list [M][K_max], each entry None or tensor [N_mk, D]
+        collision_pressure: [M, K_max] tensor
+    """
+    from collections import Counter
+    model.eval()
+    z_chunks = [[[] for _ in range(K_max)] for _ in range(M)]
+    full_codes = []           # list[tuple[int, int, int, int, int, int]] (cb indices per sample)
+    cb_idx_per_sample = []    # list of np arrays [M] per sample
+    for batch in loader:
+        # Pick the right cached-feature key, mirroring the training loop's
+        # paired-aug convention (cached_visual_tokens_aug0 / _aug1) when
+        # available, else the un-augmented cache.
+        if "cached_visual_tokens_aug0" in batch and "cached_visual_global_aug0" in batch:
+            cached_vt = batch["cached_visual_tokens_aug0"].to(device)
+            cached_vg = batch["cached_visual_global_aug0"].to(device)
+        else:
+            cached_vt = batch.get("cached_visual_tokens_raw", None)
+            cached_vg = batch.get("cached_visual_global", None)
+            if cached_vt is not None: cached_vt = cached_vt.to(device)
+            if cached_vg is not None: cached_vg = cached_vg.to(device)
+        cached_tp = batch.get("cached_text_part_raw", None)
+        cached_ht = batch.get("cached_has_text", None)
+        if cached_tp is not None: cached_tp = cached_tp.to(device)
+        if cached_ht is not None: cached_ht = cached_ht.to(device)
+        out = model(
+            cached_visual_tokens_raw=cached_vt,
+            cached_visual_global   =cached_vg,
+            cached_text_part_raw   =cached_tp,
+            cached_has_text        =cached_ht,
+            return_routing=True,
+        )
+        z   = out["semantic_visual_tokens"].detach()   # [B, M, D]
+        cbi = out["codebook_indices"].detach()         # [B, M]
+        B = z.shape[0]
+        for b in range(B):
+            for m in range(M):
+                k = int(cbi[b, m].item())
+                z_chunks[m][k].append(z[b, m].cpu())
+            full_codes.append(tuple(int(x) for x in cbi[b].tolist()))
+            cb_idx_per_sample.append(cbi[b].cpu().numpy())
+    # collation: stack per (m, k)
+    z_per_cw: list = [[None] * K_max for _ in range(M)]
+    for m in range(M):
+        for k in range(K_max):
+            if z_chunks[m][k]:
+                z_per_cw[m][k] = torch.stack(z_chunks[m][k], dim=0)
+    # collision pressure: for each sample, group-size minus 1 (excluding self)
+    code_counts = Counter(full_codes)
+    cp = torch.zeros(M, K_max)
+    cp_cnt = torch.zeros(M, K_max)
+    for sample_cb, code in zip(cb_idx_per_sample, full_codes):
+        gs = code_counts[code]               # group size including self
+        for m in range(M):
+            k = int(sample_cb[m])
+            cp[m, k]    += float(gs)
+            cp_cnt[m, k] += 1.0
+    cp = cp / cp_cnt.clamp_min(1.0)          # average group size per (m, k)
+    return z_per_cw, cp
+
+
 def _mid_train_eval(model, loader, device, distance_mode: str, codebook_size: int):
     """Quick retrieval + collapse eval on a single (test) split.
 
@@ -141,6 +210,27 @@ def main(args: Config):
     model = SigLIP2SemanticOTModel(args).to(args.device)
     model.assert_no_shared_trainable_params(verbose=True)
     model.print_parameter_summary()
+
+    # ---------- v78a: warm-start codebook from a K=K_init checkpoint --------
+    warm_path = getattr(args, "warm_start_codebook_from", None)
+    if warm_path and os.path.exists(warm_path):
+        print(f"[v78a] warm-starting codebook from {warm_path}")
+        sd_full = torch.load(warm_path, map_location=args.device, weights_only=False)
+        # quantizer codebook/EMA buffers (K=K_init in source)
+        cb_src = sd_full["quantizer.codebooks"]
+        cs_src = sd_full["quantizer.cluster_size"]
+        ea_src = sd_full["quantizer.embed_avg"]
+        K_init = cb_src.shape[1]
+        model.quantizer.warm_start_from_state(cb_src, cs_src, ea_src, K_init=K_init)
+        # Load the rest of the model weights (skip quantizer state we just
+        # warm-started — different tensor shape on the target).
+        skip = {"quantizer.codebooks", "quantizer.cluster_size",
+                "quantizer.embed_avg", "quantizer.embed_sqavg",
+                "quantizer.active_mask"}
+        filtered_sd = {k: v for k, v in sd_full.items() if k not in skip}
+        miss, unexp = model.load_state_dict(filtered_sd, strict=False)
+        print(f"[v78a] warm-start state_dict load: "
+              f"missing={len(miss)}, unexpected={len(unexp)}")
 
     # ---------- dataset (untouched) -----------------------------------------
     transform      = get_transform('train')
@@ -536,6 +626,16 @@ def main(args: Config):
         cos_w = 0.5 * (1.0 + math.cos(math.pi * (e / denom)))
         return tau_final + (tau_init - tau_final) * cos_w
 
+    # v78a: parse split epochs once
+    _split_epochs_str = str(getattr(args, "split_epochs", ""))
+    _split_epochs = set()
+    if _split_epochs_str:
+        try:
+            _split_epochs = {int(x) for x in _split_epochs_str.split(",") if x.strip()}
+        except ValueError:
+            _split_epochs = set()
+    _split_max = int(getattr(args, "split_max_per_epoch", 12))
+
     for e in range(args.epoch):
 
         # propagate annealed gumbel-softmax temperature to codon heads
@@ -546,6 +646,23 @@ def main(args: Config):
         # compute annealed epsilon (no-op when annealing is off).
         if hasattr(model, "set_current_epoch"):
             model.set_current_epoch(e)
+
+        # v78a: codeword split at scheduled epochs (BEFORE this epoch's training)
+        if e in _split_epochs and hasattr(model.quantizer, "do_split"):
+            print(f"[v78a] split hook at epoch {e}: sweeping train loader to "
+                  f"collect z_per_cw + full-code collision pressure")
+            with torch.no_grad():
+                model.eval()
+                z_per_cw, cp = _collect_split_data(model, train_loader, args.device,
+                                                    M=model.num_codebooks,
+                                                    K_max=model.quantizer.K_max)
+            info = model.quantizer.do_split(
+                max_splits=_split_max, z_per_cw=z_per_cw,
+                collision_pressure=cp,
+            )
+            print(f"[v78a] split @ ep{e}: n_split={info['n_split_total']}, "
+                  f"per_codebook={info['split_count_per_codebook']}, "
+                  f"active_K={info['active_K_per_codebook']}")
 
         model.train()
         train_result = one_epoch(train=True, loader=train_loader, epoch=e)

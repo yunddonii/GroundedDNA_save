@@ -355,6 +355,31 @@ class Config():
             help='If set, loss_vq becomes (1 - cos) instead of MSE for both '
                  'codebook and commitment terms. Pair with --vq_distance_mode '
                  'cosine for the full cosine VQ ablation (v76b).')
+        # v78a: adaptive K / codeword split. K_max > codebook_size allocates
+        # codebook tensor of size K_max with only `codebook_size` codewords
+        # active initially. The training loop can call quantizer.do_split()
+        # to convert inactive slots into active ones. Default 0 = use
+        # codebook_size (no extra capacity, legacy behaviour bit-exact).
+        siglip2_arg.add_argument('--codebook_K_max',
+            dest='codebook_K_max', type=int, default=0,
+            help='v78a: K_max for adaptive codeword split. 0 (default) = '
+                 'use codebook_size (legacy). Set >= codebook_size to '
+                 'reserve inactive slots for split.')
+        siglip2_arg.add_argument('--warm_start_codebook_from',
+            dest='warm_start_codebook_from', type=str, default=None,
+            help='v78a: path to a model_state_dict.pth whose '
+                 'quantizer.codebooks / .cluster_size / .embed_avg are '
+                 'copied into the first K_init slots of this run\'s '
+                 'codebook (with active_mask set accordingly). Rest of the '
+                 'state_dict is loaded as well (skip quantizer EMA shape '
+                 'mismatches).')
+        siglip2_arg.add_argument('--split_epochs',
+            dest='split_epochs', type=str, default='',
+            help='v78a: comma-separated epochs at which to call '
+                 'quantizer.do_split. Example: "10,20,30". Empty = no splits.')
+        siglip2_arg.add_argument('--split_max_per_epoch',
+            dest='split_max_per_epoch', type=int, default=12,
+            help='v78a: maximum number of (m, k) splits per split epoch.')
         # ---------- v41 (5-G): text-supervised codebook initialization ---
         # Before training starts, replace the random Gaussian codebook init
         # with K vectors derived from train-set `cached_text_part_raw`
