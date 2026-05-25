@@ -160,7 +160,9 @@ def evaluate_code_collapse(
     cb = extraction["codebook_indices"]   # [N, M=6]
     bi = extraction["base_indices"]        # [N, R=18]
     N, M = cb.shape
-    K = int(codebook_size)
+    # v78a: codebook can carry indices > codebook_size when adaptive K
+    # split has been applied. Detect actual K from data.
+    K = max(int(codebook_size), int(cb.max()) + 1) if N > 0 else int(codebook_size)
     R = bi.shape[1]
     if R != num_dna_positions:
         # not fatal; just adapt
