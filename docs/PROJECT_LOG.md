@@ -47,17 +47,24 @@ Format conventions:
 - **Prior unsupervised Flickr25k SOTA (PEAK)**: **v57** (= v49 with
   `--lambda_wasserstein 0.02 → 0.05`) -- peak mAP 0.6742 (ep9),
   final test mAP 0.6683. Now superseded by v62b.
-- **MSCOCO unsupervised SOTA (ours, NEW 2026-05-23)**: **mscoco_v69a**
-  (= v63b setup + `--codon_position_specific_head`, 3 independent
-  Linear(chunk, 4) per codon position) -- **mAP 0.4795** test, P@1
-  **0.5830** (vs v63b 0.5606, +0.022). The same change is a mild
-  loss on Flickr25k (v69a 0.6702 vs v62b 0.6778, −0.008) —
-  position-specialization helps MSCOCO's 80-class fine-grained
-  retrieval but not Flickr25k's 24-class semantic grouping.
-  → Per-dataset SOTA pairs: **Flickr25k = v62b (0.6778)**,
-  **MSCOCO = mscoco_v69a (0.4795)**. See 2026-05-23 v69-v72 entries.
-- **Previous MSCOCO SOTA**: v63b (mAP 0.4563). v62b's residual head
-  does NOT generalize to MSCOCO (mscoco_v62b 0.4378, −0.0185).
+- **MSCOCO unsupervised SOTA (ours, NEW 2026-05-25)**: **v78a MSCOCO**
+  (= mscoco_v69a setup + adaptive K codeword split: K_init=128,
+  K_max=192, warm-start from v69a checkpoint, 12 splits at each of
+  epochs 10/20/30 driven by usage·variance·collision_pressure
+  score) -- **mAP 0.4856**, P@1 **0.6058** (+0.0228 vs v69a 0.5830).
+  Of 36 total splits, cb0 (global slot) absorbed 25/36 (69%): K_0
+  grew 128→153, local cb1-5 grew only +1-3 each. Validates the
+  earlier compositional-analysis finding that cb0 is MSCOCO's
+  dominant retrieval channel. The same algorithm REGRESSES on
+  Flickr25k (v78a Flickr mAP 0.6660 vs v62b 0.6778, −0.012) because
+  there cb0 never split (score 0 throughout) and the 36 splits went
+  to redundant local codebooks.
+- **Previous MSCOCO SOTA**: mscoco_v69a (mAP 0.4795, K=128 +
+  position-specific CodonHead). Note: from-scratch K↑ regressed
+  (v77a K=192 → 0.4408, v77b K=256 → 0.4472); warm-start + selective
+  split is what unlocks the gain.
+- **Per-dataset SOTA pairs**: Flickr25k = **v62b** (0.6778),
+  MSCOCO = **v78a MSCOCO** (0.4856).
 - **Previous text-on SOTA by peak**: v49 -- 0.6705 peak / 0.6644 final.
 - **Best by FINAL-checkpoint mAP (pre-v57)**: v52 (= v49 with
   `--gumbel_tau_final 0.3 → 0.1`) -- 0.6691 final. NOT superseded by
@@ -134,6 +141,143 @@ Format conventions:
 ---
 
 ---
+
+---
+
+## 2026-05-25 — v78a (adaptive K / codeword split) — NEW MSCOCO SOTA (mAP 0.4856), Flickr25k discarded
+
+🟢 ★ **MSCOCO SOTA 갱신**: v78a (warm-start K=128 + selective split to
+K_max=192) achieves mAP **0.4856** (+0.0061 vs mscoco_v69a 0.4795),
+P@1 **0.6058** (+0.0228). Adaptive K with split-score-driven selection
+is the first technique to beat v69a on MSCOCO.
+
+🔴 Flickr25k v78a (warm-start K=64 + split to K_max=96) regresses mAP
+0.6660 (−0.012 vs v62b 0.6778). Same algorithm produces *opposite*
+outcomes on the two datasets — split targets opposite codebooks.
+
+### Algorithm
+- Warm-start from a converged K=K_init checkpoint (mscoco_v69a /
+  v62b), copying codebook + EMA cluster_size + embed_avg into the
+  first K_init slots of a K_max-sized tensor; remaining slots
+  inactive.
+- During training, mask inactive slots from argmin lookup.
+- At epochs 10/20/30, sweep training set to collect (per codeword
+  k in codebook m): assigned z vectors + full-DNA-code collision
+  pressure.
+- Score(m,k) = usage · variance(z) · collision_pressure.
+- Greedy 2-means split on top-12 scoring active codewords: codeword
+  k inherits cluster A, an inactive slot gets cluster B.
+- EMA cluster_size / embed_avg / embed_sqavg updated for both
+  child codewords.
+
+### Final test
+
+| Run | mAP | P@1 | P@10 | P@100 | P@1000 | unique | baseH | verdict |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| **MSCOCO** | | | | | | | | |
+| v77a (K=192 from scratch) | 0.4408 | 0.5096 | 0.4988 | 0.5108 | 0.5068 | 0.023 | 0.641 | discarded |
+| v77b (K=256 from scratch) | 0.4472 | 0.5418 | 0.5485 | 0.5428 | 0.5320 | 0.020 | 0.655 | discarded |
+| mscoco_v69a (prev SOTA) | 0.4795 | 0.5830 | 0.5685 | 0.5758 | 0.5732 | 0.016 | 0.632 | ★ |
+| **v78a MSCOCO** ★★ | **0.4856** | **0.6058** | **0.5720** | **0.5819** | **0.5806** | 0.0165 | 0.637 | **NEW SOTA** |
+| **Flickr25k** | | | | | | | | |
+| v62b (SOTA) | **0.6778** | **0.7625** | 0.7587 | 0.7573 | 0.7445 | 0.0745 | 0.900 | ★ |
+| **v78a Flickr** | 0.6660 | 0.7535 | 0.7415 | 0.7413 | 0.7329 | 0.0720 | 0.907 | discarded |
+
+### Split events — opposite codebook targets
+
+**MSCOCO** (K_init=128 → K_max=192):
+
+| Split | n_split | per_codebook | active_K (after) |
+|---|---:|---|---|
+| ep10 | 12 | [**8**, 0, 1, 0, 1, 2] | [136, 128, 129, 128, 129, 130] |
+| ep20 | 12 | [**5**, 1, 1, 2, 2, 1] | [141, 129, 130, 130, 131, 131] |
+| ep30 | 12 | [**12**, 0, 0, 0, 0, 0] | [**153**, 129, 130, 130, 131, 131] |
+| **Total** | **36** | **cb0 absorbed 25/36 (69%)** | mean ≈ 134 |
+
+**Flickr25k** (K_init=64 → K_max=96):
+
+| Split | n_split | per_codebook | active_K (after) |
+|---|---:|---|---|
+| ep10 | 12 | [**0**, 3, 3, 2, 2, 2] | [64, 67, 67, 66, 66, 66] |
+| ep20 | 12 | [**0**, 3, 2, 2, 3, 2] | [64, 70, 69, 68, 69, 68] |
+| ep30 | 12 | [**0**, 2, 3, 2, 2, 3] | [**64**, 72, 72, 70, 71, 71] |
+| **Total** | **36** | **cb0 absorbed 0/36 (0%)** | mean ≈ 69 |
+
+### Key finding — dataset-specific split target
+
+| | Flickr25k | MSCOCO |
+|---|---|---|
+| cb0 (global) split fraction | 0/36 | **25/36 (69%)** |
+| mAP Δ vs baseline | −0.012 | **+0.006** |
+| P@1 Δ | −0.009 | **+0.023** |
+
+Consistent with the compositional contribution analysis:
+- MSCOCO mscoco_v69a drop ablation: dropping cb0 reduces mAP by
+  −0.017 and P@1 by −0.097 (largest by far) — cb0 is the dominant
+  channel for 80-class fine-grained retrieval. v78a's split-score
+  correctly identified cb0 as the bottleneck and grew it 128→153.
+- Flickr25k v62b drop ablation: cb0 drop costs −0.004 (small); local
+  cb1-5 dropping costs ≤ ±0.002 each. cb0 wasn't a strong bottleneck
+  on Flickr25k, but cb1-5 are highly mutually redundant (NMI 0.74-
+  0.78 in earlier analysis). v78a wasted all splits on already-
+  redundant local codebooks → mAP regression.
+
+### From-scratch K↑ vs adaptive K — paper-worthy contribution
+
+| Strategy | MSCOCO mAP | Δ vs v69a |
+|---|---:|---:|
+| K=128 from scratch (v69a) | 0.4795 | — |
+| **K=192 from scratch (v77a)** | 0.4408 | **−0.039** |
+| **K=256 from scratch (v77b)** | 0.4472 | **−0.032** |
+| **K=128→138 adaptive (v78a)** | **0.4856** | **+0.006** |
+
+From-scratch larger K regresses because 10K train samples cannot
+populate K=192/256 codewords densely (sample/codeword ratio
+≈ 50 → noisy EMA updates). Adaptive K with warm-start adds only
+the codewords the model can support, guided by collision pressure.
+
+### Mid-eval bug + recovery
+
+Mid-evals from ep19 onwards silently failed due to a bug in
+`evaluate_code_collapse`: it used `np.bincount(..., minlength=64)`
+but codebook_indices after split contained values > 63, producing
+arrays longer than the [M, 64] counts buffer → `could not broadcast
+input array from shape (67,) into shape (64,)`. Fixed in commit
+f232a68 (auto-detect K from cb.max()+1). Already-running v78a
+processes had the old module cached, so their final eval inside the
+training also crashed. Models, extract_db.npz, and extract_query.npz
+were saved before the crash; external evaluation_siglip2.py run with
+the fixed code recovered final numbers.
+
+Per-epoch mid-eval trajectory is unrecoverable (no per-epoch
+checkpoint saved). Future v78a runs use the fixed module from the
+start.
+
+### Code (default-off)
+
+- `--codebook_K_max` (int, default 0 = use codebook_size, bit-exact
+  legacy)
+- `--warm_start_codebook_from PATH` (skip quantizer EMA shape
+  mismatches via filtered state_dict load)
+- `--split_epochs "10,20,30"` and `--split_max_per_epoch` (default
+  12)
+- `SemanticCodebookQuantizer.warm_start_from_state`,
+  `compute_codeword_variance`, `do_split` methods
+- `train_siglip2._collect_split_data` sweep helper
+
+### Per-dataset SOTA pairs (UPDATED)
+
+- **Flickr25k**: v62b (mAP 0.6778) — unchanged
+- **MSCOCO**: ~~mscoco_v69a~~ → **v78a MSCOCO** (mAP **0.4856**,
+  P@1 **0.6058**)
+
+### Result directories
+- v78a MSCOCO (NEW SOTA): `result/260525+mscoco_setting1_v78a_v69a_adaptiveK_128to192_split10_20_30+bs+64+e+60+proj_lr+0.001/`
+- v78a Flickr (discarded): `result/260525+flickr25k_setting1_v78a_v62b_adaptiveK_64to96_split10_20_30+bs+64+e+60+proj_lr+0.001/`
+
+### External baseline comparison (MSCOCO)
+- Previous gap: v69a 0.4795 vs CIBHash 0.5051 = −0.0256
+- **NEW gap: v78a 0.4856 vs CIBHash 0.5051 = −0.0195** — narrowed.
 
 ---
 
