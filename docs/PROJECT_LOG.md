@@ -137,6 +137,111 @@ Format conventions:
 
 ---
 
+## 2026-05-25 — mscoco_v76b / v76c: cosine VQ follow-ups — v76c near-SOTA with deep-rank improvement
+
+🟡 Two follow-up experiments on the v76 cosine-VQ discovery:
+- **mscoco_v76b**: cosine VQ stacked on mscoco_v69a (NEW MSCOCO SOTA).
+  Hypothesis: cosine VQ and position-specific CodonHead are
+  orthogonal axes. **Hypothesis FALSIFIED** — large regression.
+- **v76c**: cosine VQ on Flickr25k v62b + λ_vq reduced 0.25→0.1
+  (commit-pressure relief). **Near-SOTA recovery** — mAP only −0.006
+  vs v62b, **with P@10/P@100/P@1000 all slightly above v62b**.
+
+### Setup
+
+| Tag | Dataset | Baseline + change |
+|---|---|---|
+| **mscoco_v76b** | MSCOCO | mscoco_v69a (`--codon_position_specific_head`) + `--vq_distance_mode cosine --vq_loss_cosine` |
+| **v76c** | Flickr25k | v62b + `--vq_distance_mode cosine --vq_loss_cosine --lambda_vq 0.1` (was default 0.25) |
+
+### mscoco_v76b — FAIL
+
+| Metric | mscoco_v69a (SOTA) | mscoco_v76b | Δ |
+|---|---:|---:|---:|
+| mAP | **0.4795** | 0.4245 | **−0.0550** ⚠ |
+| P@1 | **0.5830** | 0.4960 | **−0.0870** ⚠ |
+| P@10 | 0.5685 | 0.5131 | −0.0554 |
+| unique | 0.016 | 0.015 | ~tied |
+
+Trajectory: ep9 0.4205 → ep59 0.4290 (flat throughout, never
+approaches v69a's ep9 0.4948).
+
+**Root cause** — orthogonal-axis assumption was wrong:
+- v69a's gain came from position-specific decoders extracting
+  *different information from different chunks of the codeword*.
+- Cosine VQ lookup uses *direction only*, discarding the
+  per-chunk *magnitude information* that position-specific decoders
+  rely on.
+- The two changes operate on the *same information channel* (codeword
+  representation), so they compete rather than complement.
+
+### v76c — Near-SOTA recovery + deep-rank improvement
+
+| Metric | v62b (SOTA) | v76b (λ_vq=0.25) | **v76c (λ_vq=0.1)** | Δ vs v62b | Δ vs v76b |
+|---|---:|---:|---:|---:|---:|
+| mAP | **0.6778** | 0.6569 | 0.6716 | **−0.0062** | **+0.0147** |
+| P@1 | **0.7625** | 0.7695 | 0.7570 | −0.0055 | −0.0125 |
+| **P@10** | 0.7587 | 0.7702 | **0.7636** | **+0.0049** ✓ | −0.0066 |
+| **P@100** | 0.7573 | 0.7624 | **0.7617** | **+0.0044** ✓ | −0.0007 |
+| **P@1000** | 0.7445 | 0.7298 | **0.7467** | **+0.0022** ✓ | +0.0169 |
+| unique | 0.075 | 0.093 | 0.072 | −0.003 | −0.021 |
+| baseH | 0.900 | 0.788 | 0.725 | −0.175 | −0.063 |
+
+Trajectory: ep9 0.6353 (slow start) → ep29 0.6533 → ep39 **0.6716**
+(sharp climb) → ep49 0.6738 → ep59 0.6733 → final 0.6716. The mid-eval
+ep49 (0.6738) is essentially tied with v62b's ep49 (0.6746).
+
+**v76c characterizes Cosine VQ's true position**:
+- v76b (λ_vq=0.25): top-rank biased, mAP −0.021, P@1 +0.007.
+- **v76c (λ_vq=0.10): balanced, mAP −0.006, all deep ranks > v62b**.
+- Both retain cosine geometry; the difference is *commit pressure*.
+
+**Mechanism**: cosine VQ at high λ_vq pulls z toward codeword
+directions aggressively → top-rank sharper, deep-rank weaker
+(commit dominates). Halving λ_vq lets the rest of the loss (NtXent,
+codon head) regain influence → balanced rank profile while keeping
+cosine geometry's scale-invariance benefits.
+
+### Cross-paradigm rank-profile table (paper-worthy)
+
+| Run | mAP | P@1 | P@10 | P@100 | P@1000 | profile |
+|---|---:|---:|---:|---:|---:|---|
+| v62b (L2 VQ, λ=0.25) | 0.6778 | 0.7625 | 0.7587 | 0.7573 | 0.7445 | balanced |
+| v76b (cos VQ, λ=0.25) | 0.6569 | 0.7695 | 0.7702 | 0.7624 | 0.7298 | top-rank biased |
+| **v76c (cos VQ, λ=0.10)** | 0.6716 | 0.7570 | **0.7636** | **0.7617** | **0.7467** | **balanced + deep-rank lift** |
+
+### Verdict + per-dataset SOTA
+
+| | mscoco_v76b | v76c |
+|---|---|---|
+| mAP 유지/상승 | ✗ (−0.055) | △ (−0.006) |
+| unique/per-cb/entropy 1개 개선 | △ | ✗ (slight ↓) |
+| P@1 크게 안 하락 | ✗ (−0.087) | ✓ |
+| deep-rank (P@10/100/1000) | ✗ | ✓ (all > v62b) |
+
+- **mscoco_v76b**: discarded. Position-specific + cosine VQ stacking
+  fails on MSCOCO — they operate on the same information channel.
+- **v76c**: by mAP, v62b remains Flickr25k SOTA. By **deep-rank
+  retrieval metrics**, v76c is paper-worthy and arguably more useful
+  for retrieval applications that weigh deep ranks (mean precision
+  with longer return lists).
+
+Per-dataset SOTA pairs unchanged:
+- Flickr25k: v62b (mAP 0.6778)
+- MSCOCO: mscoco_v69a (mAP 0.4795)
+
+### Possible next: λ_vq sweep around v76c
+v76c is between v76b (λ=0.25, top-rank biased) and v62b (L2,
+balanced). If λ_vq=0.05 closes the mAP gap further while keeping
+deep-rank lift, that becomes a real SOTA contender. Worth a 1-run
+follow-up.
+
+### Result directories
+- mscoco_v76b: `result/260525+mscoco_setting1_mscoco_v76b_v69a_cosineVQ_cosineLossVQ+bs+64+e+60+proj_lr+0.001/`
+- v76c: `result/260525+flickr25k_setting1_v76c_v62b_cosineVQ_lamVQ01+bs+64+e+60+proj_lr+0.001/`
+
+---
+
 ## 2026-05-23 — v76a / v76b: cosine VQ codebook lookup — top-rank sharpens, mAP drops
 
 🟡 Two ablations replacing the legacy squared-L2 codebook lookup with
