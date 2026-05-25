@@ -144,6 +144,122 @@ Format conventions:
 
 ---
 
+## 2026-05-26 — v78b / v78c: Flickr25k smaller-K-init adaptive K — DISCARDED (no SOTA gain)
+
+🔴 Two follow-ups to v78a Flickr25k's discard. Hypothesis: starting
+with a smaller K_init=32 (vs v78a's K_init=64) gives split more
+"room" to grow and possibly trigger cb0 (global) splits that v78a
+missed. Hypothesis **partially falsified** — split amount increased
+but cb0 still never splits on Flickr25k.
+
+### Setup
+
+| Tag | K_init → K_max | VQ distance | λ_vq | residual γ |
+|---|---|---|---:|---:|
+| **v78b** | 32 → 64 | L2 (legacy) | 0.25 | 0.3 |
+| **v78c** | 32 → 64 | cosine + cos loss_vq | 0.10 | 0.3 |
+
+Both: no warm-start (random K=32 init), split @ ep10/20/30 max 12.
+
+### Final test (Flickr25k 2K × 23K)
+
+| Run | mAP | Δ vs v62b | P@1 | P@10 | P@100 | P@1000 | unique | baseH |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| v62b (SOTA) | **0.6778** | — | **0.7625** | 0.7587 | 0.7573 | 0.7445 | 0.075 | 0.900 |
+| v76c (cos VQ K=64) | 0.6716 | −0.006 | 0.7570 | **0.7636** | **0.7617** | **0.7467** | 0.072 | 0.725 |
+| v78a (K=64→96) | 0.6660 | −0.012 | 0.7535 | 0.7415 | 0.7413 | 0.7329 | 0.072 | 0.907 |
+| **v78b** | 0.6648 | −0.013 | 0.7470 | 0.7442 | 0.7443 | 0.7334 | 0.081 | 0.907 |
+| **v78c** | **0.6674** | **−0.010** | 0.7275 | 0.7540 | 0.7583 | 0.7418 | **0.099** | 0.728 |
+
+### Mid-eval trajectory
+
+| epoch | v62b | v78b | v78c |
+|---:|---:|---:|---:|
+| 9 | 0.6706 | 0.6440 | 0.6657 |
+| 19 | 0.6625 | **0.6655** (+0.022 after split #1) | 0.6553 |
+| 29 | 0.6678 | 0.6650 | **0.6754** ★ (> v62b ep29) |
+| 39 | 0.6669 | 0.6623 | 0.6604 |
+| 49 | **0.6746** | 0.6595 | 0.6656 |
+| 59 | 0.6756 | 0.6624 | 0.6689 |
+| **final** | **0.6778** | 0.6648 | 0.6674 |
+
+v78c briefly exceeds v62b at ep29 (0.6754 > 0.6678) but cannot
+sustain through the late epochs.
+
+### Split events — cb0 never splits across v78a/b/c on Flickr25k
+
+| Tag | ep10 | ep20 | ep30 | Final active K |
+|---|---|---|---|---|
+| v78a | [0,3,3,2,2,2] | [0,3,2,2,3,2] | [0,2,3,2,2,3] | [64, 72, 72, 70, 71, 71] |
+| **v78b** | [0,3,3,2,3,1] | [0,2,2,3,3,2] | [0,3,3,2,2,2] | [32, 40, 40, 39, 40, 37] |
+| **v78c** | [0,2,3,1,3,3] | [0,3,2,3,2,2] | [0,2,2,3,3,2] | [32, 39, 39, 39, 40, 39] |
+
+All three Flickr25k v78 variants: cb0 (global) split_score = 0 every
+split event. K_init reduction (64→32) did NOT change this — the
+problem is structural to Flickr25k, not capacity-related.
+
+Cross-dataset comparison:
+- **MSCOCO v78a**: cb0 absorbed 25/36 splits (69%), grew 128→153 ⭐
+- **Flickr25k v78a/b/c**: cb0 absorbed 0/36 splits (0%)
+
+Consistent with drop ablation results:
+- v62b cb0 drop ΔmAP = −0.004 (small on Flickr)
+- v69a cb0 drop ΔmAP = −0.017 (large on MSCOCO, 4× larger)
+
+cb0 isn't the Flickr25k bottleneck; it's already optimally compressed.
+
+### v78c novel trade-off — high unique
+
+v78c achieves the highest unique_code_ratio (0.099) among all v78
+variants and v76c, with only −0.010 mAP loss vs v62b. P@10/P@100/
+P@1000 are slightly above v62b in spots (P@100 +0.001) and slightly
+below otherwise, but **P@1 drops −0.035** which is the main mAP
+contributor.
+
+This combines v76c's known top-rank-sharper-tail-flat cosine VQ
+trade-off with adaptive K's slight unique-gain mechanism. Useful as
+a *paper-table* variant demonstrating "trade mAP for diversity".
+
+### Verdict by user criteria
+
+| | v78b | v78c |
+|---|---|---|
+| mAP 유지/상승 | ✗ (−0.013) | ✗ (−0.010) |
+| unique/per-cb/entropy 개선 | △ (+8%) | ✓ **(+33%!)** |
+| P@1 크게 안 하락 | △ (−0.016) | ✗ (−0.035) |
+
+- v78b: discarded (no clear improvement).
+- v78c: discarded as SOTA contender, but paper-worthy as a
+  high-unique trade-off variant.
+
+### Per-dataset SOTA pairs (unchanged)
+- Flickr25k: **v62b** (mAP 0.6778)
+- MSCOCO: **v78a MSCOCO** (mAP 0.4856)
+
+### Implications + future direction
+- **v78a's cb0-targeted split worked on MSCOCO but not Flickr25k**
+  because the underlying drop-ablation profiles differ. The
+  split_score formula doesn't include external priors about which
+  codebook matters.
+- Future: **score_weight per codebook** (e.g., weight by inverse
+  drop-ablation ΔmAP from a one-time pre-training pass) might let
+  Flickr25k force split into cb0 or skip it deliberately. Or
+  **dataset-specific split target**: force C_0 split on MSCOCO, ban
+  C_0 split on Flickr25k.
+
+### Visualization fix (this date)
+- Fixed `train_siglip2.py` to wrap final extraction + evaluation in
+  try/except so end-of-training viz block always runs.
+- Backfilled v78a Flickr + v78a MSCOCO with viz_routing_heatmap.png
+  and viz_codebook_tsne.png by re-running the viz functions on the
+  saved checkpoint.
+
+### Result directories
+- v78b: `result/260525+flickr25k_setting1_v78b_v62b_adaptiveK_32to64_split10_20_30+bs+64+e+60+proj_lr+0.001/`
+- v78c: `result/260525+flickr25k_setting1_v78c_v62b_adaptiveK_32to64_cosineVQ_lamVQ01_split10_20_30+bs+64+e+60+proj_lr+0.001/`
+
+---
+
 ## 2026-05-25 — v78a (adaptive K / codeword split) — NEW MSCOCO SOTA (mAP 0.4856), Flickr25k discarded
 
 🟢 ★ **MSCOCO SOTA 갱신**: v78a (warm-start K=128 + selective split to
