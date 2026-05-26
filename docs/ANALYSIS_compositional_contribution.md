@@ -276,3 +276,117 @@ Path: `result/<v62b>/codebook_grids/cb{m}_cw{k:03d}.png` (30 grids).
   - v62b, v76c: `codebook_drop_ablation.json`
 - NMI: 인라인 계산 (sklearn.metrics.normalized_mutual_info_score)
 - Grids: `result/<v62b>/codebook_grids/` (30 PNG)
+
+---
+
+# Update 2026-05-26 — v79 batch + mscoco_v78a compositional analysis
+
+후속 실험 (v79 architectural batch, mscoco_v78a SOTA) 에 대한 compositional analysis 결과.
+핵심 결과: **hard routing (v79c) 가 codebook redundancy 를 절반 이하로 줄였고, 최초로 "specialized" codebook들을 만들어냄.** 다만 cb3 하나는 완전히 collapse 했음 (효과적으로 5+1 채널).
+
+## 분석 대상
+
+| 모델 | mAP | P@1 | unique | 비고 |
+|---|---|---|---|---|
+| v62b (baseline) | 0.6778 | 0.5982 | 8,249 | 기존 Flickr25k SOTA |
+| v79a (ortho loss λ=0.1) | 0.6655 | 0.5928 | 16,693 | codebook 평균 z 직교화 |
+| v79c (hard routing) | 0.6703 | **0.6010** | 18,148 | Gumbel-Softmax hard, P@1 ↑ vs v62b |
+| mscoco_v78a (NEW SOTA) | 0.4856 | 0.6058 | 40,578 | adaptive K 128→192 split |
+
+## 1. Pairwise NMI (codebook mutual redundancy)
+
+`scripts/pairwise_nmi.py` 출력. **off-diagonal NMI 평균이 낮을수록 codebook들이 독립**.
+
+| 모델 | mean off-diag NMI | min | max | unique |
+|---|---|---|---|---|
+| v62b Flickr25k | 0.641 | 0.39 (cb0 vs rest) | 0.79 (cb1-5 pairs) | 8,249 |
+| v79a Flickr25k | 0.572 | 0.35 | 0.73 | 12,520 |
+| **v79c Flickr25k** | **0.291** | **0.05** (cb3 vs rest) | 0.49 | **16,564** |
+| mscoco_v78a | 0.644 | 0.31 (cb0 vs rest) | 0.82 (cb1-5 pairs) | 40,578 |
+
+핵심 관찰:
+- **v79c off-diag NMI 0.29 는 v62b 0.64 의 절반 이하**. Hard routing 이 codebook간 정보 중복을 가장 적극적으로 줄인 변경.
+- **v79c cb3 NMI 0.05** → 나머지 5개와 거의 독립인데, drop ablation (Δ=+0.0006) 및 B1 lift (≈0.003) 와 종합하면 **cb3는 거의 noise/random partition** 상태. 사실상 "5개 효과적 codebook + 1개 collapse" 구조.
+- v79a ortho loss 는 redundancy 를 약간 (0.64→0.57) 줄였지만 cb0-rest 비대칭 패턴은 그대로.
+- **mscoco_v78a는 v62b와 동일한 패턴**: cb0 특별 (NMI 0.31), cb1-5 redundant cluster (NMI 0.80+). adaptive K 가 codebook 분리 구조 자체는 바꾸지 않음.
+
+## 2. Compositional lift (B0/B1/B2)
+
+`compositional_eval.py` 출력. `mean_compositional_lift = (intra-sim of learned cluster) − (random partition baseline)`.
+
+| 모델 | B0 raw text | B1 centered text | B2 visual_global |
+|---|---|---|---|
+| v62b | 0.0174 | 0.0570 | 0.0353 |
+| v79a | 0.0179 | **0.0578** | 0.0342 |
+| v79c | 0.0156 | 0.0494 | 0.0295 |
+| mscoco_v78a | (no text cache) | (no text cache) | 0.0475 |
+
+per-codebook B1 (text concentration) 분포:
+- **v62b**: `[0.069, 0.050, 0.045, 0.049, 0.039, 0.090]` — cb5 가장 강하고 균등.
+- **v79c**: `[0.068, 0.055, 0.042, 0.003, 0.038, 0.091]` — **cb3 ≈ 0 (collapsed), 나머지는 v62b 와 유사**.
+
+per-codebook B2 (visual_global concentration):
+- **v62b**: `[0.059, 0.031, 0.030, 0.031, 0.030, 0.031]` — cb0 dominant.
+- **v79c**: `[0.058, 0.030, 0.027, 0.002, 0.030, 0.030]` — **cb3 ≈ 0, 나머지 동일**.
+- **mscoco_v78a**: `[0.077, 0.041, 0.042, 0.042, 0.042, 0.042]` — **cb0 더욱 dominant (1.85x other)**.
+
+핵심: B 메트릭 자체는 v79c 가 약간 낮지만 (cb3 collapse 가 평균을 끌어내림), **활성 5 codebook 만 보면 v62b 와 동등하거나 미세 우위**. 그리고 NMI 가 절반이므로 **5 codebook 이 6 codebook(v62b)이 했던 일을 더 적은 중복으로 수행**.
+
+## 3. Codebook drop ablation (mAP 영향)
+
+| 모델 | base mAP | Δcb0 | Δcb1 | Δcb2 | Δcb3 | Δcb4 | Δcb5 |
+|---|---|---|---|---|---|---|---|
+| v62b | 0.6778 | -0.0038 | -0.0001 | -0.0010 | -0.0010 | +0.0010 | -0.0016 |
+| v79a | 0.6655 | -0.0062 | -0.0008 | +0.0011 | -0.0014 | -0.0007 | -0.0004 |
+| v79c | 0.6703 | -0.0034 | **-0.0085** | -0.0020 | +0.0006 | **-0.0056** | -0.0006 |
+| mscoco_v78a* | 0.4788 | **-0.0193** | -0.0034 | -0.0029 | +0.0004 | +0.0022 | -0.0031 |
+
+(*) MSCOCO drop ablation 은 1000 query subset (`scripts/codebook_drop_ablation_fast.py --subset_queries 1000`).
+
+핵심 관찰:
+- **v79c 는 단일 codebook drop 의 영향이 가장 큼**: cb1=-0.0085, cb4=-0.0056. 두 codebook 의 합 drop 가 v62b 의 모든 codebook 합 drop (≈-0.0065) 보다 큼. **각 codebook 이 더 결정적인 정보를 가짐 = 진짜로 specialized**.
+- **v79c cb3 (Δ=+0.0006)** drop 이 *오히려 mAP 미세 상승* → 사실상 noise. 모델은 5 codebook (15 base) + 3 random base 로 작동.
+- **mscoco_v78a 의 cb0 dominance 가 극단적**: drop cb0 = -0.0193 (다른 codebook 의 5-10배). adaptive K split 이 cb0 (global slot) 만 풍부화시킨 효과로 해석. cb3/cb4 는 drop 시 mAP 변화 없음 → MSCOCO 에서도 일부 codebook collapse.
+
+## 4. v79c 정성 분석 (codebook grids)
+
+`result/v79c/codebook_grids/` 30 PNG 검사 결과:
+- **cb0 (B1=0.068)**: cw004=mist/minimalist composition, cw021=urban textures → "atmosphere/composition" 채널.
+- **cb1 (B1=0.055)**: cw005=natural elements (jellyfish, flowers, water) → "nature texture" 채널.
+- **cb4 (B1=0.038)**: cw007=portraits with red/colorful elements → "color-prominent portrait" 채널.
+- **cb5 (B1=0.091)**: cw000=people/human figures → "person" 채널.
+- **cb3 (B1≈0)**: cw000/cw007/cw061 모두 random scatter (가방+개+여자+랜턴 등) → **수집된 patch에 일관성 없음, 실제로 collapse**.
+
+→ 5 codebook 이 각자 다른 *visual primitive* (composition, nature, color, person, ...) 를 specialize, hard routing 으로 패치-카테고리 의 *disjoint* 할당이 강제된 결과.
+
+## 5. 종합 결론 (paper-worthy framing)
+
+기존 (v62b, mscoco_v78a) 문제:
+- cb1-5 가 NMI 0.78-0.82 으로 *효과적으로 같은 codebook 5개 복사본*.
+- single-codebook drop 이 mAP 에 거의 영향 없음 → "compositional 6 channel" 주장의 실증 기반 약함.
+
+v79c (hard routing) 가 해결한 것:
+- pairwise NMI **0.64 → 0.29** (-55%).
+- unique code 8,249 → 16,564 (2.0x).
+- single-codebook drop 영향이 v62b 대비 2-3x 커짐 (cb1, cb4).
+- 정성적으로 *서로 다른 visual primitive* 채널 5개 형성.
+
+v79c 의 한계:
+- raw mAP 가 v62b 보다 0.008 낮음 (5 codebook 으로 6 codebook 일을 함).
+- cb3 collapse → 18-bit 중 3 bit 가 사실상 random.
+- 명목상 36-bit 중 효과적 정보는 ~30 bit.
+
+논문 framing 권장:
+> "while v62b yields the strongest raw retrieval, its six codebooks exhibit
+> high mutual redundancy (mean pairwise NMI 0.64) and per-codebook drops
+> impact mAP by less than 0.4%. v79c, which enforces hard one-hot patch-to-
+> part routing via Gumbel-Softmax, halves codebook redundancy (NMI 0.29)
+> and produces visually specialized codebooks at the cost of one collapsed
+> slot and 0.8 mAP. This trade-off — slightly weaker raw retrieval in
+> exchange for genuine compositional specialization — directly supports
+> the compositional-code contribution at a measurable structural level."
+
+다음 실험 후보 (compositional 관점):
+1. **v79c + ortho loss** (v79a 결합) — cb3 collapse 방지 + 추가 decoupling.
+2. **v79c + adaptive K split on collapsed cb3 only** — cb3 를 reborn 시켜 5+1→6 채널화.
+3. **hard routing soft schedule** — 초기 soft → 후기 hard 전환 (cb3 collapse 가 학습 초기 randomness 에서 발생했다는 가설 검증).

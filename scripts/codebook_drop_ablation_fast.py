@@ -1,0 +1,101 @@
+"""Fast variant of codebook_drop_ablation using vectorised Hamming over the
+whole query set. The original script Python-loops one query at a time, which
+is ~5000x slower on MSCOCO. Same outputs."""
+import argparse, json, os, sys, time
+import numpy as np
+
+
+def _ap_from_sorted_relevance(rel_sorted: np.ndarray) -> np.ndarray:
+    """Vectorised AP over a [Nq, Ndb] sorted-relevance matrix."""
+    rel = rel_sorted.astype(np.float32)
+    n_rel = rel.sum(axis=1)
+    cs = np.cumsum(rel, axis=1)
+    pos_at_k = cs / np.arange(1, rel.shape[1] + 1, dtype=np.float32)[None, :]
+    ap = (pos_at_k * rel).sum(axis=1) / np.maximum(n_rel, 1.0)
+    ap[n_rel == 0] = 0.0
+    return ap
+
+
+def _base_dist(qbi: np.ndarray, dbbi: np.ndarray) -> np.ndarray:
+    """Hamming distance over base indices [Nq, R] vs [Ndb, R] -> [Nq, Ndb]."""
+    Nq, R = qbi.shape
+    Ndb = dbbi.shape[0]
+    out = np.zeros((Nq, Ndb), dtype=np.int32)
+    for r in range(R):
+        out += (qbi[:, r:r+1] != dbbi[None, :, r]).astype(np.int32)
+    return out
+
+
+def compute_mAP_pk(q_bi, db_bi, q_lbl, db_lbl, p_at_k=(1, 10, 100, 1000), batch=200):
+    Nq = q_bi.shape[0]
+    aps = np.zeros(Nq, dtype=np.float32)
+    pk_acc = {k: 0.0 for k in p_at_k}
+    db_lbl_f = db_lbl.astype(np.int32)
+    for s in range(0, Nq, batch):
+        e = min(s + batch, Nq)
+        qb = q_bi[s:e]
+        d = _base_dist(qb, db_bi)                         # [b, Ndb]
+        order = np.argsort(d, axis=1, kind="stable")      # [b, Ndb]
+        rel = (db_lbl_f @ q_lbl[s:e].T).T > 0             # [b, Ndb]
+        rel_sorted = np.take_along_axis(rel, order, axis=1)
+        aps[s:e] = _ap_from_sorted_relevance(rel_sorted)
+        for k in p_at_k:
+            pk_acc[k] += rel_sorted[:, :k].mean(axis=1).sum()
+    out = {"mAP": float(aps.mean())}
+    for k in p_at_k:
+        out[f"P@{k}"] = float(pk_acc[k] / Nq)
+    return out
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--result_dir", required=True)
+    ap.add_argument("--subset_queries", type=int, default=0,
+                    help="If >0, randomly subsample queries for speed.")
+    ap.add_argument("--seed", type=int, default=0)
+    args = ap.parse_args()
+    rd = args.result_dir
+
+    q = np.load(os.path.join(rd, "extract_query.npz"), allow_pickle=True)
+    db = np.load(os.path.join(rd, "extract_db.npz"), allow_pickle=True)
+    q_bi = np.asarray(q["base_indices"]).copy()
+    db_bi = np.asarray(db["base_indices"]).copy()
+    q_lbl = np.asarray(q["multi_hot_labels"]).astype(np.int32)
+    db_lbl = np.asarray(db["multi_hot_labels"]).astype(np.int32)
+    if args.subset_queries > 0 and args.subset_queries < q_bi.shape[0]:
+        rng = np.random.default_rng(args.seed)
+        idx = rng.choice(q_bi.shape[0], args.subset_queries, replace=False)
+        q_bi = q_bi[idx]; q_lbl = q_lbl[idx]
+        print(f"[fast_drop] subsampled queries -> {len(q_bi)}")
+    Nq, R = q_bi.shape
+    M = R // 3
+    print(f"[fast_drop] R={R}, M={M}, Nq={Nq}, Ndb={db_bi.shape[0]}", flush=True)
+
+    t0 = time.time()
+    base = compute_mAP_pk(q_bi, db_bi, q_lbl, db_lbl)
+    print(f"[fast_drop] baseline: mAP={base['mAP']:.4f}  P@1={base['P@1']:.4f}  "
+          f"P@10={base['P@10']:.4f}  ({time.time()-t0:.1f}s)", flush=True)
+
+    results = {"baseline": base, "drops": {},
+               "subset_queries": int(args.subset_queries)}
+    for m in range(M):
+        t1 = time.time()
+        qd = q_bi.copy(); ddb = db_bi.copy()
+        qd[:, m*3:m*3+3] = 0
+        ddb[:, m*3:m*3+3] = 0
+        r = compute_mAP_pk(qd, ddb, q_lbl, db_lbl)
+        delta = r["mAP"] - base["mAP"]
+        results["drops"][m] = {**r, "delta_mAP": delta}
+        print(f"[fast_drop] drop cb{m}: mAP={r['mAP']:.4f}  delta={delta:+.4f}  "
+              f"P@1={r['P@1']:.4f}  ({time.time()-t1:.1f}s)", flush=True)
+
+    suffix = f"_subset{args.subset_queries}" if args.subset_queries > 0 else ""
+    out_p = os.path.join(rd, f"codebook_drop_ablation{suffix}.json")
+    with open(out_p, "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"[fast_drop] wrote {out_p}", flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

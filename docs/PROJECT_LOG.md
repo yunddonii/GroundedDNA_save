@@ -144,6 +144,109 @@ Format conventions:
 
 ---
 
+## 2026-05-26 — Compositional analysis of v79c / v79a / mscoco_v78a — hard routing halves codebook redundancy
+
+🟢 Post-hoc analysis: NMI / drop ablation / compositional lift / qualitative
+grids on the v79 batch + the new MSCOCO SOTA. Key finding: **v79c hard
+routing halves codebook redundancy (mean off-diag pairwise NMI 0.64 → 0.29)
+and produces visually specialised codebooks, but cb3 collapses to
+near-random.** Full writeup in `docs/ANALYSIS_compositional_contribution.md`
+(Update 2026-05-26 section).
+
+### Tools used
+- `scripts/pairwise_nmi.py` (new) — pairwise NMI between codebook
+  assignments over the DB set.
+- `compositional_eval.py` (patched, line ~199) — gracefully skip B0/B1
+  when no DB rows have cached captions (mscoco_v4plus only caches
+  captions for a disjoint 10K image set, none of which overlap with
+  the retrieval DB).
+- `scripts/codebook_drop_ablation_fast.py` (new) — vectorised drop
+  ablation, ~250× faster than the per-query torch loop. The original
+  script was projected to take 7 hours on MSCOCO (5K × 107K Hamming).
+  Fast variant finishes in <3 minutes on a 1K-query subset.
+
+### Pairwise off-diagonal NMI (mean / min / max)
+
+| Model | mean | min | max | unique |
+|---|---:|---:|---:|---:|
+| v62b (Flickr SOTA) | 0.641 | 0.39 | 0.79 | 8,249 |
+| v79a (ortho λ=0.1) | 0.572 | 0.35 | 0.73 | 12,520 |
+| **v79c (hard routing)** | **0.291** | **0.05** | 0.49 | **16,564** |
+| mscoco_v78a (SOTA) | 0.644 | 0.31 | 0.82 | 40,578 |
+
+cb3 of v79c has NMI ≈ 0.06 with every other codebook → effectively
+random (also B1 lift ≈ 0.003 and drop ΔmAP = +0.0006). v79c is
+effectively a "5 active + 1 collapsed" architecture.
+
+### Drop ablation ΔmAP (Flickr25k, full 2K queries; mscoco subset 1K)
+
+| Model | base mAP | Δcb0 | Δcb1 | Δcb2 | Δcb3 | Δcb4 | Δcb5 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| v62b | 0.6778 | -0.004 | -0.000 | -0.001 | -0.001 | +0.001 | -0.002 |
+| v79a | 0.6655 | -0.006 | -0.001 | +0.001 | -0.001 | -0.001 | -0.000 |
+| v79c | 0.6703 | -0.003 | **-0.009** | -0.002 | +0.001 | **-0.006** | -0.001 |
+| mscoco_v78a | 0.4788 | **-0.019** | -0.003 | -0.003 | +0.000 | +0.002 | -0.003 |
+
+- v79c: drop influence concentrated on cb1 and cb4 — codebooks are now
+  individually load-bearing rather than mutually redundant.
+- mscoco_v78a: cb0 dominance is **extreme** (5-10× any other slot).
+  adaptive K split enriched cb0 specifically; cb3/cb4 contribute nothing
+  measurable.
+
+### Compositional lift (B1 centered-text / B2 visual_global)
+
+| Model | B1 mean | B2 mean | B1 cb3 | (cb3 status) |
+|---|---:|---:|---:|---|
+| v62b | 0.057 | 0.035 | 0.049 | active |
+| v79a | 0.058 | 0.034 | 0.049 | active |
+| v79c | 0.049 | 0.030 | **0.003** | collapsed |
+| mscoco_v78a | n/a | 0.048 | 0.042 | active |
+
+v79c restricted to active codebooks (skipping cb3) gives B1 lifts on par
+with v62b — i.e. **5 v79c codebooks ≈ 6 v62b codebooks** in semantic
+concentration, but with half the redundancy.
+
+### Qualitative grids (v79c, `result/<v79c>/codebook_grids/`)
+
+- cb0 = atmosphere / composition (mist, minimalist scenes)
+- cb1 = nature textures (jellyfish, flowers, water)
+- cb4 = colour-prominent portraits
+- cb5 = people / human figures
+- cb3 = random scatter, no coherence (collapsed)
+
+### Paper framing implication
+
+v62b has the strongest raw mAP but its codebooks are largely redundant
+(NMI 0.78, single-drop ΔmAP < 0.4%). v79c trades 0.8 mAP for genuine
+codebook specialisation (NMI 0.29, drop ΔmAP up to 1.3%). The
+compositional-code contribution claim is therefore **structurally
+supported by v79c** in a way v62b alone cannot demonstrate.
+
+### Discovered cache limitation
+`cache/mscoco_siglip2_v4plus` only stores text captions for 10K images
+disjoint from the retrieval DB (107K). Text-based composition lift
+(B0/B1) is unmeasurable on the current MSCOCO retrieval set. Future
+work needs an `extract_train.npz` with captioned train images for
+text-grounded analysis.
+
+### Suggested follow-up
+1. **v79c + ortho loss (v79a stacking)** — both attack redundancy; may
+   prevent cb3 collapse.
+2. **v79c + cb3-only adaptive K split** — reborn cb3 to recover 5+1 → 6
+   effective channels.
+3. **v79c with τ annealing 2.0 → 0.5** — current fixed τ=1.0 may be
+   over-sharp at the start, causing premature cb3 commitment to a
+   random patch group.
+
+### Artifacts
+- Analysis: `docs/ANALYSIS_compositional_contribution.md` (Update
+  2026-05-26 section).
+- Per-result: `pairwise_nmi.json`, `compositional_eval.json`,
+  `codebook_drop_ablation.json`, `codebook_drop_ablation_subset1000.json`.
+- Combined NMI matrix: `docs/nmi_v79_combined.json`.
+
+---
+
 ## 2026-05-26 — v79a/b/c/d: 4-way structural contribution attack — v79c (hard routing) near-SOTA + P@1 ↑
 
 🟡 Four big-modification experiments on v62b targeting different
@@ -710,85 +813,6 @@ Discarded. Per-dataset MSCOCO SOTA still **mscoco_v69a (mAP 0.4795)**.
 
 ---
 
-## 2026-05-25 — MSCOCO codebook drop ablation (supplement to compositional analysis)
-
-🟢 MSCOCO drop ablation completes the per-dataset comparison started in
-`docs/ANALYSIS_compositional_contribution.md`. Mirrors Flickr25k findings:
-**C_0 (global) is the dominant codebook; C_1-5 are mostly redundant**.
-
-#
-### v63b MSCOCO drop ablation (additional comparison)
-
-For completeness, the same drop ablation on the *previous* MSCOCO SOTA
-v63b (K=128, no position-specific CodonHead) — mAP 0.4563:
-
-| Codebook | mAP | ΔmAP | P@1 Δ |
-|---|---:|---:|---:|
-| baseline | 0.4563 | — | — |
-| **drop C_0** | 0.4370 | **−0.0194** | −0.008 |
-| drop C_1 | 0.4576 | **+0.0013** | −0.002 |
-| drop C_2 | 0.4572 | +0.0008 | +0.003 |
-| drop C_3 | 0.4579 | **+0.0016** | −0.002 |
-| drop C_4 | 0.4579 | **+0.0015** | −0.004 |
-| drop C_5 | 0.4559 | −0.0004 | −0.003 |
-
-→ For v63b's local codebooks (no position-specific decoding), **every
-drop except C_5 IMPROVES mAP slightly** (ΔmAP +0.001 to +0.002). The
-local codebooks are not just redundant — they actively contribute
-slight *noise* to retrieval.
-
-→ mscoco_v69a's gain (mAP +0.023 vs v63b) likely comes from
-**position-specific CodonHead converting the slight-noise local
-codebooks into mild-positive contributors** (v69a's local drops range
-[−0.004, +0.002] vs v63b's [−0.0004, +0.0016] — both shifted negative).
-This is corroborating evidence for the v69a mechanism story (position-
-specific decoder lets local slots specialise, reducing their noise
-contribution).
-
----
-
-## MSCOCO mscoco_v69a (baseline mAP 0.4795)
-
-| Codebook | mAP | ΔmAP | P@1 Δ |
-|---|---:|---:|---:|
-| baseline | 0.4795 | — | — |
-| **drop C_0 (global)** | 0.4626 | **−0.0169** | −0.097 |
-| drop C_1 | 0.4771 | −0.0025 | −0.013 |
-| drop C_2 | 0.4762 | −0.0034 | −0.001 |
-| drop C_3 | 0.4785 | −0.0010 | −0.004 |
-| drop C_4 | 0.4814 | **+0.0019** | −0.001 |
-| drop C_5 | 0.4754 | −0.0042 | −0.001 |
-
-### Cross-dataset C_0 dominance confirmed
-
-| Model | C_0 drop ΔmAP | C_1-5 drop ΔmAP range |
-|---|---:|---:|
-| v62b (Flickr) | −0.0038 | [−0.002, +0.001] |
-| v76c (Flickr cosine VQ) | −0.0109 | [−0.002, +0.002] |
-| **mscoco_v69a** | **−0.0169** | [−0.004, +0.002] |
-
-→ C_0 absolute impact is largest on MSCOCO (4-5× Flickr) because MSCOCO
-80-class fine-grained retrieval depends more on the scene-level slot.
-**Strongest evidence yet for "global slot as distinct semantic channel"
-claim**.
-
-P@1 axis: MSCOCO C_0 drop costs P@1 **−0.097** (huge), while Flickr
-v62b's C_0 drop only costs P@1 −0.008. C_0 captures the
-discriminator-critical signal that mscoco_v69a relied on to lift P@1
-from v63b's 0.5606 to 0.5830 (the actual SOTA gain mechanism).
-
-### Implication for paper narrative
-
-Updated claim to add to `docs/ANALYSIS_compositional_contribution.md`:
-
-> "On MSCOCO (80 classes, 107K db), dropping the global codebook C_0
-> reduces P@1 by 9.7 percentage points (0.583 → 0.486), whereas
-> dropping any local codebook (C_1-C_5) changes mAP by less than 0.5%.
-> This is the strongest evidence that the global codebook constitutes
-> a distinct, retrieval-critical semantic channel."
-
----
-
 ## 2026-05-25 — v76d (λ_vq=0.05) — DISCARDED, confirms U-shaped λ_vq sweep with v76c sweet spot
 
 🔴 Continued the λ_vq sweep on the cosine-VQ family. v76d further
@@ -989,6 +1013,43 @@ follow-up.
 ### Result directories
 - mscoco_v76b: `result/260525+mscoco_setting1_mscoco_v76b_v69a_cosineVQ_cosineLossVQ+bs+64+e+60+proj_lr+0.001/`
 - v76c: `result/260525+flickr25k_setting1_v76c_v62b_cosineVQ_lamVQ01+bs+64+e+60+proj_lr+0.001/`
+
+---
+
+## 2026-05-25 — MSCOCO codebook drop ablation (supplement to compositional analysis)
+
+🟢 MSCOCO drop ablation completes the per-dataset comparison started in
+`docs/ANALYSIS_compositional_contribution.md`. Mirrors Flickr25k findings:
+**C_0 (global) is the dominant codebook; C_1-5 are mostly redundant**.
+
+#
+### v63b MSCOCO drop ablation (additional comparison)
+
+For completeness, the same drop ablation on the *previous* MSCOCO SOTA
+v63b (K=128, no position-specific CodonHead) — mAP 0.4563:
+
+| Codebook | mAP | ΔmAP | P@1 Δ |
+|---|---:|---:|---:|
+| baseline | 0.4563 | — | — |
+| **drop C_0** | 0.4370 | **−0.0194** | −0.008 |
+| drop C_1 | 0.4576 | **+0.0013** | −0.002 |
+| drop C_2 | 0.4572 | +0.0008 | +0.003 |
+| drop C_3 | 0.4579 | **+0.0016** | −0.002 |
+| drop C_4 | 0.4579 | **+0.0015** | −0.004 |
+| drop C_5 | 0.4559 | −0.0004 | −0.003 |
+
+→ For v63b's local codebooks (no position-specific decoding), **every
+drop except C_5 IMPROVES mAP slightly** (ΔmAP +0.001 to +0.002). The
+local codebooks are not just redundant — they actively contribute
+slight *noise* to retrieval.
+
+→ mscoco_v69a's gain (mAP +0.023 vs v63b) likely comes from
+**position-specific CodonHead converting the slight-noise local
+codebooks into mild-positive contributors** (v69a's local drops range
+[−0.004, +0.002] vs v63b's [−0.0004, +0.0016] — both shifted negative).
+This is corroborating evidence for the v69a mechanism story (position-
+specific decoder lets local slots specialise, reducing their noise
+contribution).
 
 ---
 
@@ -1339,6 +1400,117 @@ explicitly contradicts the existing one's *separation* objective.
 
 ---
 
+## 2026-05-23 — v69 / v70 / v71 / v72: 5-way structural ablation suite on Flickr25k
+
+🟡 5 single-axis ablations on v62b SOTA (0.6778) to probe orthogonal
+structural improvements. None unseats v62b; v72a (dual projection)
+comes closest and shows ep39 mid-eval 0.6804 *exceeding* v62b's
+final, suggesting it may benefit from λ tuning. v70a (hash-recon)
+fails dramatically (P@1 -0.10 collapse).
+
+### Setup (single change vs v62b)
+
+| Tag | Change |
+|---|---|
+| **v69a** | `--codon_position_specific_head` — 3 independent Linear(256, 4) per codon position (replaces shared single Linear). |
+| **v69b** | `--codon_residual_split` — codon position 0,1 from codeword; position 2 from γ·(z-q). 3 separate Linears. |
+| **v70a** | `--use_hash_recon --lambda_hash_recon 0.01` — small MLP from flattened 18·4=72-d hash → 768-d SigLIP2 visual_global, 1-cos loss. |
+| **v71a** | `--codon_residual_gate` — sigmoid(a·‖z-q‖+b) gate on γ·residual, learnable per CodonHead (2 scalars per codebook). |
+| **v72a** | `--use_dual_hash_proj --lambda_dual_semantic 0.01 --lambda_dual_instance 0.01` — semantic_proj (cosine to visual_global) + instance_proj (NtXent across paired-aug views), both MLPs from flattened hash. |
+
+### Final test (2K × 23K)
+
+| Run | mAP | Δ vs v62b | P@1 | P@10 | P@100 | P@1000 | unique | per-cb | dup | baseH | verdict |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| **v62b (SOTA)** | **0.6778** | — | **0.7625** | 0.7587 | 0.7573 | 0.7445 | 0.075 | 0.00077 | 0.926 | 0.900 | ★ |
+| **v72a dual-proj** | **0.6723** | **−0.0055** | 0.7535 | 0.7521 | 0.7546 | 0.7429 | 0.086 | 0.00084 | 0.914 | 0.957 | **near-SOTA** |
+| v69a pos-spec | 0.6702 | −0.0076 | 0.7465 | 0.7458 | 0.7476 | 0.7358 | 0.090 | 0.00074 | 0.910 | 0.875 | mild loss |
+| v71a res-gate | 0.6658 | −0.0120 | 0.7255 | 0.7447 | 0.7513 | 0.7344 | **0.147** | 0.00127 | 0.853 | **0.983** | trade-off |
+| v70a hash-recon | 0.6590 | −0.0188 | **0.6585** ⚠ | 0.7358 | 0.7397 | 0.7293 | 0.081 | 0.00074 | 0.919 | 0.903 | **FAIL (P@1 -0.10)** |
+| v69b res-split | 0.6415 | **−0.0363** | **0.7815** ✓ | 0.7592 | 0.7358 | 0.7087 | **0.807** | 0.00128 | **0.193** | 0.824 | mAP↓ but unique 8× ↑ |
+
+### Mid-eval trajectories (val split, every 10 epochs)
+
+| epoch | v62b | v69a | v69b | v70a | v71a | **v72a** |
+|---:|---:|---:|---:|---:|---:|---:|
+| 9 | 0.6706 | 0.6601 | 0.6796 | 0.6605 | 0.6738 | 0.6697 |
+| 19 | 0.6625 | 0.6678 | 0.6446 | 0.6527 | 0.6625 | 0.6763 |
+| 29 | 0.6678 | 0.6693 | 0.6511 | 0.6539 | 0.6642 | 0.6695 |
+| 39 | 0.6669 | 0.6655 | 0.6576 | 0.6596 | 0.6557 | **0.6804 ★** |
+| 49 | 0.6746 | 0.6636 | 0.6446 | 0.6575 | 0.6630 | 0.6708 |
+| 59 | 0.6756 | 0.6681 | 0.6423 | 0.6581 | 0.6654 | 0.6748 |
+
+### Multi-angle interpretation
+
+**v72a — Closest to SOTA + potential upside**
+- mAP only −0.006 vs v62b, all secondary metrics improved
+  (unique +15%, per-cb +9%, baseH +6%).
+- **ep39 mid-eval 0.6804 actually exceeded v62b's 0.6778 final**.
+- Mechanism: semantic_proj + instance_proj act on a separate
+  projection of the hash code → main retrieval path receives only
+  *indirect* supervision (gradient flows back through the 72-d hash
+  but the projections themselves aren't used at retrieval). v62b's
+  P@1 sharpness mostly preserved (−0.009 only).
+- Recommendation: hyperparameter sweep (`λ_dual_semantic`,
+  `λ_dual_instance`) is worth attempting — first try λ=0.005 (half)
+  and λ=0.02 (double).
+
+**v69b — Dramatic trade-off, paper-worthy insight**
+- unique jumps from 0.075 → 0.807 (8× increase!), P@1 +0.019 (highest
+  among all variants), but mAP −0.036.
+- Mechanism: explicit separation of codeword (positions 0,1) and
+  residual (position 2) lets the model encode *instance variation*
+  cleanly in one codon → near-duplicate distinction sharp (high P@1)
+  but baseH drops 8% as position 2 abandons compositional grouping.
+- Useful for *instance-level retrieval* tasks; bad for *semantic
+  cluster retrieval* (P@100/1000 drop).
+
+**v70a — Failure mode**
+- P@1 collapses −0.10. Hash-recon target = visual_global pulls the
+  18-d binary code toward the *batch-mean* visual feature direction,
+  washing out instance distinctiveness.
+- λ=0.01 too strong. Future: try λ=0.001 or use a different target
+  (text_global, "both") — and probably with a sample-wise rather
+  than mean-cos loss.
+
+**v71a — Mild trade-off (similar to v54 unique champion)**
+- unique +97% with mAP −0.012. Gate value averages ~0.5 (variable per
+  sample), so residual is conditionally suppressed when ‖z−q‖ is low.
+- The gate mechanism works (gradients flow, gate_mean varies) but the
+  net effect resembles "less residual injection" → drifts toward v57
+  baseline behaviour with more unique codes.
+
+**v69a — No specialization gain**
+- mAP −0.008, no metric improved enough to justify the change.
+  Position-specific fc just triples codon-head params (1,028 → 3,084)
+  without unlocking better codon decoding. Echoes the v65a/b finding:
+  *codon decoding capacity expansion alone doesn't help*.
+
+### Conclusion + next steps
+
+**Per-dataset Flickr25k SOTA unchanged**: v62b (0.6778).
+
+But two ablations are paper-worthy:
+1. **v72a hash-dual-proj** with hyperparam sweep — has a real chance
+   of unseating v62b (ep39 already exceeded).
+2. **v69b residual-split** as a *trade-off characterization* — shows
+   that semantic vs instance can be cleanly decoupled by codon
+   position assignment.
+
+**Failure modes documented**:
+- v70a hash-recon at λ=0.01 → P@1 collapse.
+- v69a position-specific → no gain.
+- v71a residual-gate → mild trade-off only.
+
+### Result directories
+- v69a: `result/260523+flickr25k_setting1_v69a_v62b_posSpecificCodon+bs+64+e+60+proj_lr+0.001/`
+- v69b: `result/260523+flickr25k_setting1_v69b_v62b_sem2res1Codon+bs+64+e+60+proj_lr+0.001/`
+- v70a: `result/260523+flickr25k_setting1_v70a_v62b_hashReconVisual_lam001+bs+64+e+60+proj_lr+0.001/`
+- v71a: `result/260523+flickr25k_setting1_v71a_v62b_resGate_g03+bs+64+e+60+proj_lr+0.001/`
+- v72a: `result/260523+flickr25k_setting1_v72a_v62b_dualHashProj_lam001+bs+64+e+60+proj_lr+0.001/`
+
+---
+
 ## 2026-05-23 — MSCOCO 5-way ablation: mscoco_v69a (position-specific CodonHead) becomes NEW MSCOCO SOTA (mAP 0.4795)
 
 🟢 ★ Five single-axis structural changes on v63b SOTA (mAP 0.4563)
@@ -1463,117 +1635,6 @@ Per-dataset SOTA reproducible by:
 - mscoco_v70a: `result/260523+mscoco_setting1_mscoco_v70a_v63b_hashReconVisual_lam001+...`
 - mscoco_v71a: `result/260523+mscoco_setting1_mscoco_v71a_v63b_resGate_g03+...`
 - mscoco_v72a: `result/260523+mscoco_setting1_mscoco_v72a_v63b_dualHashProj_lam001+...`
-
----
-
-## 2026-05-23 — v69 / v70 / v71 / v72: 5-way structural ablation suite on Flickr25k
-
-🟡 5 single-axis ablations on v62b SOTA (0.6778) to probe orthogonal
-structural improvements. None unseats v62b; v72a (dual projection)
-comes closest and shows ep39 mid-eval 0.6804 *exceeding* v62b's
-final, suggesting it may benefit from λ tuning. v70a (hash-recon)
-fails dramatically (P@1 -0.10 collapse).
-
-### Setup (single change vs v62b)
-
-| Tag | Change |
-|---|---|
-| **v69a** | `--codon_position_specific_head` — 3 independent Linear(256, 4) per codon position (replaces shared single Linear). |
-| **v69b** | `--codon_residual_split` — codon position 0,1 from codeword; position 2 from γ·(z-q). 3 separate Linears. |
-| **v70a** | `--use_hash_recon --lambda_hash_recon 0.01` — small MLP from flattened 18·4=72-d hash → 768-d SigLIP2 visual_global, 1-cos loss. |
-| **v71a** | `--codon_residual_gate` — sigmoid(a·‖z-q‖+b) gate on γ·residual, learnable per CodonHead (2 scalars per codebook). |
-| **v72a** | `--use_dual_hash_proj --lambda_dual_semantic 0.01 --lambda_dual_instance 0.01` — semantic_proj (cosine to visual_global) + instance_proj (NtXent across paired-aug views), both MLPs from flattened hash. |
-
-### Final test (2K × 23K)
-
-| Run | mAP | Δ vs v62b | P@1 | P@10 | P@100 | P@1000 | unique | per-cb | dup | baseH | verdict |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| **v62b (SOTA)** | **0.6778** | — | **0.7625** | 0.7587 | 0.7573 | 0.7445 | 0.075 | 0.00077 | 0.926 | 0.900 | ★ |
-| **v72a dual-proj** | **0.6723** | **−0.0055** | 0.7535 | 0.7521 | 0.7546 | 0.7429 | 0.086 | 0.00084 | 0.914 | 0.957 | **near-SOTA** |
-| v69a pos-spec | 0.6702 | −0.0076 | 0.7465 | 0.7458 | 0.7476 | 0.7358 | 0.090 | 0.00074 | 0.910 | 0.875 | mild loss |
-| v71a res-gate | 0.6658 | −0.0120 | 0.7255 | 0.7447 | 0.7513 | 0.7344 | **0.147** | 0.00127 | 0.853 | **0.983** | trade-off |
-| v70a hash-recon | 0.6590 | −0.0188 | **0.6585** ⚠ | 0.7358 | 0.7397 | 0.7293 | 0.081 | 0.00074 | 0.919 | 0.903 | **FAIL (P@1 -0.10)** |
-| v69b res-split | 0.6415 | **−0.0363** | **0.7815** ✓ | 0.7592 | 0.7358 | 0.7087 | **0.807** | 0.00128 | **0.193** | 0.824 | mAP↓ but unique 8× ↑ |
-
-### Mid-eval trajectories (val split, every 10 epochs)
-
-| epoch | v62b | v69a | v69b | v70a | v71a | **v72a** |
-|---:|---:|---:|---:|---:|---:|---:|
-| 9 | 0.6706 | 0.6601 | 0.6796 | 0.6605 | 0.6738 | 0.6697 |
-| 19 | 0.6625 | 0.6678 | 0.6446 | 0.6527 | 0.6625 | 0.6763 |
-| 29 | 0.6678 | 0.6693 | 0.6511 | 0.6539 | 0.6642 | 0.6695 |
-| 39 | 0.6669 | 0.6655 | 0.6576 | 0.6596 | 0.6557 | **0.6804 ★** |
-| 49 | 0.6746 | 0.6636 | 0.6446 | 0.6575 | 0.6630 | 0.6708 |
-| 59 | 0.6756 | 0.6681 | 0.6423 | 0.6581 | 0.6654 | 0.6748 |
-
-### Multi-angle interpretation
-
-**v72a — Closest to SOTA + potential upside**
-- mAP only −0.006 vs v62b, all secondary metrics improved
-  (unique +15%, per-cb +9%, baseH +6%).
-- **ep39 mid-eval 0.6804 actually exceeded v62b's 0.6778 final**.
-- Mechanism: semantic_proj + instance_proj act on a separate
-  projection of the hash code → main retrieval path receives only
-  *indirect* supervision (gradient flows back through the 72-d hash
-  but the projections themselves aren't used at retrieval). v62b's
-  P@1 sharpness mostly preserved (−0.009 only).
-- Recommendation: hyperparameter sweep (`λ_dual_semantic`,
-  `λ_dual_instance`) is worth attempting — first try λ=0.005 (half)
-  and λ=0.02 (double).
-
-**v69b — Dramatic trade-off, paper-worthy insight**
-- unique jumps from 0.075 → 0.807 (8× increase!), P@1 +0.019 (highest
-  among all variants), but mAP −0.036.
-- Mechanism: explicit separation of codeword (positions 0,1) and
-  residual (position 2) lets the model encode *instance variation*
-  cleanly in one codon → near-duplicate distinction sharp (high P@1)
-  but baseH drops 8% as position 2 abandons compositional grouping.
-- Useful for *instance-level retrieval* tasks; bad for *semantic
-  cluster retrieval* (P@100/1000 drop).
-
-**v70a — Failure mode**
-- P@1 collapses −0.10. Hash-recon target = visual_global pulls the
-  18-d binary code toward the *batch-mean* visual feature direction,
-  washing out instance distinctiveness.
-- λ=0.01 too strong. Future: try λ=0.001 or use a different target
-  (text_global, "both") — and probably with a sample-wise rather
-  than mean-cos loss.
-
-**v71a — Mild trade-off (similar to v54 unique champion)**
-- unique +97% with mAP −0.012. Gate value averages ~0.5 (variable per
-  sample), so residual is conditionally suppressed when ‖z−q‖ is low.
-- The gate mechanism works (gradients flow, gate_mean varies) but the
-  net effect resembles "less residual injection" → drifts toward v57
-  baseline behaviour with more unique codes.
-
-**v69a — No specialization gain**
-- mAP −0.008, no metric improved enough to justify the change.
-  Position-specific fc just triples codon-head params (1,028 → 3,084)
-  without unlocking better codon decoding. Echoes the v65a/b finding:
-  *codon decoding capacity expansion alone doesn't help*.
-
-### Conclusion + next steps
-
-**Per-dataset Flickr25k SOTA unchanged**: v62b (0.6778).
-
-But two ablations are paper-worthy:
-1. **v72a hash-dual-proj** with hyperparam sweep — has a real chance
-   of unseating v62b (ep39 already exceeded).
-2. **v69b residual-split** as a *trade-off characterization* — shows
-   that semantic vs instance can be cleanly decoupled by codon
-   position assignment.
-
-**Failure modes documented**:
-- v70a hash-recon at λ=0.01 → P@1 collapse.
-- v69a position-specific → no gain.
-- v71a residual-gate → mild trade-off only.
-
-### Result directories
-- v69a: `result/260523+flickr25k_setting1_v69a_v62b_posSpecificCodon+bs+64+e+60+proj_lr+0.001/`
-- v69b: `result/260523+flickr25k_setting1_v69b_v62b_sem2res1Codon+bs+64+e+60+proj_lr+0.001/`
-- v70a: `result/260523+flickr25k_setting1_v70a_v62b_hashReconVisual_lam001+bs+64+e+60+proj_lr+0.001/`
-- v71a: `result/260523+flickr25k_setting1_v71a_v62b_resGate_g03+bs+64+e+60+proj_lr+0.001/`
-- v72a: `result/260523+flickr25k_setting1_v72a_v62b_dualHashProj_lam001+bs+64+e+60+proj_lr+0.001/`
 
 ---
 
@@ -6101,6 +6162,48 @@ v6 architecture details:
 ---
 
 ---
+
+---
+
+## MSCOCO mscoco_v69a (baseline mAP 0.4795)
+
+| Codebook | mAP | ΔmAP | P@1 Δ |
+|---|---:|---:|---:|
+| baseline | 0.4795 | — | — |
+| **drop C_0 (global)** | 0.4626 | **−0.0169** | −0.097 |
+| drop C_1 | 0.4771 | −0.0025 | −0.013 |
+| drop C_2 | 0.4762 | −0.0034 | −0.001 |
+| drop C_3 | 0.4785 | −0.0010 | −0.004 |
+| drop C_4 | 0.4814 | **+0.0019** | −0.001 |
+| drop C_5 | 0.4754 | −0.0042 | −0.001 |
+
+### Cross-dataset C_0 dominance confirmed
+
+| Model | C_0 drop ΔmAP | C_1-5 drop ΔmAP range |
+|---|---:|---:|
+| v62b (Flickr) | −0.0038 | [−0.002, +0.001] |
+| v76c (Flickr cosine VQ) | −0.0109 | [−0.002, +0.002] |
+| **mscoco_v69a** | **−0.0169** | [−0.004, +0.002] |
+
+→ C_0 absolute impact is largest on MSCOCO (4-5× Flickr) because MSCOCO
+80-class fine-grained retrieval depends more on the scene-level slot.
+**Strongest evidence yet for "global slot as distinct semantic channel"
+claim**.
+
+P@1 axis: MSCOCO C_0 drop costs P@1 **−0.097** (huge), while Flickr
+v62b's C_0 drop only costs P@1 −0.008. C_0 captures the
+discriminator-critical signal that mscoco_v69a relied on to lift P@1
+from v63b's 0.5606 to 0.5830 (the actual SOTA gain mechanism).
+
+### Implication for paper narrative
+
+Updated claim to add to `docs/ANALYSIS_compositional_contribution.md`:
+
+> "On MSCOCO (80 classes, 107K db), dropping the global codebook C_0
+> reduces P@1 by 9.7 percentage points (0.583 → 0.486), whereas
+> dropping any local codebook (C_1-C_5) changes mAP by less than 0.5%.
+> This is the strongest evidence that the global codebook constitutes
+> a distinct, retrieval-critical semantic channel."
 
 ---
 

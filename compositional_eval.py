@@ -196,26 +196,28 @@ def metric_b_text_concentration(
     valid_text = (cache_rows >= 0) & has_text[np.clip(cache_rows, 0, len(has_text) - 1)]
     valid_text_idx = np.where(valid_text)[0]
     print(f"[B0/B1] text-based: using {valid_text_idx.size}/{N} db samples (has_text=True).")
-    cb_idx_t = codebook_indices[valid_text_idx]
-    text_feats = np.asarray(text_part[cache_rows[valid_text_idx]], dtype=np.float32)  # [Nv, M, D]
-
     out = {
         "n_text_samples": int(valid_text_idx.size),
         "min_cluster":    int(min_cluster),
     }
-    for tag, centered in [("b0_raw_text", False), ("b1_centered_text", True)]:
-        cw, pop, means, baselines, lifts = _per_codebook_concentration(
-            cb_idx_t, text_feats, min_cluster, rng_seed,
-            use_per_slot_feature=True, centered=centered,
-        )
-        out[tag] = {
-            "codeword_intra_sim":           cw,
-            "codeword_population":          pop,
-            "codebook_mean_intra_sim":      means,
-            "random_baseline_per_codebook": baselines,
-            "compositional_lift_per_codebook": lifts,
-            "mean_compositional_lift":      float(np.nanmean(lifts)),
-        }
+    if valid_text_idx.size > 0:
+        cb_idx_t = codebook_indices[valid_text_idx]
+        text_feats = np.asarray(text_part[cache_rows[valid_text_idx]], dtype=np.float32)  # [Nv, M, D]
+        for tag, centered in [("b0_raw_text", False), ("b1_centered_text", True)]:
+            cw, pop, means, baselines, lifts = _per_codebook_concentration(
+                cb_idx_t, text_feats, min_cluster, rng_seed,
+                use_per_slot_feature=True, centered=centered,
+            )
+            out[tag] = {
+                "codeword_intra_sim":           cw,
+                "codeword_population":          pop,
+                "codebook_mean_intra_sim":      means,
+                "random_baseline_per_codebook": baselines,
+                "compositional_lift_per_codebook": lifts,
+                "mean_compositional_lift":      float(np.nanmean(lifts)),
+            }
+    else:
+        print("[B0/B1] skipped: no db rows have cached captions (text path unavailable for this cache).")
 
     # B2: visual_global on ALL DB samples
     if visual_global is not None:
