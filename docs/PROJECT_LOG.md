@@ -36,14 +36,18 @@ Format conventions:
   incl. HashNet's own 0.7800.
 - **Best supervised + diversity-balanced Flickr25k**: **v24b** -- mAP
   **0.7742**, unique 0.324.
-- **Best unsupervised Flickr25k (ours, absolute SOTA on FINAL test)**:
-  **v62b** (= v57 + `--codon_residual_gamma 0.3`, Option A
-  residual-conditioned codon head) -- **final test mAP 0.6778**.
-  Exceeds v57 final test (0.6683) by **+0.0095** and v57 ep9 peak
-  (0.6742) by **+0.0036**. Achieves higher per-cb-unique (0.00077 vs
-  0.00049) without breaking compositional structure (per-cb entropy
-  unchanged). γ sweep: v62a (γ=0.1) 0.6734, v62b (γ=0.3) **0.6778**,
-  v62c (γ=0.5) 0.6646.
+- **Best unsupervised Flickr25k (ours, NEW 2026-05-26)**:
+  **v81a** (= v62b + row-normalised confidence-adaptive top-p routing,
+  `tau_min=0.5`, `tau_max=0.9`) -- **final test mAP 0.6879**,
+  P@1 **0.7900**, P@10 **0.7890**, unique **0.3462**. Beats v62b
+  final mAP by **+0.0101** while increasing unique-code ratio by
+  **+0.2717**. Mechanism: top-p is decided on per-patch row-normalised
+  local routing probabilities, giving a soft sparsity curriculum
+  (`val_eff-k` 4.79 → 3.32) instead of v80's inactive hard gate.
+- **Previous unsupervised Flickr25k SOTA (FINAL)**: **v62b** (= v57 +
+  `--codon_residual_gamma 0.3`, Option A residual-conditioned codon
+  head) -- final test mAP **0.6778**. γ sweep: v62a (γ=0.1) 0.6734,
+  v62b (γ=0.3) **0.6778**, v62c (γ=0.5) 0.6646.
 - **Prior unsupervised Flickr25k SOTA (PEAK)**: **v57** (= v49 with
   `--lambda_wasserstein 0.02 → 0.05`) -- peak mAP 0.6742 (ep9),
   final test mAP 0.6683. Now superseded by v62b.
@@ -63,7 +67,7 @@ Format conventions:
   position-specific CodonHead). Note: from-scratch K↑ regressed
   (v77a K=192 → 0.4408, v77b K=256 → 0.4472); warm-start + selective
   split is what unlocks the gain.
-- **Per-dataset SOTA pairs**: Flickr25k = **v62b** (0.6778),
+- **Per-dataset SOTA pairs**: Flickr25k = **v81a** (0.6879),
   MSCOCO = **v78a MSCOCO** (0.4856).
 - **Latest routing ablation**: **v80a/b/c ambiguity-aware top-k** is a
   clear negative result on Flickr25k. Thresholds 0.55/0.60/0.65 all
@@ -148,6 +152,65 @@ Format conventions:
 ---
 
 ---
+
+---
+
+## 2026-05-26 — v81a/b/c confidence-adaptive top-p routing — NEW Flickr25k SOTA
+
+🟢 Active. Stage 2 fixed the key v80 failure before running: top-p and
+confidence thresholds are now computed on **row-normalised local routing
+probabilities** (`P / row_sum`) while the masked transport mass is still
+renormalised back to the original Sinkhorn row mass. This makes top-p
+semantically meaningful even though Sinkhorn row masses are small.
+
+### Setup
+
+All runs use the v62b loss/model setup with default-off
+`--routing_adaptive_topp`; only the adaptive top-p interval changes.
+
+| Run | tau_min | tau_max | mAP | Δ vs v62b | P@1 | P@10 | P@100 | P@1000 | unique | base H | dead mean | final val eff-k | Verdict |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| v62b | — | — | 0.6778 | — | 0.7625 | 0.7587 | 0.7573 | 0.7445 | 0.0745 | 0.899 | 0.000 | — | previous SOTA |
+| v79c hard routing | — | — | 0.6703 | -0.0075 | 0.7655 | 0.7629 | 0.7565 | 0.7428 | 0.1647 | 0.699 | 0.172 | — | useful trade-off |
+| **v81a** | 0.5 | 0.9 | **0.6879** | **+0.0101** | **0.7900** | **0.7890** | **0.7810** | **0.7607** | 0.3462 | 0.833 | 0.349 | 3.319 | **NEW SOTA** |
+| v81b | 0.4 | 0.9 | 0.6617 | -0.0161 | 0.7875 | 0.7830 | 0.7688 | 0.7399 | 0.3354 | 0.824 | 0.411 | 3.133 | discarded |
+| v81c | 0.5 | 0.8 | 0.6598 | -0.0180 | 0.7720 | 0.7588 | 0.7548 | 0.7330 | 0.3490 | 0.852 | 0.445 | 3.395 | discarded |
+
+### Mid-eval trajectory
+
+| Run | ep9 | ep19 | ep29 | ep39 | ep49 | ep59 | final eval |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| v81a | 0.6769 | 0.6781 | **0.6844** | 0.6789 | 0.6664 | 0.6725 | **0.6879** |
+| v81b | 0.6705 | 0.6731 | 0.6670 | 0.6525 | 0.6643 | 0.6606 | 0.6617 |
+| v81c | 0.6679 | 0.6578 | 0.6556 | 0.6616 | 0.6628 | 0.6634 | 0.6598 |
+
+### Conclusion
+
+- v81a is the first routing variant to beat v62b on every final retrieval
+  metric checked here: mAP, P@1, P@10, P@100, and P@1000.
+- The row-normalised threshold fix is load-bearing. v80's gate used raw
+  transport mass and never activated; v81a starts dense and gradually
+  sparsifies (`val_eff-k` from ~4.79 to 3.32), preserving stability while
+  raising unique-code ratio from 0.0745 to 0.3462.
+- Too-aggressive intervals regress. v81b/v81c keep high unique ratios but
+  dead-code means rise above 0.41 and mAP falls below v62b.
+- v81a is the best current evidence for the compositional-code claim:
+  it improves retrieval and code diversity simultaneously, whereas v79c
+  improved code uniqueness at a small mAP cost.
+
+### Next
+
+- Promote v81a as the Flickr25k unsupervised SOTA and run MSCOCO with
+  the same row-normalised adaptive top-p policy.
+- Run a narrower interval sweep around v81a: `(0.50,0.95)`,
+  `(0.55,0.90)`, `(0.55,0.95)`.
+- Add post-hoc compositional analysis for v81a vs v62b/v79c:
+  pairwise NMI, codebook drop ablation, and qualitative codebook grids.
+
+Result dirs:
+`result/260526+flickr25k_setting1_v81a_v62b_adaptiveTopP_05_09+bs+64+e+60+proj_lr+0.001/`,
+`result/260526+flickr25k_setting1_v81b_v62b_adaptiveTopP_04_09+bs+64+e+60+proj_lr+0.001/`,
+`result/260526+flickr25k_setting1_v81c_v62b_adaptiveTopP_05_08+bs+64+e+60+proj_lr+0.001/`.
 
 ---
 

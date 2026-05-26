@@ -213,7 +213,11 @@ class SemanticSinkhornRouter(nn.Module):
         # the top-k branch above).
         if topp_per_patch is not None and 0.0 < float(topp_per_patch) < 1.0:
             tau = float(topp_per_patch)
-            sorted_P, sorted_idx = P.sort(dim=-1, descending=True)            # [B, N, M]
+            P_prob = P / target_row_sum                                       # [B, N, M], row sums to 1
+            assert P_prob.shape == P.shape, (
+                f"P_prob must match P shape, got {tuple(P_prob.shape)} vs {tuple(P.shape)}"
+            )
+            sorted_P, sorted_idx = P_prob.sort(dim=-1, descending=True)       # [B, N, M]
             cum = sorted_P.cumsum(dim=-1)                                     # [B, N, M]
             # keep position i iff cum[..., i-1] < tau (i.e. we haven't yet
             # passed threshold when entering this position). always keep i=0.
@@ -239,8 +243,12 @@ class SemanticSinkhornRouter(nn.Module):
             th = float(ambiguity_topk_threshold)
             if 0.0 < th < 1.0:
                 k_amb = max(1, min(int(ambiguity_topk_ambiguous_k), M))
-                p_max = P.max(dim=-1).values                                  # [B, N]
-                sorted_P, sorted_idx = P.sort(dim=-1, descending=True)         # [B, N, M]
+                P_prob = P / target_row_sum                                   # [B, N, M], row sums to 1
+                assert P_prob.shape == P.shape, (
+                    f"P_prob must match P shape, got {tuple(P_prob.shape)} vs {tuple(P.shape)}"
+                )
+                p_max = P_prob.max(dim=-1).values                             # [B, N]
+                sorted_P, sorted_idx = P_prob.sort(dim=-1, descending=True)    # [B, N, M]
                 rank = torch.arange(M, device=P.device).view(1, 1, M)          # [1, 1, M]
                 k_eff = torch.where(
                     p_max >= th,
@@ -263,9 +271,13 @@ class SemanticSinkhornRouter(nn.Module):
             tau_min = float(adaptive_topp_min)
             tau_max = float(adaptive_topp_max)
             if 0.0 < tau_min <= tau_max < 1.0:
-                p_max = P.max(dim=-1, keepdim=True).values                     # [B, N, 1]
+                P_prob = P / target_row_sum                                    # [B, N, M], row sums to 1
+                assert P_prob.shape == P.shape, (
+                    f"P_prob must match P shape, got {tuple(P_prob.shape)} vs {tuple(P.shape)}"
+                )
+                p_max = P_prob.max(dim=-1, keepdim=True).values                # [B, N, 1]
                 tau = tau_min + (1.0 - p_max).clamp(0.0, 1.0) * (tau_max - tau_min)
-                sorted_P, sorted_idx = P.sort(dim=-1, descending=True)         # [B, N, M]
+                sorted_P, sorted_idx = P_prob.sort(dim=-1, descending=True)    # [B, N, M]
                 cum = sorted_P.cumsum(dim=-1)                                  # [B, N, M]
                 prev_cum = torch.cat(
                     [torch.zeros_like(cum[..., :1]), cum[..., :-1]], dim=-1
