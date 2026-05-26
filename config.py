@@ -266,6 +266,34 @@ class Config():
                  'output is sharp (low epsilon or epsilon-annealed); '
                  'flat softmax over near-uniform text centroids makes '
                  'top-p effectively keep all M parts.')
+        # v80/v81: confidence-adaptive sparse routing. These are default-off
+        # extensions of the existing top-p/top-k masks. They keep confident
+        # patches sparse while preserving multi-part assignments for ambiguous
+        # patches.
+        siglip2_arg.add_argument('--routing_ambiguity_topk',
+            dest='routing_ambiguity_topk', action='store_true', default=False,
+            help='If set, confident patches keep top-1 routing while '
+                 'ambiguous patches keep --routing_ambiguity_k parts.')
+        siglip2_arg.add_argument('--routing_ambiguity_threshold',
+            dest='routing_ambiguity_threshold', type=float, default=0.6,
+            help='Confidence threshold max_m P[b,n,m] for ambiguity-aware '
+                 'top-k routing. Patches above this keep top-1.')
+        siglip2_arg.add_argument('--routing_ambiguity_k',
+            dest='routing_ambiguity_k', type=int, default=2,
+            help='Number of parts retained for ambiguous patches in '
+                 '--routing_ambiguity_topk.')
+        siglip2_arg.add_argument('--routing_adaptive_topp',
+            dest='routing_adaptive_topp', action='store_true', default=False,
+            help='If set, use patch-specific top-p threshold based on '
+                 'routing confidence instead of a fixed scalar threshold.')
+        siglip2_arg.add_argument('--routing_adaptive_topp_min',
+            dest='routing_adaptive_topp_min', type=float, default=0.5,
+            help='Minimum patch-specific top-p threshold for confident '
+                 'patches when --routing_adaptive_topp is enabled.')
+        siglip2_arg.add_argument('--routing_adaptive_topp_max',
+            dest='routing_adaptive_topp_max', type=float, default=0.9,
+            help='Maximum patch-specific top-p threshold for ambiguous '
+                 'patches when --routing_adaptive_topp is enabled.')
         # v55: Unbalanced OT (Chizat et al. NeurIPS 2018). KL-relaxed
         # marginals let some patches have row sum < 1/N (i.e. patches that
         # are uninformative — background, blur — can be partially "rejected"

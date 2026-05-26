@@ -119,6 +119,10 @@ class SemanticSinkhornRouter(nn.Module):
         epsilon_override: Optional[float] = None,
         topk_per_patch:   Optional[int]   = None,
         topp_per_patch:   Optional[float] = None,
+        ambiguity_topk_threshold: Optional[float] = None,
+        ambiguity_topk_ambiguous_k: int = 2,
+        adaptive_topp_min: Optional[float] = None,
+        adaptive_topp_max: Optional[float] = None,
         uot_lambda_a:     Optional[float] = None,
         uot_lambda_b:     Optional[float] = None,
     ) -> Dict[str, torch.Tensor]:
@@ -225,6 +229,55 @@ class SemanticSinkhornRouter(nn.Module):
             P_masked = P * keep.to(P.dtype)
             row_sum = P_masked.sum(dim=-1, keepdim=True).clamp_min(1e-12)
             P = P_masked / row_sum * target_row_sum
+
+        # ---- 4d) optional ambiguity-aware top-k mask per patch ------------
+        # Confident patches keep only top-1, while ambiguous patches keep
+        # top-k. This is a middle ground between v46 top-p and v79c one-hot
+        # hard routing: clear patches specialize, ambiguous patches preserve
+        # multi-part evidence. Confidence is max_m P[b, n, m].
+        if ambiguity_topk_threshold is not None:
+            th = float(ambiguity_topk_threshold)
+            if 0.0 < th < 1.0:
+                k_amb = max(1, min(int(ambiguity_topk_ambiguous_k), M))
+                p_max = P.max(dim=-1).values                                  # [B, N]
+                sorted_P, sorted_idx = P.sort(dim=-1, descending=True)         # [B, N, M]
+                rank = torch.arange(M, device=P.device).view(1, 1, M)          # [1, 1, M]
+                k_eff = torch.where(
+                    p_max >= th,
+                    torch.ones_like(p_max, dtype=torch.long),
+                    torch.full_like(p_max, k_amb, dtype=torch.long),
+                )                                                              # [B, N]
+                keep_sorted = rank < k_eff.unsqueeze(-1)                       # [B, N, M]
+                keep = torch.zeros_like(P, dtype=torch.bool).scatter_(
+                    -1, sorted_idx, keep_sorted,
+                )                                                              # [B, N, M]
+                P_masked = P * keep.to(P.dtype)
+                row_sum = P_masked.sum(dim=-1, keepdim=True).clamp_min(1e-12)
+                P = P_masked / row_sum * target_row_sum
+
+        # ---- 4e) optional confidence-adaptive top-p mask per patch --------
+        # Patch-specific threshold tau_i = tau_min + (1 - max_prob_i) *
+        # (tau_max - tau_min). Confident patches get a lower threshold
+        # (sparser routing); ambiguous patches keep more parts.
+        if adaptive_topp_min is not None and adaptive_topp_max is not None:
+            tau_min = float(adaptive_topp_min)
+            tau_max = float(adaptive_topp_max)
+            if 0.0 < tau_min <= tau_max < 1.0:
+                p_max = P.max(dim=-1, keepdim=True).values                     # [B, N, 1]
+                tau = tau_min + (1.0 - p_max).clamp(0.0, 1.0) * (tau_max - tau_min)
+                sorted_P, sorted_idx = P.sort(dim=-1, descending=True)         # [B, N, M]
+                cum = sorted_P.cumsum(dim=-1)                                  # [B, N, M]
+                prev_cum = torch.cat(
+                    [torch.zeros_like(cum[..., :1]), cum[..., :-1]], dim=-1
+                )                                                              # [B, N, M]
+                keep_sorted = prev_cum < tau                                   # [B, N, M]
+                keep_sorted[..., 0] = True
+                keep = torch.zeros_like(P, dtype=torch.bool).scatter_(
+                    -1, sorted_idx, keep_sorted,
+                )                                                              # [B, N, M]
+                P_masked = P * keep.to(P.dtype)
+                row_sum = P_masked.sum(dim=-1, keepdim=True).clamp_min(1e-12)
+                P = P_masked / row_sum * target_row_sum
 
         # ---- 5) weighted pooling: P^T @ V then col-normalize ------------
         # semantic_v[b, m, :] = sum_n P[b, n, m] * v[b, n, :] / sum_n P[b, n, m]

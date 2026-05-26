@@ -29,7 +29,7 @@ Format conventions:
 
 ---
 
-## Current state (as of 2026-05-21)
+## Current state (as of 2026-05-26)
 
 - **Best supervised Flickr25k**: **v18** (HashNet-style logistic on
   continuous DNA code) -- mAP **0.7883**. Above every binary baseline
@@ -65,6 +65,13 @@ Format conventions:
   split is what unlocks the gain.
 - **Per-dataset SOTA pairs**: Flickr25k = **v62b** (0.6778),
   MSCOCO = **v78a MSCOCO** (0.4856).
+- **Latest routing ablation**: **v80a/b/c ambiguity-aware top-k** is a
+  clear negative result on Flickr25k. Thresholds 0.55/0.60/0.65 all
+  produced the same effective routing (`val_routing_mean_effective_k`
+  1.984, `val_routing_fraction_top1` 0.0), so the intended confidence
+  gate never fired. Final mAP **0.6467** and local dead-code ratios
+  56-73% indicate that always-top-2 routing starves specialisation
+  instead of reproducing v79c's useful hard-routing effect.
 - **Previous text-on SOTA by peak**: v49 -- 0.6705 peak / 0.6644 final.
 - **Best by FINAL-checkpoint mAP (pre-v57)**: v52 (= v49 with
   `--gumbel_tau_final 0.3 → 0.1`) -- 0.6691 final. NOT superseded by
@@ -141,6 +148,60 @@ Format conventions:
 ---
 
 ---
+
+---
+
+## 2026-05-26 — v80a/b/c ambiguity-aware top-k routing — threshold gate never activates
+
+🟡 Negative ablation. Implemented default-off routing extensions in
+`SemanticSinkhornRouter`: ambiguity-aware top-k and confidence-adaptive
+top-p, plus routing diagnostics in the training log
+(`routing_mean_effective_k`, `routing_fraction_top1`). Stage 1 tested
+ambiguity-aware top-k on Flickr25k only.
+
+### Setup
+
+All runs start from the v62b loss/model setting (`codon_residual_gamma=0.3`,
+per-codebook dynamic tau, paired aug NtXent, `lambda_wasserstein=0.05`),
+but replace fixed top-p / hard routing with confidence-gated top-k:
+confident patches keep top-1, ambiguous patches keep top-2.
+
+| Run | Threshold | Ambiguous k | mAP | P@1 | P@10 | P@100 | P@1000 | unique ratio | mean base H | dead ratio mean | val eff-k | val top1 frac |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| v62b baseline | — | — | **0.6778** | 0.7625 | 0.7587 | 0.7573 | 0.7445 | 0.0745 | 0.899 | 0.000 | — | — |
+| v79c hard routing | hard top-1 | 1 | 0.6703 | **0.7655** | **0.7629** | 0.7565 | 0.7428 | 0.1647 | 0.699 | 0.172 | — | — |
+| **v80a** | 0.55 | 2 | 0.6467 | 0.7125 | 0.7320 | 0.7263 | 0.7140 | 0.0533 | 0.389 | 0.531 | 1.984 | 0.000 |
+| **v80b** | 0.60 | 2 | 0.6467 | 0.7125 | 0.7320 | 0.7263 | 0.7140 | 0.0533 | 0.389 | 0.531 | 1.984 | 0.000 |
+| **v80c** | 0.65 | 2 | 0.6467 | 0.7125 | 0.7320 | 0.7263 | 0.7140 | 0.0533 | 0.389 | 0.531 | 1.984 | 0.000 |
+
+### Conclusion
+
+- All three thresholds are numerically identical: `p_max` never exceeds
+  0.55/0.60/0.65 after Sinkhorn normalisation, so the gate never reaches
+  top-1. The actual policy is effectively "always keep two local
+  codebooks per patch".
+- Always-top-2 is worse than both v62b soft routing and v79c hard routing:
+  final mAP drops by **-0.0311 vs v62b** and **-0.0236 vs v79c**.
+- The failure mode is local-codebook starvation. Dead-code ratios by
+  codebook are `[0.000, 0.5625, 0.5781, 0.6719, 0.6406, 0.7344]`,
+  much worse than v79c. This suggests ambiguous multi-routing dilutes
+  token pressure across local codebooks without enough confidence to
+  create specialised assignments.
+
+### Next
+
+- Do not continue this exact top-k threshold family.
+- Prioritise Stage 2: confidence-adaptive top-p with lower thresholds,
+  because it can create a continuous sparsity schedule instead of a
+  binary threshold gate that never activates.
+- If revisiting ambiguity-aware top-k, threshold should be calibrated
+  against the row-normalised Sinkhorn scale, likely far below 0.55, or
+  computed on pre-row-normalised local probabilities.
+
+Result dirs:
+`result/260526+flickr25k_setting1_v80a_v62b_ambigTopK_th055_k2+bs+64+e+60+proj_lr+0.001/`,
+`result/260526+flickr25k_setting1_v80b_v62b_ambigTopK_th060_k2+bs+64+e+60+proj_lr+0.001/`,
+`result/260526+flickr25k_setting1_v80c_v62b_ambigTopK_th065_k2+bs+64+e+60+proj_lr+0.001/`.
 
 ---
 

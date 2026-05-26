@@ -1219,6 +1219,14 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.sinkhorn_epsilon_final = getattr(args, "sinkhorn_epsilon_final", None)
         self.routing_topk           = getattr(args, "routing_topk",           None)
         self.routing_topp           = getattr(args, "routing_topp",           None)
+        # v80/v81: confidence-adaptive sparse routing. Default-off, passed
+        # through to SemanticSinkhornRouter only when enabled.
+        self.routing_ambiguity_topk      = bool(getattr(args, "routing_ambiguity_topk", False))
+        self.routing_ambiguity_threshold = float(getattr(args, "routing_ambiguity_threshold", 0.6))
+        self.routing_ambiguity_k         = int(getattr(args, "routing_ambiguity_k", 2))
+        self.routing_adaptive_topp       = bool(getattr(args, "routing_adaptive_topp", False))
+        self.routing_adaptive_topp_min   = float(getattr(args, "routing_adaptive_topp_min", 0.5))
+        self.routing_adaptive_topp_max   = float(getattr(args, "routing_adaptive_topp_max", 0.9))
         # v79c (#4.1): hard routing via Gumbel-Softmax (one-hot per patch)
         self.routing_hard           = bool(getattr(args, "routing_hard",      False))
         self.routing_hard_tau       = float(getattr(args, "routing_hard_tau", 1.0))
@@ -1749,6 +1757,8 @@ class SigLIP2SemanticOTModel(nn.Module):
             "text_global_feat":             feats["text_part_raw"],     # [B, 6, D_proj] or None
             "local_routing_matrix":         None,
             "routing_matrix":               None,
+            "routing_mean_effective_k":      None,
+            "routing_fraction_top1":         None,
             "local_semantic_visual_tokens": None,
             "semantic_visual_tokens":       None,
             "quantized_tokens":             None,
@@ -1821,6 +1831,12 @@ class SigLIP2SemanticOTModel(nn.Module):
                 router_kwargs["topk_per_patch"]   = int(self.routing_topk)
             if self.routing_topp is not None:
                 router_kwargs["topp_per_patch"]   = float(self.routing_topp)
+            if self.routing_ambiguity_topk:
+                router_kwargs["ambiguity_topk_threshold"] = float(self.routing_ambiguity_threshold)
+                router_kwargs["ambiguity_topk_ambiguous_k"] = int(self.routing_ambiguity_k)
+            if self.routing_adaptive_topp:
+                router_kwargs["adaptive_topp_min"] = float(self.routing_adaptive_topp_min)
+                router_kwargs["adaptive_topp_max"] = float(self.routing_adaptive_topp_max)
             if self.sinkhorn_lambda_a is not None:
                 router_kwargs["uot_lambda_a"]     = float(self.sinkhorn_lambda_a)
             if self.sinkhorn_lambda_b is not None:
@@ -1848,6 +1864,18 @@ class SigLIP2SemanticOTModel(nn.Module):
             idx = local_routing_matrix.argmax(dim=-1)               # [B, N]
             one_hot = F.one_hot(idx, num_classes=local_routing_matrix.shape[-1]).to(local_routing_matrix.dtype)
             local_routing_matrix = one_hot
+
+        assert local_routing_matrix.dim() == 3, (
+            f"local_routing_matrix must be [B, N, 5], got {tuple(local_routing_matrix.shape)}"
+        )
+        assert local_routing_matrix.shape[0] == B and local_routing_matrix.shape[-1] == NUM_LOCAL_PARTS, (
+            f"local_routing_matrix shape {tuple(local_routing_matrix.shape)} "
+            f"does not match B={B}, M={NUM_LOCAL_PARTS}"
+        )
+        route_nonzero = local_routing_matrix > 0.0                   # [B, N, 5]
+        routing_effective_k = route_nonzero.to(local_routing_matrix.dtype).sum(dim=-1)  # [B, N]
+        routing_fraction_top1 = (routing_effective_k <= 1.0).to(local_routing_matrix.dtype).mean()
+        routing_mean_effective_k = routing_effective_k.mean()
 
         # explicit re-normalize for numerical stability
         denom = local_routing_matrix.sum(dim=1).clamp_min(1e-6)                       # [B, 5]
@@ -2008,6 +2036,8 @@ class SigLIP2SemanticOTModel(nn.Module):
         out.update({
             "local_routing_matrix":         local_routing_matrix,
             "routing_matrix":               routing_matrix,
+            "routing_mean_effective_k":      routing_mean_effective_k.detach(),
+            "routing_fraction_top1":         routing_fraction_top1.detach(),
             "local_semantic_visual_tokens": local_semantic_visual_tokens,
             "semantic_visual_tokens":       semantic_visual_tokens,
             # entropic-OT cost (W_e) per sample, [B]. Used by the Wasserstein

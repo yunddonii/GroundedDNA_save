@@ -408,6 +408,9 @@ def main(args: Config):
         'loss_recon',
         'loss_ntxent',
         'loss_ortho_text',
+        # Routing diagnostics for sparse/adaptive routing ablations.
+        'routing_mean_effective_k',
+        'routing_fraction_top1',
     ]
 
     # ---------- per-epoch CSV logger ---------------------------------------
@@ -590,7 +593,10 @@ def main(args: Config):
             # ---- accumulate -----------------------------------------------
             B = (cached_vt.shape[0] if using_cache else pixel_values.shape[0])
             for k in loss_types:
-                v = loss_dict.get(k, None)
+                if k.startswith("routing_"):
+                    v = out.get(k, None)
+                else:
+                    v = loss_dict.get(k, None)
                 if v is None:
                     continue
                 if isinstance(v, torch.Tensor):
