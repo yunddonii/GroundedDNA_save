@@ -123,6 +123,7 @@ class SemanticSinkhornRouter(nn.Module):
         ambiguity_topk_ambiguous_k: int = 2,
         adaptive_topp_min: Optional[float] = None,
         adaptive_topp_max: Optional[float] = None,
+        adaptive_topp_use_entropy: bool = False,
         uot_lambda_a:     Optional[float] = None,
         uot_lambda_b:     Optional[float] = None,
     ) -> Dict[str, torch.Tensor]:
@@ -264,9 +265,10 @@ class SemanticSinkhornRouter(nn.Module):
                 P = P_masked / row_sum * target_row_sum
 
         # ---- 4e) optional confidence-adaptive top-p mask per patch --------
-        # Patch-specific threshold tau_i = tau_min + (1 - max_prob_i) *
-        # (tau_max - tau_min). Confident patches get a lower threshold
-        # (sparser routing); ambiguous patches keep more parts.
+        # Patch-specific threshold is driven either by max-probability
+        # confidence or normalized entropy over the local parts. Confident /
+        # low-entropy patches get a lower threshold (sparser routing);
+        # ambiguous / high-entropy patches keep more parts.
         if adaptive_topp_min is not None and adaptive_topp_max is not None:
             tau_min = float(adaptive_topp_min)
             tau_max = float(adaptive_topp_max)
@@ -275,8 +277,18 @@ class SemanticSinkhornRouter(nn.Module):
                 assert P_prob.shape == P.shape, (
                     f"P_prob must match P shape, got {tuple(P_prob.shape)} vs {tuple(P.shape)}"
                 )
-                p_max = P_prob.max(dim=-1, keepdim=True).values                # [B, N, 1]
-                tau = tau_min + (1.0 - p_max).clamp(0.0, 1.0) * (tau_max - tau_min)
+                if adaptive_topp_use_entropy:
+                    entropy = -(P_prob.clamp_min(1e-12) * P_prob.clamp_min(1e-12).log()).sum(
+                        dim=-1, keepdim=True,
+                    )                                                          # [B, N, 1]
+                    entropy_norm = entropy / torch.log(
+                        torch.tensor(float(M), device=P.device, dtype=P.dtype)
+                    ).clamp_min(1e-12)                                         # [B, N, 1]
+                    tau_signal = entropy_norm.clamp(0.0, 1.0)                  # [B, N, 1]
+                else:
+                    p_max = P_prob.max(dim=-1, keepdim=True).values            # [B, N, 1]
+                    tau_signal = (1.0 - p_max).clamp(0.0, 1.0)                 # [B, N, 1]
+                tau = tau_min + tau_signal * (tau_max - tau_min)               # [B, N, 1]
                 sorted_P, sorted_idx = P_prob.sort(dim=-1, descending=True)    # [B, N, M]
                 cum = sorted_P.cumsum(dim=-1)                                  # [B, N, M]
                 prev_cum = torch.cat(

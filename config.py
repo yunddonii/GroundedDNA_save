@@ -294,6 +294,11 @@ class Config():
             dest='routing_adaptive_topp_max', type=float, default=0.9,
             help='Maximum patch-specific top-p threshold for ambiguous '
                  'patches when --routing_adaptive_topp is enabled.')
+        siglip2_arg.add_argument('--routing_adaptive_topp_entropy',
+            dest='routing_adaptive_topp_entropy', action='store_true', default=False,
+            help='If set with --routing_adaptive_topp, compute patch-specific '
+                 'top-p threshold from normalized routing entropy instead '
+                 'of max-probability confidence.')
         # v55: Unbalanced OT (Chizat et al. NeurIPS 2018). KL-relaxed
         # marginals let some patches have row sum < 1/N (i.e. patches that
         # are uninformative — background, blur — can be partially "rejected"

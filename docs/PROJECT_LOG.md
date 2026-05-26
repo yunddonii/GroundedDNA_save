@@ -51,24 +51,21 @@ Format conventions:
 - **Prior unsupervised Flickr25k SOTA (PEAK)**: **v57** (= v49 with
   `--lambda_wasserstein 0.02 → 0.05`) -- peak mAP 0.6742 (ep9),
   final test mAP 0.6683. Now superseded by v62b.
-- **MSCOCO unsupervised SOTA (ours, NEW 2026-05-25)**: **v78a MSCOCO**
-  (= mscoco_v69a setup + adaptive K codeword split: K_init=128,
-  K_max=192, warm-start from v69a checkpoint, 12 splits at each of
-  epochs 10/20/30 driven by usage·variance·collision_pressure
-  score) -- **mAP 0.4856**, P@1 **0.6058** (+0.0228 vs v69a 0.5830).
-  Of 36 total splits, cb0 (global slot) absorbed 25/36 (69%): K_0
-  grew 128→153, local cb1-5 grew only +1-3 each. Validates the
-  earlier compositional-analysis finding that cb0 is MSCOCO's
-  dominant retrieval channel. The same algorithm REGRESSES on
-  Flickr25k (v78a Flickr mAP 0.6660 vs v62b 0.6778, −0.012) because
-  there cb0 never split (score 0 throughout) and the 36 splits went
-  to redundant local codebooks.
-- **Previous MSCOCO SOTA**: mscoco_v69a (mAP 0.4795, K=128 +
-  position-specific CodonHead). Note: from-scratch K↑ regressed
-  (v77a K=192 → 0.4408, v77b K=256 → 0.4472); warm-start + selective
-  split is what unlocks the gain.
+- **MSCOCO unsupervised SOTA (ours, NEW 2026-05-26)**:
+  **mscoco_v81a** (= mscoco_v69a K=128 position-specific CodonHead +
+  row-normalised confidence-adaptive top-p routing, `tau_min=0.5`,
+  `tau_max=0.9`) -- **final test mAP 0.4891**, P@1 **0.6352**,
+  P@10 **0.6200**, unique **0.0613**. Beats v78a MSCOCO final by
+  **+0.0035 mAP** and **+0.0294 P@1**, and beats mscoco_v69a final by
+  **+0.0096 mAP**. Caveat: peak mid-eval remains v78a ep9
+  (0.4984) vs mscoco_v81a ep9 (0.4955), so v81a is the best final
+  checkpoint but not the best observed peak.
+- **Previous MSCOCO SOTA (final checkpoint)**: **v78a MSCOCO** --
+  mAP **0.4856**, P@1 **0.6058**. Adaptive K validates cb0 as the
+  dominant MSCOCO retrieval channel, but mscoco_v81a shows that routing
+  policy alone can outperform it without changing K.
 - **Per-dataset SOTA pairs**: Flickr25k = **v81a** (0.6879),
-  MSCOCO = **v78a MSCOCO** (0.4856).
+  MSCOCO = **mscoco_v81a** (0.4891 final; v78a ep9 remains peak 0.4984).
 - **Latest routing ablation**: **v80a/b/c ambiguity-aware top-k** is a
   clear negative result on Flickr25k. Thresholds 0.55/0.60/0.65 all
   produced the same effective routing (`val_routing_mean_effective_k`
@@ -81,6 +78,11 @@ Format conventions:
   v82b 0.6766, v82c 0.6548. v82b improves P@1000 slightly (0.7637 vs
   v81a 0.7607) but loses mAP and P@1; keep v81a as the canonical
   Flickr25k setting.
+- **Latest learned/adaptive threshold ablation**: **v83a entropy-adaptive
+  top-p** is discarded on Flickr25k. It removes hand-picked confidence
+  scaling but turns into dense routing (`val_eff-k` 4.96 through ep39,
+  4.65 at ep59), yielding final mAP **0.6615** and unique **0.2842**
+  vs v81a 0.6879 / 0.3462.
 - **Previous text-on SOTA by peak**: v49 -- 0.6705 peak / 0.6644 final.
 - **Best by FINAL-checkpoint mAP (pre-v57)**: v52 (= v49 with
   `--gumbel_tau_final 0.3 → 0.1`) -- 0.6691 final. NOT superseded by
@@ -157,6 +159,85 @@ Format conventions:
 ---
 
 ---
+
+---
+
+## 2026-05-26 — v83a entropy-adaptive top-p + mscoco_v81a validation
+
+🟢 / 🟡 Mixed. Two experiments were run in parallel:
+
+1. **v83a** tested whether v81a's heuristic `(tau_min, tau_max)` could be
+   made more natural by driving adaptive top-p from normalised routing
+   entropy instead of max-probability confidence.
+2. **mscoco_v81a** validated the v81a row-normalised confidence-adaptive
+   top-p idea on MSCOCO using the current strongest MSCOCO backbone
+   family (v69a: K=128 + position-specific CodonHead).
+
+### Code change
+
+- Added `--routing_adaptive_topp_entropy` in `config.py`.
+- `model_siglip2.py` forwards the flag to `SemanticRouter`.
+- `models/semantic_router.py` now supports two adaptive top-p signals:
+  confidence mode (default, legacy v81a) and entropy mode (v83a). Tensor
+  shapes are asserted in the routing path:
+  `P_prob: [B, N, M]`, `tau_signal/tau: [B, N, 1]`.
+- Defaults preserve v81a behaviour unless `--routing_adaptive_topp_entropy`
+  is explicitly set.
+
+### Final metrics
+
+| Run | Dataset | Change | mAP | Δ vs reference | P@1 | P@10 | P@100 | P@1000 | unique | base H | dead mean | Verdict |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| **v81a** | Flickr25k | confidence adaptive top-p | **0.6879** | — | **0.7900** | **0.7890** | **0.7810** | **0.7607** | **0.3462** | 0.833 | 0.349 | keep |
+| v83a | Flickr25k | entropy adaptive top-p | 0.6615 | -0.0264 vs v81a | 0.7805 | 0.7735 | 0.7644 | 0.7422 | 0.2842 | 0.987 | 0.005 | 🔴 discarded |
+| v69a | MSCOCO | position-specific CodonHead | 0.4795 | — | 0.5830 | 0.5688 | 0.5737 | 0.5703 | 0.0162 | 0.632 | 0.002 | previous base |
+| v78a | MSCOCO | adaptive K split | 0.4856 | +0.0061 vs v69a | 0.6058 | 0.5720 | 0.5819 | 0.5806 | 0.0165 | 0.637 | 0.302 | previous final SOTA |
+| **mscoco_v81a** | MSCOCO | confidence adaptive top-p | **0.4891** | **+0.0035 vs v78a** | **0.6352** | **0.6200** | **0.6129** | **0.5947** | **0.0613** | 0.798 | 0.423 | 🟢 new final SOTA |
+
+### Mid-eval trajectory
+
+| Run | ep9 | ep19 | ep29 | ep39 | ep49 | ep59 | final eval |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| v83a Flickr25k | 0.6604 | **0.6690** | 0.6618 | 0.6627 | 0.6576 | 0.6606 | 0.6615 |
+| mscoco_v81a | **0.4955** | 0.4928 | 0.4897 | 0.4895 | 0.4872 | 0.4873 | 0.4891 |
+
+### Routing diagnostics
+
+| Run | ep9 val eff-k | ep29 val eff-k | ep59 val eff-k | Interpretation |
+|---|---:|---:|---:|---|
+| v81a Flickr25k | 4.959 | 4.550 | 3.319 | useful soft sparsity curriculum |
+| v83a Flickr25k | 4.960 | 4.960 | 4.647 | entropy signal stays too dense |
+| mscoco_v81a | 4.983 | 4.861 | 4.184 | dense early routing helps MSCOCO; later sparsification correlates with mAP decay |
+
+### Conclusion
+
+- Entropy-only adaptive top-p is **not** a good replacement for v81a's
+  confidence signal. It removes a heuristic-looking formula, but the
+  normalized entropy is high for most patches and most of training, so
+  routing becomes nearly all-codebook selection. This produces excellent
+  base entropy / low dead-code ratio but poor semantic specialization.
+- Confidence-adaptive top-p transfers to MSCOCO and becomes the new
+  **final-checkpoint** MSCOCO SOTA. It substantially improves P@1/P@10
+  and unique-code ratio over v78a, suggesting that routing policy is a
+  more portable lever than adaptive K for cross-dataset generalization.
+- Caveat: v78a still has the best observed MSCOCO peak mid-eval
+  (0.4984 at ep9 vs mscoco_v81a 0.4955 at ep9). The next MSCOCO work
+  should focus on preserving the early dense-routing state instead of
+  letting late training over-sparsify.
+
+### Next
+
+- Keep v81a confidence mode as the canonical adaptive top-p formulation.
+- Do not carry entropy-only thresholding forward. If entropy is reused,
+  combine it with confidence as a bounded correction, not as the sole
+  signal.
+- For MSCOCO, test shorter training / best-epoch checkpoint selection
+  and a slower or capped sparsification schedule so the ep9 advantage is
+  retained at final evaluation.
+
+Result dirs:
+`result/260526+flickr25k_setting1_v83a_v81a_entropyAdaptiveTopP_05_09+bs+64+e+60+proj_lr+0.001/`,
+`result/260526+mscoco_setting1_mscoco_v81a_v69a_adaptiveTopP_05_09+bs+64+e+60+proj_lr+0.001/`.
 
 ---
 

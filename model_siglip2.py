@@ -1227,6 +1227,7 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.routing_adaptive_topp       = bool(getattr(args, "routing_adaptive_topp", False))
         self.routing_adaptive_topp_min   = float(getattr(args, "routing_adaptive_topp_min", 0.5))
         self.routing_adaptive_topp_max   = float(getattr(args, "routing_adaptive_topp_max", 0.9))
+        self.routing_adaptive_topp_entropy = bool(getattr(args, "routing_adaptive_topp_entropy", False))
         # v79c (#4.1): hard routing via Gumbel-Softmax (one-hot per patch)
         self.routing_hard           = bool(getattr(args, "routing_hard",      False))
         self.routing_hard_tau       = float(getattr(args, "routing_hard_tau", 1.0))
@@ -1837,6 +1838,7 @@ class SigLIP2SemanticOTModel(nn.Module):
             if self.routing_adaptive_topp:
                 router_kwargs["adaptive_topp_min"] = float(self.routing_adaptive_topp_min)
                 router_kwargs["adaptive_topp_max"] = float(self.routing_adaptive_topp_max)
+                router_kwargs["adaptive_topp_use_entropy"] = bool(self.routing_adaptive_topp_entropy)
             if self.sinkhorn_lambda_a is not None:
                 router_kwargs["uot_lambda_a"]     = float(self.sinkhorn_lambda_a)
             if self.sinkhorn_lambda_b is not None:
