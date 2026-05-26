@@ -380,6 +380,44 @@ class Config():
         siglip2_arg.add_argument('--split_max_per_epoch',
             dest='split_max_per_epoch', type=int, default=12,
             help='v78a: maximum number of (m, k) splits per split epoch.')
+        # v79a (#1.2): cross-codebook orthogonality loss on z (per-codebook
+        # batch means). Has gradient via visual_adapter. 0 disables.
+        siglip2_arg.add_argument('--lambda_codebook_ortho',
+            type=float, default=0.0,
+            help='v79a: weight on cross-codebook orthogonality loss '
+                 '(on z batch means; gradient via visual_adapter). 0 disables.')
+        # v79b (#2.3): learnable per-codebook text prompts.
+        # Adds nn.Parameter [M, D] biased onto text_part_raw before the
+        # text_adapter, giving each slot a learnable text bias.
+        siglip2_arg.add_argument('--use_codebook_text_prompts',
+            dest='use_codebook_text_prompts', action='store_true', default=False,
+            help='v79b: enable learnable per-codebook text prompt bias.')
+        siglip2_arg.add_argument('--codebook_text_prompt_init_scale',
+            dest='codebook_text_prompt_init_scale', type=float, default=0.02,
+            help='v79b: init std of the learnable text prompt parameter.')
+        # v79c (#4.1): hard (Gumbel-Softmax) routing on Sinkhorn output.
+        # After Sinkhorn produces soft routing matrix, apply Gumbel-Softmax
+        # hard=True on the per-patch part probabilities so each patch routes
+        # to exactly one part.
+        siglip2_arg.add_argument('--routing_hard',
+            dest='routing_hard', action='store_true', default=False,
+            help='v79c: apply Gumbel-Softmax hard=True on routing matrix '
+                 '(per-patch one-hot part assignment).')
+        siglip2_arg.add_argument('--routing_hard_tau',
+            dest='routing_hard_tau', type=float, default=1.0,
+            help='v79c: Gumbel-Softmax temperature for hard routing.')
+        # v79d (#1.3-lite): per-codebook learnable attention queries pooling
+        # visual_tokens instead of using Sinkhorn-routed semantic tokens.
+        # Each local codebook m (m∈1..5) gets its own query q_m ∈ R^D that
+        # attention-pools the cached visual_tokens; replaces the per-cb
+        # input to the quantizer. cb0 (global) still uses visual_global.
+        siglip2_arg.add_argument('--use_per_cb_attn_pool',
+            dest='use_per_cb_attn_pool', action='store_true', default=False,
+            help='v79d (#1.3-lite): per-codebook learnable attention pooling '
+                 'over visual_tokens for cb1..5. cb0 unchanged.')
+        siglip2_arg.add_argument('--per_cb_attn_pool_temp',
+            dest='per_cb_attn_pool_temp', type=float, default=1.0,
+            help='v79d: softmax temperature for attention pooling.')
         # ---------- v41 (5-G): text-supervised codebook initialization ---
         # Before training starts, replace the random Gaussian codebook init
         # with K vectors derived from train-set `cached_text_part_raw`

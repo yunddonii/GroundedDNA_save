@@ -1151,6 +1151,19 @@ class SigLIP2SemanticOTModel(nn.Module):
                     residual=True,                       # auto-disabled if D_proj != D
                 )
 
+        # v79b (#2.3): learnable per-codebook text prompts.
+        # Adds a [M, proj_dim] parameter (one prompt vector per slot)
+        # that is summed onto the cached text_part_raw before the
+        # text_adapter. Gives each slot a learnable bias in text space.
+        self.use_codebook_text_prompts: bool = bool(getattr(args, "use_codebook_text_prompts", False))
+        if self.use_codebook_text_prompts:
+            scale = float(getattr(args, "codebook_text_prompt_init_scale", 0.02))
+            self.codebook_text_prompts = nn.Parameter(
+                torch.randn(_n_text_slots, int(proj_dim)) * scale
+            )
+        else:
+            self.codebook_text_prompts = None
+
         # ---------- Optional: visual-cross-attention text pooling (Option B / v22b)
         # When `--use_text_token_attention` is set, the model expects per-image
         # cached TOKEN-level text features (`cached_text_tokens [B, 6, T, D_proj]`
@@ -1206,6 +1219,22 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.sinkhorn_epsilon_final = getattr(args, "sinkhorn_epsilon_final", None)
         self.routing_topk           = getattr(args, "routing_topk",           None)
         self.routing_topp           = getattr(args, "routing_topp",           None)
+        # v79c (#4.1): hard routing via Gumbel-Softmax (one-hot per patch)
+        self.routing_hard           = bool(getattr(args, "routing_hard",      False))
+        self.routing_hard_tau       = float(getattr(args, "routing_hard_tau", 1.0))
+        # v79d (#1.3-lite): per-codebook learnable attention pool over
+        # cached visual_tokens. Replaces local_semantic_visual_tokens (the
+        # Sinkhorn-pooled output) for cb1..5 with per-cb attention pool.
+        # cb0 (global) still uses visual_global. ot_cost from Sinkhorn is
+        # zeroed (wasserstein loss becomes inactive for this experiment).
+        self.use_per_cb_attn_pool   = bool(getattr(args, "use_per_cb_attn_pool", False))
+        self.per_cb_attn_pool_temp  = float(getattr(args, "per_cb_attn_pool_temp", 1.0))
+        if self.use_per_cb_attn_pool:
+            self.per_cb_attn_queries = nn.Parameter(
+                torch.randn(NUM_LOCAL_PARTS, self.d_model) / math.sqrt(self.d_model)
+            )
+        else:
+            self.per_cb_attn_queries = None
         # v55: UOT KL marginal penalties (None = balanced Sinkhorn)
         self.sinkhorn_lambda_a      = getattr(args, "sinkhorn_lambda_a",      None)
         self.sinkhorn_lambda_b      = getattr(args, "sinkhorn_lambda_b",      None)
@@ -1603,6 +1632,10 @@ class SigLIP2SemanticOTModel(nn.Module):
         if use_text_routing and feats["text_part_raw"] is not None:
             raw = feats["text_part_raw"]                                    # [B, 6, D_proj]
 
+            # v79b (#2.3): inject learnable per-codebook text prompt bias
+            if self.codebook_text_prompts is not None:
+                raw = raw + self.codebook_text_prompts.unsqueeze(0)         # [B, 6, D_proj]
+
             if self.use_text_token_attention and cached_text_tokens is not None:
                 # Visual-cross-attention text pooling (Option B / v22b).
                 # - cached_text_tokens     : [B, 6, T, D_proj]
@@ -1795,12 +1828,26 @@ class SigLIP2SemanticOTModel(nn.Module):
         r_out = self.router(**router_kwargs)
         full_routing_matrix = r_out["routing_matrix"]              # [B, N, 5 or 6]
         if self.use_null_centroid and self.null_centroid is not None:
-            # Slice null (last) column out — null mass naturally rejected
-            # from codebook updates. Remaining 5 columns retain whatever
-            # mass the Sinkhorn (balanced or UOT) assigned to real parts.
             local_routing_matrix = full_routing_matrix[..., :-1]    # [B, N, 5]
         else:
             local_routing_matrix = full_routing_matrix              # [B, N, 5]
+
+        # v79c (#4.1): hard routing via Gumbel-Softmax. After Sinkhorn
+        # soft routing, re-cast each patch row to one-hot via
+        # gumbel_softmax(hard=True). Sum over patches per part still
+        # makes sense; each patch then contributes to exactly one part.
+        if bool(getattr(self, "routing_hard", False)) and self.training:
+            # gumbel_softmax expects logits; treat log(soft+eps) as logits
+            tau = float(getattr(self, "routing_hard_tau", 1.0))
+            log_p = torch.log(local_routing_matrix.clamp_min(1e-9))
+            local_routing_matrix = F.gumbel_softmax(
+                log_p, tau=tau, hard=True, dim=-1
+            )                                                       # [B, N, 5] one-hot per patch
+        elif bool(getattr(self, "routing_hard", False)):
+            # eval: deterministic argmax one-hot
+            idx = local_routing_matrix.argmax(dim=-1)               # [B, N]
+            one_hot = F.one_hot(idx, num_classes=local_routing_matrix.shape[-1]).to(local_routing_matrix.dtype)
+            local_routing_matrix = one_hot
 
         # explicit re-normalize for numerical stability
         denom = local_routing_matrix.sum(dim=1).clamp_min(1e-6)                       # [B, 5]
@@ -1808,6 +1855,19 @@ class SigLIP2SemanticOTModel(nn.Module):
             torch.bmm(local_routing_matrix.transpose(1, 2), visual_tokens)            # [B, 5, D]
             / denom.unsqueeze(-1)
         )
+
+        # v79d (#1.3-lite): override local_semantic_visual_tokens with
+        # per-codebook learnable attention pool over visual_tokens.
+        if self.use_per_cb_attn_pool and self.per_cb_attn_queries is not None:
+            # visual_tokens: [B, N, D]; queries: [M_local=5, D]
+            attn_logits = torch.einsum("bnd,md->bnm", visual_tokens, self.per_cb_attn_queries)
+            attn = F.softmax(attn_logits / max(self.per_cb_attn_pool_temp, 1e-4), dim=1)  # softmax over N
+            local_semantic_visual_tokens = torch.einsum(
+                "bnm,bnd->bmd", attn, visual_tokens
+            )                                                                          # [B, 5, D]
+            # also overwrite local_routing_matrix so downstream stitching
+            # (routing_matrix concat) sees the new per-cb attention weights
+            local_routing_matrix = attn                                                # [B, N, 5]
 
         # 5) stitch [global | local] into the [B, N, 6] / [B, 6, D] interfaces
         routing_matrix = torch.cat(
@@ -1983,6 +2043,14 @@ class SigLIP2SemanticOTModel(nn.Module):
             # codon logits and text-derived target classes, summed across
             # 6 codebooks. Zero when codon_text_anchor flag is off.
             "loss_text_anchor":                  loss_text_anchor_sum,
+            # Codebook tensor + active mask (for v79a #1.2 ortho loss).
+            # The buffer itself has no gradient (EMA mode); the loss
+            # consumer treats it as a measurement signal that *also*
+            # affects routing indirectly via z (the anchor loss family
+            # routes via local_codebook_mean_anchors -> z via Sinkhorn
+            # cost). For gradient codebook mode this term is fully active.
+            "codebooks_buffer":                  self.quantizer.codebooks,
+            "codebook_active_mask":              self.quantizer.active_mask,
         })
 
         # 11) optional reconstruction head (v28a / v28b)

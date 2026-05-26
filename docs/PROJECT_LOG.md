@@ -144,6 +144,136 @@ Format conventions:
 
 ---
 
+## 2026-05-26 — v79a/b/c/d: 4-way structural contribution attack — v79c (hard routing) near-SOTA + P@1 ↑
+
+🟡 Four big-modification experiments on v62b targeting different
+contributions (compositional code redundancy, text supervision,
+patch routing, multi-scale features). **v79c (hard routing) achieves
+P@1 +0.003 and P@10 +0.004 above v62b** with mAP only −0.008 and
+**unique +120%** — strong near-SOTA candidate. v79a (codebook
+ortho) similarly improves deep ranks + doubles unique at a slightly
+larger mAP cost. v79b/v79d discarded.
+
+### Setup (single-axis vs v62b)
+
+| Tag | Modification | Implementation |
+|---|---|---|
+| **v79a** (#1.2) | Cross-codebook orthogonality loss λ=0.1 | `_loss_codebook_ortho` on z batch means (gradient via visual_adapter); cb1-5 redundancy attack |
+| **v79b** (#2.3) | Learnable per-codebook text prompts | `nn.Parameter[M, D_proj]` bias added to text_part_raw before text_adapter |
+| **v79c** (#4.1) | Hard routing via Gumbel-Softmax | After Sinkhorn, apply gumbel_softmax(hard=True, τ=1.0) on routing matrix → one-hot per patch |
+| **v79d** (#1.3-lite) | Per-codebook learnable attention pool | nn.Parameter `[M_local, D]` queries attention-pool visual_tokens directly (bypasses Sinkhorn routing for cb1-5) |
+
+Note: #1.3 (true multi-scale via different SigLIP2 layers) requires
+backbone cache re-extraction (~1-2h); v79d is a simplified version
+within the single cached layer.
+
+### Final test (Flickr25k 2K × 23K)
+
+| Run | mAP | Δ vs v62b | **P@1** | P@10 | P@100 | P@1000 | unique | baseH | verdict |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| v62b (SOTA) | **0.6778** | — | 0.7625 | 0.7587 | 0.7573 | 0.7445 | 0.075 | 0.900 | ★ |
+| v79a (#1.2) | 0.6655 | −0.012 | 0.7390 | **0.7650** | **0.7619** | 0.7426 | **0.150** | **0.974** | trade-off |
+| v79b (#2.3) | 0.6480 | −0.030 | 0.7275 | 0.7419 | 0.7337 | 0.7203 | 0.109 | 0.954 | weak |
+| **v79c (#4.1)** | **0.6703** | **−0.008** | **0.7655** ✓ | **0.7629** ✓ | 0.7565 | 0.7428 | **0.165** | 0.699 | **near-SOTA, P@1↑** |
+| v79d (#1.3-lite) | **0.5938** | **−0.084** ⚠ | 0.7280 | 0.7435 | 0.7283 | 0.6647 | 0.079 | 0.767 | catastrophic |
+
+### Mid-eval trajectory
+
+| ep | v62b | v79a | v79b | v79c | v79d |
+|---:|---:|---:|---:|---:|---:|
+| 9 | 0.6706 | **0.6750** ★ | 0.6482 | 0.6564 | 0.6247 |
+| 19 | 0.6625 | 0.6638 | 0.6348 | 0.6633 | 0.5983 |
+| 29 | 0.6678 | 0.6582 | 0.6333 | 0.6531 | 0.6027 |
+| 39 | 0.6669 | 0.6634 | 0.6388 | 0.6537 | 0.5992 |
+| 49 | 0.6746 | 0.6622 | 0.6476 | 0.6651 | 0.5882 |
+| 59 | 0.6756 | 0.6627 | 0.6441 | **0.6684** ★(late-rising) | 0.5914 |
+| **final** | **0.6778** | 0.6655 | 0.6480 | **0.6703** | 0.5938 |
+
+### v79c — best result, paper-worthy candidate
+
+**Improved over v62b**:
+- P@1: 0.7625 → **0.7655** (+0.003) ← *first Flickr25k variant to improve P@1*
+- P@10: 0.7587 → **0.7629** (+0.004)
+- unique: 0.075 → **0.165** (+120%, more than 2× more unique codes)
+
+**Slightly below v62b**:
+- mAP: 0.6778 → 0.6703 (−0.008) — deep-rank tail loss dragging average
+- P@100, P@1000: roughly tied
+
+**Mechanism**: Hard routing assigns each patch to exactly one part →
+cb1-5 encode *disjoint patch groups* → cb1-5 NMI redundancy (0.74-
+0.78 in baseline) attacked directly at the *learning mechanism level*.
+
+**Trajectory shape**: late-rising. ep9 0.6564 → ep59 0.6684. Likely
+benefits from longer training (90-120 epochs).
+
+### v79a — unique 2× + deep-rank lift trade-off
+
+**Improved**:
+- unique: 0.075 → **0.150** (+102%)
+- P@10: +0.006, P@100: +0.005
+- baseH: 0.974 (highest of all variants) → codebook usage most uniform
+
+**Worse**:
+- mAP −0.012, P@1 −0.024
+
+Useful as a *paper-table variant* demonstrating "decorrelation loss
+trades P@1 sharpness for code diversity and deeper-rank coverage".
+
+### v79b — weak (text prompt as additive bias is too shallow)
+
+mAP −0.030, P@1 −0.035, no metric improves meaningfully. Hypothesis:
+additive `raw = raw + prompt_m` bias is too shallow a prompt. True
+prompt learning happens *inside* the text encoder (PromptHash style),
+but our cache structure prohibits that without re-extraction. Concept
+not invalidated, but the cache-bound implementation is.
+
+### v79d — catastrophic failure
+
+mAP −0.084 (worst v79 variant). Bypassing Sinkhorn for cb1-5 broke
+the wasserstein alignment signal *and* the per-cb attention queries
+are randomly initialised — 60 epochs is not enough to learn them
+from scratch. baseH 0.767 indicates codon distributions never
+stabilise.
+
+This is consistent with v66 (text-anchored prototype) failure where
+random-init learnable params without strong supervision collapse.
+
+### Verdict by user criteria
+
+| | v79a | v79b | **v79c** | v79d |
+|---|---|---|---|---|
+| mAP 유지/상승 | ✗ (−0.012) | ✗ (−0.030) | △ (−0.008) | ✗ (−0.084) |
+| unique 개선 | ✓ +102% | ✓ +45% | ✓ **+120%** | △ +6% |
+| P@1 크게 안 하락 | △ −0.024 | ✗ −0.035 | ✓ **+0.003!** | △ −0.034 |
+
+**v79c is the standout**: only variant to *improve* P@1 over v62b while
+maintaining deep-rank metrics. mAP gap (−0.008) is small enough to be
+closable with hyperparameter tuning or longer training.
+
+### Suggested follow-up sweeps (high-priority)
+
+1. **v79c τ annealing**: `routing_hard_tau 2.0 → 0.5 cosine` — current
+   fixed 1.0 may be over-sharp at start.
+2. **v79c + longer training**: 60 → 120 epoch; trajectory is late-
+   rising so additional convergence likely.
+3. **v79c + v79a stacking**: hard routing + ortho loss — both attack
+   cb redundancy from different angles; should compound.
+4. **v79c on MSCOCO** (on top of v78a SOTA): hard routing may help
+   MSCOCO too where cb redundancy is similar.
+
+### Per-dataset SOTA pairs (unchanged)
+- Flickr25k: **v62b** (mAP 0.6778)
+- MSCOCO: **v78a MSCOCO** (mAP 0.4856)
+
+### Result directories
+- v79a: `result/260526+flickr25k_setting1_v79a_v62b_codebookOrtho_lam01+bs+64+e+60+proj_lr+0.001/`
+- v79b: `result/260526+flickr25k_setting1_v79b_v62b_codebookTextPrompts+bs+64+e+60+proj_lr+0.001/`
+- v79c: `result/260526+flickr25k_setting1_v79c_v62b_hardRouting+bs+64+e+60+proj_lr+0.001/`
+- v79d: `result/260526+flickr25k_setting1_v79d_v62b_perCbAttnPool+bs+64+e+60+proj_lr+0.001/`
+
+---
+
 ## 2026-05-26 — v78d (Flickr25k K=64→96 + cosine VQ + no warm-start) — DISCARDED (largest v78 regression)
 
 🔴 Combined v78c's cosine VQ + adaptive K with v78a's K range

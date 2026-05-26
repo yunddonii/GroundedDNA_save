@@ -252,6 +252,8 @@ class DNACodonHashLoss(nn.Module):
         # v76b: cosine VQ loss (replaces MSE in _loss_vq with (1 - cos)).
         # Only meaningful when --vq_distance_mode=cosine.
         self.vq_loss_cosine = bool(getattr(cfg, "vq_loss_cosine", False))
+        # v79a: cross-codebook orthogonality loss
+        self.lambda_codebook_ortho = float(getattr(cfg, "lambda_codebook_ortho", 0.0))
         # v44 (B1): cross-slot text orthogonality reg on text_part_tokens.
         self.lambda_ortho_text        = float(getattr(cfg, "lambda_ortho_text",        0.0))
         self.lambda_vq         = float(getattr(cfg, "lambda_vq",        0.25))
@@ -622,6 +624,25 @@ class DNACodonHashLoss(nn.Module):
         per_sample = (diff * diff).sum(dim=(1, 2)) / float(M * (M - 1))
         return per_sample.mean()
 
+    def _loss_codebook_ortho(self, z: torch.Tensor) -> torch.Tensor:
+        """v79a (#1.2): cross-codebook orthogonality on per-batch z means.
+
+        z : [B, M, D] semantic_visual_tokens (pre-quant, has grad via
+            visual_adapter)
+
+        Penalises cos(z_m_batch_mean, z_n_batch_mean)^2 for m ≠ n. The
+        batch-mean per codebook is the *empirical direction* into which
+        each codebook gets EMA-updated. Pushing these directions apart
+        in z-space gradient-trains visual_adapter to produce slot-
+        differentiated features. Codebook buffer itself has no
+        gradient (EMA mode) but follows z by construction.
+        """
+        z_mean = z.mean(dim=0)                                            # [M, D]
+        z_n = F.normalize(z_mean, dim=-1)                                 # [M, D]
+        sim = z_n @ z_n.t()                                                # [M, M]
+        eye = torch.eye(sim.shape[0], device=sim.device, dtype=torch.bool)
+        return (sim[~eye] ** 2).mean()
+
     def _loss_recon(
         self,
         recon: torch.Tensor,
@@ -951,6 +972,15 @@ class DNACodonHashLoss(nn.Module):
         else:
             loss_ortho_text = u.new_zeros(())
 
+        # v79a (#1.2): cross-codebook orthogonality on z (has grad via
+        # visual_adapter). Codebook follows z via EMA, so pushing z's
+        # per-codebook batch means apart indirectly drives codeword
+        # orthogonality without trying to gradient-train an EMA buffer.
+        if self.lambda_codebook_ortho > 0.0:
+            loss_codebook_ortho = self._loss_codebook_ortho(z)
+        else:
+            loss_codebook_ortho = u.new_zeros(())
+
         # v66: per-codon text-anchored aux CE loss (model computes per forward)
         loss_text_anchor = outputs.get("loss_text_anchor")
         if loss_text_anchor is None:
@@ -1032,6 +1062,7 @@ class DNACodonHashLoss(nn.Module):
             + self.lambda_hash_recon      * loss_hash_recon
             + self.lambda_dual_semantic   * loss_dual_semantic
             + self.lambda_dual_instance   * loss_dual_instance
+            + self.lambda_codebook_ortho  * loss_codebook_ortho
         )
 
         return {
@@ -1055,4 +1086,5 @@ class DNACodonHashLoss(nn.Module):
             "loss_hash_recon":        loss_hash_recon,
             "loss_dual_semantic":     loss_dual_semantic,
             "loss_dual_instance":     loss_dual_instance,
+            "loss_codebook_ortho":    loss_codebook_ortho,
         }
