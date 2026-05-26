@@ -76,6 +76,11 @@ Format conventions:
   gate never fired. Final mAP **0.6467** and local dead-code ratios
   56-73% indicate that always-top-2 routing starves specialisation
   instead of reproducing v79c's useful hard-routing effect.
+- **Latest interval sweep**: **v82a/b/c** around v81a is discarded.
+  Wider/shifted top-p intervals did not beat v81a: v82a 0.6615,
+  v82b 0.6766, v82c 0.6548. v82b improves P@1000 slightly (0.7637 vs
+  v81a 0.7607) but loses mAP and P@1; keep v81a as the canonical
+  Flickr25k setting.
 - **Previous text-on SOTA by peak**: v49 -- 0.6705 peak / 0.6644 final.
 - **Best by FINAL-checkpoint mAP (pre-v57)**: v52 (= v49 with
   `--gumbel_tau_final 0.3 → 0.1`) -- 0.6691 final. NOT superseded by
@@ -152,6 +157,57 @@ Format conventions:
 ---
 
 ---
+
+---
+
+## 2026-05-26 — v82a/b/c adaptive top-p interval sweep — v81a remains canonical
+
+🟡 Discarded interval sweep. Stage 3 tested whether v81a's interval
+could be improved by making the ambiguous side denser or raising the
+confident-patch threshold. All variants use the same row-normalised
+adaptive top-p implementation as v81a.
+
+### Setup and final metrics
+
+| Run | tau_min | tau_max | mAP | Δ vs v81a | P@1 | P@10 | P@100 | P@1000 | unique | base H | dead mean | final val eff-k | Verdict |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| **v81a** | 0.50 | 0.90 | **0.6879** | — | 0.7900 | **0.7890** | 0.7810 | 0.7607 | **0.3462** | 0.833 | 0.349 | 3.319 | keep |
+| v82a | 0.50 | 0.95 | 0.6615 | -0.0264 | 0.7830 | 0.7765 | 0.7665 | 0.7413 | 0.2989 | **0.961** | 0.148 | 3.616 | discarded |
+| v82b | 0.55 | 0.90 | 0.6766 | -0.0113 | 0.7655 | 0.7864 | **0.7823** | **0.7637** | 0.2658 | 0.836 | 0.352 | 3.691 | discarded |
+| v82c | 0.55 | 0.95 | 0.6548 | -0.0331 | **0.7950** | 0.7807 | 0.7666 | 0.7400 | 0.3455 | 0.950 | 0.151 | 2.843 | discarded |
+
+### Mid-eval trajectory
+
+| Run | ep9 | ep19 | ep29 | ep39 | ep49 | ep59 | final eval |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| v82a | 0.6622 | 0.6811 | 0.6606 | 0.6596 | 0.6590 | 0.6613 | 0.6615 |
+| v82b | 0.6724 | 0.6780 | 0.6742 | 0.6753 | **0.6812** | 0.6741 | 0.6766 |
+| v82c | 0.6768 | 0.6605 | 0.6589 | 0.6495 | 0.6425 | 0.6353 | 0.6548 |
+
+### Conclusion
+
+- v81a's `(0.50, 0.90)` interval is the best current balance. It is
+  neither the densest nor the sparsest policy, but it gives the best
+  mAP and strong unique-code gain.
+- Raising `tau_max` to 0.95 makes routing too dense early. v82a keeps
+  base entropy high and dead-code low, but does not create enough useful
+  specialisation for retrieval.
+- Raising `tau_min` to 0.55 can help long-tail precision (v82b P@1000
+  0.7637), but it hurts mAP/P@1 and does not justify replacing v81a.
+- Raising both ends is unstable: v82c has excellent P@1 but the mAP
+  collapse indicates that its high-confidence top-rank wins do not
+  generalise across the ranked list.
+
+### Next
+
+- Freeze v81a as the Flickr25k setting and extend it to MSCOCO.
+- Analyse v81a compositionally before adding more routing variants:
+  pairwise NMI, codebook drop ablation, and codebook grids.
+
+Result dirs:
+`result/260526+flickr25k_setting1_v82a_v81a_adaptiveTopP_05_095+bs+64+e+60+proj_lr+0.001/`,
+`result/260526+flickr25k_setting1_v82b_v81a_adaptiveTopP_055_09+bs+64+e+60+proj_lr+0.001/`,
+`result/260526+flickr25k_setting1_v82c_v81a_adaptiveTopP_055_095+bs+64+e+60+proj_lr+0.001/`.
 
 ---
 
