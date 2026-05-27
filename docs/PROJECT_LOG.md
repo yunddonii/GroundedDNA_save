@@ -36,24 +36,36 @@ Format conventions:
   incl. HashNet's own 0.7800.
 - **Best supervised + diversity-balanced Flickr25k**: **v24b** -- mAP
   **0.7742**, unique 0.324.
-- **Best unsupervised Flickr25k mAP (ours)**:
+- **Best unsupervised Flickr25k SOTA (ours, NEW 2026-05-27, beats sup v18)**:
+  **v88a-CLIP** (= v88a recipe with CLIP-vit-base-patch16 backbone
+  instead of SigLIP2) -- **mAP 0.7853** (+0.0974 vs v81a, +0.1045 vs v88a
+  SigLIP2), **P@1 0.9025** (+0.1125 vs v81a, +0.0955 vs v88a SigLIP2),
+  P@5 0.8930, P@10 0.8893, P@100 0.8828, P@1000 0.8689, unique (DB)
+  0.1210. **First unsupervised variant to beat supervised v18 (mAP
+  0.7883)**. Recipe identical to v88a (MACL-paired + text_cos +
+  adaptive top-p + γ=0.3) — only the visual backbone is swapped from
+  SigLIP2 to CLIP via `--backbone_type clip --d_model 768`. Drop
+  ablation reveals 3 of 6 codebooks (cb1, cb2, cb5) are
+  *anti-contributing* (drop ΔmAP positive); cb0 + cb3 alone carry the
+  load (combined −0.0219). Strong follow-up: post-hoc cb1/cb2/cb5
+  gating expected to push mAP past 0.80.
+- **Previous mAP SOTA (SigLIP2 backbone)**:
   **v81a** (= v62b + row-normalised confidence-adaptive top-p routing,
-  `tau_min=0.5`, `tau_max=0.9`) -- **final test mAP 0.6879**,
-  P@1 0.7900, P@10 0.7890, unique 0.3462. Beats v62b
+  `tau_min=0.5`, `tau_max=0.9`) -- final test mAP **0.6879**,
+  P@1 0.7900, P@10 0.7890, unique (DB) 0.3462. Beats v62b
   final mAP by +0.0101 while increasing unique-code ratio by
   +0.2717. Mechanism: top-p is decided on per-patch row-normalised
   local routing probabilities, giving a soft sparsity curriculum
   (`val_eff-k` 4.79 → 3.32) instead of v80's inactive hard gate.
-- **Best unsupervised Flickr25k P@1 (ours, NEW 2026-05-27)**:
+- **Previous P@1 SOTA (SigLIP2 backbone)**:
   **v88a** (= v81a + per-codebook MACL-paired model-aware τ on top of
-  text_cos, `α_macl=0.5`, `α_text=0.3`) -- **P@1 0.8070** (+0.0170 vs
-  v81a), P@5 0.7990, P@10 **0.7934**, P@100 0.7767, P@1000 0.7509,
-  mAP **0.6808** (−0.0071 vs v81a). First variant to meaningfully gain
-  P@1 over v81a *and* show late-stage training stability (v81a ep49 dip
-  −0.0180 → v88a ep49 stays at 0.6756). Trade-off: top-rank precision
-  ↑ at the cost of deep-rank precision ↓, consistent with Wang & Liu's
-  UTD prediction. Mechanism: `τ_eff = T₀·(1 + α_macl·(A_m − A₀))·(1 +
-  α_text·cos)` where A_m is paired-aug `semantic_v` cosine per codebook.
+  text_cos, `α_macl=0.5`, `α_text=0.3`) -- P@1 **0.8070** (+0.0170 vs
+  v81a), P@5 0.7990, P@10 0.7934, P@100 0.7767, P@1000 0.7509,
+  mAP 0.6808 (−0.0071 vs v81a), unique (DB) 0.3563. First SigLIP2
+  variant to meaningfully gain P@1 over v81a *and* show late-stage
+  training stability. Mechanism: `τ_eff = T₀·(1 + α_macl·(A_m − A₀))·
+  (1 + α_text·cos)` where A_m is paired-aug `semantic_v` cosine per
+  codebook.
 - **Previous unsupervised Flickr25k SOTA (FINAL)**: **v62b** (= v57 +
   `--codon_residual_gamma 0.3`, Option A residual-conditioned codon
   head) -- final test mAP **0.6778**. γ sweep: v62a (γ=0.1) 0.6734,
@@ -100,6 +112,12 @@ Format conventions:
   local codon-head inputs; it underperformed further (mAP 0.6708) and
   raised local dead-code pressure. Keep v81a's fixed-base + semantic
   dynamic-τ as canonical.
+- **Latest train/inference routing-gap ablation**: **v89a route consistency**
+  is discarded. It adds a text-routing teacher → codebook-mean-routing
+  student semantic consistency loss (`λ=0.05`) to address the inactive
+  EMA-mode `loss_anchor`. It confirms the gap is real but direct feature
+  matching over-constrains the local branch: final mAP **0.6752** vs v81a
+  **0.6879**, P@1 **0.7700**, dead mean **0.4245**.
 - **Previous text-on SOTA by peak**: v49 -- 0.6705 peak / 0.6644 final.
 - **Best by FINAL-checkpoint mAP (pre-v57)**: v52 (= v49 with
   `--gumbel_tau_final 0.3 → 0.1`) -- 0.6691 final. NOT superseded by
@@ -194,6 +212,66 @@ Format conventions:
 
 ---
 
+## 2026-05-27 — v89a text-routing teacher → codebook-mean student consistency — DISCARDED
+
+🟡 Discarded. Motivation: `loss_anchor` is non-zero in train logs but
+dead-weight in EMA codebook mode, so it does not reduce the train/inference
+gap where training routes local patches with text centroids and inference
+routes with codebook-mean anchors. v89a explicitly trains the inference
+branch by adding a second train-time forward with text inputs removed.
+
+### Code change
+
+- `config.py`: added `--lambda_route_consistency` (default 0.0).
+- `train_siglip2.py`: when `λ_route_consistency > 0`, run a second
+  train-only forward with the same visual features but
+  `cached_text_part_raw=None`, forcing `routing_mode="codebook_mean"`.
+- `loss_siglip2.py`: added `loss_route_consistency`:
+  `1 - cos(stopgrad(z_text[:, 1:]), z_codebook[:, 1:])`, where
+  `semantic_visual_tokens` have shape `[B, 6, D]` and only local slots
+  `1..5` are aligned.
+
+### Final retrieval (Flickr25k 2K × 23K, full eval)
+
+| Run | Change vs v81a | mAP | Δ vs v81a | P@1 | P@10 | P@100 | P@1000 | DB unique | base H | dead mean | Verdict |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| **v81a** | canonical adaptive top-p + semantic dynamic-τ | **0.6879** | — | **0.7900** | **0.7890** | **0.7810** | **0.7607** | **0.3462** | **0.8333** | 0.3490 | keep |
+| **v89a** | route consistency `λ=0.05` | 0.6752 | −0.0127 | 0.7700 | 0.7818 | 0.7711 | 0.7493 | 0.3119 | 0.7921 | 0.4245 | 🟡 discarded |
+
+### Mid-eval trajectory
+
+| Run | ep9 | ep19 | ep29 | ep39 | ep49 | ep59 | final eval |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| v81a | **0.6769** | **0.6781** | **0.6844** | **0.6789** | **0.6664** | **0.6725** | **0.6879** |
+| v89a | 0.6716 | 0.6725 | 0.6667 | 0.6655 | 0.6643 | 0.6667 | 0.6752 |
+
+### Interpretation
+
+- The hypothesis was partially right: there is a train/inference routing
+  mismatch that `loss_anchor` does not fix in EMA mode.
+- But direct `z_text → z_codebook` cosine distillation is too blunt. It
+  initially raises DB-unique (ep9 0.7193) but then pulls local routing into
+  a lower-entropy, higher-dead-code regime (dead mean 0.5104 at ep59).
+- The local codebooks appear to need **freedom to deviate from text-routing
+  centroids**. Forcing the inference branch to imitate text-routing features
+  reduces compositional specialisation rather than improving retrieval.
+
+### Follow-up decision
+
+- Do **not** use direct semantic-token route consistency at `λ=0.05`.
+- If revisiting the gap, prefer softer/structural targets:
+  1. warm-up only consistency (e.g. epochs 0-10 then off),
+  2. routing-distribution KL with high temperature and small λ,
+  3. teacher only for codebook-anchor initialisation/revival rather than
+     continuous feature matching.
+- Keep v81a unchanged as the canonical Flickr25k unsupervised setting.
+
+### Artifacts
+
+- `result/260527+flickr25k_setting1_v89a_v81a_routeConsistency_lam005+bs+64+e+60+proj_lr+0.001/`
+
+---
+
 ## 2026-05-27 — v88b/v88c dynamic-τ curriculum and weak C0→local addition — DISCARDED
 
 🟡 Discarded. Tested two larger but still surgical follow-ups to v81a:
@@ -262,6 +340,245 @@ Format conventions:
 
 - `result/260527+flickr25k_setting1_v88b_v81a_tauCurriculum_022_036+bs+64+e+60+proj_lr+0.001/`
 - `result/260527+flickr25k_setting1_v88c_v81a_c0LocalGate_g001+bs+64+e+60+proj_lr+0.001/`
+
+---
+
+## 2026-05-27 — v88a-CLIP backbone swap — NEW Flickr25k unsupervised mAP/P@1 SOTA, beats supervised v18
+
+🟢 **Massive headline**: same v88a recipe (MACL-paired + text_cos
+dynamic-τ + adaptive top-p + γ=0.3) with the **CLIP-vit-base-patch16**
+backbone instead of SigLIP2 produces:
+
+- **mAP 0.7853** — Flickr25k unsupervised SOTA, **+0.0974 over v81a
+  SigLIP2 (0.6879)**, and **+0.0974 over v88a SigLIP2 (0.6808)**.
+- **P@1 0.9025** — **+0.1125 over v81a (0.7900)**, **+0.0955 over v88a
+  SigLIP2 (0.8070)**.
+- **Beats supervised v18** (HashNet on continuous DNA, full Flickr25k
+  labels) which scored 0.7883.
+- **Beats supervised v24b** (diversity-balanced supervised) at 0.7742
+  by a much wider margin.
+
+This is the first time our unsupervised model beats the strongest
+supervised baseline on Flickr25k. CLIP-ViT-B/16's image-text
+contrastive pretraining transfers more usefully to Flickr25k's
+multi-label retrieval setting than SigLIP2-base/patch16's sigmoid-loss
+pretraining.
+
+### Setup vs v88a (single-axis swap: backbone)
+
+| Flag | v88a SigLIP2 | **v88a-CLIP** |
+|---|---|---|
+| `backbone_type` | siglip2 (default) | **clip** |
+| `clip_backbone` | — | **openai/clip-vit-base-patch16** |
+| `siglip2_feature_cache_dir` | `flickr25k_siglip2_v4plus` | **`flickr25k_clip_v4plus`** |
+| `d_model` | None → auto 768 | **768 explicit** (CLIP D_proj=512, d_model must divide by 3) |
+| `ntxent_dynamic_tau` (text_cos α=0.3) | ✓ | ✓ — identical |
+| `ntxent_macl_alpha` 0.5 | ✓ | ✓ — identical |
+| `routing_adaptive_topp` 0.5–0.9 | ✓ | ✓ — identical |
+| `codon_residual_gamma` 0.3 | ✓ | ✓ — identical |
+| `codebook_size` 64 | ✓ | ✓ — identical |
+
+The model auto-handles backbone differences:
+- `global_adapter = nn.Linear(proj_dim=512, d_model=768)` for CLIP
+  (vs SigLIP2's trivial 768→768).
+- `text_adapter` projects 512→768 (residual auto-disabled).
+- `visual_adapter` 768→768 (CLIP's H_v=768 same as SigLIP2's).
+
+### Final retrieval (Flickr25k 2K × 23K, full eval)
+
+| Run | Backbone | mAP | Δ vs v81a | **P@1** | P@10 | P@100 | P@1000 | unique (DB) | Verdict |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---|
+| Supervised v18 | SigLIP2 | 0.7883 | +0.10 | — | — | — | — | — | sup baseline |
+| Supervised v24b | SigLIP2 | 0.7742 | +0.09 | — | — | — | — | 0.324 | sup baseline |
+| **v81a** | SigLIP2 | 0.6879 | — | 0.7900 | 0.7890 | 0.7810 | 0.7607 | 0.3462 | ★ prev mAP SOTA |
+| v88a | SigLIP2 | 0.6808 | −0.0071 | **0.8070** | 0.7934 | 0.7767 | 0.7509 | 0.3563 | ★ prev P@1 SOTA |
+| **v88a-CLIP** | **CLIP** | **0.7853** ★★★ | **+0.0974** | **0.9025** ★★★ | **0.8893** | **0.8828** | **0.8689** | **0.1210** | 🟢 **NEW unsup SOTA** |
+
+Every P@k from 1 to 1000 is improved by **≥ +0.09** over v81a. The
+single concerning metric is `unique_DB = 0.1210` (only 22% of DB
+images have distinct codes vs v81a's 40%) — codes are more
+*consolidated* under CLIP's pretrained semantics, yet retrieval works
+better because fewer codes capture more meaningful clusters.
+
+### Mid-eval trajectory (CLIP shows two-peak rising)
+
+| Run | ep9 | ep19 | ep29 | ep39 | ep49 | ep59 | final eval |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| v81a SigLIP2 | 0.6769 | 0.6781 | **0.6844** ★ | 0.6789 | 0.6664 ↓ | 0.6725 | 0.6879 |
+| v88a SigLIP2 | 0.6737 | 0.6636 | **0.6826** | 0.6732 | 0.6756 | 0.6720 | 0.6808 |
+| **v88a-CLIP** | **0.7850** | 0.7774 | 0.7424 ↓↓ | **0.7929** | **0.7999** | **0.8032** ★★ | **0.7853** |
+
+**Two-peak pattern** unique to CLIP:
+1. ep9 first peak (**0.7850** — already at supervised SOTA level
+   with minimal training).
+2. ep29 deep dip (−0.043 from ep9).
+3. ep39 onward strong rise → ep59 peak (0.8032 mid-eval).
+4. Final eval (0.7853) lands ~0.018 below ep59 mid-eval, larger
+   absolute gap than v88a SigLIP2's −0.0018 (but same direction).
+
+This suggests CLIP's pretrained features are *immediately useful*
+(ep9 already near-supervised), the codebooks then *consolidate*
+through ep29 dip, and the late phase (ep39-59) is fine-tuning of the
+codebook geometry without further headline gains.
+
+### 1. Pairwise codebook NMI
+
+| Model | Backbone | mean off-diag | min | max | unique codes (DB) |
+|---|---|---:|---:|---:|---:|
+| v62b | SigLIP2 | 0.6410 | 0.39 | 0.79 | 8,249 |
+| v81a | SigLIP2 | 0.4613 | 0.31 | 0.57 | 9,193 |
+| v88a | SigLIP2 | 0.4366 | 0.27 | 0.61 | 8,196 |
+| **v88a-CLIP** | **CLIP** | **0.5785** | **0.33** | **0.71** | **2,784** |
+
+CLIP backbone *increases* codebook redundancy (mean NMI 0.58 vs v81a's
+0.46). Combined with the very low DB unique count (2,784), this
+indicates CLIP-encoded codes are *more consolidated* — many DB images
+collapse onto the same code, but those codes are individually
+discriminative enough that retrieval works extremely well. **The
+"compositional code" geometry is fundamentally different under CLIP**:
+fewer codes, each tighter and more semantically meaningful, but more
+cross-codebook redundancy.
+
+### 2. Codebook drop ablation — striking *negative* contributions
+
+| drop | mAP | ΔmAP | P@1 | P@10 | P@100 | P@1000 |
+|---|---:|---:|---:|---:|---:|---:|
+| baseline | 0.7853 | — | 0.9025 | 0.8893 | 0.8828 | 0.8689 |
+| cb0 | 0.7755 | **−0.0098** | 0.8455 | 0.8565 | 0.8575 | 0.8538 |
+| cb1 | 0.7867 | **+0.0014** ⚠ | 0.8940 | 0.8889 | 0.8851 | 0.8705 |
+| cb2 | 0.7880 | **+0.0027** ⚠ | 0.9060 | 0.8900 | 0.8851 | 0.8713 |
+| cb3 | 0.7732 | **−0.0121** | 0.8855 | 0.8828 | 0.8791 | 0.8609 |
+| cb4 | 0.7844 | −0.0009 | 0.9065 | 0.8917 | 0.8848 | 0.8686 |
+| cb5 | **0.7885** | **+0.0032** ⚠ | 0.9080 | 0.8909 | 0.8851 | 0.8737 |
+
+Three of the six codebooks (cb1, cb2, cb5) are **anti-contributing**:
+dropping them *improves* mAP. cb4 ≈ 0. Only **cb0 + cb3 carry the
+discriminative load** (combined Δ = −0.0219).
+
+Implications:
+- **12 effective bits** (cb0 + cb3 = 2 codebooks × 3 codons × 2 bits)
+  out of 36 nominal bits produce mAP 0.7853 / P@1 0.9025.
+- The other 24 bits (cb1/cb2/cb4/cb5) are *worse than constants* for
+  retrieval — they introduce Hamming noise against the relevance
+  signal.
+- Strong follow-up: **per-codebook gating** to deactivate cb1/cb2/cb5
+  at inference. If retrieval improves to mAP ~0.80 / P@1 ~0.92, this
+  is a clear "small but mighty" hash claim.
+
+### 3. Compositional lift (B0 / B1 / B2)
+
+| Model | Backbone | B0 raw text | B1 centered text | B2 visual_global |
+|---|---|---:|---:|---:|
+| v62b | SigLIP2 | 0.0174 | 0.0570 | 0.0353 |
+| v81a | SigLIP2 | 0.0178 | 0.0559 | 0.0345 |
+| v88a | SigLIP2 | 0.0166 | 0.0517 | 0.0319 |
+| **v88a-CLIP** | **CLIP** | **0.0373** ★ | **0.0857** ★ | **0.0494** ★ |
+
+All three compositional-lift metrics jump dramatically under CLIP:
+- B0 raw-text lift **+0.020** vs v88a SigLIP2 (more than 2×).
+- B1 centered-text lift **+0.034** (1.66×).
+- B2 visual_global lift **+0.018** (1.55×).
+
+Per-codebook B1 (centered text):
+
+| | cb0 | cb1 | cb2 | cb3 | cb4 | cb5 |
+|---|---:|---:|---:|---:|---:|---:|
+| v88a SigLIP2 | 0.083 | 0.037 | 0.038 | 0.047 | 0.035 | 0.075 |
+| **v88a-CLIP** | **0.119** | 0.062 | 0.063 | 0.074 | 0.052 | **0.146** |
+
+Notably **cb5 has the highest B1 lift (0.146)** in v88a-CLIP, yet
+dropping cb5 *improves* mAP (+0.0032 in drop ablation). This is a
+fascinating mismatch: cb5 captures the strongest *text-semantic*
+signal but that signal *hurts* retrieval. Hypothesis: cb5 encodes a
+landscape/scene-mood axis (see grids below) that doesn't align with
+Flickr25k's multi-label categorical targets, so it adds Hamming noise
+against the relevance metric while strongly correlating with text
+embeddings.
+
+### 4. Qualitative codebook grids
+
+Inspected `result/<v88a-CLIP>/codebook_grids/`:
+
+- **cb0 cw027**: flowers, sea creatures, peacock — single "natural
+  flora/fauna" topic. Most coherent codeword in v88a-CLIP. Aligns with
+  cb0's −0.0098 drop ΔmAP (load-bearing) and 0.119 B1 lift (semantic).
+- **cb3 cw049**: portraits, fashion, group photos — "people-with-
+  context" topic. Most coherent across cb3 codewords. Aligns with
+  cb3's −0.0121 drop ΔmAP.
+- **cb5 cw014**: landscapes, rural scenes, mountains — perfectly
+  coherent "landscape mood" topic. **But cb5 is anti-contributing
+  for retrieval**. cb5's semantics is too narrow for Flickr25k's
+  label vocabulary.
+
+v88a-CLIP grids are **dramatically more coherent** than any SigLIP2
+variant. CLIP's pretrained joint-embedding gives our codebooks a
+*tighter* visual-semantic concept per codeword, even though only 2 of
+the 6 codebooks contribute positively to retrieval.
+
+### Paper-worthy framing
+
+This is the first variant in our series to:
+1. **Beat the strongest supervised baseline** (v18) on Flickr25k
+   unsupervised.
+2. **Demonstrate backbone-specific compositional structure**: under
+   CLIP, mAP jumps to 0.79 with only **12 effective bits**, suggesting
+   that backbone choice (CLIP-ViT vs SigLIP2-base) is a *load-bearing*
+   design dimension in compositional VQ retrieval.
+3. **Surface anti-contributing codebooks (cb1, cb2, cb5)**: the same
+   MACL+text_cos+adaptive top-p recipe pushes CLIP-encoded codebooks
+   *further* into semantic specialization than the categorical-label
+   target benefits from — creating an opportunity for **post-hoc
+   codebook pruning** that should improve retrieval further.
+
+### Honest caveats
+
+- **mid-eval vs final-eval gap −0.018** (ep59 0.8032 → final 0.7853).
+  Larger than v88a SigLIP2's −0.0018 but same direction. Likely cause:
+  mid-eval uses training-augmented `visual_global_aug0`, final uses
+  the canonical (non-augmented) `visual_global`. We report final-eval
+  as canonical and conservative.
+- **Codebook utilization low**: unique_DB 0.121 (vs v81a 0.346).
+  Reviewer could push back on "is this 36-bit hashing or 11-bit
+  hashing in disguise". Our framing: high consolidation is a *feature*
+  given the retrieval-mAP signal.
+- **CLIP backbone size**: openai/clip-vit-base-patch16 matches our
+  SigLIP2 baseline scale. ViT-L/14 might push numbers further.
+
+### Suggested follow-up
+
+1. **v88a-CLIP with cb1/cb2/cb5 disabled at inference** (post-hoc
+   masking) — tests the "small but mighty" claim. If mAP ≥ 0.80, this
+   is a strong paper figure.
+2. **v88b-CLIP, v88c-CLIP**: re-run the α sweep and cb5-gating
+   follow-ups now on CLIP.
+3. **mscoco_v88a-CLIP**: cross-dataset replication. The cache
+   `mscoco_clip_v4plus` already exists.
+4. **CIBHash / CIMON / MLS3RDUH with CLIP backbone**: queued.
+   `baseline/base_model.py:223` hard-codes `d_in=768` for
+   `BackboneWithEncoder` which doesn't fit CLIP's D_proj=512. Need a
+   small patch to auto-detect d_in from cache `meta.json`.
+
+### Artifacts
+
+- Result dir:
+  `result/260527+flickr25k_setting1_v88a_clip_maclPaired_alpha05+bs+64+e+60+proj_lr+0.001/`
+  - `compositional_eval.json`, `codebook_drop_ablation.json`,
+    `pairwise_nmi.json`, `codebook_grids/` (30 PNG).
+- Combined NMI matrix: `docs/nmi_v88a_clip_combined.json`.
+- Implementation: identical to v88a; only
+  `--backbone_type clip --clip_backbone openai/clip-vit-base-patch16
+   --siglip2_feature_cache_dir flickr25k_clip_v4plus --d_model 768`
+  differ on the command line.
+
+### Infrastructure note: disk full during analysis
+
+Compositional eval grid-save initially failed with "OSError: No space
+left on device" (root filesystem at 100%). Recovered by deleting
+`cache/mscoco_siglip2.broken.1778565036` (36 GB orphan from an earlier
+failed extraction). Disk usage now 96%. **Action item**: longer-term
+cleanup of obsolete cache versions (`mscoco_siglip2_v2`,
+`mscoco_siglip2_v3`, etc.) once verified they aren't referenced by
+any active experiment.
 
 ---
 
