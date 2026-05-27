@@ -93,25 +93,40 @@ Format conventions:
   grounding ↓) / B2 0.0367 (visual grounding ↑).
 - **Prior text-off champion**: **v34** (v30a + routing top-k=2) --
   mAP 0.6696, unique 0.381, dead 0.000.
-- **Unsupervised leaderboard (Flickr25k setting1, 36-bit, frozen SigLIP2, 60 epoch)**:
+- **Unsupervised leaderboard (Flickr25k setting1, 36-bit, frozen SigLIP2, 60 epoch)**.
+  All `unique` columns are computed on the **DB split (23,000 rows)** using
+  `evaluate_code_collapse(extract_db.npz)` (`unique_code_ratio` field) for
+  cross-method consistency. Earlier external-baseline-reported unique values
+  on the test split (e.g. CIBHash 0.997 over 2K queries) have been
+  re-computed on the same DB split here to match our internal models.
 
-  | Run | Adapter / variant | mAP | unique (test) | per-cb-unique | dead |
-  |-----|-------------------|----:|--------------:|--------------:|-----:|
-  | **v34** ★ | v30a + routing top-k=2 | **0.6696** | 0.3810 | 0.0035 | 0.000 |
-  | **v30a** | MLP h=768 (half v29) | 0.6646 | 0.4299 | — | 0.003 |
-  | **v30c** | Linear d=384 | 0.6628 | 0.5171 | — | 0.000 |
-  | **v33b** | per-codebook + routing top-k=2 | 0.6594 | 0.6497 | 0.0118 | 0.000 |
-  | **v31b** | per-codebook NtXent | 0.6590 | 0.6321 | 0.0099 | 0.000 |
-  | v33a | per-codebook + sinkhorn eps anneal | 0.6584 | 0.7515 | 0.0118 | 0.076 ⚠ |
-  | **v29**  | global NtXent baseline | 0.6580 | 0.5257 | — | 0.000 |
-  | CIBHash (external) | flat Linear(768,36) + NtXent | 0.6543 | 0.997 | — | — |
-  | CIMON (external) | spectral-PL + NtXent | 0.6456 | 0.881 | — | — |
-  | MLS3RDUH (external) | kNN graph + LogCosh | 0.5947 | 0.184 | — | — |
-  | v32 | + train-only text inject α=0.2 | 0.6422 | 0.3422 | 0.0040 | 0.000 |
-  | v28b | + FeatureDecoder (recon) | 0.5648 | 0.4057 | — | 0.003 |
-  | v27b | SigLIP2 cos top-k 20% | 0.5639 | 0.302 | — | 0.000 |
-  | v28a | + PixelDecoder (recon) | 0.5514 | 0.4425 | — | 0.146 |
-  | v30b | Linear d=768 (collapse) 🔴 | 0.5399 | 0.0005 | — | 0.628 |
+  | Run | Adapter / variant | mAP | unique (DB) | per-cb-unique | dead |
+  |-----|-------------------|----:|------------:|--------------:|-----:|
+  | **v81a** ★ | v62b + adaptive top-p (0.5, 0.9) | **0.6879** | **0.3462** | 0.0014 | 0.349 |
+  | **v62b** | v57 + residual γ=0.3 | 0.6778 | 0.0745 | 0.0008 | 0.000 |
+  | **v34**  | v30a + routing top-k=2 | 0.6696 | 0.1161 | 0.0035 | 0.000 |
+  | **v30a** | MLP h=768 (half v29) | 0.6646 | 0.1631 | — | 0.003 |
+  | **v30c** | Linear d=384 | 0.6628 | 0.2071 | — | 0.000 |
+  | **v33b** | per-codebook + routing top-k=2 | 0.6594 | 0.3947 | 0.0118 | 0.000 |
+  | **v31b** | per-codebook NtXent | 0.6590 | 0.3651 | 0.0099 | 0.000 |
+  | v33a | per-codebook + sinkhorn eps anneal | 0.6584 | 0.3725 | 0.0118 | 0.076 ⚠ |
+  | **v29**  | global NtXent baseline | 0.6580 | 0.2192 | — | 0.000 |
+  | CIBHash (external) | flat Linear(768,36) + NtXent | 0.6543 | **0.9735** | 0.0028 | — |
+  | CIMON (external) | spectral-PL + NtXent | 0.6456 | 0.7501 | 0.0028 | — |
+  | v87a | v81a base + hard-neg α=0.5 (no dyn-tau) | 0.6711 | 0.3405 | 0.0016 | — |
+  | v32 | + train-only text inject α=0.2 | 0.6422 | 0.1063 | 0.0040 | 0.000 |
+  | MLS3RDUH (external) | kNN graph + LogCosh | 0.5947 | 0.0935 | 0.0012 | — |
+  | v28b | + FeatureDecoder (recon) | 0.5648 | 0.2104 | — | 0.003 |
+  | v27b | SigLIP2 cos top-k 20% | 0.5639 | 0.1217 | — | 0.000 |
+  | v28a | + PixelDecoder (recon) | 0.5514 | 0.2399 | — | 0.146 |
+  | v30b | Linear d=768 (collapse) 🔴 | 0.5399 | 0.0000 | — | 0.628 |
+
+  **Convention**: from 2026-05-27 onward, all baseline comparisons in this
+  log use **DB-split unique** (23,000 rows) computed via our standard
+  `evaluate_code_collapse` function for fair cross-method comparison.
+  Test-split-unique (2,000-row) numbers from prior reports were silently
+  swapped against DB-unique for our internal models and are not directly
+  comparable; the table above has been re-computed consistently.
 
 - **Active loss set in v30a / v29 / v31b**: 6 terms -- `loss_ntxent`
   (★ primary), `loss_vq`, `loss_quant`, `loss_anchor`, `loss_dna`,
