@@ -697,7 +697,16 @@ class DeepHashBase(metaclass=ABCMeta):
             options = encoder_layers.split('+')
             cfg = {opt.split('=')[0]: int(opt.split('=')[1]) for opt in options}
             hidden_nodes = [cfg['hidden']] * (cfg['layer'] - 1)
-        return BackboneWithEncoder(d_in=768, bit=int(encode_length),
+        # Auto-detect feature dim from cached visual_global. SigLIP2 has
+        # D_proj=768, CLIP-vit-base-patch16 has D_proj=512. Falls back to
+        # 768 if the dataset attribute is unavailable for any reason.
+        d_in = 768
+        if hasattr(self, "trainset") and hasattr(self.trainset, "visual_global"):
+            try:
+                d_in = int(self.trainset.visual_global.shape[1])
+            except Exception:
+                pass
+        return BackboneWithEncoder(d_in=d_in, bit=int(encode_length),
                                    hidden_nodes=hidden_nodes, batch_norm=batch_norm)
 
     def _init_optimizer(self, model: Module, name: str, learning_rate: float, **opts) -> Optimizer:

@@ -256,7 +256,12 @@ class MLS3RDUH(DeepHashBase):
         elif config["backbone"] == "ViT":
             dim_feature = 768
         elif config["backbone"] in ("SigLIP2", "siglip2", "SigLIP2-cached"):
-            dim_feature = 768
+            # Auto-detect from the cached visual_global D_proj (SigLIP2=768,
+            # CLIP=512). Falls back to 768 if attribute missing.
+            try:
+                dim_feature = int(trainset.visual_global.shape[1])
+            except Exception:
+                dim_feature = 768
         else:
             raise ValueError(f"[MLS3RDUH] unknown backbone {config['backbone']!r} -- "
                              "add a dim_feature mapping above.")
