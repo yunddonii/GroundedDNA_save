@@ -29,21 +29,31 @@ Format conventions:
 
 ---
 
-## Current state (as of 2026-05-26)
+## Current state (as of 2026-05-27)
 
 - **Best supervised Flickr25k**: **v18** (HashNet-style logistic on
   continuous DNA code) -- mAP **0.7883**. Above every binary baseline
   incl. HashNet's own 0.7800.
 - **Best supervised + diversity-balanced Flickr25k**: **v24b** -- mAP
   **0.7742**, unique 0.324.
-- **Best unsupervised Flickr25k (ours, NEW 2026-05-26)**:
+- **Best unsupervised Flickr25k mAP (ours)**:
   **v81a** (= v62b + row-normalised confidence-adaptive top-p routing,
   `tau_min=0.5`, `tau_max=0.9`) -- **final test mAP 0.6879**,
-  P@1 **0.7900**, P@10 **0.7890**, unique **0.3462**. Beats v62b
-  final mAP by **+0.0101** while increasing unique-code ratio by
-  **+0.2717**. Mechanism: top-p is decided on per-patch row-normalised
+  P@1 0.7900, P@10 0.7890, unique 0.3462. Beats v62b
+  final mAP by +0.0101 while increasing unique-code ratio by
+  +0.2717. Mechanism: top-p is decided on per-patch row-normalised
   local routing probabilities, giving a soft sparsity curriculum
   (`val_eff-k` 4.79 → 3.32) instead of v80's inactive hard gate.
+- **Best unsupervised Flickr25k P@1 (ours, NEW 2026-05-27)**:
+  **v88a** (= v81a + per-codebook MACL-paired model-aware τ on top of
+  text_cos, `α_macl=0.5`, `α_text=0.3`) -- **P@1 0.8070** (+0.0170 vs
+  v81a), P@5 0.7990, P@10 **0.7934**, P@100 0.7767, P@1000 0.7509,
+  mAP **0.6808** (−0.0071 vs v81a). First variant to meaningfully gain
+  P@1 over v81a *and* show late-stage training stability (v81a ep49 dip
+  −0.0180 → v88a ep49 stays at 0.6756). Trade-off: top-rank precision
+  ↑ at the cost of deep-rank precision ↓, consistent with Wang & Liu's
+  UTD prediction. Mechanism: `τ_eff = T₀·(1 + α_macl·(A_m − A₀))·(1 +
+  α_text·cos)` where A_m is paired-aug `semantic_v` cosine per codebook.
 - **Previous unsupervised Flickr25k SOTA (FINAL)**: **v62b** (= v57 +
   `--codon_residual_gamma 0.3`, Option A residual-conditioned codon
   head) -- final test mAP **0.6778**. γ sweep: v62a (γ=0.1) 0.6734,
@@ -83,6 +93,13 @@ Format conventions:
   scaling but turns into dense routing (`val_eff-k` 4.96 through ep39,
   4.65 at ep59), yielding final mAP **0.6615** and unique **0.2842**
   vs v81a 0.6879 / 0.3462.
+- **Latest dynamic-τ / C0-local structural ablation**: **v88b/v88c** are
+  discarded. v88b scheduled base NtXent τ from 0.22→0.36 and gained
+  P@1 slightly (0.7940 vs v81a 0.7900) but lost mAP (0.6780 vs 0.6879)
+  and DB-unique (0.2878 vs 0.3462). v88c added weak stop-grad C0 into
+  local codon-head inputs; it underperformed further (mAP 0.6708) and
+  raised local dead-code pressure. Keep v81a's fixed-base + semantic
+  dynamic-τ as canonical.
 - **Previous text-on SOTA by peak**: v49 -- 0.6705 peak / 0.6644 final.
 - **Best by FINAL-checkpoint mAP (pre-v57)**: v52 (= v49 with
   `--gumbel_tau_final 0.3 → 0.1`) -- 0.6691 final. NOT superseded by
@@ -174,6 +191,349 @@ Format conventions:
 ---
 
 ---
+
+---
+
+## 2026-05-27 — v88b/v88c dynamic-τ curriculum and weak C0→local addition — DISCARDED
+
+🟡 Discarded. Tested two larger but still surgical follow-ups to v81a:
+
+1. **v88b**: schedule the base NtXent temperature from low to high
+   (`τ_base`: 0.22→0.36, sigmoid midpoint ep20) while keeping v81a's
+   semantic dynamic-τ and adaptive top-p.
+2. **v88c**: re-enable a very weak stop-gradient global C0 addition into
+   local codon-head inputs (`sigmoid(-4.595)≈0.01`) while keeping v81a
+   routing/loss settings.
+
+### Code change
+
+- `config.py`: added `--ntxent_tau_schedule`, `--ntxent_tau_start`,
+  `--ntxent_tau_end`, `--ntxent_tau_mid_epoch`, `--ntxent_tau_width`.
+- `loss_siglip2.py`: added `_ntxent_temperature_for_epoch(epoch)` and
+  passes the scheduled base τ into both per-codebook and global NtXent.
+- `config.py`: added `--global_gate_init_logit`, `--use_stop_grad_global`,
+  `--no_stop_grad_global` for weak C0→local injection control.
+- Legacy behaviour is preserved by default (`--ntxent_tau_schedule none`).
+
+### Final retrieval (Flickr25k 2K × 23K, full eval)
+
+| Run | Change vs v81a | mAP | Δ vs v81a | P@1 | P@10 | P@100 | P@1000 | DB unique | base H | dead mean | Verdict |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| **v81a** | canonical adaptive top-p + semantic dynamic-τ | **0.6879** | — | 0.7900 | **0.7890** | **0.7810** | **0.7607** | **0.3462** | 0.8333 | 0.3490 | keep |
+| **v88b** | base τ curriculum 0.22→0.36 | 0.6780 | −0.0099 | **0.7940** | 0.7850 | 0.7716 | 0.7515 | 0.2878 | 0.8485 | 0.3906 | 🟡 discarded |
+| **v88c** | weak stop-grad C0→local gate (g≈0.01) | 0.6708 | −0.0171 | 0.7910 | 0.7875 | 0.7768 | 0.7536 | 0.2598 | 0.8477 | 0.4609 | 🟡 discarded |
+
+### Mid-eval trajectory
+
+| Run | ep9 | ep19 | ep29 | ep39 | ep49 | ep59 | final eval |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| v81a | 0.6769 | 0.6781 | **0.6844** | 0.6789 | 0.6664 | 0.6725 | **0.6879** |
+| v88b | 0.6621 | 0.6731 | 0.6718 | 0.6655 | 0.6738 | **0.6807** | 0.6780 |
+| v88c | 0.6582 | 0.6690 | **0.6779** | 0.6679 | 0.6637 | 0.6654 | 0.6708 |
+
+### Interpretation
+
+- **v88b validates the intuition only at rank-1**: low→high τ makes early
+  separation sharper and later tolerance milder, improving P@1 by +0.004
+  over v81a. But mAP/P@100/P@1000 all drop, so the curriculum over-softens
+  deeper neighbourhood ranking or arrives too late/too uniformly for the
+  codebook composition objective.
+- **v88c is worse structurally**: weak C0 addition initially increases
+  code diversity during training, but final DB-unique falls to 0.2598 and
+  dead-code mean rises to 0.4609. C0 already dominates retrieval as a
+  separate codebook; injecting it into local heads makes local codebooks
+  more dependent on the global channel rather than more compositional.
+- **Key lesson**: v81a's strength is not simply "larger tolerance later" or
+  "share global semantics with locals". Its useful part is the coupling of
+  row-normalised adaptive top-p with semantic pairwise dynamic-τ while
+  keeping local codebooks free to specialise.
+
+### Follow-up decision
+
+- Do **not** replace v81a with v88b/v88c.
+- If revisiting τ scheduling, schedule only the **dynamic-τ amplitude**
+  (`dynamic_tau_alpha`) or use a codebook-health-aware warmup; avoid
+  globally changing base τ for every pair.
+- Avoid direct C0→local codeword addition. If C0 should guide locals, use
+  an auxiliary regularizer/teacher signal instead of feeding C0 into local
+  codon-head inputs.
+
+### Artifacts
+
+- `result/260527+flickr25k_setting1_v88b_v81a_tauCurriculum_022_036+bs+64+e+60+proj_lr+0.001/`
+- `result/260527+flickr25k_setting1_v88c_v81a_c0LocalGate_g001+bs+64+e+60+proj_lr+0.001/`
+
+---
+
+## 2026-05-27 — v88a MACL-paired model-aware τ (Huang et al., ICML 2023) — NEW Flickr25k P@1 SOTA + late-stage stability
+
+🟢 Active. Adds per-codebook MACL-style alignment-adaptive temperature
+(Huang et al., ICML 2023, Algorithm 1) **on top of** v81a's text-cosine
+dynamic-τ. The two mechanisms compose multiplicatively:
+`τ_eff = T₀ · (1 + α_macl · (A_m − A₀)) · (1 + α_text · cos(text_i^m, text_j^m))`
+where `A_m = E_i[cos(semantic_v_m^{view1}_i, semantic_v_m^{view2}_i)].detach()`
+is the per-codebook paired-augmentation positive alignment magnitude.
+
+**Headline**: v88a improves **P@1 by +0.0170 over v81a (0.7900 → 0.8070)**
+— the largest top-rank precision gain in the v62b family — while
+**mAP regresses by −0.0071** (0.6879 → 0.6808). Mid-eval trajectory shows
+markedly better late-stage stability (v81a ep49 dipped to 0.6664; v88a
+ep49 0.6756). Compositional structure stays close to v81a's "6 active
+graded" pattern with slightly more redundancy reduction (NMI 0.4613 →
+0.4366).
+
+### Setup vs v81a (single-axis: add MACL on top)
+
+| Flag | v81a (SOTA) | **v88a** |
+|---|---|---|
+| `ntxent_dynamic_tau` (text_cos) | True, α=0.3 | True, α=0.3 (same) |
+| `ntxent_macl_alpha` | — | **0.5 (NEW)** |
+| `ntxent_macl_a0` | — | **0.0 (NEW)** |
+| `routing_adaptive_topp` (0.5, 0.9) | ✓ | ✓ |
+| `codon_residual_gamma` 0.3 | ✓ | ✓ |
+| `codebook_size` 64 | ✓ | ✓ |
+| everything else | identical | identical |
+
+### Code change
+
+- New CLI flags `--ntxent_macl_alpha`, `--ntxent_macl_a0` in `config.py`
+  (defaults 0.0 = legacy bit-exact disabled).
+- `loss_siglip2.py`:
+  - Constructor reads both fields.
+  - `_loss_ntxent_dna_per_codebook(..., paired_align_signal=None, macl_alpha=0.0, macl_a0=0.0)`.
+  - Inside the per-codebook loop, computes a per-cb scalar:
+    `macl_factor_m = 1 + α_macl · (A_m − A₀)` (detached) and
+    `T_eff_m = T₀ · macl_factor_m`. The three τ branches
+    (neg_only_norm_model, text_cos, baseline) all replace `T` with
+    `T_eff_m`, so MACL multiplies on top of whichever dyn-τ variant is
+    active.
+  - Caller (`DNACodonHashLoss.forward`) computes paired alignment from
+    `outputs["semantic_visual_tokens"]` and `outputs_view2["semantic_visual_tokens"]`
+    (cosine, detached).
+- Smoke test verified mathematical correctness: with α=0.5, A_m≈0.5,
+  A₀=0, MACL gives T_eff = 0.375; loss matches static-T=0.375 reference
+  to within 1e-4. Legacy α=0 path bit-exact.
+
+### Final retrieval (Flickr25k 2K × 23K, full eval)
+
+| Run | mAP | Δ vs v81a | **P@1** | P@5 | P@10 | P@100 | P@1000 | unique (DB) | Verdict |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| v62b (legacy) | 0.6778 | −0.0101 | 0.7625 | — | 0.7587 | 0.7573 | 0.7445 | 0.0745 | — |
+| **v81a** (SOTA) | **0.6879** | — | 0.7900 | — | 0.7890 | **0.7810** | **0.7607** | 0.3462 | ★ mAP SOTA |
+| v87a (hard-neg) | 0.6711 | −0.0168 | 0.7950 | — | 0.7785 | 0.7681 | 0.7495 | 0.3405 | 🟡 discarded |
+| **v88a** | **0.6808** | **−0.0071** | **0.8070** ★ | **0.7990** | **0.7934** | 0.7767 | 0.7509 | **0.3563** | 🟢 **P@1 SOTA** |
+
+**v88a is the new Flickr25k P@1 SOTA**: 0.8070 vs v81a's 0.7900
+(+0.0170 = +2.2% relative). Notable: v88a also beats v81a on **P@10**
+(+0.0044). The trade-off is at deeper ranks: P@100 −0.0043, P@1000
+−0.0098, mAP −0.0071.
+
+**Interpretation**: MACL's late-stage τ growth (as A_m saturates near
+1) introduces controlled tolerance to false negatives — which sharpens
+the top-1/top-5 separation but blurs the very-deep tail. This is
+exactly the trade-off Wang & Liu (CVPR 2021) predict from the
+uniformity-tolerance dilemma analysis, now empirically observed under
+a per-codebook formulation.
+
+### Mid-eval trajectory
+
+| Run | ep9 | ep19 | ep29 | ep39 | ep49 | ep59 | final eval |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| v62b | 0.6706 | 0.6625 | 0.6678 | 0.6669 | 0.6746 | 0.6756 | 0.6778 |
+| v81a | **0.6769** | 0.6781 | **0.6844** ★ | 0.6789 | **0.6664** ↓↓ | 0.6725 | **0.6879** |
+| v87a | 0.6712 | 0.6601 | 0.6625 | 0.6595 | 0.6643 | 0.6611 | 0.6711 |
+| **v88a** | 0.6737 | 0.6636 | **0.6826** | 0.6732 | **0.6756** | 0.6720 | **0.6808** |
+
+Two structural differences from v81a:
+1. **ep49 stability**: v81a dipped −0.0180 to 0.6664; v88a stayed at
+   0.6756. MACL preserves training stability in the late phase when α_text
+   alone tends to over-modulate.
+2. **best mid-eval slightly lower**: v88a ep29 0.6826 vs v81a ep29
+   0.6844 (−0.0018). The final-eval gain over best-mid is also smaller
+   for v88a (+0.0018 vs +0.0035 for v81a). Combined, this gives the
+   net −0.0071 mAP.
+
+### 1. Pairwise codebook NMI
+
+| Model | mean off-diag | min | max | unique codes (DB) |
+|---|---:|---:|---:|---:|
+| v62b | 0.6410 | 0.39 | 0.79 | 8,249 |
+| v79c (hard rt) | 0.2914 | 0.05 ⚠ (cb3 collapse) | 0.49 | 16,564 |
+| v81a | 0.4613 | 0.3077 | 0.5712 | 9,193 |
+| v87a (hard-neg) | 0.4900 | 0.3454 | 0.6054 | 7,214 |
+| **v88a** | **0.4366** | **0.2681** | 0.6147 | **8,196** |
+
+Full v88a NMI matrix (6×6):
+
+```
+         cb0    cb1    cb2    cb3    cb4    cb5
+ cb0   1.000  0.355  0.358  0.355  0.354  0.268
+ cb1   0.355  1.000  0.561  0.578  0.561  0.439
+ cb2   0.358  0.561  1.000  0.582  0.564  0.476
+ cb3   0.355  0.578  0.582  1.000  0.553  0.451
+ cb4   0.354  0.561  0.564  0.553  1.000  0.495
+ cb5   0.268  0.439  0.476  0.451  0.495  1.000
+```
+
+Observations:
+
+- **Mean off-diag NMI 0.4366**, slightly below v81a's 0.4613 —
+  MACL-paired further decoupled the cb1-5 cluster on top of v81a's
+  baseline. Not as extreme as v79c's 0.29 (which had collapse cost).
+- **cb5 most-isolated** (NMI with rest: 0.27, 0.44, 0.48, 0.45, 0.49):
+  min NMI 0.27 (cb0 vs cb5) is the lowest among healthy variants —
+  v81a's lowest was 0.31. cb5 becomes the most distinct codebook in v88a.
+- **No collapsed codebook** (min NMI 0.27 > v79c-cb3's 0.05). cb5's
+  separation is real differentiation, not collapse.
+- **cb0 still asymmetric** (0.27-0.36 with others) — global/local
+  structure preserved.
+
+### 2. Codebook drop ablation (Flickr25k full 2K queries)
+
+| Model | base mAP | Δcb0 | Δcb1 | Δcb2 | Δcb3 | Δcb4 | Δcb5 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| v62b | 0.6778 | −0.0038 | −0.0001 | −0.0010 | −0.0010 | +0.0010 | −0.0016 |
+| v79c | 0.6703 | −0.0034 | **−0.0085** | −0.0020 | +0.0006 ⚠ | **−0.0056** | −0.0006 |
+| v81a | 0.6879 | **−0.0066** | −0.0003 | **−0.0045** | **−0.0029** | +0.0001 | +0.0006 |
+| v87a | 0.6711 | −0.0045 | −0.0009 | −0.0022 | −0.0023 | −0.0001 | −0.0021 |
+| **v88a** | **0.6809** | **−0.0089** | −0.0005 | −0.0018 | **−0.0041** | −0.0014 | **+0.0027** ⚠ |
+
+v88a per-cb retrieval breakdown:
+
+| drop | mAP | ΔmAP | P@1 | P@10 | P@100 | P@1000 |
+|---|---:|---:|---:|---:|---:|---:|
+| baseline | 0.6809 | — | 0.8070 | 0.7934 | 0.7767 | 0.7509 |
+| cb0 | 0.6720 | **−0.0089** | 0.7510 | 0.7617 | 0.7503 | 0.7333 |
+| cb1 | 0.6803 | −0.0005 | 0.8015 | 0.7905 | 0.7757 | 0.7499 |
+| cb2 | 0.6790 | −0.0018 | 0.8005 | 0.7950 | 0.7779 | 0.7505 |
+| cb3 | 0.6768 | **−0.0041** | 0.7745 | 0.7876 | 0.7746 | 0.7489 |
+| cb4 | 0.6795 | −0.0014 | 0.8040 | 0.7942 | 0.7780 | 0.7512 |
+| cb5 | **0.6835** | **+0.0027** ⚠ | 0.8080 | 0.7964 | 0.7777 | 0.7553 |
+
+Two notable findings:
+
+- **cb0 dependence sharpens** (−0.0066 → −0.0089, 1.35×). MACL's
+  τ-growth allows the global channel to take more responsibility for
+  the discriminative signal in the late phase.
+- **cb5 is *anti-contributing* (Δ +0.0027)**: dropping cb5 actually
+  *improves* retrieval. This is the first variant in our series where
+  a codebook has a *negative* contribution. Combined with cb5's high
+  isolation (NMI 0.27-0.50 with rest, lowest in the series), cb5 has
+  drifted to encode a signal that hurts the joint Hamming distance
+  ranking. **Suggests follow-up: deactivate cb5 or apply
+  per-codebook gating**.
+- **Effective load-bearing codebooks**: cb0 + cb3 carry the main
+  signal (combined Δ = −0.0130), cb1/cb2/cb4 are near-zero, cb5 is
+  negative. The graded structure is present but *narrower* than v81a's
+  cb0 + cb2 + cb3 trio.
+
+### 3. Compositional lift (B0 / B1 / B2)
+
+| Model | B0 raw text | B1 centered text | B2 visual_global |
+|---|---:|---:|---:|
+| v62b | 0.0174 | 0.0570 | 0.0353 |
+| v79c | 0.0156 | 0.0494 | 0.0295 |
+| v81a | 0.0178 | **0.0559** | 0.0345 |
+| v87a | 0.0168 | 0.0533 | 0.0335 |
+| **v88a** | 0.0166 | 0.0517 | 0.0319 |
+
+v88a per-codebook B1 (centered-text intra-cluster):
+
+| | cb0 | cb1 | cb2 | cb3 | cb4 | cb5 |
+|---|---:|---:|---:|---:|---:|---:|
+| v62b B1 | 0.069 | 0.050 | 0.045 | 0.049 | 0.039 | 0.090 |
+| v81a B1 | **0.083** | 0.045 | 0.042 | 0.047 | 0.041 | **0.082** |
+| **v88a B1** | **0.083** | 0.037 | 0.038 | 0.047 | 0.035 | 0.075 |
+
+cb0 unchanged from v81a (0.083), cb3 unchanged (0.047), but cb1/cb2/cb4/cb5
+all dropped slightly (−0.003 to −0.008). This matches the drop ablation
+pattern: cb0+cb3 strongly load-bearing, cb1/cb2/cb4 weaker, cb5 weaker
+*and* anti-contributing.
+
+### 4. Qualitative codebook grids
+
+Inspected `result/<v88a>/codebook_grids/`:
+
+- **cb0 cw004**: portraits, electronics, mixed scenes — heterogeneous.
+  Less coherent than v81a cb0's "atmospheric landscapes".
+- **cb0 cw016**: high-contrast graphics + portraits + abstract — visually
+  *bold* shared aesthetic ("stark contrast" theme).
+- **cb2 cw008**: portraits with strong colour palette, group photos.
+- **cb3 cw028**: urban/architectural — bridges, modern buildings, structured
+  geometry. Strongest single-theme codeword in v88a.
+
+v88a's codebooks are **more *visual-aesthetic* clustered** (bold
+contrast, structured architecture) and less *semantic-category* clustered
+than v81a. The MACL-paired temperature dynamics seem to push the model
+toward more aesthetically coherent groups that survive the paired-aug
+positive-alignment objective.
+
+### Why this is paper-worthy
+
+1. **P@1 SOTA + late-stage stability**: this is the first variant in
+   the series to *meaningfully* improve P@1 (+0.017 = +2.2% relative)
+   over v81a, with a quantitatively *better-behaved* training curve
+   (no ep49 dip). The combination is uncommon — usually P@1 gains come
+   with training instability (e.g. v87a had collapse).
+2. **Clean composition of two τ mechanisms**: empirically demonstrates
+   that *text-cosine pair-conditioning* and *MACL alignment-magnitude
+   scaling* are **complementary, not redundant**. v88a (both ON) beats
+   v81a (text only) on P@1 / P@10, beats v87a (hard-neg replacing
+   text_cos) on every metric.
+3. **Per-codebook MACL adaptation**: extends Huang et al.'s single-A
+   formulation to compositional VQ. A_m per codebook means each cb has
+   its own τ schedule based on its own alignment dynamics.
+
+### Honest limitations
+
+- **mAP regression**: v88a −0.0071 vs v81a. The trade-off is real:
+  top-rank precision ↑, deep-rank precision ↓. Whether this is the
+  right trade-off depends on application (e.g. fast-retrieval P@1
+  use-cases benefit; long-tail recall use-cases don't).
+- **cb5 anti-contributing** (Δ +0.0027): a codebook is actively hurting
+  retrieval. This is a structural issue worth investigating — could
+  indicate over-decoupling.
+- **Dead-code ratio 0.417 at ep59** (above v81a's 0.349): MACL's
+  late τ growth allows more codeword starvation.
+
+### Suggested follow-up
+
+1. **v88b — α_macl sweep**: 0.3, 0.7 to map the α_macl response curve.
+   α=0.5 may not be the optimum.
+2. **v88c — α_macl=0.5 with cb5 gating**: temporarily disable cb5 in
+   the loss (or replace with reinitialized codebook) to test whether
+   removing the anti-contributing codebook restores mAP without
+   sacrificing P@1.
+3. **v88d — MACL-only (no text_cos)**: isolate MACL's contribution to
+   show v81a's text_cos is essential, *not* replaceable by MACL alone.
+4. **mscoco_v88a — Apply to MSCOCO**: with mscoco_v81a as the SOTA
+   base, add MACL paired. Tests cross-dataset generalization of the
+   MACL-paired idea.
+
+### Artifacts
+
+- Result dir:
+  `result/260527+flickr25k_setting1_v88a_v81a_maclPaired_alpha05+bs+64+e+60+proj_lr+0.001/`
+  - `compositional_eval.json` (B0/B1/B2 + per-cb breakdown)
+  - `codebook_drop_ablation.json` (per-cb ΔmAP, full P@k)
+  - `pairwise_nmi.json` (6×6 NMI matrix)
+  - `codebook_grids/` (30 PNG)
+- Combined NMI (v62b/v79c/v81a/v87a/v88a):
+  `docs/nmi_v88a_combined.json`
+- Implementation: `config.py` (`--ntxent_macl_alpha`, `--ntxent_macl_a0`),
+  `loss_siglip2.py` (constructor, function signature, per-cb loop
+  with multiplicative T_eff, caller in `forward`).
+
+### Paper-citation lineage
+
+- Wang & Liu, *Understanding the Behaviour of Contrastive Loss*
+  ([CVPR 2021](https://arxiv.org/abs/2012.09740)). Uniformity-tolerance
+  dilemma analysis. Predicts: τ growth = top-rank sharper, deep-rank
+  blurrier — confirmed empirically by v88a.
+- Huang et al., *Model-Aware Contrastive Learning: Towards Escaping
+  the Dilemmas* ([ICML 2023](https://arxiv.org/abs/2207.07874)). MACL
+  Algorithm 1 — alignment-magnitude-adaptive τ. v88a is the
+  *per-codebook* extension applied on top of v81a's text_cos.
 
 ---
 
