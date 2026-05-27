@@ -223,6 +223,158 @@ Format conventions:
 
 ---
 
+## 2026-05-28 — v90a λ_wasserstein 0.05 → 0.10 ablation — deep-rank ↑ / top-1 ↓ trade-off
+
+🟡 Ablation: v88a-CLIP recipe with *only* `--lambda_wasserstein 0.10`
+instead of the historical 0.05 (set at v49→v57). Hypothesis was either
+"more text-vision alignment → better mAP" or "over-alignment → mAP ↓".
+**The actual result is neither: a clean precision-distribution
+*shift* across rank depths.**
+
+### Setup vs v88a-CLIP (single-axis)
+
+| Flag | v88a-CLIP | **v90a** |
+|---|---|---|
+| `lambda_wasserstein` | **0.05** | **0.10** (NEW, +1 step on log-grid) |
+| everything else (CLIP backbone, MACL 0.5, text_cos 0.3, adaptive top-p, γ=0.3, K=64) | ✓ | ✓ identical |
+
+### Final retrieval (Flickr25k 2K × 23K)
+
+| Metric | v88a-CLIP (λ=0.05) | **v90a (λ=0.10)** | Δ |
+|---|---:|---:|---:|
+| mAP | **0.7853** | 0.7812 | **−0.0041** |
+| P@1 | **0.9025** | 0.9010 | −0.0015 |
+| **P@10** | 0.8893 | **0.8985** | **+0.0092** ★ |
+| **P@100** | 0.8828 | **0.8904** | **+0.0076** ★ |
+| **P@1000** | 0.8689 | **0.8740** | **+0.0051** ★ |
+| unique (DB) | 0.121 | 0.110 | −0.011 |
+
+**Pattern**: λ_w ↑ shifts the precision distribution **inward** —
+deeper-rank P@k improves +0.005-0.009 while top-1 sharpness barely
+moves and mAP drops 0.004. Not pure degradation; not pure improvement
+either. Genuinely an axis of design choice.
+
+### Mid-eval trajectory (smoother, no v88a-CLIP-style deep dip)
+
+| ep | v88a-CLIP | **v90a** |
+|---:|---:|---:|
+| 9 | 0.7850 | 0.7551 |
+| 19 | 0.7774 | 0.7574 |
+| 29 | 0.7424 ↓↓ (deep dip) | **0.7751** ↑ |
+| 39 | **0.7929** ↑ | 0.7671 |
+| 49 | **0.7999** | **0.7788** (best mid) |
+| 59 | **0.8032** | 0.7744 |
+| final | **0.7853** | 0.7812 |
+
+v90a does **not** show v88a-CLIP's two-peak trajectory (ep9 peak →
+ep29 deep dip → ep39+ strong rise). Instead a smoother ascending
+curve with best at ep49. Stronger alignment seems to *stabilize* the
+training dynamics at the cost of slower late-phase rise.
+
+### 1. Pairwise codebook NMI
+
+| Model | mean off-diag | min | max | unique (DB) |
+|---|---:|---:|---:|---:|
+| v88a-CLIP (λ=0.05) | 0.5785 | 0.330 | 0.714 | 0.1210 |
+| **v90a (λ=0.10)** | **0.5867** | 0.355 | 0.735 | **0.1105** |
+
+Slight ↑ NMI (+0.008) and slight ↓ unique (−0.011) — stronger
+text alignment compresses the code space modestly.
+
+### 2. Codebook drop ablation — *load redistribution*
+
+| drop | v88a-CLIP ΔmAP | **v90a ΔmAP** | Δ |
+|---|---:|---:|---:|
+| cb0 | −0.0098 | **−0.0141** | −0.0043 (cb0 dependence ↑ 44%) |
+| cb1 | +0.0014 ⚠ | +0.0013 ⚠ | unchanged (still anti) |
+| **cb2** | +0.0027 ⚠ | **−0.0022** | **+0.0049 (became contributing!)** ★ |
+| cb3 | **−0.0121** | −0.0018 | +0.0103 (cb3 contribution ↓ 85%) ⚠ |
+| cb4 | −0.0009 | −0.0017 | −0.0008 (cb4 mildly stronger) |
+| cb5 | +0.0032 ⚠ | +0.0029 ⚠ | unchanged (still anti) |
+| **sum** | **−0.0155** | **−0.0156** | total load unchanged |
+
+**Two structural shifts**:
+
+1. **cb2 became load-bearing** (+0.0027 → −0.0022). λ_w ↑ recruited
+   cb2 from anti-contributing to mildly contributing.
+2. **cb3 mostly lost its load** (−0.0121 → −0.0018, 85% reduction).
+   The strongest secondary codebook under v88a-CLIP weakened
+   substantially.
+
+Net result: load *redistributed* from {cb3} to {cb0, cb2} rather
+than spreading evenly. cb0 dominance gets stronger (1.44×). Anti-
+contributing count went 3 → 2 (cb2 recovered; cb1 + cb5 still anti).
+
+### 3. Compositional lift (B0 / B1 / B2)
+
+| Model | B0 raw text | B1 centered | B2 visual_global |
+|---|---:|---:|---:|
+| v88a-CLIP | 0.0373 | 0.0857 | 0.0494 |
+| **v90a** | **0.0390** | **0.0899** | **0.0524** |
+| Δ | +0.002 | **+0.004** | +0.003 |
+
+All three text/visual semantic concentration metrics increase
+modestly. Per-cb B1:
+
+| | cb0 | cb1 | cb2 | cb3 | cb4 | cb5 |
+|---|---:|---:|---:|---:|---:|---:|
+| v88a-CLIP | 0.119 | 0.062 | 0.063 | 0.074 | 0.052 | **0.146** |
+| **v90a** | 0.117 | **0.073** | **0.068** | 0.077 | **0.059** | 0.148 |
+| Δ | ≈0 | **+0.011** | **+0.005** | +0.003 | **+0.007** | ≈0 |
+
+cb1/cb2/cb4 all see noticeable B1 ↑ — the "weak" codebooks become
+*more* text-semantic-aligned. Surprisingly *did not* translate into
+proportionally more drop-ablation contribution: cb1 stays anti, cb4
+stays near-zero. Indicates **B1 lift and retrieval contribution
+are separately controlled**.
+
+### Interpretation: λ_w controls *where* the load lives, not *how much*
+
+Sum-of-drop ΔmAP is essentially identical (−0.0155 vs −0.0156).
+The hash retains its ~12-effective-bits character, but the *identity*
+of those bits shifts:
+- λ=0.05: cb0 + cb3 (combined Δ = −0.0219)
+- λ=0.10: cb0 alone, with small contributions from cb2/cb3/cb4
+  (cb0 Δ = −0.0141 alone)
+
+For retrieval: this redistribution slightly *hurts* mAP and P@1
+(cb3's earlier sharpness is lost) but *helps* deep-rank P@k (load
+spread across more cb partial-contributors smooths the Hamming-
+distance distribution).
+
+### Why this is paper-worthy
+
+1. **Confirms 0.05 is near-optimal for mAP** but reveals it is
+   **not pareto-dominant** — λ=0.10 wins on every P@k ≥ P@10.
+2. **Surfaces λ_w as a "rank-depth allocation knob"**: low λ_w =
+   sharp top-1, high λ_w = uniform high P@k. Useful for selecting
+   λ based on downstream application's k-budget.
+3. **Reveals cb3 is the "λ-sensitive" codebook**: under v88a-CLIP
+   (λ=0.05) cb3 was the strongest secondary contributor; under v90a
+   (λ=0.10) cb3's role migrates to cb2. **Per-codebook load
+   distribution is modulatable by alignment pressure**, not fixed
+   by the routing/MACL recipe.
+
+### Suggested follow-up
+
+1. **v90b: λ_wasserstein 0.20** (or 0.15) — does the deep-rank gain
+   monotonically scale? If P@1000 keeps rising, "high-recall" lever.
+2. **v90c: λ_wasserstein 0.025** — confirm 0.05 is *mAP* optimum
+   symmetrically.
+3. **v90a + cb1/cb5 inference-time gating** combines well — v90a
+   has only 2 anti-contributing cb (cleaner intervention target).
+
+### Artifacts
+
+- Result dir: `result/260528+flickr25k_setting1_v90a_v88aCLIP_wasserstein_010+bs+64+e+60+proj_lr+0.001/`
+  - `compositional_eval.json`, `codebook_drop_ablation.json`,
+    `pairwise_nmi.json`, `codebook_grids/` (30 PNG).
+- Combined NMI: `docs/nmi_v90a_combined.json` (v88a-CLIP vs v90a).
+- Implementation: no code changes; only `--lambda_wasserstein 0.10`
+  differs from v88a-CLIP.
+
+---
+
 ## 2026-05-27 — v89a text-routing teacher → codebook-mean student consistency — DISCARDED
 
 🟡 Discarded. Motivation: `loss_anchor` is non-zero in train logs but
