@@ -784,6 +784,19 @@ class Config():
         loss_arg.add_argument('--ntxent_dynamic_tau_semantic_scale_max',
             type=float, default=1.3,
             help="v67: upper clamp on semantic_scale_ij.")
+        # v87 (Wang & Liu, CVPR 2021): explicit hard-negative sampling in
+        # per-codebook NtXent. For each anchor, keep only the top-alpha
+        # fraction of *informative* negatives (highest similarity) in the
+        # softmax denominator; below-threshold negatives are masked out.
+        # alpha=1.0 = legacy (keep all negatives, bit-exact). alpha<1.0 =
+        # Wang Eq 9 hard-contrastive loss adapted per-codebook.
+        loss_arg.add_argument('--ntxent_hard_neg_alpha',
+            type=float, default=1.0,
+            help="v87: keep top-alpha fraction of hardest negatives per "
+                 "anchor in per-codebook NtXent (Wang & Liu CVPR 2021 Eq 9). "
+                 "1.0 disables (legacy, all negatives kept). Recommended "
+                 "0.25-0.5 for compositional retrieval; the positive pair "
+                 "is always preserved.")
         # v73 (Exp 7): global DNA NtXent auxiliary loss alongside per-codebook.
         # When `ntxent_mode=per_codebook`, also compute the global NtXent
         # (whole 18-codon DNA code) using static base temperature and add

@@ -247,6 +247,10 @@ class DNACodonHashLoss(nn.Module):
         self.ntxent_dynamic_tau_model_scale_max = float(getattr(cfg, "ntxent_dynamic_tau_model_scale_max", 1.25))
         self.ntxent_dynamic_tau_semantic_scale_min = float(getattr(cfg, "ntxent_dynamic_tau_semantic_scale_min", 0.7))
         self.ntxent_dynamic_tau_semantic_scale_max = float(getattr(cfg, "ntxent_dynamic_tau_semantic_scale_max", 1.3))
+        # v87 (Wang & Liu, CVPR 2021): hard-negative sampling for per-codebook
+        # NtXent. alpha = fraction of negatives kept in softmax denominator;
+        # alpha=1.0 disables (legacy, bit-exact).
+        self.ntxent_hard_neg_alpha = float(getattr(cfg, "ntxent_hard_neg_alpha", 1.0))
         # v73 (Exp 7): global DNA NtXent auxiliary loss alongside per-codebook
         self.lambda_global_dna_ntxent = float(getattr(cfg, "lambda_global_dna_ntxent", 0.0))
         # v76b: cosine VQ loss (replaces MSE in _loss_vq with (1 - cos)).
@@ -469,6 +473,7 @@ class DNACodonHashLoss(nn.Module):
         model_scale_max: float = 1.25,
         semantic_scale_min: float = 0.7,
         semantic_scale_max: float = 1.3,
+        hard_neg_alpha: float = 1.0,
     ) -> torch.Tensor:
         """Per-codebook NtXent (v31b) with optional v42 dynamic tau.
 
@@ -587,6 +592,35 @@ class DNACodonHashLoss(nn.Module):
                 sim   = (sim / T_ij).masked_fill(eye, -1e9)
             else:
                 sim   = (sim / T).masked_fill(eye, -1e9)
+
+            # v87 (Wang & Liu, CVPR 2021 Eq 9): per-anchor explicit hard-
+            # negative sampling. After the (tau-scaled) sim matrix is built,
+            # keep only the top-alpha fraction of NEGATIVE entries (highest
+            # similarity = informative hard negs); the positive entry and
+            # diagonal self-entry are preserved unconditionally. This makes
+            # the InfoNCE denominator look only at informative negatives,
+            # decoupling uniformity from tolerance to semantically similar
+            # samples.  alpha=1.0 = legacy (no truncation, bit-exact path).
+            if 0.0 < float(hard_neg_alpha) < 1.0:
+                # Build positive-pair mask [2B, 2B] (positions of positive partners).
+                pos_mask_alpha = torch.zeros(
+                    N, N, device=sim.device, dtype=torch.bool,
+                )
+                pos_mask_alpha[torch.arange(N, device=sim.device), pos_idx] = True
+                # Number of negatives kept (exclude self + positive partner).
+                n_neg_avail = N - 2
+                k_keep = max(1, int(round(float(hard_neg_alpha) * n_neg_avail)))
+                k_keep = min(k_keep, n_neg_avail)
+                # Mask out self + positive before quantile so they don't enter
+                # the top-k of negatives.
+                sim_for_q = sim.masked_fill(eye | pos_mask_alpha, float("-inf"))
+                # Top-k per anchor; threshold = k-th largest negative value.
+                topk_vals, _ = sim_for_q.topk(k_keep, dim=-1)         # [2B, k_keep]
+                thresh = topk_vals[:, -1:].expand_as(sim)              # [2B, 2B]
+                # Keep iff: positive pair, OR (sim >= threshold AND not diag).
+                keep_mask = pos_mask_alpha | ((sim >= thresh) & ~eye)
+                sim = sim.masked_fill(~keep_mask, -1e9)
+
             loss_sum = loss_sum + F.cross_entropy(sim, pos_idx)
         return loss_sum / num_codebooks
 
@@ -914,6 +948,7 @@ class DNACodonHashLoss(nn.Module):
                     model_scale_max=self.ntxent_dynamic_tau_model_scale_max,
                     semantic_scale_min=self.ntxent_dynamic_tau_semantic_scale_min,
                     semantic_scale_max=self.ntxent_dynamic_tau_semantic_scale_max,
+                    hard_neg_alpha=self.ntxent_hard_neg_alpha,
                 )
                 # v73 (Exp 7): add weak global NtXent on the full 18-codon
                 # code with STATIC ntxent_temperature (no dynamic tau).
