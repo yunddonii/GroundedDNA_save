@@ -162,6 +162,279 @@ Format conventions:
 
 ---
 
+## 2026-05-27 — v87a hard-negative sampling per codebook (Wang & Liu, CVPR 2021) — DISCARDED, structurally instructive
+
+🟡 Discarded with paper-worthy negative finding. Replaced v81a's text-cosine
+dynamic-τ ([Wang 2021]-inspired per-pair softening) with **explicit
+per-anchor hard-negative sampling adapted per codebook** ([Wang 2021] Eq 9).
+Hypothesis: hard-neg sampling decouples uniformity from tolerance more
+cleanly than τ-modulation and should raise top-rank precision (P@1, P@10).
+**Result: v87a *did* gain P@1 (+0.005 over v81a) but lost mAP −0.0168 and
+P@10/P@100/P@1000 by 0.011-0.013 each, with codebook collapse pattern in
+mid-training.** Structurally interesting: confirms that the easy negatives
+removed by Wang Eq 9 carry the *uniformity pressure* that keeps codewords
+distributed across codebooks. In a compositional VQ setting (unlike
+standard instance-discrimination), removing them induces partial
+codebook collapse (dead-code ratio mid-train reaches 0.46).
+
+### Code change
+
+- New CLI flag `--ntxent_hard_neg_alpha α ∈ (0, 1]` in `config.py` (default
+  1.0 = legacy bit-exact disabled). Backward-compatible.
+- `loss_siglip2.py:597-624` adds per-anchor top-α masking inside
+  `_loss_ntxent_dna_per_codebook` *after* τ scaling (works on top of either
+  legacy or dynamic-τ path):
+  ```python
+  if 0.0 < hard_neg_alpha < 1.0:
+      pos_mask_alpha = zeros(N, N, bool); pos_mask_alpha[arange(N), pos_idx] = True
+      k_keep = max(1, round(α * (N - 2)))
+      sim_for_q = sim.masked_fill(eye | pos_mask_alpha, -inf)
+      thresh = sim_for_q.topk(k_keep, dim=-1).values[:, -1:].expand_as(sim)
+      keep_mask = pos_mask_alpha | ((sim >= thresh) & ~eye)
+      sim = sim.masked_fill(~keep_mask, -1e9)
+  ```
+  Then `F.cross_entropy(sim, pos_idx)` as before.
+- Smoke test: legacy (α=1.0) bit-exact loss = 4.146; α=0.5 → 3.581;
+  α=0.25 → 3.020 on random `[B=32, 18, 4]` input. Monotonic in α as expected
+  (fewer competitors in softmax denominator).
+
+### Setup vs v81a
+
+Single-axis swap of dynamic-τ → hard-neg, with all other v81a flags kept:
+
+| Flag | v81a (SOTA) | **v87a** |
+|---|---|---|
+| `ntxent_dynamic_tau` | True (text_cos α=0.3) | **False** |
+| `ntxent_hard_neg_alpha` | — | **0.5** |
+| `routing_adaptive_topp` (0.5, 0.9) | ✓ | ✓ |
+| `codon_residual_gamma` 0.3 | ✓ | ✓ |
+| `codebook_size` 64 | ✓ | ✓ |
+| everything else | identical | identical |
+
+### Final retrieval (Flickr25k 2K × 23K, full eval)
+
+| Run | mAP | Δ vs v81a | P@1 | P@10 | P@100 | P@1000 | unique (test) | unique codes (DB) | Verdict |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| v62b (legacy) | 0.6778 | −0.0101 | 0.7625 | 0.7587 | 0.7573 | 0.7445 | 0.0745 | 8,249 | — |
+| **v81a** (SOTA) | **0.6879** | — | 0.7900 | **0.7890** | **0.7810** | **0.7607** | 0.3462 | 9,193 | ★ |
+| **v87a** | **0.6711** | **−0.0168** | **0.7950** ✓ | 0.7785 | 0.7681 | 0.7495 | 0.3405 | **7,214** | 🟡 discarded |
+
+v87a is the *only* variant we have that improves P@1 over v81a (+0.005 →
+0.7950 vs 0.7900), but it pays for it with a 0.7%–1.3% drop across
+P@10/P@100/P@1000 and a 1.7% drop in mAP. The trade-off is **not worth
+making** in this configuration — Wang's hardness-aware sharpening showed
+up only at rank-1 and was insufficient to compensate the long-tail loss.
+
+### Mid-eval trajectory (best_save active → final = ep9 checkpoint)
+
+| Run | ep9 | ep19 | ep29 | ep39 | ep49 | ep59 | final eval |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| v62b | 0.6706 | 0.6625 | 0.6678 | 0.6669 | 0.6746 | 0.6756 | 0.6778 |
+| v81a | **0.6769** | 0.6781 | **0.6844** | 0.6789 | 0.6664 | 0.6725 | **0.6879** |
+| v87a | **0.6712** | 0.6601 | 0.6625 | 0.6595 | 0.6643 | 0.6611 | **0.6711** |
+
+v87a's "best" was *ep9* (0.6712); final eval (using best checkpoint) lands
+at 0.6711. **Hard-neg α=0.5 converged after ~9 epochs and then stalled** —
+the trajectory is *flat-with-dip*, the opposite of v81a's late-rising arc.
+Dead-code ratio climbed to 0.46 by ep29 then partially recovered to 0.40
+by ep59. The training dynamic is itself a signal that the loss landscape
+was perturbed in a way that prevents continued improvement.
+
+### 1. Pairwise codebook NMI (compositional structure)
+
+| Model | mean off-diag | min | max | unique codes (DB) |
+|---|---:|---:|---:|---:|
+| v62b | 0.6410 | 0.39 | 0.79 | 8,249 |
+| v79c (hard) | 0.2914 | 0.05 (cb3 collapse) | 0.49 | 16,564 |
+| **v81a** | **0.4613** | **0.3077** | **0.5712** | **9,193** |
+| **v87a** | **0.4900** | 0.3454 | 0.6054 | **7,214** |
+
+Full v87a NMI matrix (6×6):
+
+```
+         cb0    cb1    cb2    cb3    cb4    cb5
+ cb0   1.000  0.358  0.359  0.368  0.345  0.346
+ cb1   0.358  1.000  0.550  0.605  0.541  0.561
+ cb2   0.359  0.550  1.000  0.594  0.552  0.570
+ cb3   0.368  0.605  0.594  1.000  0.553  0.557
+ cb4   0.345  0.541  0.552  0.553  1.000  0.491
+ cb5   0.346  0.561  0.570  0.557  0.491  1.000
+```
+
+Observations:
+
+- **v87a is slightly *more* redundant than v81a** (mean off-diag 0.49 vs
+  0.46). Hard-neg sampling did *not* improve compositional independence;
+  if anything it nudged the codebooks closer together.
+- **cb0 still separates** from cb1-5 (NMI 0.35-0.37) — the global/local
+  asymmetry survives intact, consistent with v62b/v81a.
+- **cb1-5 pair NMI 0.49-0.61** (mean ~0.56), vs v81a 0.43-0.57 (mean ~0.50).
+  The hardest negatives within each codebook's neighbourhood are
+  semantically *very* similar across local codebooks, so hard-neg sampling
+  pushes those codebooks to encode overlapping information.
+- **DB unique codes 7,214** (v81a 9,193, −22%): hard-neg sampling
+  consolidated images into fewer distinct codes, consistent with the
+  codebook-collapse signal in dead-code ratio.
+
+### 2. Codebook drop ablation (full Flickr25k 2K queries)
+
+| Model | base mAP | Δcb0 | Δcb1 | Δcb2 | Δcb3 | Δcb4 | Δcb5 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| v62b | 0.6778 | −0.0038 | −0.0001 | −0.0010 | −0.0010 | +0.0010 | −0.0016 |
+| v79c | 0.6703 | −0.0034 | **−0.0085** | −0.0020 | +0.0006 ⚠ | **−0.0056** | −0.0006 |
+| v81a | 0.6879 | **−0.0066** | −0.0003 | **−0.0045** | **−0.0029** | +0.0001 | +0.0006 |
+| **v87a** | **0.6711** | **−0.0045** | −0.0009 | −0.0022 | −0.0023 | −0.0001 | −0.0021 |
+
+v87a per-cb detail with P@k:
+
+| drop | mAP | ΔmAP | P@1 | P@10 | P@100 | P@1000 |
+|---|---:|---:|---:|---:|---:|---:|
+| baseline | 0.6711 | — | 0.7950 | 0.7785 | 0.7681 | 0.7495 |
+| cb0 | 0.6666 | **−0.0045** | 0.7635 | 0.7546 | 0.7503 | 0.7379 |
+| cb1 | 0.6702 | −0.0009 | 0.7920 | 0.7770 | 0.7680 | 0.7495 |
+| cb2 | 0.6689 | −0.0022 | 0.7960 | 0.7780 | 0.7681 | 0.7484 |
+| cb3 | 0.6687 | −0.0023 | **0.8020** | 0.7798 | 0.7681 | 0.7491 |
+| cb4 | 0.6710 | −0.0001 | 0.7905 | 0.7734 | 0.7664 | 0.7485 |
+| cb5 | 0.6690 | −0.0021 | 0.7850 | **0.7806** | 0.7681 | 0.7487 |
+
+- **No codebook collapse**: every cb has ΔmAP ≤ −0.0001 (no `cb3 = +0.0006`
+  v79c-style dead slot). cb1 and cb4 are very weak (−0.001) but still
+  active.
+- **cb0 dominance softened**: ΔmAP −0.0045 (vs v81a −0.0066). Hard-neg
+  sampling spread cb0's load slightly into cb2/cb3/cb5 (all −0.002 range).
+- **Dropping cb3 raises P@1 to 0.8020** (vs baseline 0.7950): suggesting
+  cb3 contributes to mAP but actually *hurts* P@1 in v87a. This is the
+  kind of trade-off Wang Eq 9 explicitly trades: tighter top-rank
+  separation at the cost of deeper-rank accuracy.
+
+### 3. Compositional lift (B0/B1/B2)
+
+| Model | B0 raw text | B1 centered text | B2 visual_global |
+|---|---:|---:|---:|
+| v62b | 0.0174 | 0.0570 | 0.0353 |
+| v79c | 0.0156 | 0.0494 | 0.0295 |
+| **v81a** | **0.0178** | **0.0559** | **0.0345** |
+| **v87a** | 0.0168 | 0.0533 | 0.0335 |
+
+v87a per-codebook B1 (centered-text intra-cluster cosine vs random
+shuffle):
+
+| | cb0 | cb1 | cb2 | cb3 | cb4 | cb5 |
+|---|---:|---:|---:|---:|---:|---:|
+| v62b B1 | 0.069 | 0.050 | 0.045 | 0.049 | 0.039 | 0.090 |
+| v81a B1 | **0.083** | 0.045 | 0.042 | 0.047 | 0.041 | **0.082** |
+| **v87a B1** | **0.079** | 0.042 | 0.043 | 0.045 | 0.037 | **0.078** |
+
+v87a's per-cb B1 distribution is **almost identical to v81a**, just
+uniformly compressed by ~0.003 — same cb0/cb5 anchors, same low
+cb1-cb4 plateau. Hard-neg sampling did not redistribute semantic
+concentration; it just dampened it slightly.
+
+### 4. Qualitative codebook grids
+
+Inspected `result/<v87a>/codebook_grids/`:
+
+- **cb0 cw000**: mixed scenes (textures, sculptures, interiors, single
+  portrait, abstract) — *less* coherent than v81a's "atmospheric
+  landscapes" cw002.
+- **cb0 cw010**: people in urban/scene contexts (mall, outdoor crowd,
+  street, monochrome cityscape) — coherent "urban human activity".
+- **cb2 cw003**: nature/colorful botanicals (flowers, plants, abstract
+  colorful textures) — very coherent "saturated natural elements".
+- **cb3 cw021**: portraits + animals + still life with red/warm lighting
+  — moderate coherence around colour palette.
+- **cb5 cw014**: mixed objects + texts/typography — less coherent than
+  v81a's cb5 "urban surfaces" theme.
+
+v87a codebooks have **tighter intra-codeword clusters but less distinct
+inter-codeword themes** than v81a. The qualitative pattern matches the
+quantitative one: hard-neg sampling sharpens local discrimination but
+blurs the macro "what does this codebook specialise in?" axis that
+v81a's grids showed cleanly.
+
+### Why this is a structurally instructive negative result
+
+Wang & Liu (CVPR 2021) derive hard-neg sampling for **instance
+discrimination** with ~4-16K negatives per anchor and recommend α =
+0.03–0.08 (top 3-8%). Our adaptation maps this to **per-codebook
+contrastive learning** with 126 negatives per anchor; the "informative
+interval" interpretation says only top 3-10% of negatives are
+informative, so α=0.5 is far too lenient — but the failure mode is the
+*opposite* of what naive transfer would predict:
+
+- Naive read: "α=0.5 keeps too many negatives → not hard enough".
+- Actual failure: "α=0.5 *removes* too many easy negatives → loses the
+  uniformity pressure that keeps codewords spread across codebooks".
+
+The reason is the structural difference between instance discrimination
+(where the goal is *each instance gets a unique embedding*) and
+compositional VQ (where the goal is *each instance gets a structured
+*combination* of codewords from M codebooks*). In the latter, easy
+negatives carry the signal "spread codewords apart"; removing them
+collapses similar images onto the same codeword and shrinks DB unique
+codes (9,193 → 7,214, −22%).
+
+This is a **paper-worthy negative result**: it sharpens the boundary
+between "hardness-aware contrastive learning" and "compositional code
+retrieval", motivating the kind of *moderate* hardness sampling our
+v81a's dynamic-τ already achieves implicitly via the soft confidence
+modulation of cumulative-probability thresholds.
+
+### Limitations / honest framing
+
+- We tested a single α=0.5. α=0.85 or 0.9 ("drop only the trivial
+  bottom 10-15% of negatives") might preserve uniformity pressure while
+  still gaining top-rank precision — *not yet tested*, but if it works
+  it would still validate the underlying Wang Eq 9 idea, just at a
+  parameter setting non-standard for instance-discrimination.
+- We swapped *out* dynamic-τ entirely. A v87 variant that *combines*
+  hard-neg α=0.85 *with* dynamic-τ kept on might be the cleaner
+  comparison: it would test whether hard-neg is **additive** to dyn-τ.
+- best_save=True means our reported v87a number reflects the ep9 peak.
+  A run without best_save (= last-epoch eval) would compare against v81a
+  ep59 0.6725; v87a ep59 0.6611, the gap would be wider (−0.011).
+
+### Suggested follow-up
+
+1. **v87b α=0.85** (Flickr25k same setup): conservative hardness pressure
+   that should preserve uniformity. If v87b ≥ v81a on P@1 *and* matches
+   v81a on P@10/P@100/P@1000, this is the right α for our setting.
+2. **v87c α=0.85 + dynamic-τ ON** (additive ablation): tests
+   "is hard-neg orthogonal to dyn-τ?". If v87c > v81a, both mechanisms
+   are complementary and we report a stacked variant.
+3. **Drop the hard-neg approach entirely, try MACL-style model-aware τ**
+   (Huang et al. ICML 2023, Algorithm 1): replace text-cosine dyn-τ with
+   τ_a = τ_0 · (1 + α(A − A_0)) using batch-mean positive alignment A.
+   Cleaner theoretical lineage; one hyperparameter; **uniformity
+   pressure preserved** (no negative masking).
+
+### Artifacts
+
+- Result dir:
+  `result/260527+flickr25k_setting1_v87a_v81base_hardNeg_alpha05+bs+64+e+60+proj_lr+0.001/`
+  - `compositional_eval.json` (B0/B1/B2 full)
+  - `codebook_drop_ablation.json` (per-cb ΔmAP, P@k)
+  - `pairwise_nmi.json` (6×6 NMI matrix)
+  - `codebook_grids/` (30 PNG)
+- Combined NMI: `docs/nmi_v87a_combined.json` (v62b/v79c/v81a/v87a).
+- Implementation: `config.py:--ntxent_hard_neg_alpha`,
+  `loss_siglip2.py:597-624`.
+
+### Paper-citation lineage
+
+- Wang & Liu, *Understanding the Behaviour of Contrastive Loss*
+  ([CVPR 2021, arXiv:2012.09740](https://arxiv.org/abs/2012.09740)).
+  Original hard-negative sampling formulation (Eq 9), uniformity-
+  tolerance dilemma definition. Our v87a is a per-codebook
+  adaptation of Eq 9.
+- Huang et al., *Model-Aware Contrastive Learning: Towards Escaping
+  the Dilemmas* ([ICML 2023, arXiv:2207.07874](https://arxiv.org/abs/2207.07874)).
+  Alternative escape from UTD via alignment-adaptive τ (Algorithm 1).
+  Identified as the natural fallback if hard-neg sampling fails (which
+  it did here).
+
+---
+
 ## 2026-05-26 — v83a entropy-adaptive top-p + mscoco_v81a validation
 
 🟢 / 🟡 Mixed. Two experiments were run in parallel:
@@ -294,86 +567,294 @@ Result dirs:
 
 ## 2026-05-26 — Compositional analysis of v81a SOTA — "6 active codebooks with graded contribution"
 
-🟢 Post-hoc analysis: pairwise NMI / drop ablation / compositional lift /
-qualitative grids on the new Flickr25k SOTA v81a. **Key finding: v81a sits
-in the exact sweet spot between v62b (all codebooks redundant) and v79c
-(5 specialised + 1 collapsed). All 6 codebooks remain active with graded
-drop influence, and raw mAP is highest of all three.** Full writeup in
-`docs/ANALYSIS_compositional_contribution.md` (Update 2026-05-26 v81a section).
+🟢 Post-hoc structural analysis of the new Flickr25k SOTA **v81a**
+(`(τ_min, τ_max) = (0.5, 0.9)` confidence-adaptive top-p,
+mAP **0.6879**, P@1 **0.7900**, unique 0.3462) using the same four-axis
+pipeline applied earlier to v62b/v79a/v79c: pairwise codebook NMI,
+codebook drop ablation, B0/B1/B2 compositional lift, and qualitative
+codebook grids.
 
-### Pairwise off-diagonal NMI (Flickr25k)
+**Headline finding — v81a is the structural sweet spot.** It sits in the
+exact middle of the previously analysed spectrum:
 
-| Model | mean | min | max | cb1-5 pair range | Status |
-|---|---:|---:|---:|---:|---|
-| v62b | 0.641 | 0.39 | 0.79 | 0.74-0.79 | all redundant |
-| v79a (ortho λ=0.1) | 0.572 | 0.35 | 0.73 | 0.60-0.73 | mild decoupling |
-| **v81a (SOTA)** | **0.461** | **0.31** | **0.57** | **0.43-0.57** | **balanced active** |
-| v79c (hard) | 0.291 | 0.05 (cb3 collapse) | 0.49 | 0.40-0.49 | specialised + collapse |
+| Property | v62b (soft) | v79c (hard) | **v81a (adaptive)** |
+|---|---|---|---|
+| Raw mAP | 0.6778 | 0.6703 (−0.008) | **0.6879 (+0.010)** |
+| Mean pairwise NMI | 0.641 (high redundancy) | 0.291 (low, but cb3 collapsed) | **0.461 (balanced)** |
+| Codebook collapse | no | **cb3 dead** | no (min NMI 0.31) |
+| Single-drop max ΔmAP | −0.0038 | −0.0085 (load concentrated) | **−0.0066 (graded)** |
+| Unique code ratio (test) | 0.075 | 0.165 | **0.346 (4.6×)** |
+| Per-cb B1 lift uniformity | mostly flat | cb3 = 0.003 | cb0/cb5 sharper, all >0.04 |
 
-v81a halves the cb1-5 pair NMI (0.78 → 0.50 mean) without producing a
-collapsed codebook (min NMI 0.31 vs v79c's 0.05).
+So v81a recovers v62b's "all 6 codebooks active" structure but with
+roughly half the cb1-5 mutual redundancy, while also gaining v79c's
+unique-code diversity — without v79c's cb3 collapse. **This is the first
+variant in the series whose mAP improvement is matched by an honest
+structural compositional improvement.** Full writeup is in
+`docs/ANALYSIS_compositional_contribution.md` (Update 2026-05-26 v81a
+section); below is the detailed numerical record.
 
-### Drop ablation ΔmAP (Flickr25k, full 2K queries)
+### Methodology and artifacts
+
+Analyses run (all default Flickr25k 2K queries × 23K DB):
+
+| Tool | Output |
+|---|---|
+| `scripts/pairwise_nmi.py` | `pairwise_nmi.json` per result dir + combined `docs/nmi_v81a_combined.json` |
+| `compositional_eval.py` (with grids) | `compositional_eval.json` + `codebook_grids/*.png` (30 grid images) |
+| `scripts/codebook_drop_ablation.py` (full Nq=2000) | `codebook_drop_ablation.json` |
+
+Code state used:
+- v81a result dir: `result/260526+flickr25k_setting1_v81a_v62b_adaptiveTopP_05_09+bs+64+e+60+proj_lr+0.001/`
+- v62b/v79a/v79c result dirs unchanged from earlier analyses (commit `e784ed8`).
+
+### 1. Pairwise codebook NMI
+
+`pairwise_nmi.py` computes `sklearn.metrics.normalized_mutual_info_score`
+between codebook assignment vectors `codebook_indices[:, m]` and
+`codebook_indices[:, m']` over all 23 000 DB items. Mean off-diagonal NMI
+is the canonical "how redundant are the codebooks?" summary.
+
+| Model | mean off-diag | min | max | unique codes (DB / 23K) |
+|---|---:|---:|---:|---:|
+| v62b | 0.6410 | 0.39 | 0.79 | 8,249 |
+| v79a (ortho λ=0.1) | 0.5721 | 0.35 | 0.73 | 12,520 |
+| **v81a** | **0.4613** | **0.3077** | **0.5712** | **9,193** |
+| v79c (hard routing) | 0.2914 | 0.0459 (cb3 collapse) | 0.4884 | 16,564 |
+
+Full v81a NMI matrix (6×6, symmetric, K_m ∈ {64, 64, 64, 64, 64, 60}):
+
+```
+         cb0    cb1    cb2    cb3    cb4    cb5
+ cb0   1.000  0.352  0.351  0.354  0.362  0.308
+ cb1   0.352  1.000  0.546  0.548  0.567  0.440
+ cb2   0.351  0.546  1.000  0.567  0.571  0.503
+ cb3   0.354  0.548  0.567  1.000  0.554  0.432
+ cb4   0.362  0.567  0.571  0.554  1.000  0.465
+ cb5   0.308  0.440  0.503  0.432  0.465  1.000
+```
+
+Structural observations:
+
+- **cb0 is still the "separate" channel**: NMI 0.31–0.36 with every other
+  codebook, mirroring the v62b cb0-vs-rest pattern (where cb0 had NMI
+  ≈ 0.39 with the others). The confidence-adaptive mask did *not* dissolve
+  the cb0/cb1-5 asymmetry — it just dampened the cb1-5 internal cluster.
+- **cb1-5 pairs: NMI 0.43–0.57 (mean ≈ 0.50)**, vs v62b's 0.74-0.79 cluster.
+  Median pair drop ≈ 0.27 NMI — nearly half the redundancy of v62b
+  removed. The structural redundancy among local codebooks is meaningfully
+  reduced but not eliminated.
+- **No collapsed codebook** (min off-diag 0.31). Contrast v79c, where cb3
+  had NMI 0.05 with everyone and was confirmed dead by drop ablation and
+  B1 lift. v81a does not pay this collapse cost.
+- **cb5 is the most decoupled local codebook** (NMI 0.44, 0.50, 0.43, 0.47
+  with cb1-4), which lines up with the qualitative grids below (cb5 = urban
+  surfaces / architecture — a topic distinct from cb1-4's people/portraits
+  cluster).
+
+### 2. Codebook drop ablation (full ΔmAP table)
+
+`codebook_drop_ablation.py` masks the 3 base positions of one codebook
+(both query and DB) and recomputes mAP / P@k over the full 2K × 23K
+Flickr25k retrieval. A *graded* drop pattern with no zero-contribution
+codebook is exactly what an honest compositional code should produce.
 
 | Model | base mAP | Δcb0 | Δcb1 | Δcb2 | Δcb3 | Δcb4 | Δcb5 |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| v62b | 0.6778 | -0.004 | -0.000 | -0.001 | -0.001 | +0.001 | -0.002 |
-| v79a | 0.6655 | -0.006 | -0.001 | +0.001 | -0.001 | -0.001 | -0.000 |
-| v79c | 0.6703 | -0.003 | **-0.009** | -0.002 | +0.001 | **-0.006** | -0.001 |
-| **v81a** | **0.6879** | **-0.0066** | -0.0003 | **-0.0045** | **-0.0029** | +0.0001 | +0.0006 |
+| v62b | 0.6778 | −0.0038 | −0.0001 | −0.0010 | −0.0010 | +0.0010 | −0.0016 |
+| v79a (ortho) | 0.6655 | −0.0062 | −0.0008 | +0.0011 | −0.0014 | −0.0007 | −0.0004 |
+| v79c (hard) | 0.6703 | −0.0034 | **−0.0085** | −0.0020 | +0.0006 ⚠ | **−0.0056** | −0.0006 |
+| **v81a** | **0.6879** | **−0.0066** | −0.0003 | **−0.0045** | **−0.0029** | +0.0001 | +0.0006 |
 
-v81a produces a graded contribution profile cb0 > cb2 > cb3 > rest, with
-*no* dead codebook (cb3 still contributes -0.0029 vs v79c cb3 = +0.0006).
-cb0 dependence is stronger than v62b (-0.0066 vs -0.0038); the adaptive
-top-p mechanism strengthens cb0 specialisation without starving locals.
+v81a full per-cb retrieval breakdown (P@1 / P@10 / P@100 / P@1000 of each
+drop run):
 
-### Compositional lift (B1 centered-text)
+| drop | mAP | ΔmAP | P@1 | P@10 | P@100 | P@1000 |
+|---|---:|---:|---:|---:|---:|---:|
+| baseline | 0.6879 | — | 0.7900 | 0.7891 | 0.7810 | 0.7607 |
+| cb0 | 0.6813 | **−0.0066** | 0.7590 | 0.7606 | 0.7537 | 0.7442 |
+| cb1 | 0.6876 | −0.0003 | 0.7975 | 0.7915 | 0.7805 | 0.7622 |
+| cb2 | 0.6834 | **−0.0045** | 0.7685 | 0.7878 | 0.7802 | 0.7579 |
+| cb3 | 0.6850 | **−0.0029** | 0.7845 | 0.7877 | 0.7798 | 0.7586 |
+| cb4 | 0.6880 | +0.0001 | 0.7750 | 0.7942 | 0.7810 | 0.7601 |
+| cb5 | 0.6885 | +0.0006 | 0.7865 | 0.7911 | 0.7801 | 0.7627 |
 
-| Model | B1 mean | per-cb B1 | Collapse? |
-|---|---:|---|---|
-| v62b | 0.057 | `[0.069, 0.050, 0.045, 0.049, 0.039, 0.090]` | no |
-| v79c | 0.049 | `[0.068, 0.055, 0.042, 0.003, 0.038, 0.091]` | **cb3 ≈ 0** |
-| **v81a** | **0.056** | `[0.083, 0.045, 0.042, 0.047, 0.041, 0.082]` | no |
+Observations:
 
-v81a's B1 lift matches v62b (≈ 0.056). The per-cb pattern is slightly
-sharper at cb0/cb5 than v62b without losing cb1-4.
+- **Graded contribution profile cb0 > cb2 > cb3 > {cb1, cb4, cb5} ≈ 0**.
+  Three codebooks have measurable individual influence; the other three
+  contribute negligibly *on top of* the rest at the single-drop level.
+  This is qualitatively different from v62b (cb0 alone, rest ≈ 0) and
+  v79c (cb1 + cb4 strong, cb0 moderate, cb3 dead).
+- **cb0 dominance is sharper than v62b** (−0.0066 vs −0.0038, ~1.7×).
+  Confidence-adaptive top-p strengthens cb0's load-bearing role while
+  *also* lifting cb2 (−0.0045, 4.5× v62b's cb2) and cb3 (−0.0029,
+  2.9× v62b's cb3).
+- **cb4 / cb5 single-drop ΔmAP positive (+0.0001 / +0.0006)** — within
+  retrieval noise but indicative that they are not individually
+  load-bearing. The P@1 drop on cb4 (0.7900 → 0.7750, −0.015) suggests
+  cb4 contributes to top-rank precision even when its mAP drop is null.
+- **No collapsed codebook**: cb1's tiny −0.0003 is *not* the v79c-cb3
+  story (cb3 there had NMI 0.05 + B1 lift 0.003 + drop +0.0006). v81a cb1
+  has NMI 0.44-0.57 with the others and B1 lift 0.045 — it is actively
+  contributing structure even if removing it alone barely moves mAP.
 
-### Qualitative grids (`result/<v81a>/codebook_grids/`)
+### 3. Compositional lift (B0 / B1 / B2)
 
-- cb0 cw002 = atmospheric landscapes (castles, sunsets, dramatic skies)
-- cb2 cw008 = low-light portraits (people in dim/coloured lighting)
-- cb3 cw043 = mixed people + animals + abstract texture (moderate coherence)
-- cb5 cw024 = urban surfaces / architectural details (man-made objects)
+`compositional_eval.py` measures **lift = (mean intra-cluster similarity)
+− (random partition baseline)**. B0 uses raw cached SigLIP2 text-part
+features, B1 centres them per-slot (removes the slot-specific SigLIP2
+baseline of ≈ 0.88), B2 uses `visual_global` and applies to *all* 23K DB
+items (text branch only sees the 23K captioned items in Flickr25k).
 
-Codebooks are less *sharply* specialised than v79c (where each grid had a
-strong theme + cb3 was random) but more *clearly* differentiated than v62b
-(where cb1-5 looked roughly interchangeable).
+Mean lift across codebooks:
 
-### Paper framing for the compositional claim
+| Model | B0 (raw text) | B1 (centered text) | B2 (visual_global) |
+|---|---:|---:|---:|
+| v62b | 0.0174 | 0.0570 | 0.0353 |
+| v79a | 0.0179 | 0.0578 | 0.0342 |
+| v79c | 0.0156 | 0.0494 | 0.0295 |
+| **v81a** | **0.0178** | **0.0559** | **0.0345** |
 
-> "v81a achieves the best of both worlds. Confidence-adaptive top-p routing
-> reduces inter-codebook redundancy (mean pairwise NMI 0.641 → 0.461)
-> *without* the codebook collapse v79c suffered (cb3 NMI 0.06, B1 ≈ 0).
-> Every codebook contributes measurably to retrieval (drop ΔmAP ranging
-> from −0.0066 for cb0 to ≈ 0 for cb4/cb5), and the unique-code ratio rises
-> 4.6× over v62b. The compositional-code claim is structurally supported:
-> six active channels with graded influence, not six redundant copies."
+v81a's B1 lift matches v62b within noise (0.056 vs 0.057) and beats v79c
+(0.049, dragged down by cb3 collapse). The mean magnitudes confirm that
+**v81a does not sacrifice semantic concentration to achieve its NMI
+reduction**.
 
-### Suggested follow-up
+v81a per-codebook lift breakdown:
 
-1. **2-codebook combinatorial drop**: cb0+cb2 vs cb0+cb5 etc. — does
-   cb1/cb4/cb5 contribute superadditively when cb0 is masked?
-2. **v81a NMI/drop trajectory across epochs** (ep9/29/59): when does the
-   "active 6 + graded" structure form? Early or late in training?
-3. **Apply same analysis to mscoco_v81a** (new MSCOCO SOTA): does
-   confidence-adaptive top-p produce the same balanced structure there?
+| | cb0 | cb1 | cb2 | cb3 | cb4 | cb5 |
+|---|---:|---:|---:|---:|---:|---:|
+| B0 raw text lift | 0.0408 | 0.0163 | 0.0124 | 0.0106 | 0.0117 | 0.0150 |
+| B1 centered text lift | **0.0830** | 0.0447 | 0.0410 | 0.0463 | 0.0402 | **0.0802** |
+| B2 visual_global lift | **0.0663** | 0.0292 | 0.0272 | 0.0288 | 0.0316 | 0.0236 |
 
-### Artifacts
-- Per-result: `compositional_eval.json`, `pairwise_nmi.json`,
-  `codebook_drop_ablation.json`, `codebook_grids/` (30 PNG).
-- Combined NMI matrix: `docs/nmi_v81a_combined.json`.
-- Full writeup: `docs/ANALYSIS_compositional_contribution.md` (Update
-  2026-05-26 v81a section).
+Comparison of per-cb B1 across models:
+
+| Model | cb0 | cb1 | cb2 | cb3 | cb4 | cb5 | min |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| v62b | 0.069 | 0.050 | 0.045 | 0.049 | 0.039 | 0.090 | 0.039 |
+| v79c | 0.068 | 0.055 | 0.042 | **0.003** ⚠ | 0.038 | 0.091 | **0.003 (dead)** |
+| **v81a** | **0.083** | 0.045 | 0.042 | 0.047 | 0.041 | **0.082** | 0.041 |
+
+- **cb0 and cb5 are sharper than v62b** (cb0: 0.069 → 0.083, +20%; cb5:
+  0.090 → 0.082, slightly down but still the second-highest local). These
+  are the two "anchor" codebooks: cb0 is global content / atmosphere,
+  cb5 is the most decoupled local channel.
+- **cb1-4 are mildly compressed** (0.045-0.050 → 0.041-0.047) but never
+  collapse. The narrative "v81a focuses contribution at cb0 + cb5 while
+  keeping cb1-4 alive" is consistent across B1 lift, drop ablation, and
+  NMI.
+- **B2 visual_global** shows the same shape with cb0 dominant (0.066) —
+  v81a inherits the v62b/mscoco_v78a pattern where cb0 carries the
+  visual-global concentration.
+
+### 4. Qualitative grids
+
+Inspected 5 of the 30 saved 3×3 grids in
+`result/<v81a>/codebook_grids/`:
+
+- **cb0 cw002** — atmospheric landscapes: castles, sunsets, ferris wheel
+  silhouettes, dramatic skies. Strong global-scene/illumination theme.
+- **cb0 cw023** — mixed (texture studies, sculptures, interiors) — a
+  less coherent cb0 codeword; v81a does not produce uniformly sharp
+  topics across all codewords, only on the modal ones.
+- **cb2 cw008** — low-light portraits: people in dim or coloured
+  lighting (red, blue cast). Clearly a person-with-lighting topic.
+- **cb3 cw043** — mixed people, animals, abstract texture. Moderate
+  coherence, not dead — distinguishable theme but with overlap into
+  cb2's portrait cluster.
+- **cb5 cw024** — urban/architectural surfaces: shopfronts, bridges,
+  signage, modern architecture. The "man-made" channel, distinct from
+  cb1-4's predominantly people/nature material.
+
+Qualitatively v81a codebooks are **less sharply specialised than v79c**
+(v79c gave near-monochromatic topics per grid, at the cost of cb3 being
+random) but **more clearly differentiated than v62b** (where cb1-5 grids
+looked largely interchangeable). The pattern matches B1 and drop
+ablation: cb0 and cb5 are the recognisable anchors; cb1-4 carry
+overlapping but real visual primitives.
+
+### 5. Why this is paper-worthy beyond raw mAP
+
+Prior compositional-code claims (v62b) were vulnerable because:
+
+1. Six codebooks were nominal but cb1-5 had pairwise NMI 0.74–0.79
+   (essentially redundant copies of each other on top of cb0).
+2. Single-codebook drop influenced mAP by less than 0.4%, suggesting the
+   "compositional" structure was decorative rather than load-bearing.
+
+v79c forced the issue by hard one-hot routing and demonstrated that *one
+can* split the codebooks (NMI 0.29), but the price was a collapsed
+codebook and a 0.8 mAP regression.
+
+v81a is the **first variant in this series whose mAP gain and structural
+compositional improvement go in the same direction**:
+
+- mAP **+0.010 over v62b** (and the strongest of any routing variant tested).
+- Pairwise NMI **−0.18** (0.64 → 0.46) without producing a dead codebook.
+- Single-drop influence **graded from −0.0066 to ≈ 0**, with three
+  codebooks meaningfully load-bearing (vs one in v62b).
+- Unique code ratio **4.6×** v62b.
+
+This validates the framing "confidence-adaptive top-p routing produces
+six *active* compositional channels with graded influence, not six
+redundant copies", which can stand as a structural claim independent of
+the raw retrieval number.
+
+### 6. Limitations of the v81a structural story
+
+- **cb1, cb4, cb5 single-drop ΔmAP ≈ 0**: nominal six channels but
+  *effective* load-bearing channels under single-codebook drop are 3
+  (cb0, cb2, cb3). Reviewers may ask whether the 6 are really used.
+  Combinatorial / 2-codebook drop is needed to answer this — see
+  follow-up #1 below.
+- **cb0 dominance is stronger, not weaker, than v62b** (−0.0066 vs
+  −0.0038). v81a improves compositional structure relative to v62b but
+  does *not* dissolve the "global slot + local cluster" asymmetry. That
+  asymmetry survives the routing change.
+- **B0 / B1 / B2 lifts ≈ v62b**: v81a does not raise the absolute lift
+  beyond v62b; it just redistributes it more sharply. Honest framing
+  should emphasise *structural change* (NMI, drop pattern, unique
+  ratio), not *semantic concentration* (B-metrics).
+
+### 7. Suggested follow-up
+
+1. **2-codebook combinatorial drop ablation on v81a**: cb0+cb2, cb0+cb5,
+   cb1+cb4, etc. If cb4 or cb5 single-drops are ≈ 0 but {cb0, cb4}
+   double-drop is much worse than {cb0} alone, that demonstrates
+   *superadditive* contribution — directly answers the "are 6 channels
+   really used?" question. Reuses `scripts/codebook_drop_ablation_fast.py`
+   with a 2-mask loop; should take < 5 min on Flickr25k.
+2. **Epoch-trajectory analysis on v81a**: extract `extract_db.npz` from
+   intermediate checkpoints (or recompute mid-eval NMI from the cached
+   routing logs) at ep9 / ep29 / ep59. When does the "active 6 + graded"
+   structure emerge? Does it correlate with the
+   `val_routing_mean_effective_k` 4.79 → 3.32 curve?
+3. **Apply same four-axis analysis to mscoco_v81a** (the new MSCOCO
+   final-checkpoint SOTA): does confidence-adaptive top-p produce the
+   same active-with-graded structure on MSCOCO, or does MSCOCO's
+   inherent cb0-dominance pattern (drop Δcb0 = −0.019) wash it out?
+   Use `scripts/codebook_drop_ablation_fast.py --subset_queries 1000`.
+4. **MSCOCO B1 cache fix**: the current `mscoco_siglip2_v4plus` cache
+   only stores Qwen captions for a 10K subset disjoint from the
+   retrieval DB, so MSCOCO text-based B0/B1 lift is unmeasurable.
+   Extending the cache or extracting a `extract_train.npz` with captions
+   would unlock the same B1 comparison on MSCOCO.
+
+### 8. Result directories and artifacts
+
+- v81a result dir:
+  `result/260526+flickr25k_setting1_v81a_v62b_adaptiveTopP_05_09+bs+64+e+60+proj_lr+0.001/`
+  - `compositional_eval.json` (B0/B1/B2 + per-cb breakdown)
+  - `codebook_drop_ablation.json` (full per-drop P@k)
+  - `pairwise_nmi.json` (6×6 NMI matrix + summary stats)
+  - `codebook_grids/` (30 PNG, 5 codewords × 6 codebooks)
+- Combined NMI across v62b / v79a / v79c / v81a:
+  `docs/nmi_v81a_combined.json`.
+- Detailed analysis writeup:
+  `docs/ANALYSIS_compositional_contribution.md` (Update 2026-05-26 v81a
+  section).
 
 ---
 
