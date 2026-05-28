@@ -797,6 +797,21 @@ class Config():
                  "1.0 disables (legacy, all negatives kept). Recommended "
                  "0.25-0.5 for compositional retrieval; the positive pair "
                  "is always preserved.")
+        # v91 (text-to-DNA-hash matching): force the same 36-bit DNA code
+        # to be retrievable from either the image visual_tokens path OR a
+        # text-only path that reuses the same quantizer + codon heads.
+        # Implements Option F from the 2026-05-28 dynamic-tau discussion:
+        # text_part_tokens [B, 6, D] -> quantizer (no EMA) -> codon_heads
+        # -> text_continuous_code [B, 18, 4]. MSE between this and the
+        # image-side continuous_code is added to the total loss.
+        # 0 (default) disables (legacy bit-exact). Recommended 0.05-0.10.
+        loss_arg.add_argument('--lambda_text_hash',
+            type=float, default=0.0,
+            help='v91: weight for text-to-image DNA-hash matching loss. '
+                 'Computes MSE between text-derived continuous_code (via '
+                 'a parallel text-only pass through the shared quantizer '
+                 'and codon_heads) and image-derived continuous_code. '
+                 '0 disables (legacy). Recommended 0.05-0.10.')
         # v73 (Exp 7): global DNA NtXent auxiliary loss alongside per-codebook.
         # When `ntxent_mode=per_codebook`, also compute the global NtXent
         # (whole 18-codon DNA code) using static base temperature and add

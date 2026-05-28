@@ -1228,6 +1228,11 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.routing_adaptive_topp_min   = float(getattr(args, "routing_adaptive_topp_min", 0.5))
         self.routing_adaptive_topp_max   = float(getattr(args, "routing_adaptive_topp_max", 0.9))
         self.routing_adaptive_topp_entropy = bool(getattr(args, "routing_adaptive_topp_entropy", False))
+        # v91: text-to-DNA-hash matching. When lambda_text_hash > 0, the
+        # forward pass *also* runs the text_part_tokens through the shared
+        # quantizer + codon_heads to produce a text-derived continuous_code,
+        # which the loss matches to the image-derived continuous_code via MSE.
+        self.lambda_text_hash            = float(getattr(args, "lambda_text_hash", 0.0))
         # v79c (#4.1): hard routing via Gumbel-Softmax (one-hot per patch)
         self.routing_hard           = bool(getattr(args, "routing_hard",      False))
         self.routing_hard_tau       = float(getattr(args, "routing_hard_tau", 1.0))
@@ -1781,6 +1786,7 @@ class SigLIP2SemanticOTModel(nn.Module):
             "dna_hash_code_hard":                 None,
             "dna_hash_code_st":                   None,
             "base_indices":                       None,
+            "text_continuous_code":               None,
             "loss_text_anchor":                   None,
             "hash_recon_pred":                    None,
             "dual_hash_semantic":                 None,
@@ -2010,6 +2016,75 @@ class SigLIP2SemanticOTModel(nn.Module):
         dna_hash_code_st   = dna_hash_codes_per_codebook_st  .reshape(B, Mp3, 4)   # [B, 18, 4]
         base_indices       = base_indices_per_codebook       .reshape(B, Mp3)      # [B, 18]
 
+        # 9b) v91 — TEXT-DNA path (Option F: text-to-image hash matching)
+        # When lambda_text_hash > 0, push text_part_tokens [B, 6, D] through
+        # the *same* quantizer + codon_heads to produce a text-derived
+        # continuous_code [B, 18, 4]. Loss will MSE-match this to the
+        # image-derived continuous_code. We:
+        #   (a) call quantizer with EMA temporarily disabled so the text
+        #       pass doesn't move the codebook (image is the canonical
+        #       update signal),
+        #   (b) reuse the same codon-residual mechanism (text-residual is
+        #       text_part_tokens - text_quantized_raw),
+        #   (c) intentionally SKIP the global gate mixing — text already
+        #       has its own per-slot semantic, no need to inject cb0.
+        # `text_part_tokens` is only set inside the training-time text
+        # routing branch. If it's None and we still have cached
+        # text_part_raw, run text_adapter on it directly so the text-DNA
+        # path also works at inference.
+        if (
+            float(self.lambda_text_hash) > 0.0
+            and text_part_tokens is None
+            and cached_text_part_raw is not None
+        ):
+            _raw_for_text_dna = cached_text_part_raw
+            if (
+                self.codebook_text_prompts is not None
+                and _raw_for_text_dna.shape[-1] == self.codebook_text_prompts.shape[-1]
+            ):
+                _raw_for_text_dna = _raw_for_text_dna + self.codebook_text_prompts.unsqueeze(0)
+            if isinstance(self.text_adapter, nn.ModuleList):
+                _per_slot = [self.text_adapter[m](_raw_for_text_dna[:, m, :])
+                             for m in range(_raw_for_text_dna.shape[1])]
+                text_part_tokens = torch.stack(_per_slot, dim=1)
+            else:
+                text_part_tokens = self.text_adapter(_raw_for_text_dna)
+        text_continuous_code = None
+        if (
+            float(self.lambda_text_hash) > 0.0
+            and text_part_tokens is not None
+            and text_part_tokens.shape == (B, NUM_SEMANTIC_PARTS, D)
+        ):
+            # (a) text quantization, EMA-disabled
+            prev_train = self.quantizer.training
+            self.quantizer.eval()
+            try:
+                tq_out = self.quantizer(text_part_tokens)
+            finally:
+                if prev_train:
+                    self.quantizer.train()
+            text_q_st       = tq_out["quantized_tokens"]       # [B, 6, D]  STE
+            text_q_raw      = tq_out["quantized_tokens_raw"]   # [B, 6, D]  codeword
+            text_cb_indices = tq_out["codebook_indices"]       # [B, 6]
+            # (b) text codon-residual
+            if self.codon_residual_gamma > 0.0:
+                text_codon_residual = text_part_tokens - text_q_raw
+            else:
+                text_codon_residual = None
+            # (c) skip global gate -> head input == text codeword directly
+            text_head_inputs = text_q_st
+            text_continuous_list = []
+            for m, head in enumerate(self.codon_heads):
+                r_m = (text_codon_residual[:, m, :]
+                       if text_codon_residual is not None else None)
+                t_m = (text_part_tokens[:, m, :] if self.codon_text_anchor else None)
+                h_out = head(text_head_inputs[:, m, :],
+                             residual=r_m,
+                             gamma=self.codon_residual_gamma,
+                             text_chunks=t_m)
+                text_continuous_list.append(h_out["continuous_code"])  # [B, 3, 4]
+            text_continuous_code = torch.stack(text_continuous_list, dim=1).reshape(B, Mp3, 4)
+
         # 10) shape sanity --------------------------------------------------
         assert local_routing_matrix.shape == (B, N, NUM_LOCAL_PARTS), (
             f"local_routing_matrix shape {tuple(local_routing_matrix.shape)} "
@@ -2070,6 +2145,12 @@ class SigLIP2SemanticOTModel(nn.Module):
             "dna_hash_code_hard":                dna_hash_code_hard,                 # [B, 18, 4]
             "dna_hash_code_st":                  dna_hash_code_st,                   # [B, 18, 4]
             "base_indices":                      base_indices,                       # [B, 18]
+
+            # v91 text-to-image DNA-hash matching path. None when
+            # lambda_text_hash == 0; otherwise [B, 18, 4] continuous code
+            # derived from text_part_tokens by reusing the shared
+            # quantizer (EMA-disabled) and codon_heads.
+            "text_continuous_code":              text_continuous_code,               # [B, 18, 4] or None
 
             # v66 text-anchored prototype head: per-batch CE between visual
             # codon logits and text-derived target classes, summed across

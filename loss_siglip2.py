@@ -182,6 +182,11 @@ class DNACodonHashLoss(nn.Module):
         # text_adapter into a shared space where the OT transport cost is
         # small. Default 0.0 keeps it off; v11 sweet spot was 0.05.
         self.lambda_wasserstein = float(getattr(cfg, "lambda_wasserstein", 0.0))
+        # v91 (text-to-DNA-hash matching): MSE between image-derived
+        # continuous_code and text-derived continuous_code (latter produced
+        # by the model's parallel text path through the shared quantizer
+        # and codon_heads). 0 = disabled (legacy bit-exact).
+        self.lambda_text_hash   = float(getattr(cfg, "lambda_text_hash", 0.0))
         # v66: per-codon text-anchored aux CE loss weight. The model computes
         # `out["loss_text_anchor"]` per forward (sum across 6 codebooks). 0
         # default keeps the loss off.
@@ -912,6 +917,18 @@ class DNACodonHashLoss(nn.Module):
         else:
             loss_wasserstein = u.new_zeros(())
 
+        # v91 text-to-image DNA-hash matching (None-safe). When enabled, the
+        # model's forward also produced a text-derived continuous_code
+        # ([B, 18, 4]) via the shared quantizer + codon_heads on
+        # text_part_tokens. We MSE-match it to the image-derived
+        # continuous_code so the same 36-bit hash is retrievable from
+        # either modality. Gradient flows through both sides.
+        text_cc = outputs.get("text_continuous_code")
+        if text_cc is not None and self.lambda_text_hash > 0.0:
+            loss_text_hash = F.mse_loss(text_cc, u)
+        else:
+            loss_text_hash = u.new_zeros(())
+
         # v29 paired-aug NtXent on DNA codes (None-safe). Requires the
         # trainer to forward the model on a second augmented view per image
         # and pass that output dict via `outputs_view2`. Both view dicts
@@ -1098,6 +1115,7 @@ class DNACodonHashLoss(nn.Module):
             + self.lambda_dual_semantic   * loss_dual_semantic
             + self.lambda_dual_instance   * loss_dual_instance
             + self.lambda_codebook_ortho  * loss_codebook_ortho
+            + self.lambda_text_hash       * loss_text_hash
         )
 
         return {
@@ -1108,6 +1126,7 @@ class DNACodonHashLoss(nn.Module):
             "loss_quant":        loss_quant,
             "loss_anchor":       loss_anchor,
             "loss_wasserstein":  loss_wasserstein,
+            "loss_text_hash":    loss_text_hash,
             "loss_recon":        loss_recon,
             "loss_ntxent":       loss_ntxent,
             "loss_ortho_text":   loss_ortho_text,
