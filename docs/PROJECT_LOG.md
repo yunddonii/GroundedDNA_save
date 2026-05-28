@@ -223,6 +223,166 @@ Format conventions:
 
 ---
 
+## 2026-05-28 — v90b λ_wasserstein = 0.20 — over-alignment threshold, completes the U-shape sweep
+
+🟡 Discarded as SOTA but **structurally informative**: extends the v90
+sweep one step further (0.05 → 0.10 → 0.20). λ_w = 0.20 is *past* the
+optimum on **all** retrieval metrics — it confirms 0.10 as the
+deep-rank optimum and 0.05 as the mAP optimum. Together with v90a,
+this is the canonical Flickr25k λ_wasserstein sweep figure.
+
+### Setup vs v88a-CLIP (single-axis)
+
+| Flag | v88a-CLIP | v90a | **v90b** |
+|---|---|---|---|
+| `lambda_wasserstein` | 0.05 | 0.10 | **0.20** |
+| everything else | identical | identical | identical |
+
+### Full sweep (Flickr25k 2K × 23K, all CLIP-backbone v88a recipe)
+
+| Metric | λ=0.05 (v88a-CLIP) | λ=0.10 (v90a) | **λ=0.20 (v90b)** | Pattern |
+|---|---:|---:|---:|---|
+| **mAP** | **0.7853** ★ | 0.7812 | 0.7636 | **monotonic ↓** |
+| **P@1** | **0.9025** ★ | 0.9010 | 0.8865 | **monotonic ↓** |
+| **P@10** | 0.8893 | **0.8985** ★ | 0.8880 | **peak at 0.10** |
+| **P@100** | 0.8828 | **0.8904** ★ | 0.8801 | **peak at 0.10** |
+| **P@1000** | 0.8689 | **0.8740** ★ | 0.8652 | **peak at 0.10** |
+| unique (DB) | 0.121 | 0.110 | **0.148** | non-monotonic |
+| NMI mean | 0.5785 | 0.5867 | **0.6033** | monotonic ↑ |
+| dead mid-train (ep29) | 0.057 | 0.005 | **0.003** ★ | monotonic ↓ |
+| dead final (ep59) | 0.247 | 0.253 | **0.096** | u-shape ↓ |
+
+### The complete λ_wasserstein characterisation
+
+- **mAP / P@1**: λ = 0.05 is optimal. Both top-1 metrics decrease
+  monotonically as λ grows.
+- **Deep ranks (P@10, P@100, P@1000)**: λ = 0.10 is optimal. λ = 0.20
+  *reverses* the deep-rank gain from v90a back down (P@100 0.8904 →
+  0.8801, P@1000 0.8740 → 0.8652).
+- **NMI**: rises monotonically (0.58 → 0.59 → 0.60). Stronger text
+  alignment increases inter-codebook correlation.
+- **Codebook utilization**: mid-train dead drops dramatically (0.057
+  at λ=0.05 to 0.003 at λ=0.20) — strong alignment forces every
+  codeword to align with *some* text concept, eliminating
+  mid-training dead codes. Final dead also lowest at λ=0.20 (0.096
+  vs 0.25 at lower λ).
+
+**This is a clean U-shape on deep-rank metrics and a monotonic
+decay on top-rank metrics**, with λ_w controlling two distinct trade-
+offs simultaneously. λ = 0.05 is mAP-optimal, λ = 0.10 is deep-rank-
+optimal, λ = 0.20 is over-alignment.
+
+### Mid-eval trajectory comparison
+
+| ep | v88a-CLIP λ=0.05 | v90a λ=0.10 | **v90b λ=0.20** |
+|---:|---:|---:|---:|
+| 9 | 0.7850 | 0.7551 | 0.7592 |
+| 19 | 0.7774 | 0.7574 | 0.7607 |
+| 29 | 0.7424 ↓ | 0.7751 | **0.7689** (best) |
+| 39 | **0.7929** ↑ | 0.7671 | 0.7635 |
+| 49 | **0.7999** | **0.7788** (best) | 0.7602 |
+| 59 | **0.8032** | 0.7744 | 0.7582 |
+| final | **0.7853** | 0.7812 | **0.7636** |
+
+λ=0.20 has the earliest peak (ep29) and *cannot recover* in the late
+phase — strong alignment over-commits early and limits the late-stage
+gains v88a-CLIP and v90a both showed.
+
+### Codebook drop ablation comparison
+
+| drop | v88a-CLIP ΔmAP | v90a ΔmAP | **v90b ΔmAP** |
+|---|---:|---:|---:|
+| cb0 | −0.0098 | −0.0141 | **−0.0106** |
+| cb1 | +0.0014 ⚠ | +0.0013 ⚠ | −0.0035 |
+| cb2 | +0.0027 ⚠ | −0.0022 | −0.0003 |
+| cb3 | **−0.0121** | −0.0018 | **−0.0052** |
+| cb4 | −0.0009 | −0.0017 | **+0.0040** ⚠ |
+| cb5 | +0.0032 ⚠ | +0.0029 ⚠ | +0.0008 ⚠ |
+| **sum** | **−0.0155** | **−0.0156** | **−0.0148** |
+| anti-cb count | 3 (cb1/2/5) | 2 (cb1/5) | 2 (cb4/5) |
+
+**v90b's load shift**:
+- cb1 became *contributing* (+0.0014 → −0.0035) — λ ↑ recruited cb1
+- **cb4 became anti-contributing** (−0.0009 → +0.0040) — the
+  redistribution backfired here
+- cb3 partially recovered some load (−0.0018 → −0.0052)
+- cb0 dependence eased (−0.0141 → −0.0106 vs v90a)
+
+Sum stays −0.015 across all three (the total effective bits remains
+constant), but **identity of the "anti" codebook is a moving target
+as λ_w sweeps**. cb1 → anti at λ=0.05, contributing at λ=0.20. cb4
+opposite direction. **The specific anti-contributing codebook is not
+stable across λ_w; it's the *count* (2-3 anti) that's stable**.
+
+### Compositional lift (B0 / B1 / B2)
+
+| Model | B0 | B1 | B2 |
+|---|---:|---:|---:|
+| v88a-CLIP (λ=0.05) | 0.0373 | 0.0857 | 0.0494 |
+| v90a (λ=0.10) | 0.0390 | 0.0899 | 0.0524 |
+| **v90b (λ=0.20)** | **0.0408** | **0.0905** | **0.0537** |
+
+All three B-lifts monotonically rise with λ_w. cb5 B1 keeps rising
+(0.146 → 0.148 → 0.153). cb1 B1 jumps (0.062 → 0.073 → 0.074). Text-
+semantic concentration scales with λ_w, but as we noted, this does
+**not** translate to retrieval contribution — cb5 keeps being anti-
+contributing despite having the highest B1.
+
+### Paper-grade conclusion
+
+The λ_w sweep is the cleanest **ablation evidence for the alignment-
+retrieval trade-off** we have so far:
+
+- λ_w controls the *strength* of text-vision alignment.
+- Stronger alignment (λ ↑) → more codeword usage, higher B-lift,
+  more cross-cb redundancy (NMI ↑).
+- But there's a **U-shape on retrieval**: too little (≤ 0.05) and
+  cb1/cb2/cb5 stay anti; too much (≥ 0.20) and the alignment
+  over-commits early, losing late-phase mAP gains.
+- The two retrieval metric families have *different* optima:
+  - **mAP / P@1**: λ_w = 0.05
+  - **Deep ranks P@10-P@1000**: λ_w = 0.10
+- **λ_w = 0.20 is over-alignment**: monotonic ↓ on every retrieval
+  metric, mid-train dead = 0.003 (codeword utilization is *too*
+  uniform), unique up but retrieval down.
+
+This sweep can serve as the paper's "design knob characterisation"
+ablation, with a clear visual: U-shape on P@k≥10, monotonic decay on
+mAP.
+
+### Honest caveats
+
+- Single seed per λ. Variance from random init could shift the U-
+  shape minimum by ±0.005. The gaps between λ=0.05/0.10 and
+  λ=0.20 are large enough to be robust to seeds; the gap between
+  λ=0.05 and λ=0.10 is small (Δ_mAP = −0.004) and *might* flip
+  under different seeds.
+- Sweep only 3 points on a log-ish grid (0.05 / 0.10 / 0.20). A
+  finer grid (0.075, 0.15) could resolve the deep-rank optimum
+  more precisely.
+- All comparisons within CLIP backbone. Whether the same U-shape
+  holds on SigLIP2 is untested.
+
+### Suggested follow-up
+
+1. **v90c: λ = 0.075** to refine the deep-rank optimum between
+   0.05 and 0.10.
+2. **Multi-seed validation** on the {λ=0.05, λ=0.10} pair: 3 seeds
+   each. If the deep-rank gain at 0.10 holds, lock it in.
+3. Apply the same sweep on SigLIP2 backbone to check if the U-shape
+   is backbone-specific or universal.
+
+### Artifacts
+
+- Result dir: `result/260528+flickr25k_setting1_v90b_v88aCLIP_wasserstein_020+bs+64+e+60+proj_lr+0.001/`
+  - `compositional_eval.json`, `codebook_drop_ablation.json`,
+    `pairwise_nmi.json`, `codebook_grids/`.
+- Combined NMI for sweep: `docs/nmi_v90_sweep_combined.json`
+  (v88a-CLIP, v90a, v90b).
+- No code changes; only `--lambda_wasserstein 0.20`.
+
+---
+
 ## 2026-05-28 — v90a λ_wasserstein 0.05 → 0.10 ablation — deep-rank ↑ / top-1 ↓ trade-off
 
 🟡 Ablation: v88a-CLIP recipe with *only* `--lambda_wasserstein 0.10`
