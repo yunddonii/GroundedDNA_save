@@ -37,6 +37,9 @@ CODEBOOK_TEXT_KEYS_V2: Tuple[str, ...] = (
 )
 
 DEFAULT_SIGLIP2_TOKENIZER_NAME = "google/siglip2-base-patch16-224"
+# Companion default for the CLIP backbone (openai/clip-vit-base-patch16).
+# The OpenAI CLIP tokenizer ships with the same checkpoint name as the model.
+DEFAULT_CLIP_TOKENIZER_NAME    = "openai/clip-vit-base-patch16"
 DEFAULT_FALLBACK_TEXT = "none"
 
 
@@ -106,6 +109,24 @@ def build_siglip2_text_tokenizer(name: str = DEFAULT_SIGLIP2_TOKENIZER_NAME):
     except ImportError as e:
         raise ImportError(
             "transformers is required to load the SigLIP2 tokenizer. "
+            "Install via `pip install 'transformers>=4.45'`."
+        ) from e
+    return AutoTokenizer.from_pretrained(name)
+
+
+def build_clip_text_tokenizer(name: str = DEFAULT_CLIP_TOKENIZER_NAME):
+    """Lazy-import the OpenAI-CLIP tokenizer.
+
+    Companion to ``build_siglip2_text_tokenizer`` for the CLIP backbone path.
+    The downstream `tokenize_codebook_texts` helper is tokenizer-agnostic
+    -- it relies only on the standard ``__call__`` signature and on
+    ``pad_token_id``.
+    """
+    try:
+        from transformers import AutoTokenizer
+    except ImportError as e:
+        raise ImportError(
+            "transformers is required to load the CLIP tokenizer. "
             "Install via `pip install 'transformers>=4.45'`."
         ) from e
     return AutoTokenizer.from_pretrained(name)

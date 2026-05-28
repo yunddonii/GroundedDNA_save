@@ -45,6 +45,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from models.pretrained_backbone import build_pretrained_backbone, DEFAULT_BACKBONE
+from models.pretrained_backbone_clip import (
+    build_clip_backbone,
+    DEFAULT_CLIP_BACKBONE,
+)
 from models.visual_encoder import VisualEncoder
 from models.text_encoder import TextEncoder
 from models.adapters import (
@@ -1034,24 +1038,62 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.batch_size = int(getattr(args, "batch_size", 1))
 
         # ---------- backbone (loaded once, shared between two encoders) ---
-        backbone_name = (
-            getattr(args, "siglip2_backbone", None)
-            or getattr(args, "backbone_name", None)
-            or DEFAULT_BACKBONE
-        )
-        self.backbone = build_pretrained_backbone(backbone_name)
+        # Backbone family is selected by --backbone_type ('siglip2' default,
+        # or 'clip'). VisualEncoder / TextEncoder only touch the duck-typed
+        # interface (`.vision_hidden_dim`, `.text_hidden_dim`,
+        # `.projection_dim`, `.vision_model`, `.text_model`, `.model`) which
+        # both `SigLIP2Backbone` and `CLIPBackbone` implement.
+        self.backbone_type: str = str(getattr(args, "backbone_type", "siglip2"))
+        if self.backbone_type not in ("siglip2", "clip"):
+            raise ValueError(
+                f"[model_siglip2] backbone_type must be 'siglip2' or 'clip', "
+                f"got {self.backbone_type!r}"
+            )
+        if self.backbone_type == "clip":
+            clip_name = (
+                getattr(args, "clip_backbone", None)
+                or DEFAULT_CLIP_BACKBONE
+            )
+            self.backbone = build_clip_backbone(clip_name)
+        else:
+            backbone_name = (
+                getattr(args, "siglip2_backbone", None)
+                or getattr(args, "backbone_name", None)
+                or DEFAULT_BACKBONE
+            )
+            self.backbone = build_pretrained_backbone(backbone_name)
 
         # The two encoders share the same dual-encoder OBJECT, but read
         # disjoint sub-modules: vision_model vs text_model. The two towers
-        # have no tied weights, by SigLIP2 design.
+        # have no tied weights, by SigLIP2 / CLIP design.
         self.visual_encoder = VisualEncoder(backbone=self.backbone)
         self.text_encoder   = TextEncoder  (backbone=self.backbone)
 
         # ---------- d_model & adapter dims --------------------------------
-        proj_dim = self.visual_encoder.get_output_dim()  # SigLIP2 projection_dim
+        # proj_dim is the backbone's shared image/text embedding dim:
+        #   SigLIP2-base-patch16-224: 768   (== vision_hidden, divisible by 3)
+        #   CLIP-ViT-B/16          : 512   (NOT divisible by 3)
+        # d_model defaults to proj_dim, BUT the codon head requires
+        # d_model % 3 == 0 (chunk = d_model // 3). When backbone=clip we
+        # therefore promote the default to 768 (== vision_hidden_dim for both
+        # SigLIP2 and CLIP-B/16) which keeps chunk=256 identical to the
+        # SigLIP2 path. Users can still override via --d_model.
+        proj_dim = self.visual_encoder.get_output_dim()                 # backbone projection_dim
         self.proj_dim: int = int(proj_dim)
         d_model_arg = getattr(args, "d_model", None)
-        self.d_model: int = int(d_model_arg) if d_model_arg is not None else int(proj_dim)
+        if d_model_arg is not None:
+            self.d_model: int = int(d_model_arg)
+        elif self.backbone_type == "clip":
+            # vision_hidden_dim is 768 for clip-vit-base-patch16; pick that so
+            # visual_adapter does 768 -> 768 (residual MLP) and text_adapter
+            # does 512 -> 768 (up-projection). chunk = 256, identical to
+            # SigLIP2 defaults.
+            self.d_model: int = int(self.visual_encoder.hidden_dim)
+            print(f"[model_siglip2] backbone_type=clip with d_model unset -> "
+                  f"defaulting d_model={self.d_model} (= visual hidden_dim) so "
+                  f"d_model % 3 == 0 holds for CodonHead.")
+        else:
+            self.d_model: int = int(proj_dim)
         adapter_hidden  = getattr(args, "adapter_hidden_dim", None)
         adapter_hidden  = int(adapter_hidden) if adapter_hidden is not None else int(self.d_model * 2)
         adapter_dropout = float(getattr(args, "adapter_dropout", 0.0))

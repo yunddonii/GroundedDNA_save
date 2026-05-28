@@ -30,9 +30,11 @@ from .text_description_processor import (
     CODEBOOK_TEXT_KEYS,
     DEFAULT_FALLBACK_TEXT,
     DEFAULT_SIGLIP2_TOKENIZER_NAME,
+    DEFAULT_CLIP_TOKENIZER_NAME,
     extract_codebook_texts,
     batch_extract_codebook_texts,
     build_siglip2_text_tokenizer,
+    build_clip_text_tokenizer,
     tokenize_codebook_texts,
 )
 
@@ -81,9 +83,11 @@ __all__ = [
     "CODEBOOK_TEXT_KEYS",
     "DEFAULT_FALLBACK_TEXT",
     "DEFAULT_SIGLIP2_TOKENIZER_NAME",
+    "DEFAULT_CLIP_TOKENIZER_NAME",
     "extract_codebook_texts",
     "batch_extract_codebook_texts",
     "build_siglip2_text_tokenizer",
+    "build_clip_text_tokenizer",
     "tokenize_codebook_texts",
     # vlm_qwen25_descriptions
     "DEFAULT_VLM",

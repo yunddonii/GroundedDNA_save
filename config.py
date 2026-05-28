@@ -101,9 +101,30 @@ class Config():
         # legacy behavior unchanged. Specifying them here lets us drive runs
         # via CLI without editing source.
         siglip2_arg = parser.add_argument_group("siglip2 / dna hashing parameters")
+        # ---------- backbone family selector ---------------------------------
+        # 'siglip2' (default, legacy) -- google/siglip2-base-patch16-224 dual encoder.
+        # 'clip'                      -- openai/clip-vit-base-patch16. Both image
+        #                                 and text encoder come from CLIP and are
+        #                                 frozen (image encoder = CLIP vision tower,
+        #                                 text encoder = CLIP text tower).
+        # Cache schema is identical across backbones (image_ids.json,
+        # visual_tokens / visual_global / text_part / has_text / meta), so
+        # downstream `_SigLIP2FeatureCache` works for either family. Choose the
+        # cache dir consistent with this flag via --siglip2_feature_cache_dir.
+        siglip2_arg.add_argument('--backbone_type', dest='backbone_type',
+            type=str, default='siglip2', choices=['siglip2', 'clip'],
+            help="Pretrained backbone family (default: %(default)s). 'siglip2' "
+                 "uses --siglip2_backbone; 'clip' uses --clip_backbone. Both "
+                 "are kept frozen by --freeze_backbone (default True).")
         siglip2_arg.add_argument('--siglip2_backbone', dest='siglip2_backbone',
             default='google/siglip2-base-patch16-224',
-            help='Hugging Face SigLIP2 backbone name (default: %(default)s)')
+            help='Hugging Face SigLIP2 backbone name (default: %(default)s). '
+                 'Used only when --backbone_type=siglip2.')
+        siglip2_arg.add_argument('--clip_backbone', dest='clip_backbone',
+            default='openai/clip-vit-base-patch16',
+            help='OpenAI CLIP backbone name (default: %(default)s). Used only '
+                 'when --backbone_type=clip. Image and text encoders both come '
+                 'from this single CLIPModel checkpoint.')
         siglip2_arg.add_argument('--qwen_text_cache_path', dest='qwen_text_cache_path',
             default=None,
             help='JSONL cache produced by preprocess_qwen_codebook_texts.py.')

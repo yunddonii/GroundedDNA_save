@@ -1423,6 +1423,179 @@ positive-alignment objective.
 
 ---
 
+## 2026-05-27 — CLIP backbone family infrastructure + v81a CLIP backbone validation (first-pass proof-of-concept, superseded by v88a-CLIP same day)
+
+🟡 Foundation commit. Adds a second pretrained-backbone family
+(openai/clip-vit-base-patch16) alongside SigLIP2 throughout the
+extraction → cache → model → training pipeline, then validates the
+foundation end-to-end with a single-axis swap of v81a from SigLIP2 to
+CLIP. **v81a + CLIP backbone reaches Flickr25k mAP 0.7463 / P@1 0.9065**
+(+0.058 mAP / +0.116 P@1 vs v81a SigLIP2 0.6879 / 0.7900), already
+beating every previous Flickr25k unsupervised SigLIP2 SOTA across all
+P@k. Immediately superseded the same day by v88a-CLIP (mAP 0.7853),
+which reuses this exact infrastructure with the MACL-paired τ recipe.
+This entry logs the foundation and the v81a-CLIP first-pass result for
+the historical record.
+
+### Code change (new files, additive)
+
+Backbone family:
+- `models/pretrained_backbone_clip.py` — `CLIPBackbone` thin holder
+  around `transformers.CLIPModel`, mirrors the `SigLIP2Backbone` API
+  (`vision_hidden_dim`/`text_hidden_dim`/`projection_dim` +
+  `model`/`vision_model`/`text_model` accessors), so `VisualEncoder` /
+  `TextEncoder` can consume it without modification.
+  `DEFAULT_CLIP_BACKBONE = "openai/clip-vit-base-patch16"`.
+
+Cache extractors:
+- `extract_clip_features.py` — pathlist-mode visual + V4-text
+  extractor mirroring `extract_siglip2_features.py`. Strips the [CLS]
+  token from `last_hidden_state` to keep `num_tokens = 196`
+  (consistent with SigLIP2 caches, downstream Sinkhorn router is
+  N-agnostic but ablation comparisons need shape parity). Uses
+  CLIP-specific normalization stats (mean / std `[0.481, 0.458, 0.408]`
+  / `[0.269, 0.261, 0.276]`). Supports `--save_aug_views K` for the
+  paired-aug NtXent path. Records `cls_token_stripped: true` and the
+  normalization stats in `meta.json` for reproducibility.
+- `extract_clip_text_features.py` — donor-symlink mode mirror of
+  `extract_siglip2_text_features.py` for re-encoding a new Qwen
+  caption rev against an existing visual cache.
+
+Launchers:
+- `scripts/train_v81a_flickr25k_clip.sh` — single-axis v81a +
+  `--backbone_type clip` launcher.
+- `scripts/extract_clip_mscoco.sh` — MSCOCO CLIP extraction launcher.
+
+### Code change (additive edits, default-off / bit-exact for SigLIP2)
+
+- `config.py`: `--backbone_type {siglip2, clip}` (default `siglip2`,
+  legacy preserved) + `--clip_backbone` (default
+  `openai/clip-vit-base-patch16`). Used by `model_siglip2.py` and the
+  extractor scripts.
+- `model_siglip2.py`: `SigLIP2SemanticOTModel.__init__` dispatches the
+  backbone build by `backbone_type`. When `backbone_type=clip` and
+  `--d_model` is unset, defaults `d_model = visual_hidden_dim = 768`
+  because CLIP's `projection_dim=512` is not divisible by 3
+  (`CodonHead` requires `d_model % 3 == 0`). Equivalent to "use the
+  vision hidden dim as the adapter target so chunk=256 matches the
+  SigLIP2 path". SigLIP2 path is unchanged.
+- `dna_utils/text_description_processor.py`: `build_clip_text_tokenizer`
+  + `DEFAULT_CLIP_TOKENIZER_NAME = "openai/clip-vit-base-patch16"`.
+  `tokenize_codebook_texts` was already tokenizer-agnostic so no
+  change there.
+- `dna_utils/__init__.py`: re-export.
+
+`dataloaders.py` / `train_siglip2.py` / `loss_siglip2.py` /
+`evaluation_siglip2.py` / `extraction_siglip2.py` /
+`models/{visual,text}_encoder.py` are **unchanged**. The cache schema
+(`image_ids` / `visual_tokens` / `visual_global` / `text_part` /
+`has_text` / `meta`) is backbone-agnostic, so `_SigLIP2FeatureCache`
+works as-is for either family.
+
+### Caches (built fresh, V4 captions)
+
+| Cache | Path | N | Size | Dims |
+|---|---|---:|---:|---|
+| Flickr25k CLIP V4 | `cache/flickr25k_clip_v4plus/` | 25,000 | 22 GB | visual_tokens `[N, 196, 768]`, visual_global `[N, 512]`, text_part `[N, 6, 512]` + 2 aug views, has_text True 100% |
+| MSCOCO CLIP V4 | `cache/mscoco_clip_v4plus/` (symlink → `/data/yschoi/grounded_dna_cache/`) | 122,218 (n_failed=16) | 104 GB | same schema, has_text 10K/122K (V4 captions cover the train subset only) |
+
+Both built with `--save_aug_views 2` so the v81a paired-aug NtXent
+path can skip the live backbone during training.
+
+### v81a Flickr25k CLIP — single-axis backbone swap
+
+Hyperparameters identical to SigLIP2 v81a (codebook_size=64,
+codon_residual_gamma=0.3, sinkhorn_epsilon_init=1.0/final=0.1,
+routing_adaptive_topp (0.5, 0.9), ntxent_dynamic_tau α=0.3,
+lambda_wasserstein=0.05, paired-aug NtXent per-codebook). Only swaps
+the backbone family.
+
+| Run | Backbone | mAP | Δ vs SigLIP2 | P@1 | P@10 | P@100 | P@1000 | unique (DB) | dead mean | baseH | Verdict |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| v81a (SigLIP2) | siglip2-base-patch16 | 0.6879 | — | 0.7900 | 0.7890 | 0.7810 | 0.7607 | 0.3462 | 0.349 | 0.833 | prior SigLIP2 SOTA |
+| **v81a + CLIP backbone** | clip-vit-base-patch16 | **0.7463** | **+0.0584** | **0.9065** | **0.8980** | **0.8920** | **0.8577** | 0.1900 | 0.231 | 0.898 | foundation (superseded by v88a-CLIP) |
+
+### Mid-eval trajectory (val split, 10-epoch interval)
+
+| Run | ep9 | ep19 | ep29 | ep39 | ep49 | ep59 | final eval |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| v81a SigLIP2 | 0.6769 | 0.6781 | 0.6844 | 0.6789 | 0.6664 | 0.6725 | 0.6879 |
+| **v81a CLIP** | **0.7394** | 0.7304 | 0.7392 | 0.7474 | 0.7457 | **0.7547** | **0.7463** |
+
+CLIP trajectory is late-rising: ep9 starts +0.063 above SigLIP2 ep9,
+and the gap widens to +0.082 by ep59 mid-eval (the largest single
+mid-eval gap recorded in the v81 series).
+
+### Mechanism (interpretation)
+
+- All P@k metrics (P@1 through P@1000) gain 0.10–0.12 simultaneously,
+  which is a representation-quality shift, not a top-rank sharpening
+  trade-off. CLIP-ViT-B/16's `visual_global` ([CLS] post-projection
+  embedding) is a stronger per-image discriminator for Flickr25k
+  label-Jaccard retrieval than SigLIP2-base's MAP-pooled
+  `get_image_features`, despite SigLIP2 being trained on more recent
+  data.
+- Unique-code ratio falls 0.346 → 0.190 while mAP rises, reinforcing
+  the "high mAP does not require high unique-code ratio" finding from
+  mscoco_v69a — codeword distance topology matters more than surface
+  hash uniqueness.
+- Codebook health improves on both axes: dead-code mean 0.349 →
+  0.231 and mean base normalised entropy 0.833 → 0.898. The CLIP
+  gain is not driven by representation collapse.
+
+### Environment note
+
+Required upgrading the `dna_hashing` conda env from
+torch 2.5.1+cu121 → 2.6.0+cu124 (cu124 wheels on driver 570 work for
+CUDA 12.1+ systems). The upstream `openai/clip-vit-base-patch16`
+HuggingFace repo ships only `pytorch_model.bin` (no safetensors);
+transformers 5.8 blocks `.bin` loading via CVE-2025-32434 unless
+torch ≥ 2.6 is installed. SigLIP2 path (safetensors checkpoints)
+unaffected by the upgrade.
+
+### Per-dataset SOTA pairs (state at this entry's date)
+
+- Flickr25k: v88a-CLIP (mAP 0.7853) — same day, builds on this
+  infrastructure.
+- MSCOCO: mscoco_v81a SigLIP2 (mAP 0.4891) — CLIP cache built but no
+  CLIP training run yet (see follow-up).
+
+### Suggested follow-up
+
+1. **mscoco_v81a + CLIP** — apply the same single-axis swap on MSCOCO
+   using `cache/mscoco_clip_v4plus/`. Test whether the CLIP gain
+   transfers cross-dataset.
+2. **v88a-CLIP** — already executed same day; results in the
+   `## 2026-05-27 — v88a-CLIP backbone swap` entry above.
+3. **Compositional analysis (NMI / drop / B0-B1-B2 / grids) on
+   v81a-CLIP** — verify the structural "6 active codebooks with
+   graded contribution" claim transfers cross-backbone. Compare
+   directly against the v81a SigLIP2 compositional analysis
+   (`docs/nmi_v81a_combined.json`).
+
+### Artifacts
+
+- Result dir:
+  `result/260527+flickr25k_setting1_v81a_clip_v62b_adaptiveTopP_05_09+bs+64+e+60+proj_lr+0.001/`
+- Launcher: `scripts/train_v81a_flickr25k_clip.sh`
+- Flickr25k CLIP cache: `cache/flickr25k_clip_v4plus/`
+- MSCOCO CLIP cache: `cache/mscoco_clip_v4plus/` (→
+  `/data/yschoi/grounded_dna_cache/mscoco_clip_v4plus/`)
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
+---
+
 ## 2026-05-27 — v87a hard-negative sampling per codebook (Wang & Liu, CVPR 2021) — DISCARDED, structurally instructive
 
 🟡 Discarded with paper-worthy negative finding. Replaced v81a's text-cosine
@@ -8519,18 +8692,6 @@ Updated claim to add to `docs/ANALYSIS_compositional_contribution.md`:
 - Slide-ready visualisation snapshots are mirrored under `slides_assets/`
   with `/`-replaced-by-`_` filenames so they can be uploaded into a
   presentation generator without context loss.
-
----
-
----
-
----
-
----
-
----
-
----
 
 ---
 
