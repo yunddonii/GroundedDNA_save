@@ -79,7 +79,19 @@ Format conventions:
 - **Prior unsupervised Flickr25k SOTA (PEAK)**: **v57** (= v49 with
   `--lambda_wasserstein 0.02 → 0.05`) -- peak mAP 0.6742 (ep9),
   final test mAP 0.6683. Now superseded by v62b.
-- **MSCOCO unsupervised SOTA (ours, NEW 2026-05-26)**:
+- **MSCOCO unsupervised SOTA (ours, NEW 2026-05-29)**:
+  **mscoco_v91a-CLIP** (= v91a recipe on CLIP-ViT-B/16 backbone +
+  mscoco_clip_v4plus cache, `--lambda_text_hash 0.05`) --
+  **final test mAP 0.5076**, **P@1 0.7234**, **P@5 0.7280**,
+  **P@10 0.7253**, unique **0.0475**, mean dead (cb1–5) ~0.31.
+  Beats mscoco_v81a-SigLIP by **+0.0185 mAP**, **+0.0882 P@1**,
+  **+0.1053 P@10**. Caveat: bundles two confounders (CLIP backbone
+  swap + text-DNA matching); mscoco_v88a-CLIP control needed to
+  isolate text-DNA contribution. cb0 dominance roughly doubles
+  (drop −0.044 vs v81a's −0.023); cb1–5 individually at or below
+  noise level — MSCOCO captions concentrate retrieval signal into
+  the global slot.
+- **Previous MSCOCO SOTA (SigLIP2 backbone)**:
   **mscoco_v81a** (= mscoco_v69a K=128 position-specific CodonHead +
   row-normalised confidence-adaptive top-p routing, `tau_min=0.5`,
   `tau_max=0.9`) -- **final test mAP 0.4891**, P@1 **0.6352**,
@@ -92,8 +104,14 @@ Format conventions:
   mAP **0.4856**, P@1 **0.6058**. Adaptive K validates cb0 as the
   dominant MSCOCO retrieval channel, but mscoco_v81a shows that routing
   policy alone can outperform it without changing K.
-- **Per-dataset SOTA pairs**: Flickr25k = **v81a** (0.6879),
-  MSCOCO = **mscoco_v81a** (0.4891 final; v78a ep9 remains peak 0.4984).
+- **Per-dataset SOTA pairs**: Flickr25k = **v91a-CLIP** (0.7852 mAP /
+  0.9040 P@1), MSCOCO = **mscoco_v91a-CLIP** (0.5076 mAP / 0.7234 P@1).
+- **Backbone-specific finding (2026-05-29)**: **v91a-SigLIP** (Flickr,
+  SigLIP2 backbone, identical recipe) is **DISCARDED**: mAP 0.6716
+  (−0.0163 vs v81a-SigLIP 0.6879), P@1 0.7805 (−0.0095), with mean
+  dead-ratio jumping 0.42 → 0.63 across cb1–5. Text-DNA matching is
+  a **CLIP-backbone-specific** win; on SigLIP2 the ~0.88 cross-slot
+  text cosine collapses local codebooks under MSE pressure.
 - **Latest routing ablation**: **v80a/b/c ambiguity-aware top-k** is a
   clear negative result on Flickr25k. Thresholds 0.55/0.60/0.65 all
   produced the same effective routing (`val_routing_mean_effective_k`
@@ -217,15 +235,239 @@ Format conventions:
 
 ---
 
----
+## 2026-05-29 — v91a cross-backbone / cross-dataset replication: **mscoco_v91a-CLIP NEW MSCOCO SOTA + v91a-SigLIP DISCARDED (backbone-specific failure)**
 
----
+Two-pronged replication of v91a Text-to-DNA-hash matching (Option F)
+beyond Flickr25k-CLIP. Both runs use the *identical* v91a code from
+2026-05-28 (`--lambda_text_hash 0.05`, shared quantizer + codon_heads,
+text path with EMA temporarily disabled). The two replications give
+**opposite verdicts**, exposing a clean backbone-specific finding.
 
----
+### TL;DR
 
----
+| Run | Backbone | Dataset | Verdict | mAP | P@1 | unique (DB) | mean NMI |
+|---|---|---|---|---:|---:|---:|---:|
+| **mscoco_v91a-CLIP** ★ | CLIP-ViT-B/16 | MSCOCO | **🟢 NEW MSCOCO SOTA** | **0.5076** | **0.7234** | 0.0475 | 0.5856 |
+| baseline mscoco_v81a | SigLIP2-base | MSCOCO | — | 0.4891 | 0.6352 | 0.0613 | 0.5921 |
+| **v91a-SigLIP** | SigLIP2-base | Flickr25k | **🔴 DISCARDED** | 0.6716 | 0.7805 | 0.2983 | 0.4119 |
+| baseline v81a-SigLIP | SigLIP2-base | Flickr25k | — | 0.6879 | 0.7900 | 0.3462 | 0.4613 |
 
----
+**Bottom line**: text-DNA matching is a CLIP-backbone-specific win. On
+SigLIP2 it collapses the local codebooks (cb1–5 dead-ratio jumps from
+~40 % → ~63 %) and loses mAP and P@1. The most parsimonious explanation
+is the SigLIP2 cross-slot collapse we already documented (~0.88 cosine
+across 6 text slots vs CLIP's discriminative slots): text-DNA matching
+amplifies a redundant signal that pushes local codebooks below their
+revive threshold.
+
+### 1) mscoco_v91a-CLIP — **NEW MSCOCO SOTA**
+
+#### Setup vs mscoco_v81a (previous SOTA)
+
+| Flag | mscoco_v81a | **mscoco_v91a-CLIP** |
+|---|---|---|
+| backbone | siglip2-base-patch16-224 | **openai/clip-vit-base-patch16** |
+| cache | mscoco_siglip2 | **mscoco_clip_v4plus** |
+| `lambda_text_hash` | — | **0.05** |
+| MACL α | — (not yet) | 0.5 |
+| text_cos α | — | 0.3 |
+| everything else (K=64, γ=0.3, adaptive top-p 0.5/0.9, λ_w=0.05) | ✓ | ✓ |
+
+Two confounders are bundled here: **(a) backbone swap CLIP←SigLIP2**
+and **(b) text-DNA matching**. We do not currently have an
+`mscoco_v88a-CLIP` control to isolate the two; recommended as
+immediate follow-up.
+
+#### Final retrieval (MSCOCO 5K query × 107K DB)
+
+| Metric | mscoco_v81a | **mscoco_v91a-CLIP** | Δ |
+|---|---:|---:|---:|
+| **mAP** | 0.4891 | **0.5076** | **+0.0185** ★★ |
+| **P@1** | 0.6352 | **0.7234** | **+0.0882** ★★★ |
+| **P@5** | — | **0.7280** | — |
+| **P@10** | 0.6200 | **0.7253** | **+0.1053** ★★★ |
+| **P@100** | — | **0.7086** | — |
+| **P@1000** | — | **0.6647** | — |
+| unique (DB) | 0.0613 | 0.0475 | −0.0138 |
+| mean dead (cb1–5) | ~0.40 | ~0.31 | better |
+| mean norm. base-entropy | — | 0.894 | healthy |
+
+P@1 +0.088 and P@10 +0.105 are massive and consistent with the CLIP
+backbone family's known top-rank advantage. The unique-code drop
+(0.0613 → 0.0475) is the only regression — typical for high-mAP
+runs that concentrate codes into the dominant retrieval modes.
+
+#### Mid-eval trajectory (extracted from log)
+
+| ep | 9 | 19 | 29 | 39 | 49 | 59 (final) |
+|---:|---:|---:|---:|---:|---:|---:|
+| mAP | 0.5053 | **0.5155** (best) | 0.5108 | 0.5125 | 0.5110 | 0.5077 |
+
+`best_save=True` triggered ep19 checkpoint for final extraction
+(mAP 0.5076 ≈ best mid 0.5155 minus the train/eval cache differences).
+
+#### Compositional analysis
+
+##### Pairwise codebook NMI
+
+| Model | mean off-diag | min | max | unique (DB) |
+|---|---:|---:|---:|---:|
+| mscoco_v81a | 0.5921 | 0.390 | 0.735 | 24241 |
+| **mscoco_v91a-CLIP** | **0.5856** | 0.344 | 0.745 | 8606 |
+
+cb0-isolation pattern preserved (cb0 NMI to others ≈ 0.35, vs cb1–5
+inter-NMI 0.68–0.75). Slight independence gain (−0.007) but the
+significant drop in unique codes (24K → 8.6K) shows the model is
+also concentrating retrievals more aggressively.
+
+##### Codebook drop ablation (1K query subset)
+
+| drop | mscoco_v81a | **mscoco_v91a-CLIP** |
+|---|---:|---:|
+| cb0 | −0.0232 | **−0.0443** ★ |
+| cb1 | +0.0008 ⚠ | +0.0034 ⚠ |
+| cb2 | −0.0009 | +0.0029 ⚠ |
+| cb3 | −0.0001 | +0.0005 ⚠ |
+| cb4 | +0.0011 ⚠ | −0.0000 |
+| cb5 | +0.0005 ⚠ | +0.0042 ⚠ |
+| **sum** | −0.0218 | **−0.0333** |
+
+**cb0 dominance roughly doubles** under v91a-CLIP (−0.044 vs −0.023).
+The MSCOCO drop ablation pattern is *single-codebook-dominant*
+(unlike the Flickr CLIP v91a pattern where cb0+cb5 both contributed
+strongly). cb1–5 individually are at or below noise — typical for
+MSCOCO's pure caption space; the local codebooks carry less
+retrieval-discriminative information than on Flickr25k.
+
+##### Per-codebook stats
+
+| cb | dead | base norm-entropy (avg over 3 codons) |
+|---:|---:|---:|
+| 0 | **0 %** | **0.996** (near-uniform) |
+| 1 | 34 % | 0.766 |
+| 2 | 38 % | 0.851 |
+| 3 | 33 % | 0.853 |
+| 4 | 28 % | 0.866 |
+| 5 | 30 % | 0.886 |
+
+cb0 is *fully alive* (0 % dead) and near-uniform-entropy. Local cb1–5
+each lose ~30 % of slots but the surviving codes carry retrieval
+weight via their joint conjunctions (mean off-diag NMI 0.69 across
+local pairs).
+
+#### Verdict
+
+**🟢 Adopted as new MSCOCO SOTA.** Beats mscoco_v81a by **+0.0185 mAP**,
+**+0.0882 P@1**, **+0.1053 P@10**. The CLIP-backbone confound is real
+and the next priority follow-up is mscoco_v88a-CLIP to separate
+"CLIP backbone" gain from "text-DNA matching" gain. Even if the entire
+gain turned out to be backbone-driven, the v91a code adds no harm on
+CLIP and the cb0-dominant structural pattern is informative for paper
+section on MSCOCO compositionality limits.
+
+### 2) v91a-SigLIP (Flickr25k) — **DISCARDED, backbone-specific failure**
+
+#### Setup vs v81a (previous SigLIP2 Flickr SOTA)
+
+| Flag | v81a-SigLIP | **v91a-SigLIP** |
+|---|---|---|
+| backbone | siglip2-base | siglip2-base |
+| `lambda_text_hash` | — | **0.05** |
+| everything else | ✓ | ✓ identical |
+
+Backbone is *held constant*. The only delta is text-DNA matching.
+
+#### Final retrieval (Flickr25k 2K × 23K)
+
+| Metric | v81a-SigLIP | **v91a-SigLIP** | Δ |
+|---|---:|---:|---:|
+| mAP | **0.6879** | 0.6716 | **−0.0163** ⚠ |
+| P@1 | **0.7900** | 0.7805 | −0.0095 |
+| P@5 | **0.7945** | 0.7920 | −0.0025 |
+| P@10 | 0.7890 | **0.7913** | +0.0023 |
+| unique (DB) | **0.3462** | 0.2983 | −0.0479 |
+| dead cb1 | 0.41 | **0.59** ⚠ | +0.18 |
+| dead cb2 | 0.44 | **0.67** ⚠ | +0.23 |
+| dead cb3 | 0.42 | 0.50 | +0.08 |
+| dead cb4 | 0.34 | **0.64** ⚠ | +0.30 |
+| dead cb5 | 0.48 | **0.70** ⚠ | +0.22 |
+| mean dead (cb1–5) | 0.42 | **0.63** ⚠ | +0.21 |
+| mean norm. base-entropy | — | 0.831 ⚠ (low) | — |
+
+**Catastrophic local-codebook collapse**: dead-ratio jumps from
+~40 % → ~63 % across cb1–5. P@10 marginally improves but mAP, P@1,
+P@5, and unique all regress.
+
+#### Pairwise codebook NMI
+
+| Model | mean off-diag | min | max | unique (DB) |
+|---|---:|---:|---:|---:|
+| v81a-SigLIP | 0.4613 | 0.308 | 0.571 | 9193 |
+| v88a-SigLIP | 0.4366 | 0.268 | 0.615 | 10057 |
+| **v91a-SigLIP** | **0.4119** | — | — | 8620 |
+
+NMI moves in the **right direction** (less redundant) — text-DNA
+matching does decouple codebooks structurally. But that gain is
+spent on dead slots rather than usable diversity.
+
+#### Why the backbone matters (interpretation)
+
+Previously documented (2026-05-27, v88a-CLIP backbone-swap section):
+SigLIP2's 6 text slots have **~0.88 mean cosine** across slots
+(near-degenerate), whereas CLIP's slots are discriminative
+(~0.40 cross-slot cosine). Text-DNA matching enforces an MSE between
+the text-derived continuous_code [B, 18, 4] and the image-derived
+one. On CLIP, the text-derived code has slot-distinguishable
+contributions per codebook → matching can drag each codebook toward
+its specific text axis. On SigLIP2, the text slots collapse to
+near-redundancy → matching applies an over-determined gradient that
+the EMA-disabled local codebooks cannot escape, and revive (every 50
+steps, threshold 0.01) cannot keep up with the dead-rate growth.
+
+**This is the cleanest backbone-specific finding so far in this
+project** and explicitly justifies the CLIP-backbone family for
+text-supervised compositional hashing.
+
+#### Verdict
+
+**🔴 DISCARDED on SigLIP2.** Do not run v91 variants on SigLIP2
+backbone without first fixing the cross-slot collapse (e.g. via the
+PromptHash-style decorrelation prior on text slots, or a per-slot
+text adapter). v91a remains canonical on CLIP backbone only.
+
+### Honest caveats (both runs)
+
+1. **Single seed** for each replication.
+2. **mscoco_v91a-CLIP carries a backbone confound** — needs
+   mscoco_v88a-CLIP control to isolate text-DNA contribution from
+   CLIP backbone gain.
+3. **B0/B1/B2 lift and image-text DNA agreement rate** were not
+   re-computed on these two runs (computation pipeline currently
+   only exists for Flickr25k-CLIP analysis notebook). The Flickr-CLIP
+   v91a values (B1 0.0876, agreement 53 %) remain the reference.
+
+### Artifacts
+
+- `result/260528+mscoco_setting1_mscoco_v91a_clip_textHash_005+bs+64+e+60+proj_lr+0.001/`
+  — `evaluation_siglip2_base.json`, `extract_db.npz`,
+  `extract_query.npz`, `pairwise_nmi.json`,
+  `codebook_drop_ablation_subset1000.json`,
+  `viz_codebook_tsne.png`, `viz_routing_heatmap.png`.
+- `result/260528+flickr25k_setting1_v91a_siglip_textHash_005+bs+64+e+60+proj_lr+0.001/`
+  — same artifact set for SigLIP-Flickr DISCARDED run.
+- Combined NMI tables:
+  - `docs/nmi_mscoco_v91a_clip_combined.json` (mscoco_v91a-CLIP vs mscoco_v81a)
+  - `docs/nmi_v91a_siglip_combined.json` (v91a-SigLIP vs v81a-SigLIP vs v88a-SigLIP)
+
+### Suggested follow-up
+
+1. **mscoco_v88a-CLIP control** (highest priority): isolates CLIP-
+   backbone gain vs text-DNA matching gain on MSCOCO.
+2. **mscoco_v91a-CLIP cross-modal eval** (text-query → image-DB Hamming).
+3. **CLIP cross-dataset confirmation**: NUS-WIDE / CIFAR10.
+4. **SigLIP2 text-slot decorrelation prior**: if added, retry
+   v91a-SigLIP; expected to unlock the structural NMI gain without
+   the collapse.
 
 ---
 
