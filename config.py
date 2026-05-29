@@ -94,6 +94,13 @@ class Config():
         
         test_arg = parser.add_argument_group("test parameters")
         test_arg.add_argument('-ev', '--eval', dest='evaluation', action='store_true')
+        test_arg.add_argument('--post_eval_compositional',
+            dest='post_eval_compositional', action=argparse.BooleanOptionalAction,
+            default=True,
+            help='After --eval, automatically run scripts/pairwise_nmi.py, '
+                 'scripts/codebook_drop_ablation_fast.py, and '
+                 'compositional_eval.py (B0/B1/B2). Pass '
+                 '--no-post_eval_compositional to disable.')
 
         # ---------- siglip2 / dna hashing parameters --------------------
         # All flags below are additive — every model/loss module also has

@@ -769,6 +769,53 @@ def main(args: Config):
             print(f"[final-eval] evaluation failed: {ex} -- continuing to viz. "
                   f"Re-run evaluation_siglip2.py externally to recover metrics.")
 
+        # ---------- post-eval compositional analysis ---------------------
+        # NMI + drop ablation + B0/B1/B2 lift. Each wrapped in try/except so
+        # a single failure does not block the others or viz below. Disable
+        # with --no-post_eval_compositional.
+        if bool(getattr(args, "post_eval_compositional", True)):
+            _rd = args.save_result_path
+            _cache = getattr(args, "siglip2_feature_cache_dir", None)
+            _droot = os.path.join(args.dataset_dir, args.dataset)
+            try:
+                print("[post-eval] pairwise NMI ...")
+                import subprocess, sys
+                subprocess.run([sys.executable,
+                    os.path.join(os.path.dirname(__file__), "scripts/pairwise_nmi.py"),
+                    "--results", _rd], check=False, timeout=600)
+            except Exception as ex:
+                print(f"[post-eval] pairwise_nmi failed: {ex}")
+            try:
+                import numpy as _np
+                _ndb = int(_np.load(os.path.join(_rd, "extract_db.npz"))["base_indices"].shape[0])
+                _subset = 1000 if _ndb > 25000 else 2000
+                print(f"[post-eval] drop ablation (subset={_subset}) ...")
+                import subprocess, sys
+                subprocess.run([sys.executable,
+                    os.path.join(os.path.dirname(__file__),
+                                 "scripts/codebook_drop_ablation_fast.py"),
+                    "--result_dir", _rd,
+                    "--subset_queries", str(_subset)],
+                    check=False, timeout=1800)
+            except Exception as ex:
+                print(f"[post-eval] drop_ablation failed: {ex}")
+            try:
+                if _cache and os.path.exists(_cache):
+                    print("[post-eval] compositional B0/B1/B2 ...")
+                    import subprocess, sys
+                    subprocess.run([sys.executable,
+                        os.path.join(os.path.dirname(__file__),
+                                     "compositional_eval.py"),
+                        "--result_dir", _rd,
+                        "--cache_dir", _cache,
+                        "--dataset_root", _droot,
+                        "--skip_grids"],
+                        check=False, timeout=1200)
+                else:
+                    print(f"[post-eval] skipped compositional (cache_dir missing: {_cache})")
+            except Exception as ex:
+                print(f"[post-eval] compositional_eval failed: {ex}")
+
     # ---------- end-of-training diagnostic plots --------------------------
     # Routing heatmap + per-codebook t-SNE go into the run directory next to
     # log.csv / evaluation_*.json. Disable with --no_visualize.
