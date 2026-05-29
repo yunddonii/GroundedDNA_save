@@ -258,6 +258,192 @@ Format conventions:
 
 ---
 
+## 2026-05-29 — **mscoco_v92a-CLIP K=128 — C_0→local gate is no-op on MSCOCO** (mAP tie with v91a K=128; structural finding: gate only rescues *existing* anti-contributing codebooks)
+
+🟡 **No SOTA shift on MSCOCO.** The same v92a recipe that delivered
++0.056 mAP on Flickr25k (same-day SOTA, 0.7852 → 0.8414) gives
+**essentially no movement on MSCOCO at K=128**: mAP 0.6362 vs
+mscoco_v91a-CLIP K=128's 0.6374 = **−0.0012** (within noise), P@1
++0.0044, deep-rank P@1000 −0.0084. The Flickr-specific gain
+disappeared.
+
+This is itself a **clean structural finding**: the C_0→local gate's
+mechanism (rescuing local codebooks from cb0-redundancy by injecting
+cb0 into their codon-head inputs) **only matters when local cb's are
+under-utilised**. mscoco_v91a-CLIP K=128 already had **0 anti-contributing
+codebooks** and drop sum −0.0790. There was nothing to rescue.
+
+### Setup vs mscoco_v91a-CLIP K=128
+
+| Flag | mscoco_v91a-CLIP K=128 | **mscoco_v92a-CLIP K=128** |
+|---|---|---|
+| `--disable_global_gate` | **on** (gate off) | **off** (gate active) |
+| `--global_gate_init_logit` | n/a | **−4.595** (sigmoid ≈ 0.01) |
+| `--use_stop_grad_global` | n/a | **False** (grad flows through C_0) |
+| everything else (CLIP, K=128, MACL 0.5, text_cos 0.3, adaptive top-p, γ=0.3, λ_w=0.05, λ_text_hash=0.05) | ✓ | ✓ identical |
+
+Identical to Flickr v92a setup, only dataset + K=128.
+
+### Final retrieval (MSCOCO 5K × 107K)
+
+| Metric | mscoco_v91a-CLIP K=128 | **mscoco_v92a-CLIP K=128** | Δ |
+|---|---:|---:|---:|
+| **mAP** | **0.6374** | 0.6362 | **−0.0012** (tie) |
+| **P@1** | 0.8558 | **0.8602** | **+0.0044** ★ |
+| **P@5** | **0.8579** | 0.8548 | −0.0031 |
+| **P@10** | **0.8523** | 0.8502 | −0.0021 |
+| **P@20** | — | 0.8452 | — |
+| **P@50** | — | 0.8362 | — |
+| **P@100** | **0.8336** | 0.8286 | −0.0050 |
+| **P@500** | — | 0.8043 | — |
+| **P@1000** | **0.7951** | 0.7867 | −0.0084 |
+| unique (DB) | **0.6406** | 0.5795 | −0.0611 |
+| mean dead (cb1–5) | **0.13** | 0.18 | slightly worse |
+| mean base norm. H | 0.984 | **0.990** | uniform |
+
+**Trade-off shape opposite to Flickr v92a**: there, gate was Pareto
+over v91a-CLIP. Here, gate gains +0.0044 P@1 but loses P@5..P@1000
+(consistent regression toward sharper top-rank, away from deep-rank
+spread). mAP unchanged. **Not adopted**.
+
+### Mid-eval trajectory (mscoco_v92a)
+
+| ep | 4 | 9 | 14 | 19 | 24 | 29 | 34 | 39 | 44 | 49 | 54 | 59 (final) |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| mAP | 0.565 | 0.585 | 0.608 | 0.619 | 0.586 | 0.598 | 0.612 | 0.612 | 0.624 | **0.636** | 0.629 | 0.628 |
+| dead | 0.49 | 0.21 | 0.23 | 0.23 | 0.43 | 0.32 | 0.32 | 0.31 | 0.29 | 0.29 | 0.30 | 0.31 |
+| unique | 0.80 | 0.88 | 0.86 | 0.85 | 0.91 | 0.89 | 0.88 | 0.91 | 0.87 | 0.86 | 0.90 | 0.90 |
+
+Best mid ep49 (0.636). Trajectory noisier than v91a K=128 (which
+climbed monotonically to ep44 0.631). The gate adds some instability
+mid-train; final eval lands at 0.6362.
+
+### Compositional analysis
+
+#### Pairwise codebook NMI
+
+| Run | mean off-diag | min | max | unique (DB raw) | cb0 ↔ cb1-5 NMI | cb1-5 internal NMI |
+|---|---:|---:|---:|---:|---:|---:|
+| mscoco_v91a-CLIP K=128 | **0.535** | 0.259 | 0.743 | 48618 | 0.280–0.292 | 0.71–0.74 |
+| **mscoco_v92a K=128** | 0.578 | 0.252 | 0.754 | 39674 | **0.252–0.259** | 0.72–0.75 |
+
+**cb0 ↔ cb1-5 NMI dropped (0.292 → 0.259) — same direction as on Flickr v92a** (0.350 → 0.225). The gate consistently decouples cb0 from the local cluster across datasets. But local cb's internal NMI rose slightly (0.71 → 0.74) → overall mean NMI **higher** than v91a here. Different dataset structure: MSCOCO local cb's couple to each other harder than Flickr's do.
+
+#### Codebook drop ablation (1K-query subset, identical seed)
+
+| drop | mscoco_v91a K=128 | **mscoco_v92a K=128** |
+|---|---:|---:|
+| cb0 | −0.0189 | −0.0195 |
+| cb1 | −0.0186 | **−0.0215** ★ |
+| cb2 | −0.0110 | −0.0066 |
+| cb3 | **−0.0249** | −0.0176 |
+| cb4 | −0.0045 | −0.0098 |
+| cb5 | −0.0011 | −0.0011 |
+| **sum** | **−0.0790** | −0.0761 |
+| **anti-cb** | 0 | 0 |
+
+The drop distribution rearranged (cb1 strengthened, cb3 weakened),
+but the **total drop budget is essentially identical** (−0.076 vs
+−0.079). cb1 became the strongest contributor in v92a (−0.0215).
+This rearrangement matches Flickr v92a's "cb0 dilution feeds
+specialisation into the strongest local cb" pattern, but the *amount*
+of redistribution available was already exhausted by v91a K=128 —
+hence no net mAP gain.
+
+#### B2 visual-global lift (B0/B1 unavailable on MSCOCO)
+
+| Run | mean B2 lift | per-cb | random baseline |
+|---|---:|---|---:|
+| **mscoco_v92a K=128** | **0.105** | [0.570, 0.607, 0.608, 0.609, 0.612, 0.608] | 0.498 |
+
+Healthy visual-global concentration. cb0 slightly lower (0.570) —
+same cb0-decoupling pattern as Flickr v92a's B2 (0.596 vs
+v91a-CLIP's 0.623). B0/B1 (text-based lifts) **skipped** because the
+MSCOCO Qwen V4 caption cache only covers the 10K training subset,
+not the 107K DB — text-anchored compositional analysis cannot be
+computed on the full DB. Documented limitation; would require
+extending the caption cache.
+
+#### Per-codebook utilisation
+
+| cb | dead (v92a) | dead (v91a K=128) |
+|---:|---:|---:|
+| 0 | **0 %** | 0 % |
+| 1 | 25 % | **15 %** |
+| 2 | 20 % | **9 %** |
+| 3 | 19 % | **6 %** |
+| 4 | 12 % | 9 % |
+| 5 | **13 %** | 41 % |
+
+Mixed: v92a has healthier cb5 (13 % vs 41 %) but worse cb1–3 (around
+20 % vs ≤ 10 %). Net mean dead-ratio worse (0.18 vs 0.13). The
+gate-driven cb0→local injection appears to over-condition cb1–3 on
+cb0's signal here, marginalising some of their local codewords.
+
+### Interpretation: why Flickr won and MSCOCO didn't
+
+| Property | Flickr v91a-CLIP (K=64) | MSCOCO v91a-CLIP K=128 |
+|---|---:|---:|
+| Pre-gate anti-cb count | **3 ⚠** | 0 |
+| Pre-gate drop sum | −0.0181 | **−0.0790** |
+| Pre-gate unique | 0.194 | 0.641 |
+| Gate impact on mAP | **+0.056 ★★★** | **−0.001 (tie)** |
+| Gate impact on unique | +0.31 | −0.06 |
+
+**The C_0→local gate rescues anti-contributing codebooks**. Flickr
+v91a-CLIP had 3 cb's at +0.0009/+0.0033/+0.0028 (idle redundant
+copies of cb0); gate gave them complementary axes → unlocked.
+mscoco_v91a-CLIP K=128 had 0 anti-cb (K=128 unlock already did that
+job earlier today). Gate had nothing left to rescue and slightly
+over-conditioned the system.
+
+**Generalisation**: the gate is **anti-cb-conditional**. Use it when
+drop ablation shows ≥1 anti-contributing cb. Skip it when every cb
+already contributes.
+
+### Verdict
+
+**🟡 Not adopted on MSCOCO**. mscoco_v91a-CLIP K=128 remains MSCOCO
+SOTA (mAP 0.6374, P@1 0.8558). v92a's +0.0044 P@1 is not worth the
+P@10/P@100/P@1000 regression or the unique-code loss (0.64 → 0.58).
+
+The **structural finding** (gate is anti-cb-conditional, cross-dataset)
+is the paper-grade takeaway from this run, not a mAP win.
+
+### Honest caveats
+
+1. **Single seed** for mscoco_v92a.
+2. **B0/B1 lifts not computed** on MSCOCO due to caption cache
+   limitation. Visual-global B2 only.
+3. **K=64 mscoco_v92a NOT tested**: this is the actual interesting
+   experiment. At K=64, mscoco_v91a-CLIP had 4 anti-cb (drop sum
+   −0.0333), so the gate *should* deliver Flickr-like rescue gains.
+   Predicted: mscoco_v92a K=64 could beat K=128 baselines. **Highest
+   priority follow-up.**
+4. **Comparison limited to v91a baseline.** v88a-CLIP MSCOCO (no
+   text-DNA matching, K=128) still uncomputed.
+
+### Suggested follow-up
+
+1. **mscoco_v92a-CLIP K=64**: the actual test of gate-rescue
+   mechanism on MSCOCO. v91a K=64 had 4 anti-cb so the gate should
+   significantly improve.
+2. **mscoco_v88a-CLIP K=128**: isolates text-DNA matching contribution
+   from CLIP backbone on MSCOCO.
+3. **K sweep 192/256 on v91a and v92a MSCOCO**: does mAP saturate?
+4. **Caption cache extension**: build Qwen V4 captions for full 107K
+   MSCOCO DB so B0/B1 lifts become computable.
+
+### Artifacts
+
+- `result/260529+mscoco_setting1_mscoco_v92a_clip_K128_c0LocalGate_g001_noStopGrad+bs+64+e+60+proj_lr+0.001/`
+  — model, extract_db/query.npz, evaluation_siglip2_base.json,
+  pairwise_nmi.json, codebook_drop_ablation_subset1000.json,
+  compositional_eval.json (B2 only), viz_routing_heatmap.png,
+  viz_codebook_tsne.png.
+
+---
+
 ## 2026-05-29 — **v92a Flickr25k-CLIP NEW SOTA (mAP 0.8414) — re-enabling C_0→local gate redistributes cb0 dominance into cb1/cb2**
 
 🟢 The strongest single-day Flickr25k mAP gain since v88a-CLIP. Same
