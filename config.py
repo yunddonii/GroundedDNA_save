@@ -851,6 +851,24 @@ class Config():
                  'a parallel text-only pass through the shared quantizer '
                  'and codon_heads) and image-derived continuous_code. '
                  '0 disables (legacy). Recommended 0.05-0.10.')
+        # v93: per-codebook cross-modal codeword InfoNCE between the visual
+        # quantized codeword (image path) and the text quantized codeword
+        # (v91 text path through the shared quantizer, EMA-disabled).
+        # Positive: (visual_cw_m[i], text_cw_m[i]) per cb_m, per sample i.
+        # Negatives: other samples' text_cw_m. Bidirectional (CLIP-style).
+        # Reuses the same `text_part_tokens -> quantizer.eval()` path the v91
+        # text-hash matching uses, so a single text-path forward serves both
+        # lambda_text_hash (MSE on continuous_code) and lambda_cw_xmodal
+        # (InfoNCE on codeword). 0 disables.
+        loss_arg.add_argument('--lambda_cw_xmodal',
+            type=float, default=0.0,
+            help='v93: per-codebook cross-modal codeword InfoNCE between '
+                 'visual quantized codeword and text quantized codeword. '
+                 '0 disables (legacy bit-exact). Recommended 0.05-0.20.')
+        loss_arg.add_argument('--cw_xmodal_temperature',
+            type=float, default=0.07,
+            help='Temperature for v93 cross-modal codeword InfoNCE. '
+                 'Default 0.07 (CLIP-style).')
         # v73 (Exp 7): global DNA NtXent auxiliary loss alongside per-codebook.
         # When `ntxent_mode=per_codebook`, also compute the global NtXent
         # (whole 18-codon DNA code) using static base temperature and add

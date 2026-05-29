@@ -1275,6 +1275,13 @@ class SigLIP2SemanticOTModel(nn.Module):
         # quantizer + codon_heads to produce a text-derived continuous_code,
         # which the loss matches to the image-derived continuous_code via MSE.
         self.lambda_text_hash            = float(getattr(args, "lambda_text_hash", 0.0))
+        # v93: per-codebook cross-modal codeword InfoNCE. When > 0, the same
+        # text path used by lambda_text_hash is activated (text_part_tokens
+        # through EMA-disabled quantizer) and the resulting text codeword is
+        # exposed as `text_quantized_tokens`. The loss module then runs an
+        # InfoNCE between visual `quantized_tokens` and `text_quantized_tokens`
+        # per codebook. Single text-path forward serves both v91 and v93.
+        self.lambda_cw_xmodal            = float(getattr(args, "lambda_cw_xmodal", 0.0))
         # v79c (#4.1): hard routing via Gumbel-Softmax (one-hot per patch)
         self.routing_hard           = bool(getattr(args, "routing_hard",      False))
         self.routing_hard_tau       = float(getattr(args, "routing_hard_tau", 1.0))
@@ -1829,6 +1836,7 @@ class SigLIP2SemanticOTModel(nn.Module):
             "dna_hash_code_st":                   None,
             "base_indices":                       None,
             "text_continuous_code":               None,
+            "text_quantized_tokens":              None,
             "loss_text_anchor":                   None,
             "hash_recon_pred":                    None,
             "dual_hash_semantic":                 None,
@@ -2092,11 +2100,13 @@ class SigLIP2SemanticOTModel(nn.Module):
             else:
                 text_part_tokens = self.text_adapter(_raw_for_text_dna)
         text_continuous_code = None
-        if (
-            float(self.lambda_text_hash) > 0.0
+        text_quantized_tokens = None
+        _text_path_active = (
+            (float(self.lambda_text_hash) > 0.0 or float(self.lambda_cw_xmodal) > 0.0)
             and text_part_tokens is not None
             and text_part_tokens.shape == (B, NUM_SEMANTIC_PARTS, D)
-        ):
+        )
+        if _text_path_active:
             # (a) text quantization, EMA-disabled
             prev_train = self.quantizer.training
             self.quantizer.eval()
@@ -2108,6 +2118,9 @@ class SigLIP2SemanticOTModel(nn.Module):
             text_q_st       = tq_out["quantized_tokens"]       # [B, 6, D]  STE
             text_q_raw      = tq_out["quantized_tokens_raw"]   # [B, 6, D]  codeword
             text_cb_indices = tq_out["codebook_indices"]       # [B, 6]
+            # v93 exposure: text codeword (STE form so the InfoNCE gradient
+            # flows back through text_adapter via straight-through).
+            text_quantized_tokens = text_q_st
             # (b) text codon-residual
             if self.codon_residual_gamma > 0.0:
                 text_codon_residual = text_part_tokens - text_q_raw
@@ -2189,10 +2202,15 @@ class SigLIP2SemanticOTModel(nn.Module):
             "base_indices":                      base_indices,                       # [B, 18]
 
             # v91 text-to-image DNA-hash matching path. None when
-            # lambda_text_hash == 0; otherwise [B, 18, 4] continuous code
-            # derived from text_part_tokens by reusing the shared
-            # quantizer (EMA-disabled) and codon_heads.
+            # lambda_text_hash == 0 AND lambda_cw_xmodal == 0; otherwise
+            # [B, 18, 4] continuous code derived from text_part_tokens by
+            # reusing the shared quantizer (EMA-disabled) and codon_heads.
             "text_continuous_code":              text_continuous_code,               # [B, 18, 4] or None
+            # v93 text codeword path. None when text path inactive; otherwise
+            # the per-codebook quantized text codeword (codebook entry the
+            # text_part_tokens were nearest-neighbour to). Used by
+            # lambda_cw_xmodal cross-modal InfoNCE in loss_siglip2.
+            "text_quantized_tokens":             text_quantized_tokens,              # [B, 6, D] or None
 
             # v66 text-anchored prototype head: per-batch CE between visual
             # codon logits and text-derived target classes, summed across

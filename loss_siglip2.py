@@ -187,6 +187,13 @@ class DNACodonHashLoss(nn.Module):
         # by the model's parallel text path through the shared quantizer
         # and codon_heads). 0 = disabled (legacy bit-exact).
         self.lambda_text_hash   = float(getattr(cfg, "lambda_text_hash", 0.0))
+        # v93: per-codebook cross-modal codeword InfoNCE. Symmetric InfoNCE
+        # between visual `quantized_tokens[:, m, :]` and text
+        # `text_quantized_tokens[:, m, :]` for each codebook m.
+        # Positive: same sample; negatives: other samples in the batch.
+        # 0 = disabled (legacy bit-exact).
+        self.lambda_cw_xmodal      = float(getattr(cfg, "lambda_cw_xmodal", 0.0))
+        self.cw_xmodal_temperature = float(getattr(cfg, "cw_xmodal_temperature", 0.07))
         # v66: per-codon text-anchored aux CE loss weight. The model computes
         # `out["loss_text_anchor"]` per forward (sum across 6 codebooks). 0
         # default keeps the loss off.
@@ -929,6 +936,39 @@ class DNACodonHashLoss(nn.Module):
         else:
             loss_text_hash = u.new_zeros(())
 
+        # v93: per-codebook cross-modal codeword InfoNCE.
+        # Symmetric InfoNCE per codebook m between
+        #   visual_cw_m = outputs["quantized_tokens"][:, m, :]      [B, D]
+        #   text_cw_m   = outputs["text_quantized_tokens"][:, m, :] [B, D]
+        # Positive: same-sample (i, i). Negatives: other samples in batch.
+        # Averaged over the 6 codebooks. STE form is used on both sides so
+        # gradient flows through visual_adapter / text_adapter via the
+        # quantizer's straight-through estimator.
+        v_cw = outputs.get("quantized_tokens")
+        t_cw = outputs.get("text_quantized_tokens")
+        if (
+            self.lambda_cw_xmodal > 0.0
+            and v_cw is not None
+            and t_cw is not None
+            and v_cw.shape == t_cw.shape
+            and v_cw.dim() == 3
+        ):
+            B_cw, M_cw, _D_cw = v_cw.shape
+            tau_cw = max(float(self.cw_xmodal_temperature), 1e-6)
+            v_n = F.normalize(v_cw, dim=-1)                      # [B, M, D]
+            t_n = F.normalize(t_cw, dim=-1)                      # [B, M, D]
+            labels_cw = torch.arange(B_cw, device=v_cw.device)
+            cw_losses = []
+            for m in range(M_cw):
+                logits_vt = (v_n[:, m, :] @ t_n[:, m, :].t()) / tau_cw  # [B, B]
+                cw_losses.append(
+                    0.5 * (F.cross_entropy(logits_vt, labels_cw)
+                         + F.cross_entropy(logits_vt.t(), labels_cw))
+                )
+            loss_cw_xmodal = torch.stack(cw_losses).mean()
+        else:
+            loss_cw_xmodal = u.new_zeros(())
+
         # v29 paired-aug NtXent on DNA codes (None-safe). Requires the
         # trainer to forward the model on a second augmented view per image
         # and pass that output dict via `outputs_view2`. Both view dicts
@@ -1116,6 +1156,7 @@ class DNACodonHashLoss(nn.Module):
             + self.lambda_dual_instance   * loss_dual_instance
             + self.lambda_codebook_ortho  * loss_codebook_ortho
             + self.lambda_text_hash       * loss_text_hash
+            + self.lambda_cw_xmodal       * loss_cw_xmodal
         )
 
         return {
@@ -1127,6 +1168,7 @@ class DNACodonHashLoss(nn.Module):
             "loss_anchor":       loss_anchor,
             "loss_wasserstein":  loss_wasserstein,
             "loss_text_hash":    loss_text_hash,
+            "loss_cw_xmodal":    loss_cw_xmodal,
             "loss_recon":        loss_recon,
             "loss_ntxent":       loss_ntxent,
             "loss_ortho_text":   loss_ortho_text,

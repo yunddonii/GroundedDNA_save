@@ -405,6 +405,8 @@ def main(args: Config):
         'loss_dna', 'loss_entropy', 'loss_base_balance',
         'loss_bu', 'loss_cb_balance', 'loss_cb_uncorr',
         'loss_wasserstein',
+        'loss_text_hash',
+        'loss_cw_xmodal',
         'loss_recon',
         'loss_ntxent',
         'loss_ortho_text',
