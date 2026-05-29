@@ -219,6 +219,17 @@ class Config():
             help='Skip the C_0 -> C_1..5 gated addition before the codon '
                  'heads. Each local codon head sees its own codeword in '
                  'isolation (v23b ablation).')
+        siglip2_arg.add_argument('--global_gate_init_logit', dest='global_gate_init_logit',
+            type=float, default=-3.0,
+            help='Initial logit for the per-local-codebook C_0->C_m gate '
+                 '(sigmoid). Default -3.0 -> initial gate ~0.047. Use '
+                 '-4.595 for ~0.01 (v88c-style weak addition).')
+        siglip2_arg.add_argument('--use_stop_grad_global', dest='use_stop_grad_global',
+            action=argparse.BooleanOptionalAction, default=True,
+            help='Detach C_0 codeword before the gated addition so the C_0 '
+                 'pathway does not receive gradient from C_1..5 codon heads '
+                 '(v88c default). Pass --no-use_stop_grad_global to allow '
+                 'gradients through.')
         # v32 text-injection ablation: at train time only, add per-part
         # text token to the routed visual token before codebook lookup.
         # The codeword embeddings absorb text-semantic structure during
