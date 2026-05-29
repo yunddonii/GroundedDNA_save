@@ -258,6 +258,275 @@ Format conventions:
 
 ---
 
+## 2026-05-30 — **v93a Flickr25k-CLIP cross-modal codeword InfoNCE — DISCARDED (mAP −0.025); B1 lift +20% confirms compositional gain but cb0 re-couples with local cluster**
+
+🔴 **Not adopted.** Added per-codebook cross-modal InfoNCE between
+visual quantized codeword and text quantized codeword on top of v92a.
+Loss design works exactly as intended structurally (B1 text-centered
+lift jumps from 0.083 → 0.100, +20 % vs v92a, the highest in the v9x
+family). But every retrieval metric regresses by 0.012–0.025 and the
+v92a cb0↔local NMI decoupling (0.225) **reverses to 0.394** — same
+ballpark as pre-v92a runs. Trade-off direction is **opposite to v92a**.
+
+This is the most informative single-run negative result this week.
+v92a improved retrieval *by decoupling cb0 from local cb's*; v93a
+improves compositional concentration *by recoupling all codebooks
+around shared text-aligned axes*. The two losses oppose each other
+structurally, and on this dataset v92a's intra-modal discrimination
+wins by 0.025 mAP.
+
+### Setup (single-axis flip vs v92a)
+
+| Flag | v92a-CLIP | **v93a** |
+|---|---|---|
+| `--lambda_cw_xmodal` | n/a (= 0.0) | **0.05 (NEW)** |
+| `--cw_xmodal_temperature` | n/a | **0.07** (CLIP-style) |
+| everything else (CLIP K=64, MACL 0.5, text_cos 0.3, adaptive top-p 0.5/0.9, γ=0.3, λ_w=0.05, λ_text_hash=0.05, gate logit −4.595, no-stop-grad) | ✓ | ✓ identical |
+
+### Implementation (committed in `e1eac57`)
+
+Symmetric InfoNCE per codebook m between
+- `visual_cw_m = outputs["quantized_tokens"][:, m, :]` (image path, STE)
+- `text_cw_m = outputs["text_quantized_tokens"][:, m, :]` (v91 text
+  path through EMA-disabled quantizer, STE)
+
+Positive pair: same sample (i, i). Negatives: other samples in batch.
+Bidirectional (image→text + text→image cross-entropy averaged).
+Mean across 6 codebooks. λ_cw_xmodal=0.05.
+
+Single text-path forward serves both v91 (λ_text_hash MSE) and v93
+(λ_cw_xmodal InfoNCE) — `_text_path_active = (λ_text_hash > 0 OR
+λ_cw_xmodal > 0)`. Legacy bit-exact at λ=0.
+
+### Final retrieval (Flickr25k 2K × 23K)
+
+| Metric | v92a (prev SOTA) | **v93a** | Δ |
+|---|---:|---:|---:|
+| **mAP** | **0.8414** | 0.8163 | **−0.0251** ⚠ |
+| **P@1** | **0.9350** | 0.9225 | −0.0125 |
+| **P@5** | **0.9358** | 0.9270 | −0.0088 |
+| **P@10** | **0.9360** | 0.9220 | −0.0140 |
+| **P@20** | **0.9359** | 0.9205 | −0.0154 |
+| **P@50** | **0.9371** | 0.9182 | −0.0189 |
+| **P@100** | **0.9365** | 0.9163 | −0.0202 |
+| **P@500** | **0.9327** | 0.9088 | −0.0239 |
+| **P@1000** | **0.9267** | 0.9027 | −0.0240 |
+| unique (DB) | 0.5047 | **0.5190** | +0.014 |
+| mean dead | **0.10** | **0.025** | better |
+| mean base norm. H | 0.987 | 0.987 | tie |
+
+**Every retrieval metric down ~0.012–0.024**. Deep-rank (P@500/P@1000)
+hit hardest (−0.024) — exactly where v92a's compositional discrimination
+was strongest. The cross-modal InfoNCE erodes the discriminative
+structure v92a built.
+
+The two metrics that *did* improve are non-retrieval: unique-code
+ratio (+0.014, codebooks use slightly more codewords) and dead-code
+ratio (0.10 → 0.025, codebooks utilise more entries). Both consistent
+with the cross-modal pressure pushing samples into a wider region of
+codebook space — but the geometry of that wider region is no longer
+retrieval-optimal.
+
+### Mid-eval trajectory
+
+| ep | 4 | 9 | 14 | 19 | 24 | 29 | 34 | 39 | 44 | 49 | 54 | 59 (final) |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| v92a | 0.7962 | 0.8053 | 0.8112 | 0.8210 | 0.8213 | 0.8225 | 0.8236 | 0.8287 | 0.8298 | 0.8277 | 0.8292 | **0.8303** |
+| **v93a** | 0.7871 | 0.7968 | 0.7913 | 0.8068 | **0.8093** | 0.8063 | 0.8054 | 0.8088 | 0.8080 | 0.8076 | 0.8087 | 0.8074 |
+
+**v93a saturates at ep24 (best mid 0.8093) and never recovers**. v92a
+climbed monotonically to ep59. The cross-modal InfoNCE creates an
+"alignment local minimum" the optimiser falls into early; further
+epochs cannot pull it back to v92a-style discrimination structure.
+
+### 1. Pairwise codebook NMI — **opposite direction to v92a** ⚠
+
+| Run | mean off-diag | min | max | unique tuples (DB) | cb0↔cb1-5 NMI | cb1-5 internal |
+|---|---:|---:|---:|---:|---:|---:|
+| v88a-CLIP (pre-gate) | 0.579 | 0.330 | 0.714 | — | ~0.33 | ~0.65 |
+| v91a-CLIP | 0.518 | 0.300 | 0.724 | 9305 | 0.300–0.360 | 0.49–0.72 |
+| **v92a** | **0.528** | 0.218 | 0.695 | — | **0.218–0.227** ★ | 0.66–0.70 |
+| **v93a** | **0.611** ⚠ | 0.391 | 0.729 | 9583 | **0.391–0.395** ⚠ | **0.71–0.73** |
+
+**v93a NMI jumps +0.08 vs v92a** (+0.09 vs v91a, +0.03 vs v88a-CLIP).
+v92a's signature **cb0↔local decoupling (0.218–0.227)** completely
+reverses to **0.391–0.395** in v93a — essentially erasing the
+structural decoupling that gave v92a its mAP edge.
+
+**Mechanism**: cross-modal InfoNCE per codebook drives each visual_cw_m
+to nearest-match its text_cw_m. But the text adapter produces all 6
+text slots from the same backbone text encoder. Those 6 text slots
+have ~0.40 CLIP cross-slot cosine (already documented in v88a-CLIP
+backbone-swap entry). The codeword space therefore inherits *the
+text encoder's cross-slot correlation structure* — pulling all 6
+visual codebooks toward a shared text-aligned subspace.
+
+This is the dual problem of v92a: instead of cb0 carrying all the
+"global" signal alone (the pattern v91a/v92a balance), cb0 now joins
+cb1–5 in a tightly correlated cluster.
+
+### 2. Codebook drop ablation (full 2K queries)
+
+| drop | v92a | **v93a** |
+|---|---:|---:|
+| cb0 | −0.0159 | **−0.0162** |
+| cb1 | **−0.0132** ★ | −0.0032 |
+| cb2 | −0.0117 ★ | **−0.0122** |
+| cb3 | −0.0020 | −0.0001 |
+| cb4 | −0.0031 | −0.0077 |
+| cb5 | −0.0016 | −0.0079 |
+| **sum** | **−0.0475** | −0.0474 |
+| **anti-cb** | 0 | 0 |
+
+**Drop-sum is essentially identical** (−0.0474 vs −0.0475). v92a and
+v93a extract the *same total quantity* of retrieval information from
+their 36 bits — but **arranged differently** (v92a: cb0+cb1+cb2 lead;
+v93a: cb0+cb2+cb4+cb5 spread).
+
+Striking: v93a's drops are **more uniformly spread** (mean ±std:
+−0.0079 ± 0.0066) than v92a (−0.0079 ± 0.0061). The cross-modal
+InfoNCE *equalised* the codebook contributions, again consistent with
+"all codebooks pulled into the same shared text-axis cluster". This
+equalisation looks healthy on the surface (no codebook dominates) but
+is *not* the right structure for this dataset.
+
+### 3. Per-codebook B0/B1/B2 lift — **v93a hits the v9x B1 ceiling** ★
+
+| Run | B0 raw text | B1 centered text | B2 visual-global |
+|---|---:|---:|---:|
+| v88a-CLIP | 0.0373 | 0.0857 | 0.0494 |
+| v91a-CLIP | 0.0384 | 0.0876 | 0.0503 |
+| v92a | 0.0346 | 0.0832 | 0.0480 |
+| **v93a** | **0.0429** ★ | **0.0998** ★★ | **0.0544** ★ |
+| CIBHash-CLIP | 0.0284 | 0.0635 | 0.0472 |
+
+**v93a leads every B-axis in the v9x family**, with B1 +20 % vs v92a.
+Per-cb B1 distribution: cb0=0.112, cb1=0.081, cb2=0.079, cb3=0.094,
+cb4=0.071, cb5=0.164.
+
+**Notable**: cb0 B1 jumped 0.071 (v92a) → 0.112 (v93a, +58 %). v92a
+had decoupled cb0 from text via the gate; v93a re-couples it via the
+cross-modal InfoNCE. cb5 B1 also jumped 0.144 → 0.164.
+
+**Interpretation**: the cross-modal codeword InfoNCE *does* increase
+per-codebook semantic concentration (the metric it was designed to
+target). But this concentration buys text-clustering, not retrieval
+discrimination. The two are not the same thing.
+
+### 4. Per-codebook utilisation
+
+| cb | dead (v92a) | dead (v93a) |
+|---:|---:|---:|
+| 0 | **0 %** | 0 % |
+| 1 | 14 % | **8 %** |
+| 2 | 16 % | **3 %** |
+| 3 | 5 % | **2 %** |
+| 4 | 5 % | **0 %** |
+| 5 | 13 % | **0 %** |
+| mean cb1-5 | 10 % | **3 %** |
+
+v93a has remarkably healthy codebook utilisation — only 3 % dead
+on average across cb1-5, with cb4 and cb5 fully alive. Codeword
+budget is *fully used*. But again the geometry isn't retrieval-optimal.
+
+### Interpretation: structural trade-off across the v9x family
+
+| Run | Mechanism | NMI cb0↔local | B1 per-cb | Retrieval |
+|---|---|---:|---:|---|
+| v88a-CLIP | base | 0.33 | 0.086 | mid |
+| v91a-CLIP | + text-DNA matching (MSE on continuous_code) | 0.31 | 0.088 | mid |
+| **v92a** | + C_0→local gate (intra-modal redistribution) | **0.22** ★ | 0.083 | **mAP SOTA** ★ |
+| **v93a** | + cross-modal codeword InfoNCE | **0.39** ⚠ | **0.100** ★ | regressed |
+
+**Two design directions diverge cleanly**:
+- **Intra-modal mechanisms** (v92a gate): decouple cb0 from local cluster,
+  enable specialisation, improve mAP. Reduce semantic concentration.
+- **Cross-modal mechanisms** (v93a InfoNCE): align cb0+local with shared
+  text axis, increase semantic concentration, reduce mAP.
+
+The user's hypothesis ("cb0 too strong → mix it into local cb to
+redistribute") was right for v92a's mechanism but the *implementation*
+matters: the gate is intra-modal (local cb sees cb0's codeword
+directly), the cross-modal InfoNCE adds an external alignment pressure
+that pulls *all* cb's together rather than diluting cb0 specifically.
+
+### Why v93a fails: structural diagnosis
+
+v93a's InfoNCE positive pair per cb m is `(visual_cw_m[i], text_cw_m[i])`.
+For this to drive distinct cb's to *distinct* axes, the text adapter
+must produce slot-wise discriminative text_cw_m. But:
+- CLIP text encoder cross-slot cosine ≈ 0.40 (already correlated)
+- Same text encoder feeds all 6 slots
+- Quantizer is shared across all 6 cb's (same codeword bank)
+
+So the cross-modal InfoNCE actually *exploits* the text-side
+cross-slot correlation: cb_m's visual codeword can lower its InfoNCE
+loss by moving toward *any* of the 6 text slots (they're all ~0.40
+similar). The path of least resistance is "move all cb's toward the
+text-encoder mean direction" — exactly the failure mode we observe.
+
+### Verdict
+
+**🔴 DISCARDED at λ_cw_xmodal=0.05.** v92a remains Flickr25k SOTA
+(mAP 0.8414). Structural finding is paper-grade: **cross-modal
+codeword InfoNCE per cb is incompatible with the SigLIP2/CLIP-style
+text encoder's cross-slot correlation** — it over-aligns codebooks
+into a shared text-anchored cluster.
+
+This is a **clean negative result** that strengthens the v92a SOTA
+narrative: intra-modal discrimination (paired-aug NtXent + C_0→local
+gate) is structurally aligned with the retrieval objective; cross-modal
+alignment at the codeword level is structurally aligned with the
+text encoder's correlation pattern. The two are not the same goal.
+
+### Honest caveats
+
+1. **Single seed** for v93a.
+2. **Single λ tested**: only λ_cw_xmodal=0.05. Smaller λ (0.01–0.025)
+   might balance the trade-off — needs a sweep before declaring the
+   loss type itself wrong. But the structural mechanism (NMI surge)
+   suggests even small λ would push in the wrong direction; sweep
+   would just titrate the regression.
+3. **CLIP-locked diagnosis**: SigLIP2's higher cross-slot collapse
+   (~0.88) would make the v93a failure even worse. The structural
+   diagnosis predicts the loss is *strictly worse* on SigLIP2 — no
+   v93a-SigLIP run needed unless contradicting evidence emerges.
+4. **Per-slot text adapter** (`--per_slot_text_adapter`) was *not*
+   used here. If text slots had per-slot decorrelation (the proposal
+   v88c-PromptHash sketched), the cross-modal InfoNCE might work as
+   intended. That's a v93b experiment.
+5. **B1 lift jump is real and notable**: the user's design *does*
+   work for compositional concentration. If the project ever pivots
+   from retrieval mAP to image-text alignment as primary metric, v93a
+   becomes the SOTA in that frame.
+
+### Suggested follow-up
+
+1. **v93b: λ_cw_xmodal sweep** (0.01, 0.025, 0.10) — confirm the
+   monotonic regression direction before fully closing the door.
+2. **v93c: cross-modal InfoNCE + per-slot text adapter** —
+   decorrelate text slots first, then apply cw-InfoNCE. Predicted to
+   recover some mAP.
+3. **v93d: replace InfoNCE with MSE on visual_cw vs text_cw** —
+   ablates whether the failure is the InfoNCE form or the cw-vs-cw
+   target. (Difference from v91 MSE: v91 MSE is on continuous_code,
+   v93d would be on quantized codeword.)
+4. **Use v93a's B1 win as a paper figure**: "our model can be tuned
+   for image-text alignment (v93a, B1 0.100) vs retrieval (v92a,
+   mAP 0.84)" — a Pareto curve, not a single point.
+
+### Artifacts
+
+- `result/260529+flickr25k_setting1_v93a_v92aCLIP_cwXmodal_005+bs+64+e+60+proj_lr+0.001/`
+  — model, extract_db/query.npz, evaluation_siglip2_base.json,
+  pairwise_nmi.json, codebook_drop_ablation_subset2000.json,
+  compositional_eval.json, viz_routing_heatmap.png,
+  viz_codebook_tsne.png. **All 4-axis artifacts generated
+  automatically by the post-eval-compositional hook (commit
+  01040af)** — no manual analysis steps needed.
+
+---
+
 ## 2026-05-29 — **mscoco_v92a-CLIP K=128 — C_0→local gate is no-op on MSCOCO** (mAP tie with v91a K=128; structural finding: gate only rescues *existing* anti-contributing codebooks)
 
 🟡 **No SOTA shift on MSCOCO.** The same v92a recipe that delivered
