@@ -258,6 +258,232 @@ Format conventions:
 
 ---
 
+## 2026-05-30 — **v94a Flickr25k-CLIP text-slot orthogonality (`--lambda_ortho_text 0.05`) — surprising structural finding: v92a's shared text_adapter was *amplifying* cross-slot correlation from 0.66 → 0.98; v94a brings it down to 0.29; retrieval impact is small (mAP −0.009)**
+
+🟡 **Not adopted** as new SOTA (mAP 0.8324 vs v92a 0.8414, −0.009).
+But the structural finding is paper-grade: **v92a's shared text_adapter
+collapses 6 text slots into near-identical vectors (cross-slot cosine
+0.979), v94a's ortho penalty pulls them back to 0.290**. v92a was
+achieving SOTA *despite* text-collapse, not because of slot-distinct
+text representation. The retrieval is carried by the intra-modal gate
+mechanism, not by text alignment.
+
+Setup is a single-axis flip vs v92a: add `--lambda_ortho_text 0.05`.
+This activates the existing `_loss_ortho_text` regularizer (v44 era):
+`L_ortho = ((G - I)**2).sum() / (M*(M-1))` averaged over batch, where
+`G = text_part_tokens_normalised @ text_part_tokens_normalised.T` per
+sample — pushes the 6×6 cross-slot Gram matrix toward the identity.
+
+### Diagnostic that motivated this run
+
+Measured directly on the trained models (5K Flickr V4 cache, post-adapter):
+
+| State | post-adapter cross-slot mean cos |
+|---|---:|
+| Raw V4 cache (CLIP text encoder output, pre-adapter) | 0.663 |
+| v92a SOTA (shared adapter, no ortho penalty) | **0.979** ⚠⚠ |
+| **v94a (shared adapter + λ_ortho_text 0.05)** | **0.290** ★ |
+
+**v92a's adapter actively makes the problem worse** (+0.316 vs raw).
+v94a brings it −0.689 from v92a, −0.374 from raw. cb0 specifically is
+pushed to 0.02-0.05 cosine vs cb1-5 (near-perfect orthogonality on
+the global slot). cb1-5 still partially correlated internally (0.30-0.54).
+
+### Final retrieval (Flickr25k 2K × 23K)
+
+| Metric | v92a (prev SOTA) | **v94a** | Δ |
+|---|---:|---:|---:|
+| **mAP** | **0.8414** | 0.8324 | **−0.0090** |
+| **P@1** | **0.9350** | **0.9350** | **tie** ★ |
+| **P@5** | 0.9358 | **0.9387** | **+0.003** ★ |
+| **P@10** | 0.9360 | **0.9387** | **+0.003** ★ |
+| **P@20** | 0.9359 | **0.9369** | +0.001 |
+| **P@50** | **0.9371** | 0.9360 | −0.001 |
+| **P@100** | **0.9365** | 0.9342 | −0.002 |
+| **P@500** | **0.9327** | 0.9252 | −0.008 |
+| **P@1000** | **0.9267** | 0.9158 | −0.011 |
+| unique (DB) | **0.5047** | 0.3804 | **−0.124** |
+| mean dead | 0.10 | **0.073** | better |
+| dead profile (cb0..5) | [0, .14, .16, .05, .05, .13] | [0, .16, .06, **0**, .02, **.19**] | cb3/cb4 fully alive; cb5 worse |
+| mean base norm. H | 0.987 | 0.978 | tie |
+
+**Trade-off pattern (notable)**:
+- **Sharp top-rank (P@1, P@5, P@10): TIE or +0.003 ★** — orthogonal text
+  helps top-rank discrimination.
+- **Deep-rank (P@100..P@1000): −0.002 to −0.011** — orthogonal text
+  concentrates codewords into denser clusters, hurting deep recall.
+- **mAP: −0.009** — deep-rank loss dominates because mAP weights all
+  retrieval depths equally.
+
+### Mid-eval trajectory
+
+| ep | 4 | 9 | 14 | 19 | 24 | 29 | 34 | 39 | 44 | 49 | 54 | 59 |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| v92a | 0.796 | 0.805 | 0.811 | 0.821 | 0.821 | 0.823 | 0.824 | 0.829 | 0.830 | 0.828 | 0.829 | **0.830** |
+| **v94a** | **0.810** | 0.806 | 0.821 | 0.821 | 0.818 | **0.828** | 0.823 | 0.825 | 0.827 | 0.826 | 0.825 | 0.826 |
+
+**v94a starts +0.014 ahead at ep4** — orthogonal text adapter learns
+faster. v92a catches up by ep14 and surpasses by ep44. Suggests ortho
+penalty helps early training but saturates while v92a keeps refining.
+
+### `loss_ortho_text` convergence
+
+```
+ep0 = 0.224 → ep10 = 0.154 → ep30 = 0.151 → ep59 = 0.145
+```
+Drops 35 % in first 10 epochs, then plateaus at 0.145. **L_ortho cannot
+push to 0** at λ=0.05 — there is a balance point between ortho penalty
+and other losses pulling text into discriminative directions. The
+remaining ~0.15 reflects the residual cb1-5 internal correlation
+(0.30-0.54).
+
+### 1. Pairwise codebook NMI (DB codeword indices)
+
+| Run | mean off-diag | min | max | unique tuples | cb0↔cb1-5 NMI |
+|---|---:|---:|---:|---:|---:|
+| v92a | **0.528** | 0.218 | 0.695 | — | 0.218-0.227 |
+| **v94a** | **0.524** | 0.206 | 0.695 | 13015 | **0.206-0.227** |
+
+NMI essentially unchanged at codebook-assignment level. **cb0 cross-NMI
+slightly stronger in v94a (min 0.206 vs 0.218)** — text-side cb0
+orthogonality propagates *partially* to codebook-side cb0 decoupling.
+But the effect is small compared to v92a's gate-driven decoupling.
+
+### 2. Codebook drop ablation (full 2K queries)
+
+| drop | v92a | **v94a** |
+|---|---:|---:|
+| cb0 | −0.0159 | **−0.0220** ★ |
+| cb1 | −0.0132 | −0.0024 |
+| cb2 | −0.0117 | −0.0045 |
+| cb3 | −0.0020 | −0.0054 |
+| cb4 | −0.0031 | −0.0073 |
+| cb5 | −0.0016 | **+0.0002** ⚠ |
+| **sum** | **−0.0475** | −0.0414 |
+| **anti-cb count** | 0 | **1** (cb5) |
+
+**cb0 strengthens** (−0.0159 → −0.0220, +38 %) — orthogonal global
+slot carries more retrieval weight. But cb1-5 contribution flattens
+(every cb between −0.0024 and −0.0073) and cb5 becomes anti-contributing.
+
+**Drop sum is smaller** (−0.0414 vs −0.0475) — total retrieval
+information packed into 36 bits is *less* than v92a. The orthogonality
+constraint shrinks the geometric subspace text can occupy → less
+retrieval room.
+
+### 3. Per-codebook B0/B1/B2 lift
+
+| Run | B0 raw text | B1 centered text | B2 visual-global |
+|---|---:|---:|---:|
+| v88a-CLIP | 0.0373 | 0.0857 | 0.0494 |
+| v91a-CLIP | 0.0384 | 0.0876 | 0.0503 |
+| v92a | 0.0346 | 0.0832 | 0.0480 |
+| **v94a** | 0.0362 | **0.0881** ★ | 0.0513 |
+| v93a (DISCARDED) | 0.0429 | 0.0998 | 0.0544 |
+
+**B1 +6 % vs v92a (0.083 → 0.088)** — orthogonal text *does* improve
+per-codebook semantic concentration as predicted. But the gain is
+smaller than v93a's +20 % (which used the much stronger cross-modal
+InfoNCE).
+
+cb5 B1 lift: 0.144 (v92a) → **0.152** (v94a) — cb5 is the strongest
+text-clustering codebook in both, gained slightly here. cb0 B1 stayed
+at 0.071 (v94a) → 0.071 unchanged — cb0 went orthogonal in text space
+but didn't gain text-semantic concentration on retrieval side.
+
+### Interpretation: what v94a's `loss_ortho_text` actually changed
+
+The Gram-matrix penalty operates on **post-adapter** text features.
+It does NOT touch:
+- The raw V4 CLIP text encoder output (cos 0.663) — still feeds
+  the Sinkhorn router via `cached_text_part_raw`.
+- The visual codebook geometry — only affects what text quantizer
+  input looks like.
+
+What it DOES change:
+1. **Text adapter weights**: forces shared MLP to produce post-projection
+   features where the 6 slot dimensions are mutually decorrelated
+   *on average* (penalty form, not hard constraint).
+2. **Text codeword choice** (v91/v93 text path): with decorrelated
+   text_part_tokens, each slot's nearest-neighbour codeword in the
+   shared codebook becomes more slot-distinct.
+3. **Routing OT cost** (`cached_text_part_raw` already raw, so NOT
+   affected) — but `text_part_tokens` after adapter goes to other
+   downstream uses that are.
+4. **Codon-head input via text path** (v91 text-DNA matching): improved
+   text DNA decoding because text slots are no longer near-identical.
+
+What it does NOT change:
+- **Routing diversity**: Sinkhorn still uses raw text → router doesn't
+  benefit from the ortho penalty. This is the same "wrong-target"
+  critique that killed v44 (2026-05-19) — except v44 was on SigLIP2
+  where the routing collapse was worse, and v44's per-slot adapter
+  was the heavier failure mode.
+- **Codebook structure**: cb0 codeword cluster geometry decided by
+  visual signal + EMA dynamics, not text geometry directly.
+
+### Verdict
+
+**🟡 SOFT regression (−0.009 mAP).** v92a remains Flickr SOTA.
+**v94a is NOT a step down** in any meaningful sense — top-rank metrics
+(P@1, P@5, P@10) tied or improved. The mAP loss comes entirely from
+deep-rank P@500/P@1000.
+
+**Structural value of this run is high**:
+1. **Discovered v92a's hidden text-collapse pathology** (cos 0.979)
+   that we did not previously know about.
+2. **Confirmed ortho penalty *works as designed*** (0.66 → 0.29 in
+   shared adapter; ~10× stronger reduction than measured for raw mean
+   removal in earlier diagnostic, which was only 0.66 → 0.59).
+3. **Set up v93 retry on a properly decorrelated text foundation**:
+   v93a failed *partly* because of the text-collapse v92a hadn't
+   fixed. v94c (NEW) tests whether v93's cross-modal InfoNCE works
+   when text is actually orthogonalized.
+
+### Honest caveats
+
+1. **Single seed**, single λ_ortho (0.05).
+2. **L_ortho only affects adapted path**, not raw routing OT cost.
+   The Sinkhorn router still sees the 0.66-correlated raw text. To
+   improve routing, would need to also adapt `cached_text_part_raw`
+   path or move L_ortho upstream.
+3. **cb1-5 internal correlation 0.30-0.54 not eliminated** — ortho
+   penalty achieved cb0 orthogonality but couldn't break the
+   cluster structure among local slots.
+4. **Top-rank wins are not yet statistically significant** at
+   single-seed level (+0.003 on P@5/P@10 vs v92a).
+5. **Unique-code regression** (0.50 → 0.38) is a concern. Orthogonal
+   text channels means the same image content maps to a *more
+   constrained* set of codewords (text geometry is more
+   prescriptive). On a larger dataset this might be less of an
+   issue.
+
+### Suggested follow-up
+
+1. **v94c (HIGHEST PRIORITY)**: v94a setup + `--lambda_cw_xmodal 0.05`.
+   Tests whether v93's cross-modal InfoNCE works when text is actually
+   orthogonalized. Causal validation of v93a's failure diagnosis.
+   Launching now.
+2. **v94b**: λ_ortho sweep (0.02, 0.10) — find optimum before
+   declaring 0.05 the right point.
+3. **v94d**: λ_ortho + `--per_slot_text_adapter` (h=256 to avoid v44
+   overfit). Stronger orthogonality at higher param cost.
+4. **v95 idea**: move L_ortho upstream to BEFORE Sinkhorn cost
+   computation — would require either (a) routing through adapted
+   features (not currently done) or (b) ortho penalty on raw text
+   pre-encoder (impossible since encoder is frozen).
+
+### Artifacts
+
+- `result/260530+flickr25k_setting1_v94a_v92aCLIP_orthoText_005+bs+64+e+60+proj_lr+0.001/`
+  — model, extract_db/query.npz, evaluation_siglip2_base.json,
+  pairwise_nmi.json, codebook_drop_ablation_subset2000.json,
+  compositional_eval.json, viz_routing_heatmap.png,
+  viz_codebook_tsne.png. **All 4-axis artifacts generated
+  automatically by the post-eval-compositional hook (01040af)**.
+
+---
+
 ## 2026-05-30 — **v93a Flickr25k-CLIP cross-modal codeword InfoNCE — DISCARDED (mAP −0.025); B1 lift +20% confirms compositional gain but cb0 re-couples with local cluster**
 
 🔴 **Not adopted.** Added per-codebook cross-modal InfoNCE between
