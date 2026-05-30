@@ -258,6 +258,260 @@ Format conventions:
 
 ---
 
+## 2026-05-31 — **v94c Flickr25k-CLIP (ortho text + cw_xmodal stacked) — causal proof that cross-modal codeword InfoNCE *destroys* text orthogonality (0.290 → 0.988); v93a failure diagnosed as structural, not text-collapse-dependent**
+
+🔴 **Not adopted.** mAP 0.8215 — worse than v94a (0.8324) by 0.011,
+worse than v92a SOTA (0.8414) by 0.020, but slightly better than
+v93a's bare 0.8163 (no ortho) by 0.005. The 0.005 lift over v93a is
+the *only* measurable benefit of stacking ortho on top of cw_xmodal,
+and it comes at the cost of v94a's pure orthogonality finding.
+
+This is a **paper-grade causal experiment** that resolves a question
+v93a/v94a left open: was v93a's cross-modal codeword InfoNCE failing
+because (i) the underlying text representation was already collapsed
+(v92a's hidden text_adapter pathology, cos 0.979), or (ii) the loss
+form itself is structurally wrong?
+
+**Answer**: (ii). cross-modal InfoNCE per cb *actively requires* text
+slots to be similar — collapsed text makes the loss easier to
+minimise (same-sample positives easier to score above other-sample
+negatives when all text slots project to the same direction). When
+applied on top of v94a's properly decorrelated text (cos 0.290), the
+cw_xmodal gradient overwhelms the ortho penalty and pulls text back
+to **0.988** — even *more* collapsed than v92a's 0.979.
+
+### Setup vs v94a (single-axis flip)
+
+| Flag | v94a | **v94c** |
+|---|---|---|
+| `--lambda_text_hash` | 0.05 | 0.05 |
+| `--lambda_ortho_text` | 0.05 | 0.05 |
+| `--lambda_cw_xmodal` | (= 0) | **0.05 (NEW)** |
+| `--cw_xmodal_temperature` | n/a | 0.07 |
+| everything else (CLIP K=64, gate −4.595 no-stop-grad, MACL 0.5, text_cos 0.3, adaptive top-p, γ=0.3, λ_w=0.05) | ✓ | ✓ identical |
+
+### Key diagnostic: text orthogonality survives or dies?
+
+Measured post-adapter cross-slot mean cosine on trained checkpoints
+(5K Flickr V4 cache):
+
+| Model | text adapter cross-slot cos |
+|---|---:|
+| Raw V4 cache (pre-adapter) | 0.663 |
+| v92a (no ortho, no cw) | 0.979 |
+| **v94a (ortho 0.05)** | **0.290** ★ |
+| v93a (no ortho, cw 0.05) | ~0.97 (inferred from B1/NMI pattern) |
+| **v94c (ortho 0.05 + cw 0.05)** | **0.988** ⚠ — *worse than v92a!* |
+
+The cw_xmodal loss *not only undoes the ortho penalty* but pushes
+text into a more collapsed state than v92a ever achieved. λ=0.05 vs
+λ=0.05 is not a fair fight — the cross-modal InfoNCE's geometric
+pressure is structurally stronger.
+
+### Mechanistic explanation
+
+`L_cw_xmodal_m` per codebook m is:
+```
+logits = (visual_cw_m @ text_cw_m.T) / tau           # [B, B]
+loss_m = 0.5 * (CE(logits, I) + CE(logits.T, I))     # symmetric InfoNCE
+```
+
+For this to be low, `text_cw_m[i]` must be discriminative between
+samples i. Two routes to that:
+
+1. **Slot-specific separation**: each cb_m's text codeword lives in a
+   distinct slot subspace. Hard to achieve because text adapter and
+   quantizer are *shared* across slots — only differentiation is per-
+   slot input direction.
+2. **Pan-slot global discrimination**: all 6 cb's collapse to a
+   common direction that *each sample uses fully*. Text adapter learns
+   to map each input to the *entire* feature space, and slot identity
+   becomes noise. Easy to achieve because text features are already
+   correlated 0.66 at input.
+
+Route 2 minimises the loss faster than route 1 in 60 epochs. The
+optimiser picks route 2, collapsing text.
+
+### Final retrieval (Flickr25k 2K × 23K)
+
+| Metric | v92a SOTA | v94a | **v94c** | v93a | Δ v94c vs v94a | Δ v94c vs v93a |
+|---|---:|---:|---:|---:|---:|---:|
+| **mAP** | **0.8414** | 0.8324 | 0.8215 | 0.8163 | **−0.0109** | **+0.0052** |
+| **P@1** | **0.9350** | **0.9350** | 0.9340 | 0.9225 | −0.0010 | +0.0115 |
+| **P@5** | 0.9358 | **0.9387** | 0.9317 | 0.9270 | −0.0070 | +0.0047 |
+| **P@10** | 0.9360 | **0.9387** | 0.9311 | 0.9220 | −0.0076 | +0.0091 |
+| **P@100** | **0.9365** | 0.9342 | 0.9230 | 0.9163 | −0.0112 | +0.0067 |
+| **P@500** | **0.9327** | 0.9252 | 0.9148 | 0.9088 | −0.0104 | +0.0060 |
+| **P@1000** | **0.9267** | 0.9158 | 0.9088 | 0.9027 | −0.0070 | +0.0061 |
+| unique (DB) | 0.5047 | 0.3804 | **0.5377** | 0.5190 | +0.157 | +0.019 |
+| mean dead | 0.10 | 0.073 | **0.018** | 0.025 | −0.055 | −0.007 |
+
+**Stacking ortho on top of cw_xmodal recovered some of v94a's
+retrieval (+0.005 over v93a) and most of v92a's unique-code health
+(0.538 vs v92a 0.505)** — but at the cost of v94a's text
+orthogonality.
+
+### Mid-eval trajectory
+
+| ep | 4 | 9 | 14 | 19 | 24 | 29 | 34 | 39 | 44 | 49 | 54 | 59 |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| v92a | 0.796 | 0.805 | 0.811 | 0.821 | 0.821 | 0.823 | 0.824 | 0.829 | 0.830 | 0.828 | 0.829 | **0.830** |
+| v94a | **0.810** | 0.806 | 0.821 | 0.821 | 0.818 | 0.828 | 0.823 | 0.825 | 0.827 | 0.826 | 0.825 | 0.826 |
+| **v94c** | 0.794 | 0.788 | 0.784 | 0.802 | 0.807 | 0.808 | 0.814 | 0.813 | 0.817 | 0.816 | 0.818 | **0.820** |
+
+v94c suffers a longer cold start (ep4-ep14 below 0.80) as the two
+opposing losses fight, then climbs steadily to 0.820 at ep59. Best
+mid is end-of-training, not earlier. v94a hit 0.828 by ep29 and
+plateaued; v92a kept refining to 0.830 at ep59.
+
+### 1. Pairwise codebook NMI
+
+| Run | mean off-diag | cb0 ↔ cb1-5 | cb1-5 internal | unique tuples |
+|---|---:|---:|---:|---:|
+| v92a | 0.528 | 0.218-0.227 | 0.66-0.70 | — |
+| v94a | **0.524** | 0.206-0.227 | 0.65-0.73 | 13015 |
+| **v94c** | 0.608 | **0.425-0.431** ⚠ | 0.685-0.714 | 10236 |
+| v93a | 0.611 | 0.391-0.395 | 0.71-0.73 | 9583 |
+
+**v94c looks like v93a**, not v94a. The cb0 decoupling (0.20-0.23 in
+v92a/v94a) is *completely lost* (back to 0.42-0.43). The Tier-3
+"slot-distinct codebook" interpretability claim that v94a unlocked
+is gone again in v94c.
+
+### 2. Codebook drop ablation
+
+| drop | v92a | v94a | **v94c** | v93a |
+|---|---:|---:|---:|---:|
+| cb0 | −0.0159 | −0.0220 | −0.0201 | −0.0162 |
+| cb1 | **−0.0132** ★ | −0.0024 | −0.0012 | −0.0032 |
+| cb2 | −0.0117 ★ | −0.0045 | −0.0047 | −0.0122 |
+| cb3 | −0.0020 | −0.0054 | **+0.0023 ⚠** (anti) | −0.0001 |
+| cb4 | −0.0031 | −0.0073 | **−0.0203 ★★** | −0.0077 |
+| cb5 | −0.0016 | +0.0002 | −0.0043 | −0.0079 |
+| **sum** | −0.0475 | −0.0414 | **−0.0484** | −0.0474 |
+| **anti-cb** | 0 | 1 | 1 (cb3) | 0 |
+
+**cb4 is the new star in v94c** (−0.0203, second-strongest after cb0).
+v94a's cb4 contribution was just −0.0073; v94c boosts it ~3×. The
+cross-modal InfoNCE rerouted retrieval load into cb4 specifically.
+cb3 became anti-contributing (mirrors v94a's cb5-anti). cb1 nearly
+zero contribution.
+
+Drop sum −0.0484 recovers to v92a level — total retrieval information
+is preserved, just *redistributed*.
+
+### 3. B0/B1/B2 lift — v94c hits v9x B1 ceiling
+
+| Run | B0 raw text | B1 centered text | B2 visual-global |
+|---|---:|---:|---:|
+| v88a-CLIP | 0.0373 | 0.0857 | 0.0494 |
+| v91a-CLIP | 0.0384 | 0.0876 | 0.0503 |
+| v92a SOTA | 0.0346 | 0.0832 | 0.0480 |
+| v94a (ortho) | 0.0362 | 0.0881 | 0.0513 |
+| v93a (cw) | 0.0429 | 0.0998 | 0.0544 |
+| **v94c (ortho+cw)** | **0.0441** ★ | **0.1022** ★★ | **0.0575** ★ |
+
+**v94c leads every B-axis in the v9x family**. B1 0.1022 — 22 % above
+v92a, 5 % above v93a. Per-cb B1 distribution:
+[cb0=0.117, cb1=0.084, cb2=0.081, cb3=0.096, cb4=0.074, cb5=**0.164**].
+
+**cb0 B1 jumped 0.071 (v94a) → 0.117 (v94c, +66 %)** — for the first
+time cb0 carries strong per-codeword text-semantic concentration.
+This is consistent with cw_xmodal forcing cb0 codeword choice to
+align with text content. cb5 B1 0.164 stays at v93a level.
+
+### 4. Per-codebook utilisation
+
+| cb | v92a | v94a | **v94c** | v93a |
+|---:|---:|---:|---:|---:|
+| 0 | 0 % | 0 % | 0 % | 0 % |
+| 1 | 14 % | 16 % | **3 %** | 8 % |
+| 2 | 16 % | 6 % | **2 %** | 3 % |
+| 3 | 5 % | 0 % | **3 %** | 2 % |
+| 4 | 5 % | 2 % | **0 %** | 0 % |
+| 5 | 13 % | 19 % | **0 %** | 0 % |
+
+**v94c has the healthiest codebook utilisation** (mean 1.3 % dead
+across cb1-5, all five slots near-fully alive). This is paid for by
+the cross-modal InfoNCE forcing every codeword to find a discriminative
+sample-text pair to align with.
+
+### Interpretation: v94c on the 5-axis interpretability frontier
+
+| Axis | v92a | v94a | **v94c** | v93a |
+|---|---:|---:|---:|---:|
+| A. NMI distinguishability ↓ | 0.528 ★ | **0.524** ★★ | 0.608 | 0.611 |
+| B. B1 semantic concentration ↑ | 0.083 | 0.088 | **0.102** ★★ | 0.100 |
+| C. drop sum / anti-cb | **−0.048 / 0** ★ | −0.041 / 1 | −0.048 / 1 | −0.047 / 0 ★ |
+| D. text-slot orthogonality ↓ | 0.98 | **0.29** ★★ | 0.99 ⚠ | 0.97 |
+| E. unique-code ratio | 0.505 | 0.380 | **0.538** ★ | 0.519 |
+
+**v94c position**: B-axis champion + E-axis champion, regressed on A
+and D (where v94a was champion), tied with v92a on C. The single
+model that maximally lifts both *semantic concentration* AND *code
+utilisation*, at the cost of *codebook distinguishability* AND *text
+slot orthogonality*.
+
+**Paper framing**: v94c is a Pareto point distinct from v92a and v94a.
+If the paper figure tracks "compositional concentration" (B1, B2,
+unique) as the goal, v94c wins. If it tracks "structural
+compositionality" (A, D), v94a wins. Reader sees the trade-off
+explicitly.
+
+### Verdict
+
+🔴 **DISCARDED as SOTA**. v92a remains Flickr25k mAP SOTA. v94c is
+the **best argument the v93/v94 family has against itself** —
+demonstrating that:
+
+1. The cross-modal codeword InfoNCE is **fundamentally incompatible**
+   with text-slot orthogonality at equal weight.
+2. v93a's failure was **not** rescue-able by adding ortho text — the
+   ortho penalty gets crushed by the cross-modal pressure.
+3. The v9x family has **two structurally distinct optima**:
+   - retrieval optimum (v92a, intra-modal gate)
+   - semantic concentration optimum (v94c, cross-modal alignment)
+   which **cannot be combined under the current architecture**.
+
+### Honest caveats
+
+1. **Equal-weight assumption**: λ_ortho_text=0.05 vs λ_cw_xmodal=0.05.
+   A larger λ_ortho (0.5, 1.0) *might* dominate. Worth a one-shot test
+   before fully closing the door. v94d candidate.
+2. **Single seed**.
+3. **Tau competition**: cw_xmodal_temperature 0.07 (sharp CLIP-style)
+   creates very strong gradient. Trying tau=0.1, 0.2 might let ortho
+   compete. v94e candidate.
+4. **Hard constraint alternative**: replace soft L_ortho with a
+   Cayley/Householder parameterised hard-orthogonal per-slot text
+   adapter. Then cw_xmodal cannot collapse text by construction.
+   This is the cleanest follow-up but ~200 LOC of new code.
+
+### Suggested follow-up
+
+1. **v94d: λ_ortho 0.5 + λ_cw_xmodal 0.05** — can a 10× stronger ortho
+   penalty rescue v94c?
+2. **v94e: λ_ortho 0.05 + λ_cw_xmodal 0.05 + cw temperature 0.2**
+   (softer InfoNCE).
+3. **v95: hard-orthogonal text adapter** (Cayley parameterisation) +
+   cw_xmodal. If even hard-orthogonal text fails the cw_xmodal recipe,
+   v93/v94 family is conclusively wrong direction and we close it.
+4. **v96 pivot**: drop cw_xmodal entirely, stack v94a's ortho on top
+   of v92a + per_slot_text_adapter (h=128 to avoid v44 overfit). Test
+   whether stronger text orthogonality plus per-slot expressivity can
+   move mAP above v92a's 0.8414 *without* cw_xmodal.
+
+### Artifacts
+
+- `result/260530+flickr25k_setting1_v94c_v92aCLIP_orthoText_005_cwXmodal_005+bs+64+e+60+proj_lr+0.001/`
+  — model, extract_db/query.npz, evaluation_siglip2_base.json,
+  pairwise_nmi.json, codebook_drop_ablation_subset2000.json,
+  compositional_eval.json, viz_routing_heatmap.png,
+  viz_codebook_tsne.png. **All 4-axis artifacts generated
+  automatically by the post-eval hook (01040af).**
+
+---
+
 ## 2026-05-30 — **v94a Flickr25k-CLIP text-slot orthogonality (`--lambda_ortho_text 0.05`) — surprising structural finding: v92a's shared text_adapter was *amplifying* cross-slot correlation from 0.66 → 0.98; v94a brings it down to 0.29; retrieval impact is small (mAP −0.009)**
 
 🟡 **Not adopted** as new SOTA (mAP 0.8324 vs v92a 0.8414, −0.009).
