@@ -1,11 +1,11 @@
 """SigLIP2 tokenization utilities for codebook texts.
 
-Bridges the offline Qwen2.5-VL JSON cache (see `vlm_qwen25_descriptions.py`
+Bridges the offline Qwen3-VL JSON cache (see `vlm_qwen25_descriptions.py`
 and `preprocess_qwen_codebook_texts.py`) and the runtime dataloader.
 
 IMPORTANT:
     The tokenizer here is the SigLIP2 tokenizer — NOT Qwen's.
-    Qwen2.5-VL is offline-only; the SigLIP2 text encoder is what consumes
+    Qwen3-VL is offline-only; the SigLIP2 text encoder is what consumes
     `part_input_ids` during training/inference.
 """
 

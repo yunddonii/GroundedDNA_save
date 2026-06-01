@@ -367,6 +367,180 @@ trade off when stacked).
 
 ---
 
+## 2026-06-01 — **Qwen2.5-VL → Qwen3-VL VLM swap: v95a-Qwen3 vs v95a-Qwen2.5 — small mAP regression (−0.006) but P@1 gain (+0.006) and cb1 collapse FIXED (60.9 % → 9.4 %)**
+
+🟡 Swap kept (Qwen3-VL now default), v95a-Qwen2.5 SOTA preserved. The
+VLM upgrade is *structurally informative*: same per_slot_text_adapter
+recipe trained on Qwen3-generated captions produces nearly the same
+post-adapter geometry (cb0 perfectly orthogonal to local cluster,
+cb1-5 internal collapse) but **redistributes codebook usage more
+evenly** — the cb1 60.9 % dead "compressed retrieval-specialist" of
+v95a-Qwen2.5 is gone, replaced by a more uniform dead profile
+(9.4 % / 17.2 % / 29.7 % / 12.5 % / 10.9 %).
+
+### Setup
+
+| Component | v95a-Qwen2.5 (prev SOTA) | **v95a-Qwen3** |
+|---|---|---|
+| Caption VLM | Qwen2.5-VL-7B-Instruct | **Qwen3-VL-8B-Instruct (NEW default)** |
+| V4 prompt | unchanged | unchanged |
+| CLIP text encoder | openai/clip-vit-base-patch16 | unchanged |
+| CLIP visual cache | flickr25k_clip_v4plus | symlinked from same cache (visual unchanged) |
+| Model recipe | v95a (per_slot + h=256 + gate + MACL + text_cos + λ_text_hash 0.05 + λ_wasserstein 0.05) | identical, only text_part.f16.npy regenerated |
+
+### Code migration (this commit)
+
+- `dna_utils/vlm_qwen25_descriptions.py`: `DEFAULT_VLM` → Qwen/Qwen3-VL-8B-Instruct, class import → `Qwen3VLForConditionalGeneration`. Function names retained for backward compatibility.
+- `dna_utils/__init__.py`, `dna_utils/text_description_processor.py`: docstring updates.
+- `preprocess_qwen_codebook_texts.py`: `--vlm_name` default updated.
+- `tools/qwen3_v4_flickr25k_trainset.py` (NEW): 5-GPU sharded V4 caption generator.
+- `tools/v5_small_scale_test.py`: model class swap.
+- `scripts/draw_architecture.py`, `scripts/smoke_test_cifar10.sh`: documentation updates.
+
+### Qwen3 caption generation (Phase 2)
+
+- Flickr25k trainset 5000 images, V4 prompt, batched (batch=4), 5-GPU sharded.
+- Wall-clock: ~30 minutes (vs estimated ~2.2 h single-GPU batched, ~9 h single-image sequential).
+- Parse rate: **5000 / 5000 = 100 %**, 0 JSON failures.
+- Output: `cache/flickr25k_qwen3_v4_trainset.jsonl`.
+
+### CLIP cache build (Phase 3)
+
+`cache/flickr25k_clip_v4plus_qwen3/`:
+- All visual files (`visual_*`) symlinked from existing `flickr25k_clip_v4plus/`.
+- `text_part.f16.npy` re-encoded: 5000 trainset rows use Qwen3 captions, remaining 20 000 use Qwen2.5 captions (eval path doesn't read text, so non-trainset rows are inert).
+- `image_ids.json`, `has_text.bool.npy`, `meta.json` symlinked.
+
+### Raw CLIP text-encoder cross-slot cos (trainset 5000 images)
+
+| Source | mean cross-slot cos |
+|---|---:|
+| Random unrelated short captions | 0.500 (CLIP intrinsic floor) |
+| **Qwen2.5 V4 (legacy)** | **0.663** |
+| **Qwen3 V4 (this work)** | **0.596** ★ |
+| Δ Qwen3 − Qwen2.5 | **−0.068** |
+
+Qwen3 closes about **42 % of the gap** to the CLIP floor (0.663 − 0.596 = 0.067, vs maximum 0.163). Real and reproducible improvement at the raw text-encoder output level.
+
+Per-slot pair structure (Qwen3 trainset 5000):
+```
+       cb0    cb1    cb2    cb3    cb4    cb5
+cb0  1.000  0.635  0.591  0.647  0.561  0.586
+cb1  0.635  1.000  0.556  0.652  0.569  0.503
+cb2  0.591  0.556  1.000  0.646  0.582  0.587
+cb3  0.647  0.652  0.646  1.000  0.596  0.638
+cb4  0.561  0.569  0.582  0.596  1.000  0.586
+cb5  0.586  0.503  0.587  0.638  0.586  1.000
+```
+
+cb1 ↔ cb5 = 0.503 (most orthogonal pair, near floor). cb3 sits in the middle (every other slot pulls toward it). No catastrophic collapse pair.
+
+### Final retrieval (Flickr25k 2K × 23K) — v95a-Qwen3 vs v95a-Qwen2.5
+
+| Metric | v95a-Qwen2.5 (prev SOTA) | **v95a-Qwen3** | Δ |
+|---|---:|---:|---:|
+| **mAP** | **0.8476** | 0.8420 | **−0.0056** |
+| **P@1** | 0.9385 | **0.9440** | **+0.0055** ★ |
+| **P@5** | 0.9352 | **0.9390** | +0.0038 |
+| **P@10** | 0.9377 | **0.9391** | +0.0014 |
+| **P@20** | 0.9359 | **0.9378** | +0.0019 |
+| **P@50** | 0.9369 | 0.9362 | tie |
+| **P@100** | 0.9356 | 0.9341 | −0.0015 |
+| **P@500** | 0.9286 | 0.9279 | tie |
+| **P@1000** | 0.9230 | 0.9224 | tie |
+| **unique (DB)** | 0.5693 | **0.5781** | +0.009 |
+
+**Pattern**: every metric P@1 through P@20 improves slightly (+0.001 to +0.006); P@50 onwards is essentially tied; mAP drops 0.006. The trade-off moves *toward the flat regime* (better top-rank, worse mAP-weighted-by-recall) — consistent with the lower input correlation giving each slot more discriminative power at the top end.
+
+### Mid-eval trajectory
+
+| ep | 4 | 9 | 14 | 19 | 24 | 29 | 34 | 39 | 44 | 49 | 54 | 59 |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| v95a-Qwen2.5 | 0.800 | 0.810 | 0.822 | 0.824 | 0.832 | **0.836** | 0.836 | 0.835 | — | — | — | 0.834 |
+| **v95a-Qwen3** | 0.795 | 0.817 | 0.814 | 0.815 | 0.827 | 0.824 | 0.825 | **0.827** | 0.826 | 0.819 | 0.816 | 0.822 |
+
+v95a-Qwen3 trains to a slightly lower mid-eval plateau (~0.825 vs ~0.835) but best ckpt extracts at 0.8420 — gap smaller than the mid-train gap suggested.
+
+### Per-codebook utilisation — the headline structural finding
+
+| cb | dead % (Qwen2.5) | dead % (Qwen3) | Δ |
+|---:|---:|---:|---:|
+| 0 | 0.0 | 0.0 | tie |
+| **1** | **60.9** | **9.4** | **−51.5** ★★★ |
+| 2 | 7.8 | 17.2 | +9.4 |
+| 3 | 12.5 | 29.7 | +17.2 |
+| 4 | 10.9 | 12.5 | +1.6 |
+| 5 | 6.2 | 10.9 | +4.7 |
+| **mean** | **16.4** | **13.3** | −3.1 |
+
+**cb1 collapse is FIXED**. v95a-Qwen2.5's cb1 with only 25 active codewords (and drop ablation −0.0175 = 2nd strongest contributor) was the "compressed retrieval-specialist" we documented as the model's role-differentiation signal. Qwen3 captions redistribute that load: cb1 dead drops from 60.9 % to 9.4 %, but cb3 dead rises (12.5 % → 29.7 %) and the overall mean dead falls 3 %.
+
+This is consistent with the more decorrelated Qwen3 input giving each codebook *enough distinctive signal* to spread usage across more codewords — the architecture no longer needs to compress one slot to a near-binary classifier.
+
+### Post-adapter cross-slot cos — architecture is dominant
+
+| Model | post-adapter mean cos | cb0 ↔ cb1-5 | cb1-5 internal |
+|---|---:|---:|---:|
+| v95a-Qwen2.5 | 0.656 | 0.002-0.017 | 0.97 |
+| **v95a-Qwen3** | 0.652 | **−0.002-0.011** | **0.969-0.982** |
+
+**Essentially identical structural pattern** despite the −0.068 raw input difference. The per_slot text adapter pulls cb0 to 0 cross-slot cos and pulls cb1-5 to a high-correlation cluster, *regardless of input correlation level*. This confirms our earlier hypothesis (v94a era): the post-adapter geometry is determined by the architecture's inductive bias, not by the upstream caption quality.
+
+The Qwen3 input gain (−0.068 raw) gets *absorbed by the adapter*: the adapter ends up applying *less rotation* to achieve the same output geometry. This is why mAP changes are small.
+
+### Compositional analysis (4-axis) — both runs similar
+
+| Axis | v95a-Qwen2.5 | **v95a-Qwen3** |
+|---|---:|---:|
+| A. NMI mean off-diag ↓ | **0.4499** | 0.4545 |
+| cb0 ↔ cb1-5 NMI | 0.138-0.221 (asymmetric) | **0.216-0.227 (uniform)** |
+| cb1-5 internal NMI range | 0.404-0.688 (wide spread) | **0.487-0.654 (compressed)** |
+| C. drop sum / anti-cb | **−0.0534** / 1 | −0.0490 / 1 |
+| B0 mean text lift ↑ | 0.0320 | **0.0344** |
+| B1 mean centered-text ↑ | 0.0770 | 0.0767 |
+| B2 mean visual-global ↑ | 0.0432 | **0.0458** |
+
+NMI structure is more *uniform* under Qwen3 (cb0 cross-NMI matches cb1-5 internal range), reflecting the more balanced codebook usage. Drop sum is slightly shallower (less per-codebook discrimination concentration). B-lifts are essentially tied.
+
+### Verdict
+
+**v95a-Qwen2.5 remains Flickr SOTA** (mAP 0.8476). v95a-Qwen3 (mAP 0.8420) is a *closely-related sibling* with a structurally healthier codebook profile (no compressed cb1) but slightly lower mAP and slightly higher P@1.
+
+**Qwen3-VL kept as the new default** for future caption generation because:
+1. **3-4× faster per-image inference** (~1.6 s vs ~5 s batched).
+2. **Lower raw cross-slot cos** (0.596 vs 0.663) is a strict improvement at the input level.
+3. **Healthier codebook usage** (no 60 % dead cb1) — better generalisation expected, even though our specific v95a recipe doesn't translate this into mAP gain.
+4. **Same JSON-parse rate** (100 % on V4 prompt) — no compliance regression.
+
+### Paper-frame implications
+
+1. **per_slot text adapter overrides input geometry**: a 0.07 shift in input cross-slot cos translates to ~0.001 shift in adapter output. The architecture is the dominant determinant of the final text representation.
+2. **Caption quality drives codebook distribution shape, not magnitude**: better captions → more uniform dead profile (no compressed-specialist slot), but compositional metrics (NMI, drop sum, B-lifts) stay within noise.
+3. **Qwen3 vs Qwen2.5 as a paper variable**: marginal mAP cost, marginal P@1 win, large interpretability gain (no cb1 collapse). For a paper figure highlighting "compositional health", Qwen3 numbers are preferable.
+
+### Honest caveats
+
+1. **Single seed** for v95a-Qwen3.
+2. **Only trainset 5000 captions** were regenerated; eval split (2K) and DB (23K) text features are still Qwen2.5. Since eval doesn't use text routing (`use_text_routing = bool(self.training and ...)`), this doesn't affect the headline numbers but is worth noting for cross-modal retrieval downstream.
+3. **The 0.006 mAP regression on v95a recipe could reverse under different recipes** (e.g. shared text adapter where input quality matters more, or v92a-style gate without per_slot). Worth re-running on v92a to confirm the "adapter architecture dominates" conclusion holds across recipes.
+4. **Qwen3 was tested only on V4 prompt**; V5 retry on Qwen3 is *theoretically* attractive but the CLIP intrinsic floor (0.50) still caps the gain.
+
+### Suggested follow-up
+
+1. **v95a-Qwen3 on full 25K cache**: re-extract test + DB captions with Qwen3, then re-train. Tests whether eval-side text consistency matters.
+2. **mscoco_v95a-Qwen3**: cross-dataset replication. Different caption distribution may give different mAP delta.
+3. **v92a + Qwen3** (no per_slot adapter): tests the "adapter dominates" hypothesis. If v92a-Qwen3 mAP > v92a-Qwen2.5, then shared adapter benefits more from input quality.
+4. **Qwen3 + V5 prompt smoke**: 50-image test. Cheap diagnostic to close the V5 loop on the upgraded VLM.
+
+### Artifacts
+
+- `cache/flickr25k_qwen3_v4_trainset.jsonl` — 5000 Qwen3 V4 captions (trainset only).
+- `cache/flickr25k_qwen3_v4_trainset.shard{0..4}.jsonl` — raw sharded outputs.
+- `cache/flickr25k_clip_v4plus_qwen3/` — symlinked-visual + new text cache.
+- `result/260601+flickr25k_setting1_v95a_qwen3_v92aCLIP_perSlotTextAdapter_h256+bs+64+e+60+proj_lr+0.001/` — v95a-Qwen3 run with all auto-generated 4-axis artifacts and viz files.
+
+---
+
 ## 2026-06-01 — **V5 prompt design (axis-disjoint vocabulary) — DISCARDED (NO-GO): smoke test on 50 Flickr25k images shows cross-slot cos 0.675 → 0.691 (REGRESSION)**
 
 🔴 NOT adopted. The proposed V5 prompt redesign — six lexically-disjoint

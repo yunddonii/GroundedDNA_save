@@ -113,7 +113,7 @@ box(ax, 0.3, 11.9, 2.0, 0.9,
 box(ax, 0.3, 10.5, 2.0, 0.9,
     "Image  $x'$  (paired aug)\n[B, 3, 224, 224]", C_INPUT, fontsize=9.5)
 box(ax, 0.3, 8.6, 2.0, 1.1,
-    "Qwen2.5-VL\n6 part captions\n[B, 6, L]", C_INPUT, fontsize=9.5)
+    "Qwen3-VL\n6 part captions\n[B, 6, L]", C_INPUT, fontsize=9.5)
 
 
 # ============================================================

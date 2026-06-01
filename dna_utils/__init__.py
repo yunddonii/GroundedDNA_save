@@ -6,7 +6,7 @@ across training, extraction, and evaluation:
     csv_logger                  per-epoch CSV append logger
     dna_code_utils              base index ↔ 2-bit ↔ one-hot + Hamming distances
     text_description_processor  SigLIP2 codebook-text tokenizer helpers
-    vlm_qwen25_descriptions     Qwen2.5-VL offline description utilities
+    vlm_qwen25_descriptions     Qwen3-VL offline description utilities
 
 The package is named ``dna_utils`` (not ``utils``) to avoid clashing with the
 project's pre-existing ``utils.py`` module that the legacy training scripts

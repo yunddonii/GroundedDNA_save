@@ -1,4 +1,4 @@
-"""Offline Qwen2.5-VL preprocessing script — produces a JSONL cache of codebook texts.
+"""Offline Qwen3-VL preprocessing script — produces a JSONL cache of codebook texts.
 
 Run BEFORE training. Each output line is a JSON object with ``image_id``
 and ``codebook_texts`` (the six per-codebook short sentences). The script can
@@ -263,7 +263,7 @@ def main() -> int:
                              "match to the SigLIP2 text encoder's training "
                              "distribution. Cache files should be kept distinct "
                              "between versions.")
-    parser.add_argument("--vlm_name", default="Qwen/Qwen2.5-VL-7B-Instruct")
+    parser.add_argument("--vlm_name", default="Qwen/Qwen3-VL-8B-Instruct")
     parser.add_argument("--device",
                         default="cuda" if torch.cuda.is_available() else "cpu")
     parser.add_argument("--max_new_tokens", type=int, default=384)

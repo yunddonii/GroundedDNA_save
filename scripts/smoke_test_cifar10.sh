@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # End-to-end smoke test on CIFAR10:
-#   1) Generate Qwen2.5-VL JSONL cache for a small subset of CIFAR10 images
+#   1) Generate Qwen3-VL JSONL cache for a small subset of CIFAR10 images
 #   2) Train SigLIP2 + DNA hashing for a few epochs (text-guided routing active)
 #   3) Run final extraction + evaluation (auto-triggered by `-ev`)
 #
@@ -48,7 +48,7 @@ if [ "${SKIP_STEP1:-}" = "1" ] || [ "${EXISTING}" -ge "${LIMIT}" ]; then
     echo "============================================================"
 else
     echo "============================================================"
-    echo "[1/3] Qwen2.5-VL preprocessing — limit=${LIMIT} images"
+    echo "[1/3] Qwen3-VL preprocessing — limit=${LIMIT} images"
     echo "      cache -> ${CACHE_PATH}"
     echo "      (existing cache rows: ${EXISTING}; will append-skip duplicates)"
     echo "============================================================"

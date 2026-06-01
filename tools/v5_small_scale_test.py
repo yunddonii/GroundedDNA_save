@@ -1,6 +1,6 @@
 """V5 prompt small-scale test: 50 Flickr25k images.
 
-Generates V5 captions via Qwen2.5-VL, encodes via CLIP, measures cross-slot
+Generates V5 captions via Qwen3-VL, encodes via CLIP, measures cross-slot
 cosine. Compares against V4 (already cached). Decides GO/NO-GO for full V5
 re-extraction.
 """
@@ -13,7 +13,7 @@ import torch
 from PIL import Image
 from transformers import (
     AutoProcessor,
-    Qwen2_5_VLForConditionalGeneration,
+    Qwen3VLForConditionalGeneration,
     CLIPTokenizer,
     CLIPTextModelWithProjection,
 )
@@ -87,9 +87,9 @@ V5_KEYS = (
 
 
 def _load_qwen(device):
-    proc = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-7B-Instruct")
-    mdl = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-        "Qwen/Qwen2.5-VL-7B-Instruct",
+    proc = AutoProcessor.from_pretrained("Qwen/Qwen3-VL-8B-Instruct")
+    mdl = Qwen3VLForConditionalGeneration.from_pretrained(
+        "Qwen/Qwen3-VL-8B-Instruct",
         torch_dtype=torch.bfloat16,
     ).to(device).eval()
     return mdl, proc
