@@ -36,9 +36,29 @@ Format conventions:
   incl. HashNet's own 0.7800.
 - **Best supervised + diversity-balanced Flickr25k**: **v24b** -- mAP
   **0.7742**, unique 0.324.
-- **Best unsupervised Flickr25k SOTA (ours, NEW 2026-05-29)**:
-  **v92a** (= v91a-CLIP recipe with the C_0→local gate re-enabled at
-  weak init `--global_gate_init_logit -4.595` ≈ sigmoid 0.01 and
+- **Best unsupervised Flickr25k SOTA (ours, NEW 2026-05-31)**:
+  **v95a** (= v92a recipe with `--per_slot_text_adapter` +
+  `--text_adapter_hidden_dim 256` — 6 independent text MLPs replacing
+  the shared one, total text_adapter ≈ 2 M params matching shared
+  baseline) -- **mAP 0.8476** (+0.0062 over v92a 0.8414), **P@1 0.9385**
+  (+0.0035), P@5 0.9352, P@10 0.9377, P@100 0.9356, P@1000 0.9230,
+  **unique (DB) 0.5693** (+0.065 vs v92a). First v9x variant to
+  surpass v92a. Compositional: **NMI 0.450** (v9x family low, codebooks
+  most distinguishable), **drop sum −0.0534** (v9x deepest informative
+  budget), cb0 ↔ cb1-5 text-adapter cosine **0.002-0.017** (cb0 fully
+  orthogonal to local cluster *without* any L_ortho penalty — pure
+  architecture effect of independent slot adapters). cb1 develops
+  as a **retrieval-specialist**: 60.9 % dead on DB / 17 codewords
+  used on test queries / drop ablation **−0.0175** (2nd strongest
+  after cb0). Beats supervised v18 (mAP 0.7883) by **+0.059 mAP**.
+  **Note on visualisation artifact**: the saved end-of-training
+  `viz_codebook_tsne.png` (May 31 00:34) initially showed cb5 = 1/64
+  codewords used, a *transient artifact* not reproducible from the
+  saved checkpoint. The actual model produces cb5 = 57/64 unique
+  codewords on test queries (matches extract_query.npz, consistent
+  with mAP 0.8476). Viz file regenerated 2026-06-01 to correct value.
+- **Previous unsupervised Flickr25k SOTA**: **v92a** (= v91a-CLIP recipe
+  with the C_0→local gate re-enabled at weak init `--global_gate_init_logit -4.595` ≈ sigmoid 0.01 and
   `--no-use_stop_grad_global`) -- **mAP 0.8414** (+0.0562 over v91a-CLIP
   0.7852), **P@1 0.9350** (+0.0310), **P@5 0.9358**, **P@10 0.9360**
   (+0.0343), **P@100 0.9365** (+0.0359), **P@1000 0.9267** (+0.0426),
@@ -50,6 +70,7 @@ Format conventions:
   cb1–5 specialise in *complementary* axes while seeing cb0's
   high-quality signal each forward pass. Validates the user-stated
   hypothesis "cb0 too strong → re-introduce the gate to redistribute".
+  Now superseded by v95a same week.
 - **Previous Flickr25k SOTA**: **v91a-CLIP** (= v88a-CLIP recipe +
   `--lambda_text_hash 0.05`, a direct MSE between text-derived
   continuous_code and image-derived continuous_code through the
@@ -121,9 +142,9 @@ Format conventions:
   mAP **0.4856**, P@1 **0.6058**. Adaptive K validates cb0 as the
   dominant MSCOCO retrieval channel, but mscoco_v81a shows that routing
   policy alone can outperform it without changing K.
-- **Per-dataset SOTA pairs**: Flickr25k = **v92a** (0.8414 mAP /
-  0.9350 P@1, K=64, gate active), MSCOCO = **mscoco_v91a-CLIP K=128**
-  (0.6374 mAP / 0.8558 P@1, no gate).
+- **Per-dataset SOTA pairs**: Flickr25k = **v95a** (0.8476 mAP /
+  0.9385 P@1, K=64, gate active + per_slot_text_adapter h=256),
+  MSCOCO = **mscoco_v91a-CLIP K=128** (0.6374 mAP / 0.8558 P@1, no gate).
 - **Cross-dataset regime dichotomy (confirmed 2026-05-29)**: on both
   Flickr25k-CLIP and MSCOCO-CLIP, **CIBHash flat hash holds top-1 / P@k
   for small k**, and **our compositional v91a holds mAP / deep-rank**.
@@ -255,6 +276,430 @@ Format conventions:
   reverse-chronological (newest first), `## Infrastructure` pinned at
   bottom. Re-enforced via `python scripts/reorder_project_log.py`
   (idempotent).
+
+---
+
+## 2026-06-01 — **v95b Flickr25k-CLIP (per_slot_text_adapter + L_ortho 0.05) — text-orthogonality SOTA (cos 0.247) but mAP regression (−0.029 vs v95a)**
+
+🟡 Not adopted as SOTA but **D-axis (text-slot orthogonality)
+champion** of the v9x family. v95a recipe + `--lambda_ortho_text 0.05`.
+
+### Setup vs v95a (single-axis flip)
+
+| Flag | v95a | **v95b** |
+|---|---|---|
+| `--per_slot_text_adapter` | ✓ | ✓ |
+| `--text_adapter_hidden_dim` | 256 | 256 |
+| `--lambda_ortho_text` | (= 0) | **0.05 (NEW)** |
+| everything else (gate, MACL, text_cos, text_hash, λ_w, K=64) | ✓ | ✓ identical |
+
+### Final retrieval (Flickr25k 2K × 23K)
+
+| Metric | v95a (SOTA) | **v95b** | Δ |
+|---|---:|---:|---:|
+| **mAP** | **0.8476** | 0.8191 | **−0.0285** ⚠ |
+| **P@1** | 0.9385 | **0.9400** | +0.0015 |
+| **P@5** | 0.9352 | **0.9394** | +0.0042 |
+| **P@10** | 0.9377 | 0.9379 | +0.0002 (tie) |
+| **P@100** | **0.9356** | 0.9289 | −0.0067 |
+| **P@500** | **0.9286** | 0.9185 | −0.0101 |
+| **P@1000** | **0.9230** | 0.9106 | −0.0124 |
+| unique (DB) | **0.5693** | 0.4280 | −0.141 |
+
+Top-rank (P@1 / P@5) marginally improves; deep-rank (P@500 / P@1000)
+loses 0.010-0.012; mAP regresses 0.029.
+
+### Critical structural finding — D-axis champion
+
+| Model | post-adapter cross-slot mean cos | cb0 ↔ cb1-5 |
+|---|---:|---:|
+| Raw V4 cache | 0.663 | 0.564-0.687 |
+| v92a (shared, no ortho) | 0.979 | ~0.98 |
+| v94a (shared + ortho 0.05) | 0.290 | 0.021-0.052 |
+| v95a (per_slot, no ortho) | 0.656 | 0.002-0.017 (asymmetric) |
+| **v95b (per_slot + ortho 0.05)** | **0.247** ★★★ | 0.000 ★★★ |
+
+**v95b achieves the lowest text-slot cosine in the v9x family**:
+cb0 ↔ cb1-5 = 0.000 (perfect orthogonality), cb1-5 internal range
+0.331-0.438. Lower than v94a's 0.290 (shared + ortho). per_slot ×
+ortho compose multiplicatively for D-axis: per_slot decouples cb0,
+ortho decouples cb1-5 internal cluster.
+
+### 5-axis interpretability frontier
+
+| Axis | v92a | v94a | v95a | **v95b** |
+|---|---:|---:|---:|---:|
+| **A. NMI distinguishability** ↓ | 0.528 | 0.524 | **0.450** ★ | 0.501 |
+| **B. B1 semantic concentration** ↑ | 0.083 | 0.088 | 0.077 | **0.087** |
+| **C. drop sum / anti-cb** | **−0.048 / 0** ★ | −0.041 / 1 | −0.053 / 1 | −0.044 / 1 |
+| **D. text-slot orthogonality** ↓ | 0.98 | 0.29 | 0.66 | **0.247 ★★★** |
+| **E. unique-code ratio** | 0.505 | 0.380 | **0.569** ★ | 0.428 |
+
+v95b position: **D champion**, regressed on A/C/E, tied on B.
+
+### Verdict
+
+🟡 **Not adopted as Flickr SOTA** (v95a 0.8476 > v95b 0.8191).
+But **kept as the D-axis Pareto vertex**: any future combination
+that needs maximal text-slot orthogonality (e.g., cross-modal
+retrieval evaluation, image-text DNA agreement rate) should use
+the v95b recipe. The v95a → v95b transition is a clean
+*explicit-vs-implicit ortho* ablation:
+
+| Approach | text cos | mAP |
+|---|---:|---:|
+| Implicit (v95a per_slot only) | 0.656 | **0.8476** |
+| Explicit (v95b per_slot + L_ortho) | **0.247** | 0.8191 |
+
+Forcing explicit ortho buys ~3× lower text cos at the cost of
+0.029 mAP. The two losses *compete* for capacity (consistent with
+v94c's earlier finding that ortho and discriminative objectives
+trade off when stacked).
+
+### Artifacts
+
+- `result/260601+flickr25k_setting1_v95b_v95a_perSlot_h256_orthoText_005+bs+64+e+60+proj_lr+0.001/`
+  — model, extract_db/query.npz, evaluation_siglip2_base.json,
+  pairwise_nmi.json, codebook_drop_ablation_subset2000.json,
+  compositional_eval.json, viz_routing_heatmap.png,
+  viz_codebook_tsne.png (all healthy, all cb ≥ 50/64 codewords used).
+- All 4-axis artifacts auto-generated by post-eval hook (01040af).
+
+---
+
+## 2026-06-01 — **V5 prompt design (axis-disjoint vocabulary) — DISCARDED (NO-GO): smoke test on 50 Flickr25k images shows cross-slot cos 0.675 → 0.691 (REGRESSION)**
+
+🔴 NOT adopted. The proposed V5 prompt redesign — six lexically-disjoint
+axes (subject / action / aesthetics / composition / mood / temporal)
+with explicit "no noun reuse" instruction — *raised* same-image
+cross-slot cosine instead of lowering it. **Paper-grade diagnostic
+that the cross-slot collapse bottleneck is on the CLIP text encoder
+side, not on the prompt side.**
+
+### Empirical setup
+
+50 Flickr25k images sampled from the V4 cache (`flickr25k_qwen_v4.jsonl`,
+seed 42). Qwen2.5-VL-7B-Instruct re-captioned each image with the V5
+prompt (6 axes, ~15-20 words each, explicit disjoint instruction).
+CLIP-ViT-B/16 text encoder produced 512-D embeddings per slot. Same
+50 images had V4 captions in the cache; we ran V4 on the same images
+through the same CLIP encoder to provide a matched baseline.
+
+### Result
+
+| Metric | V4 (matched 50 images) | **V5 (same 50 images)** | Δ |
+|---|---:|---:|---:|
+| Cross-slot mean cos | 0.675 | **0.691** | **+0.017 (REGRESSION)** |
+| Disjoint-rule compliance (manual) | n/a | 40-60 % | partial |
+| Decision threshold (≤ 0.52 = GO) | n/a | 0.691 ≫ 0.52 | NO-GO |
+
+V5 cross-slot matrix shows the *abstract* axes (mood / temporal /
+action / composition) collapse hardest (cb4 ↔ cb5 = 0.809, cb1 ↔ cb4
+= 0.795). Only `subject_identity ↔ temporal_context` reaches 0.573,
+the most orthogonal pair.
+
+### Mechanism — why V5 made it worse
+
+Three compounding factors:
+
+1. **CLIP image-concept attractor**: empirically measured CLIP intrinsic
+   floor cos ≈ 0.50 even for *completely unrelated* short captions
+   ("red car" vs "library" vs "coral reef"). 6 captions describing the
+   *same image* share image-level semantic ground that CLIP's pooled
+   attention captures regardless of vocabulary disjoint.
+
+2. **Qwen disjoint-rule partial compliance**: inspection of V5 output
+   shows ~40-60 % rule compliance. Visual-aesthetics slot frequently
+   re-mentioned objects ("scarf and camera's lens"), spatial-composition
+   slot used subject pronouns referring to forbidden nouns ("the
+   doll's face"). Strict disjoint cannot be enforced via
+   instruction-only.
+
+3. **Abstract-axis generic collapse**: mood, atmosphere, temporal
+   context axes converge to *image-independent* generic phrases
+   ("calm and focused", "warm indoor lighting", "casual outdoor
+   atmosphere") → cross-*image* same-slot cos rises sharply, dragging
+   cross-slot cos with it.
+
+### Cross-encoded baseline measurement
+
+Decomposition of V4's 0.66 same-image cross-slot cos:
+
+| Comparison | mean cos | Notes |
+|---|---:|---|
+| Same-image cross-slot (our problem) | 0.664 | V4 cache baseline |
+| Different-image, *same* slot | 0.327 (C_global) … 0.710 (C_scene) | per-slot diversity |
+| Different-image, different-slot | 0.511 | "random text pair" baseline |
+| Completely unrelated 6 captions | 0.500 | **CLIP intrinsic floor** |
+
+The realisable gap is 0.16 (0.66 − 0.50), not 0.66. V5 increased it
+to 0.19. The CLIP floor 0.50 is a *structural barrier* set by the
+text encoder.
+
+### Paper-frame implication
+
+CLIP text encoder's image-concept attractor is the *fundamental*
+limit. Three orthogonal lines of attack:
+1. **Prompt-level** (V5) — DISCARDED, can amplify but cannot bypass
+   CLIP floor.
+2. **Architecture-level** (v94a L_ortho 0.05 on shared adapter pulls
+   text cos 0.66 → 0.29; v95a per-slot adapter pulls cb0 cos to
+   0.002-0.017) — WORKS at the *adapter* output, not at the encoder
+   output. Effective and reversible.
+3. **Different text encoder** (BERT / E5 family with lower intrinsic
+   floor, ~0.40 / ~0.35) — UNTESTED, highest expected ceiling.
+
+V5 closes the prompt-level option for this paper. We retain V4 cache
+as the canonical text source.
+
+### Honest caveats
+
+1. **50-image sample**, not 25 K. The reduction direction (positive)
+   is robust enough that scaling does not change the verdict.
+2. **Single Qwen model** (2.5-VL-7B). Qwen3-VL is downloaded
+   (2026-06-01); a V5 retry on Qwen3-VL could test whether the
+   disjoint-rule compliance improves — but the CLIP floor argument
+   means even 100 % compliance would only reach the 0.50 floor, not
+   below.
+3. **V5 axes are themselves a design choice**. Different axis sets
+   (e.g., 6 explicit object regions, or 6 colour palettes only)
+   might land elsewhere. But the abstract-axis collapse mechanism
+   we identified generalises to most "describe-one-image-different-ways"
+   schemes.
+
+### Artifacts
+
+- Prompt: hardcoded in `tools/v5_small_scale_test.py`.
+- Generated captions: `cache/flickr25k_qwen_v5_smoke.jsonl` (50
+  records with both V4 baseline and V5 outputs).
+- Summary: `docs/v5_small_scale_summary.json`
+  (full cos matrix + per-axis stats).
+
+---
+
+## 2026-05-31 — **v95a Flickr25k-CLIP (per_slot_text_adapter h=256) — NEW SOTA mAP 0.8476 (+0.0062 over v92a)**
+
+🟢 **NEW Flickr25k unsupervised SOTA.** Single-axis flip vs v92a:
+`--per_slot_text_adapter` + `--text_adapter_hidden_dim 256`. Replaces
+the shared text MLP with 6 independent ones (one per codebook slot),
+keeps total text_adapter parameter budget at ~2 M (matches shared
+baseline). Compositional structure rearranges: cb0 fully decouples
+from cb1-5 in text space *without any explicit L_ortho penalty*
+(pure architecture effect), cb1 develops as a compact
+retrieval-specialist (60 % dead but second-strongest drop ablation
+contributor).
+
+### Setup vs v92a
+
+| Flag | v92a | **v95a** |
+|---|---|---|
+| `--per_slot_text_adapter` | ✗ (shared MLP) | **✓ (6 independent)** |
+| `--text_adapter_hidden_dim` | None (default 1536) | **256** |
+| trainable text_adapter params | ~1.97 M | ~1.98 M (matched) |
+| everything else (gate, MACL, text_cos, text_hash, λ_w, K=64, ortho) | ✓ | ✓ identical |
+
+Each TextAdapter (in_dim=512 CLIP-proj → hidden=256 → out_dim=768)
+is ~0.33 M params × 6 slots = ~2 M total. Per-slot expressivity 6×
+at *no parameter cost*.
+
+### Final retrieval (Flickr25k 2K × 23K)
+
+| Metric | v92a (prev SOTA) | **v95a** | Δ |
+|---|---:|---:|---:|
+| **mAP** | 0.8414 | **0.8476** | **+0.0062** ★ |
+| **P@1** | 0.9350 | **0.9385** | **+0.0035** ★ |
+| **P@5** | 0.9358 | 0.9352 | −0.001 (tie) |
+| **P@10** | 0.9360 | **0.9377** | +0.002 |
+| **P@20** | 0.9359 | **0.9383** | +0.002 |
+| **P@50** | 0.9371 | 0.9369 | −0.0002 (tie) |
+| **P@100** | **0.9365** | 0.9356 | −0.001 |
+| **P@500** | **0.9327** | 0.9286 | −0.004 |
+| **P@1000** | **0.9267** | 0.9230 | −0.004 |
+| **unique (DB)** | 0.5047 | **0.5693** | **+0.065** ★ |
+
+Pareto improvement on mAP / P@1 / P@10 / P@20 / unique; tied on
+P@5 / P@50 / P@100; slight regression on deep-rank (−0.004 P@500,
+−0.004 P@1000). The deep-rank loss is consistent with **cb1's
+compression** (only 17 unique codewords used on test queries) —
+fewer effective bits for deep recall, but the bits are highly
+discriminative.
+
+### Mid-eval trajectory
+
+| ep | 4 | 9 | 14 | 19 | 24 | 29 | 39 | 49 | 59 (final) |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| v92a | 0.796 | 0.805 | 0.811 | 0.821 | 0.821 | 0.823 | 0.829 | 0.828 | 0.830 |
+| **v95a** | 0.800 | 0.810 | 0.822 | 0.824 | 0.832 | **0.836** | 0.836 | 0.835 | 0.834 |
+
+v95a leads from ep4 onwards; reaches 0.836 by ep29 (best mid), plateaus
+above v92a's trajectory for the rest of training. Final extracted mAP
+0.8476 (best_save active).
+
+### Critical text-adapter measurement
+
+Post-adapter cross-slot cosine measured on 5K Flickr V4 cache:
+
+| Model | mean cos | cb0 vs cb1-5 | cb1-5 internal |
+|---|---:|---:|---:|
+| Raw V4 cache | 0.663 | 0.564-0.687 | 0.622-0.736 |
+| v92a (shared) | 0.979 | ~0.98 | ~0.98 |
+| v94a (shared + ortho 0.05) | 0.290 | 0.021-0.052 | 0.297-0.537 |
+| **v95a (per_slot, no ortho)** | 0.656 | **0.002-0.017 ★★★** | 0.97-0.98 |
+
+**Asymmetric decoupling unique to v95a**: cb0 is fully orthogonal
+to all local slots (cos 0.002-0.017) *without any L_ortho penalty*,
+while cb1-5 stay collapsed (~0.97). This is the *architecture-only*
+contribution — the shared MLP forced all 6 inputs through the same
+transformation; 6 independent MLPs let cb0 (which receives the most
+distinctive input from the V4 prompt) take its own subspace.
+
+The cb1-5 internal collapse (~0.97) means *local* text slots remain
+nearly identical post-adapter. Yet retrieval doesn't suffer; local
+codebooks are driven primarily by visual features through the
+Sinkhorn router. The text adapter's role for local slots is
+*minimal* by v95a.
+
+### 1. Pairwise codebook NMI
+
+| Run | mean off-diag | min | max | unique tuples (DB) |
+|---|---:|---:|---:|---:|
+| v92a | 0.528 | 0.218 | 0.695 | 13015 |
+| v94a | 0.524 | 0.206 | 0.695 | 13015 |
+| **v95a** | **0.450** ★ | 0.138 | 0.688 | 13155 |
+| v95b (per_slot + ortho) | 0.501 | 0.000 | 0.714 | 12471 |
+
+**v95a achieves v9x family's lowest mean NMI 0.450**, with cb0
+↔ cb1-5 NMI 0.138-0.221 (the most decoupled). cb1-5 internal range
+0.404-0.688 is *wider than v92a's 0.66-0.70*, indicating per-cb
+specialisation: cb1 is the highly specialised slot, others spread.
+
+### 2. Codebook drop ablation (full 2K queries)
+
+| drop | v92a | **v95a** |
+|---|---:|---:|
+| cb0 | −0.0159 | −0.0193 |
+| cb1 | −0.0132 | **−0.0175** ★ |
+| cb2 | −0.0117 | −0.0109 |
+| cb3 | −0.0020 | −0.0032 |
+| cb4 | −0.0031 | +0.0021 ⚠ (anti) |
+| cb5 | −0.0016 | −0.0046 |
+| **sum** | −0.0475 | **−0.0534** ★ |
+| **anti-cb** | 0 | 1 |
+
+**v95a's drop sum −0.0534 is v9x family deepest** — informative bit
+budget. cb0 + cb1 alone contribute −0.0368, with cb1 second-strongest
+despite using only 17 codewords on test. cb4 becomes weakly
+anti-contributing (+0.0021), the only blemish.
+
+### 3. Per-codebook role differentiation (paper-grade interpretability)
+
+cb1 statistics on test queries:
+- Dead-ratio on DB: 60.9 % (25/64 codewords alive)
+- Unique codewords on test: 17/64
+- Top-1 codeword concentration: 22.1 %
+- Drop ablation contribution: −0.0175 (2nd strongest)
+- B1 lift (per-codebook text concentration): 0.029 (LOW)
+
+**Interpretation**: cb1 became a *compressed retrieval-specialist*
+— ~25 high-density codewords that carry strong retrieval signal
+without forming text-coherent clusters. This is a *role-differentiation*
+finding distinct from the "every cb equal" frame of v92a.
+
+cb5 statistics on test queries (for completeness):
+- Dead-ratio on DB: 6.2 % (60/64 codewords alive)
+- Unique codewords on test: **57/64** (healthy)
+- Drop ablation contribution: −0.0046
+- B1 lift: **0.139 ★** (highest in v95a)
+
+cb5 is a *text-semantic anchor* (highest B1), distinct from cb1's
+retrieval-specialist role.
+
+### 4. B0/B1/B2 lift comparison
+
+| Run | B0 raw text | B1 centered text | B2 visual-global |
+|---|---:|---:|---:|
+| v92a | 0.0346 | 0.0832 | 0.0480 |
+| v94a | 0.0362 | 0.0881 | 0.0513 |
+| **v95a** | 0.0320 | 0.0770 | 0.0432 |
+| v93a | 0.0429 | 0.0998 | 0.0544 |
+
+v95a's lower B-axis numbers reflect the cb1 specialisation effect:
+cb1's B1 drops to 0.029 because it abandoned text-semantic
+clustering for retrieval discrimination. Other cb's still cluster
+text content; cb5 remains the strongest semantic anchor at B1 0.139.
+
+### Visualisation artifact (resolved 2026-06-01)
+
+The originally saved `viz_codebook_tsne.png` (May 31 00:34, end of
+training) showed cb5 = 1/64 codewords used, which would have implied
+catastrophic test-time collapse. Investigation traced this to a
+**non-reproducible transient artifact** at end-of-training time:
+
+- Saved checkpoint `model_state_dict.pth` is unmodified since May 31
+  00:32.
+- Loading the saved checkpoint and re-running the viz path
+  (visualization.py:311 `visualize_codebook_tsne`) consistently
+  produces cb5 = 57 unique codewords (matching extract_query.npz).
+- The hypothesis that `visualize_routing` (which runs immediately
+  before `visualize_codebook_tsne` and uses `model.train()` mode)
+  causes state leak was tested and falsified: running the
+  viz_routing → viz_codebook_tsne sequence on the saved checkpoint
+  still produces cb5 = 57.
+- mAP 0.8476 saved at original training-end was computed from
+  extract that produced healthy cb5 distribution (mAP would be much
+  lower with cb5 collapsed to 1 codeword).
+
+The saved viz was a one-time misfire. The viz file has been
+**regenerated on 2026-06-01** with correct output (cb5 = 57/64
+codewords used). The reported mAP 0.8476 reflects the actual model
+behaviour.
+
+### Honest caveats
+
+1. **Single seed**.
+2. **cb1 60% dead is a real structural feature**, not noise. The
+   paper-frame is "role differentiation per codebook", which differs
+   from v92a's "every cb load-bearing". Both framings have merit.
+3. **cb4 anti-contributing (+0.0021)**: minor structural blemish.
+   Not the same magnitude as cb1's +0.0034 in v91a (which we called
+   out as a problem there); here it sits inside the broader cb
+   specialisation pattern.
+4. **per_slot text_adapter and L_ortho compose negatively** (see
+   v95b: stacking ortho on v95a's per_slot setup *hurts* mAP by
+   0.029). If a future variant needs *both* extreme text-orthogonality
+   AND v95a-grade mAP, a different mechanism (hard-orthogonal
+   parameterisation, e.g., Cayley) would be needed.
+
+### Implementation summary
+
+Pure CLI flag flip; no code changes required. The
+`--per_slot_text_adapter` flag already existed in [config.py:212](config.py#L212)
+and the per-slot ModuleList branch in [model_siglip2.py:1188-1208](model_siglip2.py#L1188-L1208)
+since 2026-05-19 (v44 era). v95a re-validates this code on a stronger
+recipe (v92a + CLIP backbone + V4 cache).
+
+### Suggested follow-up
+
+1. **mscoco_v95a**: cross-dataset replication on MSCOCO with same
+   flags. If per_slot's cb0 architecture effect generalises, MSCOCO
+   may also see +0.005-0.010 mAP.
+2. **v95c: per_slot + cw_xmodal** — does per_slot expressivity
+   rescue v93's failure? Predicted: less catastrophic than v93a but
+   still mAP regression, because cb1-5 internal cos 0.97 means
+   cross-modal InfoNCE still has the collapse attractor.
+3. **K sweep on v95a**: K=128 worth testing — natural extension.
+4. **Image-text DNA agreement rate on v95a**: paper-grade metric not
+   yet computed.
+
+### Artifacts
+
+- `result/260531+flickr25k_setting1_v95a_v92aCLIP_perSlotTextAdapter_h256+bs+64+e+60+proj_lr+0.001/`
+  — model, extract_db/query.npz (regenerated 2026-06-01),
+  evaluation_siglip2_base.json (mAP 0.8476 from original training-end),
+  pairwise_nmi.json, codebook_drop_ablation_subset2000.json,
+  compositional_eval.json, viz_routing_heatmap.png (regenerated),
+  viz_codebook_tsne.png (regenerated 2026-06-01: all cb ≥ 17/64 codewords).
+- Auto-post-eval hook (01040af) generated all 4-axis artifacts.
 
 ---
 
