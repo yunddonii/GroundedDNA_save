@@ -412,16 +412,69 @@ remains in config for clarity but produces no learning signal.
 `--lambda_anchor` is now decorative; the architecturally correct fix
 (if anchor is desired) is to switch the codebook to a `Parameter`.
 
-### Next runs (launched 2026-06-02 16:00 KST)
+### v102a-Flickr completed 2026-06-02 16:28 KST — KL trade-off confirmed
 
-- **v102a-Flickr (GPU 0)** — v101c recipe + base_balance KL form. Validates
-  whether the new KL form further lifts unique / mAP.
+v102a = v101c recipe (`--lambda_hash 0.0 --lambda_text_hash_ntxent 0.05
+--use_paired_aug_ntxent --ntxent_mode per_codebook --ntxent_dynamic_tau`)
+with `loss_base_balance` formula changed from `F.mse_loss(p̄, 0.25)` to
+`F.kl_div(log p̄, uniform, reduction="batchmean")`. All other flags
+identical to v101c.
+
+| Metric | v101c (MSE) | v102a (KL) | Δ |
+|---|---:|---:|---:|
+| **mAP** | **0.7729** | 0.7564 | **−0.0165** |
+| unique (DB) | 0.543 | **0.577** | +0.034 |
+| **dead codes (last)** | 0.271 | **0.0104** | **−0.260** ⭐ |
+| **B1 compositional lift** | 0.0870 | **0.1014** | +0.0144 ⭐ |
+| B2 visual lift | 0.0520 | **0.0616** | +0.0096 |
+| P@1 | 0.8975 | 0.8970 | −0.0005 |
+| drop cb0 | −0.0061 | +0.0002 ⚠ | 0 (C_0 contribution erased) |
+| NMI mean off-diag | (n/a) | 0.5697 | — |
+| codebook normalized entropy | (n/a) | 0.953–0.991 | very uniform |
+
+**Verdict: KL form is a trade-off win/loss, not a Pareto improvement.**
+
+- **WIN axes** (the intended effect): dead codes **0.271 → 0.0104**
+  (KL essentially eliminated dead codewords), unique (DB) +0.034, and
+  **B1/B2 compositional lifts hit new v9x family maxima**.
+- **LOSS axes**: mAP −0.0165 AND `drop cb0` collapses to +0.0002 —
+  KL over-balances every codebook position to uniform A/C/G/T usage,
+  diluting C_0's discriminative concentration. Information that was
+  concentrated in cb0 (visual_global → DNA bottleneck) is spread out
+  into cb1–cb5; the result is more *compositional* but less
+  *discriminative*.
+
+Mechanism: KL gradient `-0.25 / p̄_c` blows up at any near-collapsed
+base, so the optimizer aggressively flattens batch-mean base usage at
+*every* of the 18 codon positions. Combined with paired-aug NtXent
+(strong instance-discrimination) and text-DNA NtXent (strong cross-modal
+alignment), the over-balanced base regularizer dominates the
+*concentration* signal these contrastive losses provide.
+
+**Adopted state of the leaderboard:**
+- **mAP champion**: v101c (0.7729) — keep as the genuinely-unsupervised
+  Flickr SOTA candidate.
+- **Compositional structure champion**: v102a — best B1/B2 lift and
+  best dead-codes / unique profile in the v9x family.
+
+**Possible next runs (not yet launched):**
+1. **v103a-Flickr**: v101c recipe + KL but with `--eta_base_balance 0.3`
+   (vs 1.0) — relax the KL pressure to recover mAP while keeping most
+   of the unique-codes / dead-codes gain.
+2. **v103b-Flickr**: KL on per-codebook-mean (sum over 3 positions) only,
+   not per-position — preserves cb0's distinct role.
+3. **v103c-Flickr**: keep MSE for cb0, KL for cb1–cb5 — explicit
+   asymmetry honoring cb0's bottleneck role.
+
+### Concurrent run (still in flight 2026-06-02 16:30 KST)
+
 - **mscoco_v102a-Qwen3 (GPU 1)** — first MSCOCO run under the genuinely
   unsupervised regime with the v101c recipe + Qwen3-VL captions
   (`cache/mscoco_qwen3_v4_trainset.jsonl`, 10000/10000 V4-format,
-  0 parse failures). K=128 (per `mscoco_v92a` SOTA). The
-  prior `mscoco_v91a-CLIP K=128 0.6374` was tag-supervised lineage
-  and this is the unsupervised re-baseline.
+  0 parse failures). K=128 (per `mscoco_v92a` SOTA). The prior
+  `mscoco_v91a-CLIP K=128 0.6374` was tag-supervised lineage and this
+  is the unsupervised re-baseline. Includes KL base_balance — likely
+  shows the same trade-off as v102a-Flickr.
 
 ### Files / commits this batch
 
