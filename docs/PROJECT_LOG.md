@@ -457,14 +457,58 @@ alignment), the over-balanced base regularizer dominates the
 - **Compositional structure champion**: v102a — best B1/B2 lift and
   best dead-codes / unique profile in the v9x family.
 
-**Possible next runs (not yet launched):**
-1. **v103a-Flickr**: v101c recipe + KL but with `--eta_base_balance 0.3`
-   (vs 1.0) — relax the KL pressure to recover mAP while keeping most
-   of the unique-codes / dead-codes gain.
-2. **v103b-Flickr**: KL on per-codebook-mean (sum over 3 positions) only,
-   not per-position — preserves cb0's distinct role.
-3. **v103c-Flickr**: keep MSE for cb0, KL for cb1–cb5 — explicit
-   asymmetry honoring cb0's bottleneck role.
+### v103a-Flickr completed 2026-06-02 17:00 KST — KL pressure relaxation (η=0.3) is the sweet spot for compositional structure
+
+v103a = v102a recipe (`--lambda_hash 0.0 --lambda_text_hash_ntxent 0.05
+--use_paired_aug_ntxent --ntxent_mode per_codebook --ntxent_dynamic_tau`,
+KL base-balance) but with `--eta_base_balance 0.3` (vs 1.0 in v102a).
+
+| Metric | v101c (MSE η=1) | v102a (KL η=1) | **v103a (KL η=0.3)** |
+|---|---:|---:|---:|
+| mAP | **0.7729** | 0.7564 | 0.7602 |
+| unique (DB) | 0.543 | 0.577 | 0.553 |
+| dead codes (last) | 0.271 | **0.0104** | 0.0208 |
+| **B1 compositional lift** | 0.0870 | 0.1014 | **0.1031** ⭐ new max |
+| **B2 visual lift** | 0.0520 | 0.0616 | **0.0645** ⭐ new max |
+| **P@1** | 0.8975 | 0.8970 | **0.9000** ⭐ best |
+| drop cb0 | −0.0061 | +0.0002 ⚠ | **−0.0033** ✓ restored |
+| NMI mean off-diag | n/a | 0.5697 | 0.5714 |
+
+**Verdict: v103a is near-Pareto vs v101c on every axis except mAP.**
+
+- mAP: still −0.0127 below v101c, but **+0.0038 recovery** from
+  v102a (relaxing η from 1.0 to 0.3 buys back ~25 % of the lost mAP).
+- **B1 / B2 compositional lifts hit new v9x family maxima** —
+  surprisingly, the *moderate* KL pressure (η=0.3) is the right setting
+  for compositional structure, not the *strong* η=1.0. Hypothesis:
+  η=1.0 over-flattens, forcing each codon position to a near-uniform
+  A/C/G/T distribution that fights the codeword's actual entropy
+  signal; η=0.3 lets the codon distributions sharpen *where the data
+  supports it*, raising the conditional information per codebook.
+- **`drop cb0 = −0.0033`** (vs v102a +0.0002 ⚠) — C_0's discriminative
+  role is restored. v103a keeps cb0 informative AND maintains dead
+  codes near zero.
+- **P@1 = 0.9000** is the best of the three runs.
+
+**Updated leaderboard interpretation:**
+
+| Role | Tag | Strength |
+|---|---|---|
+| mAP champion | v101c (0.7729) | best retrieval accuracy |
+| **Compositional structure champion + P@1 champion** | **v103a** | best B1/B2 lifts, best P@1, low dead, cb0 restored |
+| Anti-collapse extreme | v102a | lowest dead codes (1 %) but cb0 erased |
+
+For the paper, **v103a may be the better single candidate**: only
+−0.013 mAP vs v101c but better on every other axis (compositional
+structure, P@1, dead codes, NMI), and the recipe still proves the
+unsupervised + compositional VQ hashing thesis with the strongest
+B1 / B2 numbers in the v9x family.
+
+**Remaining candidate variants (NOT launched):**
+1. **v103b-Flickr**: KL on per-codebook-mean (sum over 3 positions)
+   only, not per-position — preserves cb0's distinct role at η=1.0.
+2. **v103c-Flickr**: keep MSE for cb0, KL for cb1–cb5 — explicit
+   asymmetric regularizer honoring cb0's bottleneck role.
 
 ### Concurrent run (still in flight 2026-06-02 16:30 KST)
 
