@@ -29,25 +29,61 @@ Format conventions:
 
 ---
 
-## Current state (as of 2026-06-02)
+## Current state (as of 2026-06-02 PM)
 
-- **CRITICAL framing correction (2026-06-02)**: every v9x family entry below
-  that calls itself "unsupervised Flickr25k SOTA" or "MSCOCO SOTA" used
-  `--hash_target_mode jaccard` (Flickr25k 38-tag multi-hot pairwise
-  similarity = tag supervision in the pairwise S signal). Those numbers
-  are **tag-supervised lineage**, not directly comparable to the
-  external unsupervised baselines (CIBHash, CIMON, MLS3RDUH). See the
-  `2026-06-02` section below for the genuinely-unsupervised re-baseline
-  + a new candidate.
-- **Best genuinely-unsupervised Flickr25k (ours, NEW 2026-06-02)**:
-  **v101c** (= v99b base [`--hash_target_mode siglip_cos
-  --use_paired_aug_ntxent --ntxent_mode per_codebook
-  --ntxent_dynamic_tau`] + `--lambda_hash 0.0` +
-  `--lambda_text_hash_ntxent 0.05`) — mAP **0.7729**, P@1 **0.8975**,
-  P@10 0.8953, **unique (DB) 0.543**, B1 lift 0.0870. Beats CIMON-CLIP
-  (0.7321), CIBHash-CLIP (0.6844), MLS3RDUH-CLIP (0.6735). Same recipe
-  + base_balance KL is queued as **v102a-Flickr** (GPU 0, in-flight
-  2026-06-02 16:00 KST).
+### Two CRITICAL corrections affecting all entries below
+
+**Correction 1 — supervision regime (already announced).** Every v9x
+family entry that calls itself "unsupervised Flickr25k SOTA" or
+"MSCOCO SOTA" used `--hash_target_mode jaccard` (Flickr25k 38-tag
+multi-hot pairwise similarity = tag supervision). Those numbers are
+**tag-supervised lineage**, not directly comparable to external
+unsupervised baselines.
+
+**Correction 2 — definition of "unique (DB)" (NEW 2026-06-02 PM).**
+There are TWO unique-counting definitions in the codebase, and the
+PROJECT_LOG entries below this point have inconsistently mixed them:
+
+| Definition | Computed in | What it counts | Comparable to baselines? |
+|---|---|---|---|
+| **(A) DNA-base unique** | `evaluation_siglip2.py:201` | `len({tuple(row) for row in base_indices.tolist()})` over 18-position A/C/G/T sequences | **YES** — CIBHash 0.967, MLS3RDUH 0.515 etc. are computed on the 36-bit binary hash, which is the same as our 36-bit DNA |
+| (B) Codebook-tuple unique | `scripts/pairwise_nmi.py:54` + log output `N=... unique=...` | `np.unique(codebook_indices, axis=0)` over 6-tuples of codeword indices | NO — represents codeword-assignment diversity, not the final hash. |
+
+In tag-supervised v9x runs (jaccard pairwise loss), (A) ≈ (B) because
+the strong pairwise signal forces codewords to have distinct DNA
+decodes. In genuinely-unsupervised v9x runs there is NO loss term
+forcing codewords to decode to distinct DNA codons, so **many
+codewords collapse onto the same DNA**: cb-tuple unique 0.55 → DNA
+unique 0.23 typical. **All "unique" numbers reported below are
+re-tabulated as DNA-base unique on DB**.
+
+Mechanism: `chunk → Linear(chunk, 4) → softmax → argmax` decodes
+each codeword to a 3-base codon. K = 64 codewords vs 4³ = 64
+possible 3-base codons means there is *exactly* enough room for a
+bijection codeword ↔ codon, but no loss term constructs the
+bijection — codewords are free to collide on the same codon.
+Section 7 (Future work) of the paper should add a *codeword DNA
+disjointness* regularizer (forced codon-distinctness within each
+codebook) as a follow-up.
+
+- **Best genuinely-unsupervised Flickr25k (ours, NEW 2026-06-02 PM)**:
+  - **mAP champion: v101c** (= v99b base [`--hash_target_mode siglip_cos
+    --use_paired_aug_ntxent --ntxent_mode per_codebook
+    --ntxent_dynamic_tau`] + `--lambda_hash 0.0` +
+    `--lambda_text_hash_ntxent 0.05`) — mAP **0.7729**, P@1 **0.8975**,
+    P@10 0.8953, **DNA-base unique (DB) 0.231 (5323/23000)**, B1 lift
+    0.0870.
+  - **Compositional champion: v103a** (= v101c + KL base-balance with
+    η=0.3) — mAP **0.7602**, P@1 **0.9000**, **DNA-base unique (DB)
+    0.241 (5552/23000)**, B1 lift **0.1031** (v9x max), B2 lift
+    **0.0645** (v9x max).
+  - **DNA-axis champion: v104b** (NEW finding) — mAP 0.7581, **DNA-base
+    unique (DB) 0.338 (7780/23000)**, ≈ 40 % more distinct DNA codes
+    than v103a at only −0.0021 mAP cost. See v104 section for caveats.
+  - All three beat CIMON-CLIP (0.7321), CIBHash-CLIP (0.6844),
+    MLS3RDUH-CLIP (0.6735) on **mAP**. On **unique (DB)** they all lose
+    badly (0.23–0.34 vs CIBHash 0.967, MLS3RDUH 0.515) — the
+    codeword→DNA collision mechanism above is the open gap.
 - **Best supervised Flickr25k**: **v18** (HashNet-style logistic on
   continuous DNA code) -- mAP **0.7883**. Above every binary baseline
   incl. HashNet's own 0.7800.
@@ -328,35 +364,61 @@ New hard invariant for every future training launch:
 The `jaccard` default is FORBIDDEN for any Flickr25k / MSCOCO / NUS-WIDE
 unsupervised claim. See `MEMORY.md → feedback-unsupervised-invariant`.
 
-### Experiments this batch
+### Experiments this batch (DNA-base unique on DB)
 
-| Tag | Recipe vs v95a (tag) → new baseline | mAP | Δ vs v99b | unique (DB) | unique × | P@1 | B1 lift | Verdict |
-|---|---|---:|---:|---:|---:|---:|---:|---|
-| v98a | v95a + `--lambda_anchor 0.0` | 0.8476 (= v95a bit-exact) | — | 0.5693 | — | 0.9385 | — | `loss_anchor` gradient ≡ 0 in EMA mode (codebook is `register_buffer`, ema_anchor `.detach()`ed) — regime-independent. Anchor remains permanently OFF. |
-| v99a | v95a + `--hash_target_mode siglip_cos` (genuine unsupervised) | 0.6653 | −0.058 | 0.012 ⚠ | 1× | 0.887 | — | Baseline. Removes tag-supervision; smooth siglip_cos cannot replace hard 0/1 jaccard signal. unique collapses to 12 / 23000. |
-| v99b | v99a + `--use_paired_aug_ntxent --ntxent_mode per_codebook --ntxent_dynamic_tau` (paired-aug NtXent re-added) | **0.7229** | — (=base) | 0.020 ⚠ | 1× | 0.857 | — | Paired-aug NtXent provides the instance-discrimination signal siglip_cos lacks. **Beats CIBHash-CLIP (0.6844) + MLS3RDUH-CLIP (0.6735); ≈ CIMON-CLIP (0.7321) − 0.01.** unique still ⚠. |
-| v100 a-d | v99a base + 4 variants | (killed early) | — | — | — | — | — | v99a base was the wrong reference; relaunched as v101 on v99b base. |
-| v101a | v99b + `--lambda_hash 0.0` (remove siglip_cos pairwise signal entirely) | 0.7542 | **+0.031** | 0.482 | ×24 | 0.860 | 0.0796 | siglip_cos signal *itself* was hurting; removing λ flag drives unique 0.020 → 0.482 + mAP up. |
-| v101b | v99b + `--lambda_text_hash_ntxent 0.05` (additive image-text DNA InfoNCE) | 0.7041 | −0.019 | 0.769 | ×38 | 0.805 | 0.0495 | Additive text-DNA NtXent alone slightly hurts when siglip_cos is also active — the two image-text alignment signals fight. |
-| **v101c** | **v99b + λ_hash=0 + λ_text_hash_ntxent 0.05** | **0.7729** | **+0.050** | **0.543** | **×27** | **0.8975** | **0.0870** | **Both moves combined: best across mAP, unique, B1 lift, P@1. New genuinely-unsupervised candidate (Flickr25k-CLIP, 36-bit).** |
-| v101d | v99b + `--lambda_bu 0.5 --lambda_dna 0.5` (boost regularizers 10–25×) | 0.7013 | −0.022 | 0.661 | ×33 | 0.807 | 0.0525 | Pure λ scaling raises unique but hurts mAP — *loss-design* change beats *λ* tuning. |
+All `unique (DB)` values below are DNA-base unique (definition A above),
+not codebook-tuple unique. Numbers re-tabulated 2026-06-02 PM after
+discovering the codebook→DNA collision discrepancy.
 
-### Genuine unsupervised leaderboard (Flickr25k-CLIP, 36-bit, V4 captions) as of 2026-06-02
+| Tag | Recipe vs v95a (tag) → new baseline | mAP | **DNA unique (DB)** | DNA count | P@1 | B1 lift | Verdict |
+|---|---|---:|---:|---:|---:|---:|---|
+| v98a | v95a + `--lambda_anchor 0.0` | 0.8476 (= v95a bit-exact) | 0.5693 | 13093 | 0.9385 | — | `loss_anchor` gradient ≡ 0 in EMA mode. Regime-independent. Anchor permanently OFF. (Under tag supervision DNA ≈ cb-tuple, so old number happened to be correct.) |
+| v99a | v95a + `--hash_target_mode siglip_cos` (genuine unsupervised) | 0.6653 | 0.0122 | 280 ⚠ | 0.887 | — | Removes tag supervision; unique collapses to 280/23000. |
+| v99b | v99a + `--use_paired_aug_ntxent --ntxent_mode per_codebook --ntxent_dynamic_tau` (paired-aug NtXent re-added) | 0.7229 | 0.0202 | 464 ⚠ | 0.857 | — | Paired-aug NtXent recovers mAP but DNA unique still in low hundreds. |
+| v100 a-d | v99a base + 4 variants | (killed early) | — | — | — | — | v99a base was wrong reference; relaunched as v101 on v99b base. |
+| v101a | v99b + `--lambda_hash 0.0` | 0.7542 | 0.1522 | 3500 | 0.860 | 0.0796 | siglip_cos pairwise removed → DNA unique 464 → 3500 (×7.5). |
+| v101b | v99b + `--lambda_text_hash_ntxent 0.05` | 0.7041 | 0.0211 | 486 | 0.805 | 0.0495 | Additive text-DNA NtXent with siglip_cos pairwise also active → DNA unique unchanged. Two image-text signals fight. |
+| **v101c** | **v99b + λ_hash=0 + λ_text_hash_ntxent 0.05** | **0.7729** | 0.2314 | 5323 | **0.8975** | 0.0870 | **mAP champion** — combining both moves lifts DNA unique to 5323 + recovers full mAP. New genuinely-unsupervised candidate. |
+| v101d | v99b + `--lambda_bu 0.5 --lambda_dna 0.5` (boost regularizers 10–25×) | 0.7013 | 0.0141 | 324 | 0.807 | 0.0525 | λ scaling alone does not address DNA collision. |
 
-| Model | Supervision | mAP | unique (DB) | P@1 |
+**Note on cb-tuple unique (legacy values):** the previously reported
+"unique (DB)" values 0.482 / 0.769 / 0.543 / 0.661 etc. were
+codebook-tuple unique on DB, NOT DNA-base. They reflect codeword
+assignment diversity but do not measure final hash diversity. The
+DNA-base values above are typically 0.3–0.5× the codebook-tuple
+values because of codeword→DNA codon collisions.
+
+### Genuine unsupervised leaderboard (Flickr25k-CLIP, 36-bit, V4 captions) as of 2026-06-02 PM (DNA-base unique on DB)
+
+| Model | Supervision | mAP | **DNA unique (DB)** | P@1 |
 |---|---|---:|---:|---:|
-| **v101c (ours: per_slot + gate + paired-aug NtXent + text-DNA NtXent + siglip_cos pairwise OFF)** | unsupervised | **0.7729** | **0.543** | 0.8975 |
+| **v103a (compositional champion)** | unsupervised | 0.7602 | 0.2414 | **0.9000** |
+| **v101c (mAP champion)** | unsupervised | **0.7729** | 0.2314 | 0.8975 |
+| **v104b (DNA-axis champion, see v104 section)** | unsupervised | 0.7581 | **0.3383** | 0.8965 |
+| v102a (KL η=1) | unsupervised | 0.7564 | 0.2296 | 0.8970 |
 | CIMON-CLIP | unsupervised | 0.7321 | 0.801 | 0.913 |
-| v99b (ours minus the λ_hash=0 + text-DNA NtXent moves) | unsupervised | 0.7229 | 0.020 ⚠ | 0.857 |
+| v99b (ours minus the λ_hash=0 + text-DNA NtXent moves) | unsupervised | 0.7229 | 0.0202 ⚠ | 0.857 |
 | CIBHash-CLIP | unsupervised | 0.6844 | 0.967 | 0.937 |
 | MLS3RDUH-CLIP | unsupervised | 0.6735 | 0.515 | 0.850 |
-| v99a (ours minus paired-aug NtXent) | unsupervised | 0.6653 | 0.012 ⚠ | 0.887 |
-| ~~v95a~~ (tag-supervised lineage) | ~~unsupervised~~ → tag-supervised | 0.8476 | 0.5693 | 0.9385 |
+| v99a (ours minus paired-aug NtXent) | unsupervised | 0.6653 | 0.0122 ⚠ | 0.887 |
+| ~~v95a / v98a~~ (tag-supervised lineage) | ~~unsupervised~~ → tag-supervised | 0.8476 | 0.5693 | 0.9385 |
 
-→ The "v9x Flickr SOTA 0.8476" entries in earlier sections are NOT
-directly comparable to the four external unsupervised baselines on the
-same row. Under the supervision they actually use, **v101c is the
-correct first-place candidate**.
+**Two-axis story under DNA-base unique:**
+
+1. **mAP axis** — ours beats CIMON-CLIP by +0.041, CIBHash-CLIP by
+   +0.089, MLS3RDUH-CLIP by +0.099.
+2. **DNA unique axis** — ours **loses badly** vs CIBHash (0.34 vs
+   0.97), MLS3RDUH (0.34 vs 0.52). The gap is the codeword→DNA
+   codon collision pointed out above; the loss design does not force
+   K=64 codewords within a codebook to decode to K=64 distinct
+   3-base codons, so many codewords collide on the same codon.
+
+The v95a 0.5693 tag-supervised number suggests the regularization
+needed to fix DNA-unique is on the order of what tag supervision
+naturally provides — the unsupervised paths (paired-aug NtXent +
+text-DNA NtXent) instance-discriminate at the *embedding* level but
+not at the *DNA decode* level, leaving the codon-collision degree of
+freedom unregularized.
 
 ### Key structural finding — `siglip_cos` pairwise signal is a collapse cause
 
@@ -412,7 +474,7 @@ remains in config for clarity but produces no learning signal.
 `--lambda_anchor` is now decorative; the architecturally correct fix
 (if anchor is desired) is to switch the codebook to a `Parameter`.
 
-### v102a-Flickr completed 2026-06-02 16:28 KST — KL trade-off confirmed
+### v102a-Flickr completed 2026-06-02 16:28 KST — KL trade-off confirmed (re-tabulated DNA-base unique on DB)
 
 v102a = v101c recipe (`--lambda_hash 0.0 --lambda_text_hash_ntxent 0.05
 --use_paired_aug_ntxent --ntxent_mode per_codebook --ntxent_dynamic_tau`)
@@ -423,7 +485,8 @@ identical to v101c.
 | Metric | v101c (MSE) | v102a (KL) | Δ |
 |---|---:|---:|---:|
 | **mAP** | **0.7729** | 0.7564 | **−0.0165** |
-| unique (DB) | 0.543 | **0.577** | +0.034 |
+| **DNA unique (DB)** | 0.2314 | 0.2296 | −0.0018 (no real change) |
+| cb-tuple unique (DB) | 0.543 | 0.577 | +0.034 (legacy metric) |
 | **dead codes (last)** | 0.271 | **0.0104** | **−0.260** ⭐ |
 | **B1 compositional lift** | 0.0870 | **0.1014** | +0.0144 ⭐ |
 | B2 visual lift | 0.0520 | **0.0616** | +0.0096 |
@@ -431,6 +494,12 @@ identical to v101c.
 | drop cb0 | −0.0061 | +0.0002 ⚠ | 0 (C_0 contribution erased) |
 | NMI mean off-diag | (n/a) | 0.5697 | — |
 | codebook normalized entropy | (n/a) | 0.953–0.991 | very uniform |
+
+**Correction (2026-06-02 PM):** the earlier-reported `unique (DB)
+0.577` for v102a was codebook-tuple unique; DNA-base unique is
+actually **0.2296** (tied with v101c). KL flattens codeword
+assignments but does NOT change codeword→DNA collision rate — the
+collision happens downstream in the codon head.
 
 **Verdict: KL form is a trade-off win/loss, not a Pareto improvement.**
 
@@ -466,7 +535,8 @@ KL base-balance) but with `--eta_base_balance 0.3` (vs 1.0 in v102a).
 | Metric | v101c (MSE η=1) | v102a (KL η=1) | **v103a (KL η=0.3)** |
 |---|---:|---:|---:|
 | mAP | **0.7729** | 0.7564 | 0.7602 |
-| unique (DB) | 0.543 | 0.577 | 0.553 |
+| **DNA unique (DB)** | 0.2314 | 0.2296 | **0.2414** ⭐ best of three |
+| cb-tuple unique (DB) | 0.543 | 0.577 | 0.553 (legacy metric) |
 | dead codes (last) | 0.271 | **0.0104** | 0.0208 |
 | **B1 compositional lift** | 0.0870 | 0.1014 | **0.1031** ⭐ new max |
 | **B2 visual lift** | 0.0520 | 0.0616 | **0.0645** ⭐ new max |
@@ -526,7 +596,8 @@ captions:
 | mAP                | **0.6374** | 0.5842 | **0.5440** |
 | P@1                | 0.8558 | n/a | 0.7524 |
 | P@10               | 0.8523 | n/a | 0.7477 |
-| unique (DB)        | 0.6406 | high (CIBHash designed for diversity) | **0.462** |
+| **DNA unique (DB)** | (legacy 0.6406; needs re-check on DNA basis) | high | **0.1164 (12481 / 107218)** |
+| cb-tuple unique (DB) | 0.6406 | n/a | 0.4619 (legacy metric) |
 | dead codes (last)  | n/a | n/a | **0.0625** |
 | NMI mean off-diag  | 0.535 | 0.235 | **0.5872** |
 | drop cb0           | −0.019 | n/a | **−0.0125** ✓ |
@@ -575,16 +646,18 @@ CIBHash:
    theoretical codes used. Try `codebook_size = 64` to reduce
    collapse pressure.
 
-### Adopted state (post-v103a, post-mscoco_v102a)
+### Adopted state (post-v103a, post-mscoco_v102a, post unique-metric correction)
 
-| Dataset | Tag-supervised lineage (NOT comparable) | Genuinely unsupervised — mAP best | Genuinely unsupervised — compositional best |
-|---|---|---|---|
-| Flickr25k-CLIP 36-bit | v95a 0.8476 | **v101c 0.7729** | **v103a (B1 0.1031 / B2 0.0645 / P@1 0.9000)** |
-| MSCOCO-CLIP K=128 | mscoco_v91a 0.6374 | **mscoco_v102a 0.5440** (only) | mscoco_v102a (B2 0.1214, NMI 0.5872) |
+| Dataset | Tag-supervised lineage (NOT comparable) | Genuinely unsupervised — mAP best | Genuinely unsupervised — compositional best | Genuinely unsupervised — DNA-axis best |
+|---|---|---|---|---|
+| Flickr25k-CLIP 36-bit | v95a 0.8476 (DNA-uniq 0.5693) | **v101c 0.7729 (DNA-uniq 0.231)** | **v103a (B1 0.1031 / B2 0.0645 / P@1 0.9000, DNA-uniq 0.241)** | **v104b (mAP 0.7581, DNA-uniq 0.338)** |
+| MSCOCO-CLIP K=128 | mscoco_v91a 0.6374 | **mscoco_v102a 0.5440** (only) | mscoco_v102a (B2 0.1214, NMI 0.5872, DNA-uniq 0.116) | — (mscoco K=128 top-k version not yet run) |
 
-Beats external unsupervised baselines on Flickr (CIMON 0.7321,
-CIBHash 0.6844, MLS3RDUH 0.6735) but not on MSCOCO (CIBHash 0.5842).
-MSCOCO unsupervised gap remains the main open issue.
+Beats external unsupervised baselines on Flickr in **mAP** (CIMON
+0.7321, CIBHash 0.6844, MLS3RDUH 0.6735) but loses to CIBHash in
+**DNA unique** (0.34 vs 0.97). On MSCOCO, loses on both mAP (vs
+CIBHash 0.5842) AND DNA unique. The DNA unique gap is driven by
+codeword→DNA codon collisions — see Current state note above.
 
 ### v104a + v104b Flickr — siglip_cos pairwise re-introduction attempts FAILED, confirming v103a recipe as paper-final
 
@@ -600,15 +673,41 @@ pairwise signal that v101c killed (via `--lambda_hash 0.0`):
   Hypothesis: sharp unsupervised S recovers v95a's instance-discrimination
   power without tag supervision.
 
-| Tag | mAP | unique (DB) | dead (last) | B1 lift | B2 lift | P@1 | NMI off-diag | anti-cb (drop>0) |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| v101c (mAP champion) | **0.7729** | 0.543 | 0.271 | 0.0870 | 0.0520 | 0.8975 | n/a | 0 |
-| v102a (KL η=1, dead champion) | 0.7564 | 0.577 | **0.0104** | 0.1014 | 0.0616 | 0.8970 | 0.5697 | 1 (cb0 +0.0002) |
-| **v103a (paper-final candidate)** | 0.7602 | 0.553 | 0.0208 | **0.1031** | **0.0645** | **0.9000** | 0.5714 | 0 |
-| v104a (α: hard only) | 0.7405 ⬇ | 0.567 | 0.203 ⚠ | 0.0884 | 0.0544 | 0.8880 | 0.4930 ⬇ | 2 (cb2 +0.001, cb5 +0.003) |
-| v104b (β: top-k sharp) | 0.7581 | 0.540 | 0.214 ⚠ | 0.0950 | 0.0595 | 0.8965 | 0.5010 ⬇ | 0 |
+| Tag | mAP | **DNA unique (DB)** | cb-tuple unique (DB) | dead (last) | B1 lift | B2 lift | P@1 | NMI off-diag | anti-cb (drop>0) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| v101c (mAP champion) | **0.7729** | 0.2314 | 0.543 | 0.271 | 0.0870 | 0.0520 | 0.8975 | n/a | 0 |
+| v102a (KL η=1, dead champion) | 0.7564 | 0.2296 | 0.577 | **0.0104** | 0.1014 | 0.0616 | 0.8970 | 0.5697 | 1 (cb0 +0.0002) |
+| **v103a (compositional champion)** | 0.7602 | 0.2414 | 0.553 | 0.0208 | **0.1031** | **0.0645** | **0.9000** | 0.5714 | 0 |
+| v104a (α: hard only) | 0.7405 ⬇ | 0.2693 | 0.567 | 0.203 ⚠ | 0.0884 | 0.0544 | 0.8880 | 0.4930 ⬇ | 2 (cb2 +0.001, cb5 +0.003) |
+| **v104b (β: top-k sharp, DNA-axis champion)** | 0.7581 | **0.3383** ⭐ | 0.540 | 0.214 ⚠ | 0.0950 | 0.0595 | 0.8965 | 0.5010 ⬇ | 0 |
 
-**Verdict for both ablations: not adopted.**
+**Verdict revision (2026-06-02 PM):** the "v104b DISCARDED" call
+above was based on cb-tuple unique 0.540 < v103a 0.553. Under the
+corrected DNA-base metric, **v104b is the DNA-axis champion**:
+DNA unique 0.3383 (7780/23000) vs v103a 0.2414 (5552/23000) — **+40 %
+more distinct DNA codes** at only −0.0021 mAP cost. This is a real
+result, not a tie.
+
+How v104b achieves this: the sharp top-k siglip_cos pairwise (only top
+10 % positives per row, rest treated as negatives) forces codebook
+assignments to discriminate hard, AND because the discrimination
+signal is sharper than the smooth siglip_cos pairwise, the codeword
+assignments are less clustered → less codeword→DNA collision
+downstream. The cost is the codebook-tuple unique going slightly
+DOWN (0.540 vs 0.553) — codeword assignments are LESS diverse but
+they each go to DIFFERENT DNA decodes. This is the inverse trade-off
+from v103a.
+
+**Updated v104 verdict:**
+
+- **v104a still DISCARDED**: mAP −0.0197 + DNA unique 0.2693 (only
+  +12 % vs v103a's 0.2414 — does NOT justify the mAP loss).
+- **v104b ADOPTED as DNA-axis result**: best DNA unique in v9x family
+  by a wide margin (+40 % vs v103a), mAP tie with v103a within noise
+  (−0.0021), compositional axis a bit weaker (B1 0.0950 vs 0.1031,
+  −0.008). When the paper's main claim is *compositional* the
+  champion is v103a; when the claim is *unique 36-bit hashes* the
+  champion is v104b. Both stay in the result table.
 
 - **v104a is harmful**: mAP −0.0197, dead codes 0.0208 → 0.203 (10×
   jump — the KL base-balance gain is almost completely undone), NMI
@@ -633,14 +732,28 @@ codeword diversity on their own; adding pairwise on top introduces
 collapse pressure that the KL has to fight against, and the KL loses
 that fight on dead codes (back to ~20 %).
 
-**`λ_hash = 0.0 + λ_hash_hard = 0.0` is the correct setting** for the
-genuinely-unsupervised regime. v103a recipe is confirmed as the
-paper-final Flickr25k candidate.
+**Revised conclusion (2026-06-02 PM):** the *original* call that
+"siglip_cos pairwise is incompatible with the contrastive trio" was
+based on misreading cb-tuple unique numbers. Under DNA-base unique:
+
+- **v101c (`λ_hash=0`, both pairwise OFF)** — mAP champion, DNA unique
+  0.231.
+- **v103a (`λ_hash=0` + KL η=0.3)** — compositional champion, DNA
+  unique 0.241.
+- **v104b (`λ_hash=1, λ_hash_hard=0.5, siglip_cos_topk pos_rate 0.1`)** —
+  DNA-axis champion, DNA unique 0.338 (+40 % vs v103a). mAP and
+  compositional metrics are slightly worse but not by much.
+
+So the actual choice is regime-dependent:
+- when *retrieval mAP* is the headline → v101c / v103a (pairwise OFF)
+- when *distinct hash count* is the headline → v104b (sharp top-k
+  pairwise ON)
 
 | Slot | Tag | Defense |
 |---|---|---|
-| paper-final Flickr unsupervised | **v103a** | best compositional structure (B1/B2 max), best P@1, low dead, both pairwise paths OFF |
-| Alternate mAP-optimized | v101c | +0.0127 mAP over v103a but worse on B1/B2/dead/P@1; cite if "mAP at any cost" framing is needed |
+| Flickr unsupervised mAP champion | v101c | mAP 0.7729 (best of family), but DNA unique only 0.231 |
+| Flickr unsupervised compositional champion | **v103a** | best compositional structure (B1/B2 max), best P@1, low dead, both pairwise paths OFF |
+| Flickr unsupervised DNA-axis champion | **v104b** | DNA unique 0.338 (+40 %), top-k sharp pairwise re-enabled, mAP within noise of v103a |
 
 ### Files / commits this batch
 
