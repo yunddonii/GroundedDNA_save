@@ -699,6 +699,7 @@ class CodonHead(nn.Module):
         position_residual_adapter: bool = False,
         residual_split: bool = False,
         residual_gate: bool = False,
+        use_full_linear: bool = False,
     ) -> None:
         super().__init__()
         if d_model % 3 != 0:
@@ -744,6 +745,18 @@ class CodonHead(nn.Module):
         # v87a: keep the shared classifier as the semantic backbone, then add
         # zero-init per-position residual adapters to logits.
         self.position_residual_adapter: bool = bool(position_residual_adapter)
+        # v105: full-input codon decoder (Linear(d_model, 12) -> view [B, 3, 4])
+        # instead of chunk-partition shared Linear(chunk, 4) (3 positions).
+        self.use_full_linear: bool = bool(use_full_linear)
+        if self.use_full_linear and (
+            use_text_anchor or residual_split or position_specific_head
+            or head_hidden_dim > 0
+        ):
+            raise ValueError(
+                "[CodonHead] --codon_full_linear is mutually exclusive with "
+                "--codon_text_anchor / --codon_residual_split / "
+                "--codon_position_specific_head / --codon_head_hidden_dim>0."
+            )
         if self.use_text_anchor:
             self.proto = nn.Parameter(
                 torch.randn(3, 4, self.chunk) / math.sqrt(self.chunk)
@@ -767,6 +780,10 @@ class CodonHead(nn.Module):
                 nn.GELU(),
                 nn.Linear(self.head_hidden_dim, 4),
             )
+        elif self.use_full_linear:
+            # v105: Linear(d_model, 3*4) -> view [B, 3, 4]. Each (position, base)
+            # output uses ALL d_model dims instead of just its chunk.
+            self.fc = nn.Linear(self.d_model, 12)
         else:
             self.fc = nn.Linear(self.chunk, 4)
         if (
@@ -851,6 +868,11 @@ class CodonHead(nn.Module):
                 logits = torch.stack(
                     [self.fc_pos[p](h[:, p, :]) for p in range(3)], dim=1
                 )                                                          # [B, 3, 4]
+                loss_text_anchor = torch.zeros((), device=x.device, dtype=x.dtype)
+            elif self.use_full_linear:
+                # v105: full-input decoder. Linear(d_model, 12) on the WHOLE
+                # codeword (no chunk partition) -> reshape to [B, 3, 4].
+                logits = self.fc(x).view(B, 3, 4)                          # [B, 3, 4]
                 loss_text_anchor = torch.zeros((), device=x.device, dtype=x.dtype)
             else:
                 logits = self.fc(h)                                       # [B, 3, 4]
@@ -1415,6 +1437,8 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.codon_position_residual_adapter: bool = bool(getattr(args, "codon_position_residual_adapter", False))
         self.codon_residual_split: bool        = bool(getattr(args, "codon_residual_split", False))
         self.codon_residual_gate: bool         = bool(getattr(args, "codon_residual_gate", False))
+        # v105: full-input codon decoder (Linear(d_model, 12) instead of Linear(chunk, 4))
+        self.codon_full_linear: bool           = bool(getattr(args, "codon_full_linear", False))
         self.codon_heads = nn.ModuleList(
             [
                 CodonHead(
@@ -1429,6 +1453,7 @@ class SigLIP2SemanticOTModel(nn.Module):
                     position_residual_adapter=self.codon_position_residual_adapter,
                     residual_split=self.codon_residual_split,
                     residual_gate=self.codon_residual_gate,
+                    use_full_linear=self.codon_full_linear,
                 )
                 for _ in range(self.num_codebooks)
             ]

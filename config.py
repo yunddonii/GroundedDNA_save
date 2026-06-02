@@ -606,6 +606,23 @@ class Config():
             help='v71a: dataset-/sample-adaptive residual gate '
                  'sigmoid(a*||z-q|| + b) applied to gamma*residual. '
                  'Only used when --codon_residual_gamma > 0.')
+        # v105 (codeword->DNA collision mitigation via decoder expressivity):
+        # Replace Linear(chunk=d_model/3, 4) shared across 3 codon positions
+        # with a single Linear(d_model, 12) -> view [B, 3, 4]. Each (position, base)
+        # output uses ALL d_model dims instead of just its chunk. This is
+        # equivalent to "v69a position-specific head" + "no chunk partition",
+        # i.e., 3 independent codon-position decoders each seeing the full
+        # codeword. Per-head params 1028 -> 9228 (still negligible vs backbone).
+        # Default OFF -> bit-exact identical to current v103a behavior.
+        # Mutually exclusive with --codon_text_anchor, --codon_residual_split,
+        # --codon_position_specific_head, --codon_head_hidden_dim>0.
+        siglip2_arg.add_argument('--codon_full_linear',
+            dest='codon_full_linear', action='store_true', default=False,
+            help='v105: CodonHead decoder uses Linear(d_model, 12)+view[B,3,4] '
+                 'on the full codeword embedding, instead of '
+                 'Linear(chunk, 4)+share-across-3-positions on chunked input. '
+                 'Tests whether removing the chunk-partition information '
+                 'bottleneck reduces codeword->DNA codon collisions. Default OFF.')
         # v70a (Exp 3): final DNA hash reconstruction. Small decoder maps
         # the flattened hash code [B, 72] back to the SigLIP2 visual_global
         # or text_global embedding via cosine loss.
