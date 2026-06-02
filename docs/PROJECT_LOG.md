@@ -586,6 +586,62 @@ Beats external unsupervised baselines on Flickr (CIMON 0.7321,
 CIBHash 0.6844, MLS3RDUH 0.6735) but not on MSCOCO (CIBHash 0.5842).
 MSCOCO unsupervised gap remains the main open issue.
 
+### v104a + v104b Flickr — siglip_cos pairwise re-introduction attempts FAILED, confirming v103a recipe as paper-final
+
+Both ablations attempt to re-introduce some form of the `siglip_cos`
+pairwise signal that v101c killed (via `--lambda_hash 0.0`):
+
+- **v104a (α)**: v103a + `--lambda_hash_hard 0.5` (only the STE-quantized
+  HARD pairwise path on `siglip_cos`). Hypothesis: STE rounding absorbs
+  the over-alignment pressure that the soft path suffered from.
+- **v104b (β)**: v103a + `--lambda_hash 1.0 --lambda_hash_hard 0.5
+  --hash_target_mode siglip_cos_topk --siglip_cos_pos_rate 0.1` (re-enable
+  BOTH pairwise paths but switch the target to top-10% sharp 0/1).
+  Hypothesis: sharp unsupervised S recovers v95a's instance-discrimination
+  power without tag supervision.
+
+| Tag | mAP | unique (DB) | dead (last) | B1 lift | B2 lift | P@1 | NMI off-diag | anti-cb (drop>0) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| v101c (mAP champion) | **0.7729** | 0.543 | 0.271 | 0.0870 | 0.0520 | 0.8975 | n/a | 0 |
+| v102a (KL η=1, dead champion) | 0.7564 | 0.577 | **0.0104** | 0.1014 | 0.0616 | 0.8970 | 0.5697 | 1 (cb0 +0.0002) |
+| **v103a (paper-final candidate)** | 0.7602 | 0.553 | 0.0208 | **0.1031** | **0.0645** | **0.9000** | 0.5714 | 0 |
+| v104a (α: hard only) | 0.7405 ⬇ | 0.567 | 0.203 ⚠ | 0.0884 | 0.0544 | 0.8880 | 0.4930 ⬇ | 2 (cb2 +0.001, cb5 +0.003) |
+| v104b (β: top-k sharp) | 0.7581 | 0.540 | 0.214 ⚠ | 0.0950 | 0.0595 | 0.8965 | 0.5010 ⬇ | 0 |
+
+**Verdict for both ablations: not adopted.**
+
+- **v104a is harmful**: mAP −0.0197, dead codes 0.0208 → 0.203 (10×
+  jump — the KL base-balance gain is almost completely undone), NMI
+  drops to 0.4930 (v103a 0.5714), AND 2 anti-contributing codebooks
+  appear (v103a had 0). Hard pairwise on smooth `siglip_cos` is just
+  as collapse-inducing as the soft path; STE rounding does NOT absorb
+  the over-alignment.
+- **v104b is approximately neutral on mAP, worse on compositional**:
+  mAP −0.0021 (statistical tie with v103a), but B1 0.1031 → 0.0950,
+  B2 0.0645 → 0.0595, NMI 0.5714 → 0.5010, AND dead codes 0.0208 →
+  0.214 (10× jump again). Sharp top-k S avoids the soft path's
+  over-alignment but introduces its own concentration pressure that
+  fights the KL base-balance regularizer. Net result: pays the
+  collapse cost without buying any retrieval gain.
+
+**Combined conclusion:** the `siglip_cos` pairwise loss family — soft
+(v101c killed), hard-only (v104a), and top-k sharp (v104b) — is
+*all three forms incompatible* with the
+paired-aug NtXent + text-DNA NtXent + KL base-balance trio. The
+contrastive losses + KL provide enough instance-discrimination and
+codeword diversity on their own; adding pairwise on top introduces
+collapse pressure that the KL has to fight against, and the KL loses
+that fight on dead codes (back to ~20 %).
+
+**`λ_hash = 0.0 + λ_hash_hard = 0.0` is the correct setting** for the
+genuinely-unsupervised regime. v103a recipe is confirmed as the
+paper-final Flickr25k candidate.
+
+| Slot | Tag | Defense |
+|---|---|---|
+| paper-final Flickr unsupervised | **v103a** | best compositional structure (B1/B2 max), best P@1, low dead, both pairwise paths OFF |
+| Alternate mAP-optimized | v101c | +0.0127 mAP over v103a but worse on B1/B2/dead/P@1; cite if "mAP at any cost" framing is needed |
+
 ### Files / commits this batch
 
 - `loss_siglip2.py:844-852` — `loss_base_balance` MSE → KL.
