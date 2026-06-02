@@ -29,14 +29,33 @@ Format conventions:
 
 ---
 
-## Current state (as of 2026-05-27)
+## Current state (as of 2026-06-02)
 
+- **CRITICAL framing correction (2026-06-02)**: every v9x family entry below
+  that calls itself "unsupervised Flickr25k SOTA" or "MSCOCO SOTA" used
+  `--hash_target_mode jaccard` (Flickr25k 38-tag multi-hot pairwise
+  similarity = tag supervision in the pairwise S signal). Those numbers
+  are **tag-supervised lineage**, not directly comparable to the
+  external unsupervised baselines (CIBHash, CIMON, MLS3RDUH). See the
+  `2026-06-02` section below for the genuinely-unsupervised re-baseline
+  + a new candidate.
+- **Best genuinely-unsupervised Flickr25k (ours, NEW 2026-06-02)**:
+  **v101c** (= v99b base [`--hash_target_mode siglip_cos
+  --use_paired_aug_ntxent --ntxent_mode per_codebook
+  --ntxent_dynamic_tau`] + `--lambda_hash 0.0` +
+  `--lambda_text_hash_ntxent 0.05`) — mAP **0.7729**, P@1 **0.8975**,
+  P@10 0.8953, **unique (DB) 0.543**, B1 lift 0.0870. Beats CIMON-CLIP
+  (0.7321), CIBHash-CLIP (0.6844), MLS3RDUH-CLIP (0.6735). Same recipe
+  + base_balance KL is queued as **v102a-Flickr** (GPU 0, in-flight
+  2026-06-02 16:00 KST).
 - **Best supervised Flickr25k**: **v18** (HashNet-style logistic on
   continuous DNA code) -- mAP **0.7883**. Above every binary baseline
   incl. HashNet's own 0.7800.
 - **Best supervised + diversity-balanced Flickr25k**: **v24b** -- mAP
   **0.7742**, unique 0.324.
-- **Best unsupervised Flickr25k SOTA (ours, NEW 2026-05-31)**:
+- **(Tag-supervised lineage; not comparable to external unsupervised
+  baselines as of 2026-06-02)** Best Flickr25k mAP under the
+  `jaccard` regime: **v95a**
   **v95a** (= v92a recipe with `--per_slot_text_adapter` +
   `--text_adapter_hidden_dim 256` — 6 independent text MLPs replacing
   the shared one, total text_adapter ≈ 2 M params matching shared
@@ -276,6 +295,147 @@ Format conventions:
   reverse-chronological (newest first), `## Infrastructure` pinned at
   bottom. Re-enforced via `python scripts/reorder_project_log.py`
   (idempotent).
+
+---
+
+## 2026-06-02 — **CRITICAL framing correction: all v9x runs were tag-supervised; v99a/v99b/v100/v101 series establish genuine unsupervised baseline + isolate `siglip_cos` pairwise signal as a hash-collapse cause; v101c is new genuinely-unsupervised candidate (mAP 0.7729, unique 0.543)**
+
+🟢 active — paper-changing batch.
+
+### Discovery (framing correction)
+
+All v9x family runs from v81a (2026-05-26) through v98a (2026-06-02) used
+`--hash_target_mode jaccard` (the default in `config.py`), which feeds the
+Flickr25k 38-tag multi-hot **labels** into `_loss_hash` and
+`_loss_hash_hard` via `build_label_similarity`. Despite repeatedly framing
+the work as "unsupervised compositional VQ hashing", every claimed
+unsupervised SOTA — including **v95a 0.8476** and
+**mscoco_v91a-CLIP K=128 0.6374** — was obtained with tag supervision in
+the pairwise S signal.
+
+**This contradicts the user's stated `unsupervised manner` requirement
+and the paper's central claim.** All prior `## 2026-05-2x` and
+`## 2026-06-01` Flickr25k mAP entries should be read as
+*tag-supervised lineage*. To re-classify them as unsupervised they need
+to be re-run with `--hash_target_mode siglip_cos` (or
+`siglip_cos_topk`), which uses the frozen CLIP `visual_global`
+self-similarity as the pairwise S target.
+
+New hard invariant for every future training launch:
+
+    --hash_target_mode siglip_cos       # (or siglip_cos_topk)
+
+The `jaccard` default is FORBIDDEN for any Flickr25k / MSCOCO / NUS-WIDE
+unsupervised claim. See `MEMORY.md → feedback-unsupervised-invariant`.
+
+### Experiments this batch
+
+| Tag | Recipe vs v95a (tag) → new baseline | mAP | Δ vs v99b | unique (DB) | unique × | P@1 | B1 lift | Verdict |
+|---|---|---:|---:|---:|---:|---:|---:|---|
+| v98a | v95a + `--lambda_anchor 0.0` | 0.8476 (= v95a bit-exact) | — | 0.5693 | — | 0.9385 | — | `loss_anchor` gradient ≡ 0 in EMA mode (codebook is `register_buffer`, ema_anchor `.detach()`ed) — regime-independent. Anchor remains permanently OFF. |
+| v99a | v95a + `--hash_target_mode siglip_cos` (genuine unsupervised) | 0.6653 | −0.058 | 0.012 ⚠ | 1× | 0.887 | — | Baseline. Removes tag-supervision; smooth siglip_cos cannot replace hard 0/1 jaccard signal. unique collapses to 12 / 23000. |
+| v99b | v99a + `--use_paired_aug_ntxent --ntxent_mode per_codebook --ntxent_dynamic_tau` (paired-aug NtXent re-added) | **0.7229** | — (=base) | 0.020 ⚠ | 1× | 0.857 | — | Paired-aug NtXent provides the instance-discrimination signal siglip_cos lacks. **Beats CIBHash-CLIP (0.6844) + MLS3RDUH-CLIP (0.6735); ≈ CIMON-CLIP (0.7321) − 0.01.** unique still ⚠. |
+| v100 a-d | v99a base + 4 variants | (killed early) | — | — | — | — | — | v99a base was the wrong reference; relaunched as v101 on v99b base. |
+| v101a | v99b + `--lambda_hash 0.0` (remove siglip_cos pairwise signal entirely) | 0.7542 | **+0.031** | 0.482 | ×24 | 0.860 | 0.0796 | siglip_cos signal *itself* was hurting; removing λ flag drives unique 0.020 → 0.482 + mAP up. |
+| v101b | v99b + `--lambda_text_hash_ntxent 0.05` (additive image-text DNA InfoNCE) | 0.7041 | −0.019 | 0.769 | ×38 | 0.805 | 0.0495 | Additive text-DNA NtXent alone slightly hurts when siglip_cos is also active — the two image-text alignment signals fight. |
+| **v101c** | **v99b + λ_hash=0 + λ_text_hash_ntxent 0.05** | **0.7729** | **+0.050** | **0.543** | **×27** | **0.8975** | **0.0870** | **Both moves combined: best across mAP, unique, B1 lift, P@1. New genuinely-unsupervised candidate (Flickr25k-CLIP, 36-bit).** |
+| v101d | v99b + `--lambda_bu 0.5 --lambda_dna 0.5` (boost regularizers 10–25×) | 0.7013 | −0.022 | 0.661 | ×33 | 0.807 | 0.0525 | Pure λ scaling raises unique but hurts mAP — *loss-design* change beats *λ* tuning. |
+
+### Genuine unsupervised leaderboard (Flickr25k-CLIP, 36-bit, V4 captions) as of 2026-06-02
+
+| Model | Supervision | mAP | unique (DB) | P@1 |
+|---|---|---:|---:|---:|
+| **v101c (ours: per_slot + gate + paired-aug NtXent + text-DNA NtXent + siglip_cos pairwise OFF)** | unsupervised | **0.7729** | **0.543** | 0.8975 |
+| CIMON-CLIP | unsupervised | 0.7321 | 0.801 | 0.913 |
+| v99b (ours minus the λ_hash=0 + text-DNA NtXent moves) | unsupervised | 0.7229 | 0.020 ⚠ | 0.857 |
+| CIBHash-CLIP | unsupervised | 0.6844 | 0.967 | 0.937 |
+| MLS3RDUH-CLIP | unsupervised | 0.6735 | 0.515 | 0.850 |
+| v99a (ours minus paired-aug NtXent) | unsupervised | 0.6653 | 0.012 ⚠ | 0.887 |
+| ~~v95a~~ (tag-supervised lineage) | ~~unsupervised~~ → tag-supervised | 0.8476 | 0.5693 | 0.9385 |
+
+→ The "v9x Flickr SOTA 0.8476" entries in earlier sections are NOT
+directly comparable to the four external unsupervised baselines on the
+same row. Under the supervision they actually use, **v101c is the
+correct first-place candidate**.
+
+### Key structural finding — `siglip_cos` pairwise signal is a collapse cause
+
+v101a (`--lambda_hash 0.0` only, no recipe addition) lifts mAP **+0.031**
+and unique **×24** vs v99b. The pairwise loss with smooth `siglip_cos`
+target was simultaneously *under-discriminative* (it cannot replace the
+sharp 0/1 jaccard signal that v95a relied on) **and** *over-aligned*
+(it pulls many image pairs into the same codebook activation pattern,
+driving unique-code count to 12 / 23000 on v99a, 460 / 23000 on v99b).
+
+Removing the siglip_cos pairwise signal AND adding image-text DNA
+InfoNCE (`lambda_text_hash_ntxent`, an additive symmetric InfoNCE
+between text-derived `text_cc` and image-derived `continuous_code` in
+the 72-dim DNA space) recovers both axes simultaneously. This is the
+**v101c construction**: a cleaner, more compositional substitution of
+the tag-supervised pairwise signal.
+
+### Regime-dependence: paired-aug NtXent verdict FLIPS
+
+Earlier `## 2026-05-31 — v96a` entry concluded paired-aug NtXent was
+catastrophically harmful (mAP −0.075). That run used `jaccard`
+supervision, where the strong tag signal *competes* with paired-aug
+NtXent (overdetermined gradient). Under `siglip_cos` (v99b), paired-aug
+NtXent **gains +0.058 mAP** — it becomes the *primary* instance
+discriminator. The verdict is regime-conditional, not inherent. See
+`MEMORY.md → project-v9x-zero-contribution-losses` item 2/2′.
+
+Two earlier "harmful" verdicts still pending re-test under `siglip_cos`:
+- **text_hash MSE → NtXent** swap (v97a regime, mAP −0.040 under tag)
+- **`loss_cw_xmodal`** per-codebook codeword InfoNCE (v93a regime, mAP −0.025 under tag)
+
+### `loss_base_balance` formula changed: MSE → KL(uniform ‖ p̄)
+
+The base-balance regularizer in `_loss_dna` at
+`loss_siglip2.py:844-852` was rewritten from
+`F.mse_loss(p̄, 0.25)` to `F.kl_div(log p̄, uniform, reduction="batchmean")`
+(forward KL). Motivation: under MSE, the gradient at a near-collapsed
+base (`p̄_c → 0`) is just `2·(p̄ − 0.25) ≈ −0.5`, bounded; under forward
+KL, the gradient is `−0.25 / p̄_c → ∞`, providing a much stronger
+collapse-avoidance signal. v102a is the first run under the new form
+(launched same day, see below).
+
+### Anchor remains permanently OFF
+
+v98a confirmed `loss_anchor` has zero gradient with respect to all
+trainable parameters in EMA codebook mode:
+1. `self.codebooks` is `register_buffer(...)`, not `Parameter` → grad ≡ 0.
+2. `ema_text_anchor` is `.detach()`ed → grad ≡ 0.
+
+`∂loss_anchor/∂θ = 0` for any θ ∈ trainable params. v98a vs v95a was
+bit-exact (0.847551 to 6 decimals, identical drop ablation). The flag
+remains in config for clarity but produces no learning signal.
+`--lambda_anchor` is now decorative; the architecturally correct fix
+(if anchor is desired) is to switch the codebook to a `Parameter`.
+
+### Next runs (launched 2026-06-02 16:00 KST)
+
+- **v102a-Flickr (GPU 0)** — v101c recipe + base_balance KL form. Validates
+  whether the new KL form further lifts unique / mAP.
+- **mscoco_v102a-Qwen3 (GPU 1)** — first MSCOCO run under the genuinely
+  unsupervised regime with the v101c recipe + Qwen3-VL captions
+  (`cache/mscoco_qwen3_v4_trainset.jsonl`, 10000/10000 V4-format,
+  0 parse failures). K=128 (per `mscoco_v92a` SOTA). The
+  prior `mscoco_v91a-CLIP K=128 0.6374` was tag-supervised lineage
+  and this is the unsupervised re-baseline.
+
+### Files / commits this batch
+
+- `loss_siglip2.py:844-852` — `loss_base_balance` MSE → KL.
+- `config.py` — added `--text_hash_use_ntxent`, `--text_hash_ntxent_temperature`,
+  `--lambda_text_hash_ntxent`, `--post_eval_compositional`.
+- `train_siglip2.py` — auto-runs NMI + drop ablation + B0/B1/B2 subprocesses
+  after eval when `--post_eval_compositional` is set.
+- `scripts/train_v102a_flickr25k_clip.sh` (new).
+- `scripts/train_mscoco_v102a_qwen3.sh` (new).
+- `tools/qwen3_v4_mscoco_trainset.py` — 10000/10000 V4 captions, merged
+  to `cache/mscoco_qwen3_v4_trainset.jsonl`.
+- Memory updates: `feedback-unsupervised-invariant`,
+  `project-v9x-zero-contribution-losses` (regime-conditional verdicts).
 
 ---
 

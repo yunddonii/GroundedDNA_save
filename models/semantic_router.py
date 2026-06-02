@@ -32,6 +32,7 @@ text tokens directly is enough — no code change needed beyond the call site.
 """
 
 from __future__ import annotations
+import math
 from typing import Dict, Optional
 
 import torch
@@ -124,6 +125,8 @@ class SemanticSinkhornRouter(nn.Module):
         adaptive_topp_min: Optional[float] = None,
         adaptive_topp_max: Optional[float] = None,
         adaptive_topp_use_entropy: bool = False,
+        perplexity_topk: bool = False,
+        codebook_choice_capacity: Optional[float] = None,
         uot_lambda_a:     Optional[float] = None,
         uot_lambda_b:     Optional[float] = None,
     ) -> Dict[str, torch.Tensor]:
@@ -300,6 +303,69 @@ class SemanticSinkhornRouter(nn.Module):
                     -1, sorted_idx, keep_sorted,
                 )                                                              # [B, N, M]
                 P_masked = P * keep.to(P.dtype)
+                row_sum = P_masked.sum(dim=-1, keepdim=True).clamp_min(1e-12)
+                P = P_masked / row_sum * target_row_sum
+
+        # ---- 4f) optional perplexity top-k mask per patch (v84a) ---------
+        # Per-patch effective-k is determined by the routing distribution's
+        # own perplexity: k_n = ceil(M^{H_norm(P_n)}), where
+        # H_norm = H(P_n) / log(M) in [0, 1]. Confident patches (H≈0) get
+        # k=1 (hard routing); uniform patches (H=log M) get k=M (dense).
+        # Zero hand-tuned hyperparameters — the per-patch sparsity is set
+        # entirely by Shannon perplexity. Mutually exclusive with the
+        # adaptive_topp branch (caller enforces).
+        if perplexity_topk:
+            P_prob = P / target_row_sum                                    # [B, N, M], row sums to 1
+            assert P_prob.shape == P.shape, (
+                f"P_prob must match P shape, got {tuple(P_prob.shape)} vs {tuple(P.shape)}"
+            )
+            entropy = -(P_prob.clamp_min(1e-12) * P_prob.clamp_min(1e-12).log()).sum(
+                dim=-1, keepdim=False,
+            )                                                              # [B, N]
+            log_M = math.log(float(M))
+            H_norm = (entropy / max(log_M, 1e-12)).clamp(0.0, 1.0)         # [B, N]
+            # k_eff = ceil(M^H_norm), clamped to [1, M]
+            k_eff_f = float(M) ** H_norm                                    # [B, N], in [1, M]
+            k_eff = k_eff_f.ceil().clamp(1, M).long()                       # [B, N]
+            sorted_P, sorted_idx = P_prob.sort(dim=-1, descending=True)    # [B, N, M]
+            rank = torch.arange(M, device=P.device).view(1, 1, M)          # [1, 1, M]
+            keep_sorted = rank < k_eff.unsqueeze(-1)                       # [B, N, M] bool
+            keep = torch.zeros_like(P, dtype=torch.bool).scatter_(
+                -1, sorted_idx, keep_sorted,
+            )                                                              # [B, N, M] bool
+            P_masked = P * keep.to(P.dtype)
+            row_sum = P_masked.sum(dim=-1, keepdim=True).clamp_min(1e-12)
+            P = P_masked / row_sum * target_row_sum
+
+        # ---- 4g) optional codebook-choice token filtering (v85) ----------
+        # Expert-choice-inspired second pass: after patch-wise masks propose
+        # candidate codebooks, each codebook keeps only its strongest visual
+        # tokens under a per-sample capacity budget. This sharpens codebook
+        # specialization while a row-wise top-1 fallback guarantees every
+        # visual token still routes somewhere. Shapes:
+        #   P_before_choice: [B, N, M], keep_col/fallback/keep: [B, N, M]
+        if codebook_choice_capacity is not None:
+            cap = float(codebook_choice_capacity)
+            if cap > 0.0:
+                keep_k = int(math.ceil((float(N) / float(M)) * cap))
+                keep_k = max(1, min(keep_k, N))
+                P_before_choice = P
+                top_idx = P_before_choice.topk(k=keep_k, dim=1).indices     # [B, keep_k, M]
+                keep_col = torch.zeros_like(P_before_choice, dtype=torch.bool).scatter_(
+                    1, top_idx, True,
+                )                                                           # [B, N, M]
+                P_masked = P_before_choice * keep_col.to(P_before_choice.dtype)
+                row_has_mass = P_masked.sum(dim=-1, keepdim=True) > 0        # [B, N, 1]
+                fallback_idx = P_before_choice.argmax(dim=-1, keepdim=True)  # [B, N, 1]
+                fallback = torch.zeros_like(P_before_choice, dtype=torch.bool).scatter_(
+                    -1, fallback_idx, True,
+                )                                                           # [B, N, M]
+                keep = torch.where(row_has_mass, keep_col, fallback)         # [B, N, M]
+                assert keep.shape == P_before_choice.shape, (
+                    f"codebook-choice keep shape mismatch: "
+                    f"{tuple(keep.shape)} vs {tuple(P_before_choice.shape)}"
+                )
+                P_masked = P_before_choice * keep.to(P_before_choice.dtype)
                 row_sum = P_masked.sum(dim=-1, keepdim=True).clamp_min(1e-12)
                 P = P_masked / row_sum * target_row_sum
 

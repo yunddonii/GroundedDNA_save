@@ -338,6 +338,25 @@ class Config():
             help='If set with --routing_adaptive_topp, compute patch-specific '
                  'top-p threshold from normalized routing entropy instead '
                  'of max-probability confidence.')
+        siglip2_arg.add_argument('--routing_perplexity_topk',
+            dest='routing_perplexity_topk', action='store_true', default=False,
+            help='v84a: per-patch top-k routing where k = ceil(M^H_norm). '
+                 'k is the perplexity of the patch routing distribution: '
+                 'confident patches (H≈0) get k=1 (hard routing), uniform '
+                 'patches (H=log M) get k=M (dense). Zero hyperparameters. '
+                 'Mutually exclusive with --routing_adaptive_topp.')
+        siglip2_arg.add_argument('--routing_codebook_choice',
+            dest='routing_codebook_choice', action='store_true', default=False,
+            help='v85: after patch-wise routing masks, let each codebook '
+                 'retain only its highest-mass visual tokens under a '
+                 'capacity budget, then restore per-patch row mass. This '
+                 'is inspired by expert-choice routing and is default-off.')
+        siglip2_arg.add_argument('--routing_codebook_choice_capacity',
+            dest='routing_codebook_choice_capacity', type=float, default=1.5,
+            help='Capacity factor for --routing_codebook_choice. Each '
+                 'codebook keeps ceil(N / M * capacity) tokens per sample, '
+                 'with top-1 row fallback if all codebooks for a patch are '
+                 'filtered out.')
         # v55: Unbalanced OT (Chizat et al. NeurIPS 2018). KL-relaxed
         # marginals let some patches have row sum < 1/N (i.e. patches that
         # are uninformative — background, blur — can be partially "rejected"
@@ -562,6 +581,14 @@ class Config():
             help='v69a: per-codon-position separate Linear(chunk, 4). 3 fc '
                  'layers replace the shared one. Allows codon positions 0/1/2 '
                  'to specialize.')
+        # v87a: shared CodonHead + zero-initialized position residual adapters.
+        # Keeps the legacy shared Linear(chunk, 4) path as the main classifier,
+        # then adds a small per-position correction to logits. This preserves
+        # v81a at initialization while allowing codon positions to specialize.
+        siglip2_arg.add_argument('--codon_position_residual_adapter',
+            dest='codon_position_residual_adapter', action='store_true', default=False,
+            help='v87a: keep the shared CodonHead classifier and add zero-init '
+                 'per-position Linear(chunk, 4) residual adapters to logits.')
         # v69b (Exp 2): residual-split CodonHead. Position 0,1 use the
         # codeword chunk; position 2 uses gamma * (z - q) chunk. Requires
         # --codon_residual_gamma > 0. Bypasses the existing concat -> input_proj
@@ -836,6 +863,30 @@ class Config():
                  "1.0 disables (legacy, all negatives kept). Recommended "
                  "0.25-0.5 for compositional retrieval; the positive pair "
                  "is always preserved.")
+        # v88 (Huang et al., ICML 2023; MACL Algorithm 1 adapted per-codebook):
+        # model-aware temperature that adapts to paired-augmentation positive
+        # alignment magnitude. For each codebook m, compute the batch-mean
+        # cosine A_m = E_i[cos(semantic_v_m^view1[i], semantic_v_m^view2[i])]
+        # (detached), then scale tau as:
+        #     tau_m = tau_0 * (1 + macl_alpha * (A_m - macl_a0))
+        # Combined MULTIPLICATIVELY with the legacy v42 text-cosine
+        # dynamic-tau when both are active; either disables to scalar 1.
+        # macl_alpha=0 disables (legacy, bit-exact). Recommended 0.3-0.7.
+        loss_arg.add_argument('--ntxent_macl_alpha',
+            type=float, default=0.0,
+            help="v88: MACL-paired model-aware tau alpha (Huang et al. ICML "
+                 "2023, Eq 7). 0=disabled (legacy). Per-codebook tau "
+                 "tau_m = tau_0 * (1 + alpha * (A_m - A_0)) where A_m is "
+                 "the batch-mean cosine of paired-aug semantic_v[m]. "
+                 "Composes multiplicatively with --ntxent_dynamic_tau when "
+                 "both are enabled.")
+        loss_arg.add_argument('--ntxent_macl_a0',
+            type=float, default=0.0,
+            help="v88: MACL initial alignment baseline A_0. 0.0 means tau "
+                 "starts at tau_0 (early training, low alignment) and grows "
+                 "as paired-aug alignment improves. Set higher (e.g. 0.5) "
+                 "to start with tau below tau_0 and have it converge to "
+                 "tau_0 only at full alignment.")
         # v91 (text-to-DNA-hash matching): force the same 36-bit DNA code
         # to be retrievable from either the image visual_tokens path OR a
         # text-only path that reuses the same quantizer + codon heads.
@@ -869,6 +920,34 @@ class Config():
             type=float, default=0.07,
             help='Temperature for v93 cross-modal codeword InfoNCE. '
                  'Default 0.07 (CLIP-style).')
+        # v97: replace text_hash MSE with symmetric NtXent treating the
+        # text-derived continuous_code [B, 18, 4] as an augmented view of
+        # the image-derived continuous_code. Positive pair = same sample's
+        # (image_dna, text_dna); negatives = other samples in batch.
+        # Operates on the FLATTENED 72-dim DNA representation.
+        # Only effective when --lambda_text_hash > 0; swaps the loss form
+        # for the same weight.
+        loss_arg.add_argument('--text_hash_use_ntxent',
+            dest='text_hash_use_ntxent',
+            action=argparse.BooleanOptionalAction, default=False,
+            help='v97: swap text_hash MSE → symmetric NtXent. Treats text '
+                 'DNA as augmented view of image DNA. Use with '
+                 '--lambda_text_hash > 0. Pass --no-text_hash_use_ntxent '
+                 'to keep legacy MSE.')
+        loss_arg.add_argument('--text_hash_ntxent_temperature',
+            type=float, default=0.07,
+            help='Temperature for v97 text-DNA NtXent. Default 0.07.')
+        # v100: ADDITIVE text-DNA NtXent (extra term, NOT a swap of MSE).
+        # Computes symmetric InfoNCE on flattened DNA continuous_code [B, 72]
+        # exactly like v97's swap form, but adds it to total loss with its
+        # own weight INSTEAD OF replacing the MSE term. Use when you want
+        # both (a) image-text DNA alignment via MSE AND (b) cross-batch
+        # discrimination via NtXent.
+        loss_arg.add_argument('--lambda_text_hash_ntxent',
+            type=float, default=0.0,
+            help='v100: weight for ADDITIVE text-DNA NtXent. 0=disabled. '
+                 'Composes on top of lambda_text_hash (MSE). Uses '
+                 '--text_hash_ntxent_temperature for tau.')
         # v73 (Exp 7): global DNA NtXent auxiliary loss alongside per-codebook.
         # When `ntxent_mode=per_codebook`, also compute the global NtXent
         # (whole 18-codon DNA code) using static base temperature and add

@@ -696,6 +696,7 @@ class CodonHead(nn.Module):
         use_text_anchor: bool = False,
         anchor_temperature: float = 0.1,
         position_specific_head: bool = False,
+        position_residual_adapter: bool = False,
         residual_split: bool = False,
         residual_gate: bool = False,
     ) -> None:
@@ -740,6 +741,9 @@ class CodonHead(nn.Module):
         # with use_text_anchor / head_hidden_dim / residual_split (the last
         # one already uses 3 separate Linears by its own design).
         self.position_specific_head: bool = bool(position_specific_head)
+        # v87a: keep the shared classifier as the semantic backbone, then add
+        # zero-init per-position residual adapters to logits.
+        self.position_residual_adapter: bool = bool(position_residual_adapter)
         if self.use_text_anchor:
             self.proto = nn.Parameter(
                 torch.randn(3, 4, self.chunk) / math.sqrt(self.chunk)
@@ -765,6 +769,20 @@ class CodonHead(nn.Module):
             )
         else:
             self.fc = nn.Linear(self.chunk, 4)
+        if (
+            self.position_residual_adapter
+            and not self.use_text_anchor
+            and not self.residual_split
+            and not self.position_specific_head
+        ):
+            self.fc_pos_adapter = nn.ModuleList(
+                [nn.Linear(self.chunk, 4) for _ in range(3)]
+            )
+            for adapter in self.fc_pos_adapter:
+                nn.init.zeros_(adapter.weight)
+                nn.init.zeros_(adapter.bias)
+        else:
+            self.fc_pos_adapter = None
         self.use_gumbel_softmax: bool = bool(use_gumbel_softmax)
         self.gumbel_tau: float = float(gumbel_tau)
 
@@ -836,6 +854,17 @@ class CodonHead(nn.Module):
                 loss_text_anchor = torch.zeros((), device=x.device, dtype=x.dtype)
             else:
                 logits = self.fc(h)                                       # [B, 3, 4]
+                if self.fc_pos_adapter is not None:
+                    # h: [B, 3, chunk] -> delta: [B, 3, 4]
+                    delta = torch.stack(
+                        [self.fc_pos_adapter[p](h[:, p, :]) for p in range(3)],
+                        dim=1,
+                    )
+                    assert delta.shape == logits.shape, (
+                        f"[CodonHead] adapter delta shape {tuple(delta.shape)} "
+                        f"!= logits shape {tuple(logits.shape)}"
+                    )
+                    logits = logits + delta
                 loss_text_anchor = torch.zeros((), device=x.device, dtype=x.dtype)
         cont   = F.softmax(logits, dim=-1)                               # [B, 3, 4]
         idx    = cont.argmax(dim=-1)                                     # [B, 3]
@@ -1270,6 +1299,9 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.routing_adaptive_topp_min   = float(getattr(args, "routing_adaptive_topp_min", 0.5))
         self.routing_adaptive_topp_max   = float(getattr(args, "routing_adaptive_topp_max", 0.9))
         self.routing_adaptive_topp_entropy = bool(getattr(args, "routing_adaptive_topp_entropy", False))
+        # v84a: perplexity-rounded top-k routing (zero hand-tuned thresholds).
+        # k_n = ceil(M^H_norm(P_n)). Mutually exclusive with adaptive_topp.
+        self.routing_perplexity_topk     = bool(getattr(args, "routing_perplexity_topk", False))
         # v91: text-to-DNA-hash matching. When lambda_text_hash > 0, the
         # forward pass *also* runs the text_part_tokens through the shared
         # quantizer + codon_heads to produce a text-derived continuous_code,
@@ -1282,6 +1314,9 @@ class SigLIP2SemanticOTModel(nn.Module):
         # InfoNCE between visual `quantized_tokens` and `text_quantized_tokens`
         # per codebook. Single text-path forward serves both v91 and v93.
         self.lambda_cw_xmodal            = float(getattr(args, "lambda_cw_xmodal", 0.0))
+        # v85: expert-choice-inspired codebook-side token filtering.
+        self.routing_codebook_choice = bool(getattr(args, "routing_codebook_choice", False))
+        self.routing_codebook_choice_capacity = float(getattr(args, "routing_codebook_choice_capacity", 1.5))
         # v79c (#4.1): hard routing via Gumbel-Softmax (one-hot per patch)
         self.routing_hard           = bool(getattr(args, "routing_hard",      False))
         self.routing_hard_tau       = float(getattr(args, "routing_hard_tau", 1.0))
@@ -1377,6 +1412,7 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.codon_anchor_temperature: float = float(getattr(args, "codon_anchor_temperature", 0.1))
         # v69a / v69b / v71a (Exp 1, 2, 5)
         self.codon_position_specific_head: bool = bool(getattr(args, "codon_position_specific_head", False))
+        self.codon_position_residual_adapter: bool = bool(getattr(args, "codon_position_residual_adapter", False))
         self.codon_residual_split: bool        = bool(getattr(args, "codon_residual_split", False))
         self.codon_residual_gate: bool         = bool(getattr(args, "codon_residual_gate", False))
         self.codon_heads = nn.ModuleList(
@@ -1390,6 +1426,7 @@ class SigLIP2SemanticOTModel(nn.Module):
                     use_text_anchor=self.codon_text_anchor,
                     anchor_temperature=self.codon_anchor_temperature,
                     position_specific_head=self.codon_position_specific_head,
+                    position_residual_adapter=self.codon_position_residual_adapter,
                     residual_split=self.codon_residual_split,
                     residual_gate=self.codon_residual_gate,
                 )
@@ -1895,6 +1932,15 @@ class SigLIP2SemanticOTModel(nn.Module):
                 router_kwargs["adaptive_topp_min"] = float(self.routing_adaptive_topp_min)
                 router_kwargs["adaptive_topp_max"] = float(self.routing_adaptive_topp_max)
                 router_kwargs["adaptive_topp_use_entropy"] = bool(self.routing_adaptive_topp_entropy)
+            if self.routing_perplexity_topk:
+                if self.routing_adaptive_topp:
+                    raise ValueError(
+                        "--routing_perplexity_topk and --routing_adaptive_topp "
+                        "are mutually exclusive; pick one routing mask policy."
+                    )
+                router_kwargs["perplexity_topk"] = True
+            if self.routing_codebook_choice:
+                router_kwargs["codebook_choice_capacity"] = float(self.routing_codebook_choice_capacity)
             if self.sinkhorn_lambda_a is not None:
                 router_kwargs["uot_lambda_a"]     = float(self.sinkhorn_lambda_a)
             if self.sinkhorn_lambda_b is not None:

@@ -187,6 +187,11 @@ class DNACodonHashLoss(nn.Module):
         # by the model's parallel text path through the shared quantizer
         # and codon_heads). 0 = disabled (legacy bit-exact).
         self.lambda_text_hash   = float(getattr(cfg, "lambda_text_hash", 0.0))
+        # v97: swap text_hash MSE → symmetric NtXent (text DNA as augmented view)
+        self.text_hash_use_ntxent     = bool(getattr(cfg, "text_hash_use_ntxent", False))
+        self.text_hash_ntxent_temperature = float(getattr(cfg, "text_hash_ntxent_temperature", 0.07))
+        # v100: ADDITIVE text-DNA NtXent (extra term on top of MSE / swap form)
+        self.lambda_text_hash_ntxent = float(getattr(cfg, "lambda_text_hash_ntxent", 0.0))
         # v93: per-codebook cross-modal codeword InfoNCE. Symmetric InfoNCE
         # between visual `quantized_tokens[:, m, :]` and text
         # `text_quantized_tokens[:, m, :]` for each codebook m.
@@ -263,6 +268,12 @@ class DNACodonHashLoss(nn.Module):
         # NtXent. alpha = fraction of negatives kept in softmax denominator;
         # alpha=1.0 disables (legacy, bit-exact).
         self.ntxent_hard_neg_alpha = float(getattr(cfg, "ntxent_hard_neg_alpha", 1.0))
+        # v88 (Huang et al., ICML 2023; MACL Algorithm 1 adapted per-codebook):
+        # model-aware tau scaling driven by paired-augmentation positive
+        # alignment of semantic_visual_tokens. Composes multiplicatively
+        # with v42 text_cos dyn-tau. alpha=0 disables (legacy bit-exact).
+        self.ntxent_macl_alpha = float(getattr(cfg, "ntxent_macl_alpha", 0.0))
+        self.ntxent_macl_a0    = float(getattr(cfg, "ntxent_macl_a0",    0.0))
         # v73 (Exp 7): global DNA NtXent auxiliary loss alongside per-codebook
         self.lambda_global_dna_ntxent = float(getattr(cfg, "lambda_global_dna_ntxent", 0.0))
         # v76b: cosine VQ loss (replaces MSE in _loss_vq with (1 - cos)).
@@ -486,6 +497,9 @@ class DNACodonHashLoss(nn.Module):
         semantic_scale_min: float = 0.7,
         semantic_scale_max: float = 1.3,
         hard_neg_alpha: float = 1.0,
+        paired_align_signal: Optional[torch.Tensor] = None,   # v88: [B, M] paired-aug cosine of semantic_v
+        macl_alpha: float = 0.0,                              # v88: alpha (0 disables MACL scaling)
+        macl_a0: float = 0.0,                                 # v88: A_0 baseline
     ) -> torch.Tensor:
         """Per-codebook NtXent (v31b) with optional v42 dynamic tau.
 
@@ -548,12 +562,32 @@ class DNACodonHashLoss(nn.Module):
             pos_mask = torch.zeros(N, N, device=u_st_view1.device, dtype=torch.bool)
             pos_mask[arange_N, pos_idx] = True                    # [2B, 2B]
 
+        # v88 (MACL-paired): pre-compute per-codebook MACL scaling factor.
+        # macl_factor_m = 1 + alpha * (A_m - A_0), where A_m is the batch-mean
+        # paired-aug positive cosine in codebook m (detached scalar). This
+        # multiplies the base temperature T -> T_eff_m for codebook m. When
+        # combined with v42 text_cos (variant="text_cos"), the final tau is
+        # tau_eff = T_eff_m * (1 + alpha_text * cos(text_i^m, text_j^m)).
+        use_macl = (
+            float(macl_alpha) > 0.0
+            and paired_align_signal is not None
+            and paired_align_signal.dim() == 2
+            and paired_align_signal.shape[1] == num_codebooks
+        )
+
         loss_sum = u_st_view1.new_zeros(())
         for m in range(num_codebooks):
             z = torch.cat([u1[:, m], u2[:, m]], dim=0)            # [2B, 3, 4]
             sim = torch.einsum("brc,src->bsr", z, z).mean(dim=-1)  # [2B, 2B]
             # v60: skip dynamic-tau on m=0 if requested
             use_dyn_this_m = use_dyn and not (m == 0 and skip_global_dyn)
+            # v88: compute per-codebook MACL temperature factor (scalar).
+            if use_macl:
+                A_m = paired_align_signal[:, m].mean().detach()    # scalar in [-1, 1]
+                macl_factor = 1.0 + float(macl_alpha) * (A_m - float(macl_a0))
+                T_eff = max(float(T), 1e-6) * macl_factor.clamp(min=tau_floor / max(float(T), 1e-6))
+            else:
+                T_eff = T                                          # python float
             if use_dyn_this_m and variant == "neg_only_norm_model":
                 # v68 (model_scale removed) -----------------------------------
                 # (1) positive pair uses static base_tau (no weakening)
@@ -585,13 +619,20 @@ class DNACodonHashLoss(nn.Module):
                     max=float(semantic_scale_max),
                 )                                                  # [2B, 2B]
                 # negative-pair tau matrix (semantic-only)
-                T_neg = (T * semantic_scale).clamp(min=tau_floor) # [2B, 2B]
-                # positive pair uses static base T; negative pair uses T_neg
-                T_matrix = torch.where(pos_mask, T_neg.new_full((), T), T_neg)
+                # v88: T_eff already incorporates the per-cb MACL factor
+                T_neg = (T_eff * semantic_scale).clamp(min=tau_floor) # [2B, 2B]
+                # positive pair uses base T_eff; negative pair uses T_neg
+                if isinstance(T_eff, torch.Tensor):
+                    T_pos_fill = T_eff
+                else:
+                    T_pos_fill = T_neg.new_full((), float(T_eff))
+                T_matrix = torch.where(pos_mask, T_pos_fill, T_neg)
                 T_matrix = T_matrix.clamp(min=tau_floor)
                 sim = (sim / T_matrix).masked_fill(eye, -1e9)
             elif use_dyn_this_m:
                 # legacy v42 "text_cos" variant
+                # v88: T_eff already incorporates the per-cb MACL factor;
+                # the (1 + alpha*cos_t) factor multiplies on top.
                 if m == 0 and global_use_local_mean and text_part_raw.shape[1] >= 2:
                     t_m = text_part_raw[:, 1:, :].mean(dim=1)     # [B, D] = mean over 5 local slots
                 else:
@@ -599,11 +640,16 @@ class DNACodonHashLoss(nn.Module):
                 t_all = torch.cat([t_m, t_m], dim=0)              # [2B, D]
                 t_n   = F.normalize(t_all, dim=-1)
                 cos_t = t_n @ t_n.t()                             # [2B, 2B]
-                T_ij  = T * (1.0 + alpha * cos_t)                 # [2B, 2B]
+                T_ij  = T_eff * (1.0 + alpha * cos_t)             # [2B, 2B]
                 T_ij  = T_ij.clamp(min=tau_floor)
                 sim   = (sim / T_ij).masked_fill(eye, -1e9)
             else:
-                sim   = (sim / T).masked_fill(eye, -1e9)
+                # v88: T_eff = T * macl_factor (or just T if macl disabled).
+                if isinstance(T_eff, torch.Tensor):
+                    T_eff_clamped = T_eff.clamp(min=tau_floor)
+                    sim = (sim / T_eff_clamped).masked_fill(eye, -1e9)
+                else:
+                    sim = (sim / T_eff).masked_fill(eye, -1e9)
 
             # v87 (Wang & Liu, CVPR 2021 Eq 9): per-anchor explicit hard-
             # negative sampling. After the (tau-scaled) sim matrix is built,
@@ -796,9 +842,14 @@ class DNACodonHashLoss(nn.Module):
         entropy = -(u * (u + self.eps).log()).sum(dim=-1)        # [B, 18]
         loss_entropy = entropy.mean()
         # 10-2 base balance: prevent collapse to a single base across the dataset
+        # KL(uniform || p_bar): forward KL, mode-covering -> strong penalty on
+        # unused bases (p_bar_c -> 0 makes -log p_bar diverge).
         base_usage = u.mean(dim=0)                                # [18, 4]
+        log_base_usage = (base_usage + self.eps).log()            # [18, 4]
         uniform = torch.full_like(base_usage, 0.25)
-        loss_base_balance = F.mse_loss(base_usage, uniform)
+        loss_base_balance = F.kl_div(
+            log_base_usage, uniform, reduction="batchmean"
+        )
         loss = loss_entropy + self.eta_base_balance * loss_base_balance
         return {
             "loss_dna":          loss,
@@ -927,14 +978,56 @@ class DNACodonHashLoss(nn.Module):
         # v91 text-to-image DNA-hash matching (None-safe). When enabled, the
         # model's forward also produced a text-derived continuous_code
         # ([B, 18, 4]) via the shared quantizer + codon_heads on
-        # text_part_tokens. We MSE-match it to the image-derived
-        # continuous_code so the same 36-bit hash is retrievable from
-        # either modality. Gradient flows through both sides.
+        # text_part_tokens. Two formulations:
+        #   - MSE (default): F.mse_loss(text_cc, image_cc)  -- v91 original.
+        #   - NtXent (v97): symmetric InfoNCE treating text_cc as an
+        #     augmented view of image_cc. Each sample's (image_dna, text_dna)
+        #     is a positive pair; other samples in the batch are negatives.
+        #     Operates on the FLATTENED 72-dim DNA code [B, 72].
+        #     Activated by --text_hash_use_ntxent.
         text_cc = outputs.get("text_continuous_code")
+        # v97: text_hash MSE or NtXent (swap form via text_hash_use_ntxent)
         if text_cc is not None and self.lambda_text_hash > 0.0:
-            loss_text_hash = F.mse_loss(text_cc, u)
+            if getattr(self, "text_hash_use_ntxent", False):
+                B = text_cc.shape[0]
+                t_flat = text_cc.reshape(B, -1)                          # [B, 72]
+                i_flat = u.reshape(B, -1)                                # [B, 72]
+                t_n = F.normalize(t_flat, dim=-1)
+                i_n = F.normalize(i_flat, dim=-1)
+                tau = max(float(getattr(self, "text_hash_ntxent_temperature", 0.07)), 1e-6)
+                logits_it = (i_n @ t_n.T) / tau                          # [B, B]
+                labels = torch.arange(B, device=logits_it.device)
+                loss_text_hash = 0.5 * (
+                    F.cross_entropy(logits_it,     labels) +
+                    F.cross_entropy(logits_it.T,   labels)
+                )
+            else:
+                loss_text_hash = F.mse_loss(text_cc, u)
         else:
             loss_text_hash = u.new_zeros(())
+
+        # v100: ADDITIVE text-DNA NtXent (separate from swap form above).
+        # When lambda_text_hash_ntxent > 0, compute symmetric InfoNCE on the
+        # flattened 72-dim DNA continuous_code [B, 72] AS AN EXTRA TERM,
+        # weighted independently from the MSE/swap form. This lets a recipe
+        # keep `loss_text_hash` (MSE) while ALSO penalising image-text DNA
+        # mis-ordering across the batch.
+        lam_th_nt = float(getattr(self, "lambda_text_hash_ntxent", 0.0))
+        if text_cc is not None and lam_th_nt > 0.0:
+            B = text_cc.shape[0]
+            t_flat = text_cc.reshape(B, -1)
+            i_flat = u.reshape(B, -1)
+            t_n = F.normalize(t_flat, dim=-1)
+            i_n = F.normalize(i_flat, dim=-1)
+            tau = max(float(getattr(self, "text_hash_ntxent_temperature", 0.07)), 1e-6)
+            logits_it = (i_n @ t_n.T) / tau
+            labels = torch.arange(B, device=logits_it.device)
+            loss_text_hash_ntxent_add = 0.5 * (
+                F.cross_entropy(logits_it,   labels) +
+                F.cross_entropy(logits_it.T, labels)
+            )
+        else:
+            loss_text_hash_ntxent_add = u.new_zeros(())
 
         # v93: per-codebook cross-modal codeword InfoNCE.
         # Symmetric InfoNCE per codebook m between
@@ -969,6 +1062,7 @@ class DNACodonHashLoss(nn.Module):
         else:
             loss_cw_xmodal = u.new_zeros(())
 
+
         # v29 paired-aug NtXent on DNA codes (None-safe). Requires the
         # trainer to forward the model on a second augmented view per image
         # and pass that output dict via `outputs_view2`. Both view dicts
@@ -989,6 +1083,18 @@ class DNACodonHashLoss(nn.Module):
                 # build_outputs return dict).
                 _text_anchors = outputs.get("text_global_feat") \
                     if self.ntxent_dynamic_tau else None
+                # v88: compute paired-augmentation per-codebook positive
+                # alignment magnitude from both views' semantic_visual_tokens.
+                # Detached scalar per (sample, codebook) cosine; the loss fn
+                # averages over batch to produce A_m per codebook.
+                _paired_align = None
+                if float(self.ntxent_macl_alpha) > 0.0:
+                    sv1 = outputs.get("semantic_visual_tokens")
+                    sv2 = outputs_view2.get("semantic_visual_tokens")
+                    if sv1 is not None and sv2 is not None:
+                        sv1_n = F.normalize(sv1, dim=-1)
+                        sv2_n = F.normalize(sv2, dim=-1)
+                        _paired_align = (sv1_n * sv2_n).sum(dim=-1).detach()    # [B, M]
                 loss_ntxent = self._loss_ntxent_dna_per_codebook(
                     u_st_v1, u_st_v2, temperature=self.ntxent_temperature,
                     text_part_raw=_text_anchors,
@@ -1006,6 +1112,9 @@ class DNACodonHashLoss(nn.Module):
                     semantic_scale_min=self.ntxent_dynamic_tau_semantic_scale_min,
                     semantic_scale_max=self.ntxent_dynamic_tau_semantic_scale_max,
                     hard_neg_alpha=self.ntxent_hard_neg_alpha,
+                    paired_align_signal=_paired_align,
+                    macl_alpha=self.ntxent_macl_alpha,
+                    macl_a0=self.ntxent_macl_a0,
                 )
                 # v73 (Exp 7): add weak global NtXent on the full 18-codon
                 # code with STATIC ntxent_temperature (no dynamic tau).
@@ -1156,6 +1265,7 @@ class DNACodonHashLoss(nn.Module):
             + self.lambda_dual_instance   * loss_dual_instance
             + self.lambda_codebook_ortho  * loss_codebook_ortho
             + self.lambda_text_hash       * loss_text_hash
+            + self.lambda_text_hash_ntxent * loss_text_hash_ntxent_add
             + self.lambda_cw_xmodal       * loss_cw_xmodal
         )
 
@@ -1168,6 +1278,7 @@ class DNACodonHashLoss(nn.Module):
             "loss_anchor":       loss_anchor,
             "loss_wasserstein":  loss_wasserstein,
             "loss_text_hash":    loss_text_hash,
+            "loss_text_hash_ntxent_add": loss_text_hash_ntxent_add,
             "loss_cw_xmodal":    loss_cw_xmodal,
             "loss_recon":        loss_recon,
             "loss_ntxent":       loss_ntxent,
