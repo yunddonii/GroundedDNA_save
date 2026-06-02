@@ -510,15 +510,81 @@ B1 / B2 numbers in the v9x family.
 2. **v103c-Flickr**: keep MSE for cb0, KL for cb1–cb5 — explicit
    asymmetric regularizer honoring cb0's bottleneck role.
 
-### Concurrent run (still in flight 2026-06-02 16:30 KST)
+### mscoco_v102a-Qwen3 completed 2026-06-02 17:12 KST — first MSCOCO run under genuinely-unsupervised regime; 1.04 hr wall-clock
 
-- **mscoco_v102a-Qwen3 (GPU 1)** — first MSCOCO run under the genuinely
-  unsupervised regime with the v101c recipe + Qwen3-VL captions
-  (`cache/mscoco_qwen3_v4_trainset.jsonl`, 10000/10000 V4-format,
-  0 parse failures). K=128 (per `mscoco_v92a` SOTA). The prior
-  `mscoco_v91a-CLIP K=128 0.6374` was tag-supervised lineage and this
-  is the unsupervised re-baseline. Includes KL base_balance — likely
-  shows the same trade-off as v102a-Flickr.
+Recipe = v101c (Flickr) recipe ported to MSCOCO with K=128 and Qwen3-VL
+captions:
+- `--hash_target_mode siglip_cos` (hard invariant)
+- `--lambda_hash 0.0`, `--lambda_text_hash_ntxent 0.05`
+- `--use_paired_aug_ntxent --ntxent_mode per_codebook --ntxent_dynamic_tau`
+- KL base_balance with `--eta_base_balance 1.0`
+- `--codebook_size 128`
+- `--qwen_text_cache_path cache/mscoco_qwen3_v4_trainset.jsonl`
+
+| Metric | mscoco_v91a-CLIP K=128 (tag-supervised lineage) | CIBHash-CLIP MSCOCO (unsupervised) | **mscoco_v102a-Qwen3 (ours, unsupervised)** |
+|---|---:|---:|---:|
+| mAP                | **0.6374** | 0.5842 | **0.5440** |
+| P@1                | 0.8558 | n/a | 0.7524 |
+| P@10               | 0.8523 | n/a | 0.7477 |
+| unique (DB)        | 0.6406 | high (CIBHash designed for diversity) | **0.462** |
+| dead codes (last)  | n/a | n/a | **0.0625** |
+| NMI mean off-diag  | 0.535 | 0.235 | **0.5872** |
+| drop cb0           | −0.019 | n/a | **−0.0125** ✓ |
+| B2 visual lift     | n/a | n/a | **0.1214** ⭐ huge |
+| B0 / B1 text-based | n/a | n/a | **SKIPPED** (see note) |
+
+**Note on B0/B1 skipped:** the V4 Qwen3 caption cache
+(`cache/mscoco_qwen3_v4_trainset.jsonl`) covers only the 10K trainset
+images. The 107K DB images have no cached captions, so the
+text-based compositional concentration metrics (B0 raw, B1 centered)
+cannot be computed on the DB split. Only B2 (visual_global-based) ran.
+To enable B0/B1 on MSCOCO DB, Qwen3 V4 captions would need to be
+generated for the full 107K DB (≈ 11× the trainset compute, ~5–6 hr
+on 4 GPUs). Not paper-blocking — text-based compositional axis is
+already validated on Flickr (where DB captions are cached).
+
+**Verdict: tag-supervised → unsupervised regime cost is −0.093 mAP on
+MSCOCO** (vs −0.075 on Flickr). Larger drop than Flickr because (a)
+MSCOCO has 80 fine-grained class labels providing a much richer
+pairwise S signal under `jaccard` regime than Flickr's 38 multi-hot
+tags, and (b) 107K DB has higher visual diversity, making the smooth
+`siglip_cos` target even less informative as a pairwise signal.
+
+mscoco_v102a is **−0.040 below CIBHash-CLIP** in mAP — the
+unsupervised MSCOCO baseline is not yet beaten. But the
+**compositional structure is dramatically better**:
+- NMI off-diag 0.5872 vs CIBHash's 0.235 (cb0–cb5 are *truly*
+  distinct semantic channels, not near-random partitions)
+- drop cb0 = −0.0125 (vs Flickr v102a's +0.0002 cliff) — C_0
+  retains its global-semantic channel role on MSCOCO even under
+  η=1.0 KL pressure
+- B2 visual lift 0.1214 — twice the Flickr v103a B2 (0.0645)
+- dead codes 0.0625, low (KL working as designed)
+- drop cb1 = +0.0045 (cb1 slightly anti-contributing; the only weak
+  codebook in the lineup)
+
+**Implication for paper:** v102a-mscoco is a *compositional*
+candidate, not a *retrieval* candidate. To close the mAP gap vs
+CIBHash:
+1. Run **mscoco_v103a-Qwen3** (η_base_balance 0.3) — same η-relaxation
+   that lifted v103a-Flickr by +0.0038 over v102a-Flickr should help.
+2. Consider a longer training schedule (epoch 59 mid-eval mAP was
+   0.5453 vs the eval `mAP(base) = 0.5440`; final eval slightly lower
+   than peak suggests no overfit but no convergence headroom either).
+3. The K=128 codebook may be under-utilised — only 49527 / (128⁶)
+   theoretical codes used. Try `codebook_size = 64` to reduce
+   collapse pressure.
+
+### Adopted state (post-v103a, post-mscoco_v102a)
+
+| Dataset | Tag-supervised lineage (NOT comparable) | Genuinely unsupervised — mAP best | Genuinely unsupervised — compositional best |
+|---|---|---|---|
+| Flickr25k-CLIP 36-bit | v95a 0.8476 | **v101c 0.7729** | **v103a (B1 0.1031 / B2 0.0645 / P@1 0.9000)** |
+| MSCOCO-CLIP K=128 | mscoco_v91a 0.6374 | **mscoco_v102a 0.5440** (only) | mscoco_v102a (B2 0.1214, NMI 0.5872) |
+
+Beats external unsupervised baselines on Flickr (CIMON 0.7321,
+CIBHash 0.6844, MLS3RDUH 0.6735) but not on MSCOCO (CIBHash 0.5842).
+MSCOCO unsupervised gap remains the main open issue.
 
 ### Files / commits this batch
 
