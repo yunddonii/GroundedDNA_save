@@ -323,7 +323,33 @@ def main(args: Config):
             n_collected += _tp.shape[0]
             if n_collected >= _N_target:
                 break
-        text_anchors = torch.cat(text_buffer, dim=0)[:_N_target]  # [N, M, D]
+        text_anchors = torch.cat(text_buffer, dim=0)[:_N_target]  # [N, M, D_text]
+        # v41 (CLIP backbone fix 2026-06-03): cached_text_part_raw is the raw
+        # text-encoder output (512-dim for CLIP-B/16) but the codebook is
+        # d_model-dim (768 for CLIP). Project the raw text vectors through
+        # the model's text_adapter(s) so they live in the codebook space.
+        # For SigLIP2 backbone (text/visual both 768-dim) this is a no-op
+        # at the dim level but still applies the trained MLP/Linear.
+        if int(text_anchors.shape[-1]) != int(model.d_model):
+            print(f"[text_init_codebook] projecting text_anchors "
+                  f"{text_anchors.shape[-1]} -> {model.d_model} via text_adapter ...")
+            text_anchors = text_anchors.to(args.device)
+            with torch.no_grad():
+                N_a, M_a, D_a = text_anchors.shape
+                if isinstance(model.text_adapter, torch.nn.ModuleList):
+                    # per-slot text adapter: apply slot m to column m
+                    out_cols = [
+                        model.text_adapter[m](text_anchors[:, m, :])
+                        for m in range(M_a)
+                    ]
+                    text_anchors = torch.stack(out_cols, dim=1)  # [N, M, d_model]
+                else:
+                    text_anchors = model.text_adapter(
+                        text_anchors.reshape(N_a * M_a, D_a)
+                    ).reshape(N_a, M_a, -1)
+            text_anchors = text_anchors.detach().cpu()
+            print(f"[text_init_codebook] projected text_anchors shape="
+                  f"{tuple(text_anchors.shape)}")
         print(f"[text_init_codebook] collected text_anchors shape="
               f"{tuple(text_anchors.shape)}; calling init...")
         _diag = model.quantizer.initialize_from_text_anchors(
