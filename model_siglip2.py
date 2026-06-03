@@ -917,6 +917,51 @@ class CodonHead(nn.Module):
             "residual_gate_mean": gate_mean,         # scalar (v71a logging)
         }
 
+    def decode_codeword(self, codewords: torch.Tensor) -> torch.Tensor:
+        """v106: codeword-level codon decoder for bijection loss.
+
+        Applies the codon decoder to raw codeword embeddings WITHOUT
+        residual injection (i.e., what the decoder would output if a
+        sample's quantized representation was exactly the codeword).
+        Mirrors the active decoding path in forward(), handling all
+        decoder variants (text_anchor / residual_split / position_specific
+        / full_linear / shared fc).
+
+        codewords: [K, d_model]
+        returns  : codon logits [K, 3, 4]
+        """
+        K, D = codewords.shape
+        assert D == self.d_model, (
+            f"[CodonHead.decode_codeword] expected last-dim {self.d_model}, got {D}"
+        )
+        h = codewords.view(K, 3, self.chunk)
+        if self.use_text_anchor:
+            h_n = F.normalize(h, dim=-1)
+            proto_n = F.normalize(self.proto, dim=-1)
+            return torch.einsum('kpc,pqc->kpq', h_n, proto_n) / self.anchor_temperature
+        if self.residual_split:
+            # No residual at codeword level; map all 3 positions via the
+            # semantic branches and use the residual_fc as if residual=0.
+            l0 = self.semantic_fc_pos0(h[:, 0, :])                   # [K, 4]
+            l1 = self.semantic_fc_pos1(h[:, 1, :])                   # [K, 4]
+            l2 = self.residual_fc(torch.zeros_like(h[:, 2, :]))      # [K, 4]
+            return torch.stack([l0, l1, l2], dim=1)
+        if self.position_specific_head:
+            return torch.stack(
+                [self.fc_pos[p](h[:, p, :]) for p in range(3)], dim=1
+            )
+        if self.use_full_linear:
+            return self.fc(codewords).view(K, 3, 4)
+        # Default shared Linear(chunk, 4) path (with optional v87a adapter)
+        logits = self.fc(h)                                          # [K, 3, 4]
+        if self.fc_pos_adapter is not None:
+            delta = torch.stack(
+                [self.fc_pos_adapter[p](h[:, p, :]) for p in range(3)],
+                dim=1,
+            )
+            logits = logits + delta
+        return logits
+
 
 # =====================================================================
 # Reconstruction decoders (v28 ablation, 2026-05-15)
@@ -1439,6 +1484,15 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.codon_residual_gate: bool         = bool(getattr(args, "codon_residual_gate", False))
         # v105: full-input codon decoder (Linear(d_model, 12) instead of Linear(chunk, 4))
         self.codon_full_linear: bool           = bool(getattr(args, "codon_full_linear", False))
+        # v106: enable codeword-level codon decoder output for bijection loss
+        # (Sinkhorn-OT / aggregated entropy / pairwise). True iff any of the
+        # lambda_codeword_codon_* flags > 0.
+        _lam_sinkhorn = float(getattr(args, "lambda_codeword_codon_sinkhorn", 0.0))
+        _lam_agg_ent  = float(getattr(args, "lambda_codeword_codon_agg_ent", 0.0))
+        _lam_pairw    = float(getattr(args, "lambda_codeword_codon_pairwise", 0.0))
+        self._compute_codeword_codon_logits: bool = (
+            (_lam_sinkhorn + _lam_agg_ent + _lam_pairw) > 0.0
+        )
         self.codon_heads = nn.ModuleList(
             [
                 CodonHead(
@@ -2127,6 +2181,40 @@ class SigLIP2SemanticOTModel(nn.Module):
         dna_hash_codes_per_codebook      = torch.stack(hash_list,         dim=1)  # [B, 6, 3, 4]
         dna_hash_codes_per_codebook_hard = torch.stack(hard_list,         dim=1)  # [B, 6, 3, 4]
         dna_hash_codes_per_codebook_st   = torch.stack(st_list,           dim=1)  # [B, 6, 3, 4]
+        # v106: codeword-level codon decoder outputs for the bijection loss.
+        # Apply each codon head's decoder to the codebook codewords directly
+        # (no residual, no sample dependence). Returns [M, K, 3, 4] logits.
+        # Only compute when at least one bijection-loss lambda > 0 (cheap O(M*K)
+        # per forward); always compute during training to keep autograd graph
+        # consistent across batches if downstream Workspaces care.
+        if self.training and getattr(self, "_compute_codeword_codon_logits", False):
+            cb_logits_list = []
+            cb_full = self.quantizer.codebooks                        # [M, K_max, D]
+            cb_mask = self.quantizer.active_mask                      # [M, K_max] bool
+            for m, head in enumerate(self.codon_heads):
+                # Only consider currently-active codewords (handles K_max > K_active)
+                idx_active = cb_mask[m].nonzero(as_tuple=True)[0]
+                cb_m = cb_full[m, idx_active]                         # [K_active, D]
+                cb_logits_list.append(head.decode_codeword(cb_m))     # [K_active, 3, 4]
+            # Pad to K_max so all codebooks share a tensor (K_active may differ
+            # per codebook with adaptive K). We'll record both the logits and
+            # a per-codebook K count so the loss can mask correctly.
+            K_max = max(t.shape[0] for t in cb_logits_list)
+            cb_logits_padded = torch.zeros(
+                (len(cb_logits_list), K_max, 3, 4),
+                device=cb_full.device, dtype=cb_logits_list[0].dtype,
+            )
+            cb_K_active = torch.zeros(
+                len(cb_logits_list), device=cb_full.device, dtype=torch.long,
+            )
+            for m, t in enumerate(cb_logits_list):
+                cb_logits_padded[m, :t.shape[0]] = t
+                cb_K_active[m] = t.shape[0]
+            codeword_codon_logits = cb_logits_padded                  # [M, K_max, 3, 4]
+            codeword_K_active     = cb_K_active                       # [M] long
+        else:
+            codeword_codon_logits = None
+            codeword_K_active     = None
         base_indices_per_codebook        = torch.stack(indices_list,      dim=1)  # [B, 6, 3]
 
         # 9) flatten to a single concatenated code: 6 codebooks * 3 codon positions = 18
@@ -2295,6 +2383,12 @@ class SigLIP2SemanticOTModel(nn.Module):
             # cost). For gradient codebook mode this term is fully active.
             "codebooks_buffer":                  self.quantizer.codebooks,
             "codebook_active_mask":              self.quantizer.active_mask,
+            # v106: codeword-level codon decoder outputs for bijection loss.
+            # Shape [M, K_max, 3, 4] logits; None when bijection loss inactive.
+            # Companion `codeword_K_active` [M] gives per-codebook active K
+            # (handles adaptive K where K_active may vary per codebook).
+            "codeword_codon_logits":             codeword_codon_logits,
+            "codeword_K_active":                 codeword_K_active,
         })
 
         # 11) optional reconstruction head (v28a / v28b)

@@ -623,6 +623,41 @@ class Config():
                  'Linear(chunk, 4)+share-across-3-positions on chunked input. '
                  'Tests whether removing the chunk-partition information '
                  'bottleneck reduces codeword->DNA codon collisions. Default OFF.')
+        # v106 (codeword<->DNA codon bijection losses): operate on the codon
+        # decoder applied to codebook codewords directly (no residual, no
+        # sample dependence). Three variants:
+        #   - Sinkhorn-OT (recommended): hard marginal constraints enforce
+        #     K codewords -> K distinct codons mapping when K=64. Strongest.
+        #   - Aggregated entropy: KL(uniform || P_bar) + per-codeword
+        #     sharpness. Cheaper but K' < K local-min vulnerable.
+        #   - Pairwise distinctness: off-diagonal inner product sum.
+        #     Cheapest, weakest.
+        # Combine with the standard v103a recipe to test the codeword->codon
+        # collision hypothesis (DNA unique 0.24 -> targeting 0.55+).
+        siglip2_arg.add_argument('--lambda_codeword_codon_sinkhorn',
+            type=float, default=0.0,
+            help='v106a: Sinkhorn-OT bijection loss weight. 0=disabled. '
+                 'Recommended 0.05-0.2 (loss scale ~ log K).')
+        siglip2_arg.add_argument('--codeword_codon_sinkhorn_eps',
+            type=float, default=0.1,
+            help='v106: entropy regularization for Sinkhorn iterations. '
+                 'Smaller -> sharper assignment (closer to Hungarian). '
+                 'Default 0.1 (stable + sharp).')
+        siglip2_arg.add_argument('--codeword_codon_sinkhorn_iters',
+            type=int, default=30,
+            help='v106: number of Sinkhorn iterations. Default 30.')
+        siglip2_arg.add_argument('--lambda_codeword_codon_agg_ent',
+            type=float, default=0.0,
+            help='v106b: aggregated-entropy bijection loss weight. 0=disabled. '
+                 'Recommended 0.1-0.3.')
+        siglip2_arg.add_argument('--codeword_codon_agg_ent_alpha',
+            type=float, default=0.5,
+            help='v106b: weight of per-codeword sharpness term relative to '
+                 'aggregate uniform term. Default 0.5.')
+        siglip2_arg.add_argument('--lambda_codeword_codon_pairwise',
+            type=float, default=0.0,
+            help='v106c: pairwise distinctness bijection loss weight. 0=disabled. '
+                 'Recommended 0.5-2.0.')
         # v70a (Exp 3): final DNA hash reconstruction. Small decoder maps
         # the flattened hash code [B, 72] back to the SigLIP2 visual_global
         # or text_global embedding via cosine loss.

@@ -43,6 +43,7 @@ Persisting the EMA text anchor:
 from __future__ import annotations
 from typing import Any, Dict, Optional
 
+import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -199,6 +200,23 @@ class DNACodonHashLoss(nn.Module):
         # 0 = disabled (legacy bit-exact).
         self.lambda_cw_xmodal      = float(getattr(cfg, "lambda_cw_xmodal", 0.0))
         self.cw_xmodal_temperature = float(getattr(cfg, "cw_xmodal_temperature", 0.07))
+        # v106: codeword <-> DNA codon bijection losses. Operate on the
+        # codon decoder applied to the codebook codewords directly
+        # (no residual, no sample dependence). Three variants implemented:
+        #   - Sinkhorn-OT bijection (recommended): hard marginal constraints
+        #     enforce K codewords -> K distinct codons mapping when K = 64.
+        #   - Aggregated entropy: uniform aggregate codon usage + per-codeword
+        #     sharpness. Cheaper but weaker (local-min vulnerable).
+        #   - Pairwise distinctness: sum of off-diagonal inner products of
+        #     codeword codon distributions. Even cheaper, even weaker.
+        # All zero by default. v103a recipe + lambda_codeword_codon_sinkhorn
+        # > 0 launches the v106a experiment.
+        self.lambda_codeword_codon_sinkhorn  = float(getattr(cfg, "lambda_codeword_codon_sinkhorn",  0.0))
+        self.lambda_codeword_codon_agg_ent   = float(getattr(cfg, "lambda_codeword_codon_agg_ent",   0.0))
+        self.lambda_codeword_codon_pairwise  = float(getattr(cfg, "lambda_codeword_codon_pairwise",  0.0))
+        self.codeword_codon_sinkhorn_eps     = float(getattr(cfg, "codeword_codon_sinkhorn_eps",     0.1))
+        self.codeword_codon_sinkhorn_iters   = int  (getattr(cfg, "codeword_codon_sinkhorn_iters",   30))
+        self.codeword_codon_agg_ent_alpha    = float(getattr(cfg, "codeword_codon_agg_ent_alpha",    0.5))
         # v66: per-codon text-anchored aux CE loss weight. The model computes
         # `out["loss_text_anchor"]` per forward (sum across 6 codebooks). 0
         # default keeps the loss off.
@@ -857,6 +875,122 @@ class DNACodonHashLoss(nn.Module):
             "loss_base_balance": loss_base_balance,
         }
 
+    # ------------------------------------------------------------------
+    # v106: codeword <-> DNA codon bijection losses (operate on the codon
+    # decoder applied to codewords; no sample dependence). All three take
+    # codeword_codon_logits [M, K, 3, 4] from the model forward.
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _joint_codon_distribution(logits: torch.Tensor, eps: float) -> torch.Tensor:
+        """logits [M, K, 3, 4] -> joint codon distribution [M, K, 64]."""
+        p = F.softmax(logits, dim=-1)                                # [M, K, 3, 4]
+        # outer product over 3 positions -> [M, K, 4, 4, 4]
+        P = torch.einsum('mka,mkb,mkc->mkabc',
+                         p[:, :, 0], p[:, :, 1], p[:, :, 2])
+        M, K = logits.shape[0], logits.shape[1]
+        return P.reshape(M, K, -1)                                    # [M, K, 64]
+
+    def _loss_codeword_codon_sinkhorn(
+        self,
+        codeword_codon_logits: torch.Tensor,            # [M, K_max, 3, 4]
+        codeword_K_active: torch.Tensor,                # [M] long
+    ) -> torch.Tensor:
+        """Sinkhorn-OT bijection loss.
+
+        For each codebook m, solves the entropy-regularized OT problem
+        between K_active codewords and |C|=64 codons with uniform marginals
+        (1/K, 1/64). The optimal transport plan T* enforces hard marginal
+        constraints (no codon can receive >1/64 mass), which prevents the
+        K' < K collapse failure mode of softer regularizers.
+
+        Loss = sum_{m, k, j} T*_{kj} . (-log P_k(j))
+             = expected NLL of codewords under the optimal soft permutation.
+        """
+        eps_reg = max(float(self.codeword_codon_sinkhorn_eps), 1e-3)
+        n_iter  = max(int(self.codeword_codon_sinkhorn_iters), 1)
+        eps     = self.eps
+        M, K_max = codeword_codon_logits.shape[0], codeword_codon_logits.shape[1]
+        device = codeword_codon_logits.device
+        log_p_codon_full = (
+            self._joint_codon_distribution(codeword_codon_logits, eps).clamp(min=eps).log()
+        )                                                              # [M, K_max, 64]
+        per_codebook = []
+        for m in range(M):
+            K = int(codeword_K_active[m].item()) if codeword_K_active is not None else K_max
+            if K <= 0:
+                continue
+            cost = -log_p_codon_full[m, :K]                            # [K, 64]
+            # Standard log-Sinkhorn: T_kj = exp(-cost/eps + u + v) with
+            # marginals a (1/K) and b (1/|C|=1/64). Dual updates:
+            #   u_k = log a_k - logsumexp_j(-cost_kj/eps + v_j)
+            #   v_j = log b_j - logsumexp_k(-cost_kj/eps + u_k)
+            log_a = torch.full((K,),  -math.log(K),  device=device, dtype=cost.dtype)
+            log_b = torch.full((64,), -math.log(64), device=device, dtype=cost.dtype)
+            log_K_mat = -cost / eps_reg                                # [K, 64]
+            u = torch.zeros(K,  device=device, dtype=cost.dtype)
+            v = torch.zeros(64, device=device, dtype=cost.dtype)
+            for _ in range(n_iter):
+                u = log_a - torch.logsumexp(log_K_mat + v[None, :], dim=1)
+                v = log_b - torch.logsumexp(log_K_mat + u[:, None], dim=0)
+            log_T = log_K_mat + u[:, None] + v[None, :]                # [K, 64]
+            T = log_T.exp()                                            # [K, 64]
+            per_codebook.append((T * cost).sum())
+        if not per_codebook:
+            return codeword_codon_logits.new_zeros(())
+        return torch.stack(per_codebook).mean()
+
+    def _loss_codeword_codon_agg_ent(
+        self,
+        codeword_codon_logits: torch.Tensor,            # [M, K_max, 3, 4]
+        codeword_K_active: torch.Tensor,                # [M] long
+    ) -> torch.Tensor:
+        """Aggregated entropy bijection loss (weaker, simpler).
+
+        L = (log K - H(P_bar)) + alpha . mean_k H(P_k)
+        where P_bar = mean_k P_k is the aggregate codon distribution.
+        """
+        alpha = float(self.codeword_codon_agg_ent_alpha)
+        eps = self.eps
+        P_full = self._joint_codon_distribution(codeword_codon_logits, eps)  # [M, K_max, 64]
+        M, K_max = P_full.shape[0], P_full.shape[1]
+        per_codebook = []
+        for m in range(M):
+            K = int(codeword_K_active[m].item()) if codeword_K_active is not None else K_max
+            if K <= 0:
+                continue
+            P = P_full[m, :K]                                          # [K, 64]
+            P_bar = P.mean(dim=0)                                      # [64]
+            term_uniform = math.log(K) + (P_bar * (P_bar + eps).log()).sum()
+            H_per = -(P * (P + eps).log()).sum(dim=-1)                 # [K]
+            term_sharp = H_per.mean()
+            per_codebook.append(term_uniform + alpha * term_sharp)
+        if not per_codebook:
+            return codeword_codon_logits.new_zeros(())
+        return torch.stack(per_codebook).mean()
+
+    def _loss_codeword_codon_pairwise(
+        self,
+        codeword_codon_logits: torch.Tensor,
+        codeword_K_active: torch.Tensor,
+    ) -> torch.Tensor:
+        """Pairwise distinctness loss (cheapest, weakest)."""
+        eps = self.eps
+        P_full = self._joint_codon_distribution(codeword_codon_logits, eps)  # [M, K_max, 64]
+        M, K_max = P_full.shape[0], P_full.shape[1]
+        per_codebook = []
+        for m in range(M):
+            K = int(codeword_K_active[m].item()) if codeword_K_active is not None else K_max
+            if K <= 1:
+                continue
+            P = P_full[m, :K]                                          # [K, 64]
+            S = P @ P.T                                                # [K, K]
+            offdiag = S - torch.diag(torch.diag(S))
+            per_codebook.append(offdiag.sum() / (K * (K - 1)))
+        if not per_codebook:
+            return codeword_codon_logits.new_zeros(())
+        return torch.stack(per_codebook).mean()
+
     def _loss_bu(
         self, distances: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
@@ -1269,6 +1403,38 @@ class DNACodonHashLoss(nn.Module):
             + self.lambda_cw_xmodal       * loss_cw_xmodal
         )
 
+        # v106: codeword <-> DNA codon bijection losses (None-safe).
+        # Operate on the codeword-level codon decoder outputs supplied by
+        # the model when at least one bijection lambda > 0.
+        codeword_codon_logits = outputs.get("codeword_codon_logits")
+        codeword_K_active     = outputs.get("codeword_K_active")
+        if codeword_codon_logits is not None:
+            if self.lambda_codeword_codon_sinkhorn > 0.0:
+                loss_codeword_codon_sinkhorn = self._loss_codeword_codon_sinkhorn(
+                    codeword_codon_logits, codeword_K_active,
+                )
+                total = total + self.lambda_codeword_codon_sinkhorn * loss_codeword_codon_sinkhorn
+            else:
+                loss_codeword_codon_sinkhorn = u.new_zeros(())
+            if self.lambda_codeword_codon_agg_ent > 0.0:
+                loss_codeword_codon_agg_ent = self._loss_codeword_codon_agg_ent(
+                    codeword_codon_logits, codeword_K_active,
+                )
+                total = total + self.lambda_codeword_codon_agg_ent * loss_codeword_codon_agg_ent
+            else:
+                loss_codeword_codon_agg_ent = u.new_zeros(())
+            if self.lambda_codeword_codon_pairwise > 0.0:
+                loss_codeword_codon_pairwise = self._loss_codeword_codon_pairwise(
+                    codeword_codon_logits, codeword_K_active,
+                )
+                total = total + self.lambda_codeword_codon_pairwise * loss_codeword_codon_pairwise
+            else:
+                loss_codeword_codon_pairwise = u.new_zeros(())
+        else:
+            loss_codeword_codon_sinkhorn = u.new_zeros(())
+            loss_codeword_codon_agg_ent  = u.new_zeros(())
+            loss_codeword_codon_pairwise = u.new_zeros(())
+
         return {
             "loss":              total,
             "loss_hash":         loss_hash,
@@ -1280,6 +1446,9 @@ class DNACodonHashLoss(nn.Module):
             "loss_text_hash":    loss_text_hash,
             "loss_text_hash_ntxent_add": loss_text_hash_ntxent_add,
             "loss_cw_xmodal":    loss_cw_xmodal,
+            "loss_codeword_codon_sinkhorn": loss_codeword_codon_sinkhorn,
+            "loss_codeword_codon_agg_ent":  loss_codeword_codon_agg_ent,
+            "loss_codeword_codon_pairwise": loss_codeword_codon_pairwise,
             "loss_recon":        loss_recon,
             "loss_ntxent":       loss_ntxent,
             "loss_ortho_text":   loss_ortho_text,
