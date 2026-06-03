@@ -433,6 +433,8 @@ def main(args: Config):
         'loss_wasserstein',
         'loss_text_hash',
         'loss_cw_xmodal',
+        'loss_codeword_codon_sinkhorn',
+        'eff_lambda_codeword_codon_sinkhorn',
         'loss_recon',
         'loss_ntxent',
         'loss_ortho_text',

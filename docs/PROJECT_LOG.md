@@ -29,288 +29,6 @@ Format conventions:
 
 ---
 
-## Current state (as of 2026-06-04 AM)
-
-### mscoco_v106b vs unsupervised baselines — full comparison
-
-`mscoco_v106b` is the v106b Flickr recipe ported to MSCOCO: K=128
-codebook, Qwen3 trainset captions, `--codon_residual_gamma 0.0`,
-`--lambda_codeword_codon_sinkhorn 0.1`, all other v107a/v107b-line
-defaults. Compared head-to-head against the 3 external CLIP-backbone
-unsupervised baselines on MSCOCO (CIBHash / CIMON / MLS3RDUH, same
-107K-DB × 5K-query split, 36-bit code).
-
-**(1) Evaluation metrics — head-to-head vs unsupervised baselines**
-
-| Method | mAP | P@1 | P@5 | P@10 | P@100 | P@1000 | unique (DB) |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| **mscoco_v106b (ours)** | **0.5581** | 0.7914 | 0.7928 | 0.7781 | 0.7622 | 0.7319 | 0.1248 |
-| CIBHash-CLIP | **0.5842** | **0.9264** | **0.9227** | **0.9206** | **0.9025** | **0.8477** | **0.7419** |
-| CIMON-CLIP | 0.5388 | 0.7838 | 0.7758 | 0.7708 | 0.7458 | 0.6898 | 0.4276 |
-| MLS3RDUH-CLIP | 0.5037 | 0.7610 | 0.7398 | 0.7359 | 0.7088 | 0.6562 | 0.4330 |
-| mscoco_v91a-CLIP K=128 (tag-supervised lineage; NOT comparable) | 0.6374 | 0.8558 | 0.8579 | 0.8523 | 0.8336 | 0.7951 | 0.6406 |
-
-**Delta mscoco_v106b vs each unsupervised baseline:**
-
-| Metric | vs CIBHash | vs CIMON | vs MLS3RDUH |
-|---|---:|---:|---:|
-| mAP | −0.026 ⬇ | **+0.019** ⬆ | **+0.054** ⬆ |
-| P@1 | −0.135 ⬇⬇ | **+0.008** ⬆ | **+0.030** ⬆ |
-| P@10 | −0.143 ⬇⬇ | **+0.007** ⬆ | **+0.042** ⬆ |
-| P@100 | −0.140 ⬇⬇ | **+0.016** ⬆ | **+0.053** ⬆ |
-| P@1000 | −0.116 ⬇ | **+0.042** ⬆ | **+0.076** ⬆ |
-| unique (DB) | −0.617 ⬇⬇⬇ | −0.303 ⬇⬇ | −0.308 ⬇⬇ |
-
-**Verdict on evaluation metrics:**
-- mscoco_v106b **beats CIMON-CLIP and MLS3RDUH-CLIP on EVERY mAP / P@k
-  metric** (the 2 weaker unsupervised baselines).
-- mscoco_v106b **loses to CIBHash-CLIP on EVERY mAP / P@k metric**.
-  CIBHash holds the top-1 / sharp-rank pocket on MSCOCO just as it does
-  on Flickr25k (replicates the cross-dataset regime dichotomy from
-  2026-05-29).
-- mscoco_v106b's **unique (DB) 0.1248 is the lowest** of all 4 methods
-  — much below CIBHash 0.7419 (CIBHash is near-bijective flat hash).
-  The codeword→DNA codon collision (K=128 vs 4³=64 pigeonhole) caps
-  mscoco_v106b's DNA unique at ~0.125 even with Sinkhorn-OT bijection
-  enforcement (collision ratio 2.42×; theoretical minimum 2.0×).
-
-**(2) Compositional eval — head-to-head**
-
-| Method | NMI mean off-diag | NMI min | NMI max | sum Δdrops | anti-cb (drop>0) |
-|---|---:|---:|---:|---:|---:|
-| **mscoco_v106b (ours)** | 0.671 | (0.516) | (0.768) | **−0.0296** | **0** ✓ |
-| CIBHash-CLIP | **0.235** | 0.176 | 0.277 | −0.0897 | 0 |
-| CIMON-CLIP | 0.412 | 0.374 | 0.455 | −0.0370 | 0 |
-| MLS3RDUH-CLIP | 0.359 | 0.289 | 0.420 | −0.0323 | 0 |
-| mscoco_v91a-CLIP K=128 (tag-supervised lineage) | 0.535 | 0.259 | 0.743 | −0.0790 | 0 |
-
-**Per-codebook drop ablation (mscoco_v106b):**
-
-| cb | drop Δ mAP | drop Δ P@1 | note |
-|---:|---:|---:|---|
-| 0 | −0.0187 | −0.0960 | strongest (global slot) |
-| 1 | −0.0033 | −0.0120 | weak |
-| 2 | +0.0009 | −0.0170 | near-zero contribution (borderline anti) |
-| 3 | −0.0009 | +0.0080 | near-zero |
-| 4 | −0.0068 | −0.0090 | weak |
-| 5 | −0.0008 | −0.0060 | near-zero |
-
-**B2 (visual-global compositional lift):**
-- mscoco_v106b: mean compositional lift **0.137** (per-codebook
-  0.154 / 0.134 / 0.134 / 0.133 / 0.134 / 0.134 — cb0 dominant).
-- B1 text-based: **NOT computed** — the Qwen3 caption cache covers
-  only the 10K trainset, not the 107K DB images. Cross-method
-  comparison on B1 is unavailable.
-
-**Verdict on compositional metrics:**
-- **mscoco_v106b NMI 0.671 is the worst** in the comparison set —
-  codebooks are MORE correlated than all other methods including the
-  tag-supervised v91a K=128 (0.535). Sinkhorn-OT bijection forces K=128
-  codewords to spread over only 64 codon slots, pulling codeword
-  representations closer (NMI up) as a structural side-effect.
-- CIBHash NMI 0.235 is the lowest because it is a *flat* binary hash
-  (no codebook structure); each bit is effectively independent. This
-  is NOT a "compositional" win — it is the absence of compositional
-  structure. NMI as compositional metric is only meaningful within
-  VQ / codebook methods.
-- Among VQ methods (v106b 0.671, v91a K=128 0.535, v91a K=64 0.586,
-  CIMON 0.412), mscoco_v106b is the most redundant codebook layout.
-- **Sum of drop-ablation deltas −0.0296 is the WEAKEST** of the
-  comparison set (v91a K=128 −0.079, CIBHash −0.090). Individual
-  codebooks are less informative than they could be — cb0 carries
-  most of the signal (−0.019 mAP / −0.096 P@1), cb1–5 each contribute
-  ≤ 0.007 mAP. cb2 has +0.0009 mAP (essentially flat).
-- **0 anti-contributing codebooks** ✓ — same as all other methods on
-  MSCOCO under CLIP backbone; no degenerate dead codes.
-
-**Two-pocket regime on MSCOCO confirms Flickr finding:**
-- **mAP / deep-rank pocket** (high mAP, P@500-P@1000): held by
-  mscoco_v91a-CLIP K=128 0.6374 (tag-supervised) and CIBHash-CLIP
-  0.5842 (unsupervised).
-- **Top-1 / sharp-rank pocket** (high P@1, P@10): held by CIBHash-CLIP.
-- mscoco_v106b sits in neither pocket — its Sinkhorn-OT bij focuses
-  on closing the cb-tuple→DNA collision gap (2.42× → improved from
-  3.98× of mscoco_v102a) but does not push the mAP frontier on MSCOCO.
-
-**Implications for paper-framing:**
-1. **Honest comparison on MSCOCO**: must report that unsupervised
-   leaderboard is CIBHash > mscoco_v106b > CIMON > MLS3RDUH on mAP.
-   Our method is the **2nd best unsupervised on MSCOCO mAP**, beating
-   CIMON / MLS3RDUH but trailing CIBHash by −0.026.
-2. **DNA unique gap (0.125 vs 0.742) is the main weakness** to
-   address before paper submission. K=128 pigeonhole forces ~half the
-   codewords to share codons. Future fix: K=64 (matches 4³=64) OR
-   4-base codon (4⁴=256 codons → room for K=128).
-3. **Compositional structure on MSCOCO is less clean than Flickr**
-   (NMI 0.671 vs Flickr v106b 0.604; per-cb drop unevenly distributed
-   with cb0 dominant). The user's Contribution 1 (attribute-aware
-   compositional code) is **more clearly demonstrated on Flickr** at
-   this point.
-4. **Interpretability (Contribution 1+2)** still standable: 0 dead
-   codes, 0 anti-cb, all 6 codebooks contribute (≥ 0 mAP delta), B2
-   visual-global lift 0.137 confirms each codebook concentrates
-   visual semantics.
-
----
-
-## Current state (as of 2026-06-03 PM)
-
-### v107a + v107a_attn — Prototype cosine clustering ablation (proto-cluster instead of Sinkhorn-OT bijection)
-
-**Motivation (user proposal 2026-06-03):** treat codewords as prototypes
-in cosine similarity space. After routing, semantic visual tokens
-z[b, m] are pulled toward the assigned codeword (cosine InfoNCE) AND
-pushed away from other codewords. Replaces the v106 Sinkhorn-OT
-codeword-codon bijection enforcement with a soft prototype-clustering
-mechanism that operates on the ENCODER side (z → codeword) rather than
-the DECODER side (codeword → codon).
-
-Loss form (new `_loss_proto_cluster_cos` in `loss_siglip2.py`):
-```
-sim[b, m, k] = cos(z[b, m], codebook[m, k]) / tau
-L_proto = CrossEntropy(sim, codebook_indices)
-```
-The Sinkhorn routing assignment is the cross-entropy target. Implemented
-with active-codeword masking (handles adaptive K).
-
-**Recipe variations**:
-- **v107a**: `v106b - Sinkhorn` + `--lambda_proto_cluster_cos 0.5`
-   (Sinkhorn OT router + adaptive top-p kept).
-- **v107a_attn**: `v107a` + `--router_type attention`
-   (cross-attention router; also added `adaptive_topp` support to
-   `SemanticAttentionRouter`, was Sinkhorn-only).
-
-| Tag | mAP | DNA uniq | cb-tuple | P@1 | dead | NMI | role |
-|---|---:|---:|---:|---:|---:|---:|---|
-| v103a (baseline) | 0.7602 | 0.241 | 0.553 | 0.900 | 0.001 | 0.571 | balanced |
-| v106b (Sinkhorn-OT bij) | 0.7407 | **0.347** | 0.477 | **0.917** | 0.003 | 0.604 | DNA+P@1 champ |
-| **v107a (sinkhorn router + proto)** | 0.7624 | 0.213 | 0.442 | 0.880 | 0.000 | **0.623** ⭐ | NMI champ |
-| **v107a_attn (attention router + proto)** | 0.7496 | 0.257 | 0.517 | 0.873 | 0.000 | 0.584 | codeword diversity |
-
-**Findings:**
-1. **Proto-cosine clustering RECOVERS mAP** lost by removing the
-   residual (v106b 0.7407 → v107a 0.7624) but **does NOT recover DNA
-   unique** (stays ~0.21 like v103a/v101c).
-2. **NMI 0.623 (v107a)** is the v9x family maximum on Flickr —
-   proto-clustering tightens codebook separation more than any other
-   variant.
-3. **Attention router** (v107a_attn) trades NMI for codeword
-   diversity: NMI drops 0.623 → 0.584 (−0.039), but DNA unique
-   improves 0.213 → 0.257 (+0.044) and cb-tuple unique 0.442 → 0.517
-   (+0.075). The marginal balance in Sinkhorn router was helping
-   codebook separation; attention's looser structure lets parts pull
-   diverse patches.
-4. **Sinkhorn-OT bijection (v106b) remains the DNA-axis champion**.
-   Proto-cosine clustering operates on the encoder side (z → codeword)
-   while Sinkhorn-OT operates on the decoder side (codeword → codon).
-   These are ORTHOGONAL mechanisms — combining both (v107b queued)
-   may give the best of both axes.
-
-### mscoco_v106b — NEW MSCOCO unsupervised best on every axis (paper candidate, MSCOCO half)
-
-mscoco_v106b = v106b recipe ported to MSCOCO (K=128, Qwen3 trainset
-captions, gamma=0, Sinkhorn-OT bijection lambda=0.1).
-
-| Metric | mscoco_v102a (prior best) | **mscoco_v106b** | CIBHash-CLIP (external) | Δ vs v102a |
-|---|---:|---:|---:|---:|
-| mAP | 0.5440 | **0.5581** | 0.5842 | **+0.014** |
-| DNA uniq (DB) | 0.116 | **0.125** | 0.967 (claim) | +0.009 |
-| cb-tuple uniq | 0.462 | 0.301 | n/a | **−0.161** ⬇ |
-| collision ratio | 3.98× | **2.42×** | n/a | **−1.56×** ⭐ |
-| NMI off-diag | 0.587 | **0.671** | n/a | **+0.084** ⭐ |
-| P@1 | 0.752 | **0.791** | n/a | **+0.039** ⭐ |
-| dead | 0.063 | 0.023 | n/a | −0.040 |
-
-**Findings:**
-1. mscoco_v106b is the **first MSCOCO unsupervised improvement** in
-   the v10x family — mAP +0.014 over mscoco_v102a.
-2. **NMI 0.671** is the **family-wide maximum** (beats Flickr v107a
-   0.623 by +0.048).
-3. **Collision ratio 3.98× → 2.42×** confirms Sinkhorn bijection works
-   on MSCOCO (theoretical minimum is 128/64 = 2.0× by pigeonhole; we
-   reach 2.42× = 80 % of optimum).
-4. **CIBHash-CLIP mAP gap closed from −0.040 to −0.026**.
-5. **K=128 vs 4³=64 pigeonhole bound persists** — cb-tuple unique
-   dropped 0.462 → 0.301 because Sinkhorn enforces codewords spread
-   over codons uniformly; codewords are still many-to-1 on codons
-   (~2 codewords / codon). Future: K=64 OR 4-base codon (4⁴=256
-   codons → K=128 with room for bijection).
-
-### Updated unsupervised Flickr leaderboard (DNA-base unique on DB)
-
-| Tag | mAP | DNA uniq | P@1 | NMI | role |
-|---|---:|---:|---:|---:|---|
-| **v106b** | 0.7407 | **0.347** | **0.917** | 0.604 | DNA + P@1 + paper candidate |
-| **v107a** | 0.7624 | 0.213 | 0.880 | **0.623** | NMI champion |
-| v107a_attn | 0.7496 | 0.257 | 0.873 | 0.584 | attention-router variant |
-| v101c | 0.7729 | 0.231 | 0.898 | 0.487 | mAP champion |
-| v103a | 0.7602 | 0.241 | 0.900 | 0.571 | balanced baseline |
-| v104b | 0.7581 | 0.338 | 0.897 | 0.501 | top-k sharp pairwise |
-| CIMON-CLIP (external) | 0.7321 | 0.801 | 0.913 | n/a | |
-| CIBHash-CLIP (external) | 0.6844 | 0.967 | 0.937 | n/a | |
-| MLS3RDUH-CLIP (external) | 0.6735 | 0.515 | 0.850 | n/a | |
-
-### v106b — NEW Flickr unsupervised compositional + DNA-axis champion (paper candidate)
-
-`v106b` = `v103a` base + `--codon_residual_gamma 0.0`
-+ `--lambda_codeword_codon_sinkhorn 0.1 --codeword_codon_sinkhorn_eps 0.1
---codeword_codon_sinkhorn_iters 30`. Adds a Sinkhorn-OT bijection
-loss on the codeword-level codon decoder AND removes the residual
-injection so the loss path and inference path are CONSISTENT.
-
-| Metric | v103a (baseline) | v103a_noResid | v106a (Sinkhorn + γ=0.3) | **v106b (Sinkhorn + γ=0)** |
-|---|---:|---:|---:|---:|
-| mAP | 0.7602 | 0.7263 | 0.7579 | **0.7407** |
-| DNA unique (DB) | 0.241 | 0.149 | 0.210 | **0.347** ⭐ +44 % |
-| cb-tuple unique (DB) | 0.553 | 0.495 | 0.591 | 0.477 |
-| collision ratio | 2.29× | 3.32× | 2.82× | **1.37×** ⭐ |
-| P@1 | 0.9000 | 0.8550 | 0.8970 | **0.9170** ⭐ |
-| P@10 | 0.8953 | 0.8665 | 0.8947 | **0.9111** ⭐ |
-| B1 lift | 0.1031 | n/a | 0.0993 | **0.1152** ⭐ |
-| B2 lift | 0.0645 | n/a | 0.0604 | **0.0716** ⭐ |
-| NMI off-diag | 0.5714 | 0.599 | 0.5617 | **0.6037** ⭐ |
-| dead | 0.001 | 0.003 | 0.000 | 0.003 |
-
-**v106b is the new champion on EVERY axis except mAP** (B1 / B2 / P@1
-/ P@10 / NMI all v9x family maxima; DNA unique +44 % vs v103a; collision
-ratio nearly halved). The mAP cost is −0.020 (−2.6 %) — v106b still
-beats every external unsupervised baseline (CIMON 0.7321,
-CIBHash 0.6844, MLS3RDUH 0.6735) by +0.008 to +0.067.
-
-### Hypothesis H1 confirmed — Sinkhorn bijection requires consistent loss/inference path
-
-The 4-cell ablation matrix isolates the effect cleanly:
-
-| | bijection OFF | bijection ON (Sinkhorn λ=0.1) |
-|---|---|---|
-| **residual γ=0.3** | v103a: DNA 0.241 | v106a: DNA 0.210 (slightly worse) |
-| **residual γ=0** | v103a_noResid: DNA 0.149 | **v106b: DNA 0.347 (+44 % vs v103a, ×2.3 vs v103a_noResid)** |
-
-The Sinkhorn loss only manifests as DNA uniqueness when the loss path
-(no residual, codon = f(codeword)) matches the inference path
-(γ=0 → codon = f(codeword)). When γ=0.3 perturbs the sample codon
-relative to the codeword codon, the bijection enforced in the loss
-path doesn't survive to the inference path — sample DNAs collapse to
-near-duplicates anyway.
-
-### Updated unsupervised Flickr25k-CLIP leaderboard (DNA-base unique on DB)
-
-| Model | Supervision | mAP | DNA unique (DB) | P@1 | role |
-|---|---|---:|---:|---:|---|
-| **v106b (ours, NEW PAPER CANDIDATE)** | unsupervised | **0.7407** | **0.347** | **0.917** | DNA-axis + compositional + P@1 champion |
-| v101c (ours) | unsupervised | **0.7729** | 0.231 | 0.898 | mAP champion |
-| v103a (ours) | unsupervised | 0.7602 | 0.241 | 0.900 | balanced |
-| v104b (ours) | unsupervised | 0.7581 | 0.338 | 0.897 | prior DNA-axis (top-k pairwise) |
-| CIMON-CLIP | unsupervised | 0.7321 | 0.801 | 0.913 | |
-| CIBHash-CLIP | unsupervised | 0.6844 | 0.967 | 0.937 | |
-| MLS3RDUH-CLIP | unsupervised | 0.6735 | 0.515 | 0.850 | |
-
-ours-best vs CIBHash on **DNA unique**: 0.347 vs 0.967 — gap 0.62 (still
-large but now half of the previous 0.74 gap from v103a). The bijection
-loss closes ~40 % of the remaining DNA-axis gap.
-
----
-
 ## Current state (as of 2026-06-02 PM)
 
 ### Two CRITICAL corrections affecting all entries below
@@ -613,6 +331,74 @@ codebook) as a follow-up.
   reverse-chronological (newest first), `## Infrastructure` pinned at
   bottom. Re-enforced via `python scripts/reorder_project_log.py`
   (idempotent).
+
+---
+
+## 2026-06-03 — v111a/b/c Sinkhorn relaxation and top-k teacher ablations — DISCARDED
+
+🔴 discarded
+
+Motivation: v106b is the strongest contribution-aligned Flickr model
+(P@1 / DNA uniqueness / text-grounded compositionality), but its mAP
+lags v101c/v103a. Hypothesis: the static codeword→codon Sinkhorn
+bijection weight λ=0.1 may over-constrain semantic ranking. Three
+parallel variants tested weaker/scheduled bijection pressure and a weak
+top-k CLIP teacher.
+
+| Tag | Modification | Implementation |
+|---|---|---|
+| v111a | Static weaker bijection | v106b + `--lambda_codeword_codon_sinkhorn 0.05` |
+| v111b | Warmed bijection | v106b + `--lambda_codeword_codon_sinkhorn 0.1 --codeword_codon_sinkhorn_warmup_epochs 20` |
+| v111c | Weak sharp teacher | v106b + `--hash_target_mode siglip_cos_topk --siglip_cos_pos_rate 0.1 --lambda_hash 0.1` |
+
+Final Flickr25k metrics:
+
+| Run | mAP | Δ vs v106b | P@1 | P@10 | P@1000 | DNA uniq | tuple uniq | NMI | B1 | B2 | verdict |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| **v106b** | 0.7407 | — | **0.9170** | **0.9111** | 0.8849 | **0.347** | 0.477 | 0.604 | **0.1152** | **0.0716** | keep |
+| v111a | **0.7438** | +0.0032 | 0.9075 | 0.8995 | 0.8664 | 0.278 | 0.488 | 0.601 | 0.1069 | 0.0651 | DISCARDED |
+| v111b | 0.7408 | +0.0001 | 0.9115 | 0.9025 | **0.8926** | 0.263 | 0.428 | 0.623 | 0.1118 | 0.0696 | DISCARDED |
+| v111c | 0.7414 | +0.0007 | 0.9105 | 0.9083 | 0.8825 | 0.302 | **0.494** | 0.602 | 0.1117 | 0.0711 | DISCARDED |
+
+Key findings:
+- **v111a is the best mAP in this batch** (+0.0032), but the gain is
+  too small and costs P@1 −0.0095, P@10 −0.0116, DNA unique −0.069,
+  and B1 −0.0083. This is not a good trade-off for the user's main
+  contribution.
+- **v111b's warmup briefly peaked at mid-training** (epoch 24 mAP
+  0.7568 / unique 0.5539 in the per-epoch collapse log), but final
+  evaluation regressed to v106b-level mAP with worse DNA uniqueness.
+  Mechanism hypothesis: once λ reaches 0.1, late bijection pressure
+  still re-introduces the same semantic-ranking constraint as v106b,
+  while the early loose phase leaves a less stable DNA mapping.
+- **v111c raises tuple uniqueness the most** (0.494) and keeps B2 close
+  to v106b, but weak top-k teacher still lowers P@1/P@10 and final DNA
+  unique. The teacher improves codebook assignment diversity more than
+  the final decoded DNA code.
+- Important metric lesson: the mid-training `eval_unique_code_ratio`
+  in `log.csv` should not be treated as the final DNA-axis headline.
+  Use `evaluation_siglip2_base.json` and `pairwise_nmi.json` together:
+  the former reports decoded DNA-base unique, the latter reports
+  codebook-tuple unique.
+
+Code:
+- Added `--codeword_codon_sinkhorn_warmup_epochs` in `config.py`.
+- Added `_effective_codeword_codon_sinkhorn_lambda()` in
+  `loss_siglip2.py`; default `0` preserves legacy static behavior.
+- Logged `loss_codeword_codon_sinkhorn` and
+  `eff_lambda_codeword_codon_sinkhorn` in `train_siglip2.py`.
+- Added scripts:
+  `scripts/train_v111a_flickr25k_clip.sh`,
+  `scripts/train_v111b_flickr25k_clip.sh`,
+  `scripts/train_v111c_flickr25k_clip.sh`.
+
+Follow-up:
+- Keep **v106b** as the contribution-aligned paper candidate.
+- If revisiting schedule, test a late warmup to **λ=0.05** instead of
+  0.1; v111b's mid-training peak suggests timing helps, but the final
+  target is too strong.
+- Do not carry v111c forward unless the goal shifts from decoded DNA
+  uniqueness to codebook-tuple diversity.
 
 ---
 

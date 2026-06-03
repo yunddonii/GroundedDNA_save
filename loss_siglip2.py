@@ -214,6 +214,7 @@ class DNACodonHashLoss(nn.Module):
         self.lambda_codeword_codon_sinkhorn  = float(getattr(cfg, "lambda_codeword_codon_sinkhorn",  0.0))
         self.lambda_codeword_codon_agg_ent   = float(getattr(cfg, "lambda_codeword_codon_agg_ent",   0.0))
         self.lambda_codeword_codon_pairwise  = float(getattr(cfg, "lambda_codeword_codon_pairwise",  0.0))
+        self.codeword_codon_sinkhorn_warmup_epochs = int(getattr(cfg, "codeword_codon_sinkhorn_warmup_epochs", 0))
         self.codeword_codon_sinkhorn_eps     = float(getattr(cfg, "codeword_codon_sinkhorn_eps",     0.1))
         self.codeword_codon_sinkhorn_iters   = int  (getattr(cfg, "codeword_codon_sinkhorn_iters",   30))
         self.codeword_codon_agg_ent_alpha    = float(getattr(cfg, "codeword_codon_agg_ent_alpha",    0.5))
@@ -946,6 +947,24 @@ class DNACodonHashLoss(nn.Module):
             return codeword_codon_logits.new_zeros(())
         return torch.stack(per_codebook).mean()
 
+    def _effective_codeword_codon_sinkhorn_lambda(
+        self,
+        epoch: Optional[int],
+    ) -> float:
+        """Return the scalar Sinkhorn-bijection weight for this epoch.
+
+        The loss inputs stay [M, K_max, 3, 4]; v111b only changes this
+        multiplier so the codeword->codon shape contract is unchanged.
+        """
+        lam = float(self.lambda_codeword_codon_sinkhorn)
+        warmup = max(int(self.codeword_codon_sinkhorn_warmup_epochs), 0)
+        if lam <= 0.0 or warmup <= 0:
+            return lam
+        if epoch is None:
+            return lam
+        progress = float(min(max(int(epoch) + 1, 0), warmup)) / float(warmup)
+        return lam * progress
+
     def _loss_codeword_codon_agg_ent(
         self,
         codeword_codon_logits: torch.Tensor,            # [M, K_max, 3, 4]
@@ -1448,12 +1467,16 @@ class DNACodonHashLoss(nn.Module):
         # the model when at least one bijection lambda > 0.
         codeword_codon_logits = outputs.get("codeword_codon_logits")
         codeword_K_active     = outputs.get("codeword_K_active")
+        eff_lambda_codeword_codon_sinkhorn = self._effective_codeword_codon_sinkhorn_lambda(epoch)
         if codeword_codon_logits is not None:
-            if self.lambda_codeword_codon_sinkhorn > 0.0:
+            assert codeword_codon_logits.dim() == 4, (
+                "codeword_codon_logits must be [M, K_max, 3, 4]"
+            )
+            if eff_lambda_codeword_codon_sinkhorn > 0.0:
                 loss_codeword_codon_sinkhorn = self._loss_codeword_codon_sinkhorn(
                     codeword_codon_logits, codeword_K_active,
                 )
-                total = total + self.lambda_codeword_codon_sinkhorn * loss_codeword_codon_sinkhorn
+                total = total + eff_lambda_codeword_codon_sinkhorn * loss_codeword_codon_sinkhorn
             else:
                 loss_codeword_codon_sinkhorn = u.new_zeros(())
             if self.lambda_codeword_codon_agg_ent > 0.0:
@@ -1474,6 +1497,7 @@ class DNACodonHashLoss(nn.Module):
             loss_codeword_codon_sinkhorn = u.new_zeros(())
             loss_codeword_codon_agg_ent  = u.new_zeros(())
             loss_codeword_codon_pairwise = u.new_zeros(())
+            eff_lambda_codeword_codon_sinkhorn = 0.0
 
         # v107: prototype cosine clustering (InfoNCE between z and codewords)
         if self.lambda_proto_cluster_cos > 0.0:
@@ -1506,6 +1530,7 @@ class DNACodonHashLoss(nn.Module):
             "loss_codeword_codon_sinkhorn": loss_codeword_codon_sinkhorn,
             "loss_codeword_codon_agg_ent":  loss_codeword_codon_agg_ent,
             "loss_codeword_codon_pairwise": loss_codeword_codon_pairwise,
+            "eff_lambda_codeword_codon_sinkhorn": u.new_tensor(eff_lambda_codeword_codon_sinkhorn),
             "loss_proto_cluster_cos":       loss_proto_cluster_cos,
             "loss_recon":        loss_recon,
             "loss_ntxent":       loss_ntxent,

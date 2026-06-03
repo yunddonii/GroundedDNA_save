@@ -647,6 +647,11 @@ class Config():
             type=float, default=0.0,
             help='v106a: Sinkhorn-OT bijection loss weight. 0=disabled. '
                  'Recommended 0.05-0.2 (loss scale ~ log K).')
+        siglip2_arg.add_argument('--codeword_codon_sinkhorn_warmup_epochs',
+            type=int, default=0,
+            help='v111b: linearly ramp lambda_codeword_codon_sinkhorn from 0 '
+                 'to its configured value over this many epochs. 0 keeps the '
+                 'legacy static lambda behavior.')
         siglip2_arg.add_argument('--codeword_codon_sinkhorn_eps',
             type=float, default=0.1,
             help='v106: entropy regularization for Sinkhorn iterations. '
