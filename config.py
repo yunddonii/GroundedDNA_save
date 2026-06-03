@@ -268,11 +268,20 @@ class Config():
         #               balance -> per-part heatmap focuses on relevant region.
         siglip2_arg.add_argument('--router_type', dest='router_type',
             type=str, default='sinkhorn',
-            choices=['sinkhorn', 'attention'],
-            help='Router for the 5 local parts (default sinkhorn).')
+            choices=['sinkhorn', 'attention', 'slot'],
+            help='Router for the 5 local parts (default sinkhorn). '
+                 '"slot" = Slot Attention (Locatello et al. NeurIPS 2020) '
+                 'with M=textual semantic embeddings as slot init + '
+                 'competitive softmax over slots + GRU/MLP slot updates.')
         siglip2_arg.add_argument('--attention_router_temperature',
             dest='attention_router_temperature', type=float, default=0.1,
             help='Softmax temperature for attention router (smaller -> sharper).')
+        # v107a-slot: slot attention iteration count (paper default 3).
+        siglip2_arg.add_argument('--slot_attention_iters',
+            dest='slot_attention_iters', type=int, default=3,
+            help='v107a-slot: number of slot-attention iterations '
+                 '(Locatello et al. paper uses 3). Only used when '
+                 '--router_type slot.')
         # v33a: Sinkhorn epsilon annealing.
         siglip2_arg.add_argument('--sinkhorn_epsilon_init',
             dest='sinkhorn_epsilon_init', type=float, default=None,

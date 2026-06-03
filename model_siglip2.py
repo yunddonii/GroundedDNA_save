@@ -55,7 +55,11 @@ from models.adapters import (
     VisualAdapter, TextAdapter,
     VisualLinearAdapter, TextLinearAdapter,
 )
-from models.semantic_router import SemanticSinkhornRouter, SemanticAttentionRouter
+from models.semantic_router import (
+    SemanticSinkhornRouter,
+    SemanticAttentionRouter,
+    SemanticSlotAttentionRouter,
+)
 
 
 # ----------------------------------------------------------------- constants
@@ -1343,9 +1347,17 @@ class SigLIP2SemanticOTModel(nn.Module):
             self.router = SemanticAttentionRouter(
                 temperature=float(getattr(args, "attention_router_temperature", 0.1)),
             )
+        elif self.router_type == "slot":
+            # v107a-slot: Slot Attention (Locatello et al. NeurIPS 2020).
+            # M textual semantic embeddings are used as slot init;
+            # competitive softmax over slots + GRU/MLP slot updates.
+            self.router = SemanticSlotAttentionRouter(
+                d_model=int(self.d_model),
+                n_iters=int(getattr(args, "slot_attention_iters", 3)),
+            )
         else:
             raise ValueError(
-                f"[model_siglip2] router_type must be 'sinkhorn' or 'attention', "
+                f"[model_siglip2] router_type must be 'sinkhorn' / 'attention' / 'slot', "
                 f"got {self.router_type!r}"
             )
         # v33a: epsilon annealing for Sinkhorn router. When both init+final

@@ -518,6 +518,159 @@ class SemanticAttentionRouter(nn.Module):
         }
 
 
+class SemanticSlotAttentionRouter(nn.Module):
+    """v107a-slot: Slot-Attention router (Locatello et al. NeurIPS 2020).
+
+    The M textual semantic embeddings are used to *initialize* M slots, which
+    then iteratively bind to visual patches via competitive attention.
+    At each iteration:
+      q       = Linear_Q( LN(slots) )                            # [B, M, D]
+      k, v    = Linear_K( LN(visual_tokens) ), Linear_V(...)     # [B, N, D]
+      dots    = q @ k.T / sqrt(D)                                # [B, M, N]
+      attn    = softmax(dots, dim=SLOT_axis)                     # softmax over M (NOT N)
+      weights = attn / sum_n(attn)                               # normalize per slot
+      updates = weights @ v                                      # [B, M, D]
+      slots   = GRU(updates, slots)                              # shared per slot
+      slots   = slots + MLP(LN(slots))                           # residual MLP
+
+    The competitive softmax (over slots) is the key contrast with the
+    cross-attention router (softmax over patches): in slot attention, each
+    *patch* distributes its attention across slots, so slots COMPETE for
+    explaining each patch. This is the property that gives slot attention
+    its object-binding behaviour.
+
+    Drop-in replacement for SemanticSinkhornRouter / SemanticAttentionRouter
+    with the same forward signature + output dict.
+
+    Args:
+        d_model:  feature dimension (= slot dimension).
+        n_iters:  number of slot-attention iterations (paper default 3).
+        eps:      numerical stability for normalization.
+    """
+
+    def __init__(
+        self,
+        d_model: int,
+        n_iters: int = 3,
+        eps:     float = 1e-8,
+    ) -> None:
+        super().__init__()
+        self.d_model: int = int(d_model)
+        self.n_iters: int = max(1, int(n_iters))
+        self.eps:     float = float(eps)
+        # Per-iteration shared transformations (Locatello et al. Table 1)
+        self.norm_slots = nn.LayerNorm(self.d_model)
+        self.norm_input = nn.LayerNorm(self.d_model)
+        self.norm_mlp   = nn.LayerNorm(self.d_model)
+        self.to_q = nn.Linear(self.d_model, self.d_model, bias=False)
+        self.to_k = nn.Linear(self.d_model, self.d_model, bias=False)
+        self.to_v = nn.Linear(self.d_model, self.d_model, bias=False)
+        # GRU cell: input = updates [B*M, D], state = slots [B*M, D]
+        # Shared across all slots (paper).
+        self.gru = nn.GRUCell(self.d_model, self.d_model)
+        # Residual MLP (paper uses 2 layers w/ ReLU + hidden = d_model*2 or 4*d_model;
+        # we follow the original 2*d_model hidden as in slot_attention reference
+        # implementations).
+        self.mlp = nn.Sequential(
+            nn.Linear(self.d_model, self.d_model * 2),
+            nn.ReLU(),
+            nn.Linear(self.d_model * 2, self.d_model),
+        )
+        # Attention scale 1/sqrt(D) (paper default).
+        self.scale: float = float(self.d_model ** -0.5)
+
+    def forward(
+        self,
+        visual_tokens:    torch.Tensor,                   # [B, N, D]
+        text_part_tokens: torch.Tensor,                   # [B, M, D]
+        visual_mask:      Optional[torch.Tensor] = None,  # [B, N]
+        part_mask:        Optional[torch.Tensor] = None,  # [B, M]
+        # Accept and ignore extra kwargs for router-agnostic call sites.
+        **_unused,
+    ) -> Dict[str, torch.Tensor]:
+        B, N, D = visual_tokens.shape
+        Bt, M, Dt = text_part_tokens.shape
+        if not (B == Bt and D == Dt):
+            raise ValueError(
+                f"shape mismatch: visual={tuple(visual_tokens.shape)} "
+                f"vs text={tuple(text_part_tokens.shape)}"
+            )
+        if D != self.d_model:
+            raise ValueError(
+                f"[SemanticSlotAttentionRouter] expected d_model={self.d_model}, got {D}"
+            )
+
+        # Slot initialization: M text-derived embeddings.
+        slots = text_part_tokens                                  # [B, M, D]
+
+        # Precompute k, v once (do not depend on slot state).
+        x_norm = self.norm_input(visual_tokens)                   # [B, N, D]
+        k = self.to_k(x_norm)                                     # [B, N, D]
+        v = self.to_v(x_norm)                                     # [B, N, D]
+
+        # Patch / part masks pre-computed for use inside the loop. The patch
+        # mask is applied AFTER the slot-axis softmax (to zero out contributions
+        # from invalid patches without producing NaN: pre-softmax fill would
+        # give 0/0 since the softmax is over the SLOT axis, not patch axis).
+        if visual_mask is not None:
+            patch_keep = visual_mask.to(slots.dtype).unsqueeze(1)  # [B, 1, N]
+        else:
+            patch_keep = None
+        if part_mask is not None:
+            part_keep = part_mask.to(slots.dtype).unsqueeze(-1)   # [B, M, 1]
+        else:
+            part_keep = None
+
+        attn = None
+        for _ in range(self.n_iters):
+            slots_prev = slots
+            q = self.to_q(self.norm_slots(slots)) * self.scale    # [B, M, D]
+            # Dot products: [B, M, N]
+            dots = torch.einsum('bmd,bnd->bmn', q, k)
+            # Competitive softmax: over SLOT axis (M, dim=1).
+            # Each patch's attention is distributed across the M slots, so
+            # slots compete for explaining each patch.
+            attn = F.softmax(dots, dim=1)                         # [B, M, N]
+            # Zero out invalid patches (post-softmax to avoid NaN from
+            # all--inf rows under slot-axis softmax).
+            if patch_keep is not None:
+                attn = attn * patch_keep
+            # Optional part mask (zero out specific slots).
+            if part_keep is not None:
+                attn = attn * part_keep
+            # Per-slot normalization over patches: weights[b, m, n] = attn[b, m, n]
+            # / sum_n attn[b, m, n] -> each slot's weighted contributions sum to 1.
+            weights = attn / attn.sum(dim=-1, keepdim=True).clamp_min(self.eps)
+            # Aggregated updates from patches into slots.
+            updates = torch.einsum('bmn,bnd->bmd', weights, v)    # [B, M, D]
+            # GRU update -- shared across slots.
+            slots = self.gru(
+                updates.reshape(B * M, D),
+                slots_prev.reshape(B * M, D),
+            ).reshape(B, M, D)
+            # Residual MLP -- shared across slots.
+            slots = slots + self.mlp(self.norm_mlp(slots))
+
+        # Output: routing matrix in [B, N, M] convention for downstream compatibility.
+        routing = attn.transpose(1, 2)                            # [B, N, M]
+        # semantic_visual_tokens = final slot states (after T iterations).
+        semantic_v = slots                                        # [B, M, D]
+        # OT-like cost using the SAME 1-cos convention as the other routers
+        # (for logging compatibility; not used by the slot attention forward).
+        v_n = F.normalize(visual_tokens,    dim=-1)
+        t_n = F.normalize(text_part_tokens, dim=-1)
+        sim = torch.matmul(v_n, t_n.transpose(-1, -2))            # [B, N, M]
+        cost = 1.0 - sim
+        ot_cost = (routing * cost).sum(dim=(1, 2))                # [B]
+        assert routing.shape == (B, N, M), (B, N, M, routing.shape)
+        assert semantic_v.shape == (B, M, D), (B, M, D, semantic_v.shape)
+        return {
+            "routing_matrix":         routing,    # [B, N, M] (softmax over M, normalized over N per m)
+            "semantic_visual_tokens": semantic_v, # [B, M, D] (final slots)
+            "ot_cost":                ot_cost,    # [B]
+        }
+
+
 def sinkhorn_semantic_routing(
     visual_tokens:    torch.Tensor,
     text_part_tokens: torch.Tensor,
