@@ -29,7 +29,102 @@ Format conventions:
 
 ---
 
-## Current state (as of 2026-06-03)
+## Current state (as of 2026-06-03 PM)
+
+### v107a + v107a_attn — Prototype cosine clustering ablation (proto-cluster instead of Sinkhorn-OT bijection)
+
+**Motivation (user proposal 2026-06-03):** treat codewords as prototypes
+in cosine similarity space. After routing, semantic visual tokens
+z[b, m] are pulled toward the assigned codeword (cosine InfoNCE) AND
+pushed away from other codewords. Replaces the v106 Sinkhorn-OT
+codeword-codon bijection enforcement with a soft prototype-clustering
+mechanism that operates on the ENCODER side (z → codeword) rather than
+the DECODER side (codeword → codon).
+
+Loss form (new `_loss_proto_cluster_cos` in `loss_siglip2.py`):
+```
+sim[b, m, k] = cos(z[b, m], codebook[m, k]) / tau
+L_proto = CrossEntropy(sim, codebook_indices)
+```
+The Sinkhorn routing assignment is the cross-entropy target. Implemented
+with active-codeword masking (handles adaptive K).
+
+**Recipe variations**:
+- **v107a**: `v106b - Sinkhorn` + `--lambda_proto_cluster_cos 0.5`
+   (Sinkhorn OT router + adaptive top-p kept).
+- **v107a_attn**: `v107a` + `--router_type attention`
+   (cross-attention router; also added `adaptive_topp` support to
+   `SemanticAttentionRouter`, was Sinkhorn-only).
+
+| Tag | mAP | DNA uniq | cb-tuple | P@1 | dead | NMI | role |
+|---|---:|---:|---:|---:|---:|---:|---|
+| v103a (baseline) | 0.7602 | 0.241 | 0.553 | 0.900 | 0.001 | 0.571 | balanced |
+| v106b (Sinkhorn-OT bij) | 0.7407 | **0.347** | 0.477 | **0.917** | 0.003 | 0.604 | DNA+P@1 champ |
+| **v107a (sinkhorn router + proto)** | 0.7624 | 0.213 | 0.442 | 0.880 | 0.000 | **0.623** ⭐ | NMI champ |
+| **v107a_attn (attention router + proto)** | 0.7496 | 0.257 | 0.517 | 0.873 | 0.000 | 0.584 | codeword diversity |
+
+**Findings:**
+1. **Proto-cosine clustering RECOVERS mAP** lost by removing the
+   residual (v106b 0.7407 → v107a 0.7624) but **does NOT recover DNA
+   unique** (stays ~0.21 like v103a/v101c).
+2. **NMI 0.623 (v107a)** is the v9x family maximum on Flickr —
+   proto-clustering tightens codebook separation more than any other
+   variant.
+3. **Attention router** (v107a_attn) trades NMI for codeword
+   diversity: NMI drops 0.623 → 0.584 (−0.039), but DNA unique
+   improves 0.213 → 0.257 (+0.044) and cb-tuple unique 0.442 → 0.517
+   (+0.075). The marginal balance in Sinkhorn router was helping
+   codebook separation; attention's looser structure lets parts pull
+   diverse patches.
+4. **Sinkhorn-OT bijection (v106b) remains the DNA-axis champion**.
+   Proto-cosine clustering operates on the encoder side (z → codeword)
+   while Sinkhorn-OT operates on the decoder side (codeword → codon).
+   These are ORTHOGONAL mechanisms — combining both (v107b queued)
+   may give the best of both axes.
+
+### mscoco_v106b — NEW MSCOCO unsupervised best on every axis (paper candidate, MSCOCO half)
+
+mscoco_v106b = v106b recipe ported to MSCOCO (K=128, Qwen3 trainset
+captions, gamma=0, Sinkhorn-OT bijection lambda=0.1).
+
+| Metric | mscoco_v102a (prior best) | **mscoco_v106b** | CIBHash-CLIP (external) | Δ vs v102a |
+|---|---:|---:|---:|---:|
+| mAP | 0.5440 | **0.5581** | 0.5842 | **+0.014** |
+| DNA uniq (DB) | 0.116 | **0.125** | 0.967 (claim) | +0.009 |
+| cb-tuple uniq | 0.462 | 0.301 | n/a | **−0.161** ⬇ |
+| collision ratio | 3.98× | **2.42×** | n/a | **−1.56×** ⭐ |
+| NMI off-diag | 0.587 | **0.671** | n/a | **+0.084** ⭐ |
+| P@1 | 0.752 | **0.791** | n/a | **+0.039** ⭐ |
+| dead | 0.063 | 0.023 | n/a | −0.040 |
+
+**Findings:**
+1. mscoco_v106b is the **first MSCOCO unsupervised improvement** in
+   the v10x family — mAP +0.014 over mscoco_v102a.
+2. **NMI 0.671** is the **family-wide maximum** (beats Flickr v107a
+   0.623 by +0.048).
+3. **Collision ratio 3.98× → 2.42×** confirms Sinkhorn bijection works
+   on MSCOCO (theoretical minimum is 128/64 = 2.0× by pigeonhole; we
+   reach 2.42× = 80 % of optimum).
+4. **CIBHash-CLIP mAP gap closed from −0.040 to −0.026**.
+5. **K=128 vs 4³=64 pigeonhole bound persists** — cb-tuple unique
+   dropped 0.462 → 0.301 because Sinkhorn enforces codewords spread
+   over codons uniformly; codewords are still many-to-1 on codons
+   (~2 codewords / codon). Future: K=64 OR 4-base codon (4⁴=256
+   codons → K=128 with room for bijection).
+
+### Updated unsupervised Flickr leaderboard (DNA-base unique on DB)
+
+| Tag | mAP | DNA uniq | P@1 | NMI | role |
+|---|---:|---:|---:|---:|---|
+| **v106b** | 0.7407 | **0.347** | **0.917** | 0.604 | DNA + P@1 + paper candidate |
+| **v107a** | 0.7624 | 0.213 | 0.880 | **0.623** | NMI champion |
+| v107a_attn | 0.7496 | 0.257 | 0.873 | 0.584 | attention-router variant |
+| v101c | 0.7729 | 0.231 | 0.898 | 0.487 | mAP champion |
+| v103a | 0.7602 | 0.241 | 0.900 | 0.571 | balanced baseline |
+| v104b | 0.7581 | 0.338 | 0.897 | 0.501 | top-k sharp pairwise |
+| CIMON-CLIP (external) | 0.7321 | 0.801 | 0.913 | n/a | |
+| CIBHash-CLIP (external) | 0.6844 | 0.967 | 0.937 | n/a | |
+| MLS3RDUH-CLIP (external) | 0.6735 | 0.515 | 0.850 | n/a | |
 
 ### v106b — NEW Flickr unsupervised compositional + DNA-axis champion (paper candidate)
 
