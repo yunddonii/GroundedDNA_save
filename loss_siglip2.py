@@ -217,6 +217,12 @@ class DNACodonHashLoss(nn.Module):
         self.codeword_codon_sinkhorn_eps     = float(getattr(cfg, "codeword_codon_sinkhorn_eps",     0.1))
         self.codeword_codon_sinkhorn_iters   = int  (getattr(cfg, "codeword_codon_sinkhorn_iters",   30))
         self.codeword_codon_agg_ent_alpha    = float(getattr(cfg, "codeword_codon_agg_ent_alpha",    0.5))
+        # v107: prototype cosine clustering (InfoNCE between z and codewords).
+        # Pulls z[b, m] toward its assigned codeword and pushes away from
+        # other codewords in cosine space. Operates on the EMA codebook
+        # buffer + the (B, M) routing assignment.
+        self.lambda_proto_cluster_cos = float(getattr(cfg, "lambda_proto_cluster_cos", 0.0))
+        self.proto_cluster_cos_tau    = float(getattr(cfg, "proto_cluster_cos_tau",    0.1))
         # v66: per-codon text-anchored aux CE loss weight. The model computes
         # `out["loss_text_anchor"]` per forward (sum across 6 codebooks). 0
         # default keeps the loss off.
@@ -969,6 +975,40 @@ class DNACodonHashLoss(nn.Module):
             return codeword_codon_logits.new_zeros(())
         return torch.stack(per_codebook).mean()
 
+    def _loss_proto_cluster_cos(
+        self,
+        z: torch.Tensor,                # [B, M, D] semantic_visual_tokens
+        codebooks: torch.Tensor,        # [M, K_max, D] EMA codebook buffer
+        codebook_indices: torch.Tensor, # [B, M] long, assigned codeword per (b, m)
+        codebook_active_mask: Optional[torch.Tensor] = None,  # [M, K_max] bool
+    ) -> torch.Tensor:
+        """v107: Prototype cosine clustering (InfoNCE).
+
+        For each (b, m), compute cosine similarity between z[b, m] and ALL
+        K_active codewords in codebook m, then apply cross-entropy with the
+        assigned codebook_index as the target class. This pulls z toward
+        its assigned prototype AND pushes it away from the other prototypes
+        in cosine space. Conceptually equivalent to SwAV / ProtoCL clustering
+        with codewords as cluster centers.
+        """
+        tau = max(float(self.proto_cluster_cos_tau), 1e-6)
+        eps = self.eps
+        B, M, D = z.shape
+        K_max = codebooks.shape[1]
+        # Normalize
+        z_n  = F.normalize(z, dim=-1)                                 # [B, M, D]
+        cb_n = F.normalize(codebooks, dim=-1)                         # [M, K_max, D]
+        # Cosine similarity (logits): [B, M, K_max]
+        sim = torch.einsum('bmd,mkd->bmk', z_n, cb_n) / tau
+        # Mask out inactive codewords (adaptive-K case) by sending them to -inf
+        if codebook_active_mask is not None:
+            inactive = ~codebook_active_mask                          # [M, K_max]
+            sim = sim.masked_fill(inactive[None, :, :], float('-inf'))
+        # Cross-entropy with the routing assignment as target
+        sim_flat   = sim.reshape(B * M, K_max)                        # [B*M, K_max]
+        target_flat = codebook_indices.reshape(B * M).long()          # [B*M]
+        return F.cross_entropy(sim_flat, target_flat)
+
     def _loss_codeword_codon_pairwise(
         self,
         codeword_codon_logits: torch.Tensor,
@@ -1435,6 +1475,23 @@ class DNACodonHashLoss(nn.Module):
             loss_codeword_codon_agg_ent  = u.new_zeros(())
             loss_codeword_codon_pairwise = u.new_zeros(())
 
+        # v107: prototype cosine clustering (InfoNCE between z and codewords)
+        if self.lambda_proto_cluster_cos > 0.0:
+            codebook_indices_t   = outputs.get("codebook_indices")           # [B, M]
+            codebooks_buffer     = outputs.get("codebooks_buffer")           # [M, K_max, D]
+            codebook_active_mask = outputs.get("codebook_active_mask")       # [M, K_max] bool
+            if codebook_indices_t is None or codebooks_buffer is None:
+                raise ValueError(
+                    "[DNACodonHashLoss] lambda_proto_cluster_cos > 0 requires "
+                    "outputs to contain 'codebook_indices' and 'codebooks_buffer'."
+                )
+            loss_proto_cluster_cos = self._loss_proto_cluster_cos(
+                z, codebooks_buffer, codebook_indices_t, codebook_active_mask,
+            )
+            total = total + self.lambda_proto_cluster_cos * loss_proto_cluster_cos
+        else:
+            loss_proto_cluster_cos = u.new_zeros(())
+
         return {
             "loss":              total,
             "loss_hash":         loss_hash,
@@ -1449,6 +1506,7 @@ class DNACodonHashLoss(nn.Module):
             "loss_codeword_codon_sinkhorn": loss_codeword_codon_sinkhorn,
             "loss_codeword_codon_agg_ent":  loss_codeword_codon_agg_ent,
             "loss_codeword_codon_pairwise": loss_codeword_codon_pairwise,
+            "loss_proto_cluster_cos":       loss_proto_cluster_cos,
             "loss_recon":        loss_recon,
             "loss_ntxent":       loss_ntxent,
             "loss_ortho_text":   loss_ortho_text,

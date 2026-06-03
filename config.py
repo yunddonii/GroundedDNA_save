@@ -658,6 +658,22 @@ class Config():
             type=float, default=0.0,
             help='v106c: pairwise distinctness bijection loss weight. 0=disabled. '
                  'Recommended 0.5-2.0.')
+        # v107 (prototype cosine clustering): InfoNCE between visual semantic
+        # tokens z [B, M, D] and the codebook codewords (prototypes) [M, K, D]
+        # in cosine similarity space. Each z is pulled toward its assigned
+        # codeword and pushed away from other codewords. Replaces the
+        # Sinkhorn-OT bijection enforcement with a "prototype-clustering"
+        # interpretation: codewords act as cluster centers, z's cluster around
+        # them. The visual-visual paired-aug NtXent and the visual-text DNA
+        # NtXent are KEPT (orthogonal contrastive signals).
+        siglip2_arg.add_argument('--lambda_proto_cluster_cos',
+            type=float, default=0.0,
+            help='v107: prototype cosine clustering InfoNCE weight. 0=disabled. '
+                 'Recommended 0.3-1.0.')
+        siglip2_arg.add_argument('--proto_cluster_cos_tau',
+            type=float, default=0.1,
+            help='v107: InfoNCE temperature for prototype cosine clustering. '
+                 'Smaller = sharper assignment. Default 0.1.')
         # v70a (Exp 3): final DNA hash reconstruction. Small decoder maps
         # the flattened hash code [B, 72] back to the SigLIP2 visual_global
         # or text_global embedding via cosine loss.
