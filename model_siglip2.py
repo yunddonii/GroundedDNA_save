@@ -2024,6 +2024,13 @@ class SigLIP2SemanticOTModel(nn.Module):
                 router_kwargs["uot_lambda_a"]     = float(self.sinkhorn_lambda_a)
             if self.sinkhorn_lambda_b is not None:
                 router_kwargs["uot_lambda_b"]     = float(self.sinkhorn_lambda_b)
+        elif self.router_type == "attention":
+            # v107a-attn: forward the confidence-adaptive top-p kwargs to the
+            # attention router (analogous to sinkhorn router's adaptive_topp).
+            if self.routing_adaptive_topp:
+                router_kwargs["adaptive_topp_min"] = float(self.routing_adaptive_topp_min)
+                router_kwargs["adaptive_topp_max"] = float(self.routing_adaptive_topp_max)
+                router_kwargs["adaptive_topp_use_entropy"] = bool(self.routing_adaptive_topp_entropy)
         r_out = self.router(**router_kwargs)
         full_routing_matrix = r_out["routing_matrix"]              # [B, N, 5 or 6]
         if self.use_null_centroid and self.null_centroid is not None:

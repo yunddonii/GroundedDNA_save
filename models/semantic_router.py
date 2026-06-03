@@ -429,6 +429,9 @@ class SemanticAttentionRouter(nn.Module):
         text_part_tokens: torch.Tensor,                   # [B, M, D]
         visual_mask:      Optional[torch.Tensor] = None,  # [B, N]
         part_mask:        Optional[torch.Tensor] = None,  # [B, M]
+        adaptive_topp_min: Optional[float] = None,        # v107a-attn
+        adaptive_topp_max: Optional[float] = None,        # v107a-attn
+        adaptive_topp_use_entropy: bool = False,          # v107a-attn
     ) -> Dict[str, torch.Tensor]:
         B, N, D = visual_tokens.shape
         Bt, M, Dt = text_part_tokens.shape
@@ -458,6 +461,43 @@ class SemanticAttentionRouter(nn.Module):
         # optional part-mask: zero out parts that should be ignored entirely
         if part_mask is not None:
             routing = routing * part_mask.unsqueeze(1).to(routing.dtype)
+
+        # v107a-attn: confidence-adaptive top-p mask per patch. We re-normalize
+        # routing[b, n, :] into a per-patch distribution over parts (this row
+        # does NOT sum to 1 in the attention router by construction; here we
+        # just normalize to apply the same top-p selection logic as Sinkhorn).
+        # The masked routing is then used for pooling, with denom recomputed
+        # to keep semantic_v a proper convex combination.
+        if adaptive_topp_min is not None and adaptive_topp_max is not None:
+            tau_min = float(adaptive_topp_min)
+            tau_max = float(adaptive_topp_max)
+            if 0.0 < tau_min <= tau_max < 1.0:
+                eps = 1e-12
+                # Per-patch distribution over parts (sums to 1 along M).
+                P_patch = routing / routing.sum(dim=-1, keepdim=True).clamp_min(eps)  # [B, N, M]
+                if adaptive_topp_use_entropy:
+                    entropy = -(P_patch.clamp_min(eps) * P_patch.clamp_min(eps).log()).sum(
+                        dim=-1, keepdim=True,
+                    )                                                  # [B, N, 1]
+                    entropy_norm = entropy / torch.log(
+                        torch.tensor(float(M), device=P_patch.device, dtype=P_patch.dtype)
+                    ).clamp_min(eps)                                   # [B, N, 1]
+                    tau_signal = entropy_norm.clamp(0.0, 1.0)
+                else:
+                    p_max = P_patch.max(dim=-1, keepdim=True).values   # [B, N, 1]
+                    tau_signal = (1.0 - p_max).clamp(0.0, 1.0)
+                tau = tau_min + tau_signal * (tau_max - tau_min)       # [B, N, 1]
+                sorted_P, sorted_idx = P_patch.sort(dim=-1, descending=True)  # [B, N, M]
+                cum = sorted_P.cumsum(dim=-1)                          # [B, N, M]
+                prev_cum = torch.cat(
+                    [torch.zeros_like(cum[..., :1]), cum[..., :-1]], dim=-1
+                )                                                       # [B, N, M]
+                keep_sorted = prev_cum < tau                            # [B, N, M]
+                keep_sorted[..., 0] = True                              # always keep top-1
+                keep = torch.zeros_like(P_patch, dtype=torch.bool).scatter_(
+                    -1, sorted_idx, keep_sorted,
+                )                                                       # [B, N, M]
+                routing = routing * keep.to(routing.dtype)
 
         # pooled per-part token. Since sum_n routing == 1 (per part), this is
         # just a weighted average. We still divide by sum to be safe under
