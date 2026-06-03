@@ -1386,6 +1386,10 @@ class SigLIP2SemanticOTModel(nn.Module):
         # quantizer + codon_heads to produce a text-derived continuous_code,
         # which the loss matches to the image-derived continuous_code via MSE.
         self.lambda_text_hash            = float(getattr(args, "lambda_text_hash", 0.0))
+        # v109: surfaced on the model so the text-codon path can be activated
+        # by the InfoNCE-form visual-textual contrastive loss alone (without
+        # requiring the MSE-form lambda_text_hash > 0).
+        self.lambda_text_hash_ntxent     = float(getattr(args, "lambda_text_hash_ntxent", 0.0))
         # v93: per-codebook cross-modal codeword InfoNCE. When > 0, the same
         # text path used by lambda_text_hash is activated (text_part_tokens
         # through EMA-disabled quantizer) and the resulting text codeword is
@@ -2261,7 +2265,8 @@ class SigLIP2SemanticOTModel(nn.Module):
         # text_part_raw, run text_adapter on it directly so the text-DNA
         # path also works at inference.
         if (
-            float(self.lambda_text_hash) > 0.0
+            (float(self.lambda_text_hash) > 0.0
+             or float(self.lambda_text_hash_ntxent) > 0.0)   # v109: include InfoNCE form
             and text_part_tokens is None
             and cached_text_part_raw is not None
         ):
@@ -2279,8 +2284,16 @@ class SigLIP2SemanticOTModel(nn.Module):
                 text_part_tokens = self.text_adapter(_raw_for_text_dna)
         text_continuous_code = None
         text_quantized_tokens = None
+        # v109: include lambda_text_hash_ntxent in the activation check so that
+        # the text codon path is computed even when only the InfoNCE-form
+        # visual-textual contrastive loss is enabled (lambda_text_hash=0 +
+        # lambda_text_hash_ntxent>0). Previously gated only by MSE-form +
+        # cw_xmodal.
+        _lam_text_hash_ntxent_local = float(getattr(self, "lambda_text_hash_ntxent", 0.0))
         _text_path_active = (
-            (float(self.lambda_text_hash) > 0.0 or float(self.lambda_cw_xmodal) > 0.0)
+            (float(self.lambda_text_hash)        > 0.0
+             or _lam_text_hash_ntxent_local      > 0.0
+             or float(self.lambda_cw_xmodal)     > 0.0)
             and text_part_tokens is not None
             and text_part_tokens.shape == (B, NUM_SEMANTIC_PARTS, D)
         )
