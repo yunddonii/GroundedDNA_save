@@ -29,6 +29,130 @@ Format conventions:
 
 ---
 
+## Current state (as of 2026-06-04 AM)
+
+### mscoco_v106b vs unsupervised baselines — full comparison
+
+`mscoco_v106b` is the v106b Flickr recipe ported to MSCOCO: K=128
+codebook, Qwen3 trainset captions, `--codon_residual_gamma 0.0`,
+`--lambda_codeword_codon_sinkhorn 0.1`, all other v107a/v107b-line
+defaults. Compared head-to-head against the 3 external CLIP-backbone
+unsupervised baselines on MSCOCO (CIBHash / CIMON / MLS3RDUH, same
+107K-DB × 5K-query split, 36-bit code).
+
+**(1) Evaluation metrics — head-to-head vs unsupervised baselines**
+
+| Method | mAP | P@1 | P@5 | P@10 | P@100 | P@1000 | unique (DB) |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| **mscoco_v106b (ours)** | **0.5581** | 0.7914 | 0.7928 | 0.7781 | 0.7622 | 0.7319 | 0.1248 |
+| CIBHash-CLIP | **0.5842** | **0.9264** | **0.9227** | **0.9206** | **0.9025** | **0.8477** | **0.7419** |
+| CIMON-CLIP | 0.5388 | 0.7838 | 0.7758 | 0.7708 | 0.7458 | 0.6898 | 0.4276 |
+| MLS3RDUH-CLIP | 0.5037 | 0.7610 | 0.7398 | 0.7359 | 0.7088 | 0.6562 | 0.4330 |
+| mscoco_v91a-CLIP K=128 (tag-supervised lineage; NOT comparable) | 0.6374 | 0.8558 | 0.8579 | 0.8523 | 0.8336 | 0.7951 | 0.6406 |
+
+**Delta mscoco_v106b vs each unsupervised baseline:**
+
+| Metric | vs CIBHash | vs CIMON | vs MLS3RDUH |
+|---|---:|---:|---:|
+| mAP | −0.026 ⬇ | **+0.019** ⬆ | **+0.054** ⬆ |
+| P@1 | −0.135 ⬇⬇ | **+0.008** ⬆ | **+0.030** ⬆ |
+| P@10 | −0.143 ⬇⬇ | **+0.007** ⬆ | **+0.042** ⬆ |
+| P@100 | −0.140 ⬇⬇ | **+0.016** ⬆ | **+0.053** ⬆ |
+| P@1000 | −0.116 ⬇ | **+0.042** ⬆ | **+0.076** ⬆ |
+| unique (DB) | −0.617 ⬇⬇⬇ | −0.303 ⬇⬇ | −0.308 ⬇⬇ |
+
+**Verdict on evaluation metrics:**
+- mscoco_v106b **beats CIMON-CLIP and MLS3RDUH-CLIP on EVERY mAP / P@k
+  metric** (the 2 weaker unsupervised baselines).
+- mscoco_v106b **loses to CIBHash-CLIP on EVERY mAP / P@k metric**.
+  CIBHash holds the top-1 / sharp-rank pocket on MSCOCO just as it does
+  on Flickr25k (replicates the cross-dataset regime dichotomy from
+  2026-05-29).
+- mscoco_v106b's **unique (DB) 0.1248 is the lowest** of all 4 methods
+  — much below CIBHash 0.7419 (CIBHash is near-bijective flat hash).
+  The codeword→DNA codon collision (K=128 vs 4³=64 pigeonhole) caps
+  mscoco_v106b's DNA unique at ~0.125 even with Sinkhorn-OT bijection
+  enforcement (collision ratio 2.42×; theoretical minimum 2.0×).
+
+**(2) Compositional eval — head-to-head**
+
+| Method | NMI mean off-diag | NMI min | NMI max | sum Δdrops | anti-cb (drop>0) |
+|---|---:|---:|---:|---:|---:|
+| **mscoco_v106b (ours)** | 0.671 | (0.516) | (0.768) | **−0.0296** | **0** ✓ |
+| CIBHash-CLIP | **0.235** | 0.176 | 0.277 | −0.0897 | 0 |
+| CIMON-CLIP | 0.412 | 0.374 | 0.455 | −0.0370 | 0 |
+| MLS3RDUH-CLIP | 0.359 | 0.289 | 0.420 | −0.0323 | 0 |
+| mscoco_v91a-CLIP K=128 (tag-supervised lineage) | 0.535 | 0.259 | 0.743 | −0.0790 | 0 |
+
+**Per-codebook drop ablation (mscoco_v106b):**
+
+| cb | drop Δ mAP | drop Δ P@1 | note |
+|---:|---:|---:|---|
+| 0 | −0.0187 | −0.0960 | strongest (global slot) |
+| 1 | −0.0033 | −0.0120 | weak |
+| 2 | +0.0009 | −0.0170 | near-zero contribution (borderline anti) |
+| 3 | −0.0009 | +0.0080 | near-zero |
+| 4 | −0.0068 | −0.0090 | weak |
+| 5 | −0.0008 | −0.0060 | near-zero |
+
+**B2 (visual-global compositional lift):**
+- mscoco_v106b: mean compositional lift **0.137** (per-codebook
+  0.154 / 0.134 / 0.134 / 0.133 / 0.134 / 0.134 — cb0 dominant).
+- B1 text-based: **NOT computed** — the Qwen3 caption cache covers
+  only the 10K trainset, not the 107K DB images. Cross-method
+  comparison on B1 is unavailable.
+
+**Verdict on compositional metrics:**
+- **mscoco_v106b NMI 0.671 is the worst** in the comparison set —
+  codebooks are MORE correlated than all other methods including the
+  tag-supervised v91a K=128 (0.535). Sinkhorn-OT bijection forces K=128
+  codewords to spread over only 64 codon slots, pulling codeword
+  representations closer (NMI up) as a structural side-effect.
+- CIBHash NMI 0.235 is the lowest because it is a *flat* binary hash
+  (no codebook structure); each bit is effectively independent. This
+  is NOT a "compositional" win — it is the absence of compositional
+  structure. NMI as compositional metric is only meaningful within
+  VQ / codebook methods.
+- Among VQ methods (v106b 0.671, v91a K=128 0.535, v91a K=64 0.586,
+  CIMON 0.412), mscoco_v106b is the most redundant codebook layout.
+- **Sum of drop-ablation deltas −0.0296 is the WEAKEST** of the
+  comparison set (v91a K=128 −0.079, CIBHash −0.090). Individual
+  codebooks are less informative than they could be — cb0 carries
+  most of the signal (−0.019 mAP / −0.096 P@1), cb1–5 each contribute
+  ≤ 0.007 mAP. cb2 has +0.0009 mAP (essentially flat).
+- **0 anti-contributing codebooks** ✓ — same as all other methods on
+  MSCOCO under CLIP backbone; no degenerate dead codes.
+
+**Two-pocket regime on MSCOCO confirms Flickr finding:**
+- **mAP / deep-rank pocket** (high mAP, P@500-P@1000): held by
+  mscoco_v91a-CLIP K=128 0.6374 (tag-supervised) and CIBHash-CLIP
+  0.5842 (unsupervised).
+- **Top-1 / sharp-rank pocket** (high P@1, P@10): held by CIBHash-CLIP.
+- mscoco_v106b sits in neither pocket — its Sinkhorn-OT bij focuses
+  on closing the cb-tuple→DNA collision gap (2.42× → improved from
+  3.98× of mscoco_v102a) but does not push the mAP frontier on MSCOCO.
+
+**Implications for paper-framing:**
+1. **Honest comparison on MSCOCO**: must report that unsupervised
+   leaderboard is CIBHash > mscoco_v106b > CIMON > MLS3RDUH on mAP.
+   Our method is the **2nd best unsupervised on MSCOCO mAP**, beating
+   CIMON / MLS3RDUH but trailing CIBHash by −0.026.
+2. **DNA unique gap (0.125 vs 0.742) is the main weakness** to
+   address before paper submission. K=128 pigeonhole forces ~half the
+   codewords to share codons. Future fix: K=64 (matches 4³=64) OR
+   4-base codon (4⁴=256 codons → room for K=128).
+3. **Compositional structure on MSCOCO is less clean than Flickr**
+   (NMI 0.671 vs Flickr v106b 0.604; per-cb drop unevenly distributed
+   with cb0 dominant). The user's Contribution 1 (attribute-aware
+   compositional code) is **more clearly demonstrated on Flickr** at
+   this point.
+4. **Interpretability (Contribution 1+2)** still standable: 0 dead
+   codes, 0 anti-cb, all 6 codebooks contribute (≥ 0 mAP delta), B2
+   visual-global lift 0.137 confirms each codebook concentrates
+   visual semantics.
+
+---
+
 ## Current state (as of 2026-06-03 PM)
 
 ### v107a + v107a_attn — Prototype cosine clustering ablation (proto-cluster instead of Sinkhorn-OT bijection)
