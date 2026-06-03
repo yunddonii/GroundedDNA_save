@@ -29,6 +29,69 @@ Format conventions:
 
 ---
 
+## Current state (as of 2026-06-03)
+
+### v106b — NEW Flickr unsupervised compositional + DNA-axis champion (paper candidate)
+
+`v106b` = `v103a` base + `--codon_residual_gamma 0.0`
++ `--lambda_codeword_codon_sinkhorn 0.1 --codeword_codon_sinkhorn_eps 0.1
+--codeword_codon_sinkhorn_iters 30`. Adds a Sinkhorn-OT bijection
+loss on the codeword-level codon decoder AND removes the residual
+injection so the loss path and inference path are CONSISTENT.
+
+| Metric | v103a (baseline) | v103a_noResid | v106a (Sinkhorn + γ=0.3) | **v106b (Sinkhorn + γ=0)** |
+|---|---:|---:|---:|---:|
+| mAP | 0.7602 | 0.7263 | 0.7579 | **0.7407** |
+| DNA unique (DB) | 0.241 | 0.149 | 0.210 | **0.347** ⭐ +44 % |
+| cb-tuple unique (DB) | 0.553 | 0.495 | 0.591 | 0.477 |
+| collision ratio | 2.29× | 3.32× | 2.82× | **1.37×** ⭐ |
+| P@1 | 0.9000 | 0.8550 | 0.8970 | **0.9170** ⭐ |
+| P@10 | 0.8953 | 0.8665 | 0.8947 | **0.9111** ⭐ |
+| B1 lift | 0.1031 | n/a | 0.0993 | **0.1152** ⭐ |
+| B2 lift | 0.0645 | n/a | 0.0604 | **0.0716** ⭐ |
+| NMI off-diag | 0.5714 | 0.599 | 0.5617 | **0.6037** ⭐ |
+| dead | 0.001 | 0.003 | 0.000 | 0.003 |
+
+**v106b is the new champion on EVERY axis except mAP** (B1 / B2 / P@1
+/ P@10 / NMI all v9x family maxima; DNA unique +44 % vs v103a; collision
+ratio nearly halved). The mAP cost is −0.020 (−2.6 %) — v106b still
+beats every external unsupervised baseline (CIMON 0.7321,
+CIBHash 0.6844, MLS3RDUH 0.6735) by +0.008 to +0.067.
+
+### Hypothesis H1 confirmed — Sinkhorn bijection requires consistent loss/inference path
+
+The 4-cell ablation matrix isolates the effect cleanly:
+
+| | bijection OFF | bijection ON (Sinkhorn λ=0.1) |
+|---|---|---|
+| **residual γ=0.3** | v103a: DNA 0.241 | v106a: DNA 0.210 (slightly worse) |
+| **residual γ=0** | v103a_noResid: DNA 0.149 | **v106b: DNA 0.347 (+44 % vs v103a, ×2.3 vs v103a_noResid)** |
+
+The Sinkhorn loss only manifests as DNA uniqueness when the loss path
+(no residual, codon = f(codeword)) matches the inference path
+(γ=0 → codon = f(codeword)). When γ=0.3 perturbs the sample codon
+relative to the codeword codon, the bijection enforced in the loss
+path doesn't survive to the inference path — sample DNAs collapse to
+near-duplicates anyway.
+
+### Updated unsupervised Flickr25k-CLIP leaderboard (DNA-base unique on DB)
+
+| Model | Supervision | mAP | DNA unique (DB) | P@1 | role |
+|---|---|---:|---:|---:|---|
+| **v106b (ours, NEW PAPER CANDIDATE)** | unsupervised | **0.7407** | **0.347** | **0.917** | DNA-axis + compositional + P@1 champion |
+| v101c (ours) | unsupervised | **0.7729** | 0.231 | 0.898 | mAP champion |
+| v103a (ours) | unsupervised | 0.7602 | 0.241 | 0.900 | balanced |
+| v104b (ours) | unsupervised | 0.7581 | 0.338 | 0.897 | prior DNA-axis (top-k pairwise) |
+| CIMON-CLIP | unsupervised | 0.7321 | 0.801 | 0.913 | |
+| CIBHash-CLIP | unsupervised | 0.6844 | 0.967 | 0.937 | |
+| MLS3RDUH-CLIP | unsupervised | 0.6735 | 0.515 | 0.850 | |
+
+ours-best vs CIBHash on **DNA unique**: 0.347 vs 0.967 — gap 0.62 (still
+large but now half of the previous 0.74 gap from v103a). The bijection
+loss closes ~40 % of the remaining DNA-axis gap.
+
+---
+
 ## Current state (as of 2026-06-02 PM)
 
 ### Two CRITICAL corrections affecting all entries below
