@@ -218,12 +218,46 @@ class DNACodonHashLoss(nn.Module):
         self.codeword_codon_sinkhorn_eps     = float(getattr(cfg, "codeword_codon_sinkhorn_eps",     0.1))
         self.codeword_codon_sinkhorn_iters   = int  (getattr(cfg, "codeword_codon_sinkhorn_iters",   30))
         self.codeword_codon_agg_ent_alpha    = float(getattr(cfg, "codeword_codon_agg_ent_alpha",    0.5))
+        # v112b: text-semantic cluster -> DNA-codon OT allocation. The
+        # prototypes/statistics are EMA buffers, not optimizer parameters,
+        # matching the existing EMA-codebook style.
+        self.lambda_text_cluster_codon_ot = float(getattr(cfg, "lambda_text_cluster_codon_ot", 0.0))
+        self.text_cluster_count           = int  (getattr(cfg, "text_cluster_count", 8))
+        self.text_cluster_temperature     = float(getattr(cfg, "text_cluster_temperature", 0.1))
+        self.text_cluster_ema_momentum    = float(getattr(cfg, "text_cluster_ema_momentum", 0.95))
+        self.text_cluster_conf_gamma      = float(getattr(cfg, "text_cluster_conf_gamma", 1.0))
+        self.text_cluster_codon_ot_eps    = float(getattr(cfg, "text_cluster_codon_ot_eps", 0.1))
+        self.text_cluster_codon_ot_iters  = int  (getattr(cfg, "text_cluster_codon_ot_iters", 30))
+        self.register_buffer("_text_cluster_prototypes", torch.empty(0), persistent=True)
+        self.register_buffer("_text_cluster_codeword", torch.empty(0), persistent=True)
         # v107: prototype cosine clustering (InfoNCE between z and codewords).
         # Pulls z[b, m] toward its assigned codeword and pushes away from
         # other codewords in cosine space. Operates on the EMA codebook
         # buffer + the (B, M) routing assignment.
         self.lambda_proto_cluster_cos = float(getattr(cfg, "lambda_proto_cluster_cos", 0.0))
         self.proto_cluster_cos_tau    = float(getattr(cfg, "proto_cluster_cos_tau",    0.1))
+        # v112 (Hierarchical Codon Decomposition): force first base of each
+        # codon to encode text-similarity cluster identity of the assigned
+        # codeword. Remaining 2 bases encode within-cluster variation.
+        self.lambda_hierarchical_cluster_codon = float(getattr(cfg, "lambda_hierarchical_cluster_codon", 0.0))
+        self.hierarchical_cluster_n_clusters   = int  (getattr(cfg, "hierarchical_cluster_n_clusters",   4))
+        self.hierarchical_cluster_refresh_every = int (getattr(cfg, "hierarchical_cluster_refresh_every", 5))
+        self.hierarchical_cluster_warmup_epochs = int (getattr(cfg, "hierarchical_cluster_warmup_epochs", 5))
+        # Cluster labels buffer [M=6, K_max=64] long. Refreshed via
+        # `refresh_clusters()` called from the training loop.
+        _M = int(getattr(cfg, "num_codebooks", 6))
+        _K = int(getattr(cfg, "codebook_size", 64))
+        self.register_buffer(
+            "hierarchical_cluster_labels",
+            torch.zeros(_M, _K, dtype=torch.long),
+            persistent=True,
+        )
+        # Flag tracking whether clusters have been initialized at least once.
+        self.register_buffer(
+            "hierarchical_cluster_initialized",
+            torch.zeros((), dtype=torch.bool),
+            persistent=True,
+        )
         # v66: per-codon text-anchored aux CE loss weight. The model computes
         # `out["loss_text_anchor"]` per forward (sum across 6 codebooks). 0
         # default keeps the loss off.
@@ -1028,6 +1062,95 @@ class DNACodonHashLoss(nn.Module):
         target_flat = codebook_indices.reshape(B * M).long()          # [B*M]
         return F.cross_entropy(sim_flat, target_flat)
 
+    @torch.no_grad()
+    def refresh_clusters(
+        self,
+        codebooks: torch.Tensor,                          # [M, K_max, D]
+        codebook_active_mask: Optional[torch.Tensor] = None,  # [M, K_max] bool
+        method: str = "kmeans",
+        seed: int = 42,
+    ) -> Dict[str, float]:
+        """v112: re-cluster codewords within each codebook via k-means on
+        cosine-normalized codeword embeddings. Updates
+        self.hierarchical_cluster_labels [M, K_max].
+        """
+        import numpy as np
+        import time
+        from sklearn.cluster import KMeans
+        M, K_max, D = codebooks.shape
+        C = max(int(self.hierarchical_cluster_n_clusters), 2)
+        new_labels = torch.zeros(M, K_max, dtype=torch.long, device=codebooks.device)
+        cb_np = codebooks.detach().cpu().float().numpy()
+        t0 = time.time()
+        n_active_per_cb = []
+        for m in range(M):
+            if codebook_active_mask is not None:
+                active = codebook_active_mask[m].cpu().numpy()
+                valid_idx = np.nonzero(active)[0]
+            else:
+                valid_idx = np.arange(K_max)
+            if len(valid_idx) < C:
+                # not enough codewords to cluster; assign all to cluster 0
+                n_active_per_cb.append(int(len(valid_idx)))
+                continue
+            feats = cb_np[m, valid_idx]
+            # L2 normalize for cosine-based k-means
+            feats = feats / (np.linalg.norm(feats, axis=-1, keepdims=True) + 1e-12)
+            km = KMeans(n_clusters=C, random_state=int(seed + m), n_init=4, max_iter=100)
+            km.fit(feats)
+            for i, k in enumerate(valid_idx):
+                new_labels[m, k] = int(km.labels_[i])
+            n_active_per_cb.append(int(len(valid_idx)))
+        self.hierarchical_cluster_labels.copy_(new_labels)
+        self.hierarchical_cluster_initialized.fill_(True)
+        return {
+            "C": int(C),
+            "M": int(M),
+            "K_max": int(K_max),
+            "elapsed_sec": float(time.time() - t0),
+            "active_per_cb": n_active_per_cb,
+        }
+
+    def _loss_hierarchical_cluster_codon(
+        self,
+        codeword_codon_logits: torch.Tensor,              # [M, K_max, 3, 4]
+        codeword_K_active: torch.Tensor,                   # [M] long
+        codebook_active_mask: Optional[torch.Tensor] = None,  # [M, K_max] bool
+    ) -> torch.Tensor:
+        """v112: Hierarchical codon decomposition CE loss.
+
+        For each codeword k in codebook m, the FIRST base of its predicted
+        codon should classify cluster_labels[m, k] (a value in [0, C)).
+        Since each base has 4 options (A/C/G/T) and we use C=4 clusters
+        (default), this is exactly a 4-way classification on the first base.
+
+        L = CE( logits[m, k, 0, :], cluster_labels[m, k] )  averaged over
+            all active codewords across all codebooks.
+        """
+        if not bool(self.hierarchical_cluster_initialized.item()):
+            return codeword_codon_logits.new_zeros(())
+        M, K_max = codeword_codon_logits.shape[0], codeword_codon_logits.shape[1]
+        C_classes = int(self.hierarchical_cluster_n_clusters)
+        # First-base logits: [M, K_max, 4]
+        first_base_logits = codeword_codon_logits[:, :, 0, :]
+        # Targets: [M, K_max]
+        targets = self.hierarchical_cluster_labels.to(device=first_base_logits.device).long()
+        # Build active mask
+        if codebook_active_mask is not None:
+            mask = codebook_active_mask.to(device=first_base_logits.device).bool()
+        else:
+            mask = torch.ones(M, K_max, dtype=torch.bool, device=first_base_logits.device)
+        # Only target classes < 4 (== number of bases) are valid CE targets.
+        # If user sets n_clusters > 4, we still treat as 4-way classifier
+        # by clamping targets (interpreted as: clusters >= 4 share base 3).
+        targets_clamped = targets.clamp_max(3)
+        # Flatten + mask
+        flat_logits = first_base_logits[mask]                 # [N_active, 4]
+        flat_targets = targets_clamped[mask]                  # [N_active]
+        if flat_targets.numel() == 0:
+            return codeword_codon_logits.new_zeros(())
+        return F.cross_entropy(flat_logits, flat_targets)
+
     def _loss_codeword_codon_pairwise(
         self,
         codeword_codon_logits: torch.Tensor,
@@ -1049,6 +1172,134 @@ class DNACodonHashLoss(nn.Module):
         if not per_codebook:
             return codeword_codon_logits.new_zeros(())
         return torch.stack(per_codebook).mean()
+
+    @torch.no_grad()
+    def _init_text_cluster_buffers(
+        self,
+        text_part_tokens: torch.Tensor,         # [B, M, D]
+        K_max: int,
+    ) -> None:
+        B, M, D = text_part_tokens.shape
+        C = max(int(self.text_cluster_count), 1)
+        t = F.normalize(text_part_tokens.detach(), dim=-1)
+        proto = torch.empty(M, C, D, device=t.device, dtype=t.dtype)
+        for m in range(M):
+            if B >= C:
+                idx = torch.linspace(0, B - 1, C, device=t.device).round().long()
+            else:
+                idx = torch.arange(C, device=t.device).remainder(B)
+            proto[m] = t[idx, m]
+        self._text_cluster_prototypes = F.normalize(proto, dim=-1)      # [M, C, D]
+        self._text_cluster_codeword = torch.full(
+            (M, C, K_max), 1.0 / float(K_max),
+            device=t.device, dtype=t.dtype,
+        )                                                              # [M, C, K]
+
+    def _loss_text_cluster_codon_ot(
+        self,
+        text_part_tokens: torch.Tensor,          # [B, M, D]
+        codebook_indices: torch.Tensor,          # [B, M]
+        codeword_codon_logits: torch.Tensor,     # [M, K_max, 3, 4]
+        codeword_K_active: Optional[torch.Tensor],
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Confidence-weighted text-cluster -> codon OT allocation.
+
+        Text clusters are discovered per codebook from text_part_tokens. EMA
+        estimates P(codeword | text-cluster), then each cluster's codon
+        distribution is matched to a balanced codon allocation by Sinkhorn.
+        """
+        assert text_part_tokens.dim() == 3, "text_part_tokens must be [B, M, D]"
+        assert codebook_indices.dim() == 2, "codebook_indices must be [B, M]"
+        assert codeword_codon_logits.dim() == 4, (
+            "codeword_codon_logits must be [M, K_max, 3, 4]"
+        )
+        B, M, D = text_part_tokens.shape
+        M2, K_max = codeword_codon_logits.shape[:2]
+        assert M == M2, "text clusters and codeword logits must share M codebooks"
+        C = max(int(self.text_cluster_count), 1)
+        if self._text_cluster_prototypes.numel() == 0:
+            self._init_text_cluster_buffers(text_part_tokens, K_max)
+        if (
+            self._text_cluster_prototypes.shape != (M, C, D)
+            or self._text_cluster_codeword.shape != (M, C, K_max)
+        ):
+            self._init_text_cluster_buffers(text_part_tokens, K_max)
+
+        eps = self.eps
+        tau = max(float(self.text_cluster_temperature), 1e-6)
+        t_n = F.normalize(text_part_tokens, dim=-1)                    # [B, M, D]
+        proto = F.normalize(self._text_cluster_prototypes.to(t_n), dim=-1)
+        sim = torch.einsum("bmd,mcd->bmc", t_n, proto)                 # [B, M, C]
+        q = F.softmax(sim / tau, dim=-1)                               # [B, M, C]
+        conf = q.max(dim=-1).values.clamp(min=eps)                     # [B, M]
+        conf_w = conf.pow(max(float(self.text_cluster_conf_gamma), 0.0))
+
+        with torch.no_grad():
+            momentum = min(max(float(self.text_cluster_ema_momentum), 0.0), 0.9999)
+            # Update text prototypes with confidence-weighted soft clusters.
+            mass_mc = (conf_w.unsqueeze(-1) * q).sum(dim=0).clamp(min=eps)  # [M, C]
+            proto_new = torch.einsum("bmc,bmd->mcd", conf_w.unsqueeze(-1) * q, t_n)
+            proto_new = proto_new / mass_mc.unsqueeze(-1)
+            proto_new = F.normalize(proto_new, dim=-1)
+            self._text_cluster_prototypes.mul_(momentum).add_(proto_new * (1.0 - momentum))
+            self._text_cluster_prototypes.copy_(
+                F.normalize(self._text_cluster_prototypes, dim=-1)
+            )
+
+            # Batch estimate of P(codeword | text-cluster), then EMA it.
+            usage = torch.zeros(M, C, K_max, device=t_n.device, dtype=t_n.dtype)
+            for m in range(M):
+                idx_m = codebook_indices[:, m].long().clamp(min=0, max=K_max - 1)  # [B]
+                src = conf_w[:, m].unsqueeze(-1) * q[:, m, :]              # [B, C]
+                # usage[m, c, k] accumulates confidence-weighted membership
+                # for text cluster c assigned to visual codeword k.
+                assert src.shape == (B, C), "src must be [B, C]"
+                for c in range(C):
+                    usage[m, c].scatter_add_(dim=0, index=idx_m, src=src[:, c])
+            usage = usage / usage.sum(dim=-1, keepdim=True).clamp(min=eps) # [M, C, K]
+            self._text_cluster_codeword.mul_(momentum).add_(usage * (1.0 - momentum))
+            self._text_cluster_codeword.div_(
+                self._text_cluster_codeword.sum(dim=-1, keepdim=True).clamp(min=eps)
+            )
+
+        P_codeword = self._joint_codon_distribution(
+            codeword_codon_logits, eps
+        ).clamp(min=eps)                                                # [M, K_max, 64]
+        W = self._text_cluster_codeword.to(P_codeword).detach()         # [M, C, K]
+
+        eps_reg = max(float(self.text_cluster_codon_ot_eps), 1e-3)
+        n_iter = max(int(self.text_cluster_codon_ot_iters), 1)
+        per_codebook = []
+        device = P_codeword.device
+        for m in range(M):
+            K = int(codeword_K_active[m].item()) if codeword_K_active is not None else K_max
+            if K <= 0:
+                continue
+            W_m = W[m, :, :K]
+            W_m = W_m / W_m.sum(dim=-1, keepdim=True).clamp(min=eps)    # [C, K]
+            P_cluster = torch.einsum("ck,kj->cj", W_m, P_codeword[m, :K])
+            P_cluster = P_cluster.clamp(min=eps)
+            P_cluster = P_cluster / P_cluster.sum(dim=-1, keepdim=True).clamp(min=eps)
+            cost = -P_cluster.log()                                    # [C, 64]
+
+            log_a = torch.full((C,), -math.log(C), device=device, dtype=cost.dtype)
+            log_b = torch.full((64,), -math.log(64), device=device, dtype=cost.dtype)
+            log_K_mat = -cost / eps_reg                                # [C, 64]
+            u = torch.zeros(C, device=device, dtype=cost.dtype)
+            v = torch.zeros(64, device=device, dtype=cost.dtype)
+            for _ in range(n_iter):
+                u = log_a - torch.logsumexp(log_K_mat + v[None, :], dim=1)
+                v = log_b - torch.logsumexp(log_K_mat + u[:, None], dim=0)
+            T = (log_K_mat + u[:, None] + v[None, :]).exp()            # [C, 64]
+            per_codebook.append((T * cost).sum() * conf[:, m].mean())
+
+        if not per_codebook:
+            zero = codeword_codon_logits.new_zeros(())
+            return zero, zero, zero
+        loss = torch.stack(per_codebook).mean()
+        usage = q.mean(dim=0).clamp(min=eps)                            # [M, C]
+        usage_entropy = (-(usage * usage.log()).sum(dim=-1) / math.log(C)).mean()
+        return loss, conf.mean().detach(), usage_entropy.detach()
 
     def _loss_bu(
         self, distances: torch.Tensor,
@@ -1493,11 +1744,47 @@ class DNACodonHashLoss(nn.Module):
                 total = total + self.lambda_codeword_codon_pairwise * loss_codeword_codon_pairwise
             else:
                 loss_codeword_codon_pairwise = u.new_zeros(())
+            if self.lambda_text_cluster_codon_ot > 0.0:
+                codebook_indices_t = outputs.get("codebook_indices")       # [B, M]
+                if text_part_tokens is None or codebook_indices_t is None:
+                    raise ValueError(
+                        "[DNACodonHashLoss] lambda_text_cluster_codon_ot > 0 requires "
+                        "outputs to contain 'text_part_tokens' and 'codebook_indices'."
+                    )
+                loss_text_cluster_codon_ot, text_cluster_conf_mean, text_cluster_usage_entropy = (
+                    self._loss_text_cluster_codon_ot(
+                        text_part_tokens, codebook_indices_t,
+                        codeword_codon_logits, codeword_K_active,
+                    )
+                )
+                total = total + self.lambda_text_cluster_codon_ot * loss_text_cluster_codon_ot
+            else:
+                loss_text_cluster_codon_ot = u.new_zeros(())
+                text_cluster_conf_mean = u.new_zeros(())
+                text_cluster_usage_entropy = u.new_zeros(())
         else:
             loss_codeword_codon_sinkhorn = u.new_zeros(())
             loss_codeword_codon_agg_ent  = u.new_zeros(())
             loss_codeword_codon_pairwise = u.new_zeros(())
+            loss_text_cluster_codon_ot = u.new_zeros(())
+            text_cluster_conf_mean = u.new_zeros(())
+            text_cluster_usage_entropy = u.new_zeros(())
             eff_lambda_codeword_codon_sinkhorn = 0.0
+
+        # v112: hierarchical codon decomposition loss (uses codeword_codon_logits)
+        if (
+            self.lambda_hierarchical_cluster_codon > 0.0
+            and outputs.get("codeword_codon_logits") is not None
+        ):
+            codeword_codon_logits = outputs["codeword_codon_logits"]
+            codeword_K_active = outputs.get("codeword_K_active")
+            codebook_active_mask = outputs.get("codebook_active_mask")
+            loss_hierarchical_cluster_codon = self._loss_hierarchical_cluster_codon(
+                codeword_codon_logits, codeword_K_active, codebook_active_mask,
+            )
+            total = total + self.lambda_hierarchical_cluster_codon * loss_hierarchical_cluster_codon
+        else:
+            loss_hierarchical_cluster_codon = u.new_zeros(())
 
         # v107: prototype cosine clustering (InfoNCE between z and codewords)
         if self.lambda_proto_cluster_cos > 0.0:
@@ -1530,8 +1817,12 @@ class DNACodonHashLoss(nn.Module):
             "loss_codeword_codon_sinkhorn": loss_codeword_codon_sinkhorn,
             "loss_codeword_codon_agg_ent":  loss_codeword_codon_agg_ent,
             "loss_codeword_codon_pairwise": loss_codeword_codon_pairwise,
+            "loss_text_cluster_codon_ot":   loss_text_cluster_codon_ot,
+            "text_cluster_conf_mean":       text_cluster_conf_mean,
+            "text_cluster_usage_entropy":   text_cluster_usage_entropy,
             "eff_lambda_codeword_codon_sinkhorn": u.new_tensor(eff_lambda_codeword_codon_sinkhorn),
             "loss_proto_cluster_cos":       loss_proto_cluster_cos,
+            "loss_hierarchical_cluster_codon": loss_hierarchical_cluster_codon,
             "loss_recon":        loss_recon,
             "loss_ntxent":       loss_ntxent,
             "loss_ortho_text":   loss_ortho_text,

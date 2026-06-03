@@ -435,6 +435,9 @@ def main(args: Config):
         'loss_cw_xmodal',
         'loss_codeword_codon_sinkhorn',
         'eff_lambda_codeword_codon_sinkhorn',
+        'loss_text_cluster_codon_ot',
+        'text_cluster_conf_mean',
+        'text_cluster_usage_entropy',
         'loss_recon',
         'loss_ntxent',
         'loss_ortho_text',
@@ -682,6 +685,29 @@ def main(args: Config):
         # compute annealed epsilon (no-op when annealing is off).
         if hasattr(model, "set_current_epoch"):
             model.set_current_epoch(e)
+
+        # v112: hierarchical codon decomposition -- refresh text-similarity
+        # clusters every N epochs after a warmup, by running k-means on the
+        # codebook codewords. Cluster labels are stored as a buffer in the
+        # criterion and consumed by _loss_hierarchical_cluster_codon.
+        if float(getattr(criterion, "lambda_hierarchical_cluster_codon", 0.0)) > 0.0:
+            _warmup = int(getattr(criterion, "hierarchical_cluster_warmup_epochs", 5))
+            _refresh_every = max(1, int(getattr(criterion, "hierarchical_cluster_refresh_every", 5)))
+            _not_init = not bool(criterion.hierarchical_cluster_initialized.item())
+            _refresh_now = (
+                e >= _warmup
+                and (_not_init or ((e - _warmup) % _refresh_every == 0))
+            )
+            if _refresh_now:
+                cb_buf = model.quantizer.codebooks                 # [M, K_max, D]
+                cb_mask = model.quantizer.active_mask              # [M, K_max] bool
+                _method = str(getattr(args, "hierarchical_cluster_method", "kmeans"))
+                _diag = criterion.refresh_clusters(
+                    cb_buf, cb_mask, method=_method, seed=42,
+                )
+                print(f"[v112-hierarchical] epoch {e}: refreshed clusters -- "
+                      f"C={_diag['C']}, active_per_cb={_diag['active_per_cb']}, "
+                      f"elapsed={_diag['elapsed_sec']:.2f}s")
 
         # v78a: codeword split at scheduled epochs (BEFORE this epoch's training)
         if e in _split_epochs and hasattr(model.quantizer, "do_split"):

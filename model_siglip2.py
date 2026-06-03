@@ -1506,8 +1506,10 @@ class SigLIP2SemanticOTModel(nn.Module):
         _lam_sinkhorn = float(getattr(args, "lambda_codeword_codon_sinkhorn", 0.0))
         _lam_agg_ent  = float(getattr(args, "lambda_codeword_codon_agg_ent", 0.0))
         _lam_pairw    = float(getattr(args, "lambda_codeword_codon_pairwise", 0.0))
+        _lam_txt_clu  = float(getattr(args, "lambda_text_cluster_codon_ot", 0.0))
+        _lam_hcc      = float(getattr(args, "lambda_hierarchical_cluster_codon", 0.0))  # v112
         self._compute_codeword_codon_logits: bool = (
-            (_lam_sinkhorn + _lam_agg_ent + _lam_pairw) > 0.0
+            (_lam_sinkhorn + _lam_agg_ent + _lam_pairw + _lam_txt_clu + _lam_hcc) > 0.0
         )
         self.codon_heads = nn.ModuleList(
             [

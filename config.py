@@ -672,6 +672,30 @@ class Config():
             type=float, default=0.0,
             help='v106c: pairwise distinctness bijection loss weight. 0=disabled. '
                  'Recommended 0.5-2.0.')
+        siglip2_arg.add_argument('--lambda_text_cluster_codon_ot',
+            type=float, default=0.0,
+            help='v112b: confidence-weighted text-cluster to DNA-codon OT '
+                 'loss. 0=disabled. Uses EMA text prototypes per codebook.')
+        siglip2_arg.add_argument('--text_cluster_count',
+            type=int, default=8,
+            help='v112b: number of textual semantic clusters per codebook.')
+        siglip2_arg.add_argument('--text_cluster_temperature',
+            type=float, default=0.1,
+            help='v112b: soft assignment temperature for text clusters.')
+        siglip2_arg.add_argument('--text_cluster_ema_momentum',
+            type=float, default=0.95,
+            help='v112b: EMA momentum for text cluster prototypes and '
+                 'cluster-codeword usage statistics.')
+        siglip2_arg.add_argument('--text_cluster_conf_gamma',
+            type=float, default=1.0,
+            help='v112b: exponent applied to max cluster probability when '
+                 'weighting cluster-codeword assignments.')
+        siglip2_arg.add_argument('--text_cluster_codon_ot_eps',
+            type=float, default=0.1,
+            help='v112b: entropy regularization for cluster-to-codon OT.')
+        siglip2_arg.add_argument('--text_cluster_codon_ot_iters',
+            type=int, default=30,
+            help='v112b: Sinkhorn iterations for cluster-to-codon OT.')
         # v107 (prototype cosine clustering): InfoNCE between visual semantic
         # tokens z [B, M, D] and the codebook codewords (prototypes) [M, K, D]
         # in cosine similarity space. Each z is pulled toward its assigned
@@ -688,6 +712,27 @@ class Config():
             type=float, default=0.1,
             help='v107: InfoNCE temperature for prototype cosine clustering. '
                  'Smaller = sharper assignment. Default 0.1.')
+        # v112 (Hierarchical Codon Decomposition):
+        # Decompose the 3-base codon into [cluster_bit, intra_bit_1, intra_bit_2]:
+        # - First base = cluster identifier (4 clusters per codebook)
+        # - Remaining 2 bases = within-cluster variation (16 sub-states each = 64)
+        # K=64 codewords organized into 4 text-similarity clusters of 16 each.
+        # First base's logit supervised by cluster label.
+        siglip2_arg.add_argument('--lambda_hierarchical_cluster_codon',
+            type=float, default=0.0,
+            help='v112: Hierarchical codon decomposition loss weight. 0=disabled. '
+                 'Recommended 0.2-0.5.')
+        siglip2_arg.add_argument('--hierarchical_cluster_n_clusters',
+            type=int, default=4,
+            help='v112: Number of text-similarity clusters per codebook. '
+                 'Default 4 (matches 4 base options for first codon position).')
+        siglip2_arg.add_argument('--hierarchical_cluster_refresh_every',
+            type=int, default=5,
+            help='v112: Re-cluster codewords every N epochs. Default 5.')
+        siglip2_arg.add_argument('--hierarchical_cluster_warmup_epochs',
+            type=int, default=5,
+            help='v112: Delay first clustering by N epochs (let codebook '
+                 'stabilize from EMA updates first). Default 5.')
         # v70a (Exp 3): final DNA hash reconstruction. Small decoder maps
         # the flattened hash code [B, 72] back to the SigLIP2 visual_global
         # or text_global embedding via cosine loss.
