@@ -40,6 +40,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional, Tuple
 
 import math
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -1306,6 +1307,50 @@ class SigLIP2SemanticOTModel(nn.Module):
         else:
             self.codebook_text_prompts = None
 
+        # ---------- v113: text-embed pre-transform (anisotropy mitigation) -----
+        # Applied to `raw = feats["text_part_raw"]` BEFORE the text_adapter.
+        # See config.py for the mode choices. partial_whiten loads a
+        # precomputed (mu, U, S) bundle and builds W = U diag((S+eps)^-gamma) U^T.
+        self.text_embed_transform: str = str(
+            getattr(args, "text_embed_transform", "none")
+        )
+        self.residualize_visual_for_routing: bool = bool(
+            getattr(args, "residualize_visual_for_routing", False)
+        )
+        self._text_whiten_ready: bool = False
+        if self.text_embed_transform in ("partial_whiten", "global_residual_whiten"):
+            _npz_path = getattr(args, "text_whiten_npz", None)
+            if _npz_path is None or not os.path.exists(str(_npz_path)):
+                raise SystemExit(
+                    f"[model_siglip2] --text_embed_transform partial_whiten "
+                    f"requires --text_whiten_npz (got {_npz_path!r}). "
+                    f"Generate via scripts/build_text_whiten_matrix.py."
+                )
+                # NOTE: `os` not imported at module top in current file;
+                # we import lazily below if needed.
+            import numpy as _np
+            _b = _np.load(str(_npz_path))
+            _mu_np = _np.asarray(_b["mu"], dtype=_np.float32)               # [D]
+            _U_np  = _np.asarray(_b["U"],  dtype=_np.float32)               # [D, D]
+            _S_np  = _np.asarray(_b["S"],  dtype=_np.float32)               # [D]
+            _gamma = float(getattr(args, "text_whiten_gamma", 0.25))
+            _eps   = float(getattr(args, "text_whiten_eps",   1e-5))
+            _inv_pow = (_S_np + _eps) ** (-_gamma)                          # [D]
+            _W_np = _U_np @ _np.diag(_inv_pow) @ _U_np.T                    # [D, D]
+            self.register_buffer(
+                "text_whiten_mu",
+                torch.from_numpy(_mu_np).to(torch.float32),
+                persistent=False,
+            )
+            self.register_buffer(
+                "text_whiten_W",
+                torch.from_numpy(_W_np.astype(_np.float32)),
+                persistent=False,
+            )
+            self._text_whiten_ready = True
+            print(f"[model_siglip2] v113 partial whitening loaded: "
+                  f"D={_mu_np.shape[0]}, gamma={_gamma:.3f}, eps={_eps:.1e}")
+
         # ---------- Optional: visual-cross-attention text pooling (Option B / v22b)
         # When `--use_text_token_attention` is set, the model expects per-image
         # cached TOKEN-level text features (`cached_text_tokens [B, 6, T, D_proj]`
@@ -1507,9 +1552,11 @@ class SigLIP2SemanticOTModel(nn.Module):
         _lam_agg_ent  = float(getattr(args, "lambda_codeword_codon_agg_ent", 0.0))
         _lam_pairw    = float(getattr(args, "lambda_codeword_codon_pairwise", 0.0))
         _lam_txt_clu  = float(getattr(args, "lambda_text_cluster_codon_ot", 0.0))
+        self.lambda_text_codon_rel = float(getattr(args, "lambda_text_codon_rel", 0.0))
         _lam_hcc      = float(getattr(args, "lambda_hierarchical_cluster_codon", 0.0))  # v112
         self._compute_codeword_codon_logits: bool = (
-            (_lam_sinkhorn + _lam_agg_ent + _lam_pairw + _lam_txt_clu + _lam_hcc) > 0.0
+            (_lam_sinkhorn + _lam_agg_ent + _lam_pairw
+             + _lam_txt_clu + self.lambda_text_codon_rel + _lam_hcc) > 0.0
         )
         self.codon_heads = nn.ModuleList(
             [
@@ -1826,8 +1873,60 @@ class SigLIP2SemanticOTModel(nn.Module):
         text_part_tokens:  Optional[torch.Tensor] = None
         global_text_token: Optional[torch.Tensor] = None
         local_text_tokens: Optional[torch.Tensor] = None
+        local_text_tokens_for_routing: Optional[torch.Tensor] = None  # v116
         if use_text_routing and feats["text_part_raw"] is not None:
             raw = feats["text_part_raw"]                                    # [B, 6, D_proj]
+
+            # ----------------------------------------------------------------
+            # v113: pre-adapter text-embedding transform (anisotropy fix).
+            # Operates on the CACHED CLIP-projection space (D_proj=512 or 768),
+            # i.e. BEFORE codebook_text_prompts and text_adapter so the adapter
+            # observes the corrected distribution.
+            # ----------------------------------------------------------------
+            _tx_mode = getattr(self, "text_embed_transform", "none")
+            if _tx_mode == "per_image_mean":
+                # T_centered = T_local - T_local.mean(dim=1); slot 0 untouched
+                _g = raw[:, 0:1, :]
+                _loc = raw[:, 1:, :]
+                _loc = _loc - _loc.mean(dim=1, keepdim=True)
+                _loc = F.normalize(_loc, dim=-1)
+                raw = torch.cat([_g, _loc], dim=1)
+            elif _tx_mode == "global_residual":
+                # T_local <- T_local - T_global (slot 0); keep global as-is
+                _g = raw[:, 0:1, :]
+                _loc = raw[:, 1:, :] - _g
+                _loc = F.normalize(_loc, dim=-1)
+                raw = torch.cat([_g, _loc], dim=1)
+            elif _tx_mode == "partial_whiten":
+                if not getattr(self, "_text_whiten_ready", False):
+                    raise RuntimeError(
+                        "[model_siglip2] partial_whiten selected but whitening "
+                        "buffers were not loaded (see --text_whiten_npz)."
+                    )
+                _shape = raw.shape
+                _flat = raw.reshape(-1, _shape[-1]).to(self.text_whiten_mu.dtype)
+                _flat = (_flat - self.text_whiten_mu) @ self.text_whiten_W
+                raw = _flat.reshape(_shape).to(feats["text_part_raw"].dtype)
+            elif _tx_mode == "global_residual_whiten":
+                # v117: keep slot 0 raw; subtract slot 0 from local slots,
+                # then apply partial whitening to the residualized local
+                # population only. Whitening matrix must have been built
+                # via --residualize_first so its (mu, W) match the
+                # residualized population's statistics.
+                if not getattr(self, "_text_whiten_ready", False):
+                    raise RuntimeError(
+                        "[model_siglip2] global_residual_whiten selected but "
+                        "whitening buffers were not loaded "
+                        "(see --text_whiten_npz)."
+                    )
+                _g = raw[:, 0:1, :]                                              # [B, 1, D]
+                _loc = raw[:, 1:, :] - _g                                        # [B, 5, D]
+                _orig_dtype = feats["text_part_raw"].dtype
+                _flat = _loc.reshape(-1, _loc.shape[-1]).to(self.text_whiten_mu.dtype)
+                _flat = (_flat - self.text_whiten_mu) @ self.text_whiten_W
+                _loc = _flat.reshape(_loc.shape).to(_orig_dtype)
+                raw = torch.cat([_g, _loc], dim=1)                              # [B, 6, D]
+            # "phrase_concept" and "none" require no runtime op here.
 
             # v79b (#2.3): inject learnable per-codebook text prompt bias
             if self.codebook_text_prompts is not None:
@@ -1871,6 +1970,45 @@ class SigLIP2SemanticOTModel(nn.Module):
                 text_part_tokens  = self.text_adapter(raw)                  # [B, 6, D]
             global_text_token = text_part_tokens[:, 0, :]                   # [B, D]
             local_text_tokens = text_part_tokens[:, 1:, :]                  # [B, 5, D]
+
+            # ----------------------------------------------------------------
+            # v116: routing-only mode. If `--text_transform_routing_only` is
+            # set AND a transform was applied, run the adapter SECOND TIME on
+            # the ORIGINAL (untransformed) cached text_part_raw, and use
+            # that untransformed output for ALL downstream losses. The
+            # transformed adapter output remains the routing centroid source.
+            # ----------------------------------------------------------------
+            _routing_only = bool(getattr(self, "text_transform_routing_only", False))
+            _tx_active_for_split = _tx_mode in (
+                "per_image_mean", "global_residual", "partial_whiten"
+            )
+            if _routing_only and _tx_active_for_split:
+                # keep the transformed text_part_tokens slice for routing
+                local_text_tokens_for_routing = local_text_tokens
+                # re-run adapter on UNTRANSFORMED raw for losses
+                _raw_orig = feats["text_part_raw"]
+                if self.codebook_text_prompts is not None:
+                    _raw_orig_a = _raw_orig + self.codebook_text_prompts.unsqueeze(0)
+                else:
+                    _raw_orig_a = _raw_orig
+                if self.use_text_token_attention and cached_text_tokens is not None:
+                    # complex attention path — fall back: do not split here
+                    # (the transformed text_part_tokens already factored in
+                    # the cross-attention; re-running would require a full
+                    # second cross-attention pass, which is out of scope).
+                    pass  # text_part_tokens stays transformed
+                elif self.per_slot_text_adapter:
+                    _per_slot_orig = [
+                        self.text_adapter[m](_raw_orig_a[:, m, :])
+                        for m in range(_raw_orig_a.shape[1])
+                    ]
+                    text_part_tokens = torch.stack(_per_slot_orig, dim=1)
+                else:
+                    text_part_tokens = self.text_adapter(_raw_orig_a)
+                global_text_token = text_part_tokens[:, 0, :]
+                local_text_tokens = text_part_tokens[:, 1:, :]
+            else:
+                local_text_tokens_for_routing = local_text_tokens
 
         # 2) C_global slot input
         # ----------------------------------------------------------------
@@ -1925,9 +2063,18 @@ class SigLIP2SemanticOTModel(nn.Module):
         )                                                                # [5, D]
 
         # 3) pick the centroids that drive the 5-part Sinkhorn router
+        # v116: under --text_transform_routing_only, the variable
+        # local_text_tokens_for_routing == TRANSFORMED slice, while
+        # local_text_tokens (used by losses) has been re-bound to the
+        # UNTRANSFORMED adapter output. In the default mode both point at
+        # the same tensor, so this swap is a no-op.
         local_anchor_tokens: Optional[torch.Tensor] = None
         if use_text_routing:
-            local_centroids   = local_text_tokens                       # [B, 5, D]
+            local_centroids   = (
+                local_text_tokens_for_routing
+                if local_text_tokens_for_routing is not None
+                else local_text_tokens
+            )                                                            # [B, 5, D]
             local_part_mask_used = part_mask[:, 1:] if part_mask is not None else None
         else:
             local_anchor_tokens = local_codebook_mean_anchors_raw.unsqueeze(0).expand(B, -1, -1)  # [B, 5, D]
@@ -2008,8 +2155,18 @@ class SigLIP2SemanticOTModel(nn.Module):
             local_centroids_aug = local_centroids
             local_part_mask_used_aug = local_part_mask_used
 
+        # v113 Method 2 companion: residualize patches against patch-mean and
+        # L2-normalize BEFORE feeding the router. visual_tokens used elsewhere
+        # (codeword extraction, losses, gated global add) stays unmodified.
+        if getattr(self, "residualize_visual_for_routing", False):
+            _v_global = visual_tokens.mean(dim=1, keepdim=True)          # [B, 1, D]
+            visual_tokens_for_routing = F.normalize(
+                visual_tokens - _v_global, dim=-1
+            )
+        else:
+            visual_tokens_for_routing = visual_tokens
         router_kwargs = {
-            "visual_tokens":    visual_tokens,
+            "visual_tokens":    visual_tokens_for_routing,
             "text_part_tokens": local_centroids_aug,           # [B, 5 or 6, D]
             "visual_mask":      visual_attention_mask,
             "part_mask":        local_part_mask_used_aug,
@@ -2268,7 +2425,8 @@ class SigLIP2SemanticOTModel(nn.Module):
         # path also works at inference.
         if (
             (float(self.lambda_text_hash) > 0.0
-             or float(self.lambda_text_hash_ntxent) > 0.0)   # v109: include InfoNCE form
+             or float(self.lambda_text_hash_ntxent) > 0.0    # v109: include InfoNCE form
+             or float(self.lambda_text_codon_rel) > 0.0)     # v113: text teacher, no text-DNA path
             and text_part_tokens is None
             and cached_text_part_raw is not None
         ):

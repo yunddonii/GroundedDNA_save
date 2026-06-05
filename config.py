@@ -696,6 +696,28 @@ class Config():
         siglip2_arg.add_argument('--text_cluster_codon_ot_iters',
             type=int, default=30,
             help='v112b: Sinkhorn iterations for cluster-to-codon OT.')
+        siglip2_arg.add_argument('--lambda_text_codon_rel',
+            type=float, default=0.0,
+            help='v113: weak rank-based text-codon relational loss weight. '
+                 '0=disabled. Encourages text-similar samples to use codon '
+                 'distributions closer than text-dissimilar samples without '
+                 'forcing cluster-code bijection.')
+        siglip2_arg.add_argument('--text_codon_rel_top_frac',
+            type=float, default=0.10,
+            help='v113: top fraction of centered text-similarity pairs used '
+                 'as positive semantic-neighbor pairs.')
+        siglip2_arg.add_argument('--text_codon_rel_bottom_frac',
+            type=float, default=0.30,
+            help='v113: bottom fraction of centered text-similarity pairs '
+                 'used as negative semantic-neighbor pairs.')
+        siglip2_arg.add_argument('--text_codon_rel_margin',
+            type=float, default=0.05,
+            help='v113: margin for mean positive codon similarity over mean '
+                 'negative codon similarity.')
+        siglip2_arg.add_argument('--text_codon_rel_min_pairs',
+            type=int, default=8,
+            help='v113: minimum number of pairwise examples per codebook for '
+                 'the rank-based relational loss.')
         # v107 (prototype cosine clustering): InfoNCE between visual semantic
         # tokens z [B, M, D] and the codebook codewords (prototypes) [M, K, D]
         # in cosine similarity space. Each z is pulled toward its assigned
@@ -785,6 +807,66 @@ class Config():
             help='Cosine-anneal codon-head tau from init->final across epochs.')
         siglip2_arg.add_argument('--no_gumbel_tau_anneal',
             dest='gumbel_tau_anneal', action='store_false')
+
+        # ---------- v113: text-embedding pre-transform (anisotropy mitigation) ---
+        # Applied to `raw = feats["text_part_raw"]` BEFORE the text_adapter.
+        #   none           : pass-through (legacy behavior).
+        #   per_image_mean : T_local <- T_local - T_local.mean(dim=1); normalize.
+        #                    Removes the per-image cross-slot common direction.
+        #   global_residual: T_local <- T_local - T_global (slot 0); normalize.
+        #                    Uses caption-derived global as the reference.
+        #                    Pair with --residualize_visual_for_routing so the
+        #                    Sinkhorn cost is computed in matched subspaces.
+        #   partial_whiten : T <- ((T - mu) @ W_gamma); requires
+        #                    --text_whiten_npz pointing at a precomputed
+        #                    {mu, U, S, D, gamma} bundle (see
+        #                    scripts/build_text_whiten_matrix.py).
+        #   phrase_concept : NO runtime transform; instead point the cache
+        #                    directory at a phrase-aggregated text_part.f16.npy
+        #                    built by extract_clip_text_phrase_features.py.
+        siglip2_arg.add_argument('--text_embed_transform',
+            dest='text_embed_transform', type=str, default='none',
+            choices=['none', 'per_image_mean', 'global_residual',
+                     'partial_whiten', 'global_residual_whiten',
+                     'phrase_concept'],
+            help='v113/v117: pre-adapter transform applied to cached '
+                 'text_part_raw to mitigate CLIP/SigLIP text anisotropy. '
+                 'global_residual_whiten = keep slot 0 raw + subtract slot 0 '
+                 'from local slots 1..5 + apply partial whitening to the '
+                 'residualized local slots only. Pairs with '
+                 '--text_whiten_npz pointing at a "_localres.npz" bundle '
+                 'built by scripts/build_text_whiten_matrix.py '
+                 '--residualize_first.')
+        siglip2_arg.add_argument('--text_whiten_npz',
+            dest='text_whiten_npz', type=str, default=None,
+            help='Path to .npz with keys {mu [D], U [D,D], S [D], gamma} for '
+                 '--text_embed_transform partial_whiten.')
+        siglip2_arg.add_argument('--text_whiten_gamma',
+            dest='text_whiten_gamma', type=float, default=0.25,
+            help='Override the stored gamma in --text_whiten_npz (0 = identity, '
+                 '1 = full whitening). Default 0.25 (partial).')
+        siglip2_arg.add_argument('--text_whiten_eps',
+            dest='text_whiten_eps', type=float, default=1e-5)
+        siglip2_arg.add_argument('--residualize_visual_for_routing',
+            dest='residualize_visual_for_routing', action='store_true',
+            default=False,
+            help='Companion to --text_embed_transform global_residual: '
+                 'subtract patch-mean from visual_tokens and L2-normalize '
+                 'BEFORE feeding the Sinkhorn router; losses still see the '
+                 'unmodified visual_tokens.')
+        # v116: split text path so the transform feeds ONLY routing centroids.
+        # Losses (anchor, paired-aug NtXent dynamic tau, text-DNA path) then
+        # see the *original* untransformed text_part_tokens. The text_adapter
+        # is run twice (once on transformed raw for routing, once on original
+        # raw for loss) — small extra cost.
+        siglip2_arg.add_argument('--text_transform_routing_only',
+            dest='text_transform_routing_only', action='store_true',
+            default=False,
+            help='When --text_embed_transform != none, apply the transform '
+                 'ONLY to the routing-centroid path. Loss-side text embeddings '
+                 'use the original (untransformed) text_part_raw -> adapter '
+                 'output. Useful for isolating the OT-routing effect of the '
+                 'transform from its impact on downstream losses.')
 
         # ---------- LR scheduler ----------------------------------------
         # The legacy default `StepLR(step_size=10, gamma=1e-4)` killed lr
