@@ -1237,6 +1237,49 @@ class Config():
                  'uses 0.001 (relative to ntxent 1.0). 0 disables.')
         loss_arg.add_argument('--cibhash_temperature', type=float, default=0.3,
             help='v119: temperature for CIBHash NtXent (paper default 0.3).')
+        # v120: CIBHash extension knobs.
+        loss_arg.add_argument('--cibhash_mode',
+            dest='cibhash_mode', type=str, default='per_codebook',
+            choices=['per_codebook', 'global'],
+            help='v120: per_codebook (v119a default) splits the 36-bit hash '
+                 'into 6 codebook-groups and averages 6 NtXent losses; '
+                 'global flattens to one 36-bit hash and computes one '
+                 'NtXent on the full code (CIBHash original design).')
+        loss_arg.add_argument('--cibhash_dynamic_tau',
+            dest='cibhash_dynamic_tau', action='store_true', default=False,
+            help='v120e: enable text-cos dynamic temperature on the CIBHash '
+                 'per-codebook NtXent (mirrors v42 ntxent_dynamic_tau). '
+                 'Requires cibhash_mode=per_codebook.')
+        loss_arg.add_argument('--cibhash_dynamic_tau_alpha',
+            dest='cibhash_dynamic_tau_alpha', type=float, default=0.3,
+            help='v120e: alpha for cibhash dynamic tau. tau_ij = T * '
+                 '(1 + alpha * cos(text_i, text_j)). 0 disables.')
+        # ---------- v121: SwAV-style swapped balanced assignment loss --------
+        # Operates at the codeword-assignment level (BEFORE codon decoding).
+        # Each paired-aug view computes a soft codeword-assignment distribution
+        # P(k | z, m) = softmax(-codebook_distances[m] / tau_pred), and a
+        # Sinkhorn-balanced *target* Q is built that is row-uniform (each
+        # sample has a distribution) and column-uniform (each codeword used
+        # ~B/K times in the batch). The swapped CE pulls view1's prediction
+        # toward view2's balanced target and vice versa, encouraging
+        # (a) two-view assignment consistency and (b) batch-level codeword
+        # usage balance — directly counteracting the dead-codeword collapse
+        # the CIBHash regime induces. Applied to local codebooks (slot 1..5)
+        # by default; slot 0 (C_global) excluded unless --swav_assign_include_global.
+        loss_arg.add_argument('--lambda_swav_assign', type=float, default=0.0,
+            help='v121: weight for SwAV-style swapped balanced codeword-'
+                 'assignment loss (additive). 0 disables.')
+        loss_arg.add_argument('--swav_assign_tau', type=float, default=0.1,
+            help='v121: prediction temperature; logits = -distances/tau.')
+        loss_arg.add_argument('--swav_sinkhorn_eps', type=float, default=0.05,
+            help='v121: Sinkhorn entropy regularizer; smaller = sharper '
+                 'balanced target.')
+        loss_arg.add_argument('--swav_sinkhorn_iters', type=int, default=3,
+            help='v121: number of Sinkhorn-Knopp iterations.')
+        loss_arg.add_argument('--swav_assign_include_global',
+            dest='swav_assign_include_global', action='store_true', default=False,
+            help='v121: include slot 0 (C_global) in the swav-assign loss. '
+                 'Default OFF (loss only applies to local slots 1..5).')
         loss_arg.add_argument('--lambda_anchor',       type=float, default=0.05)
         # Bumped 0.01 -> 0.05: the DNA entropy + base-balance signal was
         # essentially zero at lambda=0.01 (loss * weight ~ 0.007); the

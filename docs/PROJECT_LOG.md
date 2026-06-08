@@ -334,6 +334,120 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-09 — v120 variable-separation (bij vs thNX on v119a) + v121a SwAV-style swapped-balanced assignment — **mechanism causal split established; v121a DISCARDED (SwAV ↔ VQ conflict)**
+
+🟡 mixed — v120 yields a clean causal decomposition; v121a is a definitive negative result.
+
+**Motivation.** v119a (CIBHash per-codebook on K=128) cleanly recovers +0.04 DNA-uniq over v118a but suffers 17 % dead codewords. Asking "which of v106b's bij + thNX components, restored individually, recovers dead/DNA without the v119a → v120c P@1 drop?" produces a precise causal table; the follow-up SwAV-assign attempt tests whether a *codeword-level* balanced-assignment supervision can replace bij/thNX cleanly. The user's working hypothesis was that SwAV-style Sinkhorn-balanced targets would (a) recover dead codewords without bij's mAP cost and (b) preserve P@1 unlike thNX. The experimental result rules this out.
+
+**Variable-separation matrix (all on K=128 + partial whitening γ=0.25 base; only the two listed knobs differ; rows are paired for differencing):**
+
+| Tag | bij | thNX | mAP | P@1 | DNA | dead | NMI |
+|---|:---:|:---:|---:|---:|---:|---:|---:|
+| v119a (baseline) | OFF | OFF | 0.7620 | **0.906** | 0.246 | 0.168 | 0.596 |
+| v120g (bij ONLY) | **0.1** | OFF | 0.7288 | 0.894 | **0.347** | 0.204 | 0.574 |
+| v120h (thNX ONLY) | OFF | **0.05** | **0.7673** | 0.852 ⚠ | 0.227 | **0.000** | 0.624 |
+| v120c (bij + thNX) | 0.1 | 0.05 | 0.7393 | 0.893 | 0.344 | 0.001 | 0.619 |
+
+**Single-knob causal Δs (vs v119a baseline):**
+
+| Loss | Δ mAP | Δ P@1 | Δ DNA | Δ dead | Interpretation |
+|---|---:|---:|---:|---:|---|
+| **bij alone** | **−0.033** | −0.013 | **+0.102** | +0.036 | DNA-recovery mechanism. Hurts mAP and P@1 mildly. *Does NOT recover dead.* |
+| **thNX alone** | +0.005 | **−0.054** | −0.019 | **−0.168** | Dead-codeword recovery mechanism. Hurts P@1 severely. *Does NOT improve DNA.* |
+| Additive prediction | −0.028 | −0.067 | +0.083 | −0.132 | naive sum |
+| **v120c (observed)** | −0.023 | −0.014 | +0.098 | −0.167 | **P@1 sub-additive** — bij absorbs thNX's P@1 damage |
+
+This is a clean separation: **bij is the DNA-uniq mechanism**, **thNX is the dead-codeword-recovery mechanism**, and **bij + thNX are anti-correlated on P@1** — bij's codon-distribution uniformity acts as a counterweight to thNX's text-clustering smoothing.
+
+**v120c reaches the v106b compositional ceiling.** Side-by-side:
+
+| Metric | v106b ref | v120c | Δ |
+|---|---:|---:|---:|
+| mAP | 0.7407 | 0.7393 | −0.001 (tie) |
+| P@1 | **0.917** | 0.893 | **−0.024 ⚠** |
+| DNA | 0.347 | 0.344 | −0.003 (tie) |
+| dead | 0.003 | 0.001 | −0.002 (tie) |
+| NMI | 0.604 | 0.619 | +0.015 |
+| B1 | 0.115 | **0.126** | **+0.011** |
+| B2 | 0.072 | **0.076** | **+0.004** |
+
+v120c reproduces v106b's DNA / dead / mAP / NMI envelope and **exceeds it on B1/B2**, at K=128 (scalable, unlike v106b's K=64 forced). **The only outstanding gap is P@1 −0.024**, which the v120 variable-separation analysis attributes specifically to v120c's bij component.
+
+**Ablations exhausted at K=128 + CIBHash:**
+
+| Tag | Knob | mAP | P@1 | dead | verdict |
+|---|---|---:|---:|---:|---|
+| v120e | CIBHash per-cb + text-cos dynamic-τ (α=0.3) on the CIBHash NtXent itself | 0.7451 | 0.888 | 0.202 | DISCARDED — false dawn (dead 6 % at epoch 9 climbs back to 30 %); softer push damages P@k long-term |
+| v120f | CIBHash global (full 36-bit, no per-cb split) | 0.7391 | 0.880 | 0.335 | DISCARDED — per-codebook decomposition is *not* the source of v119a's dead-codeword issue; global flatten loses per-codebook independence pressure → lowest NMI (0.529) → worst P@1 |
+
+NMI **sweet spot ≈ 0.59–0.62** is now empirically demonstrated (lower NMI ≠ always better; v120f's 0.529 has worst P@1 in the family). Compositional independence has a floor below which retrieval precision collapses.
+
+**v121a — SwAV-style swapped balanced assignment loss on local codewords — DISCARDED.**
+
+**Design.** A new additive loss `_loss_swav_assign` operating at the codeword-assignment level (BEFORE the codon decoder), separate from the bit-level CIBHash NtXent:
+
+1. `logits_v = -outputs["codebook_distances"][:, m, :] / tau`, `[B, K=128]`, per slot m
+2. `q_v = SinkhornKnopp(logits_v)`: log-domain Sinkhorn-Knopp (Caron et al., NeurIPS 2020, Algorithm 1) producing a balanced soft target with row sum = 1 (per-sample) and column sum ≈ B/K (uniform codeword usage), stop-gradient
+3. Swapped soft-label CE: `−mean[ q1 ⋅ log_softmax(logits2) + q2 ⋅ log_softmax(logits1) ]`
+4. Averaged over slots 1..5 (C_global excluded by default)
+5. Inactive codewords masked out of softmax + Sinkhorn
+
+Defaults: λ_swav_assign = 0.05, τ = 0.1, ε_sinkhorn = 0.05, iters = 3. **Additive only** — no existing loss touched. Unit-tested 5 scenarios pre-launch (slot-0 exclusion ✓, mask zeroing ✓, Sinkhorn marginals ✓, extreme-stress finite forward/grad ✓).
+
+**Result.** Catastrophic collapse:
+
+| Tag | mAP | per-cb-uniq | dead | NMI |
+|---|---:|---:|---:|---:|
+| v119a baseline | 0.7620 | 0.014 (~1.8/128 active) | 0.168 | 0.596 |
+| **v121a (SwAV-assign 0.05)** | **0.7078 (−0.054)** | **0.0035 (~0.5/128 active) ⚠⚠** | **0.484 ⚠⚠** | (low) |
+
+Per-codebook unique fraction stuck at 0.0035 throughout training — fewer than one codeword effectively active per codebook. The SwAV pressure did *not* balance usage; it accelerated codebook collapse.
+
+**Why SwAV-assign fails here (mechanism analysis):**
+
+In SwAV (Caron et al., 2020), the prototypes are learned end-to-end with the network and the cluster-assignment loss is the *main* training signal. Our setup has three independent losses operating in the same codeword space, **pointing in conflicting directions**:
+
+| Loss | "what z should do" w.r.t. codewords |
+|---|---|
+| VQ commitment (λ_vq 0.25 + λ_quant 0.05) | "be close to *one specific* codeword" (hard one-to-one) |
+| CIBHash NtXent (bit-level, K=128) | "produce a *unique* binary code per sample" (winner-take-all) |
+| **SwAV-assign target (NEW)** | "match a *uniform-column* balanced soft distribution across K codewords" (spread) |
+
+The Sinkhorn-balanced target is a *spread* pressure, but VQ commitment + CIBHash WTA together push toward *concentration*. The model resolves the conflict by collapsing to a single codeword per codebook (where the conflict trivially vanishes: with K_active=1, the prediction softmax is trivially the Sinkhorn target *and* the VQ commitment, and the bit-level CIBHash sees a constant code that still produces a valid 36-bit hash). This is the *single stable joint minimum* — pathological, but consistent with all three loss surfaces locally.
+
+The fundamental incompatibility: **VQ quantization assumes the codebook is a fixed discrete set of distinct anchors; SwAV's soft-balanced target assumes the prototypes are learnable embeddings free to drift.** These two cannot coexist as concurrent strong signals.
+
+**Possible rescue paths not pursued (per user "포기" decision):**
+
+- λ_swav_assign 0.05 → 0.005 (10× weaker as a gentle regularizer)
+- τ 0.1 → 0.5 (softer prediction polarity → less conflict)
+- ε_sinkhorn 0.05 → 0.2 (softer target)
+- Warmup: SwAV-assign OFF for first 20 epochs (let VQ settle first)
+- Detach codebook side of the SwAV gradient so only z (semantic visual tokens) receives the balance pressure, not the codebook itself
+
+The user's "포기" closes this line. The SwAV-assign infrastructure (config flags + `_loss_swav_assign` implementation + unit tests + v121a launch script) stays in the codebase as a documented negative result; future work can re-enable with a different recipe (e.g., on a non-VQ prototype model) without re-implementation.
+
+**Adopt / discard.**
+
+- **v106b** stays the cross-dataset paper-final candidate (Flickr DNA 0.347, P@1 0.917 + MSCOCO mAP 0.5581).
+- **v118a** stays the Flickr-only mAP champion (0.7721, K=128 scalable; loses DNA).
+- **v120c** is the *compositional* champion at K=128 (DNA + B1 + B2 + NMI all match or exceed v106b) but with P@1 −0.024 — appropriate for a "compositional-focused" paper framing.
+- **v119a** is the *retrieval-balanced* K=128 CIBHash baseline (best P@1 at K=128 = 0.906; dead 0.168 is the documented cost).
+- **v120e / v120f / v120g / v120h / v121a** — all DISCARDED. Reasons in the per-row table above.
+
+**Code touchpoints (this commit):**
+- `config.py`: `--cibhash_mode {per_codebook, global}` (v120f knob), `--cibhash_dynamic_tau` + `--cibhash_dynamic_tau_alpha` (v120e knob), and the SwAV-assign quintet `--lambda_swav_assign`, `--swav_assign_tau`, `--swav_sinkhorn_eps`, `--swav_sinkhorn_iters`, `--swav_assign_include_global`.
+- `loss_siglip2.py`: `_loss_cibhash_per_codebook` extended with `mode` + `text_part_raw + dynamic_tau_alpha`; new `_swav_sinkhorn_target` (log-domain SwAV Sinkhorn-Knopp with `inactive_mask` support) and `_loss_swav_assign` (slot 1..5 default; configurable include_global); both wired into `forward` additively + reported in the loss dict. No existing loss modified.
+- 6 new launch scripts: `train_v120{c,e,f,g,h}_…`, `train_v121a_v119a_swavAssign_K128_…`.
+
+**Suggested follow-ups (none scheduled).** The K=128 family is now fully characterized for paper purposes. Logical next directions if/when resumed:
+- **MSCOCO port** of v120c (the compositional champion) — does the K=128 compositional gain port where v118a's mAP gain didn't?
+- **Codon length L = 4** (K = 256 codons) — removes the 4³ = 64 codon ceiling; v106b's bij could be re-enabled at K=256 without pigeonhole collisions. Changes the 36-bit DNA spec to 48-bit (6 × 4 × 2).
+- **v119a + per-codebook InfoNCE regularizer** that pushes the *codebook itself* toward angular uniformity (a codebook-level orthogonality regularizer, not an assignment-level balance). This avoids the SwAV ↔ VQ conflict by acting on the codewords as parameters, not on the assignment distribution.
+
+---
+
 ## 2026-06-08 — v119a: CIBHash per-codebook loss on K=128 base — DNA-uniq recovers +0.04 over v118a but dead-codeword ratio jumps to 0.17
 
 🟢 active — alternative supervision design with paper-relevant trade-offs

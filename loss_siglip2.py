@@ -187,6 +187,16 @@ class DNACodonHashLoss(nn.Module):
         self.lambda_cibhash_ntxent = float(getattr(cfg, "lambda_cibhash_ntxent", 0.0))
         self.lambda_cibhash_kl     = float(getattr(cfg, "lambda_cibhash_kl",     0.0))
         self.cibhash_temperature   = float(getattr(cfg, "cibhash_temperature",   0.3))
+        # v120: CIBHash extension knobs (mode + text-cos dynamic tau).
+        self.cibhash_mode               = str(getattr(cfg, "cibhash_mode", "per_codebook"))
+        self.cibhash_dynamic_tau        = bool(getattr(cfg, "cibhash_dynamic_tau", False))
+        # v121: SwAV-style swapped balanced codeword-assignment loss.
+        self.lambda_swav_assign         = float(getattr(cfg, "lambda_swav_assign", 0.0))
+        self.swav_assign_tau            = float(getattr(cfg, "swav_assign_tau",    0.1))
+        self.swav_sinkhorn_eps          = float(getattr(cfg, "swav_sinkhorn_eps",  0.05))
+        self.swav_sinkhorn_iters        = int(getattr(cfg, "swav_sinkhorn_iters",  3))
+        self.swav_assign_include_global = bool(getattr(cfg, "swav_assign_include_global", False))
+        self.cibhash_dynamic_tau_alpha  = float(getattr(cfg, "cibhash_dynamic_tau_alpha", 0.0))
         # v91 (text-to-DNA-hash matching): MSE between image-derived
         # continuous_code and text-derived continuous_code (latter produced
         # by the model's parallel text path through the shared quantizer
@@ -906,50 +916,110 @@ class DNACodonHashLoss(nn.Module):
         continuous_code_view1: torch.Tensor,
         continuous_code_view2: torch.Tensor,
         temperature: float,
+        mode: str = "per_codebook",
+        text_part_raw: Optional[torch.Tensor] = None,
+        dynamic_tau_alpha: float = 0.0,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """v119: CIBHash NtXent + symmetric KL, computed independently per
-        codebook m=0..5 and averaged.
+        """v119/v120: CIBHash NtXent + symmetric Bernoulli KL on binary
+        hash, with two switches added in v120.
 
         Args:
-            continuous_code_view1: [B, 18, 4] paired-aug view 0 softmax probs.
-            continuous_code_view2: [B, 18, 4] paired-aug view 1 softmax probs.
+            continuous_code_view{1,2}: [B, 18, 4] paired-aug softmax probs.
             temperature: NtXent temperature (CIBHash paper default 0.3).
+            mode:
+                "per_codebook" (v119a default) — compute NtXent and KL
+                    independently per codebook m=0..5 on the 6-bit
+                    sub-vectors and average. Forces per-codebook
+                    discriminativity.
+                "global"        (v120f) — flatten bit_probs to [B, 36]
+                    and compute one NtXent + KL on the full DNA hash.
+                    Mirrors the original CIBHash design (one binary code
+                    per image).
+            text_part_raw: [B, M=6, D] per-slot CLIP text embeddings.
+                Required (with `dynamic_tau_alpha > 0`) for the v120e
+                text-cos dynamic-tau variant. Reuses the same pairwise
+                text similarity geometry as the per-codebook DNA-NtXent
+                (v42): for each positive/negative pair (i, j), the per-
+                codebook temperature is
+                    tau_ij^m = T * (1 + alpha * cos(t_i^m, t_j^m))
+                so semantically similar samples get a softer push (larger
+                tau) and semantically distant ones get a harder push
+                (smaller tau). Targets the uniformity-tolerance dilemma.
+                Only takes effect in `mode == "per_codebook"`.
+            dynamic_tau_alpha: alpha in [0, 1). 0 disables.
         Returns:
-            (ntxent_loss, kl_loss) — both scalar averages over 6 codebooks.
+            (ntxent_loss, kl_loss).
         """
         # Per-codebook bit probabilities
         bits_v1 = self._continuous_code_to_bit_probs(continuous_code_view1)   # [B, M=6, 6]
         bits_v2 = self._continuous_code_to_bit_probs(continuous_code_view2)   # [B, M=6, 6]
-
-        # Per-codebook binary hash via STE sign(p - 0.5)
+        # STE sign to binary hash
         z_v1 = self._ste_sign(bits_v1)                                         # [B, 6, 6] in {-1, +1}
         z_v2 = self._ste_sign(bits_v2)
-
-        B, M, K = bits_v1.shape                                                # M=6, K=6
+        B, M, K_bits = bits_v1.shape                                           # M=6, K_bits=6
         T = max(float(temperature), 1e-6)
 
-        ntxent_per_cb: list = []
-        kl_per_cb: list     = []
-        for m in range(M):
-            zm1 = z_v1[:, m, :]                                                # [B, 6]
-            zm2 = z_v2[:, m, :]                                                # [B, 6]
-            # CIBHash uses cosine similarity in 2(B-1)-negative InfoNCE.
-            # With z in {-1, +1}^6 the norm is sqrt(6); guard eps anyway.
-            z = torch.cat([zm1, zm2], dim=0)                                   # [2B, 6]
+        # ----- Global mode: flatten to one 36-bit hash, one NtXent + one KL
+        if mode == "global":
+            z1_flat = z_v1.reshape(B, M * K_bits)                              # [B, 36]
+            z2_flat = z_v2.reshape(B, M * K_bits)
+            z = torch.cat([z1_flat, z2_flat], dim=0)                           # [2B, 36]
             z_n = F.normalize(z, dim=-1, eps=1e-8)
-            sim = (z_n @ z_n.T) / T                                            # [2B, 2B]
-            # mask self-pairs and identify positive partners
+            sim = (z_n @ z_n.T) / T
             N = 2 * B
             eye = torch.eye(N, device=sim.device, dtype=torch.bool)
             sim = sim.masked_fill(eye, -1e9)
             pos_idx = torch.cat([
                 torch.arange(B, 2 * B, device=sim.device),
                 torch.arange(0, B,     device=sim.device),
-            ])                                                                 # [2B]
+            ])
+            ntxent = F.cross_entropy(sim, pos_idx)
+
+            pm1 = bits_v1.reshape(B, M * K_bits)
+            pm2 = bits_v2.reshape(B, M * K_bits)
+            kl = self._cibhash_kl(pm1, pm2)
+            return ntxent, kl
+
+        # ----- Per-codebook mode (v119a, possibly with text-cos dynamic tau)
+        use_dyn = (
+            text_part_raw is not None
+            and float(dynamic_tau_alpha) > 0.0
+            and text_part_raw.shape[0] == B
+            and text_part_raw.shape[1] == M
+        )
+        alpha = min(float(dynamic_tau_alpha), 0.999)
+
+        ntxent_per_cb: list = []
+        kl_per_cb: list     = []
+        for m in range(M):
+            zm1 = z_v1[:, m, :]                                                # [B, 6]
+            zm2 = z_v2[:, m, :]                                                # [B, 6]
+            z = torch.cat([zm1, zm2], dim=0)                                   # [2B, 6]
+            z_n = F.normalize(z, dim=-1, eps=1e-8)
+            sim_raw = z_n @ z_n.T                                              # [2B, 2B], cosine
+
+            if use_dyn:
+                # Per-pair temperature from text-cos for codebook m.
+                t_m = text_part_raw[:, m, :]                                    # [B, D]
+                t_m_n = F.normalize(t_m.float(), dim=-1)
+                cos_tt = (t_m_n @ t_m_n.T).clamp(-1.0, 1.0)                     # [B, B]
+                # Tile to [2B, 2B] (two views share the same text).
+                cos_tt_2 = cos_tt.repeat(2, 2)
+                tau_ij = T * (1.0 + alpha * cos_tt_2).clamp_min(1e-4)           # [2B, 2B]
+                sim = sim_raw / tau_ij
+            else:
+                sim = sim_raw / T
+
+            N = 2 * B
+            eye = torch.eye(N, device=sim.device, dtype=torch.bool)
+            sim = sim.masked_fill(eye, -1e9)
+            pos_idx = torch.cat([
+                torch.arange(B, 2 * B, device=sim.device),
+                torch.arange(0, B,     device=sim.device),
+            ])
             ntxent_m = F.cross_entropy(sim, pos_idx)
             ntxent_per_cb.append(ntxent_m)
 
-            # Per-codebook symmetric Bernoulli KL on the 6-bit prob vectors
             pm1 = bits_v1[:, m, :]                                              # [B, 6]
             pm2 = bits_v2[:, m, :]                                              # [B, 6]
             kl_m = self._cibhash_kl(pm1, pm2)
@@ -958,6 +1028,150 @@ class DNACodonHashLoss(nn.Module):
         ntxent = torch.stack(ntxent_per_cb).mean()
         kl     = torch.stack(kl_per_cb).mean()
         return ntxent, kl
+
+    # ------------------------------------------------------------------
+    # v121: SwAV-style swapped balanced codeword-assignment loss
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _swav_sinkhorn_target(
+        logits: torch.Tensor,
+        eps: float,
+        n_iters: int,
+        inactive_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """Log-domain Sinkhorn-Knopp balanced soft-assignment target.
+
+        Mirrors SwAV's `distributed_sinkhorn` (Caron et al., NeurIPS 2020,
+        Algorithm 1). Given assignment logits L [B, K], returns a doubly-
+        normalized soft target Q [B, K] where each row sums to 1 (per-
+        sample distribution over codewords) and each column sums to ~B/K
+        (uniform codeword usage across the batch).
+
+        Args:
+            logits: [B, K] (assignment logits; will be detached).
+            eps: Sinkhorn entropy regularizer; smaller => sharper target.
+            n_iters: number of row/col normalization passes.
+            inactive_mask: [K] bool, True = inactive codeword. Inactive
+                columns are forced to zero mass.
+        Returns:
+            Q [B, K], detached (teacher target).
+        """
+        assert logits.dim() == 2, (
+            f"[swav_sinkhorn] expected logits [B, K]; got {tuple(logits.shape)}"
+        )
+        B, K = logits.shape
+        # Stop-gradient on the target; rescale by eps.
+        L = logits.detach().float() / max(float(eps), 1e-12)
+        if inactive_mask is not None:
+            mask_b = inactive_mask.to(L.device).bool().unsqueeze(0).expand(B, -1)
+            L = L.masked_fill(mask_b, -1e9)
+        # Work in log-domain on Q^T [K, B] for SwAV's column-uniform marginal.
+        log_Q = L.t()                                                 # [K, B]
+        # Normalize total mass to 1 (joint distribution).
+        log_Q = log_Q - log_Q.flatten().logsumexp(dim=0)
+        log_K = math.log(K)
+        log_B = math.log(B)
+        for _ in range(int(max(n_iters, 0))):
+            # row-normalize: each row sums to 1/K (codeword marginal uniform)
+            log_Q = log_Q - log_Q.logsumexp(dim=1, keepdim=True) - log_K
+            # col-normalize: each column sums to 1/B (sample marginal uniform)
+            log_Q = log_Q - log_Q.logsumexp(dim=0, keepdim=True) - log_B
+        # Final column-sum should be 1 (per-sample distribution): multiply by B.
+        log_Q = log_Q + log_B
+        # Convert to probabilities; clamp to avoid -inf -> 0 numerical issues.
+        Q = log_Q.exp().t().clamp_min(0.0)                            # [B, K]
+        # Hard-zero inactive columns for safety, then renormalize rows.
+        if inactive_mask is not None:
+            Q = Q.masked_fill(inactive_mask.to(Q.device).bool().unsqueeze(0), 0.0)
+            row_sum = Q.sum(dim=-1, keepdim=True).clamp_min(1e-12)
+            Q = Q / row_sum
+        return Q.detach()
+
+    def _loss_swav_assign(
+        self,
+        distances_view1: torch.Tensor,
+        distances_view2: torch.Tensor,
+        tau_pred: float,
+        sinkhorn_eps: float,
+        sinkhorn_iters: int,
+        active_mask: Optional[torch.Tensor] = None,
+        include_global: bool = False,
+    ) -> torch.Tensor:
+        """v121: SwAV-style swapped balanced codeword-assignment loss
+        (paper-internal: 'codeword-level' supervision applied BEFORE the
+        codon decoder, complementing v119a's bit-level CIBHash NtXent).
+
+        For each codebook m in the local set (slot 1..5 by default):
+            logits_m^v = -distances_view{v}[:, m, :] / tau_pred           # [B, K]
+            Q_m^v       = Sinkhorn-balanced soft target from logits_m^v   # [B, K]
+            log_p_m^v   = log_softmax(logits_m^v, dim=-1)
+            loss_m      = -mean_b[ sum_k Q_m^1 * log_p_m^2 + Q_m^2 * log_p_m^1 ]
+
+        The swapped target encourages (a) paired-aug assignment consistency
+        and (b) batch-level codeword usage balance. Inactive codewords are
+        masked out of the softmax / Sinkhorn / loss.
+
+        Args:
+            distances_view{1,2}: [B, M, K_max] squared-L2 distances from
+                the quantizer (= outputs['codebook_distances'] for each view).
+            tau_pred: prediction softmax temperature.
+            sinkhorn_eps: Sinkhorn entropy regularizer.
+            sinkhorn_iters: Sinkhorn-Knopp iteration count.
+            active_mask: [M, K_max] bool, True = active codeword.
+            include_global: if True, include slot 0; default False (skip C_0).
+        Returns:
+            scalar loss = mean over considered slots of (CE(q1,p2) + CE(q2,p1)).
+        """
+        assert distances_view1.dim() == 3 and distances_view2.dim() == 3, (
+            f"[swav_assign] expected distances [B, M, K]; got "
+            f"{tuple(distances_view1.shape)} / {tuple(distances_view2.shape)}"
+        )
+        assert distances_view1.shape == distances_view2.shape, (
+            f"[swav_assign] view1/view2 shape mismatch: "
+            f"{tuple(distances_view1.shape)} vs {tuple(distances_view2.shape)}"
+        )
+        B, M, K = distances_view1.shape
+        T = max(float(tau_pred), 1e-6)
+        if active_mask is not None:
+            assert active_mask.dim() == 2 and active_mask.shape == (M, K), (
+                f"[swav_assign] active_mask shape {tuple(active_mask.shape)} "
+                f"!= expected ({M}, {K})"
+            )
+        # Local slots are 1..M-1; C_global (slot 0) is the default exclusion.
+        slot_indices = list(range(0, M)) if include_global else list(range(1, M))
+
+        losses: list = []
+        for m in slot_indices:
+            d1 = distances_view1[:, m, :]                                    # [B, K]
+            d2 = distances_view2[:, m, :]
+            logits1 = (-d1 / T)
+            logits2 = (-d2 / T)
+            inactive_m: Optional[torch.Tensor] = None
+            if active_mask is not None:
+                inactive_m = (~active_mask[m].bool()).to(logits1.device)     # [K]
+                mask_b = inactive_m.unsqueeze(0).expand(B, -1)
+                # Mask inactive logits to large negative so they vanish in
+                # both softmax (prediction) and Sinkhorn (target).
+                logits1 = logits1.masked_fill(mask_b, -1e9)
+                logits2 = logits2.masked_fill(mask_b, -1e9)
+            # Balanced teacher targets (detached).
+            q1 = self._swav_sinkhorn_target(
+                logits1, eps=sinkhorn_eps, n_iters=sinkhorn_iters,
+                inactive_mask=inactive_m,
+            )
+            q2 = self._swav_sinkhorn_target(
+                logits2, eps=sinkhorn_eps, n_iters=sinkhorn_iters,
+                inactive_mask=inactive_m,
+            )
+            # Soft-label cross-entropy (swapped).
+            log_p1 = F.log_softmax(logits1, dim=-1).clamp_min(-1e9)
+            log_p2 = F.log_softmax(logits2, dim=-1).clamp_min(-1e9)
+            ce_12 = -(q1 * log_p2).sum(dim=-1).mean()
+            ce_21 = -(q2 * log_p1).sum(dim=-1).mean()
+            losses.append(ce_12 + ce_21)
+        if not losses:
+            return distances_view1.new_zeros(())
+        return torch.stack(losses).mean()
 
     def _loss_quant(
         self, continuous_code: torch.Tensor, dna_hash_code_hard: torch.Tensor,
@@ -1796,6 +2010,29 @@ class DNACodonHashLoss(nn.Module):
         else:
             loss_ntxent = u.new_zeros(())
 
+        # v121: SwAV-style swapped balanced codeword-assignment loss on
+        # local codebooks (paired-augmented; None-safe). Computed BEFORE the
+        # codon decoder using outputs['codebook_distances'] from both views.
+        # Operates on slots 1..5 by default (--swav_assign_include_global
+        # flips slot 0 in).
+        loss_swav_assign_v = u.new_zeros(())
+        if outputs_view2 is not None and self.lambda_swav_assign > 0.0:
+            _d_v1 = outputs.get("codebook_distances")
+            _d_v2 = outputs_view2.get("codebook_distances")
+            if _d_v1 is not None and _d_v2 is not None:
+                _am = outputs.get("codebook_active_mask")
+                # Prefer view1's mask if both expose it; equality not asserted.
+                if _am is None and outputs_view2 is not None:
+                    _am = outputs_view2.get("codebook_active_mask")
+                loss_swav_assign_v = self._loss_swav_assign(
+                    _d_v1, _d_v2,
+                    tau_pred=self.swav_assign_tau,
+                    sinkhorn_eps=self.swav_sinkhorn_eps,
+                    sinkhorn_iters=self.swav_sinkhorn_iters,
+                    active_mask=_am,
+                    include_global=self.swav_assign_include_global,
+                )
+
         # v119: CIBHash-style per-codebook NtXent + symmetric KL on binary
         # hash (paired-augmented; None-safe). Activates only when the
         # corresponding lambdas are >0 and the trainer forwarded a second
@@ -1808,8 +2045,19 @@ class DNACodonHashLoss(nn.Module):
             u_v1 = outputs.get("continuous_code")
             u_v2 = outputs_view2.get("continuous_code")
             if u_v1 is not None and u_v2 is not None:
+                _ttp_raw = (
+                    outputs.get("text_global_feat")
+                    if getattr(self, "cibhash_dynamic_tau", False)
+                    else None
+                )
                 loss_cibhash_ntxent_v, loss_cibhash_kl_v = self._loss_cibhash_per_codebook(
                     u_v1, u_v2, temperature=self.cibhash_temperature,
+                    mode=getattr(self, "cibhash_mode", "per_codebook"),
+                    text_part_raw=_ttp_raw,
+                    dynamic_tau_alpha=(
+                        float(getattr(self, "cibhash_dynamic_tau_alpha", 0.0))
+                        if getattr(self, "cibhash_dynamic_tau", False) else 0.0
+                    ),
                 )
 
         # v28 reconstruction loss (None-safe). Active only when the model
@@ -1950,6 +2198,7 @@ class DNACodonHashLoss(nn.Module):
             + self.lambda_cw_xmodal       * loss_cw_xmodal
             + self.lambda_cibhash_ntxent  * loss_cibhash_ntxent_v
             + self.lambda_cibhash_kl      * loss_cibhash_kl_v
+            + self.lambda_swav_assign     * loss_swav_assign_v
         )
 
         # v106: codeword <-> DNA codon bijection losses (None-safe).
@@ -2090,6 +2339,7 @@ class DNACodonHashLoss(nn.Module):
             "loss_ntxent":       loss_ntxent,
             "loss_cibhash_ntxent": loss_cibhash_ntxent_v,
             "loss_cibhash_kl":     loss_cibhash_kl_v,
+            "loss_swav_assign":    loss_swav_assign_v,
             "loss_ortho_text":   loss_ortho_text,
             "loss_dna":          loss_dna,
             "loss_bu":           loss_bu,
