@@ -334,6 +334,139 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-08 — v118 (K=128) family + MSCOCO port — **K=128 Flickr champion (mAP 0.7721) does NOT port to MSCOCO (mAP −0.053 vs mscoco_v106b)**
+
+🟡 mixed: Flickr champion confirmed, MSCOCO generalization fails
+
+This entry covers four new runs that close out the v114-v117 anisotropy
+exploration (committed 2026-06-05) by sweeping K and porting the
+champion recipe to MSCOCO. See commit `6a51d56` for the full v114-v117
+analysis (anisotropy diagnostic, 12 variant metric table, cosine
+reduction analysis) — that content was inadvertently dropped from
+PROJECT_LOG.md by `scripts/reorder_project_log.py` (multiple
+`## Current state` sections caused the later parsed one to overwrite
+the newer one; see "Tooling note" at the end of this entry).
+
+**Setup.**
+
+| Tag | Modification (vs v115c) | Cache delta |
+|---|---|---|
+| v118a | `--codebook_size 64 → 128` (K-scaling on the bij-free recipe) | none (same Flickr25k cache) |
+| v118b | v118a + `--lambda_wasserstein 0.05 → 0.10` (stronger OT alignment) | none |
+| mscoco_v118a | v118a recipe ported to MSCOCO + Qwen3 captions, K=128 retained | needed `cache/mscoco_clip_v4plus/text_whiten.npz` (60k vectors from 10k has_text=True rows; top1 14.1 % variance — anisotropy is dataset-independent CLIP property) |
+
+**Flickr25k-CLIP results (unsupervised, hash_target_mode siglip_cos):**
+
+| Run | mAP | Δ vs v106b | P@1 | P@10 | DNA | NMI | B1 | B2 | dead | verdict |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| v106b ref | 0.7407 | — | **0.917** | 0.911 | **0.347** | 0.604 | **0.115** | **0.072** | 0.003 | ★ DNA + P@1 champion |
+| v115c (K=64 base) | 0.7622 | +0.022 | 0.888 | 0.897 | 0.212 | 0.598 | 0.100 | 0.062 | 0.003 | superseded |
+| **v118a (K=128)** | **0.7721** | **+0.031** | 0.900 | 0.903 | 0.207 | 0.628 | 0.107 | 0.064 | 0.004 | ⭐ **Flickr mAP champion** |
+| v118b (K=128 + wass 0.10) | 0.7698 | +0.029 | 0.904 | 0.907 | 0.216 | 0.630 | 0.109 | 0.067 | 0.000 | tied with v118a (Δ mAP −0.002, Δ DNA +0.009) |
+
+- **v118a** is the new Flickr25k-CLIP unsupervised mAP champion of the
+  v9x family, beating v115c by +0.010 mAP and effectively *tied with
+  v101c (0.7729)* — but K=128 is fully scalable while v101c was a
+  one-shot recipe.
+- **v118b** confirms wasserstein doubling is a wash on v118a: tiny
+  mAP loss (−0.002) traded for DNA-uniq gain (+0.009) and zero dead
+  codewords. Within noise; not adopted but documents that strong-OT
+  is benign on K=128 (unlike v117d on v115c K=64 where it regressed).
+
+**K-scaling pigeonhole — quantitative check:**
+
+K=128 codewords mapping to 4³=64 codons forces at minimum 2× DNA-level
+collision (pigeonhole). Naive expectation: DNA-uniq drops to ~0.10
+(half of v115c's 0.21). Observed: v118a DNA-uniq = 0.207 ≈ v115c's
+0.212. **The pigeonhole bound is far from tight** — the model
+distributes codeword→codon collisions across the *sample* distribution
+so that two codewords that decode to the same codon still produce
+distinct full-DNA sequences when combined with the other 5
+codebooks. K-scaling is *not* DNA-bounded in practice.
+
+**MSCOCO leaderboard (unsupervised, K=128, hash_target_mode siglip_cos):**
+
+| Run | mAP | Δ vs mscoco_v106b | P@1 | DNA | NMI | dead | verdict |
+|---|---:|---:|---:|---:|---:|---:|---|
+| mscoco_v102a (no bij) | 0.5440 | −0.014 | 0.752 | 0.116 | 0.587 | 0.026 | superseded |
+| mscoco_v103a (eta=0.3) | 0.5323 | −0.026 | 0.723 | 0.107 | 0.559 | 0.160 | discarded |
+| **mscoco_v106b (bij ON)** | **0.5581** | — | **0.791** | **0.125** | 0.671 | 0.023 | ★ MSCOCO paper-final |
+| mscoco_v118a (bij OFF + partWhiten γ=0.25) | 0.5053 | **−0.053 ⚠** | 0.704 | 0.078 | 0.664 | 0.001 | **DISCARDED — does NOT port** |
+| External: CIBHash-CLIP | 0.5842 | +0.026 | n/a | 0.967 | n/a | n/a | external baseline |
+
+- **mscoco_v118a regresses on every retrieval metric** vs the bij-ON
+  mscoco_v106b (mAP −0.053, P@1 −0.087, DNA −0.047). The clean
+  dead-codeword count (0.001) and matched NMI (0.664 vs 0.671)
+  confirm the model trained fine; the recipe just isn't competitive
+  on MSCOCO.
+- **Hypothesis for the cross-dataset asymmetry.** Flickr25k has 100 %
+  has_text coverage (25k/25k captions) so the v118a recipe — which
+  keeps `text_hash_ntxent 0.05` as the *only* cross-modal contrastive
+  — has strong batch-level positives. MSCOCO has 8.2 % has_text
+  coverage (10k/122k captions), starving the InfoNCE loss of positives
+  in most batches. The Sinkhorn codeword-codon bijection
+  (`lambda_codeword_codon_sinkhorn 0.1`) that v118a removes was
+  providing dataset-wide structural signal that does not depend on
+  per-batch text availability — its removal hurts MSCOCO
+  disproportionately.
+
+**Adopt / discard.**
+
+- **v106b stays the cross-dataset paper-final candidate** (Flickr DNA
+  0.347 + MSCOCO mAP 0.5581 + P@1 0.791). The bijection +
+  MSE-text-hash combo generalizes; the v118 recipe does not.
+- **v118a is the Flickr-only mAP champion** (0.7721, scalable to
+  K=128+); useful as a Flickr-specific footnote but not part of the
+  cross-dataset paper-final pair.
+- v118b — DISCARDED (within-noise vs v118a).
+- mscoco_v118a — DISCARDED.
+
+**Updated leaderboard (Flickr25k-CLIP, unsupervised).**
+
+| Tag | mAP | DNA | NMI | K | role |
+|---|---:|---:|---:|---:|---|
+| **v106b** | 0.7407 | **0.347** | 0.604 | 64 (forced) | ★ cross-dataset paper-final (DNA + P@1 champion both datasets) |
+| v101c | 0.7729 | 0.231 | 0.487 | 64 | absolute mAP SOTA (Flickr only) |
+| v118a | 0.7721 | 0.207 | 0.628 | **128 (scalable)** | Flickr mAP champion in K-scalable regime |
+| v115c | 0.7622 | 0.212 | 0.598 | 64 | superseded by v118a |
+| v107a | 0.7624 | 0.213 | 0.623 | 64 | NMI champion (legacy) |
+
+**Tooling note (action item).** `scripts/reorder_project_log.py`
+silently dropped the v114-v117 entry from commit `6a51d56` because two
+`## Current state (...)` sections coexisted in the file at commit
+time. The script's `classify_and_sort` assigns
+`current_state = sec` (overwrite) whenever it sees a `## Current
+state` line, so the LAST one parsed wins and the earlier one
+disappears. Fix: switch to `keep_only_first_current_state` semantics
+OR convert "Current state" snapshots to dated entries (the latter is
+what this 2026-06-08 entry does). For now, **do not place new content
+under `## Current state`**; always create a dated `## YYYY-MM-DD —`
+section, which the script handles correctly.
+
+**Code paths (already committed in `6a51d56`):**
+- `config.py`: `--text_embed_transform`, `--text_whiten_*`, `--residualize_visual_for_routing`, `--text_transform_routing_only`
+- `model_siglip2.py`: transform application, whitening buffer load, routing-only swap
+- `scripts/build_text_whiten_matrix.py`: `--residualize_first` flag
+- `extract_clip_text_phrase_features.py`: phrase-level cache builder
+
+**New launch scripts (this commit):**
+- `scripts/train_v118a_v115c_K128_flickr25k_clip.sh`
+- `scripts/train_v118b_v118a_wasserstein0.10_K128_flickr25k_clip.sh`
+- `scripts/train_mscoco_v118a_qwen3.sh`
+
+**Suggested follow-ups.**
+- v118a is the Flickr-only mAP champion at K-scalable regime; further
+  Flickr-side gains could come from K=256 sweep or stacking
+  γ=0.25 whitening with a milder regularizer (e.g. `lambda_wasserstein`
+  back to 0.05, since v118b showed +0.10 was a wash). Not paper-blocking.
+- For MSCOCO: the right next experiment is `mscoco_v118a + bij ON`
+  (restore `--lambda_codeword_codon_sinkhorn 0.1`) to isolate whether
+  the partial whitening alone helps MSCOCO when bij stays. If yes:
+  mscoco_v106b + partWhiten becomes the MSCOCO upgrade candidate.
+  If no: stop the cross-dataset whitening exploration on MSCOCO.
+
+---
+
 ## 2026-06-03 — v111a/b/c Sinkhorn relaxation and top-k teacher ablations — DISCARDED
 
 🔴 discarded
