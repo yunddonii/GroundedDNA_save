@@ -190,6 +190,19 @@ class Config():
         # ImageNet100 train=13K, MSCOCO=10K) -- override per dataset if needed.
         siglip2_arg.add_argument('--codebook_size', dest='codebook_size',
             type=int, default=32)
+        # v122: codon length per codebook (L). The DNA hash has shape
+        # [N, M*L] base indices in [0..3] = A/C/G/T = 2 bits each, so the
+        # total hash length is M*L*2 bits (= 36 at default L=3, M=6).
+        # The Sinkhorn codeword-codon bijection (--lambda_codeword_codon_sinkhorn)
+        # requires K == 4^L per codebook; default L=3 forces K=64, while L=4
+        # frees K up to 256 and removes the K=128 pigeonhole forced collision
+        # diagnosed in the v118a → v120 family. d_model must be divisible by L.
+        siglip2_arg.add_argument('--num_codons_per_codebook',
+            dest='num_codons_per_codebook', type=int, default=3,
+            choices=[3, 4],
+            help='v122: number of codon positions per codebook (default 3 '
+                 '→ 36-bit DNA, K up to 64 codons; 4 → 48-bit DNA, K up to '
+                 '256 codons). Requires d_model %% L == 0.')
         # ---------- C_global slot source -------------------------------
         # `mean_pool`     -- (default) mean of visual_tokens (post-adapter).
         # `siglip2_global` -- SigLIP2's MAP-pooled + projection-head output
@@ -366,6 +379,16 @@ class Config():
                  'codebook keeps ceil(N / M * capacity) tokens per sample, '
                  'with top-1 row fallback if all codebooks for a patch are '
                  'filtered out.')
+        siglip2_arg.add_argument('--routing_codebook_choice_beta',
+            dest='routing_codebook_choice_beta', type=float, default=1.0,
+            help='v124: blend strength for --routing_codebook_choice. '
+                 '1.0 reproduces the hard v85 expert-choice filter; values '
+                 'in (0,1) softly interpolate from the pre-choice routing '
+                 'matrix to the filtered expert-choice matrix.')
+        siglip2_arg.add_argument('--routing_codebook_choice_warmup_epochs',
+            dest='routing_codebook_choice_warmup_epochs', type=int, default=0,
+            help='v124: linearly warm up routing_codebook_choice_beta over '
+                 'this many epochs. 0 disables warm-up.')
         # v55: Unbalanced OT (Chizat et al. NeurIPS 2018). KL-relaxed
         # marginals let some patches have row sum < 1/N (i.e. patches that
         # are uninformative — background, blur — can be partially "rejected"
@@ -882,6 +905,26 @@ class Config():
             choices=['local', 'all'],
             help='v119 companion to --routed_cls_add_gamma. local adds CLS '
                  'only to C_1..C_5; all also adds it to C_0.')
+        siglip2_arg.add_argument('--local_residual_quant',
+            dest='local_residual_quant', action='store_true', default=False,
+            help='v122: before codeword assignment, remove each local slot '
+                 "token's projection onto C_0/global. C_0 itself is kept "
+                 'unchanged. Default off.')
+        siglip2_arg.add_argument('--local_residual_gamma',
+            dest='local_residual_gamma', type=float, default=1.0,
+            help='v122: strength for --local_residual_quant projection '
+                 'removal. 1.0 = full orthogonal residual.')
+        siglip2_arg.add_argument('--local_residual_detach_global',
+            dest='local_residual_detach_global',
+            action=argparse.BooleanOptionalAction, default=True,
+            help='v122: detach C_0/global when computing the projection '
+                 'direction. Default True keeps C_0 from being optimized '
+                 'only to explain away local residuals.')
+        siglip2_arg.add_argument('--local_residual_text',
+            dest='local_residual_text', action='store_true', default=False,
+            help='v122/v123: apply the same C_0-residualization to '
+                 'text_part_tokens before the text-only DNA/codeword path '
+                 'and codeword text-prototype loss.')
 
         # ---------- LR scheduler ----------------------------------------
         # The legacy default `StepLR(step_size=10, gamma=1e-4)` killed lr
@@ -1144,6 +1187,27 @@ class Config():
             type=float, default=0.07,
             help='Temperature for v93 cross-modal codeword InfoNCE. '
                  'Default 0.07 (CLIP-style).')
+        loss_arg.add_argument('--lambda_codeword_text_proto',
+            type=float, default=0.0,
+            help='v123: weight for codeword-level text prototype alignment. '
+                 'Maintains an EMA text prototype per (codebook, codeword) '
+                 'from assigned samples and classifies each visual '
+                 'quantizer input against those prototypes. 0 disables.')
+        loss_arg.add_argument('--codeword_text_proto_tau',
+            type=float, default=0.1,
+            help='v123: temperature for codeword text-prototype CE.')
+        loss_arg.add_argument('--codeword_text_proto_momentum',
+            type=float, default=0.95,
+            help='v123: EMA momentum for per-codeword text prototypes.')
+        loss_arg.add_argument('--codeword_text_proto_min_count',
+            type=int, default=4,
+            help='v123: minimum EMA assignment count before a text prototype '
+                 'can be used as a negative/target.')
+        loss_arg.add_argument('--codeword_text_proto_include_global',
+            dest='codeword_text_proto_include_global',
+            action='store_true', default=False,
+            help='v123: include slot 0/C_global in text-prototype alignment. '
+                 'Default false focuses the loss on local codebooks.')
         # v97: replace text_hash MSE with symmetric NtXent treating the
         # text-derived continuous_code [B, 18, 4] as an augmented view of
         # the image-derived continuous_code. Positive pair = same sample's

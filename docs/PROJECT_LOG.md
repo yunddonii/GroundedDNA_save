@@ -334,6 +334,75 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-09 — v122b/v123c/v124c local-residual quantization + text-prototype + soft expert-choice routing — **v124c near-SOTA mid checkpoint; v123c DISCARDED as-is**
+
+🟡 mixed — v122b is an active structural primitive; v123c's direct codeword-text CE is discarded as-is; v124c is a promising mid-checkpoint trade-off that needs annealing / early-stop discipline.
+
+**Motivation.** After v121a showed that SwAV-style balanced assignment conflicts with the VQ/codeword geometry, the next contribution-oriented direction was to make the global-local factorization explicit: let C0 keep the shared/global component, force C1..C5 to quantize residual local factors, then selectively add text supervision and softer capacity routing on top. This family tests three ordered combinations rather than isolated one-off knobs.
+
+**Setup.**
+
+| Tag | Modification | Implementation |
+|---|---|---|
+| v122b | C0-orthogonal local residual quantization + residual text path | `--local_residual_quant --local_residual_gamma 1.0 --local_residual_text`; C0 is unchanged, C1..C5 quantize `z_m - proj_C0(z_m)` before VQ/text paths |
+| v123c | v122b + codeword-level text prototype CE | `--lambda_codeword_text_proto 0.02`, EMA prototype per `(codebook, codeword)`, mature text prototypes classify local visual quantizer inputs |
+| v124c | v123c + soft expert-choice routing | `--routing_codebook_choice --routing_codebook_choice_capacity 1.5 --routing_codebook_choice_beta 0.3 --routing_codebook_choice_warmup_epochs 10`; blends original top-p routing with expert-choice capacity filtering |
+
+**Final metrics.** All runs use Flickr25k setting1, CLIP backbone, K=128, partial whitening γ=0.25, 60 epochs. `DNA uniq` is DB-split final DNA-base unique ratio from `evaluation_siglip2_base.json`; `cb-tuple uniq` is the assignment-tuple count from `pairwise_nmi.json`.
+
+| Run | Final mAP | Best mid mAP | P@1 | P@10 | DNA uniq | cb-tuple uniq | NMI | B1 lift | Verdict |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| v122b | **0.7607** | ep24 0.7617 | **0.9285** | 0.9167 | 0.3390 | 14,748 | 0.6349 | 0.1265 | 🟢 carry as structural primitive |
+| v123c | 0.7417 | ep9 0.7584 | 0.8950 | 0.9075 | **0.3452** | 15,245 | 0.6229 | 0.1212 | 🔴 discard direct CE as-is |
+| v124c | 0.7572 | **ep24 0.7686** | 0.9240 | 0.9162 | 0.3353 | **15,362** | 0.6237 | **0.1266** | 🟡 promising; final over-trains |
+
+**Mid-eval dynamics.**
+
+| Run | ep9 mAP / DNA | ep24 mAP / DNA | ep59 mAP / DNA | Routing note |
+|---|---:|---:|---:|---|
+| v122b | 0.7588 / 0.5428 | 0.7617 / 0.6134 | 0.7547 / 0.6603 | effective-k decays 4.73 → 3.32; top1 appears late |
+| v123c | 0.7584 / 0.5595 | 0.7442 / 0.6038 | 0.7401 / 0.6663 | text-proto CE rises 4.48 → 4.70 and retrieval degrades |
+| v124c | 0.7586 / 0.6028 | **0.7686 / 0.6426** | 0.7568 / 0.6754 | beta-soft expert choice gives the best sweet spot before late diversity drift |
+
+**Codebook drop ablation (subset 2,000 queries).**
+
+| Run | baseline | ΔC0 | ΔC1 | ΔC2 | ΔC3 | ΔC4 | ΔC5 | Interpretation |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| v122b | 0.7607 | -0.0101 | -0.0040 | -0.0054 | -0.0018 | -0.0035 | -0.0030 | all codebooks contribute; C0 still dominant |
+| v123c | 0.7417 | -0.0102 | -0.0071 | -0.0043 | -0.0017 | -0.0036 | **+0.0020** | direct text-proto creates one anti-contributing local slot |
+| v124c | 0.7572 | -0.0111 | -0.0012 | -0.0020 | -0.0038 | -0.0063 | -0.0025 | no anti-contributing slots; C4 becomes the strongest local branch |
+
+**Key findings.**
+
+1. **Local residual quantization is the cleanest contribution primitive in this batch.** v122b recovers strong final precision (P@1 0.9285) while making every local codebook useful under drop ablation. This supports the paper story that C0 should model shared/global content and local codebooks should quantize complementary residual factors.
+2. **Direct codeword-text prototype CE is too rigid.** v123c improves cb-tuple diversity (15,245) and DNA unique slightly, but final mAP/P@1 collapse and C5 turns anti-contributing. The rising `val_loss_codeword_text_proto` indicates that the EMA classifier chases moving assignments instead of stabilizing semantic codewords.
+3. **Soft expert-choice routing is the best ordered combination, but only at the mid checkpoint.** v124c reaches 0.7686 mAP at ep24 with DNA 0.6426 in the mid-eval proxy, then drifts to 0.7572 final as the model keeps trading precision for diversity. The routing hardening signal is too late: top1 remains 0 through ep44, then appears after the best retrieval point has passed.
+4. **Compositional interpretability is stable, not solved by these losses.** B1/B2 lifts stay around 0.126 / 0.079 across v122b and v124c. The batch mainly improves code utilization, local contribution, and precision trade-off rather than changing the qualitative concept atlas story.
+
+**Code added.**
+
+- `model_siglip2.py`: `_remove_global_projection(...)`, local residual quantizer/text inputs, `quantizer_input` and `codeword_text_tokens` outputs.
+- `loss_siglip2.py`: `_loss_codeword_text_proto(...)` with EMA text prototypes and logged `loss_codeword_text_proto`.
+- `models/semantic_router.py`: `codebook_choice_beta` soft blend between original routing and expert-choice filtered routing.
+- `config.py` / `train_siglip2.py`: default-off CLI flags and logging slots. Legacy behavior is preserved when all new weights/flags are off.
+- `extraction_siglip2.py`: extraction arrays infer `M` and `L` from the model instead of hardcoding 18/36, so the default L=3 path is unchanged while optional v122 L-generalized experiments remain extractable.
+- Scripts: `scripts/train_v122b_v120c_localResidualQuant_text_K128_flickr25k_clip.sh`, `scripts/train_v123c_v122b_codewordTextProto_K128_flickr25k_clip.sh`, `scripts/train_v124c_v123c_softExpertChoice_K128_flickr25k_clip.sh`.
+
+**Result directories.**
+
+- `result/260609+flickr25k_setting1_v122b_v120c_localResidualQuant_text_g100_K128_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001/`
+- `result/260609+flickr25k_setting1_v123c_v122b_codewordTextProto_lam002_K128_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001/`
+- `result/260609+flickr25k_setting1_v124c_v123c_softExpertChoice_cap15_beta03_wu10_K128_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001/`
+
+**Next experiments.**
+
+1. **v125a:** v124c with `lambda_codeword_text_proto` annealed to zero after epoch 20-25, or disabled after the first best-window. Goal: keep the ep24 precision/diversity sweet spot without late CE drift.
+2. **v125b:** v122b + soft expert-choice routing **without** codeword-text prototype CE. This isolates whether v124c's mid gain comes from routing capacity smoothing rather than the unstable text classifier.
+3. **v125c:** target effective-k directly instead of fixed beta. Keep effective-k around 4.4-4.7 until ep25, then stop hardening; do not let late top1 routing appear after retrieval has peaked.
+4. Port to MSCOCO only after one of the v125 variants matches v124c's ep24 peak with a stable final checkpoint.
+
+---
+
 ## 2026-06-09 — v120 variable-separation (bij vs thNX on v119a) + v121a SwAV-style swapped-balanced assignment — **mechanism causal split established; v121a DISCARDED (SwAV ↔ VQ conflict)**
 
 🟡 mixed — v120 yields a clean causal decomposition; v121a is a definitive negative result.

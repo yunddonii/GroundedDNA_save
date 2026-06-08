@@ -127,6 +127,7 @@ class SemanticSinkhornRouter(nn.Module):
         adaptive_topp_use_entropy: bool = False,
         perplexity_topk: bool = False,
         codebook_choice_capacity: Optional[float] = None,
+        codebook_choice_beta: float = 1.0,
         uot_lambda_a:     Optional[float] = None,
         uot_lambda_b:     Optional[float] = None,
     ) -> Dict[str, torch.Tensor]:
@@ -367,7 +368,13 @@ class SemanticSinkhornRouter(nn.Module):
                 )
                 P_masked = P_before_choice * keep.to(P_before_choice.dtype)
                 row_sum = P_masked.sum(dim=-1, keepdim=True).clamp_min(1e-12)
-                P = P_masked / row_sum * target_row_sum
+                P_choice = P_masked / row_sum * target_row_sum              # [B, N, M]
+                assert P_choice.shape == P_before_choice.shape, (
+                    f"codebook-choice output shape mismatch: "
+                    f"{tuple(P_choice.shape)} vs {tuple(P_before_choice.shape)}"
+                )
+                beta = max(0.0, min(float(codebook_choice_beta), 1.0))
+                P = (1.0 - beta) * P_before_choice + beta * P_choice
 
         # ---- 5) weighted pooling: P^T @ V then col-normalize ------------
         # semantic_v[b, m, :] = sum_n P[b, n, m] * v[b, n, :] / sum_n P[b, n, m]

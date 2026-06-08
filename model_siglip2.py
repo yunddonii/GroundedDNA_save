@@ -705,15 +705,25 @@ class CodonHead(nn.Module):
         residual_split: bool = False,
         residual_gate: bool = False,
         use_full_linear: bool = False,
+        num_codons: int = 3,                 # v122: L = codon-positions per codebook
     ) -> None:
         super().__init__()
-        if d_model % 3 != 0:
+        self.num_codons: int = int(num_codons)
+        if self.num_codons < 1:
+            raise ValueError(f"[CodonHead] num_codons must be >= 1; got {self.num_codons}")
+        if d_model % self.num_codons != 0:
             raise ValueError(
-                f"[CodonHead] d_model must be divisible by 3 for codon-position "
-                f"heads; got d_model={d_model}."
+                f"[CodonHead] d_model must be divisible by num_codons={self.num_codons} "
+                f"for codon-position heads; got d_model={d_model}."
+            )
+        if self.num_codons != 3 and residual_split:
+            raise ValueError(
+                "[CodonHead] residual_split is hard-wired to 3 positions "
+                "(semantic for pos 0,1; residual for pos 2); incompatible "
+                f"with num_codons={self.num_codons}."
             )
         self.d_model: int = int(d_model)
-        self.chunk:   int = self.d_model // 3
+        self.chunk:   int = self.d_model // self.num_codons
         # v62 (Option A): residual-conditioned codon head.
         self.use_residual: bool = bool(use_residual)
         # v69b (Exp 2): residual-split — codon position 0,1 from codeword,
@@ -764,7 +774,7 @@ class CodonHead(nn.Module):
             )
         if self.use_text_anchor:
             self.proto = nn.Parameter(
-                torch.randn(3, 4, self.chunk) / math.sqrt(self.chunk)
+                torch.randn(self.num_codons, 4, self.chunk) / math.sqrt(self.chunk)
             )
             self.fc = None
         elif self.residual_split:
@@ -774,9 +784,9 @@ class CodonHead(nn.Module):
             self.residual_fc      = nn.Linear(self.chunk, 4)
             self.fc = None
         elif self.position_specific_head:
-            # v69a: 3 independent Linear(chunk, 4) layers
+            # v69a: L independent Linear(chunk, 4) layers
             self.fc_pos = nn.ModuleList(
-                [nn.Linear(self.chunk, 4) for _ in range(3)]
+                [nn.Linear(self.chunk, 4) for _ in range(self.num_codons)]
             )
             self.fc = None
         elif self.head_hidden_dim > 0:
@@ -786,9 +796,9 @@ class CodonHead(nn.Module):
                 nn.Linear(self.head_hidden_dim, 4),
             )
         elif self.use_full_linear:
-            # v105: Linear(d_model, 3*4) -> view [B, 3, 4]. Each (position, base)
+            # v105: Linear(d_model, L*4) -> view [B, L, 4]. Each (position, base)
             # output uses ALL d_model dims instead of just its chunk.
-            self.fc = nn.Linear(self.d_model, 12)
+            self.fc = nn.Linear(self.d_model, self.num_codons * 4)
         else:
             self.fc = nn.Linear(self.chunk, 4)
         if (
@@ -798,7 +808,7 @@ class CodonHead(nn.Module):
             and not self.position_specific_head
         ):
             self.fc_pos_adapter = nn.ModuleList(
-                [nn.Linear(self.chunk, 4) for _ in range(3)]
+                [nn.Linear(self.chunk, 4) for _ in range(self.num_codons)]
             )
             for adapter in self.fc_pos_adapter:
                 nn.init.zeros_(adapter.weight)
@@ -835,10 +845,11 @@ class CodonHead(nn.Module):
             )                                                              # [B]
             gate_mean = gate.mean().detach()
             residual = gate.unsqueeze(-1) * residual                       # [B, D]
-        # v69b (Exp 2): residual-split path. Bypasses concat/input_proj.
+        L = self.num_codons
+        # v69b (Exp 2): residual-split path (3-position only; guarded at __init__).
         if residual_active and self.residual_split:
-            q_chunks = x.view(B, 3, self.chunk)                            # [B, 3, chunk]
-            r_chunks = (gamma * residual).view(B, 3, self.chunk)
+            q_chunks = x.view(B, L, self.chunk)                            # [B, L, chunk]
+            r_chunks = (gamma * residual).view(B, L, self.chunk)
             l0 = self.semantic_fc_pos0(q_chunks[:, 0, :])                  # [B, 4]
             l1 = self.semantic_fc_pos1(q_chunks[:, 1, :])                  # [B, 4]
             l2 = self.residual_fc(r_chunks[:, 2, :])                       # [B, 4]
@@ -853,7 +864,7 @@ class CodonHead(nn.Module):
                 )
                 combined = torch.cat([x, gamma * residual], dim=-1)      # [B, 2D]
                 x = self.input_proj(combined)                             # [B, D]
-            h = x.view(B, 3, self.chunk)                                  # [B, 3, D/3]
+            h = x.view(B, L, self.chunk)                                  # [B, L, D/L]
             # v66 text-anchored prototype head
             if self.use_text_anchor:
                 h_n     = F.normalize(h, dim=-1)
@@ -861,7 +872,7 @@ class CodonHead(nn.Module):
                 logits  = torch.einsum('bpc,pkc->bpk', h_n, proto_n) / self.anchor_temperature
                 loss_text_anchor = torch.zeros((), device=x.device, dtype=x.dtype)
                 if text_chunks is not None and self.training:
-                    t        = text_chunks.view(B, 3, self.chunk)
+                    t        = text_chunks.view(B, L, self.chunk)
                     t_n      = F.normalize(t, dim=-1)
                     text_logits = torch.einsum('bpc,pkc->bpk', t_n, proto_n) / self.anchor_temperature
                     target   = text_logits.argmax(dim=-1).detach()
@@ -871,20 +882,20 @@ class CodonHead(nn.Module):
             elif self.position_specific_head:
                 # v69a: per-position independent Linear(chunk, 4)
                 logits = torch.stack(
-                    [self.fc_pos[p](h[:, p, :]) for p in range(3)], dim=1
-                )                                                          # [B, 3, 4]
+                    [self.fc_pos[p](h[:, p, :]) for p in range(L)], dim=1
+                )                                                          # [B, L, 4]
                 loss_text_anchor = torch.zeros((), device=x.device, dtype=x.dtype)
             elif self.use_full_linear:
-                # v105: full-input decoder. Linear(d_model, 12) on the WHOLE
-                # codeword (no chunk partition) -> reshape to [B, 3, 4].
-                logits = self.fc(x).view(B, 3, 4)                          # [B, 3, 4]
+                # v105: full-input decoder. Linear(d_model, L*4) on the WHOLE
+                # codeword (no chunk partition) -> reshape to [B, L, 4].
+                logits = self.fc(x).view(B, L, 4)                          # [B, L, 4]
                 loss_text_anchor = torch.zeros((), device=x.device, dtype=x.dtype)
             else:
-                logits = self.fc(h)                                       # [B, 3, 4]
+                logits = self.fc(h)                                       # [B, L, 4]
                 if self.fc_pos_adapter is not None:
-                    # h: [B, 3, chunk] -> delta: [B, 3, 4]
+                    # h: [B, L, chunk] -> delta: [B, L, 4]
                     delta = torch.stack(
-                        [self.fc_pos_adapter[p](h[:, p, :]) for p in range(3)],
+                        [self.fc_pos_adapter[p](h[:, p, :]) for p in range(L)],
                         dim=1,
                     )
                     assert delta.shape == logits.shape, (
@@ -893,9 +904,9 @@ class CodonHead(nn.Module):
                     )
                     logits = logits + delta
                 loss_text_anchor = torch.zeros((), device=x.device, dtype=x.dtype)
-        cont   = F.softmax(logits, dim=-1)                               # [B, 3, 4]
-        idx    = cont.argmax(dim=-1)                                     # [B, 3]
-        hard   = F.one_hot(idx, num_classes=4).to(cont.dtype)            # [B, 3, 4]
+        cont   = F.softmax(logits, dim=-1)                               # [B, L, 4]
+        idx    = cont.argmax(dim=-1)                                     # [B, L]
+        hard   = F.one_hot(idx, num_classes=4).to(cont.dtype)            # [B, L, 4]
 
         if self.training:
             if self.use_gumbel_softmax:
@@ -903,18 +914,18 @@ class CodonHead(nn.Module):
                 # forward = one-hot, backward = soft.
                 st = F.gumbel_softmax(
                     logits, tau=self.gumbel_tau, hard=True, dim=-1,
-                )                                                        # [B, 3, 4]
+                )                                                        # [B, L, 4]
             else:
                 # deterministic straight-through estimator
-                st = hard - cont.detach() + cont                         # [B, 3, 4]
+                st = hard - cont.detach() + cont                         # [B, L, 4]
         else:
             # at eval, both hard and st collapse to the deterministic argmax
             st = hard
 
         return {
-            "logits":             logits,   # [B, 3, 4]
-            "continuous_code":    cont,     # [B, 3, 4]
-            "base_indices":       idx,      # [B, 3]
+            "logits":             logits,   # [B, L, 4]
+            "continuous_code":    cont,     # [B, L, 4]
+            "base_indices":       idx,      # [B, L]
             "dna_hash_code":      st,       # train: ST, eval: hard
             "dna_hash_code_hard": hard,     # always deterministic one-hot
             "dna_hash_code_st":   st,       # always the gradient-bearing path
@@ -939,7 +950,8 @@ class CodonHead(nn.Module):
         assert D == self.d_model, (
             f"[CodonHead.decode_codeword] expected last-dim {self.d_model}, got {D}"
         )
-        h = codewords.view(K, 3, self.chunk)
+        L = self.num_codons
+        h = codewords.view(K, L, self.chunk)
         if self.use_text_anchor:
             h_n = F.normalize(h, dim=-1)
             proto_n = F.normalize(self.proto, dim=-1)
@@ -953,20 +965,19 @@ class CodonHead(nn.Module):
             return torch.stack([l0, l1, l2], dim=1)
         if self.position_specific_head:
             return torch.stack(
-                [self.fc_pos[p](h[:, p, :]) for p in range(3)], dim=1
+                [self.fc_pos[p](h[:, p, :]) for p in range(L)], dim=1
             )
         if self.use_full_linear:
-            return self.fc(codewords).view(K, 3, 4)
+            return self.fc(codewords).view(K, L, 4)
         # Default shared Linear(chunk, 4) path (with optional v87a adapter)
-        logits = self.fc(h)                                          # [K, 3, 4]
+        logits = self.fc(h)                                          # [K, L, 4]
         if self.fc_pos_adapter is not None:
             delta = torch.stack(
-                [self.fc_pos_adapter[p](h[:, p, :]) for p in range(3)],
+                [self.fc_pos_adapter[p](h[:, p, :]) for p in range(L)],
                 dim=1,
             )
             logits = logits + delta
         return logits
-
 
 # =====================================================================
 # Reconstruction decoders (v28 ablation, 2026-05-15)
@@ -1317,6 +1328,25 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.residualize_visual_for_routing: bool = bool(
             getattr(args, "residualize_visual_for_routing", False)
         )
+        self.route_global_text: bool = bool(getattr(args, "route_global_text", False))
+        self.routed_cls_add_gamma: float = float(getattr(args, "routed_cls_add_gamma", 0.0))
+        self.routed_cls_add_scope: str = str(getattr(args, "routed_cls_add_scope", "local"))
+        if self.routed_cls_add_scope not in ("local", "all"):
+            raise ValueError(
+                f"routed_cls_add_scope must be 'local' or 'all', got {self.routed_cls_add_scope!r}"
+            )
+        # v122: C0-orthogonal local quantization. C_global keeps the coarse
+        # semantic axis; local codebooks quantize the residual concept.
+        self.local_residual_quant: bool = bool(getattr(args, "local_residual_quant", False))
+        self.local_residual_gamma: float = float(getattr(args, "local_residual_gamma", 1.0))
+        self.local_residual_detach_global: bool = bool(
+            getattr(args, "local_residual_detach_global", True)
+        )
+        self.local_residual_text: bool = bool(getattr(args, "local_residual_text", False))
+        if self.local_residual_gamma < 0.0:
+            raise ValueError(
+                f"local_residual_gamma must be >= 0, got {self.local_residual_gamma}"
+            )
         self._text_whiten_ready: bool = False
         if self.text_embed_transform in ("partial_whiten", "global_residual_whiten"):
             _npz_path = getattr(args, "text_whiten_npz", None)
@@ -1442,9 +1472,14 @@ class SigLIP2SemanticOTModel(nn.Module):
         # InfoNCE between visual `quantized_tokens` and `text_quantized_tokens`
         # per codebook. Single text-path forward serves both v91 and v93.
         self.lambda_cw_xmodal            = float(getattr(args, "lambda_cw_xmodal", 0.0))
+        self.lambda_codeword_text_proto  = float(getattr(args, "lambda_codeword_text_proto", 0.0))
         # v85: expert-choice-inspired codebook-side token filtering.
         self.routing_codebook_choice = bool(getattr(args, "routing_codebook_choice", False))
         self.routing_codebook_choice_capacity = float(getattr(args, "routing_codebook_choice_capacity", 1.5))
+        self.routing_codebook_choice_beta = float(getattr(args, "routing_codebook_choice_beta", 1.0))
+        self.routing_codebook_choice_warmup_epochs = int(
+            getattr(args, "routing_codebook_choice_warmup_epochs", 0)
+        )
         # v79c (#4.1): hard routing via Gumbel-Softmax (one-hot per patch)
         self.routing_hard           = bool(getattr(args, "routing_hard",      False))
         self.routing_hard_tau       = float(getattr(args, "routing_hard_tau", 1.0))
@@ -1522,11 +1557,22 @@ class SigLIP2SemanticOTModel(nn.Module):
 
         # ---------- per-codebook codon heads -----------------------------
         # 6 SEPARATE CodonHead instances (no weight sharing across codebooks).
-        # Each maps [B, D] -> [B, 3, 4] (3 codon positions × 4 base classes).
-        if self.d_model % 3 != 0:
+        # Each maps [B, D] -> [B, L, 4] (L codon positions × 4 base classes).
+        # v122: L = num_codons_per_codebook (default 3, optionally 4 for the
+        # 48-bit DNA spec that frees K up to 4^4 = 256 codons).
+        self.num_codons_per_codebook: int = int(
+            getattr(args, "num_codons_per_codebook", 3)
+        )
+        if self.num_codons_per_codebook not in (3, 4):
             raise ValueError(
-                f"[model_siglip2] d_model must be divisible by 3 for codon-position "
-                f"heads; got d_model={self.d_model}."
+                f"[model_siglip2] num_codons_per_codebook must be 3 or 4; "
+                f"got {self.num_codons_per_codebook}."
+            )
+        if self.d_model % self.num_codons_per_codebook != 0:
+            raise ValueError(
+                f"[model_siglip2] d_model must be divisible by "
+                f"num_codons_per_codebook={self.num_codons_per_codebook}; "
+                f"got d_model={self.d_model}."
             )
         # Differentiable hard-code path config (Gumbel-Softmax STE by default).
         self.use_gumbel_softmax: bool = bool(getattr(args, "use_gumbel_softmax", True))
@@ -1573,6 +1619,7 @@ class SigLIP2SemanticOTModel(nn.Module):
                     residual_split=self.codon_residual_split,
                     residual_gate=self.codon_residual_gate,
                     use_full_linear=self.codon_full_linear,
+                    num_codons=self.num_codons_per_codebook,
                 )
                 for _ in range(self.num_codebooks)
             ]
@@ -1583,7 +1630,7 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.hash_recon_target: str = str(getattr(args, "hash_recon_target", "siglip_visual"))
         if self.use_hash_recon:
             self.hash_recon_decoder = HashReconDecoder(
-                in_dim=NUM_SEMANTIC_PARTS * 3 * 4,                # 6 * 3 * 4 = 72
+                in_dim=NUM_SEMANTIC_PARTS * self.num_codons_per_codebook * 4,
                 hidden_dim=int(getattr(args, "hash_recon_hidden", 256)),
                 out_dim=self.proj_dim,
             )
@@ -1595,7 +1642,7 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.dual_hash_proj_target: str = str(getattr(args, "dual_hash_proj_target", "siglip_visual"))
         if self.use_dual_hash_proj:
             self.dual_hash_proj = DualHashProj(
-                in_dim=NUM_SEMANTIC_PARTS * 3 * 4,
+                in_dim=NUM_SEMANTIC_PARTS * self.num_codons_per_codebook * 4,
                 hidden_dim=int(getattr(args, "dual_hash_proj_hidden", 256)),
                 out_dim=self.proj_dim,
             )
@@ -1665,6 +1712,49 @@ class SigLIP2SemanticOTModel(nn.Module):
         # cosine schedule (smooth, no plateau)
         cos_t = 0.5 * (1.0 + math.cos(math.pi * t))      # 1.0 -> 0.0
         return float(eps_f) + (float(eps_i) - float(eps_f)) * cos_t
+
+    def _current_codebook_choice_beta(self) -> float:
+        """Return beta for v124 soft expert-choice routing.
+
+        beta=0 keeps the pre-choice routing matrix; beta=1 recovers the
+        hard v85 expert-choice filter. Optional warm-up lets early OT/text
+        alignment form before the codebook-side capacity filter sharpens.
+        """
+        beta = max(0.0, min(float(self.routing_codebook_choice_beta), 1.0))
+        warmup = max(int(self.routing_codebook_choice_warmup_epochs), 0)
+        if warmup <= 0:
+            return beta
+        t = min(max(self._current_epoch, 0) + 1, warmup) / float(warmup)
+        return beta * t
+
+    @staticmethod
+    def _remove_global_projection(
+        slots: torch.Tensor,
+        gamma: float,
+        detach_global: bool,
+        name: str,
+    ) -> torch.Tensor:
+        """Remove C0/global projection from local slots.
+
+        slots: [B, 6, D]. Output shape is unchanged; slots[:, 0, :] is kept
+        as-is, while slots[:, 1:, :] become local residuals.
+        """
+        assert slots.dim() == 3 and slots.shape[1] == NUM_SEMANTIC_PARTS, (
+            f"{name} must be [B, 6, D], got {tuple(slots.shape)}"
+        )
+        B, M, D = slots.shape
+        assert M == NUM_SEMANTIC_PARTS, f"{name} M={M} must be {NUM_SEMANTIC_PARTS}"
+        g = slots[:, 0, :]                                      # [B, D]
+        g_ref = g.detach() if detach_global else g              # [B, D]
+        g_n = F.normalize(g_ref, dim=-1).unsqueeze(1)           # [B, 1, D]
+        local = slots[:, 1:, :]                                 # [B, 5, D]
+        proj = (local * g_n).sum(dim=-1, keepdim=True) * g_n    # [B, 5, D]
+        local_res = local - float(gamma) * proj                 # [B, 5, D]
+        out = torch.cat([g.unsqueeze(1), local_res], dim=1)     # [B, 6, D]
+        assert out.shape == (B, NUM_SEMANTIC_PARTS, D), (
+            f"{name} residual output shape {tuple(out.shape)} is invalid"
+        )
+        return out
 
     def assert_no_shared_trainable_params(self, verbose: bool = False) -> None:
         v_ids = {id(p) for p in self.visual_adapter.parameters() if p.requires_grad}
@@ -1873,6 +1963,7 @@ class SigLIP2SemanticOTModel(nn.Module):
         text_part_tokens:  Optional[torch.Tensor] = None
         global_text_token: Optional[torch.Tensor] = None
         local_text_tokens: Optional[torch.Tensor] = None
+        global_text_token_for_routing: Optional[torch.Tensor] = None
         local_text_tokens_for_routing: Optional[torch.Tensor] = None  # v116
         if use_text_routing and feats["text_part_raw"] is not None:
             raw = feats["text_part_raw"]                                    # [B, 6, D_proj]
@@ -1970,6 +2061,7 @@ class SigLIP2SemanticOTModel(nn.Module):
                 text_part_tokens  = self.text_adapter(raw)                  # [B, 6, D]
             global_text_token = text_part_tokens[:, 0, :]                   # [B, D]
             local_text_tokens = text_part_tokens[:, 1:, :]                  # [B, 5, D]
+            global_text_token_for_routing = global_text_token               # [B, D]
 
             # ----------------------------------------------------------------
             # v116: routing-only mode. If `--text_transform_routing_only` is
@@ -1984,6 +2076,7 @@ class SigLIP2SemanticOTModel(nn.Module):
             )
             if _routing_only and _tx_active_for_split:
                 # keep the transformed text_part_tokens slice for routing
+                global_text_token_for_routing = global_text_token
                 local_text_tokens_for_routing = local_text_tokens
                 # re-run adapter on UNTRANSFORMED raw for losses
                 _raw_orig = feats["text_part_raw"]
@@ -2008,6 +2101,7 @@ class SigLIP2SemanticOTModel(nn.Module):
                 global_text_token = text_part_tokens[:, 0, :]
                 local_text_tokens = text_part_tokens[:, 1:, :]
             else:
+                global_text_token_for_routing = global_text_token
                 local_text_tokens_for_routing = local_text_tokens
 
         # 2) C_global slot input
@@ -2062,24 +2156,49 @@ class SigLIP2SemanticOTModel(nn.Module):
             exclude_global=True,
         )                                                                # [5, D]
 
-        # 3) pick the centroids that drive the 5-part Sinkhorn router
+        # 3) pick the centroids that drive the Sinkhorn router
         # v116: under --text_transform_routing_only, the variable
         # local_text_tokens_for_routing == TRANSFORMED slice, while
         # local_text_tokens (used by losses) has been re-bound to the
         # UNTRANSFORMED adapter output. In the default mode both point at
         # the same tensor, so this swap is a no-op.
+        # v119: optionally include the slot-0 global caption as a routed
+        # C_0 centroid. Legacy mode still routes only C_1..C_5.
         local_anchor_tokens: Optional[torch.Tensor] = None
+        route_global_text_active = bool(self.route_global_text and use_text_routing)
         if use_text_routing:
             local_centroids   = (
                 local_text_tokens_for_routing
                 if local_text_tokens_for_routing is not None
                 else local_text_tokens
             )                                                            # [B, 5, D]
-            local_part_mask_used = part_mask[:, 1:] if part_mask is not None else None
+            assert local_centroids is not None and local_centroids.shape == (B, NUM_LOCAL_PARTS, D), (
+                f"local_centroids shape {None if local_centroids is None else tuple(local_centroids.shape)} "
+                f"!= expected ({B}, {NUM_LOCAL_PARTS}, {D})"
+            )
+            if route_global_text_active:
+                global_route_centroid = (
+                    global_text_token_for_routing
+                    if global_text_token_for_routing is not None
+                    else global_text_token
+                )                                                        # [B, D]
+                assert global_route_centroid is not None and global_route_centroid.shape == (B, D), (
+                    f"global_route_centroid shape "
+                    f"{None if global_route_centroid is None else tuple(global_route_centroid.shape)} "
+                    f"!= expected ({B}, {D})"
+                )
+                route_centroids = torch.cat(
+                    [global_route_centroid.unsqueeze(1), local_centroids], dim=1,
+                )                                                        # [B, 6, D]
+                route_part_mask_used = part_mask if part_mask is not None else None
+            else:
+                route_centroids = local_centroids                         # [B, 5, D]
+                route_part_mask_used = part_mask[:, 1:] if part_mask is not None else None
         else:
             local_anchor_tokens = local_codebook_mean_anchors_raw.unsqueeze(0).expand(B, -1, -1)  # [B, 5, D]
             local_centroids = local_anchor_tokens
-            local_part_mask_used = None
+            route_centroids = local_centroids                             # [B, 5, D]
+            route_part_mask_used = None
 
         out: Dict[str, Any] = {
             "visual_tokens":                visual_tokens,
@@ -2097,6 +2216,7 @@ class SigLIP2SemanticOTModel(nn.Module):
             "routing_fraction_top1":         None,
             "local_semantic_visual_tokens": None,
             "semantic_visual_tokens":       None,
+            "quantizer_input":              None,
             "quantized_tokens":             None,
             "quantized_tokens_raw":         None,
             "codebook_indices":             None,
@@ -2118,6 +2238,7 @@ class SigLIP2SemanticOTModel(nn.Module):
             "base_indices":                       None,
             "text_continuous_code":               None,
             "text_quantized_tokens":              None,
+            "codeword_text_tokens":               None,
             "loss_text_anchor":                   None,
             "hash_recon_pred":                    None,
             "dual_hash_semantic":                 None,
@@ -2140,20 +2261,21 @@ class SigLIP2SemanticOTModel(nn.Module):
         # centroid to the 5 text centroids before Sinkhorn, then slices
         # the null column out post-routing.
         if self.use_null_centroid and self.null_centroid is not None:
-            # Expand learnable null to per-sample dim and prepend (= part index 5)
-            B_loc = local_centroids.shape[0]
+            # Expand learnable null to per-sample dim and append as the last
+            # route-only/background centroid.
+            B_loc = route_centroids.shape[0]
             null_exp = self.null_centroid.unsqueeze(0).unsqueeze(0).expand(B_loc, 1, -1)  # [B, 1, D]
-            local_centroids_aug = torch.cat([local_centroids, null_exp], dim=1)         # [B, 6, D]
-            if local_part_mask_used is not None:
+            route_centroids_aug = torch.cat([route_centroids, null_exp], dim=1)         # [B, 6/7, D]
+            if route_part_mask_used is not None:
                 # Always-keep null part in mask
-                ones = torch.ones(B_loc, 1, dtype=local_part_mask_used.dtype,
-                                  device=local_part_mask_used.device)
-                local_part_mask_used_aug = torch.cat([local_part_mask_used, ones], dim=1)
+                ones = torch.ones(B_loc, 1, dtype=route_part_mask_used.dtype,
+                                  device=route_part_mask_used.device)
+                route_part_mask_used_aug = torch.cat([route_part_mask_used, ones], dim=1)
             else:
-                local_part_mask_used_aug = None
+                route_part_mask_used_aug = None
         else:
-            local_centroids_aug = local_centroids
-            local_part_mask_used_aug = local_part_mask_used
+            route_centroids_aug = route_centroids
+            route_part_mask_used_aug = route_part_mask_used
 
         # v113 Method 2 companion: residualize patches against patch-mean and
         # L2-normalize BEFORE feeding the router. visual_tokens used elsewhere
@@ -2167,9 +2289,9 @@ class SigLIP2SemanticOTModel(nn.Module):
             visual_tokens_for_routing = visual_tokens
         router_kwargs = {
             "visual_tokens":    visual_tokens_for_routing,
-            "text_part_tokens": local_centroids_aug,           # [B, 5 or 6, D]
+            "text_part_tokens": route_centroids_aug,           # [B, 5/6 (+ null), D]
             "visual_mask":      visual_attention_mask,
-            "part_mask":        local_part_mask_used_aug,
+            "part_mask":        route_part_mask_used_aug,
         }
         if self.router_type == "sinkhorn":
             cur_eps = self._current_sinkhorn_epsilon()
@@ -2195,6 +2317,7 @@ class SigLIP2SemanticOTModel(nn.Module):
                 router_kwargs["perplexity_topk"] = True
             if self.routing_codebook_choice:
                 router_kwargs["codebook_choice_capacity"] = float(self.routing_codebook_choice_capacity)
+                router_kwargs["codebook_choice_beta"] = self._current_codebook_choice_beta()
             if self.sinkhorn_lambda_a is not None:
                 router_kwargs["uot_lambda_a"]     = float(self.sinkhorn_lambda_a)
             if self.sinkhorn_lambda_b is not None:
@@ -2207,11 +2330,11 @@ class SigLIP2SemanticOTModel(nn.Module):
                 router_kwargs["adaptive_topp_max"] = float(self.routing_adaptive_topp_max)
                 router_kwargs["adaptive_topp_use_entropy"] = bool(self.routing_adaptive_topp_entropy)
         r_out = self.router(**router_kwargs)
-        full_routing_matrix = r_out["routing_matrix"]              # [B, N, 5 or 6]
+        full_routing_matrix = r_out["routing_matrix"]              # [B, N, 5/6 (+ null)]
         if self.use_null_centroid and self.null_centroid is not None:
-            local_routing_matrix = full_routing_matrix[..., :-1]    # [B, N, 5]
+            routed_matrix = full_routing_matrix[..., :-1]           # [B, N, 5/6]
         else:
-            local_routing_matrix = full_routing_matrix              # [B, N, 5]
+            routed_matrix = full_routing_matrix                     # [B, N, 5/6]
 
         # v79c (#4.1): hard routing via Gumbel-Softmax. After Sinkhorn
         # soft routing, re-cast each patch row to one-hot via
@@ -2220,55 +2343,71 @@ class SigLIP2SemanticOTModel(nn.Module):
         if bool(getattr(self, "routing_hard", False)) and self.training:
             # gumbel_softmax expects logits; treat log(soft+eps) as logits
             tau = float(getattr(self, "routing_hard_tau", 1.0))
-            log_p = torch.log(local_routing_matrix.clamp_min(1e-9))
-            local_routing_matrix = F.gumbel_softmax(
+            log_p = torch.log(routed_matrix.clamp_min(1e-9))
+            routed_matrix = F.gumbel_softmax(
                 log_p, tau=tau, hard=True, dim=-1
-            )                                                       # [B, N, 5] one-hot per patch
+            )                                                       # [B, N, 5/6] one-hot per patch
         elif bool(getattr(self, "routing_hard", False)):
             # eval: deterministic argmax one-hot
-            idx = local_routing_matrix.argmax(dim=-1)               # [B, N]
-            one_hot = F.one_hot(idx, num_classes=local_routing_matrix.shape[-1]).to(local_routing_matrix.dtype)
-            local_routing_matrix = one_hot
+            idx = routed_matrix.argmax(dim=-1)                      # [B, N]
+            one_hot = F.one_hot(idx, num_classes=routed_matrix.shape[-1]).to(routed_matrix.dtype)
+            routed_matrix = one_hot
 
-        assert local_routing_matrix.dim() == 3, (
-            f"local_routing_matrix must be [B, N, 5], got {tuple(local_routing_matrix.shape)}"
+        assert routed_matrix.dim() == 3, (
+            f"routed_matrix must be [B, N, 5/6], got {tuple(routed_matrix.shape)}"
         )
-        assert local_routing_matrix.shape[0] == B and local_routing_matrix.shape[-1] == NUM_LOCAL_PARTS, (
-            f"local_routing_matrix shape {tuple(local_routing_matrix.shape)} "
-            f"does not match B={B}, M={NUM_LOCAL_PARTS}"
+        expected_route_parts = NUM_SEMANTIC_PARTS if route_global_text_active else NUM_LOCAL_PARTS
+        assert routed_matrix.shape[0] == B and routed_matrix.shape[-1] == expected_route_parts, (
+            f"routed_matrix shape {tuple(routed_matrix.shape)} "
+            f"does not match B={B}, M={expected_route_parts}"
         )
+        local_routing_matrix = (
+            routed_matrix[:, :, 1:] if route_global_text_active else routed_matrix
+        )                                                       # [B, N, 5]
         route_nonzero = local_routing_matrix > 0.0                   # [B, N, 5]
         routing_effective_k = route_nonzero.to(local_routing_matrix.dtype).sum(dim=-1)  # [B, N]
         routing_fraction_top1 = (routing_effective_k <= 1.0).to(local_routing_matrix.dtype).mean()
         routing_mean_effective_k = routing_effective_k.mean()
 
-        # explicit re-normalize for numerical stability
-        denom = local_routing_matrix.sum(dim=1).clamp_min(1e-6)                       # [B, 5]
-        local_semantic_visual_tokens = (
-            torch.bmm(local_routing_matrix.transpose(1, 2), visual_tokens)            # [B, 5, D]
-            / denom.unsqueeze(-1)
-        )
+        if route_global_text_active:
+            # v119: all six codebooks, including C_0, are pooled from visual
+            # tokens using their own text-driven routing columns.
+            global_weights = routed_matrix[:, :, :1]                                  # [B, N, 1]
+            routing_matrix = routed_matrix                                            # [B, N, 6]
+            denom_all = routing_matrix.sum(dim=1).clamp_min(1e-6)                     # [B, 6]
+            semantic_visual_tokens = (
+                torch.bmm(routing_matrix.transpose(1, 2), visual_tokens)              # [B, 6, D]
+                / denom_all.unsqueeze(-1)
+            )
+            local_semantic_visual_tokens = semantic_visual_tokens[:, 1:, :]           # [B, 5, D]
+        else:
+            # explicit re-normalize for numerical stability
+            denom = local_routing_matrix.sum(dim=1).clamp_min(1e-6)                   # [B, 5]
+            local_semantic_visual_tokens = (
+                torch.bmm(local_routing_matrix.transpose(1, 2), visual_tokens)        # [B, 5, D]
+                / denom.unsqueeze(-1)
+            )
 
-        # v79d (#1.3-lite): override local_semantic_visual_tokens with
-        # per-codebook learnable attention pool over visual_tokens.
-        if self.use_per_cb_attn_pool and self.per_cb_attn_queries is not None:
-            # visual_tokens: [B, N, D]; queries: [M_local=5, D]
-            attn_logits = torch.einsum("bnd,md->bnm", visual_tokens, self.per_cb_attn_queries)
-            attn = F.softmax(attn_logits / max(self.per_cb_attn_pool_temp, 1e-4), dim=1)  # softmax over N
-            local_semantic_visual_tokens = torch.einsum(
-                "bnm,bnd->bmd", attn, visual_tokens
-            )                                                                          # [B, 5, D]
-            # also overwrite local_routing_matrix so downstream stitching
-            # (routing_matrix concat) sees the new per-cb attention weights
-            local_routing_matrix = attn                                                # [B, N, 5]
+            # v79d (#1.3-lite): override local_semantic_visual_tokens with
+            # per-codebook learnable attention pool over visual_tokens.
+            if self.use_per_cb_attn_pool and self.per_cb_attn_queries is not None:
+                # visual_tokens: [B, N, D]; queries: [M_local=5, D]
+                attn_logits = torch.einsum("bnd,md->bnm", visual_tokens, self.per_cb_attn_queries)
+                attn = F.softmax(attn_logits / max(self.per_cb_attn_pool_temp, 1e-4), dim=1)  # softmax over N
+                local_semantic_visual_tokens = torch.einsum(
+                    "bnm,bnd->bmd", attn, visual_tokens
+                )                                                                      # [B, 5, D]
+                # also overwrite local_routing_matrix so downstream stitching
+                # (routing_matrix concat) sees the new per-cb attention weights
+                local_routing_matrix = attn                                            # [B, N, 5]
 
-        # 5) stitch [global | local] into the [B, N, 6] / [B, 6, D] interfaces
-        routing_matrix = torch.cat(
-            [global_weights, local_routing_matrix], dim=-1,
-        )                                                                              # [B, N, 6]
-        semantic_visual_tokens = torch.cat(
-            [global_visual_token.unsqueeze(1), local_semantic_visual_tokens], dim=1,
-        )                                                                              # [B, 6, D]
+            # 5) stitch [global | local] into the [B, N, 6] / [B, 6, D] interfaces
+            routing_matrix = torch.cat(
+                [global_weights, local_routing_matrix], dim=-1,
+            )                                                                          # [B, N, 6]
+            semantic_visual_tokens = torch.cat(
+                [global_visual_token.unsqueeze(1), local_semantic_visual_tokens], dim=1,
+            )                                                                          # [B, 6, D]
 
         # 6) v32: train-only text injection into the quantizer input.
         # When `--text_inject_train_only=add` and the text path is active,
@@ -2279,6 +2418,42 @@ class SigLIP2SemanticOTModel(nn.Module):
         # `text_inject_detach=True` (variant b) the text gradient is cut
         # so only the codebook moves, not the text adapter.
         quant_input = semantic_visual_tokens
+        text_quantizer_tokens = text_part_tokens
+        if self.local_residual_quant and self.local_residual_gamma > 0.0:
+            quant_input = self._remove_global_projection(
+                semantic_visual_tokens,
+                gamma=self.local_residual_gamma,
+                detach_global=self.local_residual_detach_global,
+                name="semantic_visual_tokens",
+            )
+            if (
+                self.local_residual_text
+                and text_part_tokens is not None
+                and text_part_tokens.shape == semantic_visual_tokens.shape
+            ):
+                text_quantizer_tokens = self._remove_global_projection(
+                    text_part_tokens,
+                    gamma=self.local_residual_gamma,
+                    detach_global=self.local_residual_detach_global,
+                    name="text_part_tokens",
+                )
+        if self.routed_cls_add_gamma > 0.0:
+            assert global_visual_token.shape == (B, D), (
+                f"global_visual_token shape {tuple(global_visual_token.shape)} "
+                f"!= expected ({B}, {D})"
+            )
+            # v119b/c: weakly condition routed token(s) with the adapted
+            # visual CLS/global token before VQ. Shape stays [B, 6, D].
+            cls_delta = self.routed_cls_add_gamma * global_visual_token.detach().unsqueeze(1)  # [B, 1, D]
+            if self.routed_cls_add_scope == "local":
+                quant_input = quant_input.clone()
+                quant_input[:, 1:, :] = quant_input[:, 1:, :] + cls_delta
+            else:
+                quant_input = quant_input + cls_delta
+            assert quant_input.shape == semantic_visual_tokens.shape, (
+                f"quant_input shape {tuple(quant_input.shape)} "
+                f"!= semantic_visual_tokens {tuple(semantic_visual_tokens.shape)}"
+            )
         if (
             self.training
             and self.text_inject_train_only == "add"
@@ -2287,7 +2462,11 @@ class SigLIP2SemanticOTModel(nn.Module):
             and text_part_tokens.shape == semantic_visual_tokens.shape
         ):
             t_used = text_part_tokens.detach() if self.text_inject_detach else text_part_tokens
-            quant_input = semantic_visual_tokens + self.text_inject_alpha * t_used
+            quant_input = quant_input + self.text_inject_alpha * t_used
+        assert quant_input.shape == (B, NUM_SEMANTIC_PARTS, D), (
+            f"quant_input shape {tuple(quant_input.shape)} "
+            f"!= expected ({B}, {NUM_SEMANTIC_PARTS}, {D})"
+        )
 
         q_out = self.quantizer(quant_input)
         quantized_tokens     = q_out["quantized_tokens"]      # [B, 6, D]   STE
@@ -2377,13 +2556,14 @@ class SigLIP2SemanticOTModel(nn.Module):
                 # Only consider currently-active codewords (handles K_max > K_active)
                 idx_active = cb_mask[m].nonzero(as_tuple=True)[0]
                 cb_m = cb_full[m, idx_active]                         # [K_active, D]
-                cb_logits_list.append(head.decode_codeword(cb_m))     # [K_active, 3, 4]
+                cb_logits_list.append(head.decode_codeword(cb_m))     # [K_active, L, 4]
             # Pad to K_max so all codebooks share a tensor (K_active may differ
             # per codebook with adaptive K). We'll record both the logits and
             # a per-codebook K count so the loss can mask correctly.
             K_max = max(t.shape[0] for t in cb_logits_list)
             cb_logits_padded = torch.zeros(
-                (len(cb_logits_list), K_max, 3, 4),
+                (len(cb_logits_list), K_max,
+                 self.num_codons_per_codebook, 4),
                 device=cb_full.device, dtype=cb_logits_list[0].dtype,
             )
             cb_K_active = torch.zeros(
@@ -2398,14 +2578,14 @@ class SigLIP2SemanticOTModel(nn.Module):
             codeword_codon_logits = None
             codeword_K_active     = None
         base_indices_per_codebook        = torch.stack(indices_list,      dim=1)  # [B, 6, 3]
-
         # 9) flatten to a single concatenated code: 6 codebooks * 3 codon positions = 18
-        Mp3 = NUM_SEMANTIC_PARTS * 3
-        continuous_code    = continuous_codes_per_codebook   .reshape(B, Mp3, 4)   # [B, 18, 4]
-        dna_hash_code      = dna_hash_codes_per_codebook     .reshape(B, Mp3, 4)   # [B, 18, 4]
-        dna_hash_code_hard = dna_hash_codes_per_codebook_hard.reshape(B, Mp3, 4)   # [B, 18, 4]
-        dna_hash_code_st   = dna_hash_codes_per_codebook_st  .reshape(B, Mp3, 4)   # [B, 18, 4]
-        base_indices       = base_indices_per_codebook       .reshape(B, Mp3)      # [B, 18]
+        L = self.num_codons_per_codebook
+        Mp3 = NUM_SEMANTIC_PARTS * L                                         # M*L (was always 6*3=18; now 6*L)
+        continuous_code    = continuous_codes_per_codebook   .reshape(B, Mp3, 4)   # [B, M*L, 4]
+        dna_hash_code      = dna_hash_codes_per_codebook     .reshape(B, Mp3, 4)   # [B, M*L, 4]
+        dna_hash_code_hard = dna_hash_codes_per_codebook_hard.reshape(B, Mp3, 4)   # [B, M*L, 4]
+        dna_hash_code_st   = dna_hash_codes_per_codebook_st  .reshape(B, Mp3, 4)   # [B, M*L, 4]
+        base_indices       = base_indices_per_codebook       .reshape(B, Mp3)      # [B, M*L]
 
         # 9b) v91 — TEXT-DNA path (Option F: text-to-image hash matching)
         # When lambda_text_hash > 0, push text_part_tokens [B, 6, D] through
@@ -2426,6 +2606,7 @@ class SigLIP2SemanticOTModel(nn.Module):
         if (
             (float(self.lambda_text_hash) > 0.0
              or float(self.lambda_text_hash_ntxent) > 0.0    # v109: include InfoNCE form
+             or float(self.lambda_codeword_text_proto) > 0.0  # v123: text prototype teacher
              or float(self.lambda_text_codon_rel) > 0.0)     # v113: text teacher, no text-DNA path
             and text_part_tokens is None
             and cached_text_part_raw is not None
@@ -2442,6 +2623,18 @@ class SigLIP2SemanticOTModel(nn.Module):
                 text_part_tokens = torch.stack(_per_slot, dim=1)
             else:
                 text_part_tokens = self.text_adapter(_raw_for_text_dna)
+            text_quantizer_tokens = text_part_tokens
+            if self.local_residual_quant and self.local_residual_text and self.local_residual_gamma > 0.0:
+                assert text_part_tokens.shape == (B, NUM_SEMANTIC_PARTS, D), (
+                    f"text_part_tokens shape {tuple(text_part_tokens.shape)} "
+                    f"!= expected ({B}, {NUM_SEMANTIC_PARTS}, {D})"
+                )
+                text_quantizer_tokens = self._remove_global_projection(
+                    text_part_tokens,
+                    gamma=self.local_residual_gamma,
+                    detach_global=self.local_residual_detach_global,
+                    name="text_part_tokens",
+                )
         text_continuous_code = None
         text_quantized_tokens = None
         # v109: include lambda_text_hash_ntxent in the activation check so that
@@ -2454,15 +2647,15 @@ class SigLIP2SemanticOTModel(nn.Module):
             (float(self.lambda_text_hash)        > 0.0
              or _lam_text_hash_ntxent_local      > 0.0
              or float(self.lambda_cw_xmodal)     > 0.0)
-            and text_part_tokens is not None
-            and text_part_tokens.shape == (B, NUM_SEMANTIC_PARTS, D)
+            and text_quantizer_tokens is not None
+            and text_quantizer_tokens.shape == (B, NUM_SEMANTIC_PARTS, D)
         )
         if _text_path_active:
             # (a) text quantization, EMA-disabled
             prev_train = self.quantizer.training
             self.quantizer.eval()
             try:
-                tq_out = self.quantizer(text_part_tokens)
+                tq_out = self.quantizer(text_quantizer_tokens)
             finally:
                 if prev_train:
                     self.quantizer.train()
@@ -2474,7 +2667,7 @@ class SigLIP2SemanticOTModel(nn.Module):
             text_quantized_tokens = text_q_st
             # (b) text codon-residual
             if self.codon_residual_gamma > 0.0:
-                text_codon_residual = text_part_tokens - text_q_raw
+                text_codon_residual = text_quantizer_tokens - text_q_raw
             else:
                 text_codon_residual = None
             # (c) skip global gate -> head input == text codeword directly
@@ -2483,7 +2676,7 @@ class SigLIP2SemanticOTModel(nn.Module):
             for m, head in enumerate(self.codon_heads):
                 r_m = (text_codon_residual[:, m, :]
                        if text_codon_residual is not None else None)
-                t_m = (text_part_tokens[:, m, :] if self.codon_text_anchor else None)
+                t_m = (text_quantizer_tokens[:, m, :] if self.codon_text_anchor else None)
                 h_out = head(text_head_inputs[:, m, :],
                              residual=r_m,
                              gamma=self.codon_residual_gamma,
@@ -2509,9 +2702,9 @@ class SigLIP2SemanticOTModel(nn.Module):
         assert codebook_distances.shape == (B, NUM_SEMANTIC_PARTS, self.quantizer.K_max)
         assert head_inputs.shape == (B, NUM_SEMANTIC_PARTS, D)
         assert gate_values.shape == (NUM_LOCAL_PARTS,)
-        assert continuous_codes_per_codebook.shape == (B, NUM_SEMANTIC_PARTS, 3, 4)
-        assert dna_hash_codes_per_codebook  .shape == (B, NUM_SEMANTIC_PARTS, 3, 4)
-        assert base_indices_per_codebook    .shape == (B, NUM_SEMANTIC_PARTS, 3)
+        assert continuous_codes_per_codebook.shape == (B, NUM_SEMANTIC_PARTS, L, 4)
+        assert dna_hash_codes_per_codebook  .shape == (B, NUM_SEMANTIC_PARTS, L, 4)
+        assert base_indices_per_codebook    .shape == (B, NUM_SEMANTIC_PARTS, L)
         assert continuous_code.shape == (B, Mp3, 4)
         assert dna_hash_code  .shape == (B, Mp3, 4)
         assert base_indices   .shape == (B, Mp3)
@@ -2527,6 +2720,7 @@ class SigLIP2SemanticOTModel(nn.Module):
             # alignment loss to push visual_adapter and text_adapter into a
             # shared space where the patch <-> text-part coupling is "cheap".
             "ot_cost":                      r_out.get("ot_cost", None),
+            "quantizer_input":              quant_input,                       # [B, 6, D]
             "quantized_tokens":             quantized_tokens,
             "quantized_tokens_raw":         quantized_tokens_raw,
             "codebook_indices":             codebook_indices,
@@ -2562,6 +2756,9 @@ class SigLIP2SemanticOTModel(nn.Module):
             # text_part_tokens were nearest-neighbour to). Used by
             # lambda_cw_xmodal cross-modal InfoNCE in loss_siglip2.
             "text_quantized_tokens":             text_quantized_tokens,              # [B, 6, D] or None
+            # v123 text prototypes use the same residualized text space that
+            # the text-only quantizer path sees when --local_residual_text.
+            "codeword_text_tokens":              text_quantizer_tokens,              # [B, 6, D] or None
 
             # v66 text-anchored prototype head: per-batch CE between visual
             # codon logits and text-derived target classes, summed across

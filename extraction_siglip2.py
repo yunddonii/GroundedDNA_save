@@ -72,11 +72,18 @@ def encode_split(
     device,
     split_name: str = "",
 ) -> Dict[str, np.ndarray]:
-    """Run the model on a split and accumulate extraction tensors."""
+    """Run the model on a split and accumulate extraction tensors.
+
+    v122: shape M*L (=18 at L=3, =24 at L=4) and M*L*2 (=36, =48) are
+    inferred from the model's `num_codons_per_codebook` instead of being
+    hardcoded so this function transparently supports the v122a L=4 path.
+    """
     n_samples = len(loader.dataset)
-    base_idx_all = np.zeros((n_samples, 18), dtype=np.int64)
-    hash2bit_all = np.zeros((n_samples, 36), dtype=np.uint8)
-    cb_idx_all   = np.zeros((n_samples, 6),  dtype=np.int64)
+    M = int(getattr(model, "num_codebooks", 6))
+    L = int(getattr(model, "num_codons_per_codebook", 3))
+    base_idx_all = np.zeros((n_samples, M * L),     dtype=np.int64)
+    hash2bit_all = np.zeros((n_samples, M * L * 2), dtype=np.uint8)
+    cb_idx_all   = np.zeros((n_samples, M),         dtype=np.int64)
     labels_list:    List[np.ndarray] = []
     mh_list:        List[np.ndarray] = []
     paths_list:     List[str]        = []

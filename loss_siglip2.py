@@ -214,6 +214,18 @@ class DNACodonHashLoss(nn.Module):
         # 0 = disabled (legacy bit-exact).
         self.lambda_cw_xmodal      = float(getattr(cfg, "lambda_cw_xmodal", 0.0))
         self.cw_xmodal_temperature = float(getattr(cfg, "cw_xmodal_temperature", 0.07))
+        # v123: per-(codebook, codeword) text prototypes. The EMA prototype
+        # is updated from text tokens assigned to each visual codeword, then
+        # visual quantizer inputs are classified against those prototypes.
+        self.lambda_codeword_text_proto = float(getattr(cfg, "lambda_codeword_text_proto", 0.0))
+        self.codeword_text_proto_tau = float(getattr(cfg, "codeword_text_proto_tau", 0.1))
+        self.codeword_text_proto_momentum = float(getattr(cfg, "codeword_text_proto_momentum", 0.95))
+        self.codeword_text_proto_min_count = int(getattr(cfg, "codeword_text_proto_min_count", 4))
+        self.codeword_text_proto_include_global = bool(
+            getattr(cfg, "codeword_text_proto_include_global", False)
+        )
+        self.register_buffer("_codeword_text_proto", torch.empty(0), persistent=True)
+        self.register_buffer("_codeword_text_seen", torch.empty(0), persistent=True)
         # v106: codeword <-> DNA codon bijection losses. Operate on the
         # codon decoder applied to the codebook codewords directly
         # (no residual, no sample dependence). Three variants implemented:
@@ -844,23 +856,29 @@ class DNACodonHashLoss(nn.Module):
     # v119: CIBHash-style per-codebook NtXent + symmetric KL on binary hash
     # ------------------------------------------------------------------
     @staticmethod
-    def _continuous_code_to_bit_probs(u: torch.Tensor) -> torch.Tensor:
-        """Map per-codon softmax probs [B, 18, 4] over (A, C, G, T) to a
-        6-bit-per-codebook probability vector [B, 6, 6] using the DNA
+    def _continuous_code_to_bit_probs(u: torch.Tensor, num_codebooks: int = 6) -> torch.Tensor:
+        """Map per-codon softmax probs [B, M*L, 4] over (A, C, G, T) to a
+        (2L)-bit-per-codebook probability vector [B, M, 2*L] using the DNA
         encoding A=00, C=01, G=10, T=11.
             bit_0_prob = P(G) + P(T)   (= probability that base's first bit is 1)
             bit_1_prob = P(C) + P(T)   (= probability that base's second bit is 1)
-        Returns probabilities in [0, 1] (no sigmoid needed).
+        Returns probabilities in [0, 1] (no sigmoid needed). L is inferred
+        from the input shape (L = R / num_codebooks).
         """
         B, R, C = u.shape
-        assert R == 18 and C == 4, (
-            f"[cibhash] expected continuous_code [B, 18, 4]; got [{B}, {R}, {C}]"
+        assert C == 4, (
+            f"[cibhash] expected continuous_code last-dim 4; got [{B}, {R}, {C}]"
         )
+        assert R % num_codebooks == 0, (
+            f"[cibhash] R={R} not divisible by num_codebooks={num_codebooks}; "
+            f"cannot infer codon length L."
+        )
+        L = R // num_codebooks                                       # codon positions per codebook
         # P(G) is u[..., 2], P(T) is u[..., 3], P(C) is u[..., 1]
-        bit_0 = u[..., 2] + u[..., 3]                                # [B, 18]
-        bit_1 = u[..., 1] + u[..., 3]                                # [B, 18]
-        bits  = torch.stack([bit_0, bit_1], dim=-1)                  # [B, 18, 2]
-        return bits.reshape(B, 6, 6)                                  # [B, M=6, 6 bits per codebook]
+        bit_0 = u[..., 2] + u[..., 3]                                # [B, M*L]
+        bit_1 = u[..., 1] + u[..., 3]                                # [B, M*L]
+        bits  = torch.stack([bit_0, bit_1], dim=-1)                  # [B, M*L, 2]
+        return bits.reshape(B, num_codebooks, 2 * L)                 # [B, M, 2*L]
 
     @staticmethod
     def _ste_sign(prob: torch.Tensor, threshold: float = 0.5) -> torch.Tensor:
@@ -1279,13 +1297,25 @@ class DNACodonHashLoss(nn.Module):
 
     @staticmethod
     def _joint_codon_distribution(logits: torch.Tensor, eps: float) -> torch.Tensor:
-        """logits [M, K, 3, 4] -> joint codon distribution [M, K, 64]."""
-        p = F.softmax(logits, dim=-1)                                # [M, K, 3, 4]
-        # outer product over 3 positions -> [M, K, 4, 4, 4]
-        P = torch.einsum('mka,mkb,mkc->mkabc',
-                         p[:, :, 0], p[:, :, 1], p[:, :, 2])
-        M, K = logits.shape[0], logits.shape[1]
-        return P.reshape(M, K, -1)                                    # [M, K, 64]
+        """logits [M, K, L, V=4] -> joint codon distribution [M, K, V^L].
+
+        Generalized to arbitrary L (=num_codons_per_codebook). For L=3 this
+        is the original 3-position outer product giving |C| = 4^3 = 64
+        codons; for L=4 it gives |C| = 4^4 = 256 codons (used by v122a to
+        re-enable the Sinkhorn codeword-codon bijection at K up to 256
+        without the K=128 pigeonhole forced-collision diagnosed in v120c).
+        """
+        assert logits.dim() == 4, (
+            f"[joint_codon] expected logits [M, K, L, V]; got {tuple(logits.shape)}"
+        )
+        p = F.softmax(logits, dim=-1)                                # [M, K, L, V]
+        M, K, L, V = p.shape
+        # Iterative outer product across the L codon positions: at step l
+        # P has shape [M, K, V^l]; multiply by p[:, :, l, :] (V) -> [M, K, V^(l+1)].
+        P = p[:, :, 0, :]                                             # [M, K, V]
+        for l in range(1, L):
+            P = (P.unsqueeze(-1) * p[:, :, l, :].unsqueeze(-2)).reshape(M, K, -1)
+        return P                                                      # [M, K, V^L]
 
     def _loss_codeword_codon_sinkhorn(
         self,
@@ -1306,31 +1336,29 @@ class DNACodonHashLoss(nn.Module):
         eps_reg = max(float(self.codeword_codon_sinkhorn_eps), 1e-3)
         n_iter  = max(int(self.codeword_codon_sinkhorn_iters), 1)
         eps     = self.eps
-        M, K_max = codeword_codon_logits.shape[0], codeword_codon_logits.shape[1]
+        # codeword_codon_logits: [M, K_max, L, V=4]; |C| = V**L (=64 at L=3, =256 at L=4).
+        M, K_max, L, V = codeword_codon_logits.shape
+        num_codons = V ** L
         device = codeword_codon_logits.device
         log_p_codon_full = (
             self._joint_codon_distribution(codeword_codon_logits, eps).clamp(min=eps).log()
-        )                                                              # [M, K_max, 64]
+        )                                                              # [M, K_max, |C|]
         per_codebook = []
         for m in range(M):
             K = int(codeword_K_active[m].item()) if codeword_K_active is not None else K_max
             if K <= 0:
                 continue
-            cost = -log_p_codon_full[m, :K]                            # [K, 64]
-            # Standard log-Sinkhorn: T_kj = exp(-cost/eps + u + v) with
-            # marginals a (1/K) and b (1/|C|=1/64). Dual updates:
-            #   u_k = log a_k - logsumexp_j(-cost_kj/eps + v_j)
-            #   v_j = log b_j - logsumexp_k(-cost_kj/eps + u_k)
-            log_a = torch.full((K,),  -math.log(K),  device=device, dtype=cost.dtype)
-            log_b = torch.full((64,), -math.log(64), device=device, dtype=cost.dtype)
-            log_K_mat = -cost / eps_reg                                # [K, 64]
-            u = torch.zeros(K,  device=device, dtype=cost.dtype)
-            v = torch.zeros(64, device=device, dtype=cost.dtype)
+            cost = -log_p_codon_full[m, :K]                            # [K, |C|]
+            log_a = torch.full((K,),          -math.log(K),          device=device, dtype=cost.dtype)
+            log_b = torch.full((num_codons,), -math.log(num_codons), device=device, dtype=cost.dtype)
+            log_K_mat = -cost / eps_reg                                # [K, |C|]
+            u = torch.zeros(K,          device=device, dtype=cost.dtype)
+            v = torch.zeros(num_codons, device=device, dtype=cost.dtype)
             for _ in range(n_iter):
                 u = log_a - torch.logsumexp(log_K_mat + v[None, :], dim=1)
                 v = log_b - torch.logsumexp(log_K_mat + u[:, None], dim=0)
-            log_T = log_K_mat + u[:, None] + v[None, :]                # [K, 64]
-            T = log_T.exp()                                            # [K, 64]
+            log_T = log_K_mat + u[:, None] + v[None, :]                # [K, |C|]
+            T = log_T.exp()                                            # [K, |C|]
             per_codebook.append((T * cost).sum())
         if not per_codebook:
             return codeword_codon_logits.new_zeros(())
@@ -1529,6 +1557,119 @@ class DNACodonHashLoss(nn.Module):
         return torch.stack(per_codebook).mean()
 
     @torch.no_grad()
+    def _ensure_codeword_text_proto(
+        self,
+        text_part_tokens: torch.Tensor,       # [B, M, D]
+        K_max: int,
+    ) -> None:
+        B, M, D = text_part_tokens.shape
+        shape_proto = (M, int(K_max), D)
+        shape_seen = (M, int(K_max))
+        if (
+            self._codeword_text_proto.numel() == 0
+            or tuple(self._codeword_text_proto.shape) != shape_proto
+            or self._codeword_text_proto.device != text_part_tokens.device
+            or self._codeword_text_proto.dtype != text_part_tokens.dtype
+        ):
+            self._codeword_text_proto = torch.zeros(
+                shape_proto,
+                device=text_part_tokens.device,
+                dtype=text_part_tokens.dtype,
+            )
+            self._codeword_text_seen = torch.zeros(
+                shape_seen,
+                device=text_part_tokens.device,
+                dtype=text_part_tokens.dtype,
+            )
+
+    def _loss_codeword_text_proto(
+        self,
+        z: torch.Tensor,                      # [B, M, D]
+        text_part_tokens: torch.Tensor,       # [B, M, D]
+        codebook_indices: torch.Tensor,       # [B, M]
+        active_mask: Optional[torch.Tensor] = None,  # [M, K_max] bool
+    ) -> torch.Tensor:
+        """v123: align visual codeword assignments to text prototypes.
+
+        The text prototype for (m, k) is an EMA mean of text_part_tokens[:, m]
+        over samples whose visual slot m selected codeword k. Local slots are
+        used by default; slot 0 is included only when explicitly requested.
+        """
+        assert z.dim() == 3, f"z must be [B, M, D], got {tuple(z.shape)}"
+        assert text_part_tokens.dim() == 3, (
+            f"text_part_tokens must be [B, M, D], got {tuple(text_part_tokens.shape)}"
+        )
+        assert codebook_indices.dim() == 2, (
+            f"codebook_indices must be [B, M], got {tuple(codebook_indices.shape)}"
+        )
+        B, M, D = z.shape
+        assert text_part_tokens.shape == (B, M, D), (
+            f"text_part_tokens shape {tuple(text_part_tokens.shape)} "
+            f"!= z shape {(B, M, D)}"
+        )
+        assert codebook_indices.shape == (B, M), (
+            f"codebook_indices shape {tuple(codebook_indices.shape)} != {(B, M)}"
+        )
+        if active_mask is not None:
+            assert active_mask.dim() == 2 and active_mask.shape[0] == M, (
+                f"active_mask must be [M, K], got {tuple(active_mask.shape)}"
+            )
+            K_max = int(active_mask.shape[1])
+        else:
+            cfg_K = int(getattr(self.cfg, "codebook_size", 0))
+            idx_K = int(codebook_indices.max().item()) + 1
+            K_max = max(cfg_K, idx_K)
+
+        self._ensure_codeword_text_proto(text_part_tokens, K_max)
+        momentum = min(max(float(self.codeword_text_proto_momentum), 0.0), 0.9999)
+        start_m = 0 if self.codeword_text_proto_include_global else 1
+
+        with torch.no_grad():
+            t_n = F.normalize(text_part_tokens.detach(), dim=-1)        # [B, M, D]
+            for m in range(start_m, M):
+                idx = codebook_indices[:, m].long().clamp(min=0, max=K_max - 1)  # [B]
+                counts = torch.bincount(idx, minlength=K_max).to(t_n.dtype)      # [K]
+                sums = torch.zeros(K_max, D, device=t_n.device, dtype=t_n.dtype)
+                sums.index_add_(0, idx, t_n[:, m, :])                            # [K, D]
+                valid = counts > 0
+                if not bool(valid.any()):
+                    continue
+                mean = sums[valid] / counts[valid].unsqueeze(-1).clamp_min(self.eps)
+                mean = F.normalize(mean, dim=-1)                                  # [K_valid, D]
+                old = self._codeword_text_proto[m, valid]
+                seen_old = self._codeword_text_seen[m, valid] > 0
+                updated = torch.where(
+                    seen_old.unsqueeze(-1),
+                    momentum * old + (1.0 - momentum) * mean,
+                    mean,
+                )
+                self._codeword_text_proto[m, valid] = F.normalize(updated, dim=-1)
+                self._codeword_text_seen[m].add_(counts)
+
+        proto = F.normalize(self._codeword_text_proto.detach().to(z), dim=-1)    # [M, K, D]
+        seen = self._codeword_text_seen.detach().to(device=z.device)
+        z_n = F.normalize(z, dim=-1)                                             # [B, M, D]
+        tau = max(float(self.codeword_text_proto_tau), 1e-6)
+        min_count = max(int(self.codeword_text_proto_min_count), 1)
+        losses = []
+        for m in range(start_m, M):
+            valid_proto = seen[m] >= float(min_count)                            # [K]
+            if active_mask is not None:
+                valid_proto = valid_proto & active_mask[m].to(device=z.device).bool()
+            if not bool(valid_proto.any()):
+                continue
+            idx = codebook_indices[:, m].long().clamp(min=0, max=K_max - 1)      # [B]
+            sample_valid = valid_proto.gather(0, idx)                            # [B]
+            if int(sample_valid.sum().item()) == 0:
+                continue
+            logits = (z_n[sample_valid, m, :] @ proto[m].T) / tau                # [Bv, K]
+            logits = logits.masked_fill(~valid_proto.unsqueeze(0), -1e9)
+            losses.append(F.cross_entropy(logits, idx[sample_valid]))
+        if not losses:
+            return z.new_zeros(())
+        return torch.stack(losses).mean()
+
+    @torch.no_grad()
     def _init_text_cluster_buffers(
         self,
         text_part_tokens: torch.Tensor,         # [B, M, D]
@@ -1617,9 +1758,12 @@ class DNACodonHashLoss(nn.Module):
                 self._text_cluster_codeword.sum(dim=-1, keepdim=True).clamp(min=eps)
             )
 
+        # codeword_codon_logits: [M, K_max, L, V=4]; |C| = V**L (=64 / 256 etc.)
+        _M, _Kmax, _L, _V = codeword_codon_logits.shape
+        num_codons = _V ** _L
         P_codeword = self._joint_codon_distribution(
             codeword_codon_logits, eps
-        ).clamp(min=eps)                                                # [M, K_max, 64]
+        ).clamp(min=eps)                                                # [M, K_max, |C|]
         W = self._text_cluster_codeword.to(P_codeword).detach()         # [M, C, K]
 
         eps_reg = max(float(self.text_cluster_codon_ot_eps), 1e-3)
@@ -1635,17 +1779,17 @@ class DNACodonHashLoss(nn.Module):
             P_cluster = torch.einsum("ck,kj->cj", W_m, P_codeword[m, :K])
             P_cluster = P_cluster.clamp(min=eps)
             P_cluster = P_cluster / P_cluster.sum(dim=-1, keepdim=True).clamp(min=eps)
-            cost = -P_cluster.log()                                    # [C, 64]
+            cost = -P_cluster.log()                                    # [C, |C|]
 
-            log_a = torch.full((C,), -math.log(C), device=device, dtype=cost.dtype)
-            log_b = torch.full((64,), -math.log(64), device=device, dtype=cost.dtype)
-            log_K_mat = -cost / eps_reg                                # [C, 64]
-            u = torch.zeros(C, device=device, dtype=cost.dtype)
-            v = torch.zeros(64, device=device, dtype=cost.dtype)
+            log_a = torch.full((C,),          -math.log(C),          device=device, dtype=cost.dtype)
+            log_b = torch.full((num_codons,), -math.log(num_codons), device=device, dtype=cost.dtype)
+            log_K_mat = -cost / eps_reg                                # [C, |C|]
+            u = torch.zeros(C,          device=device, dtype=cost.dtype)
+            v = torch.zeros(num_codons, device=device, dtype=cost.dtype)
             for _ in range(n_iter):
                 u = log_a - torch.logsumexp(log_K_mat + v[None, :], dim=1)
                 v = log_b - torch.logsumexp(log_K_mat + u[:, None], dim=0)
-            T = (log_K_mat + u[:, None] + v[None, :]).exp()            # [C, 64]
+            T = (log_K_mat + u[:, None] + v[None, :]).exp()            # [C, |C|]
             per_codebook.append((T * cost).sum() * conf[:, m].mean())
 
         if not per_codebook:
@@ -1708,8 +1852,11 @@ class DNACodonHashLoss(nn.Module):
             if K <= 0:
                 continue
             idx = codebook_indices[:, m].long().clamp(min=0, max=K - 1)  # [B]
-            P_assigned = P_full[m, idx]                                  # [B, 64]
-            assert P_assigned.shape == (B, 64), "assigned codon dist must be [B, 64]"
+            P_assigned = P_full[m, idx]                                  # [B, |C|]
+            _num_codons = P_full.shape[-1]
+            assert P_assigned.shape == (B, _num_codons), (
+                f"assigned codon dist must be [B, {_num_codons}]; got {tuple(P_assigned.shape)}"
+            )
 
             text_sim = t[:, m, :] @ t[:, m, :].T                         # [B, B]
             codon_sim = P_assigned @ P_assigned.T                        # [B, B]
@@ -1941,6 +2088,28 @@ class DNACodonHashLoss(nn.Module):
         else:
             loss_cw_xmodal = u.new_zeros(())
 
+        # v123: codeword-level text prototype alignment. Use quantizer_input
+        # instead of semantic_visual_tokens when v122 residual quantization is
+        # active, so the visual/text prototype spaces match.
+        loss_codeword_text_proto = u.new_zeros(())
+        if self.lambda_codeword_text_proto > 0.0:
+            z_proto = outputs.get("quantizer_input")
+            if z_proto is None:
+                z_proto = outputs.get("semantic_visual_tokens")
+            t_proto = outputs.get("codeword_text_tokens")
+            if t_proto is None:
+                t_proto = text_part_tokens
+            codebook_indices_t = outputs.get("codebook_indices")
+            if z_proto is None or t_proto is None or codebook_indices_t is None:
+                raise ValueError(
+                    "[DNACodonHashLoss] lambda_codeword_text_proto > 0 requires "
+                    "outputs to contain quantizer_input/semantic_visual_tokens, "
+                    "codeword_text_tokens/text_part_tokens, and codebook_indices."
+                )
+            loss_codeword_text_proto = self._loss_codeword_text_proto(
+                z_proto, t_proto, codebook_indices_t,
+                active_mask=outputs.get("codebook_active_mask"),
+            )
 
         # v29 paired-aug NtXent on DNA codes (None-safe). Requires the
         # trainer to forward the model on a second augmented view per image
@@ -2196,6 +2365,7 @@ class DNACodonHashLoss(nn.Module):
             + self.lambda_text_hash       * loss_text_hash
             + self.lambda_text_hash_ntxent * loss_text_hash_ntxent_add
             + self.lambda_cw_xmodal       * loss_cw_xmodal
+            + self.lambda_codeword_text_proto * loss_codeword_text_proto
             + self.lambda_cibhash_ntxent  * loss_cibhash_ntxent_v
             + self.lambda_cibhash_kl      * loss_cibhash_kl_v
             + self.lambda_swav_assign     * loss_swav_assign_v
@@ -2323,6 +2493,7 @@ class DNACodonHashLoss(nn.Module):
             "loss_text_hash":    loss_text_hash,
             "loss_text_hash_ntxent_add": loss_text_hash_ntxent_add,
             "loss_cw_xmodal":    loss_cw_xmodal,
+            "loss_codeword_text_proto": loss_codeword_text_proto,
             "loss_codeword_codon_sinkhorn": loss_codeword_codon_sinkhorn,
             "loss_codeword_codon_agg_ent":  loss_codeword_codon_agg_ent,
             "loss_codeword_codon_pairwise": loss_codeword_codon_pairwise,
