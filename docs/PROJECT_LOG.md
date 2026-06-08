@@ -467,6 +467,118 @@ section, which the script handles correctly.
 
 ---
 
+## 2026-06-05 — v114-v117 text-anisotropy mitigation family — v115c new Flickr25k-CLIP mAP champion (0.7622); v106b retains DNA champion
+
+🟢 active (restored 2026-06-08 from commit `6a51d56` message; the
+original PROJECT_LOG entry was silently dropped by `reorder_project_log.py`
+— see 2026-06-08 entry's "Tooling note" for diagnosis).
+
+**Motivation.** Re-examination of Proposal A (Pairwise Similarity
+Correlation, 2026-06-04 design brief) surfaced the well-known CLIP
+text anisotropy issue: text-text cosine is compressed into 0.5-0.95
+so naive similarity matching collapses codon distributions. Empirical
+diagnostic on the Flickr25k-CLIP cache (N=25k × M=6 = 150k vectors,
+D=512) confirms: top eigenvector of the text covariance carries
+**14.9 %** of variance (isotropic baseline 0.2 %); top-5 carry 26.1 %.
+Rather than fight anisotropy inside the loss, v114-v117 address it at
+the embedding layer.
+
+**Setup (4 transforms × 3 regimes).**
+
+| Tag | Modification | Implementation |
+|---|---|---|
+| v114a | per-image slot-mean removal | `T_local <- T_local - T_local.mean(dim=1); normalize` |
+| v114b | C_global residualization + visual residualization for routing | `T_local <- T_local - T_global; V_for_routing <- normalize(V - mean(V))` |
+| v114c | partial whitening γ=0.25 on cached text | `W_gamma = U diag((S+eps)^-gamma) U^T` precomputed; full-DB stats |
+| v114d | phrase-level concept embedding | comma+conjunction split, per-phrase CLIP forward, slot-mean pool; avg 2.56 phrases/slot |
+| v115a-d | same 4 transforms with `--lambda_codeword_codon_sinkhorn 0` + `--lambda_text_hash 0` (text_hash_ntxent 0.05 kept) | isolates transform from v106b's bij + MSE-text-hash |
+| v117a | global_residual_whiten (slot 0 raw, residualize then whiten 125k local pop) + text_hash_ntxent 0 | most aggressive transform; all text-DNA contrastive removed |
+| v117b | partial whitening γ sweep 0.25 → 0.10 on v115c base | Goldilocks sweet-spot test |
+| v116a-rev | v115c + paired-aug NtXent OFF + routing-only mode (transform feeds only routing centroids; losses use untransformed text) | isolation: text_hash_ntxent as sole cross-modal loss |
+
+**Final results (Flickr25k-CLIP unsupervised, hash_target_mode siglip_cos):**
+
+| Run | mAP | Δ mAP | P@1 | DNA | NMI | B1 | B2 | dead | verdict |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| v106b ref | 0.7407 | — | **0.917** | **0.347** | 0.604 | **0.115** | **0.072** | 0.003 | ★ DNA + P@1 champion |
+| v114a | 0.7466 | +0.006 | 0.906 | 0.277 | 0.619 | 0.114 | 0.071 | 0.003 | DISCARDED |
+| v114b | 0.7427 | +0.002 | 0.891 | 0.289 | 0.584 | 0.106 | 0.067 | 0.013 | NMI champion of v114 |
+| v114c | 0.7511 | +0.010 | 0.907 | 0.317 | 0.592 | 0.113 | 0.070 | 0.008 | best v114 compromise |
+| v114d | 0.7281 | −0.013 | 0.889 | 0.264 | 0.616 | 0.099 | 0.066 | 0.005 | DISCARDED |
+| v115a | 0.7534 | +0.013 | 0.878 | 0.157 | 0.615 | 0.095 | 0.056 | 0.000 | DISCARDED |
+| v115b | 0.7294 | −0.011 | 0.885 | 0.189 | 0.593 | 0.089 | 0.056 | 0.000 | DISCARDED |
+| **v115c** | **0.7622** | **+0.022** | 0.888 | 0.212 | 0.598 | 0.100 | 0.062 | 0.003 | **mAP champion (then-current)** |
+| v115d | 0.7473 | +0.007 | 0.891 | 0.164 | 0.603 | 0.089 | 0.056 | 0.000 | DISCARDED |
+| v117a | 0.7252 | −0.016 | 0.876 | 0.156 | 0.632 | 0.088 | 0.056 | 0.000 | DISCARDED |
+| v117b | 0.7366 | −0.004 | 0.874 | 0.190 | 0.598 | 0.093 | 0.055 | 0.000 | DISCARDED |
+| v116a-rev | 0.6997 | −0.041 | 0.845 | 0.292 | 0.290 ⚠ | 0.060 | 0.031 | **0.250 ⚠** | COLLAPSED (recipe-level failure) |
+
+**Direct cosine-anisotropy diagnostic** (cross-slot mean cosine over 5 local slots, raw cached text before adapter):
+
+| Variant | local-5 mean cos | Δ vs raw | mAP | DNA |
+|---|---:|---:|---:|---:|
+| raw (v106b) | 0.686 | — | 0.7407 | 0.347 |
+| v114a perImg | **−0.243** | **−0.929 (extreme)** | 0.7466 | 0.277 |
+| v114b globRes | 0.512 | −0.174 (mild) | 0.7427 | 0.289 |
+| **v114c whiten γ=0.25** | **0.210** | **−0.476 (calibrated)** | **0.7511** | **0.317** |
+| v114d phrase | **0.847** | **+0.161 (INCREASED ⚠)** | 0.7281 | 0.264 |
+
+**Key findings.**
+
+1. v114d's phrase-mean pool *raises* cross-slot cosine (0.686 → 0.847)
+   because CLIP's short-text encoding pushes single-phrase pooled
+   embeddings into the dominant text prior — *opposite* of the
+   intended concept-centric isolation.
+2. v114a's per-image mean over-corrects to *anti-correlated* slots
+   (cos −0.243). Unnatural orthogonality discards real semantic
+   signal; small mAP gain relative to massive cosine drop.
+3. v114b's global-residual is too mild (Δ −0.174); slot 0 doesn't
+   capture the dataset-wide spectral anisotropy direction.
+4. v114c's partial whitening γ=0.25 hits the calibrated zone (cos
+   0.21). Down-weights dominant spectral directions while preserving
+   the 99.8 % sub-dominant subspace.
+5. DNA-uniq is non-monotonic in cosine reduction. Sweet spot is cos
+   ≈ 0.5-0.7 (v106b's own range). Too aggressive (cos < 0.3) loses
+   codeword discriminativity at the codon-mapping level. v117b's
+   γ=0.10 (closer to raw, cos ~0.4-0.5) is *strictly worse* than
+   γ=0.25 on every metric — Goldilocks hypothesis *disproven*.
+6. v115's `lambda_codeword_codon_sinkhorn 0` + `lambda_text_hash 0`
+   regime causes ~0.10-0.12 DNA-uniq drop across all 4 transforms
+   while improving mAP by ≤0.022. Causal proof that v106b's DNA
+   champion (0.347) is the direct product of the bijection +
+   MSE-text-hash, NOT of any transform.
+7. v117a confirms text supervision is load-bearing: removing the last
+   cross-modal contrastive (text_hash_ntxent) from v117 sends DNA to
+   0.156 (worst) and NMI to 0.632. Never silently disable text-DNA ↔
+   visual-DNA InfoNCE.
+8. v116a-rev confirms paired-aug NtXent is mandatory: without it, the
+   only per-codebook contrastive signal disappears, dead-codeword
+   ratio jumps to 25 %, NMI crashes to 0.29 (random level), mAP
+   regresses to 0.6997.
+
+**Adopt / discard.**
+
+- v106b stays the DNA-axis paper-final candidate (DNA 0.347 champion,
+  P@1 0.917 champion). Limitation: K = 4³ = 64 is a hard ceiling
+  because the Sinkhorn codeword-codon bijection requires
+  K == num_codons. (See 2026-06-08 entry for the K-scaling sweep
+  that revealed the v118 family.)
+- v115c was the v9x Flickr-CLIP unsupervised mAP champion at commit
+  time (0.7622, +0.022 over v106b) but at DNA cost (−0.135);
+  **superseded on 2026-06-08 by v118a (mAP 0.7721 at K=128 — same
+  recipe with codebook doubled)**.
+- v114a, v114b, v114d, v115a, v115b, v115d, v116a-rev, v117a, v117b —
+  DISCARDED.
+
+**Code touchpoints (committed in `6a51d56`):**
+- `config.py`: `--text_embed_transform {none, per_image_mean, global_residual, partial_whiten, global_residual_whiten, phrase_concept}`, `--text_whiten_npz`, `--text_whiten_gamma`, `--text_whiten_eps`, `--residualize_visual_for_routing`, `--text_transform_routing_only`.
+- `model_siglip2.py`: transforms applied to `feats["text_part_raw"]` BEFORE `codebook_text_prompts + text_adapter`; whitening matrix loaded as non-persistent buffers; visual residualization affects only the Sinkhorn router input; routing-only mode re-runs the adapter on original raw to produce a parallel `text_part_tokens` used by every loss path while routing centroids come from the transformed pass.
+- `scripts/build_text_whiten_matrix.py`: one-shot eigendecomposition of `text_part.f16.npy` covariance; `--residualize_first` computes stats on (T_local − T_global) instead of T (separate npz so γ can be swept).
+- `extract_clip_text_phrase_features.py`: comma+conjunction phrase splitter, per-phrase CLIP forward, slot-level `mean` / `attn` pool, donor-symlink layout.
+- 13 new launch scripts (v114a-d, v115a-d, v116a-rev, v117a, v117b, plus in-progress v116b/c, v117c/d/e, v118a referenced as follow-ups).
+
+---
+
 ## 2026-06-03 — v111a/b/c Sinkhorn relaxation and top-k teacher ablations — DISCARDED
 
 🔴 discarded
