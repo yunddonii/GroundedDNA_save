@@ -334,6 +334,165 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-08 — v119a: CIBHash per-codebook loss on K=128 base — DNA-uniq recovers +0.04 over v118a but dead-codeword ratio jumps to 0.17
+
+🟢 active — alternative supervision design with paper-relevant trade-offs
+
+**Motivation.** CIBHash (Hu et al., 2021) is a published unsupervised hashing
+baseline (MSCOCO mAP 0.5842, Flickr25k mAP 0.6844) whose loss design
+contrasts cleanly with the v9x family: it supervises a **binary** hash
+code directly via paired-augmented contrastive InfoNCE plus a
+**symmetric Bernoulli KL** between two views' bit-probabilities. We
+adapt this loss to our 6-codebook DNA structure (per-codebook
+variant) and ask whether CIBHash-style direct binary-hash supervision
+can recover any of v118a's DNA-uniq loss without sacrificing its mAP.
+
+**CIBHash original loss (binary hash z = sign(σ(continuous_code) − 0.5)):**
+```
+L = NtXent(z_aug0, z_aug1; τ=0.3) + 0.001 · symmetric_KL(σ(c_aug0), σ(c_aug1))
+```
+where NtXent treats same-image as positive and 2(B−1) other in-batch
+samples as negatives (CrossEntropy on cosine sim ÷ τ).
+
+**Per-codebook adaptation (v119a).** Our 36-bit DNA code is structurally
+6 codebooks × 3 codons × 2 bits, so the codon-head's 4-way softmax over
+(A, C, G, T) at each of 18 codon positions maps to 2 bit-marginals per
+position using the encoding A=00, C=01, G=10, T=11:
+```
+bit_0_prob = P(G) + P(T)        # first bit of the 2-bit codon is 1
+bit_1_prob = P(C) + P(T)        # second bit is 1
+```
+This collapses `continuous_code [B, 18, 4]` → `bit_probs [B, 6, 6]`
+(M=6 codebooks × 6 bits each). The CIBHash NtXent and KL are then
+applied **independently per codebook** and averaged. STE sign is
+`2 · (delta ≥ 0) − 1` (ties → +1; `torch.sign(0) = 0` would produce zero
+z vectors at init and NaN the cosine normalization).
+
+**Recipe (v119a, on v118a base).**
+
+KEEP (per user spec):
+- `--lambda_wasserstein 0.05`
+- `--use_paired_aug_ntxent --ntxent_dynamic_tau` (existing per-codebook
+  NtXent with dynamic τ continues to operate on the DNA continuous code)
+- `--lambda_vq 0.25 --lambda_quant 0.05` (essential VQ commitment)
+- `--lambda_anchor 0.05 --lambda_dna 0.05 --lambda_bu 0.02` (regularizers)
+- partial whitening γ=0.25 + K=128
+
+OFF:
+- `--lambda_text_hash 0.0`, `--lambda_text_hash_ntxent 0.0` (was 0.05 in v118a)
+- `--lambda_codeword_codon_sinkhorn 0.0`
+- `--lambda_hash 0.0 --lambda_hash_hard 0.0`
+
+NEW:
+- `--lambda_cibhash_ntxent 1.0 --lambda_cibhash_kl 0.001 --cibhash_temperature 0.3`
+
+**Two NaN bugs found and fixed during launch:**
+
+1. *STE sign degenerate at init.* `torch.sign(0) = 0`. At codon-head
+   initialization the 4-way softmax is uniform, so bit_probs = 0.5 exactly,
+   delta = 0, z = 0. `F.normalize(0)` is NaN → cosine sim NaN → all NaN.
+   Fix: `z_hard = 2 · (delta ≥ 0) − 1` so z is always in {−1, +1}.
+
+2. *float32 epsilon underflow in Bernoulli KL.* `p.clamp(1e-8, 1 − 1e-8)`
+   has a hidden bug: float32 epsilon ≈ 1.19e−7, so the upper bound
+   `1 − 1e−8` is not distinct from 1.0 and rounds to exactly 1.0.
+   After clamp, p can equal 1.0, so 1 − p = 0 exactly, log(0) = −∞, and
+   `(−∞) − (−∞) = NaN` in the `(1 − p) · ((1 − p).log() − (1 − q).log())`
+   term. KL passes the first epoch (probs not yet sharp) and NaNs at
+   epoch 2 once the codon head has sharpened. Fix: bump `eps` to 1e−6
+   plus an explicit `(1 − p).clamp_min(eps)` floor. 5-scenario regression
+   test (uniform / moderate / high-conf / identical / extreme) confirms
+   finite forward + finite gradient.
+
+**Final results (Flickr25k-CLIP unsupervised, hash_target_mode siglip_cos):**
+
+| Tag | mAP | P@1 | P@10 | DNA | dead | NMI | B1 | B2 | verdict |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| v106b ref | 0.7407 | **0.917** | 0.911 | **0.347** | 0.003 | 0.604 | **0.115** | **0.072** | ★ cross-dataset paper-final |
+| v115c (K=64 baseline) | 0.7622 | 0.888 | 0.897 | 0.212 | 0.003 | 0.598 | 0.100 | 0.062 | superseded |
+| **v118a (K=128 mAP champ)** | **0.7721** | 0.900 | 0.903 | 0.207 | **0.004** | 0.628 | 0.107 | 0.064 | ⭐ Flickr-only mAP champion |
+| **v119a (K=128 CIBHash perCb)** | 0.7620 | 0.906 | 0.895 | **0.246** | **0.168 ⚠** | **0.596** | 0.103 | 0.063 | DNA + NMI gain, dead-codeword cost |
+
+**Δ vs v118a (the natural comparison; same K=128, same partial whitening):**
+
+| Metric | v118a | v119a | Δ | Interpretation |
+|---|---:|---:|---:|---|
+| mAP | 0.7721 | 0.7620 | **−0.010** | small mAP regression (within v9x noise) |
+| P@1 | 0.900 | **0.906** | +0.006 | slight gain |
+| DNA-uniq | 0.207 | **0.246** | **+0.039** | meaningful DNA recovery |
+| NMI | 0.628 | **0.596** | **−0.032** | better compositional (lower=better) |
+| dead | 0.004 | 0.168 | **+0.164 ⚠** | major codebook collapse cost |
+| B1 | 0.107 | 0.103 | −0.004 | flat |
+| B2 | 0.064 | 0.063 | −0.001 | flat |
+
+**Key findings.**
+
+1. **CIBHash supervision recovers some DNA uniqueness** (+0.039 over
+   v118a, +0.034 over v115c). The direct binary-hash NtXent pressure
+   per codebook forces each codebook to produce distinct codes,
+   partially counteracting the codeword→codon collision that the
+   bij-free recipe otherwise has. v106b's 0.347 DNA champion is still
+   ahead — CIBHash recovers ~30 % of the gap from v118a to v106b.
+2. **NMI improves** (0.628 → 0.596) — CIBHash's per-codebook
+   independence pressure pushes codebooks apart. NMI 0.596 is the
+   lowest in the K=128 family.
+3. **The cost is codebook collapse.** Dead-codeword ratio jumps from
+   0.4 % (v118a) to **16.8 %** (v119a). Per-codebook unique fraction
+   stays at ~0.013-0.014 (≈ 2 codewords actively used per codebook of
+   K=128). CIBHash NtXent on 6 bits per codebook creates strong
+   winner-take-all dynamics in the codon head, and the absence of the
+   codeword-codon Sinkhorn bijection means no counter-pressure to
+   spread codeword usage. Codebook revive partially recovers (epoch 4:
+   dead 0.357 → epoch 29: 0.188 → epoch 59: 0.168) but does not close
+   the gap.
+4. **mAP regression is small (−0.010)** despite 17 % dead codewords,
+   suggesting most retrieval power is concentrated in the active
+   codewords. Consistent with CIBHash-CLIP's external Flickr25k
+   baseline (mAP 0.6844 with DNA-uniq 0.967) — CIBHash trades
+   codebook utilization for code distinctness.
+5. **The "dynamic tau" knob keeps the existing per-codebook NtXent
+   alive.** When that loss is off as well (cf. v116a-rev), the model
+   collapses (dead 0.25, mAP 0.6997, NMI 0.29). v119a confirms that
+   v106b-style paired-aug NtXent with dynamic τ is *load-bearing*
+   for codebook diversity — CIBHash supervision alone is insufficient.
+
+**Adopt / discard.**
+
+- v106b stays the cross-dataset paper-final candidate. v118a stays
+  the Flickr-only mAP champion.
+- **v119a is not a paper-final candidate** (mAP regression + 17 %
+  dead codewords), but it is a *paper-relevant ablation*: it
+  demonstrates that CIBHash-style direct binary-hash supervision can
+  be incorporated as a per-codebook auxiliary loss, recovers ~30 % of
+  v106b's DNA-uniq lead from v118a, and lowers NMI, at the cost of
+  codebook utilization.
+- v119a is the natural starting point for a v120 family that **adds a
+  Sinkhorn bijection or codeword-revive booster** to counteract the
+  17 % dead-codeword collapse while keeping the DNA + NMI gains.
+
+**Code touchpoints (this commit):**
+- `config.py`: `--lambda_cibhash_ntxent`, `--lambda_cibhash_kl`,
+  `--cibhash_temperature`.
+- `loss_siglip2.py`: new `_continuous_code_to_bit_probs`, `_ste_sign`
+  (indicator-based, NaN-safe), `_cibhash_kl` (eps=1e−6, explicit
+  `(1−p).clamp_min`), `_loss_cibhash_per_codebook`; wired into total
+  loss and returned in the loss dict.
+- `scripts/train_v119a_v118a_cibhash_per_codebook_flickr25k_clip.sh`.
+
+**Suggested follow-ups.**
+- v120: v119a + reinstate `--lambda_codeword_codon_sinkhorn 0.1`.
+  The two pressures may be complementary: CIBHash supplies
+  per-codebook discriminativity, bij supplies cross-codebook codon
+  distinctness. K=128 forces 2× codon pigeonhole so the bij becomes
+  a "soft" assignment over forced collisions.
+- v120b: v119a + codebook-revive booster (lower threshold or more
+  aggressive revive frequency) to fight the 17 % dead ratio.
+- Cross-dataset: try v119a recipe on MSCOCO. K=128 pigeonhole applies
+  identically, and MSCOCO's 8.2 % has_text coverage may benefit from
+  CIBHash's text-free supervision where v118a regressed (−0.053).
+
+---
+
 ## 2026-06-08 — v118 (K=128) family + MSCOCO port — **K=128 Flickr champion (mAP 0.7721) does NOT port to MSCOCO (mAP −0.053 vs mscoco_v106b)**
 
 🟡 mixed: Flickr champion confirmed, MSCOCO generalization fails

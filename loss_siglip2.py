@@ -183,6 +183,10 @@ class DNACodonHashLoss(nn.Module):
         # text_adapter into a shared space where the OT transport cost is
         # small. Default 0.0 keeps it off; v11 sweet spot was 0.05.
         self.lambda_wasserstein = float(getattr(cfg, "lambda_wasserstein", 0.0))
+        # v119: CIBHash-style per-codebook NtXent + symmetric Bernoulli KL.
+        self.lambda_cibhash_ntxent = float(getattr(cfg, "lambda_cibhash_ntxent", 0.0))
+        self.lambda_cibhash_kl     = float(getattr(cfg, "lambda_cibhash_kl",     0.0))
+        self.cibhash_temperature   = float(getattr(cfg, "cibhash_temperature",   0.3))
         # v91 (text-to-DNA-hash matching): MSE between image-derived
         # continuous_code and text-derived continuous_code (latter produced
         # by the model's parallel text path through the shared quantizer
@@ -230,6 +234,15 @@ class DNACodonHashLoss(nn.Module):
         self.text_cluster_codon_ot_iters  = int  (getattr(cfg, "text_cluster_codon_ot_iters", 30))
         self.register_buffer("_text_cluster_prototypes", torch.empty(0), persistent=True)
         self.register_buffer("_text_cluster_codeword", torch.empty(0), persistent=True)
+        # v113: weak, rank-based text-codon relational tendency. Unlike
+        # v112b, this does not allocate clusters to codons with OT. It only
+        # asks text-neighbor pairs to have higher codon-distribution
+        # similarity than text-distant pairs within each codebook.
+        self.lambda_text_codon_rel       = float(getattr(cfg, "lambda_text_codon_rel", 0.0))
+        self.text_codon_rel_top_frac     = float(getattr(cfg, "text_codon_rel_top_frac", 0.10))
+        self.text_codon_rel_bottom_frac  = float(getattr(cfg, "text_codon_rel_bottom_frac", 0.30))
+        self.text_codon_rel_margin       = float(getattr(cfg, "text_codon_rel_margin", 0.05))
+        self.text_codon_rel_min_pairs    = int  (getattr(cfg, "text_codon_rel_min_pairs", 8))
         # v107: prototype cosine clustering (InfoNCE between z and codewords).
         # Pulls z[b, m] toward its assigned codeword and pushes away from
         # other codewords in cosine space. Operates on the EMA codebook
@@ -576,7 +589,6 @@ class DNACodonHashLoss(nn.Module):
         so semantically-similar samples get soft push (large tau) and
         semantically-distant ones get hard push (small tau). Targets
         the uniformity-tolerance dilemma of Wang et al. CVPR 2021.
-
         Args:
             text_part_raw: [B, num_codebooks, D] raw SigLIP2 text-encoder
                 per-slot pooled embeddings (i.e. `cached_text_part_raw`
@@ -817,6 +829,135 @@ class DNACodonHashLoss(nn.Module):
             f"[loss_recon] unknown decoder_target {target_kind!r}; "
             f"expected 'pixel' or 'siglip_feat'."
         )
+
+    # ------------------------------------------------------------------
+    # v119: CIBHash-style per-codebook NtXent + symmetric KL on binary hash
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _continuous_code_to_bit_probs(u: torch.Tensor) -> torch.Tensor:
+        """Map per-codon softmax probs [B, 18, 4] over (A, C, G, T) to a
+        6-bit-per-codebook probability vector [B, 6, 6] using the DNA
+        encoding A=00, C=01, G=10, T=11.
+            bit_0_prob = P(G) + P(T)   (= probability that base's first bit is 1)
+            bit_1_prob = P(C) + P(T)   (= probability that base's second bit is 1)
+        Returns probabilities in [0, 1] (no sigmoid needed).
+        """
+        B, R, C = u.shape
+        assert R == 18 and C == 4, (
+            f"[cibhash] expected continuous_code [B, 18, 4]; got [{B}, {R}, {C}]"
+        )
+        # P(G) is u[..., 2], P(T) is u[..., 3], P(C) is u[..., 1]
+        bit_0 = u[..., 2] + u[..., 3]                                # [B, 18]
+        bit_1 = u[..., 1] + u[..., 3]                                # [B, 18]
+        bits  = torch.stack([bit_0, bit_1], dim=-1)                  # [B, 18, 2]
+        return bits.reshape(B, 6, 6)                                  # [B, M=6, 6 bits per codebook]
+
+    @staticmethod
+    def _ste_sign(prob: torch.Tensor, threshold: float = 0.5) -> torch.Tensor:
+        """Straight-through-estimator sign(prob - threshold).
+
+        Forward: ±1 (ties broken to +1 to avoid 0 outputs).
+        Backward: identity gradient pass-through.
+        Note: CIBHash's ``torch.sign`` returns 0 at delta=0. At our
+        codon-head initialization, ``continuous_code`` is near-uniform
+        4-way softmax so bit_probs = P(G)+P(T) and P(C)+P(T) sit at
+        exactly 0.5 → delta = 0 → z = 0 (zero vector) → cosine sim is
+        NaN. Use the indicator instead so z is always in {-1, +1} and
+        the cosine normalization is well-defined.
+        """
+        delta = prob - threshold
+        z_hard = 2.0 * (delta >= 0).to(prob.dtype) - 1.0
+        return delta + (z_hard - delta).detach()
+
+    @staticmethod
+    def _cibhash_kl(prob_view1: torch.Tensor, prob_view2: torch.Tensor,
+                    eps: float = 1e-6) -> torch.Tensor:
+        """Symmetric Bernoulli KL between two probability tensors with the
+        same shape, averaged over batch and summed over bit-dim.
+
+        NaN-safety:
+        - eps must be > float32 epsilon (≈ 1.19e-7). With eps=1e-8 the
+          expression `1 - (1 - eps)` underflows to 0 in float32, yielding
+          log(0) = -inf and (-inf) - (-inf) = NaN. eps=1e-6 stays safely
+          above the float32 representable gap near 1.
+        - Both `p` and `1 - p` are explicitly clamp_min'd to eps so any
+          remaining numerical pinches still produce finite logs.
+
+        CIBHash's compute_kl is asymmetric (KL(prob || prob_v.detach())).
+        We make it symmetric (both directions, both detached against the
+        other view inside their own term — gradient flows from each view
+        only through that view's contribution).
+        """
+        p = prob_view1.clamp(eps, 1.0 - eps)
+        q = prob_view2.clamp(eps, 1.0 - eps)
+        one_mp = (1.0 - p).clamp_min(eps)
+        one_mq = (1.0 - q).clamp_min(eps)
+        log_p   = p.log();     log_1mp = one_mp.log()
+        log_q_d = q.detach().log();         log_1mq_d = one_mq.detach().log()
+        kl_pq = p * (log_p - log_q_d) + one_mp * (log_1mp - log_1mq_d)
+        log_q   = q.log();     log_1mq = one_mq.log()
+        log_p_d = p.detach().log();         log_1mp_d = one_mp.detach().log()
+        kl_qp = q * (log_q - log_p_d) + one_mq * (log_1mq - log_1mp_d)
+        kl = 0.5 * (kl_pq.sum(dim=-1).mean() + kl_qp.sum(dim=-1).mean())
+        return kl
+
+    def _loss_cibhash_per_codebook(
+        self,
+        continuous_code_view1: torch.Tensor,
+        continuous_code_view2: torch.Tensor,
+        temperature: float,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """v119: CIBHash NtXent + symmetric KL, computed independently per
+        codebook m=0..5 and averaged.
+
+        Args:
+            continuous_code_view1: [B, 18, 4] paired-aug view 0 softmax probs.
+            continuous_code_view2: [B, 18, 4] paired-aug view 1 softmax probs.
+            temperature: NtXent temperature (CIBHash paper default 0.3).
+        Returns:
+            (ntxent_loss, kl_loss) — both scalar averages over 6 codebooks.
+        """
+        # Per-codebook bit probabilities
+        bits_v1 = self._continuous_code_to_bit_probs(continuous_code_view1)   # [B, M=6, 6]
+        bits_v2 = self._continuous_code_to_bit_probs(continuous_code_view2)   # [B, M=6, 6]
+
+        # Per-codebook binary hash via STE sign(p - 0.5)
+        z_v1 = self._ste_sign(bits_v1)                                         # [B, 6, 6] in {-1, +1}
+        z_v2 = self._ste_sign(bits_v2)
+
+        B, M, K = bits_v1.shape                                                # M=6, K=6
+        T = max(float(temperature), 1e-6)
+
+        ntxent_per_cb: list = []
+        kl_per_cb: list     = []
+        for m in range(M):
+            zm1 = z_v1[:, m, :]                                                # [B, 6]
+            zm2 = z_v2[:, m, :]                                                # [B, 6]
+            # CIBHash uses cosine similarity in 2(B-1)-negative InfoNCE.
+            # With z in {-1, +1}^6 the norm is sqrt(6); guard eps anyway.
+            z = torch.cat([zm1, zm2], dim=0)                                   # [2B, 6]
+            z_n = F.normalize(z, dim=-1, eps=1e-8)
+            sim = (z_n @ z_n.T) / T                                            # [2B, 2B]
+            # mask self-pairs and identify positive partners
+            N = 2 * B
+            eye = torch.eye(N, device=sim.device, dtype=torch.bool)
+            sim = sim.masked_fill(eye, -1e9)
+            pos_idx = torch.cat([
+                torch.arange(B, 2 * B, device=sim.device),
+                torch.arange(0, B,     device=sim.device),
+            ])                                                                 # [2B]
+            ntxent_m = F.cross_entropy(sim, pos_idx)
+            ntxent_per_cb.append(ntxent_m)
+
+            # Per-codebook symmetric Bernoulli KL on the 6-bit prob vectors
+            pm1 = bits_v1[:, m, :]                                              # [B, 6]
+            pm2 = bits_v2[:, m, :]                                              # [B, 6]
+            kl_m = self._cibhash_kl(pm1, pm2)
+            kl_per_cb.append(kl_m)
+
+        ntxent = torch.stack(ntxent_per_cb).mean()
+        kl     = torch.stack(kl_per_cb).mean()
+        return ntxent, kl
 
     def _loss_quant(
         self, continuous_code: torch.Tensor, dna_hash_code_hard: torch.Tensor,
@@ -1301,6 +1442,86 @@ class DNACodonHashLoss(nn.Module):
         usage_entropy = (-(usage * usage.log()).sum(dim=-1) / math.log(C)).mean()
         return loss, conf.mean().detach(), usage_entropy.detach()
 
+    def _loss_text_codon_rel(
+        self,
+        text_part_tokens: torch.Tensor,          # [B, M, D]
+        codebook_indices: torch.Tensor,          # [B, M]
+        codeword_codon_logits: torch.Tensor,     # [M, K_max, 3, 4]
+        codeword_K_active: Optional[torch.Tensor],
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Weak text-neighborhood -> codon-neighborhood tendency.
+
+        For each codebook, rank batch pairs by centered text similarity.
+        The top text-neighbor pairs should have assigned-codeword codon
+        distributions more similar than the bottom text-distant pairs. This
+        avoids hard cluster<->code assignment while still grounding codon
+        usage in text semantics.
+        """
+        assert text_part_tokens.dim() == 3, "text_part_tokens must be [B, M, D]"
+        assert codebook_indices.dim() == 2, "codebook_indices must be [B, M]"
+        assert codeword_codon_logits.dim() == 4, (
+            "codeword_codon_logits must be [M, K_max, 3, 4]"
+        )
+        B, M, _ = text_part_tokens.shape
+        M2, K_max = codeword_codon_logits.shape[:2]
+        assert codebook_indices.shape == (B, M), "codebook_indices must be [B, M]"
+        assert M == M2, "text tokens and codeword logits must share M codebooks"
+        if B <= 2:
+            zero = codeword_codon_logits.new_zeros(())
+            return zero, zero, zero
+
+        eps = self.eps
+        # Stop-gradient text teacher; batch-centering reduces CLIP/SigLIP
+        # anisotropy before pair ranking.
+        t = text_part_tokens.detach()
+        t = t - t.mean(dim=0, keepdim=True)                            # [B, M, D]
+        t = F.normalize(t, dim=-1)                                      # [B, M, D]
+        P_full = self._joint_codon_distribution(
+            codeword_codon_logits, eps
+        ).clamp(min=eps)                                                # [M, K_max, 64]
+
+        eye = torch.eye(B, device=text_part_tokens.device, dtype=torch.bool)
+        top_frac = min(max(float(self.text_codon_rel_top_frac), 0.0), 1.0)
+        bot_frac = min(max(float(self.text_codon_rel_bottom_frac), 0.0), 1.0)
+        min_pairs = max(int(self.text_codon_rel_min_pairs), 1)
+        margin = float(self.text_codon_rel_margin)
+
+        losses = []
+        pos_sims = []
+        neg_sims = []
+        for m in range(M):
+            K = int(codeword_K_active[m].item()) if codeword_K_active is not None else K_max
+            if K <= 0:
+                continue
+            idx = codebook_indices[:, m].long().clamp(min=0, max=K - 1)  # [B]
+            P_assigned = P_full[m, idx]                                  # [B, 64]
+            assert P_assigned.shape == (B, 64), "assigned codon dist must be [B, 64]"
+
+            text_sim = t[:, m, :] @ t[:, m, :].T                         # [B, B]
+            codon_sim = P_assigned @ P_assigned.T                        # [B, B]
+            text_flat = text_sim[~eye]                                   # [B*(B-1)]
+            codon_flat = codon_sim[~eye]                                 # [B*(B-1)]
+            n_pair = int(text_flat.numel())
+            if n_pair <= 0:
+                continue
+            n_pos = min(n_pair, max(min_pairs, int(round(top_frac * n_pair))))
+            n_neg = min(n_pair, max(min_pairs, int(round(bot_frac * n_pair))))
+            pos_idx = torch.topk(text_flat, k=n_pos, largest=True).indices
+            neg_idx = torch.topk(text_flat, k=n_neg, largest=False).indices
+            pos_mean = codon_flat[pos_idx].mean()
+            neg_mean = codon_flat[neg_idx].mean()
+            losses.append(F.relu(codon_flat.new_tensor(margin) + neg_mean - pos_mean))
+            pos_sims.append(pos_mean.detach())
+            neg_sims.append(neg_mean.detach())
+
+        if not losses:
+            zero = codeword_codon_logits.new_zeros(())
+            return zero, zero, zero
+        loss = torch.stack(losses).mean()
+        pos_mean = torch.stack(pos_sims).mean()
+        neg_mean = torch.stack(neg_sims).mean()
+        return loss, pos_mean, neg_mean
+
     def _loss_bu(
         self, distances: torch.Tensor,
     ) -> Dict[str, torch.Tensor]:
@@ -1575,6 +1796,22 @@ class DNACodonHashLoss(nn.Module):
         else:
             loss_ntxent = u.new_zeros(())
 
+        # v119: CIBHash-style per-codebook NtXent + symmetric KL on binary
+        # hash (paired-augmented; None-safe). Activates only when the
+        # corresponding lambdas are >0 and the trainer forwarded a second
+        # augmented view via `outputs_view2`.
+        loss_cibhash_ntxent_v = u.new_zeros(())
+        loss_cibhash_kl_v     = u.new_zeros(())
+        if outputs_view2 is not None and (
+            self.lambda_cibhash_ntxent > 0.0 or self.lambda_cibhash_kl > 0.0
+        ):
+            u_v1 = outputs.get("continuous_code")
+            u_v2 = outputs_view2.get("continuous_code")
+            if u_v1 is not None and u_v2 is not None:
+                loss_cibhash_ntxent_v, loss_cibhash_kl_v = self._loss_cibhash_per_codebook(
+                    u_v1, u_v2, temperature=self.cibhash_temperature,
+                )
+
         # v28 reconstruction loss (None-safe). Active only when the model
         # was built with --use_decoder; otherwise outputs['reconstruction']
         # is None and we skip the term entirely.
@@ -1711,6 +1948,8 @@ class DNACodonHashLoss(nn.Module):
             + self.lambda_text_hash       * loss_text_hash
             + self.lambda_text_hash_ntxent * loss_text_hash_ntxent_add
             + self.lambda_cw_xmodal       * loss_cw_xmodal
+            + self.lambda_cibhash_ntxent  * loss_cibhash_ntxent_v
+            + self.lambda_cibhash_kl      * loss_cibhash_kl_v
         )
 
         # v106: codeword <-> DNA codon bijection losses (None-safe).
@@ -1762,6 +2001,24 @@ class DNACodonHashLoss(nn.Module):
                 loss_text_cluster_codon_ot = u.new_zeros(())
                 text_cluster_conf_mean = u.new_zeros(())
                 text_cluster_usage_entropy = u.new_zeros(())
+            if self.lambda_text_codon_rel > 0.0:
+                codebook_indices_t = outputs.get("codebook_indices")       # [B, M]
+                if text_part_tokens is None or codebook_indices_t is None:
+                    raise ValueError(
+                        "[DNACodonHashLoss] lambda_text_codon_rel > 0 requires "
+                        "outputs to contain 'text_part_tokens' and 'codebook_indices'."
+                    )
+                loss_text_codon_rel, text_codon_rel_pos_sim, text_codon_rel_neg_sim = (
+                    self._loss_text_codon_rel(
+                        text_part_tokens, codebook_indices_t,
+                        codeword_codon_logits, codeword_K_active,
+                    )
+                )
+                total = total + self.lambda_text_codon_rel * loss_text_codon_rel
+            else:
+                loss_text_codon_rel = u.new_zeros(())
+                text_codon_rel_pos_sim = u.new_zeros(())
+                text_codon_rel_neg_sim = u.new_zeros(())
         else:
             loss_codeword_codon_sinkhorn = u.new_zeros(())
             loss_codeword_codon_agg_ent  = u.new_zeros(())
@@ -1769,6 +2026,9 @@ class DNACodonHashLoss(nn.Module):
             loss_text_cluster_codon_ot = u.new_zeros(())
             text_cluster_conf_mean = u.new_zeros(())
             text_cluster_usage_entropy = u.new_zeros(())
+            loss_text_codon_rel = u.new_zeros(())
+            text_codon_rel_pos_sim = u.new_zeros(())
+            text_codon_rel_neg_sim = u.new_zeros(())
             eff_lambda_codeword_codon_sinkhorn = 0.0
 
         # v112: hierarchical codon decomposition loss (uses codeword_codon_logits)
@@ -1820,11 +2080,16 @@ class DNACodonHashLoss(nn.Module):
             "loss_text_cluster_codon_ot":   loss_text_cluster_codon_ot,
             "text_cluster_conf_mean":       text_cluster_conf_mean,
             "text_cluster_usage_entropy":   text_cluster_usage_entropy,
+            "loss_text_codon_rel":          loss_text_codon_rel,
+            "text_codon_rel_pos_sim":       text_codon_rel_pos_sim,
+            "text_codon_rel_neg_sim":       text_codon_rel_neg_sim,
             "eff_lambda_codeword_codon_sinkhorn": u.new_tensor(eff_lambda_codeword_codon_sinkhorn),
             "loss_proto_cluster_cos":       loss_proto_cluster_cos,
             "loss_hierarchical_cluster_codon": loss_hierarchical_cluster_codon,
             "loss_recon":        loss_recon,
             "loss_ntxent":       loss_ntxent,
+            "loss_cibhash_ntxent": loss_cibhash_ntxent_v,
+            "loss_cibhash_kl":     loss_cibhash_kl_v,
             "loss_ortho_text":   loss_ortho_text,
             "loss_dna":          loss_dna,
             "loss_bu":           loss_bu,

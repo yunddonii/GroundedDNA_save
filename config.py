@@ -867,6 +867,21 @@ class Config():
                  'use the original (untransformed) text_part_raw -> adapter '
                  'output. Useful for isolating the OT-routing effect of the '
                  'transform from its impact on downstream losses.')
+        siglip2_arg.add_argument('--route_global_text',
+            dest='route_global_text', action='store_true', default=False,
+            help='v119: include slot-0 global caption embedding in the '
+                 'Sinkhorn router so C_0 is pooled from visual tokens rather '
+                 'than always using the visual CLS/global token.')
+        siglip2_arg.add_argument('--routed_cls_add_gamma',
+            dest='routed_cls_add_gamma', type=float, default=0.0,
+            help='v119: after text-routed visual pooling and before '
+                 'quantization, add gamma * stopgrad(visual CLS/global) to '
+                 'the routed token(s). 0 disables this path.')
+        siglip2_arg.add_argument('--routed_cls_add_scope',
+            dest='routed_cls_add_scope', type=str, default='local',
+            choices=['local', 'all'],
+            help='v119 companion to --routed_cls_add_gamma. local adds CLS '
+                 'only to C_1..C_5; all also adds it to C_0.')
 
         # ---------- LR scheduler ----------------------------------------
         # The legacy default `StepLR(step_size=10, gamma=1e-4)` killed lr
@@ -1200,6 +1215,28 @@ class Config():
                  "Try 1.0 (default), 5.0, 10.0.")
         loss_arg.add_argument('--lambda_vq',           type=float, default=0.25)
         loss_arg.add_argument('--lambda_quant',        type=float, default=0.05)
+        # ---------- v119: CIBHash-style per-codebook hash supervision ---------
+        # CIBHash (Hu et al., 2021) loss: paired-augmented binary hash codes
+        # supervised via (1) NtXent on signed-thresholded sigmoid probs and
+        # (2) symmetric Bernoulli KL between the two views' bit-probabilities.
+        # Per-codebook variant: split the 36-bit DNA hash into 6 codebook
+        # groups of 6 bits each (3 codons * 2 bits / A=00 C=01 G=10 T=11) and
+        # average the 6 per-codebook losses. Operates on continuous_code
+        # [B, 18, 4] (softmax probs over A/C/G/T) by deriving the 2-bit
+        # marginal probs per codon:
+        #     bit_0_prob = P(G) + P(T)   (== marginal of the upper-half bases)
+        #     bit_1_prob = P(C) + P(T)   (== marginal of bases with second bit 1)
+        # then z = STE-sign(prob - 0.5), and the per-codebook 12-dim z [B, 6]
+        # feeds the NtXent. The KL operates on the prob vectors directly.
+        loss_arg.add_argument('--lambda_cibhash_ntxent', type=float, default=0.0,
+            help='v119: weight for CIBHash-style NtXent on per-codebook '
+                 'binary hash codes (paired-aug). 0 disables.')
+        loss_arg.add_argument('--lambda_cibhash_kl', type=float, default=0.0,
+            help='v119: weight for CIBHash-style symmetric Bernoulli KL on '
+                 'per-codebook bit-probabilities (paired-aug). CIBHash paper '
+                 'uses 0.001 (relative to ntxent 1.0). 0 disables.')
+        loss_arg.add_argument('--cibhash_temperature', type=float, default=0.3,
+            help='v119: temperature for CIBHash NtXent (paper default 0.3).')
         loss_arg.add_argument('--lambda_anchor',       type=float, default=0.05)
         # Bumped 0.01 -> 0.05: the DNA entropy + base-balance signal was
         # essentially zero at lambda=0.01 (loss * weight ~ 0.007); the
