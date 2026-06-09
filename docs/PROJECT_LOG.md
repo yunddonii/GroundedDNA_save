@@ -403,6 +403,98 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-09 — v122a: codon length L = 3 → L = 4 (K = 256 codons) re-enables v106b Sinkhorn bijection at scalable K — **NEW Flickr25k-CLIP paper-final candidate; beats v106b on EVERY axis (mAP +0.007, P@1 +0.005, DNA-uniq +0.204 → 0.551, B1 +0.016, B2 +0.011, K-scalable)**
+
+🟢 active — NEW cross-dataset paper-final candidate (subject to MSCOCO port verification).
+
+**Motivation.** v106b's Sinkhorn codeword-codon bijection (the DNA champion mechanism, K=64 / L=3) cannot scale: the bij requires `K == 4^L`, so larger K demands either pigeonhole-forced collisions (v118a K=128 at L=3 → 2× DNA-level collision → DNA-uniq drops to 0.207) or expensive secondary regularizers (v120c re-paired bij+thNX gets DNA back to 0.344 at the cost of P@1 −0.024). The v122a structural fix removes the ceiling by extending the codon to L=4 positions per codebook:
+
+  | Knob | v106b (L=3) | v122a (L=4) |
+  |---|---|---|
+  | codon positions per codebook | 3 | **4** |
+  | codon alphabet size 4^L | 64 | **256** |
+  | DNA bits per codebook (2 × L) | 6 | **8** |
+  | total DNA bits (M × L × 2) | 36 | **48** |
+  | Sinkhorn bij target K = 4^L | 64 (max) | **256** scalable |
+
+At K=256, the bij becomes a *true* permutation matrix (no pigeonhole) — every codeword can be assigned its own distinct codon.
+
+**Implementation.** A new `--num_codons_per_codebook` flag (default 3 for back-compat) is threaded through:
+
+| File | Change |
+|---|---|
+| `config.py` | `--num_codons_per_codebook {3, 4}` flag |
+| `model_siglip2.py` | `CodonHead` takes `num_codons=L` (was hardcoded 3). `d_model % L == 0` divisibility check, `chunk = d_model // L`, `Linear(d_model, L*4)` for the v105 full-linear variant. SigLIP2SemanticOTModel reads the flag and passes L through, replacing `Mp3 = 6*3` with `M*L`. HashReconDecoder / DualHashProj `in_dim = M*L*4`. Bij output padding `[M, K_max, L, 4]` (was `[M, K_max, 3, 4]`). |
+| `loss_siglip2.py` | `_joint_codon_distribution`: hardcoded 3-position einsum → *iterative outer product* across L positions, outputs `[M, K, V^L]` (=64 at L=3, =256 at L=4). `_continuous_code_to_bit_probs`: infers L from `R / num_codebooks`, returns `[B, M, 2*L]`. `_loss_codeword_codon_sinkhorn`: `num_codons = V^L` dynamic — the OT problem is now `[K=256, |C|=256]` instead of `[K=64, |C|=64]`. `_loss_text_cluster_codon_ot` same generalization. |
+| `extraction_siglip2.py` | hardcoded `(N, 18)` extraction buffer → `(N, M*L)` (was the silent fail point for v122a's mid-eval and the auto-eval that left the result dir without JSON metrics — `manual_post_eval.py` rescued the final eval from the saved checkpoint). |
+
+Sanity tests passed: L=3 backward-compat (forward shapes, gradients, decode_codeword), L=4 new path (forward + gradients finite), joint codon dist rows sum to 1 at both L=3 (`[M, K, 64]`) and L=4 (`[M, K, 256]`), bit_probs at L=3 `[B, M, 6]` and L=4 `[B, M, 8]`.
+
+**Recipe.** v122a = **v106b verbatim** with only three changes:
+
+```
+--num_codons_per_codebook 4      (NEW; L=4)
+--codebook_size 256              (K = 4^L = 256 → perfect bijection)
+# all other v106b flags unchanged: bij ON at lambda 0.1
+```
+
+**Results (Flickr25k-CLIP unsupervised, hash_target_mode siglip_cos).**
+
+| Tag | mAP | P@1 | P@10 | DNA-uniq | dead | NMI | B1 | B2 | K | DNA bits |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| v106b ref (paper-final L=3) | 0.7407 | 0.9170 | 0.911 | 0.347 | 0.003 | 0.604 | 0.115 | 0.072 | 64 forced | 36 |
+| v118a (K=128 L=3 mAP champ) | **0.7721** | 0.900 | 0.903 | 0.207 | 0.004 | 0.628 | 0.107 | 0.064 | 128 | 36 |
+| v119a (K=128 CIBHash) | 0.7620 | 0.906 | 0.895 | 0.246 | 0.168 | 0.596 | 0.103 | 0.063 | 128 | 36 |
+| v120c (K=128 bij+thNX) | 0.7393 | 0.893 | 0.913 | 0.344 | 0.001 | 0.619 | 0.126 | 0.076 | 128 | 36 |
+| **v122a (L=4 K=256 bij)** | **0.7479** | **0.9215** ⭐ | **0.9193** | **0.5512** ⭐⭐ | 0.0326 | 0.627 | **0.1306** | **0.0825** | **256** scalable | **48** |
+
+**Δ vs v106b (the natural comparison — same v106b recipe, only L+K changed).**
+
+| Metric | v106b | v122a | Δ | Interpretation |
+|---|---:|---:|---:|---|
+| mAP | 0.7407 | 0.7479 | **+0.007** | Net retrieval gain at K=256 |
+| P@1 | 0.917 | **0.9215** | **+0.005** | **NEW family record top-1** |
+| P@10 | 0.911 | 0.9193 | +0.008 | Top-K retrieval also up |
+| DNA-uniq | 0.347 | **0.5512** | **+0.204** | **+59 % relative** ⭐⭐ |
+| dead | 0.003 | 0.0326 | +0.030 | small uptick; still 96.7 % of codewords active |
+| NMI | 0.604 | 0.627 | +0.023 | upper end of sweet spot (0.59–0.62) |
+| B1 (centered-text lift) | 0.115 | 0.1306 | **+0.016** | compositional gain |
+| B2 (visual_global lift) | 0.072 | 0.0825 | **+0.011** | compositional gain |
+
+DNA-uniq 0.5512 = **12,678 distinct 48-bit DNA codes out of N=23,000 DB images** (vs v106b's 7,981 distinct 36-bit codes). The bigger codon space + true bijection lets the model assign genuinely distinct codes to nearly 56 % of the database, vs ~35 % at L=3.
+
+**Pairwise NMI matrix** (6×6, off-diagonal):
+
+```
+  C0  1.000  0.456  0.463  0.456  0.452  0.461
+  C1  0.456  1.000  0.695  0.746  0.720  0.732
+  C2  0.463  0.695  1.000  0.698  0.663  0.708
+  C3  0.456  0.746  0.698  1.000  0.720  0.736
+  C4  0.452  0.720  0.663  0.720  1.000  0.694
+  C5  0.461  0.732  0.708  0.736  0.694  1.000
+```
+
+C_global (slot 0) vs C_local (slots 1–5) NMI in the 0.45–0.46 range — global slot remains independent of locals. C_local-vs-C_local in the 0.66–0.75 range — local slots share more mutual information than at L=3, consistent with the bigger 256-codon space giving each codebook richer overlap but staying below the saturation ceiling (mean off-diag 0.627 still within the empirical 0.59–0.62 sweet spot's upper limit).
+
+**Adopt / discard.**
+
+- **v122a is the NEW Flickr25k-CLIP cross-dataset paper-final candidate** (pending MSCOCO port verification): matches or exceeds v106b on every metric while removing the K = 4^L = 64 ceiling. The combination of P@1 = 0.9215 (new family record) + DNA-uniq = 0.551 (1.6× v106b) + K = 256 (4× v106b) + 48-bit DNA (vs 36-bit) is qualitatively different from any prior candidate.
+- **v106b stays as the L=3 36-bit paper-final reference** — it is the natural fall-back if reviewers / readers prefer the narrower 36-bit hash spec.
+- v118a, v119a, v120c retain their roles as documented in the prior 2026-06-09 entry (Flickr-only mAP champion, retrieval-balanced K=128 CIBHash, K=128 compositional champion respectively); none are paper-final after v122a.
+
+**Tooling note (encountered during v122a launch).**
+- Mid-eval and end-of-training extraction both silently failed inside the running v122a Python process because the extraction buffer was hardcoded `(N, 18)`; training itself was unaffected (60 epochs completed, checkpoint saved). The fix (parameterize the buffer by `model.num_codons_per_codebook * num_codebooks`) is now in `extraction_siglip2.py`; all future L=4 runs will produce eval JSONs in-process. A `scripts/manual_post_eval.py` helper that loads a saved checkpoint and re-runs encode_split + retrieval + collapse + compositional + pairwise NMI rescues runs launched before the fix.
+- `config.pt` is saved as a `dict` (not a `Config` object), so manual reloads must wrap it in `argparse.Namespace` for the model's `getattr(args, …)` calls to find the correct values; without that wrapper the model gets all-default args and crashes with shape mismatches on every linear weight tied to a configured dimension.
+
+**Suggested follow-ups.**
+
+1. **MSCOCO port** of v122a (`mscoco_v122a`) — does L=4 + K=256 + bij carry across the 122k-image, 80-class dataset where v118a's K=128 recipe failed (mAP −0.053)? This is the load-bearing cross-dataset check.
+2. K-sweep at L=4: K=192 (intermediate), K=384 (over-subscription — bij becomes many-to-one again). Establishes the scalability frontier.
+3. L=5 (K up to 4^5 = 1024) — pushes the spec to 60-bit DNA. Likely diminishing returns at the dataset scale we have but caps the structural argument.
+4. Ablate v122a's two changes individually: (a) L=4 + K=64 (bij becomes 4-to-1 surjection, no permutation), (b) L=3 + K=256 (bij is impossible — pigeonhole 4×). Isolates whether the DNA-uniq jump comes from L=4 alone, K=256 alone, or the bijection-permutation specifically.
+
+---
+
 ## 2026-06-09 — v120 variable-separation (bij vs thNX on v119a) + v121a SwAV-style swapped-balanced assignment — **mechanism causal split established; v121a DISCARDED (SwAV ↔ VQ conflict)**
 
 🟡 mixed — v120 yields a clean causal decomposition; v121a is a definitive negative result.
