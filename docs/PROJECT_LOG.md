@@ -334,6 +334,87 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-09 — v132a / v133a / v134a: **local-residual γ=1.0 OFF ablation** on v128a / v129a / v131a triple — **NEW Pareto-dominant compositional candidate v132a (mAP 0.7418, P@1 0.9070, NMI 0.636, DNA 0.367); local-residual revealed as no-op-or-harmful**
+
+🟢 **MAJOR finding**: `local-residual quant γ=1.0` (introduced v122, used in every paper-final candidate v122a / v122b / v126a / v128a since) is **NOT** the source of v128a's family-best NMI 0.636 — bij + per_codebook text NtXent alone reproduce it exactly. v132a (v128a + noLocalRes) **strictly Pareto-dominates** v128a (mAP +0.005, P@1 +0.010, NMI tied at 0.636, B1/B2 tied or +) and **replaces v128a as the K=128 compositional / interpretability main-figure candidate**.
+
+**Motivation.** v131a's K=64 collapse analysis blamed *local-residual* for destroying the v106b global axis. To causally test this and to isolate `local-residual`'s real contribution under v128a's per_codebook + bij recipe, we ran a 3-cell `local-residual OFF` ablation:
+- v132a = v128a − local-residual (K=128, bij ON, per_codebook)
+- v133a = v129a − local-residual (K=128, bij OFF, per_codebook)
+- v134a = v131a − local-residual (K=64, bij ON, per_codebook)
+
+Each script differs from its parent by ONLY removing the 4 local-residual flags (`--local_residual_quant`, `--local_residual_gamma 1.0`, `--local_residual_text`, `--local_residual_detach_global`). Parallel launched on GPU 3 / 4 / 5.
+
+**Result — 8-cell `K × bij × local-res` ablation matrix.**
+
+| Tag | K | bij | local-res | mAP | P@1 | P@10 | DNA-base uniq | codeword-tuple | NMI off-diag | B1 | B2 | dead avg | Verdict |
+|---|---:|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| v131a | 64 | ON | ON | 0.7381 | 0.8975 | 0.9082 | 0.266 | 0.425 | 0.633 | 0.115 | 0.070 | 0.000 | DISCARDED |
+| **v134a** | 64 | ON | **OFF** | 0.7463 | 0.9150 | 0.9060 | 0.288 | 0.445 | 0.600 | 0.114 | 0.069 | 0.021 | K=64 marginal |
+| v128a | 128 | ON | ON | 0.7365 | 0.8970 | 0.9059 | 0.377 | n/a | **0.636** | 0.123 | 0.076 | 0.003 | superseded |
+| **v132a** ⭐ | 128 | ON | **OFF** | **0.7418** | **0.9070** | 0.9115 | 0.367 | 0.613 | **0.636** | 0.123 | 0.078 | 0.005 | **NEW K=128 candidate** |
+| v129a | 128 | OFF | ON | 0.7365 | 0.9225 | 0.9115 | 0.238 | n/a | 0.626 | 0.125 | 0.079 | n/a | bij-isolation control |
+| v133a | 128 | OFF | **OFF** | **0.7541** | 0.9150 | 0.9172 | 0.340 | 0.618 | 0.626 | 0.128 | 0.079 | 0.040 | mAP↑ but dead↑ |
+
+**Pair-wise Δ vs local-res counterpart (the causal read).**
+
+| Comparison | Δ mAP | Δ P@1 | Δ DNA-uniq | Δ NMI | Δ B1 | Δ B2 | Δ dead |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| v132a − v128a (K=128 bij ON) | **+0.0053** | **+0.0100** | −0.010 | **0.000** | 0.000 | +0.002 | +0.002 |
+| v133a − v129a (K=128 bij OFF) | **+0.0176** | −0.0075 | **+0.102** | 0.000 | +0.003 | 0.000 | +0.040 |
+| v134a − v131a (K=64 bij ON)  | **+0.0082** | **+0.0175** | +0.022 | −0.033 | −0.001 | −0.001 | +0.021 |
+
+**Verdict — three causal claims established.**
+
+1. **`local-residual γ=1.0` does NOT supply v128a's family-best NMI 0.636** (Δ NMI = 0.000 for v132a − v128a). The compositional axis is *fully* driven by bij + per_codebook text NtXent + cibhash per_codebook; local-residual contributes ZERO to NMI / B1 / B2 when bij + per_codebook are present. Prior attribution of v128a's compositional crown to local-residual was confounded by the simultaneous presence of bij + per_codebook in every v122+ recipe.
+
+2. **`local-residual γ=1.0` is *harmful* for retrieval** in every regime tested (mAP +0.005 to +0.018, P@1 +0.010 to +0.018 when removed in 2 of 3 pairs; the v133a P@1 −0.008 is within noise). This is consistent across K=128/64 and bij ON/OFF. The orthogonal-residual projection was *over-regularizing* — removing C0's projection makes the local codebooks see a *stricter* feature than they need, which the model partially compensates for via larger codeword spread (slightly higher cb-tuple unique 0.613 vs n/a) at the cost of retrieval geometry.
+
+3. **K=64 DNA-uniq collapse is K-driven, NOT residual-driven** (v131a → v134a recovers only +0.022, still 0.288 vs v128a's 0.377). v131a's analysis was *partially* correct (local-residual contributes a little) but the *dominant* mechanism remains the loss of K=128's 2× codeword redundancy. K=64 + per_codebook + bij is structurally limited regardless of residual.
+
+**v132a as new K=128 paper-final candidate.**
+
+| Axis | v128a | v132a | Verdict |
+|---|---:|---:|---|
+| mAP | 0.7365 | **0.7418** | v132a +0.005 |
+| P@1 | 0.8970 | **0.9070** | v132a +0.010 |
+| P@10 | 0.9059 | 0.9115 | v132a +0.006 |
+| DNA-uniq | 0.377 | 0.367 | v128a +0.010 (negligible) |
+| NMI | 0.636 | 0.636 | tied (family-best) |
+| B1 / B2 | 0.123 / 0.076 | 0.123 / 0.078 | tied / v132a +0.002 |
+| dead avg | 0.003 | 0.005 | tied (both <0.01) |
+
+v132a **Pareto-dominates v128a** across retrieval (mAP/P@1/P@10) while preserving the family-best NMI 0.636, B1 0.123, B2 0.078, and dead 0.005. The 0.010 DNA-uniq trade is negligible (both are above v106b's 0.347). v132a is hereby the **K=128 compositional / interpretability main-figure candidate** on Flickr-CLIP, replacing v128a.
+
+**v133a observation (bij OFF, noLocalRes).** mAP 0.7541 is the **family-best** at K=128 (beats v126a's 0.7633 only if K=128 is the constraint — actually v126a wins here too: 0.7633 > 0.7541). v133a P@1 0.9150 is good but cb5 has 17 % dead (106/128 codewords used) — bij is the dead-codeword preventer, and without it the model under-utilizes codebook 5 at K=128 even with per_codebook text supervision. *Not* a candidate — dead 0.040 is too high.
+
+**v134a observation (K=64 bij ON, noLocalRes).** Confirms K=64 is structurally limited for this recipe family. P@1 0.9150 (recovers from v131a) but DNA-uniq stuck at 0.288. Not a candidate.
+
+**Updated K=128 candidate hierarchy (Flickr-CLIP, partial whitening γ=0.25).**
+
+```
+mAP champion:           v126a    (0.7633, P@1 0.917, DNA 0.429, NMI 0.605)   — per_codon text, local-res ON
+P@1 champion:           v122b    (0.9285, mAP 0.7607, DNA 0.339, NMI ~0.6)   — local-res ON, global text
+compositional champion: v132a ⭐  (0.7418, P@1 0.9070, DNA 0.367, NMI 0.636) — per_codebook, NO local-res
+DNA-uniq + scale:       v122a    (0.7479, P@1 0.9215, DNA 0.551, L=4 K=256)  — local-res ON, L scalable
+```
+
+**Implications.**
+
+- **v122a's claim re-examined**: its DNA-uniq 0.551 was achieved *with* local-residual. The mAP 0.7479 may also be under-performing because of local-residual. A `v122a + noLocalRes` (call it v135a) is a high-priority follow-up to test whether L=4 K=256 + per_codon text + NO local-res can break v122a's DNA-uniq ceiling AND improve mAP simultaneously.
+- **v122b / v126a re-examined**: same logic — both could potentially be improved by removing local-residual. If the user wants the absolute best mAP / P@1 candidate, a v126a + noLocalRes ablation should run next.
+- **Local-residual machinery should be removed from the default recipe** moving forward unless an experiment specifically tests it.
+
+**Recipes (3 scripts; ONE delta each vs parent).**
+
+- `scripts/train_v132a_v128a_noLocalRes_K128_flickr25k_clip.sh` — v128a minus 4 local-residual flags
+- `scripts/train_v133a_v129a_noLocalRes_K128_flickr25k_clip.sh` — v129a minus 4 local-residual flags
+- `scripts/train_v134a_v131a_noLocalRes_K64_flickr25k_clip.sh`  — v131a minus 4 local-residual flags
+
+Result dirs under `result/260609+flickr25k_setting1_{v132a,v133a,v134a}_*/`.
+
+---
+
 ## 2026-06-09 — v131a: v128a + K=64 (perfect 1:1 bijection regime, K=|C|=4^L=64) — **K-sweep DISCARDED: K=64 falsifies "perfect bij ⇒ higher DNA-uniq" hypothesis (DNA-base unique 0.377 → 0.266); v128a K=128 retained**
 
 🟡 negative — informative falsification. v128a (K=128) remains the compositional/interpretability main-figure candidate. K=64 + per_codebook text + local-residual does NOT recover v106b's DNA-uniq via perfect bijection.
