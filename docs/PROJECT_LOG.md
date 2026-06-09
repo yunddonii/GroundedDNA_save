@@ -334,6 +334,67 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-09 — v125d/v126a/v127a text-hash NtXent placement ablation — **v127a post-VQ stabilizes codebooks but underfits retrieval; v126a remains the active discriminative variant**
+
+🟡 mixed — v126a is still the active text-supervised retrieval variant; v127a is **not** a final model candidate, but it is a useful diagnostic showing that moving `lambda_text_hash_ntxent` before the codon heads acts more like a codebook-health regularizer than a discriminative DNA-code loss.
+
+**Motivation.** After v125d removed the duplicated DNA-level `loss_ntxent` and kept CIBHash-style per-codebook NtXent with dynamic tau, the remaining question was where the additive text-hash NtXent should supervise the visual/text path:
+
+| Run | `lambda_text_hash_ntxent` placement | Intended pressure |
+|---|---|---|
+| v125d | legacy global full-DNA continuous code `[B, R*4]` | align whole visual/text DNA code |
+| v126a | per-codon codon-head output `[B, R, 4]` | sharpen each final DNA base position |
+| v127a | post-VQ / pre-codon-head embeddings `[B, M, D]` | align visual/text codeword embeddings before discretized DNA decoding |
+
+**Implementation.**
+
+| File | Change |
+|---|---|
+| `config.py` | added `--text_hash_ntxent_mode {global, per_codon, per_codebook, post_vq}`; default remains `global` for back-compat |
+| `loss_siglip2.py` | generalized additive text-hash NtXent; `post_vq` uses `outputs["quantized_tokens"]` and `outputs["text_quantized_tokens"]`, asserts `[B, M, D]`, and computes symmetric InfoNCE per codebook then averages over M |
+| `train_siglip2.py` | logs `loss_text_hash_ntxent_add` separately from MSE/swap `loss_text_hash` so text-NtXent behavior is inspectable |
+| scripts | `scripts/train_v126a_v125d_textHashPerCodon_K128_flickr25k_clip.sh`, `scripts/train_v127a_v125d_textHashPostVQ_K128_flickr25k_clip.sh` |
+
+**Final metrics.** Flickr25k setting1, CLIP backbone, K=128, partial whitening γ=0.25, 60 epochs. `DNA uniq` is final DNA-base unique ratio from `evaluation_siglip2_base.json`; `cb-tuple uniq` is assignment-tuple count from `pairwise_nmi.json`.
+
+| Run | Mode | Final mAP | Best mid mAP | P@1 | P@10 | P@1000 | DNA uniq | cb-tuple uniq | dead mean | NMI | B1/B2 lift | Verdict |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| v122b | local-residual reference | 0.7607 | ep24 0.7617 | **0.9285** | 0.9167 | 0.8947 | 0.3390 | 14,748 | 0.0039 | 0.6349 | 0.1265 / 0.0793 | strong structural baseline |
+| v125d | global full-DNA text NtXent | 0.7385 | ep9 0.7565 | 0.9165 | 0.9100 | 0.8792 | 0.4021 | 14,977 | 0.0352 | 0.6032 | 0.1233 / 0.0792 | weaker retrieval |
+| v126a | per-codon codon-head output | **0.7633** | **ep34 0.7705** | 0.9170 | **0.9194** | **0.9023** | **0.4291** | **15,872** | 0.0677 | **0.5679** | 0.1239 / 0.0765 | 🟢 active |
+| v127a | post-VQ pre-codon-head | 0.7299 | ep9 0.7416 | 0.8995 | 0.9097 | 0.8848 | 0.3312 | 12,870 | 0.0404 | 0.6508 | **0.1273 / 0.0808** | 🔴 not a final candidate |
+
+**Mid-eval dynamics.**
+
+| Run | ep9 | ep34 | ep59 | Routing / collapse note |
+|---|---:|---:|---:|---|
+| v125d | 0.7565 / DNA 0.6008 / dead 0.2943 | 0.7377 / DNA 0.6971 / dead 0.0547 | 0.7303 / DNA 0.7344 / dead 0.1432 | diversity rises while retrieval decays; top1 reaches 0.0500 |
+| v126a | 0.7388 / DNA 0.5630 / dead 0.3958 | **0.7705 / DNA 0.6618 / dead 0.1016** | 0.7543 / DNA 0.7631 / dead 0.1497 | best retrieval but late routing sharpens; top1 reaches 0.1170 |
+| v127a | **0.7416 / DNA 0.5554 / dead 0.1576** | 0.7279 / DNA 0.6139 / dead 0.0013 | 0.7284 / DNA 0.6547 / dead 0.0039 | dead codes almost vanish, but mAP keeps sliding; top1 only 0.0283 |
+
+**Codebook drop ablation (subset 2,000 queries).**
+
+| Run | baseline | ΔC0 | ΔC1 | ΔC2 | ΔC3 | ΔC4 | ΔC5 | Interpretation |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| v125d | 0.7385 | -0.0112 | -0.0081 | -0.0061 | +0.0004 | -0.0031 | -0.0037 | one local slot is neutral/anti-contributing |
+| v126a | 0.7633 | -0.0043 | -0.0078 | -0.0027 | -0.0015 | **-0.0124** | -0.0059 | all slots contribute; C4 becomes strongest local branch |
+| v127a | 0.7299 | -0.0102 | -0.0041 | -0.0019 | -0.0033 | -0.0012 | -0.0064 | all slots contribute weakly, but no branch gives strong retrieval gain |
+
+**Key findings.**
+
+1. **Post-VQ supervision is too early for retrieval.** v127a aligns smooth codeword embeddings before the codon head, so it keeps assignments healthy and nearly eliminates mid-training dead codes (dead 0.0013–0.0039 after ep34), but it does not force the final DNA codon outputs to acquire enough ranking margin.
+2. **Per-codon output supervision is still the best discriminative placement.** v126a has the best final mAP (0.7633), best mid mAP (0.7705), best P@10/P@1000, lowest NMI, and the largest cb-tuple diversity. The cost is late routing hardening, so the fix should target schedule/regularization rather than moving the loss entirely before the codon head.
+3. **Compositional concentration alone is not sufficient.** v127a has the best B1/B2 lift (0.1273 / 0.0808), but the worst final mAP. This is important for the paper story: interpretable codeword clusters must also be coupled to the final hash ranking space.
+4. **Next design should be hybrid, not pure post-VQ.** Use post-VQ text NtXent only as an early warmup / auxiliary utilization stabilizer, then switch or ramp toward per-codon or per-codebook codon-head output NtXent so the final DNA code learns retrieval margins. Candidate: `lambda_post_vq_text_ntxent` active for epochs 0-15, `lambda_text_hash_ntxent(per_codon)` ramped from 0 after epoch 10, with an effective-k floor to prevent v126a's late over-sharpening.
+
+**Result directories.**
+
+- `result/260609+flickr25k_setting1_v125d_v122b_cibDynTau_noDNANtXent_K128_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001/`
+- `result/260609+flickr25k_setting1_v126a_v125d_textHashPerCodon_K128_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001/`
+- `result/260609+flickr25k_setting1_v127a_v125d_textHashPostVQ_K128_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001/`
+
+---
+
 ## 2026-06-09 — v122b/v123c/v124c local-residual quantization + text-prototype + soft expert-choice routing — **v124c near-SOTA mid checkpoint; v123c DISCARDED as-is**
 
 🟡 mixed — v122b is an active structural primitive; v123c's direct codeword-text CE is discarded as-is; v124c is a promising mid-checkpoint trade-off that needs annealing / early-stop discipline.

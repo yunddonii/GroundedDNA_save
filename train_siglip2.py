@@ -216,10 +216,12 @@ def _build_active_loss_types(args) -> list:
     # ---- hash / text-hash supervision
     if _on('lambda_hash'):              keys.append('loss_hash')
     if _on('lambda_hash_hard'):         keys.append('loss_hash_hard')
-    # loss_text_hash holds both MSE-form and the v100 additive NtXent;
-    # either lambda activates the same dict key.
-    if _on('lambda_text_hash') or _on('lambda_text_hash_ntxent'):
+    # loss_text_hash is the MSE/swap-form term; additive text-DNA NtXent is
+    # logged separately so global vs per-codon variants can be inspected.
+    if _on('lambda_text_hash'):
         keys.append('loss_text_hash')
+    if _on('lambda_text_hash_ntxent'):
+        keys.append('loss_text_hash_ntxent_add')
     if _on('lambda_cw_xmodal'):         keys.append('loss_cw_xmodal')
 
     # ---- routing-side alignment

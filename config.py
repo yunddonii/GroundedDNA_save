@@ -1236,6 +1236,20 @@ class Config():
             help='v100: weight for ADDITIVE text-DNA NtXent. 0=disabled. '
                  'Composes on top of lambda_text_hash (MSE). Uses '
                  '--text_hash_ntxent_temperature for tau.')
+        loss_arg.add_argument('--text_hash_ntxent_mode',
+            type=str, default='global',
+            choices=['global', 'per_codon', 'per_codebook', 'post_vq'],
+            help='v126/v127: mode for ADDITIVE text-DNA NtXent.\n'
+                 '  global       legacy flattened [B, R*4] DNA-code contrastive loss.\n'
+                 '  per_codon    R=M*L independent symmetric InfoNCEs, one per atomic '
+                                'codon position [B, 4]; finest granularity, treats each '
+                                'base position separately.\n'
+                 '  per_codebook (v127) M independent symmetric InfoNCEs, one per '
+                                'codebook over its L codons flattened to [B, L*4]; '
+                                'matches the "each codebook = one semantic part" '
+                                'compositional contribution claim.\n'
+                 '  post_vq      M independent symmetric InfoNCEs, one per codebook '
+                                'over the post-VQ [B, D] codeword embeddings.')
         # v73 (Exp 7): global DNA NtXent auxiliary loss alongside per-codebook.
         # When `ntxent_mode=per_codebook`, also compute the global NtXent
         # (whole 18-codon DNA code) using static base temperature and add
