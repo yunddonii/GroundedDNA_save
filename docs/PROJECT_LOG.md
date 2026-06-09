@@ -334,6 +334,58 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-09 — v131a: v128a + K=64 (perfect 1:1 bijection regime, K=|C|=4^L=64) — **K-sweep DISCARDED: K=64 falsifies "perfect bij ⇒ higher DNA-uniq" hypothesis (DNA-base unique 0.377 → 0.266); v128a K=128 retained**
+
+🟡 negative — informative falsification. v128a (K=128) remains the compositional/interpretability main-figure candidate. K=64 + per_codebook text + local-residual does NOT recover v106b's DNA-uniq via perfect bijection.
+
+**Motivation.** v128a (K=128) maps codewords through bij to codons but K=128 vs |C|=4^L=64 forces 2× collision (each codon receives ~2 codewords by pigeonhole; the bij distributes the 2× uniformly via (1/K, 1/|C|) marginals). The hypothesis was that moving to **K=|C|=64** — the v106b "perfect 1:1 permutation" regime — would push DNA-base unique toward v106b's 0.347 while keeping v128a's family-best compositional axis (NMI 0.636, B1 0.123, B2 0.076). Recipe vs v128a: ONLY `--codebook_size 128 → 64`. All other v128a flags preserved (per_codebook text NtXent, bij ON λ=0.1, local-residual quant γ=1.0, CIBHash per_codebook + dynamic τ, partial whitening γ=0.25).
+
+**Loss sanity (decided pre-run).** Per intra-session audit before launch: `lambda_anchor=0.05` is *gradient = 0* under EMA codebook update (cb_anchor from `register_buffer`, ema_anchor `.detach()`); `loss_vq` codebook half is also grad=0 in EMA mode (commitment half alive, scaled by β_vq=0.25). v131a (and v128a, v126a, v122a, v106b, …) inherit these dead components from the v9x family. **No re-experiment triggered** — they have been silently 0-contribution since EMA mode was adopted. Memory note `project_v9x_zero_contribution_losses.md` already documents this as regime-independent for anchor.
+
+**Result — Flickr25k-CLIP K=64 vs K=128 vs v106b 3-way comparison.**
+
+| Metric | **v131a (K=64)** | v128a (K=128) | v106b (K=64, no local-res) | v131a − v128a | v131a − v106b |
+|---|---:|---:|---:|---:|---:|
+| mAP | **0.7381** | 0.7365 | 0.7407 | +0.0016 | −0.0026 |
+| P@1 | 0.8975 | 0.897 | 0.917 | +0.0005 | **−0.0195** ⚠️ |
+| P@10 | 0.9082 | 0.911 | 0.911 (≈) | −0.003 | −0.003 |
+| **DNA-base unique (DB)** | **0.266** | 0.377 | 0.347 | **−0.111** ⚠️ | **−0.081** ⚠️ |
+| codeword-tuple unique (DB) | 0.425 | n/a | n/a | — | — |
+| codebook dead | **0.000** | 0.003 | 0.003 | −0.003 | −0.003 |
+| NMI (mean off-diag) | 0.6326 | 0.636 | 0.604 | −0.003 | +0.029 |
+| B0 lift (text) | 0.0494 | n/a | n/a | — | — |
+| B1 lift (text centered) | 0.1145 | 0.123 | 0.118 | −0.009 | −0.004 |
+| B2 lift (visual_global) | 0.0704 | 0.076 | 0.069 | −0.006 | +0.001 |
+
+**Verdict — hypothesis falsified.**
+
+1. **mAP**: K=64 vs K=128 essentially tied (+0.0016). K does not move retrieval at this recipe stage.
+2. **DNA-base unique collapsed (−0.111 vs v128a, −0.081 vs v106b)**: the perfect-bij regime did NOT amplify DNA diversity. Hypothesis "K=|C|=4^L ⇒ codeword↔codon bijection ⇒ higher DNA-uniq" was wrong *in the local-residual + per_codebook recipe*. The codeword-tuple unique 0.425 vs DNA-base unique 0.266 means 0.425/0.266 ≈ 1.60× codeword-tuple → DNA-base collision (i.e. distinct codeword-tuples *collapse to the same DNA codon-tuple* even at K=|C|).
+3. **dead = 0**: as predicted — bij at K=|C| is the strongest dead-codeword preventor. All 64 codewords used in every codebook.
+4. **NMI / B1 / B2**: K=64 keeps v128a-level NMI (0.633 vs 0.636) but loses small B1/B2 ground. Per_codebook text NtXent is the NMI driver, K is not.
+5. **P@1 floor**: K=64 drops P@1 by 0.020 vs v106b. v106b's P@1 (0.917) was achievable *without* per_codebook text + local-residual — adding those mechanisms costs top-1 hit rate even at the perfect-bij K.
+
+**Causal interpretation (why perfect bij ⇏ higher DNA-uniq here).**
+
+The bij loss minimizes Sinkhorn cost between the codeword set ({c_k} per codebook) and the codon set ({0,1,2,3}^L), so each codeword *prefers* a distinct codon. But this preference is *per codebook*, not across the full DNA hash. With per_codebook text NtXent + local-residual:
+
+- Local-residual quant (γ=1.0) removes C_global projection from local codewords → local codebooks lose the global "axis" that anchored codon diversity in v106b.
+- Per_codebook text NtXent pushes each codebook's DNA segment toward text-discriminative directions → if text-discriminativeness collapses 2 codewords into the same codon segment for many samples, DNA-base codes collide even though *per-codebook* the bij is satisfied.
+- At K=128 (v128a) the *redundancy* (each codon has 2 codewords) gives the model **2 codeword choices per codon** in each codebook, multiplying the effective DNA space by 2^M=64. At K=64 this redundancy disappears → fewer distinct routes to the same DNA code → more collisions across samples.
+
+This is the *opposite* mechanism from what the hypothesis assumed. The 2× codeword-per-codon redundancy at K=128 is *enabling*, not *wasting*, DNA diversity.
+
+**Implication for paper.**
+
+- **v122a (L=4, K=256) remains the cross-axis paper-final candidate** — at L=4 the codon set grows to 4^4=256 so K=256 is the perfect-bij regime *and* gives the model 4 codon positions × 4 bases of DNA capacity per codebook. v131a's failure does not generalize to L=4 because L=4 increases the codon space; v131a only contracted K at L=3.
+- **v128a (K=128) retained as compositional / interpretability main-figure candidate** for the Flickr-CLIP family — it has the family-best NMI 0.636 and the cleanest B1/B2 lifts in the K=128 regime, plus dead 0.003 ≈ 0.
+- **K-sweep at L=3 closed**: K∈{64, 128} both characterized; K=128 wins on DNA-base unique by retaining 2× codeword redundancy.
+- No new "champion" — v131a is filed as **negative result with explanatory mechanism** for the paper's ablation table (shows that the bij's DNA-uniq benefit comes from *codeword redundancy*, not from the *codeword↔codon permutation alone*).
+
+**Recipe (recap).** `scripts/train_v131a_v128a_K64_flickr25k_clip.sh`. ONE delta vs `scripts/train_v128a_v126a_textHashPerCodebook_K128_flickr25k_clip.sh`: `--codebook_size 128 → 64`. Result dir: `result/260609+flickr25k_setting1_v131a_v128a_K64_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001/`.
+
+---
+
 ## 2026-06-09 — v128a / v129a: text-hash NtXent granularity *per_codebook* ablation (vs v126a per_codon) × bij ON/OFF — **6-cell ablation matrix completed; v128a has family-best NMI (0.636) + dead (0.003), v129a confirms bij is the DNA-uniqueness mechanism**
 
 🟢 active — supplies the *direct architectural evidence* for the paper's contribution #2 (each codebook = one semantic part). Does not displace v122a (cross-dataset paper-final candidate); v128a is the *compositional* main-figure candidate.
