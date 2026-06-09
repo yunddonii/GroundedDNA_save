@@ -216,10 +216,14 @@ def _build_active_loss_types(args) -> list:
     # ---- hash / text-hash supervision
     if _on('lambda_hash'):              keys.append('loss_hash')
     if _on('lambda_hash_hard'):         keys.append('loss_hash_hard')
-    # loss_text_hash holds both MSE-form and the v100 additive NtXent;
-    # either lambda activates the same dict key.
-    if _on('lambda_text_hash') or _on('lambda_text_hash_ntxent'):
+    # loss_text_hash (MSE / swap form) and loss_text_hash_ntxent_add (v100
+    # additive InfoNCE form) are SEPARATE dict keys in the loss output.
+    # Emit each only when its own lambda is on so the CSV column reflects
+    # the actual value being optimized.
+    if _on('lambda_text_hash'):
         keys.append('loss_text_hash')
+    if _on('lambda_text_hash_ntxent'):
+        keys.append('loss_text_hash_ntxent_add')
     if _on('lambda_cw_xmodal'):         keys.append('loss_cw_xmodal')
 
     # ---- routing-side alignment

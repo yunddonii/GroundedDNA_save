@@ -207,6 +207,12 @@ class DNACodonHashLoss(nn.Module):
         self.text_hash_ntxent_temperature = float(getattr(cfg, "text_hash_ntxent_temperature", 0.07))
         # v100: ADDITIVE text-DNA NtXent (extra term on top of MSE / swap form)
         self.lambda_text_hash_ntxent = float(getattr(cfg, "lambda_text_hash_ntxent", 0.0))
+        # v128: granularity mode for the ADDITIVE text-DNA NtXent.
+        # See `--text_hash_ntxent_mode` config; "global" preserves legacy
+        # v100-v125d behaviour (full flattened DNA), "per_codebook" runs
+        # M independent symmetric InfoNCEs on per-codebook (L*4)-dim DNA
+        # segments.
+        self.text_hash_ntxent_mode = str(getattr(cfg, "text_hash_ntxent_mode", "global"))
         # v93: per-codebook cross-modal codeword InfoNCE. Symmetric InfoNCE
         # between visual `quantized_tokens[:, m, :]` and text
         # `text_quantized_tokens[:, m, :]` for each codebook m.
@@ -2032,26 +2038,77 @@ class DNACodonHashLoss(nn.Module):
         else:
             loss_text_hash = u.new_zeros(())
 
-        # v100: ADDITIVE text-DNA NtXent (separate from swap form above).
-        # When lambda_text_hash_ntxent > 0, compute symmetric InfoNCE on the
-        # flattened 72-dim DNA continuous_code [B, 72] AS AN EXTRA TERM,
-        # weighted independently from the MSE/swap form. This lets a recipe
-        # keep `loss_text_hash` (MSE) while ALSO penalising image-text DNA
-        # mis-ordering across the batch.
+        # v100 + v128: ADDITIVE text-DNA NtXent. When lambda_text_hash_ntxent
+        # > 0, compute symmetric InfoNCE between visual continuous DNA code u
+        # [B, R, 4] and textual continuous DNA code text_cc [B, R, 4].
+        # Two modes (controlled by --text_hash_ntxent_mode):
+        #
+        #   "global"       (default; v100-v125d): flatten u, text_cc to
+        #       [B, R*4] and run ONE symmetric InfoNCE on the full hash.
+        #
+        #   "per_codebook" (v128 / contribution #2 granularity): reshape
+        #       both to [B, M, L*4] (M codebooks, each a L-codon flattened
+        #       DNA segment of dimension L*4), and run M INDEPENDENT
+        #       symmetric InfoNCEs (one per codebook), averaged over M.
+        #       Each codebook's DNA segment is supervised by text DIRECTLY
+        #       to be discriminative across the batch, matching the
+        #       compositional claim that each codebook encodes a distinct
+        #       semantic part. R must be divisible by M (= num_codebooks).
         lam_th_nt = float(getattr(self, "lambda_text_hash_ntxent", 0.0))
         if text_cc is not None and lam_th_nt > 0.0:
-            B = text_cc.shape[0]
-            t_flat = text_cc.reshape(B, -1)
-            i_flat = u.reshape(B, -1)
-            t_n = F.normalize(t_flat, dim=-1)
-            i_n = F.normalize(i_flat, dim=-1)
             tau = max(float(getattr(self, "text_hash_ntxent_temperature", 0.07)), 1e-6)
-            logits_it = (i_n @ t_n.T) / tau
-            labels = torch.arange(B, device=logits_it.device)
-            loss_text_hash_ntxent_add = 0.5 * (
-                F.cross_entropy(logits_it,   labels) +
-                F.cross_entropy(logits_it.T, labels)
-            )
+            th_mode = str(getattr(self, "text_hash_ntxent_mode", "global"))
+            B = text_cc.shape[0]
+            if th_mode == "global":
+                t_flat = text_cc.reshape(B, -1)
+                i_flat = u.reshape(B, -1)
+                t_n = F.normalize(t_flat, dim=-1)
+                i_n = F.normalize(i_flat, dim=-1)
+                logits_it = (i_n @ t_n.T) / tau                        # [B, B]
+                labels = torch.arange(B, device=logits_it.device)
+                loss_text_hash_ntxent_add = 0.5 * (
+                    F.cross_entropy(logits_it,   labels) +
+                    F.cross_entropy(logits_it.T, labels)
+                )
+            elif th_mode == "per_codebook":
+                assert text_cc.shape == u.shape, (
+                    f"text_hash_ntxent per_codebook expects matching shapes; "
+                    f"got text={tuple(text_cc.shape)} visual={tuple(u.shape)}"
+                )
+                assert text_cc.dim() == 3 and text_cc.shape[-1] == 4, (
+                    f"text_hash_ntxent per_codebook expects [B, R, 4]; "
+                    f"got {tuple(text_cc.shape)}"
+                )
+                R_th = text_cc.shape[1]
+                M_th = int(getattr(self, "num_codebooks", 6))
+                assert R_th % M_th == 0, (
+                    f"text_hash_ntxent per_codebook needs R={R_th} divisible "
+                    f"by num_codebooks={M_th} (codon length L = R/M integer)."
+                )
+                L_th = R_th // M_th
+                # [B, R, 4] -> [B, M, L, 4] -> flatten last two -> [B, M, L*4]
+                t = text_cc.view(B, M_th, L_th, 4).reshape(B, M_th, L_th * 4)
+                i = u      .view(B, M_th, L_th, 4).reshape(B, M_th, L_th * 4)
+                t_n = F.normalize(t, dim=-1)                          # [B, M, L*4]
+                i_n = F.normalize(i, dim=-1)
+                # logits_it[m, i, j]: visual sample i vs text sample j for
+                # codebook m. Positives = diagonal per codebook. M
+                # independent CE losses, averaged.
+                logits_it = torch.einsum("bmd,cmd->mbc", i_n, t_n) / tau  # [M, B, B]
+                labels = torch.arange(B, device=logits_it.device)
+                labels_m = labels.unsqueeze(0).expand(M_th, B).reshape(-1)
+                loss_i2t = F.cross_entropy(
+                    logits_it              .reshape(M_th * B, B), labels_m,
+                )
+                loss_t2i = F.cross_entropy(
+                    logits_it.transpose(1, 2).reshape(M_th * B, B), labels_m,
+                )
+                loss_text_hash_ntxent_add = 0.5 * (loss_i2t + loss_t2i)
+            else:
+                raise ValueError(
+                    f"Unsupported text_hash_ntxent_mode={th_mode!r}; "
+                    "expected 'global' or 'per_codebook'."
+                )
         else:
             loss_text_hash_ntxent_add = u.new_zeros(())
 

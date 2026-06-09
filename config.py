@@ -1236,6 +1236,21 @@ class Config():
             help='v100: weight for ADDITIVE text-DNA NtXent. 0=disabled. '
                  'Composes on top of lambda_text_hash (MSE). Uses '
                  '--text_hash_ntxent_temperature for tau.')
+        loss_arg.add_argument('--text_hash_ntxent_mode',
+            dest='text_hash_ntxent_mode',
+            type=str, default='global',
+            choices=['global', 'per_codebook'],
+            help='Granularity of the ADDITIVE text-DNA NtXent.\n'
+                 '  global       (default; v100-v125d) one symmetric InfoNCE '
+                                'on the full flattened DNA code [B, R*4]. '
+                                'Aligns the WHOLE hash sequence as one vector.\n'
+                 '  per_codebook (v128) M=num_codebooks independent symmetric '
+                                'InfoNCEs, one per codebook, each over its L '
+                                'codons flattened to a (L*4)-dim DNA segment. '
+                                'Matches the "each codebook = one semantic '
+                                'part" compositional contribution claim: text '
+                                'directly supervises each codebook\'s DNA '
+                                'segment instead of only the whole hash.')
         # v73 (Exp 7): global DNA NtXent auxiliary loss alongside per-codebook.
         # When `ntxent_mode=per_codebook`, also compute the global NtXent
         # (whole 18-codon DNA code) using static base temperature and add

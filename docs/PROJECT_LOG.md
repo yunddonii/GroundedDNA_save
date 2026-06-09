@@ -334,6 +334,106 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-09 — v128a / v129a: text-hash NtXent granularity *per_codebook* ablation (vs v126a per_codon) × bij ON/OFF — **6-cell ablation matrix completed; v128a has family-best NMI (0.636) + dead (0.003), v129a confirms bij is the DNA-uniqueness mechanism**
+
+🟢 active — supplies the *direct architectural evidence* for the paper's contribution #2 (each codebook = one semantic part). Does not displace v122a (cross-dataset paper-final candidate); v128a is the *compositional* main-figure candidate.
+
+**Motivation.** v126a applied the additive text-DNA NtXent at the *per_codon* granularity (R = M·L = 18 independent symmetric InfoNCEs on `[B, 4]` slices — one per atomic codon position / base). The user's contribution #2 ("text supervises each codebook's semantic part to be text-grounded") is more naturally expressed at the **per-codebook granularity** (M = 6 InfoNCEs, each on `[B, L*4] = [B, 12]` codon segments — one segment per codebook). v128a re-implements the per_codebook mode and reproduces v126a's recipe verbatim except for `--text_hash_ntxent_mode per_codon → per_codebook`. v129a then turns bij OFF on top of v128a to isolate per_codebook's solo effect.
+
+The earlier `v127a` run from 2026-06-09 morning used a per_codebook implementation that has since been reverted from the working tree; v128a/v129a use the re-implemented mode against the exact v126a recipe baseline.
+
+**Implementation (re-added; was reverted from working tree).**
+
+- `config.py`: `--text_hash_ntxent_mode {global, per_codebook}` (default `global` preserves v100-v125d legacy behaviour bit-exact).
+- `loss_siglip2.py`: `_init` registers `self.text_hash_ntxent_mode`; the additive NtXent branch splits into `global` (legacy flattened `[B, R*4]`) and `per_codebook` (reshape `[B, R, 4] -> [B, M, L*4]`, `M` independent InfoNCEs averaged). `R` must be divisible by `num_codebooks`.
+- `train_siglip2.py`: `_build_active_loss_types` updated to emit `loss_text_hash` and `loss_text_hash_ntxent_add` as SEPARATE CSV columns (they are separate dict keys in the loss output; the previous single-emit pattern dropped the NtXent additive value from the CSV / tensorboard when only `lambda_text_hash_ntxent > 0`).
+
+Sanity test pre-launch: identical-views regression `0.18` (near-zero, matches `tau=0.07` softmax geometry); global mode loss 2.27 (matches v125d numerics); per_codebook mode loss 3.29; gradients finite, `max|g| ≈ 0.18`.
+
+**Setup.** Recipe = v126a verbatim (Flickr25k setting1, CLIP cache, K=128, L=3, partial_whiten γ=0.25, local_residual_quant + local_residual_text + local_residual_detach_global, CIBHash per_codebook + dynamic τ α=0.3 at λ=1.0+0.001, paired-aug DNA NtXent `lambda_ntxent=0`, text_hash MSE OFF, `lambda_text_hash_ntxent=0.05`, `lambda_wasserstein=0.05`, anchor/dna/bu/vq/quant standard) with ONE change:
+
+| Tag | `text_hash_ntxent_mode` | `lambda_codeword_codon_sinkhorn` (bij) | Active CSV columns |
+|---|---|---:|---:|
+| v128a | **per_codebook** (NEW) | 0.1 (ON) | 19 |
+| v129a | per_codebook | **0.0 (OFF)** | 17 |
+
+The CSV column delta (19 → 17) on bij OFF correctly removes `loss_codeword_codon_sinkhorn` + `eff_lambda_codeword_codon_sinkhorn` — verifies the dynamic active-loss filter from commit `c04b0cd`.
+
+**6-cell granularity × bij ablation results (Flickr25k-CLIP K=128, partial whitening γ=0.25, local-residual base).**
+
+| Variant | Granularity | bij | mAP | P@1 | DNA-uniq | dead | NMI | B1 | B2 |
+|---|---|:---:|---:|---:|---:|---:|---:|---:|---:|
+| v122b | global | ON | 0.7607 | **0.9285** ⭐ | 0.339 | 0.004 | 0.635 | 0.127 | 0.079 |
+| v125d | global | ON | 0.7385 | 0.917 | 0.402 | 0.035 | 0.603 | 0.123 | 0.079 |
+| v126a | per_codon | ON | **0.7633** ⭐ | 0.917 | **0.4291** | 0.068 | 0.568 | 0.124 | 0.077 |
+| **v128a** | **per_codebook** | ON | 0.7365 | 0.897 | 0.377 | **0.0026** ⭐ | **0.6364** ⭐ | 0.123 | 0.076 |
+| **v129a** | **per_codebook** | OFF | 0.7365 | 0.9225 | 0.238 | 0.068 | 0.626 | 0.125 | 0.079 |
+| v106b ref | per_codon | ON | 0.7407 | 0.917 | 0.347 | 0.003 | 0.604 | 0.115 | 0.072 |
+| v122a ref | per_codon | ON | 0.7479 | 0.9215 | **0.5512** ⭐⭐ | 0.033 | 0.627 | **0.1306** | **0.0825** |
+
+(References shown as K-or-L variants: v106b L=3 K=64; v122a L=4 K=256.)
+
+**Causal decomposition.**
+
+*Granularity effect, bij ON held constant (global → per_codon → per_codebook, on the same v125d local-residual base):*
+
+| Metric | global (v125d) | per_codon (v126a) | per_codebook (v128a) | Trend |
+|---|---:|---:|---:|---|
+| mAP | 0.7385 | **0.7633** | 0.7365 | inverted-U; per_codon is the retrieval-best granularity |
+| P@1 | 0.917 | 0.917 | 0.897 | per_codebook *uniformity* dilutes top-1 specificity (−0.020) |
+| DNA-uniq | 0.402 | **0.429** | 0.377 | per_codon also best on DNA |
+| dead | 0.035 | 0.068 | **0.003** ⭐ | **per_codebook eliminates codebook collapse** (10× better than per_codon) |
+| NMI | 0.603 | 0.568 | **0.636** | **per_codebook restores compositional independence sweet spot** |
+
+→ **per_codon is the retrieval-optimal granularity, per_codebook is the compositional-optimal granularity.** The two are NOT the same trade-off point.
+
+*bij effect, granularity = per_codebook held constant (v128a → v129a):*
+
+| Metric | bij ON (v128a) | bij OFF (v129a) | Δ |
+|---|---:|---:|---:|
+| mAP | 0.7365 | 0.7365 | 0.000 (tie) |
+| P@1 | 0.897 | **0.9225** | **+0.026** ⬆ |
+| DNA-uniq | **0.377** | 0.238 | **−0.139** ⬇⬇ |
+| dead | **0.003** | 0.068 | +0.065 ⬇ |
+| NMI | 0.636 | 0.626 | −0.010 (tie) |
+
+→ **bij is precisely a P@1 ↔ DNA-uniq trade-off knob** (mAP is invariant!). bij ON sacrifices ~0.026 P@1 for +0.139 DNA-uniq and 25× better codebook utilization. The granularity effect (per_codebook → per_codon, holding bij ON) and the bij effect (ON → OFF, holding granularity per_codebook) are *orthogonal* (mAP responds to granularity but not bij; P@1 responds to bij but only weakly to granularity).
+
+**Key findings.**
+
+1. **per_codon is the retrieval granularity sweet spot.** v126a's R = 18 atomic-codon-position InfoNCEs deliver the highest mAP (0.7633) and DNA-uniq (0.4291) in the K=128 family. The fine-grained per-base text alignment forces stronger sample discriminability into every codon position.
+2. **per_codebook is the compositional / interpretability granularity sweet spot.** v128a's M = 6 codebook-level InfoNCEs deliver the best NMI (0.636 — sweet-spot upper end) and the lowest dead-codeword ratio (0.003, matching v106b's 36-bit baseline). This is the direct architectural evidence the paper needs for contribution #2.
+3. **bij is a clean P@1 ↔ DNA-uniq trade-off knob.** v128a → v129a holds mAP, granularity, and all other recipes fixed and shows bij ON sacrifices 0.026 P@1 for +0.139 DNA-uniq and 25× lower dead. mAP is mechanism-invariant; bij doesn't *create* retrieval power, it *redistributes* it from top-1 to DNA structure.
+4. **No single K=128 cell wins on every axis.** v126a wins mAP/DNA but loses NMI and dead; v128a wins NMI/dead but loses mAP and P@1; v122b wins P@1 (0.9285); v129a is a strict subset of v122b on every metric except B2 and NMI. The paper needs to pick a metric to optimize, not a "best" K=128 row.
+
+**Adopt / discard.**
+
+- **v122a (L=4, K=256, bij ON)** stays the **cross-dataset paper-final candidate** — beats every K=128 cell on the combined (mAP, P@1, DNA-uniq, B1, B2) axes and is K-scalable.
+- **v128a is the *compositional / interpretability main-figure* candidate** — directly supervises each codebook as a distinct semantic part (contribution #2 architectural evidence) AND has the family-best NMI + dead. The mAP/P@1 cost is the price the paper pays for the interpretability claim.
+- **v126a remains the K=128 mAP champion** (0.7633) but lacks the architectural framing for contribution #2.
+- **v129a — DISCARDED.** A clean causal data point for the bij-OFF column of the ablation but no single-metric advantage.
+
+**Active loss CSV columns (verified at startup via `_build_active_loss_types`):**
+
+- **v128a (19 keys)**: `loss`, `loss_vq`, `loss_quant`, `loss_anchor`, `loss_dna`, `loss_entropy`, `loss_base_balance`, `loss_bu`, `loss_cb_balance`, `loss_cb_uncorr`, **`loss_text_hash_ntxent_add`** (per_codebook), `loss_wasserstein`, **`loss_codeword_codon_sinkhorn`** + `eff_lambda_codeword_codon_sinkhorn` (bij ON), `loss_cibhash_ntxent`, `loss_cibhash_kl`, `loss_recon`, `routing_mean_effective_k`, `routing_fraction_top1`.
+- **v129a (17 keys)**: identical minus the two bij entries.
+
+**Code touchpoints.**
+
+- `config.py`: `--text_hash_ntxent_mode {global, per_codebook}`.
+- `loss_siglip2.py`: per_codebook branch in the additive text-hash NtXent; `self.text_hash_ntxent_mode` registered in `__init__`.
+- `train_siglip2.py`: `_build_active_loss_types` emits `loss_text_hash` and `loss_text_hash_ntxent_add` as separate columns.
+- `scripts/train_v128a_v126a_textHashPerCodebook_K128_flickr25k_clip.sh`.
+- `scripts/train_v129a_v128a_perCodebook_noBij_K128_flickr25k_clip.sh`.
+
+**Suggested follow-ups (none scheduled).**
+
+1. **v130a:** v128a on the L=4, K=256 codon space (= v122a base + per_codebook text NtXent). Tests whether the per_codebook compositional gains compose with v122a's L=4 retrieval gains.
+2. **MSCOCO port** of v128a — does the per_codebook compositional signature carry to 122k images / 80 classes?
+3. **Per_codebook with α-sweep on the inner cibhash dynamic τ** — currently α=0.3 for both cibhash and the existing paired-aug NtXent; per_codebook's [B, 12] geometry might want a different temperature.
+
+---
+
 ## 2026-06-09 — v122b/v123c/v124c local-residual quantization + text-prototype + soft expert-choice routing — **v124c near-SOTA mid checkpoint; v123c DISCARDED as-is**
 
 🟡 mixed — v122b is an active structural primitive; v123c's direct codeword-text CE is discarded as-is; v124c is a promising mid-checkpoint trade-off that needs annealing / early-stop discipline.
