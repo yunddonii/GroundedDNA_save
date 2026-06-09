@@ -1333,6 +1333,32 @@ class Config():
             dest='cibhash_dynamic_tau_alpha', type=float, default=0.3,
             help='v120e: alpha for cibhash dynamic tau. tau_ij = T * '
                  '(1 + alpha * cos(text_i, text_j)). 0 disables.')
+        # ---------- v138: prototype passthrough + paired-view InfoNCE -----
+        # Two flags to *remove the VQ codebook bottleneck* for codon_head
+        # input while keeping prototype-based clustering as a separate
+        # supervision signal.
+        loss_arg.add_argument('--codon_input_source',
+            dest='codon_input_source', type=str, default='quantized',
+            choices=['quantized', 'routed'],
+            help='v138: source of codon_head input. quantized=legacy VQ '
+                 'output (post-gate quantized_tokens); routed=raw router '
+                 'weighted-sum vectors (semantic_visual_tokens). When '
+                 '"routed" is set, codon_head sees continuous tokens; VQ '
+                 'still runs to provide codebook_distances for the '
+                 'prototype InfoNCE loss but does NOT bottleneck codon '
+                 'output. Use with --lambda_vq 0 --lambda_quant 0 '
+                 '--lambda_anchor 0 --lambda_bu 0.')
+        loss_arg.add_argument('--lambda_proto_cluster',
+            dest='lambda_proto_cluster', type=float, default=0.0,
+            help='v138: weight for paired-view prototype-cluster InfoNCE. '
+                 'Operates on softmax(-codebook_distances/tau) per '
+                 'codebook. Forces paired augmented views to map to the '
+                 'same prototype assignment distribution (SwAV-lite '
+                 'without Sinkhorn balancing).')
+        loss_arg.add_argument('--proto_cluster_temperature',
+            dest='proto_cluster_temperature', type=float, default=0.3,
+            help='v138: NtXent temperature for the prototype-cluster '
+                 'paired-view InfoNCE loss.')
         # ---------- v121: SwAV-style swapped balanced assignment loss --------
         # Operates at the codeword-assignment level (BEFORE codon decoding).
         # Each paired-aug view computes a soft codeword-assignment distribution

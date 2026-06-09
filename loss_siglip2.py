@@ -197,6 +197,9 @@ class DNACodonHashLoss(nn.Module):
         self.swav_sinkhorn_iters        = int(getattr(cfg, "swav_sinkhorn_iters",  3))
         self.swav_assign_include_global = bool(getattr(cfg, "swav_assign_include_global", False))
         self.cibhash_dynamic_tau_alpha  = float(getattr(cfg, "cibhash_dynamic_tau_alpha", 0.0))
+        # v138: prototype-cluster paired-view InfoNCE on codebook_distances.
+        self.lambda_proto_cluster        = float(getattr(cfg, "lambda_proto_cluster",        0.0))
+        self.proto_cluster_temperature   = float(getattr(cfg, "proto_cluster_temperature",   0.3))
         # v91 (text-to-DNA-hash matching): MSE between image-derived
         # continuous_code and text-derived continuous_code (latter produced
         # by the model's parallel text path through the shared quantizer
@@ -902,6 +905,45 @@ class DNACodonHashLoss(nn.Module):
         delta = prob - threshold
         z_hard = 2.0 * (delta >= 0).to(prob.dtype) - 1.0
         return delta + (z_hard - delta).detach()
+
+    def _loss_proto_cluster_per_codebook(
+        self,
+        codebook_distances_v1: torch.Tensor,
+        codebook_distances_v2: torch.Tensor,
+        temperature: float,
+    ) -> torch.Tensor:
+        """v138: paired-view prototype-cluster InfoNCE on `codebook_distances`.
+
+        Inputs are the [B, M, K] cost tensors from the quantizer for two
+        augmented views. We treat softmax(-distances / tau) as a soft
+        prototype assignment vector per (sample, codebook). For each
+        codebook independently we form a [B, B] cosine similarity matrix
+        between view1 assignments and view2 assignments and apply a
+        symmetric InfoNCE (diagonal = positive, off-diag = negative).
+
+        The per-codebook losses are averaged. Provides a per-codebook
+        paired-view consistency signal WITHOUT bottlenecking codon_head
+        input (which uses raw routed tokens when
+        `--codon_input_source routed`).
+        """
+        assert codebook_distances_v1.shape == codebook_distances_v2.shape, (
+            f"shape mismatch: v1 {tuple(codebook_distances_v1.shape)} vs "
+            f"v2 {tuple(codebook_distances_v2.shape)}"
+        )
+        B, M, K = codebook_distances_v1.shape
+        T = max(float(temperature), 1e-6)
+        p_v1 = F.softmax(-codebook_distances_v1 / T, dim=-1)  # [B, M, K]
+        p_v2 = F.softmax(-codebook_distances_v2 / T, dim=-1)
+        losses: list = []
+        labels = torch.arange(B, device=p_v1.device)
+        for m in range(M):
+            a = F.normalize(p_v1[:, m, :], dim=-1, eps=1e-8)  # [B, K]
+            b = F.normalize(p_v2[:, m, :], dim=-1, eps=1e-8)
+            sim = (a @ b.T) / T                                # [B, B]
+            loss_a2b = F.cross_entropy(sim,   labels)
+            loss_b2a = F.cross_entropy(sim.T, labels)
+            losses.append(0.5 * (loss_a2b + loss_b2a))
+        return torch.stack(losses).mean()
 
     @staticmethod
     def _cibhash_kl(prob_view1: torch.Tensor, prob_view2: torch.Tensor,
@@ -2286,6 +2328,21 @@ class DNACodonHashLoss(nn.Module):
                     ),
                 )
 
+        # v138: prototype-cluster paired-view InfoNCE on codebook_distances.
+        # Activates when --lambda_proto_cluster > 0 AND paired view is present
+        # AND both views expose `codebook_distances`. Operates per codebook:
+        # p_m = softmax(-codebook_distances[m] / tau)        # [B, K]
+        # sim = cos(p_v1_m, p_v2_m) / tau                    # [B, B]
+        # InfoNCE: diagonal positives, off-diag negatives, both directions.
+        loss_proto_cluster_v = u.new_zeros(())
+        if outputs_view2 is not None and self.lambda_proto_cluster > 0.0:
+            d_v1 = outputs.get("codebook_distances")
+            d_v2 = outputs_view2.get("codebook_distances")
+            if d_v1 is not None and d_v2 is not None:
+                loss_proto_cluster_v = self._loss_proto_cluster_per_codebook(
+                    d_v1, d_v2, temperature=self.proto_cluster_temperature,
+                )
+
         # v28 reconstruction loss (None-safe). Active only when the model
         # was built with --use_decoder; otherwise outputs['reconstruction']
         # is None and we skip the term entirely.
@@ -2426,6 +2483,7 @@ class DNACodonHashLoss(nn.Module):
             + self.lambda_cibhash_ntxent  * loss_cibhash_ntxent_v
             + self.lambda_cibhash_kl      * loss_cibhash_kl_v
             + self.lambda_swav_assign     * loss_swav_assign_v
+            + self.lambda_proto_cluster   * loss_proto_cluster_v
         )
 
         # v106: codeword <-> DNA codon bijection losses (None-safe).
@@ -2567,6 +2625,7 @@ class DNACodonHashLoss(nn.Module):
             "loss_ntxent":       loss_ntxent,
             "loss_cibhash_ntxent": loss_cibhash_ntxent_v,
             "loss_cibhash_kl":     loss_cibhash_kl_v,
+            "loss_proto_cluster":  loss_proto_cluster_v,
             "loss_swav_assign":    loss_swav_assign_v,
             "loss_ortho_text":   loss_ortho_text,
             "loss_dna":          loss_dna,

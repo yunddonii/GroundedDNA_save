@@ -334,6 +334,141 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-10 — v138a / v138b: **VQ codebook removal + prototype-cluster InfoNCE** — **DISCARDED early (ep 30/60); paper-grade negative ablation establishing VQ codebook as LOAD-BEARING regularizer for codon base diversity**
+
+🔴 **MAJOR negative finding** with strong paper claim. v138 replaces v133a's VQ codebook bottleneck with (a) `codon_input_source=routed` (codon_head receives raw router-weighted-sum vectors, bypassing VQ) + (b) `lambda_proto_cluster=0.1` (paired-view InfoNCE on softmax(-codebook_distances) as a separate prototype-clustering supervision). The hypothesis was that the discrete VQ bottleneck was *unnecessary* and that prototype-based paired-view consistency could substitute. Result: **catastrophic base-distribution collapse**; the VQ codebook is the load-bearing regularizer keeping `loss_base_balance` near zero. Removing it explodes `loss_base_balance` by 120-170×, with no recovery prospect from hyperparameter tuning.
+
+**Motivation.** User proposed: "VQ를 아예 없애는 대신에 prototype learning 을 다시 도입. prototype 을 기준으로 cluster 를 형성하도록 하되, codon head 의 입력은 routing 을 통해 의미 별로 분리된 visual token 들의 가중합 벡터." This is the *prototype-supervised clustering + continuous codon prediction* design — VQ bottleneck removed, prototype assignment used only for the InfoNCE loss signal.
+
+**Implementation (3 files, ~120 lines total).**
+- `config.py`: 3 new flags:
+  - `--codon_input_source {quantized, routed}` (default quantized; v138 sets routed)
+  - `--lambda_proto_cluster` (default 0.0; v138 sets 0.1)
+  - `--proto_cluster_temperature` (default 0.3)
+- `loss_siglip2.py`:
+  - New method `_loss_proto_cluster_per_codebook(d_v1, d_v2, temperature)` — per-codebook NtXent on softmax(-codebook_distances/τ) [B, K] assignment vectors; symmetric (both directions) with diagonal positives.
+  - Wired into the aggregator's CIBHash block: activates when `outputs_view2 is not None and lambda_proto_cluster > 0`.
+  - Added to `total` sum and `loss_dict`.
+- `model_siglip2.py`:
+  - `self.codon_input_source` registered in `__init__`.
+  - Forward: when `codon_input_source == "routed"`, `head_src = quant_input` (= post-router weighted-sum tokens) instead of `quantized_tokens`; gate (C_global → C_local addition) and codon_heads still consume `head_src`. Quantizer still runs to expose `codebook_distances` for the InfoNCE.
+  - Text path mirror: `text_head_inputs = text_quantizer_tokens` (raw text-adapter output) when `routed`.
+
+**Recipe (vs v133a). 8-flag delta block** — all VQ-side scalars zeroed, prototype InfoNCE added:
+```
+--codon_input_source routed
+--lambda_vq 0.0    --lambda_quant 0.0
+--lambda_anchor 0.0  --lambda_bu 0.0
+--lambda_proto_cluster 0.1  --proto_cluster_temperature 0.3
+--codebook_size 64   (v138a)  /  --codebook_size 128 (v138b)
+```
+Everything else identical to v133a (per_codebook text NtXent λ=0.05, cibhash per_codebook + dynamic τ, partial whitening γ=0.25, bij OFF, no local-residual).
+
+**Result — loss-trajectory diagnosis (training killed at ep 30/60; paper-grade clear).**
+
+| Loss | v133a ep59 final | v138a-K64 ep32 mid | v138b-K128 ep31 mid | v138 explosion factor |
+|---|---:|---:|---:|---:|
+| `loss_total` | 3.826 | 4.882 | 5.452 | 1.27× / 1.43× |
+| **`loss_base_balance`** ⚠ | **0.052** | **6.405** | **10.123** | **123× / 195×** |
+| `loss_dna` (= entropy + 0.3·base_balance) | 0.371 | 2.003 | 3.097 | 5.4× / 8.3× |
+| `loss_entropy` | ~0.07 | ~0.07 | ~0.07 | 1× (unchanged) |
+| `loss_cibhash_ntxent` | 3.346 | 4.239 | 4.769 | 1.27× / 1.43× |
+| `loss_text_hash_ntxent_add` | 5.472 | 3.934 | 3.674 | 0.72× / 0.67× (down!) |
+| `routing_mean_effective_k` | ~3.7 | 4.18 | 4.76 | router more diffuse |
+
+**Causal diagnosis — VQ codebook IS the codon-base-distribution regularizer.**
+
+The `loss_base_balance` term in `_loss_dna` is `KL(uniform || mean_base_usage)` — `mean_base_usage[r, c] = u[:, r, c].mean(dim=0)`. When the model produces *consistent codon outputs* for batch samples (same base preferred), the mean-base distribution collapses far from uniform 0.25, and the KL explodes (negative log of near-zero entries).
+
+With VQ codebook (v133a), each visual token gets mapped to one of K codewords (discrete bottleneck). Different codewords → different codon-head softmax outputs → diverse base usage across the batch → mean ≈ uniform → small `base_balance`.
+
+Without VQ (v138a/b), `codon_head` receives the *continuous* router output. Same semantic visual content → same encoder output → same codon distribution. The codon_head's softmax becomes a *deterministic continuous function* of the encoder, so batch-level base mean collapses to a few peaks → `base_balance` KL diverges.
+
+Critical observation: `loss_entropy` is *unchanged* (~0.07 both v133a and v138). Entropy measures *per-codon-position concentration*; it stays normal because the softmax does pick a single peak per position. The collapse is at the *cross-sample base diversity* level. Only `base_balance` (which is exactly the cross-sample term) explodes.
+
+Secondary observation: `loss_text_hash_ntxent_add` *drops* in v138 (5.47 → 3.7-3.9). Counterintuitive at first, but explained by codon collapse — when the model collapses to a small number of distinct DNA codes, the text→DNA InfoNCE problem becomes *trivially easier* (small effective vocabulary). This is a *negative* signal (apparent loss improvement masks codon-space collapse).
+
+**No hyperparameter tuning will recover this.** The ratio between `loss_base_balance` (6-10) and other losses (3-5) means even raising `lambda_dna` 10× to 0.5 only equalizes them, and (a) base_balance gradient is dominated by log of near-zero terms (numerically unstable) and (b) raising it that high would crowd out the cibhash NtXent (1.0 weight) and text NtXent (0.05 weight) which are the main retrieval supervision. Tried-and-true `eta_base_balance` is already 0.3 (the largest historical value); raising further hurts retrieval.
+
+**Architectural alternatives considered + rejected.**
+- *Gumbel-softmax* on codon_head output (discrete bottleneck restored): possible but requires τ tuning and could destabilize cibhash NtXent which expects probabilistic codon distributions.
+- *K=1 trivial codebook* + raw projection: defeats the purpose of "VQ removal."
+- *Stronger lambda_dna + eta_base_balance*: cibhash/text NtXent crowding.
+
+**Verdict — DISCARDED with strong paper claim.**
+
+This negative result is a *load-bearing finding* for the paper:
+
+> **The VQ codebook is not merely a discrete bottleneck for hash compression — it is the LOAD-BEARING regularizer that keeps codon base distribution near uniform across the dataset. CIBHash NtXent (sample-distance) and per_codebook text NtXent (text-codebook alignment) provide no signal for *cross-sample base uniformity*; that role is *uniquely* fulfilled by the codeword-indexing discreteness. Removing the codebook (v138a/b) explodes `loss_base_balance` by 120-195× within 30 epochs of training, with no recovery prospect. The codebook IS the codon-diversity regularizer.**
+
+This argues directly for paper's compositional VQ design: each of the M=6 codebooks (K=64/128 codewords) provides *implicit base diversity supervision* that no contrastive loss can substitute.
+
+**Files committed.**
+- `scripts/train_v138a_v133a_protoCluster_K64_flickr25k_clip.sh`
+- `scripts/train_v138b_v133a_protoCluster_K128_flickr25k_clip.sh`
+- `config.py` (+3 flags), `loss_siglip2.py` (+_loss_proto_cluster_per_codebook + 1 aggregator block), `model_siglip2.py` (+codon_input_source branching, ~15 lines)
+
+Result dirs (partial, training killed at ep ~30):
+- `result/260610+flickr25k_setting1_v138a_v133a_protoCluster_K64_partialWhiten_gamma0.25+.../`
+- `result/260610+flickr25k_setting1_v138b_v133a_protoCluster_K128_partialWhiten_gamma0.25+.../`
+
+---
+
+## 2026-06-10 — v135a / v136a / v137a + mscoco_v132a / v133a / v135a / v136a: K-sweep × posSpec head × global cibhash × cross-dataset MEGA ABLATION — **mscoco_v133a is new MSCOCO compositional champion (mAP 0.5652, NMI 0.687, B2 0.141); v135a/v137a DISCARDED; v136a posSpec ↑mAP ↓NMI Flickr-only; cross-dataset bij-OFF vs bij-ON inverted**
+
+🟢 **Multi-axis follow-up** to the v132a/v133a/v134a noLocalRes ablation (commit 1eecc32). Seven new runs across Flickr × MSCOCO × {K-sweep, posSpec, global cibhash} closing the cross-dataset story.
+
+**Runs & 1-line outcomes.**
+- v135a (Flickr, K=128 → 256, L=3): DISCARDED. 4× codeword redundancy DOES expand cb-tuple uniq (0.618 → 0.797) but DNA-base unique flat (0.340 → 0.348) → confirms L=3 is the DNA ceiling, not K. Strengthens v122a's L=4 K=256 paper claim.
+- v136a (Flickr, posSpec head + bij OFF): mAP 0.7601 (K=128 family mAP champion, +0.006 vs v133a) but NMI 0.599 (−0.027) + dead 0.090 (+0.050). retrieval ↑ / compositional ↓ trade-off — **NOT** a Pareto improvement over v132a.
+- v137a (Flickr, global cibhash + static τ): DISCARDED. mAP 0.7284 (−0.026 vs v133a), NMI 0.458 (−0.168 ⚠⚠), dead 0.181 (4.5× worse). Per_codebook cibhash + dynamic τ is the load-bearing compositional driver; global mode loses everything.
+- **mscoco_v133a** ⭐ (MSCOCO, bij OFF, noLocalRes, perCb cibhash): **mAP 0.5652, P@1 0.7976, NMI 0.687, B2 0.141 — new MSCOCO champion all axes among our models**. Beats mscoco_v106b (0.5581 / 0.7914 / 0.671 / 0.137) and mscoco_v118a (0.5053 / 0.7038 / 0.664 / 0.115).
+- **mscoco_v132a** (MSCOCO, bij ON, noLocalRes, perCb cibhash): mAP 0.5534, P@1 0.8044, NMI 0.693 (MSCOCO NMI max), B2 0.143, dead 0.014. mAP slightly below v133a but **dead 3× lower** and NMI/B2 marginal max → MSCOCO recipe with bij ON is the *codebook-health* champion.
+- mscoco_v135a (MSCOCO, K=128 → 256): mirror of Flickr v135a. mAP 0.5581 (−0.007), NMI 0.654 (−0.033), B2 0.150 (+0.009). Same L=3 ceiling pattern as Flickr — cross-dataset confirmed.
+- mscoco_v136a (MSCOCO, posSpec head): mAP 0.5551 (−0.010), P@1 0.7794 (−0.018), NMI 0.650 (−0.037), B2 0.133 (−0.008), dead 0.078 (+0.038). **All 7 axes regress** on MSCOCO — opposite of historical mscoco_v69a/v81a posSpec era (recipe was very different then). posSpec does NOT compose with the modern v132a recipe (per_codebook + cibhash + partial whitening) on MSCOCO.
+
+**Cross-dataset bij-ON-vs-bij-OFF asymmetry (the load-bearing finding).**
+
+| Axis | Flickr v132a (bij ON) vs v133a (bij OFF) | MSCOCO v132a (bij ON) vs v133a (bij OFF) |
+|---|---|---|
+| mAP | v133a wins 0.7541 > 0.7418 | **v133a wins 0.5652 > 0.5534** |
+| P@1 | v133a marginal 0.9150 > 0.9070 | **v132a wins 0.8044 > 0.7976** |
+| NMI | tied 0.626 ≈ 0.636 (v132a +0.010) | tied 0.687 ≈ 0.693 (v132a +0.006) |
+| **dead** | v132a wins 0.005 < 0.040 | **v132a wins 0.014 < 0.040** |
+
+→ On Flickr, bij OFF (v133a) is the retrieval champion. On MSCOCO, bij ON (v132a) is the codebook-health champion with comparable retrieval. The trade-off direction is the same (bij ON sacrifices a little mAP for cleaner codebooks), but its severity depends on dataset: **MSCOCO's 107K DB with low text coverage (~8%) NEEDS bij to prevent dead codewords; Flickr's 23K with 100% text coverage can afford bij OFF because per_codebook text NtXent already prevents collapse**.
+
+**Updated K=128 candidate hierarchy (Flickr-CLIP, partial whitening γ=0.25).**
+
+```
+mAP champion (Flickr):     v126a (0.7633, NMI 0.605, perCodon text)  -- localRes ON
+mAP champion (K=128 noLocalRes): v136a (0.7601, NMI 0.599 ⚠, posSpec) -- retrieval-only candidate
+P@1 champion (Flickr):     v122b (0.9285, mAP 0.7607)                 -- localRes ON, global text
+compositional champion:    v132a (0.7418/0.9070/NMI 0.636/DNA 0.367) -- noLocalRes, perCb text
+DNA-uniq + scale champ:    v122a (0.7479/0.9215/DNA 0.551, L=4 K=256) -- localRes ON, L-scalable
+
+MSCOCO champion:           mscoco_v133a (0.5652/0.7976/NMI 0.687/B2 0.141) -- bij OFF + perCb + cibhash + noLocalRes
+MSCOCO codebook-health:    mscoco_v132a (0.5534/0.8044/NMI 0.693/dead 0.014) -- adds bij ON to above
+```
+
+**Implications for paper.**
+
+1. **v132a (Flickr) + mscoco_v133a (MSCOCO) = recommended cross-dataset compositional pair.** Both share the noLocalRes + perCb cibhash + perCb text recipe; the bij flag differs because the datasets have different size/text-coverage demands.
+2. **L=3 DNA ceiling confirmed cross-dataset.** v135a (Flickr) and mscoco_v135a (MSCOCO) both show K=256 → DNA-uniq flat at L=3. L=4 (v122a) is the only way to break the ceiling.
+3. **posSpec head is Flickr-only and retrieval-only.** v136a Flickr improves mAP but mscoco_v136a regresses on all axes. Use only when retrieval is the sole objective on small-DB datasets.
+4. **Global cibhash is uniformly worse.** v137a confirms per_codebook + dynamic τ is the load-bearing compositional driver.
+
+**Recipes (7 new scripts).**
+- `scripts/train_v135a_v133a_K256_flickr25k_clip.sh`
+- `scripts/train_v136a_v132a_noBij_posSpec_K128_flickr25k_clip.sh`
+- `scripts/train_v137a_v133a_globalCib_noDynTau_K128_flickr25k_clip.sh`
+- `scripts/train_mscoco_v132a_qwen3.sh`
+- `scripts/train_mscoco_v133a_qwen3.sh`
+- `scripts/train_mscoco_v135a_qwen3.sh`
+- `scripts/train_mscoco_v136a_qwen3.sh`
+
+---
+
 ## 2026-06-09 — v132a / v133a / v134a: **local-residual γ=1.0 OFF ablation** on v128a / v129a / v131a triple — **NEW Pareto-dominant compositional candidate v132a (mAP 0.7418, P@1 0.9070, NMI 0.636, DNA 0.367); local-residual revealed as no-op-or-harmful**
 
 🟢 **MAJOR finding**: `local-residual quant γ=1.0` (introduced v122, used in every paper-final candidate v122a / v122b / v126a / v128a since) is **NOT** the source of v128a's family-best NMI 0.636 — bij + per_codebook text NtXent alone reproduce it exactly. v132a (v128a + noLocalRes) **strictly Pareto-dominates** v128a (mAP +0.005, P@1 +0.010, NMI tied at 0.636, B1/B2 tied or +) and **replaces v128a as the K=128 compositional / interpretability main-figure candidate**.

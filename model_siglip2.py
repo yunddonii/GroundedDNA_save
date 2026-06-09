@@ -1539,6 +1539,16 @@ class SigLIP2SemanticOTModel(nn.Module):
         # blending step before the codon heads. When True, each local codon
         # head sees the local codeword in isolation (no C_global injection).
         self.disable_global_gate: bool = bool(getattr(args, "disable_global_gate", False))
+        # v138: source of codon_head input.
+        #   "quantized" (default): legacy VQ output (post-gate quantized_tokens)
+        #   "routed": raw router weighted-sum vectors (semantic_visual_tokens
+        #             passes through gate too but bypasses VQ codebook lookup).
+        self.codon_input_source: str = str(getattr(args, "codon_input_source", "quantized"))
+        if self.codon_input_source not in ("quantized", "routed"):
+            raise ValueError(
+                f"[model_siglip2] codon_input_source must be 'quantized' or "
+                f"'routed', got {self.codon_input_source!r}"
+            )
         gate_init = float(getattr(args, "global_gate_init_logit", -3.0))
         self.global_gate_logits = nn.Parameter(
             torch.full((NUM_LOCAL_PARTS,), gate_init, dtype=torch.float32)
@@ -2477,8 +2487,13 @@ class SigLIP2SemanticOTModel(nn.Module):
         # 7) gated global addition: blend C_global codeword into local codewords
         #    q_conditioned_m = q_local_m + sigmoid(alpha_m) * (sg)q_global
         # `--disable_global_gate` skips the addition entirely (v23b ablation).
-        q_global_cw = quantized_tokens[:, 0, :]                # [B, D]
-        q_local_cw  = quantized_tokens[:, 1:, :]               # [B, 5, D]
+        # v138: when codon_input_source=="routed", use raw routed tokens
+        # (quant_input) instead of quantized_tokens. Quantizer still runs to
+        # provide codebook_distances for the prototype-cluster InfoNCE loss
+        # but does NOT bottleneck codon output.
+        head_src = quant_input if self.codon_input_source == "routed" else quantized_tokens
+        q_global_cw = head_src[:, 0, :]                        # [B, D]
+        q_local_cw  = head_src[:, 1:, :]                       # [B, 5, D]
 
         if self.disable_global_gate:
             # No C_global -> C_1..5 conditioning. Each codon head sees its own
@@ -2671,7 +2686,14 @@ class SigLIP2SemanticOTModel(nn.Module):
             else:
                 text_codon_residual = None
             # (c) skip global gate -> head input == text codeword directly
-            text_head_inputs = text_q_st
+            # v138: with codon_input_source=="routed", bypass the text-side
+            # VQ too; use the raw text-adapter output (text_quantizer_tokens)
+            # so the text codon path stays a continuous mirror of the visual one.
+            text_head_inputs = (
+                text_quantizer_tokens
+                if self.codon_input_source == "routed"
+                else text_q_st
+            )
             text_continuous_list = []
             for m, head in enumerate(self.codon_heads):
                 r_m = (text_codon_residual[:, m, :]
