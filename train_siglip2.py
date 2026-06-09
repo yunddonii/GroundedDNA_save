@@ -176,6 +176,120 @@ def _collect_split_data(model, loader, device, M: int, K_max: int):
     return z_per_cw, cp
 
 
+def _build_active_loss_types(args) -> list:
+    """Return ONLY the loss-dict keys that correspond to active losses for
+    this run. "Active" = the gating lambda is > 0 OR the structural flag
+    that turns the loss on is set.
+
+    Goal: stop polluting log.csv / tensorboard with always-zero columns
+    for losses that are turned off, and stop SILENTLY dropping newly-added
+    losses (v119 CIBHash, v121 SwAV-assign, v123 codeword text proto, ...)
+    that the legacy hardcoded list did not know about.
+
+    Conventions:
+      - 'loss' (total) and the two routing diagnostics are always logged.
+      - Sub-component scalars (e.g. loss_entropy / loss_base_balance for
+        loss_dna; loss_cb_balance / loss_cb_uncorr for loss_bu;
+        eff_lambda_codeword_codon_sinkhorn for the bij; the text-cluster
+        and text-codon-rel diagnostics) are emitted together with their
+        parent loss.
+    """
+    def _on(name: str) -> bool:
+        return float(getattr(args, name, 0.0)) > 0.0
+
+    def _flag(name: str) -> bool:
+        return bool(getattr(args, name, False))
+
+    keys: list = ['loss']
+
+    # ---- core VQ / quantization commitments
+    if _on('lambda_vq'):    keys.append('loss_vq')
+    if _on('lambda_quant'): keys.append('loss_quant')
+
+    # ---- DNA + base regularizers
+    if _on('lambda_anchor'): keys.append('loss_anchor')
+    if _on('lambda_dna'):
+        keys.extend(['loss_dna', 'loss_entropy', 'loss_base_balance'])
+    if _on('lambda_bu'):
+        keys.extend(['loss_bu', 'loss_cb_balance', 'loss_cb_uncorr'])
+
+    # ---- hash / text-hash supervision
+    if _on('lambda_hash'):              keys.append('loss_hash')
+    if _on('lambda_hash_hard'):         keys.append('loss_hash_hard')
+    # loss_text_hash holds both MSE-form and the v100 additive NtXent;
+    # either lambda activates the same dict key.
+    if _on('lambda_text_hash') or _on('lambda_text_hash_ntxent'):
+        keys.append('loss_text_hash')
+    if _on('lambda_cw_xmodal'):         keys.append('loss_cw_xmodal')
+
+    # ---- routing-side alignment
+    if _on('lambda_wasserstein'): keys.append('loss_wasserstein')
+    if _on('lambda_ortho_text'):  keys.append('loss_ortho_text')
+
+    # ---- paired-aug NtXent on DNA codes (v29)
+    if _flag('use_paired_aug_ntxent') and _on('lambda_ntxent'):
+        keys.append('loss_ntxent')
+
+    # ---- codeword-codon bijection family (v106 / v111 / v112)
+    if _on('lambda_codeword_codon_sinkhorn'):
+        keys.extend(['loss_codeword_codon_sinkhorn',
+                     'eff_lambda_codeword_codon_sinkhorn'])
+    if _on('lambda_text_cluster_codon_ot'):
+        keys.extend(['loss_text_cluster_codon_ot',
+                     'text_cluster_conf_mean',
+                     'text_cluster_usage_entropy'])
+    if _on('lambda_hierarchical_cluster_codon'):
+        keys.append('loss_hierarchical_cluster_codon')
+    if _on('lambda_proto_cluster_cos'):
+        keys.append('loss_proto_cluster_cos')
+
+    # ---- text-codon relational (v113)
+    if _on('lambda_text_codon_rel'):
+        keys.extend(['loss_text_codon_rel',
+                     'text_codon_rel_pos_sim',
+                     'text_codon_rel_neg_sim'])
+
+    # ---- codeword text prototype CE (v123)
+    if _on('lambda_codeword_text_proto'):
+        keys.append('loss_codeword_text_proto')
+
+    # ---- CIBHash family (v119)
+    if _on('lambda_cibhash_ntxent'):
+        keys.append('loss_cibhash_ntxent')
+    if _on('lambda_cibhash_kl'):
+        keys.append('loss_cibhash_kl')
+
+    # ---- SwAV-style swapped balanced assignment (v121)
+    if _on('lambda_swav_assign'):
+        keys.append('loss_swav_assign')
+
+    # ---- v66 per-codon text-anchored prototype CE
+    if _flag('codon_text_anchor') and _on('lambda_codon_text_anchor'):
+        keys.append('loss_text_anchor')
+
+    # ---- reconstruction (v28)
+    if _on('lambda_recon'):
+        keys.append('loss_recon')
+
+    # ---- hash reconstruction decoder (v70a)
+    if _flag('use_hash_recon') and _on('lambda_hash_recon'):
+        keys.append('loss_hash_recon')
+
+    # ---- dual hash projection heads (v72a)
+    if _flag('use_dual_hash_proj'):
+        if _on('lambda_dual_semantic'):
+            keys.append('loss_dual_semantic')
+        if _on('lambda_dual_instance'):
+            keys.append('loss_dual_instance')
+
+    # ---- routing diagnostics: always informative
+    keys.extend(['routing_mean_effective_k', 'routing_fraction_top1'])
+
+    # de-dupe while preserving order (defensive)
+    seen = set()
+    return [k for k in keys if not (k in seen or seen.add(k))]
+
+
 def _mid_train_eval(model, loader, device, distance_mode: str, codebook_size: int):
     """Quick retrieval + collapse eval on a single (test) split.
 
@@ -423,32 +537,13 @@ def main(args: Config):
     # Loss components recorded per epoch in log.csv. After the 2026-05-13
     # cleanup of inactive R-series / v15 / `loss_global` terms, this list
     # matches the active set defined in `loss_siglip2.DNACodonHashLoss`.
-    loss_types = [
-        'loss',
-        'loss_hash', 'loss_hash_hard',
-        'loss_vq', 'loss_quant',
-        'loss_anchor',
-        'loss_dna', 'loss_entropy', 'loss_base_balance',
-        'loss_bu', 'loss_cb_balance', 'loss_cb_uncorr',
-        'loss_wasserstein',
-        'loss_text_hash',
-        'loss_cw_xmodal',
-        'loss_codeword_text_proto',
-        'loss_codeword_codon_sinkhorn',
-        'eff_lambda_codeword_codon_sinkhorn',
-        'loss_text_cluster_codon_ot',
-        'text_cluster_conf_mean',
-        'text_cluster_usage_entropy',
-        'loss_text_codon_rel',
-        'text_codon_rel_pos_sim',
-        'text_codon_rel_neg_sim',
-        'loss_recon',
-        'loss_ntxent',
-        'loss_ortho_text',
-        # Routing diagnostics for sparse/adaptive routing ablations.
-        'routing_mean_effective_k',
-        'routing_fraction_top1',
-    ]
+    # v122: only ACTIVE losses (gating lambda > 0 OR enabling flag set) are
+    # logged. Keeps log.csv / tensorboard relevant to *this* run's recipe
+    # and ensures newly-added losses (cibhash v119, swav_assign v121,
+    # codeword_text_proto v123, etc.) are automatically picked up when
+    # their lambdas turn on. See `_build_active_loss_types`.
+    loss_types = _build_active_loss_types(args)
+    print(f"[csv-logger] active loss keys ({len(loss_types)}): {loss_types}")
 
     # ---------- per-epoch CSV logger ---------------------------------------
     csv_fields = ["epoch"]
