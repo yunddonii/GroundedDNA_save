@@ -207,7 +207,6 @@ class DNACodonHashLoss(nn.Module):
         self.text_hash_ntxent_temperature = float(getattr(cfg, "text_hash_ntxent_temperature", 0.07))
         # v100: ADDITIVE text-DNA NtXent (extra term on top of MSE / swap form)
         self.lambda_text_hash_ntxent = float(getattr(cfg, "lambda_text_hash_ntxent", 0.0))
-        self.text_hash_ntxent_mode = str(getattr(cfg, "text_hash_ntxent_mode", "global"))
         # v93: per-codebook cross-modal codeword InfoNCE. Symmetric InfoNCE
         # between visual `quantized_tokens[:, m, :]` and text
         # `text_quantized_tokens[:, m, :]` for each codebook m.
@@ -2033,129 +2032,26 @@ class DNACodonHashLoss(nn.Module):
         else:
             loss_text_hash = u.new_zeros(())
 
-        # v100/v126/v127: ADDITIVE text-DNA NtXent.
-        # global:    symmetric InfoNCE on flattened DNA code [B, R*4].
-        # per_codon: symmetric InfoNCE per codon [B, 4], averaged over R.
-        # post_vq:   symmetric InfoNCE per VQ codebook embedding [B, D],
-        #            averaged over M before the codon heads.
+        # v100: ADDITIVE text-DNA NtXent (separate from swap form above).
+        # When lambda_text_hash_ntxent > 0, compute symmetric InfoNCE on the
+        # flattened 72-dim DNA continuous_code [B, 72] AS AN EXTRA TERM,
+        # weighted independently from the MSE/swap form. This lets a recipe
+        # keep `loss_text_hash` (MSE) while ALSO penalising image-text DNA
+        # mis-ordering across the batch.
         lam_th_nt = float(getattr(self, "lambda_text_hash_ntxent", 0.0))
-        if lam_th_nt > 0.0:
+        if text_cc is not None and lam_th_nt > 0.0:
+            B = text_cc.shape[0]
+            t_flat = text_cc.reshape(B, -1)
+            i_flat = u.reshape(B, -1)
+            t_n = F.normalize(t_flat, dim=-1)
+            i_n = F.normalize(i_flat, dim=-1)
             tau = max(float(getattr(self, "text_hash_ntxent_temperature", 0.07)), 1e-6)
-            th_mode = str(getattr(self, "text_hash_ntxent_mode", "global"))
-            if th_mode == "post_vq":
-                v_post = outputs.get("quantized_tokens")
-                t_post = outputs.get("text_quantized_tokens")
-                if v_post is not None and t_post is not None:
-                    assert v_post.shape == t_post.shape, (
-                        f"text_hash_ntxent post_vq expects text/visual VQ "
-                        f"shape match; got visual={tuple(v_post.shape)} "
-                        f"text={tuple(t_post.shape)}"
-                    )
-                    assert v_post.dim() == 3, (
-                        f"text_hash_ntxent post_vq expects [B, M, D]; "
-                        f"got {tuple(v_post.shape)}"
-                    )
-                    B_vq, M_vq, D_vq = v_post.shape
-                    assert M_vq > 0 and D_vq > 0, (
-                        "text_hash_ntxent post_vq requires non-empty codebook "
-                        f"and feature dimensions; got M={M_vq}, D={D_vq}"
-                    )
-                    labels_vq = torch.arange(B_vq, device=v_post.device)
-                    v_n = F.normalize(v_post, dim=-1)          # [B, M, D]
-                    t_n = F.normalize(t_post, dim=-1)          # [B, M, D]
-                    # logits_vt[m, i, j] compares visual sample i to text
-                    # sample j for the same codebook m. Positives are diagonal.
-                    logits_vt = torch.einsum("bmd,cmd->mbc", v_n, t_n) / tau  # [M, B, B]
-                    labels_m = labels_vq.unsqueeze(0).expand(M_vq, B_vq).reshape(-1)
-                    loss_v2t = F.cross_entropy(logits_vt.reshape(M_vq * B_vq, B_vq), labels_m)
-                    loss_t2v = F.cross_entropy(
-                        logits_vt.transpose(1, 2).reshape(M_vq * B_vq, B_vq),
-                        labels_m,
-                    )
-                    loss_text_hash_ntxent_add = 0.5 * (loss_v2t + loss_t2v)
-                else:
-                    loss_text_hash_ntxent_add = u.new_zeros(())
-            elif th_mode == "per_codon" and text_cc is not None:
-                B = text_cc.shape[0]
-                labels = torch.arange(B, device=u.device)
-                assert text_cc.shape == u.shape, (
-                    f"text_hash_ntxent per_codon expects text/visual DNA "
-                    f"shape match; got text={tuple(text_cc.shape)} visual={tuple(u.shape)}"
-                )
-                assert text_cc.dim() == 3 and text_cc.shape[-1] == 4, (
-                    f"text_hash_ntxent per_codon expects [B, R, 4]; "
-                    f"got {tuple(text_cc.shape)}"
-                )
-                _, R_th, _ = text_cc.shape
-                assert R_th > 0, "text_hash_ntxent per_codon requires at least one codon"
-                t_n = F.normalize(text_cc, dim=-1)          # [B, R, 4]
-                i_n = F.normalize(u, dim=-1)                # [B, R, 4]
-                # logits_it[r, i, j] compares visual sample i to text sample j
-                # for the same codon r. Positives are the diagonal per codon.
-                logits_it = torch.einsum("brd,crd->rbc", i_n, t_n) / tau  # [R, B, B]
-                labels_r = labels.unsqueeze(0).expand(R_th, B).reshape(-1)
-                loss_i2t = F.cross_entropy(logits_it.reshape(R_th * B, B), labels_r)
-                loss_t2i = F.cross_entropy(
-                    logits_it.transpose(1, 2).reshape(R_th * B, B),
-                    labels_r,
-                )
-                loss_text_hash_ntxent_add = 0.5 * (loss_i2t + loss_t2i)
-            elif th_mode == "per_codebook" and text_cc is not None:
-                # v127: M independent symmetric InfoNCEs, one per codebook m,
-                # over its L codons flattened to a (L*4)-dim DNA segment.
-                # Matches the "each codebook = one semantic part" compositional
-                # claim — coarser than per_codon (one base) but finer than
-                # global (the full hash). Requires num_codebooks divisible R.
-                B, R_th, V_th = text_cc.shape
-                assert text_cc.shape == u.shape, (
-                    f"text_hash_ntxent per_codebook expects text/visual DNA "
-                    f"shape match; got text={tuple(text_cc.shape)} visual={tuple(u.shape)}"
-                )
-                assert V_th == 4, (
-                    f"text_hash_ntxent per_codebook expects last dim 4 (A/C/G/T); "
-                    f"got {V_th}"
-                )
-                M_th = int(getattr(self, "num_codebooks", 6))
-                assert R_th % M_th == 0, (
-                    f"text_hash_ntxent per_codebook needs R={R_th} divisible by "
-                    f"num_codebooks={M_th} (so L = R/M is integer)."
-                )
-                L_th = R_th // M_th
-                # [B, R, 4] -> [B, M, L, 4] -> flatten last two -> [B, M, L*4]
-                t = text_cc.view(B, M_th, L_th, V_th).reshape(B, M_th, L_th * V_th)
-                i = u       .view(B, M_th, L_th, V_th).reshape(B, M_th, L_th * V_th)
-                t_n = F.normalize(t, dim=-1)                  # [B, M, L*4]
-                i_n = F.normalize(i, dim=-1)
-                # logits_it[m, i, j] compares visual sample i to text sample j
-                # for codebook m. Positives are diagonal per codebook.
-                logits_it = torch.einsum("bmd,cmd->mbc", i_n, t_n) / tau  # [M, B, B]
-                labels = torch.arange(B, device=u.device)
-                labels_m = labels.unsqueeze(0).expand(M_th, B).reshape(-1)
-                loss_i2t = F.cross_entropy(logits_it.reshape(M_th * B, B), labels_m)
-                loss_t2i = F.cross_entropy(
-                    logits_it.transpose(1, 2).reshape(M_th * B, B),
-                    labels_m,
-                )
-                loss_text_hash_ntxent_add = 0.5 * (loss_i2t + loss_t2i)
-            elif th_mode == "global" and text_cc is not None:
-                B = text_cc.shape[0]
-                labels = torch.arange(B, device=u.device)
-                t_flat = text_cc.reshape(B, -1)
-                i_flat = u.reshape(B, -1)
-                t_n = F.normalize(t_flat, dim=-1)
-                i_n = F.normalize(i_flat, dim=-1)
-                logits_it = (i_n @ t_n.T) / tau
-                loss_text_hash_ntxent_add = 0.5 * (
-                    F.cross_entropy(logits_it,   labels) +
-                    F.cross_entropy(logits_it.T, labels)
-                )
-            elif th_mode in {"global", "per_codon", "per_codebook"}:
-                loss_text_hash_ntxent_add = u.new_zeros(())
-            else:
-                raise ValueError(
-                    f"Unsupported text_hash_ntxent_mode={th_mode!r}; "
-                    "expected 'global', 'per_codon', 'per_codebook', or 'post_vq'."
-                )
+            logits_it = (i_n @ t_n.T) / tau
+            labels = torch.arange(B, device=logits_it.device)
+            loss_text_hash_ntxent_add = 0.5 * (
+                F.cross_entropy(logits_it,   labels) +
+                F.cross_entropy(logits_it.T, labels)
+            )
         else:
             loss_text_hash_ntxent_add = u.new_zeros(())
 
