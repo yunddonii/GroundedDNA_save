@@ -1430,11 +1430,32 @@ class SigLIP2SemanticOTModel(nn.Module):
                 d_model=int(self.d_model),
                 n_iters=int(getattr(args, "slot_attention_iters", 3)),
             )
+        elif self.router_type == "cluster_attn":
+            # v141: DiVT-inspired soft cluster + masked cross-attention.
+            # Operates on RAW visual patches (BEFORE visual_adapter), and
+            # returns M=6 semantic tokens directly in the encoder's hidden
+            # dim. Pair with --visual_adapter_after_router so the adapter
+            # gets applied to the M output tokens, projecting them to
+            # d_model for the codebook lookup.
+            from models.cluster_attention_router import ClusterAttentionRouter
+            self.router = ClusterAttentionRouter(
+                num_parts=NUM_SEMANTIC_PARTS,
+                d_model=int(self.d_model),
+                num_heads=int(getattr(args, "cluster_attn_heads", 4)),
+                mlp_ratio=float(getattr(args, "cluster_attn_mlp_ratio", 4.0)),
+                sinkhorn_eps=float(getattr(args, "cluster_attn_sinkhorn_eps", 0.1)),
+                sinkhorn_iters=int(getattr(args, "cluster_attn_sinkhorn_iters", 3)),
+                pool_temperature=float(getattr(args, "cluster_attn_pool_temperature", 0.3)),
+            )
         else:
             raise ValueError(
-                f"[model_siglip2] router_type must be 'sinkhorn' / 'attention' / 'slot', "
-                f"got {self.router_type!r}"
+                f"[model_siglip2] router_type must be 'sinkhorn' / 'attention' / "
+                f"'slot' / 'cluster_attn', got {self.router_type!r}"
             )
+        # v141: visual_adapter relocation flag.
+        self.visual_adapter_after_router: bool = bool(
+            getattr(args, "visual_adapter_after_router", False)
+        )
         # v33a: epsilon annealing for Sinkhorn router. When both init+final
         # are set, the effective epsilon is cosine-interpolated from init
         # (epoch 0) to final (last epoch). Smaller epsilon -> sharper
@@ -1966,8 +1987,13 @@ class SigLIP2SemanticOTModel(nn.Module):
                 visual_attention_mask=visual_attention_mask,
             )
 
-        # 1) adapter projection (SEPARATE parameters per branch)
-        visual_tokens = self.visual_adapter(feats["visual_tokens_raw"])  # [B, N, D]
+        # 1) adapter projection (SEPARATE parameters per branch).
+        # v141: when --visual_adapter_after_router is set, SKIP the
+        # per-patch adapter and apply it AFTER the router (on M=6 tokens).
+        if self.visual_adapter_after_router:
+            visual_tokens = feats["visual_tokens_raw"]                   # [B, N, D_raw]
+        else:
+            visual_tokens = self.visual_adapter(feats["visual_tokens_raw"])  # [B, N, D]
         B, N, D = visual_tokens.shape
 
         text_part_tokens:  Optional[torch.Tensor] = None
@@ -2176,6 +2202,12 @@ class SigLIP2SemanticOTModel(nn.Module):
         # C_0 centroid. Legacy mode still routes only C_1..C_5.
         local_anchor_tokens: Optional[torch.Tensor] = None
         route_global_text_active = bool(self.route_global_text and use_text_routing)
+        # v141: cluster_attn router always emits M=NUM_SEMANTIC_PARTS=6
+        # cluster tokens (cluster 0 plays the role of the global / "C_0"
+        # part). Force the global+local routing path so downstream code
+        # consumes all 6 tokens from the cluster_attn output.
+        if self.router_type == "cluster_attn":
+            route_global_text_active = True
         if use_text_routing:
             local_centroids   = (
                 local_text_tokens_for_routing
@@ -2339,7 +2371,13 @@ class SigLIP2SemanticOTModel(nn.Module):
                 router_kwargs["adaptive_topp_min"] = float(self.routing_adaptive_topp_min)
                 router_kwargs["adaptive_topp_max"] = float(self.routing_adaptive_topp_max)
                 router_kwargs["adaptive_topp_use_entropy"] = bool(self.routing_adaptive_topp_entropy)
-        r_out = self.router(**router_kwargs)
+        if self.router_type == "cluster_attn":
+            # v141: ClusterAttentionRouter operates on raw patches only;
+            # no text_part_tokens / part_mask / topp kwargs apply. It
+            # returns {routing_matrix, semantic_tokens, ot_cost}.
+            r_out = self.router(visual_tokens_for_routing)
+        else:
+            r_out = self.router(**router_kwargs)
         full_routing_matrix = r_out["routing_matrix"]              # [B, N, 5/6 (+ null)]
         if self.use_null_centroid and self.null_centroid is not None:
             routed_matrix = full_routing_matrix[..., :-1]           # [B, N, 5/6]
@@ -2418,6 +2456,21 @@ class SigLIP2SemanticOTModel(nn.Module):
             semantic_visual_tokens = torch.cat(
                 [global_visual_token.unsqueeze(1), local_semantic_visual_tokens], dim=1,
             )                                                                          # [B, 6, D]
+
+        # v141: ClusterAttentionRouter override.
+        # The cluster_attn router has already produced M=6 disentangled
+        # tokens via masked cross-attention; replace the weighted-sum
+        # output of the global+local branch above with those tokens.
+        # Apply visual_adapter HERE (--visual_adapter_after_router) so its
+        # gradient stays connected through the cross-attention path back
+        # to the encoder, instead of being cut by raw-patch projection.
+        if self.router_type == "cluster_attn":
+            semantic_visual_tokens = r_out["semantic_tokens"]                          # [B, 6, D_raw]
+            if self.visual_adapter_after_router:
+                semantic_visual_tokens = self.visual_adapter(semantic_visual_tokens)   # [B, 6, D_model]
+            local_semantic_visual_tokens = semantic_visual_tokens[:, 1:, :]            # [B, 5, D]
+            # routing_matrix already set above; keep for loss_wasserstein /
+            # loss_bu compatibility.
 
         # 6) v32: train-only text injection into the quantizer input.
         # When `--text_inject_train_only=add` and the text path is active,

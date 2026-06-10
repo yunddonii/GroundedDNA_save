@@ -334,6 +334,177 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-10 — v141 / v142: **NMI re-interpretation (lower = better) + 6-cell text-supervision matrix + DiVT-inspired cluster-attention DISCARDED + lr/epoch sweep DISCARDED** — paper-grade negative ablations confirm v133a hyperparameters are near-optimal
+
+🔴 Two architecture-level explorations (v141 cluster_attn, v142 lr/epoch tune) both **DISCARDED** as negative ablations. The most important outcome of this entry is a **CRITICAL PAPER-FRAMING CORRECTION**: pairwise off-diag NMI (the compositional axis we've been reporting) has been read backwards for the entire v9x family. *Lower* NMI between codebooks means *more compositional independence*; *higher* NMI means *more redundancy*. All v9x family "NMI champion" claims (v128a/v132a 0.636 reported as ⭐) are actually the **most-redundant** runs.
+
+**NMI interpretation correction (CRITICAL).**
+
+The off-diagonal pairwise NMI between codebooks measures: "knowing the codeword of codebook m, how much do we know about codebook n?". For compositional codebooks (paper claim: each codebook encodes a *distinct* semantic part), we want LOW pairwise NMI (~0.3-0.5 sweet spot). High NMI = codebooks redundantly encode the same information.
+
+Inspecting the v131a/v132a NMI matrix:
+```
+cb0 (global)   ↔ cb1..5 (local) :  ~0.45     (moderate — cb0 is summary)
+cb1..5 (local) ↔ cb1..5 (local) :  ~0.73     (HIGH — local codebooks REDUNDANT)
+mean off-diag                    :  0.626
+```
+
+→ v133a's local↔local NMI of 0.70-0.73 means the 5 local codebooks heavily overlap in what they encode. The "high NMI = good" framing throughout the v9x PROJECT_LOG entries is **inverted**. Going forward: lower NMI = better compositional. v137a's NMI 0.458, which we DISCARDED as "compositional collapse", was actually the **most-compositional** run by this metric (mAP/dead trade-off still made it DISCARDED, but the NMI piece was a positive signal).
+
+**v139 family — codeword_text_proto λ sweep (Flickr).**
+
+3 runs to test whether re-introducing the v123c codeword-text-prototype EMA loss (originally λ=0.02 on v122b base) helps on the v133a base:
+
+| Tag | text_hash_ntxent λ | codeword_text_proto λ | mAP | NMI mean | NMI L↔L | dead |
+|---|---:|---:|---:|---:|---:|---:|
+| v133a (ref) | 0.05 | 0.00 | 0.7541 | 0.626 | 0.702 | 0.040 |
+| v139a | 0.05 | 0.05 | **0.7545** | **0.605** | **0.672** | 0.073 |
+| v139b | 0.05 | 0.10 | 0.7347 | 0.583 | 0.632 | 0.082 |
+| v139c | 0.00 | 0.05 | 0.7211 | 0.627 | 0.724 | **0.013** |
+
+**v139c is the key causal-isolation run**: text_hash_ntxent OFF, only proto ON. Result: NMI essentially unchanged (0.627 vs v133a's 0.626) and L↔L slightly *worse* (0.724 vs 0.702). So **text_hash_ntxent is the TRUE NMI driver**, not codeword_text_proto. The earlier v139a "NMI improvement" was an *interaction effect* between the two losses, not a proto-only effect.
+
+Proto's standalone benefit: **dead reduction 3x** (0.040 → 0.013). With identity routing under proto, the EMA prototype keeps every codeword alive. But adding proto on top of text_hash_ntxent re-introduces dead (0.073-0.082), so the two losses interfere on the dead axis.
+
+**v140 family — text_hash_ntxent λ sweep (Flickr).**
+
+2 runs to test the *direct* λ sweep of the established NMI driver:
+
+| Tag | text_hash_ntxent λ | mAP | NMI mean | NMI L↔L | B1 | dead |
+|---|---:|---:|---:|---:|---:|---:|
+| v139c (ref, λ=0) | 0.00 | 0.7211 | 0.627 | 0.724 | 0.115 | 0.013 |
+| v133a (λ=0.05) | 0.05 | **0.7541** | 0.626 | 0.702 | **0.128** | 0.040 |
+| v140a (λ=0.10) | 0.10 | 0.7411 | 0.529 | 0.580 | 0.113 | 0.198 ⚠ |
+| v140b (λ=0.20) | 0.20 | 0.7502 | **0.469** ⭐ | **0.505** ⭐ | 0.102 | 0.309 ⚠⚠ |
+
+→ **text_hash_ntxent → NMI monotonic**: λ ↑ from 0.00 to 0.20 drives NMI from 0.627 down to 0.469, and L↔L from 0.724 down to 0.505. This is the *paper-grade compositional driver*. However, **dead codeword polluton trades off catastrophically**: dead 0.013 → 0.040 → 0.198 → 0.309. v140b's NMI 0.469 is the family compositional champion but dead 30 % is paper-blocking.
+
+mAP sweet spot is **λ=0.05 (v133a 0.7541)**; both λ=0 (under-supervised) and λ=0.10/0.20 (over-supervised + dead) regress.
+
+**v139a as Pareto-better than v133a (under the corrected NMI lens).**
+
+| Axis | v133a | v139a | Verdict |
+|---|---:|---:|---|
+| mAP | 0.7541 | **0.7545** | tied / v139a +0.0004 |
+| P@1 | 0.9150 | **0.9165** | v139a +0.0015 |
+| NMI mean (↓) | 0.626 | **0.605** | v139a (compositional ↑) |
+| NMI L↔L (↓) | 0.702 | **0.672** | v139a (redundancy ↓) |
+| dead | **0.040** | 0.073 | v133a (1.8x worse in v139a) |
+| B1 / B2 | 0.128 / 0.079 | 0.125 / 0.075 | v133a (marginal) |
+
+→ **v139a (text_hash_ntxent 0.05 + codeword_text_proto 0.05) is the new K=128 compositional Pareto candidate** when dead 0.073 is acceptable. mAP/P@1 tied with v133a; NMI improvement comes from text_hash_ntxent + proto interaction; dead penalty is the only trade-off.
+
+**v133a / v139a codeword_concept_atlas qualitative analysis.**
+
+Inspected the per-codebook codeword atlases (visual grid + top words/labels) for both runs:
+
+| Codebook | Named role | v133a actual meaning | v139a actual meaning |
+|---|---|---|---|
+| C0 | global | scene type (flower close-up / city / sunset / portrait) | same |
+| C1 | main_part | dominant subject (person+hair, trees, sky/sun) | same; v139a has 31 dead codewords (24%) ⚠ |
+| C2 | secondary_part | clothing / buildings | same |
+| **C3** | **detail_part** | **hands/arms (6 dedicated codewords)** ★ | hands/arms (4 dedicated, more focused) |
+| **C4** | color_texture | colors + texture | colors + texture (lower entropy = more concentrated) |
+| C5 | background | blurred / wall / sky-background | same; v139a uses ALL 124/128 codewords (vs v133a 106) |
+
+**Strongest paper claim from atlases**: C3 (hands/arms) is the unambiguously distinct compositional axis -- 6 dedicated codewords for hand poses in v133a, 4 in v139a. C0 (global scene) vs C3 (body detail) is the cleanest demonstration of cross-codebook orthogonality. The other codebooks show partial specialization but with substantial overlap (C1/C2 both heavy on persons, C0/C5 both heavy on sky), consistent with the high NMI L↔L (~0.70) we measure quantitatively.
+
+Honest framing: paper can claim "each codebook learns an identifiable semantic axis" (true for C0, C3, C4, C5) but NOT "6 orthogonal compositional parts" (NMI + atlas both contradict).
+
+---
+
+**v141 family — DiVT-inspired cluster_attn router DISCARDED.**
+
+3 runs, all DISCARDED. The DiVT (CVPR 2026, arXiv 2503.16876) paper motivates replacing v133a's Sinkhorn-OT-on-codebook-anchors router with a **visual-side soft Sinkhorn cluster + DiVT-style masked cross-attention** that operates on RAW patches before the visual_adapter. Goal: explicit visual disentanglement before VQ, predicted to crash NMI L↔L from 0.70 to 0.45-0.55.
+
+Implementation (3 files, ~280 lines):
+- `models/cluster_attention_router.py` (NEW): `ClusterAttentionRouter` module with learnable prototypes [M=6, D], log-domain Sinkhorn-balanced soft cluster (3 iters, eps=0.1), attention-pooled centroid (differentiable, NOT medoid), DiVT-style multi-head soft-masked cross-attention with log-P_cluster mask + positional embedding on V only. Train path: full clustering + attention. Inference path: cheap cluster-weighted-sum (skip attention for 3x speedup).
+- `config.py`: `--router_type cluster_attn` added to choices; new flags `--cluster_attn_heads/--cluster_attn_mlp_ratio/--cluster_attn_sinkhorn_eps/--cluster_attn_sinkhorn_iters/--cluster_attn_pool_temperature/--visual_adapter_after_router`.
+- `model_siglip2.py`: build ClusterAttentionRouter when `router_type=="cluster_attn"`; force `route_global_text_active=True` for cluster_attn (router emits all 6 parts); skip per-patch `visual_adapter` when `visual_adapter_after_router=True`; override `semantic_visual_tokens = r_out["semantic_tokens"]` after the if/else branch and apply `visual_adapter` AFTER on the M=6 cluster tokens.
+
+Run progression:
+- v141a (cluster_attn + visual_adapter_after + λ_wasserstein 0.05): killed at ep 5. Bug: `ot_cost = (P × -sim).sum()` ≈ -126 (cos sim in [-1,1] × P summing to N=576 with all-positive sim within cluster). With λ=0.05 → total loss biased -6.3 to negative. Total loss displayed as **-1.10** at ep 5.
+- v141a (after fix): `ot_cost = (P × (1-sim)).sum() / N` ∈ [0, 2]. Re-launched. base_balance high (1.4 at ep 5 vs v133a's 0.05 normal) suggesting cluster_attn architecture is fundamentally struggling.
+- v141b (= v141a after-fix + λ_wasserstein 0.0): killed at ep 23. Loss still poorly behaved. train/val gap: train_loss_base_balance 0.20 vs val 3.36 (17x). ClusterAttentionRouter has 7.88M fresh params and is undertrained at lr=1e-3 / e=60.
+- v141c (= v141b + proj_lr 2e-3): killed at ep 17. Same pattern. Higher lr did not rescue.
+
+Verdict: ClusterAttentionRouter architecture **DISCARDED**. Three failure modes identified:
+1. **Train/inference asymmetry mismatch**: train uses full masked attention path, inference uses simple weighted-sum. The codebook learns from attended cluster centroids but at inference receives weighted-sum statistics. Mismatch grows with training.
+2. **Param count under-trained**: 7.88M new params (prototypes + W_Q/K/V/O + MLP + pos_emb) need either higher lr (causing instability in existing components) or much more data.
+3. **base_balance leakage**: continuous cluster-aggregated tokens through codon_head exhibit the same base_balance explosion symptom seen in v138 (VQ removal). The cluster + attention path is *more* discretized than v138's raw passthrough, but still significantly *less* discretized than v133a's VQ codeword indexing.
+
+**Paper claim from v141 DISCARDED**: "Replacing the codebook-anchor Sinkhorn router with a visual-side cluster + cross-attention router fails *without* significant additional supervision or warmup; v133a's anchor-OT routing is the load-bearing routing mechanism." Files preserved (not deleted) as documentation of the failed architecture.
+
+---
+
+**v142a — v133a + lr 1e-4 + e=100 DISCARDED.**
+
+After v141 abandonment, user requested an LR + epoch sweep on the pure v133a recipe:
+- `--proj_lr 1e-3 → 1e-4` (10x smaller)
+- `-e 60 → 100` (1.67x longer)
+- Everything else: identical to v133a.
+
+| Metric | v133a (ref) | **v142a** | Δ | Verdict |
+|---|---:|---:|---:|---|
+| mAP | 0.7541 | 0.7546 | +0.0005 | tied |
+| P@1 | **0.9150** | 0.9090 | −0.006 | v133a |
+| P@10 | **0.9172** | 0.8936 | **−0.024** | v133a |
+| P@1000 | **0.8932** | 0.8619 | **−0.031** | v133a |
+| DNA-uniq | **0.340** | 0.244 | **−0.096 ⚠** | v133a (large loss) |
+| NMI mean (↓) | **0.626** | 0.649 | **+0.023** | v133a (compositional) |
+| NMI L↔L (↓) | **0.702** | 0.752 | **+0.050** | v133a |
+| B1 / B2 | **0.128 / 0.079** | 0.112 / 0.069 | −0.016 / −0.010 | v133a |
+| dead | 0.040 | **0.031** | −0.009 | v142a (only win) |
+
+→ **6 of 8 axes regress**. v142a only wins dead (0.040 → 0.031, no codebook with >18% dead vs v133a's cb5 17% dead). All other axes — retrieval (P@10/P@1000), compositional (NMI ↑, B1/B2 ↓), and DNA diversity (uniq -28%) — regress.
+
+Causal interpretation:
+- **lr 1e-4 is too small** to drive sufficient codeword exploration in the 25-30 epoch effective horizon (after which cosine schedule curtails learning).
+- **e=100 is too long** for the small learning rate to recover; model over-fits to batch-specific patterns in the second half of training (P@1000 collapse is the smoking gun).
+- v133a's proj_lr=1e-3 / e=60 is **already near-optimal**. The LR sweep has been implicitly explored by the entire v9x family running at this combination.
+
+Verdict: v142a **DISCARDED**. **Paper claim from v142a**: "v133a's lr/epoch hyperparameters are not arbitrary — the proj_lr=1e-3 / e=60 is the productive operating point for the recipe family; smaller lr or longer training trades retrieval for marginal codebook-utilization gains."
+
+---
+
+**Updated Flickr-CLIP K=128 candidate hierarchy.**
+
+```
+mAP champion                : v126a (0.7633, NMI 0.605 -- localRes ON, perCodon text)
+P@1 champion                : v122b (0.9285, mAP 0.7607, localRes ON, global text)
+compositional Pareto champ  : v139a (0.7545/0.9165/NMI 0.605/L-L 0.672, perCb + proto)  *** NEW ***
+NMI compositional extreme   : v140b (0.7502/0.469/0.505) -- BLOCKED by dead 0.309
+DNA-uniq + scale champ      : v122a (0.7479/0.9215/DNA 0.551, L=4 K=256)
+
+Negative ablations preserved:
+v137a (global cibhash + static τ)  : NMI 0.458 (lowest) but mAP/dead blocking
+v140a/b (text_h_ntxent λ sweep)    : monotonic NMI ↓ but dead explodes
+v141a/b/c (cluster_attn)           : architecture incompatible with codon pipeline
+v142a (lr 1e-4 + e=100)            : 6/8 axes regress; v133a hyperparams optimal
+```
+
+**Files committed.**
+- `scripts/train_v139a_v133a_codewordTextProto_lam005_flickr25k_clip.sh`
+- `scripts/train_v139b_v133a_codewordTextProto_lam010_flickr25k_clip.sh`
+- `scripts/train_v139c_v139a_noTextHashNtxent_flickr25k_clip.sh`
+- `scripts/train_v140a_v133a_textHashNtxent_lam010_flickr25k_clip.sh`
+- `scripts/train_v140b_v133a_textHashNtxent_lam020_flickr25k_clip.sh`
+- `scripts/train_v141a_v133a_clusterAttn_K128_flickr25k_clip.sh`
+- `scripts/train_v141b_v141a_noWasserstein_K128_flickr25k_clip.sh`
+- `scripts/train_v141c_v141b_lr2e3_K128_flickr25k_clip.sh`
+- `scripts/train_v142a_v133a_lr1e4_e100_K128_flickr25k_clip.sh`
+- `models/cluster_attention_router.py` (NEW, ~280 lines, preserved as documentation of DISCARDED architecture)
+- `config.py` (+8 cluster_attn flags)
+- `model_siglip2.py` (cluster_attn router branch + visual_adapter relocation)
+
+Result dirs (Flickr-CLIP K=128, partial whitening γ=0.25):
+- `result/260610+flickr25k_setting1_v139a_*` / `_v139b_*` / `_v139c_*`
+- `result/260610+flickr25k_setting1_v140a_*` / `_v140b_*`
+- `result/260610+flickr25k_setting1_v142a_*`
+- v141a/b/c result dirs deleted (training killed mid-run; no usable checkpoints).
+
+---
+
 ## 2026-06-10 — v138a / v138b: **VQ codebook removal + prototype-cluster InfoNCE** — **DISCARDED early (ep 30/60); paper-grade negative ablation establishing VQ codebook as LOAD-BEARING regularizer for codon base diversity**
 
 🔴 **MAJOR negative finding** with strong paper claim. v138 replaces v133a's VQ codebook bottleneck with (a) `codon_input_source=routed` (codon_head receives raw router-weighted-sum vectors, bypassing VQ) + (b) `lambda_proto_cluster=0.1` (paired-view InfoNCE on softmax(-codebook_distances) as a separate prototype-clustering supervision). The hypothesis was that the discrete VQ bottleneck was *unnecessary* and that prototype-based paired-view consistency could substitute. Result: **catastrophic base-distribution collapse**; the VQ codebook is the load-bearing regularizer keeping `loss_base_balance` near zero. Removing it explodes `loss_base_balance` by 120-170×, with no recovery prospect from hyperparameter tuning.

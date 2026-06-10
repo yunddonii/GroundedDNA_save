@@ -281,11 +281,36 @@ class Config():
         #               balance -> per-part heatmap focuses on relevant region.
         siglip2_arg.add_argument('--router_type', dest='router_type',
             type=str, default='sinkhorn',
-            choices=['sinkhorn', 'attention', 'slot'],
+            choices=['sinkhorn', 'attention', 'slot', 'cluster_attn'],
             help='Router for the 5 local parts (default sinkhorn). '
-                 '"slot" = Slot Attention (Locatello et al. NeurIPS 2020) '
-                 'with M=textual semantic embeddings as slot init + '
-                 'competitive softmax over slots + GRU/MLP slot updates.')
+                 '"slot" = Slot Attention (Locatello et al. NeurIPS 2020). '
+                 '"cluster_attn" = v141 DiVT-inspired soft Sinkhorn cluster '
+                 '+ masked cross-attention. Operates on RAW patches; pair '
+                 'with --visual_adapter_after_router to relocate the '
+                 'visual_adapter to AFTER the router output (M=6 tokens).')
+        # v141: cluster-attention router hyperparameters.
+        siglip2_arg.add_argument('--cluster_attn_heads',
+            dest='cluster_attn_heads', type=int, default=4,
+            help='v141: number of attention heads in ClusterAttentionRouter.')
+        siglip2_arg.add_argument('--cluster_attn_mlp_ratio',
+            dest='cluster_attn_mlp_ratio', type=float, default=4.0,
+            help='v141: MLP hidden ratio in ClusterAttentionRouter.')
+        siglip2_arg.add_argument('--cluster_attn_sinkhorn_eps',
+            dest='cluster_attn_sinkhorn_eps', type=float, default=0.1,
+            help='v141: Sinkhorn eps for soft cluster assignment.')
+        siglip2_arg.add_argument('--cluster_attn_sinkhorn_iters',
+            dest='cluster_attn_sinkhorn_iters', type=int, default=3,
+            help='v141: Sinkhorn iteration count for soft cluster.')
+        siglip2_arg.add_argument('--cluster_attn_pool_temperature',
+            dest='cluster_attn_pool_temperature', type=float, default=0.3,
+            help='v141: temperature for attention-pooled centroid.')
+        siglip2_arg.add_argument('--visual_adapter_after_router',
+            dest='visual_adapter_after_router', action='store_true',
+            default=False,
+            help='v141: place visual_adapter AFTER router (operates on M=6 '
+                 'tokens). Required for --router_type cluster_attn so the '
+                 'adapter gradient stays connected through the centroid + '
+                 'attention path back to the encoder.')
         siglip2_arg.add_argument('--attention_router_temperature',
             dest='attention_router_temperature', type=float, default=0.1,
             help='Softmax temperature for attention router (smaller -> sharper).')
