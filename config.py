@@ -1212,6 +1212,39 @@ class Config():
             type=float, default=0.07,
             help='Temperature for v93 cross-modal codeword InfoNCE. '
                  'Default 0.07 (CLIP-style).')
+        # ---------- v144: text -> code KL distillation -----------------
+        # Per-codebook distribution matching between visual and text views.
+        # For each local codebook m (cb0/global excluded by default), build
+        # K-way categorical distributions
+        #   p_v[m] = softmax(z_v_m @ C_m.T / tau_v)
+        #   p_t[m] = softmax(t_m   @ C_m.T / tau_t)
+        # over the K codewords, then minimize KL(p_t.detach() || p_v) with
+        # per-sample confidence weighting conf = 1 - H(p_t)/log(K). Only
+        # samples with conf > --text_code_kl_conf_threshold contribute.
+        # Provides a *soft* codebook-level text supervision: text decides
+        # which codeword each visual feature should go to. Asymmetric --
+        # text gets no gradient (handled by other text-side losses).
+        loss_arg.add_argument('--lambda_text_code_kl',
+            type=float, default=0.0,
+            help='v144: weight for text->code KL distillation. '
+                 '0 disables (default). Recommended 0.01-0.05.')
+        loss_arg.add_argument('--text_code_kl_tau_v',
+            type=float, default=0.1,
+            help='v144: visual softmax temperature over codebook. '
+                 'Larger -> visual exploration ↑ (less commit).')
+        loss_arg.add_argument('--text_code_kl_tau_t',
+            type=float, default=0.07,
+            help='v144: text softmax temperature over codebook. '
+                 'Smaller -> text gets sharper / more confident.')
+        loss_arg.add_argument('--text_code_kl_conf_threshold',
+            type=float, default=0.0,
+            help='v144: skip samples with text confidence below this '
+                 'threshold. 0.0 = no filtering. Recommended 0.2.')
+        loss_arg.add_argument('--text_code_kl_skip_global',
+            action='store_true', default=False,
+            help='v144: skip codebook 0 (C_global) when computing the '
+                 'text_code_kl loss. Only local codebooks (cb1..cb5) '
+                 'contribute. Recommended.')
         loss_arg.add_argument('--lambda_codeword_text_proto',
             type=float, default=0.0,
             help='v123: weight for codeword-level text prototype alignment. '

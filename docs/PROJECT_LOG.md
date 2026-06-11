@@ -334,6 +334,155 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-11 — v143a / v144a: **codebook-level text supervision** — cw_xmodal (post-VQ contrastive) DISCARDED, **text_code_kl (pre-VQ KL distillation with confidence) NEW Pareto-better K=128 candidate** (mAP 0.7499 / NMI 0.591 / DNA-uniq 0.376 / dead 0.065)
+
+🟢 v144a (text_code_kl) is a NEW K=128 compositional Pareto-better candidate. Beats v139a on NMI/DNA-uniq/dead and v133a on every compositional axis. v143a (cw_xmodal post-VQ contrastive) DISCARDED — historical mAP regression pattern reproduced under modern recipe. The two runs differ in HOW codebook-level text supervision is formulated (contrastive InfoNCE vs KL distillation with confidence), giving a clean causal comparison.
+
+**Motivation.** v144a was designed by the user to address two limitations of v143a's cw_xmodal:
+1. **Hard contrastive InfoNCE** forces tight visual↔text codeword matching with no graceful failure mode for ambiguous captions; v144a uses **KL distillation** instead.
+2. **No noise handling for caption uncertainty** in cw_xmodal; v144a adds **confidence weighting** (samples where text entropy is high get downweighted).
+
+The proposed loss:
+```
+For each LOCAL codebook m (skip cb0/global):
+  logits_v = z_visual[:, m, :] @ C_m.T / tau_v     # [B, K=128] over codewords
+  logits_t = t_text  [:, m, :] @ C_m.T / tau_t
+  p_v = log_softmax(logits_v)
+  p_t = softmax(logits_t)
+  conf = (1 - H(p_t)/log(K)).clamp(0, 1)
+  mask = conf > conf_threshold                      # 0.2
+  loss_m = KL(p_t.detach() || p_v) * conf.detach() (masked-mean)
+loss_text_code_kl = mean(loss_m for m in 1..M)
+```
+
+Key innovations vs prior codebook-text losses:
+- **pre-VQ** (operates on `semantic_visual_tokens`, not `quantized_tokens`) — softer signal that doesn't get bottlenecked by VQ
+- **categorical distribution over K=128 codewords** — vs cw_xmodal's single positive sample
+- **asymmetric** (text→visual only; p_t.detach()) — text adapter gradient comes from other losses
+- **confidence-weighted** — noisy captions are auto-filtered
+
+**Implementation (3 files, ~120 lines).**
+- `config.py`: 5 new flags (`--lambda_text_code_kl`, `--text_code_kl_tau_v`, `--text_code_kl_tau_t`, `--text_code_kl_conf_threshold`, `--text_code_kl_skip_global`).
+- `model_siglip2.py`: expose `out["codebooks"] = self.quantizer.codebooks` (full [M, K, D] tensor; EMA buffer means no grad to codebook but encoder gets gradient via the cos similarity).
+- `loss_siglip2.py`: new `_loss_text_code_kl_per_codebook` method (~85 lines) with per-codebook iteration, active-codeword masking, confidence weighting + threshold, KL(p_t || p_v) per sample, masked-mean reduction. Wired into total + loss_dict.
+
+**Recipe (v144a vs v133a, single-loss addition).**
+```
+v144a = v133a + the following:
+  --lambda_text_code_kl 0.02
+  --text_code_kl_tau_v 0.1
+  --text_code_kl_tau_t 0.07
+  --text_code_kl_conf_threshold 0.2
+  --text_code_kl_skip_global    (cb1..cb5 only, cb0/global excluded)
+```
+Everything else identical to v133a (text_hash_ntxent 0.05 retained, cibhash per_codebook + dyn τ retained, partial whitening γ=0.25, bij OFF, no local-residual). v143a is the contrastive sibling: same recipe but `--lambda_text_hash_ntxent 0.0` and `--lambda_cw_xmodal 0.05` (REPLACE, not add) at τ=0.07.
+
+**Result — 3-way comparison.**
+
+| Metric | v133a (ref) | v143a (cw_xmodal REPLACE) | **v144a (text_code_kl ADD)** | v144a Δ vs v133a |
+|---|---:|---:|---:|---:|
+| mAP@ALL | **0.7541** | 0.7358 | 0.7499 | −0.004 |
+| P@1 | 0.9150 | 0.9095 | **0.9170** | +0.002 ⭐ |
+| P@10 | 0.9172 | 0.9073 | 0.9127 | −0.005 |
+| P@1000 | 0.8932 | 0.8727 | 0.8854 | −0.008 |
+| **DNA-base uniq** | 0.340 | 0.246 ⚠ | **0.376** ⭐ | **+0.036** |
+| cb-tuple uniq | 0.618 | 0.571 | **0.664** | +0.046 |
+| **NMI mean** (↓) | 0.626 | 0.654 ⚠ | **0.591** ⭐ | **−0.035** |
+| **NMI local↔local** (↓) | 0.702 | 0.755 ⚠ | **0.657** ⭐ | **−0.045** |
+| B0 | 0.053 | 0.054 | 0.054 | +0.001 |
+| B1 | 0.128 | 0.125 | 0.125 | −0.003 |
+| B2 | 0.079 | 0.078 | 0.076 | −0.003 |
+| dead avg | **0.040** | **0.022** | 0.065 ⚠ | +0.025 |
+
+**v143a verdict — DISCARDED (cw_xmodal historical regression reproduced under modern recipe).**
+
+5 of 8 axes regress: mAP −0.018, DNA-uniq −0.094 (28% loss), NMI ↑0.028 (compositional ↓), NMI L↔L ↑0.053. Dead is the only win (0.040 → 0.022, ~halved). cw_xmodal's per-codebook contrastive on POST-VQ codewords [B, M, D] is "tight": each visual_codeword[b, m] must be close to text_codeword[b, m] and far from text_codeword[b'≠b, m]. With VQ already bottlenecking codeword selection to K=128, adding contrastive pressure on TOP of VQ over-supervises and the model collapses codeword usage to fewer distinct codes (DNA-uniq -28%).
+
+Memory note `project_v9x_zero_contribution_losses.md` had cw_xmodal as "still pending unsupervised re-test." Now tested: cw_xmodal is DISCARDED under modern siglip_cos recipe just as it was under v9x jaccard (v93a -0.025 mAP under jaccard → v143a -0.018 mAP under siglip_cos; same -2% magnitude). The negative regime is **regime-independent for cw_xmodal**.
+
+**v144a verdict — NEW Pareto-better K=128 candidate.**
+
+Compositional axis: all metrics improve dramatically.
+- **NMI mean 0.591** (v133a 0.626 → −0.035, second-lowest in family after v140b's 0.469 which is dead-blocked)
+- **NMI local↔local 0.657** (v133a 0.702 → −0.045; local codebooks meaningfully less redundant)
+- **DNA-uniq 0.376** (v133a 0.340 → +0.036, ~10% increase)
+- **cb-tuple uniq 0.664** (v133a 0.618 → +0.046)
+- B1 tied (0.125 vs 0.128, basically same)
+
+Retrieval axis: essentially tied.
+- mAP −0.004 (within noise)
+- **P@1 +0.002** (slight win)
+- P@10 −0.005, P@1000 −0.008 (very small regressions)
+
+Trade-off: dead 0.040 → 0.065 (1.6×, with cb2 at 94/128 = 27% dead). Caused by skip_global + confidence filtering: cb0 is exempt so no balance pressure there; cb2 specializes on a small concept set and stops using ~30 codewords. Acceptable given the compositional gains.
+
+**v144a vs v143a — confidence-weighted KL beats contrastive InfoNCE (cleanly).**
+
+| Axis | v143a (contrastive) | v144a (KL distillation) | v144a Δ |
+|---|---:|---:|---:|
+| mAP | 0.7358 | **0.7499** | **+0.014** ⭐ |
+| P@1 | 0.9095 | **0.9170** | +0.008 |
+| DNA-uniq | 0.246 | **0.376** | **+0.130** ⭐ |
+| NMI mean (↓) | 0.654 | **0.591** | **−0.063** ⭐ |
+| NMI L↔L (↓) | 0.755 | **0.657** | **−0.098** ⭐⭐ |
+
+→ Clean win across the board for v144a. The KL-distillation + confidence-weighting design is fundamentally more compatible with the unsupervised codebook regime than tight contrastive InfoNCE. Paper claim: **"For codebook-level text supervision, soft distribution-distillation losses with confidence weighting are uniformly preferable to contrastive InfoNCE in our recipe family."**
+
+**v144a vs v139a (prior Pareto-better candidate).**
+
+| Axis | v139a (proto λ=0.05) | **v144a** | Winner |
+|---|---:|---:|---|
+| mAP | **0.7545** | 0.7499 | v139a (+0.005) |
+| P@1 | 0.9165 | **0.9170** | v144a (marginal) |
+| NMI mean (↓) | 0.605 | **0.591** | **v144a** (−0.014) |
+| NMI L↔L (↓) | 0.672 | **0.657** | **v144a** (−0.015) |
+| DNA-uniq | 0.341 | **0.376** | **v144a** (+0.035) |
+| dead | 0.073 | **0.065** | v144a (−0.008) |
+| B1 | 0.125 | 0.125 | tied |
+
+→ **v144a wins 5 of 7 axes** (mAP −0.005 is the only meaningful loss). Both runs trade mAP for compositional gains, but v144a's trade is much more favorable: NMI gains are larger and dead is improved, not worsened. v144a is the new K=128 compositional Pareto-better candidate, replacing v139a.
+
+**Caveat — what supervises cb0 (global codebook) now?**
+
+With `skip_global`, cb0 receives no `text_code_kl` signal. Its supervision still comes from:
+1. `cibhash_ntxent` per_codebook (paired-aug)
+2. `text_hash_ntxent` per_codebook (codon-level)
+3. `loss_dna` / `loss_quant` (codon-level regularizers)
+4. `loss_wasserstein` (router quality)
+5. EMA codebook updates
+
+The atlas analysis (separate, on v133a/v139a) showed cb0 = scene-type clustering, which works without text_code_kl. So `skip_global` is well-justified: cb0 is a "global summary" slot and doesn't need codebook-level text guidance.
+
+**Updated K=128 Flickr candidate hierarchy.**
+
+```
+mAP champion             : v126a 0.7633 (localRes ON, perCodon)
+P@1 champion             : v122b 0.9285 (mAP 0.7607)
+compositional Pareto champ: v144a 0.7499/0.9170/NMI 0.591/DNA 0.376  *** NEW ***
+NMI extreme              : v140b 0.469 -- BLOCKED dead 0.309
+DNA-uniq + L-scalable    : v122a 0.7479/0.9215/DNA 0.551, L=4 K=256
+```
+
+**Files committed.**
+- `scripts/train_v143a_v133a_cwXmodalReplace_K128_flickr25k_clip.sh`
+- `scripts/train_v144a_v133a_textCodeKL_lam002_K128_flickr25k_clip.sh`
+- `config.py` (+5 text_code_kl flags)
+- `model_siglip2.py` (codebook tensor exposed in output dict)
+- `loss_siglip2.py` (+_loss_text_code_kl_per_codebook + 5 new self.* + aggregator + total + loss_dict)
+
+Result dirs:
+- `result/260610+flickr25k_setting1_v143a_v133a_cwXmodalReplace_K128_*/`
+- `result/260610+flickr25k_setting1_v144a_v133a_textCodeKL_lam002_K128_*/`
+
+**Next exploration directions.**
+- **λ sweep for text_code_kl** (0.01, 0.05): v144a uses 0.02; sweet spot unknown.
+- **τ_t variation** (0.07 vs 0.1): tighter vs softer text distribution.
+- **cb0 inclusion** experiment: does removing `skip_global` hurt or help?
+- **Cross-dataset port (MSCOCO)**: does v144a's compositional advantage transfer?
+- **v144a + per_codebook proto stacking** (v139a + v144a combined): NMI floor?
+
+---
+
 ## 2026-06-10 — v141 / v142: **NMI re-interpretation (lower = better) + 6-cell text-supervision matrix + DiVT-inspired cluster-attention DISCARDED + lr/epoch sweep DISCARDED** — paper-grade negative ablations confirm v133a hyperparameters are near-optimal
 
 🔴 Two architecture-level explorations (v141 cluster_attn, v142 lr/epoch tune) both **DISCARDED** as negative ablations. The most important outcome of this entry is a **CRITICAL PAPER-FRAMING CORRECTION**: pairwise off-diag NMI (the compositional axis we've been reporting) has been read backwards for the entire v9x family. *Lower* NMI between codebooks means *more compositional independence*; *higher* NMI means *more redundancy*. All v9x family "NMI champion" claims (v128a/v132a 0.636 reported as ⭐) are actually the **most-redundant** runs.

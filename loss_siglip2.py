@@ -200,6 +200,12 @@ class DNACodonHashLoss(nn.Module):
         # v138: prototype-cluster paired-view InfoNCE on codebook_distances.
         self.lambda_proto_cluster        = float(getattr(cfg, "lambda_proto_cluster",        0.0))
         self.proto_cluster_temperature   = float(getattr(cfg, "proto_cluster_temperature",   0.3))
+        # v144: text -> code KL distillation hyperparameters.
+        self.lambda_text_code_kl           = float(getattr(cfg, "lambda_text_code_kl",           0.0))
+        self.text_code_kl_tau_v            = float(getattr(cfg, "text_code_kl_tau_v",            0.1))
+        self.text_code_kl_tau_t            = float(getattr(cfg, "text_code_kl_tau_t",            0.07))
+        self.text_code_kl_conf_threshold   = float(getattr(cfg, "text_code_kl_conf_threshold",   0.0))
+        self.text_code_kl_skip_global      = bool(getattr(cfg, "text_code_kl_skip_global",       False))
         # v91 (text-to-DNA-hash matching): MSE between image-derived
         # continuous_code and text-derived continuous_code (latter produced
         # by the model's parallel text path through the shared quantizer
@@ -905,6 +911,103 @@ class DNACodonHashLoss(nn.Module):
         delta = prob - threshold
         z_hard = 2.0 * (delta >= 0).to(prob.dtype) - 1.0
         return delta + (z_hard - delta).detach()
+
+    def _loss_text_code_kl_per_codebook(
+        self,
+        z_visual: torch.Tensor,           # [B, M, D]  semantic_visual_tokens (pre-VQ)
+        z_text:   torch.Tensor,           # [B, M, D]  text_part_tokens
+        codebooks: torch.Tensor,          # [M, K, D]  full codebook tensor
+        codebook_active_mask: Optional[torch.Tensor] = None,  # [M, K] bool
+    ) -> torch.Tensor:
+        """v144: per-codebook text -> code KL distillation with confidence
+        weighting.
+
+        For each codebook m (local codebooks only when
+        ``text_code_kl_skip_global`` is set), build K-way categorical
+        distributions over the codewords for both visual and text views:
+
+            logits_v[b, k] = cos(z_visual[b, m], C_m[k]) / tau_v
+            logits_t[b, k] = cos(z_text  [b, m], C_m[k]) / tau_t
+
+        Minimize KL(p_t.detach() || p_v) per sample, weighted by the per-
+        sample text confidence
+            conf[b] = 1 - H(p_t[b]) / log(K)
+        with optional threshold filtering (``conf_threshold``). Samples
+        whose text distribution is too uncertain (e.g. ambiguous caption)
+        are dropped, preventing them from injecting noise into the
+        codebook supervision signal.
+
+        Gradient flows through z_visual (encoder + visual_adapter) only;
+        z_text is detached via p_t. The codebook ``C`` is a buffer in EMA
+        mode so receives no gradient (codebook updates via its own EMA).
+        """
+        assert z_visual.dim() == 3 and z_text.dim() == 3, (
+            f"z_visual / z_text must be [B, M, D]"
+        )
+        assert codebooks.dim() == 3, (
+            f"codebooks must be [M, K, D], got {tuple(codebooks.shape)}"
+        )
+        B, M, D = z_visual.shape
+        M_cb, K_cb, D_cb = codebooks.shape
+        assert M == M_cb and D == D_cb, (
+            f"shape mismatch: z_visual {tuple(z_visual.shape)} vs "
+            f"codebooks {tuple(codebooks.shape)}"
+        )
+        tau_v = max(float(self.text_code_kl_tau_v), 1e-6)
+        tau_t = max(float(self.text_code_kl_tau_t), 1e-6)
+        conf_thresh = float(self.text_code_kl_conf_threshold)
+        skip_global = bool(self.text_code_kl_skip_global)
+
+        # L2-normalize for cosine geometry.
+        z_v_n = F.normalize(z_visual, dim=-1)
+        z_t_n = F.normalize(z_text,   dim=-1)
+        cb_n  = F.normalize(codebooks, dim=-1)
+
+        log_K = math.log(float(K_cb))
+        start_m = 1 if skip_global else 0
+        losses: list = []
+        for m in range(start_m, M):
+            C_m = cb_n[m]                                            # [K, D]
+            # Cosine similarity logits.
+            logits_v = z_v_n[:, m, :] @ C_m.T / tau_v                # [B, K]
+            logits_t = z_t_n[:, m, :] @ C_m.T / tau_t                # [B, K]
+
+            if codebook_active_mask is not None:
+                # Mask inactive codewords by setting logits to -inf so
+                # they get ~0 probability after softmax.
+                active = codebook_active_mask[m].to(dtype=torch.bool)  # [K]
+                inactive_logit = torch.full_like(logits_v, -1e9)
+                logits_v = torch.where(active.unsqueeze(0), logits_v, inactive_logit)
+                logits_t = torch.where(active.unsqueeze(0), logits_t, inactive_logit)
+
+            p_v_log = F.log_softmax(logits_v, dim=-1)                # [B, K]
+            p_t     = F.softmax    (logits_t, dim=-1)                # [B, K]
+
+            # Per-sample text entropy and confidence.
+            with torch.no_grad():
+                entropy_t = -(p_t * (p_t.clamp_min(1e-8)).log()).sum(dim=-1)  # [B]
+                conf      = (1.0 - entropy_t / log_K).clamp(0.0, 1.0)         # [B]
+                if conf_thresh > 0.0:
+                    mask = conf > conf_thresh                                  # [B]
+                    conf = torch.where(mask, conf, torch.zeros_like(conf))
+
+            # KL(p_t.detach() || p_v) per sample.
+            kl_per_sample = F.kl_div(
+                p_v_log, p_t.detach(), reduction="none",
+            ).sum(dim=-1)                                                       # [B]
+            weighted = kl_per_sample * conf.detach()                            # [B]
+
+            # Mean over samples with non-zero confidence (so dropped samples
+            # don't shrink the gradient).
+            if conf_thresh > 0.0:
+                denom = (conf > 0.0).to(weighted.dtype).sum().clamp_min(1.0)
+                losses.append(weighted.sum() / denom)
+            else:
+                losses.append(weighted.mean())
+
+        if not losses:
+            return z_visual.new_zeros(())
+        return torch.stack(losses).mean()
 
     def _loss_proto_cluster_per_codebook(
         self,
@@ -2328,6 +2431,23 @@ class DNACodonHashLoss(nn.Module):
                     ),
                 )
 
+        # v144: text -> code KL distillation. Per-codebook distribution
+        # matching between visual and text views over the K codewords.
+        # Only fires when --lambda_text_code_kl > 0 and the model exposed
+        # the full codebook tensor + text_part_tokens.
+        loss_text_code_kl = u.new_zeros(())
+        if self.lambda_text_code_kl > 0.0:
+            z_tck = outputs.get("semantic_visual_tokens")
+            if z_tck is None:
+                z_tck = outputs.get("quantizer_input")
+            t_tck = outputs.get("text_part_tokens")
+            cb_tck = outputs.get("codebooks")
+            if z_tck is not None and t_tck is not None and cb_tck is not None:
+                loss_text_code_kl = self._loss_text_code_kl_per_codebook(
+                    z_tck, t_tck, cb_tck,
+                    codebook_active_mask=outputs.get("codebook_active_mask"),
+                )
+
         # v138: prototype-cluster paired-view InfoNCE on codebook_distances.
         # Activates when --lambda_proto_cluster > 0 AND paired view is present
         # AND both views expose `codebook_distances`. Operates per codebook:
@@ -2484,6 +2604,7 @@ class DNACodonHashLoss(nn.Module):
             + self.lambda_cibhash_kl      * loss_cibhash_kl_v
             + self.lambda_swav_assign     * loss_swav_assign_v
             + self.lambda_proto_cluster   * loss_proto_cluster_v
+            + self.lambda_text_code_kl    * loss_text_code_kl
         )
 
         # v106: codeword <-> DNA codon bijection losses (None-safe).
@@ -2626,6 +2747,7 @@ class DNACodonHashLoss(nn.Module):
             "loss_cibhash_ntxent": loss_cibhash_ntxent_v,
             "loss_cibhash_kl":     loss_cibhash_kl_v,
             "loss_proto_cluster":  loss_proto_cluster_v,
+            "loss_text_code_kl":   loss_text_code_kl,
             "loss_swav_assign":    loss_swav_assign_v,
             "loss_ortho_text":   loss_ortho_text,
             "loss_dna":          loss_dna,

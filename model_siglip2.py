@@ -2847,6 +2847,11 @@ class SigLIP2SemanticOTModel(nn.Module):
             # cost). For gradient codebook mode this term is fully active.
             "codebooks_buffer":                  self.quantizer.codebooks,
             "codebook_active_mask":              self.quantizer.active_mask,
+            # v144: full codebook tensor exposed for text_code_kl loss.
+            # In EMA mode this is a buffer (no autograd); in gradient mode
+            # it is a Parameter. Either way the loss can compute logits =
+            # z @ C.T without per-codeword indexing.
+            "codebooks":                         self.quantizer.codebooks,
             # v106: codeword-level codon decoder outputs for bijection loss.
             # Shape [M, K_max, 3, 4] logits; None when bijection loss inactive.
             # Companion `codeword_K_active` [M] gives per-codebook active K
