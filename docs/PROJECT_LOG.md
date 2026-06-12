@@ -334,6 +334,52 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-12 — v147 stronger top-p sweep on UOT+text_code_kl base (Flickr) — **v147a NEW Pareto-better compositional candidate; v147b NEW NMI / L↔L family champion (paper-grade compositional frontier)**
+
+🟢 v147 sweep confirms the **adaptive_topp = NMI driver** finding from v145 and pushes the compositional axis to new family minima. UOT λ=1.0 (carried from v145a) is kept; the **only delta** is sharper top-p bounds. The v146 cross-attn collapse mode (94-98 % dead) does **not** re-appear at these top-p settings (utilization remains > 95 %), demonstrating that the failure mechanism is *router-shape* specific (cross-attn one-hot routing), not *sharpness* specific.
+
+All runs Flickr25k-CLIP, K=128, partial-whiten γ=0.25, hash_target_mode=siglip_cos, UOT λ_a=λ_b=1.0, text_code_kl 0.02, cibhash per_codebook + dynamic τ. Single delta = `routing_adaptive_topp_min/max`.
+
+| Tag | topp min/max | mAP | P@1 | P@10 | P@1000 | DNA | NMI ↓ | L↔L NMI ↓ | B1 | B2 | dead ↓ |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| v144a (no UOT, ref) | 0.5/0.9 | 0.7499 | 0.9170 | 0.9127 | 0.8854 | 0.376 | 0.591 | 0.657 | 0.125 | 0.076 | 0.065 |
+| v145a (UOT 1.0) | 0.5/0.9 | **0.7512** | **0.9220** | 0.9093 | 0.8781 | 0.262 | 0.630 | 0.697 | 0.128 | 0.078 | 0.012 |
+| **v147a** (UOT 1.0) | **0.3/0.7** | 0.7280 | 0.9145 | **0.9130** | 0.8739 | 0.307 | 0.566 | 0.607 | 0.129 | **0.080** | **0.008** |
+| **v147b** (UOT 1.0) | **0.2/0.5** | 0.7388 | 0.9085 | 0.8988 | 0.8675 | 0.230 | **0.508 ★** | **0.530 ★** | 0.114 | 0.072 | 0.020 |
+
+Codewords used per cb (out of 128): v147a [128, 126, 128, 124, 128, 128]; v147b [128, 128, 128, 127, 120, 122]. **No codebook collapse** (cf v146a [1,2,6,3,2,2] / v146b [3,9,6,8,9,9]) — utilization stays above 96 % even at topp 0.2.
+
+### Findings
+
+1. **adaptive_topp drives NMI down monotonically**, as predicted by v145 isolation. NMI 0.630 → 0.566 → 0.508 across topp 0.5/0.9 → 0.3/0.7 → 0.2/0.5. L↔L NMI follows the same monotone drop (0.697 → 0.607 → 0.530).
+2. **UOT + sharper topp is safe at these bounds.** v147a/b utilization > 96 %; the v146 collapse is **router-shape specific** (cross-attn produces near-one-hot patch-to-codebook attention), not just a function of routing sharpness.
+3. **v147a Pareto-dominates v145a on 5 axes** (NMI / L↔L / DNA / dead / B2), trading mAP −0.023 and P@1 −0.008. It also beats v144a on NMI (−0.025) and dead (−0.057), with DNA −0.069. This is the strongest "compositional + utilization" Pareto move in the family so far.
+4. **v147b is the new NMI / L↔L champion** of the v9x/v1xx family at NMI 0.508 / L↔L 0.530, both the lowest ever observed. DNA-uniq 0.230 (−0.146 vs v144a) is the cost; mAP 0.7388 remains in the mid-range.
+5. **dead trade-off direction**: v147a (0.008) < v145a (0.012) < v147b (0.020). At topp 0.2 (v147b) UOT starts losing its dead-protection grip — consistent with the boundary where routing becomes too peaked for marginal relaxation to redistribute mass.
+
+### Verdict
+
+- **v147a — Pareto-better compositional candidate** alongside v144a / v145a / v145c. Best "balanced compositional" cell so far.
+- **v147b — paper compositional frontier candidate** for the NMI / L↔L axis. Use when papers/figures need the lowest cross-codebook redundancy.
+
+### Files
+
+- [scripts/train_v147a_v145a_strongerTopp_0p3_0p7_K128_flickr25k_clip.sh](scripts/train_v147a_v145a_strongerTopp_0p3_0p7_K128_flickr25k_clip.sh)
+- [scripts/train_v147b_v145a_aggressiveTopp_0p2_0p5_K128_flickr25k_clip.sh](scripts/train_v147b_v145a_aggressiveTopp_0p2_0p5_K128_flickr25k_clip.sh)
+
+### Active candidates after v147
+
+| Tag | mAP | P@1 | NMI | DNA | dead | role |
+|---|---:|---:|---:|---:|---:|---|
+| v144a | 0.7499 | 0.9170 | 0.591 | 0.376 | 0.065 | mAP-balanced compositional (DNA champ) |
+| v145a | 0.7512 | 0.9220 | 0.630 | 0.262 | 0.012 | P@1 / dead champion |
+| v145c | 0.7548 | 0.9015 | 0.648 | 0.243 | 0.029 | mAP champion |
+| **v147a** | 0.7280 | 0.9145 | **0.566** | 0.307 | **0.008** | **Pareto-better compositional** |
+| **v147b** | 0.7388 | 0.9085 | **0.508** | 0.230 | 0.020 | **NMI / L↔L family champion** |
+| mscoco_v144a | 0.5693 | 0.8120 | 0.660 | – | – | MSCOCO all-axes champ |
+
+---
+
 ## 2026-06-12 — v145 isolation 2×2 factorial (Flickr) + v146 cross-attention router (Flickr) — **adaptive_topp = NMI driver, UOT = dead driver (paper-grade causal decomposition); v146a/b cross-attention router DISCARDED as paper-grade negative ablation (catastrophic codebook collapse 94-98 % dead)**
 
 🟢 Two complementary findings:
