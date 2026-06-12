@@ -197,6 +197,8 @@ class DNACodonHashLoss(nn.Module):
         self.swav_sinkhorn_iters        = int(getattr(cfg, "swav_sinkhorn_iters",  3))
         self.swav_assign_include_global = bool(getattr(cfg, "swav_assign_include_global", False))
         self.cibhash_dynamic_tau_alpha  = float(getattr(cfg, "cibhash_dynamic_tau_alpha", 0.0))
+        # v149: continuous NtXent flag (skip STE-sign, use shifted bit_probs).
+        self.cibhash_ntxent_continuous  = bool(getattr(cfg, "cibhash_ntxent_continuous", False))
         # v138: prototype-cluster paired-view InfoNCE on codebook_distances.
         self.lambda_proto_cluster        = float(getattr(cfg, "lambda_proto_cluster",        0.0))
         self.proto_cluster_temperature   = float(getattr(cfg, "proto_cluster_temperature",   0.3))
@@ -1122,9 +1124,16 @@ class DNACodonHashLoss(nn.Module):
         # Per-codebook bit probabilities
         bits_v1 = self._continuous_code_to_bit_probs(continuous_code_view1)   # [B, M=6, 6]
         bits_v2 = self._continuous_code_to_bit_probs(continuous_code_view2)   # [B, M=6, 6]
-        # STE sign to binary hash
-        z_v1 = self._ste_sign(bits_v1)                                         # [B, 6, 6] in {-1, +1}
-        z_v2 = self._ste_sign(bits_v2)
+        # v149: continuous NtXent (shifted bit_probs) vs legacy STE-sign.
+        if getattr(self, "cibhash_ntxent_continuous", False):
+            # Linearly shift (0,1) -> (-1,+1); continuous, fully differentiable,
+            # full cosine granularity (no 7-level quantization ceiling).
+            z_v1 = 2.0 * bits_v1 - 1.0                                         # [B, 6, 6] in (-1, +1)
+            z_v2 = 2.0 * bits_v2 - 1.0
+        else:
+            # Legacy: STE sign to binary hash (v119-v148 behavior).
+            z_v1 = self._ste_sign(bits_v1)                                     # [B, 6, 6] in {-1, +1}
+            z_v2 = self._ste_sign(bits_v2)
         B, M, K_bits = bits_v1.shape                                           # M=6, K_bits=6
         T = max(float(temperature), 1e-6)
 

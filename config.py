@@ -1414,6 +1414,19 @@ class Config():
             dest='cibhash_dynamic_tau_alpha', type=float, default=0.3,
             help='v120e: alpha for cibhash dynamic tau. tau_ij = T * '
                  '(1 + alpha * cos(text_i, text_j)). 0 disables.')
+        # v149: continuous NtXent (no STE-sign quantization) to restore
+        # cosine granularity for uniformity gradient -- aligns with the
+        # original CIBHash paper which operates on continuous Bernoulli
+        # probabilities, not STE-binarized signs.
+        loss_arg.add_argument('--cibhash_ntxent_continuous',
+            dest='cibhash_ntxent_continuous', action='store_true', default=False,
+            help='v149: replace STE-sign(bit_probs) with linearly-shifted '
+                 'continuous bit_probs (2*p - 1) for the cibhash NtXent. '
+                 'Removes the 7-level cosine granularity ceiling imposed '
+                 'by 6-bit signed slices; full continuous uniformity '
+                 'gradient. DNA code path is unchanged (computed at '
+                 'inference via argmax). Default OFF preserves legacy '
+                 'v119-v148 behavior.')
         # ---------- v138: prototype passthrough + paired-view InfoNCE -----
         # Two flags to *remove the VQ codebook bottleneck* for codon_head
         # input while keeping prototype-based clustering as a separate
