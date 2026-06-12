@@ -334,7 +334,7 @@ codebook) as a follow-up.
 
 ---
 
-## 2026-06-12 — v147 stronger top-p sweep on UOT+text_code_kl base (Flickr) — **v147a NEW Pareto-better compositional candidate; v147b NEW NMI / L↔L family champion (paper-grade compositional frontier)**
+## 2026-06-12 — v147 stronger top-p sweep on UOT+text_code_kl base (Flickr) + **mscoco_v147a cross-dataset port** — **v147a NEW Pareto-better compositional candidate; v147b NEW NMI / L↔L family champion; mscoco_v147a NEW MSCOCO Pareto-better compositional cell (NMI −0.026 / dead −0.071 / DNA tied) — and the v147 trade-off is *more favorable on MSCOCO than on Flickr* (mAP cost −0.006 vs Flickr's −0.023)**
 
 🟢 v147 sweep confirms the **adaptive_topp = NMI driver** finding from v145 and pushes the compositional axis to new family minima. UOT λ=1.0 (carried from v145a) is kept; the **only delta** is sharper top-p bounds. The v146 cross-attn collapse mode (94-98 % dead) does **not** re-appear at these top-p settings (utilization remains > 95 %), demonstrating that the failure mechanism is *router-shape* specific (cross-attn one-hot routing), not *sharpness* specific.
 
@@ -362,12 +362,39 @@ Codewords used per cb (out of 128): v147a [128, 126, 128, 124, 128, 128]; v147b 
 - **v147a — Pareto-better compositional candidate** alongside v144a / v145a / v145c. Best "balanced compositional" cell so far.
 - **v147b — paper compositional frontier candidate** for the NMI / L↔L axis. Use when papers/figures need the lowest cross-codebook redundancy.
 
+### Cross-dataset port — mscoco_v147a
+
+Single delta from mscoco_v144a (which had **UOT OFF**, topp 0.5/0.9): turn UOT ON (λ_a=λ_b=1.0) **and** sharpen topp to 0.3/0.7 (same combined delta as v147a vs v144a on Flickr). Same recipe otherwise: K=128, partial-whiten γ=0.25, text_code_kl 0.02, cibhash per_codebook + dyn τ, Qwen3 v4 captions (8.2 % text coverage).
+
+| Tag | mAP | P@1 | P@10 | P@1000 | DNA | NMI ↓ | L↔L ↓ | B2 | dead ↓ |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| mscoco_v106b | 0.5581 | 0.7914 | 0.7781 | 0.7319 | 0.125 | 0.671 | 0.744 | 0.137 | 0.023 |
+| mscoco_v133a | 0.5652 | 0.7976 | 0.7889 | 0.7393 | 0.093 | 0.686 | 0.740 | 0.141 | 0.040 |
+| **mscoco_v144a** | **0.5693** | **0.8120** | **0.8078** | **0.7599** | 0.126 | 0.660 | 0.707 | 0.138 | 0.085 |
+| **mscoco_v147a** | 0.5637 | 0.8096 | 0.8006 | 0.7548 | **0.127** | **0.634** | **0.669** | **0.139** | **0.014** |
+
+Codewords used per cb (out of 128): mscoco_v144a [128, 116, 114, 99, 121, 125] (avg 117), **mscoco_v147a [128, 125, 124, 128, 124, 128] (avg 126, 98 % util)**.
+
+### Cross-dataset delta comparison (v147a vs v144a, Flickr vs MSCOCO)
+
+| Δ | Flickr | MSCOCO | direction match |
+|---|---:|---:|:---:|
+| ΔNMI | −0.025 | **−0.026** | ✓ |
+| ΔL↔L NMI | −0.050 | −0.038 | ✓ |
+| Δdead | −0.057 | **−0.071** | ✓ (MSCOCO gain larger) |
+| ΔmAP | −0.022 | **−0.006** | ✓ (MSCOCO cost 1/4) |
+| ΔP@1 | −0.025 | **−0.002** | ✓ (MSCOCO cost ~0) |
+| ΔDNA-uniq | −0.069 | **+0.001** | ✗ (MSCOCO DNA *preserved*) |
+
+**The v147 mechanism (UOT + sharper topp) port to MSCOCO is structurally consistent on compositional+utilization axes and *strictly more favorable* on retrieval and DNA-uniq.** Hypothesis: MSCOCO's K=128 pigeonhole (4^3 = 64 codons → ≥2× forced collisions) + sparse-text (8.2 % coverage) makes the **codebook-utilization channel** (UOT) more load-bearing than on Flickr (100 % coverage), so the dead-codeword gain is larger (−0.071 vs −0.057). Meanwhile, the **sharpening channel** (topp 0.3/0.7) doesn't lose DNA-uniq because MSCOCO's baseline DNA-uniq is already low (0.126) — there is less room to over-collide further. Combined: MSCOCO's structural sparsity *amplifies* the benefit and *softens* the cost.
+
 ### Files
 
 - [scripts/train_v147a_v145a_strongerTopp_0p3_0p7_K128_flickr25k_clip.sh](scripts/train_v147a_v145a_strongerTopp_0p3_0p7_K128_flickr25k_clip.sh)
 - [scripts/train_v147b_v145a_aggressiveTopp_0p2_0p5_K128_flickr25k_clip.sh](scripts/train_v147b_v145a_aggressiveTopp_0p2_0p5_K128_flickr25k_clip.sh)
+- [scripts/train_mscoco_v147a_strongerTopp_qwen3.sh](scripts/train_mscoco_v147a_strongerTopp_qwen3.sh)
 
-### Active candidates after v147
+### Active candidates after v147 + mscoco_v147a
 
 | Tag | mAP | P@1 | NMI | DNA | dead | role |
 |---|---:|---:|---:|---:|---:|---|
@@ -376,7 +403,8 @@ Codewords used per cb (out of 128): v147a [128, 126, 128, 124, 128, 128]; v147b 
 | v145c | 0.7548 | 0.9015 | 0.648 | 0.243 | 0.029 | mAP champion |
 | **v147a** | 0.7280 | 0.9145 | **0.566** | 0.307 | **0.008** | **Pareto-better compositional** |
 | **v147b** | 0.7388 | 0.9085 | **0.508** | 0.230 | 0.020 | **NMI / L↔L family champion** |
-| mscoco_v144a | 0.5693 | 0.8120 | 0.660 | – | – | MSCOCO all-axes champ |
+| mscoco_v144a | **0.5693** | **0.8120** | 0.660 | 0.126 | 0.085 | MSCOCO retrieval champion |
+| **mscoco_v147a** | 0.5637 | 0.8096 | **0.634** | 0.127 | **0.014** | **MSCOCO Pareto-better compositional** |
 
 ---
 
