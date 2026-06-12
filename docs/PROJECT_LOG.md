@@ -334,6 +334,89 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-12 — v145 isolation 2×2 factorial (Flickr) + v146 cross-attention router (Flickr) — **adaptive_topp = NMI driver, UOT = dead driver (paper-grade causal decomposition); v146a/b cross-attention router DISCARDED as paper-grade negative ablation (catastrophic codebook collapse 94-98 % dead)**
+
+🟢 Two complementary findings:
+1. **v145 isolation 2×2 factorial** decomposes v144a's two routing mechanisms (UOT + adaptive_topp) → **adaptive_topp is the unique NMI driver, UOT is the unique dead-codeword driver**.
+2. **v146 cross-attention router (Option A + Option B)** — text-as-query multi-head cross-attention with stability safeguards (near-identity init, zero-init W_O, alpha-blend annealing, Sinkhorn baseline blend) — **fundamentally incompatible with VQ codon pipeline; both v146a (bij ON) and v146b (bij OFF + adaptive_topp) catastrophically collapse codebook**.
+
+All runs Flickr25k-CLIP, K=128, partial-whiten γ=0.25, hash_target_mode=siglip_cos (HARD INVARIANT honored), text_code_kl λ=0.02, cibhash per_codebook + dynamic τ.
+
+### Block A — v145 isolation 2×2 factorial: UOT × adaptive_topp
+
+Single deltas from v144a (Sinkhorn balanced + adaptive_topp + text_code_kl):
+
+| Cell | UOT | adaptive_topp | Notes |
+|---|---|---|---|
+| v144a | OFF (balanced ε-sweep 1.0→0.1) | ON (0.5/0.9) | reference |
+| v145a | ON (λ=1.0) | ON (0.5/0.9) | combo |
+| v145b | ON (λ=0.5) | ON (0.5/0.9) | weaker UOT |
+| v145c | ON (λ=0.5) | OFF | UOT-only isolation |
+| v145d | OFF | OFF | minimal recipe |
+
+| Tag | mAP | P@1 | P@10 | P@1000 | DNA-uniq | NMI ↓ | L↔L NMI ↓ | B1 | B2 | dead ↓ |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| v144a (ref) | 0.7499 | 0.9170 | 0.9127 | 0.8854 | 0.376 | 0.591 | 0.657 | 0.125 | 0.076 | 0.065 |
+| **v145a** (UOT+topp) | 0.7512 | **0.9220** | 0.9093 | 0.8781 | 0.262 | 0.630 | 0.697 | 0.128 | 0.078 | **0.012** |
+| v145b (UOT0.5+topp) | 0.7464 | 0.9100 | 0.9056 | 0.8767 | 0.204 | **0.568** | 0.618 | 0.121 | 0.077 | 0.026 |
+| **v145c** (UOT-only) | **0.7548** | 0.9015 | 0.9018 | 0.8749 | 0.243 | 0.648 | 0.726 | 0.121 | 0.076 | 0.029 |
+| v145d (neither) | 0.7460 | 0.9135 | **0.9144** | **0.8898** | 0.284 | 0.642 | 0.717 | 0.125 | 0.078 | 0.059 |
+
+**Causal decomposition** (single-variable contrasts, lower NMI / lower dead = better):
+- **adaptive_topp drives NMI lower** (NMI v145c=0.648 → v145b=0.568 = −0.080; v145d=0.642 → v144a=0.591 = −0.051). *Compositional axis*.
+- **UOT drives dead lower** (dead v145d=0.059 → v145c=0.029 = −0.030; v144a=0.065 → v145a=0.012 = −0.053). *Codebook-utilization axis*.
+- **The two mechanisms are ORTHOGONAL**: each operates on a different axis without trading off the other (v145a achieves both: P@1 champion 0.9220 + dead champion 0.012, but pays −0.114 DNA-uniq).
+- **DNA-uniq trades against utilization**: more codewords used (lower dead) means same DNA codon reached from multiple codeword tuples → lower DNA-uniq. v144a (dead 0.065) → DNA 0.376; v145a (dead 0.012) → DNA 0.262.
+
+Verdict — keep **v144a as Pareto-better compositional candidate** (best DNA-uniq + balanced); v145a is the **P@1/dead champion** for tasks prioritizing retrieval precision over codon uniqueness. v145d (no topp, no UOT) is Pareto-dominated.
+
+### Block B — v146 cross-attention router (Option A & B) — DISCARDED
+
+**Motivation.** v144a uses Sinkhorn-OT to route patches → codebooks via a *balanced* transport plan. Hypothesis: replace this with **text-as-query cross-attention** so each codebook directly attends to the patches matching its text part's meaning → explicit visual grounding + interpretable heatmap.
+
+**Architecture** ([models/text_cross_attention_router.py](models/text_cross_attention_router.py)): multi-head attention (4 heads) with stability safeguards:
+- W_Q/W_K/W_V: **near-identity init** (eye + 0.1·noise) — avoids encoder shock
+- W_O: **zero init** — initial cross-attn contribution = 0
+- **Alpha-blend annealing**: `α = α_final · min(1, epoch/warmup)`, Sinkhorn baseline for `(1−α)` portion
+- **Temperature annealing**: τ 0.2 → 0.07 over 20 ep warmup
+- Train: Q = text_part_tokens; Inference: Q = codebook_anchors
+
+| Cell | bij | adaptive_topp | mAP | P@1 | NMI ↓ | DNA-uniq | dead ↓ | codewords used/cb |
+|---|---|---|---:|---:|---:|---:|---:|---|
+| v144a (Sinkhorn ref) | OFF | ON | 0.7499 | 0.9170 | 0.591 | 0.376 | 0.065 | ~120/128 |
+| **v146a** (cross-attn) | **ON (λ=0.1)** | OFF | **0.5640** | 0.6375 | 0.016 | 0.001 | **0.979** | [1, 2, 6, 3, 2, 2] |
+| **v146b** (cross-attn) | OFF | ON | **0.6499** | 0.7365 | 0.179 | 0.004 | **0.943** | [3, 9, 6, 8, 9, 9] |
+
+Both cells **catastrophically collapse the VQ codebook**:
+- v146a: average **2.7/128** codewords used per codebook (98 % dead, DNA-uniq 0.001 = 25 K images map to ~25 distinct DNA strings)
+- v146b: average **7.3/128** codewords used (94 % dead, DNA-uniq 0.004)
+- Low NMI in v146 is **trivially low because the codebook is barely used** — not a compositional gain.
+
+**Failure mechanism (paper-grade negative finding).** Text-as-query cross-attention produces *sharp, one-hot-like routing* (each text query attends to ≤ a few patches). Under EMA-VQ updates this starves the codebook: the dominant codewords get all the EMA mass while the rest decay to dead-codeword status. This is the same mechanism that killed v141 (DiVT-style cluster + masked cross-attention) — confirmed across two independent architectures.
+
+- bij ON (v146a) **amplifies** collapse: the bijection loss forces the *surviving* codewords to match codons, but doesn't rescue the dead ones — DNA-uniq → 0.001.
+- bij OFF + adaptive_topp (v146b) is *slightly less* catastrophic but still fundamentally broken (94 % dead).
+
+**Verdict — Cross-attention router DISCARDED on Flickr25k-CLIP.** Text-as-query routing is fundamentally incompatible with the EMA-VQ codon pipeline (4-bit codons require dense codebook utilization; cross-attention's natural sharpness collapses the EMA). Pursuing grounded routing requires a different mechanism — e.g., *softer* attention with explicit codebook-utilization regularization, or moving cross-attention *after* VQ instead of *before*.
+
+**Files added.**
+- [models/text_cross_attention_router.py](models/text_cross_attention_router.py) (257 lines) — kept in tree for future reuse if a softer variant is attempted
+- `--router_type cross_attn` + 7 hyperparam flags in [config.py](config.py)
+- `cross_attn` init/forward branch in [model_siglip2.py](model_siglip2.py)
+- [scripts/train_v146a_v144a_crossAttn_bij_K128_flickr25k_clip.sh](scripts/train_v146a_v144a_crossAttn_bij_K128_flickr25k_clip.sh)
+- [scripts/train_v146b_v146a_noBij_adaptiveTopp_K128_flickr25k_clip.sh](scripts/train_v146b_v146a_noBij_adaptiveTopp_K128_flickr25k_clip.sh)
+- [scripts/train_v145c_v145b_noAdaptiveTopp_K128_flickr25k_clip.sh](scripts/train_v145c_v145b_noAdaptiveTopp_K128_flickr25k_clip.sh)
+- [scripts/train_v145d_v144a_noAdaptiveTopp_K128_flickr25k_clip.sh](scripts/train_v145d_v144a_noAdaptiveTopp_K128_flickr25k_clip.sh)
+
+### Active candidates after v145/v146
+
+- **v144a** — K=128 Pareto-better compositional candidate (mAP 0.7499, DNA-uniq 0.376, NMI 0.591)
+- **v145a** — K=128 P@1/dead champion (mAP 0.7512, P@1 0.9220, dead 0.012; DNA −0.114 vs v144a)
+- **v145c** — K=128 mAP champion (mAP 0.7548; modest NMI/DNA penalty vs v144a)
+- **mscoco_v144a** — MSCOCO champion on all axes (mAP 0.5693, P@1 0.8120, NMI 0.660)
+
+---
+
 ## 2026-06-11 — v144 λ-sweep (Flickr) + mscoco_v144a (cross-dataset port) — **λ=0.02 is sweet spot; MSCOCO mscoco_v144a NEW CHAMPION on all retrieval + compositional axes (mAP 0.5693, P@1 0.8120, NMI 0.660)**
 
 🟢 v144 family completion: 4-cell Flickr λ-sweep confirms λ=0.02 as the *unique sweet spot*; MSCOCO cross-dataset port shows **larger gains than Flickr** — text_code_kl is *more effective* under sparse text coverage (8.2 % vs Flickr 100 %).

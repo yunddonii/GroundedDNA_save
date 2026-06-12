@@ -281,7 +281,7 @@ class Config():
         #               balance -> per-part heatmap focuses on relevant region.
         siglip2_arg.add_argument('--router_type', dest='router_type',
             type=str, default='sinkhorn',
-            choices=['sinkhorn', 'attention', 'slot', 'cluster_attn'],
+            choices=['sinkhorn', 'attention', 'slot', 'cluster_attn', 'cross_attn'],
             help='Router for the 5 local parts (default sinkhorn). '
                  '"slot" = Slot Attention (Locatello et al. NeurIPS 2020). '
                  '"cluster_attn" = v141 DiVT-inspired soft Sinkhorn cluster '
@@ -311,6 +311,29 @@ class Config():
                  'tokens). Required for --router_type cluster_attn so the '
                  'adapter gradient stays connected through the centroid + '
                  'attention path back to the encoder.')
+        # v146: text-as-query cross-attention router hyperparameters.
+        siglip2_arg.add_argument('--cross_attn_heads',
+            dest='cross_attn_heads', type=int, default=4,
+            help='v146: number of attention heads in TextCrossAttentionRouter.')
+        siglip2_arg.add_argument('--cross_attn_dropout',
+            dest='cross_attn_dropout', type=float, default=0.1,
+            help='v146: attention dropout probability.')
+        siglip2_arg.add_argument('--cross_attn_temp_init',
+            dest='cross_attn_temp_init', type=float, default=0.2,
+            help='v146: initial softmax temperature (annealed to temp_final).')
+        siglip2_arg.add_argument('--cross_attn_temp_final',
+            dest='cross_attn_temp_final', type=float, default=0.07,
+            help='v146: final softmax temperature after annealing.')
+        siglip2_arg.add_argument('--cross_attn_warmup_epochs',
+            dest='cross_attn_warmup_epochs', type=int, default=20,
+            help='v146: warmup epochs for alpha blend AND temperature anneal.')
+        siglip2_arg.add_argument('--cross_attn_near_identity_scale',
+            dest='cross_attn_near_identity_scale', type=float, default=0.1,
+            help='v146: std for near-identity init noise on W_Q/W_K/W_V.')
+        siglip2_arg.add_argument('--cross_attn_alpha_final',
+            dest='cross_attn_alpha_final', type=float, default=1.0,
+            help='v146: final alpha (cross-attn weight) after warmup. 1.0 = '
+                 'pure cross-attn; 0.7 = 70% cross-attn + 30% Sinkhorn baseline.')
         siglip2_arg.add_argument('--attention_router_temperature',
             dest='attention_router_temperature', type=float, default=0.1,
             help='Softmax temperature for attention router (smaller -> sharper).')

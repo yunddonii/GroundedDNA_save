@@ -1447,10 +1447,34 @@ class SigLIP2SemanticOTModel(nn.Module):
                 sinkhorn_iters=int(getattr(args, "cluster_attn_sinkhorn_iters", 3)),
                 pool_temperature=float(getattr(args, "cluster_attn_pool_temperature", 0.3)),
             )
+        elif self.router_type == "cross_attn":
+            # v146: text-as-query cross-attention router. Uses the Sinkhorn
+            # router in parallel as a baseline for residual blending during
+            # warmup (alpha annealed 0 -> 1 over warmup_epochs).
+            from models.text_cross_attention_router import TextCrossAttentionRouter
+            self.cross_attn_router = TextCrossAttentionRouter(
+                d_model=int(self.d_model),
+                num_parts=NUM_SEMANTIC_PARTS,
+                num_heads=int(getattr(args, "cross_attn_heads", 4)),
+                dropout=float(getattr(args, "cross_attn_dropout", 0.1)),
+                temp_init=float(getattr(args, "cross_attn_temp_init", 0.2)),
+                temp_final=float(getattr(args, "cross_attn_temp_final", 0.07)),
+                near_identity_scale=float(getattr(args, "cross_attn_near_identity_scale", 0.1)),
+            )
+            # Build the Sinkhorn router as a parallel baseline (used during
+            # warmup blending). self.router remains the Sinkhorn router so
+            # the existing routing code path executes unmodified.
+            self.router = SemanticSinkhornRouter(
+                epsilon=float(getattr(args, "sinkhorn_temperature", 0.05)),
+                num_iters=int(getattr(args, "sinkhorn_iters", 20)),
+                cost_mode=str(getattr(args, "sinkhorn_cost_mode", "one_minus_cos")),
+            )
+            self.cross_attn_warmup_epochs = int(getattr(args, "cross_attn_warmup_epochs", 20))
+            self.cross_attn_alpha_final = float(getattr(args, "cross_attn_alpha_final", 1.0))
         else:
             raise ValueError(
                 f"[model_siglip2] router_type must be 'sinkhorn' / 'attention' / "
-                f"'slot' / 'cluster_attn', got {self.router_type!r}"
+                f"'slot' / 'cluster_attn' / 'cross_attn', got {self.router_type!r}"
             )
         # v141: visual_adapter relocation flag.
         self.visual_adapter_after_router: bool = bool(
@@ -2471,6 +2495,50 @@ class SigLIP2SemanticOTModel(nn.Module):
             local_semantic_visual_tokens = semantic_visual_tokens[:, 1:, :]            # [B, 5, D]
             # routing_matrix already set above; keep for loss_wasserstein /
             # loss_bu compatibility.
+
+        # v146: TextCrossAttentionRouter override.
+        # The Sinkhorn router has already run and produced semantic_visual_tokens
+        # as the baseline. Now we run the cross-attention router with text
+        # as the query and blend with alpha annealing.
+        if self.router_type == "cross_attn":
+            # Determine queries:
+            # - Training: text_part_tokens (text-driven query)
+            # - Inference: codebook anchors (text-aligned by training)
+            if (
+                self.training
+                and text_part_tokens is not None
+                and text_part_tokens.shape == (B, NUM_SEMANTIC_PARTS, D)
+            ):
+                cross_queries = text_part_tokens
+            else:
+                # Inference (or text unavailable): use codebook anchors as
+                # query. They are tracked to match text mean via the
+                # text_code_kl / text_hash_ntxent losses.
+                anchors = self.quantizer.get_codebook_mean_anchors(
+                    exclude_global=False,
+                )                                                          # [M=6, D]
+                cross_queries = anchors.unsqueeze(0).expand(B, -1, -1).contiguous()
+
+            # Alpha blend: 0 at epoch 0 -> alpha_final after warmup_epochs.
+            _epoch = int(getattr(self, "_current_epoch", 0))
+            _warmup = max(int(self.cross_attn_warmup_epochs), 1)
+            _alpha_final = float(self.cross_attn_alpha_final)
+            alpha_blend = _alpha_final * min(1.0, float(_epoch) / float(_warmup))
+
+            ca_out = self.cross_attn_router(
+                queries=cross_queries,
+                patches=visual_tokens,
+                sinkhorn_baseline=routing_matrix,
+                sinkhorn_tokens=semantic_visual_tokens,
+                alpha_blend=alpha_blend,
+                epoch=_epoch,
+                warmup_epochs=_warmup,
+                return_attn=False,
+            )
+            # Replace semantic_visual_tokens with the blended output.
+            semantic_visual_tokens = ca_out["semantic_visual_tokens"]
+            routing_matrix = ca_out["routing_matrix"]
+            local_semantic_visual_tokens = semantic_visual_tokens[:, 1:, :]
 
         # 6) v32: train-only text injection into the quantizer input.
         # When `--text_inject_train_only=add` and the text path is active,
