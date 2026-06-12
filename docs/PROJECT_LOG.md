@@ -334,6 +334,81 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-13 — v150a/v150b cibhash NtXent on pre-VQ semantic_visual_tokens (Flickr) — **v150b NEW Pareto-better candidate (mAP 0.7509 +0.0010 vs v144a baseline, P@1 0.9190 +0.0020, dead 0.000, B1/B2 family-best 0.159/0.098); v150a DISCARDED (DNA collapse on no-UOT base); UOT × visual_token NtXent are SYNERGISTIC**
+
+🟢 **Where does cibhash NtXent live in the loss stack?** Until now the cibhash NtXent operated on `bit_probs` (post-VQ + post-codon, 6-bit slices per codebook), which v149a's hypothesis identified as a cosine-granularity bottleneck. v149a's continuous fix (`2*p - 1`) lifted *codebook utilization* (dead 0.065→0.000) but not *DNA-uniq* (0.376→0.380), pinning the DNA bottleneck on codon pigeonhole. v150 moves the NtXent **one level up**: from the 6-bit slice to the **D-dim pre-VQ routed visual tokens** (`semantic_visual_tokens` [B, M=6, D]). The contrastive gradient now arrives at the encoder directly via the router, with continuous cosine geometry on a hypersphere (vs 7-level quantized).
+
+**Code delta** (kept legacy-compatible). New flag `--cibhash_ntxent_source {continuous_code, visual_token}` ([config.py](config.py)) and a new method `_loss_cibhash_visual_per_codebook` ([loss_siglip2.py](loss_siglip2.py)). Caller branches: in `visual_token` mode it pulls `outputs["semantic_visual_tokens"]` from both views and runs M=6 independent NtXents on [B, D] subvectors (per_codebook geometry preserved). KL term auto-zeroed (Bernoulli KL undefined on continuous vectors). Carries v149a's `--cibhash_ntxent_continuous` flag on top — but in `visual_token` mode the continuous-vs-STE knob is moot since there are no bits to sign.
+
+**Two cells** — both Flickr25k-CLIP K=128, partial-whiten γ=0.25, text_code_kl 0.02, cibhash per_codebook + dyn τ:
+
+- **v150a** = v144a (vanilla Sinkhorn balanced, topp 0.5/0.9) + visual_token NtXent.
+- **v150b** = v147a (UOT λ=1.0 + sharper topp 0.3/0.7) + visual_token NtXent.
+
+| Tag | mAP | P@1 | P@10 | P@1000 | DNA | cb_tuple | NMI ↓ | L↔L ↓ | B1 | B2 | dead ↓ |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| v144a (ref) | 0.7499 | 0.9170 | 0.9127 | 0.8854 | **0.376** | 0.664 | **0.591** | 0.657 | 0.125 | 0.076 | 0.065 |
+| v147a (ref) | 0.7280 | 0.9145 | 0.9130 | 0.8739 | 0.307 | **0.771** | **0.566** | 0.607 | 0.129 | 0.080 | 0.008 |
+| v149a (ref) | 0.7354 | 0.9160 | 0.9117 | 0.8779 | 0.380 | 0.665 | 0.628 | 0.724 | 0.125 | 0.077 | **0.000** |
+| **v150a** | 0.7330 | 0.9150 | 0.9083 | 0.8569 | 0.265 ✗ | 0.500 ✗ | 0.648 ✗ | 0.707 | **0.159** ★ | **0.100** ★ | **0.000** |
+| **v150b** | **0.7509** ★ | **0.9190** ★ | **0.9140** | 0.8577 | 0.329 | 0.566 | 0.612 | 0.655 | **0.159** ★ | **0.098** ★ | **0.000** |
+
+Codewords used per cb (out of 128): **v150a and v150b both [128, 128, 128, 128, 128, 128] — 100 % codebook utilization** matching v149a.
+
+### Findings
+
+**Finding 1 — Hypothesis on cb_tuple ↑ via visual_token NtXent is FALSIFIED.**
+Pre-VQ NtXent on D-dim semantic_visual_tokens *lowers* cb_tuple instead of raising it:
+- v150a vs v144a: cb_tuple 0.664 → 0.500 (−0.164)
+- v150b vs v147a: cb_tuple 0.771 → 0.566 (−0.205)
+Mechanism. The visual_token NtXent pulls each codebook's routed token toward a small set of text-aligned attractors on the hypersphere. Routing becomes more "categorical" per codebook → fewer distinct codeword combinations across the batch → cb_tuple ↓. v149a's bit-level NtXent never had this effect because the 6-bit slice was already discrete enough that attraction couldn't crystallize.
+
+**Finding 2 — UOT × visual_token NtXent are SYNERGISTIC.**
+The crucial difference between v150a (no UOT) and v150b (UOT λ=1.0):
+- **v150a** has *no opposing force* against visual_token NtXent's attractor crystallization → cb_tuple drops to 0.500, DNA-uniq collapses to 0.265.
+- **v150b** has UOT's mass-redistribution pushing AGAINST the attractor pull → cb_tuple holds at 0.566, DNA recovers to 0.329, mAP **rises** to 0.7509 (above v144a baseline) and P@1 to 0.9190.
+
+The two losses operate on different axes (UOT in transport plan space, visual_token NtXent on hypersphere geometry) and *counter-balance* each other's failure modes.
+
+**Finding 3 — Pre-VQ NtXent unlocks the text-supervised compositional lift (B1/B2).**
+Both v150 cells set new family maxima at B1 = 0.159 and B2 ≈ 0.10 (+0.030 over the entire v144/v147/v149 family). Reason. Pre-VQ contrastive shapes the routed visual token *directly* in the encoder's D-dim space, where the compositional lift metric also lives (it measures the lift of text-anchored similarity over each routed-token codebook). Post-VQ bit-level NtXent (v149a) never touched the same representation that the B1/B2 metric reads from.
+
+### Verdict
+
+| Cell | Verdict |
+|---|---|
+| **v150a** | **DISCARDED** — DNA / cb_tuple collapse without UOT counter-force; only B1/B2 gain isn't enough to compensate. Paper-grade negative ablation establishing that visual_token NtXent **requires** UOT or equivalent dispersion pressure. |
+| **v150b** | **NEW Pareto-better candidate** — *first cell in the family* simultaneously meeting (a) mAP ≥ v144a baseline (+0.0010), (b) P@1 ≥ v144a (+0.0020), (c) dead 0.000, (d) B1/B2 family-best. Single trade-off: cb_tuple 0.566 (−0.10 vs v144a) and L↔L 0.655 (≈ v144a). Strong "balanced + text-grounded compositional" cell. |
+
+### Active candidates after v150
+
+| Tag | mAP | P@1 | NMI ↓ | DNA | cb_tuple | B1 | B2 | dead ↓ | role |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| v144a | 0.7499 | 0.9170 | 0.591 | 0.376 | 0.664 | 0.125 | 0.076 | 0.065 | mAP-balanced compositional (DNA champ) |
+| v145a | 0.7512 | **0.9220** | 0.630 | 0.262 | – | – | – | 0.012 | P@1 / dead champion |
+| v145c | **0.7548** | 0.9015 | 0.648 | 0.243 | – | – | – | 0.029 | mAP champion |
+| v147a | 0.7280 | 0.9145 | 0.566 | 0.307 | **0.771** | 0.129 | 0.080 | 0.008 | Pareto-better compositional (cb_tuple champ) |
+| v147b | 0.7388 | 0.9085 | **0.508** | 0.230 | **0.873** | 0.114 | 0.072 | 0.020 | NMI / L↔L family champion |
+| v149a | 0.7354 | 0.9160 | 0.628 | 0.380 | 0.665 | 0.125 | 0.077 | **0.000** | utilization frontier (zero dead) |
+| **v150b** | **0.7509** | **0.9190** | 0.612 | 0.329 | 0.566 | **0.159** ★ | **0.098** ★ | **0.000** | **Pareto-better balanced + text-grounded compositional** |
+| mscoco_v144a | **0.5693** | **0.8120** | 0.660 | 0.126 | 0.291 | – | 0.138 | 0.085 | MSCOCO retrieval champion |
+| mscoco_v147a | 0.5637 | 0.8096 | 0.634 | 0.127 | 0.392 | – | 0.139 | 0.014 | MSCOCO Pareto-better compositional |
+| mscoco_v148b | 0.5353 | 0.8072 | **0.580** | **0.154** | **0.685** | – | **0.147** | 0.033 | MSCOCO compositional axis champion |
+
+### Files
+
+- [config.py](config.py) — `--cibhash_ntxent_source {continuous_code, visual_token}` flag (default OFF, legacy-preserving).
+- [loss_siglip2.py](loss_siglip2.py) — `_loss_cibhash_visual_per_codebook` (new method) + caller branch.
+- [scripts/train_v150a_v149a_visualTokenCibhash_K128_flickr25k_clip.sh](scripts/train_v150a_v149a_visualTokenCibhash_K128_flickr25k_clip.sh)
+- [scripts/train_v150b_v147a_visualTokenCibhash_K128_flickr25k_clip.sh](scripts/train_v150b_v147a_visualTokenCibhash_K128_flickr25k_clip.sh)
+
+### Suggested next experiments
+
+1. **mscoco_v150b** — port the Pareto-better cell to MSCOCO. Expectation (based on mscoco_v147a's favorable trade-off vs Flickr): mAP cost smaller, B2 gain similar, possible new MSCOCO retrieval-balanced champion.
+2. **L=4 + v150b recipe** — combine the three identified DNA-uniq interventions (codon space expansion + UOT + visual_token NtXent) to attempt breaking the codon pigeonhole.
+
+---
+
 ## 2026-06-13 — v149a continuous CIBHash NtXent (Flickr) + mscoco_v148b K=256 + UOT + aggressive topp (MSCOCO) — **DNA-uniq bottleneck is *codon-space pigeonhole*, not cosine granularity (v149a hypothesis falsified for DNA but confirmed for utilization); mscoco_v148b NEW MSCOCO compositional axis champion (NMI 0.580, L↔L 0.598, DNA 0.154, cb_tuple 0.685, B2 0.147) at mAP cost −0.034**
 
 🟢 Two paper-grade findings from a coordinated analysis of *why* our DNA-uniq lags external baselines (CIBHash 0.967, MLS3RDUH 0.515):

@@ -1427,6 +1427,19 @@ class Config():
                  'gradient. DNA code path is unchanged (computed at '
                  'inference via argmax). Default OFF preserves legacy '
                  'v119-v148 behavior.')
+        # v150: contrastive on pre-VQ routed visual tokens instead of
+        # post-VQ continuous_code -- D-dim continuous uniformity gradient
+        # at the routing layer.
+        loss_arg.add_argument('--cibhash_ntxent_source',
+            dest='cibhash_ntxent_source', type=str, default='continuous_code',
+            choices=['continuous_code', 'visual_token'],
+            help='v150: input source for cibhash NtXent. '
+                 '"continuous_code" (default) = legacy v119-v149 behavior, '
+                 'NtXent on bit_probs derived from post-VQ codon outputs. '
+                 '"visual_token" = NtXent on pre-VQ semantic_visual_tokens '
+                 '[B, M, D] from the router (D-dim continuous, full cosine '
+                 'granularity). KL term is implicitly disabled in visual_token '
+                 'mode (Bernoulli KL undefined on continuous vectors).')
         # ---------- v138: prototype passthrough + paired-view InfoNCE -----
         # Two flags to *remove the VQ codebook bottleneck* for codon_head
         # input while keeping prototype-based clustering as a separate

@@ -199,6 +199,9 @@ class DNACodonHashLoss(nn.Module):
         self.cibhash_dynamic_tau_alpha  = float(getattr(cfg, "cibhash_dynamic_tau_alpha", 0.0))
         # v149: continuous NtXent flag (skip STE-sign, use shifted bit_probs).
         self.cibhash_ntxent_continuous  = bool(getattr(cfg, "cibhash_ntxent_continuous", False))
+        # v150: cibhash NtXent input source -- "continuous_code" (legacy) or
+        # "visual_token" (pre-VQ semantic_visual_tokens [B, M, D]).
+        self.cibhash_ntxent_source = str(getattr(cfg, "cibhash_ntxent_source", "continuous_code"))
         # v138: prototype-cluster paired-view InfoNCE on codebook_distances.
         self.lambda_proto_cluster        = float(getattr(cfg, "lambda_proto_cluster",        0.0))
         self.proto_cluster_temperature   = float(getattr(cfg, "proto_cluster_temperature",   0.3))
@@ -1081,6 +1084,74 @@ class DNACodonHashLoss(nn.Module):
         kl_qp = q * (log_q - log_p_d) + one_mq * (log_1mq - log_1mp_d)
         kl = 0.5 * (kl_pq.sum(dim=-1).mean() + kl_qp.sum(dim=-1).mean())
         return kl
+
+    def _loss_cibhash_visual_per_codebook(
+        self,
+        visual_tokens_view1: torch.Tensor,    # [B, M, D] pre-VQ
+        visual_tokens_view2: torch.Tensor,    # [B, M, D] pre-VQ
+        temperature: float,
+        text_part_raw: Optional[torch.Tensor] = None,
+        dynamic_tau_alpha: float = 0.0,
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """v150: per-codebook NtXent on pre-VQ routed visual tokens.
+
+        Same per_codebook geometry as `_loss_cibhash_per_codebook` with
+        mode="per_codebook", but operates on the D-dim semantic_visual_tokens
+        from the router output (BEFORE VQ quantization and codon decoding).
+        Restores full continuous cosine granularity (vs the 6-bit slice
+        ceiling of bit_probs).
+
+        KL term is not defined on continuous embeddings -> returns zeros.
+
+        Args:
+            visual_tokens_view{1,2}: [B, M, D] paired-aug semantic_visual_tokens.
+            temperature: NtXent temperature.
+            text_part_raw, dynamic_tau_alpha: per-pair temperature mod from
+                text-cos geometry (identical mechanism to per_codebook bit-mode).
+        Returns:
+            (ntxent_loss, kl_loss=0).
+        """
+        B, M, D = visual_tokens_view1.shape
+        T = max(float(temperature), 1e-6)
+        use_dyn = (
+            text_part_raw is not None
+            and float(dynamic_tau_alpha) > 0.0
+            and text_part_raw.shape[0] == B
+            and text_part_raw.shape[1] == M
+        )
+        alpha = min(float(dynamic_tau_alpha), 0.999)
+
+        ntxent_per_cb: list = []
+        for m in range(M):
+            vm1 = visual_tokens_view1[:, m, :]                            # [B, D]
+            vm2 = visual_tokens_view2[:, m, :]                            # [B, D]
+            v = torch.cat([vm1, vm2], dim=0)                               # [2B, D]
+            v_n = F.normalize(v, dim=-1, eps=1e-8)
+            sim_raw = v_n @ v_n.T                                          # [2B, 2B], cosine
+
+            if use_dyn:
+                t_m = text_part_raw[:, m, :]                                # [B, D_text]
+                t_m_n = F.normalize(t_m.float(), dim=-1)
+                cos_tt = (t_m_n @ t_m_n.T).clamp(-1.0, 1.0)                 # [B, B]
+                cos_tt_2 = cos_tt.repeat(2, 2)                              # [2B, 2B]
+                tau_ij = T * (1.0 + alpha * cos_tt_2).clamp_min(1e-4)
+                sim = sim_raw / tau_ij
+            else:
+                sim = sim_raw / T
+
+            N = 2 * B
+            eye = torch.eye(N, device=sim.device, dtype=torch.bool)
+            sim = sim.masked_fill(eye, -1e9)
+            pos_idx = torch.cat([
+                torch.arange(B, 2 * B, device=sim.device),
+                torch.arange(0, B,     device=sim.device),
+            ])
+            ntxent_m = F.cross_entropy(sim, pos_idx)
+            ntxent_per_cb.append(ntxent_m)
+
+        ntxent = torch.stack(ntxent_per_cb).mean()
+        kl = visual_tokens_view1.new_zeros(())
+        return ntxent, kl
 
     def _loss_cibhash_per_codebook(
         self,
@@ -2422,23 +2493,36 @@ class DNACodonHashLoss(nn.Module):
         if outputs_view2 is not None and (
             self.lambda_cibhash_ntxent > 0.0 or self.lambda_cibhash_kl > 0.0
         ):
-            u_v1 = outputs.get("continuous_code")
-            u_v2 = outputs_view2.get("continuous_code")
-            if u_v1 is not None and u_v2 is not None:
-                _ttp_raw = (
-                    outputs.get("text_global_feat")
-                    if getattr(self, "cibhash_dynamic_tau", False)
-                    else None
-                )
-                loss_cibhash_ntxent_v, loss_cibhash_kl_v = self._loss_cibhash_per_codebook(
-                    u_v1, u_v2, temperature=self.cibhash_temperature,
-                    mode=getattr(self, "cibhash_mode", "per_codebook"),
-                    text_part_raw=_ttp_raw,
-                    dynamic_tau_alpha=(
-                        float(getattr(self, "cibhash_dynamic_tau_alpha", 0.0))
-                        if getattr(self, "cibhash_dynamic_tau", False) else 0.0
-                    ),
-                )
+            _ttp_raw = (
+                outputs.get("text_global_feat")
+                if getattr(self, "cibhash_dynamic_tau", False)
+                else None
+            )
+            _dyn_alpha = (
+                float(getattr(self, "cibhash_dynamic_tau_alpha", 0.0))
+                if getattr(self, "cibhash_dynamic_tau", False) else 0.0
+            )
+            _src = getattr(self, "cibhash_ntxent_source", "continuous_code")
+            if _src == "visual_token":
+                # v150: NtXent on pre-VQ semantic_visual_tokens [B, M, D].
+                sv_v1 = outputs.get("semantic_visual_tokens")
+                sv_v2 = outputs_view2.get("semantic_visual_tokens")
+                if sv_v1 is not None and sv_v2 is not None:
+                    loss_cibhash_ntxent_v, loss_cibhash_kl_v = self._loss_cibhash_visual_per_codebook(
+                        sv_v1, sv_v2, temperature=self.cibhash_temperature,
+                        text_part_raw=_ttp_raw,
+                        dynamic_tau_alpha=_dyn_alpha,
+                    )
+            else:
+                u_v1 = outputs.get("continuous_code")
+                u_v2 = outputs_view2.get("continuous_code")
+                if u_v1 is not None and u_v2 is not None:
+                    loss_cibhash_ntxent_v, loss_cibhash_kl_v = self._loss_cibhash_per_codebook(
+                        u_v1, u_v2, temperature=self.cibhash_temperature,
+                        mode=getattr(self, "cibhash_mode", "per_codebook"),
+                        text_part_raw=_ttp_raw,
+                        dynamic_tau_alpha=_dyn_alpha,
+                    )
 
         # v144: text -> code KL distillation. Per-codebook distribution
         # matching between visual and text views over the K codewords.
