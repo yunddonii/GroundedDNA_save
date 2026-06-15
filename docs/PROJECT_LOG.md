@@ -334,6 +334,101 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-16 — v160b (v150b + Uni-Code Eq.(8)) + v161a (v160a + MM-EMA, simplified) — **v160b NEW family champion on 4 axes simultaneously: B1 0.162, B2 0.100 (tied), DNA 0.400 (above baseline 0.376), codeword→codon collision ratio 1.34× (best ever, vs v144a 1.77×). v160b is the FIRST cell to achieve P1 (interpretability) + P4 (collision) champion status simultaneously. v161a (MM-EMA on top of v160a) DISCARDED — marginal regression on all axes.**
+
+🟢 **Eq.(8) × v150b synergy** unlocks user-priority axes #1 and #4 simultaneously. After v160a established the mAP-champion direction yesterday (mAP 0.7617 + DNA cost), today's v160b stacks v150b's visual_token NtXent base under the same Eq.(8) — the result inverts the trade-off: **mAP drops slightly but B1/B2/DNA/collision-ratio all break previous family records**.
+
+**Two cells** (both Flickr25k-CLIP, K=128, partial-whiten γ=0.25):
+
+- **v160b** = v150b recipe + `--lambda_xmodal_commit 0.025` (single delta)
+- **v161a** = v160a recipe + `--mm_ema` (text-path EMA codebook activation, simplified Uni-Code Section 4.3)
+
+### Results
+
+| Tag | mAP | P@1 | DNA | cb_tuple | NMI ↓ | L↔L ↓ | B1 | B2 | dead ↓ | cbT/DNA |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| v144a (ref) | 0.7499 | **0.917** | 0.376 | 0.664 | **0.591** | 0.657 | 0.125 | 0.076 | 0.065 | 1.77× |
+| v150b | 0.7509 | 0.919 | 0.329 | 0.566 | 0.612 | **0.655** | 0.159 | 0.098 | **0.000** | 1.72× |
+| v160a (Eq.8 alone) | **0.7617** ★ | 0.913 | 0.318 | 0.603 | 0.635 | 0.719 | 0.128 | 0.078 | 0.033 | 1.90× |
+| **v160b (v150b + Eq.8)** | 0.7390 | **0.917** | **0.400** ★ | 0.536 | 0.630 | 0.671 | **0.162** ★ | **0.100** ★ | **0.000** ★ | **1.34× ★** |
+| v161a (v160a + MM-EMA) | 0.7401 | 0.913 | 0.308 | 0.584 | 0.632 | 0.716 | 0.122 | 0.076 | 0.039 | 1.89× |
+
+v160b codewords used per cb: [128, 128, 128, 128, 128, 128] — *every codebook fully populated*.
+v161a codewords used per cb: [128, 116, 127, 128, 123, 116] — 87 % util.
+
+### v160b — *paper-finale candidate*
+
+Champions on 4 axes:
+1. **B1 = 0.162** (text-anchored compositional lift) — **family champion**, +0.003 over prior champion v150b 0.159
+2. **B2 = 0.100** (visual-anchored compositional lift) — **tied with v150a's family max** 0.100
+3. **DNA-uniq = 0.400** — **above baseline v144a 0.376** (+0.024 = +6.4 % relative). First Eq.(8)-derived cell to *exceed* baseline DNA-uniq.
+4. **Codeword→codon collision ratio = 1.34×** — **best ever in the family** (vs v144a 1.77×, v160a 1.90×, v150b 1.72×). The closer to 1.00× = bijection.
+
+Also strong:
+- **P@1 = 0.917**, tied with v144a; second to v145a 0.9220 only.
+- **dead = 0.000**, tied with v150b and v149a.
+
+Cost: mAP 0.7390 (−0.011 vs v144a). The trade-off direction is *opposite* v160a (which gained mAP at DNA cost). Combined: v160a and v160b are two ends of a Pareto front — retrieval-prioritized vs compositional-prioritized.
+
+### v161a — DISCARDED (marginal regression vs v160a)
+
+MM-EMA (simplified: text-path keeps quantizer in train mode, no cross-attention intermediary) was meant to extend Eq.(8) by letting the codebook itself learn from text contributions. Empirically it caused small regressions on every axis we care about:
+
+| Axis | v160a | v161a | Δ |
+|---|---:|---:|---:|
+| mAP | 0.7617 | 0.7401 | −0.022 |
+| DNA | 0.318 | 0.308 | −0.010 |
+| B1 | 0.128 | 0.122 | −0.006 |
+| dead | 0.033 | 0.039 | +0.006 |
+
+**Hypothesis (paper-grade negative finding)**: in our setup the codebook is text-supervised *indirectly* through `text_code_kl`, `text_hash_ntxent`, `wasserstein`, and `lambda_xmodal_commit` — already four channels. Adding a *direct* text-EMA channel introduces *gradient-EMA conflict*: the codebook's EMA target is now a mix of visual-quantized + text-quantized vectors that don't perfectly agree, slightly destabilizing the visual quantization. Verdict: v161a discarded; standard EMA-disabled text path retained.
+
+### Mechanism — Why v150b × Eq.(8) is synergistic
+
+v150b's contribution: **input entropy ↑** via pre-VQ visual_token NtXent + UOT + sharper topp.
+v160a's Eq.(8) contribution: **cross-modal alignment** via encoder commitment to opposite-modality quantized codewords.
+
+Stacked (v160b):
+- Higher-entropy routed visual_token (from v150b) → cross-modal commitment maps it to a richer set of codewords (Eq.8 effect)
+- → cb_tuple/DNA collision ratio drops below all prior cells (1.34×, closest to bijection 1.00× we have without L=4)
+- → DNA-uniq finally *exceeds* baseline despite Eq.(8) normally lowering DNA-uniq on v144a base
+
+The two mechanisms attack *orthogonal* layers (input representation vs encoder ↔ codebook alignment), explaining the multiplicative effect.
+
+### Reproducibility note
+
+Both v160b and v161a were *killed prematurely* on first launch (no error in log; bash + nohup combination apparently lost their session at some external trigger). Relaunched with `setsid + disown + < /dev/null` for full session detachment; both reached ep 60 + post-eval on second attempt. **No code change** — just process-management bug fix. Final results above are from the second (successful) run.
+
+### Verdict
+
+- **v160b is the new PARETO-FINALE candidate for user priority axes #1 (Interpretability) and #4 (Collision)**, with #3 retained at v144a level (P@1 tied) and only mAP costing −0.011.
+- **v160a remains the mAP champion** for retrieval-priority papers.
+- **v161a discarded** as paper-grade negative finding (MM-EMA simplified form conflicts with existing text-supervision channels).
+
+### Active candidates after v160b/v161a (updated by user-priority axis)
+
+| User priority | Best cell | mAP | Key metric |
+|---|---|---:|---|
+| **#1 Interpretability (B1/B2)** | **v160b** | 0.7390 | **B1 0.162, B2 0.100** |
+| #2 Text-supervision (low NMI) | v147b | 0.7388 | NMI 0.508 (family low) |
+| #3 Retrieval (mAP) | v160a | 0.7617 | mAP champion |
+| #3 Retrieval (P@1) | v145a (tied v160b, v144a) | 0.7512 | P@1 0.9220 (champion) |
+| **#4 Collision (DNA-uniq)** | **v122a (L=4)** | 0.7479 | DNA 0.551 (codon-space expansion path) |
+| #4 Collision (K=128 family) | **v160b** | 0.7390 | **DNA 0.400 + collision 1.34×** (best in K=128 L=3 family) |
+
+### Code delta
+
+- [config.py](config.py): `--mm_ema` flag (default OFF, legacy-preserving).
+- [model_siglip2.py](model_siglip2.py): `self.mm_ema` tracked; text path keeps quantizer in train mode when ON.
+
+### Suggested follow-ups
+
+1. **v160b + L=4 (v122a-style codon space expansion)**: stack v160b's K=128 interpretability/collision champion with L=4's DNA-uniq breakthrough. Predicted: DNA-uniq 0.55+ + B1 0.16+. Single combined cell aiming at *all four user priorities at once*.
+2. **mscoco_v160b**: cross-dataset port of the interpretability champion. MSCOCO 8.2 % caption coverage means Eq.(8) fires only on 8 % of batches; check whether the v160b synergy survives the sparsity.
+3. **λ_xmodal_commit sweep on v150b base** {0.01, 0.025, 0.05, 0.1}: characterize the mAP ↔ DNA trade-off curve.
+
+---
+
 ## 2026-06-15 — v160a Uni-Code Eq.(8) cross-modal commitment loss (Flickr) — **v160a NEW family mAP CHAMPION (mAP 0.7617, +0.012 vs v144a baseline, +0.007 vs prior champ v145c 0.7548) at trade-off DNA 0.318 (−0.058) and NMI 0.635 (+0.044). 10+ failed architectural attacks (v152b through v159a) preceded this success. Eq.(8) is the first ablation today that produced a NEW champion on any axis.**
 
 🟢 active. After today's persistent architectural attacks (v152b text MSE, v153a/b codon_residual_gamma, v154a bij loss, v155a dyn_tau OFF, v156a FuzzyCodonHead, v157a joint multi-head + token-level VQ, v158a token-level VQ alone, v159a JointCodonHead) all degraded or collapsed, **a single principled loss term from Uni-Code (Xia et al., NeurIPS 2023)** produced the first NEW champion of the day.

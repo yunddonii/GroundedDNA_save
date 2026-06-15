@@ -1519,6 +1519,8 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.lambda_cw_xmodal            = float(getattr(args, "lambda_cw_xmodal", 0.0))
         # v160 (Uni-Code Eq.8): cross-modal commitment weight.
         self.lambda_xmodal_commit        = float(getattr(args, "lambda_xmodal_commit", 0.0))
+        # v161 (Uni-Code MM-EMA, simplified): bi-modal EMA codebook update flag.
+        self.mm_ema                      = bool(getattr(args, "mm_ema", False))
         self.lambda_codeword_text_proto  = float(getattr(args, "lambda_codeword_text_proto", 0.0))
         # v85: expert-choice-inspired codebook-side token filtering.
         self.routing_codebook_choice = bool(getattr(args, "routing_codebook_choice", False))
@@ -2791,13 +2793,18 @@ class SigLIP2SemanticOTModel(nn.Module):
             and text_quantizer_tokens.shape == (B, NUM_SEMANTIC_PARTS, D)
         )
         if _text_path_active:
-            # (a) text quantization, EMA-disabled
+            # (a) text quantization
+            # v161 MM-EMA: when self.mm_ema is True, keep the quantizer in
+            # train mode so the EMA codebook update sees text contributions
+            # as well as visual ones. Default (mm_ema=False) preserves
+            # legacy behavior of EMA-disabled text pass.
             prev_train = self.quantizer.training
-            self.quantizer.eval()
+            if not getattr(self, "mm_ema", False):
+                self.quantizer.eval()
             try:
                 tq_out = self.quantizer(text_quantizer_tokens)
             finally:
-                if prev_train:
+                if prev_train and not getattr(self, "mm_ema", False):
                     self.quantizer.train()
             text_q_st       = tq_out["quantized_tokens"]       # [B, 6, D]  STE
             text_q_raw      = tq_out["quantized_tokens_raw"]   # [B, 6, D]  codeword

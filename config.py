@@ -1249,6 +1249,17 @@ class Config():
                  'text-quantization path to be active (i.e., one of '
                  'lambda_text_hash / lambda_text_hash_ntxent / lambda_cw_xmodal '
                  '/ lambda_xmodal_commit > 0). Default 0.0 disables.')
+        # v161 (Uni-Code Section 4.3 simplified): bi-modal EMA codebook update.
+        loss_arg.add_argument('--mm_ema',
+            dest='mm_ema', action='store_true', default=False,
+            help='v161 (Uni-Code MM-EMA, simplified). Currently the text path '
+                 'runs the quantizer in eval mode (EMA-disabled), so the '
+                 'codebook is updated only from visual signals. With --mm_ema, '
+                 'the text path KEEPS the quantizer in train mode, so both '
+                 'modalities contribute to the EMA codebook update. This is a '
+                 'minimum-viable Uni-Code MM-EMA without the cross-attention '
+                 'intermediary (r^a, r^b) which is a separate v161b/c step. '
+                 'Default OFF preserves legacy behavior.')
         # ---------- v144: text -> code KL distillation -----------------
         # Per-codebook distribution matching between visual and text views.
         # For each local codebook m (cb0/global excluded by default), build
