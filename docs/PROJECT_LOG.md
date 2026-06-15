@@ -429,6 +429,53 @@ Both v160b and v161a were *killed prematurely* on first launch (no error in log;
 
 ---
 
+## 2026-06-16 — mscoco_v160c λ_xmodal_commit sweep (mscoco_v160b base + λ 0.025 → 0.05) — **Clean retrieval ↔ collision trade-off: λ=0.05 gives DNA +0.009 (+7.6 %) and collision ratio 1.72× → 1.63× at cost of mAP −0.003 / P@1 −0.009. No new champion: mscoco_v160b retains MSCOCO mAP/P@1 champion; mscoco_v160c is Pareto-comparable slightly-better-compositional cell. Sweet spot is around 0.025-0.05.**
+
+🟢 Hyperparameter sweep validating MSCOCO Eq.(8) sweet spot. mscoco_v160c = mscoco_v160b + `--lambda_xmodal_commit 0.025 → 0.05` (single delta). Tests whether doubling λ partially compensates for MSCOCO's 8.2 % rate-limited caption coverage.
+
+| Tag | mAP | P@1 | P@10 | DNA | cbT | NMI ↓ | L↔L ↓ | B2 | dead ↓ | cbT/DNA |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| mscoco_v144a | 0.5693 | 0.812 | 0.808 | 0.126 | 0.291 | 0.660 | 0.707 | 0.138 | 0.085 | 2.31× |
+| mscoco_v160a (λ=0.025) | 0.5743 | 0.826 | 0.820 | 0.090 | 0.218 | 0.726 | 0.802 | 0.147 | 0.012 | 2.42× |
+| **mscoco_v160b (λ=0.025)** | **0.6134** ★ | **0.897** ★ | **0.890** ★ | 0.119 | 0.205 | 0.726 | 0.755 | 0.166 | **0.000** | 1.72× |
+| **mscoco_v160c (λ=0.05)** | 0.6102 | 0.888 | 0.879 | **0.128** ★ | 0.209 | **0.722** | **0.749** | **0.167** | **0.000** | **1.63× ★** |
+
+Codewords: both v160b and v160c [128, 128, 128, 128, 128, 128] (full utilization).
+
+### Δ v160c vs v160b
+
+| Axis | Δ |
+|---|---:|
+| mAP / P@1 / P@10 | −0.003 / −0.009 / −0.011 |
+| DNA-uniq | **+0.009** (+7.6 %) |
+| collision ratio | **1.72× → 1.63×** (closer to bijection) |
+| NMI / L↔L | −0.004 / −0.006 |
+| B2 / dead | tied |
+
+### Findings
+
+1. **No dominance — clean Pareto trade-off**. λ ↑ trades small retrieval for non-trivial DNA-uniq/collision gains. v160b and v160c sit at adjacent Pareto points.
+2. **MSCOCO sweet spot is 0.025-0.05**. Rate-limited gradient hypothesis confirmed: compensation works but is NOT free.
+3. **Cross-dataset asymmetry**. On Flickr (100 % captions) the v160a→v160b delta was huge (mAP −0.022 + B1/B2/DNA gains); doubling λ on MSCOCO causes a much smaller version (mAP −0.003, DNA +0.009).
+
+### Verdict
+
+- **mscoco_v160b (λ=0.025) retained as MSCOCO mAP/P@1/P@10 champion.**
+- **mscoco_v160c (λ=0.05) is slight-compositional Pareto cell.**
+- **No new champion — v160c is Pareto-comparable, not dominant.**
+
+### Files
+
+- [scripts/train_mscoco_v160c_v160b_xmodalCommitHigh_qwen3.sh](scripts/train_mscoco_v160c_v160b_xmodalCommitHigh_qwen3.sh)
+
+### Suggested follow-ups
+
+1. **λ_xmodal_commit sweep extension on MSCOCO**: {0.0125, 0.075, 0.1} — fill the curve.
+2. **v160b + L=4** (pending — DNA breakthrough path).
+3. **mscoco_v160b with `text_code_kl_conf_threshold` ↑** (0.2 → 0.4) — orthogonal axis.
+
+---
+
 ## 2026-06-16 — mscoco_v160a + mscoco_v160b cross-dataset ports of Uni-Code Eq.(8) — **mscoco_v160b NEW MSCOCO MULTI-AXIS CHAMPION: mAP 0.6134 (+0.044 = +7.7 % relative over mscoco_v144a 0.5693), P@1 0.8970 (+0.085 = +10.5 %), B2 0.166 (+0.028 over mscoco_v148b 0.147), dead 0.000 (first MSCOCO cell with all 6 codebooks at full utilization [128]×6). Flickr-vs-MSCOCO trade-off direction REVERSES: Flickr v160b paid mAP for compositional gain; MSCOCO v160b gains BOTH mAP AND compositional. mscoco_v160a (v144a + Eq.8) is a moderate +0.005 mAP gain.**
 
 🟢 **Cross-dataset validation of Uni-Code Eq.(8) cross-modal commitment loss.** Both Flickr v160a (mAP champion) and v160b (4-axis interpretability/collision champion) were ported verbatim to MSCOCO with no recipe changes (only `--dataset MSCOCO`, MSCOCO cache, Qwen3 v4 captions). MSCOCO has 8.2 % caption coverage (vs Flickr's 100 %), so the Eq.(8) cross-modal commit term only fires on ~8 % of training batches.
