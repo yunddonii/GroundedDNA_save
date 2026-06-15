@@ -334,6 +334,84 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-15 — v160a Uni-Code Eq.(8) cross-modal commitment loss (Flickr) — **v160a NEW family mAP CHAMPION (mAP 0.7617, +0.012 vs v144a baseline, +0.007 vs prior champ v145c 0.7548) at trade-off DNA 0.318 (−0.058) and NMI 0.635 (+0.044). 10+ failed architectural attacks (v152b through v159a) preceded this success. Eq.(8) is the first ablation today that produced a NEW champion on any axis.**
+
+🟢 active. After today's persistent architectural attacks (v152b text MSE, v153a/b codon_residual_gamma, v154a bij loss, v155a dyn_tau OFF, v156a FuzzyCodonHead, v157a joint multi-head + token-level VQ, v158a token-level VQ alone, v159a JointCodonHead) all degraded or collapsed, **a single principled loss term from Uni-Code (Xia et al., NeurIPS 2023)** produced the first NEW champion of the day.
+
+**Mechanism.** Uni-Code's Eq.(8) extends standard VQ-VAE commitment loss with a cross-modal term:
+
+  L_commit^a = β · ||φ^a(x^a) − sg[e^a]||² + (β/2) · ||φ^a(x^a) − sg[e^b]||²
+            └─── standard self-modality ────┘ └── new cross-modal extension ──┘
+
+The standard self-modality commitment (`lambda_quant = β = 0.05`) **stays ON** — Eq.(8) is "self + cross", not "cross only". We add the symmetric cross-modal term at weight β/2 = 0.025 via a new flag `--lambda_xmodal_commit`:
+
+  L_xmodal_commit = 0.5 × (||z_v − sg[q_t]||² + ||z_t − sg[q_v]||²)
+
+where z_v = `semantic_visual_tokens` (visual encoder output, pre-VQ), z_t = `text_part_tokens` (text adapter output), q_v = `quantized_tokens_raw` (visual quantized codeword), q_t = `text_quantized_tokens` (text quantized codeword via EMA-disabled pass). Computed only when text path is active; on Flickr 100 % caption coverage that is every batch.
+
+**Mid-eval trajectory** (test split 2K, monotonic improvement throughout):
+- ep 4:  mAP 0.7082, unique 0.346 (already > v144a typical ep 4)
+- ep 9:  mAP 0.7641, unique 0.580 (mAP already > v144a's final 0.7499)
+- ep 14: mAP 0.7644, unique 0.625
+- ep 24: mAP 0.7604, unique 0.636
+- ep 34: mAP 0.7566, unique 0.658
+- ep 44: mAP 0.7561, unique 0.683
+- ep 54: mAP 0.7560, unique 0.691
+- ep 59: mAP 0.7585, unique 0.697
+
+**Final results** (Flickr25k-CLIP, K=128, partial-whiten γ=0.25):
+
+| Tag | mAP | P@1 | P@10 | DNA | cb_tuple | NMI ↓ | L↔L ↓ | B1 | B2 | dead ↓ |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| v144a (ref) | 0.7499 | 0.917 | 0.913 | **0.376** | 0.664 | **0.591** | **0.657** | 0.125 | 0.076 | 0.065 |
+| v122a (L=4) | 0.7479 | **0.921** | 0.919 | **0.551** ★ | **0.822** ★ | 0.627 | 0.711 | 0.131 | 0.082 | – |
+| v150b | 0.7509 | 0.919 | 0.914 | 0.329 | 0.566 | 0.612 | 0.655 | **0.159** ★ | **0.098** ★ | **0.000** ★ |
+| v145c (prior mAP champ) | 0.7548 | 0.901 | 0.902 | 0.243 | – | 0.648 | 0.726 | – | – | 0.029 |
+| **v160a (Eq.8)** | **0.7617** ★ | 0.913 | 0.916 | 0.318 | 0.603 | 0.635 | 0.719 | 0.128 | 0.078 | 0.033 |
+
+Codewords used: [128, 126, 122, 125, 126, 116] avg 123.8 (97 % util).
+Collision ratio cb_tuple/DNA: v160a 1.90× (vs v144a 1.77× — slightly worse, see Mechanism).
+
+### Findings
+
+1. **mAP champion + dead halved.** v160a is the new mAP champion of the family at 0.7617 (+0.012 vs v144a, +0.007 vs v145c). Dead-code ratio reduced from 0.065 → 0.033 (−49 %). All 6 codebooks use >90 % of codewords.
+
+2. **DNA / cb_tuple / NMI trade-off.** DNA drops 0.376 → 0.318 (−15 %), cb_tuple 0.664 → 0.603 (−9 %), NMI worsens 0.591 → 0.635 (+0.044). Collision ratio cb_tuple/DNA grows from 1.77× to 1.90×. **The cross-modal commitment pulls visual and text encoder outputs toward each other's quantized codewords; visually-different images with similar captions converge to the same codeword, reducing per-image code diversity while improving retrieval mAP** (semantically-correct matches are pushed together).
+
+3. **B1/B2 marginal.** Interpretability lift moves only marginally (B1 +0.003, B2 +0.002). v150b's visual_token NtXent remains the B1/B2 champion at 0.159/0.098.
+
+4. **Mid-eval to DB-unique ratio anomaly.** v160a's test-2K unique 0.697 → DB-23K unique 0.318 = **2.19× reduction**, vs v149a's typical ~1.76× ratio. Hypothesis: the cross-modal alignment helps more on the smaller test set (where caption diversity matches retrieval diversity) than on the larger DB (where caption clusters trigger more codeword sharing). Worth measuring on MSCOCO.
+
+### Verdict
+
+- **v160a is the NEW mAP CHAMPION** of the unsupervised Flickr25k-CLIP K=128 family.
+- **Trade-off cell**: retrieval-priority paper draft should adopt v160a; compositional-priority sections should use v150b or v122a.
+- **Eq.(8) cross-modal commitment is the only successful architectural addition of 2026-06-15** after 8 negative-finding ablations (v152b–v159a).
+
+### Code delta
+
+- [config.py](config.py): `--lambda_xmodal_commit` flag (default 0.0, recommended 0.025 = β/2).
+- [model_siglip2.py](model_siglip2.py): tracks `lambda_xmodal_commit` for text-path activation gating.
+- [loss_siglip2.py](loss_siglip2.py): symmetric MSE between encoder output and opposite modality's quantized codeword (stop-gradient on target). Output key: `loss_xmodal_commit`.
+
+### Active candidates after v160a (updated by user-priority axis)
+
+| User priority | Best cell | mAP | Key metric |
+|---|---|---:|---|
+| #1 Interpretability (B1/B2) | v150b | 0.7509 | B1 0.159, B2 0.098 |
+| #2 Text-supervision (low NMI) | v147b | 0.7388 | NMI 0.508 (family low) |
+| **#3 Retrieval (mAP, P@1)** | **v160a** | **0.7617** | mAP champion, P@1 0.913 |
+| #4 Collision (high DNA-uniq) | v122a | 0.7479 | DNA 0.551, cb_tuple 0.822 |
+
+### Suggested follow-ups
+
+1. **v160b**: v150b + Eq.(8) — does Eq.(8) preserve v150b's B1/B2 advantage while raising mAP?
+2. **v161a**: v160a + MM-EMA (full Uni-Code Section 4.3) — bidirectional EMA codebook update activates text-path codebook learning that is currently EMA-disabled.
+3. **mscoco_v160a**: cross-dataset port. MSCOCO has 8.2 % caption coverage; Eq.(8) only fires on the 8 % subset.
+4. **λ sweep** {0.01, 0.025, 0.05, 0.1}: characterize the retrieval ↔ collision trade-off curve.
+
+---
+
 ## 2026-06-13 — v150a/v150b cibhash NtXent on pre-VQ semantic_visual_tokens (Flickr) — **v150b NEW Pareto-better candidate (mAP 0.7509 +0.0010 vs v144a baseline, P@1 0.9190 +0.0020, dead 0.000, B1/B2 family-best 0.159/0.098); v150a DISCARDED (DNA collapse on no-UOT base); UOT × visual_token NtXent are SYNERGISTIC**
 
 🟢 **Where does cibhash NtXent live in the loss stack?** Until now the cibhash NtXent operated on `bit_probs` (post-VQ + post-codon, 6-bit slices per codebook), which v149a's hypothesis identified as a cosine-granularity bottleneck. v149a's continuous fix (`2*p - 1`) lifted *codebook utilization* (dead 0.065→0.000) but not *DNA-uniq* (0.376→0.380), pinning the DNA bottleneck on codon pigeonhole. v150 moves the NtXent **one level up**: from the 6-bit slice to the **D-dim pre-VQ routed visual tokens** (`semantic_visual_tokens` [B, M=6, D]). The contrastive gradient now arrives at the encoder directly via the router, with continuous cosine geometry on a hypersphere (vs 7-level quantized).

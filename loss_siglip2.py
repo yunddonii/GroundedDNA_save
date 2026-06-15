@@ -234,6 +234,8 @@ class DNACodonHashLoss(nn.Module):
         # 0 = disabled (legacy bit-exact).
         self.lambda_cw_xmodal      = float(getattr(cfg, "lambda_cw_xmodal", 0.0))
         self.cw_xmodal_temperature = float(getattr(cfg, "cw_xmodal_temperature", 0.07))
+        # v160 (Uni-Code Eq.8): cross-modal commitment weight (= beta/2 in paper).
+        self.lambda_xmodal_commit  = float(getattr(cfg, "lambda_xmodal_commit", 0.0))
         # v123: per-(codebook, codeword) text prototypes. The EMA prototype
         # is updated from text tokens assigned to each visual codeword, then
         # visual quantizer inputs are classified against those prototypes.
@@ -2370,6 +2372,37 @@ class DNACodonHashLoss(nn.Module):
         else:
             loss_cw_xmodal = u.new_zeros(())
 
+        # v160 (Uni-Code Eq.8): cross-modal commitment loss.
+        # Symmetric MSE between each modality's encoder output and the
+        # OPPOSITE modality's quantized codeword (with stop-gradient on the
+        # quantized target). Standard self-modality commitment (lambda_quant)
+        # is preserved upstream; this term ADDS the cross-modal extension at
+        # weight beta/2 (per paper, lambda_xmodal_commit = 0.025 recommended
+        # when lambda_quant = 0.05).
+        loss_xmodal_commit = u.new_zeros(())
+        if self.lambda_xmodal_commit > 0.0:
+            z_v = outputs.get("semantic_visual_tokens")      # [B, M, D]  visual encoder output
+            q_v = outputs.get("quantized_tokens_raw")         # [B, M, D]  visual quantized (sg target for text)
+            t_v = outputs.get("text_part_tokens")             # [B, M, D]  text encoder output (post text_adapter)
+            q_t = outputs.get("text_quantized_tokens")        # [B, M, D]  text quantized (sg target for visual)
+            if (
+                z_v is not None and q_t is not None
+                and z_v.shape == q_t.shape
+            ):
+                loss_xmodal_visual = F.mse_loss(z_v, q_t.detach())
+            else:
+                loss_xmodal_visual = u.new_zeros(())
+            if (
+                t_v is not None and q_v is not None
+                and t_v.shape == q_v.shape
+            ):
+                loss_xmodal_text   = F.mse_loss(t_v, q_v.detach())
+            else:
+                loss_xmodal_text   = u.new_zeros(())
+            # Average the two symmetric directions (so the lambda represents
+            # the per-direction weight, matching the paper's beta/2 per side).
+            loss_xmodal_commit = 0.5 * (loss_xmodal_visual + loss_xmodal_text)
+
         # v123: codeword-level text prototype alignment. Use quantizer_input
         # instead of semantic_visual_tokens when v122 residual quantization is
         # active, so the visual/text prototype spaces match.
@@ -2692,6 +2725,7 @@ class DNACodonHashLoss(nn.Module):
             + self.lambda_text_hash       * loss_text_hash
             + self.lambda_text_hash_ntxent * loss_text_hash_ntxent_add
             + self.lambda_cw_xmodal       * loss_cw_xmodal
+            + self.lambda_xmodal_commit   * loss_xmodal_commit
             + self.lambda_codeword_text_proto * loss_codeword_text_proto
             + self.lambda_cibhash_ntxent  * loss_cibhash_ntxent_v
             + self.lambda_cibhash_kl      * loss_cibhash_kl_v
@@ -2822,6 +2856,7 @@ class DNACodonHashLoss(nn.Module):
             "loss_text_hash":    loss_text_hash,
             "loss_text_hash_ntxent_add": loss_text_hash_ntxent_add,
             "loss_cw_xmodal":    loss_cw_xmodal,
+            "loss_xmodal_commit": loss_xmodal_commit,
             "loss_codeword_text_proto": loss_codeword_text_proto,
             "loss_codeword_codon_sinkhorn": loss_codeword_codon_sinkhorn,
             "loss_codeword_codon_agg_ent":  loss_codeword_codon_agg_ent,

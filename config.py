@@ -1235,6 +1235,20 @@ class Config():
             type=float, default=0.07,
             help='Temperature for v93 cross-modal codeword InfoNCE. '
                  'Default 0.07 (CLIP-style).')
+        # v160: cross-modal commitment loss (Uni-Code Eq.(8), NeurIPS 2023).
+        # Adds (beta/2)*||phi^a(x) - sg[e^b]||^2 to the encoder commitment,
+        # i.e., visual encoder commits to text-derived quantized codeword
+        # AND text encoder symmetrically commits to visual quantized codeword.
+        # Standard self-modality commitment (lambda_quant) stays ON.
+        loss_arg.add_argument('--lambda_xmodal_commit',
+            dest='lambda_xmodal_commit', type=float, default=0.0,
+            help='v160 (Uni-Code Eq.8): cross-modal commitment loss weight = '
+                 'beta/2 in the paper notation. Recommended 0.025 when '
+                 'lambda_quant = 0.05 (so weight ratio matches beta/(beta/2) '
+                 '= 2:1). Symmetric across visual and text. Requires the '
+                 'text-quantization path to be active (i.e., one of '
+                 'lambda_text_hash / lambda_text_hash_ntxent / lambda_cw_xmodal '
+                 '/ lambda_xmodal_commit > 0). Default 0.0 disables.')
         # ---------- v144: text -> code KL distillation -----------------
         # Per-codebook distribution matching between visual and text views.
         # For each local codebook m (cb0/global excluded by default), build

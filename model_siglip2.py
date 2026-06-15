@@ -1517,6 +1517,8 @@ class SigLIP2SemanticOTModel(nn.Module):
         # InfoNCE between visual `quantized_tokens` and `text_quantized_tokens`
         # per codebook. Single text-path forward serves both v91 and v93.
         self.lambda_cw_xmodal            = float(getattr(args, "lambda_cw_xmodal", 0.0))
+        # v160 (Uni-Code Eq.8): cross-modal commitment weight.
+        self.lambda_xmodal_commit        = float(getattr(args, "lambda_xmodal_commit", 0.0))
         self.lambda_codeword_text_proto  = float(getattr(args, "lambda_codeword_text_proto", 0.0))
         # v85: expert-choice-inspired codebook-side token filtering.
         self.routing_codebook_choice = bool(getattr(args, "routing_codebook_choice", False))
@@ -2779,10 +2781,12 @@ class SigLIP2SemanticOTModel(nn.Module):
         # lambda_text_hash_ntxent>0). Previously gated only by MSE-form +
         # cw_xmodal.
         _lam_text_hash_ntxent_local = float(getattr(self, "lambda_text_hash_ntxent", 0.0))
+        _lam_xmodal_commit_local = float(getattr(self, "lambda_xmodal_commit", 0.0))
         _text_path_active = (
             (float(self.lambda_text_hash)        > 0.0
              or _lam_text_hash_ntxent_local      > 0.0
-             or float(self.lambda_cw_xmodal)     > 0.0)
+             or float(self.lambda_cw_xmodal)     > 0.0
+             or _lam_xmodal_commit_local         > 0.0)
             and text_quantizer_tokens is not None
             and text_quantizer_tokens.shape == (B, NUM_SEMANTIC_PARTS, D)
         )
