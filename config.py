@@ -974,6 +974,38 @@ class Config():
                  'text_part_tokens before the text-only DNA/codeword path '
                  'and codeword text-prototype loss.')
 
+        # ---------- v162: grounded text routing (Stage-2 top-k token pruning) -----
+        # Visually-routed semantic_visual_tokens (Stage-1 OT output) act as
+        # queries against per-codebook local text tokens; top-k_t tokens are
+        # softmax-weighted and pooled to form a refined per-codebook text
+        # embedding. Overwrites text_part_tokens flowing into the loss layer.
+        # Requires cached_text_tokens (extract_clip_text_token_features.py).
+        siglip2_arg.add_argument('--grounded_text_routing',
+            dest='grounded_text_routing', action='store_true', default=False,
+            help='v162: enable Stage-2 OT-based token pruning to refine '
+                 'per-codebook text embeds. Requires text_tokens.f16.npy '
+                 'cache (extract_clip_text_token_features.py).')
+        siglip2_arg.add_argument('--grounded_text_k_t',
+            dest='grounded_text_k_t', type=int, default=5,
+            help='v162: top-k_t local text tokens to keep per codebook in '
+                 'Stage-2 routing.')
+        siglip2_arg.add_argument('--grounded_text_eps',
+            dest='grounded_text_eps', type=float, default=0.05,
+            help='v162: temperature (entropic-OT epsilon) for Stage-2 '
+                 'softmax-attention scoring. Smaller = sharper top-k.')
+        siglip2_arg.add_argument('--grounded_text_stage1_sg',
+            dest='grounded_text_stage1_sg',
+            action=argparse.BooleanOptionalAction, default=True,
+            help='v162: stop-gradient on Stage-1 semantic_visual_tokens when '
+                 'used as Stage-2 query. Default True (decoupled cascade).')
+        siglip2_arg.add_argument('--grounded_text_skip_global',
+            dest='grounded_text_skip_global',
+            action=argparse.BooleanOptionalAction, default=True,
+            help='v162: keep C_0 (global slot) text embed UNCHANGED; only '
+                 'refine local 5 codebooks. Default True (global caption is '
+                 'a whole-image summary; token-pruning is meaningful only '
+                 'for local semantic parts).')
+
         # ---------- LR scheduler ----------------------------------------
         # The legacy default `StepLR(step_size=10, gamma=1e-4)` killed lr
         # to ~0 after epoch 10, freezing training. Cosine is the safe new

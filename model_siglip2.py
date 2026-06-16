@@ -1398,6 +1398,19 @@ class SigLIP2SemanticOTModel(nn.Module):
             )
             self.text_token_ln = nn.LayerNorm(self.d_model)
 
+        # v162: grounded text routing (Stage-2 top-k token pruning)
+        self.grounded_text_routing     = bool(getattr(args, "grounded_text_routing",     False))
+        self.grounded_text_k_t         = int (getattr(args, "grounded_text_k_t",         5))
+        self.grounded_text_eps         = float(getattr(args, "grounded_text_eps",        0.05))
+        self.grounded_text_stage1_sg   = bool(getattr(args, "grounded_text_stage1_sg",   True))
+        self.grounded_text_skip_global = bool(getattr(args, "grounded_text_skip_global", True))
+        if self.grounded_text_routing:
+            # Project text-token cache (already in CLIP D=512 space) through
+            # the SHARED text_adapter so it lands in d_model space — the
+            # same projection the global text_part_tokens receive — keeping
+            # Stage-2 outputs comparable to baseline embeds in distribution.
+            self.grounded_text_ln = nn.LayerNorm(self.d_model)
+
         # ---------- Sinkhorn router (5 local parts) ----------------------
         self.num_semantic_parts: int = int(
             getattr(args, "num_semantic_parts", NUM_SEMANTIC_PARTS)
@@ -1757,6 +1770,66 @@ class SigLIP2SemanticOTModel(nn.Module):
         """Trainer calls this once per epoch so the router can compute the
         annealed epsilon. v33a only; no-op when annealing is off."""
         self._current_epoch = int(epoch)
+
+    def _grounded_text_routing(
+        self,
+        semantic_visual_tokens: torch.Tensor,        # [B, M, D] — Stage-1 routed visual repr per codebook
+        cached_text_tokens:     torch.Tensor,        # [B, M, T, D_proj] — CLIP-projected text tokens per slot
+        cached_text_token_mask: Optional[torch.Tensor],  # [B, M, T] bool (True = real)
+    ) -> torch.Tensor:
+        """v162 Stage-2: visually-grounded top-k_t text token pruning.
+
+        For each codebook m, the routed visual repr v_m queries the M-th
+        slot's T cached text tokens. Tokens score by cosine-similarity-like
+        softmax (eps controls sharpness; eps -> 0 ≈ hard top-1). The top
+        k_t tokens are kept, renormalized, and pooled into a refined per-
+        codebook text embedding that REPLACES the static pooled text embed
+        flowing into the loss layer.
+
+        Returns
+        -------
+        refined : [B, M, D] in d_model space.
+        """
+        B_, M_, T_, _ = cached_text_tokens.shape
+        eps  = float(max(self.grounded_text_eps, 1e-4))
+        k_t  = int(min(max(self.grounded_text_k_t, 1), T_))
+
+        # ---- 1) project text tokens into d_model space via shared adapter ----
+        # Identical projection as the global text_part_tokens path so the
+        # refined embed is distributionally comparable to baseline embeds.
+        tk_flat = cached_text_tokens.reshape(B_ * M_ * T_, -1)
+        if isinstance(self.text_adapter, nn.ModuleList):
+            # per-slot: apply slot-m adapter to slot-m tokens
+            tk_per_slot: List[torch.Tensor] = []
+            tk_reshape = cached_text_tokens.reshape(B_, M_, T_, -1)
+            for m in range(M_):
+                tk_m = self.text_adapter[m](tk_reshape[:, m].reshape(B_ * T_, -1))
+                tk_per_slot.append(tk_m.reshape(B_, T_, self.d_model))
+            tk = torch.stack(tk_per_slot, dim=1)              # [B, M, T, D]
+        else:
+            tk = self.text_adapter(tk_flat).reshape(B_, M_, T_, self.d_model)
+
+        # ---- 2) Stage-1 query (with optional stop-gradient) -----------------
+        q = semantic_visual_tokens
+        if self.grounded_text_stage1_sg:
+            q = q.detach()                                    # [B, M, D]
+
+        # ---- 3) cosine-scaled scores per (b, m, t) --------------------------
+        q_n  = F.normalize(q,  dim=-1)                        # [B, M, D]
+        tk_n = F.normalize(tk, dim=-1)                        # [B, M, T, D]
+        scores = (q_n.unsqueeze(2) * tk_n).sum(dim=-1)        # [B, M, T]
+        scores = scores / eps
+        if cached_text_token_mask is not None:
+            scores = scores.masked_fill(~cached_text_token_mask.bool(), -1e4)
+
+        # ---- 4) top-k_t selection + renormalized weighted pool --------------
+        topk_v, topk_idx = scores.topk(k_t, dim=-1)           # [B, M, k_t]
+        topk_w = torch.softmax(topk_v, dim=-1)                # renormalize over k_t
+        idx_exp = topk_idx.unsqueeze(-1).expand(-1, -1, -1, self.d_model)
+        selected = torch.gather(tk, dim=2, index=idx_exp)     # [B, M, k_t, D]
+        refined  = (selected * topk_w.unsqueeze(-1)).sum(dim=2)   # [B, M, D]
+        refined  = self.grounded_text_ln(refined)
+        return refined
 
     def _current_sinkhorn_epsilon(self) -> Optional[float]:
         """Return the annealed Sinkhorn epsilon for the current epoch, or
@@ -2543,6 +2616,34 @@ class SigLIP2SemanticOTModel(nn.Module):
             semantic_visual_tokens = ca_out["semantic_visual_tokens"]
             routing_matrix = ca_out["routing_matrix"]
             local_semantic_visual_tokens = semantic_visual_tokens[:, 1:, :]
+
+        # v162: grounded text routing — visually-routed semantic_visual_tokens
+        # query per-codebook local text tokens (Stage-2 top-k_t pool). The
+        # refined per-codebook text embed REPLACES the static pooled
+        # text_part_tokens that goes into the loss layer.
+        if (
+            self.grounded_text_routing
+            and cached_text_tokens is not None
+            and text_part_tokens is not None
+        ):
+            refined_text = self._grounded_text_routing(
+                semantic_visual_tokens=semantic_visual_tokens,
+                cached_text_tokens=cached_text_tokens,
+                cached_text_token_mask=cached_text_token_mask,
+            )
+            if self.grounded_text_skip_global:
+                # keep C_0 (global slot) unchanged; refine only local 5
+                refined_text = torch.cat(
+                    [text_part_tokens[:, :1, :], refined_text[:, 1:, :]], dim=1,
+                )
+            text_part_tokens  = refined_text                                # [B, 6, D]
+            global_text_token = text_part_tokens[:, 0, :]
+            local_text_tokens = text_part_tokens[:, 1:, :]
+            # overwrite the earlier-frozen out-dict entries so the loss
+            # layer (which reads from outputs) sees the refined embeds.
+            out["text_part_tokens"]   = text_part_tokens
+            out["global_text_token"]  = global_text_token
+            out["local_text_tokens"]  = local_text_tokens
 
         # 6) v32: train-only text injection into the quantizer input.
         # When `--text_inject_train_only=add` and the text path is active,
