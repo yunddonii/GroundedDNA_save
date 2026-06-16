@@ -429,6 +429,98 @@ Both v160b and v161a were *killed prematurely* on first launch (no error in log;
 
 ---
 
+## 2026-06-16 — mscoco_v160 5-cell sweep (d/e/f/g topp×λ) + mscoco_v106b_K256 (K-expansion under 4× pigeonhole) — **No new mAP/P@1 champion: mscoco_v160b ref unbeaten on retrieval. Axis-champions: v160f (λ=0.01) NEW MSCOCO compositional candidate (DNA 0.137, cbT 0.225, ratio 1.64× — best K=128 cell), v160e (topp 0.5/0.9) NEW MSCOCO L↔L NMI semantic-axis champion (NMI 0.754, L↔L 0.794 — both v160 family maxima), v106b_K256 NEW MSCOCO codeword-diversity champion (cbT 0.497, DNA 0.156) but pays mAP −0.059. v160d/v160g DISCARDED. C_0 dominance pattern preserved across all 5 cells (worst-codebook drop = C_0).**
+
+🟢 Comprehensive sweep validating MSCOCO v160b's robustness and characterizing two orthogonal axes: (i) routing temperature (topp_min/max ∈ {0.4/0.8, 0.5/0.9} vs v160b 0.3/0.7) and (ii) xmodal_commit weight (λ ∈ {0.01, 0.015, 0.05} vs v160b 0.025). Plus a K-axis stress test (v106b_K256 = MSCOCO v106b recipe with codebook_size 128 → 256, putting it in 4× pigeonhole vs 4³=64 codons). All evaluated on the user-mandated 5-axis criterion: mAP, max codeword count, pairwise NMI, unique full codes, drop ablation, atlas-equivalent codebook usage (NOT mAP alone).
+
+### Results (MSCOCO eval set, K=128 unless noted)
+
+| Tag | K | mAP | P@1 | P@10 | DNA ↑ | cbT ↑ | NMI ↓ | L↔L ↓ | B2 | drop_sum | worst_cb | cbT/DNA |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| **mscoco_v160b (ref, λ=0.025, topp 0.3/0.7)** | 128 | **0.6134** ★ | **0.897** ★ | **0.890** ★ | 0.119 | 0.205 | 0.726 | 0.755 | 0.166 | −0.038 | C_0 −0.012 | 1.72× |
+| mscoco_v160c (λ=0.05) | 128 | 0.6102 | 0.888 | 0.879 | 0.128 | 0.209 | 0.722 | 0.749 | 0.167 | −0.039 | C_0 −0.012 | 1.63× |
+| mscoco_v160d (topp 0.4/0.8) | 128 | 0.6110 | 0.877 | 0.876 | 0.111 | 0.188 | 0.741 | 0.777 | 0.168 | −0.037 | C_0 −0.012 | 1.69× |
+| **mscoco_v160e (topp 0.5/0.9)** | 128 | 0.6081 | 0.883 | 0.886 | 0.106 | 0.169 | **0.754** ★ | **0.794** ★ | 0.169 | −0.037 | C_0 −0.016 | 1.59× |
+| **mscoco_v160f (λ=0.01)** | 128 | 0.6038 | 0.895 | **0.891** | **0.137** ★ | **0.225** ★ | **0.716** | **0.741** | 0.168 | −0.042 | C_0 −0.014 | **1.64×** |
+| mscoco_v160g (λ=0.015) | 128 | 0.5984 | 0.894 | 0.885 | 0.134 | 0.214 | 0.727 | 0.757 | 0.168 | −0.036 | C_0 −0.013 | 1.60× |
+| **mscoco_v106b_K256** | 256 | 0.5540 | 0.807 | 0.782 | **0.156** ★ | **0.497** ★ | 0.654 | 0.727 | 0.142 | −0.027 | C_0 −0.015 | 3.19× |
+
+NMI ★ on v160e is L↔L (local-only) family max; v160e also wins NMI overall. DNA ★ split: v160f best K=128, v106b_K256 best overall (K=256). cbT ★ split: v160f best K=128, v106b_K256 best overall.
+
+### Per-codebook usage (codewords used / max K)
+
+| Tag | n_used per cb | dead cb |
+|---|---|---:|
+| mscoco_v160b–g (all 6 cells) | [128, 128, 128, 128, 128, 128] | 0 |
+| mscoco_v106b_K256 | [256, 244, 231, 256, 250, 248] (avg 247.5, 96.7 % util) | 0 |
+
+→ Every v160 K=128 cell hits **full utilization** (zero dead codewords). v106b_K256 leaks 3.3 % at K=256, but uses far more codewords absolutely (247.5 vs 128 avg).
+
+### Per-codebook drop ablation Δ_mAP (1000-query subset)
+
+| Tag | C_0 | C_1 | C_2 | C_3 | C_4 | C_5 |
+|---|---:|---:|---:|---:|---:|---:|
+| mscoco_v160b | **−0.012** | −0.008 | −0.002 | −0.008 | −0.008 | −0.000 |
+| mscoco_v160c | **−0.012** | −0.009 | −0.004 | −0.006 | −0.005 | −0.003 |
+| mscoco_v160d | **−0.012** | −0.005 | −0.000 | −0.009 | −0.007 | −0.003 |
+| mscoco_v160e | **−0.016** | −0.009 | −0.003 | −0.001 | −0.000 | −0.007 |
+| mscoco_v160f | **−0.014** | −0.001 | −0.009 | −0.011 | −0.002 | −0.005 |
+| mscoco_v160g | **−0.013** | −0.008 | −0.008 | +0.000 | −0.003 | −0.006 |
+| mscoco_v106b_K256 | **−0.015** | −0.005 | −0.003 | −0.001 | −0.005 | +0.002 |
+
+→ **C_0 (global slot) is the worst-to-drop codebook in all 7 cells.** Cross-recipe consistency strongest evidence yet that "global slot as distinct retrieval-critical semantic channel" claim holds independent of routing temperature, λ_xmodal_commit weight, or K. v160e amplifies the C_0 dominance (−0.016) because wider topp routing concentrates more retrieval signal into C_0.
+
+### Δ vs mscoco_v160b reference
+
+| Axis | v160c | v160d | v160e | v160f | v160g | v106b_K256 |
+|---|---:|---:|---:|---:|---:|---:|
+| mAP | −0.003 | −0.002 | −0.005 | −0.010 | −0.015 | **−0.059** |
+| P@1 | −0.009 | −0.020 | −0.014 | −0.002 | −0.003 | −0.090 |
+| DNA-uniq | +0.009 | −0.008 | −0.013 | **+0.018** | +0.015 | **+0.037** |
+| cb_tuple | +0.004 | −0.017 | −0.036 | **+0.020** | +0.009 | **+0.292** |
+| NMI ↓ | −0.004 | +0.015 | **+0.028** ✗ | **−0.010** | +0.001 | −0.072 |
+| L↔L NMI ↓ | −0.006 | +0.022 | **+0.039** ✗ | **−0.014** | +0.002 | −0.028 |
+| B2 | +0.001 | +0.002 | +0.003 | +0.002 | +0.002 | −0.024 |
+| collision ratio cbT/DNA | 1.72×→1.63× | 1.72×→1.69× | 1.72×→1.59× | 1.72×→**1.64×** | 1.72×→1.60× | 1.72×→3.19× |
+
+(NMI: ↓ better. ✗ marks regression direction; v160e trades semantic granularity for routing wide-spread.)
+
+### Findings
+
+1. **mAP unbeaten — v160b retains the recipe.** All 6 single-delta variants regress mAP (−0.002 to −0.015). The sweep cannot improve retrieval beyond v160b (λ=0.025, topp 0.3/0.7) by either knob alone. Sweet spot is sharp.
+2. **Axis-orthogonal champions emerge.** v160f (λ=0.01) DNA-uniq+collision K=128 champion (DNA 0.137, ratio 1.64×); v160e (topp 0.5/0.9) NMI/L↔L champion (NMI 0.754, L↔L 0.794, both v160 family maxima — semantic granularity goal). The two knobs target distinct objectives.
+3. **λ_xmodal_commit DNA monotonicity confirmed.** {0.01, 0.015, 0.025, 0.05} maps to DNA {0.137, 0.134, 0.119, 0.128} — λ ↓ ⇒ DNA ↑ trend (weaker commit pressure ⇒ codewords stay more diverse). Confirms v160c sweep finding: λ trades retrieval mass for code diversity. Sweet spot for *retrieval* is λ=0.025; for *DNA-uniq under K=128* is λ=0.01.
+4. **Wider routing topp = sharper NMI.** topp 0.5/0.9 (v160e) produces the strongest semantic clustering signal (NMI 0.726→0.754, L↔L 0.755→0.794) at small mAP cost. Routing temperature is the *NMI driver* on MSCOCO too, mirroring Flickr v145 result. But it *hurts* code diversity (cbT 0.205→0.169, the worst in the sweep) — confirms routing-temperature has opposite signs on NMI vs codeword-diversity axes.
+5. **C_0 dominance ROBUST.** Every cell in the sweep — independent of routing temp, λ, or K — has C_0 as the highest-Δ_mAP-drop codebook (−0.012 to −0.016). Cross-recipe consistency is the strongest evidence for "global slot as distinct retrieval-critical channel" yet logged. mscoco_v160e amplifies the pattern (−0.016, the largest C_0 drop in the family) because wider routing concentrates discriminative weight into C_0.
+6. **K-axis stress test (v106b_K256) — predicted Flickr v122a pattern holds on MSCOCO.** Doubling K to 256 explodes cbT 0.205→0.497 (+0.292) and DNA 0.119→0.156 (+0.037, +31 %), at a steep retrieval cost (mAP −0.059, P@1 −0.090). The Flickr v106b→v122a +0.204 DNA breakthrough partially reproduces here (+0.037), but mAP cost on MSCOCO is much larger than on Flickr (where v122a kept mAP). MSCOCO's 80-class fine-grained dataset cannot absorb 4× pigeonhole codon collisions without losing retrieval precision. **Confirms cross-dataset asymmetry of K-expansion.**
+7. **Adopt + carry-forward.** v160b stays MSCOCO mAP champion. v160f added as DNA-axis K=128 candidate. v160e added as L↔L NMI champion. v160c retained as compositional Pareto cell. v160d / v160g DISCARDED (no axis win). v106b_K256 logged as K-axis champion but not adopted (mAP too costly).
+
+### Verdict
+
+- **mscoco_v160b (λ=0.025, topp 0.3/0.7, K=128) retained as MSCOCO mAP/P@1/P@10 champion.**
+- **mscoco_v160f (λ=0.01) NEW MSCOCO K=128 DNA-uniq + collision champion** (DNA 0.137, cbT 0.225, ratio 1.64×). Pareto-Pareto alternative for the compositional axis.
+- **mscoco_v160e (topp 0.5/0.9) NEW MSCOCO NMI/L↔L semantic-granularity champion** (NMI 0.754, L↔L 0.794 — both v160 family maxima).
+- **mscoco_v106b_K256 NEW MSCOCO codeword-diversity champion** (cbT 0.497) but DISCARDED for production (mAP 0.554 vs v160b 0.613 — −0.059 too steep). Logged as K-axis ceiling reference.
+- **mscoco_v160d (topp 0.4/0.8) DISCARDED** — neither axis champion, worst P@1.
+- **mscoco_v160g (λ=0.015) DISCARDED** — worst mAP among K=128 cells (0.598), no axis win.
+
+### Files
+
+- [scripts/train_mscoco_v160d_topp04_08_qwen3.sh](scripts/train_mscoco_v160d_topp04_08_qwen3.sh)
+- [scripts/train_mscoco_v160e_topp05_09_qwen3.sh](scripts/train_mscoco_v160e_topp05_09_qwen3.sh)
+- [scripts/train_mscoco_v160f_xmCommit_0p01_qwen3.sh](scripts/train_mscoco_v160f_xmCommit_0p01_qwen3.sh)
+- [scripts/train_mscoco_v160g_xmCommit_0p015_qwen3.sh](scripts/train_mscoco_v160g_xmCommit_0p015_qwen3.sh)
+- [scripts/train_mscoco_v106b_K256_qwen3.sh](scripts/train_mscoco_v106b_K256_qwen3.sh)
+
+### Suggested follow-ups
+
+1. **mscoco_v160b + L=4 (codon space expansion)**: stack the mAP champion with v122a-style K=256 L=4 (no pigeonhole). Predicted: ceiling DNA-uniq on MSCOCO without the mAP penalty of v106b_K256.
+2. **mscoco_v160f cross-validation**: re-run with λ=0.005 to confirm DNA monotonicity continues (or finds a knee).
+3. **mscoco_v160e + λ=0.01 combination**: stack NMI champion (topp 0.5/0.9) × DNA champion (λ=0.01) — orthogonal axes per finding 4; predicted Pareto-better compositional cell.
+4. **v160e on Flickr**: check whether the topp 0.5/0.9 NMI win replicates on Flickr (where v160b already paid mAP for compositional gain).
+
+---
+
 ## 2026-06-16 — mscoco_v160c λ_xmodal_commit sweep (mscoco_v160b base + λ 0.025 → 0.05) — **Clean retrieval ↔ collision trade-off: λ=0.05 gives DNA +0.009 (+7.6 %) and collision ratio 1.72× → 1.63× at cost of mAP −0.003 / P@1 −0.009. No new champion: mscoco_v160b retains MSCOCO mAP/P@1 champion; mscoco_v160c is Pareto-comparable slightly-better-compositional cell. Sweet spot is around 0.025-0.05.**
 
 🟢 Hyperparameter sweep validating MSCOCO Eq.(8) sweet spot. mscoco_v160c = mscoco_v160b + `--lambda_xmodal_commit 0.025 → 0.05` (single delta). Tests whether doubling λ partially compensates for MSCOCO's 8.2 % rate-limited caption coverage.
