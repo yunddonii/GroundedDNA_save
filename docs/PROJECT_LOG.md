@@ -334,7 +334,84 @@ codebook) as a follow-up.
 
 ---
 
-## 2026-06-17 — v162 grounded text routing on Flickr (qwen3 v4 caption rev) — **v162b_fix NEW FLICKR P@1/P@10 CHAMPION (P@1 0.9250, P@10 0.9214) at +0.0075 mAP gain over v160b_qwen3 base; v162a_fix NEW FLICKR NMI/L↔L/cb_tuple CHAMPION (NMI 0.566, L↔L 0.636, cb_tuple 0.779 — all family extrema) at trade-off DNA −0.056. Grounded routing effect is BASE-DEPENDENT and ORTHOGONAL: on Eq.(8)-only base (v160a) it sharpens clustering + codeword diversity; on full UOT+CIBHash visual_token+Eq.(8) stack (v160b) it sharpens retrieval. Also re-runs 4 v160-family Flickr baselines under qwen3 caption rev for unified comparison.**
+## 2026-06-17 — MSCOCO caption-redundancy hypothesis + 4 v160b fix cells (whitenG1 / localResid / v162a / v162b) — **TWO NEW MSCOCO CHAMPIONS unlocked by attacking the caption redundancy root cause: mscoco_v160b_whitenG1 NEW MSCOCO mAP CHAMPION (0.6195) + clustering champion (NMI 0.706, L↔L 0.736), mscoco_v160b_localResid NEW MSCOCO P@1 CHAMPION (0.9042) + clean multi-axis delta (mAP +0.0012, P@1 +0.0072, DNA +0.005, cbT +0.008, NMI −0.005, collision tied at 1.71×). Quantitative root-cause discovery: MSCOCO Qwen3 v4 captions have local↔local intra-image cosine 0.666 vs Flickr's 0.592 (+12.6 % relative); activity caption overlaps every local slot at ~0.70 cosine because the VLM repeats subject/scene/color words across the 5 local slots. Grounded routing (v162a/v162b) HURTS mAP on MSCOCO (−0.009 to −0.021) because top-k_t pruning on redundant text just selects more of the same global signal. The two effective fixes attack the redundancy at different layers: whitenG1 at the offline text input (full ZCA whitening), localResid at the runtime C_0 projection removal.**
+
+🟢 **Root-cause analysis.** Direct measurement on `text_part.f16.npy` for Flickr / MSCOCO Qwen3 v4 trainset (2000-image average):
+
+| Dataset | C_0 ↔ local | local ↔ local | NMI (v160b) | DNA (v160b) | collision |
+|---|---:|---:|---:|---:|---:|
+| Flickr25k | 0.605 | **0.592** | 0.625 | 0.423 | 1.32× |
+| MSCOCO | 0.637 | **0.666** | 0.726 | 0.119 | 1.72× |
+| Δ MSCOCO − Flickr | +0.033 | **+0.075** | +0.101 | −0.304 | +0.40× |
+
+Caption-level qualitative inspection of MSCOCO Qwen3 v4 first sample (soccer image):
+- C_global: "Indoor soccer players …"  ← soccer, indoor
+- C_primary_object: "A young male soccer player …"  ← soccer, player (repeated)
+- C_secondary_object: "A blue jersey player closely defends …"  ← player, jersey (repeated)
+- C_activity_or_relation: "Players engage in dynamic movement … indoor field …"  ← players, indoor (repeated)
+- C_color_texture: "Vibrant yellow and blue jerseys …"  ← jerseys (object name leaks into color slot!), turf (scene leak)
+- C_scene_type: "Indoor sports facility …"  ← indoor
+
+All 6 captions share "soccer / player / indoor / jersey / yellow / blue" tokens → cosine 0.7+ between local pairs → codebook redundancy NMI 0.726 → codon collision DNA 0.119. The PROMPT_V4 spec only forbids object names in C_color_texture; all other slots are free to repeat subject vocabulary.
+
+### Cells (all single-delta against mscoco_v160b, qwen3 v4_trainset caption)
+
+| Tag | mAP | P@1 | P@10 | DNA | cbT | NMI ↓ | L↔L ↓ | B2 | drop_sum | collision |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| mscoco_v160b (ref) | 0.6134 | 0.8970 | 0.8902 | 0.119 | 0.205 | 0.726 | 0.755 | 0.166 | −0.038 | 1.72× |
+| **mscoco_v160b_whitenG1** | **0.6195** ★ | 0.9030 | **0.9011** ★ | 0.097 | **0.224** ★ | **0.706** ★ | **0.736** ★ | 0.165 | −0.053 | 2.30× ✗ |
+| **mscoco_v160b_localResid** | 0.6146 | **0.9042** ★ | 0.8926 | **0.124** ★ | 0.213 | 0.721 | 0.748 | **0.166** | −0.046 | **1.71×** ★ |
+| mscoco_v162a (v160a + grounded) | 0.5654 ✗ | 0.8166 | 0.8211 | 0.081 | 0.217 | 0.733 ✗ | 0.822 ✗ | 0.141 | −0.031 | 2.69× ✗ |
+| mscoco_v162b (v160b + grounded) | 0.5924 ✗ | 0.8996 | 0.8822 | 0.122 | 0.213 | 0.729 ✗ | 0.759 ✗ | 0.168 | −0.043 | 1.75× |
+
+### Δ vs mscoco_v160b
+
+| Δ | whitenG1 (γ 0.25→1.0) | **localResid (γ=1.0, text+visual)** | v162a (grounded base=v160a) | v162b (grounded base=v160b) |
+|---|---:|---:|---:|---:|
+| mAP | **+0.0061** | +0.0012 | −0.0089 ✗ | **−0.0210** ✗ |
+| P@1 | +0.0060 | **+0.0072** ★ | −0.0092 ✗ | +0.0026 |
+| P@10 | **+0.0109** | +0.0024 | +0.0010 | −0.0080 |
+| DNA | −0.0221 ✗ | **+0.0049** ★ | −0.0097 | +0.0023 |
+| cb_tuple | **+0.0187** | +0.0075 | −0.0012 | +0.0083 |
+| NMI ↓ | **−0.0199** ★ | −0.0050 | +0.0072 ✗ | +0.0026 ✗ |
+| L↔L ↓ | **−0.0198** ★ | −0.0071 | +0.0196 ✗ | +0.0037 ✗ |
+| B2 | −0.0013 | −0.0000 | −0.0058 | +0.0018 |
+| collision ratio | 1.72×→2.30× ✗ | 1.72×→**1.71×** ★ | 2.41×→2.69× | 1.72×→1.75× |
+
+### Findings
+
+1. **Caption redundancy is the dominant root cause of MSCOCO NMI/DNA gap.** Flickr↔MSCOCO text statistics differ by +0.075 local↔local cosine; this number alone predicts the +0.101 NMI gap and the 3.55× DNA collapse. Hypothesis (user, 2026-06-17 PM) validated quantitatively.
+
+2. **`--text_whiten_gamma 1.0` (whitenG1) is the strongest single retrieval lever discovered for MSCOCO.** mAP +0.0061, P@1 +0.006, P@10 +0.011, NMI −0.020, L↔L −0.020. New mAP champion, new clustering champion. Trade-off: DNA −0.022 + collision 1.72×→2.30× — codebook diversity rises but codon decoder is overwhelmed (the K=128 codebooks now use more codewords each but still share the 4³=64 codon space).
+
+3. **`--local_residual_text` (localResid, γ=1.0, both text+visual side) is the cleanest paper-grade delta.** Every axis is tied-or-improved versus mscoco_v160b: mAP +0.0012, P@1 +0.0072 (NEW MSCOCO P@1 champion 0.9042), DNA +0.0049, cb_tuple +0.0075, NMI −0.0050, B2 ≈ 0, **collision ratio actually improves 1.72× → 1.71×**. No regression on any axis. Single best Pareto improvement on MSCOCO so far.
+
+4. **whitenG1 vs localResid attack different layers**. whitenG1 zeros out the global covariance offline before the text adapter sees it (works on every batch, every step, aggressive). localResid subtracts the per-image C_0 projection from local slots at runtime, after the text adapter (per-image, milder, preserves codebook-specific signal). **The two fixes are orthogonal** — whitenG1 + localResid combo is the next experiment.
+
+5. **Grounded routing (v162a/v162b) does NOT replicate on MSCOCO.** Flickr v162b_fix mAP +0.0075; MSCOCO v162b mAP **−0.0210**. Hypothesis: Flickr captions are distinct enough that top-k_t selects truly informative tokens; MSCOCO captions are so redundant that top-k_t still pools the same shared global tokens. Token-pruning at the model side cannot fix the redundancy already baked into the cached pooled text_part embed. v162a/v162b therefore **DISCARDED on MSCOCO** as paper candidates (they remain Flickr-only champions).
+
+6. **C_0 dominance preserved.** All four cells show C_0 as the worst-to-drop or near-worst codebook (whitenG1 worst_cb −0.025, localResid worst_cb −0.013). Pattern is recipe-independent.
+
+### Verdict
+
+- **mscoco_v160b_whitenG1 NEW MSCOCO mAP CHAMPION** (0.6195, P@10 0.9011, NMI 0.706, L↔L 0.736).
+- **mscoco_v160b_localResid NEW MSCOCO P@1 CHAMPION** (0.9042) + clean multi-axis Pareto (no regression on any axis) + collision champion among caption-redundancy fixes.
+- **mscoco_v160b (ref) retained** as collision champion (1.72× tied with localResid 1.71×) and baseline reference.
+- **mscoco_v162a / mscoco_v162b DISCARDED on MSCOCO** (mAP regression, NMI worse) — they remain Flickr-only candidates.
+
+### Files
+
+- [scripts/train_mscoco_v160b_whitenG1_qwen3.sh](scripts/train_mscoco_v160b_whitenG1_qwen3.sh)
+- [scripts/train_mscoco_v160b_localResid_qwen3.sh](scripts/train_mscoco_v160b_localResid_qwen3.sh)
+- [scripts/train_mscoco_v162a_v160a_groundedTextRouting_qwen3.sh](scripts/train_mscoco_v162a_v160a_groundedTextRouting_qwen3.sh)
+- [scripts/train_mscoco_v162b_v160b_groundedTextRouting_qwen3.sh](scripts/train_mscoco_v162b_v160b_groundedTextRouting_qwen3.sh)
+
+### Suggested follow-ups
+
+1. **mscoco_v160b_whitenG1 + localResid combo (highest priority)** — stack the two orthogonal fixes. Predicted: mAP 0.62+ with DNA recovered (localResid pushes DNA up; whitenG1 attacks redundancy at a deeper layer; both may stack on collision ratio too).
+2. **Caption regeneration with `_PROMPT_V5b`** (sentence-style, strict disjoint vocab, 10-15 words). Sample 100 extraction running on GPU 0 for caption-quality review. Direct attack on root cause — if local↔local cosine drops to 0.50-0.55 the v160b downstream gain should exceed whitenG1+localResid combined.
+3. **mscoco_v160h + localResid** — apply localResid to the K=256 multi-axis champion (mscoco_v160h DNA 0.155 → ?).
+4. **Drop ablation on whitenG1 vs localResid C_0 dominance.** Whitening reshapes the text covariance globally; localResid only zeros the per-image C_0 component. Compare drop_ablation patterns: does whitenG1 dilute C_0 dominance more than localResid?
 
 🟢 **Two-axis ablation**: (1) qwen3 v4_trainset caption rev applied to 4 Flickr v160-family baselines, (2) Stage-2 OT-based top-k_t token pruning (grounded text routing, k_t=5) on v160a / v160b bases. Bug-fixed train_siglip2.py:610,617 preserves cached_text_tokens through the v29 paired-aug path (the earlier v162a/v162b results discarded — grounded_text_ln ckpt weights remained at init values, hook never fired).
 

@@ -268,6 +268,87 @@ Independent evidence axes:
 """
 
 
+# v5b -- sentence-style fine-grained captions with STRICT disjoint
+# vocabulary per axis. Motivated by 2026-06-17 finding that v4 MSCOCO
+# captions have local↔local cosine 0.666 (Flickr 0.592), driving
+# codebook redundancy NMI 0.726 and DNA-uniq 0.119 (Flickr v160b 0.625
+# / 0.423). Length stays similar to v4 (10-15 words) but each axis is
+# constrained to its own vocabulary domain with explicit "FORBIDDEN"
+# lists. Goal: drop local↔local cosine to 0.50-0.55 without losing
+# fine-grained semantic detail.
+_PROMPT_V5b = """\
+You are a vision-language parser. Output a single JSON with six
+fine-grained sentences describing STRICTLY DISJOINT visual axes.
+
+Length & form:
+- Each sentence is 10-15 words. Use vivid sensory detail WITHIN your
+  axis. Do NOT pad with generic phrases.
+- Output ONLY a single JSON object. No prose, no markdown fences.
+- Output "none" if the slot's evidence is genuinely absent (rare).
+
+Disjoint vocabulary rule (CRITICAL):
+Each axis has its OWN vocabulary domain. Words from another axis's
+domain are FORBIDDEN except in C_global (the summary slot).
+
+| Axis                   | Allowed vocabulary                              |
+| ---------------------- | ----------------------------------------------- |
+| C_primary_object       | object noun, body part, shape, size, structure  |
+| C_secondary_object     | object noun, role, position (left/right/near)   |
+| C_activity_or_relation | verb, motion, spatial relation, viewpoint, gesture |
+| C_color_texture        | color hue, saturation, material, pattern, surface |
+| C_scene_type           | scene category, location, environment, lighting, weather |
+| C_global               | any (multi-domain summary)                      |
+
+Hard forbidden cross-axis words in NON-global axes:
+- C_primary_object / C_secondary_object: NO action verbs, NO color
+  words, NO scene words.
+- C_activity_or_relation: NO object nouns beyond pronouns (he/she/it/
+  they), NO color words, NO scene words.
+- C_color_texture: NO object nouns, NO action verbs, NO scene words.
+- C_scene_type: NO object nouns, NO action verbs, NO color words.
+
+Schema:
+{
+  "codebook_texts": {
+    "C_global": "",
+    "C_primary_object": "",
+    "C_secondary_object": "",
+    "C_activity_or_relation": "",
+    "C_color_texture": "",
+    "C_scene_type": ""
+  }
+}
+
+Per-axis encouraged details (fine-grained guidance):
+- C_global (10-15 words): summary of who/what/where/doing.
+- C_primary_object (10-15 words): identity, body, build, posture,
+  pose, attire silhouette, distinctive shape. NO color, NO action.
+- C_secondary_object (10-15 words): identity, size, position relative
+  to the primary, role in composition. NO color, NO action.
+- C_activity_or_relation (10-15 words): dynamic verbs, spatial layout,
+  interaction direction, viewpoint, gestures. NO object nouns beyond
+  pronouns, NO color, NO scene.
+- C_color_texture (10-15 words): dominant hues, contrast, saturation,
+  material (matte / glossy / woven / synthetic), surface texture,
+  lighting interaction. NO object nouns, NO action, NO scene.
+- C_scene_type (10-15 words): indoor/outdoor category, specific
+  location type, time of day, ambient lighting, weather, atmospheric
+  quality. NO object nouns, NO action, NO color.
+
+Example (soccer match):
+{
+  "codebook_texts": {
+    "C_global": "Intense soccer moment with two opposing players competing closely on a turf surface.",
+    "C_primary_object": "Tall lean athlete mid-stride, balanced posture, focused expression, jersey loose at the shoulders.",
+    "C_secondary_object": "Small round ball spinning along the surface, positioned between both athletes' feet.",
+    "C_activity_or_relation": "Dribbling forward as another approaches diagonally from the left to intercept the path.",
+    "C_color_texture": "Vivid saturated yellow against deep blue, smooth synthetic surface, crisp white boundary lines.",
+    "C_scene_type": "Enclosed indoor arena, bright artificial overhead floodlights, uniform shadows, evening atmosphere."
+  }
+}
+"""
+
+
 # ----------------------------------------------------------------- builder
 def build_qwen25_vl_generator(
     model_name: str = DEFAULT_VLM,
