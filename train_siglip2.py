@@ -607,15 +607,15 @@ def main(args: Config):
                 # image-content-agnostic, so the same text is correct for
                 # both augmented views of the same image.
                 cached_vt = cached_vg = None
-                cached_tt = cached_ttm = None
-                # `cached_tp` and `cached_ht` deliberately preserved.
+                # `cached_tp`, `cached_ht`, `cached_tt`, `cached_ttm`
+                # deliberately preserved (v162 grounded text routing needs
+                # the per-image token-level text cache here).
             if v29_aug_cached:
                 # cached-aug path: swap visual cache for aug-0 tensors.
                 # Text path preserved as above.
                 cached_vt = batch['cached_visual_tokens_aug0']
                 cached_vg = batch['cached_visual_global_aug0']
-                cached_tt = cached_ttm = None
-                # `cached_tp` and `cached_ht` deliberately preserved.
+                # `cached_tp`, `cached_ht`, `cached_tt`, `cached_ttm` preserved.
             using_cache = cached_vt is not None
             if using_cache:
                 cached_vt = cached_vt.to(args.device)

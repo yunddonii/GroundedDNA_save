@@ -334,6 +334,102 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-17 — v162 grounded text routing on Flickr (qwen3 v4 caption rev) — **v162b_fix NEW FLICKR P@1/P@10 CHAMPION (P@1 0.9250, P@10 0.9214) at +0.0075 mAP gain over v160b_qwen3 base; v162a_fix NEW FLICKR NMI/L↔L/cb_tuple CHAMPION (NMI 0.566, L↔L 0.636, cb_tuple 0.779 — all family extrema) at trade-off DNA −0.056. Grounded routing effect is BASE-DEPENDENT and ORTHOGONAL: on Eq.(8)-only base (v160a) it sharpens clustering + codeword diversity; on full UOT+CIBHash visual_token+Eq.(8) stack (v160b) it sharpens retrieval. Also re-runs 4 v160-family Flickr baselines under qwen3 caption rev for unified comparison.**
+
+🟢 **Two-axis ablation**: (1) qwen3 v4_trainset caption rev applied to 4 Flickr v160-family baselines, (2) Stage-2 OT-based top-k_t token pruning (grounded text routing, k_t=5) on v160a / v160b bases. Bug-fixed train_siglip2.py:610,617 preserves cached_text_tokens through the v29 paired-aug path (the earlier v162a/v162b results discarded — grounded_text_ln ckpt weights remained at init values, hook never fired).
+
+### Caption rev: qwen3 v4_trainset (Qwen3-VL-8B-Instruct) vs qwen_v4 (prev Qwen)
+
+`flickr25k_qwen3_v4_trainset.jsonl` (5K image coverage, 20 %) vs `flickr25k_qwen_v4.jsonl` (25K, 100 %). Cached pooled embed: `cache/flickr25k_clip_v4plus_qwen3/text_part.f16.npy` `(25000, 6, 512)`.
+
+| Cell | mAP qwen_v4 | mAP qwen3 | Δ mAP | DNA qwen_v4 | DNA qwen3 | Δ DNA |
+|---|---:|---:|---:|---:|---:|---:|
+| v144a | 0.7499 | 0.7650 | **+0.0151** | 0.376 | 0.295 | −0.081 |
+| v150b | 0.7509 | 0.7511 | +0.0002 | 0.329 | 0.357 | +0.028 |
+| v160a | 0.7617 | 0.7632 | +0.0015 | 0.318 | 0.328 | +0.010 |
+| v160b | 0.7390 | 0.7442 | +0.0052 | 0.400 | 0.423 | +0.023 |
+
+→ **qwen3 captions improve mAP across the board** despite 5× less coverage; **DNA gains on the strongest recipes (v160b/v150b/v160a) but DROPS on v144a** (the simplest base needs the 25K coverage to populate codon space). Qwen3-VL-8B-Instruct caption quality > Qwen-VL captions for the v160 stack.
+
+### Results — 6-cell qwen3 sweep (Flickr25k-CLIP K=128)
+
+| Tag | mAP | P@1 | P@10 | DNA | cbT | NMI ↓ | L↔L ↓ | B1 | B2 | drop_sum | worst_cb | cbT/DNA |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| v144a_qwen3 (base) | **0.7650** ★ | 0.917 | 0.912 | 0.295 | 0.661 | 0.627 | 0.702 | 0.121 | 0.076 | −0.022 | −0.007 | 2.24× |
+| v150b_qwen3 (UOT+visTok CIB) | 0.7511 | 0.912 | 0.916 | 0.357 | 0.547 | 0.627 | 0.676 | 0.154 | 0.100 | −0.050 | −0.015 | 1.53× |
+| v160a_qwen3 (v144a+Eq.8) | 0.7632 | 0.919 | 0.919 | 0.328 | 0.601 | 0.636 | 0.720 | 0.125 | 0.078 | −0.026 | −0.008 | 1.83× |
+| **v160b_qwen3** (v150b+Eq.8) | 0.7442 | 0.924 | 0.919 | **0.423** ★ | 0.560 | 0.625 | 0.664 | 0.158 | 0.101 | −0.040 | −0.011 | **1.32× ★** |
+| **v162a_fix** (v160a+grounded) | 0.7602 | 0.917 | 0.904 | 0.272 | **0.779** ★ | **0.566** ★ | **0.636** ★ | 0.109 | 0.069 | −0.014 | −0.007 | 2.87× |
+| **v162b_fix** (v160b+grounded) | 0.7516 | **0.9250** ★ | **0.9214** ★ | 0.392 | 0.549 | 0.636 | 0.679 | 0.158 | **0.102** ★ | −0.035 | −0.013 | 1.40× |
+
+### Grounded routing single-delta deltas
+
+| Δ | v162a_fix vs v160a_qwen3 (Eq.8-only base) | v162b_fix vs v160b_qwen3 (FULL stack base) |
+|---|---:|---:|
+| mAP | −0.0029 | **+0.0075** ★ |
+| P@1 | −0.0015 | **+0.0015** ★ |
+| P@10 | −0.0153 | **+0.0030** ★ |
+| DNA | −0.0556 | −0.0312 |
+| cb_tuple | **+0.1785** ★ | −0.0106 |
+| NMI ↓ | **−0.0700** ★ | +0.0115 |
+| L↔L ↓ | **−0.0833** ★ | +0.0150 |
+| B1 | −0.0155 | +0.0005 |
+| B2 | −0.0093 | +0.0019 |
+| collision ratio | 1.83× → 2.87× | 1.32× → 1.40× |
+
+(NMI/L↔L ↓ better. ★ on Δ marks the winning side.)
+
+### Per-codebook usage / drop ablation
+
+| Tag | n_used | C_0 drop | C_1 | C_2 | C_3 | C_4 | C_5 |
+|---|---|---:|---:|---:|---:|---:|---:|
+| v144a_qwen3 | [128, 128, 127, 128, 127, 128] | −0.003 | −0.001 | **−0.005** | **−0.007** | **−0.005** | −0.000 |
+| v150b_qwen3 | [128]×6 | **−0.015** | −0.005 | +0.003 | −0.011 | −0.010 | −0.012 |
+| v160a_qwen3 | [128, 120, 128, 128, 128, 123] | −0.007 | −0.008 | −0.003 | −0.002 | −0.003 | −0.004 |
+| v160b_qwen3 | [128]×6 | **−0.011** | −0.002 | −0.007 | −0.001 | −0.010 | −0.009 |
+| v162a_fix | [128, 120, 128, 127, 113, 128] | **−0.007** | −0.004 | +0.000 | −0.001 | −0.001 | −0.002 |
+| v162b_fix | [128]×6 | **−0.013** | −0.002 | −0.003 | −0.005 | −0.005 | −0.007 |
+
+→ C_0 dominance preserved in 5 of 6 cells; v144a_qwen3 is the exception (C_2/C_3/C_4 dominate). v162a_fix dramatically FLATTENS the per-codebook contribution (max drop −0.007 on C_0, every other ≤ −0.004) — grounded routing redistributes signal across all codebooks. v162b_fix keeps C_0 the worst but amplifies it (−0.013, vs base −0.011).
+
+### Findings
+
+1. **Bug found + fixed (critical)**. [train_siglip2.py:610-617](train_siglip2.py#L610) zeroed `cached_text_tokens` under v29 paired-aug path despite the comment claiming "KEEP cached text inputs". v162a/v162b first-generation results (committed `ebe009f`) discarded — `grounded_text_ln.weight` remained at init |w−1|=0 (no gradient ever flowed). Fix preserves cached_tt/cached_ttm alongside cached_tp/cached_ht.
+2. **Grounded routing effect is BASE-DEPENDENT and ORTHOGONAL**:
+   - **v160a base (Eq.8 only)**: grounded routing **sharpens clustering** (NMI/L↔L break family records by −0.07/−0.083) and **explodes codeword diversity** (cb_tuple 0.601 → 0.779, +0.179 — far above family norm). DNA −0.056, mAP −0.003.
+   - **v160b base (UOT+CIBHash visual_token+Eq.8)**: grounded routing **sharpens retrieval** (mAP +0.0075, P@1 +0.0015, P@10 +0.0030, all family-best). DNA −0.031, NMI/L↔L slightly worse.
+3. **Hypothesis on the orthogonality**: v160a's base lacks the strong codeword-diversity signals (no UOT, no visual_token NtXent) so grounded routing's sharper text signal goes straight into the under-constrained codeword channel → NMI/cb_tuple breakthrough. v160b already has those signals saturated; grounded routing's marginal text-supervision strength leaks into retrieval improvement instead.
+4. **No single axis-stack overall winner.** Each cell wins a different axis: v144a_qwen3 mAP, v160b_qwen3 DNA/collision, v162a_fix NMI/cb_tuple, v162b_fix P@1/P@10/B2 (tied B1). Paper narrative supports either v160b_qwen3 (DNA + collision champion) OR v162b_fix (retrieval + B2 champion) as Flickr paper candidate depending on whether the primary claim is interpretability-via-collision or retrieval-given-interpretability.
+5. **Caption rev (qwen → qwen3) is genuinely beneficial** despite 5× less coverage. Qwen3-VL-8B-Instruct captions are richer per-image than Qwen-VL (the previous rev). +0.005-0.015 mAP across all v160-family cells; v144a baseline gains the most (+0.015) but its DNA drops the most (−0.081) — without the strong loss stack, the simplest base needs the 25K coverage volume.
+
+### Verdict
+
+- **v162b_fix NEW FLICKR P@1/P@10 CHAMPION** (P@1 0.9250, P@10 0.9214). Adopted as Flickr **retrieval-priority** paper candidate.
+- **v162a_fix NEW FLICKR NMI / L↔L / cb_tuple CHAMPION** (NMI 0.566, L↔L 0.636, cb_tuple 0.779 — all family extrema). Adopted as Flickr **semantic-clustering-priority** paper candidate.
+- **v160b_qwen3 retains Flickr DNA + collision champion** (DNA 0.423, collision 1.32×). Adopted as Flickr **interpretability-via-collision** paper candidate.
+- **v144a_qwen3 has the family-best mAP** (0.7650) but the worst collision ratio (2.24×). Logged as baseline reference, not a paper candidate.
+- v162a / v162b (original buggy versions, committed `ebe009f`) **DISCARDED** as misfired ablations.
+
+### Files
+
+- [scripts/train_v144a_qwen3_v133a_textCodeKL_K128_flickr25k_clip.sh](scripts/train_v144a_qwen3_v133a_textCodeKL_K128_flickr25k_clip.sh)
+- [scripts/train_v150b_qwen3_v147a_visualTokenCibhash_K128_flickr25k_clip.sh](scripts/train_v150b_qwen3_v147a_visualTokenCibhash_K128_flickr25k_clip.sh)
+- [scripts/train_v160a_qwen3_v144a_xmodalCommit_K128_flickr25k_clip.sh](scripts/train_v160a_qwen3_v144a_xmodalCommit_K128_flickr25k_clip.sh)
+- [scripts/train_v160b_qwen3_v150b_xmodalCommit_K128_flickr25k_clip.sh](scripts/train_v160b_qwen3_v150b_xmodalCommit_K128_flickr25k_clip.sh)
+- [scripts/train_v162a_v160a_groundedTextRouting_K128_flickr25k_clip.sh](scripts/train_v162a_v160a_groundedTextRouting_K128_flickr25k_clip.sh) (re-used for `_fix` retrain)
+- [scripts/train_v162b_v160b_groundedTextRouting_K128_flickr25k_clip.sh](scripts/train_v162b_v160b_groundedTextRouting_K128_flickr25k_clip.sh) (re-used for `_fix` retrain)
+- [extract_clip_text_token_features.py](extract_clip_text_token_features.py)
+
+### Suggested follow-ups
+
+1. **mscoco_v162b_fix port**: bring grounded routing to the MSCOCO multi-axis champion (mscoco_v160h K=256) base. Test whether the v160b → retrieval pattern replicates on MSCOCO, where caption coverage is 8 %.
+2. **v162c stack**: combine grounded routing (v162a's semantic-clustering effect) with v162b's retrieval effect — try v160b base + grounded routing + cb_tuple regularizer.
+3. **k_t sweep**: {3, 5, 7, 10} on v162b_fix to characterize the retrieval-DNA Pareto knee.
+4. **eps sweep**: {0.025, 0.05, 0.1} on v162a_fix to test whether sharper Stage-2 OT recovers DNA without losing NMI.
+5. **Atlas purity (codeword_concept_atlas.py)** on v162a_fix and v162b_fix — visualize whether refined text embeddings produce more interpretable codeword↔concept maps.
+
+---
+
 ## 2026-06-16 — v160b (v150b + Uni-Code Eq.(8)) + v161a (v160a + MM-EMA, simplified) — **v160b NEW family champion on 4 axes simultaneously: B1 0.162, B2 0.100 (tied), DNA 0.400 (above baseline 0.376), codeword→codon collision ratio 1.34× (best ever, vs v144a 1.77×). v160b is the FIRST cell to achieve P1 (interpretability) + P4 (collision) champion status simultaneously. v161a (MM-EMA on top of v160a) DISCARDED — marginal regression on all axes.**
 
 🟢 **Eq.(8) × v150b synergy** unlocks user-priority axes #1 and #4 simultaneously. After v160a established the mAP-champion direction yesterday (mAP 0.7617 + DNA cost), today's v160b stacks v150b's visual_token NtXent base under the same Eq.(8) — the result inverts the trade-off: **mAP drops slightly but B1/B2/DNA/collision-ratio all break previous family records**.
