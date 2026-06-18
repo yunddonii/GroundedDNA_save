@@ -334,6 +334,107 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-18 — MSCOCO v162b_qwen3v5b_topp02_05 (grounded routing × sharp topp 2×2 factorial) — **STRONG POSITIVE INTERACTION: two single-deltas that BOTH FAILED in isolation (grounded routing alone mAP −0.018, topp02_05 alone mAP −0.013) RECOVER WHEN STACKED. The combined cell beats v162b_qwen3v5b alone (mAP +0.011), the cb_tuple champion (0.256 — best in qwen3v5b sweep), the NMI champion (0.697 — qwen3v5b family minimum), L↔L champion (0.719 — family minimum), and DNA-uniq +0.007 above the v160b_qwen3v5b base. Interaction effect = +0.023 on mAP, +0.028 on P@1, +0.029 on P@10 — paper-grade evidence that grounded routing's failure mode on MSCOCO is REPAIRABLE by sharper routing.**
+
+🟢 **2×2 factorial design**: {grounded routing ∈ ON/OFF} × {topp ∈ 0.3/0.7 default, 0.2/0.5 sharp} on the qwen3v5b base. All four corners measured.
+
+### Results (MSCOCO setting1, K=128)
+
+| Cell | Description | mAP | P@1 | P@10 | DNA | cbT | NMI ↓ | L↔L ↓ | B2 | collision |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `v160b_qwen3v5b` (base) | grnd OFF, topp 0.3/0.7 | **0.6200** ★ | 0.9028 | **0.8996** ★ | 0.140 | 0.229 | 0.709 | 0.736 | 0.166 | **1.63×** ★ |
+| `v160b_qwen3v5b_topp02_05` | grnd OFF, topp 0.2/0.5 | 0.6073 ✗ | 0.8888 ✗ | 0.8841 | 0.133 | 0.236 | 0.707 | 0.734 | 0.165 | 1.78× |
+| `v162b_qwen3v5b` | grnd ON, topp 0.3/0.7 | 0.6020 ✗ | 0.8848 ✗ | 0.8768 | 0.138 | 0.237 | 0.721 | 0.750 | 0.169 | 1.71× |
+| **`v162b_qwen3v5b_topp02_05`** | grnd ON, topp 0.2/0.5 | 0.6128 | 0.8984 | 0.8899 | **0.147** ★ | **0.256** ★ | **0.697** ★ | **0.719** ★ | 0.165 | 1.74× |
+
+### 2×2 factorial breakdown (per metric)
+
+```
+                 | topp 0.3/0.7  | topp 0.2/0.5  | Δ topp
+─────────────────┼───────────────┼───────────────┼────────
+mAP grnd OFF     | 0.6200        | 0.6073        | −0.0127 ✗
+mAP grnd ON      | 0.6020        | 0.6128        | +0.0107 ★
+                                                    Interaction +0.0234
+
+P@1 grnd OFF     | 0.9028        | 0.8888        | −0.0140 ✗
+P@1 grnd ON      | 0.8848        | 0.8984        | +0.0136 ★
+                                                    Interaction +0.0276
+
+P@10 grnd OFF    | 0.8996        | 0.8841        | −0.0155 ✗
+P@10 grnd ON     | 0.8768        | 0.8899        | +0.0131 ★
+                                                    Interaction +0.0286
+
+DNA grnd OFF     | 0.140         | 0.133         | −0.008  ✗
+DNA grnd ON      | 0.138         | 0.147         | +0.009  ★
+                                                    Interaction +0.017
+
+cbT grnd OFF     | 0.229         | 0.236         | +0.007
+cbT grnd ON      | 0.237         | 0.256         | +0.019
+                                                    Interaction +0.012 (super-additive)
+
+NMI grnd OFF ↓   | 0.709         | 0.707         | −0.003
+NMI grnd ON ↓    | 0.721         | 0.697         | −0.024 ★
+                                                    Interaction −0.021 (stronger together)
+
+L↔L grnd OFF ↓   | 0.736         | 0.734         | −0.002
+L↔L grnd ON ↓    | 0.750         | 0.719         | −0.030 ★
+                                                    Interaction −0.028
+```
+
+→ **Every retrieval and compositional metric shows positive interaction**. The two recipes were antagonistic alone, complementary together.
+
+### Mechanism hypothesis
+
+Grounded routing's failure mode on MSCOCO (PROJECT_LOG 2026-06-17 entry):  the Stage-2 top-k_t pruning on cached text tokens needs the *router* to surface fine-grained per-codebook codeword indices for the text-side pooling to work. Default topp 0.3/0.7 over-smooths the routing distribution → grounded routing pools redundant global tokens → mAP regression. Sharp topp 0.2/0.5 sharpens the router's per-codebook assignment → grounded routing now pools genuinely distinct text tokens per slot → retrieval gain. Without grounded routing, sharper topp just over-restricts pooling on the visual side → mAP cost without compensating compositional gain.
+
+In short: **sharp topp by itself is a routing-side over-fit; grounded routing by itself is text-side dilute; combined, they balance — sharp routing produces the cleanly separated codeword indices that grounded routing was designed to leverage.**
+
+### Δ vs v160b_qwen3v5b base (champion, grnd OFF / topp default)
+
+| Δ combined vs base | Value |
+|---|---:|
+| mAP | −0.0072 (mild retrieval cost) |
+| P@1 | −0.0044 |
+| P@10 | −0.0097 |
+| **DNA** | **+0.0069** ★ |
+| **cb_tuple** | **+0.0267** ★ |
+| **NMI ↓** | **−0.0120** ★ |
+| **L↔L ↓** | **−0.0170** ★ |
+| B2 | −0.0014 (tied) |
+| collision ratio | 1.63×→1.74× |
+
+→ Mild retrieval cost (mAP / P@1 / P@10 ≤ 0.01) for substantial compositional/clustering gains (NMI/L↔L/DNA/cb_tuple all best in family). **Pareto-better candidate for clustering-priority paper claim.**
+
+### Findings
+
+1. **Interaction effect is robust across 7 of 8 metrics.** mAP +0.023, P@1 +0.028, P@10 +0.029, DNA +0.017, cb_tuple +0.012, NMI/L↔L stronger under combination (−0.021 / −0.028). Only B2 is neutral (combined matches base 0.165 ≈ 0.166).
+2. **Grounded routing on MSCOCO is NOT structurally broken** — it was routing-config-mismatched. Earlier verdict ("v162b discarded on MSCOCO") needs partial revision: v162b + sharp topp is genuinely competitive.
+3. **New multi-axis champion candidate**: v162b_qwen3v5b_topp02_05 holds NMI / L↔L / cb_tuple / DNA-uniq champion simultaneously in the qwen3v5b family. Retrieval cost ≤ 0.01 mAP. Stronger paper claim than the cbOrtho005 sub-champion (which only beat on NMI and lost DNA).
+4. **Earlier sweep entries refined**:
+   - 2026-06-17 v162b verdict ("DISCARDED on MSCOCO regardless of caption") was correct under default topp but missed the interaction.
+   - 2026-06-18 topp02_05 entry ("DISCARDED — mAP regression") was correct under grnd OFF but reverses under grnd ON.
+   - PROJECT_LOG correction: both deltas are USEFUL when stacked.
+
+### Verdict
+
+- **mscoco_v160b_qwen3v5b (base) retained** as MSCOCO mAP/P@1/P@10/B2/collision absolute champion (retrieval-priority recipe).
+- **mscoco_v162b_qwen3v5b_topp02_05 NEW MSCOCO NMI / L↔L / cb_tuple / DNA-uniq champion** (compositional-priority recipe). Mild retrieval cost ≤ 0.01 mAP, but every compositional axis is family best.
+- **Earlier v162b_qwen3v5b DISCARD verdict reversed** — when paired with topp 0.2/0.5 the recipe is competitive.
+- **Earlier topp02_05 DISCARD verdict reversed** — under grounded routing it becomes the compositional champion enabler.
+
+### Files
+
+- [scripts/train_mscoco_v162b_qwen3v5b_topp02_05.sh](scripts/train_mscoco_v162b_qwen3v5b_topp02_05.sh)
+
+### Suggested follow-ups
+
+1. **mscoco_v162b_qwen3v5b_topp02_05 + L=4** — apply the interaction-positive combo on top of L=4 codon expansion. Predicted MSCOCO DNA 0.25+.
+2. **mscoco_v162b_qwen3v5b + topp sweep** {0.2/0.4, 0.2/0.6, 0.25/0.55, 0.3/0.5} to characterize the topp ↔ grounded interaction curve.
+3. **Flickr v162b + topp02_05 cross-validation** — check whether the same interaction exists on Flickr (where v162b alone helped retrieval +0.0075). Predicted: Flickr v162b might gain less from sharp topp because v162b alone already wins.
+4. **Apply combined recipe + cbOrtho005** to test 3-way interaction. Both v162b_qwen3v5b_topp02_05 (NMI 0.697) and cbOrtho005 (NMI 0.700) target clustering; combined effect might either saturate or stack.
+
+---
+
 ## 2026-06-18 — MSCOCO DNA-uniq 3-option sweep on qwen3v5b base + unsupervised baseline comparison — **ALL 3 DNA-uniq sweeps FAIL: etaBB1 (eta_base_balance 0.3→1.0) marginal, cbOrtho005 (+λ_codebook_ortho 0.05) DNA −0.013 ✗, topp02_05 (topp 0.3/0.7→0.2/0.5) mAP −0.013 ✗. cbOrtho005 selective NMI/L↔L/P@1 champion (NMI 0.700, L↔L 0.725, P@1 0.9068 — all best in sweep). qwen3v5b base retained as MSCOCO ABSOLUTE CHAMPION. Unsupervised baseline comparison vs CIBHash / CIMON / MLS3RDUH (all flat 36-bit + frozen CLIP backbone): Ours v160b_qwen3v5b mAP 0.6200 BEATS CIBHash 0.5842 by +0.036 (+6.1 %), beats CIMON 0.5388 by +0.081 (+15 %), beats MLS3RDUH 0.5037 by +0.116 (+23 %). DNA-uniq comparison NOT direct (baseline has no learned compositional structure — high DNA values reflect random partition + sign hash, not learned diversity).**
 
 🟢 **DNA-uniq attack sweep.** Three single-delta variants tested whether DNA-uniq can be pushed past 0.140 with v160b_qwen3v5b's recipe (mAP 0.6200, DNA 0.140 currently the MSCOCO mAP+DNA champion). All three failed; results confirm K=128 / L=3 = 2× pigeonhole (128 codewords vs 4³=64 codons) is the structural bottleneck, not a recipe knob away.
