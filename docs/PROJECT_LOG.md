@@ -334,6 +334,113 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-18 — `--disable_global_gate` cross-dataset cell on (qwen3 + topp02_05 + grounded routing) base — **NEW FLICKR ABSOLUTE CHAMPION discovered: v162b_qwen3_topp02_05_noGate breaks all retrieval+compositional ceilings simultaneously (mAP 0.7581 +0.014, P@1 0.9305 +0.007, P@10 0.9233 +0.005, DNA 0.426 +0.003, NMI 0.616 −0.009, L↔L 0.652 −0.012 vs prior best v160b_qwen3). On MSCOCO the noGate delta is mixed: P@1/P@10/cb_tuple gain (+0.002/+0.005/+0.010) but mAP loses −0.006 and DNA loses −0.005. CROSS-DATASET ASYMMETRY: when caption coverage is high (Flickr 100%) C_0→local conditioning is noise (noGate helps every axis); when caption coverage is low (MSCOCO 8.2%) C_0 is backup retrieval signal (noGate hurts mAP).**
+
+🟢 **Rationale.** The 2026-06-18 grounded × sharp-topp interaction discovery showed that v162b + topp02_05 wins compositional axes on MSCOCO. The conditioning gate `sigmoid(global_gate_init_logit=4.595) ≈ 0.99` adds ~99% of C_0's codeword to all 5 local codeword heads before codon decoding. Setting `--disable_global_gate` removes that conditioning entirely, isolating each local codon head from the global slot. On Flickr the redundant text path no longer leaks across local axes, unlocking a Pareto-better cell; on MSCOCO the sparse caption coverage means C_0 was load-bearing as a retrieval backup, so noGate costs mAP.
+
+### Flickr (qwen3 v4_trainset captions, K=128)
+
+| Cell | mAP | P@1 | P@10 | DNA | cbT | NMI ↓ | L↔L ↓ | B2 | collision |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| `Flickr v160b_qwen3` (best prior) | 0.7442 | 0.9235 | 0.9185 | 0.423 | 0.560 | 0.625 | 0.664 | 0.101 | 1.32× |
+| `Flickr v162b_fix` (v160b base + grounded only) | 0.7516 | 0.9250 | 0.9214 | 0.392 | 0.549 | 0.636 | 0.679 | 0.102 | 1.40× |
+| **`Flickr v162b_qwen3_topp02_05_noGate` ★** | **0.7581** ★ | **0.9305** ★ | **0.9233** ★ | **0.426** ★ | **0.593** | **0.616** ★ | **0.652** ★ | 0.101 | 1.39× |
+
+**Δ noGate combo vs v160b_qwen3 (best prior Flickr base):**
+
+| Axis | Δ |
+|---|---:|
+| mAP | **+0.0140** ★ |
+| P@1 | +0.0070 |
+| P@10 | +0.0048 |
+| DNA | +0.0033 |
+| cb_tuple | +0.0333 |
+| NMI ↓ | **−0.0088** ★ |
+| L↔L ↓ | **−0.0121** ★ |
+| B2 | +0.0004 |
+
+→ Every axis (retrieval + compositional + clustering) improves simultaneously. **NEW Flickr absolute champion candidate**.
+
+### MSCOCO (qwen3 v5b captions, K=128)
+
+| Cell | mAP | P@1 | P@10 | DNA | cbT | NMI ↓ | L↔L ↓ | B2 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `mscoco_v160b_qwen3v5b` (champion) | **0.6200** ★ | 0.9028 | **0.8996** ★ | 0.140 | 0.229 | 0.709 | 0.736 | **0.166** |
+| `mscoco_v162b_qwen3v5b_topp02_05` (interaction combo, gate ON) | 0.6128 | 0.8984 | 0.8899 | 0.147 | 0.256 | 0.697 | 0.719 | 0.165 |
+| `mscoco_v162b_qwen3v5b_topp02_05_noGate` | 0.6073 | **0.9000** | 0.8949 | 0.143 | **0.266** | **0.696** | **0.717** | 0.166 |
+
+**Δ noGate vs gate-ON combo (both on topp02_05 + grounded):**
+
+| Axis | Δ |
+|---|---:|
+| mAP | **−0.0055** ✗ |
+| P@1 | +0.0016 |
+| P@10 | +0.0050 |
+| DNA | −0.0046 |
+| cb_tuple | **+0.0102** ★ |
+| NMI ↓ | −0.0016 (marginal) |
+| L↔L ↓ | −0.0019 (marginal) |
+| B2 | +0.0011 |
+
+→ Compositional codeword diversity rises (cb_tuple +0.010, P@10 +0.005), but retrieval mAP drops −0.006 and DNA −0.005. **Mixed cross-Pareto delta — gate-ON combo retained as MSCOCO clustering champion.**
+
+### Cross-dataset asymmetry hypothesis
+
+| | Flickr | MSCOCO |
+|---|---|---|
+| Caption coverage | 100% (qwen3 v4) | 8.2% (qwen3 v5b) |
+| Local↔local cos sim | 0.592 (low redundancy) | 0.55 after v5b regen |
+| C_0 role in local codon head | NOISE (over-conditions sparse local signal) | BACKUP retrieval signal (covers missing-caption batches) |
+| noGate effect | **+ on every axis** | mAP/DNA ✗, cb_tuple/P@10 ★ |
+
+The asymmetry suggests `disable_global_gate` should be a dataset-dependent recipe knob, NOT a universal default. Flickr's rich text path lets the model survive without C_0 conditioning; MSCOCO's sparse text path needs C_0 as a retrieval anchor on 92% of batches where text is absent.
+
+### Findings
+
+1. **NEW Flickr absolute champion** — `v162b_qwen3_topp02_05_noGate` beats v160b_qwen3 on every axis. Adopted as Flickr paper-grade recipe.
+2. **MSCOCO clustering champion remains gate-ON combo** — `mscoco_v162b_qwen3v5b_topp02_05` retains its NMI/L↔L/cb_tuple/DNA crown. The noGate variant trades mAP for slightly higher cb_tuple but is not Pareto-better.
+3. **`--disable_global_gate` is dataset-dependent.** Flickr win, MSCOCO mixed. Recipe should not blindly carry across.
+4. **3-way interaction unlocked on Flickr**: grounded routing × sharp topp × noGate. The first two alone had failed on MSCOCO (PROJECT_LOG 2026-06-18 earlier entries); their combination with noGate now wins on Flickr.
+
+### Verdict
+
+- **Flickr NEW ABSOLUTE CHAMPION**: `v162b_qwen3_topp02_05_noGate` (mAP 0.7581, P@1 0.9305, NMI 0.616, DNA 0.426). All retrieval + all compositional axes win simultaneously vs prior best.
+- **MSCOCO unchanged**: `mscoco_v160b_qwen3v5b` retains mAP / P@10 / collision champion (0.6200 / 0.8996 / 1.63×); `mscoco_v162b_qwen3v5b_topp02_05` (gate-ON combo) retains NMI / L↔L / cb_tuple / DNA-uniq champion (0.697 / 0.719 / 0.256 / 0.147).
+- **noGate variant on MSCOCO LOGGED, NOT ADOPTED** — mixed Pareto, mAP regression.
+
+### Files
+
+- [scripts/train_v162b_qwen3_topp02_05_noGate_flickr25k_clip.sh](scripts/train_v162b_qwen3_topp02_05_noGate_flickr25k_clip.sh)
+- [scripts/train_mscoco_v162b_qwen3v5b_topp02_05_noGate.sh](scripts/train_mscoco_v162b_qwen3v5b_topp02_05_noGate.sh)
+
+### Suggested follow-ups
+
+1. **Flickr champion + L=4** — apply codon space expansion on top of the noGate combo (currently DNA 0.426; predicted L=4 push to 0.55+).
+2. **MSCOCO conditional-gate experiment**: gate fires only on batches with caption present (`has_text=True`), gate=0 on text-missing batches. Cleanly tests whether the MSCOCO mAP regression is purely the missing-caption batches.
+3. **Flickr noGate cross with whitenG1 / localResid** — verify the noGate combo stacks with other Flickr fixes.
+4. **Why does Flickr benefit from BOTH grounded routing AND noGate together?** Mechanism analysis: noGate removes C_0 leakage into local codon heads, so grounded routing's per-axis text pooling decides each local codon without competing global signal. Document this as the paper's key mechanism finding.
+
+---
+
+## 2026-06-18 — CUB-200 FIRST RUN (new dataset): V6 anatomical captions + v160b/v162b CLIP K=64 vs unsupervised baselines — 🟢 active — **OUR MODEL UNDERPERFORMS unsupervised baselines on fine-grained retrieval: v160b mAP 0.067 / v162b 0.061 vs CIBHash 0.164 / CIMON 0.113 / MLS3RDUH 0.050 (all 36-bit, frozen CLIP ViT-B/16, CUB setting1). Root cause is NOT codebook collapse (dead 12 %, ~30/64 codewords realized per codebook, tuple-uniq 0.58 — healthy) but OBJECTIVE/ARCHITECTURE MISMATCH for single-object fine-grained: champion recipe runs `lambda_hash 0` (no siglip_cos retrieval-target distillation) and splits the hash across 6 part-codebooks (5/6 local), diluting the discriminative global CLIP signal that CIBHash hashes directly. K=128→K=64 + global_gate_init_logit 4.595→-3.0 + eta_base_balance 0.3→1.0 barely moved mAP (0.065→0.067), confirming the gate-domination hypothesis was wrong.**
+
+**Status:** 🟢 first CUB-200 experiment. Pipeline (new): `_PROMPT_V6_CUB` (6 disjoint BIRD-ANATOMICAL axes: global / head+bill / upperparts+wing / underparts / tail+appendages / background) → `tools/qwen3_v6_cub_trainset.py` (V6 keys re-mapped onto V3V4 positions so `extract_clip_text*_features.py` consume them unchanged; original V6 keys kept in `codebook_texts_v6`). Captions: train split only (5994/5994, 0 parse fail, 97.5 % words in [10,15], cross-slot CLIP text cos off-diag **0.6195** vs SigLIP2-V4 0.7335). Caches: `cache/cub200_clip` (visual donor, save_aug_views=2, 11788 imgs), `cub200_clip_v6plus` (v160b), `cub200_clip_v6plus_tokens` (v162b). CUB_200 registered in `baseline/base_model.py` (NUM_CLASS 200, MULTI_LABEL False); baseline d_in auto-detected = 512 (CLIP).
+
+| Run (36-bit, CLIP ViT-B/16, CUB setting1) | mAP | P@1 | dead | tuple-uniq | NMI off-diag |
+|---|---|---|---|---|---|
+| **CIBHash** (unsup baseline) | **0.1639** | 0.3226 | — | — | — |
+| **CIMON** (unsup baseline) | 0.1128 | 0.2030 | — | — | — |
+| Ours v160b K=64 (gate-3/eta1) | 0.0670 | — | 0.112 | 0.581 | 0.570 |
+| Ours v162b K=64 (grounded routing) | 0.0606 | — | 0.081 | 0.546 | 0.593 |
+| **MLS3RDUH** (unsup baseline) | 0.0501 | 0.0362 | — | — | — |
+| Ours v160b K=128 (orig recipe, DISCARDED) | 0.0652 | — | — | 0.562 | — |
+
+Exact deltas vs Flickr v160b/v162b CLIP recipe: `--dataset CUB_200`, `--codebook_size 64` (was 128), `--global_gate_init_logit -3.0` (was 4.595), `--eta_base_balance 1.0` (was 0.3); all other flags identical. Diagnostic: `mean_positive_distance 7.60 < mean_negative_distance 11.34` (margin exists but too small for 200-way fine-grained); codebook-drop ablation barely changes mAP (0.056–0.072) → no single part carries the signal. Compositional analysis present (`compositional_eval.json` metric_b, `pairwise_nmi.json`).
+
+**Verdict:** v160b/v162b CLIP recipe as-is is NOT competitive for CUB fine-grained retrieval. NOT a hyperparameter (collapse) fix — needs an objective change (e.g. `lambda_hash>0` siglip_cos distillation and/or cibhash global source) OR a reframe of CUB as a compositional/interpretability benchmark (keypoint-aligned routing — CUB's 15 GT part keypoints are a unique asset). Direction pending user decision before further runs.
+
+---
+
 ## 2026-06-18 — MSCOCO v162b_qwen3v5b_topp02_05 (grounded routing × sharp topp 2×2 factorial) — **STRONG POSITIVE INTERACTION: two single-deltas that BOTH FAILED in isolation (grounded routing alone mAP −0.018, topp02_05 alone mAP −0.013) RECOVER WHEN STACKED. The combined cell beats v162b_qwen3v5b alone (mAP +0.011), the cb_tuple champion (0.256 — best in qwen3v5b sweep), the NMI champion (0.697 — qwen3v5b family minimum), L↔L champion (0.719 — family minimum), and DNA-uniq +0.007 above the v160b_qwen3v5b base. Interaction effect = +0.023 on mAP, +0.028 on P@1, +0.029 on P@10 — paper-grade evidence that grounded routing's failure mode on MSCOCO is REPAIRABLE by sharper routing.**
 
 🟢 **2×2 factorial design**: {grounded routing ∈ ON/OFF} × {topp ∈ 0.3/0.7 default, 0.2/0.5 sharp} on the qwen3v5b base. All four corners measured.
