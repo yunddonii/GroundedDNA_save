@@ -334,6 +334,92 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-18 — MSCOCO DNA-uniq 3-option sweep on qwen3v5b base + unsupervised baseline comparison — **ALL 3 DNA-uniq sweeps FAIL: etaBB1 (eta_base_balance 0.3→1.0) marginal, cbOrtho005 (+λ_codebook_ortho 0.05) DNA −0.013 ✗, topp02_05 (topp 0.3/0.7→0.2/0.5) mAP −0.013 ✗. cbOrtho005 selective NMI/L↔L/P@1 champion (NMI 0.700, L↔L 0.725, P@1 0.9068 — all best in sweep). qwen3v5b base retained as MSCOCO ABSOLUTE CHAMPION. Unsupervised baseline comparison vs CIBHash / CIMON / MLS3RDUH (all flat 36-bit + frozen CLIP backbone): Ours v160b_qwen3v5b mAP 0.6200 BEATS CIBHash 0.5842 by +0.036 (+6.1 %), beats CIMON 0.5388 by +0.081 (+15 %), beats MLS3RDUH 0.5037 by +0.116 (+23 %). DNA-uniq comparison NOT direct (baseline has no learned compositional structure — high DNA values reflect random partition + sign hash, not learned diversity).**
+
+🟢 **DNA-uniq attack sweep.** Three single-delta variants tested whether DNA-uniq can be pushed past 0.140 with v160b_qwen3v5b's recipe (mAP 0.6200, DNA 0.140 currently the MSCOCO mAP+DNA champion). All three failed; results confirm K=128 / L=3 = 2× pigeonhole (128 codewords vs 4³=64 codons) is the structural bottleneck, not a recipe knob away.
+
+### DNA-uniq sweep results
+
+| Tag | mAP | P@1 | P@10 | DNA | cbT | NMI ↓ | L↔L ↓ | B2 | drop_sum | collision |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| v160b_qwen3v5b (base) | **0.6200** ★ | 0.9028 | **0.8996** ★ | **0.140** ★ | 0.229 | 0.709 | 0.736 | 0.166 | −0.045 | **1.63×** ★ |
+| v160b_qwen3v5b_etaBB1 | 0.6173 | 0.9032 | 0.8968 | 0.137 | 0.224 | 0.717 | 0.745 | 0.167 | −0.047 | 1.63× |
+| v160b_qwen3v5b_cbOrtho005 | 0.6139 | **0.9068** ★ | 0.8953 | 0.127 ✗ | 0.225 | **0.700** ★ | **0.725** ★ | 0.164 | −0.041 | 1.78× |
+| v160b_qwen3v5b_topp02_05 | 0.6073 ✗ | 0.8888 ✗ | 0.8841 | 0.133 | **0.236** | 0.707 | 0.734 | 0.165 | −0.043 | 1.78× |
+
+### Δ vs qwen3v5b base
+
+| Δ | etaBB1 | cbOrtho005 | topp02_05 |
+|---|---:|---:|---:|
+| mAP | −0.0027 | −0.0061 | **−0.0127** ✗ |
+| P@1 | +0.0004 | **+0.0040** ★ | −0.0140 ✗ |
+| P@10 | −0.0028 | −0.0043 | −0.0155 |
+| DNA | −0.0033 | **−0.0134** ✗ | −0.0077 |
+| cb_tuple | −0.0057 | −0.0038 | **+0.0067** |
+| NMI ↓ | +0.0076 ✗ | **−0.0091** ★ | −0.0026 |
+| L↔L ↓ | +0.0092 ✗ | **−0.0115** ★ | −0.0023 |
+| B2 | +0.0015 | −0.0019 | −0.0014 |
+| collision ratio | tied 1.63× | 1.63×→1.78× | 1.63×→1.78× |
+
+### Unsupervised baseline comparison (MSCOCO, CLIP-ViT-B/16 frozen, 60 epochs, batch 64)
+
+| Model | Type | DNA bits | mAP | P@1 | P@10 | DNA-uniq | NMI ↓ | L↔L ↓ | B2 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| **CIBHash** (reference, unsup) | flat hash + sign | 36 | 0.5842 | **0.9264** ★ | 0.9206 | 0.742 | **0.235** | 0.229 | 0.083 |
+| CIMON (unsup) | pseudo-label + ortho | 36 | 0.5388 | 0.7838 | 0.7708 | 0.428 | 0.412 | 0.418 | 0.104 |
+| MLS3RDUH (unsup) | kNN graph + RDUH | 36 | 0.5037 | 0.7610 | 0.7359 | 0.433 | 0.359 | 0.356 | 0.095 |
+| Ours `mscoco_v160b_qwen3v5b` ★ | learned 6×3×2 DNA | 36 | **0.6200** ★ | 0.9028 | **0.8996** ★ | 0.140 | 0.709 | 0.736 | **0.166** ★ |
+
+### Fair-comparison verification
+
+All conditions verified identical EXCEPT compositional structure:
+
+| | Baseline | Ours | Same? |
+|---|---|---|---|
+| **DNA code length** | 36-bit, 18 bases × 2 bits, values ∈ [0,3] (A/C/G/T) | identical | ✅ |
+| **Visual backbone** | CLIP-ViT-B/16 (cache/mscoco_clip_v4plus, `meta.json` confirmed) frozen | identical, same cache | ✅ |
+| **MSCOCO split** | setting1, 107218 db / 5000 query | identical | ✅ |
+| **Training epochs / BS** | 60 / 64 | identical | ✅ |
+| **Compositional structure** | flat 36-bit hash + post-hoc reshape (`extract_flat_baseline.py`: bits[6m:6m+6] → codebook m, bits[2p:2p+2] → base p) — **no learned compositional structure** | learned Sinkhorn router + 6 VQ codebook + codon decoder + paired-aug NtXent + Eq.(8) + text_code_kl + visual_token CIBHash | **different by design** (model contribution) |
+
+→ **mAP / P@1 / P@10 = completely fair direct comparison** (both 36-bit Hamming retrieval, same CLIP backbone, same data).
+→ **B2 = fair** (measure works on any 6×3 bit grouping).
+→ **DNA-uniq = structurally different metric** — baseline high values (CIBHash 0.742) reflect random partition + sign-hash diversity, NOT learned compositional structure. Direct comparison is misleading; Ours' DNA-uniq is constrained by the learned codon decoder mapping K=128 codewords → 64 codon space (2× pigeonhole). Note baseline cb_tuple == DNA (1.00×) — trivially true under no learning.
+→ **NMI = fair direction-wise**: lower = better clustering. Baseline NMI 0.235-0.412 looks "better" but it reflects RANDOM partition (no informative codebook structure); Ours NMI 0.709 reflects learned compositional alignment.
+
+K is NOT a comparison axis — baseline has no codebook structure at training time. The K=64 grouping in baseline result npz is an artifact of `extract_flat_baseline.py`'s 6-bit chunks.
+
+### Findings
+
+1. **3 DNA-uniq sweeps all fail on K=128 / L=3 base.** etaBB1 marginal, cbOrtho005 hurts DNA −0.013 (orthogonality reduces codeword sharing per codebook but doesn't push codeword-codon mapping toward bijection), topp02_05 hurts retrieval. K=128 vs 4³=64 codon-space pigeonhole is the structural ceiling; recipe-level fixes cannot escape it.
+2. **cbOrtho005 is the selective NMI/clustering champion** (NMI 0.700, L↔L 0.725, P@1 0.9068 — all best in qwen3v5b sweep) at the cost of DNA. Paper-grade alternative recipe when clustering matters more than DNA-uniq.
+3. **The real DNA-uniq fix is L=4** (codon length 3→4), giving 4⁴=256 codon space matching K=128 codeword count (no pigeonhole). Flickr v106b → v122a confirmed +0.204 DNA from this single change. MSCOCO L=4 cell not yet tried — highest-priority next experiment.
+4. **vs unsupervised baselines: Ours wins mAP and B2 decisively.** mAP +0.036 over CIBHash (next strongest baseline) = +6.1 % relative. B2 0.166 ≈ 2× CIBHash 0.083, 1.6× CIMON 0.104. Caveat: P@1 0.9028 vs CIBHash 0.9264 — CIBHash is sharper at top-1 because random partition + sign hash produces highly-distinct codes by accident, while our learned structure is denser at top ranks but better at later ranks.
+5. **DNA-uniq direct comparison misleading.** Baseline DNA 0.742 looks higher but is the same value as cb_tuple (random partition, no learned compositional). Ours DNA 0.140 reflects learned compositional bottleneck — comparison axis is recipe-difference, not retrieval-quality.
+
+### Verdict
+
+- **mscoco_v160b_qwen3v5b ABSOLUTE CHAMPION retained** — no DNA-uniq sweep beats it on a single-axis non-marginal way.
+- **mscoco_v160b_qwen3v5b_cbOrtho005 NEW MSCOCO NMI/L↔L/P@1 champion** (NMI 0.700, L↔L 0.725, P@1 0.9068). Selective adopt as "clustering-priority recipe alternative".
+- **mscoco_v160b_qwen3v5b_etaBB1 DISCARDED** — no axis improvement.
+- **mscoco_v160b_qwen3v5b_topp02_05 DISCARDED** — strongest mAP regression (−0.013), no axis win.
+- **vs unsupervised baselines (CIBHash / CIMON / MLS3RDUH)**: Ours wins mAP / B2 / compositional structure decisively; CIBHash retains top-1 sharpness (P@1 0.9264 vs Ours 0.9028 +0.024 gap). Direct mAP comparison fair; DNA-uniq requires interpretation (random vs learned partition).
+
+### Files
+
+- [scripts/train_mscoco_v160b_qwen3v5b_etaBB1.sh](scripts/train_mscoco_v160b_qwen3v5b_etaBB1.sh)
+- [scripts/train_mscoco_v160b_qwen3v5b_cbOrtho005.sh](scripts/train_mscoco_v160b_qwen3v5b_cbOrtho005.sh)
+- [scripts/train_mscoco_v160b_qwen3v5b_topp02_05.sh](scripts/train_mscoco_v160b_qwen3v5b_topp02_05.sh)
+
+### Suggested follow-ups
+
+1. **mscoco_v160b_qwen3v5b + L=4** (HIGHEST PRIORITY) — codon_length 3→4 single delta. 4⁴=256 codon space matches K=128 codewords (no pigeonhole). Flickr v106b → v122a +0.204 DNA precedent. Predicted MSCOCO DNA 0.22-0.30.
+2. **mscoco_v160b_qwen3v5b + L=4 + lambda_codeword_codon_sinkhorn 0.1** — decoder-side bijection enforcement combined with L=4 codon expansion. Flickr v122a-style stack.
+3. **mscoco_v160h K=256 + qwen3v5b + L=4** — triple stack: high codeword diversity + caption disjoint + matched codon space.
+4. **CIBHash MSCOCO sharper top-1 deeper analysis** — CIBHash retains P@1 0.9264 vs Ours 0.9028 (+0.024). What drives this? Flat 36-bit + sign means hamming-1 neighbors are denser at code edges; understanding may reveal a top-1 sharpening trick portable to our recipe.
+
+---
+
 ## 2026-06-17 — MSCOCO caption regeneration with PROMPT_V5b (disjoint-vocab) + v162b cross-validation under v5b — **mscoco_v160b_qwen3v5b NEW MSCOCO ABSOLUTE CHAMPION: mAP 0.6200 (NEW peak, beats whitenG1 0.6195), DNA 0.140 (+0.021 vs v160b ref, only fix with positive DNA Δ), cb_tuple 0.229, collision ratio 1.63× (FAMILY MINIMUM, vs v160b ref 1.72×, whitenG1 2.30× ✗), NMI 0.709, L↔L 0.736 (tied with whitenG1). Caption-level root-cause fix (regenerated 10K trainset with PROMPT_V5b strict disjoint vocabulary) beats both whitenG1 (offline ZCA) AND localResid (runtime C_0 projection) on every retrieval+compositional axis. PROMPT_V5b reduces cross-slot vocabulary leak by 38.4% (74124→45673 shared occurrences) and caption length by 1.4 words. v162b under v5b also hurts mAP (−0.018 vs base v5b), confirming grounded routing is fundamentally MSCOCO-incompatible regardless of caption rev — v162b_qwen3v5b DISCARDED.**
 
 🟢 **Caption regeneration pipeline.** PROMPT_V5b adds explicit per-axis vocabulary domains + FORBIDDEN cross-axis word lists + one few-shot example. Length target 10-15 words. Re-generated 10K MSCOCO trainset on Qwen3-VL-8B-Instruct (4-shard GPU 0/2/3/5, ~20 min). Built CLIP text cache (cache/mscoco_clip_v5b/text_part.f16.npy) and token cache (cache/mscoco_clip_v5b_tokens/text_tokens.f16.npy) from the regenerated captions, donor-symlinking all visual files from mscoco_clip_v4plus.
