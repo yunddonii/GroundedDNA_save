@@ -334,6 +334,84 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-18 — Flickr PROMPT_V5b caption regeneration on noGate champion — **PROMPT_V5b OVER-SHARPENS Flickr captions: single-delta v4→v5b on the Flickr ABSOLUTE CHAMPION (`v162b_qwen3_topp02_05_noGate`) REGRESSES every retrieval+compositional axis. mAP 0.7581→0.7531 (−0.005), P@1 0.9305→0.9235 (−0.007), P@10 0.9233→0.9193 (−0.004), DNA 0.426→0.413 (−0.014, strongest regression), cb_tuple 0.593→0.587 (−0.006). NMI/L↔L marginally worse (+0.002 / +0.003), B2 tied. Verdict: PROMPT_V5b is dataset-dependent — wins on MSCOCO (high baseline caption redundancy, v4→v5b mAP +0.0066 / DNA +0.021), loses on Flickr (already-disjoint baseline, v4 local↔local Jaccard 0.0708; v5b's −48 % vocab leak goes past the sweet spot and discards informational coverage). PAPER-GRADE INSIGHT: caption-regen effectiveness scales with baseline redundancy; one-size-fits-all is wrong.**
+
+🟢 **Pipeline.** Single-delta caption regeneration on Flickr25k trainset using PROMPT_V5b (sentence-style, strict disjoint vocabulary, 10-15 words / slot). 5-GPU shard extraction (4 min total), CLIP text embedding + token cache built from new captions. The grounded × sharp-topp × noGate combo recipe held fixed; only `--qwen_text_cache_path` and `--siglip2_feature_cache_dir` changed.
+
+### Caption stats (Flickr v4 vs v5b, 5000 trainset captions, parse_fail=0)
+
+| Metric | v4 | v5b | Δ |
+|---|---:|---:|---:|
+| Avg words / slot | 12.9 | **10.7–12.0** | shorter / cleaner sentence form |
+| Cross-slot vocab leak (local↔local) | 32 046 | **16 617** | **−48.1 %** |
+| `local↔local` Jaccard similarity | **0.0708** | **0.0225** | **−68 %** |
+| `None` / empty entries | minor | 46 secondary + 4 activity | minor |
+| Top reduced leak words | white (1141→327), water (1014→457), red (743→246), green (680→146), sky (677→198), dark (631→197), blue (549→137) | | strong color/material containment |
+
+→ v5b dramatically sharpens Flickr's vocab disjointness — but Flickr's v4 baseline was ALREADY at low redundancy (Jaccard 0.07 vs MSCOCO ~0.10+), so the sharpening discards informational coverage.
+
+### Training cell results (Flickr25k-CLIP K=128, qwen3-VL-8B)
+
+| Cell | mAP | P@1 | P@10 | DNA | cbT | NMI ↓ | L↔L ↓ | B2 | collision |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Flickr v160b_qwen3 (best v4 base) | 0.7442 | 0.9235 | 0.9185 | 0.423 | 0.560 | 0.625 | 0.664 | 0.101 | 1.32× |
+| **Flickr v162b_qwen3_topp02_05_noGate (v4) ★★** | **0.7581** ★ | **0.9305** ★ | **0.9233** ★ | **0.426** ★ | 0.593 | **0.616** ★ | **0.652** ★ | 0.101 | 1.39× |
+| Flickr v162b_qwen3v5b_topp02_05_noGate (v5b) | 0.7531 ✗ | 0.9235 ✗ | 0.9193 ✗ | 0.413 ✗ | 0.587 | 0.619 | 0.655 | 0.101 | 1.42× |
+
+### Δ v5b vs v4 (single-delta caption regen on noGate champion)
+
+| Axis | Δ | Direction |
+|---|---:|---|
+| mAP | **−0.0051** | ✗ regression |
+| P@1 | **−0.0070** | ✗ regression |
+| P@10 | −0.0040 | ✗ regression |
+| **DNA** | **−0.0137** | ✗ **strongest regression** |
+| cb_tuple | −0.0062 | regression |
+| NMI ↓ | +0.0024 | marginal worse |
+| L↔L ↓ | +0.0033 | marginal worse |
+| B2 | +0.0003 | tied |
+
+→ **Every retrieval and compositional axis regresses or stays tied**. Flickr v4 noGate combo retains ABSOLUTE CHAMPION status.
+
+### Cross-dataset comparison of PROMPT_V5b effect
+
+| Dataset | v4 baseline Jaccard local↔local | v4→v5b leak Δ | v4→v5b mAP Δ | v4→v5b DNA Δ | Verdict |
+|---|---:|---:|---:|---:|---|
+| **MSCOCO** | ~0.10+ (high redundancy) | −38.4 % | **+0.0066** ★ | **+0.0210** ★ | **v5b HELPS** |
+| **Flickr** | **0.0708** (low redundancy) | −48.1 % | **−0.0051** ✗ | **−0.0137** ✗ | **v5b OVER-SHARPENS** |
+
+### Findings
+
+1. **PROMPT_V5b is dataset-dependent**. The sharper disjoint-vocab prompt assumes a redundant baseline; when the baseline is already disjoint (Flickr's Qwen V4 hits Jaccard 0.07), v5b removes signal rather than noise.
+2. **Vocabulary leak reduction is not always good**. Flickr's −48 % leak reduction (32k → 16k) is LARGER than MSCOCO's −38 % but the downstream effect REVERSES: caption regen is most useful when the baseline has a leak-driven NMI/DNA problem, which Flickr v4 simply does not have (NMI 0.625 / DNA 0.423 already strong).
+3. **DNA-uniq is the most sensitive axis to over-sharpening on Flickr** (−0.014, dominating the regression). Sharpening text vocabulary forces redundant codewords on Flickr because the codon decoder loses informational coverage that the v4 caption provided.
+4. **B2 invariant** (+0.0003). Visual-vs-codeword compositional alignment doesn't change with caption sharpness — this is the strongest evidence that v5b's effect is text-side only and the visual path was not the source of the gap.
+5. **Confirms 2026-06-17 MSCOCO mechanism** but extends it: caption regeneration is an **input-side denoising tool**; useful only when there is noise to denoise. PROJECT_LOG entry suggesting v5b might also help Flickr (2026-06-17, follow-up #3) is now answered: NO.
+
+### Verdict
+
+- **Flickr ABSOLUTE CHAMPION RETAINED**: `v162b_qwen3_topp02_05_noGate` (v4 captions, mAP 0.7581 / P@1 0.9305 / DNA 0.426).
+- **Flickr v5b cell DISCARDED**: regression on every retrieval+compositional axis; no axis champion.
+- **PROMPT_V5b stays MSCOCO-only** (MSCOCO ABSOLUTE CHAMPION mscoco_v160b_qwen3v5b still adopts it).
+- **Caption regen as a recipe knob**: apply only when baseline Jaccard / NMI indicates a redundancy bottleneck. Default = check baseline first.
+
+### Files
+
+- [tools/qwen3_v5b_flickr25k_trainset.py](tools/qwen3_v5b_flickr25k_trainset.py)
+- [scripts/train_v162b_qwen3v5b_topp02_05_noGate_flickr25k_clip.sh](scripts/train_v162b_qwen3v5b_topp02_05_noGate_flickr25k_clip.sh)
+- `cache/flickr25k_qwen3_v5b_trainset.jsonl` (5000 captions, V5b prompt)
+- `cache/flickr25k_clip_v5b/` (CLIP pooled embeddings)
+- `cache/flickr25k_clip_v5b_tokens/` (CLIP token-level cache, ~5 GB)
+
+### Suggested follow-ups
+
+1. **DECIDE caption regen by Jaccard heuristic**: trigger v5b regeneration only when v4 baseline local↔local Jaccard > 0.10. Codify into a Makefile-style preflight check before launching new datasets.
+2. **Flickr noGate champion + L=4** (codon-space expansion) — the remaining DNA-uniq lever that hasn't been tried on the new champion (currently DNA 0.426; Flickr v122a precedent +0.204).
+3. **Inverse experiment on MSCOCO**: try a PROMPT_V5b-RELAXED variant that allows more vocabulary overlap (target Jaccard 0.10) to see if MSCOCO has its own sweet spot that v5b overshoots too.
+4. **Re-examine `cbOrtho005` on Flickr**: orthogonality regularizer matched v5b's intent at the codebook side; if v5b oversharps on Flickr, cbOrtho005 might also be redundant there. Worth a single-cell test.
+
+---
+
 ## 2026-06-18 — `--disable_global_gate` cross-dataset cell on (qwen3 + topp02_05 + grounded routing) base — **NEW FLICKR ABSOLUTE CHAMPION discovered: v162b_qwen3_topp02_05_noGate breaks all retrieval+compositional ceilings simultaneously (mAP 0.7581 +0.014, P@1 0.9305 +0.007, P@10 0.9233 +0.005, DNA 0.426 +0.003, NMI 0.616 −0.009, L↔L 0.652 −0.012 vs prior best v160b_qwen3). On MSCOCO the noGate delta is mixed: P@1/P@10/cb_tuple gain (+0.002/+0.005/+0.010) but mAP loses −0.006 and DNA loses −0.005. CROSS-DATASET ASYMMETRY: when caption coverage is high (Flickr 100%) C_0→local conditioning is noise (noGate helps every axis); when caption coverage is low (MSCOCO 8.2%) C_0 is backup retrieval signal (noGate hurts mAP).**
 
 🟢 **Rationale.** The 2026-06-18 grounded × sharp-topp interaction discovery showed that v162b + topp02_05 wins compositional axes on MSCOCO. The conditioning gate `sigmoid(global_gate_init_logit=4.595) ≈ 0.99` adds ~99% of C_0's codeword to all 5 local codeword heads before codon decoding. Setting `--disable_global_gate` removes that conditioning entirely, isolating each local codon head from the global slot. On Flickr the redundant text path no longer leaks across local axes, unlocking a Pareto-better cell; on MSCOCO the sparse caption coverage means C_0 was load-bearing as a retrieval backup, so noGate costs mAP.

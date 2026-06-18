@@ -750,6 +750,194 @@ class ImgRtvCIFAR10(CIFAR10):
 
 
 
+def _encode_onehot(labels, num_classes: int) -> np.ndarray:
+    """Encode integer labels as one-hot int64 array of shape [N, num_classes].
+
+    Mirrors `data.transform.encode_onehot` used by the upstream CUB-2011
+    pipeline so the label format stays identical.
+    """
+    n = len(labels)
+    out = np.zeros((n, num_classes), dtype=np.int64)
+    for i, lab in enumerate(labels):
+        out[i, int(lab)] = 1
+    return out
+
+
+class ImgRtvCUB2011(Dataset):
+    """CUB-200-2011 wrapper.
+
+    Mirrors the upstream Cub2011 pre-processing exactly:
+      - reads `images.txt`, `image_class_labels.txt`, `train_test_split.txt`
+        from the dataset root (no setting1/setting2 split files needed);
+      - train_test_split.txt: is_training_img == 1 -> TRAIN_DATA + RETRIEVAL_DATA,
+                              is_training_img == 0 -> QUERY_DATA;
+      - retrieval database == trainset (5994 images), query == test split (5794);
+      - labels encoded as int64 one-hot [N, 200] (target - 1, 0-indexed).
+
+    Output dict matches ImgRtvDataset's interface so the rest of the
+    training / extraction pipeline does not need to special-case CUB:
+        'label'             : int64 one-hot [200]
+        'img'               : default-transformed tensor (skipped when feat cache present)
+        'idx'               : (when return_index)
+        'img_tr1' / 'img_tr2': augmented views (when return_paired_aug_img)
+        'part_input_ids' / 'part_attention_mask': Qwen-derived 6-codebook tokens
+        'cached_*'          : SigLIP2 / CLIP feature cache rows
+        'image_path'        : str
+
+    `mode` accepts the upstream names ('train', 'query', 'retrieval') and
+    the existing pipeline names ('train', 'test', 'database') interchangeably.
+    `setting_name` is accepted for API compatibility but ignored (CUB has a
+    canonical split baked into train_test_split.txt).
+    """
+
+    _INITIALIZED_FOR: Optional[str] = None  # cache root path of last init
+
+    @staticmethod
+    def _init_cls(root: str) -> None:
+        images = pd.read_csv(os.path.join(root, 'images.txt'), sep=' ',
+                             names=['img_id', 'filepath'])
+        image_class_labels = pd.read_csv(os.path.join(root, 'image_class_labels.txt'),
+                                         sep=' ', names=['img_id', 'target'])
+        train_test_split = pd.read_csv(os.path.join(root, 'train_test_split.txt'),
+                                       sep=' ', names=['img_id', 'is_training_img'])
+        data = images.merge(image_class_labels, on='img_id')
+        all_data = data.merge(train_test_split, on='img_id')
+        all_data['filepath'] = 'images/' + all_data['filepath']
+        train_data = all_data[all_data['is_training_img'] == 1]
+        test_data = all_data[all_data['is_training_img'] == 0]
+
+        ImgRtvCUB2011.QUERY_DATA      = test_data['filepath'].to_numpy()
+        ImgRtvCUB2011.QUERY_TARGETS   = _encode_onehot((test_data['target'] - 1).tolist(), 200)
+        ImgRtvCUB2011.TRAIN_DATA      = train_data['filepath'].to_numpy()
+        ImgRtvCUB2011.TRAIN_TARGETS   = _encode_onehot((train_data['target'] - 1).tolist(), 200)
+        ImgRtvCUB2011.RETRIEVAL_DATA    = ImgRtvCUB2011.TRAIN_DATA
+        ImgRtvCUB2011.RETRIEVAL_TARGETS = ImgRtvCUB2011.TRAIN_TARGETS
+        ImgRtvCUB2011._INITIALIZED_FOR = root
+
+    def __init__(self, root,
+                 img_transform=None, target_transform=None,
+                 mode="train", setting_name="setting1",
+                 return_index=False, return_paired_aug_img=False,
+                 qwen_text_cache_path: Optional[str] = None,
+                 siglip2_tokenizer_name: str = "google/siglip2-base-patch16-224",
+                 siglip2_text_max_length: int = 64,
+                 siglip2_feature_cache_dir: Optional[str] = None,
+                 force_pixel_decode: bool = False):
+        self.root = os.path.expanduser(root)
+        self.transform = img_transform               # augmentation for paired-aug NtXent
+        self.target_transform = target_transform
+        self.return_index = return_index
+        self.return_paired_aug_img = return_paired_aug_img
+        self.qwen_text_cache_path = qwen_text_cache_path
+        self._siglip2_feature_cache_dir = siglip2_feature_cache_dir
+        self._force_pixel_decode = bool(force_pixel_decode)
+
+        self.default_transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ])
+
+        # Build the per-split paths/labels exactly the way upstream Cub2011 does.
+        if ImgRtvCUB2011._INITIALIZED_FOR != self.root:
+            ImgRtvCUB2011._init_cls(self.root)
+
+        if mode == "train":
+            data, targets = ImgRtvCUB2011.TRAIN_DATA, ImgRtvCUB2011.TRAIN_TARGETS
+        elif mode in ("test", "query"):
+            data, targets = ImgRtvCUB2011.QUERY_DATA, ImgRtvCUB2011.QUERY_TARGETS
+        elif mode in ("database", "retrieval"):
+            data, targets = ImgRtvCUB2011.RETRIEVAL_DATA, ImgRtvCUB2011.RETRIEVAL_TARGETS
+        else:
+            raise ValueError(f"[ImgRtvCUB2011] invalid mode: {mode}")
+
+        # `img_paths` is absolute filesystem paths (consistent with ImgRtvDataset)
+        # so cache row mapping and image_path output stay uniform.
+        self.img_paths = np.array([os.path.join(self.root, fp) for fp in data])
+        self.img_labels = np.asarray(targets, dtype=np.int64)
+
+        if return_index:
+            self.index_table = torch.arange(0, len(self))
+        if return_paired_aug_img:
+            assert img_transform is not None, (
+                "[ImgRtvCUB2011] return_paired_aug_img requires img_transform"
+            )
+
+        # ---- optional Qwen-derived part text tokens ----
+        # Same gate as ImgRtvDataset: only build if no SigLIP2 feature cache.
+        self._part_tokens = None
+        if self._siglip2_feature_cache_dir is None:
+            self._part_tokens = _build_part_token_tensors(
+                img_paths=list(self.img_paths),
+                root=self.root,
+                cache_path=qwen_text_cache_path,
+                tokenizer_name=siglip2_tokenizer_name,
+                max_length=siglip2_text_max_length,
+            )
+            if self._part_tokens is not None:
+                assert self._part_tokens["input_ids"].shape[0] == len(self.img_paths)
+
+        # ---- optional SigLIP2 / CLIP visual+text feature cache ----
+        self._feat_cache: Optional[_SigLIP2FeatureCache] = None
+        self._feat_cache_rows: Optional[np.ndarray] = None
+        if (self._siglip2_feature_cache_dir is not None
+                and os.path.isdir(self._siglip2_feature_cache_dir)):
+            self._feat_cache = _SigLIP2FeatureCache(self._siglip2_feature_cache_dir)
+            self._feat_cache_rows = _build_pathkeyed_cache_row_map(
+                list(self.img_paths), self.root, self._feat_cache,
+            )
+            print(f"[ImgRtvCUB2011] siglip2 feature cache loaded from "
+                  f"{self._siglip2_feature_cache_dir} -- "
+                  f"N={len(self.img_paths)} images mapped to cache rows.")
+
+    def get_onehot_targets(self):
+        """Mirror upstream Cub2011.get_onehot_targets (returns float32 tensor)."""
+        return torch.from_numpy(self.img_labels).float()
+
+    def __len__(self):
+        return len(self.img_paths)
+
+    def __getitem__(self, index):
+        img_name = self.img_paths[index]
+        target = self.img_labels[index]
+
+        skip_image_decode = (self._feat_cache is not None) and not self._force_pixel_decode
+        if not skip_image_decode:
+            img = Image.open(img_name).convert('RGB')
+            img_i = self.default_transform(img)
+        else:
+            img = None
+            img_i = None
+
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+
+        out = {}
+        out['label'] = target
+        if img_i is not None:
+            out['img'] = img_i
+
+        if self.return_index:
+            out['idx'] = self.index_table[index]
+
+        if self.return_paired_aug_img and not skip_image_decode:
+            assert self.transform is not None
+            out['img_tr1'] = self.transform(img)
+            out['img_tr2'] = self.transform(img)
+
+        if self._part_tokens is not None:
+            out['part_input_ids']      = self._part_tokens['input_ids'][index]       # [6, L]
+            out['part_attention_mask'] = self._part_tokens['attention_mask'][index]  # [6, L]
+
+        if self._feat_cache is not None and self._feat_cache_rows is not None:
+            row = int(self._feat_cache_rows[index])
+            cached = self._feat_cache.get(row)
+            out.update(cached)
+
+        out['image_path'] = str(img_name)
+        return out
+
+
 def load_dataset(dataset_dir, dataset_name, setting,
                  train_transform=None, test_transform=None,
                  load_train=True, load_test=True, load_database=True,
@@ -798,13 +986,15 @@ def load_dataset(dataset_dir, dataset_name, setting,
 
         
 
-DATASET = { 
+DATASET = {
            'DEFAULT': None,
-           'CIFAR10': ImgRtvCIFAR10, 
-            'Flickr25k': ImgRtvDataset, 
+           'CIFAR10': ImgRtvCIFAR10,
+            'Flickr25k': ImgRtvDataset,
             'ImageNet100': ImgRtvDataset,
-            'MSCOCO': ImgRtvDataset, 
-            'NUSWIDE': ImgRtvDataset, 
+            'MSCOCO': ImgRtvDataset,
+            'NUSWIDE': ImgRtvDataset,
+            'CUB_200': ImgRtvCUB2011,
+            'CUB_200_2011': ImgRtvCUB2011,
             }
 
 NUM_CLASSES = { 
@@ -815,17 +1005,21 @@ NUM_CLASSES = {
             'ImageNet100':{'setting1': 100}, 
             'MSCOCO': {'setting1': 80}, 
             'NUSWIDE': {'setting1'  : 21,
-                        'setting2'  : 10}, 
-                
+                        'setting2'  : 10},
+            'CUB_200': {'setting1': 200},
+            'CUB_200_2011': {'setting1': 200},
+
             }
 
-MULTI_LABEL = { 
+MULTI_LABEL = {
             'DEFAULT'   : None,
-            'CIFAR10'   : False, 
-            'Flickr25k' : True, 
+            'CIFAR10'   : False,
+            'Flickr25k' : True,
             'ImageNet100': False,
-            'MSCOCO'    : True, 
-            'NUSWIDE'   : True, 
+            'MSCOCO'    : True,
+            'NUSWIDE'   : True,
+            'CUB_200'   : False,
+            'CUB_200_2011': False,
             }
 
 if __name__ == "__main__":
