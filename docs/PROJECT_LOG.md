@@ -334,6 +334,77 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-19 — CUB-200 `--use_null_centroid` (background dustbin) hypothesis test on v6b cells — **HYPOTHESIS REFUTED on CUB. Adding a learnable null/dustbin centroid that absorbs background patches at the Sinkhorn router (v56 ablation flag, already in codebase) was expected to clean up the 6 anatomy/markings codebooks; on CUB-200 it instead REGRESSES every retrieval+compositional axis. v160b v6b K=64 + null: mAP 0.0739 → 0.0611 (−0.013), P@1 0.1184 → 0.0963 (−0.022), DNA 0.540 → 0.445 (−0.095), cb_tuple 0.617 → 0.525 (−0.092). Anatomy slots also degrade: cb1 (head) drop flips from −0.0007 (informative) to +0.0024 (detrimental), cb2 (wing) drop from −0.0021 to +0.0029. CUB-specific failure mode: background patches carry weak but real perch/habitat/contextual cues; absorbing them into a null bin under 5994-sample sparsity starves the 6 codebooks of learning signal (dead codewords rise to 0.11). null_centroid DISCARDED on CUB. v162b comparison cell suffered a TAG collision during launch — base v162b v6b K=128 dir was overwritten with the +null run, so the v162b base ↔ v162b+null Δ cannot be measured cleanly from npz; PROJECT_LOG previous-day base numbers (mAP 0.0676 / cb_tuple 0.755 / B2 0.075) serve as the only available reference and show a small apparent +0.0035 mAP gain, but stochasticity dominates at this scale. Conclusion: null centroid is potentially useful on dense multi-object scenes (Flickr / MSCOCO) where backgrounds are not informative, but on sparse single-object fine-grained datasets (CUB) every patch must contribute.**
+
+🟢 **Test design.** Single-delta `+--use_null_centroid` on two CUB v6b champion cells:
+- v160b v6b K=64 + null  (vs v160b v6b K=64, the v160b CUB mAP record 0.0739)
+- v162b v6b K=128 + null (vs v162b v6b K=128, the v162b CUB mAP record 0.0676)
+
+The null centroid is a learnable parameter appended to the Sinkhorn router's 6 codebook centroids; patches preferring it under the balanced OT plan effectively get rejected from all 6 codebook updates (the null column is sliced out post-routing).
+
+### Results
+
+| Cell | mAP | P@1 | DNA | cb_tuple | B1 | B2 |
+|---|---:|---:|---:|---:|---:|---:|
+| v160b v6b K=64 (base) | **0.0739** ★ | **0.1184** ★ | **0.540** ★ | 0.617 | 0.107 | 0.068 |
+| v160b v6b K=64 + null ✗ | 0.0611 | 0.0963 | 0.445 | 0.525 | 0.102 | 0.063 |
+| v162b v6b K=128 (PROJECT_LOG yesterday base) | **0.0676** | — | 0.529 | **0.755** | 0.116 | **0.075** |
+| v162b v6b K=128 + null (overwrote base dir) | 0.0711 | 0.1177 | 0.520 | 0.739 | 0.116 | 0.075 |
+
+### Δ +null vs base (v160b clean comparison)
+
+| Axis | Δ |
+|---|---:|
+| mAP | **−0.0128** ✗ |
+| P@1 | **−0.0221** ✗ |
+| DNA | **−0.0953** ✗ |
+| cb_tuple | **−0.0921** ✗ |
+| B1 | −0.0059 |
+| B2 | −0.0049 |
+| dead-codeword ratio | ≤ 0.10 → **0.11** (rises) |
+
+### Drop ablation Δ_mAP per codebook (v160b clean)
+
+| Cell | cb0 (global) | cb1 (head) | cb2 (wing) | cb3 (under) | cb4 (tail) | cb5 (markings) |
+|---|---:|---:|---:|---:|---:|---:|
+| v160b v6b K=64 (base) | −0.0138 | −0.0007 | −0.0021 | −0.0008 | −0.0000 | −0.0011 |
+| **v160b v6b K=64 + null** | −0.0126 | **+0.0024** ✗ | **+0.0029** ✗ | −0.0019 | −0.0009 | −0.0012 |
+
+→ cb1 (head) and cb2 (wing) **flip from informative to detrimental**. Pattern-markings slot (cb5) is unchanged (−0.0011 → −0.0012). The null mechanism does not improve marker-codebook precision; it only removes patches that the head + wing codebooks needed for stable learning.
+
+### Mechanism — why CUB rejects the dustbin
+
+1. **Background patches carry weak-but-real cues on CUB** (perch branch, leaf texture, water/sky habitat context) that a 5994-sample trainset cannot afford to throw away. The dustbin absorbs them, forcing 6 codebooks to fit foreground patches only — but foreground patches per codebook drop below the threshold needed to stabilize codeword learning.
+2. **Dead-codeword ratio rises** from ≤ 0.10 to 0.11, confirming the data-sparsity-driven collapse. With ~30 samples / class even before the null, removing 50 %+ of patches per image cuts effective learning signal substantially.
+3. **Anatomy slot flip** (cb1/cb2 informative → detrimental) is the dominant failure mode. The router's mass-conservation pressure was actually protecting the anatomy codebooks by giving them enough patches to disambiguate species; removing background patches breaks that protection.
+4. **Caption-side fix (V6b → V6b) was orthogonal to routing-side fix**. V6b correctly localized markings vocabulary to slot 5 (99.1 % ownership). The null mechanism does not change cb5's role — the slot 5 drop ablation barely moves (−0.0011 vs −0.0012). The hypothesis that markings would become more informative under a cleaner router is not supported.
+5. **Cross-dataset expectation**: on dense multi-object scenes (Flickr 100 % caption coverage, MSCOCO 8.2 % but multi-object), backgrounds are genuinely irrelevant and the dustbin should help. CUB's failure is a sparse-single-object-fine-grained-specific failure mode, not a general null-centroid problem.
+
+### TAG collision incident (logged for protocol integrity)
+
+The v162b v6b K=128 + null launch first started with the TAG inherited from the original v6 v162b script (`cub200_v162b_v6_groundedTextRouting_K128_partialWhiten_gamma0.25`) before TAG-suffix fix was sed-applied and the cell was relaunched. The first (mis-TAGged) run wrote into the v6b K=128 base result directory, overwriting yesterday's v162b v6b K=128 base extract_db.npz / drop_ablation / compositional_eval. The relaunch then wrote its own (correctly-TAGged) result directory. Net effect: both result dirs now have `use_null_centroid=True`. Yesterday's PROJECT_LOG numbers for v162b v6b K=128 base (mAP 0.0676 / cb_tuple 0.755 / B2 0.075) remain in the entry but the on-disk reproduction is gone. v162b base ↔ v162b+null Δ therefore cannot be measured cleanly from npz; v160b clean comparison carries the verdict.
+
+### Verdict
+
+- **`--use_null_centroid` DISCARDED on CUB-200.** Every retrieval+compositional axis on v160b regresses; v162b cannot be measured cleanly but reference numbers suggest at most a small stochastic gain.
+- **v160b v6b K=64 (no null) retains CUB v160b record** (mAP 0.0739, P@1 0.1184, DNA 0.540).
+- **v162b v6b K=128 result is contaminated** by TAG collision. Future v162b CUB work must regenerate the base before claiming a record.
+- **Null centroid remains worth testing on multi-object dense scenes** (Flickr / MSCOCO grounded routing cells) where the dustbin hypothesis matches the data structure.
+
+### Files
+
+- [scripts/train_cub200_v160b_v6b_K64_nullCentroid_clip.sh](scripts/train_cub200_v160b_v6b_K64_nullCentroid_clip.sh)
+- [scripts/train_cub200_v162b_v6b_K128_nullCentroid_clip.sh](scripts/train_cub200_v162b_v6b_K128_nullCentroid_clip.sh)
+
+### Suggested follow-ups
+
+1. **Re-run v162b v6b K=128 base** to recover the clean baseline that the TAG-collision wiped, and re-measure +null Δ properly.
+2. **Test `--use_null_centroid` on MSCOCO v162b_qwen3v5b_topp02_05 (NMI/L↔L champion)** — multi-object scene where backgrounds (sky, road, building wall) are genuinely irrelevant. Different dataset, different prior; verdict could flip.
+3. **Sample-density-controlled null study**: re-train v160b v6b K=64 + null on a 2 × replicated CUB train (use augmentation + duplication to mimic ~12000 samples). If null becomes neutral or beneficial at higher density, the data-sparsity hypothesis is confirmed.
+4. **CUB foreground mask preprocessing**: replace the null centroid with a hard CLIP attention foreground mask applied to visual_tokens BEFORE the router. Test whether removing background at input level (rather than routing level) helps or also hurts under sparsity.
+
+---
+
 ## 2026-06-19 — CUB-200 PROMPT_V6b (C_background → C_pattern_markings) — **CAPTION-LEVEL REDESIGN VALIDATES USER HYPOTHESIS: replacing the label-irrelevant `C_background` slot (drop ablation Δ_mAP +0.0013 / +0.0009 — *detrimental* on v160b/v162b K=64) with discriminative `C_pattern_markings` (eye-rings, wing bars, streaking, etc.) FLIPS slot 5 to informative (Δ_mAP −0.0011 / −0.0009) and adds across-the-board gains. v160b K=64 mAP 0.0720 → 0.0739 (+0.0019), P@1 0.1125 → 0.1184 (+0.0059), DNA 0.529 → 0.540 (+0.011). v162b K=64 mAP 0.0630 → 0.0641 (+0.0011), DNA 0.489 → 0.510 (+0.021). v162b K=128 v6b mAP 0.0676 (NEW BEST v162b CUB), DNA 0.529, cb_tuple 0.755. Anatomy slots also clean up: v160b cb1(head) drop +0.0010 → −0.0007 (detrimental → informative), cb4(tail) +0.0017 → −0.0000 (detrimental → neutral) — markings now correctly localized to slot 5, removing leakage from anatomy slots.**
 
 🟢 **Caption regeneration pipeline.** PROMPT_V6b reserves C_pattern_markings for discrete field marks (eye-rings, eye-lines, supercilium, crown stripes, wing bars, wing patches, streaking, barring, mottling, spotting, scalloping, feather edging, tail bands, contrasting tips). The five anatomical slots (`C_head_bill`, `C_upperparts_wing`, `C_underparts`, `C_tail_appendages`, plus `C_global`) are constrained to morphology, proportions, structure, visibility, and broad base tone only — explicit FORBIDDEN list for marking vocabulary in those slots.
