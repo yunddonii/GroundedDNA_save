@@ -334,6 +334,84 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-19 — CUB-200 `partial_whiten OFF + topp 0.3/0.7 → 0.5/0.9` (whitening removal + routing relaxation) on v6b cells — **HYPOTHESIS REFUTED with a misleading-mAP trap. The intent was to free the text path of an imprecise CUB-trained whitening matrix and let the router distribute mass more softly across codebooks; the actual outcome on v162b is a CATASTROPHIC CODEBOOK COLLAPSE that artificially inflates mAP. v160b v6b K=64 + noWhiten + topp 0.5/0.9: mAP 0.0739 → 0.0755 (+0.0016 marginal), but P@1 0.1184 → 0.1044 (−0.014 ✗), DNA 0.540 → 0.475 (−0.065 ✗), cb_tuple 0.617 → 0.571 (−0.046 ✗) — mixed Pareto. v162b v6b K=128 + noWhiten + topp 0.5/0.9: mAP 0.0676 → 0.0873 (+0.020 BIG GAIN) but DNA 0.529 → 0.073 (−0.456 ✗✗), cb_tuple 0.755 → 0.125 (−0.630 ✗✗), **73 % codewords dead**, B1/B2 collapse. The mAP gain is a metric artifact of mode-collapse retrieval: with most codewords dead, surviving codes are highly redundant and queries map to a few super-clusters that boost hamming-rank coincidences. Compositional learning is destroyed. v160b v6b K=64 (with whitening) retains the CUB v160b record at mAP 0.0739.**
+
+🟢 **Test design.** Single-delta cluster (3 caches-of-related flags removed simultaneously, since they form a logical unit):
+- Remove `--text_embed_transform partial_whiten` block (3 lines, including `text_whiten_npz` and `text_whiten_gamma`).
+- Widen `--routing_adaptive_topp_min/max` from `0.3 / 0.7` (sharp) to `0.5 / 0.9` (softer).
+
+Two cells:
+- v160b v6b K=64 + noWhiten + topp 0.5/0.9 vs v160b v6b K=64 base (CUB v160b record 0.0739)
+- v162b v6b K=128 + noWhiten + topp 0.5/0.9 vs v162b v6b K=128 base (PROJECT_LOG 2026-06-19 base 0.0676; this base dir is the one that survived the TAG-collision incident, so the comparison is against the PROJECT_LOG number, not a re-extracted npz)
+
+### Results
+
+| Cell | mAP | P@1 | P@10 | DNA | cb_tuple | B1 | B2 | dead |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| v160b v6b K=64 (base) | 0.0739 | 0.1184 | 0.1010 | **0.540** | 0.617 | 0.107 | 0.068 | 0.08 |
+| v160b v6b K=64 + noWhiten + topp 0.5/0.9 | **0.0755** | 0.1044 ✗ | 0.1043 | 0.475 ✗ | 0.571 ✗ | 0.108 | 0.068 | 0.09 |
+| v162b v6b K=128 (PROJECT_LOG base) | 0.0676 | — | — | **0.529** | **0.755** | **0.116** | **0.075** | ≤0.10 |
+| **v162b v6b K=128 + noWhiten + topp 0.5/0.9** (collapse) | **0.0873** ★(misleading) | 0.0716 | 0.1055 | **0.073** ✗✗ | **0.125** ✗✗ | 0.048 ✗ | 0.022 ✗ | **0.732** ✗✗ |
+
+### Δ vs base — both cells
+
+| Axis | v160b + noWhiten+topp | v162b + noWhiten+topp |
+|---|---:|---:|
+| mAP | +0.0016 | **+0.0197** (artifact) |
+| P@1 | −0.0140 ✗ | — |
+| P@10 | +0.0034 | — |
+| DNA | **−0.0651** ✗ | **−0.4556** ✗✗ |
+| cb_tuple | **−0.0455** ✗ | **−0.6297** ✗✗ |
+| B1 | +0.0009 | −0.0682 ✗ |
+| B2 | +0.0000 | −0.0530 ✗ |
+| dead codewords | 0.08 → 0.09 | 0.10 → **0.73** ✗✗✗ |
+
+### Drop ablation per codebook
+
+| Cell | cb0 (global) | cb1 (head) | cb2 (wing) | cb3 (under) | cb4 (tail) | cb5 (markings) |
+|---|---:|---:|---:|---:|---:|---:|
+| v160b v6b K=64 (base) | −0.0138 | −0.0007 | −0.0021 | −0.0008 | −0.0000 | −0.0011 |
+| v160b + noWhiten + topp | −0.0140 | −0.0008 | −0.0039 | −0.0008 | **+0.0018** ✗ | −0.0020 |
+| **v162b + noWhiten + topp** (collapsed) | −0.0238 | **+0.0102** ✗ | −0.0031 | −0.0084 | +0.0000 | −0.0173 |
+
+→ v160b shows mild cb4 (tail) becoming detrimental; the rest is roughly unchanged. v162b shows cb1 (head) +0.0102 (severely detrimental under collapse) — the head codebook is no longer learning useful structure.
+
+### Mechanism — why the v162b mAP gain is a trap
+
+When 73 % of codewords go dead, the surviving codes are highly clustered. Hash retrieval at 36-bit Hamming distance becomes a soft bag-of-cluster vote rather than a fine-grained code lookup; queries and DB items with the same dominant cluster pattern get tied at the top ranks. This raises top-K precision (P@10 0.1055) and mAP slightly without the model actually learning more discriminative structure. The collapse signatures — DNA 0.073, cb_tuple 0.125, B1 0.048, B2 0.022 — show every compositional axis is destroyed. This pattern is a known mode-collapse artifact in deep hashing literature (cf. BCH paper's "bit balance" discussion: trivially-distributed codes can inflate mAP while destroying retrieval semantics).
+
+### Why v160b survived but v162b collapsed
+
+v160b has a stronger non-grounded supervision stack (Uni-Code Eq.(8) + CIBHash visual_token NtXent + text_code_kl) that keeps codeword usage high even when whitening and sharp topp are removed. v162b leans more on grounded text routing whose Stage-2 top-k_t pooling needs the sharp topp to produce a meaningful codeword-distinct text supervision; once topp widens, grounded routing pools redundant tokens, text supervision weakens, and the codebook drifts into collapse.
+
+### Findings
+
+1. **noWhiten + topp relax on CUB v160b: marginal Pareto** (mAP +0.002 but DNA/cb_tuple/P@1 worse). Not a champion.
+2. **noWhiten + topp relax on CUB v162b: catastrophic collapse** (73 % dead, every compositional axis destroyed). The +0.020 mAP gain is a mode-collapse retrieval artifact, not learned improvement.
+3. **partial_whiten is load-bearing for v162b CUB**. The PROJECT_LOG 2026-06-18 CUB analysis listed `lambda_hash=0` and frozen CLIP weakness as method-side bottlenecks; this entry adds *partial_whiten removal AND sharp topp removal jointly destabilize v162b's grounded routing supervision pressure*.
+4. **Pattern repeats prior interaction lesson**. The 2026-06-18 MSCOCO `grounded × sharp topp` 2×2 factorial showed grounded routing **needs** sharp topp to produce clean per-codebook codeword indices. CUB v162b confirms that lesson in the opposite direction: relaxing topp under grounded routing breaks codeword learning.
+5. **Single-axis mAP optimization is dangerous on small-sample fine-grained datasets**. Without watching DNA, cb_tuple, dead-codewords, and compositional B-scores, collapse-driven mAP gains can be mistaken for real progress.
+
+### Verdict
+
+- **`noWhiten + topp 0.5/0.9` DISCARDED on CUB-200** for both v160b and v162b.
+- **v160b v6b K=64 (with partial_whiten, sharp topp) RETAINED as CUB v160b record** (mAP 0.0739, DNA 0.540, P@1 0.1184).
+- **v162b v6b K=128 (with partial_whiten, sharp topp) RETAINED as CUB v162b record** (PROJECT_LOG mAP 0.0676, DNA 0.529, cb_tuple 0.755, B2 0.075).
+- **The mAP-only optimization trap is paper-grade documented**: collapse-driven mAP gains must be ruled out using DNA / cb_tuple / dead-codeword / B2 sanity checks.
+
+### Files
+
+- [scripts/train_cub200_v160b_v6b_K64_noWhiten_topp0509_clip.sh](scripts/train_cub200_v160b_v6b_K64_noWhiten_topp0509_clip.sh)
+- [scripts/train_cub200_v162b_v6b_K128_noWhiten_topp0509_clip.sh](scripts/train_cub200_v162b_v6b_K128_noWhiten_topp0509_clip.sh)
+
+### Suggested follow-ups
+
+1. **Foreground masking at the router input** — instead of removing whitening / softening topp, apply a CLIP-text-grounded foreground mask to `visual_tokens` so the 6 codebooks distribute only foreground patches. Targets the original "background tokens dominate codebooks" hypothesis without breaking the supervision pressure that v162b grounded routing needs.
+2. **Separate the two deltas** to identify which broke v162b: `noWhiten only` vs `topp 0.5/0.9 only`. The mechanism analysis above suggests `topp relaxation alone` is the killer; a quick `noWhiten only` cell would confirm.
+3. **Document the mode-collapse mAP trap** as a methodology note in the next paper draft so reviewers/readers cannot be misled by a single-metric improvement.
+
+---
+
 ## 2026-06-19 — CUB-200 `--use_null_centroid` (background dustbin) hypothesis test on v6b cells — **HYPOTHESIS REFUTED on CUB. Adding a learnable null/dustbin centroid that absorbs background patches at the Sinkhorn router (v56 ablation flag, already in codebase) was expected to clean up the 6 anatomy/markings codebooks; on CUB-200 it instead REGRESSES every retrieval+compositional axis. v160b v6b K=64 + null: mAP 0.0739 → 0.0611 (−0.013), P@1 0.1184 → 0.0963 (−0.022), DNA 0.540 → 0.445 (−0.095), cb_tuple 0.617 → 0.525 (−0.092). Anatomy slots also degrade: cb1 (head) drop flips from −0.0007 (informative) to +0.0024 (detrimental), cb2 (wing) drop from −0.0021 to +0.0029. CUB-specific failure mode: background patches carry weak but real perch/habitat/contextual cues; absorbing them into a null bin under 5994-sample sparsity starves the 6 codebooks of learning signal (dead codewords rise to 0.11). null_centroid DISCARDED on CUB. v162b comparison cell suffered a TAG collision during launch — base v162b v6b K=128 dir was overwritten with the +null run, so the v162b base ↔ v162b+null Δ cannot be measured cleanly from npz; PROJECT_LOG previous-day base numbers (mAP 0.0676 / cb_tuple 0.755 / B2 0.075) serve as the only available reference and show a small apparent +0.0035 mAP gain, but stochasticity dominates at this scale. Conclusion: null centroid is potentially useful on dense multi-object scenes (Flickr / MSCOCO) where backgrounds are not informative, but on sparse single-object fine-grained datasets (CUB) every patch must contribute.**
 
 🟢 **Test design.** Single-delta `+--use_null_centroid` on two CUB v6b champion cells:
