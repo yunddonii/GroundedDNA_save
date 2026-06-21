@@ -334,6 +334,87 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-21 — CUB-200 FG-CLIP backbone swap (full + Hybrid variants) — **HYPOTHESIS REFUTED with TWO ORTHOGONAL FAILURE MODES; CLIP-ViT-B/16 retained as unified backbone. Motivation: CUB record (mAP 0.0739 / DNA 0.540) hits species-level discrimination ceiling because frozen CLIP visual features cluster all bird images tightly (pairwise visual_global cos 0.65–0.81). Goal: swap to a region-trained backbone that decomposes patch-level features into part-specific subspaces, expecting +0.01–0.02 mAP and +0.05 B1. THREE swap variants all collapsed (mid-eval mAP ~0.011, dead 0.42–0.57 from epoch 4, vs CLIP record mAP 0.0739 / dead 0.05); training killed before epoch 60 once collapse was confirmed.**
+
+🔴 **Variant A — full FG-CLIP-base swap (`qihoo360/fg-clip-base`, ViT-B/16, vision+text).**
+  - Pipeline: new `_load_fgclip()` path in `models/pretrained_backbone_clip.py` (handles modeling-class dict→Config conversion, position_ids buffer corruption in safetensors, `walk_short_pos=True` default for short captions); `extract_clip_features.py` / `extract_clip_text_features.py` / `extract_clip_text_token_features.py` accept `--clip_backbone qihoo360/fg-clip-base`; new cache `cache/cub200_fgclip_v6bplus[, _tokens]`.
+  - Result: v160b v6b K=64 ep4 mAP **0.0099** / dead **0.52**; v162b v6b K=128 ep4 mAP **0.0106** / dead **0.55**. Plateaued at mAP ~0.011 by ep34, never recovered.
+  - First fix attempt — replace `visual_global` from CLS pool (degenerate) with patch-mean@`visual_projection` (cos mean 0.971 → 0.522, range 0.055 → 0.760 — healthy spread). Effect: **none**. User correctly pointed out `--lambda_hash 0.0 --lambda_hash_hard 0.0` (siglip_cos pseudo-label UNUSED in v160b/v162b CUB scripts), so `visual_global` quality is irrelevant.
+  - **Real root cause (text-side)**: FG-CLIP's text encoder, trained with long-caption + fine-grained negatives, collapses the 6 part-only phrases ("yellow eye-ring", "streaked breast", etc.) into a single image-description cluster. Per-image slot-pairwise text_part cos: **0.703 ± 0.046 (CLIP) → 0.870 ± 0.018 (FG-CLIP)**; centroid-pairwise across slots **0.846 → 0.968** — the 6 codebook text prompts are effectively identical → all codebooks receive same supervision → mode collapse.
+
+🔴 **Variant B — Hybrid FG-CLIP vision + CLIP text.**
+  - Pipeline: `cache/cub200_fghybrid_v6bplus[, _tokens]` symlinks visual_* from `cub200_fgclip_v6bplus` + text_part/text_tokens/text_whiten from `cub200_clip_v6bplus`. Training scripts use `--clip_backbone openai/clip-vit-base-patch16` (matches text projection); single delta = visual cache path.
+  - Result: v160b v6b K=64 ep44 mAP **0.0108** / dead **0.44**; v162b v6b K=128 ep34 mAP **0.0111** / dead **0.47** — **identical collapse pattern**.
+  - **Real root cause (cross-space mismatch)**: CLIP and FG-CLIP were trained independently with different objectives. FG-CLIP's vision embedding space is internally aligned with FG-CLIP's text embedding space, but **NOT with CLIP's text embedding space**. The Sinkhorn router computes patch ↔ codebook-text similarity to decide routing; with vision and text in disjoint learned spaces, this similarity is effectively noise → no routing signal → all codebooks collapse.
+
+🔴 **Variant C — visual_global patch-mean fix (intermediate during Variant A diagnosis).**
+  - Replaced `visual_global*.f16.npy` with `patch_mean(visual_tokens) @ FG-CLIP visual_projection` (512-d, preserving dim contract). Verified healthy distribution post-fix (cos mean 0.522, range 0.710). Relaunched training: ep4 mAP 0.0101, dead 0.52 — **identical to pre-fix**, confirming `visual_global` was not the active failure axis when `--lambda_hash = 0`.
+
+📐 **Diagnostic measurements (CLIP vs FG-CLIP CUB cache, 200-image subset):**
+
+| Distribution | CLIP cub200_clip_v6bplus | FG-CLIP cub200_fgclip_v6bplus |
+|---|---|---|
+| visual_global L2 mean / std | 10.05 / 0.39 | 7.73 / **0.05** |
+| visual_global cos off-diag mean / range (q10–q90) | 0.725 / **0.16** | **0.971 / 0.055** (degenerate) |
+| visual_tokens patch L2 mean / std | 18.83 / 12.39 | 24.14 / 3.36 |
+| visual_tokens intra-image patch cos | 0.594 ± 0.038 | **0.241 ± 0.203** (more diverse) |
+| visual_tokens intra–inter patch gap | +0.079 | **+0.131** (better) |
+| paired aug0↔aug1 cos pos / neg / gap | 0.904 / 0.720 / +0.184 | 0.772 / 0.497 / **+0.274** (better) |
+| text_part L2 mean / std | 10.67 / 2.13 | 6.47 / **0.07** |
+| text_part within-image 6-slot pairwise cos | **0.703 ± 0.046** | **0.870 ± 0.018** (slots indistinguishable) |
+| text_part slot centroid pairwise cos | **0.846** | **0.968** (slots collapsed) |
+| text_whiten S max / median / min | 3.68 / 3.21e−03 / 7.0e−10 | 1.04 / 2.08e−04 / 4.5e−9 |
+| partial_whiten γ=0.25 gain max/min ratio | 43.80 | 31.86 |
+
+🚫 **Why "swap backbone" is fundamentally incompatible with our unified-method claim:** even if FG-CLIP/BioCLIP/RegionCLIP individually outperform CLIP on CUB, adopting different backbones per dataset (CLIP for Flickr/MSCOCO scene-tag, BioCLIP for CUB fine-grained) breaks the paper's core contribution narrative (the 6-codebook compositional DNA hash as a *unified* framework). Reviewers would attribute gains to backbone choice, not method. Backbone fixed at `openai/clip-vit-base-patch16` going forward; CUB ceiling treated as method-orthogonal data property.
+
+📚 **Documented in this entry to support a paper-level negative-result discussion** ("region-trained CLIP variants are architecturally incompatible with multi-slot text-conditioned codebook supervision; the per-codebook text prompts collapse under fine-grained-negative training, and cross-trained vision+text spaces cannot be mixed without an alignment adapter").
+
+🧰 **Code/artifacts produced (kept in repo for negative-result documentation):**
+- [models/pretrained_backbone_clip.py](models/pretrained_backbone_clip.py) — `_load_fgclip()` path with config dict→Config conversion, position_ids buffer fix, `walk_short_pos` text-forward wrap.
+- [scripts/build_cub200_fgclip_v6bplus_cache.sh](scripts/build_cub200_fgclip_v6bplus_cache.sh) — FG-CLIP CUB cache build (visual + text + token + whitening).
+- [scripts/train_cub200_v160b_v6b_K64_fgclip.sh](scripts/train_cub200_v160b_v6b_K64_fgclip.sh) and v162b variant; [scripts/train_cub200_v160b_v6b_K64_fghybrid_clip.sh](scripts/train_cub200_v160b_v6b_K64_fghybrid_clip.sh) and v162b variant.
+- Caches: `cache/cub200_fgclip_v6bplus[, _tokens]` (FG-CLIP features), `cache/cub200_fghybrid_v6bplus[, _tokens]` (hybrid symlinks). Retained for reproducibility of failure measurements.
+
+🔭 **Follow-ups (next direction, NOT backbone swap):**
+1. Verify whether method-level knobs (higher input resolution e.g. CLIP-ViT-B/16-336, more aug views, visual-side partial_whiten) can push CUB without changing backbone.
+2. Measure unsupervised baselines (CIBHash, CIMON, MLS3RDUH) on CUB under our exact pipeline (CLIP-ViT-B/16 frozen, 36-bit hash, DB-split unique ratio) — currently no verified CUB baseline number in this project; the gap to "state of the art" is unmeasured.
+3. Document this entry as the canonical reference for "we tried FG-CLIP and why it does not work on compositional codebook architectures" so subsequent reviewers/agents do not re-attempt.
+
+---
+
+## 2026-06-20 — MSCOCO K=128 → K=256 codebook capacity sweep on v160b/v162b qwen3v5b — **MIXED VERDICT: K=256 trades retrieval mAP for cb_tuple/B1 saturation; v160b K=128 retains MSCOCO mAP champion. Single-delta `--codebook_size 128 → 256` on the v5b-qwen-caption base of v160b (xmodalCommit 0.025) and v162b (grounded text routing). Both cells train cleanly (dead ≤ 0.003); the larger K doubles per-codebook codeword inventory, expecting more compositional spread but also more codeword sparsity.**
+
+| MSCOCO cell | K | mAP | P@1 | P@10 | DNA-uniq (DB) | NMI off-diag mean | B2 lift |
+|---|---|---|---|---|---|---|---|
+| `mscoco_v160b_qwen3v5b` (record) | 128 | **0.6200** ★ | 0.9028 | **0.8996** | 0.140 | 0.709 | 0.166 |
+| `mscoco_v160b_qwen3v5b_K256` (THIS) | 256 | 0.6098 (−0.010) | 0.9110 (+0.008) | 0.8973 (−0.002) | **0.153** (+0.013) | 0.717 (+0.008) | **0.179** (+0.013) |
+| `mscoco_v162b_qwen3v5b_topp02_05` (NMI champ) | 128 | 0.6128 | 0.8984 | 0.8899 | 0.147 | **0.697** | 0.165 |
+| `mscoco_v162b_qwen3v5b_K256` (THIS) | 256 | 0.5924 (−0.020) | 0.8960 (−0.002) | 0.8832 (−0.007) | 0.156 (+0.009) | 0.722 (+0.025) | **0.181** (+0.016) |
+
+🟢 **Per-codebook drop ablation (K=256):**
+
+| Cell | Δ cb0 | Δ cb1 | Δ cb2 | Δ cb3 | Δ cb4 | Δ cb5 |
+|---|---|---|---|---|---|---|
+| v160b K=256 | −0.0115 | −0.0079 | −0.0055 | −0.0078 | −0.0008 | −0.0095 |
+| v162b K=256 | −0.0151 | −0.0098 | −0.0051 | **−0.0211** ★ | −0.0008 | −0.0001 |
+
+🟢 **Compositional B0/B1/B2 lift (K=256):**
+
+| Cell | B0 raw text | B1 centered text | B2 visual global |
+|---|---|---|---|
+| v160b K=256 | — | — | **0.179** |
+| v162b K=256 | — | — | **0.181** |
+
+🟢 **Verdict.** K=256 brings consistent **B2 +0.013/+0.016**, DNA-uniq **+0.009/+0.013**, and v160b cb5 stays informative — but **mAP regresses −0.010/−0.020** (the largest one-knob mAP loss on MSCOCO this month). v162b's cb3 becomes a load-bearing drop axis (Δ −0.0211), while cb4/cb5 turn neutral — the extra codeword headroom is absorbed by a single semantic axis rather than spreading across slots. Both K=256 cells are below the 0.6200 mAP MSCOCO record and are **DISCARDED as champion candidates**; retained as compositional-axis ablation entries.
+
+🔭 **Methodology note.** K = 256 doubles the bits required to identify the active codeword (8 bits vs 7), but our DNA hash maps each codeword via the L=3 codon split to a fixed 36-bit string regardless. The extra codeword inventory therefore competes with codon-level compression: more codewords per slot allow finer semantic distinctions, but the 6 × 3 × 2 = 36-bit budget enforces redundancy at the codon-tuple level. The K=128 → K=256 mAP regression suggests the current 6 × 3 × 2 budget saturates around K = 128 on MSCOCO.
+
+🧰 **Code added.**
+- [scripts/train_mscoco_v160b_qwen3v5b_K256.sh](scripts/train_mscoco_v160b_qwen3v5b_K256.sh) and [scripts/train_mscoco_v162b_qwen3v5b_K256.sh](scripts/train_mscoco_v162b_qwen3v5b_K256.sh).
+
+---
+
 ## 2026-06-19 — CUB-200 `partial_whiten OFF + topp 0.3/0.7 → 0.5/0.9` (whitening removal + routing relaxation) on v6b cells — **HYPOTHESIS REFUTED with a misleading-mAP trap. The intent was to free the text path of an imprecise CUB-trained whitening matrix and let the router distribute mass more softly across codebooks; the actual outcome on v162b is a CATASTROPHIC CODEBOOK COLLAPSE that artificially inflates mAP. v160b v6b K=64 + noWhiten + topp 0.5/0.9: mAP 0.0739 → 0.0755 (+0.0016 marginal), but P@1 0.1184 → 0.1044 (−0.014 ✗), DNA 0.540 → 0.475 (−0.065 ✗), cb_tuple 0.617 → 0.571 (−0.046 ✗) — mixed Pareto. v162b v6b K=128 + noWhiten + topp 0.5/0.9: mAP 0.0676 → 0.0873 (+0.020 BIG GAIN) but DNA 0.529 → 0.073 (−0.456 ✗✗), cb_tuple 0.755 → 0.125 (−0.630 ✗✗), **73 % codewords dead**, B1/B2 collapse. The mAP gain is a metric artifact of mode-collapse retrieval: with most codewords dead, surviving codes are highly redundant and queries map to a few super-clusters that boost hamming-rank coincidences. Compositional learning is destroyed. v160b v6b K=64 (with whitening) retains the CUB v160b record at mAP 0.0739.**
 
 🟢 **Test design.** Single-delta cluster (3 caches-of-related flags removed simultaneously, since they form a logical unit):
@@ -568,6 +649,35 @@ Initial token-cache extraction symlinked `has_text.bool.npy` and `text_part.f16.
 2. **lambda_hash 0 → 0.05 + visual_global CIBHash NtXent on v6b base** — the 2026-06-18 CUB analysis identified this as the highest-priority method-side fix; v6b is now the new caption baseline to test it on.
 3. **Pattern-marking-only inference** — strip the local five codebooks at extract time and run retrieval on `C_global ⊕ C_pattern_markings` alone (12 bits) to test whether the discriminative information has actually concentrated in those two slots.
 4. **Cross-dataset PROMPT_V6b adoption test on iNaturalist or Stanford Dogs** — does the markings-vs-background separation generalize beyond CUB-200?
+
+---
+
+## 2026-06-19 — CUB-200 foreground patch masking via CLIP-text-grounded top-K (`--foreground_text_mask_topk_ratio`) — **HYPOTHESIS REFUTED across both 0.5 (aggressive) and 0.7 (mild) ratios; no Pareto improvement over CLIP record. Motivation: route only the top-K% patches by cosine similarity to `C_global` text embedding into the Sinkhorn router, expecting that excluding background tokens (perch / sky / vegetation) lets the 6 codebooks specialize on anatomy/markings without the `null_centroid` sparsity failure or `noWhiten + topp` mode collapse. Single-delta knob `--foreground_text_mask_topk_ratio {0.5, 0.7}` added in model_siglip2.py: patches with sim below the top-K threshold get `visual_attention_mask = 0` before router input.**
+
+| CUB cell | mAP | P@1 | DNA-uniq | NMI off-diag mean | B1 lift | dead |
+|---|---|---|---|---|---|---|
+| `cub200_v160b_v6b_K64` (record) | **0.0739** ★ | **0.1184** | **0.540** ★ | — | 0.110 | ≤ 0.05 |
+| v160b + fgMask **0.5** | 0.0859 (+0.012) | 0.1170 (−0.001) | 0.502 (−0.038) | 0.617 | 0.112 | 0.034 |
+| v160b + fgMask **0.7** | 0.0753 (+0.001) | 0.1190 (≈base) | 0.543 (≈base) | **0.586** | 0.108 | 0.052 |
+| `cub200_v162b_v6b_K128` (record) | 0.0676 | — | 0.529 | — | — | ≤ 0.05 |
+| v162b + fgMask 0.5 | 0.0711 (+0.004) | 0.1105 | 0.462 (−0.067) | 0.657 | 0.121 | 0.063 |
+| v162b + fgMask 0.7 | 0.0676 (≈base) | 0.1135 | 0.513 (−0.016) | 0.636 | 0.118 | 0.068 |
+
+🟢 **Per-codebook drop ablation (v160b K=64 fgMask07):**
+
+| Cell | Δ cb0 | Δ cb1 | Δ cb2 | Δ cb3 | Δ cb4 | Δ cb5 |
+|---|---|---|---|---|---|---|
+| v160b fgMask07 | −0.0147 | +0.0008 | −0.0028 | −0.0015 | −0.0013 | +0.0001 |
+| v160b record (reference) | — | −0.0007 | −0.0021 | — | −0.0000 | −0.0011 |
+
+🔬 **Trade-off pattern.** Ratio 0.5 trades DNA / NMI / codebook orthogonality for a transient mAP gain — but the mAP gain is **misleading-codebook-redundancy mAP** (NMI off-diag rises from CLIP record region to 0.62, codebook tuples become more correlated, DNA-tuple unique drops 7–13 % absolute). Ratio 0.7 returns DNA / NMI nearly to CLIP record region but the mAP gain evaporates (+0.001 / +0.000). No sweet spot between 0.5 and 0.7 was located. dead-codeword fraction stays 0.034–0.068 across both ratios (not a mode-collapse trap like `noWhiten + topp 0.5/0.9`'s 73 % dead).
+
+🟢 **Verdict.** foreground patch masking is **DISCARDED on CUB** — the (mAP↑, DNA↓, NMI↓) Pareto frontier crosses the CLIP record but never strictly dominates it. The CLIP base recipe ([scripts/train_cub200_v160b_v6b_K64_clip.sh](scripts/train_cub200_v160b_v6b_K64_clip.sh)) is already near-Pareto-optimal at this altitude; the (mAP, DNA-uniq, NMI orthogonality) trio is structurally bound for our CLIP-frozen + 6-codebook + v6b-caption setup on 5994-sample CUB. The `--foreground_text_mask_topk_ratio` CLI flag is **retained in `config.py` and `model_siglip2.py`** so the ablation is reproducible, but it stays off in the default CUB recipe.
+
+📐 **Code added.**
+- [model_siglip2.py](model_siglip2.py) `__init__` reads `foreground_text_mask_topk_ratio`; forward computes cos(visual_tokens, text_part[:, 0, :]) and zeroes `visual_attention_mask` below the top-K threshold before router input.
+- [config.py](config.py) `--foreground_text_mask_topk_ratio` flag (default None).
+- [scripts/train_cub200_v160b_v6b_K64_fgMask05_clip.sh](scripts/train_cub200_v160b_v6b_K64_fgMask05_clip.sh) and v162b/fgMask07 variants.
 
 ---
 

@@ -60,18 +60,21 @@ NUM_CLASS: Dict[str, Dict[str, int]] = {
     'Flickr25k': {'setting1': 24},
     'MSCOCO':    {'setting1': 80},
     'NUSWIDE':   {'setting1': 21},
+    'CUB_200':   {'setting1': 200},
 }
 MULTI_LABEL: Dict[str, bool] = {
     'CIFAR10':   False,
     'Flickr25k': True,
     'MSCOCO':    True,
     'NUSWIDE':   True,
+    'CUB_200':   False,
 }
 DEFAULT_CACHE_DIR: Dict[str, str] = {
     'CIFAR10':   './cache/cifar10_siglip2',
     'Flickr25k': './cache/flickr25k_siglip2',
     'MSCOCO':    './cache/mscoco_siglip2',
     'NUSWIDE':   './cache/nuswide_siglip2',
+    'CUB_200':   './cache/cub200_clip',
 }
 
 

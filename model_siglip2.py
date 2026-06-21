@@ -1328,6 +1328,18 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.residualize_visual_for_routing: bool = bool(
             getattr(args, "residualize_visual_for_routing", False)
         )
+        # Foreground-text mask: keep only top-K% patches by cosine similarity to
+        # C_global text embedding before Sinkhorn routing. Background patches
+        # get visual_mask=0 so they are excluded from all 6 codebook updates.
+        # Default None = disabled. CUB / fine-grained single-object datasets:
+        # try 0.4-0.6. Multi-object scenes: leave disabled.
+        self.foreground_text_mask_topk_ratio = getattr(
+            args, "foreground_text_mask_topk_ratio", None
+        )
+        if self.foreground_text_mask_topk_ratio is not None:
+            self.foreground_text_mask_topk_ratio = float(
+                self.foreground_text_mask_topk_ratio
+            )
         self.route_global_text: bool = bool(getattr(args, "route_global_text", False))
         self.routed_cls_add_gamma: float = float(getattr(args, "routed_cls_add_gamma", 0.0))
         self.routed_cls_add_scope: str = str(getattr(args, "routed_cls_add_scope", "local"))
@@ -2430,6 +2442,33 @@ class SigLIP2SemanticOTModel(nn.Module):
             )
         else:
             visual_tokens_for_routing = visual_tokens
+
+        # Foreground-text mask: cosine(visual_tokens, C_global text) → keep
+        # top-K% patches; rest get visual_attention_mask=0 so they are excluded
+        # from all 6 codebook updates. Mass conservation still holds on the
+        # remaining K patches. Designed for single-object fine-grained datasets
+        # (CUB-200) where background tokens dominate the router by patch count.
+        fg_ratio = self.foreground_text_mask_topk_ratio
+        if (
+            fg_ratio is not None
+            and 0.0 < fg_ratio < 1.0
+            and text_part_tokens is not None
+        ):
+            _g_text = text_part_tokens[:, 0, :]                             # [B, D]
+            _v_n = F.normalize(visual_tokens_for_routing, dim=-1)           # [B, N, D]
+            _g_n = F.normalize(_g_text, dim=-1)                             # [B, D]
+            _sim = (_v_n * _g_n.unsqueeze(1)).sum(dim=-1)                   # [B, N]
+            _N = _sim.shape[-1]
+            _k = max(1, int(_N * fg_ratio))
+            _thr = _sim.topk(_k, dim=-1)[0][:, -1:]                         # [B, 1]
+            _fg_mask = (_sim >= _thr).to(visual_tokens_for_routing.dtype)   # [B, N]
+            if visual_attention_mask is not None:
+                visual_attention_mask = visual_attention_mask.to(
+                    visual_tokens_for_routing.dtype
+                ) * _fg_mask
+            else:
+                visual_attention_mask = _fg_mask
+
         router_kwargs = {
             "visual_tokens":    visual_tokens_for_routing,
             "text_part_tokens": route_centroids_aug,           # [B, 5/6 (+ null), D]

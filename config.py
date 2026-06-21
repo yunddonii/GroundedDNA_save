@@ -465,6 +465,15 @@ class Config():
                  'routing, the null column is sliced out, so patches '
                  'preferring the null get effectively rejected from codebook '
                  'updates. v56 ablation.')
+        siglip2_arg.add_argument('--foreground_text_mask_topk_ratio',
+            dest='foreground_text_mask_topk_ratio', type=float, default=None,
+            help='If set, keep only top-K%% of patches by cosine similarity to '
+                 'C_global text embedding before Sinkhorn routing. K = N*ratio. '
+                 'Rejected (background) patches get visual_attention_mask=0 so '
+                 'they are excluded from all 6 codebook updates. Designed for '
+                 'single-object fine-grained datasets (CUB-200) where '
+                 'background tokens dominate the router by mass conservation. '
+                 'Disabled (None) for multi-object scenes.')
         # ---------- VQ codebook update mode -----------------------------
         # `gradient` (default, legacy) -- codebook is an nn.Parameter,
         #   updated by the VQ loss MSE term. Prone to dead-code collapse.
