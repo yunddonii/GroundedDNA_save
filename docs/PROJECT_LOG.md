@@ -334,6 +334,48 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-22 — CUB-200 input resolution sweep 224 → 336 (CLIP-ViT-B/16, position embeddings bicubic-interpolated) — **HYPOTHESIS REFUTED on every retrieval+compositional axis except B2; CLIP 224 record retained. Motivation: at 224 input, each 16×16 patch (1/196 of image) covers a large portion of a bird's eye-ring / wing bar / throat color — most fine-grained attribute information averaged out. Moving to 336 keeps the same backbone weights but processes 21×21 = 441 patches (2.25× more, each covering a smaller image region), expecting Sinkhorn router to find finer compositional structure. Position embeddings bicubic-interpolated from 14×14 to 21×21 via `interpolate_pos_encoding=True` in CLIPVisionModel.**
+
+| Axis | CLIP 224 (v160b v6b K=64 record) | CLIP 336 (THIS) | Δ |
+|---|---|---|---|
+| mAP(base) | **0.0739** ★ | 0.0601 | **−0.0138** |
+| P@1 | 0.1184 | 0.0775 | −0.041 |
+| P@10 | 0.1029 | 0.0826 | −0.020 |
+| DNA-uniq (DB, 5994 samples) | **0.540** ★ | 0.228 | **−0.312** ✗ |
+| NMI off-diag mean (low better) | ~0.59 | 0.663 | +0.07 (worse) |
+| B0 raw text lift | 0.022 | 0.013 | −0.009 |
+| B1 centered text lift | **0.110** ★ | 0.058 | **−0.052** |
+| B2 visual global lift | 0.068 | 0.071 | +0.003 |
+| dead codewords | ≤ 0.05 | 0.029 | OK |
+| codebook tuple unique | 0.617 | 0.266 | −0.351 |
+
+🔴 **Per-codebook drop ablation (collapse signature):**
+
+| Cell | Δ cb0 | Δ cb1 | Δ cb2 | Δ cb3 | Δ cb4 | Δ cb5 |
+|---|---|---|---|---|---|---|
+| CLIP 224 v160b record | −0.0148 | −0.0007 | −0.0021 | +0.0017 | −0.0000 | −0.0011 |
+| **CLIP 336 (THIS)** | −0.0160 | −0.0017 | −0.0003 | −0.0015 | −0.0002 | −0.0002 |
+
+Only cb0 carries discriminative weight under 336; cb1–cb5 all collapse to near-zero deltas (|Δ| ≤ 0.002) — the 5 local anatomy slots become routing-equivalent to a single bag. This explains the DNA-uniq −0.312 and codebook-tuple-unique −0.351: with 5/6 codebooks effectively dead-equivalent, the 18-codon DNA hash compresses to a near-degenerate code.
+
+📐 **Likely failure mechanism (three converging causes):**
+1. **Position embedding interpolation degrades structure** — CLIP-ViT-B/16's 14×14 learned position embeddings were trained on 224 inputs; bicubic resampling to 21×21 produces a smooth but information-degraded position prior. Patches lose their spatial identity → router cannot distinguish "top-left bird patch" from "center bird patch" with the same crispness as native 224 input.
+2. **Sinkhorn entropy regularization mis-tuned for 441 tokens** — `--sinkhorn_epsilon_init 1.0 --sinkhorn_epsilon_final 0.1` was calibrated against 196-patch routing. With 441 patches the entropy term dominates a wider distribution → softer assignment → less codebook specialization → patches average into a "mean bird" bucket per codebook.
+3. **More patches per image dilutes the foreground signal** — at 336, more patches fall on background (sky, perch, vegetation) per image; without a foreground mask the Sinkhorn router's mass-conservation constraint pulls more background patches into anatomy codebooks, blurring the part decomposition that v6b PROMPT achieved at 224.
+
+🔭 **What this rules out.** Naïve input resolution scale-up is **NOT** a method-orthogonal CUB improvement. Any future "higher resolution" attempt requires at minimum: (a) recalibrated Sinkhorn epsilon for the new token count, (b) joint resolution + foreground masking, or (c) ViT-L/14-336 (officially trained at 336, no position interpolation) with appropriate `proj_dim` adapter rewrite.
+
+🧰 **Code added.**
+- [extract_clip_features.py](extract_clip_features.py) `--image_size` flag (default 224); transforms parameterized by image side; warm-up forward + main forward + aug forward all pass `interpolate_pos_encoding=True` when `image_size != 224`.
+- [scripts/build_cub200_clip336_v6bplus_cache.sh](scripts/build_cub200_clip336_v6bplus_cache.sh) — builds 336 visual cache (`cub200_clip336_v6bplus`), symlinks text_tokens from 224 cache (text encoder unchanged), builds 336-specific whitening matrix.
+- [scripts/train_cub200_v160b_v6b_K64_clip336.sh](scripts/train_cub200_v160b_v6b_K64_clip336.sh) — single-delta vs 224 base = cache path swap.
+
+🟢 **Verdict.** CUB **CLIP 224 record (`cub200_v160b_v6b_K64`, mAP 0.0739 / DNA 0.540 / B1 0.110) retained**. The 336 cache + scripts stay in the repo for reproducibility of the negative result; further resolution experiments should pursue cause (a)/(b)/(c) above rather than re-run the naïve scale-up.
+
+📚 **Combined with the 2026-06-21 FG-CLIP entry, this completes the "alternative backbone / alternative resolution" sweep — every attempt to lift the CUB ceiling without changing the method has been DISCARDED. Next CUB-attack direction must be either method-level (caption regeneration, loss reweighting, paired-aug k=4) or external baseline measurement (unsupervised CIBHash/CIMON/MLS3RDUH on CUB to position our record against a verified ceiling).**
+
+---
+
 ## 2026-06-21 — CUB-200 FG-CLIP backbone swap (full + Hybrid variants) — **HYPOTHESIS REFUTED with TWO ORTHOGONAL FAILURE MODES; CLIP-ViT-B/16 retained as unified backbone. Motivation: CUB record (mAP 0.0739 / DNA 0.540) hits species-level discrimination ceiling because frozen CLIP visual features cluster all bird images tightly (pairwise visual_global cos 0.65–0.81). Goal: swap to a region-trained backbone that decomposes patch-level features into part-specific subspaces, expecting +0.01–0.02 mAP and +0.05 B1. THREE swap variants all collapsed (mid-eval mAP ~0.011, dead 0.42–0.57 from epoch 4, vs CLIP record mAP 0.0739 / dead 0.05); training killed before epoch 60 once collapse was confirmed.**
 
 🔴 **Variant A — full FG-CLIP-base swap (`qihoo360/fg-clip-base`, ViT-B/16, vision+text).**

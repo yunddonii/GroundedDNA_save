@@ -78,18 +78,18 @@ CLIP_PIXEL_MEAN = [0.48145466, 0.4578275,  0.40821073]
 CLIP_PIXEL_STD  = [0.26862954, 0.26130258, 0.27577711]
 
 
-def _default_transform() -> "transforms.Compose":
+def _default_transform(image_size: int = 224) -> "transforms.Compose":
     # Match the SigLIP2 extractor's deterministic transform shape (resize to
-    # 224x224, no crop / aug) so the cache geometry stays consistent across
-    # backbones; only the normalization changes.
+    # NxN, no crop / aug) so the cache geometry stays consistent across
+    # backbones; only the normalization (and resolution) changes.
     return transforms.Compose([
-        transforms.Resize((224, 224)),
+        transforms.Resize((image_size, image_size)),
         transforms.ToTensor(),
         transforms.Normalize(CLIP_PIXEL_MEAN, CLIP_PIXEL_STD),
     ])
 
 
-def _build_aug_transform() -> "transforms.Compose":
+def _build_aug_transform(image_size: int = 224) -> "transforms.Compose":
     """SimCLR / CIBHash-style augmentation for paired-aug NtXent views.
 
     Mirror of ``extract_siglip2_features._build_aug_transform`` but with the
@@ -97,7 +97,7 @@ def _build_aug_transform() -> "transforms.Compose":
     """
     color_jitter = transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)
     return transforms.Compose([
-        transforms.RandomResizedCrop(224, scale=(0.5, 1.0)),
+        transforms.RandomResizedCrop(image_size, scale=(0.5, 1.0)),
         transforms.RandomHorizontalFlip(p=0.5),
         transforms.RandomApply([color_jitter], p=0.8),
         transforms.RandomGrayscale(p=0.2),
@@ -196,6 +196,13 @@ def main() -> int:
                     help="Max token length for the CLIP text tokenizer. CLIP's "
                          "context window is 77; we keep 64 by default to match "
                          "the SigLIP2 cache.")
+    ap.add_argument("--image_size", type=int, default=224,
+                    help="Input image side (square). Default 224 matches CLIP "
+                         "ViT-B/16's pretraining resolution. Set to 336 for "
+                         "higher-resolution extraction (more patches per image, "
+                         "better for fine-grained datasets). Position embeddings "
+                         "are bicubic-interpolated by CLIPVisionModel when the "
+                         "input grid differs from the pretrained 14x14.")
     ap.add_argument("--dtype",       default="float16", choices=["float16", "float32"])
     ap.add_argument("--num_workers", type=int, default=4,
                     help="Parallel workers for PIL decode + transform.")
@@ -250,15 +257,18 @@ def main() -> int:
         print("[extract-clip] WARNING: first 50 images all unreadable, "
               "falling back to a black 224x224 for warm-up.")
         dummy_pil = Image.new("RGB", (224, 224), 0)
-    pre = _default_transform()
-    dummy = pre(dummy_pil).unsqueeze(0).to(args.device)               # [1, 3, 224, 224]
-    v_out = backbone.vision_model(pixel_values=dummy)
-    raw_n_tokens = int(v_out.last_hidden_state.shape[1])              # 197 = CLS + patches
-    num_tokens   = int(raw_n_tokens - 1)                              # 196 patches after stripping CLS
-    assert num_tokens == 196, (
-        f"[extract-clip] expected 196 patches after stripping CLS for "
-        f"clip-vit-base-patch16, got {num_tokens}. last_hidden_state was "
-        f"{tuple(v_out.last_hidden_state.shape)}."
+    pre = _default_transform(args.image_size)
+    dummy = pre(dummy_pil).unsqueeze(0).to(args.device)               # [1, 3, S, S]
+    # interpolate_pos_encoding=True so CLIPVisionModel resamples its 14x14
+    # position embeddings to the actual patch grid when --image_size != 224.
+    _interp = (args.image_size != 224)
+    v_out = backbone.vision_model(pixel_values=dummy, interpolate_pos_encoding=_interp)
+    raw_n_tokens = int(v_out.last_hidden_state.shape[1])              # 1 CLS + N patches
+    num_tokens   = int(raw_n_tokens - 1)
+    _expected = (args.image_size // 16) ** 2
+    assert num_tokens == _expected, (
+        f"[extract-clip] expected {_expected} patches after stripping CLS for "
+        f"image_size={args.image_size} on patch16 backbone, got {num_tokens}."
     )
     print(f"[extract-clip] vision tokens: raw={raw_n_tokens}, after CLS-strip={num_tokens} "
           f"(H_v={H_v}, D_proj={D_proj})")
@@ -310,7 +320,7 @@ def main() -> int:
     n_failed = 0
     failed_indices: List[int] = []
     if not args.aug_only:
-        ds = _PathDS(image_paths, _default_transform())
+        ds = _PathDS(image_paths, _default_transform(args.image_size))
         dl = _TDL(ds, batch_size=bs, shuffle=False,
                   num_workers=int(args.num_workers), pin_memory=True,
                   persistent_workers=(int(args.num_workers) > 0))
@@ -318,7 +328,7 @@ def main() -> int:
             dl, total=(N + bs - 1) // bs, desc="visual",
         ):
             pix_batch = pix_batch.to(args.device, non_blocking=True)
-            v_feat = backbone.vision_model(pixel_values=pix_batch)
+            v_feat = backbone.vision_model(pixel_values=pix_batch, interpolate_pos_encoding=_interp)
             # [b, 197, H_v] -> drop CLS -> [b, 196, H_v]
             token_feat = v_feat.last_hidden_state[:, 1:, :]
             assert token_feat.shape[1] == num_tokens, (
@@ -326,7 +336,7 @@ def main() -> int:
                 f"{tuple(token_feat.shape)}, expected ({pix_batch.shape[0]}, "
                 f"{num_tokens}, {H_v})."
             )
-            g_feat = backbone.model.get_image_features(pixel_values=pix_batch)
+            g_feat = backbone.model.get_image_features(pixel_values=pix_batch, interpolate_pos_encoding=_interp)
             g_feat = coerce_pooled_to_tensor(g_feat)                  # [b, D_proj]
             tok_np = token_feat.detach().cpu().numpy().astype(np_dtype)
             g_np   = g_feat   .detach().cpu().numpy().astype(np_dtype)
@@ -361,7 +371,7 @@ def main() -> int:
             aug_paths.append(pg); aug_paths.append(pt)
             aug_global_mms.append(mm_g); aug_token_mms.append(mm_t)
 
-        aug_transform = _build_aug_transform()
+        aug_transform = _build_aug_transform(args.image_size)
         print(f"[extract-clip] running vision tower {K} extra times with aug transform "
               f"(bs={bs}, workers={args.num_workers}) -- saving BOTH "
               f"visual_global_aug* and visual_tokens_aug* ...")
@@ -387,9 +397,9 @@ def main() -> int:
                 aug_dl, total=(N + bs - 1) // bs, desc=f"aug{view_idx}",
             ):
                 pix_batch = pix_batch.to(args.device, non_blocking=True)
-                v_feat = backbone.vision_model(pixel_values=pix_batch)
+                v_feat = backbone.vision_model(pixel_values=pix_batch, interpolate_pos_encoding=_interp)
                 token_feat = v_feat.last_hidden_state[:, 1:, :]      # [b, 196, H_v]
-                g_feat = backbone.model.get_image_features(pixel_values=pix_batch)
+                g_feat = backbone.model.get_image_features(pixel_values=pix_batch, interpolate_pos_encoding=_interp)
                 g_feat = coerce_pooled_to_tensor(g_feat)
                 g_np = g_feat   .detach().cpu().numpy().astype(np_dtype)
                 t_np = token_feat.detach().cpu().numpy().astype(np_dtype)
