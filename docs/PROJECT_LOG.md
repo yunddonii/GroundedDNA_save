@@ -334,6 +334,70 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-22 — CUB-200 K-axis verification on v162b stackedText (K=128 vs K=64 under tuned recipe) — **v162b K=128 stackedText (mAP 0.0735) beats v162b K=64 stackedText (mAP 0.0677) — K=128 is GENUINELY the better v162b choice, not an untuned-recipe artifact. The previous entry's hot-take ("K=128 selection no longer empirically justified under stackedText") is REVERSED. v162b K=64 stackedText regresses to cb0-only drop pattern (cb1–cb5 all |Δ| ≤ 0.002), reproducing the clip336 codebook-collapse signature. v160b K=64 stackedText (mAP 0.0822) retains CUB ABSOLUTE CHAMPION; grounded text routing underperforms base routing on CUB even with the tuned recipe.**
+
+🟢 **Test design.** Single cell: `cub200_v162b_v6b_K64_clip.sh` (CUB v162b record base, K=64) + full champion recipe (`--lambda_text_code_kl 0.02 → 0.10`, `--lambda_xmodal_commit 0.025 → 0.10`, `--lambda_text_hash_ntxent 0.05 → 0.10`). Single-axis multi-knob delta over v162b K=64 base. Compares against the four already-known v162b/v160b stackedText cells to isolate the K effect under tuned recipe.
+
+🟢 **Final eval (epoch 60, full DB eval + drop ablation + B0/B1/B2):**
+
+| Cell | K | mAP | P@1 | P@10 | DNA-uniq | NMI off-diag | B1 lift | B2 lift | dead |
+|---|---|---|---|---|---|---|---|---|---|
+| v162b K=64 record | 64 | 0.0641 | — | — | 0.510 | — | — | — | — |
+| **v162b K=64 stackedText (THIS)** | 64 | 0.0677 | 0.1165 | 0.1008 | 0.579 | 0.518 | 0.103 | 0.065 | 0.078 |
+| v162b K=128 record | 128 | 0.0676 | — | — | 0.529 | — | — | — | — |
+| v162b K=128 stackedText | 128 | **0.0735** ★ | **0.1480** ★ | 0.1125 | **0.641** ★ | 0.595 | **0.116** ★ | — | — |
+| v160b K=64 record | 64 | 0.0739 | 0.1184 | 0.1029 | 0.540 | ~0.59 | 0.110 | 0.068 | ≤ 0.05 |
+| **v160b K=64 stackedText (ABSOLUTE CHAMPION)** | 64 | **0.0822** ★★★ | **0.1485** ★★★ | **0.1183** ★★★ | 0.655 | 0.500 | 0.111 | — | 0.13 |
+
+📐 **stackedText boost by architecture & K:**
+
+| Architecture × K | record mAP | + stackedText mAP | Δ |
+|---|---|---|---|
+| v160b × K=64 | 0.0739 | **0.0822** | **+0.0083** ★ |
+| v162b × K=128 | 0.0676 | 0.0735 | +0.0059 |
+| v162b × K=64 | 0.0641 | 0.0677 | +0.0036 |
+
+stackedText boosts v160b K=64 the most (+0.0083, scaled-recipe absorption clean), v162b K=128 second (+0.0059, grounded routing absorbs with codeword buffer), v162b K=64 weakest (+0.0036, grounded routing + narrow codeword space conflict).
+
+🔴 **Per-codebook drop ablation (v162b K=64 stackedText, REGRESSED routing):**
+
+| Cell | Δ cb0 | Δ cb1 | Δ cb2 | Δ cb3 | Δ cb4 | Δ cb5 |
+|---|---|---|---|---|---|---|
+| v160b K=64 stackedText (CHAMPION) | −0.0151 | −0.0031 | −0.0040 | −0.0027 | +0.0001 | −0.0016 |
+| v162b K=128 stackedText | −0.0185 | +0.0002 | −0.0008 | +0.0010 | −0.0014 | −0.0015 |
+| **v162b K=64 stackedText (THIS)** | **−0.0182** | +0.0003 | −0.0001 | +0.0004 | +0.0021 | +0.0009 |
+
+Only cb0 informative on v162b K=64 stackedText; cb1–cb5 all `|Δ| ≤ 0.002` (within noise band) — the 5 local anatomy slots become routing-equivalent to a single bag. **Same codebook-collapse signature as 2026-06-22 clip336** (Δ cb0 alone informative; cb1–cb5 all near zero). Mechanism is the same: routing softness under narrow codeword inventory + extra text-driven distillation pressure cannot find a stable per-codebook specialization → 5/6 codebooks dead-equivalent → DNA-uniq stays at 0.579 (vs v160b K=64 champion 0.655) and codebook-tuple-unique cannot expand.
+
+🟢 **K-axis verdict (REVISED).**
+1. **K=128 is genuinely better for v162b** under both record and stackedText recipes:
+   - record: K=128 0.0676 > K=64 0.0641 (+0.0035)
+   - stackedText: K=128 0.0735 > K=64 0.0677 (+0.0058)
+2. The 2026-06-19 K=128 selection for v162b was a **load-bearing architectural decision**, not a recipe artifact. The previous entry's hot-take is REVERSED: K=128 is correctly chosen for v162b.
+3. **Grounded text routing UNDERPERFORMS base routing on CUB across the entire K range** under tuned recipe:
+   - v162b K=128 stackedText 0.0735 < v160b K=64 stackedText 0.0822 (−0.0087 mAP, −0.001 P@1)
+   - The 2026-06-19 conclusion ("grounded routing requires sharp topp for codeword-distinct text supervision") stands; grounded routing's text-aware path adds NO retrieval value on CUB once xmodal_commit + text_hash_ntxent_add are properly tuned.
+
+🎯 **Champion table — final (post K-axis verification):**
+
+| Axis | CUB champion | Recipe |
+|---|---|---|
+| **Absolute retrieval + compositional** | **`v160b K=64 textCodeKl010_stackedText`** (mAP 0.0822) | base routing + textCodeKl010 + stackedText |
+| DNA-uniq + NMI orthogonality | `v160b K=64 textCodeKl010_cibTemp015` (DNA 0.696 / NMI 0.448) | base routing + textCodeKl010 + cibhash_temperature 0.15 |
+| (v162b family champion if grounded routing needed for downstream) | `v162b K=128 textCodeKl010_stackedText` (mAP 0.0735) | grounded routing + textCodeKl010 + stackedText, K=128 |
+| (Legacy untuned base) | `v160b K=64 gate-3_eta1` (mAP 0.0739) | inherited Flickr/MSCOCO recipe |
+
+🧰 **Code added.**
+- [scripts/train_cub200_v162b_v6b_K64_textCodeKl010_stackedText_clip.sh](scripts/train_cub200_v162b_v6b_K64_textCodeKl010_stackedText_clip.sh) — full champion recipe applied to v162b K=64. Result: NOT a champion (worse than v162b K=128 stackedText). Retained as the canonical K-axis ablation point.
+
+🔭 **Follow-ups** (carried from previous entry, K-axis question now resolved).
+1. **Combine `cibTemp015` with `stackedText` on v160b** — DNA-uniq champion + retrieval champion stack. Hypothesis: DNA-uniq could reach 0.75 (CIMON-tier) at retrieval mAP ~0.08.
+2. **`stackedText` on Flickr25k v162b champion** — verify it does not regress the Flickr ABSOLUTE CHAMPION (mAP 0.7581). Predicted: marginal effect since Flickr's caption coverage is already 100 %.
+3. **Re-run CUB baseline measurement with stackedText champion** — update the CIBHash-gap row of paper's CUB table.
+4. **Sweep `lambda_xmodal_commit` ∈ {0.05, 0.20, 0.30}** + sweep `lambda_text_hash_ntxent` ∈ {0.15, 0.20, 0.30} to find the saturation knee of text-driven supervisory strength.
+
+---
+
 ## 2026-06-22 — CUB-200 CUB-specific hyperparameter sweep on v160b textCodeKl010 base + v162b base (T1 sharpSink, T3 cibTemp015, T4 stackedText on v160b; T1 sharpSink + T4 stackedText on v162b) — **`v160b stackedText` NEW CUB ABSOLUTE CHAMPION (mAP 0.0822 +11 % vs CLIP record, P@1 0.1485 +25 %, closes CIBHash gap from 45 % → 50 % on mAP and 37 % → 46 % on P@1). `v162b stackedText` posts the SAME P@1 (0.1480) at lower mAP, confirming grounded routing offers marginal-to-no benefit on CUB. `sharpSink` REGRESSES on both v160b/v162b (DISCARD). `cibTemp015` posts the highest DNA-uniq (0.696) and lowest NMI (0.448) but only ties mAP. CUB-specific tuning hypothesis VALIDATED — the gap to baselines was substantially a tuning gap, not architecture-fundamental.**
 
 🟢 **Hypothesis test.** Until this entry every CUB hyperparameter was inherited from the Flickr25k / MSCOCO recipes (`sinkhorn_epsilon_init 1.0 → 0.1`, `cibhash_temperature 0.3`, `lambda_xmodal_commit 0.025`, `lambda_text_hash_ntxent 0.05`, etc.). The 2026-06-22 baseline-measurement entry quantified the gap to unsupervised CIBHash on CUB (mAP 0.074 vs 0.164, 45 %). This sweep tests whether that gap is "the architecture cannot do better on small fine-grained data" vs "we never CUB-tuned the recipe". Five single-delta cells (or same-axis multi-deltas) on the v160b `textCodeKl010` compositional champion base + v162b record base.
