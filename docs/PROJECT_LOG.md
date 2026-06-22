@@ -411,6 +411,62 @@ Under C2, four of five local anatomy slots (cb2, cb3, cb4, cb5) become informati
 
 ---
 
+## 2026-06-22 — CUB-200 unsupervised baseline measurement (CIBHash / CIMON / MLS3RDUH) under identical CLIP-ViT-B/16 frozen + 36-bit + 60-epoch settings — **HONEST GAP: our retrieval performance trails CIBHash by ~2.2× mAP and CIMON by ~1.5× mAP; we beat only MLS3RDUH. Compositional structure (DNA codebook decomposition, per-slot drop ablation, B1 lift) remains a distinct contribution that baselines fundamentally cannot offer — paper positioning must shift from "retrieval competitive" to "compositional / interpretability axes" on CUB.**
+
+🟢 **Test design.** Drop-in fair comparison on CUB-200 setting1 split:
+- **Backbone**: `openai/clip-vit-base-patch16` frozen, 224×224 input — IDENTICAL to our v160b/v162b cells.
+- **Feature**: cached `cache/cub200_clip/visual_global.f16.npy` (CLIP CLS-pooled projection, 512-d) — same memmap our DNA model reads.
+- **Bit budget**: 36 bits (matches our 6 codebooks × 3 codons × 2 bits per codon).
+- **Train**: 60 epochs, batch size 64 — same as our v160b record.
+- **DB split**: 5994 samples (CUB upstream `train_test_split.txt is_training_img=1`); query 5794 — same as our retrieval eval.
+- **Eval metric**: mAP / P@1 / P@10 via Hamming distance over 36-bit codes; unique_code_ratio computed on DB split (per [[feedback_baseline_unique_on_db]] invariant).
+- **Implementations**: [baseline/CIBHash.py](baseline/CIBHash.py) (paired-aug NtXent + Bernoulli KL, line 16 `torch.sign`), [baseline/CIMON.py](baseline/CIMON.py) (Spectral Clustering pseudo-labels on CLIP features → SEM-CON loss), [baseline/MLS3RDUH.py](baseline/MLS3RDUH.py) (k-NN similarity matrix from CLIP features → LogCosh loss). All three load from the same `cache/cub200_clip` mem-map.
+
+🟢 **Results (epoch 59 = final, both DB and query side computed):**
+
+| Method | Sup'n | mAP | P@1 | P@10 | unique (DB, 5994) | Verdict |
+|---|---|---|---|---|---|---|
+| **CIBHash** | unsupervised | **0.1639** ★★★ | **0.3226** ★★★ | **0.2445** ★★★ | **0.977** ★★ | CUB retrieval champion |
+| CIMON | unsupervised | 0.1128 | 0.2030 | 0.1621 | 0.754 | strong |
+| MLS3RDUH | unsupervised | 0.0501 | 0.0362 | 0.0422 | 0.083 (collapse) | retrieval-tier worst, severe codeword collapse |
+| **Ours v160b record (`gate-3_eta1`)** | unsupervised (siglip_cos) | 0.0739 | 0.1184 | 0.1029 | 0.540 | **between MLS3RDUH and CIMON** |
+| **Ours v160b textCodeKl010** | unsupervised (siglip_cos) | 0.0736 | 0.1280 | 0.1072 | **0.660** | same retrieval, +0.120 unique |
+
+📐 **Reading the numbers honestly.**
+- **mAP**: CIBHash 0.164 / CIMON 0.113 / ours 0.074 → we are **at 45 % of CIBHash, 65 % of CIMON**. The compositional codebook architecture loses to a single linear projection trained with paired-aug NtXent on the same frozen features.
+- **P@1**: CIBHash 0.323 / CIMON 0.203 / ours 0.118–0.128 → same ~40 % gap. P@1 is the more discriminative-coded axis (top-1 species match), and we lose by larger absolute margin.
+- **unique_code_ratio (DB)**: CIBHash 0.977 (saturated diversity) / CIMON 0.754 / ours textCodeKl010 0.660 / record 0.540 / MLS3RDUH 0.083. **textCodeKl010 lands between record (0.54) and CIMON (0.75)** — partial closure on the codeword-diversity gap, but mAP unchanged.
+- **MLS3RDUH** is a useful sanity check: it has SEVERE collapse (unique 0.083 = 7 % of CIBHash) yet still produces mAP 0.05 because the surviving clusters carry weak intra-class signal. This is the **same mode-collapse mAP trap** we documented for `noWhiten + topp 0.5/0.9` (73 % dead codewords + mAP +0.020 artifact) — confirms that interpreting mAP without unique-code-ratio context is misleading on CUB.
+
+🚫 **What this rules out as a paper-positioning angle.**
+- "Our method achieves competitive CUB retrieval" — **false** under direct comparison. CIBHash beats us by 2.2× on the exact axis paper claims emphasize.
+- "Our method achieves state-of-the-art unsupervised CUB hashing" — **false**. Even CIMON (older, simpler) outperforms us.
+
+🟢 **What this VALIDATES as a paper-positioning angle.**
+- **Compositional decomposition** — baselines produce a single 36-bit code with no internal structure. We produce a 6-codebook × 3-codon × 2-bit DNA whose per-codebook drop ablation (cb0 head, cb1 body, ..., cb5 pattern_markings) is reproducible and quantitatively interpretable. **None of the three baselines support this**: their codes are flat bit strings, no semantic slot can be ablated.
+- **B1 centered-text lift** (text-image alignment per codebook) — our v6b cells produce B1 0.108–0.115 measuring per-codebook semantic alignment with v6b part captions. **Baselines have no text-side; B1 is undefined for them**.
+- **DNA codon structure** — the 6 × 3 anatomical-codon DNA layout enables direct integration with downstream biology-domain decoding (the project's eponymous "Grounded DNA" hash). **No baseline produces a structured codon code**.
+- **Loss-reweighting axis** — textCodeKl010 (our 2026-06-22 compositional champion) gains +0.120 unique by upweighting text-code KL distillation. This is a structural ablation only meaningful WITH our text path — baselines have no analog.
+
+🎯 **Practical paper-writing implications.**
+1. **CUB retrieval table** should report all three baselines + ours with full transparency (mAP / P@1 / unique). Do NOT cherry-pick by hiding CIBHash.
+2. **CUB compositional table** is OURS-exclusive: per-codebook drop ablation, B1 lift, DNA codon-tuple unique, NMI off-diag orthogonality. This is where method contribution lives on CUB.
+3. **Cross-dataset axis** (Flickr25k 0.7581 mAP champion / MSCOCO 0.6200 mAP champion) remains where method-level retrieval contribution is provable — CUB stays as the "compositional / interpretability axis" datapoint.
+4. **The 2026-06-21 FG-CLIP + 2026-06-22 clip336 negative-result sweep** is now CONTEXTUALLY MEANINGFUL: those attempts targeted retrieval gap closure (lift CUB mAP from 0.074 toward CIBHash's 0.164) but were architecturally incompatible. The retrieval gap is **structural to our architecture choice** (compositional codebook on small fine-grained data with frozen CLIP), not a tuning gap.
+
+🧰 **Code and artefacts (already in repo from earlier commits):**
+- [baseline/base_model.py](baseline/base_model.py) (commit 44ee756) — `CUB_200` registered in `NUM_CLASS=200` / `MULTI_LABEL=False` / `DEFAULT_CACHE_DIR=./cache/cub200_clip`.
+- [scripts/run_unsup_baselines_cub.sh](scripts/run_unsup_baselines_cub.sh) — orchestrator for parallel launch on three GPUs.
+- Result dirs: `result_baseline/260622/{cibhash,cimon,mls3rduh}_cub200_unsup60/eval_epoch_059.json` (mAP / P@k / R@k). Checkpoints: `params_baseline/260622/{...}/epoch_059.pth` (single Linear 512 → 36 per method).
+
+🔭 **Follow-ups.**
+1. **Re-position paper CUB section** around compositional/interpretability axes (B1, per-codebook drop, DNA codon structure). Move CUB retrieval to a side-table with honest baseline comparison.
+2. **Sweep λ_text_code_kl ∈ {0.20, 0.30, 0.50}** to push DNA-uniq above 0.75 (CIMON-tier) without losing mAP. Hypothesis from C2: text-driven distillation closes the diversity gap.
+3. **Same baseline measurement on Flickr25k / MSCOCO** — verify the gap is CUB-specific (predicted: on Flickr, our v162b_qwen3_topp02_05_noGate at 0.7581 likely matches or beats CIBHash; gap inverts).
+4. **Document this entry as the canonical "we measured against the baselines and lost CUB retrieval" reference** so future agents/reviewers do not search for "did they actually compare to CIBHash" — the answer is here, with numbers.
+
+---
+
 ## 2026-06-22 — CUB-200 input resolution sweep 224 → 336 (CLIP-ViT-B/16, position embeddings bicubic-interpolated) — **HYPOTHESIS REFUTED on every retrieval+compositional axis except B2; CLIP 224 record retained. Motivation: at 224 input, each 16×16 patch (1/196 of image) covers a large portion of a bird's eye-ring / wing bar / throat color — most fine-grained attribute information averaged out. Moving to 336 keeps the same backbone weights but processes 21×21 = 441 patches (2.25× more, each covering a smaller image region), expecting Sinkhorn router to find finer compositional structure. Position embeddings bicubic-interpolated from 14×14 to 21×21 via `interpolate_pos_encoding=True` in CLIPVisionModel.**
 
 | Axis | CLIP 224 (v160b v6b K=64 record) | CLIP 336 (THIS) | Δ |
