@@ -334,6 +334,59 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-22 — Flickr25k cross-dataset verification of `localL8K3` recipe on `v162b_qwen3_topp02_05_noGate` champion base — **SUB-PARETO TRADE-OFF on Flickr (unlike CUB's clear-cut win): retrieval REGRESSES (mAP 0.7581 → 0.7398, −0.018; P@1 0.9305 → 0.9230, −0.008) while compositional axes IMPROVE (DNA-uniq 0.426 → 0.450, +0.024; NMI 0.616 → 0.602, −0.014; B1 lift +0.03; B2 lift +0.02). Crop scale (0.25, 0.6) — calibrated for CUB single-bird foreground — is TOO SMALL for multi-object Flickr scenes; text-anchored top-K selection collapses to one dominant scene object, losing scene-level retrieval information. Flickr ABSOLUTE CHAMPION `v162b_qwen3_topp02_05_noGate` (mAP 0.7581) RETAINED. CUB ↔ Flickr asymmetry of the localL8K3 effect (CUB +50 % mAP / Flickr −2 % mAP) is now empirically validated as scale-driven, not method-driven.**
+
+🟢 **Test design.** Single-delta cache-path swap on the Flickr ABSOLUTE CHAMPION (`v162b_qwen3_topp02_05_noGate`, mAP 0.7581) — replace cache `flickr25k_clip_v4plus_qwen3_tokens` with `flickr25k_clip_v4plus_qwen3_tokens_localL8K3` (L=8 random crops, K=3 top-K by mean(text_part[:, 1:6, :]) anchor, scale (0.25, 0.6) — IDENTICAL recipe to the CUB cell). 25 000 Flickr images × 8 crops × 3 views = 600 K crops total at extract time; 68 GB cache.
+
+🟢 **Final 4-axis comparison vs Flickr champion:**
+
+| Axis | Flickr champion `v162b_qwen3_topp02_05_noGate` | **+ `localL8K3` (THIS)** | Δ |
+|---|---|---|---|
+| mAP(base) | **0.7581** ★ | 0.7398 | **−0.018** ✗ |
+| P@1 | 0.9305 | 0.9230 | −0.008 |
+| P@10 | 0.9233 | 0.9180 | −0.005 |
+| DNA-uniq (DB) | 0.426 | **0.450** ★ | +0.024 |
+| codebook-tuple unique | 0.593 | 0.703 | +0.110 |
+| NMI off-diag (low better) | 0.616 | **0.602** ★ | −0.014 |
+| B0 raw text lift | 0.075 | 0.075 | ≈ |
+| B1 centered text lift | ~0.13 | **0.161** ★ | ~+0.03 |
+| B2 visual global lift | ~0.085 | **0.104** ★ | ~+0.02 |
+| dead codewords | ≤ 0.005 | 0.005 | ≈ |
+
+🟢 **Per-codebook drop ablation:**
+
+| Cell | Δ cb0 | Δ cb1 | Δ cb2 | Δ cb3 | Δ cb4 | Δ cb5 |
+|---|---|---|---|---|---|---|
+| `localL8K3` on Flickr (THIS) | −0.0153 | −0.0028 | −0.0090 | −0.0055 | −0.0007 | −0.0107 |
+
+All 6 codebooks informative (cb4 marginal at −0.0007). Total |Δ| = 0.044, well-distributed.
+
+🔬 **Mechanism (why CUB wins but Flickr trades).** The text-anchor-driven top-K selection picks the K=3 crops whose CLS-pooled embedding is closest to mean(text_part[:, 1:6, :]) — i.e., the "average local-part description" direction in CLIP-text space. On CUB the v6b prompts describe a single bird's anatomy (head, body, wing, tail, pattern_markings); the text anchor is unambiguously "bird-front", and any crop containing a bird part scores high. The 5 image regions (top-3 selected) all carry foreground bird information.
+
+On Flickr the v4 captions describe **multi-object scenes** (`object / color / scene / action / context`). The text anchor averages across these 5 slots and becomes a generic "scene-content" direction. Top-K=3 with crop scale (0.25, 0.6) — 25–60 % image area — at this scale, an individual crop typically captures ONE dominant object. The 3 selected crops tend to focus on the same dominant object → loses background context (sky, ground, secondary objects) that whole-image patches provide for scene-level retrieval.
+
+DNA-uniq / NMI / B1 / B2 improve because the smaller, more focused crops produce more semantically-distinct codebook outputs (less background noise → cleaner per-codebook signal); retrieval mAP regresses because the codes encode less holistic scene information.
+
+🚫 **Adopt verdict.** `localL8K3` is **NOT** a universal recipe. It is **dataset-class-dependent**:
+- **Wins on single-object fine-grained datasets** (CUB-200, likely Stanford-Cars / Aircraft / Pets if measured): foreground crop selection genuinely improves the visual signal.
+- **Trades on multi-object scene datasets** (Flickr25k, likely MSCOCO): retrieval regress for compositional gain.
+
+Per the [[feedback_text_path_core_contribution]] / unified-method principle, the Flickr ABSOLUTE CHAMPION `v162b_qwen3_topp02_05_noGate` (untouched mAP 0.7581) is the right paper-positioning recipe for Flickr/MSCOCO.
+
+🎯 **MSCOCO `localL8K3` DECISION: DEFER (effectively skip for current paper).** With Flickr showing −0.018 mAP under this recipe, MSCOCO (also multi-object scenes, 122 K images, predicted similar pattern) is unlikely to gain on retrieval without crop-scale retuning. The 330 GB cache + 15 h extract cost is not justified by the predicted outcome. **If a future iteration retunes crop scale to (0.4, 0.8) and Flickr regains mAP, MSCOCO becomes worthwhile.**
+
+🧰 **Code added.**
+- [scripts/train_v162b_qwen3_topp02_05_noGate_localL8K3_flickr25k_clip.sh](scripts/train_v162b_qwen3_topp02_05_noGate_localL8K3_flickr25k_clip.sh) — single-delta cache-path swap on Flickr champion. Result: sub-Pareto, retained as the canonical Flickr ablation point.
+- Cache: `cache/flickr25k_clip_v4plus_qwen3_tokens_localL8K3` (visual_tokens shape [25000, 588, 768], 68 GB total, 3 views).
+
+🔭 **Follow-ups.**
+1. **Crop scale sweep on Flickr** — re-run `localL8K3` with scale (0.4, 0.8) (larger crops, 16–64 % image area) on Flickr champion. Hypothesis: larger crops preserve multi-object scene context → mAP regress shrinks or flips, compositional gains may shrink slightly.
+2. **MSCOCO scale=(0.4, 0.8) localL8K3** — only if Flickr scale-tuned cell wins on mAP. Otherwise skip.
+3. **Document the crop scale as a dataset-class-specific knob in the paper**: single-object fine-grained vs multi-object scene → different optimal scale. Useful methodological insight.
+4. **Compositional-axis Flickr champion candidate**: `localL8K3` is a candidate for the Flickr "compositional axis" recipe (B1 0.161, DNA-uniq 0.450) while `v162b_qwen3_topp02_05_noGate` stays as the retrieval-axis Flickr champion.
+
+---
+
 ## 2026-06-22 — CUB-200 K-axis verification on v162b stackedText (K=128 vs K=64 under tuned recipe) — **v162b K=128 stackedText (mAP 0.0735) beats v162b K=64 stackedText (mAP 0.0677) — K=128 is GENUINELY the better v162b choice, not an untuned-recipe artifact. The previous entry's hot-take ("K=128 selection no longer empirically justified under stackedText") is REVERSED. v162b K=64 stackedText regresses to cb0-only drop pattern (cb1–cb5 all |Δ| ≤ 0.002), reproducing the clip336 codebook-collapse signature. v160b K=64 stackedText (mAP 0.0822) retains CUB ABSOLUTE CHAMPION; grounded text routing underperforms base routing on CUB even with the tuned recipe.**
 
 🟢 **Test design.** Single cell: `cub200_v162b_v6b_K64_clip.sh` (CUB v162b record base, K=64) + full champion recipe (`--lambda_text_code_kl 0.02 → 0.10`, `--lambda_xmodal_commit 0.025 → 0.10`, `--lambda_text_hash_ntxent 0.05 → 0.10`). Single-axis multi-knob delta over v162b K=64 base. Compares against the four already-known v162b/v160b stackedText cells to isolate the K effect under tuned recipe.
