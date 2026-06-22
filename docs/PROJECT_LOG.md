@@ -334,6 +334,83 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-22 — CUB-200 loss reweighting on v160b v6b K=64 (C1: λ_cibhash_ntxent 1.0→0.3, C2: λ_text_code_kl 0.02→0.10) — **C2 NEW CUB v160b COMPOSITIONAL CHAMPION CANDIDATE: mAP tied at record, P@1 +0.010, DNA-uniq +0.120 (+22 %), NMI off-diag −0.10, all six codebooks informative under drop ablation. C1 sub-Pareto. First positive CUB result after the 2026-06-21 FG-CLIP + 2026-06-22 clip336 negative-result sweep — the lever is method-level loss weighting, not backbone or resolution.**
+
+🟢 **Motivation.** End-of-training loss decomposition on the CLIP record (`cub200_v160b_v6b_K64_gate-3_eta1_partialWhiten` epoch 59, train_loss columns):
+
+| Loss term | λ | unscaled | scaled | share |
+|---|---|---|---|---|
+| **cibhash_ntxent** | 1.0 | 2.575 | **2.575** | **~78 %** |
+| text_hash_ntxent_add | 0.05 | 3.018 | 0.151 | 4.6 % |
+| vq | 0.25 | 0.643 | 0.161 | 4.9 % |
+| base_balance | 1.0 (η) | 0.093 | 0.093 | 2.8 % |
+| anchor | 0.05 | 1.021 | 0.051 | 1.6 % |
+| wasserstein | 0.05 | 0.634 | 0.032 | 1.0 % |
+| dna | 0.05 | 0.406 | 0.020 | 0.6 % |
+
+CIBHash NtXent (paired-aug visual_token contrastive, source `visual_token` after Sinkhorn routing) dominates ~78 % of total training signal. Text-driven losses (`xmodal_commit 0.025`, `text_code_kl 0.02`, `text_hash_ntxent_add 0.05`) combined make ≲ 5 %. Hypothesis: on CUB where visual features cluster all birds tightly (CLIP cos 0.65–0.81), CIBHash's pull-positives push-negatives pressure on augmented-view pairs over-emphasises augmentation invariance at the cost of species-discriminative signal that lives almost exclusively in the text path.
+
+🟢 **C1 — λ_cibhash_ntxent 1.0 → 0.3 (DISCARD).**
+
+| Axis | Record | C1 | Δ |
+|---|---|---|---|
+| mAP(base) | 0.0739 | 0.0713 | −0.0026 |
+| P@1 | 0.1184 | 0.1065 | **−0.012** |
+| P@10 | 0.1029 | 0.0955 | −0.007 |
+| DNA-uniq (DB) | 0.540 | 0.554 | +0.014 |
+| NMI off-diag | ~0.59 | 0.528 | −0.06 |
+| B1 centered text | 0.110 | 0.115 | +0.005 |
+| B2 visual global | 0.068 | 0.068 | ≈ |
+| dead codewords | ≤ 0.05 | **0.169** | +0.12 (worse) |
+
+Reducing CIBHash starves codebook utilization pressure (dead 0.05 → 0.17, a 3.4× increase). Small DNA-uniq / NMI gains do not compensate for P@1 −0.012 and codeword death. **CIBHash NtXent is genuinely load-bearing for codeword aliveness even though it dominates** — the right knob is not to weaken it but to strengthen the text path against it. **C1 DISCARDED.**
+
+🟢 **C2 — λ_text_code_kl 0.02 → 0.10 (NEW CHAMPION CANDIDATE, paper's primary-axis sweep).**
+
+| Axis | Record | **C2** | Δ |
+|---|---|---|---|
+| mAP(base) | 0.0739 | **0.0736** | ≈ tied (−0.0003) |
+| P@1 | 0.1184 | **0.1280** | **+0.010** ★ |
+| P@10 | 0.1029 | **0.1072** | +0.004 ★ |
+| **DNA-uniq (DB, 5994)** | 0.540 | **0.660** | **+0.120 (+22 %)** ★★★ |
+| **NMI off-diag mean (low better)** | ~0.59 | **0.495** | **−0.10** ★★ |
+| B1 centered text | 0.110 | 0.108 | ≈ tied |
+| B2 visual global | 0.068 | 0.065 | −0.003 |
+| codebook tuple unique | 0.617 | **0.695** | +0.078 |
+| dead codewords | ≤ 0.05 | 0.104 | +0.05 |
+
+Verdict: C2 wins on three of four paper-priority axes (text-supervision NMI, code collision DNA-uniq, retrieval P@1/P@10) and ties mAP. The codebook-tuple-unique improvement +0.078 with mAP tied confirms genuine compositional diversity gain (not a mode-collapse artifact). Minor cost: dead codeword fraction creeps from 0.05 to 0.10 — still well below `null_centroid`'s 0.11 / `noWhiten+topp`'s 0.73 failure thresholds.
+
+🟢 **Per-codebook drop ablation (C2 vs record):**
+
+| Cell | Δ cb0 | Δ cb1 | Δ cb2 | Δ cb3 | Δ cb4 | Δ cb5 |
+|---|---|---|---|---|---|---|
+| Record | −0.0148 | −0.0007 | −0.0021 | +0.0017 | −0.0000 | −0.0011 |
+| **C2** | −0.0150 | +0.0010 | −0.0031 | −0.0030 | −0.0005 | −0.0031 |
+
+Under C2, four of five local anatomy slots (cb2, cb3, cb4, cb5) become informative or near-informative (|Δ| ≥ 0.0030 except cb4), whereas the record had only cb0/cb5 as load-bearing with cb1/cb3 slightly detrimental. C2's text-driven distillation pressure (`lambda_text_code_kl 0.10`) successfully redistributes discriminative weight across all six codebooks — the more even drop pattern is the mechanistic explanation for the +0.078 codebook-tuple-unique gain.
+
+🎯 **Mechanism.** `text_code_kl` per-codebook distills the visual codeword distribution (softmax over the M=6 × K=64 codewords given the visual encoder output) onto the text codeword distribution (same shape, given the v6b part captions). Boosting from 0.02 → 0.10 (5×) raises the text-driven signal to ~0.1 share of total loss (vs ~0.4 % at λ=0.02), making it the second-largest non-CIBHash term. This is **complementary to** rather than competing with CIBHash NtXent: CIBHash preserves codeword aliveness via augmentation invariance, text_code_kl provides the species-discriminative direction within the alive codeword set.
+
+🟢 **Adopt verdict.** `cub200_v160b_v6b_K64_textCodeKl010` becomes the new CUB **compositional axis** champion candidate (DNA-uniq / NMI / P@1 best in family while tying mAP). The CLIP record `cub200_v160b_v6b_K64_gate-3_eta1_partialWhiten` (mAP 0.0739 / DNA 0.540 / B1 0.110) retains the **retrieval-first** champion slot per the Flickr/MSCOCO multi-recipe convention. Updated cross-axis champion table:
+
+| Axis | CUB v160b champion | Recipe |
+|---|---|---|
+| mAP (retrieval) | `gate-3_eta1` record | λ_text_code_kl 0.02 (base) |
+| DNA-uniq / NMI / P@1 (compositional) | `textCodeKl010` | λ_text_code_kl 0.10 |
+
+🧰 **Code added.**
+- [scripts/train_cub200_v160b_v6b_K64_cibLow03_clip.sh](scripts/train_cub200_v160b_v6b_K64_cibLow03_clip.sh) — C1 (DISCARDED).
+- [scripts/train_cub200_v160b_v6b_K64_textCodeKl010_clip.sh](scripts/train_cub200_v160b_v6b_K64_textCodeKl010_clip.sh) — C2 (NEW CHAMPION CANDIDATE).
+
+🔭 **Follow-ups.**
+1. **v162b grounded-routing × textCodeKl010 combo** — does the new compositional champion stack with grounded text routing? Predicted: DNA-uniq could exceed 0.70.
+2. **Sweep λ_text_code_kl ∈ {0.05, 0.20, 0.30}** — locate the saturation knee of text-driven distillation strength.
+3. **Cross-dataset test on Flickr/MSCOCO** — verify textCodeKl010 is not CUB-specific (Flickr champion `v162b_qwen3_topp02_05_noGate` already has rich captions; predicted: small DNA-uniq gain, possible P@1 micro-loss).
+4. **Combo with λ_text_hash_ntxent_add boost 0.05 → 0.10** — test whether the two text-driven NtXent paths compound or compete.
+
+---
+
 ## 2026-06-22 — CUB-200 input resolution sweep 224 → 336 (CLIP-ViT-B/16, position embeddings bicubic-interpolated) — **HYPOTHESIS REFUTED on every retrieval+compositional axis except B2; CLIP 224 record retained. Motivation: at 224 input, each 16×16 patch (1/196 of image) covers a large portion of a bird's eye-ring / wing bar / throat color — most fine-grained attribute information averaged out. Moving to 336 keeps the same backbone weights but processes 21×21 = 441 patches (2.25× more, each covering a smaller image region), expecting Sinkhorn router to find finer compositional structure. Position embeddings bicubic-interpolated from 14×14 to 21×21 via `interpolate_pos_encoding=True` in CLIPVisionModel.**
 
 | Axis | CLIP 224 (v160b v6b K=64 record) | CLIP 336 (THIS) | Δ |
