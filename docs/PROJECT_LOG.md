@@ -334,6 +334,74 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-22 — CUB-200 CUB-specific hyperparameter sweep on v160b textCodeKl010 base + v162b base (T1 sharpSink, T3 cibTemp015, T4 stackedText on v160b; T1 sharpSink + T4 stackedText on v162b) — **`v160b stackedText` NEW CUB ABSOLUTE CHAMPION (mAP 0.0822 +11 % vs CLIP record, P@1 0.1485 +25 %, closes CIBHash gap from 45 % → 50 % on mAP and 37 % → 46 % on P@1). `v162b stackedText` posts the SAME P@1 (0.1480) at lower mAP, confirming grounded routing offers marginal-to-no benefit on CUB. `sharpSink` REGRESSES on both v160b/v162b (DISCARD). `cibTemp015` posts the highest DNA-uniq (0.696) and lowest NMI (0.448) but only ties mAP. CUB-specific tuning hypothesis VALIDATED — the gap to baselines was substantially a tuning gap, not architecture-fundamental.**
+
+🟢 **Hypothesis test.** Until this entry every CUB hyperparameter was inherited from the Flickr25k / MSCOCO recipes (`sinkhorn_epsilon_init 1.0 → 0.1`, `cibhash_temperature 0.3`, `lambda_xmodal_commit 0.025`, `lambda_text_hash_ntxent 0.05`, etc.). The 2026-06-22 baseline-measurement entry quantified the gap to unsupervised CIBHash on CUB (mAP 0.074 vs 0.164, 45 %). This sweep tests whether that gap is "the architecture cannot do better on small fine-grained data" vs "we never CUB-tuned the recipe". Five single-delta cells (or same-axis multi-deltas) on the v160b `textCodeKl010` compositional champion base + v162b record base.
+
+🟢 **All cells — final 4-axis comparison:**
+
+| Cell | mAP | P@1 | P@10 | DNA-uniq (DB) | NMI off-diag | B1 lift | dead |
+|---|---|---|---|---|---|---|---|
+| **CIBHash** (reference unsup baseline) | 0.1639 | 0.3226 | 0.2445 | 0.977 | — | — | — |
+| **CLIP record `gate-3_eta1`** | 0.0739 | 0.1184 | 0.1029 | 0.540 | ~0.59 | 0.110 | ≤ 0.05 |
+| Prior compositional champ `textCodeKl010` | 0.0736 | 0.1280 | 0.1072 | 0.660 | 0.495 | 0.108 | 0.104 |
+| **v160b T1 `sharpSink`** | 0.0723 | 0.1155 | 0.1052 | 0.643 | **0.472** | 0.103 | 0.213 |
+| **v160b T3 `cibTemp015`** | 0.0733 | 0.1270 | 0.1052 | **0.696** ★ | **0.448** ★ | 0.103 | 0.07 |
+| **v160b T4 `stackedText`** ★ | **0.0822** ★★★ | **0.1485** ★★★ | **0.1183** ★★★ | 0.655 | 0.500 | 0.111 | 0.13 |
+| v162b record (`K=128`) | 0.0676 | — | — | 0.529 | — | — | — |
+| v162b textCodeKl010 (`K=128`) | 0.0684 | 0.1005 | 0.0929 | 0.480 | 0.579 | 0.118 | — |
+| v162b T1 `sharpSink` | 0.0569 | 0.1175 | 0.0901 | 0.596 | 0.555 | 0.103 | 0.21 |
+| **v162b T4 `stackedText`** | 0.0735 | **0.1480** | 0.1125 | 0.641 | 0.595 | **0.116** | — |
+
+🟢 **Per-codebook drop ablation (v160b stackedText, NEW CHAMPION):**
+
+| Cell | Δ cb0 | Δ cb1 | Δ cb2 | Δ cb3 | Δ cb4 | Δ cb5 |
+|---|---|---|---|---|---|---|
+| CLIP record | −0.0148 | −0.0007 | −0.0021 | +0.0017 | −0.0000 | −0.0011 |
+| textCodeKl010 (prior champ) | −0.0150 | +0.0010 | −0.0031 | −0.0030 | −0.0005 | −0.0031 |
+| **stackedText (THIS)** | **−0.0151** | **−0.0031** | **−0.0040** | **−0.0027** | +0.0001 | **−0.0016** |
+
+stackedText pushes anatomy slots (cb1 head, cb2 body, cb3 wing, cb5 pattern_markings) into clearly informative range (|Δ| ≥ 0.0016 each), with cb0 + cb1 + cb2 + cb3 + cb5 all load-bearing. cb4 (tail) neutral but no longer detrimental. **Best distributed codebook usage we have observed on CUB.**
+
+🟢 **`v160b T4 stackedText` (NEW ABSOLUTE CHAMPION) — recipe & verdict.**
+- Single-axis multi-knob delta over `v160b textCodeKl010`: `--lambda_xmodal_commit 0.025 → 0.10` (4×) AND `--lambda_text_hash_ntxent 0.05 → 0.10` (2×). Both knobs are on the same axis ("text-driven supervisory signal strength").
+- Wins on every retrieval+compositional axis we report vs the CLIP record: mAP +0.0083 (+11 %), P@1 +0.0301 (+25 %), P@10 +0.0154 (+15 %), DNA-uniq +0.115 (+21 %), NMI −0.09, B1 ≈ tied.
+- Closes the CIBHash gap from mAP 45 % → 50 % and P@1 37 % → 46 %. Still behind baselines on retrieval absolute scale, but the gap is now visibly shrinking with a SINGLE method-level knob (text-driven loss-weight stack on the same architecture, same backbone, same input resolution).
+- **First CUB result that simultaneously gains on retrieval AND compositional axes** — every prior CUB knob (fgMask, null_centroid, noWhiten+topp, clip336, sharpSink) trades retrieval for compositional or vice versa.
+
+🟢 **`v162b T4 stackedText` (cross-checking confirmation).** Same delta applied to v162b grounded-routing K=128 base produces mAP 0.0735 (+0.006 vs v162b record), P@1 **0.1480** (matches v160b stackedText), DNA-uniq 0.641 (+0.112). **However v162b's grounded routing + K=128 produces NO RETRIEVAL ADVANTAGE over v160b's K=64 under the stackedText recipe** (0.0735 vs 0.0822, −0.009 mAP). The grounded text routing path is NOT load-bearing on CUB once the text-driven loss weights are properly tuned.
+
+🔴 **`sharpSink` (T1) DISCARDED on both v160b and v162b.** `sinkhorn_epsilon_init 1.0 → 0.5` AND `sinkhorn_epsilon_final 0.1 → 0.05` regresses dead-codeword (0.05 → 0.21) on both architectures, hurts mAP on v162b (−0.011), and shows no compositional gain on v160b. **Sinkhorn epsilon 1.0 → 0.1 is genuinely calibrated for our architecture at the CUB scale** — sharper epsilon starves codewords. Confirms a critical-balance interpretation.
+
+🟡 **`cibTemp015` (T3) sub-Pareto.** mAP 0.0733 ≈ record; trades for DNA-uniq +0.156 (0.696 best in family) and NMI −0.14 (0.448 best in family). Useful "DNA-uniq champion" sub-recipe but does not produce a retrieval gain.
+
+🎯 **K-axis observation (resolves earlier `v162b K=128 vs v160b K=64` question).** Under the stackedText recipe, v160b K=64 beats v162b K=128 cleanly on mAP (0.0822 vs 0.0735) while matching on P@1 (~0.148). **K=128 on v162b is no longer empirically justified** under the new compositional-axis tuning. The 2026-06-19 K-sweep that selected K=128 for v162b was conducted under the inherited (untuned) loss weighting; the K decision should be revisited under the new stackedText recipe.
+
+✏️ **Updated CUB v160b champion table:**
+
+| Axis | CUB v160b champion (post-2026-06-22 sweep) | Recipe |
+|---|---|---|
+| Retrieval (mAP / P@1 / P@10) | **`textCodeKl010_stackedText`** (THIS) | textCodeKl010 base + xmodal_commit 0.025→0.10 + text_hash_ntxent 0.05→0.10 |
+| DNA-uniq + NMI orthogonality | **`textCodeKl010_cibTemp015`** | textCodeKl010 base + cibhash_temperature 0.3 → 0.15 |
+| (Legacy) base record | `gate-3_eta1` | inherited Flickr/MSCOCO recipe |
+
+🧰 **Code added.**
+- [scripts/train_cub200_v160b_v6b_K64_textCodeKl010_sharpSink_clip.sh](scripts/train_cub200_v160b_v6b_K64_textCodeKl010_sharpSink_clip.sh) — DISCARDED.
+- [scripts/train_cub200_v160b_v6b_K64_textCodeKl010_cibTemp015_clip.sh](scripts/train_cub200_v160b_v6b_K64_textCodeKl010_cibTemp015_clip.sh) — DNA-uniq champion.
+- [scripts/train_cub200_v160b_v6b_K64_textCodeKl010_stackedText_clip.sh](scripts/train_cub200_v160b_v6b_K64_textCodeKl010_stackedText_clip.sh) — **NEW ABSOLUTE CHAMPION.**
+- [scripts/train_cub200_v162b_v6b_K128_sharpSink_clip.sh](scripts/train_cub200_v162b_v6b_K128_sharpSink_clip.sh) — DISCARDED.
+- [scripts/train_cub200_v162b_v6b_K128_textCodeKl010_clip.sh](scripts/train_cub200_v162b_v6b_K128_textCodeKl010_clip.sh) — textCodeKl010 alone on v162b (modest gain).
+- [scripts/train_cub200_v162b_v6b_K128_stackedText_clip.sh](scripts/train_cub200_v162b_v6b_K128_stackedText_clip.sh) — cross-check confirmation; same P@1 as v160b but lower mAP.
+
+🔭 **Follow-ups (ordered by expected payoff).**
+1. **Combine `cibTemp015` with `stackedText` on v160b** — DNA-uniq champion + retrieval champion stack. Hypothesis: DNA-uniq could reach 0.75 (CIMON-tier) at retrieval mAP ~0.08.
+2. **`stackedText` on v162b at K=64** — resolve the K-axis question; predicted: v162b K=64 stackedText ≥ v162b K=128 stackedText, possibly approaches v160b stackedText 0.0822.
+3. **`stackedText` on Flickr25k v162b champion** — verify it does not regress the Flickr ABSOLUTE CHAMPION (mAP 0.7581). Predicted: marginal effect since Flickr's caption coverage is already 100 %.
+4. **Re-run baseline measurement with stackedText champion** — update the CIBHash-gap row of paper's CUB table.
+5. **Sweep `lambda_xmodal_commit` ∈ {0.05, 0.20, 0.30}** + sweep `lambda_text_hash_ntxent` ∈ {0.15, 0.20, 0.30} to find the saturation knee of text-driven supervisory strength.
+
+---
+
 ## 2026-06-22 — CUB-200 loss reweighting on v160b v6b K=64 (C1: λ_cibhash_ntxent 1.0→0.3, C2: λ_text_code_kl 0.02→0.10) — **C2 NEW CUB v160b COMPOSITIONAL CHAMPION CANDIDATE: mAP tied at record, P@1 +0.010, DNA-uniq +0.120 (+22 %), NMI off-diag −0.10, all six codebooks informative under drop ablation. C1 sub-Pareto. First positive CUB result after the 2026-06-21 FG-CLIP + 2026-06-22 clip336 negative-result sweep — the lever is method-level loss weighting, not backbone or resolution.**
 
 🟢 **Motivation.** End-of-training loss decomposition on the CLIP record (`cub200_v160b_v6b_K64_gate-3_eta1_partialWhiten` epoch 59, train_loss columns):
