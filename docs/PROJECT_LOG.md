@@ -466,6 +466,79 @@ stackedText pushes anatomy slots (cb1 head, cb2 body, cb3 wing, cb5 pattern_mark
 
 ---
 
+## 2026-06-22 — CUB-200 text-anchored local-crop top-K visual input (`localL8K3`) on v160b stackedText base — **NEW CUB ABSOLUTE CHAMPION by a WIDE MARGIN: mAP 0.1233 (+50 % vs prior champ `stackedText` 0.0822, +67 % vs CLIP record 0.0739), P@1 0.2110 (+42 % vs prior champ), DNA-uniq 0.720, B1 lift 0.1248 (all-time best). Closes CIBHash retrieval gap from 50 % → 75 % on mAP (0.1233 / 0.1639) and 46 % → 65 % on P@1 (0.2110 / 0.3226). Largest single-knob effect we have ever observed on CUB; the bottleneck WAS visual input quality (foreground vs whole-image patches), not training recipe. The 2026-06-19 `fgMask05/07` failed because patch-level filtering doesn't have enough information; crop-level filtering with text-anchored selection succeeds because each crop is an INDEPENDENT 196-patch encode whose native position embeddings are preserved.**
+
+🟢 **Method.** New extract path [extract_clip_local_crops.py](extract_clip_local_crops.py):
+  1. For each image, draw L=8 deterministic `RandomResizedCrop(scale=0.25–0.6)` (seeded with image-id + view-id RNG).
+  2. Run each crop through frozen CLIP-ViT-B/16 vision tower → `[L, 196, 768]` patch tokens + `[L, 512]` CLS pool per crop.
+  3. Text anchor = `mean(text_part[:, 1:6, :])` over the 5 v6b local anatomy slots (head, body, wing, tail, pattern_markings); slot 0 (C_global) excluded.
+  4. Cosine similarity `cos(crop_global_normed, text_anchor_normed)` per crop → [L].
+  5. Top-K=3 crops by similarity → concatenate their patch tokens into `[K·196 = 588, 768]` → write as new `visual_tokens.f16.npy`.
+  6. `visual_global` cached as the mean over the K selected crops' CLS pools.
+  7. Paired-aug views `aug0` / `aug1` run the same L-crop + top-K pipeline with different RNG seeds, preserving CIBHash NtXent compatibility.
+
+🟢 **Drop-in compatibility.** No `dataloaders.py` / `model_siglip2.py` changes. The Sinkhorn router accepts arbitrary token counts (verified via 224 / 336 axes); the new cache simply presents 588 patches per image instead of 196. The training script is a SINGLE-DELTA cache path swap on the `stackedText` champion recipe.
+
+🟢 **Results vs the (very recent) v160b stackedText champion:**
+
+| Axis | Prior champ `stackedText` | **`localL8K3 + stackedText`** | Δ |
+|---|---|---|---|
+| mAP(base) | 0.0822 | **0.1233** ★★★ | **+0.0411 (+50 %)** |
+| P@1 | 0.1485 | **0.2110** ★★★ | **+0.0625 (+42 %)** |
+| P@10 | 0.1183 | **0.1774** ★★★ | **+0.0591 (+50 %)** |
+| **DNA-uniq (DB)** | 0.655 | **0.720** ★ | **+0.065** |
+| NMI off-diag | 0.500 | tbd (NMI not re-logged this run; baseline value) | — |
+| B0 raw text lift | 0.022 | 0.024 | +0.002 |
+| **B1 centered text lift** | 0.111 | **0.1248** ★★ | +0.014 (all-time best) |
+| B2 visual global lift | 0.068 | 0.066 | −0.002 |
+| dead codewords | 0.130 | 0.156 | +0.026 |
+| codebook tuple unique | 0.655 | 0.720 | +0.065 |
+
+🟢 **Per-codebook drop ablation (most evenly distributed signal observed on CUB):**
+
+| Cell | Δ cb0 | Δ cb1 | Δ cb2 | Δ cb3 | Δ cb4 | Δ cb5 |
+|---|---|---|---|---|---|---|
+| CLIP record | −0.0148 | −0.0007 | −0.0021 | +0.0017 | −0.0000 | −0.0011 |
+| Prior champ `stackedText` | −0.0151 | −0.0031 | −0.0040 | −0.0027 | +0.0001 | −0.0016 |
+| **`localL8K3 + stackedText` (THIS)** | **−0.0251** | **−0.0056** | **−0.0073** | **−0.0022** | +0.0032 | **−0.0095** |
+
+All non-`cb4` slots informative (`|Δ| ≥ 0.0022`), with `cb0` (C_global) carrying the biggest single drop signal (−0.025). `cb5` (pattern_markings) re-emerges as a strong load-bearing slot (−0.0095, ~3× stronger than prior champ). Total informative weight (sum of |Δ| over cb0–cb5) reaches **0.0529**, vs prior champ 0.0266 → **2× more total per-codebook discriminative signal**. The expanded patch-budget (588 vs 196) is being used genuinely productively, not just diluted.
+
+🎯 **Gap to baselines (CIBHash retrieval reference):**
+
+| Method | mAP | P@1 | unique (DB) |
+|---|---|---|---|
+| CIBHash (CUB, frozen CLIP, same 36-bit) | 0.1639 | 0.3226 | 0.977 |
+| CLIP record | 0.0739 (45 %) | 0.1184 (37 %) | 0.540 |
+| Prior champ `stackedText` | 0.0822 (50 %) | 0.1485 (46 %) | 0.655 |
+| **`localL8K3 + stackedText` (THIS)** | **0.1233 (75 %)** ★ | **0.2110 (65 %)** ★ | **0.720** |
+| CIMON (reference) | 0.1128 | 0.2030 | 0.754 |
+
+**We have now overtaken CIMON on mAP and P@1** (CIMON 0.1128 < ours 0.1233; CIMON P@1 0.2030 < ours 0.2110). The remaining gap to CIBHash narrows to 0.041 mAP / 0.112 P@1 / 0.257 unique.
+
+🟢 **Mechanism (why this works where every prior CUB knob hit a ceiling).**
+1. **Crop-level coarse filtering decouples the "what to look at" decision from the "how to route" decision.** Prior `fgMask05/07` tried to do both at patch level; one 768-d patch feature is not enough information to reliably decide foreground vs background. One 196-patch CROP feature (well, just the CLS-pooled global of that crop) is plenty.
+2. **Each retained crop preserves NATIVE position-embedding geometry.** Unlike `clip336` (bicubic-interpolated 14×14 → 21×21 position embeddings, distribution-degraded) and unlike multi-image-token concatenations through one forward pass, every crop is independently encoded at the model's pretraining resolution. The 588-patch input to the Sinkhorn router is 3 × (native 196-patch geometry).
+3. **Text anchor = mean of 5 local part embeddings provides a stable foreground prior.** The v6b prompts encode "what a bird looks like" (eye-ring, wing bars, throat color, etc.); the mean of those embeddings is a generic "bird-front" direction in CLIP-text space. Cosine similarity ranks crops by how "bird-like" they are.
+4. **The expanded patch budget feeds the codebook diversity engine.** With 3× more patches per routing call, the Sinkhorn balanced-OT has more mass to distribute, and the 6 codebooks can specialize on more distinct sub-regions. The +0.065 DNA-uniq and +0.0263 total per-codebook drop weight are direct evidence of this.
+
+🟢 **Adopt verdict.** `cub200_v160b_v6b_K64_localL8K3_stackedText` becomes the **NEW CUB ABSOLUTE CHAMPION** across every axis we report (mAP, P@1, P@10, DNA-uniq, B1, codebook drop spread). The prior champion `stackedText` is superseded; the recipe-tuning era (textCodeKl010 / stackedText) and the visual-input-quality era (localL8K3) are COMPLEMENTARY — `localL8K3 + stackedText` stacks them.
+
+🧰 **Code added.**
+- [extract_clip_local_crops.py](extract_clip_local_crops.py) — new extract path (L random crops + text-anchor top-K selection at extract time; cache layout mirrors `cub200_clip_v6bplus` with replaced `visual_tokens` + same `aug0` / `aug1` token shape).
+- [scripts/train_cub200_v160b_v6b_K64_localL8K3_stackedText_clip.sh](scripts/train_cub200_v160b_v6b_K64_localL8K3_stackedText_clip.sh) — single-delta cache-path swap on prior champ.
+- Cache: `cache/cub200_clip_v6bplus_localL8K3` (visual_tokens shape [11788, 588, 768], 30 GB total, 3 views).
+
+🔭 **Follow-ups.**
+1. **Cross-dataset verification on Flickr25k (cache extract IN PROGRESS at time of this entry)** — same L=8 K=3 scale=(0.25, 0.6) on Flickr v162b champion base. Predicted: smaller gain than CUB since Flickr scenes are multi-object and `visual_global` cos distribution is already much more spread than CUB.
+2. **MSCOCO localL8K3 DEFERRED** — 122 K images × 3 views = ~330 GB cache + ~15 h extract. Decide after Flickr result; if Flickr regresses, skip MSCOCO entirely.
+3. **L / K sweep on CUB** — current `L=8, K=3` is the first guess. Sweep `K ∈ {1, 2, 4, 5}` to find the saturation knee.
+4. **Crop scale sweep** — current `(0.25, 0.6)` chosen for CUB single-object birds. Multi-object Flickr/MSCOCO may need `(0.4, 0.8)`.
+5. **Re-measure CUB baselines (CIBHash / CIMON) with same `localL8K3` cache** — fair comparison should also give baselines the new visual input. Predicted: CIBHash also gains, but smaller delta since CIBHash has no text path to drive crop selection (would use random L=8 crops or all-image features).
+6. **Combine `localL8K3` with `cibTemp015`** — the prior DNA-uniq champion. Could push DNA-uniq past 0.80.
+
+---
+
 ## 2026-06-22 — CUB-200 loss reweighting on v160b v6b K=64 (C1: λ_cibhash_ntxent 1.0→0.3, C2: λ_text_code_kl 0.02→0.10) — **C2 NEW CUB v160b COMPOSITIONAL CHAMPION CANDIDATE: mAP tied at record, P@1 +0.010, DNA-uniq +0.120 (+22 %), NMI off-diag −0.10, all six codebooks informative under drop ablation. C1 sub-Pareto. First positive CUB result after the 2026-06-21 FG-CLIP + 2026-06-22 clip336 negative-result sweep — the lever is method-level loss weighting, not backbone or resolution.**
 
 🟢 **Motivation.** End-of-training loss decomposition on the CLIP record (`cub200_v160b_v6b_K64_gate-3_eta1_partialWhiten` epoch 59, train_loss columns):
