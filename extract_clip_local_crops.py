@@ -309,7 +309,11 @@ def main() -> int:
             # build (B*L) crops
             crops_list = []
             for i in range(i_start, i_end):
-                pil = Image.open(image_paths[i]).convert("RGB")
+                try:
+                    pil = Image.open(image_paths[i]).convert("RGB")
+                except (OSError, IOError) as exc:
+                    print(f"[local-crops] WARN: skip unreadable {image_paths[i]} ({exc}); zero-fill")
+                    pil = Image.new("RGB", (args.image_size, args.image_size), color=(128, 128, 128))
                 if args.crop_mode == "grid":
                     # deterministic grid; per-view RNG used only for aug
                     # color/flip placeholder (currently not applied).

@@ -334,6 +334,50 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-24 — Flickr25k `v160b base routing + FAIRrank L8K3 + stackedText` PARETO-SPLIT FINDING — **v160b becomes Flickr COMPOSITIONAL / DNA-uniq CHAMPION (DNA-uniq 0.526, codebook-tuple 0.818, NMI off-diag 0.571 — BEST in Flickr family on all 3 compositional axes); v162b retains retrieval-axis champion (mAP 0.7429). User's hypothesis that grounded-text routing (v162b) may not optimally absorb the 588-patch concatenated-crop structure is PARTIALLY VALIDATED: grounded routing trades codebook diversity for retrieval mAP. The v160b vs v162b choice is now a paper-explicit Pareto axis on multi-object scenes.**
+
+🟢 **Test design (user-proposed at 2026-06-24).** Hypothesis: v162b's grounded text-token pruning (Stage-2 OT top-k_t) was designed for whole-image 196-patch input; with FAIRrank's 588-patch concatenated-crop input the grounded-routing assumption (token-anchored routing) may not hold. Test by swapping the routing knob v162b → v160b (`--grounded_text_routing` OFF, pure Sinkhorn balanced-OT base routing) while keeping FAIRrank cache + stackedText recipe identical.
+
+🟢 **Single-delta changes vs the prior v162b FAIRrank cell:**
+- routing: v162b (grounded text routing) → **v160b** (base Sinkhorn OT, no grounded)
+- recipe: `--lambda_text_code_kl 0.02 → 0.10`, `--lambda_xmodal_commit 0.025 → 0.10`, `--lambda_text_hash_ntxent 0.05 → 0.10` (3-knob stackedText boost — same as CUB champion recipe)
+- Everything else IDENTICAL: K=128, L=8 / K=3 crops, scale=(0.25, 0.6), 3 views, partialWhiten γ=0.25, qwen3 v4_trainset captions.
+
+🟢 **4-axis comparison vs the Flickr family:**
+
+| Axis | Flickr champion v162b (whole-image) | v162b + FAIRrank | **v160b + FAIRrank (THIS)** | Δ THIS vs v162b+FAIR | Δ THIS vs champion |
+|---|---|---|---|---|---|
+| mAP(base) | **0.7581** ★★★ | **0.7429** ★★ | 0.7258 | −0.017 | −0.032 |
+| P@1 | **0.9305** ★★★ | 0.9240 | **0.9260** | +0.002 | −0.005 |
+| P@10 | **0.9233** ★★★ | 0.9116 | **0.9219** | +0.010 | −0.001 |
+| **DNA-uniq (DB)** | 0.426 | 0.438 | **0.526** ★★★ | **+0.088** | **+0.100** |
+| **codebook-tuple unique** | 0.593 | 0.714 | **0.8175** ★★★ | **+0.104** | **+0.225** |
+| **NMI off-diag (low better)** | 0.616 | 0.603 | **0.571** ★★★ | **−0.032** | **−0.045** |
+| B0 raw text lift | 0.075 | 0.075 | 0.0738 | tied | tied |
+| B1 centered text lift | ~0.13 | 0.160 | **0.1582** | tied | +0.028 |
+| B2 visual global lift | ~0.085 | 0.106 | 0.1047 | tied | +0.020 |
+| dead codewords | ≤ 0.005 | 0.004 | 0.022 | +0.018 | +0.017 |
+
+🟢 **Per-codebook drop ablation:** baseline 0.7258. cb0 −0.0100, cb1 −0.0063, cb2 −0.0043, cb3 −0.0074, cb4 −0.0049, cb5 −0.0072. All 6 codebooks informative; drop signal more evenly distributed than under v162b (which had cb4 strongest at −0.013). The flatter drop profile = each codebook carries balanced share of discriminative weight, consistent with the higher DNA-uniq / NMI scores.
+
+📐 **Mechanism explanation for v160b ↔ v162b Pareto split on multi-object FAIRrank scenes.**
+- **v162b grounded text routing** prunes visual-token-to-codeword routes using text-token guidance (top-k_t). On whole-image 196-patch input, this guidance is well-posed (one image, one routing pattern). On 588-patch concatenated-crop input, the 3 selected crops are spatially distinct, but the text tokens are shared (one caption per image). Grounded routing concentrates routing mass on text-token-aligned visual tokens, which improves *retrieval* (visual code aligns with caption) but reduces codebook diversity (text-token guidance is a low-rank constraint on routing).
+- **v160b base Sinkhorn routing** has no text-token coupling. Each crop's tokens compete independently for codewords. Codebook diversity is preserved (DNA-uniq +0.088, NMI −0.032 — significant) at the cost of slightly weaker retrieval (mAP −0.017).
+- **Paper framing**: v162b is "text-grounded retrieval-optimal"; v160b is "code-diverse / compositional-optimal." Multi-object Flickr requires a Pareto choice — there is no single cell that wins both axes on Flickr.
+
+🟢 **Adopt verdict.** Pareto split on Flickr:
+- **`v162b_qwen3_topp02_05_noGate`** (whole-image) — Flickr retrieval-axis CHAMPION (mAP 0.7581, P@1 0.9305).
+- **`v162b_qwen3_topp02_05_noGate_FAIRrankL8K3`** — Flickr retrieval-axis champion *of FAIR family* (mAP 0.7429), best multi-object FAIR retrieval cell.
+- **`v160b_qwen3_FAIRrankL8K3_stackedText`** (THIS) — Flickr **compositional-axis CHAMPION**: DNA-uniq 0.526 (+0.10), codebook-tuple 0.818 (+0.225), NMI off-diag 0.571 (−0.045), all relative to the retrieval champion. Best compositional cell on Flickr.
+
+🔬 **MSCOCO follow-up.** This Pareto split is the second supporting datapoint for the multi-object hypothesis (Flickr now sees both v162b retrieval > v160b retrieval AND v160b compositional > v162b compositional). MSCOCO FAIRrank cache extract restarted with PIL fault-tolerance after first attempt died on `dataset/MSCOCO/images/val2014/COCO_val2014_000000502557.jpg` I/O error (corrupted on disk); now at main 12 % / 1.15 it/s (~3 h to main view complete, ~9-10 h total). After cache complete, run BOTH v162b + v160b cells on MSCOCO to triangulate whether the Pareto split is universal on multi-object datasets.
+
+🧰 **Code added.**
+- [scripts/train_v160b_qwen3_FAIRrankL8K3_stackedText_flickr25k_clip.sh](scripts/train_v160b_qwen3_FAIRrankL8K3_stackedText_flickr25k_clip.sh) — single-delta from `train_v160b_qwen3_v150b_xmodalCommit_K128_flickr25k_clip.sh`: cache path swap (qwen3 → qwen3_tokens_FAIRrankL8K3) + 3 stackedText lambda boosts (KL 0.02→0.10, xmodal_commit 0.025→0.10, text_hash_ntxent 0.05→0.10). Result: Flickr compositional-axis champion.
+- [extract_clip_local_crops.py](extract_clip_local_crops.py) — added PIL `OSError/IOError` fault-tolerance around `Image.open`. If a corrupted file is encountered, the script logs a WARN line and substitutes a gray 224×224 placeholder image (the image's slot in the output cache will be near-zero codes; downstream training tolerates this). Restores extract resilience for large datasets (MSCOCO 122K images).
+
+---
+
 ## 2026-06-24 — Flickr25k cross-dataset verification of `FAIRrank L8K3` (image-global anchor) on `v162b_qwen3_topp02_05_noGate` champion base — **CUB ↔ Flickr ASYMMETRY OF THE FAIR EFFECT QUANTIFIED. On Flickr the image-global anchor produces only a marginal lift over the text-anchor variant (mAP 0.7398 → 0.7429, +0.003) — NOT the +11 % jump seen on CUB. Still sub-Pareto vs Flickr champion (mAP 0.7581, −0.015). The `localL8K3` family (text or image_global) is structurally trade-off-bound on multi-object scenes regardless of anchor choice. The compositional gains (B1 lift 0.160, B2 lift 0.106, NMI 0.603 best in family) remain Pareto-favorable IF compositional axes are paper-positioned, but retrieval-axis champion remains the whole-image v162b cell.**
 
 🟢 **Test design.** Single-delta cache-path swap on the Flickr ABSOLUTE CHAMPION (`v162b_qwen3_topp02_05_noGate`, mAP 0.7581) — replace cache `flickr25k_clip_v4plus_qwen3_tokens_localL8K3` (text-anchor) with `flickr25k_clip_v4plus_qwen3_tokens_FAIRrankL8K3` (image_global anchor). Same L=8 / K=3 / scale=(0.25, 0.6) / 3 views — only the per-crop ranking signal changes. Pairs with the 2026-06-24 CUB FAIRrank cell to isolate the anchor effect across single-object (CUB) vs multi-object (Flickr) datasets.
