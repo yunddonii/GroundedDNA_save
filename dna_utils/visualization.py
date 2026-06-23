@@ -259,50 +259,81 @@ def visualize_routing(
         print("[visualize_routing] no usable samples; skipping plot.")
         return None
 
+    # Detect K = number of crops concatenated into the token sequence. The
+    # standard CLIP-ViT-B/16 path gives num_tokens = 196 (14×14, K=1); the
+    # localL8K3 / grid pipelines concatenate K independently-encoded crops to
+    # give num_tokens = K × 196. We render K rows of heatmaps per sample so
+    # each crop's spatial routing is legible (rather than mashing all crops
+    # into a non-square reshape).
+    num_tokens_first = routings[0].shape[0]
+    side = int(round(num_tokens_first ** 0.5))
+    if side * side == num_tokens_first:
+        K = 1
+        per_crop = num_tokens_first
+    else:
+        # try K × side² for each common ViT-B/16 side
+        K = 0
+        per_crop = 0
+        for cand_side in (14, 21, 16, 24):
+            cand_per_crop = cand_side * cand_side
+            if num_tokens_first % cand_per_crop == 0:
+                K = num_tokens_first // cand_per_crop
+                per_crop = cand_per_crop
+                side = cand_side
+                break
+        if K == 0:
+            print(f"[visualize_routing] num_tokens={num_tokens_first} not "
+                  f"factorable as K × side² for side ∈ {{14,21,16,24}}; "
+                  f"skipping plot.")
+            return None
+
+    rows_per_sample = K
     fig, axes = plt.subplots(
-        n, 6, figsize=(2.4 * 6, 2.6 * n),
+        n * rows_per_sample, 6,
+        figsize=(2.4 * 6, 2.6 * n * rows_per_sample),
         squeeze=False,
     )
     for i in range(n):
-        # original
-        ax = axes[i, 0]
-        ax.imshow(img_arrs[i])
-        ax.set_title(f"img\n{img_ids[i]}", fontsize=7)
-        ax.set_xticks([]); ax.set_yticks([])
-        # routing heatmaps (parts 1..5; index 0 is C_global, drawn from uniform)
-        rout = routings[i]                           # [num_tokens, 5]
-        num_tokens = rout.shape[0]
-        side = int(round(num_tokens ** 0.5))
-        assert side * side == num_tokens, (
-            f"num_tokens={num_tokens} is not a square grid (side={side})"
-        )
-        # part m: [side, side]
-        for m in range(5):
-            heat = rout[:, m].reshape(side, side)
-            ax = axes[i, m + 1]
+        rout = routings[i]                           # [K × side², 5]
+        for k in range(K):
+            row = i * K + k
+            # original image (first column)
+            ax = axes[row, 0]
             ax.imshow(img_arrs[i])
-            ax.imshow(
-                heat, alpha=0.55, cmap="jet",
-                interpolation="bilinear",
-                extent=(0, img_arrs[i].shape[1], img_arrs[i].shape[0], 0),
-            )
-            txt = qwen_texts[i][m + 1] if len(qwen_texts[i]) >= 6 else ""
-            label = LOCAL_PART_LABELS[m]
-            # truncate text to fit; matplotlib will ignore lines too long
-            if txt:
-                txt = txt if len(txt) <= 36 else txt[:33] + "..."
-                ax.set_title(f"{label}\n{txt}", fontsize=6)
+            if k == 0:
+                ax.set_title(f"img\n{img_ids[i]}", fontsize=7)
             else:
-                ax.set_title(label, fontsize=7)
+                ax.set_title(f"crop {k+1}/{K}", fontsize=7)
             ax.set_xticks([]); ax.set_yticks([])
+            crop_rout = rout[k * per_crop:(k + 1) * per_crop, :]   # [side², 5]
+            # routing heatmaps (parts 1..5; index 0 is C_global, drawn from uniform)
+            for m in range(5):
+                heat = crop_rout[:, m].reshape(side, side)
+                ax = axes[row, m + 1]
+                ax.imshow(img_arrs[i])
+                ax.imshow(
+                    heat, alpha=0.55, cmap="jet",
+                    interpolation="bilinear",
+                    extent=(0, img_arrs[i].shape[1], img_arrs[i].shape[0], 0),
+                )
+                txt = qwen_texts[i][m + 1] if len(qwen_texts[i]) >= 6 else ""
+                label = LOCAL_PART_LABELS[m]
+                if txt:
+                    txt = txt if len(txt) <= 36 else txt[:33] + "..."
+                    ax.set_title(f"{label}\n{txt}", fontsize=6)
+                else:
+                    ax.set_title(label, fontsize=7)
+                ax.set_xticks([]); ax.set_yticks([])
 
-    fig.suptitle("Text-guided Sinkhorn routing (heatmap = routing weight per patch)",
-                 fontsize=11)
+    suptitle = "Text-guided Sinkhorn routing (heatmap = routing weight per patch)"
+    if K > 1:
+        suptitle += f"  —  K={K} crops × 14×14 patches concatenated"
+    fig.suptitle(suptitle, fontsize=11)
     fig.tight_layout(rect=(0, 0, 1, 0.97))
     os.makedirs(os.path.dirname(save_path), exist_ok=True) if os.path.dirname(save_path) else None
     fig.savefig(save_path, dpi=140, bbox_inches="tight")
     plt.close(fig)
-    print(f"[visualize_routing] saved -> {save_path}")
+    print(f"[visualize_routing] saved -> {save_path}  (K={K}, side={side})")
     return save_path
 
 
