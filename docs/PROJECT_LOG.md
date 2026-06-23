@@ -334,6 +334,54 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-24 — Flickr25k cross-dataset verification of `FAIRrank L8K3` (image-global anchor) on `v162b_qwen3_topp02_05_noGate` champion base — **CUB ↔ Flickr ASYMMETRY OF THE FAIR EFFECT QUANTIFIED. On Flickr the image-global anchor produces only a marginal lift over the text-anchor variant (mAP 0.7398 → 0.7429, +0.003) — NOT the +11 % jump seen on CUB. Still sub-Pareto vs Flickr champion (mAP 0.7581, −0.015). The `localL8K3` family (text or image_global) is structurally trade-off-bound on multi-object scenes regardless of anchor choice. The compositional gains (B1 lift 0.160, B2 lift 0.106, NMI 0.603 best in family) remain Pareto-favorable IF compositional axes are paper-positioned, but retrieval-axis champion remains the whole-image v162b cell.**
+
+🟢 **Test design.** Single-delta cache-path swap on the Flickr ABSOLUTE CHAMPION (`v162b_qwen3_topp02_05_noGate`, mAP 0.7581) — replace cache `flickr25k_clip_v4plus_qwen3_tokens_localL8K3` (text-anchor) with `flickr25k_clip_v4plus_qwen3_tokens_FAIRrankL8K3` (image_global anchor). Same L=8 / K=3 / scale=(0.25, 0.6) / 3 views — only the per-crop ranking signal changes. Pairs with the 2026-06-24 CUB FAIRrank cell to isolate the anchor effect across single-object (CUB) vs multi-object (Flickr) datasets.
+
+🟢 **Final 4-axis comparison vs the Flickr family:**
+
+| Axis | Flickr champion `noGate` | text-anchor localL8K3 (sub-Pareto) | **FAIRrank L8K3 (THIS)** | Δ THIS vs text-anchor | Δ THIS vs champion |
+|---|---|---|---|---|---|
+| mAP(base) | **0.7581** ★ | 0.7398 | 0.7429 | **+0.003** | −0.015 |
+| P@1 | **0.9305** | 0.9230 | 0.9240 | +0.001 | −0.007 |
+| P@10 | **0.9233** | 0.9180 | 0.9116 | −0.006 | −0.012 |
+| DNA-uniq (DB) | 0.426 | 0.450 | 0.438 | −0.012 | +0.012 |
+| codebook-tuple unique | 0.593 | 0.703 | 0.7137 | +0.011 | +0.121 |
+| NMI off-diag (low better) | 0.616 | 0.602 | **0.603** | tied | −0.013 |
+| B0 raw text lift | 0.075 | 0.075 | 0.0748 | tied | tied |
+| B1 centered text lift | ~0.13 | 0.161 | **0.1602** | tied | +0.03 |
+| B2 visual global lift | ~0.085 | 0.104 | **0.1059** | +0.002 | +0.021 |
+| dead codewords | ≤ 0.005 | 0.005 | 0.004 | tied | tied |
+
+🟢 **Per-codebook drop ablation:**
+
+| Cell | Δ cb0 | Δ cb1 | Δ cb2 | Δ cb3 | Δ cb4 | Δ cb5 |
+|---|---|---|---|---|---|---|
+| Flickr text-anchor localL8K3 | −0.0153 | −0.0028 | −0.0090 | −0.0055 | −0.0007 | −0.0107 |
+| **FAIRrank L8K3 (THIS)** | −0.0099 | −0.0020 | −0.0073 | −0.0038 | **−0.0128** | −0.0102 |
+
+All 6 codebooks informative under both anchor modes. FAIRrank slightly redistributes weight off `cb0` (−0.015 → −0.010) toward `cb4` (−0.001 → −0.013, +0.012 stronger). cb1/2/3/5 nearly identical to text-anchor.
+
+📐 **Mechanism explanation for the CUB ↔ Flickr asymmetry.**
+- **CUB (single-object fine-grained)**: text anchor averages 5 anatomy slots → produces a class-generic "bird-anatomy direction"; image-global anchor is per-image specific → picks crops most similar to THIS exact bird's holistic view. The two anchors target very different selection criteria, and image-global wins decisively (+11 % mAP, +12 % P@1).
+- **Flickr (multi-object scene)**: text anchor averages 5 scene-content slots (object/color/scene/action/context) → produces a "scene-summary direction" that's already mostly the same as the image's overall content. Image-global anchor → also a "this-image summary direction." Both anchors converge on a similar selection criterion → small delta (+0.003 mAP).
+- **The CUB ↔ Flickr asymmetry of the `localL8K3` family thus has TWO sources**: (1) text-anchor's class-genericness on multi-object scenes (smaller for image_global) and (2) crop-scale-vs-scene-coverage trade (a fundamental limitation neither anchor solves). Source (2) is the dominant Flickr cost — switching anchor only addresses source (1).
+
+🚫 **Adopt verdict.** `localL8K3` family (text or image_global anchor) is **NOT** the Flickr retrieval champion. The whole-image `v162b_qwen3_topp02_05_noGate` cell retains the Flickr mAP / P@1 / P@10 crown. `FAIRrank L8K3` could be adopted as the **Flickr compositional-axis champion** (B1 0.160, B2 0.106, NMI 0.603 — best in family on those axes) for paper tables that report multiple axes — but the canonical Flickr retrieval cell is the whole-image variant.
+
+🔬 **MSCOCO prediction (cache extract IN PROGRESS at this commit, ~3-4 h to complete).** MSCOCO captions are scene-level multi-object descriptions (similar to Flickr v4 prompt structure), so the FAIR vs text-anchor delta on MSCOCO is predicted to be small (≤ +0.005 mAP). MSCOCO whole-image champions `mscoco_v160b_qwen3v5b` (mAP 0.6200) and `mscoco_v162b_qwen3v5b_topp02_05` (NMI 0.697 / cb_tuple 0.256) are predicted to retain their retrieval / compositional crowns.
+
+🧰 **Code added.**
+- [scripts/train_v162b_qwen3_topp02_05_noGate_FAIRrankL8K3_flickr25k_clip.sh](scripts/train_v162b_qwen3_topp02_05_noGate_FAIRrankL8K3_flickr25k_clip.sh) — single-delta cache-path swap on Flickr champion. Result: sub-Pareto on retrieval (mAP 0.7429), Pareto-favorable on compositional axes.
+- Cache: `cache/flickr25k_clip_v4plus_qwen3_tokens_FAIRrankL8K3` (visual_tokens [25000, 588, 768], 68 GB, 3 views, image_global anchor).
+
+🔭 **Follow-ups.**
+1. **MSCOCO FAIRrank L8K3** — cache extract on GPU 2 ~3-4 h remaining; training launch after cache complete; verify scene-level dataset prediction.
+2. **The "dataset-class-dependent anchor policy" framing for the paper**: image_global anchor wins on single-object fine-grained datasets; both anchors trade retrieval for compositional gain on multi-object scenes; whole-image cells remain retrieval-axis champions on multi-object scenes.
+3. **Crop scale sweep on Flickr** — re-test (0.4, 0.8) on FAIRrank cell to see if scale-tuned multi-object can recover retrieval mAP.
+
+---
+
 ## 2026-06-24 — CUB-200 `FAIRrank L8K3` (FAIR/WCA-style image-self-similarity crop ranking) on `stackedText` recipe — **NEW CUB ABSOLUTE CHAMPION across EVERY axis. mAP 0.1368 (+0.014 vs prior champ `localL8K3 text-anchor` 0.1233, +11 %), P@1 0.2365 (+12 %), DNA-uniq 0.745 (+0.025), NMI off-diag 0.438 (−0.06, BEST in family), B1 lift 0.1296 (+0.005). Closes CIBHash retrieval gap from 75 % → 83 % on mAP (0.1368 / 0.1639) and 65 % → 73 % on P@1 (0.2365 / 0.3226). The earlier text-anchor hypothesis (mean of v6b text_part slots 1-5) is REFUTED: per-image image-global anchor (donor cache's `visual_global`) wins on EVERY axis on CUB.**
 
 🟢 **Inspiration source.** This cell is directly inspired by **FAIR** (Ali et al., WACV 2026, `papers/Ali_Towards_Fine-Grained_Adaptation_of_CLIP_via_a_Self-Trained_Alignment_Score_WACV_2026_paper.pdf`), which uses (N=16, k=4) random crops ranked by `cos(f^CLS, f_i^CLS)` — full-image CLS vs each-crop CLS (Eq. 12). FAIR explicitly argues "[CLS] token more effectively captures comprehensive global semantic and structural details, making it often more suitable for image-based similarity tasks." Our prior `localL8K3` cell used text-anchor (`mean(text_part[:, 1:6, :])`) for crop ranking — the natural alternative on the text axis. This cell tests FAIR's image-self-similarity claim head-to-head on CUB while everything else is held constant.
