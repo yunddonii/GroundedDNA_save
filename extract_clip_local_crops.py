@@ -127,6 +127,32 @@ def _gen_crop_params(pil_img: Image.Image, scale_min: float, scale_max: float,
     return (H - side) // 2, (W - side) // 2, side, side
 
 
+def _gen_grid_crops(pil_img: Image.Image, grid_n: int, crop_frac: float):
+    """Deterministic N×N grid of overlapping square crops covering the image.
+
+    grid_n=3, crop_frac=0.5 -> 9 crops of 50%-side at positions {0, 0.25, 0.5}
+                              of (W - crop_side) and (H - crop_side).
+    grid_n=4, crop_frac=0.4 -> 16 crops of 40%-side at positions {0, 0.2, 0.4, 0.6}.
+    Each (top, left, side, side) entry resizes to the encoder input size.
+    """
+    W, H = pil_img.size
+    short = min(H, W)
+    side = max(8, int(round(crop_frac * short)))
+    if grid_n == 1:
+        return [((H - side) // 2, (W - side) // 2, side, side)]
+    crops = []
+    # positions span [0, 1 - crop_frac], i.e. crop top-lefts stay inside the
+    # image. grid_n positions per axis -> grid_n^2 total crops.
+    for i in range(grid_n):
+        for j in range(grid_n):
+            ty = (i / (grid_n - 1)) if grid_n > 1 else 0.0
+            tx = (j / (grid_n - 1)) if grid_n > 1 else 0.0
+            top  = int(round(ty * (H - side)))
+            left = int(round(tx * (W - side)))
+            crops.append((top, left, side, side))
+    return crops
+
+
 @torch.no_grad()
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -141,6 +167,21 @@ def main() -> int:
     ap.add_argument("--local_crops_top_k", type=int, default=3)
     ap.add_argument("--crop_scale_min",   type=float, default=0.25)
     ap.add_argument("--crop_scale_max",   type=float, default=0.6)
+    ap.add_argument("--crop_mode",        default="random",
+                    choices=["random", "grid"],
+                    help="random = stochastic L crops with scale in "
+                         "[scale_min, scale_max] (sampled per crop); grid = "
+                         "deterministic grid_n x grid_n overlapping crops, "
+                         "each crop covers --crop_grid_frac of the shorter "
+                         "image side. With grid, --num_local_crops is forced "
+                         "to grid_n**2.")
+    ap.add_argument("--crop_grid_n",      type=int, default=3,
+                    help="When --crop_mode=grid, the grid is N x N. (3 -> "
+                         "L=9, 4 -> L=16.)")
+    ap.add_argument("--crop_grid_frac",   type=float, default=0.5,
+                    help="When --crop_mode=grid, each crop's side equals this "
+                         "fraction of the shorter image side. Default 0.5 = "
+                         "50% side = 25% area, overlapping.")
     ap.add_argument("--num_aug_views",    type=int, default=2,
                     help="Number of paired-aug views (each is its own L-crop "
                          "sampling with different RNG seed).")
@@ -157,7 +198,10 @@ def main() -> int:
     args = ap.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
-    L = int(args.num_local_crops)
+    if args.crop_mode == "grid":
+        L = int(args.crop_grid_n) ** 2
+    else:
+        L = int(args.num_local_crops)
     K = int(args.local_crops_top_k)
     assert 1 <= K <= L, f"K={K} must be in [1, L={L}]"
 
@@ -240,11 +284,19 @@ def main() -> int:
             crops_list = []
             for i in range(i_start, i_end):
                 pil = Image.open(image_paths[i]).convert("RGB")
-                img_rng = np.random.default_rng(int(per_image_seeds[i]))
-                for j in range(L):
-                    top, left, h, w = _gen_crop_params(
-                        pil, args.crop_scale_min, args.crop_scale_max, img_rng,
+                if args.crop_mode == "grid":
+                    # deterministic grid; per-view RNG used only for aug
+                    # color/flip placeholder (currently not applied).
+                    crop_params = _gen_grid_crops(
+                        pil, int(args.crop_grid_n), float(args.crop_grid_frac),
                     )
+                else:
+                    img_rng = np.random.default_rng(int(per_image_seeds[i]))
+                    crop_params = [
+                        _gen_crop_params(pil, args.crop_scale_min, args.crop_scale_max, img_rng)
+                        for _ in range(L)
+                    ]
+                for (top, left, h, w) in crop_params:
                     crops_list.append(_crop_then_resize(pil, top, left, h, w, args.image_size))
             crops = torch.stack(crops_list, dim=0).to(args.device)    # [B*L, 3, S, S]
             # forward

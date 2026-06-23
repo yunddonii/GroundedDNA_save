@@ -397,6 +397,55 @@ We have now overtaken CIMON on retrieval (mAP 0.1117–0.1233 > CIMON 0.1128) AN
 
 ---
 
+## 2026-06-23 — CUB-200 deterministic grid-crop mode (`grid_n=3, K=3, scale=0.5 side`) on the `stackedText` recipe — **SEVERE RETRIEVAL REGRESSION: mAP 0.0434 (−65 % vs `localL8K3` retrieval champion 0.1233), P@1 0.0825 (−61 %). NOT a Pareto trade — only DNA-uniq (0.878, +0.158) and NMI off-diag (0.323, −0.18) gain. Drop ablation: cb0 only informative (−0.0101); cb4 / cb5 turn slightly positive (+0.0010 / +0.0004) — codebook collapse signature similar to `clip336` / FG-CLIP family. ROOT CAUSE: deterministic grid means the paired-aug NtXent views (`aug0` / `aug1`) have IDENTICAL crop positions → CIBHash `visual_token` contrastive positive pair is trivially equal, no contrastive signal, codes drift toward orthogonal diverse-but-non-discriminative configurations. Grid mode REQUIRES an independent photometric augmentation per view (color jitter / horizontal flip / grayscale) to restore NtXent signal; current `extract_clip_local_crops.py` grid path applies the SAME deterministic crops to all views without per-view photometric variation. `grid_n=4` cache extracted (`cache/cub200_clip_v6bplus_grid4K3`) but training NOT launched — same failure mode predicted by the mechanism.**
+
+🟢 **Test design.** Single-delta cache-path swap on the 2026-06-22 retrieval champion `cub200_v160b_v6b_K64_localL8K3_stackedText` — replace `localL8K3` random-crop cache with new grid-crop cache `cub200_clip_v6bplus_grid3K3` produced by extended [extract_clip_local_crops.py](extract_clip_local_crops.py) (added `--crop_mode grid --crop_grid_n {3,4} --crop_grid_frac F`). Same K=3 top-K text-anchor selection over L=N² grid positions, same training recipe (`textCodeKl010 + stackedText`).
+
+🟢 **Final 4-axis comparison vs CUB v160b champions:**
+
+| Axis | localL8K3 retrieval champ | + cibTemp015 (DNA-uniq champ) | **grid3K3 (THIS)** |
+|---|---|---|---|
+| mAP(base) | **0.1233** ★ | 0.1117 | **0.0434** ✗ |
+| P@1 | **0.2110** ★ | 0.1950 | 0.0825 |
+| P@10 | **0.1774** ★ | 0.1674 | 0.0625 |
+| DNA-uniq (DB) | 0.720 | 0.809 | **0.878** |
+| NMI off-diag (low better) | tbd | tbd | **0.323** (lowest in family) |
+| B1 centered text lift | **0.1248** ★ | 0.1242 | 0.094 |
+
+🔴 **Per-codebook drop ablation (codebook collapse signature):**
+
+| Cell | Δ cb0 | Δ cb1 | Δ cb2 | Δ cb3 | Δ cb4 | Δ cb5 | Σ |Δ| |
+|---|---|---|---|---|---|---|---|
+| localL8K3 retrieval champ | −0.0251 | −0.0056 | −0.0073 | −0.0022 | +0.0032 | −0.0095 | 0.0529 |
+| + cibTemp015 (DNA-uniq champ) | −0.0278 | −0.0049 | −0.0082 | −0.0027 | −0.0017 | −0.0075 | 0.0528 |
+| **grid3K3 (THIS, failure)** | **−0.0101** | −0.0023 | −0.0034 | −0.0011 | **+0.0010** | **+0.0004** | 0.0183 |
+
+Only `cb0` (C_global) carries any meaningful weight (−0.0101, half of localL8K3 champion's cb0). `cb4` (tail) and `cb5` (pattern_markings) flip slightly positive — those slots actively hurt retrieval. Total informative weight 0.0183 — **less than 35 % of either champion**, the worst codebook utilization on CUB this month.
+
+📐 **Root-cause mechanism (Option A deterministic grid failure mode).** Deterministic grid produces fixed crop top-lefts per (image, grid_n, grid_frac). My current `extract_clip_local_crops.py` grid branch applies the SAME `_gen_grid_crops()` for all three views (`main`, `aug0`, `aug1`), with no photometric aug applied (no color jitter / flip / grayscale). Therefore the cached tensors satisfy `visual_tokens_aug0[i] == visual_tokens_aug1[i]` per image. CIBHash NtXent on `visual_token` source (`--cibhash_ntxent_source visual_token`) then computes:
+
+  - positives: `cosine(sv_v1[i, m], sv_v2[i, m])` over `m` ∈ `[0, 6)` codebooks — trivially equal to 1.0 because aug0=aug1.
+  - negatives: same as before but the positive logits saturate.
+
+The NtXent gradient becomes a near-degenerate "make positives = 1.0" loss with no contrastive pressure. The Sinkhorn EMA codebook quantizer + the `vq` / `quant` losses then drive codes toward whatever balanced distribution the entropy regularization prefers — which produces high diversity (`DNA-uniq 0.878`) and high orthogonality (`NMI 0.323`) but no retrieval signal (`mAP 0.0434`).
+
+🔁 **Why random `localL8K3` works.** Random `RandomResizedCrop(scale=(0.25, 0.6))` with different per-view RNG seeds produces DIFFERENT crops for `aug0` / `aug1` of the same image → contrastive positives are similar-but-not-identical → NtXent has signal → codes encode species-discriminative features.
+
+🚫 **Adopt verdict.** `grid3K3` (and predicted `grid4K3` with the same root cause) **DISCARDED** as a champion candidate. Retained in repo as the canonical Option A negative-result documentation: deterministic-crop grid mode without independent photometric augmentation per view collapses paired-aug NtXent.
+
+🧰 **Code added (kept in repo for negative-result documentation).**
+- [extract_clip_local_crops.py](extract_clip_local_crops.py) — added `--crop_mode {random, grid} --crop_grid_n N --crop_grid_frac F` flags; `_gen_grid_crops()` produces deterministic N×N overlapping crops at `grid_frac` of the shorter image side.
+- [scripts/train_cub200_v160b_v6b_K64_grid3K3_stackedText_clip.sh](scripts/train_cub200_v160b_v6b_K64_grid3K3_stackedText_clip.sh) — single-delta cache-path swap on localL8K3 retrieval champion. Result: FAILED on retrieval.
+- Cache: `cache/cub200_clip_v6bplus_grid3K3` (visual_tokens [11788, 588, 768], 30 GB, 3 views) — retained.
+- Cache: `cache/cub200_clip_v6bplus_grid4K3` (visual_tokens [11788, 588, 768], 30 GB, 3 views) — extracted but training NOT launched (same predicted failure).
+
+🔭 **Follow-up (Option A revival path, if pursued).**
+1. Modify `extract_clip_local_crops.py` grid branch to apply independent photometric augmentation per view (CIBHash-style `ColorJitter + RandomGrayscale + RandomHorizontalFlip`). This preserves the deterministic crop placement (the "structured Option A" intent) while restoring NtXent contrastive signal.
+2. Re-test `grid3K3` and `grid4K3` under photometric-aug grid mode. Hypothesis: retrieval should recover toward `localL8K3` levels while keeping the systematic-coverage benefit.
+3. If photometric-aug grid mode wins on any axis, swap that into the champion table; otherwise drop deterministic grid as a non-productive direction.
+
+---
+
 ## 2026-06-22 — Flickr25k cross-dataset verification of `localL8K3` recipe on `v162b_qwen3_topp02_05_noGate` champion base — **SUB-PARETO TRADE-OFF on Flickr (unlike CUB's clear-cut win): retrieval REGRESSES (mAP 0.7581 → 0.7398, −0.018; P@1 0.9305 → 0.9230, −0.008) while compositional axes IMPROVE (DNA-uniq 0.426 → 0.450, +0.024; NMI 0.616 → 0.602, −0.014; B1 lift +0.03; B2 lift +0.02). Crop scale (0.25, 0.6) — calibrated for CUB single-bird foreground — is TOO SMALL for multi-object Flickr scenes; text-anchored top-K selection collapses to one dominant scene object, losing scene-level retrieval information. Flickr ABSOLUTE CHAMPION `v162b_qwen3_topp02_05_noGate` (mAP 0.7581) RETAINED. CUB ↔ Flickr asymmetry of the localL8K3 effect (CUB +50 % mAP / Flickr −2 % mAP) is now empirically validated as scale-driven, not method-driven.**
 
 🟢 **Test design.** Single-delta cache-path swap on the Flickr ABSOLUTE CHAMPION (`v162b_qwen3_topp02_05_noGate`, mAP 0.7581) — replace cache `flickr25k_clip_v4plus_qwen3_tokens` with `flickr25k_clip_v4plus_qwen3_tokens_localL8K3` (L=8 random crops, K=3 top-K by mean(text_part[:, 1:6, :]) anchor, scale (0.25, 0.6) — IDENTICAL recipe to the CUB cell). 25 000 Flickr images × 8 crops × 3 views = 600 K crops total at extract time; 68 GB cache.
