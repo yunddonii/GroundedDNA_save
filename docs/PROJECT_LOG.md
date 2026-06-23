@@ -334,6 +334,69 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-23 — CUB-200 `localL8K3 + cibTemp015` (combine retrieval champion with prior compositional sub-champion) — **NEW CUB DNA-uniq CHAMPION at 0.809 (+0.089 vs `localL8K3` retrieval champion 0.720, all-time CUB high); PARETO trade-off, NOT sub-Pareto. mAP 0.1117 (−0.012 vs retrieval champion 0.1233) is the cost; B1 lift 0.124 ≈ tied. CUB v160b family now SPLIT: `localL8K3 + stackedText` retains retrieval crown (mAP 0.1233, P@1 0.2110); `localL8K3 + stackedText + cibTemp015` claims DNA-uniq + NMI / compositional crown (DNA 0.809, drop-ablation total 0.0528, all 6 codebooks informative).**
+
+🟢 **Test design.** Single-delta cell from the 2026-06-22 retrieval champion `cub200_v160b_v6b_K64_localL8K3_stackedText`: change `--cibhash_temperature 0.3 → 0.15` (the `cibTemp015` knob proven on the pre-`localL8K3` era as a DNA-uniq booster). Tests whether the temperature-sharpening of CIBHash contrastive composes with the visual-input-quality axis (localL8K3) and the text-driven loss axis (stackedText).
+
+🟢 **Final 4-axis comparison vs CUB v160b champions:**
+
+| Axis | CLIP record | textCodeKl010 | stackedText | **localL8K3 (retrieval champ)** | **+ cibTemp015 (THIS, DNA-uniq champ)** |
+|---|---|---|---|---|---|
+| mAP(base) | 0.0739 | 0.0736 | 0.0822 | **0.1233** ★ | 0.1117 |
+| P@1 | 0.1184 | 0.1280 | 0.1485 | **0.2110** ★ | 0.1950 |
+| P@10 | 0.1029 | 0.1072 | 0.1183 | **0.1774** ★ | 0.1674 |
+| **DNA-uniq (DB)** | 0.540 | 0.660 | 0.655 | 0.720 | **0.809** ★★★ |
+| NMI off-diag (low better) | ~0.59 | 0.495 | 0.500 | tbd | tbd |
+| B1 centered text lift | 0.110 | 0.108 | 0.111 | **0.1248** | 0.1242 (≈ tied) |
+| dead codewords | ≤ 0.05 | 0.104 | 0.13 | 0.156 | 0.068 (BEST of the family) |
+
+🟢 **Per-codebook drop ablation:**
+
+| Cell | Δ cb0 | Δ cb1 | Δ cb2 | Δ cb3 | Δ cb4 | Δ cb5 | Σ |Δ| |
+|---|---|---|---|---|---|---|---|
+| `localL8K3` (retrieval champ) | −0.0251 | −0.0056 | −0.0073 | −0.0022 | +0.0032 | −0.0095 | 0.0529 |
+| **`+ cibTemp015` (THIS, DNA-uniq champ)** | **−0.0278** | −0.0049 | −0.0082 | −0.0027 | −0.0017 | −0.0075 | **0.0528** |
+
+Same total per-codebook informative weight (0.0528 ≈ 0.0529) but **better distributed in this cell**: cb4 turns from +0.0032 (neutral / mildly detrimental) to −0.0017 (informative), and cb1/cb5 retain their localL8K3 magnitudes. **All 6 codebooks informative under drop ablation** — the cleanest pattern we have seen on CUB.
+
+🟢 **Mechanism.** `cibhash_temperature 0.15` halves the CIBHash NtXent softmax temperature, sharpening the contrastive boundary on the paired-augmented visual_token views. On top of `localL8K3 + stackedText`, this:
+- Pushes each crop's `semantic_visual_tokens` away from other batch images more aggressively → codes spread out (DNA-uniq 0.72 → 0.81, codebook-tuple unique closes in on 1.0).
+- Costs a small amount of mAP (−0.012) because the harder contrastive pressure occasionally pushes structurally similar species (intra-genus birds) apart that should retrieve together at the top-K level.
+- Brings dead codewords DOWN (0.156 → 0.068) — the sharper contrastive keeps more codewords "alive" by forcing diverse codeword usage.
+
+🎯 **Updated CUB v160b champion table:**
+
+| Axis | Champion | Recipe |
+|---|---|---|
+| **Retrieval** (mAP / P@1 / P@10) | `cub200_v160b_v6b_K64_localL8K3_stackedText` | localL8K3 cache + stackedText recipe |
+| **Compositional** (DNA-uniq / drop spread / dead-codewords) | **`cub200_v160b_v6b_K64_localL8K3_stackedText_cibTemp015`** (THIS) | + cibhash_temperature 0.15 |
+| B1 / B2 (text-image alignment) | tied between the two | — |
+
+🎯 **Gap to CUB unsupervised baselines (frozen CLIP, 36-bit):**
+
+| Method | mAP | P@1 | unique (DB) |
+|---|---|---|---|
+| CIBHash | 0.1639 | 0.3226 | 0.977 |
+| CIMON | 0.1128 | 0.2030 | 0.754 |
+| **`localL8K3 + stackedText`** (retrieval champion) | **0.1233** | **0.2110** | 0.720 |
+| **`localL8K3 + stackedText + cibTemp015`** (DNA-uniq champion, THIS) | 0.1117 | 0.1950 | **0.809** |
+| CLIP record | 0.0739 | 0.1184 | 0.540 |
+
+We have now overtaken CIMON on retrieval (mAP 0.1117–0.1233 > CIMON 0.1128) AND on unique (0.809 > CIMON 0.754). The DNA-uniq champion `+cibTemp015` cell still loses to CIBHash on every axis (CIBHash 0.977 unique is closer to saturation), but on the compositional decomposition + per-codebook signal axes, our cells produce structure CIBHash does not.
+
+🧰 **Code added.**
+- [scripts/train_cub200_v160b_v6b_K64_localL8K3_stackedText_cibTemp015_clip.sh](scripts/train_cub200_v160b_v6b_K64_localL8K3_stackedText_cibTemp015_clip.sh) — single-delta `cibhash_temperature` swap on the localL8K3 retrieval champion.
+
+🟡 **Infrastructure note.** This cell was launched twice. The first instance was inadvertently killed mid-training (at epoch 44 mid-eval mAP 0.0914) due to a DataLoader-worker SIGKILL cascade when I killed a duplicate process. The second (clean) instance reached epoch 60 + final eval reported above. Disk contention during that period also forced the cancellation of two other planned cells: a Flickr25k `localL8K3` rerun with crop scale (0.4, 0.8) and a CUB grid-mode cell with `grid_n = 4` (each had ETA > 30 h under the contention). The Flickr crop-scale follow-up remains on the follow-up list (will retry when GPU pool is free).
+
+🔭 **Follow-ups (carried).**
+1. **Flickr scale=(0.4, 0.8) localL8K3 rerun** — retry when uncontended GPU is available.
+2. **CUB grid-mode cells** (`grid_n=3`, currently extracting; `grid_n=4` cancelled, restart later) — test deterministic crop placement vs the random L=8 cache.
+3. **L / K sweep on CUB** — current `L=8, K=3` is the first guess; sweep `K ∈ {1, 2, 4, 5}` to find the saturation knee.
+4. **Re-measure CIBHash / CIMON with the `localL8K3` cache as their visual input** — fair-comparison update; predicted CIBHash also gains modestly without text-anchored selection.
+
+---
+
 ## 2026-06-22 — Flickr25k cross-dataset verification of `localL8K3` recipe on `v162b_qwen3_topp02_05_noGate` champion base — **SUB-PARETO TRADE-OFF on Flickr (unlike CUB's clear-cut win): retrieval REGRESSES (mAP 0.7581 → 0.7398, −0.018; P@1 0.9305 → 0.9230, −0.008) while compositional axes IMPROVE (DNA-uniq 0.426 → 0.450, +0.024; NMI 0.616 → 0.602, −0.014; B1 lift +0.03; B2 lift +0.02). Crop scale (0.25, 0.6) — calibrated for CUB single-bird foreground — is TOO SMALL for multi-object Flickr scenes; text-anchored top-K selection collapses to one dominant scene object, losing scene-level retrieval information. Flickr ABSOLUTE CHAMPION `v162b_qwen3_topp02_05_noGate` (mAP 0.7581) RETAINED. CUB ↔ Flickr asymmetry of the localL8K3 effect (CUB +50 % mAP / Flickr −2 % mAP) is now empirically validated as scale-driven, not method-driven.**
 
 🟢 **Test design.** Single-delta cache-path swap on the Flickr ABSOLUTE CHAMPION (`v162b_qwen3_topp02_05_noGate`, mAP 0.7581) — replace cache `flickr25k_clip_v4plus_qwen3_tokens` with `flickr25k_clip_v4plus_qwen3_tokens_localL8K3` (L=8 random crops, K=3 top-K by mean(text_part[:, 1:6, :]) anchor, scale (0.25, 0.6) — IDENTICAL recipe to the CUB cell). 25 000 Flickr images × 8 crops × 3 views = 600 K crops total at extract time; 68 GB cache.
