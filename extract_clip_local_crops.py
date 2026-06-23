@@ -195,6 +195,14 @@ def main() -> int:
                          "is used as text anchor. Default 1..5 = the 5 local "
                          "anatomy slots (v6b: head, body, wing, tail, "
                          "pattern_markings). Slot 0 = C_global, usually excluded.")
+    ap.add_argument("--anchor_mode", default="text",
+                    choices=["text", "image_global"],
+                    help="Ranking signal for top-K crop selection. "
+                         "'text' (default): cos(crop_CLS, mean(text_part[slots])). "
+                         "'image_global': cos(crop_CLS, donor_visual_global) — "
+                         "FAIR / WCA style image-self-similarity ranking. Use "
+                         "image_global on multi-object scene datasets where the "
+                         "averaged text anchor collapses to one dominant object.")
     args = ap.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -215,13 +223,31 @@ def main() -> int:
     D_proj = int(text_part.shape[2])
     print(f"[local-crops] donor cache: N={N}, M={M}, D_proj={D_proj}")
 
-    # ---- text anchor: mean over chosen slots, normalized -----------------
+    # ---- anchor: text-derived (default) OR image-self-similarity (FAIR) --
     slots = [int(x) for x in args.text_anchor_slots.split(",") if x.strip()]
-    assert all(0 <= s < M for s in slots), f"slot indices {slots} out of range [0, {M})"
-    text_anchor_np = text_part[:, slots, :].astype(np.float32).mean(axis=1)   # [N, D_proj]
-    text_anchor = torch.from_numpy(text_anchor_np).to(args.device)
+    if args.anchor_mode == "text":
+        assert all(0 <= s < M for s in slots), f"slot indices {slots} out of range [0, {M})"
+        anchor_np = text_part[:, slots, :].astype(np.float32).mean(axis=1)   # [N, D_proj]
+        print(f"[local-crops] anchor=text  slots={slots}  shape={anchor_np.shape}")
+    else:
+        # FAIR-style: rank crops by cos(crop_CLS, full_image_CLS). Read donor's
+        # visual_global cache (the CLIP-projected pooled feature for the full
+        # image; same projection layer that produces per-crop globals here, so
+        # the dot-product is in a consistent space).
+        donor_vg_path = os.path.join(args.donor_dir, "visual_global.f16.npy")
+        if not os.path.exists(donor_vg_path):
+            raise FileNotFoundError(
+                f"--anchor_mode image_global needs donor_dir to contain "
+                f"visual_global.f16.npy ({donor_vg_path} missing)."
+            )
+        anchor_np = np.load(donor_vg_path, mmap_mode="r")[:].astype(np.float32)
+        assert anchor_np.shape[0] == N and anchor_np.shape[1] == D_proj, (
+            f"donor visual_global shape {anchor_np.shape} mismatch (expected "
+            f"({N},{D_proj}))."
+        )
+        print(f"[local-crops] anchor=image_global (FAIR-style)  shape={anchor_np.shape}")
+    text_anchor = torch.from_numpy(anchor_np).to(args.device)
     text_anchor_n = F.normalize(text_anchor, dim=-1)
-    print(f"[local-crops] text anchor: slots={slots} -> shape={tuple(text_anchor.shape)}")
 
     # ---- image path lookup ------------------------------------------------
     path_rows = _iter_pathlist(args.pathlist_root, args.pathlist_setting)

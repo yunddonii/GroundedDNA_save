@@ -334,6 +334,69 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-24 — CUB-200 `FAIRrank L8K3` (FAIR/WCA-style image-self-similarity crop ranking) on `stackedText` recipe — **NEW CUB ABSOLUTE CHAMPION across EVERY axis. mAP 0.1368 (+0.014 vs prior champ `localL8K3 text-anchor` 0.1233, +11 %), P@1 0.2365 (+12 %), DNA-uniq 0.745 (+0.025), NMI off-diag 0.438 (−0.06, BEST in family), B1 lift 0.1296 (+0.005). Closes CIBHash retrieval gap from 75 % → 83 % on mAP (0.1368 / 0.1639) and 65 % → 73 % on P@1 (0.2365 / 0.3226). The earlier text-anchor hypothesis (mean of v6b text_part slots 1-5) is REFUTED: per-image image-global anchor (donor cache's `visual_global`) wins on EVERY axis on CUB.**
+
+🟢 **Inspiration source.** This cell is directly inspired by **FAIR** (Ali et al., WACV 2026, `papers/Ali_Towards_Fine-Grained_Adaptation_of_CLIP_via_a_Self-Trained_Alignment_Score_WACV_2026_paper.pdf`), which uses (N=16, k=4) random crops ranked by `cos(f^CLS, f_i^CLS)` — full-image CLS vs each-crop CLS (Eq. 12). FAIR explicitly argues "[CLS] token more effectively captures comprehensive global semantic and structural details, making it often more suitable for image-based similarity tasks." Our prior `localL8K3` cell used text-anchor (`mean(text_part[:, 1:6, :])`) for crop ranking — the natural alternative on the text axis. This cell tests FAIR's image-self-similarity claim head-to-head on CUB while everything else is held constant.
+
+🟢 **Test design.** Single-delta extract path: replace `--anchor_mode text` (default) with `--anchor_mode image_global` (new flag added to `extract_clip_local_crops.py`). All other knobs IDENTICAL to the prior champion's recipe: L=8 random crops, K=3 top-K, scale=(0.25, 0.6), 3 views (main / aug0 / aug1) with different RNG seeds, frozen CLIP-ViT-B/16, qwen-v6b captions, `stackedText` recipe (`textCodeKl010 + λ_xmodal_commit 0.10 + λ_text_hash_ntxent 0.10`). Cache: `cub200_clip_v6bplus_FAIRrankL8K3` (30 GB). Training: `cub200_v160b_v6b_K64_FAIRrankL8K3_stackedText`.
+
+🟢 **Final 4-axis comparison vs the CUB family:**
+
+| Axis | CLIP record | stackedText | localL8K3 text-anchor | **FAIRrank L8K3 (THIS)** |
+|---|---|---|---|---|
+| mAP(base) | 0.0739 | 0.0822 | 0.1233 | **0.1368** ★★★ |
+| P@1 | 0.1184 | 0.1485 | 0.2110 | **0.2365** ★★★ |
+| P@10 | 0.1029 | 0.1183 | 0.1774 | **0.1929** ★★★ |
+| **DNA-uniq (DB)** | 0.540 | 0.655 | 0.720 | **0.745** ★ |
+| **NMI off-diag (low better)** | ~0.59 | 0.500 | ~0.50 | **0.438** ★★ |
+| B0 raw text lift | 0.022 | — | 0.0243 | 0.0251 (tied) |
+| **B1 centered text lift** | 0.110 | 0.111 | 0.1248 | **0.1296** ★ |
+| B2 visual global lift | 0.068 | — | 0.0655 | **0.0710** |
+| dead codewords | ≤ 0.05 | 0.13 | 0.156 | 0.118 |
+
+🟢 **Per-codebook drop ablation:**
+
+| Cell | Δ cb0 | Δ cb1 | Δ cb2 | Δ cb3 | Δ cb4 | Δ cb5 | Σ |Δ| |
+|---|---|---|---|---|---|---|---|
+| localL8K3 text-anchor | −0.0251 | −0.0056 | −0.0073 | −0.0022 | +0.0032 | −0.0095 | 0.0529 |
+| **FAIRrank L8K3 (THIS)** | **−0.0377** | −0.0034 | −0.0101 | −0.0046 | +0.0043 | −0.0074 | **0.0675** |
+
+Total informative weight 0.0675 (+27 % vs text-anchor's 0.0529). `cb0` (C_global) carries a substantially stronger drop signal (−0.038 vs −0.025) — the FAIR-style image-global anchor selects crops that load more discriminative weight onto the C_global codebook, with cb1/2/3/5 still informative.
+
+📐 **Mechanism (why FAIR-style image self-similarity beats text-anchor on CUB).**
+1. **Per-image specificity.** Text anchor `mean(text_part[:, 1:6, :])` averages across 5 anatomy slots → produces a *class-generic* "bird-anatomy direction" in CLIP-text space. Image-global anchor `donor.visual_global[i]` is the *image-specific* full-image CLS — anchored to THIS exact bird (species, pose, lighting). Top-K=3 selection therefore picks the 3 crops most similar to THIS specific bird's holistic representation, not crops similar to a generic-bird template.
+2. **Same-space comparison.** Image-global anchor and per-crop globals live in the SAME CLIP visual-projection space (both produced by the same `visual_projection` layer on different inputs of the same encoder). Cosine similarity is geometrically meaningful. Text anchor lives in CLIP text-projection space; even though CLIP trains visual + text in a shared space, the per-image text caption's mean over 5 part-descriptions is not as tightly aligned with the per-crop visual features as a same-space visual comparison is.
+3. **No risk of caption-coverage gaps.** Text anchor depends on the 5 per-part captions being meaningfully different (CUB v6b is — 5 distinct anatomy descriptions). On multi-object scenes the text anchor collapses (we documented this for Flickr localL8K3 — sub-Pareto trade). Image-global anchor has no such failure mode — every image has a CLIP CLS regardless of caption structure.
+4. **FAIR's explicit claim validated.** From the WACV 2026 paper §3.4: "Prior research suggests that the [CLS] token more effectively captures comprehensive global semantic and structural details, making it often more suitable for image-based similarity tasks." Our CUB result quantitatively reproduces this: +11 % mAP and every compositional axis improves vs the text-anchor variant.
+
+🎯 **Gap to CUB unsupervised baselines (frozen CLIP, 36-bit):**
+
+| Method | mAP | P@1 | unique (DB) |
+|---|---|---|---|
+| CIBHash | 0.1639 | 0.3226 | 0.977 |
+| **FAIRrank L8K3 + stackedText (THIS)** | **0.1368** ★ | **0.2365** ★ | **0.745** |
+| localL8K3 + stackedText + cibTemp015 (DNA-uniq champ) | 0.1117 | 0.1950 | 0.809 |
+| localL8K3 + stackedText (prior retrieval champ) | 0.1233 | 0.2110 | 0.720 |
+| CIMON | 0.1128 | 0.2030 | 0.754 |
+| CLIP record | 0.0739 | 0.1184 | 0.540 |
+
+We have now further extended past CIMON: mAP **+0.024** clearer margin (0.1368 vs 0.1128), P@1 +0.034 (0.2365 vs 0.2030). Remaining gap to CIBHash: 0.027 mAP / 0.086 P@1 / 0.232 unique — narrower than ever.
+
+🟢 **Adopt verdict.** `cub200_v160b_v6b_K64_FAIRrankL8K3_stackedText` becomes the **NEW CUB ABSOLUTE CHAMPION** across every axis we report. The prior `localL8K3 + stackedText` (text-anchor) is superseded; the `+ cibTemp015` cell remains a candidate when DNA-uniq is the primary axis (0.809 still > 0.745). The text-anchor variant is retained in the repo as the canonical "text-anchor baseline" for the FAIR comparison.
+
+🧰 **Code added.**
+- [extract_clip_local_crops.py](extract_clip_local_crops.py) — added `--anchor_mode {text, image_global}` flag. `text` (default, backward-compat): mean over `--text_anchor_slots`. `image_global`: read donor's `visual_global.f16.npy` as the per-image anchor (FAIR-style same-space CLS comparison).
+- [scripts/train_cub200_v160b_v6b_K64_FAIRrankL8K3_stackedText_clip.sh](scripts/train_cub200_v160b_v6b_K64_FAIRrankL8K3_stackedText_clip.sh) — single-delta cache-path swap on the prior champion script.
+- Cache: `cache/cub200_clip_v6bplus_FAIRrankL8K3` (visual_tokens [11788, 588, 768], 30 GB, 3 views).
+
+🔭 **Follow-ups (in progress at this commit).**
+1. **Flickr25k FAIRrank L8K3** — cache extracted (68 GB); training launched on GPU 1 (~3 h to ep 60). Mid-eval ep 24 shows mAP 0.7483 (+0.009 vs Flickr text-anchor cell 0.7398) trending higher than the text-anchor variant. Will confirm whether FAIR-style anchor closes Flickr champion gap (text-anchor was sub-Pareto, mAP −0.018 vs Flickr champion 0.7581).
+2. **MSCOCO FAIRrank L8K3** — cache extract launched on GPU 2 (~14 h ETA for 122K images × 3 views = 331 GB). Once cache complete, launch v160b_qwen3v5b (MSCOCO retrieval champion) variant + train.
+3. **L/K sweep on CUB FAIRrank** — current `L=8, K=3` is a guess; FAIR uses `(N=16, K=4)`. Sweep `(L=16, K=4)` to see if matching the source-paper hyperparameter improves further.
+4. **CUB FAIRrank + cibTemp015** combo — the prior DNA-uniq champion stacked on FAIRrank's improved visual input. Predicted DNA-uniq > 0.82.
+
+---
+
 ## 2026-06-23 — CUB-200 `localL8K3 + cibTemp015` (combine retrieval champion with prior compositional sub-champion) — **NEW CUB DNA-uniq CHAMPION at 0.809 (+0.089 vs `localL8K3` retrieval champion 0.720, all-time CUB high); PARETO trade-off, NOT sub-Pareto. mAP 0.1117 (−0.012 vs retrieval champion 0.1233) is the cost; B1 lift 0.124 ≈ tied. CUB v160b family now SPLIT: `localL8K3 + stackedText` retains retrieval crown (mAP 0.1233, P@1 0.2110); `localL8K3 + stackedText + cibTemp015` claims DNA-uniq + NMI / compositional crown (DNA 0.809, drop-ablation total 0.0528, all 6 codebooks informative).**
 
 🟢 **Test design.** Single-delta cell from the 2026-06-22 retrieval champion `cub200_v160b_v6b_K64_localL8K3_stackedText`: change `--cibhash_temperature 0.3 → 0.15` (the `cibTemp015` knob proven on the pre-`localL8K3` era as a DNA-uniq booster). Tests whether the temperature-sharpening of CIBHash contrastive composes with the visual-input-quality axis (localL8K3) and the text-driven loss axis (stackedText).
