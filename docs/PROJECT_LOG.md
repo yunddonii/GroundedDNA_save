@@ -334,6 +334,61 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-25 — v170a HYPERPARAMETER TUNING (Rounds 1 + 2) — **Champion-knob single-delta transfer REFUTED across 3 datasets; stackedText rollback wins on Flickr (+0.017 mAP, gap to ABSOLUTE champion halved -0.032 → -0.015).** Round 1 tested whether the Flickr ABSOLUTE champion (`v162b_qwen3_topp02_05_noGate`, mAP 0.7581)'s distinctive knobs (`--disable_global_gate`, `routing_adaptive_topp 0.2/0.5`) carry over as single-delta improvements onto v170a (which uses v160b base routing + stackedText boost + gate ON + topp 0.3/0.7). Result: BOTH knobs REGRESS on all 3 datasets — they are champion-paradigm-locked, not orthogonal improvements. Round 2 tested orthogonal hypotheses: stackedText rollback (3 lambdas 0.10→0.05) WINS on Flickr by +0.017 mAP, validating the "Flickr noisier captions over-fit under heavy text supervision" hypothesis.
+
+🟢 **Round 1 design.** Hypothesis: v170a's mAP gap to Flickr champion (-0.032) is attributable to the absence of champion's `noGate` and `topp02_05` knobs. Test by adding each as a single-delta to v170a on all 3 datasets.
+
+🟢 **Round 1 results — 3-dataset REFUTED:**
+
+| Single-delta | CUB Δ mAP | Flickr Δ mAP | MSCOCO Δ mAP |
+|---|---|---|---|
+| `+ --disable_global_gate` (noGate) | **-0.001** (tied) | **-0.029** | **-0.011** |
+| `topp 0.3/0.7 → 0.2/0.5` | **-0.018** | **-0.010** | **-0.020** |
+
+Both knobs HURT retrieval on every dataset. CUB noGate is essentially tied because CUB v170a already initializes `--global_gate_init_logit -3.0` → sigmoid(-3)=0.047 (soft-noGate), so the hard noGate switch carries little additional effect. The Flickr champion's knobs achieve their retrieval gain only IN COMBINATION with v162b grounded routing + base lambdas + whole-image patches; isolating any single knob and grafting it onto v170a (v160b base + stackedText boost + FAIRrank crops) breaks the package.
+
+🟢 **Round 1 DNA-uniq side-effect (consistent across datasets):** Both knobs raise DNA-uniq significantly (CUB tied, Flickr +0.007/+0.029, MSCOCO ~tied/+0.023) and lower NMI off-diag — they DO push the codebook toward more diverse / orthogonal routing, but at retrieval cost. This identifies them as "compositional-axis knobs" rather than retrieval-axis knobs.
+
+🟢 **Round 2 design (Flickr only).** Hypothesis 1: v170a's heavy stackedText (3 lambdas at 0.10) over-supervises Flickr's noisier multi-object captions; rolling back to 0.05 (midpoint between v170a 0.10 and v162b base 0.02-0.05) frees the model to fit retrieval. Hypothesis 2: Adding v162b grounded text routing (top-k_t pruning) to v170a may sharp routing similarly to champion.
+
+🟢 **Round 2 results — Cell E (stackedText rollback) WINS:**
+
+| Cell | mAP | P@1 | P@10 | DNA-uniq | NMI off-diag |
+|---|---|---|---|---|---|
+| Flickr v170a base | 0.7258 | 0.9260 | 0.9218 | 0.526 | 0.571 |
+| **Flickr v170a + stackedText rollback (E)** | **0.7430** | 0.9215 | 0.9204 | 0.439 | 0.604 |
+| Flickr v170a + grounded routing (F) | 0.7183 | 0.9140 | 0.9177 | 0.493 | 0.574 |
+| Reference: v162b + FAIRrank L8K3 | 0.7429 | 0.9240 | 0.9116 | 0.438 | 0.603 |
+| Reference: Flickr ABSOLUTE champion (whole-image) | 0.7581 | 0.9305 | 0.9233 | 0.426 | 0.616 |
+
+**Cell E mAP 0.7430 essentially matches v162b + FAIRrank (0.7429)** — the v160b/v162b routing difference WASHES OUT when the lambda profile matches (both at moderate text supervision). The remaining ~0.015 gap to whole-image champion is the **fundamental cost of multi-crop input on multi-object scenes**, not a knob-tuning failure.
+
+**Cell F (grounded routing alone) regress**: -0.007 mAP, +0.054 DNA. Grounded routing alone, without other champion knobs, doesn't sharpen retrieval on FAIRrank crops.
+
+📐 **Mechanistic interpretation.** stackedText boost was developed on CUB where 100% of trainset has high-quality v6b anatomy captions (head/wing/tail/...). On Flickr, qwen3 v4 captions are scene-level multi-object descriptions averaging multiple object/color/scene aspects per caption — moderate text supervision (λ=0.05) gives enough signal to align codewords with caption semantics, while heavy supervision (λ=0.10) over-fits to averaged caption patterns and degrades retrieval. The same pattern is predicted to hold on MSCOCO (similar scene-level captions); future Round 3 should test.
+
+🟢 **Adopt verdict for Flickr v170a:** stackedText rollback (3 lambdas 0.10→0.05) is the canonical Flickr v170a recipe going forward. New tag: `v170a_stackedTextRollback_FAIRrankL8K3` (or rename to `v170c` if a new sub-variant slot is desired). The Flickr v170a base cell (stackedText boost 0.10) remains documented as the "CUB-direction port" baseline; the rollback cell is the "Flickr-tuned" production cell.
+
+🚫 **NOT adopted for CUB / MSCOCO yet.** Round 1 confirmed CUB+MSCOCO follow the Round 1 REFUTED pattern, but Round 2 (stackedText rollback) was not yet applied to CUB or MSCOCO. Predicted: rollback REGRESSES CUB (which has high-quality anatomy captions that benefit from heavy supervision); rollback MAY HELP MSCOCO (similar scene-level captions to Flickr).
+
+🧰 **Code added.**
+- [scripts/train_v170a_noGate_FAIRrankL8K3_stackedText_flickr25k_clip.sh](scripts/train_v170a_noGate_FAIRrankL8K3_stackedText_flickr25k_clip.sh) — Round 1 Flickr noGate cell (regress).
+- [scripts/train_v170a_topp02_05_FAIRrankL8K3_stackedText_flickr25k_clip.sh](scripts/train_v170a_topp02_05_FAIRrankL8K3_stackedText_flickr25k_clip.sh) — Round 1 Flickr topp02_05 cell (regress).
+- [scripts/train_cub200_v170a_noGate_FAIRrankL8K3_stackedText_clip.sh](scripts/train_cub200_v170a_noGate_FAIRrankL8K3_stackedText_clip.sh) — Round 1 CUB noGate cell (tied).
+- [scripts/train_cub200_v170a_topp02_05_FAIRrankL8K3_stackedText_clip.sh](scripts/train_cub200_v170a_topp02_05_FAIRrankL8K3_stackedText_clip.sh) — Round 1 CUB topp02_05 cell (regress).
+- [scripts/train_mscoco_v170a_noGate_FAIRrankL8K3_stackedText.sh](scripts/train_mscoco_v170a_noGate_FAIRrankL8K3_stackedText.sh) — Round 1 MSCOCO noGate cell (regress).
+- [scripts/train_mscoco_v170a_topp02_05_FAIRrankL8K3_stackedText.sh](scripts/train_mscoco_v170a_topp02_05_FAIRrankL8K3_stackedText.sh) — Round 1 MSCOCO topp02_05 cell (regress).
+- [scripts/train_v170a_stackedTextRollback_FAIRrankL8K3_flickr25k_clip.sh](scripts/train_v170a_stackedTextRollback_FAIRrankL8K3_flickr25k_clip.sh) — **Round 2 Flickr Cell E (NEW Flickr v170a champion, mAP 0.7430).**
+- [scripts/train_v170a_grounded_FAIRrankL8K3_stackedText_flickr25k_clip.sh](scripts/train_v170a_grounded_FAIRrankL8K3_stackedText_flickr25k_clip.sh) — Round 2 Flickr Cell F grounded routing (regress).
+
+🔭 **Follow-ups (Round 3 candidates).**
+1. **stackedText rollback applied to CUB**: predicted REGRESS (CUB benefits from heavy supervision).
+2. **stackedText rollback applied to MSCOCO**: predicted POSITIVE (scene-level captions similar to Flickr).
+3. **Flickr stackedText rollback + topp02_05 combo**: test if topp02_05 helps within rollback regime where Round 1 it hurt within boost regime.
+4. **Flickr stackedText rollback + noGate combo**: same logic.
+
+---
+
 ## 2026-06-24 — `v170` NAMING ADOPTED + MSCOCO 3-DATASET TRIANGULATION — **v170a (= v160b base routing + FAIRrank L8K3 + stackedText) becomes NEW MSCOCO ABSOLUTE CHAMPION across EVERY axis (mAP 0.6235 +0.0035 / P@1 0.9348 +0.032 +3.5% / P@10 0.9228 +0.023 / P@100 0.9126 +0.023 / DNA-uniq 0.207 +0.054 +35% / NMI off-diag 0.6445 -0.051 BEST in MSCOCO family). Combined with CUB ABSOLUTE CHAMPION (2026-06-24, mAP 0.1368 +0.014 +11%) and Flickr COMPOSITIONAL CHAMPION (2026-06-24, DNA-uniq 0.526 / NMI 0.571 best in family), v170a is now the UNIVERSAL recipe — winning on 2/3 datasets absolute + Flickr compositional axis. v170b (= v162b grounded routing + FAIRrank + base lambdas) is the contrastive control — uniformly weaker than v170a on MSCOCO (mAP -0.020, P@1 -0.023, DNA -0.046), confirming Flickr's v160b > v162b under FAIRrank pattern generalizes to MSCOCO.**
 
 🟢 **`v170` naming taxonomy (user-adopted 2026-06-24, "jump to new decade for new paradigm").** v170 = first version family that combines TWO orthogonal axes:
