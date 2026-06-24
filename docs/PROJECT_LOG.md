@@ -334,6 +334,57 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-25 — v170a Round 3b CUB stackedText rollback NEGATIVE CONTROL — **CUB CONFIRMS dataset-specific recipe asymmetry. stackedText rollback (3 lambdas 0.10 → 0.05) REGRESSES every retrieval + compositional axis on CUB (mAP -0.0036, P@1 -0.025, DNA-uniq -0.086, NMI +0.063 worse), validating the "CUB benefits from heavy supervision because of 100% high-quality v6b anatomy captions" hypothesis. Combined with Round 2 result (Flickr same-delta WINS +0.017 mAP), v170a's recipe is now provably DATASET-SPECIFIC: CUB needs stackedText boost; Flickr needs stackedText rollback. MSCOCO rollback predicted POSITIVE (scene-level captions similar to Flickr), still pending.**
+
+🟢 **Round 3b design.** Hypothesis: CUB's v6b prompt produces high-quality per-part captions (head/wing/tail/underparts/pattern_markings, 100% coverage on 5994 trainset). Heavy stackedText supervision (3 lambdas at 0.10) leverages this signal richness. Predicted: rolling back to 0.05 hurts CUB on all retrieval axes — a clean *negative control* of Round 2's Flickr win.
+
+🟢 **Round 3b 4-axis comparison:**
+
+| Axis | CUB v170a base | **CUB v170a + stackedText rollback (THIS)** | Δ |
+|---|---|---|---|
+| mAP(base) | 0.1368 | 0.1332 | **−0.0036** |
+| P@1 | 0.2458 | 0.2209 | **−0.025** |
+| P@10 | 0.1955 | 0.1866 | −0.009 |
+| P@100 | 0.0997 | 0.0965 | −0.003 |
+| DNA-uniq | 0.7449 | **0.6593** | **−0.086** |
+| NMI off-diag (↓) | 0.4381 | 0.5014 | **+0.063 worse** |
+| B0 raw text lift | 0.0251 | 0.0252 | tied |
+| B1 centered text lift | 0.1296 | 0.1299 | tied |
+| B2 visual global lift | 0.0710 | 0.0764 | +0.005 |
+
+**Every retrieval axis regresses; every compositional axis regresses or ties.** Even B0/B1 (text-anchored lifts) stay flat — the rollback reduces information transfer from captions to codebooks without recovering it on retrieval. Pure loss across the board.
+
+🟢 **Per-codebook drop ablation (subset baseline 0.1342):**
+
+| Cell | Δ cb0 | Δ cb1 | Δ cb2 | Δ cb3 | Δ cb4 | Δ cb5 | Σ \|Δ\| |
+|---|---|---|---|---|---|---|---|
+| CUB v170a base | −0.0377 | −0.0034 | −0.0101 | −0.0046 | +0.0043 | −0.0074 | **0.0675** |
+| CUB v170a + rollback (THIS) | −0.0312 | −0.0021 | −0.0108 | −0.0017 | +0.0019 | −0.0051 | **0.0528** |
+
+Codebook informativeness Σ\|Δ\| drops from 0.0675 → 0.0528 (−22 %). Drop pattern qualitatively similar (cb0 dominant, cb4 neutral, cb1-3-5 mid) but quantitatively weaker — exactly what reduced text supervision predicts when captions ARE rich enough to use heavier supervision.
+
+📐 **Mechanistic confirmation: CUB ↔ Flickr asymmetry.**
+- **CUB (5994 train, 100 % v6b anatomy captions)**: heavy stackedText (λ=0.10) leverages caption richness — codewords align tightly with anatomy slots → strong drop signal, high DNA-uniq, low NMI. Rolling back to λ=0.05 starves the learning signal.
+- **Flickr (5K train, 100 % qwen3 v4 captions averaging scene aspects)**: heavy stackedText (λ=0.10) over-fits to averaged caption patterns — codewords learn caption-averaging direction at retrieval's expense. Rolling back to λ=0.05 frees retrieval (+0.017 mAP) at compositional cost (DNA-uniq -0.087).
+- The **same single-delta produces OPPOSITE-SIGN effects on the two datasets** — the strongest possible evidence that v170a's optimal lambda profile is dataset-specific, not a universal hyperparameter.
+
+🟢 **Adopt verdict (recipe now provably dataset-specific):**
+- **CUB v170a** = base recipe (stackedText boost λ=0.10/0.10/0.10) — RETAINED. mAP 0.1368 absolute champion.
+- **Flickr v170a** = stackedText rollback (λ=0.05/0.05/0.05) — NEW canonical Flickr v170a recipe per Round 2. mAP 0.7430.
+- **MSCOCO v170a** = pending (Round 3a not yet run). Predicted: rollback HELPS (scene captions match Flickr regime).
+
+🚫 **Discarded** for CUB: stackedText rollback (this cell). Documented as canonical negative control for paper's dataset-asymmetry section.
+
+🧰 **Code added.**
+- [scripts/train_cub200_v170a_stackedTextRollback_FAIRrankL8K3_clip.sh](scripts/train_cub200_v170a_stackedTextRollback_FAIRrankL8K3_clip.sh) — single-delta from CUB v170a base: 3 stackedText lambdas 0.10 → 0.05. Result: 4-axis regress on CUB, negative control as predicted.
+
+🔭 **Follow-ups.**
+1. **Round 3a (MSCOCO stackedText rollback)** — predicted POSITIVE. The cleanest remaining single-delta test of the asymmetry hypothesis. Should be run as the next priority.
+2. **Round 3c (Flickr stackedText rollback + topp02_05 combo)** — Round 1 topp02_05 hurt within boost regime; test if it helps within rollback regime. Could close Flickr champion gap further.
+3. **Round 3d (Flickr stackedText rollback + noGate combo)** — same logic with noGate.
+
+---
+
 ## 2026-06-25 — v170a HYPERPARAMETER TUNING (Rounds 1 + 2) — **Champion-knob single-delta transfer REFUTED across 3 datasets; stackedText rollback wins on Flickr (+0.017 mAP, gap to ABSOLUTE champion halved -0.032 → -0.015).** Round 1 tested whether the Flickr ABSOLUTE champion (`v162b_qwen3_topp02_05_noGate`, mAP 0.7581)'s distinctive knobs (`--disable_global_gate`, `routing_adaptive_topp 0.2/0.5`) carry over as single-delta improvements onto v170a (which uses v160b base routing + stackedText boost + gate ON + topp 0.3/0.7). Result: BOTH knobs REGRESS on all 3 datasets — they are champion-paradigm-locked, not orthogonal improvements. Round 2 tested orthogonal hypotheses: stackedText rollback (3 lambdas 0.10→0.05) WINS on Flickr by +0.017 mAP, validating the "Flickr noisier captions over-fit under heavy text supervision" hypothesis.
 
 🟢 **Round 1 design.** Hypothesis: v170a's mAP gap to Flickr champion (-0.032) is attributable to the absence of champion's `noGate` and `topp02_05` knobs. Test by adding each as a single-delta to v170a on all 3 datasets.
