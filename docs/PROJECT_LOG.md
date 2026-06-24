@@ -334,6 +334,75 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-24 — `v170` NAMING ADOPTED + MSCOCO 3-DATASET TRIANGULATION — **v170a (= v160b base routing + FAIRrank L8K3 + stackedText) becomes NEW MSCOCO ABSOLUTE CHAMPION across EVERY axis (mAP 0.6235 +0.0035 / P@1 0.9348 +0.032 +3.5% / P@10 0.9228 +0.023 / P@100 0.9126 +0.023 / DNA-uniq 0.207 +0.054 +35% / NMI off-diag 0.6445 -0.051 BEST in MSCOCO family). Combined with CUB ABSOLUTE CHAMPION (2026-06-24, mAP 0.1368 +0.014 +11%) and Flickr COMPOSITIONAL CHAMPION (2026-06-24, DNA-uniq 0.526 / NMI 0.571 best in family), v170a is now the UNIVERSAL recipe — winning on 2/3 datasets absolute + Flickr compositional axis. v170b (= v162b grounded routing + FAIRrank + base lambdas) is the contrastive control — uniformly weaker than v170a on MSCOCO (mAP -0.020, P@1 -0.023, DNA -0.046), confirming Flickr's v160b > v162b under FAIRrank pattern generalizes to MSCOCO.**
+
+🟢 **`v170` naming taxonomy (user-adopted 2026-06-24, "jump to new decade for new paradigm").** v170 = first version family that combines TWO orthogonal axes:
+- **Input-quality axis**: FAIRrank L8K3 crop selection (CLS-anchored top-K crops vs whole-image patches)
+- **Loss axis**: stackedText recipe (3-knob boost: text_code_kl 0.10 / xmodal_commit 0.10 / text_hash_ntxent 0.10)
+
+Sub-variants:
+- **v170a** = base Sinkhorn routing (v160b-equivalent) + FAIRrank + **stackedText boost (0.10/0.10/0.10)**
+- **v170b** = grounded text routing (v162b-equivalent topp02_05_noGate) + FAIRrank + **base small lambdas (0.05/0.025/0.02)**
+
+Retroactive mapping of earlier cells:
+- CUB `cub200_v160b_v6b_K64_FAIRrankL8K3_stackedText` → **CUB v170a** (CUB ABSOLUTE CHAMPION)
+- Flickr `v160b_qwen3_FAIRrankL8K3_stackedText` → **Flickr v170a** (Flickr compositional champion)
+- Flickr `v162b_qwen3_topp02_05_noGate_FAIRrankL8K3` → **Flickr v170b** (Flickr retrieval-of-FAIR-family champ)
+
+🟢 **MSCOCO 4-axis comparison vs the family (CLIP ViT-B/16 frozen, 36-bit = K=128 × M=6, setting1):**
+
+| Cell | mAP | P@1 | P@10 | P@100 | DNA-uniq | NMI off-diag (↓) |
+|---|---|---|---|---|---|---|
+| Prior best mscoco_v160b_qwen3v5b base K128 | 0.6200 | 0.9028 | 0.8996 | 0.8896 | 0.140 | 0.709 |
+| mscoco_v160b_qwen3v5b_etaBB1 | 0.6173 | 0.9032 | 0.8968 | 0.8859 | 0.137 | 0.717 |
+| mscoco_v160b_qwen3v5b K256 (more codewords) | 0.6137 | 0.9016 | 0.8960 | 0.8850 | 0.153 | 0.717 |
+| mscoco_v162b_qwen3v5b_topp02_05_noGate | 0.6073 | 0.9000 | 0.8949 | 0.8829 | 0.143 | 0.696 |
+| mscoco_v162b_qwen3v5b_topp02_05 | 0.6128 | 0.8984 | 0.8899 | 0.8797 | 0.147 | 0.697 |
+| **mscoco_v170a_FAIRrankL8K3_stackedText (THIS)** | **0.6235** ★ | **0.9348** ★ | **0.9228** ★ | **0.9126** ★ | **0.207** ★ | **0.645** ★ |
+| mscoco_v170b_FAIRrankL8K3 (THIS) | 0.6031 | 0.9118 | 0.8950 | 0.8851 | 0.161 | 0.687 |
+
+**v170a wins EVERY axis** — first MSCOCO cell to do so. v170b underperforms on retrieval mAP but improves NMI / DNA over its v162b ancestor.
+
+🟢 **Per-codebook drop ablation (subset baseline 0.6185):**
+
+| Cell | Δ cb0 | Δ cb1 | Δ cb2 | Δ cb3 | Δ cb4 | Δ cb5 | Σ |Δ| |
+|---|---|---|---|---|---|---|---|
+| **v170a (THIS)** | −0.0134 | −0.0098 | −0.0056 | −0.0112 | −0.0083 | −0.0026 | **0.0509** |
+| v170b (THIS) | −0.0166 | −0.0112 | −0.0070 | −0.0076 | −0.0075 | −0.0039 | 0.0538 |
+
+All 6 codebooks informative under both cells. v170b carries marginally more total drop weight (0.054 vs 0.051), but v170a baseline mAP is +0.020 higher → v170a's smaller per-cb drop signals reflect better-balanced codeword reuse, not weaker codebooks.
+
+📐 **3-dataset v170a universal summary:**
+
+| Dataset | Topology | v170a result vs prior best | Verdict |
+|---|---|---|---|
+| **CUB-200** | single-object fine-grained | mAP **0.1368** (+11 %), P@1 **0.2458** (+12 %), DNA 0.745, NMI 0.438 best | **ABSOLUTE CHAMPION** all axes; CIBHash gap 83 % closed (was 75 %) |
+| **Flickr25k** | multi-object scene | mAP 0.7258 (vs whole-image champion 0.7581, −0.032); **DNA 0.526 (+0.10), NMI 0.571 (−0.045), B1 0.158, B2 0.105 best in family** | **Compositional CHAMPION** only; sub-Pareto on retrieval |
+| **MSCOCO** | multi-object scene | mAP **0.6235** (+0.0035), P@1 **0.9348** (+0.032 +3.5 %), DNA **0.207** (+35 %), NMI **0.645** (−0.051 best) | **ABSOLUTE CHAMPION** all axes |
+
+**Why does Flickr break the pattern?** Flickr's prior champion (`v162b_qwen3_topp02_05_noGate`, mAP 0.7581) had unusually high tuning — the noGate (disable_global_gate ON) variant required a specific Flickr-only combination not yet ported to v170a's recipe. MSCOCO and CUB v170a both already exceed their prior champions because the underlying recipe (base routing + FAIRrank + stackedText) genuinely Pareto-dominates the whole-image baselines on those datasets. Predicted follow-up: a v170a sweep with `--disable_global_gate` (= v170a_noGate) on Flickr may recover the retrieval gap.
+
+🟢 **Adopt verdict.** `v170a` is the **UNIVERSAL recipe** on the input-quality + loss axes. Adopt it as the default for all future experiments unless dataset-specific Flickr-retrieval tuning is explicitly needed. `v170b` is RETAINED as the documented control showing grounded text routing under FAIRrank is uniformly weaker.
+
+🔬 **Important inference-time clarification (user-asked 2026-06-24).** Local random crop is **NOT** training-only — it applies to BOTH training and inference (DB / Query extract):
+- Cache build: `extract_clip_local_crops.py` runs ONCE with fixed seed → samples L=8 random crops → selects top-K=3 by anchor (text or image_global) → concatenates [196*K=588, H_v] features. Result baked into `cache/<dataset>_FAIRrankL8K3/visual_tokens.f16.npy` (main view) + `visual_tokens_aug{0,1}.f16.npy` (paired-aug views).
+- Training: paired-aug NtXent reads aug0/aug1 (different RNG seeds → distinct crop sets for the positive pair).
+- Inference (extract_db / extract_query / final mAP): reads `cached_visual_tokens_raw` from the SAME cache file (main view) — same 588-patch FAIRrank-cropped feature input.
+- Crop randomness is therefore **deterministic across all calls** because the seed is fixed at cache-build time; train and eval see the same multi-crop view of each image, not different per-iteration random crops.
+- Paper-rigor framing: this is "deterministic multi-view input transformation," not "train-time augmentation." For paper experiments a "whole-image baseline" (eval on `cub200_clip_v6bplus`) provides the fair single-view comparison.
+
+🧰 **Code added.**
+- [scripts/train_mscoco_v170a_FAIRrankL8K3_stackedText.sh](scripts/train_mscoco_v170a_FAIRrankL8K3_stackedText.sh) — single-delta from `train_mscoco_v160b_qwen3v5b.sh`: cache path swap (mscoco_clip_v5b → mscoco_clip_v5b_FAIRrankL8K3) + 3 stackedText lambda boosts (0.02→0.10, 0.025→0.10, 0.05→0.10).
+- [scripts/train_mscoco_v170b_FAIRrankL8K3.sh](scripts/train_mscoco_v170b_FAIRrankL8K3.sh) — single-delta from `train_mscoco_v162b_qwen3v5b_topp02_05_noGate.sh`: cache path swap only (retain base small lambdas).
+- Cache: `cache/mscoco_clip_v5b_FAIRrankL8K3` (visual_tokens [122218, 588, 768], 331 GB, 3 views, image_global anchor, PIL fault-tolerance applied on rebuild after the 2026-06-24 `val2014/COCO_val2014_000000502557.jpg` I/O error).
+
+🔭 **Follow-ups.**
+1. **Flickr v170a_noGate sweep** — port `--disable_global_gate ON` from Flickr champion onto v170a recipe to see if Flickr retrieval gap closes.
+2. **Whole-image-baseline eval cell** — add per-dataset "v170a evaluated on whole-image cache" run to separate the FAIRrank effect from the stackedText recipe in the eval, isolating local-crop's contribution at inference time.
+3. **L/K sweep on MSCOCO v170a** — match FAIR paper (N=16, K=4) and re-test.
+
+---
+
 ## 2026-06-24 — Flickr25k `v160b base routing + FAIRrank L8K3 + stackedText` PARETO-SPLIT FINDING — **v160b becomes Flickr COMPOSITIONAL / DNA-uniq CHAMPION (DNA-uniq 0.526, codebook-tuple 0.818, NMI off-diag 0.571 — BEST in Flickr family on all 3 compositional axes); v162b retains retrieval-axis champion (mAP 0.7429). User's hypothesis that grounded-text routing (v162b) may not optimally absorb the 588-patch concatenated-crop structure is PARTIALLY VALIDATED: grounded routing trades codebook diversity for retrieval mAP. The v160b vs v162b choice is now a paper-explicit Pareto axis on multi-object scenes.**
 
 🟢 **Test design (user-proposed at 2026-06-24).** Hypothesis: v162b's grounded text-token pruning (Stage-2 OT top-k_t) was designed for whole-image 196-patch input; with FAIRrank's 588-patch concatenated-crop input the grounded-routing assumption (token-anchored routing) may not hold. Test by swapping the routing knob v162b → v160b (`--grounded_text_routing` OFF, pure Sinkhorn balanced-OT base routing) while keeping FAIRrank cache + stackedText recipe identical.
