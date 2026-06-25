@@ -334,6 +334,38 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-25 — v170a Round 3a MSCOCO stackedText rollback (predicted POSITIVE) — **REFUTED. MSCOCO follows CUB pattern (heavy supervision preferred), NOT Flickr pattern.** Same 3-knob rollback (text_code_kl/xmodal_commit/text_hash_ntxent 0.10→0.05) that WON on Flickr (+0.017 mAP) REGRESSES on MSCOCO across all retrieval axes (mAP -0.012, P@1 -0.006, DNA -0.026, NMI off-diag +0.018 worse). Combined with Round 3b CUB rollback negative result, the recipe-asymmetry hypothesis is now narrowed: **CUB + MSCOCO = heavy supervision regime; Flickr = unique scene-caption regime.**
+
+🟢 **4-axis comparison vs MSCOCO v170a base:**
+
+| Axis | MSCOCO v170a base (champion) | **+ stackedText rollback (THIS)** | Δ |
+|---|---|---|---|
+| mAP | 0.6235 | 0.6114 | **−0.012** |
+| P@1 | 0.9348 | 0.9290 | −0.006 |
+| P@10 | 0.9228 | 0.9096 | −0.013 |
+| P@100 | 0.9126 | 0.9031 | −0.010 |
+| DNA-uniq | 0.207 | 0.181 | −0.026 |
+| NMI off-diag (↓) | 0.6445 | **0.6633** | **+0.019 (worse)** |
+| B2 visual lift | 0.166 | 0.170 | tied |
+| Σ\|drop\| | 0.0509 | 0.0535 | tied |
+
+🟢 **Drop ablation: subset baseline 0.6056. cb0 -0.0138, cb1 -0.0123, cb2 -0.0108, cb3 -0.0116, cb4 -0.0035, cb5 +0.0015.** All 6 codebooks informative; cb5 marginally redundant (+0.0015). Total weight 0.0535 ≈ v170a base 0.0509.
+
+📐 **Hypothesis revision: dataset caption-quality regime.**
+- **CUB** (5994 train, 100% v6b anatomy captions, RICH per-part descriptions) — heavy stackedText 0.10 WINS, rollback REGRESS (Round 3b confirmed).
+- **MSCOCO** (107218 train, qwen3 v5b scene captions, 8.2% caption coverage) — heavy stackedText 0.10 WINS, rollback REGRESS (THIS). Despite scene-level captions, MSCOCO's much larger trainset gives sufficient supervision signal to leverage heavy lambdas.
+- **Flickr** (5K train, qwen3 v4 scene captions, 100% coverage averaged multi-object) — heavy stackedText 0.10 OVERFITS, rollback WINS (Round 2 confirmed).
+
+The Flickr regime is unique because: small trainset + averaged scene captions = heavy supervision over-fits to caption-averaging patterns at retrieval's expense. MSCOCO's 20× larger trainset absorbs heavy supervision without over-fitting; CUB's per-part captions reward heavy supervision unambiguously.
+
+🚫 **Adopt verdict.** stackedText rollback DISCARDED for MSCOCO. MSCOCO v170a base recipe (3 lambdas at 0.10) remains the MSCOCO production cell. Documented as part of recipe-asymmetry section of paper.
+
+🧰 **Code added.** [scripts/train_mscoco_v170a_stackedTextRollback_FAIRrankL8K3.sh](scripts/train_mscoco_v170a_stackedTextRollback_FAIRrankL8K3.sh) — single-delta from MSCOCO v170a base (3 lambdas 0.10 → 0.05).
+
+🔭 **Follow-ups.** Recipe-asymmetry now triangulated; future direction: orthogonality interventions (codebook prototype anti-redundancy loss, gate-off, per-codebook xmodal_commit boost) — already launched on CUB and Flickr at this commit.
+
+---
+
 ## 2026-06-25 — v170a Round 3b CUB stackedText rollback NEGATIVE CONTROL — **CUB CONFIRMS dataset-specific recipe asymmetry. stackedText rollback (3 lambdas 0.10 → 0.05) REGRESSES every retrieval + compositional axis on CUB (mAP -0.0036, P@1 -0.025, DNA-uniq -0.086, NMI +0.063 worse), validating the "CUB benefits from heavy supervision because of 100% high-quality v6b anatomy captions" hypothesis. Combined with Round 2 result (Flickr same-delta WINS +0.017 mAP), v170a's recipe is now provably DATASET-SPECIFIC: CUB needs stackedText boost; Flickr needs stackedText rollback. MSCOCO rollback predicted POSITIVE (scene-level captions similar to Flickr), still pending.**
 
 🟢 **Round 3b design.** Hypothesis: CUB's v6b prompt produces high-quality per-part captions (head/wing/tail/underparts/pattern_markings, 100% coverage on 5994 trainset). Heavy stackedText supervision (3 lambdas at 0.10) leverages this signal richness. Predicted: rolling back to 0.05 hurts CUB on all retrieval axes — a clean *negative control* of Round 2's Flickr win.
