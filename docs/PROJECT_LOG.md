@@ -334,6 +334,45 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-25 — v170a Round 4a CUB orthogonality intervention REFUTED — **`--disable_global_gate` + `lambda_xmodal_commit 0.10 → 0.20` REGRESSES every retrieval and compositional axis on CUB. The orthogonality concern (drop-out probe DD ≈ 0 in earlier evaluation) cannot be addressed by knob-tuning alone on CUB; CUB's redundancy arises from class-information dominance, not from gate-driven sharing. CUB v170a base recipe (gate soft-off via init_logit=-3, xmodal_commit 0.10) Pareto-dominates this intervention.**
+
+🟢 **Round 4a design.** User-noted concern (2026-06-25): drop-out probe showed DD ≈ -0.001 → codebooks share class info heavily; multi-codebook structure needs orthogonality. Two-knob intervention proposed: (1) `--disable_global_gate` ON (hard-off C_global → C_local addition) + (2) `lambda_xmodal_commit 0.10 → 0.20` (boost per-codebook text alignment). Hypothesis: gate-off + heavier per-cb supervision should push codebooks toward distinct semantic axes.
+
+🟢 **CUB 4-axis comparison:**
+
+| Axis | CUB v170a base | **CUB v170a + noGate + xmodal020 (THIS)** | Δ |
+|---|---|---|---|
+| mAP | 0.1368 | **0.1246** | **−0.0122** |
+| P@1 | 0.2458 | 0.2346 | −0.0112 |
+| P@10 | 0.1955 | 0.1840 | −0.0115 |
+| P@100 | 0.0997 | 0.0934 | −0.0063 |
+| DNA-uniq | 0.7449 | 0.7075 | **−0.0374** (opposite direction!) |
+| NMI off-diag (↓) | 0.4381 | 0.4415 | ≈ tied (no orthogonality gain) |
+| codebook-tuple unique | 0.7824 | — | — |
+| Σ\|drop\| | 0.0675 | 0.0509 | −0.0166 (less informative) |
+| B0 lift | 0.0251 | 0.0256 | tied |
+| B1 lift | 0.1296 | 0.1307 | tied |
+| B2 lift | 0.0710 | 0.0702 | tied |
+| dead codewords | 0 / 64 | **11 / 64 (17 %)** | +0.11 codeword collapse |
+
+🚫 **Every retrieval AND compositional axis regresses or ties; nothing improves.** This is the rare "Pareto-dominated" outcome. The intervention BACKFIRED.
+
+📐 **Diagnosis: why did the intervention fail on CUB?**
+1. **CUB v170a base already had soft-noGate**: `--global_gate_init_logit -3.0` → sigmoid(-3) ≈ 0.047 ≈ near zero gate. Adding `--disable_global_gate` ON only hardens 0.047 → 0, not a meaningful regularization change.
+2. **xmodal_commit 0.20 over-fits on CUB's rich captions**: CUB v6b anatomy captions are dense per-slot; doubling xmodal_commit forces codewords too tightly onto the per-slot text embedding, collapsing the codebook (11/64 codewords dead, Σ\|drop\| -22 %).
+3. **Net effect**: no orthogonality gain (NMI tied 0.438 → 0.441) because the orthogonality problem isn't gate-driven; it's class-info-driven (every codebook learns species-discriminative features). Just a fewer-codewords-used + lower-mAP regime.
+
+🚫 **Adopt verdict.** CUB v170a base recipe UNCHANGED. The codebook-orthogonality concern remains UNRESOLVED for CUB by knob-tuning; a true fix requires an architectural intervention (explicit codebook-prototype anti-redundancy loss, or routing-level disentanglement) beyond hyperparameter sweeps.
+
+🧰 **Code added.** [scripts/train_cub200_v170a_noGate_xmodal020_FAIRrankL8K3_clip.sh](scripts/train_cub200_v170a_noGate_xmodal020_FAIRrankL8K3_clip.sh) — single-delta from CUB v170a base: `+ --disable_global_gate`, `--lambda_xmodal_commit 0.10 → 0.20`. Documented as the canonical "ortho intervention REFUTED" CUB cell.
+
+🔭 **Follow-ups.**
+1. **Architectural orthogonality loss** (future direction): `L_ortho = sum_{m<n} mean_cos(P_m, P_n)` where `P_m` is codebook m's prototype matrix. Requires new loss term in `model_siglip2.py`.
+2. **CUB next-try Round 4c**: xmodal_commit 0.10 → 0.15 only (no noGate change), test if a milder boost gains specialization without codeword collapse.
+3. **Flickr ortho intervention** running in parallel (ep 44 mid-eval mAP 0.692 / DNA 0.759). Final results pending.
+
+---
+
 ## 2026-06-25 — v170a Round 3a MSCOCO stackedText rollback (predicted POSITIVE) — **REFUTED. MSCOCO follows CUB pattern (heavy supervision preferred), NOT Flickr pattern.** Same 3-knob rollback (text_code_kl/xmodal_commit/text_hash_ntxent 0.10→0.05) that WON on Flickr (+0.017 mAP) REGRESSES on MSCOCO across all retrieval axes (mAP -0.012, P@1 -0.006, DNA -0.026, NMI off-diag +0.018 worse). Combined with Round 3b CUB rollback negative result, the recipe-asymmetry hypothesis is now narrowed: **CUB + MSCOCO = heavy supervision regime; Flickr = unique scene-caption regime.**
 
 🟢 **4-axis comparison vs MSCOCO v170a base:**
