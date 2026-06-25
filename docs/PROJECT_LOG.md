@@ -334,6 +334,37 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-25 — v170a Round 4a Flickr orthogonality intervention ALSO REFUTED — **Same `--disable_global_gate` + `lambda_xmodal_commit 0.20` intervention on Flickr REGRESSES every axis: mAP -0.027, P@1 -0.012, DNA-uniq -0.012, NMI off-diag +0.011 (WORSE not better!). The mid-eval `unique` metric (per-codebook unique rate) was misleading; the final DNA-uniq on extract_db base_indices showed -0.012. ortho intervention via knob-tuning REFUTED across BOTH CUB and Flickr. The codebook-orthogonality concern cannot be addressed by hyperparameter sweeps; an architectural intervention is required.**
+
+🟢 **Flickr 4-axis comparison:**
+
+| Axis | Flickr v170a base | **Flickr v170a + noGate + xmodal020 (THIS)** | Δ |
+|---|---|---|---|
+| mAP | 0.7258 | 0.6988 | **−0.027** |
+| P@1 | 0.9260 | 0.9145 | −0.012 |
+| P@10 | 0.9218 | 0.9197 | −0.002 |
+| P@100 | 0.9111 | 0.9094 | −0.002 |
+| DNA-uniq (DB) | 0.5257 | 0.5143 | −0.011 |
+| NMI off-diag (↓) | 0.5707 | **0.5817** | **+0.011 (WORSE)** |
+| B1 lift mean | 0.158 | 0.158 | tied |
+| B2 lift mean | 0.105 | 0.103 | tied |
+| codebook-tuple uniq | 0.645 | — | — |
+
+🟢 **Drop ablation (baseline 0.6988):** cb0 −0.0152, cb1 −0.0033, cb2 −0.0052, cb3 **+0.0015** (neutral), cb4 −0.0104, cb5 −0.0124. cb3 redundant (single neutral cb).
+
+📐 **Cross-dataset diagnosis (CUB 4a + Flickr 4a refuted in parallel):**
+- The mid-eval `unique` metric reports per-codebook codeword USAGE RATE (e.g., 64/128 codewords used = 0.50), NOT the DNA-uniq on base_indices vectors. Final `extract_db.npz` evaluation reveals true DNA-uniq.
+- noGate + xmodal_commit boost **don't address** the actual orthogonality bottleneck (class-info shared across cb's). They merely (a) collapse some codewords (CUB 11/64 dead, Flickr fewer but partial) and (b) tighten per-cb text alignment (B1 unchanged), without separating class info between cb's.
+- NMI off-diag UNCHANGED-or-WORSE across both datasets — direct evidence that knob-tuning cannot push codebooks toward distinct semantic axes.
+
+🚫 **Adopt verdict.** Flickr v170a base UNCHANGED. Round 4 ortho intervention via knob-tuning DISCARDED globally. Future direction = **architectural change** (explicit codebook prototype anti-redundancy loss, routing-level disentanglement, OR per-codebook semantic anchor with stronger gradient flow).
+
+🧰 **Code added.** [scripts/train_v170a_noGate_xmodal020_FAIRrankL8K3_flickr25k_clip.sh](scripts/train_v170a_noGate_xmodal020_FAIRrankL8K3_flickr25k_clip.sh) — Flickr counterpart of CUB Round 4a, same single-deltas, same refuted verdict.
+
+🔭 **Follow-ups.** MSCOCO Round 4d (same intervention) running in parallel; CUB Round 4b (xmodal_commit 0.15 only, milder) running in parallel. Both expected to follow the same Pareto-regress pattern. After both finalize, the universal conclusion will be commit-ready.
+
+---
+
 ## 2026-06-25 — v170a Round 4a CUB orthogonality intervention REFUTED — **`--disable_global_gate` + `lambda_xmodal_commit 0.10 → 0.20` REGRESSES every retrieval and compositional axis on CUB. The orthogonality concern (drop-out probe DD ≈ 0 in earlier evaluation) cannot be addressed by knob-tuning alone on CUB; CUB's redundancy arises from class-information dominance, not from gate-driven sharing. CUB v170a base recipe (gate soft-off via init_logit=-3, xmodal_commit 0.10) Pareto-dominates this intervention.**
 
 🟢 **Round 4a design.** User-noted concern (2026-06-25): drop-out probe showed DD ≈ -0.001 → codebooks share class info heavily; multi-codebook structure needs orthogonality. Two-knob intervention proposed: (1) `--disable_global_gate` ON (hard-off C_global → C_local addition) + (2) `lambda_xmodal_commit 0.10 → 0.20` (boost per-codebook text alignment). Hypothesis: gate-off + heavier per-cb supervision should push codebooks toward distinct semantic axes.
