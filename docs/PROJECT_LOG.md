@@ -334,6 +334,44 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-25 — v170a Round 4d MSCOCO orthogonality intervention REFUTED — **3-dataset Round 4 verdict complete: `--disable_global_gate + lambda_xmodal_commit 0.10 → 0.20` REGRESSES every retrieval axis on MSCOCO (mAP -0.024, P@1 -0.014, P@10 -0.016, P@100 -0.018), DNA-uniq +0.007 marginal, NMI +0.005 tied. Same Pareto-regress pattern as CUB 4a/4b and Flickr 4a. Knob-tuning orthogonality intervention REFUTED ACROSS ALL 3 DATASETS.**
+
+🟢 **MSCOCO 4-axis comparison:**
+
+| Axis | MSCOCO v170a base (champion) | **+ noGate + xmodal020 (THIS)** | Δ |
+|---|---|---|---|
+| mAP | 0.6235 | 0.5991 | **−0.024** |
+| P@1 | 0.9348 | 0.9208 | −0.014 |
+| P@10 | 0.9228 | 0.9067 | −0.016 |
+| P@100 | 0.9126 | 0.8948 | −0.018 |
+| DNA-uniq | 0.207 | 0.214 | +0.007 |
+| NMI off-diag (↓) | 0.6445 | 0.6490 | +0.005 (tied) |
+| B2 visual lift | 0.166 | 0.166 | tied |
+| Σ\|drop\| | 0.0509 | 0.0472 | tied |
+
+🟢 **Drop ablation (baseline 0.5937):** cb0 −0.0199, cb1 −0.0069, cb2 −0.0076, cb3 −0.0070, cb4 −0.0023 (neutral), cb5 −0.0035. cb0 dominant pattern persists; cb4 weakest.
+
+📐 **3-dataset Round 4 summary:**
+
+| Round | Knob | CUB Δ mAP | Flickr Δ mAP | MSCOCO Δ mAP |
+|---|---|---|---|---|
+| **4a** | noGate + xmodal 0.20 | **−0.012** | **−0.027** | (= 4d) |
+| **4b** | xmodal 0.15 only | **−0.007** | — | — |
+| **4d** | noGate + xmodal 0.20 (MSCOCO) | — | — | **−0.024** |
+
+**Every cell REGRESSES retrieval; NONE improves NMI orthogonality.** The intervention via {noGate, xmodal boost} permutations is universally Pareto-dominated by the original v170a recipe. The orthogonality concern is architectural (class-info routing via C_global + Sinkhorn), not hyperparameter-fixable.
+
+🚫 **Adopt verdict.** Round 4 knob-level ortho interventions DISCARDED across all 3 datasets. MSCOCO v170a base recipe UNCHANGED. Future paper-blocking direction = architectural `L_ortho` loss on codebook prototypes.
+
+🧰 **Code added.** [scripts/train_mscoco_v170a_noGate_xmodal020_FAIRrankL8K3.sh](scripts/train_mscoco_v170a_noGate_xmodal020_FAIRrankL8K3.sh) — single-delta from MSCOCO v170a base.
+
+🔭 **Follow-ups (paper-blocking next step).**
+1. **`L_ortho` architectural loss** — `L_ortho = sum_{m<n} mean(cos(P_m, P_n))^2` on codebook prototypes. Requires `model_siglip2.py` edit + new `--lambda_codebook_ortho` arg. Predicted impact: directly lowers NMI; mAP cost likely small because penalty operates on prototype DIRECTIONS not routing assignments.
+2. **Per-codebook attribute-conditioned text adapter** (CUB-specific) — replace pooled text slot embedding with CUB attribute-conditional embedding for grounding.
+3. **Whole-image baseline eval cell** — evaluate v170a model on whole-image cache to separate FAIRrank contribution from stackedText contribution at inference.
+
+---
+
 ## 2026-06-25 — v170a Round 4b CUB milder xmodal_commit boost (0.10→0.15) ALSO REFUTED — **Less aggressive variant of Round 4a (xmodal_commit 0.15 alone, gate unchanged) STILL regresses every axis on CUB. mAP −0.007, P@1 tied, DNA-uniq −0.020. NMI tied (0.437 vs 0.438), no orthogonality gain. Confirms CUB's optimal xmodal_commit IS exactly 0.10 (the v170a default), and any deviation HURTS.**
 
 🟢 **CUB 4-axis comparison (Round 4a vs Round 4b vs base):**
