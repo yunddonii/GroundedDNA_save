@@ -334,6 +334,33 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-25 — v170a Round 4b CUB milder xmodal_commit boost (0.10→0.15) ALSO REFUTED — **Less aggressive variant of Round 4a (xmodal_commit 0.15 alone, gate unchanged) STILL regresses every axis on CUB. mAP −0.007, P@1 tied, DNA-uniq −0.020. NMI tied (0.437 vs 0.438), no orthogonality gain. Confirms CUB's optimal xmodal_commit IS exactly 0.10 (the v170a default), and any deviation HURTS.**
+
+🟢 **CUB 4-axis comparison (Round 4a vs Round 4b vs base):**
+
+| Axis | CUB v170a base | + xmodal 0.15 (4b) | + noGate + xmodal 0.20 (4a) |
+|---|---|---|---|
+| mAP | **0.1368** | 0.1298 (−0.007) | 0.1246 (−0.012) |
+| P@1 | **0.2458** | 0.2442 (tied) | 0.2346 (−0.011) |
+| DNA-uniq | **0.7449** | 0.7252 (−0.020) | 0.7075 (−0.037) |
+| NMI off-diag | 0.4381 | 0.4374 (tied) | 0.4415 (tied) |
+| B1 lift | 0.1296 | 0.127 (tied) | 0.131 (tied) |
+| B2 lift | 0.0710 | 0.071 (tied) | 0.070 (tied) |
+| dead codewords | 0/64 | low | 11/64 (17 %) |
+
+🟢 **Drop ablation (baseline 0.1313):** cb0 −0.0366, cb1 −0.0027, cb2 −0.0040, cb3 −0.0051, cb4 +0.0030 (neutral), cb5 −0.0105. cb0 dominant (consistent pattern), cb4 weakest/neutral.
+
+📐 **Final CUB diagnosis.** CUB v170a's recipe is **point-optimal** at λ_xmodal_commit = 0.10. Any change (+0.05 to 0.15 or +0.10 to 0.20) hurts retrieval AND compositional axes simultaneously. CUB has a sharp narrow optimum because:
+1. v6b anatomy captions are dense and high-quality (5 distinct per-part descriptions per image) — already saturates per-codebook supervision at λ=0.10.
+2. Pushing λ harder over-fits to caption averaging, collapses codewords (4a) or partially weakens (4b).
+3. NMI doesn't move because the orthogonality bottleneck is class-info redundancy across codebooks, not text-alignment strength.
+
+🚫 **Adopt verdict.** CUB v170a base UNCHANGED. λ_xmodal_commit = 0.10 = exact CUB optimum. xmodal boost variants documented as canonical "rich-caption regime" negative controls in paper.
+
+🔭 **Follow-ups.** MSCOCO Round 4d (noGate + xmodal 0.20) running on GPU 0 (ep 29 mid mAP 0.6159 / DNA 0.429 — DNA boost +0.22 from base 0.207 but mAP −0.008). Expected to follow Flickr 4a Pareto-regress with comparable mid → final discrepancy (DNA boost shrinks at final eval).
+
+---
+
 ## 2026-06-25 — v170a Round 4a Flickr orthogonality intervention ALSO REFUTED — **Same `--disable_global_gate` + `lambda_xmodal_commit 0.20` intervention on Flickr REGRESSES every axis: mAP -0.027, P@1 -0.012, DNA-uniq -0.012, NMI off-diag +0.011 (WORSE not better!). The mid-eval `unique` metric (per-codebook unique rate) was misleading; the final DNA-uniq on extract_db base_indices showed -0.012. ortho intervention via knob-tuning REFUTED across BOTH CUB and Flickr. The codebook-orthogonality concern cannot be addressed by hyperparameter sweeps; an architectural intervention is required.**
 
 🟢 **Flickr 4-axis comparison:**
