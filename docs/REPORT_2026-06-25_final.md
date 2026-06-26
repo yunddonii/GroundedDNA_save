@@ -2,6 +2,8 @@
 
 **Setting**: 3 datasets (CUB-200, Flickr25k, MSCOCO), frozen CLIP ViT-B/16 backbone, 36-bit hash (= 6 codebooks × 3 codons × 2 bits), `setting1` split. All baselines (CIBHash, CIMON, MLS3RDUH) trained on the **same** cached CLIP visual_global features for fair comparison; ours additionally uses qwen3-VL text supervision through FAIRrank L8K3 cache + stackedText loss.
 
+**Trainset / DB / Query split sizes (deep-hashing setting1)**: CUB-200 (5994 / 5994 / 5794), Flickr25k (5000 / 23000 / 2000), MSCOCO (10000 / 107218 / 5000). Caption coverage on the trainset is 100 % on all three datasets; captions are consumed only during training, not at inference.
+
 ---
 
 ## 1. Comprehensive Comparison Tables — Ours vs Unsupervised Baselines
@@ -67,11 +69,13 @@
 
 The same v170a paradigm requires different `--lambda_xmodal_commit / text_code_kl / text_hash_ntxent` values per dataset:
 
-| Dataset | Optimal λ | Caption regime |
-|---|---|---|
-| CUB-200 | **0.10 / 0.10 / 0.10** (boost) | 100 % v6b anatomy captions (rich per-part) — saturates at boost |
-| Flickr25k | **0.05 / 0.05 / 0.05** (rollback) | 5K averaged multi-object captions — boost over-fits |
-| MSCOCO | **0.10 / 0.10 / 0.10** (boost) | 8.2 % coverage but 107K trainset absorbs boost |
+| Dataset | Trainset size | Optimal λ | Caption regime |
+|---|---|---|---|
+| CUB-200 | 5,994 | **0.10 / 0.10 / 0.10** (boost) | 100 % v6b anatomy captions (rich per-part) — saturates at boost |
+| Flickr25k | 5,000 | **0.05 / 0.05 / 0.05** (rollback) | 100 % qwen3 v4 averaged multi-object captions — boost over-fits |
+| MSCOCO | 10,000 | **0.10 / 0.10 / 0.10** (boost) | 100 % qwen3 v5b scene captions — boost absorbs cleanly |
+
+**Note**: All three datasets follow the deep-hashing `setting1` convention where TRAINSET is a small subset (5K-10K) of the full image pool. All trainset images are 100 % captioned. Earlier draft of this report claimed "MSCOCO 8.2 % caption coverage" — that figure referred to the captioned subset's proportion within the full 122K MSCOCO image pool, NOT trainset coverage. Trainset caption coverage is 100 % on every dataset; inference does not consume captions.
 
 This **dataset-specific tuning was discovered, not assumed**, via Round 2 (Flickr WIN) + Round 3b (CUB negative control) + Round 3a (MSCOCO negative control). The narrowest hypothesis is now: **Flickr's small-trainset + averaged scene captions = unique over-fitting regime**.
 
