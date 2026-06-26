@@ -1,0 +1,50 @@
+[
+  {
+    "method": "cibhash",
+    "dataset": "CUB_200",
+    "N": 5994,
+    "DNA_uniq": 0.9768101434768102,
+    "cb_tuple_uniq": 0.9768101434768102,
+    "dead_cb": 0
+  },
+  {
+    "method": "cimon",
+    "dataset": "CUB_200",
+    "N": 5994,
+    "DNA_uniq": 0.7539205872539206,
+    "cb_tuple_uniq": 0.7539205872539206,
+    "dead_cb": 0
+  },
+  {
+    "method": "mls3rduh",
+    "dataset": "CUB_200",
+    "N": 5994,
+    "DNA_uniq": 0.08274941608274941,
+    "cb_tuple_uniq": 0.08274941608274941,
+    "dead_cb": 0
+  },
+  {
+    "method": "cibhash",
+    "dataset": "MSCOCO",
+    "N": 107218,
+    "DNA_uniq": 0.742002275737283,
+    "cb_tuple_uniq": 0.742002275737283,
+    "dead_cb": 0
+  },
+  {
+    "method": "cimon",
+    "dataset": "MSCOCO",
+    "N": 107218,
+    "DNA_uniq": 0.42767072693017966,
+    "cb_tuple_uniq": 0.42767072693017966,
+    "dead_cb": 0
+  },
+  {
+    "method": "mls3rduh",
+    "dataset": "MSCOCO",
+    "N": 107218,
+    "DNA_uniq": 0.43296834486746627,
+    "cb_tuple_uniq": 0.43296834486746627,
+    "dead_cb": 0
+  }
+]
