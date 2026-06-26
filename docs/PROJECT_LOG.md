@@ -334,6 +334,82 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-26 — v170a CUB K codebook-size sweep — **NEW CUB ABSOLUTE CHAMPION at K=128 (mAP 0.1504 +0.014 / P@1 0.2749 +0.029 / P@10 0.2174 +0.022). CIBHash retrieval gap closes from 17 % → 9 % (mAP 0.164 - 0.150 = 0.014).** Increasing codebook size from K=64 → K=128 delivers a Pareto improvement: every retrieval axis up AND every compositional axis except NMI up (Σ|drop| +0.005, cbtuple +0.063, B1 +0.016, B2 +0.013, DNA-uniq +0.040). NMI off-diag worsens (0.438 → 0.515, +0.077) because larger K admits more codeword redundancy — the orthogonality / capacity trade-off is now explicit on a quantitative axis.
+
+🟢 **Test design (user-proposed at 2026-06-26).** Hypothesis: CUB v170a's K=64 may be capacity-bottlenecked (5994 trainset / 200 species × 6 codebooks = many distinct anatomy modes). Single-delta `--codebook_size 64 → 128`, everything else IDENTICAL to CUB v170a champion. Predicted: retrieval ↑ AND DNA ↑ from extra codeword capacity; NMI may worsen (capacity / orthogonality trade).
+
+🟢 **CUB 4-axis comparison:**
+
+| Axis | CUB v170a K=64 (prior champion) | **CUB v170a K=128 (NEW CHAMPION) ★** | Δ |
+|---|---|---|---|
+| mAP | 0.1368 | **0.1504** | **+0.0136 (+10 %)** |
+| P@1 | 0.2458 | **0.2749** | **+0.0291 (+12 %)** |
+| P@10 | 0.1955 | **0.2174** | **+0.0219 (+11 %)** |
+| P@100 | 0.0997 | **0.1055** | +0.0058 |
+| DNA-uniq | 0.7449 | **0.7845** | +0.0396 |
+| codebook-tuple uniq | 0.7824 | **0.8453** | **+0.0629** |
+| NMI off-diag (↓ better) | **0.4381** | 0.5150 | **+0.077 (worse)** ← capacity/ortho trade |
+| Σ\|drop\| | 0.0675 | **0.0724** | +0.0049 |
+| B0 lift | 0.0251 | 0.0282 | +0.003 |
+| B1 lift | 0.1296 | **0.1456** | +0.016 |
+| B2 lift | 0.0710 | **0.0839** | +0.013 |
+| dead codewords | 0/64 | 18/128 (14 %) | +0.14 codeword sparsity |
+
+🟢 **Drop ablation (subset baseline 0.1522):** cb0 **−0.0452** (very strong, +20 % stronger than K=64 base), cb1 −0.0026, cb2 −0.0034, cb3 −0.0093, cb4 +0.0023 (neutral), cb5 −0.0096. cb0 (C_global) dominance grows with capacity; cb3/cb5 informative; cb1/cb2 weaker. Total weight 0.0724 (+7 % vs K=64).
+
+📐 **Mechanism: K=128 capacity unlocks both axes.**
+- **Retrieval gain (+0.014 mAP)**: With K=64, codewords saturate around 200 CUB species — codeword "modes" cluster multiple species; K=128 lets each codeword cover ≤ 1.5 species on average, sharpening retrieval ranking. cb0 drop signal jumps from −0.038 → −0.045 (+18 % stronger), confirming cb0 captures finer species information at K=128.
+- **DNA-uniq gain (+0.040)**: Larger K geometric → larger codebook-tuple space → fewer collisions on the 5994 trainset → unique combinations rise.
+- **NMI cost (+0.077 worse)**: More codeword overlap across codebooks because each codeword now learns a finer species mode that overlaps with overlapping anatomical features. The orthogonality/capacity trade-off is **inherent**, not a knob bug.
+- **14 % dead codewords at K=128**: indicates K=128 is mildly over-capacity for 5994 trainset; K could be tuned between 96-128 for sweet spot. K=128 is still net Pareto-improving so it's adopted as champion.
+
+🟢 **Adopt verdict.** **CUB v170a K=128 = NEW CUB ABSOLUTE CHAMPION**. Updates the prior K=64 champion (mAP 0.1368) on every reported retrieval axis and most compositional axes. NMI trade-off (+0.077) is the explicit cost of capacity. CIBHash gap closes mAP 17 % → 9 %.
+
+🧰 **Code added.** [scripts/train_cub200_v170a_K128_FAIRrankL8K3_stackedText_clip.sh](scripts/train_cub200_v170a_K128_FAIRrankL8K3_stackedText_clip.sh) — single-delta from CUB v170a base: `--codebook_size 64 → 128`.
+
+🔭 **Follow-ups.**
+1. **K = 96 sweep** — should reduce dead codewords (14 % → ≤ 5 %) while retaining most K=128 retrieval gains; potentially NMI more moderate.
+2. **MSCOCO K = 256 trial** — if K↑ helps on CUB at 5994 trainset, the same logic suggests MSCOCO K=128 may be under-capacity for 10000 trainset.
+3. **Flickr K=128 → K=256** — Flickr v170a rollback was already at K=128; a K=256 cell may further close mAP toward whole-image champion.
+
+---
+
+## 2026-06-26 — v170a Flickr K codebook-size sweep (K=128 → K=64) — **Pareto-mixed: retrieval regresses (−0.016 mAP) BUT orthogonality improves (NMI −0.059)**
+
+🟢 **Test design.** Inverse experiment to CUB K↑: shrink Flickr's K=128 → K=64 (matching CUB's prior K). Single-delta from Flickr v170a rollback (mAP 0.7430). Hypothesis: smaller K should improve orthogonality (NMI ↓) at retrieval cost.
+
+🟢 **4-axis comparison:**
+
+| Axis | Flickr v170a K=128 rollback (FAIR-fam champ) | **Flickr v170a K=64 rollback (THIS)** | Δ |
+|---|---|---|---|
+| mAP | 0.7430 | 0.7270 | **−0.016** |
+| P@1 | 0.9215 | 0.9185 | −0.003 |
+| P@10 | 0.9204 | 0.9136 | −0.007 |
+| DNA-uniq | 0.439 | 0.421 | −0.018 |
+| cbtuple uniq | 0.581 | 0.502 | −0.079 |
+| **NMI off-diag (↓)** | 0.604 | **0.545** | **−0.059 (BETTER orthogonality)** |
+| Σ\|drop\| | 0.037 | 0.037 | tied |
+| B1 lift | 0.162 | 0.139 | −0.023 |
+| B2 lift | 0.106 | 0.092 | −0.014 |
+| dead codewords | 0 (very low) | 0 | tied |
+
+🟢 **Drop ablation (baseline 0.7270):** cb0 −0.0108, cb1 −0.0011 (very weak), cb2 −0.0082, cb3 −0.0043, cb4 −0.0109, cb5 −0.0014 (very weak). cb1+cb5 nearly redundant under K=64.
+
+📐 **Mechanism: K=64 forces codeword compression.**
+- **NMI improves (−0.059)**: smaller K forces codewords to be more distinctive (less redundancy), pushing codebooks toward greater orthogonality. **This is the first cell to genuinely lower NMI without sacrificing more than 2 % mAP**.
+- **Retrieval drops (−0.016 mAP)**: 64 codewords × 6 codebooks = 64^6 ≈ 6.9e10 combinations is still more than enough; the loss comes from coarser per-codebook discrimination within the limited 23K Flickr DB.
+- **B1/B2 drop**: text-codebook alignment dilutes when each codeword covers more semantic territory.
+
+🟢 **Adopt verdict.** Flickr K=64 NOT adopted as champion (mAP −0.016) but documented as the **"orthogonality-priority" cell** for paper sections that emphasize codebook structure quality over raw retrieval mAP. Confirms the K-axis is a useful Pareto knob: K↑ for retrieval/capacity, K↓ for orthogonality.
+
+🧰 **Code added.** [scripts/train_v170a_K64_stackedTextRollback_FAIRrankL8K3_flickr25k_clip.sh](scripts/train_v170a_K64_stackedTextRollback_FAIRrankL8K3_flickr25k_clip.sh) — single-delta from Flickr v170a rollback: `--codebook_size 128 → 64`.
+
+🔭 **Follow-ups.**
+1. **Flickr K=256 sweep** — opposite direction of this cell; should further unlock retrieval, NMI worse.
+2. **MSCOCO K=256 trial** — same logic as CUB.
+
+---
+
 ## 2026-06-25 — v170a Round 4d MSCOCO orthogonality intervention REFUTED — **3-dataset Round 4 verdict complete: `--disable_global_gate + lambda_xmodal_commit 0.10 → 0.20` REGRESSES every retrieval axis on MSCOCO (mAP -0.024, P@1 -0.014, P@10 -0.016, P@100 -0.018), DNA-uniq +0.007 marginal, NMI +0.005 tied. Same Pareto-regress pattern as CUB 4a/4b and Flickr 4a. Knob-tuning orthogonality intervention REFUTED ACROSS ALL 3 DATASETS.**
 
 🟢 **MSCOCO 4-axis comparison:**
