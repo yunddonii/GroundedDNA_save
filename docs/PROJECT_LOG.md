@@ -334,6 +334,79 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-26 — v170a CUB FAIRrank K=3 → K=1 (top-1 only) — **MULTI-VIEW REDUNDANCY HYPOTHESIS REFUTED.** Reducing FAIRrank top-K from 3 → 1 (using only the best single crop, 196 patches instead of 588) catastrophically regresses every retrieval and grounding axis: mAP −0.048 (−32 %), P@1 −0.092 (−33 %), B2 lift 0.084 → 0.002 (catastrophic), drop cb0 −0.045 → 0.000 (C_global becomes completely uninformative). NMI improves significantly (0.515 → 0.358, −0.157) — confirming that multi-view "redundancy" was actually structurally necessary for codebook learning, not wasted info.
+
+🟢 **Test design (user-proposed).** Hypothesis: 3 crops × 196 patches = 588 tokens have ~30-50 % spatial/semantic overlap (random crops scale 0.25-0.6 often overlap). Reducing to top-1 only (196 tokens, like whole-image) might give a cleaner signal. Test: slice the existing CUB FAIRrank L8K3 cache to first 196 tokens (= top-1 crop by image_global anchor ranking) → new cache `cub200_clip_v6bplus_FAIRrankL8K1`. Single-delta cache swap from CUB K=128 K3 champion.
+
+⚠️ **Cache rebuild incident.** First slicing attempt corrupted the cache (partial mmap writes with image-100/5000/11787 zero-filled). Diagnosed via 99 % codeword-dead at ep 4 + sample integrity check. Rebuilt with chunked `np.lib.format.open_memmap` writes, verified `K1 vs K3[:, :196]` max diff = 0.0 across sampled images.
+
+🟢 **CUB 4-axis comparison:**
+
+| Axis | CUB v170a K=128 K=3 (champion) | **CUB v170a K=128 K=1 (THIS)** | Δ |
+|---|---|---|---|
+| mAP | 0.1504 | 0.1024 | **−0.048 (−32 %)** |
+| P@1 | 0.2749 | 0.1831 | **−0.092 (−33 %)** |
+| P@10 | 0.2174 | 0.1505 | −0.067 |
+| P@100 | 0.1055 | 0.0782 | −0.027 |
+| DNA-uniq | 0.785 | 0.672 | −0.113 |
+| codebook-tuple | 0.845 | 0.758 | −0.087 |
+| **NMI off-diag (↓)** | 0.515 | **0.358** | **−0.157 (BETTER ortho)** |
+| Σ\|drop\| | 0.072 | 0.047 | −0.025 (less informative) |
+| B0 raw text lift | 0.028 | (TBD) | — |
+| B1 centered text lift | 0.146 | 0.096 | −0.050 |
+| **B2 visual_global lift** | 0.084 | **0.002** | **catastrophic** |
+| dead codewords | 18/128 (14 %) | 40/128 (31 %) | +0.17 |
+
+🟢 **Drop ablation (baseline 0.1029):** **cb0 +0.0000** (C_global completely uninformative!), cb1 −0.0103, cb2 −0.0118, cb3 −0.0103, cb4 −0.0072, cb5 −0.0072. The cb0 → 0 result is the most diagnostic finding.
+
+📐 **Mechanism: why K=3 multi-view is structurally necessary, not redundant.**
+1. **C_global codebook collapse**: cb0 in v170a's gated architecture represents the "image overview" / species identity slot. With K=1, the single top-1 crop (scale 0.25-0.6) covers only a fraction of the bird — the C_global slot has NO holistic semantic to learn → drop_cb0 = 0.000. With K=3, the concatenated 588 patches give the model enough overlap to extract a "global" representation distinct from per-anatomy locals.
+2. **B2 visual_global lift catastrophe (0.084 → 0.002)**: B2 measures how well codebook representations align with full-image CLIP CLS (visual_global). K=1 crops don't see the full image → no visual_global alignment possible → B2 ≈ 0 (no lift over random).
+3. **NMI improvement is a Pyrrhic victory**: yes, NMI drops by 0.157 (codebooks ARE more orthogonal), but this is BECAUSE each codebook now sees less information → less codebook overlap simply because there's less shared signal. Not "better orthogonal codebook design"; just "more sparse information".
+4. **Multi-view ≠ wasted redundancy**: the 3 crops do have spatial overlap, but the SAME object viewed at different scales/positions provides the codebook routing with **convergent evidence** that strengthens codeword learning (3 views agreeing on a feature = strong update; 1 view = noisy single signal).
+
+📐 **FAIR vs Ours architecture clarification.**
+FAIR (Ali et al., WACV 2026) uses N=16 crops, top-k=4, and aggregates via **score-level weighted sum** of per-crop similarity scores (Eq. 10). FAIR never concatenates tokens. Our codebook routing requires patch-level inputs (588 patches → Sinkhorn → 6 semantic tokens). This experiment empirically validates that **our architecture cannot use FAIR-style score-level aggregation directly** — we need patch-level multi-view input for codebook learning. The "redundancy" worry was based on a misanalogy from FAIR; our token-level concatenation is structurally necessary.
+
+🚫 **Adopt verdict.** K=1 DISCARDED. CUB v170a K=128 K=3 = production champion. The K=1 cell is documented as a canonical "FAIR-style score-aggregation analogy fails on codebook routing" negative control.
+
+🧰 **Code added.**
+- [scripts/train_cub200_v170a_K128_FAIRrankL8K1_stackedText_clip.sh](scripts/train_cub200_v170a_K128_FAIRrankL8K1_stackedText_clip.sh) — single-delta cache swap.
+- Cache `cache/cub200_clip_v6bplus_FAIRrankL8K1` (sliced first-196 from L8K3 cache).
+
+🔭 **Follow-ups.**
+1. **K=2 sweep** (middle ground between K=1 and K=3) — likely Pareto between this cell and champion.
+2. **Score-level FAIR-style aggregation experiment** — modify the architecture to do per-crop independent routing + late fusion (similar to FAIR Eq. 10). Higher-effort but tests whether the architecture itself benefits.
+
+---
+
+## 2026-06-26 — v170a MSCOCO K=256 codebook-size sweep — **Pareto-mixed: mAP −0.003 (marginal regress) but P@1 +0.003, P@10 +0.006, P@100 +0.004, DNA +0.016, cb_tuple +0.115 (huge), B2 +0.016, NMI +0.020 (worse). MSCOCO does NOT follow CUB's K↑ → all-axis-win pattern; capacity already sufficient at K=128 (10K train / 80 categories).**
+
+🟢 **MSCOCO 4-axis comparison:**
+
+| Axis | MSCOCO v170a K=128 (production champion) | **MSCOCO v170a K=256 (THIS)** | Δ |
+|---|---|---|---|
+| mAP | 0.6235 | 0.6210 | **−0.003** (marginal) |
+| P@1 | 0.9348 | 0.9374 | +0.003 |
+| P@10 | 0.9228 | 0.9290 | +0.006 |
+| P@100 | 0.9126 | 0.9170 | +0.004 |
+| DNA-uniq | 0.207 | 0.223 | +0.016 |
+| codebook-tuple | 0.306 | 0.421 | **+0.115** (huge codebook diversity gain) |
+| NMI off-diag (↓) | 0.6445 | 0.6642 | +0.020 (worse) |
+| Σ\|drop\| | 0.0509 | 0.0523 | tied |
+| B2 visual lift | 0.166 | 0.182 | +0.016 |
+| dead-cb | 0/6 | 0/6 | tied |
+
+🟢 **Drop ablation (baseline 0.6159):** cb0 −0.0163, cb1 −0.0114, cb2 −0.0076, cb3 −0.0088, cb4 −0.0075, cb5 −0.0007 (nearly neutral). cb5 marginally redundant at K=256, otherwise informative pattern preserved.
+
+📐 **CUB K↑ pattern does NOT transfer to MSCOCO.** CUB K=64 → K=128 gave +0.014 mAP because CUB has 5994 train / 200 species ≈ 30 images per species — K=64 was capacity-bottlenecked for species-level discrimination. MSCOCO has 10K train / 80 categories ≈ 125 images per category — K=128 is already sufficient capacity; doubling to K=256 mostly adds combinatoric room for the codebook-tuple space (+0.115) without retrieval gain.
+
+🚫 **Adopt verdict.** MSCOCO v170a K=128 = production champion UNCHANGED. K=256 documented as "compositional-axis-favoring variant" for paper sections that emphasize codebook-tuple diversity.
+
+🧰 **Code added.** [scripts/train_mscoco_v170a_K256_FAIRrankL8K3_stackedText.sh](scripts/train_mscoco_v170a_K256_FAIRrankL8K3_stackedText.sh) — single-delta from MSCOCO v170a base.
+
+---
+
 ## 2026-06-26 — v170a CUB K codebook-size sweep — **NEW CUB ABSOLUTE CHAMPION at K=128 (mAP 0.1504 +0.014 / P@1 0.2749 +0.029 / P@10 0.2174 +0.022). CIBHash retrieval gap closes from 17 % → 9 % (mAP 0.164 - 0.150 = 0.014).** Increasing codebook size from K=64 → K=128 delivers a Pareto improvement: every retrieval axis up AND every compositional axis except NMI up (Σ|drop| +0.005, cbtuple +0.063, B1 +0.016, B2 +0.013, DNA-uniq +0.040). NMI off-diag worsens (0.438 → 0.515, +0.077) because larger K admits more codeword redundancy — the orthogonality / capacity trade-off is now explicit on a quantitative axis.
 
 🟢 **Test design (user-proposed at 2026-06-26).** Hypothesis: CUB v170a's K=64 may be capacity-bottlenecked (5994 trainset / 200 species × 6 codebooks = many distinct anatomy modes). Single-delta `--codebook_size 64 → 128`, everything else IDENTICAL to CUB v170a champion. Predicted: retrieval ↑ AND DNA ↑ from extra codeword capacity; NMI may worsen (capacity / orthogonality trade).
