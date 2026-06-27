@@ -141,6 +141,13 @@ class Config():
                  'fp16 visual+text feature tensors). When set, training and '
                  'extraction skip the SigLIP2 encoder pass and read these '
                  'features directly. Big speedup for frozen-backbone runs.')
+        siglip2_arg.add_argument('--eval_cache_dir', dest='eval_cache_dir',
+            default=None,
+            help='Optional separate cache for FINAL extraction + evaluation. '
+                 'When set, training uses --siglip2_feature_cache_dir but the '
+                 'end-of-training extract_db + extract_query + evaluation use '
+                 'this cache instead. Use case: train on FAIRrank multi-view '
+                 'cache but report final results on whole-image cache.')
         siglip2_arg.add_argument('--d_model', dest='d_model', type=int, default=None,
             help='Adapter output dim; None = use SigLIP2 projection_dim.')
         # v30 ablation: control adapter capacity. 'mlp' (default) keeps

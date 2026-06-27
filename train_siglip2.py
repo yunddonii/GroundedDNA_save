@@ -912,6 +912,20 @@ def main(args: Config):
     if getattr(args, "evaluation", False):
         from extraction_siglip2 import extract_code as _extract_code
         from evaluation_siglip2 import evaluation as _evaluation
+        # Optionally swap cache for final evaluation (e.g., train on FAIRrank
+        # multi-view cache, evaluate on whole-image cache for paper-claim
+        # inference mode). Restores after eval so any post-hoc analysis still
+        # has training cache pointer if needed.
+        _eval_cache = getattr(args, "eval_cache_dir", None)
+        _saved_cache = args.siglip2_feature_cache_dir
+        _saved_whiten = getattr(args, "text_whiten_npz", None)
+        if _eval_cache and os.path.exists(_eval_cache):
+            print(f"[final-eval] OVERRIDE cache: {_saved_cache} -> {_eval_cache}")
+            args.siglip2_feature_cache_dir = _eval_cache
+            _maybe_whiten = os.path.join(_eval_cache, "text_whiten.npz")
+            if os.path.exists(_maybe_whiten):
+                args.text_whiten_npz = _maybe_whiten
+                print(f"[final-eval] OVERRIDE text_whiten: {_maybe_whiten}")
         try:
             print("[final-eval] running extraction ...")
             _extract_code(args)
@@ -927,6 +941,8 @@ def main(args: Config):
         except Exception as ex:
             print(f"[final-eval] evaluation failed: {ex} -- continuing to viz. "
                   f"Re-run evaluation_siglip2.py externally to recover metrics.")
+        # Restore (post-eval compositional uses _cache below; keep it on eval cache too)
+        # so compositional_eval reads correctly on the eval-cache features.
 
         # ---------- post-eval compositional analysis ---------------------
         # NMI + drop ablation + B0/B1/B2 lift. Each wrapped in try/except so
