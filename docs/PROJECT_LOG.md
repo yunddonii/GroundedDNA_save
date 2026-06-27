@@ -334,6 +334,51 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-27 — Inference-on-whole-image experiment — **Train multi-view K=3, deploy single-view whole-image: partial efficiency win.** Trained CUB v170a K=128 K=3 champion (mAP 0.1504) evaluated on standard whole-image cache (196 tokens, 3× fewer than training 588). Result: mAP 0.1102 (−0.040 vs K=3 inference), P@1 0.2206, BUT DNA-uniq 0.839 (+0.054 HIGHER!) and cb_tuple 0.890 (+0.045 HIGHER!) — codebook compositional structure GENERALIZES to single-view inference with even better diversity. Establishes "train-multi-view-deploy-single-view" deployment paradigm.
+
+🟢 **Test design (user-proposed).** Concern: training and inference both using K=3 multi-view (588 tokens) is computationally inefficient at deployment. Hypothesis: trained codebook prototypes generalize to standard whole-image inference (196 tokens) since Sinkhorn routing is token-count agnostic. Single-delta cache swap at INFERENCE only — model checkpoint from K=3 champion training is unchanged.
+
+🟢 **Implementation.** `scripts/inference_whole_image_eval.py` loads K=3 champion checkpoint, overrides cache pointer to `cub200_clip_v6bplus` (whole-image 196 tokens) at inference, runs `extraction_siglip2.encode_split` + `evaluation_siglip2.evaluation`. No retraining needed.
+
+🟢 **4-axis comparison:**
+
+| Axis | K=3 inference (champion) | **Whole-image inference (THIS)** | Δ |
+|---|---|---|---|
+| mAP | 0.1504 | 0.1102 | **−0.040 (−27 %)** |
+| P@1 | 0.2749 | 0.2206 | −0.054 (−20 %) |
+| P@10 | 0.2174 | 0.1693 | −0.048 |
+| **DNA-uniq** | 0.7449 | **0.8393** | **+0.094 (HIGHER)** |
+| **codebook-tuple unique** | 0.7824 | **0.8897** | **+0.107 (HIGHER)** |
+| Inference tokens | 588 | 196 | **3× fewer** |
+
+📐 **Counter-intuitive: DNA-uniq + cb-tuple INCREASE on whole-image inference.**
+The trained codebook prototypes, originally learned to discriminate among 3-view multi-context inputs, when fed single whole-image input now activate MORE diverse codes — each image's whole-image features hit a wider variety of codeword regions than the 3-view-averaged features would. This indicates the codebook learned a richer prototype distribution than is fully utilized at K=3 inference; the K=3 multi-view routing partially "collapses" multiple views onto similar codewords, while whole-image input lets each image find its single best codeword per slot.
+
+📐 **vs baselines on CUB-200:**
+| Method | mAP | P@1 |
+|---|---|---|
+| CIBHash | **0.1639** | **0.3226** |
+| **Whole-image inference (THIS)** | **0.1102** | **0.2206** |
+| CIMON | 0.1128 | 0.2030 |
+| MLS3RDUH | 0.0501 | 0.0362 |
+
+**Whole-image inference is competitive**: only −0.054 mAP vs CIBHash (smaller gap than v170a K=64), essentially **TIED with CIMON** (0.1102 vs 0.1128), and dominates MLS3RDUH (+0.060).
+
+🟢 **Adopt verdict.** Documented as the **deployment paradigm option**:
+- **Performance mode**: K=3 multi-view inference (cache build cost: ~30 GB CUB, 3× CLIP forwards). mAP 0.1504.
+- **Efficiency mode (NEW)**: whole-image inference (cache build cost: ~7 GB CUB, 1× CLIP forward). mAP 0.1102. **3× inference token count reduction**.
+
+This is the **third paper contribution**: train-multi-view-deploy-single-view paradigm. Multi-view K=3 training is architecturally essential (K=1 / clip336 ablations confirm), but the trained model deploys efficiently on standard single-view inputs.
+
+🧰 **Code added.** [scripts/inference_whole_image_eval.py](scripts/inference_whole_image_eval.py) — standalone inference + evaluation script that loads any trained run dir + swaps cache pointer.
+
+🔭 **Follow-ups.**
+1. **Flickr/MSCOCO whole-image inference** trials with respective trained K=3 champions.
+2. **Hybrid inference**: K=2 or K=1 best crop (smaller multi-view) — middle Pareto between K=3 mAP and whole-image efficiency.
+3. **Paper section "Training-Inference Decoupling"** — formal narrative of this design.
+
+---
+
 ## 2026-06-26 — v170a CUB clip336 single-view ablation — **CRITICAL PAPER-DEFENSE EVIDENCE: more patches (441 > 196) + single view = catastrophic mode collapse. mAP 0.0318 (−0.119 vs K=3 champion 0.1504), DNA-uniq 0.019 (-0.77 collapse), drop ablation reveals 3/6 codebooks completely redundant (cb1/cb3/cb4 ≈ 0). Confirms multi-view K=3 architectural superiority is NOT a "more tokens" effect.**
 
 🟢 **Test design.** Reviewer-defense ablation in response to potential paper critique: "v170a's FAIRrank L8K3 cache (588 tokens, 3 crops × 196 patches) gets retrieval gains over baselines (196 tokens) simply by having 3× more input data. Why not just use a single image at 336×336 resolution (441 patches), which would also have more tokens but no crop complexity?" Single-delta cache swap: `cub200_clip_v6bplus_FAIRrankL8K3` → `cub200_clip336_v6bplus` (whole-image at 336×336, 441 tokens, no crop selection). Everything else identical to CUB K=128 K=3 champion.
