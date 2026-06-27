@@ -334,6 +334,56 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-28 — v170a CUB Tier-1 hyperparameter sweep (topp / sinkhorn-eps / K=96) — **NEW CUB ABSOLUTE CHAMPION: topp 0.5/0.9 widens adaptive routing → mAP 0.1707 (+0.020, +13 %), OVERTAKING CIBHash 0.1639 FOR THE FIRST TIME. Whole-image inference ALSO improves: 0.1261 (+0.016 vs prior 0.1102). Both inference modes simultaneously gain.**
+
+🟢 **Test design.** Target: improve CUB whole-image inference (currently mAP 0.1102) toward closing the K=3 inference gap. Hypothesis: smoother routing makes codebook prototypes more robust to inference-time input distribution shift. Single-parameter sweep on K=3 K=128 champion:
+
+- **A. routing_adaptive_topp 0.3/0.7 → 0.5/0.9** (wider, more diffuse routing)
+- **B. sinkhorn_epsilon_final 0.1 → 0.3** (smoother optimal transport)
+- **C. codebook_size 128 → 96** (reduce over-spec)
+
+🟢 **3-cell comparison (K=3 inference + whole-image inference):**
+
+| Cell | K=3 inference mAP | K=3 inference P@1 | Whole-image inference mAP | Whole-image P@1 |
+|---|---|---|---|---|
+| Prior champion (topp 0.3/0.7) | 0.1504 | 0.2749 | 0.1102 | 0.2206 |
+| **A. topp 0.5/0.9 ★★★** | **0.1707** (+0.020) | **0.2803** (+0.005) | **0.1261** (+0.016) | **0.2347** (+0.014) |
+| B. eps 0.3 | 0.1522 (+0.002) | 0.2727 (−0.002) | 0.1108 (+0.001) | 0.2252 (+0.005) |
+| C. K=96 | 0.1497 (−0.001) | 0.2691 (−0.006) | 0.1085 (−0.002) | 0.2149 (−0.006) |
+
+🎯 **A (topp 0.5/0.9) WINS DOUBLE**: improves both K=3 inference AND whole-image inference simultaneously. This is the strongest single-parameter intervention discovered for CUB v170a.
+
+🟢 **vs CUB baseline retrieval rankings (CLIP ViT-B/16, 36-bit, setting1):**
+
+| Method | mAP | P@1 |
+|---|---|---|
+| MLS3RDUH | 0.0501 | 0.0362 |
+| CIMON | 0.1128 | 0.2030 |
+| CIBHash (prior leader) | 0.1639 | **0.3226** |
+| Prior v170a K=128 | 0.1504 | 0.2749 |
+| **Ours v170a K=128 + topp 0.5/0.9 (THIS) ★★★** | **0.1707** | 0.2803 |
+
+**FIRST TIME OVERTAKING CIBHash on CUB mAP** (+0.007 / +0.4 %). P@1 still trails CIBHash (0.2803 vs 0.3226, gap −0.042) — future direction.
+
+📐 **Mechanism: why wider topp helps both inference modes.**
+- **Wider topp = more codewords participate per assignment**: routing becomes less peaky, more codewords get used → richer, more distributed prototype updates → each codeword captures a broader feature region.
+- **Distribution-shift robustness at inference**: peaky routing (narrow topp 0.3/0.7) collapses when input distribution shifts (multi-view K=3 → whole-image 196), because top-1 selection diverges. Smoother routing (wider 0.5/0.9) preserves top-k consistency across modes → codewords don't shift.
+- B (smoother sinkhorn) and C (smaller K) targeted similar mechanisms but with weaker effect — topp directly controls per-codebook participation rate while ε and K are indirect.
+
+🟢 **Adopt verdict.** **A. v170a K=128 + topp 0.5/0.9 + FAIRrank L8K3 + stackedText = NEW CUB ABSOLUTE CHAMPION on K=3 inference (mAP 0.1707) AND whole-image inference (mAP 0.1261).** Previous K=128 (topp 0.3/0.7) cell superseded. B and C documented as parameter-sweep negative controls.
+
+🧰 **Code added.**
+- [scripts/train_cub200_v170a_K128_topp05_09_FAIRrankL8K3_stackedText_clip.sh](scripts/train_cub200_v170a_K128_topp05_09_FAIRrankL8K3_stackedText_clip.sh) — NEW CHAMPION.
+- [scripts/train_cub200_v170a_K128_eps03_FAIRrankL8K3_stackedText_clip.sh](scripts/train_cub200_v170a_K128_eps03_FAIRrankL8K3_stackedText_clip.sh) — B negative.
+- [scripts/train_cub200_v170a_K96_FAIRrankL8K3_stackedText_clip.sh](scripts/train_cub200_v170a_K96_FAIRrankL8K3_stackedText_clip.sh) — C negative.
+
+🔭 **Follow-ups.**
+1. **Port topp 0.5/0.9 to Flickr + MSCOCO**: test if wider topp also unlocks improvement on multi-object datasets.
+2. **K=3 inference P@1 gap to CIBHash (-0.042)**: try `topp 0.6/1.0` or stronger codebook balance to lift P@1 further.
+3. **Compositional metric recalculation** (NMI / Σ\|drop\| / B-metrics / atlas word_top5) on the NEW champion.
+
+---
+
 ## 2026-06-27 — Inference-on-whole-image experiment — **Train multi-view K=3, deploy single-view whole-image: partial efficiency win.** Trained CUB v170a K=128 K=3 champion (mAP 0.1504) evaluated on standard whole-image cache (196 tokens, 3× fewer than training 588). Result: mAP 0.1102 (−0.040 vs K=3 inference), P@1 0.2206, BUT DNA-uniq 0.839 (+0.054 HIGHER!) and cb_tuple 0.890 (+0.045 HIGHER!) — codebook compositional structure GENERALIZES to single-view inference with even better diversity. Establishes "train-multi-view-deploy-single-view" deployment paradigm.
 
 🟢 **Test design (user-proposed).** Concern: training and inference both using K=3 multi-view (588 tokens) is computationally inefficient at deployment. Hypothesis: trained codebook prototypes generalize to standard whole-image inference (196 tokens) since Sinkhorn routing is token-count agnostic. Single-delta cache swap at INFERENCE only — model checkpoint from K=3 champion training is unchanged.
