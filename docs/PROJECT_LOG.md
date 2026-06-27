@@ -379,6 +379,56 @@ This is the **third paper contribution**: train-multi-view-deploy-single-view pa
 
 ---
 
+## 2026-06-27 — Inference-on-whole-image 3-DATASET TRIANGULATION — **Dataset-specific deployment paradigm uncovered. Multi-object datasets (Flickr/MSCOCO) deploy nearly losslessly on whole-image inference (Flickr +0.006, MSCOCO −0.009). Single-object fine-grained (CUB) requires K=3 multi-view at inference too (−0.040 cost if dropped). The 3× inference token reduction is FREE on Flickr/MSCOCO but EXPENSIVE on CUB.**
+
+🟢 **Test design.** Extend CUB inference-whole-image (mAP 0.1102 vs K=3 0.1504, −0.040) to Flickr + MSCOCO using respective trained K=3 champions. Single-delta cache swap at inference only.
+
+🟢 **3-dataset comparison:**
+
+| Dataset | Dataset type | K=3 inference mAP | Whole-image inference mAP | Δ | Deployment verdict |
+|---|---|---|---|---|---|
+| **CUB-200** | single-object fine-grained | 0.1504 | 0.1102 | **−0.040 (−27 %)** | K=3 inference NEEDED |
+| **Flickr25k** | multi-object scene | 0.7430 | **0.7486** | **+0.006 (+0.8 %)** | **Whole-image FREE** ★ |
+| **MSCOCO** | multi-object @ 107K scale | 0.6235 | 0.6150 | **−0.009 (−1.4 %)** | **Whole-image near-free** ★ |
+
+🟢 **Compositional axes (whole-image inference vs K=3):**
+
+| Dataset | DNA-uniq Δ | cb-tuple Δ |
+|---|---|---|
+| CUB-200 | +0.094 (HIGHER) | +0.107 (HIGHER) |
+| Flickr25k | +0.026 | +0.030 |
+| MSCOCO | +0.019 | +0.025 |
+
+**Compositional codebook structure GENERALIZES across inference modes** on all 3 datasets — DNA-uniq + cb-tuple actually INCREASE on whole-image input. Trained prototypes are not over-fitted to multi-view-specific feature distributions.
+
+📐 **Mechanism: why fine-grained needs multi-view inference, multi-object doesn't.**
+- **CUB single-object**: per-anatomy slot discrimination (head_bill / wing / tail / etc.) requires FOCUSED visual signal per slot. K=3 multi-view crops at scale (0.25, 0.6) zoom into specific anatomy regions → codebook routing gets per-slot specific feature. Single whole-image input zooms OUT, losing the per-anatomy detail → routing becomes less discriminative.
+- **Flickr/MSCOCO multi-object**: scene-level aggregation. Whole-image input naturally contains multiple objects + context. K=3 multi-view crops at scale (0.25, 0.6) may MISS some objects (under-coverage), so whole-image actually provides MORE complete scene representation → slight retrieval improvement (Flickr +0.006).
+
+📐 **vs baselines on each dataset (whole-image inference mode):**
+
+| Dataset | Method | mAP | Notes |
+|---|---|---|---|
+| CUB | CIBHash | 0.1639 | Whole-image inference: 0.1102 (-0.054 gap, tied with CIMON 0.1128) |
+| Flickr | CIMON | 0.7321 | Whole-image inference: 0.7486 (+0.017 SOTA on FAIR family) |
+| MSCOCO | CIBHash | 0.5051 | Whole-image inference: 0.6150 (+0.110 dominant) |
+
+**Whole-image inference still dominates all baselines on multi-object datasets**. CUB whole-image inference essentially ties CIMON but loses to CIBHash by 0.054 (smaller gap than K=64 v170a previously had).
+
+🟢 **Adopt verdict.** This becomes the **FOURTH paper contribution**: **Dataset-specific deployment paradigm**.
+- **Performance mode** (always available): K=3 multi-view inference.
+- **Efficiency mode** (multi-object datasets, dominant in production): whole-image inference. **3× faster, FREE on Flickr (+0.006), near-free on MSCOCO (−0.009)**.
+- CUB-style fine-grained datasets: K=3 multi-view inference recommended.
+
+🧰 **Code artifact.** Already in scripts/inference_whole_image_eval.py (created for CUB; reused for Flickr + MSCOCO with `--inference_cache` flag).
+
+🔭 **Follow-ups.**
+1. **Hybrid K=1-best-crop inference**: middle Pareto between K=3 mAP and whole-image efficiency (1 best crop + whole-image fusion).
+2. **Whole-image inference + per-dataset stackedText recipe sweep**: identify if recipe tuning shifts the deployment trade-off.
+3. **Paper section "Training-Inference Decoupling" final draft**, frame as deployment-aware multi-view design.
+
+---
+
 ## 2026-06-26 — v170a CUB clip336 single-view ablation — **CRITICAL PAPER-DEFENSE EVIDENCE: more patches (441 > 196) + single view = catastrophic mode collapse. mAP 0.0318 (−0.119 vs K=3 champion 0.1504), DNA-uniq 0.019 (-0.77 collapse), drop ablation reveals 3/6 codebooks completely redundant (cb1/cb3/cb4 ≈ 0). Confirms multi-view K=3 architectural superiority is NOT a "more tokens" effect.**
 
 🟢 **Test design.** Reviewer-defense ablation in response to potential paper critique: "v170a's FAIRrank L8K3 cache (588 tokens, 3 crops × 196 patches) gets retrieval gains over baselines (196 tokens) simply by having 3× more input data. Why not just use a single image at 336×336 resolution (441 patches), which would also have more tokens but no crop complexity?" Single-delta cache swap: `cub200_clip_v6bplus_FAIRrankL8K3` → `cub200_clip336_v6bplus` (whole-image at 336×336, 441 tokens, no crop selection). Everything else identical to CUB K=128 K=3 champion.
