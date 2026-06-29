@@ -1341,6 +1341,27 @@ class Config():
             help='v144: skip codebook 0 (C_global) when computing the '
                  'text_code_kl loss. Only local codebooks (cb1..cb5) '
                  'contribute. Recommended.')
+        # v172 (routing-text supervision): directly supervise per-patch
+        # routing weights using cosine sim to per-slot text embeddings.
+        # Closes the gap that text_code_kl only touches codeword-INDEX
+        # distribution but not which patches feed each codebook.
+        # Per (image, codebook m, patch p):
+        #   target[m, p] = softmax_p(cos(text_part[m], visual_token[p]) / tau)
+        # Loss: KL(target || routing_matrix[m]) averaged over m, B.
+        loss_arg.add_argument('--lambda_routing_text',
+            type=float, default=0.0,
+            help='v172: weight for per-patch routing supervision via text. '
+                 '0 disables (default). Recommended 0.05-0.20. '
+                 'Replaces lambda_text_code_kl when both used in tandem.')
+        loss_arg.add_argument('--routing_text_tau',
+            type=float, default=0.1,
+            help='v172: softmax temperature on per-patch text-similarity target. '
+                 'Smaller -> sharper target routing.')
+        loss_arg.add_argument('--routing_text_skip_global',
+            action='store_true', default=False,
+            help='v172: skip cb0 (C_global) from routing supervision. '
+                 'C_global is supposed to aggregate full-image content; per-patch '
+                 'text supervision does not apply.')
         loss_arg.add_argument('--lambda_codeword_text_proto',
             type=float, default=0.0,
             help='v123: weight for codeword-level text prototype alignment. '

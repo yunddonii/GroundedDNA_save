@@ -211,6 +211,10 @@ class DNACodonHashLoss(nn.Module):
         self.text_code_kl_tau_t            = float(getattr(cfg, "text_code_kl_tau_t",            0.07))
         self.text_code_kl_conf_threshold   = float(getattr(cfg, "text_code_kl_conf_threshold",   0.0))
         self.text_code_kl_skip_global      = bool(getattr(cfg, "text_code_kl_skip_global",       False))
+        # v172: routing-text per-patch supervision
+        self.lambda_routing_text           = float(getattr(cfg, "lambda_routing_text",           0.0))
+        self.routing_text_tau              = float(getattr(cfg, "routing_text_tau",              0.1))
+        self.routing_text_skip_global      = bool(getattr(cfg, "routing_text_skip_global",       False))
         # v91 (text-to-DNA-hash matching): MSE between image-derived
         # continuous_code and text-derived continuous_code (latter produced
         # by the model's parallel text path through the shared quantizer
@@ -1015,6 +1019,63 @@ class DNACodonHashLoss(nn.Module):
         if not losses:
             return z_visual.new_zeros(())
         return torch.stack(losses).mean()
+
+    def _loss_routing_text_per_codebook(
+        self,
+        visual_tokens:    torch.Tensor,    # [B, P, D] post-adapter pre-routing
+        text_part_tokens: torch.Tensor,    # [B, M, D] per-slot text (post-adapter)
+        routing_matrix:   torch.Tensor,    # [B, M, P] Sinkhorn assignment weights
+        tau: float = 0.1,
+        skip_global: bool = True,
+    ) -> torch.Tensor:
+        """v172: per-patch routing supervision via text similarity.
+
+        For each (image i, codebook m, patch p):
+            sim[i, m, p] = cos(text_part[i, m], visual_token[i, p])
+            target[i, m, p] = softmax_p(sim / tau)
+        Loss: KL(target.detach() || routing_matrix) averaged over (B, M_local).
+
+        This closes the gap that text_code_kl supervises codeword-INDEX
+        distribution but not which patches feed each codebook. Gradient
+        flows through routing_matrix back to Sinkhorn cost, encoder
+        + visual_adapter. text_part_tokens are detached (text path
+        supervised by other text-side losses).
+        """
+        assert visual_tokens.dim() == 3, (
+            f"visual_tokens must be [B, P, D], got {tuple(visual_tokens.shape)}"
+        )
+        assert text_part_tokens.dim() == 3, (
+            f"text_part_tokens must be [B, M, D], got {tuple(text_part_tokens.shape)}"
+        )
+        assert routing_matrix.dim() == 3, (
+            f"routing_matrix must be 3D, got {tuple(routing_matrix.shape)}"
+        )
+        B, P, D = visual_tokens.shape
+        Bt, M, Dt = text_part_tokens.shape
+        # Model outputs routing_matrix as [B, P, M]; transpose to [B, M, P].
+        if routing_matrix.shape[1] == P and routing_matrix.shape[2] == M:
+            routing_matrix = routing_matrix.transpose(1, 2).contiguous()  # [B, M, P]
+        Br, Mr, Pr = routing_matrix.shape
+        assert B == Bt == Br and D == Dt and M == Mr and P == Pr, (
+            f"shape mismatch visual={tuple(visual_tokens.shape)} "
+            f"text={tuple(text_part_tokens.shape)} routing={tuple(routing_matrix.shape)}"
+        )
+        # Normalize for cosine geometry.
+        v_n = F.normalize(visual_tokens, dim=-1)                  # [B, P, D]
+        t_n = F.normalize(text_part_tokens, dim=-1)               # [B, M, D]
+        # Per-(b, m, p) cosine similarity.
+        sim = torch.einsum('bmd,bpd->bmp', t_n, v_n)              # [B, M, P]
+        # Target routing distribution over patches per (b, m).
+        target = F.softmax(sim / max(float(tau), 1e-6), dim=-1)   # [B, M, P]
+        # Actual routing (Sinkhorn assignment) normalized over P.
+        actual = routing_matrix.clamp_min(1e-9)
+        actual = actual / actual.sum(dim=-1, keepdim=True)
+        # Forward KL: KL(target || actual) = sum target * (log target - log actual)
+        log_actual = actual.log()
+        log_target = target.detach().clamp_min(1e-9).log()
+        kl_per_cb = (target.detach() * (log_target - log_actual)).sum(dim=-1)   # [B, M]
+        start_m = 1 if skip_global else 0
+        return kl_per_cb[:, start_m:].mean()
 
     def _loss_proto_cluster_per_codebook(
         self,
@@ -2574,6 +2635,19 @@ class DNACodonHashLoss(nn.Module):
                     codebook_active_mask=outputs.get("codebook_active_mask"),
                 )
 
+        # v172: per-patch routing supervision via text similarity.
+        loss_routing_text = u.new_zeros(())
+        if self.lambda_routing_text > 0.0:
+            v_rt = outputs.get("visual_tokens")        # [B, P, D]
+            t_rt = outputs.get("text_part_tokens")     # [B, M, D]
+            r_rt = outputs.get("routing_matrix")       # [B, M, P]
+            if v_rt is not None and t_rt is not None and r_rt is not None:
+                loss_routing_text = self._loss_routing_text_per_codebook(
+                    v_rt, t_rt, r_rt,
+                    tau=self.routing_text_tau,
+                    skip_global=self.routing_text_skip_global,
+                )
+
         # v138: prototype-cluster paired-view InfoNCE on codebook_distances.
         # Activates when --lambda_proto_cluster > 0 AND paired view is present
         # AND both views expose `codebook_distances`. Operates per codebook:
@@ -2732,6 +2806,7 @@ class DNACodonHashLoss(nn.Module):
             + self.lambda_swav_assign     * loss_swav_assign_v
             + self.lambda_proto_cluster   * loss_proto_cluster_v
             + self.lambda_text_code_kl    * loss_text_code_kl
+            + self.lambda_routing_text    * loss_routing_text
         )
 
         # v106: codeword <-> DNA codon bijection losses (None-safe).
@@ -2876,6 +2951,7 @@ class DNACodonHashLoss(nn.Module):
             "loss_cibhash_kl":     loss_cibhash_kl_v,
             "loss_proto_cluster":  loss_proto_cluster_v,
             "loss_text_code_kl":   loss_text_code_kl,
+            "loss_routing_text":   loss_routing_text,
             "loss_swav_assign":    loss_swav_assign_v,
             "loss_ortho_text":   loss_ortho_text,
             "loss_dna":          loss_dna,

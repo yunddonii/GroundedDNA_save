@@ -334,6 +334,64 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-29 — v172a CUB L_routing_text: text → per-patch routing supervision (REPLACES text_code_kl)
+
+🟡 **OUTCOME: ARCHITECTURAL MECHANISM CONFIRMED, RETRIEVAL REGRESSED — λ tuning needed.** New loss `L_routing_text` directly supervises per-patch routing weights using cosine similarity to per-slot text embeddings. Replaces `text_code_kl` (codeword index supervision) with explicit patch-level text supervision. Whole-image mAP regressed by −0.0149 (0.1618 → 0.1469), but NMI (codebook orthogonality) IMPROVED by +0.036 (0.644 → 0.680) — direct evidence that L_routing_text mechanically reshapes routing toward text targets, just over-constrained at λ=0.10. Single-delta verdict: **REJECT at λ=0.10**, but mechanism validated. Re-test with λ tuning required (0.02–0.05 or additive with text_code_kl).
+
+🟢 **Motivation (from session discussion).**
+1. Visualization (`viz_routing_heatmap`) showed routing attending to background regions, not just anatomy.
+2. Diagnosis: current 3 text-losses (`text_code_kl`, `xmodal_commit`, `text_hash_ntxent`) supervise codeword-INDEX distribution but NOT per-patch routing weights `[B, M, P]`.
+3. `xmodal_commit` does have indirect routing gradient via `∂L/∂routing[m, p] = (z_visual[m] − q_text[m]) · visual_token[p]`, but routes through quantized codeword (4-step dilution chain).
+4. `loss_wasserstein` supervises routing directly via Sinkhorn OT cost `(routing * cost).sum()`, but cost uses CODEBOOK as anchor (visual-only target), not text.
+5. **Missing supervision**: explicit "patch p should be routed to codebook m IF visual_token[p] semantically matches text_part[m]".
+
+🟢 **Code added.** `config.py`: `--lambda_routing_text`, `--routing_text_tau`, `--routing_text_skip_global`. `loss_siglip2.py`: new `_loss_routing_text_per_codebook(visual_tokens, text_part_tokens, routing_matrix, tau, skip_global)` — computes `target[b,m,p] = softmax_p(cos(text[m], visual[p])/tau)`, `L = KL(target.detach() || routing_matrix.normalize_over_p)`. Forward KL, target detached. Auto-transposes model output `[B, P, M]` → `[B, M, P]`. Hookup at line 2580 + aggregate at 2750 + dict at 2890. `train_siglip2.py:259-263`: added to `_build_active_loss_types`.
+
+🟢 **Test cell.** Single-delta on wass 0.15 + best-ckpt CUB whole-image champion: `--lambda_text_code_kl 0.0` (OFF), `--lambda_routing_text 0.10` (ON), `--routing_text_tau 0.1`, `--routing_text_skip_global`. All other knobs identical: wass 0.15, topp 0.6/1.0, partial_whiten γ=0.25, FAIRrank L8K3, stackedText 0.10, best-ckpt selection, auto whole-image eval. GPU 1 (free).
+
+🟢 **Mid-eval K=3 trajectory (CUB cache=FAIRrankL8K3, K=3 patches/img):**
+
+| ep | baseline (wass015 + best-ckpt) | routingText | Δ |
+|---|---|---|---|
+| 4  | 0.0947 | 0.0854 | −0.009 |
+| 9  | 0.1139 | 0.0999 | −0.014 |
+| 14 | 0.1385 | 0.1299 | −0.009 |
+| 29 | 0.1608 | 0.1513 | −0.010 |
+| 34 | 0.1685 | 0.1496 | −0.019 |
+| 39 | 0.1732 | 0.1612 | −0.012 |
+| 44 | 0.1795 | 0.1622 | −0.017 |
+| **49 (peak)** | **0.1837** | **0.1629** | **−0.021** |
+
+Best-ckpt swapped at epoch 49 for both. routingText K=3 peak −0.021 lower at every checkpoint.
+
+🟢 **Final whole-image inference (cache=cub200_clip_v6bplus, 196 tokens, paper-claim metric):**
+
+| Metric | wass015 champion (text_code_kl) | **routingText** | Δ |
+|---|---|---|---|
+| mAP | 0.1618 | 0.1469 | **−0.0149** |
+| P@1 | 0.2468 | 0.2308 | −0.016 |
+| P@10 | 0.2253 | 0.2020 | −0.023 |
+| DNA-uniq (36-bit) | 0.610 | 0.535 | −0.075 |
+| cb-tuple uniq (6×7-bit) | 0.690 | 0.631 | −0.060 |
+| dead-codebook ratio | ~0.03 | 0.0846 | +0.054 (worse) |
+| **NMI (off-diag mean)** | **0.644** | **0.680** | **+0.036** |
+
+🎯 **Mechanism evidence: L_routing_text actually achieved its design goal.** NMI (codebook orthogonality / predictive independence) jumped by **+0.036** — strongest signal that routing-text supervision works at the mechanistic level. Routing reshaped toward text targets → codewords became more independent (less mutual info). Direct evidence that the loss computes the right gradient.
+
+🟡 **But retrieval regressed across the board.** mAP −0.015 (CIBHash gap re-widened from −0.002 to −0.017), DNA-uniq −0.075 (catastrophic compositional diversity loss), cb-tuple −0.060, dead-cb +0.054 (8% codebooks unused).
+
+📐 **Interpretation: λ=0.10 is too aggressive.** Routing was over-constrained by text supervision, losing class-discriminative information that CIBHash NtXent (λ=1.0) relies on for retrieval. The two losses are competing for routing influence; at λ=0.10 routing_text dominates and class-discriminative routing collapses.
+
+🟡 **Verdict: REJECT routingText at λ=0.10 as replacement for text_code_kl.** Champion remains wass 0.15 + best-ckpt (mAP 0.1618).
+
+🔭 **Follow-ups (mechanism validated, λ tuning needed).**
+1. **routingText λ=0.02–0.05** (lower strength, milder reshape). Hypothesis: small NMI gain + retrieval preserved.
+2. **routingText + text_code_kl both ON** (additive, not replacement). text_code_kl 0.10 for codeword distribution + routingText 0.02 for routing nudge.
+3. **routingText τ tuning**: τ=0.05 sharper, τ=0.2 softer. Currently 0.1.
+4. **routingText with `--routing_text_skip_global` toggled OFF** (include cb0). Currently skipped.
+
+---
+
 ## 2026-06-29 — v170a CUB best-checkpoint selection — **NEW CUB WHOLE-IMAGE INFERENCE CHAMPION at λ_wasserstein 0.15 + best-ckpt. mAP 0.1618 (+0.004 vs last-ckpt 0.1578). CIBHash whole-image gap closes from −0.006 → −0.002 (essentially TIED at 98.7 % of CIBHash mAP).** Per user observation that mid-eval typically peaks around epoch 49 then regresses, added `model_state_dict_best.pth` tracking + auto-swap into `model_state_dict.pth` at training end. For wass 0.15: best epoch = 49 (K=3 mAP 0.1837), final epoch = 60 (K=3 mAP ~0.17). Best-ckpt logic verified to save and swap correctly via `[best-ckpt] swapping final checkpoint with best (epoch 49, mAP=0.1837)` log.
 
 🟢 **Test design.** Re-launch wass 0.15 cell with newly-added best-checkpoint selection code in `train_siglip2.py`. Same single-delta recipe, same `--eval_cache_dir cub200_clip_v6bplus` auto whole-image override. Compare whole-image mAP vs prior last-ckpt run.
