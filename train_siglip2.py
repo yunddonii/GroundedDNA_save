@@ -1003,15 +1003,31 @@ def main(args: Config):
             qwen_jsonl = getattr(args, "qwen_text_cache_path", None)
             n_routing  = int(getattr(args, "viz_routing_samples", 12))
             n_tsne     = int(getattr(args, "viz_tsne_samples",    2000))
+            # When --eval_cache_dir is set, rebuild a viz_trainset on the
+            # whole-image cache so the routing heatmap reflects the
+            # paper-claim inference mode (1 image, 196 tokens) rather than
+            # the training-cache K-crop layout.
+            _viz_trainset = trainset
+            _eval_cache_for_viz = getattr(args, "eval_cache_dir", None)
+            if _eval_cache_for_viz and os.path.exists(_eval_cache_for_viz):
+                try:
+                    print(f"[visualize] rebuilding viz_trainset on eval cache: {_eval_cache_for_viz}")
+                    _viz_trainset, _, _ = load_dataset(
+                        args.dataset_dir, args.dataset, setting='setting1',
+                        train_transform=transform, test_transform=test_transform,
+                        load_train=True, load_database=False, load_test=False,
+                        return_index=True, return_paired_aug_img=False,
+                        qwen_text_cache_path=qwen_jsonl,
+                        siglip2_feature_cache_dir=_eval_cache_for_viz,
+                        force_pixel_decode=False,
+                    )
+                except Exception as e:
+                    print(f"[visualize] viz_trainset rebuild failed: {e} — falling back to trainset")
+                    _viz_trainset = trainset
             try:
-                # Use trainset for routing visualization: the Qwen V4 cache
-                # is generated for the training subset of each dataset. For
-                # Flickr25k the V4 cache covers all 25K images so either split
-                # would resolve text labels, but for MSCOCO the cache only
-                # holds the 10K train subset -- sampling from testset there
-                # produces empty per-codebook captions in the heatmap.
+                # Use viz_trainset (whole-image cache when override is set).
                 visualize_routing(
-                    model, trainset,
+                    model, _viz_trainset,
                     save_path=os.path.join(args.save_result_path, "viz_routing_heatmap.png"),
                     qwen_jsonl_path=qwen_jsonl,
                     num_samples=n_routing,

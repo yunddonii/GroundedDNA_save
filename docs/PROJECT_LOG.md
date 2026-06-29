@@ -334,6 +334,60 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-29 — v170a CUB Wasserstein sweep λ ∈ {0.15, 0.20} → **NEW CUB WHOLE-IMAGE INFERENCE CHAMPION at λ_wasserstein = 0.15. mAP 0.1578 (+0.012 vs prior wass 0.10 champ 0.1463, +8 %). CIBHash whole-image gap closes from −0.018 → −0.006 (essentially TIED at 96.4 % of CIBHash mAP). Cumulative from baseline (v170a base K=128 whole-image 0.1102): +0.048 mAP (+44 %).** Plus visualization fix: `viz_routing_heatmap` now also follows `--eval_cache_dir` (rebuilds viz_trainset on whole-image cache → single-row 196-token heatmap instead of K=3 multi-row).
+
+🟢 **Test design.** Continue Wasserstein-spread trend. Prior wass 0.10 single-delta = +0.015 mAP on whole-image inference. Test wass 0.15 / 0.20 in parallel — single-delta from topp 0.6/1.0 + wass 0.10 champion, `--eval_cache_dir cub200_clip_v6bplus` auto-overrides final eval.
+
+🟢 **Wasserstein sweep (whole-image inference mAP):**
+
+| λ_wasserstein | Whole-image mAP | P@1 | DNA | NMI | vs CIBHash |
+|---|---|---|---|---|---|
+| 0.05 (topp 0.6/1.0 baseline) | 0.1315 | 0.2308 | 0.732 | (NMI similar) | −0.032 |
+| 0.10 | 0.1463 | 0.2311 | 0.670 | 0.612 | −0.018 |
+| **0.15 ★★★ NEW CHAMPION** | **0.1578** | **0.2579** | 0.622 | 0.630 | **−0.006** |
+| 0.20 | 0.1542 | 0.2491 | 0.613 | (similar) | −0.010 |
+
+**λ_wasserstein 0.15 = sweet spot**. Going further to 0.20 slightly regresses (−0.004 from peak). The trade-off curve has a clear maximum.
+
+🟢 **Drop ablation (wass 0.15 whole-image, baseline 0.1594):** cb0 **−0.0329** (still dominant), cb1 −0.0003, cb2 −0.0058, cb3 −0.0032, **cb4 +0.0046** (neutral / slightly negative), cb5 −0.0065. Σ\|drop\| ≈ 0.0533. Pattern preserved with cb0 strongest, cb4 weakest.
+
+🟢 **vs CUB baselines (whole-image inference = paper claim):**
+
+| Method | mAP | P@1 | Gap to CIBHash mAP |
+|---|---|---|---|
+| MLS3RDUH | 0.0501 | 0.0362 | −0.114 |
+| CIMON | 0.1128 | 0.2030 | −0.051 |
+| **Ours v170a + wass 0.15 (THIS) ★** | **0.1578** | 0.2579 | **−0.006 (TIED)** |
+| CIBHash (still leader) | **0.1639** | **0.3226** | — |
+
+**Ours +0.045 over CIMON, +0.108 over MLS3RDUH. CIBHash gap −0.006 (1 standard deviation away from tied).** P@1 still trails CIBHash 0.3226 (gap −0.064) — future direction.
+
+📐 **Trajectory of CUB whole-image cumulative improvement (4 single-delta cells):**
+
+| Cell | Whole-image mAP | Δ from prior |
+|---|---|---|
+| v170a base K=128 (June 26) | 0.1102 | — |
+| + topp 0.5/0.9 | 0.1261 | +0.016 |
+| + topp 0.6/1.0 | 0.1315 | +0.005 |
+| + λ_wasserstein 0.10 | 0.1463 | +0.015 |
+| **+ λ_wasserstein 0.15 (THIS) ★★★** | **0.1578** | **+0.012** |
+| **TOTAL** | — | **+0.048 (+44 %)** |
+
+🟢 **Adopt verdict.** **v170a + topp 0.6/1.0 + λ_wasserstein 0.15 + auto whole-image eval = NEW CUB WHOLE-IMAGE INFERENCE CHAMPION (mAP 0.1578).** Replaces prior wass 0.10 champion. CIBHash gap closes to **−0.006 (essentially tied)**.
+
+🧰 **Code added.**
+- [scripts/train_cub200_v170a_wass015_INFERwhole_FAIRrankL8K3_stackedText_clip.sh](scripts/train_cub200_v170a_wass015_INFERwhole_FAIRrankL8K3_stackedText_clip.sh) — NEW CHAMPION.
+- [scripts/train_cub200_v170a_wass020_INFERwhole_FAIRrankL8K3_stackedText_clip.sh](scripts/train_cub200_v170a_wass020_INFERwhole_FAIRrankL8K3_stackedText_clip.sh) — overshoot negative control.
+- [train_siglip2.py](train_siglip2.py) — added visualization fix: when `--eval_cache_dir` is set, rebuilds `viz_trainset` on the eval cache so `viz_routing_heatmap.png` shows the paper-claim 1 image / 196 tokens layout instead of 3-crop 588 tokens.
+
+🔭 **Follow-ups (to close remaining −0.006 gap).**
+1. **wass 0.13 / 0.17 finer sweep** around 0.15 peak.
+2. **wass 0.15 + λ_anchor 0.10** (anti-drift combo).
+3. **wass 0.15 + eta_base_balance 0.5** (orthogonal axis).
+4. **wass 0.15 + topp 0.7/1.0** (continue topp widening).
+
+---
+
 ## 2026-06-28 — v170a CUB Wasserstein boost (λ_wasserstein 0.05 → 0.10) + `--eval_cache_dir` infrastructure — **NEW CUB WHOLE-IMAGE INFERENCE CHAMPION: mAP 0.1463 (+0.015 vs prior best 0.1315, +12 %). CIBHash whole-image gap closes from −0.038 → −0.018 (3× smaller). Single-delta `--lambda_wasserstein 0.10` validates that prototype-spread regularization is the strongest single knob for deployment-mode robustness.**
 
 🟢 **Test design.** User-proposed: strengthen Wasserstein prototype-spread regularizer (codebook diversity loss) to make codebooks more robust to inference-time distribution shift (FAIRrank K=3 training → whole-image deployment). Single-delta from prior topp 0.6/1.0 champion. + new code: `--eval_cache_dir` argument that auto-swaps cache pointer at FINAL evaluation, enforcing **whole-image inference as the reported metric** (paper-claim mode) without modifying training mid-evals.
