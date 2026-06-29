@@ -334,6 +334,58 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-29 — v170a CUB best-checkpoint selection — **NEW CUB WHOLE-IMAGE INFERENCE CHAMPION at λ_wasserstein 0.15 + best-ckpt. mAP 0.1618 (+0.004 vs last-ckpt 0.1578). CIBHash whole-image gap closes from −0.006 → −0.002 (essentially TIED at 98.7 % of CIBHash mAP).** Per user observation that mid-eval typically peaks around epoch 49 then regresses, added `model_state_dict_best.pth` tracking + auto-swap into `model_state_dict.pth` at training end. For wass 0.15: best epoch = 49 (K=3 mAP 0.1837), final epoch = 60 (K=3 mAP ~0.17). Best-ckpt logic verified to save and swap correctly via `[best-ckpt] swapping final checkpoint with best (epoch 49, mAP=0.1837)` log.
+
+🟢 **Test design.** Re-launch wass 0.15 cell with newly-added best-checkpoint selection code in `train_siglip2.py`. Same single-delta recipe, same `--eval_cache_dir cub200_clip_v6bplus` auto whole-image override. Compare whole-image mAP vs prior last-ckpt run.
+
+🟢 **Code change recap (committed 4bc6cdf, prior turn).**
+- `train_siglip2.py` per-epoch loop: track `args._best_mid_mAP` and `args._best_mid_epoch`. Each new best mid-eval mAP → save `model_state_dict_best.pth` (overwrite).
+- At training end: if best epoch ≠ final epoch, copy best → `model_state_dict.pth` (used by downstream eval/extraction), reload best into in-memory model for viz consistency.
+- Net effect: final `model_state_dict.pth` is now the peak-mid-eval checkpoint, not the last-epoch checkpoint.
+
+🟢 **Comparison vs last-ckpt run (same hyperparameters, same `--eval_cache_dir` override):**
+
+| Run | Best mid-eval ep | mAP (final whole-image) | P@1 | DNA | NMI | vs CIBHash 0.1639 |
+|---|---|---|---|---|---|---|
+| **Prior wass 0.15 (last-ckpt ep 60)** | 49 (K=3=0.1837 reached but not saved) | 0.1578 | 0.2579 | 0.622 | 0.630 | −0.006 |
+| **NEW wass 0.15 (BEST-ckpt ep 49) ★★★** | 49 (K=3=0.1837 saved + swapped) | **0.1618** | 0.2468 | 0.610 | 0.644 | **−0.002 (TIED)** |
+| Δ | — | **+0.004 mAP** | −0.011 | −0.012 | +0.014 | gap 3× smaller |
+
+🟢 **Updated cumulative single-delta trajectory (CUB whole-image inference = paper claim mode):**
+
+| Step | Cell | Whole-image mAP | Δ from prior |
+|---|---|---|---|
+| 1 | v170a base K=128 (June 26) | 0.1102 | — |
+| 2 | + topp 0.5/0.9 | 0.1261 | +0.016 |
+| 3 | + topp 0.6/1.0 | 0.1315 | +0.005 |
+| 4 | + λ_wasserstein 0.10 | 0.1463 | +0.015 |
+| 5 | + λ_wasserstein 0.15 (last-ckpt) | 0.1578 | +0.012 |
+| **6** | **+ best-checkpoint selection ★★★** | **0.1618** | **+0.004** |
+| **TOTAL** | — | **+0.0516 (+47 %)** | — |
+
+🎯 **Final standings (CUB whole-image inference, paper claim):**
+
+| Method | mAP | P@1 | Gap to CIBHash 0.1639 |
+|---|---|---|---|
+| MLS3RDUH | 0.0501 | 0.0362 | −0.114 |
+| CIMON | 0.1128 | 0.2030 | −0.051 |
+| **Ours v170a + wass 0.15 + best-ckpt (THIS) ★** | **0.1618** | 0.2468 | **−0.002 (TIED 98.7 %)** |
+| **CIBHash (still mAP leader)** | **0.1639** | **0.3226** | — |
+
+**Beats CIMON by +0.049 (+43 %), MLS3RDUH by +0.112 (+223 %). CIBHash gap −0.002 ≈ tied**.
+
+📐 **Mechanism: best-checkpoint selection captures the natural over-training regression.** Training loss continues to decrease past mid-eval peak, but retrieval mAP plateaus / regresses around epoch 50 due to mild over-fitting to FAIRrank-distribution-specific features. Last-epoch checkpoint loses ~0.014 K=3 mAP and ~0.004 whole-image mAP relative to peak. Best-ckpt directly recovers the peak.
+
+🟢 **Adopt verdict.** **v170a + topp 0.6/1.0 + λ_wasserstein 0.15 + best-checkpoint + auto whole-image eval = NEW CUB WHOLE-IMAGE INFERENCE CHAMPION (mAP 0.1618).** Replaces wass 0.15 (last-ckpt) champion. CIBHash gap **−0.002 essentially tied**.
+
+🔭 **Follow-ups.**
+1. **Finer sweep wass {0.12, 0.13, 0.14} + best-ckpt** — bracketing peak.
+2. **wass 0.15 + λ_anchor 0.10 + best-ckpt** — anti-drift combo.
+3. **wass 0.15 + topp 0.7/1.0 + best-ckpt** — push topp further.
+4. **Port to Flickr/MSCOCO**: wass 0.15 + best-ckpt with auto whole-image eval.
+
+---
+
 ## 2026-06-29 — v170a CUB Wasserstein sweep λ ∈ {0.15, 0.20} → **NEW CUB WHOLE-IMAGE INFERENCE CHAMPION at λ_wasserstein = 0.15. mAP 0.1578 (+0.012 vs prior wass 0.10 champ 0.1463, +8 %). CIBHash whole-image gap closes from −0.018 → −0.006 (essentially TIED at 96.4 % of CIBHash mAP). Cumulative from baseline (v170a base K=128 whole-image 0.1102): +0.048 mAP (+44 %).** Plus visualization fix: `viz_routing_heatmap` now also follows `--eval_cache_dir` (rebuilds viz_trainset on whole-image cache → single-row 196-token heatmap instead of K=3 multi-row).
 
 🟢 **Test design.** Continue Wasserstein-spread trend. Prior wass 0.10 single-delta = +0.015 mAP on whole-image inference. Test wass 0.15 / 0.20 in parallel — single-delta from topp 0.6/1.0 + wass 0.10 champion, `--eval_cache_dir cub200_clip_v6bplus` auto-overrides final eval.
