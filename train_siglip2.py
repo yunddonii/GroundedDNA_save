@@ -892,6 +892,19 @@ def main(args: Config):
         if ((e + 1) % args.print_epoch) == 0:
             print_one_epoch_info(e, [train_result, val_result])
 
+        # Track best mid-eval mAP checkpoint. SigLIP2 backbone is frozen so
+        # only the trainable adapter / codebook params get saved — small
+        # disk footprint (<300 MB), safe to keep alongside final.
+        _eval_mAP = float(eval_row.get("eval_mAP", -1.0)) if eval_row else -1.0
+        if _eval_mAP > getattr(args, "_best_mid_mAP", -1.0):
+            args._best_mid_mAP = _eval_mAP
+            args._best_mid_epoch = int(e)
+            best_model_path = os.path.join(args.save_model_state_path, "model_state_dict_best.pth")
+            best_crit_path  = os.path.join(args.save_model_state_path, "criterion_state_dict_best.pth")
+            torch.save(model.state_dict(),     best_model_path)
+            torch.save(criterion.state_dict(), best_crit_path)
+            print(f"[best-ckpt] new best mid-eval mAP={_eval_mAP:.4f} at epoch {e} — saved to model_state_dict_best.pth")
+
         # Save ONLY the final-epoch checkpoint. Per-epoch intermediates were
         # ~1.5 GB each (SigLIP2 backbone serialized), filling /home quickly.
         # `args.best_save` is now a no-op for intermediate epochs.
@@ -902,6 +915,20 @@ def main(args: Config):
             # Persist the criterion too so its EMA buffer survives a resume.
             torch.save(criterion.state_dict(), crit_path)
             print(f"Final checkpoint saved to `{args.save_model_state_path}`")
+            # If best-checkpoint differs from final, replace final with best
+            # for the downstream evaluation / extraction. Best is preserved
+            # as model_state_dict_best.pth.
+            if hasattr(args, "_best_mid_epoch") and args._best_mid_epoch != e:
+                best_model_path = os.path.join(args.save_model_state_path, "model_state_dict_best.pth")
+                if os.path.exists(best_model_path):
+                    import shutil
+                    print(f"[best-ckpt] swapping final checkpoint with best (epoch {args._best_mid_epoch}, mAP={args._best_mid_mAP:.4f}) for final eval")
+                    shutil.copy2(best_model_path, model_path)
+                    best_crit_path = os.path.join(args.save_model_state_path, "criterion_state_dict_best.pth")
+                    if os.path.exists(best_crit_path):
+                        shutil.copy2(best_crit_path, crit_path)
+                    # Reload model from best checkpoint for in-memory use too
+                    model.load_state_dict(torch.load(best_model_path, map_location=args.device, weights_only=False))
 
     args.save_arg()
 
