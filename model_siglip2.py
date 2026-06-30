@@ -1344,6 +1344,25 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.foreground_text_mask_source: str = str(
             getattr(args, "foreground_text_mask_source", "global")
         )
+        # v176a: soft text-evidence routing prior. Instead of hard-pruning
+        # background tokens, lower the Sinkhorn cost for visual patches that
+        # already match the routed text/codebook centroid. This is a routing
+        # bias only; the Wasserstein loss still reports the original cost.
+        self.routing_text_evidence_beta: float = float(
+            getattr(args, "routing_text_evidence_beta", 0.0)
+        )
+        self.routing_text_evidence_warmup_epochs: int = int(
+            getattr(args, "routing_text_evidence_warmup_epochs", 0)
+        )
+        if self.routing_text_evidence_beta < 0.0:
+            raise ValueError(
+                f"routing_text_evidence_beta must be >= 0, got {self.routing_text_evidence_beta}"
+            )
+        if self.routing_text_evidence_warmup_epochs < 0:
+            raise ValueError(
+                "routing_text_evidence_warmup_epochs must be >= 0, got "
+                f"{self.routing_text_evidence_warmup_epochs}"
+            )
         self.route_global_text: bool = bool(getattr(args, "route_global_text", False))
         self.routed_cls_add_gamma: float = float(getattr(args, "routed_cls_add_gamma", 0.0))
         self.routed_cls_add_scope: str = str(getattr(args, "routed_cls_add_scope", "local"))
@@ -1871,6 +1890,15 @@ class SigLIP2SemanticOTModel(nn.Module):
         beta = max(0.0, min(float(self.routing_codebook_choice_beta), 1.0))
         warmup = max(int(self.routing_codebook_choice_warmup_epochs), 0)
         if warmup <= 0:
+            return beta
+        t = min(max(self._current_epoch, 0) + 1, warmup) / float(warmup)
+        return beta * t
+
+    def _current_routing_text_evidence_beta(self) -> float:
+        """Return the current v176a soft text-evidence bias strength."""
+        beta = max(0.0, float(getattr(self, "routing_text_evidence_beta", 0.0)))
+        warmup = max(int(getattr(self, "routing_text_evidence_warmup_epochs", 0)), 0)
+        if beta <= 0.0 or warmup <= 0:
             return beta
         t = min(max(self._current_epoch, 0) + 1, warmup) / float(warmup)
         return beta * t
@@ -2503,6 +2531,26 @@ class SigLIP2SemanticOTModel(nn.Module):
             "part_mask":        route_part_mask_used_aug,
         }
         if self.router_type == "sinkhorn":
+            cur_text_evidence_beta = self._current_routing_text_evidence_beta()
+            if cur_text_evidence_beta > 0.0:
+                # v176a: soft evidence bias for Sinkhorn routing.
+                # visual_tokens_for_routing: [B, N, D]
+                # route_centroids_aug:       [B, M_route, D]
+                # cost_bias:                 [B, N, M_route]
+                _v_ev = F.normalize(visual_tokens_for_routing, dim=-1)
+                _t_ev = F.normalize(route_centroids_aug, dim=-1)
+                cost_bias = torch.einsum("bnd,bmd->bnm", _v_ev, _t_ev)
+                assert cost_bias.shape == (
+                    visual_tokens_for_routing.shape[0],
+                    visual_tokens_for_routing.shape[1],
+                    route_centroids_aug.shape[1],
+                ), (
+                    "routing text-evidence bias must be [B, N, M_route], got "
+                    f"{tuple(cost_bias.shape)}"
+                )
+                if self.use_null_centroid and self.null_centroid is not None:
+                    cost_bias[..., -1] = 0.0
+                router_kwargs["cost_bias"] = cur_text_evidence_beta * cost_bias.detach()
             cur_eps = self._current_sinkhorn_epsilon()
             if cur_eps is not None:
                 router_kwargs["epsilon_override"] = cur_eps

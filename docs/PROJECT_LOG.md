@@ -334,6 +334,92 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-07-01 — v176a CUB soft text-evidence Sinkhorn bias — **NEW internal CUB whole-image champion, but only marginal: mAP 0.1623 (+0.0006 vs v170a best-ckpt 0.1618), P@1 0.2582 (+0.011). K=3 mid-eval improves more clearly (0.1901 vs 0.1837), confirming soft evidence bias > hard foreground masking. CIBHash remains ahead by 0.0016 mAP.**
+
+🟡 **Status: promising but not decisive.** v176a replaces the failed hard foreground-mask direction with a soft text-evidence cost bias inside Sinkhorn routing. It is the best *our-model* CUB whole-image cell so far, but the gain over v170a is too small to claim a solved grounding/localization contribution by itself.
+
+🟢 **Motivation.** `viz_routing_heatmap` showed background activation and mismatch between text-described evidence and selected visual tokens. v175 hard foreground masking (`fgMaskPerSlotUnion05`) confirmed that per-slot foreground evidence is useful, but hard pruning deleted too much retrieval signal and regressed whole-image mAP. v176a tests the gentler alternative: bias routing toward text-matching visual evidence without removing tokens.
+
+🟢 **Design.** Single-delta from v170a wass015 + best-ckpt champion:
+
+| Component | v170a best-ckpt | **v176a** |
+|---|---|---|
+| Token policy | no foreground/text-evidence mask | no hard mask; soft Sinkhorn cost bias |
+| Routing cost | `cost = 1 - cos(patch, centroid)` | `kernel_cost = cost - beta * cos(patch, routed_text_centroid)` |
+| Bias strength | — | `--routing_text_evidence_beta 0.10` |
+| Schedule | — | linear warmup over `--routing_text_evidence_warmup_epochs 20` |
+| Wasserstein reporting/loss | original cost | original cost unchanged; bias affects only Sinkhorn kernel |
+| Base recipe | K=128, FAIRrank L8K3, stackedText, topp 0.6/1.0, wass 0.15, best-ckpt | identical |
+
+🧰 **Code added.**
+- `models/semantic_router.py`: `SemanticSinkhornRouter.forward(..., cost_bias=None)`; positive `cost_bias` lowers only `kernel_cost`, while `ot_cost = (P * cost)` still uses the original cosine cost.
+- `model_siglip2.py`: `_current_routing_text_evidence_beta()` warmup helper and `[B,N,M_route]` text-evidence bias from normalized `visual_tokens_for_routing` and `route_centroids_aug`. Bias is detached to keep this as a routing prior, not an extra feature-level loss.
+- `config.py`: `--routing_text_evidence_beta`, `--routing_text_evidence_warmup_epochs`.
+- `scripts/train_cub200_v176a_v170a_softEvidenceBeta010_FAIRrankL8K3_clip.sh`.
+
+🟢 **K=3 mid-eval trajectory (training cache = FAIRrank L8K3).**
+
+| ep | K=3 mAP | DNA uniq | dead | baseH | per-cb uniq |
+|---:|---:|---:|---:|---:|---:|
+| 4  | 0.0950 | 0.5269 | 0.3177 | 0.7658 | 0.0057 |
+| 9  | 0.1065 | 0.5931 | 0.1042 | 0.9084 | 0.0070 |
+| 14 | 0.1436 | 0.4710 | 0.2083 | 0.8119 | 0.0066 |
+| 19 | 0.1517 | 0.4750 | 0.1849 | 0.8316 | 0.0073 |
+| 24 | 0.1625 | 0.4757 | 0.1706 | 0.8211 | 0.0079 |
+| 29 | 0.1613 | 0.4974 | 0.1367 | 0.8559 | 0.0083 |
+| 34 | 0.1597 | 0.5019 | 0.1354 | 0.8512 | 0.0084 |
+| 39 | 0.1787 | 0.5142 | 0.1302 | 0.8359 | 0.0087 |
+| **44** | **0.1901** | 0.5953 | **0.0430** | **0.9472** | **0.0093** |
+| 49 | 0.1792 | 0.6403 | 0.0573 | 0.9360 | 0.0091 |
+| 54 | 0.1693 | 0.6684 | 0.0716 | 0.9211 | 0.0093 |
+| 59 | 0.1768 | **0.6877** | 0.0573 | 0.9352 | 0.0092 |
+
+Best checkpoint swapped at **epoch 44** (`eval_mAP=0.1901`) for final extraction/evaluation.
+
+🟢 **Final whole-image inference (cache = `cub200_clip_v6bplus`, paper-claim mode).**
+
+| Run | Whole-image mAP | Δ vs v170a | P@1 | P@10 | DNA uniq | dead mean | NMI mean | Verdict |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| v170a wass015 + best-ckpt | 0.1618 | — | 0.2468 | 0.2253 | **0.6101** | 0.0469 | 0.644 | prior internal champ |
+| v175 fgMaskPerSlotUnion05 | 0.1374 | −0.0244 | 0.2249 | 0.1969 | 0.5674 | 0.0690 | — | hard-mask rejected |
+| **v176a softEvidenceBeta010** | **0.1623** | **+0.0006** | **0.2582** | **0.2274** | 0.5943 | **0.0326** | 0.653 | **new internal champ, marginal** |
+| CIBHash whole-image baseline | **0.1639** | +0.0016 over v176a | **0.3226** | — | — | — | — | still external mAP/P@1 leader |
+
+🟢 **K=3 best comparison.** v176a improves the training-cache best from v170a **0.1837 → 0.1901** (+0.0064) and strongly beats v175 hard mask **0.1636 → 0.1901** (+0.0265). The final whole-image gain is much smaller, so the method helps evidence routing under FAIRrank L8K3 distribution more than it solves the single whole-image deployment gap.
+
+🟢 **Post-eval diagnostics.**
+
+| Diagnostic | v176a result | Interpretation |
+|---|---:|---|
+| `unique_codes_in_db` (codebook tuple) | 4140 / 5994 = 0.6907 | high assignment diversity |
+| DNA-base unique | 0.5943 | slightly below v170a 0.6101 |
+| mean off-diag NMI | 0.6526 | redundancy remains high; codebooks are not disentangled |
+| routing effective-k | 4.9707 | still dense routing; no sparse localization behavior |
+| routing top1 fraction | 0.0000 | top-1 route never fires |
+| B0 raw-text lift | 0.0308 | weak raw text clustering |
+| B1 centered-text lift | 0.1601 | strong centered semantic clustering |
+| B2 visual-global lift | 0.0945 | healthy visual concentration |
+
+🟡 **Drop ablation (subset 2000).** Baseline subset mAP 0.1637. cb0 remains the dominant retrieval slot (`drop cb0 = -0.0326`). cb2/cb3/cb5 are mildly useful (`-0.0059/-0.0034/-0.0077`). cb1 is neutral (`+0.0002`) and cb4 is harmful (`+0.0042`), so local-slot redundancy is still unresolved.
+
+📐 **Mechanism interpretation.**
+1. **Soft bias works better than hard pruning.** v176a recovers the v175 loss by preserving all tokens while gently increasing transport probability toward text-consistent evidence. This matches the intuition that hard foreground masks remove background context and discriminative species cues.
+2. **But it is not true localization yet.** Routing remains almost maximally dense (`eff-k≈4.97`, top1=0), so the model is not selecting a compact evidence set per text part. The soft prior mostly reweights Sinkhorn probabilities enough to improve K=3 retrieval and P@1, not enough to make codebooks disentangled.
+3. **Overtraining is still visible.** K=3 mAP peaks at epoch 44 (0.1901), then unique keeps increasing while mAP drops. More unique codes after the peak are not automatically better retrieval codes.
+4. **Codebook redundancy remains the blocker.** NMI 0.6526 and anti/neutral cb1/cb4 show that text-evidence bias does not force local slots to own different semantic evidence.
+
+🟡 **Verdict.** **Adopt v176a as the next CUB whole-image base only cautiously.** It is the best internal whole-image mAP so far and validates the soft-evidence direction, but the improvement is too small to be the main contribution alone. The paper-grade claim should be: "soft text-evidence routing is safer than hard token pruning and slightly improves retrieval; explicit localization/disentanglement is still needed."
+
+🔭 **Follow-ups.**
+1. **Beta sweep around the gentle prior**: `beta ∈ {0.05, 0.15}` with the same 20-epoch warmup. The current `0.10` is safe but possibly underpowered for whole-image deployment.
+2. **Evidence prior + redundancy control**: keep v176a, add a weak local-slot decorrelation term only on routing distributions or routed text centroids to address cb1/cb4 redundancy.
+3. **Evidence-aware top-p, not hard mask**: use the evidence bias to modulate adaptive top-p threshold per slot instead of deleting tokens globally.
+4. **Early-stop/regularize after ep44**: K=3 mAP peak precedes final diversity peak; consider beta decay or lower `lambda_cibhash_ntxent` after epoch 44.
+
+📁 **Result dir.** `result/260701+cub_200_setting1_cub200_v176a_v170a_softEvidenceBeta010_wass015_FAIRrankL8K3_stackedText_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001/`
+
+---
+
 ## 2026-06-30 — v173a CUB L_text_codeword_contrastive: RAW text vs quantized visual codeword per-codebook InfoNCE (REPLACES text_hash_ntxent)
 
 🟡 **OUTCOME: Mechanism CONFIRMED orthogonality direction (NMI ↓), retrieval catastrophic.** New loss `L_text_codeword_contrastive` bypasses text-quantization noise by using RAW text_part_tokens (post-adapter) vs quantized_tokens (post-VQ visual codeword = codebook[m, k_visual*]). Per-codebook symmetric InfoNCE. NMI off-diag dropped 0.644 → **0.520 = genuinely more orthogonal codebooks (this time in the correct direction)** vs routingText where NMI rose (less orthogonal). But mAP collapsed by half (0.1618 → 0.0761). Verdict: **mechanism works in the right direction, λ=0.10 too aggressive — retry at λ=0.02–0.05**.

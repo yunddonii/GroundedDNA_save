@@ -444,6 +444,16 @@ class Config():
             dest='routing_codebook_choice_warmup_epochs', type=int, default=0,
             help='v124: linearly warm up routing_codebook_choice_beta over '
                  'this many epochs. 0 disables warm-up.')
+        siglip2_arg.add_argument('--routing_text_evidence_beta',
+            dest='routing_text_evidence_beta', type=float, default=0.0,
+            help='v176a: soft text-evidence routing prior. Positive values '
+                 'lower Sinkhorn transport cost for visual patches whose '
+                 'embedding matches the routed text/codebook centroid. '
+                 '0.0 disables and preserves the legacy router.')
+        siglip2_arg.add_argument('--routing_text_evidence_warmup_epochs',
+            dest='routing_text_evidence_warmup_epochs', type=int, default=0,
+            help='v176a: linearly warm up routing_text_evidence_beta over '
+                 'this many epochs. 0 disables warm-up.')
         # v55: Unbalanced OT (Chizat et al. NeurIPS 2018). KL-relaxed
         # marginals let some patches have row sum < 1/N (i.e. patches that
         # are uninformative — background, blur — can be partially "rejected"

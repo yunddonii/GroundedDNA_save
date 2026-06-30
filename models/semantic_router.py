@@ -128,6 +128,7 @@ class SemanticSinkhornRouter(nn.Module):
         perplexity_topk: bool = False,
         codebook_choice_capacity: Optional[float] = None,
         codebook_choice_beta: float = 1.0,
+        cost_bias: Optional[torch.Tensor] = None,
         uot_lambda_a:     Optional[float] = None,
         uot_lambda_b:     Optional[float] = None,
     ) -> Dict[str, torch.Tensor]:
@@ -150,8 +151,19 @@ class SemanticSinkhornRouter(nn.Module):
             cost = 1.0 - sim                             # [B, N, M], >= 0
         else:
             cost = -sim                                  # [B, N, M], in [-1, 1]
+        if cost_bias is not None:
+            if tuple(cost_bias.shape) != (B, N, M):
+                raise ValueError(
+                    f"cost_bias must be [B, N, M]={(B, N, M)}, got {tuple(cost_bias.shape)}"
+                )
+            # v176a: positive bias lowers Sinkhorn transport cost but leaves
+            # the reported Wasserstein cost below on the original cosine cost.
+            bias = cost_bias.to(device=cost.device, dtype=cost.dtype)       # [B, N, M]
+            kernel_cost = cost - bias                                      # [B, N, M]
+        else:
+            kernel_cost = cost                                             # [B, N, M]
         eps_eff = float(epsilon_override) if epsilon_override is not None else self.epsilon
-        log_K = -cost / max(eps_eff, 1e-6)               # [B, N, M]
+        log_K = -kernel_cost / max(eps_eff, 1e-6)        # [B, N, M]
 
         # ---- 3) marginals (uniform unless masks supplied) ---------------
         device = visual_tokens.device
