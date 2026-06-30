@@ -336,7 +336,14 @@ codebook) as a follow-up.
 
 ## 2026-06-29 — v172a CUB L_routing_text: text → per-patch routing supervision (REPLACES text_code_kl)
 
-🟡 **OUTCOME: ARCHITECTURAL MECHANISM CONFIRMED, RETRIEVAL REGRESSED — λ tuning needed.** New loss `L_routing_text` directly supervises per-patch routing weights using cosine similarity to per-slot text embeddings. Replaces `text_code_kl` (codeword index supervision) with explicit patch-level text supervision. Whole-image mAP regressed by −0.0149 (0.1618 → 0.1469), but NMI (codebook orthogonality) IMPROVED by +0.036 (0.644 → 0.680) — direct evidence that L_routing_text mechanically reshapes routing toward text targets, just over-constrained at λ=0.10. Single-delta verdict: **REJECT at λ=0.10**, but mechanism validated. Re-test with λ tuning required (0.02–0.05 or additive with text_code_kl).
+🔴 **OUTCOME (CORRECTED 2026-06-30): ALL AXES REGRESSED — REJECT, supervision-signal issue not λ-tuning issue.** New loss `L_routing_text` directly supervises per-patch routing weights using cosine similarity to per-slot text embeddings. Replaces `text_code_kl` (codeword index supervision) with explicit patch-level text supervision. **CRITICAL CORRECTION**: my initial interpretation got NMI direction backwards. NMI between codebook pairs measures MUTUAL INFORMATION — **lower NMI = more orthogonal**. routingText drove NMI from 0.644 → **0.680 = LESS orthogonal, MORE correlated codebooks**. All four axes regressed: mAP −0.015, DNA-uniq −0.075, cb-tuple −0.060, NMI +0.036 (worse). Single-delta verdict: **REJECT at λ=0.10. The mechanism is NOT validated — it is producing the WRONG outcome** because the per-slot text embeddings used as routing targets are nearly identical across slots (cos sim ~0.88, effective rank 2.7), so forcing routing to follow them MAKES codebooks more similar, not more orthogonal.
+
+🟢 **Motivation (from session discussion).**
+1. Visualization (`viz_routing_heatmap`) showed routing attending to background regions, not just anatomy.
+2. Diagnosis: current 3 text-losses (`text_code_kl`, `xmodal_commit`, `text_hash_ntxent`) supervise codeword-INDEX distribution but NOT per-patch routing weights `[B, M, P]`.
+3. `xmodal_commit` does have indirect routing gradient via `∂L/∂routing[m, p] = (z_visual[m] − q_text[m]) · visual_token[p]`, but routes through quantized codeword (4-step dilution chain).
+4. `loss_wasserstein` supervises routing directly via Sinkhorn OT cost `(routing * cost).sum()`, but cost uses CODEBOOK as anchor (visual-only target), not text.
+5. **Missing supervision**: explicit "patch p should be routed to codebook m IF visual_token[p] semantically matches text_part[m]".
 
 🟢 **Motivation (from session discussion).**
 1. Visualization (`viz_routing_heatmap`) showed routing attending to background regions, not just anatomy.
@@ -364,31 +371,47 @@ codebook) as a follow-up.
 
 Best-ckpt swapped at epoch 49 for both. routingText K=3 peak −0.021 lower at every checkpoint.
 
-🟢 **Final whole-image inference (cache=cub200_clip_v6bplus, 196 tokens, paper-claim metric):**
+🟢 **Final whole-image inference (cache=cub200_clip_v6bplus, 196 tokens, paper-claim metric).** NMI convention: lower NMI = MORE orthogonal codebooks (less mutual info between codebook pairs); higher NMI = MORE correlated codebooks.
 
-| Metric | wass015 champion (text_code_kl) | **routingText** | Δ |
-|---|---|---|---|
-| mAP | 0.1618 | 0.1469 | **−0.0149** |
-| P@1 | 0.2468 | 0.2308 | −0.016 |
-| P@10 | 0.2253 | 0.2020 | −0.023 |
-| DNA-uniq (36-bit) | 0.610 | 0.535 | −0.075 |
-| cb-tuple uniq (6×7-bit) | 0.690 | 0.631 | −0.060 |
-| dead-codebook ratio | ~0.03 | 0.0846 | +0.054 (worse) |
-| **NMI (off-diag mean)** | **0.644** | **0.680** | **+0.036** |
+| Metric | wass015 champion (text_code_kl) | **routingText** | Δ | direction |
+|---|---|---|---|---|
+| mAP | 0.1618 | 0.1469 | −0.0149 | ❌ regression |
+| P@1 | 0.2468 | 0.2308 | −0.016 | ❌ |
+| P@10 | 0.2253 | 0.2020 | −0.023 | ❌ |
+| DNA-uniq (36-bit) | 0.610 | 0.535 | −0.075 | ❌ |
+| cb-tuple uniq (6×7-bit) | 0.690 | 0.631 | −0.060 | ❌ |
+| dead-codebook ratio | ~0.03 | 0.0846 | +0.054 | ❌ (more unused) |
+| **NMI (off-diag mean)** | **0.644** | **0.680** | **+0.036** | **❌ less orthogonal** |
 
-🎯 **Mechanism evidence: L_routing_text actually achieved its design goal.** NMI (codebook orthogonality / predictive independence) jumped by **+0.036** — strongest signal that routing-text supervision works at the mechanistic level. Routing reshaped toward text targets → codewords became more independent (less mutual info). Direct evidence that the loss computes the right gradient.
+🔴 **ALL SEVEN AXES REGRESSED.** No silver lining. The mechanism is producing the wrong outcome.
 
-🟡 **But retrieval regressed across the board.** mAP −0.015 (CIBHash gap re-widened from −0.002 to −0.017), DNA-uniq −0.075 (catastrophic compositional diversity loss), cb-tuple −0.060, dead-cb +0.054 (8% codebooks unused).
+📐 **Why routingText made codebooks LESS orthogonal (the dilution-chain prediction confirmed).**
 
-📐 **Interpretation: λ=0.10 is too aggressive.** Routing was over-constrained by text supervision, losing class-discriminative information that CIBHash NtXent (λ=1.0) relies on for retrieval. The two losses are competing for routing influence; at λ=0.10 routing_text dominates and class-discriminative routing collapses.
+```
+text_part[m=head], text_part[m=wing], …, text_part[m=tail]
+        ↓ CLIP text encoder
+near-identical vectors per slot (cos sim ≈ 0.88 across slots, effective rank ≈ 2.7)
+        ↓ softmax_p(cos(text[m], visual[p]) / τ)
+near-identical target_routing[m=head] ≈ target_routing[m=wing] ≈ …
+        ↓ KL loss forces routing[m] toward similar targets
+codebooks[m=head], codebooks[m=wing], … converge to SIMILAR features
+        → NMI ↑ (more correlated)
+        → cb-tuple ↓ (fewer unique combinations)
+        → dead-cb ↑ (some codebooks collapse to others)
+        → mAP / DNA / P@1 all ↓
+```
 
-🟡 **Verdict: REJECT routingText at λ=0.10 as replacement for text_code_kl.** Champion remains wass 0.15 + best-ckpt (mAP 0.1618).
+The 4-step dilution chain I diagnosed BEFORE running the experiment is exactly what played out. The bottleneck is **CLIP text encoder's poor slot-discrimination**, not the routing supervision design. L_routing_text faithfully implements what the design asked for; the design relied on text_part[m] carrying slot-specific semantics that CLIP simply does not produce.
 
-🔭 **Follow-ups (mechanism validated, λ tuning needed).**
-1. **routingText λ=0.02–0.05** (lower strength, milder reshape). Hypothesis: small NMI gain + retrieval preserved.
-2. **routingText + text_code_kl both ON** (additive, not replacement). text_code_kl 0.10 for codeword distribution + routingText 0.02 for routing nudge.
-3. **routingText τ tuning**: τ=0.05 sharper, τ=0.2 softer. Currently 0.1.
-4. **routingText with `--routing_text_skip_global` toggled OFF** (include cb0). Currently skipped.
+🔴 **Verdict: REJECT routingText at λ=0.10.** Champion remains wass 0.15 + best-ckpt (mAP 0.1618).
+
+🔭 **Follow-ups — the bottleneck is text_part discriminability, not λ.**
+1. **Text orthogonalization first**: add a regularizer that forces `text_part[m]` vectors to be more orthogonal across slots BEFORE using them as routing target. E.g., minimize `sum_{m≠n} cos(text_part[m], text_part[n])²` per batch, or apply harder per-slot adapter (deeper MLP, stronger non-linearity).
+2. **Target source replacement**: use codebook prototypes (= strengthen wasserstein) instead of text. Loses text-grounded claim but should at least preserve mAP.
+3. **Sharper τ as last resort**: τ=0.05 amplifies any remaining text-side signal (also amplifies noise). Try only if (1) is already in place.
+4. **Lower λ** (0.02–0.05) — would soften the bad signal but the direction would still be wrong. Less informative experiment.
+
+📐 **Original interpretation error.** First commit (b08e936) of this entry claimed NMI ↑ = "mechanism validated" because I confused NMI with orthogonality directionality. NMI is mutual information between codebook outputs — **independent codebooks have low NMI, correlated codebooks have high NMI**. User caught this on 2026-06-30. Confirmed via `scripts/pairwise_nmi.py:62` which prints mean off-diag NMI between codebooks (off-diag = pairs of distinct codebooks). All retrieval and compositional axes regressed, AND NMI direction confirms the regression at the mechanism level.
 
 ---
 
