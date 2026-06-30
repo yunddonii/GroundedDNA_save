@@ -16477,3 +16477,67 @@ HOW TO UPDATE THIS DOCUMENT
 - Numbers belong in tables; rationale belongs in 1–2 sentences below.
 - Code paths or commit refs (when applicable) belong in fenced spans.
 -->
+
+---
+
+## 2026-06-30 — v173b CUB textCwContrastive λ=0.05: CAUSE IDENTIFIED — InfoNCE structurally encourages codebook collapse
+
+🔴 **OUTCOME: λ=0.05 worse collapse than λ=0.10 (counterintuitive). Cause identified: InfoNCE is a STABLE ATTRACTOR for codebook collapse. Lower lambda spends MORE time near attractor → MORE collapse, not less.** Cell killed at ep 53 mid-training. Verdict: REJECT lambda tuning approach; need fundamental design change.
+
+🟢 **Test cell.** wass 0.15 champion + text_hash_ntxent 0 + lambda_text_codeword_contrastive 0.05 (vs prior 0.10). Other knobs identical.
+
+🟢 **Trajectory (worse than λ=0.10 across the board):**
+
+| ep | mAP K=3 | unique | dead_cb | L_text_cw_contrastive |
+|---|---|---|---|---|
+| 4  | 0.0746 | 0.610 | 0.046 | 4.43 |
+| 9  | 0.0808 | 0.414 | 0.251 | 3.52 |
+| 14 | 0.0837 | 0.197 | 0.284 | 3.05 |
+| 19 | 0.1028 | 0.119 | 0.453 | 2.78 |
+| 24 | 0.1202 | **0.018** | **0.731** | 2.49 |
+| 44 | 0.1218 | 0.230 | 0.443 | 2.07 |
+| 52 | (killed) | — | — | 1.91 |
+
+🎯 **Critical observation.** `train_loss_text_codeword_contrastive` decreases MONOTONICALLY (4.97 → 1.91 = −62%) WHILE codebook collapses progressively. The loss is being minimized AND favoring collapse simultaneously. Collapse is therefore a STABLE STATE of the loss objective.
+
+📐 **Mechanism — why InfoNCE structurally favors codebook collapse.**
+
+Suppose codewords collapse to K_effective small clusters (e.g., 30 of 128). The InfoNCE:
+```python
+sim[i, j] = cos(text[i, m], q_visual[j, m]) / tau
+L = -log(softmax(sim)[i, i])
+```
+- Each text[i, m] aligns cleanly with its cluster's codeword → high diagonal sim[i, i]
+- Other clusters' codewords don't match well → low off-diagonal sim[i, j≠cluster]
+- InfoNCE loss is MINIMIZED at this collapsed state
+- The fewer codewords, the cleaner the text→codeword mapping
+
+So collapse is not a failure mode but the LOCAL MINIMUM of the InfoNCE objective on this geometry.
+
+📐 **Why λ=0.05 collapses MORE than λ=0.10 (non-monotonic).**
+
+The InfoNCE force pulls codebooks toward the collapse attractor. Other forces (CIBHash NtXent, vq, wasserstein) push for codebook spread.
+
+| λ | InfoNCE pull | Other forces | Balance |
+|---|---|---|---|
+| 0.0 | none | dominant | stable spread (champion) |
+| 0.05 | weak pull | partial counter | **slow drift to attractor → deep collapse** |
+| 0.10 | strong pull | strong counter | dynamic balance, collapse partial |
+| 0.20 (hypothetical) | dominant | resistance | rapid alignment, possibly different equilibrium |
+
+Lower lambda gives the system MORE TIME to drift toward the attractor before counter-forces stabilize it.
+
+🔴 **Lambda tuning is NOT the fix.** This is a structural problem with the loss form on K=128 ≪ 200 classes dataset.
+
+📐 **Structural diagnosis (Pigeonhole).** K=128 codewords vs 200 classes vs 5994 images. Same-species images naturally share codewords (via CIBHash class-discrimination + EMA codebook updates). InfoNCE wants text → codeword bijection, but bijection across classes is impossible with K<200. So loss minimizes by PARTITIONING images into K_effective text-aligned clusters, abandoning the other codewords (dead).
+
+🔭 **Re-designed candidates (replace InfoNCE entirely).**
+
+1. **Option α: pre-quantization comparison.** `contrastive(text_part_tokens, semantic_visual_tokens)` — pre-VQ continuous space, no quantization to collapse.
+2. **Option β: explicit codeword balance regularizer.** `+ lambda_balance * -entropy(codeword_usage[m, :])` to enforce uniform usage.
+3. **Option γ: hash-code level cross-modal contrastive.** `contrastive(text_hash, visual_hash)` — 2^36 capacity instead of K=128.
+4. **Option δ: softer InfoNCE (τ=0.2, λ=0.10).** Reduce contrast pressure to weaken attractor. Less principled.
+
+🟡 **Champion remains wass 0.15 + best-ckpt (mAP 0.1618).** lambda_text_codeword_contrastive REJECTED at all tested lambda values.
+
+📋 **Files modified.** `scripts/train_cub200_v170a_wass015_textCwContrastive_lam005_FAIRrankL8K3_clip.sh` (new).
