@@ -481,6 +481,19 @@ class Config():
                  'single-object fine-grained datasets (CUB-200) where '
                  'background tokens dominate the router by mass conservation. '
                  'Disabled (None) for multi-object scenes.')
+        # v175: text source for the foreground mask. "global" (default) uses
+        # the cb0 C_global text embedding; "local_pooled" pools the local
+        # text slots cb1..cb5 (per-slot adapter output) by GAP. The local
+        # pooled variant focuses pruning on per-anatomy-slot textual content
+        # rather than the global scene caption.
+        siglip2_arg.add_argument('--foreground_text_mask_source',
+            dest='foreground_text_mask_source',
+            choices=['global', 'local_pooled'],
+            default='global',
+            help='v175: anchor text for foreground mask. global = cb0 text '
+                 '(default, legacy). local_pooled = GAP over local cb1..cb5 '
+                 'text slots (anatomy-focused). Only used when '
+                 '--foreground_text_mask_topk_ratio is set.')
         # ---------- VQ codebook update mode -----------------------------
         # `gradient` (default, legacy) -- codebook is an nn.Parameter,
         #   updated by the VQ loss MSE term. Prone to dead-code collapse.
@@ -1378,6 +1391,29 @@ class Config():
         loss_arg.add_argument('--text_codeword_contrastive_skip_global',
             action='store_true', default=False,
             help='v173: skip cb0 (C_global) from text-codeword contrastive.')
+        # v174 Option alpha: text vs PRE-QUANT semantic_visual_tokens InfoNCE.
+        # Bypasses quantization-induced collapse attractor of v173.
+        loss_arg.add_argument('--lambda_text_preq_contrastive',
+            type=float, default=0.0,
+            help='v174alpha: weight for text vs PRE-QUANT semantic_visual_tokens '
+                 'per-codebook InfoNCE. 0 disables (default). Continuous space, no '
+                 'collapse attractor unlike v173 quantized variant.')
+        loss_arg.add_argument('--text_preq_contrastive_tau',
+            type=float, default=0.07,
+            help='v174alpha: temperature.')
+        loss_arg.add_argument('--text_preq_contrastive_skip_global',
+            action='store_true', default=False,
+            help='v174alpha: skip cb0.')
+        # v174 Option gamma: hash-level text<->visual InfoNCE.
+        # Uses 18x4 codon-base continuous codes; positive=same image, negative=other.
+        loss_arg.add_argument('--lambda_text_visual_hash_contrastive',
+            type=float, default=0.0,
+            help='v174gamma: weight for hash-code level text<->visual InfoNCE '
+                 '(continuous_code [B, 18, 4] flat vs text_continuous_code [B, 18, 4] '
+                 'flat). 0 disables (default).')
+        loss_arg.add_argument('--text_visual_hash_contrastive_tau',
+            type=float, default=0.07,
+            help='v174gamma: temperature.')
         loss_arg.add_argument('--lambda_codeword_text_proto',
             type=float, default=0.0,
             help='v123: weight for codeword-level text prototype alignment. '

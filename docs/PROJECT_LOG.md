@@ -16541,3 +16541,44 @@ Lower lambda gives the system MORE TIME to drift toward the attractor before cou
 🟡 **Champion remains wass 0.15 + best-ckpt (mAP 0.1618).** lambda_text_codeword_contrastive REJECTED at all tested lambda values.
 
 📋 **Files modified.** `scripts/train_cub200_v170a_wass015_textCwContrastive_lam005_FAIRrankL8K3_clip.sh` (new).
+
+---
+
+## 2026-06-30 — v174 CUB α/γ/ε parallel cells: collapse-attractor follow-up + paradigm shift trial
+
+🟡 **OUTCOME.** Three follow-up designs to L_text_codeword_contrastive collapse-attractor diagnosis (v173b). α (pre-VQ contrastive) REJECTED collapse re-emerged. γ (hash-level cross-modal contrastive) WORKABLE but below champion. ε (fgMaskLocalPool05 + whole-image input) AMBIGUOUS — killed mid-run pending control reference.
+
+🟢 **Setup.** Three new args + losses + Code in single forward pass:
+- α `--lambda_text_preq_contrastive` (text_part_tokens ↔ semantic_visual_tokens InfoNCE, no quantization).
+- γ `--lambda_text_visual_hash_contrastive` (text_continuous_code ↔ continuous_code flat 72-dim InfoNCE, 2^36 hash capacity).
+- ε `--foreground_text_mask_source local_pooled` (extends existing fg mask infrastructure to use GAP over cb1..cb5 instead of cb0).
+
+🟢 **α FINAL (textPreqContrastive, GPU 4):** mAP 0.0929, P@1 0.129, DNA 0.145, cbtuple 0.390. **REJECTED — same collapse attractor as v173a/b** despite operating on PRE-VQ continuous tokens. Cause: pre-VQ semantic_visual_tokens flow into quantization in the SAME forward pass; the contrastive on pre-VQ pushes routing toward text-aligned distributions which still produces codebook convergence → collapse. Confirms collapse is not specific to quantized contrastive — any InfoNCE that drives routing toward small text-cluster set creates the attractor.
+
+🟢 **γ FINAL (textVisualHashContrastive, GPU 5):** mAP 0.1330, P@1 0.2163, DNA 0.5511, cbtuple 0.6830. **WORKABLE — no collapse, but below champion (−0.029 mAP).** Hash-level cross-modal contrastive operates on 18×4 codon-base continuous codes (flat 72-dim, 2^36 binary capacity). DNA-uniq 0.55 and cb-tuple 0.68 healthy, mAP P@1 below champion 0.247. Confirms 2^36 hash capacity prevents collapse, but doesn't beat paired-aug text_hash_ntxent (champion default) at retrieval.
+
+🟡 **ε MID-RUN (fgMaskLocalPool05 + whole-image, GPU 1, killed at ep 28):**
+
+| ep | mAP (whole-image mid-eval) | unique | dead_cb |
+|---|---|---|---|
+| 4  | 0.0579 | 0.61 | 0.056 |
+| 9  | 0.0682 | 0.56 | 0.020 |
+| 14 | 0.0764 | 0.52 | 0.020 |
+| 19 | 0.0794 | 0.50 | 0.026 |
+| 24 | 0.0777 | 0.50 | 0.013 |
+
+Codebook STATS HEALTHY (no collapse pathology — unique 0.50-0.61, dead 0.013-0.06). But mAP plateaued at ~0.078 with decreasing slope (+0.010 → +0.008 → +0.003 → −0.001 over ep 4→9→14→19→24). KILLED at user request to test control: whole-image input WITHOUT pruning, no FAIRrank L8K3, to disambiguate fgMask effect from pure whole-image difficulty.
+
+📐 **Apples-to-oranges note.** ε ran on whole-image cache (196 tokens × 50% pruning = ~98 effective tokens per image), whereas champion runs on FAIRrank L8K3 cache (588 tokens). ε's mid-eval is whole-image directly (not K=3 inflated), so 0.078 is a fair forecast of its final whole-image. Champion's K=3 mid-eval inflates it during training.
+
+🟢 **Control launched (GPU 2, NEW reference):** whole-image cache + NO pruning + NO FAIRrank L8K3 + identical recipe otherwise. Will isolate whether ε's low mAP comes from pruning or from whole-image input itself. Ep 9 = 0.0702 whole-image mid-eval (≈ ε's 0.0682 at same epoch). Suggests whole-image input is the dominant difficulty, not pruning. Result pending.
+
+🔭 **Working conclusions so far.**
+1. **All InfoNCE variants that supervise quantization-bound representations create collapse attractors** (v173a, v173b, v174α). Hash-level γ escapes by using a higher-capacity target space (2^36).
+2. **γ workable but below champion**: hash-level cross-modal contrastive has clean mechanism but lower retrieval mAP than paired-aug text_hash_ntxent.
+3. **Whole-image vs FAIRrank L8K3 difficulty**: control will quantify. Current evidence: dropping L8K3 may cost ~0.05-0.08 mAP on CUB, irrespective of pruning.
+4. **fgMask local_pooled mechanism intact** (no collapse), but mAP penalty too high without FAIRrank L8K3 multi-view.
+
+🟡 **Champion remains wass 0.15 + best-ckpt + FAIRrank L8K3 (mAP 0.1618).**
+
+📋 **Files modified.** `config.py` (args α/γ/ε), `loss_siglip2.py` (`_loss_text_preq_contrastive`, `_loss_text_visual_hash_contrastive`), `train_siglip2.py` (loss_types), `model_siglip2.py` (`--foreground_text_mask_source local_pooled` branch). 4 new scripts.

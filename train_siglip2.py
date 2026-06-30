@@ -264,6 +264,10 @@ def _build_active_loss_types(args) -> list:
         keys.append('loss_routing_text')
     if _on('lambda_text_codeword_contrastive'):
         keys.append('loss_text_codeword_contrastive')
+    if _on('lambda_text_preq_contrastive'):
+        keys.append('loss_text_preq_contrastive')
+    if _on('lambda_text_visual_hash_contrastive'):
+        keys.append('loss_text_visual_hash_contrastive')
 
     # ---- CIBHash family (v119)
     if _on('lambda_cibhash_ntxent'):

@@ -219,6 +219,13 @@ class DNACodonHashLoss(nn.Module):
         self.lambda_text_codeword_contrastive       = float(getattr(cfg, "lambda_text_codeword_contrastive",       0.0))
         self.text_codeword_contrastive_tau          = float(getattr(cfg, "text_codeword_contrastive_tau",          0.07))
         self.text_codeword_contrastive_skip_global  = bool(getattr(cfg, "text_codeword_contrastive_skip_global",   False))
+        # v174 Option alpha: text vs PRE-QUANT semantic_visual_tokens contrastive
+        self.lambda_text_preq_contrastive           = float(getattr(cfg, "lambda_text_preq_contrastive",           0.0))
+        self.text_preq_contrastive_tau              = float(getattr(cfg, "text_preq_contrastive_tau",              0.07))
+        self.text_preq_contrastive_skip_global      = bool(getattr(cfg, "text_preq_contrastive_skip_global",       False))
+        # v174 Option gamma: hash-code text<->visual InfoNCE
+        self.lambda_text_visual_hash_contrastive    = float(getattr(cfg, "lambda_text_visual_hash_contrastive",    0.0))
+        self.text_visual_hash_contrastive_tau       = float(getattr(cfg, "text_visual_hash_contrastive_tau",       0.07))
         # v91 (text-to-DNA-hash matching): MSE between image-derived
         # continuous_code and text-derived continuous_code (latter produced
         # by the model's parallel text path through the shared quantizer
@@ -1130,6 +1137,79 @@ class DNACodonHashLoss(nn.Module):
         if not losses:
             return text_part_tokens.new_zeros(())
         return torch.stack(losses).mean()
+
+    def _loss_text_preq_contrastive(
+        self,
+        text_part_tokens:       torch.Tensor,    # [B, M, D] RAW post-adapter
+        semantic_visual_tokens: torch.Tensor,    # [B, M, D] PRE-VQ continuous
+        tau: float = 0.07,
+        skip_global: bool = True,
+    ) -> torch.Tensor:
+        """v174 Option alpha: text <-> PRE-QUANT visual semantic tokens InfoNCE.
+
+        Unlike v173 (which contrasts text with quantized visual codeword and
+        creates a collapse attractor on K=128 codebook), this operates on the
+        CONTINUOUS pre-VQ semantic_visual_tokens — no quantization bottleneck.
+        Codewords are learned by other losses (vq, quant, EMA); this loss
+        only shapes the encoder + routing so that semantic_visual_tokens align
+        with text per-slot.
+        """
+        assert text_part_tokens.dim() == 3 and semantic_visual_tokens.dim() == 3
+        B, M, D = text_part_tokens.shape
+        Bv, Mv, Dv = semantic_visual_tokens.shape
+        assert B == Bv and M == Mv and D == Dv, (
+            f"shape mismatch text={tuple(text_part_tokens.shape)} "
+            f"visual_preq={tuple(semantic_visual_tokens.shape)}"
+        )
+        if B < 2:
+            return text_part_tokens.new_zeros(())
+        t_n = F.normalize(text_part_tokens, dim=-1)
+        v_n = F.normalize(semantic_visual_tokens, dim=-1)
+        tau_eff = max(float(tau), 1e-6)
+        start_m = 1 if skip_global else 0
+        losses: list = []
+        labels = torch.arange(B, device=text_part_tokens.device)
+        for m in range(start_m, M):
+            sim = t_n[:, m, :] @ v_n[:, m, :].T / tau_eff
+            L_tv = F.cross_entropy(sim,   labels)
+            L_vt = F.cross_entropy(sim.T, labels)
+            losses.append(0.5 * (L_tv + L_vt))
+        if not losses:
+            return text_part_tokens.new_zeros(())
+        return torch.stack(losses).mean()
+
+    def _loss_text_visual_hash_contrastive(
+        self,
+        text_continuous_code:   torch.Tensor,    # [B, 18, 4] text-derived continuous
+        visual_continuous_code: torch.Tensor,    # [B, 18, 4] visual-derived continuous
+        tau: float = 0.07,
+    ) -> torch.Tensor:
+        """v174 Option gamma: hash-level text <-> visual InfoNCE.
+
+        Operates on the 18x4 codon-base continuous codes. Flattens to [B, 72]
+        and applies per-image InfoNCE (positive = same image's text+visual
+        hash, negative = other images). The 2^36 binary hash space has much
+        higher capacity than K=128 codewords, so no collapse attractor.
+        """
+        assert text_continuous_code.dim() == 3 and visual_continuous_code.dim() == 3
+        B, M_codon, B_per = text_continuous_code.shape
+        Bv, Mv, Bvp = visual_continuous_code.shape
+        assert B == Bv and M_codon == Mv and B_per == Bvp, (
+            f"shape mismatch text_code={tuple(text_continuous_code.shape)} "
+            f"visual_code={tuple(visual_continuous_code.shape)}"
+        )
+        if B < 2:
+            return text_continuous_code.new_zeros(())
+        t_flat = text_continuous_code.reshape(B, -1)        # [B, M_codon * B_per]
+        v_flat = visual_continuous_code.reshape(B, -1)
+        t_n = F.normalize(t_flat, dim=-1)
+        v_n = F.normalize(v_flat, dim=-1)
+        tau_eff = max(float(tau), 1e-6)
+        sim = t_n @ v_n.T / tau_eff                          # [B, B]
+        labels = torch.arange(B, device=t_n.device)
+        L_tv = F.cross_entropy(sim,   labels)
+        L_vt = F.cross_entropy(sim.T, labels)
+        return 0.5 * (L_tv + L_vt)
 
     def _loss_proto_cluster_per_codebook(
         self,
@@ -2714,6 +2794,29 @@ class DNACodonHashLoss(nn.Module):
                     skip_global=self.text_codeword_contrastive_skip_global,
                 )
 
+        # v174 Option alpha: text vs PRE-QUANT semantic_visual_tokens contrastive.
+        loss_text_preq_contrastive = u.new_zeros(())
+        if self.lambda_text_preq_contrastive > 0.0:
+            t_tpq = outputs.get("text_part_tokens")
+            z_tpq = outputs.get("semantic_visual_tokens")   # PRE-quantization
+            if t_tpq is not None and z_tpq is not None:
+                loss_text_preq_contrastive = self._loss_text_preq_contrastive(
+                    t_tpq, z_tpq,
+                    tau=self.text_preq_contrastive_tau,
+                    skip_global=self.text_preq_contrastive_skip_global,
+                )
+
+        # v174 Option gamma: hash-code level text<->visual contrastive.
+        loss_text_visual_hash_contrastive = u.new_zeros(())
+        if self.lambda_text_visual_hash_contrastive > 0.0:
+            t_thash = outputs.get("text_continuous_code")    # [B, 18, 4]
+            v_thash = outputs.get("continuous_code")          # [B, 18, 4]
+            if t_thash is not None and v_thash is not None:
+                loss_text_visual_hash_contrastive = self._loss_text_visual_hash_contrastive(
+                    t_thash, v_thash,
+                    tau=self.text_visual_hash_contrastive_tau,
+                )
+
         # v138: prototype-cluster paired-view InfoNCE on codebook_distances.
         # Activates when --lambda_proto_cluster > 0 AND paired view is present
         # AND both views expose `codebook_distances`. Operates per codebook:
@@ -2874,6 +2977,8 @@ class DNACodonHashLoss(nn.Module):
             + self.lambda_text_code_kl    * loss_text_code_kl
             + self.lambda_routing_text    * loss_routing_text
             + self.lambda_text_codeword_contrastive * loss_text_codeword_contrastive
+            + self.lambda_text_preq_contrastive     * loss_text_preq_contrastive
+            + self.lambda_text_visual_hash_contrastive * loss_text_visual_hash_contrastive
         )
 
         # v106: codeword <-> DNA codon bijection losses (None-safe).
@@ -3020,6 +3125,8 @@ class DNACodonHashLoss(nn.Module):
             "loss_text_code_kl":   loss_text_code_kl,
             "loss_routing_text":   loss_routing_text,
             "loss_text_codeword_contrastive": loss_text_codeword_contrastive,
+            "loss_text_preq_contrastive":     loss_text_preq_contrastive,
+            "loss_text_visual_hash_contrastive": loss_text_visual_hash_contrastive,
             "loss_swav_assign":    loss_swav_assign_v,
             "loss_ortho_text":   loss_ortho_text,
             "loss_dna":          loss_dna,

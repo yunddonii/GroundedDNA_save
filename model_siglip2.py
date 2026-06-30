@@ -1340,6 +1340,10 @@ class SigLIP2SemanticOTModel(nn.Module):
             self.foreground_text_mask_topk_ratio = float(
                 self.foreground_text_mask_topk_ratio
             )
+        # v175: text source for foreground mask (global vs local-pooled).
+        self.foreground_text_mask_source: str = str(
+            getattr(args, "foreground_text_mask_source", "global")
+        )
         self.route_global_text: bool = bool(getattr(args, "route_global_text", False))
         self.routed_cls_add_gamma: float = float(getattr(args, "routed_cls_add_gamma", 0.0))
         self.routed_cls_add_scope: str = str(getattr(args, "routed_cls_add_scope", "local"))
@@ -2454,7 +2458,13 @@ class SigLIP2SemanticOTModel(nn.Module):
             and 0.0 < fg_ratio < 1.0
             and text_part_tokens is not None
         ):
-            _g_text = text_part_tokens[:, 0, :]                             # [B, D]
+            # v175: choose text anchor for foreground mask.
+            #   global       -> cb0 C_global text (default, legacy).
+            #   local_pooled -> GAP over local slots cb1..cb5 (anatomy-focused).
+            if self.foreground_text_mask_source == "local_pooled" and text_part_tokens.shape[1] > 1:
+                _g_text = text_part_tokens[:, 1:, :].mean(dim=1)            # [B, D]
+            else:
+                _g_text = text_part_tokens[:, 0, :]                         # [B, D]
             _v_n = F.normalize(visual_tokens_for_routing, dim=-1)           # [B, N, D]
             _g_n = F.normalize(_g_text, dim=-1)                             # [B, D]
             _sim = (_v_n * _g_n.unsqueeze(1)).sum(dim=-1)                   # [B, N]
