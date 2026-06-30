@@ -215,6 +215,10 @@ class DNACodonHashLoss(nn.Module):
         self.lambda_routing_text           = float(getattr(cfg, "lambda_routing_text",           0.0))
         self.routing_text_tau              = float(getattr(cfg, "routing_text_tau",              0.1))
         self.routing_text_skip_global      = bool(getattr(cfg, "routing_text_skip_global",       False))
+        # v173: text-codeword contrastive (RAW text vs quantized visual codeword)
+        self.lambda_text_codeword_contrastive       = float(getattr(cfg, "lambda_text_codeword_contrastive",       0.0))
+        self.text_codeword_contrastive_tau          = float(getattr(cfg, "text_codeword_contrastive_tau",          0.07))
+        self.text_codeword_contrastive_skip_global  = bool(getattr(cfg, "text_codeword_contrastive_skip_global",   False))
         # v91 (text-to-DNA-hash matching): MSE between image-derived
         # continuous_code and text-derived continuous_code (latter produced
         # by the model's parallel text path through the shared quantizer
@@ -1076,6 +1080,56 @@ class DNACodonHashLoss(nn.Module):
         kl_per_cb = (target.detach() * (log_target - log_actual)).sum(dim=-1)   # [B, M]
         start_m = 1 if skip_global else 0
         return kl_per_cb[:, start_m:].mean()
+
+    def _loss_text_codeword_contrastive(
+        self,
+        text_part_tokens: torch.Tensor,    # [B, M, D] RAW post-adapter (NOT quantized)
+        quantized_tokens: torch.Tensor,    # [B, M, D] post-VQ visual (= codebook[m, k_visual*])
+        tau: float = 0.07,
+        skip_global: bool = True,
+    ) -> torch.Tensor:
+        """v173: per-codebook InfoNCE between RAW text and visual codeword.
+
+        For each slot m, positive pair = (text[i, m], quantized_visual[i, m])
+        from the same image i. Negative pairs = (text[i, m], quantized_visual[j, m])
+        for j != i (other images, same slot).
+
+        Bypasses text-quantization noise present in xmodal_commit (uses RAW text)
+        and works at codeword level (NOT routing level), avoiding routingText's
+        weak per-patch signal failure mode. Symmetric (text->visual + visual->text)
+        like CLIP/CIBHash NtXent.
+
+        Gradient flows: visual via STE through quantization back to routing +
+        codebooks + encoder; text via text_adapter (codebook for text not used).
+        """
+        assert text_part_tokens.dim() == 3, (
+            f"text_part_tokens must be [B, M, D], got {tuple(text_part_tokens.shape)}"
+        )
+        assert quantized_tokens.dim() == 3, (
+            f"quantized_tokens must be [B, M, D], got {tuple(quantized_tokens.shape)}"
+        )
+        B, M, D = text_part_tokens.shape
+        Bv, Mv, Dv = quantized_tokens.shape
+        assert B == Bv and M == Mv and D == Dv, (
+            f"shape mismatch text={tuple(text_part_tokens.shape)} "
+            f"visual={tuple(quantized_tokens.shape)}"
+        )
+        if B < 2:
+            return text_part_tokens.new_zeros(())
+        t_n = F.normalize(text_part_tokens, dim=-1)
+        v_n = F.normalize(quantized_tokens, dim=-1)
+        tau_eff = max(float(tau), 1e-6)
+        start_m = 1 if skip_global else 0
+        losses: list = []
+        labels = torch.arange(B, device=text_part_tokens.device)
+        for m in range(start_m, M):
+            sim = t_n[:, m, :] @ v_n[:, m, :].T / tau_eff            # [B, B]
+            L_tv = F.cross_entropy(sim,   labels)                    # text  -> visual
+            L_vt = F.cross_entropy(sim.T, labels)                    # visual -> text
+            losses.append(0.5 * (L_tv + L_vt))
+        if not losses:
+            return text_part_tokens.new_zeros(())
+        return torch.stack(losses).mean()
 
     def _loss_proto_cluster_per_codebook(
         self,
@@ -2648,6 +2702,18 @@ class DNACodonHashLoss(nn.Module):
                     skip_global=self.routing_text_skip_global,
                 )
 
+        # v173: text-codeword contrastive — RAW text_part vs quantized_tokens.
+        loss_text_codeword_contrastive = u.new_zeros(())
+        if self.lambda_text_codeword_contrastive > 0.0:
+            t_tcc = outputs.get("text_part_tokens")    # [B, M, D] raw post-adapter
+            q_tcc = outputs.get("quantized_tokens")    # [B, M, D] post-VQ visual
+            if t_tcc is not None and q_tcc is not None:
+                loss_text_codeword_contrastive = self._loss_text_codeword_contrastive(
+                    t_tcc, q_tcc,
+                    tau=self.text_codeword_contrastive_tau,
+                    skip_global=self.text_codeword_contrastive_skip_global,
+                )
+
         # v138: prototype-cluster paired-view InfoNCE on codebook_distances.
         # Activates when --lambda_proto_cluster > 0 AND paired view is present
         # AND both views expose `codebook_distances`. Operates per codebook:
@@ -2807,6 +2873,7 @@ class DNACodonHashLoss(nn.Module):
             + self.lambda_proto_cluster   * loss_proto_cluster_v
             + self.lambda_text_code_kl    * loss_text_code_kl
             + self.lambda_routing_text    * loss_routing_text
+            + self.lambda_text_codeword_contrastive * loss_text_codeword_contrastive
         )
 
         # v106: codeword <-> DNA codon bijection losses (None-safe).
@@ -2952,6 +3019,7 @@ class DNACodonHashLoss(nn.Module):
             "loss_proto_cluster":  loss_proto_cluster_v,
             "loss_text_code_kl":   loss_text_code_kl,
             "loss_routing_text":   loss_routing_text,
+            "loss_text_codeword_contrastive": loss_text_codeword_contrastive,
             "loss_swav_assign":    loss_swav_assign_v,
             "loss_ortho_text":   loss_ortho_text,
             "loss_dna":          loss_dna,

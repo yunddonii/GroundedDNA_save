@@ -257,11 +257,13 @@ def _build_active_loss_types(args) -> list:
     if _on('lambda_codeword_text_proto'):
         keys.append('loss_codeword_text_proto')
 
-    # ---- text-code KL (v144) and routing-text supervision (v172)
+    # ---- text-code KL (v144), routing-text (v172), text-codeword contrastive (v173)
     if _on('lambda_text_code_kl'):
         keys.append('loss_text_code_kl')
     if _on('lambda_routing_text'):
         keys.append('loss_routing_text')
+    if _on('lambda_text_codeword_contrastive'):
+        keys.append('loss_text_codeword_contrastive')
 
     # ---- CIBHash family (v119)
     if _on('lambda_cibhash_ntxent'):

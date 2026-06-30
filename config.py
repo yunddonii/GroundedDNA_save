@@ -1362,6 +1362,22 @@ class Config():
             help='v172: skip cb0 (C_global) from routing supervision. '
                  'C_global is supposed to aggregate full-image content; per-patch '
                  'text supervision does not apply.')
+        # v173 (text-codeword contrastive): per-codebook InfoNCE between RAW
+        # text_part_tokens (NOT quantized) and quantized_tokens (post-VQ visual,
+        # = codebook[m, k_visual*]).  Positive = same image, same slot; negative
+        # = other images, same slot.  Bypasses text-quantization noise.
+        loss_arg.add_argument('--lambda_text_codeword_contrastive',
+            type=float, default=0.0,
+            help='v173: weight for text-codeword contrastive (RAW text vs '
+                 'quantized visual codeword, per-codebook InfoNCE). '
+                 '0 disables (default). Recommended 0.05-0.20.')
+        loss_arg.add_argument('--text_codeword_contrastive_tau',
+            type=float, default=0.07,
+            help='v173: NtXent temperature for text-codeword contrastive. '
+                 'CLIP default 0.07; smaller -> sharper supervision.')
+        loss_arg.add_argument('--text_codeword_contrastive_skip_global',
+            action='store_true', default=False,
+            help='v173: skip cb0 (C_global) from text-codeword contrastive.')
         loss_arg.add_argument('--lambda_codeword_text_proto',
             type=float, default=0.0,
             help='v123: weight for codeword-level text prototype alignment. '

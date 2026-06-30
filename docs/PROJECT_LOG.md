@@ -334,6 +334,65 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-06-30 — v173a CUB L_text_codeword_contrastive: RAW text vs quantized visual codeword per-codebook InfoNCE (REPLACES text_hash_ntxent)
+
+🟡 **OUTCOME: Mechanism CONFIRMED orthogonality direction (NMI ↓), retrieval catastrophic.** New loss `L_text_codeword_contrastive` bypasses text-quantization noise by using RAW text_part_tokens (post-adapter) vs quantized_tokens (post-VQ visual codeword = codebook[m, k_visual*]). Per-codebook symmetric InfoNCE. NMI off-diag dropped 0.644 → **0.520 = genuinely more orthogonal codebooks (this time in the correct direction)** vs routingText where NMI rose (less orthogonal). But mAP collapsed by half (0.1618 → 0.0761). Verdict: **mechanism works in the right direction, λ=0.10 too aggressive — retry at λ=0.02–0.05**.
+
+🟢 **Motivation (from session discussion).**
+After (1) text similarity bottleneck REFUTED (text_part_adapted off-diag local cos sim = 0.13, not 0.88) and (2) cross-modal subspace disconnect REFUTED (cos(text[m], visual[p]) is more slot-discriminative than codebook target: corr 0.28 vs 0.54, distinct top-1 5.7/6 vs 4.8/6), user proposed REDESIGN: text supervision at codeword level, not routing/patch level. Recipe: drop text-quantization step (which destroys fine-grained text info); compare RAW text directly with quantized visual.
+
+🟢 **Code added.** `config.py`: `--lambda_text_codeword_contrastive`, `--text_codeword_contrastive_tau`, `--text_codeword_contrastive_skip_global`. `loss_siglip2.py`: `_loss_text_codeword_contrastive(text_part_tokens, quantized_tokens, tau, skip_global)` — per-codebook symmetric InfoNCE: `sim[i,j] = cos(text_n[i,m], q_visual_n[j,m]) / tau`, positive = diagonal, symmetric CE both directions, averaged over local codebooks. Hook + aggregate + dict. `train_siglip2.py`: loss_types.
+
+🟢 **Test cell.** Single-delta on wass 0.15 + best-ckpt champion: `--lambda_text_hash_ntxent 0.10 → 0.0` (OFF), `--lambda_text_codeword_contrastive 0.10` (ON), `--text_codeword_contrastive_tau 0.07` (CLIP default), `--text_codeword_contrastive_skip_global`. GPU 4 (free).
+
+🟢 **Mid-eval K=3 trajectory (CUB cache=FAIRrankL8K3):**
+
+| ep | baseline (wass015 + best-ckpt) | textCwContrastive | Δ |
+|---|---|---|---|
+| 9  | 0.1139 | 0.0743 | −0.040 |
+| 14 | 0.1385 | 0.0899 | −0.049 |
+| 19 | — | 0.1038 | — |
+| 24 | 0.1486 | 0.0956 | −0.053 |
+| 29 | 0.1608 | 0.1179 | −0.043 |
+| 34 | 0.1685 | 0.1127 | −0.056 |
+| 39 | 0.1732 | 0.1176 | −0.056 |
+| 44 | 0.1795 | 0.1254 | −0.054 |
+| **49 (peak)** | **0.1837** | **0.1258** | **−0.058** |
+| 54 | — | 0.1116 | — |
+
+Best-ckpt swapped at ep 49 (peak K=3 = 0.1258). dead_cb oscillating 0.17–0.35 throughout training — severe codebook collapse pattern.
+
+🟢 **Final whole-image inference (cache=cub200_clip_v6bplus, paper-claim metric):**
+
+| Metric | wass015 champion (text_hash_ntxent) | **textCwContrastive** | Δ | direction |
+|---|---|---|---|---|
+| mAP | 0.1618 | 0.0761 | **−0.0857** | ❌ catastrophic |
+| P@1 | 0.2468 | 0.1707 | −0.076 | ❌ |
+| P@10 | 0.2253 | 0.1384 | −0.087 | ❌ |
+| DNA-uniq | 0.610 | 0.450 | −0.160 | ❌ |
+| cb-tuple | 0.690 | 0.655 | −0.035 | ❌ |
+| **NMI (off-diag mean, LOWER=more orthogonal)** | 0.644 | **0.520** | **−0.124** | ✅ **genuinely more orthogonal** |
+
+🎯 **Mechanism evidence: this time NMI moved in the CORRECT direction** (down = orthogonal). Contrasted with routingText where NMI ROSE (less orthogonal). The text-codeword InfoNCE drives codewords to be discriminative across slots more effectively than per-patch routing supervision.
+
+🔴 **But retrieval collapsed by half.** The codeword selection became text-driven instead of class-discriminative; CIBHash NtXent (λ=1.0) and text-codeword contrastive (λ=0.10) compete for codeword identity, text wins at this λ → class info erased.
+
+📐 **Capacity hypothesis.** K=128 codewords vs 5994 images = ~47 imgs/codeword on average. Per-codebook InfoNCE wants image-specific codeword (each image's text aligned to a UNIQUE codeword), but K=128 can only span 128 image-clusters per slot. This forces a partition along TEXT-similarity rather than class-similarity, breaking the retrieval objective. CIBHash NtXent works (paired-aug positives are intrinsically image-specific without capacity demands); text-codeword InfoNCE doesn't (class-level text positives demand capacity beyond K).
+
+🟡 **Verdict at λ=0.10: REJECT — too aggressive.** Champion remains wass 0.15 + best-ckpt (mAP 0.1618).
+
+🔭 **Key insight:** unlike routingText (where the mechanism produced WRONG-direction NMI), textCwContrastive mechanism produces the CORRECT direction. Lower λ may preserve retrieval while gaining some orthogonality.
+
+🔭 **Follow-ups.**
+1. **textCwContrastive λ=0.02** — softer signal, retain class-discriminative routing.
+2. **textCwContrastive λ=0.05** — mid-point.
+3. **textCwContrastive + keep text_hash_ntxent ON** (additive, not replacement) — additional safety.
+4. **textCwContrastive with τ=0.20** softer InfoNCE (smaller contrast pressure on K=128 capacity).
+
+📋 **Files modified.** `config.py`, `loss_siglip2.py`, `train_siglip2.py`, `scripts/train_cub200_v170a_wass015_textCwContrastive_FAIRrankL8K3_clip.sh` (new).
+
+---
+
 ## 2026-06-29 — v172a CUB L_routing_text: text → per-patch routing supervision (REPLACES text_code_kl)
 
 🔴 **OUTCOME (CORRECTED 2026-06-30): ALL AXES REGRESSED — REJECT, supervision-signal issue not λ-tuning issue.** New loss `L_routing_text` directly supervises per-patch routing weights using cosine similarity to per-slot text embeddings. Replaces `text_code_kl` (codeword index supervision) with explicit patch-level text supervision. **CRITICAL CORRECTION**: my initial interpretation got NMI direction backwards. NMI between codebook pairs measures MUTUAL INFORMATION — **lower NMI = more orthogonal**. routingText drove NMI from 0.644 → **0.680 = LESS orthogonal, MORE correlated codebooks**. All four axes regressed: mAP −0.015, DNA-uniq −0.075, cb-tuple −0.060, NMI +0.036 (worse). Single-delta verdict: **REJECT at λ=0.10. The mechanism is NOT validated — it is producing the WRONG outcome** because the per-slot text embeddings used as routing targets are nearly identical across slots (cos sim ~0.88, effective rank 2.7), so forcing routing to follow them MAKES codebooks more similar, not more orthogonal.
