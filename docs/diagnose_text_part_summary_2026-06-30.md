@@ -32,3 +32,48 @@ The failure CANNOT be blamed on text similarity bottleneck. New candidate explan
 - (a) Distribution of cos(text_part_adapted[m], visual_token[p]) across slots
 - (b) Direct comparison of L_routing_text target vs actual OT routing on same image
 - (c) Reverse KL: KL(routing || target) instead of forward
+
+---
+
+# Diagnostic (a): cross-modal subspace disconnect
+
+## Source
+Same champion run. Forced `model.train()` (no_grad) to compute text path which is skipped at eval. N=224 images, M=6 slots, P=196 patches (whole-image cache).
+
+## Per-(image, slot) sim distribution over patches
+
+| metric | cos(text[m], visual[p]) | cos(codebook[m, k_m*], visual[p]) |
+|---|---|---|
+| mean | 0.161 | 0.331 |
+| std | 0.142 | 0.187 |
+| max | 0.433 | 0.664 |
+| min | -0.218 | -0.152 |
+
+## Cross-slot differential per (image, patch)
+
+| metric | text-target | codebook-target |
+|---|---|---|
+| cross-slot std (over m) at fixed (n, p) | 0.142 | 0.174 |
+| cross-slot Pearson corr (over m-pairs, ~100 imgs) | **0.278** | 0.542 |
+| per-image distinct top-1 patches across M=6 | **5.70 / 6** | 4.82 / 6 |
+
+## Verdict
+
+REFUTED — cross-modal subspace is NOT disconnected. text-vs-visual signal is actually MORE slot-discriminative than codebook-vs-visual:
+- text-target produces near-distinct top-1 patches across slots (5.7 / 6 max)
+- text-target has lower cross-slot correlation (0.28 → healthy zone)
+
+## True bottleneck candidate (new)
+
+Signal MAGNITUDE: text max sim = 0.43 (vs codebook 0.66). softmax(sim/τ=0.1) target is too flat for text:
+- text peak-vs-mean ratio after softmax ≈ exp((0.43 − 0.16) / 0.1) ≈ 14
+- codebook peak-vs-mean ratio ≈ exp((0.66 − 0.33) / 0.1) ≈ 27
+
+Flat target → weak supervision → routing under-driven → codebooks collapse (NMI ↑).
+
+## Next experiment candidates
+
+(C1) routingText λ=0.10 + τ=0.05 (sharpen target) — fastest test of magnitude hypothesis
+(C2) sim centering before softmax: sim_c = sim − sim.mean(-1)
+(C3) per-image normalization: scaled = sim / sim.std(-1)
+(C4) hybrid text+codebook target
