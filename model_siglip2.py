@@ -2459,19 +2459,36 @@ class SigLIP2SemanticOTModel(nn.Module):
             and text_part_tokens is not None
         ):
             # v175: choose text anchor for foreground mask.
-            #   global       -> cb0 C_global text (default, legacy).
-            #   local_pooled -> GAP over local slots cb1..cb5 (anatomy-focused).
-            if self.foreground_text_mask_source == "local_pooled" and text_part_tokens.shape[1] > 1:
-                _g_text = text_part_tokens[:, 1:, :].mean(dim=1)            # [B, D]
-            else:
-                _g_text = text_part_tokens[:, 0, :]                         # [B, D]
+            #   global         -> cb0 C_global text (default, legacy).
+            #   local_pooled   -> GAP over local slots cb1..cb5 (anatomy-focused).
+            #   per_slot_union -> independent top-K per local slot, take UNION.
             _v_n = F.normalize(visual_tokens_for_routing, dim=-1)           # [B, N, D]
-            _g_n = F.normalize(_g_text, dim=-1)                             # [B, D]
-            _sim = (_v_n * _g_n.unsqueeze(1)).sum(dim=-1)                   # [B, N]
-            _N = _sim.shape[-1]
+            _N = _v_n.shape[1]
             _k = max(1, int(_N * fg_ratio))
-            _thr = _sim.topk(_k, dim=-1)[0][:, -1:]                         # [B, 1]
-            _fg_mask = (_sim >= _thr).to(visual_tokens_for_routing.dtype)   # [B, N]
+            if (
+                self.foreground_text_mask_source == "per_slot_union"
+                and text_part_tokens.shape[1] > 1
+            ):
+                # Per-slot top-K, union over local slots (cb1..cb5).
+                _local_text = text_part_tokens[:, 1:, :]                    # [B, M_loc, D]
+                _local_text_n = F.normalize(_local_text, dim=-1)            # [B, M_loc, D]
+                _sims = torch.einsum('bnd,bmd->bnm', _v_n, _local_text_n)   # [B, N, M_loc]
+                # Per-slot top-K threshold; mask[m, p]=1 if patch p in top-K for slot m.
+                _thr_per_slot = _sims.topk(_k, dim=1)[0][:, -1:, :]         # [B, 1, M_loc]
+                _per_slot_mask = (_sims >= _thr_per_slot)                   # [B, N, M_loc]
+                _fg_mask = _per_slot_mask.any(dim=-1).to(_v_n.dtype)        # [B, N]
+            else:
+                if (
+                    self.foreground_text_mask_source == "local_pooled"
+                    and text_part_tokens.shape[1] > 1
+                ):
+                    _g_text = text_part_tokens[:, 1:, :].mean(dim=1)        # [B, D]
+                else:
+                    _g_text = text_part_tokens[:, 0, :]                     # [B, D]
+                _g_n = F.normalize(_g_text, dim=-1)                         # [B, D]
+                _sim = (_v_n * _g_n.unsqueeze(1)).sum(dim=-1)               # [B, N]
+                _thr = _sim.topk(_k, dim=-1)[0][:, -1:]                     # [B, 1]
+                _fg_mask = (_sim >= _thr).to(visual_tokens_for_routing.dtype)   # [B, N]
             if visual_attention_mask is not None:
                 visual_attention_mask = visual_attention_mask.to(
                     visual_tokens_for_routing.dtype

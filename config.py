@@ -488,12 +488,14 @@ class Config():
         # rather than the global scene caption.
         siglip2_arg.add_argument('--foreground_text_mask_source',
             dest='foreground_text_mask_source',
-            choices=['global', 'local_pooled'],
+            choices=['global', 'local_pooled', 'per_slot_union'],
             default='global',
             help='v175: anchor text for foreground mask. global = cb0 text '
                  '(default, legacy). local_pooled = GAP over local cb1..cb5 '
-                 'text slots (anatomy-focused). Only used when '
-                 '--foreground_text_mask_topk_ratio is set.')
+                 'text slots (anatomy-focused). per_slot_union = independent '
+                 'top-K per local slot, take UNION (patches relevant to ANY '
+                 'slot survive) — preserves per-slot localization. Only used '
+                 'when --foreground_text_mask_topk_ratio is set.')
         # ---------- VQ codebook update mode -----------------------------
         # `gradient` (default, legacy) -- codebook is an nn.Parameter,
         #   updated by the VQ loss MSE term. Prone to dead-code collapse.

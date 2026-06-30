@@ -16582,3 +16582,69 @@ Codebook STATS HEALTHY (no collapse pathology — unique 0.50-0.61, dead 0.013-0
 🟡 **Champion remains wass 0.15 + best-ckpt + FAIRrank L8K3 (mAP 0.1618).**
 
 📋 **Files modified.** `config.py` (args α/γ/ε), `loss_siglip2.py` (`_loss_text_preq_contrastive`, `_loss_text_visual_hash_contrastive`), `train_siglip2.py` (loss_types), `model_siglip2.py` (`--foreground_text_mask_source local_pooled` branch). 4 new scripts.
+
+---
+
+## 2026-07-01 — v175 CUB fg mask per_slot_union: per-slot mechanism CONFIRMED > global pool, but still −0.024 below champion (FAIRrank+fg mask structural redundancy)
+
+🟡 **OUTCOME: per-slot union mechanism works (better than global local_pool variant on all axes), but fg mask + FAIRrank L8K3 combination remains net-negative vs no-fg-mask champion. Verdict: REJECT for retrieval, mechanism validated for future use.**
+
+🟢 **Motivation.** After Cell A (fgMask local_pool 0.5 + FAIRrank L8K3) gave -0.031 mAP vs champion (early peak at ep 34 then decline), user proposed A1 — per-slot top-K mask with union over local cb1..cb5 — to test if per-slot localization preserves better information than a single global anchor.
+
+🟢 **Code added.**
+- `config.py`: `--foreground_text_mask_source` choices += `per_slot_union`.
+- `model_siglip2.py`: in fg mask branch, when `source=per_slot_union`:
+  ```
+  local_text [B, M_loc, D]   <- text_part_tokens[:, 1:, :]
+  sims [B, N, M_loc] = einsum('bnd,bmd->bnm', visual_n, local_text_n)
+  thr_per_slot = sims.topk(k_per_slot, dim=1).values[:, -1:, :]
+  per_slot_mask [B, N, M_loc] = (sims >= thr_per_slot)
+  fg_mask [B, N] = per_slot_mask.any(dim=-1)
+  ```
+  Union (any slot wants this patch -> keep). Effective ratio ~70-80% (per-slot top-50% × M=5 slots × overlap).
+
+🟢 **Test cell.** Single-delta on Cell A (champion + fg mask + FAIRrank L8K3): `--foreground_text_mask_source local_pooled` → `per_slot_union`. Same ratio 0.5. GPU 4 (free).
+
+🟢 **Mid-eval K=3 trajectory (late peak like champion):**
+
+| ep | A K=3 (local_pool) | A1 K=3 (per_slot_union) | Champion K=3 |
+|---|---|---|---|
+| 14 | 0.1436 | 0.1331 | 0.1385 |
+| 24 | 0.1564 | 0.1394 | 0.1486 |
+| 34 | **0.1599** (A peak) | 0.1412 | 0.169 |
+| 44 | 0.1543 | 0.1531 | 0.1795 |
+| 49 | 0.1532 | **0.1636** (A1 peak) | **0.1837** (champion peak) |
+| 59 | — | 0.1578 | — |
+
+A1 has LATE PEAK (ep 49) similar to champion (ep 49), whereas A peaked EARLY (ep 34) then declined. Per-slot mask preserves more patches → slower convergence, fuller exploitation of K=3 multi-view input.
+
+🟢 **Final whole-image inference (cache=cub200_clip_v6bplus, paper-claim metric):**
+
+| Metric | Champion | A (local_pool) | **A1 (per_slot_union)** | A1 vs champion | A1 vs A |
+|---|---|---|---|---|---|
+| mAP | 0.1618 | 0.1307 | **0.1374** | **−0.024** | **+0.007** |
+| P@1 | 0.2468 | 0.2025 | 0.2249 | −0.022 | +0.022 |
+| P@10 | 0.2253 | 0.1866 | 0.1969 | −0.029 | +0.010 |
+| DNA-uniq | 0.610 | 0.500 | 0.567 | −0.043 | **+0.067** |
+| cb-tuple | 0.690 | 0.577 | 0.659 | −0.031 | +0.082 |
+| NMI (off-diag) | 0.644 | 0.710 | 0.660 | +0.016 | −0.050 |
+
+🎯 **Per-slot mechanism CONFIRMED stronger than global pool on every axis.** A1 > A across mAP/P@1/P@10/DNA/cb-tuple, AND has better orthogonality (NMI lower than A). Per-slot foreground localization preserves more codebook diversity than a single global anchor mask.
+
+🟡 **But fg mask + FAIRrank L8K3 remains net negative vs no-fg-mask champion (−0.024 mAP).** Structural redundancy: FAIRrank L8K3 already performs foreground selection (CLS-anchored top-K crops focused on the bird), so adding text-guided fg mask is overlapping work, costing diversity (DNA-uniq −0.043, cb-tuple −0.031).
+
+📐 **Interpretation:** fg mask is the right idea but applied at the wrong stage. FAIRrank crops already remove most background. The remaining patches (within crops) are already mostly foreground. Adding fg mask drops some informative patches.
+
+🟡 **Verdict.** REJECT A1 for retrieval mAP — champion remains wass 0.15 + best-ckpt (no fg mask). **Mechanism (per-slot union) VALIDATED for future use**, e.g., on whole-image-only inference (where FAIRrank L8K3 is not present, fg mask becomes non-redundant).
+
+🔭 **Follow-ups within fg-mask design space.**
+1. **A1 ratio 0.7** (gentler pruning, less FAIRrank conflict) — fastest test.
+2. **A1 warmup** (ep 0-30 ratio=1.0 → 0.5) — gradual onset, lets routing settle first.
+3. **fg mask DROP from training, KEEP for inference** — only prune at deploy time.
+4. **Per-slot mask on whole-image-only pipeline (drop FAIRrank L8K3)** — where fg mask non-redundant; A1 mechanism may finally pay off.
+
+🔭 **Direction change candidates.**
+1. **B1 L_ortho on codebook prototypes** — targets NMI/orthogonality directly.
+2. **B6 cross-attention aggregation** — original user idea, text discriminability proven OK.
+
+📋 **Files modified.** `config.py`, `model_siglip2.py`, `scripts/train_cub200_v170a_wass015_fgMaskPerSlotUnion05_FAIRrankL8K3_clip.sh` (new).
