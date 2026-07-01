@@ -82,6 +82,13 @@ codebook) as a follow-up.
   stricter local candidate pressure removes retrieval-useful evidence.
   Future text-guided localization should use a softer auxiliary
   alignment signal, not a strong Sinkhorn candidate penalty.
+- **v178 clean-loss verdict**: **v178b DISCARDED**, **v178c recovers but
+  does not replace v176a**. Removing `text_code_kl` collapses the clean
+  loss recipe (mAP 0.1399, NMI 0.677); restoring only
+  `lambda_text_code_kl=0.10` recovers most axes (mAP 0.1561, NMI 0.646),
+  confirming that `text_code_kl` is load-bearing for CUB text-guided
+  compositional routing. `anchor/bu/recon/cibhash_kl` remain pruning
+  candidates.
 
 - **Best genuinely-unsupervised Flickr25k (ours, NEW 2026-06-02 PM)**:
   - **mAP champion: v101c** (= v99b base [`--hash_target_mode siglip_cos
@@ -348,6 +355,70 @@ codebook) as a follow-up.
   reverse-chronological (newest first), `## Infrastructure` pinned at
   bottom. Re-enforced via `python scripts/reorder_project_log.py`
   (idempotent).
+
+---
+
+## 2026-07-01 — v178b/c CUB clean-loss ablation — **v178b DISCARDED (mAP 0.1399); v178c recovers to mAP 0.1561 but does not replace v176a. `text_code_kl` is load-bearing.**
+
+🔴 **Status: DISCARDED as new base.** v178b/c were designed to simplify the v176a loss soup. The simplification is useful diagnostically, but neither run beats v176a. v176a remains the CUB whole-image retrieval base; v178c is the best clean-loss variant so far.
+
+🟢 **Motivation.** v176a trains with many active or semi-active losses, making the paper contribution harder to explain. Prior audits already indicated that `lambda_anchor` is inert under EMA codebooks and that several auxiliary terms are either near-zero or bookkeeping noise. v178 tests whether CUB can keep the main retrieval/grounding behavior with only the core losses.
+
+🧪 **Setup.** Both cells start from v176a: CUB-200, `FAIRrankL8K3_stackedText`, K=128, partial whitening gamma 0.25, wasserstein 0.15, soft text-evidence beta 0.10, adaptive top-p 0.6/1.0.
+
+| Run | Modification vs v176a | Intended test |
+|---|---|---|
+| v176a | original champion recipe | baseline |
+| v178b | `anchor=0`, `bu=0`, `recon=0`, `cibhash_kl=0`, `text_code_kl=0`, `xmodal_commit=0.05` | aggressive clean-loss pruning |
+| v178c | v178b + `text_code_kl=0.10` restored | isolate whether `text_code_kl` caused v178b collapse |
+
+Core losses kept in both v178b/c: `lambda_vq=0.25`, `lambda_quant=0.05`, `lambda_dna=0.05`, `lambda_text_hash_ntxent=0.10`, `lambda_wasserstein=0.15`, `lambda_cibhash_ntxent=1.0`. `lambda_xmodal_commit=0.05` is active but still not emitted as a CSV column by `_build_active_loss_types`.
+
+📊 **Final whole-image evaluation.**
+
+| Run | Final mAP | Δ vs v176a | P@1 | P@10 | DNA unique | BaseH | NMI mean | B1 lift | Verdict |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| v176a | **0.1623** | - | **0.2582** | **0.2274** | 0.5943 | **0.9531** | 0.6526 | **0.1601** | keep as base |
+| v178b | 0.1399 | -0.0224 | 0.2251 | 0.1936 | 0.5631 | 0.9444 | 0.6767 | 0.1497 | DISCARDED |
+| v178c | 0.1561 | -0.0063 | 0.2525 | 0.2198 | **0.6003** | 0.9512 | **0.6459** | 0.1570 | clean-loss recovery, but not base |
+
+📈 **Mid-eval trajectory.**
+
+| Run | Best mid epoch | Best mid mAP | Last mid mAP | Last mid DNA unique | Last mid dead | Interpretation |
+|---|---:|---:|---:|---:|---:|---|
+| v176a | 44 | **0.1901** | 0.1768 | 0.6877 | 0.0573 | peaks early, final whole-image still best |
+| v178b | 59 | 0.1661 | 0.1661 | 0.6010 | 0.0625 | no recovery without text-code KL |
+| v178c | 49 | 0.1798 | 0.1728 | 0.6469 | 0.1563 | KL restores mAP/NMI but late dead-code rises |
+
+🧩 **Drop-ablation diagnosis.**
+
+| Run | Drop C0 ΔmAP | Local-slot pattern |
+|---|---:|---|
+| v176a | -0.0326 | C4 removal improves mAP (+0.0042), so one local slot is mildly harmful |
+| v178b | -0.0327 | C1/C3/C4 removal improves mAP; local slots are broadly less useful |
+| v178c | -0.0313 | C1/C2/C3/C5 become mildly useful again; C4 still harmful (+0.0036) |
+
+🔍 **Heatmap / qualitative check.**
+
+- **v178b**: no interpretability win. Foreground activation is not cleaner than v176a, `C_background` still often touches bird body, and local slots become less semantically separated.
+- **v178c**: closer to v176a and sometimes cleaner than v178b, but not clearly better than v176a. Text-evidence matching remains loose, so the mAP gap is not compensated by qualitative grounding.
+
+✅ **Conclusions.**
+
+1. `text_code_kl` is load-bearing for CUB. Removing it causes mAP/NMI/compositional-lift degradation; restoring only this term recovers most of the damage.
+2. The non-essential pruning hypothesis remains plausible for `anchor`, `bu`, `recon`, and `cibhash_kl`: v178c is only -0.0063 mAP from v176a while those are OFF.
+3. The remaining gap is likely from reducing `xmodal_commit` from 0.10 to 0.05, or from interaction among weak text-code signals.
+4. Clean-loss recipes do not yet improve text-guided localization; they mainly clarify which losses are structurally required.
+
+➡️ **Next recommended cell.** v178d: keep `anchor=0`, `bu=0`, `recon=0`, `cibhash_kl=0`, restore `text_code_kl=0.10`, and restore `xmodal_commit=0.10`. If v178d matches v176a, the paper can simplify the official loss set by dropping the four non-essential terms without losing performance.
+
+🧰 **Code / results.**
+
+- `scripts/train_cub200_v178b_v176a_cleanLoss_xmodal005_FAIRrankL8K3_clip.sh`
+- `scripts/train_cub200_v178c_v176a_cleanLoss_xmodal005_textCodeKL010_FAIRrankL8K3_clip.sh`
+- Results:
+  - `result/260701+cub_200_setting1_cub200_v178b_v176a_cleanLoss_xmodal005_wass015_FAIRrankL8K3_stackedText_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001`
+  - `result/260701+cub_200_setting1_cub200_v178c_v176a_cleanLoss_xmodal005_textCodeKL010_wass015_FAIRrankL8K3_stackedText_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001`
 
 ---
 
