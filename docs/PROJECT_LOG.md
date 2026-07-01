@@ -420,7 +420,19 @@ codebook) as a follow-up.
 | B1 centered-text lift | 0.1558 | below v176a 0.1601, close to v178c |
 | B2 visual-global lift | 0.0923 | slightly below v176a 0.0945 |
 
-🔍 **`viz_routing_heatmap` qualitative check.** Regenerated with the token cache after adding token-cache passthrough to `dna_utils/visualization.py`. The heatmap is saved at `viz_routing_heatmap.png` with K=3 rows per sample. v179a shows foreground/bird-body response in several examples, but the signal is still broad: local slots often activate background grids, and multiple local slots repeatedly attend to similar foreground blobs instead of cleanly separating beak/head/wing/tail evidence. This supports the high-level token-evidence direction, but not the current beta/top-k implementation as a solved text-guidance method.
+🔍 **`viz_routing_heatmap` qualitative check.** Corrected on **2026-07-02**:
+the first regenerated heatmap accidentally used the K=3 training cache
+(`visual_tokens.shape = [11788, 588, 768]`), so it plotted each image
+three times. The standard `viz_routing_heatmap.png` has now been
+regenerated with a whole-image token cache
+(`visual_tokens.shape = [11788, 196, 768]`, `K=1, side=14`). The old K=3
+view is preserved only as `viz_routing_heatmap_K3_training_cache.png`.
+In the corrected whole-image heatmap, v179a still shows some
+foreground/bird-body response, but the signal remains broad: local slots
+often activate background grids, and multiple local slots repeatedly attend
+to similar foreground blobs instead of cleanly separating beak/head/wing/tail
+evidence. This supports the high-level token-evidence direction, but not the
+current beta/top-k implementation as a solved text-guidance method.
 
 ✅ **Conclusions.**
 
