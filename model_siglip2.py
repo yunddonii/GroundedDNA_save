@@ -1354,6 +1354,12 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.routing_text_evidence_warmup_epochs: int = int(
             getattr(args, "routing_text_evidence_warmup_epochs", 0)
         )
+        self.routing_text_evidence_keep_ratio: float = float(
+            getattr(args, "routing_text_evidence_keep_ratio", 1.0)
+        )
+        self.routing_text_evidence_penalty: float = float(
+            getattr(args, "routing_text_evidence_penalty", 0.0)
+        )
         if self.routing_text_evidence_beta < 0.0:
             raise ValueError(
                 f"routing_text_evidence_beta must be >= 0, got {self.routing_text_evidence_beta}"
@@ -1362,6 +1368,16 @@ class SigLIP2SemanticOTModel(nn.Module):
             raise ValueError(
                 "routing_text_evidence_warmup_epochs must be >= 0, got "
                 f"{self.routing_text_evidence_warmup_epochs}"
+            )
+        if not (0.0 < self.routing_text_evidence_keep_ratio <= 1.0):
+            raise ValueError(
+                "routing_text_evidence_keep_ratio must be in (0, 1], got "
+                f"{self.routing_text_evidence_keep_ratio}"
+            )
+        if self.routing_text_evidence_penalty < 0.0:
+            raise ValueError(
+                "routing_text_evidence_penalty must be >= 0, got "
+                f"{self.routing_text_evidence_penalty}"
             )
         self.route_global_text: bool = bool(getattr(args, "route_global_text", False))
         self.routed_cls_add_gamma: float = float(getattr(args, "routed_cls_add_gamma", 0.0))
@@ -1894,14 +1910,27 @@ class SigLIP2SemanticOTModel(nn.Module):
         t = min(max(self._current_epoch, 0) + 1, warmup) / float(warmup)
         return beta * t
 
+    def _current_routing_text_evidence_scale(self) -> float:
+        """Return the v176/v177 warm-up multiplier in [0, 1]."""
+        warmup = max(int(getattr(self, "routing_text_evidence_warmup_epochs", 0)), 0)
+        if warmup <= 0:
+            return 1.0
+        t = min(max(self._current_epoch, 0) + 1, warmup) / float(warmup)
+        return float(t)
+
     def _current_routing_text_evidence_beta(self) -> float:
         """Return the current v176a soft text-evidence bias strength."""
         beta = max(0.0, float(getattr(self, "routing_text_evidence_beta", 0.0)))
-        warmup = max(int(getattr(self, "routing_text_evidence_warmup_epochs", 0)), 0)
-        if beta <= 0.0 or warmup <= 0:
+        if beta <= 0.0:
             return beta
-        t = min(max(self._current_epoch, 0) + 1, warmup) / float(warmup)
-        return beta * t
+        return beta * self._current_routing_text_evidence_scale()
+
+    def _current_routing_text_evidence_penalty(self) -> float:
+        """Return the current v177 evidence candidate penalty strength."""
+        penalty = max(0.0, float(getattr(self, "routing_text_evidence_penalty", 0.0)))
+        if penalty <= 0.0:
+            return penalty
+        return penalty * self._current_routing_text_evidence_scale()
 
     @staticmethod
     def _remove_global_projection(
@@ -2532,14 +2561,16 @@ class SigLIP2SemanticOTModel(nn.Module):
         }
         if self.router_type == "sinkhorn":
             cur_text_evidence_beta = self._current_routing_text_evidence_beta()
-            if cur_text_evidence_beta > 0.0:
-                # v176a: soft evidence bias for Sinkhorn routing.
+            cur_text_evidence_penalty = self._current_routing_text_evidence_penalty()
+            if cur_text_evidence_beta > 0.0 or cur_text_evidence_penalty > 0.0:
+                # v176/v177: soft evidence bias for Sinkhorn routing.
                 # visual_tokens_for_routing: [B, N, D]
                 # route_centroids_aug:       [B, M_route, D]
-                # cost_bias:                 [B, N, M_route]
+                # sim/cost_bias:             [B, N, M_route]
                 _v_ev = F.normalize(visual_tokens_for_routing, dim=-1)
                 _t_ev = F.normalize(route_centroids_aug, dim=-1)
-                cost_bias = torch.einsum("bnd,bmd->bnm", _v_ev, _t_ev)
+                sim_ev = torch.einsum("bnd,bmd->bnm", _v_ev, _t_ev)
+                cost_bias = cur_text_evidence_beta * sim_ev
                 assert cost_bias.shape == (
                     visual_tokens_for_routing.shape[0],
                     visual_tokens_for_routing.shape[1],
@@ -2548,9 +2579,46 @@ class SigLIP2SemanticOTModel(nn.Module):
                     "routing text-evidence bias must be [B, N, M_route], got "
                     f"{tuple(cost_bias.shape)}"
                 )
+                keep_ratio = float(getattr(self, "routing_text_evidence_keep_ratio", 1.0))
+                if cur_text_evidence_penalty > 0.0 and 0.0 < keep_ratio < 1.0:
+                    # v177: evidence-aware local candidate pressure. For each
+                    # local route column, keep top-r visual tokens by text
+                    # evidence; outside candidates are not deleted, but receive
+                    # a negative bias so Sinkhorn can still use them if needed.
+                    B_ev, N_ev, M_route = sim_ev.shape
+                    local_start = 1 if route_global_text_active else 0
+                    local_end = min(local_start + NUM_LOCAL_PARTS, M_route)
+                    if local_end > local_start:
+                        local_sim = sim_ev[..., local_start:local_end]       # [B, N, M_local]
+                        assert local_sim.shape == (
+                            B_ev, N_ev, local_end - local_start,
+                        ), (
+                            "local evidence sim must be [B, N, M_local], got "
+                            f"{tuple(local_sim.shape)}"
+                        )
+                        k_keep = max(1, min(N_ev, int(math.ceil(N_ev * keep_ratio))))
+                        local_sim_for_topk = local_sim
+                        if visual_attention_mask is not None:
+                            valid_patch = visual_attention_mask.to(torch.bool).unsqueeze(-1)  # [B, N, 1]
+                            local_sim_for_topk = local_sim.masked_fill(~valid_patch, -float("inf"))
+                        # Threshold per local route column: [B, 1, M_local].
+                        kth = local_sim_for_topk.topk(k=k_keep, dim=1).values[:, -1:, :]
+                        keep = local_sim_for_topk >= kth                       # [B, N, M_local]
+                        assert keep.shape == local_sim.shape, (
+                            "local evidence keep mask must match local sim, got "
+                            f"{tuple(keep.shape)} vs {tuple(local_sim.shape)}"
+                        )
+                        # Map cosine evidence [-1, 1] to confidence [0, 1] so
+                        # the penalty is bounded and strongest on clear non-evidence.
+                        evidence01 = (0.5 * (local_sim + 1.0)).clamp(0.0, 1.0)
+                        penalty_term = cur_text_evidence_penalty * (1.0 - evidence01)
+                        local_bias = cost_bias[..., local_start:local_end]
+                        local_bias = torch.where(keep, local_bias, local_bias - penalty_term)
+                        cost_bias = cost_bias.clone()
+                        cost_bias[..., local_start:local_end] = local_bias
                 if self.use_null_centroid and self.null_centroid is not None:
                     cost_bias[..., -1] = 0.0
-                router_kwargs["cost_bias"] = cur_text_evidence_beta * cost_bias.detach()
+                router_kwargs["cost_bias"] = cost_bias.detach()
             cur_eps = self._current_sinkhorn_epsilon()
             if cur_eps is not None:
                 router_kwargs["epsilon_override"] = cur_eps

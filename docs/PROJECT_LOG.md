@@ -29,7 +29,7 @@ Format conventions:
 
 ---
 
-## Current state (as of 2026-06-02 PM)
+## Current state (as of 2026-07-01 PM)
 
 ### Two CRITICAL corrections affecting all entries below
 
@@ -65,6 +65,23 @@ bijection — codewords are free to collide on the same codon.
 Section 7 (Future work) of the paper should add a *codeword DNA
 disjointness* regularizer (forced codon-distinctness within each
 codebook) as a follow-up.
+
+### Active CUB-200 fine-grained grounding thread (2026-07-01 PM)
+
+- **Current internal CUB whole-image retrieval champion**: **v176a** —
+  mAP **0.1623**, P@1 **0.2582**, best K=3 mid-eval **0.1901**.
+  v176a is the deployment/base model unless a later cell beats it on
+  whole-image mAP.
+- **Current text-guidance qualitative reference**: **v177a**. It does
+  **not** beat v176a on retrieval (mAP 0.1600), but among v176a/v177a/b/c
+  its `viz_routing_heatmap` gives the best balance: foreground part
+  activation is cleaner than v176a, while v177b/v177c over-spread or
+  over-prune the signal.
+- **v177a/b/c verdict**: retrieval **DISCARDED**. Evidence-aware local
+  top-p reduces codebook redundancy / improves code spread, but the
+  stricter local candidate pressure removes retrieval-useful evidence.
+  Future text-guided localization should use a softer auxiliary
+  alignment signal, not a strong Sinkhorn candidate penalty.
 
 - **Best genuinely-unsupervised Flickr25k (ours, NEW 2026-06-02 PM)**:
   - **mAP champion: v101c** (= v99b base [`--hash_target_mode siglip_cos
@@ -331,6 +348,66 @@ codebook) as a follow-up.
   reverse-chronological (newest first), `## Infrastructure` pinned at
   bottom. Re-enforced via `python scripts/reorder_project_log.py`
   (idempotent).
+
+---
+
+## 2026-07-01 — v177a/b/c CUB evidence-aware local top-p — **retrieval DISCARDED, but v177a is the best text-guidance heatmap trade-off among v176/v177.**
+
+🔴 **Status: retrieval-discarded.** None of v177a/b/c beats v176a on whole-image retrieval. v176a remains the deployment/base model, while v177a is retained only as the best qualitative `viz_routing_heatmap` reference for the current text-guidance problem.
+
+🟢 **Motivation.** The user-visible failure was not just retrieval score: `viz_routing_heatmap` showed background tokens being activated and text descriptions pointing to visual evidence that did not match the actually selected tokens. v176a introduced a soft text-evidence Sinkhorn bias, but the bias was still broad. v177 tests a simple evidence-aware local top-p pressure on top of v176a: for local slots only, tokens outside the text-evidence keep set receive an additional routing cost penalty during the warm-up period.
+
+🧪 **Setup.** All runs use the CUB-200 v170/v176 stack: `FAIRrankL8K3_stackedText`, wasserstein 0.15, K=128, partial whitening gamma 0.25, and v176a `softEvidenceBeta010` as the base.
+
+| Run | Evidence keep ratio | Evidence penalty | Purpose |
+|---|---:|---:|---|
+| v176a | - | - | retrieval champion and reference heatmap |
+| v177a | 0.30 | 0.20 | moderate evidence-aware local token pressure |
+| v177b | 0.20 | 0.20 | stricter evidence-aware pruning |
+| v177c | 0.40 | 0.20 | looser evidence-aware pruning |
+
+📊 **Retrieval / composition results.**
+
+| Run | Best K=3 mid mAP | Final whole mAP | Δ mAP vs v176a | DNA unique | mean pairwise NMI | B1 centered text lift | Verdict |
+|---|---:|---:|---:|---:|---:|---:|---|
+| v176a | 0.1901 | 0.1623 | - | 0.594 | 0.653 | 0.1601 | keep as retrieval base |
+| v177a | 0.1835 | 0.1600 | -0.0024 | 0.623 | 0.646 | 0.1584 | best heatmap trade-off, but retrieval discarded |
+| v177b | 0.1675 | 0.1498 | -0.0125 | 0.644 | 0.628 | 0.1566 | too strict; retrieval collapse |
+| v177c | 0.1803 | 0.1429 | -0.0195 | 0.598 | 0.618 | 0.1543 | lowest NMI, but diffuse and weak retrieval |
+
+🧩 **Drop-ablation diagnosis.** The evidence-aware pressure did not meaningfully shift retrieval burden away from the global/background slot:
+
+| Run | C0 drop delta | Notable local-slot signal |
+|---|---:|---|
+| v176a | -0.0326 | C4 removal slightly improves mAP (+0.0042) |
+| v177a | -0.0330 | C4 removal still slightly improves mAP (+0.0021) |
+| v177b | -0.0328 | C4 removal still slightly improves mAP (+0.0024) |
+| v177c | -0.0294 | C1 removal improves mAP (+0.0105), suggesting a harmful/noisy local slot |
+
+🔍 **`viz_routing_heatmap` qualitative analysis.**
+
+- **v176a**: best retrieval score, but `C_background` frequently activates on the bird body. Some head/body/tail localization is visible, yet text-guided evidence is still loose and partly global.
+- **v177a**: best qualitative balance. Foreground activation is cleaner than v176a, background-on-body is reduced in several examples, and head/body slots become more foreground-concentrated. However, the issue is not fully solved: color/part descriptions can still lock onto feeder, branch, or generic foreground evidence.
+- **v177b**: keep ratio 0.20 is too strict. It increases foreground concentration in places, but several codebooks repeat the same high-confidence foreground blob, so semantic slot separation becomes coarse.
+- **v177c**: keep ratio 0.40 gives the lowest NMI, but the heatmap becomes diffuse and less specifically grounded to the text evidence. Retrieval also collapses at final evaluation.
+- **`fgMaskPerSlotUnion05`**: foreground concentration is sometimes sharper, but retrieval is much worse and the background slot is still not semantically reliable. It should not be selected over v176/v177.
+
+✅ **Conclusion.**
+
+- Use **v176a** as the retrieval/deployment base.
+- Use **v177a** as the best qualitative text-guidance reference among the tested heatmaps.
+- Do **not** adopt v177a/b/c as the next base architecture: direct candidate penalty improves interpretability only mildly and damages the retrieval/compositional balance.
+- Next recommended direction: replace hard candidate pressure with a softer auxiliary heatmap alignment objective, or retest a gentler routing pressure such as `penalty=0.05/0.10` with `keep_ratio=0.40/0.50`. The current evidence-aware penalty is too blunt to fix text-evidence mismatch without weakening useful visual evidence.
+
+🧰 **Code / results.**
+
+- `config.py`: added `--routing_text_evidence_keep_ratio`, `--routing_text_evidence_penalty`.
+- `model_siglip2.py`: added default-off evidence-aware local routing penalty.
+- `scripts/train_cub200_v177_evidenceAwareLocalTopP_FAIRrankL8K3_clip.sh`: added v177 runner.
+- Result folders:
+  - `result/260701+cub_200_setting1_cub200_v177a_v176a_evidenceAwareLocalTopP_keep030_pen020_wass015_FAIRrankL8K3_stackedText_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001`
+  - `result/260701+cub_200_setting1_cub200_v177b_v176a_evidenceAwareLocalTopP_keep020_pen020_wass015_FAIRrankL8K3_stackedText_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001`
+  - `result/260701+cub_200_setting1_cub200_v177c_v176a_evidenceAwareLocalTopP_keep040_pen020_wass015_FAIRrankL8K3_stackedText_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001`
 
 ---
 

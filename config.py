@@ -454,6 +454,17 @@ class Config():
             dest='routing_text_evidence_warmup_epochs', type=int, default=0,
             help='v176a: linearly warm up routing_text_evidence_beta over '
                  'this many epochs. 0 disables warm-up.')
+        siglip2_arg.add_argument('--routing_text_evidence_keep_ratio',
+            dest='routing_text_evidence_keep_ratio', type=float, default=1.0,
+            help='v177: per-local-slot evidence-aware keep ratio. Values in '
+                 '(0,1) identify the top visual tokens per routed local slot; '
+                 'tokens outside this set receive routing_text_evidence_penalty. '
+                 '1.0 disables the candidate penalty and recovers v176a.')
+        siglip2_arg.add_argument('--routing_text_evidence_penalty',
+            dest='routing_text_evidence_penalty', type=float, default=0.0,
+            help='v177: soft cost penalty applied to visual tokens outside the '
+                 'per-local-slot evidence keep set. 0.0 disables and preserves '
+                 'the v176a behavior.')
         # v55: Unbalanced OT (Chizat et al. NeurIPS 2018). KL-relaxed
         # marginals let some patches have row sum < 1/N (i.e. patches that
         # are uninformative — background, blur — can be partially "rejected"
