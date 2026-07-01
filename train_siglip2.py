@@ -658,6 +658,8 @@ def main(args: Config):
                 else:
                     part_input_ids = None
                     part_attn      = None
+                cached_tt  = cached_tt .to(args.device) if cached_tt  is not None else None
+                cached_ttm = cached_ttm.to(args.device) if cached_ttm is not None else None
 
             # ---- forward --------------------------------------------------
             out = model(
@@ -692,6 +694,8 @@ def main(args: Config):
                     cached_visual_global=batch['cached_visual_global_aug1'].to(args.device),
                     cached_text_part_raw=cached_tp,
                     cached_has_text=cached_ht,
+                    cached_text_tokens=cached_tt,
+                    cached_text_token_mask=cached_ttm,
                 )
             elif v29_aug_live and ('img_tr2' in batch):
                 pix_v2 = batch['img_tr2'].to(args.device)
@@ -700,6 +704,8 @@ def main(args: Config):
                     part_input_ids=part_input_ids,
                     part_attention_mask=part_attn,
                     return_routing=True,
+                    cached_text_tokens=cached_tt,
+                    cached_text_token_mask=cached_ttm,
                 )
 
             # ---- labels ----------------------------------------------------

@@ -465,6 +465,29 @@ class Config():
             help='v177: soft cost penalty applied to visual tokens outside the '
                  'per-local-slot evidence keep set. 0.0 disables and preserves '
                  'the v176a behavior.')
+        siglip2_arg.add_argument('--routing_token_ot_evidence',
+            dest='routing_token_ot_evidence', action='store_true',
+            help='v179a: add a token-level text-to-visual evidence prior to '
+                 'Sinkhorn routing. Each local semantic part uses its cached '
+                 'text-token embeddings to softly reward visual patches that '
+                 'support the part description. Default-off.')
+        siglip2_arg.add_argument('--routing_token_ot_beta',
+            dest='routing_token_ot_beta', type=float, default=0.0,
+            help='v179a: strength for --routing_token_ot_evidence. Positive '
+                 'values lower Sinkhorn cost on patches supported by local '
+                 'text tokens.')
+        siglip2_arg.add_argument('--routing_token_ot_eps',
+            dest='routing_token_ot_eps', type=float, default=0.05,
+            help='v179a: temperature for token-to-visual evidence transport. '
+                 'Smaller values make each text token focus on fewer patches.')
+        siglip2_arg.add_argument('--routing_token_ot_topk_text',
+            dest='routing_token_ot_topk_text', type=int, default=8,
+            help='v179a: number of text tokens kept per local semantic part '
+                 'before computing token-level evidence.')
+        siglip2_arg.add_argument('--routing_token_ot_warmup_epochs',
+            dest='routing_token_ot_warmup_epochs', type=int, default=0,
+            help='v179a: linearly warm up routing_token_ot_beta over this many '
+                 'epochs. 0 disables warm-up.')
         # v55: Unbalanced OT (Chizat et al. NeurIPS 2018). KL-relaxed
         # marginals let some patches have row sum < 1/N (i.e. patches that
         # are uninformative — background, blur — can be partially "rejected"

@@ -89,6 +89,15 @@ codebook) as a follow-up.
   confirming that `text_code_kl` is load-bearing for CUB text-guided
   compositional routing. `anchor/bu/recon/cibhash_kl` remain pruning
   candidates.
+- **v179a token-level OT evidence verdict**: **DISCARDED as retrieval
+  base, but directionally useful.** Replacing only pooled local-text
+  evidence with an additional token-level text→patch OT prior gives a
+  strong K=3 mid-eval peak (**0.1872**, close to v176a 0.1901) and keeps
+  NMI slightly lower than v176a, but final whole-image mAP drops to
+  **0.1463**. The generated `viz_routing_heatmap` shows better foreground
+  response in some bird samples, but background/local-slot ambiguity is
+  still visible. Next step should be a weaker or decayed token-evidence
+  schedule, not adoption as the new base.
 
 - **Best genuinely-unsupervised Flickr25k (ours, NEW 2026-06-02 PM)**:
   - **mAP champion: v101c** (= v99b base [`--hash_target_mode siglip_cos
@@ -355,6 +364,85 @@ codebook) as a follow-up.
   reverse-chronological (newest first), `## Infrastructure` pinned at
   bottom. Re-enforced via `python scripts/reorder_project_log.py`
   (idempotent).
+
+---
+
+## 2026-07-01 — v179a CUB token-level OT evidence routing — **DISCARDED as retrieval base: final mAP 0.1463, despite strong K=3 mid peak 0.1872. Token evidence is useful but does not yet solve whole-image text grounding.**
+
+🔴 **Status: retrieval-discarded, mechanism retained.** v179a directly tests the hypothesis that pooled per-part text embeddings are too ambiguous for CUB fine-grained grounding. It adds a token-level local text→visual evidence prior on top of v176a. The idea helps under the K=3 training-cache distribution, but final whole-image retrieval is clearly worse than v176a, so v176a remains the deployment/base model.
+
+🟢 **Motivation.** v176a uses one pooled text embedding per semantic part to bias Sinkhorn routing. That pooled vector can mix color, body-part, context, and global species cues into one broad centroid. v179a keeps v176a's pooled evidence prior but adds a second local prior computed from cached text-token embeddings: for each local semantic part, select the most visually grounded text tokens and softly reward visual patches that those tokens attend to.
+
+🧪 **Setup.**
+
+| Component | v176a base | v179a change |
+|---|---|---|
+| Dataset/cache | CUB-200, `FAIRrankL8K3_stackedText`, K=128, partial whitening gamma 0.25 | same training stack, plus token cache `cub200_clip_v6bplus_tokens_FAIRrankL8K3` |
+| Routing | Sinkhorn + adaptive top-p 0.6/1.0 + pooled text evidence beta 0.10 | keep pooled evidence, add token-level OT evidence |
+| Token evidence | none | `--routing_token_ot_evidence --routing_token_ot_beta 0.05 --routing_token_ot_eps 0.05 --routing_token_ot_topk_text 8 --routing_token_ot_warmup_epochs 20` |
+| Losses | v176a recipe | unchanged: wass 0.15, VQ 0.25, quant 0.05, xmodal commit 0.10, text hash NtXent 0.10, CIBHash NtXent 1.0, text-code KL 0.10 |
+| Final eval | whole-image cache `cub200_clip_v6bplus` | same; final checkpoint swapped from best K=3 mid epoch |
+
+📊 **Final whole-image evaluation.**
+
+| Run | Final mAP | Δ vs v176a | P@1 | P@10 | DNA unique | BaseH | NMI mean | B1 lift | B2 lift | Verdict |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| v176a | **0.1623** | - | **0.2582** | **0.2274** | **0.5943** | **0.9531** | 0.6526 | **0.1601** | **0.0945** | keep as base |
+| v178c | 0.1561 | -0.0063 | 0.2525 | 0.2198 | 0.6003 | 0.9512 | 0.6459 | 0.1570 | 0.0931 | clean-loss recovery |
+| v179a | 0.1463 | -0.0161 | 0.2202 | 0.2074 | 0.5846 | 0.9179 | **0.6457** | 0.1558 | 0.0923 | **DISCARDED** |
+
+📈 **K=3 mid-eval trajectory.** The best checkpoint is epoch 39, not the final epoch.
+
+| Epoch | K=3 eval mAP | DNA unique | per-cb unique | dead code |
+|---:|---:|---:|---:|---:|
+| 4 | 0.0995 | 0.5406 | 0.0058 | 0.1888 |
+| 9 | 0.1250 | 0.5177 | 0.0060 | 0.2122 |
+| 14 | 0.1474 | 0.4580 | 0.0066 | 0.1562 |
+| 19 | 0.1553 | 0.4861 | 0.0073 | 0.1315 |
+| 24 | 0.1635 | 0.4750 | 0.0066 | 0.2070 |
+| 29 | 0.1629 | 0.4991 | 0.0076 | 0.1536 |
+| 34 | 0.1778 | 0.4776 | 0.0074 | 0.1680 |
+| **39** | **0.1872** | 0.5005 | 0.0077 | 0.1432 |
+| 44 | 0.1741 | 0.6094 | 0.0086 | **0.0378** |
+| 49 | 0.1688 | 0.6194 | **0.0087** | 0.0612 |
+| 54 | 0.1629 | 0.6163 | 0.0086 | 0.0833 |
+| 59 | 0.1631 | **0.6406** | **0.0087** | 0.0651 |
+
+🧩 **Drop ablation / composition.**
+
+| Diagnostic | v179a value | Interpretation |
+|---|---:|---|
+| subset baseline mAP | 0.1491 | lower than v176a subset baseline |
+| drop C0 ΔmAP | -0.0339 | global/background slot is still the dominant retrieval carrier |
+| drop C1 ΔmAP | +0.0043 | one local slot remains mildly harmful |
+| drop C2/C3/C5 ΔmAP | -0.0080 / -0.0052 / -0.0051 | some local slots are useful but weak |
+| B0 raw-text lift | 0.0302 | roughly v176a-level raw text concentration |
+| B1 centered-text lift | 0.1558 | below v176a 0.1601, close to v178c |
+| B2 visual-global lift | 0.0923 | slightly below v176a 0.0945 |
+
+🔍 **`viz_routing_heatmap` qualitative check.** Regenerated with the token cache after adding token-cache passthrough to `dna_utils/visualization.py`. The heatmap is saved at `viz_routing_heatmap.png` with K=3 rows per sample. v179a shows foreground/bird-body response in several examples, but the signal is still broad: local slots often activate background grids, and multiple local slots repeatedly attend to similar foreground blobs instead of cleanly separating beak/head/wing/tail evidence. This supports the high-level token-evidence direction, but not the current beta/top-k implementation as a solved text-guidance method.
+
+✅ **Conclusions.**
+
+1. **Token-level evidence is the right granularity, but the current use is too weak/broad for whole-image deployment.** K=3 best mAP 0.1872 is close to v176a 0.1901, but final whole-image mAP 0.1463 shows poor transfer from cropped training evidence to single-image inference.
+2. **The local text evidence still does not replace the global slot.** C0 drop is the strongest negative ablation, while C1 is harmful. The intended compositional/local slots are not yet independently retrieval-critical.
+3. **Late training shifts toward diversity, not retrieval.** After epoch 39, unique and dead-code usage improve, but mAP falls. Token evidence likely needs decay/early-stop scheduling rather than a constant late-stage bias.
+4. **Visualization pipeline fix is required for token-cache variants.** `visualize_routing` now passes optional `cached_text_tokens` and `cached_text_token_mask` to the model; legacy runs without token cache are unchanged.
+
+➡️ **Next recommended cells.**
+
+1. v179b: keep token-level evidence but decay `routing_token_ot_beta` to zero after epoch 35-40, or only apply it during warm-up. Goal: keep the early K=3 gain without damaging final whole-image retrieval.
+2. v179c: lower token beta to 0.025 and increase `routing_token_ot_topk_text` to 12-16 to reduce overconfident token→patch matching.
+3. v180 direction: replace routing-cost bias with an auxiliary heatmap agreement loss measured against token evidence, so retrieval routing can remain free while the paper gets a direct text-evidence alignment signal.
+
+🧰 **Code / results.**
+
+- `config.py`: added default-off `--routing_token_ot_evidence`, `--routing_token_ot_beta`, `--routing_token_ot_eps`, `--routing_token_ot_topk_text`, `--routing_token_ot_warmup_epochs`.
+- `model_siglip2.py`: added token-cache adaptation and local token→visual semi-balanced OT evidence bias. Shapes are asserted as `[B,6,T,D]`, `[B,5,N,T]`, and `[B,N,M_route]`.
+- `train_siglip2.py`: forwards cached text-token tensors in paired-augmentation and live visual paths.
+- `dna_utils/visualization.py`: forwards cached text-token tensors so v179a-style routing heatmaps can be regenerated.
+- `scripts/train_cub200_v179a_v176a_tokenOTEvidence_FAIRrankL8K3_clip.sh`: added runner and token-cache build path.
+- Result dir: `result/260701+cub_200_setting1_cub200_v179a_v176a_tokenOTEvidence_b005_eps005_top8_wass015_FAIRrankL8K3_stackedText_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001`
 
 ---
 

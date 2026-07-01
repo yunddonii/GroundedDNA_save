@@ -1360,6 +1360,21 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.routing_text_evidence_penalty: float = float(
             getattr(args, "routing_text_evidence_penalty", 0.0)
         )
+        self.routing_token_ot_evidence: bool = bool(
+            getattr(args, "routing_token_ot_evidence", False)
+        )
+        self.routing_token_ot_beta: float = float(
+            getattr(args, "routing_token_ot_beta", 0.0)
+        )
+        self.routing_token_ot_eps: float = float(
+            getattr(args, "routing_token_ot_eps", 0.05)
+        )
+        self.routing_token_ot_topk_text: int = int(
+            getattr(args, "routing_token_ot_topk_text", 8)
+        )
+        self.routing_token_ot_warmup_epochs: int = int(
+            getattr(args, "routing_token_ot_warmup_epochs", 0)
+        )
         if self.routing_text_evidence_beta < 0.0:
             raise ValueError(
                 f"routing_text_evidence_beta must be >= 0, got {self.routing_text_evidence_beta}"
@@ -1378,6 +1393,26 @@ class SigLIP2SemanticOTModel(nn.Module):
             raise ValueError(
                 "routing_text_evidence_penalty must be >= 0, got "
                 f"{self.routing_text_evidence_penalty}"
+            )
+        if self.routing_token_ot_beta < 0.0:
+            raise ValueError(
+                "routing_token_ot_beta must be >= 0, got "
+                f"{self.routing_token_ot_beta}"
+            )
+        if self.routing_token_ot_eps <= 0.0:
+            raise ValueError(
+                "routing_token_ot_eps must be > 0, got "
+                f"{self.routing_token_ot_eps}"
+            )
+        if self.routing_token_ot_topk_text <= 0:
+            raise ValueError(
+                "routing_token_ot_topk_text must be >= 1, got "
+                f"{self.routing_token_ot_topk_text}"
+            )
+        if self.routing_token_ot_warmup_epochs < 0:
+            raise ValueError(
+                "routing_token_ot_warmup_epochs must be >= 0, got "
+                f"{self.routing_token_ot_warmup_epochs}"
             )
         self.route_global_text: bool = bool(getattr(args, "route_global_text", False))
         self.routed_cls_add_gamma: float = float(getattr(args, "routed_cls_add_gamma", 0.0))
@@ -1931,6 +1966,166 @@ class SigLIP2SemanticOTModel(nn.Module):
         if penalty <= 0.0:
             return penalty
         return penalty * self._current_routing_text_evidence_scale()
+
+    def _current_routing_token_ot_beta(self) -> float:
+        """Return the current v179 token-evidence routing bias strength."""
+        if not bool(getattr(self, "routing_token_ot_evidence", False)):
+            return 0.0
+        beta = max(0.0, float(getattr(self, "routing_token_ot_beta", 0.0)))
+        if beta <= 0.0:
+            return beta
+        warmup = max(int(getattr(self, "routing_token_ot_warmup_epochs", 0)), 0)
+        if warmup <= 0:
+            return beta
+        t = min(max(self._current_epoch, 0) + 1, warmup) / float(warmup)
+        return beta * float(t)
+
+    def _adapt_cached_text_tokens_for_routing(
+        self,
+        cached_text_tokens: torch.Tensor,          # [B, 6, T, D_proj]
+    ) -> torch.Tensor:
+        """Project cached text-token embeddings into the routing d_model.
+
+        The transform mirrors the pooled text path as closely as possible.
+        For v179a we primarily use ``partial_whiten``; other text transforms
+        are left unchanged because token-level analogues of image-mean or
+        global-residual pooling are not well-defined.
+        """
+        assert cached_text_tokens.dim() == 4, (
+            "cached_text_tokens must be [B, 6, T, D_proj], got "
+            f"{tuple(cached_text_tokens.shape)}"
+        )
+        B_, M_, T_, _ = cached_text_tokens.shape
+        tokens = cached_text_tokens
+        tx_mode = str(getattr(self, "text_embed_transform", "none"))
+        if tx_mode == "partial_whiten":
+            if not getattr(self, "_text_whiten_ready", False):
+                raise RuntimeError(
+                    "[model_siglip2] routing_token_ot_evidence with "
+                    "partial_whiten requires loaded whitening buffers "
+                    "(see --text_whiten_npz)."
+                )
+            orig_dtype = tokens.dtype
+            flat = tokens.reshape(-1, tokens.shape[-1]).to(self.text_whiten_mu.dtype)
+            flat = (flat - self.text_whiten_mu) @ self.text_whiten_W
+            tokens = flat.reshape(B_, M_, T_, -1).to(orig_dtype)
+
+        if self.codebook_text_prompts is not None:
+            assert self.codebook_text_prompts.shape[0] == M_, (
+                "codebook_text_prompts slot count must match cached text tokens, "
+                f"got {self.codebook_text_prompts.shape[0]} vs {M_}"
+            )
+            tokens = tokens + self.codebook_text_prompts.unsqueeze(0).unsqueeze(2)
+
+        if isinstance(self.text_adapter, nn.ModuleList):
+            assert len(self.text_adapter) == M_, (
+                "per-slot text_adapter count must match cached text tokens, "
+                f"got {len(self.text_adapter)} vs {M_}"
+            )
+            per_slot_tokens = []
+            for m in range(M_):
+                # [B, T, D_proj] -> [B*T, D_proj] -> [B, T, D]
+                tk_m = self.text_adapter[m](tokens[:, m].reshape(B_ * T_, -1))
+                per_slot_tokens.append(tk_m.reshape(B_, T_, self.d_model))
+            adapted = torch.stack(per_slot_tokens, dim=1)       # [B, 6, T, D]
+        else:
+            flat = tokens.reshape(B_ * M_ * T_, -1)
+            adapted = self.text_adapter(flat).reshape(B_, M_, T_, self.d_model)
+
+        assert adapted.shape == (B_, M_, T_, self.d_model), (
+            "adapted text tokens must be [B, 6, T, D], got "
+            f"{tuple(adapted.shape)}"
+        )
+        return adapted
+
+    def _routing_token_ot_cost_bias(
+        self,
+        visual_tokens_for_routing: torch.Tensor,        # [B, N, D]
+        route_centroids_aug: torch.Tensor,              # [B, M_route, D]
+        cached_text_tokens: torch.Tensor,               # [B, 6, T, D_proj]
+        cached_text_token_mask: Optional[torch.Tensor], # [B, 6, T] bool
+        visual_attention_mask: Optional[torch.Tensor],  # [B, N] or None
+        route_global_text_active: bool,
+    ) -> torch.Tensor:
+        """v179a local token-level text evidence for Sinkhorn cost bias.
+
+        Each local part keeps the top-K most visually grounded text tokens.
+        A semi-balanced token-to-visual transport then produces an evidence
+        map over patches. Only the text-token marginal is fixed; the visual
+        marginal is intentionally relaxed so background patches are not forced
+        to receive uniform mass.
+        """
+        B, N, D = visual_tokens_for_routing.shape
+        M_route = route_centroids_aug.shape[1]
+        assert route_centroids_aug.shape == (B, M_route, D)
+        assert cached_text_tokens.shape[0] == B and cached_text_tokens.shape[1] >= NUM_SEMANTIC_PARTS, (
+            "cached_text_tokens must include 6 semantic slots, got "
+            f"{tuple(cached_text_tokens.shape)}"
+        )
+
+        text_tokens = self._adapt_cached_text_tokens_for_routing(cached_text_tokens)
+        local_text_tokens = text_tokens[:, 1:1 + NUM_LOCAL_PARTS]          # [B, 5, T, D]
+        B_t, M_local, T, D_t = local_text_tokens.shape
+        assert (B_t, M_local, D_t) == (B, NUM_LOCAL_PARTS, D), (
+            "local adapted text tokens must be [B, 5, T, D], got "
+            f"{tuple(local_text_tokens.shape)}"
+        )
+
+        if cached_text_token_mask is None:
+            token_mask = torch.ones(B, NUM_LOCAL_PARTS, T, dtype=torch.bool,
+                                    device=visual_tokens_for_routing.device)
+        else:
+            token_mask = cached_text_token_mask[:, 1:1 + NUM_LOCAL_PARTS].to(
+                device=visual_tokens_for_routing.device,
+                dtype=torch.bool,
+            )                                                           # [B, 5, T]
+        assert token_mask.shape == (B, NUM_LOCAL_PARTS, T), (
+            "local token mask must be [B, 5, T], got "
+            f"{tuple(token_mask.shape)}"
+        )
+
+        v_n = F.normalize(visual_tokens_for_routing, dim=-1)              # [B, N, D]
+        t_n = F.normalize(local_text_tokens, dim=-1)                      # [B, 5, T, D]
+        sim = torch.einsum("bnd,bmtd->bmnt", v_n, t_n)                   # [B, 5, N, T]
+        assert sim.shape == (B, NUM_LOCAL_PARTS, N, T)
+
+        token_scores = sim.max(dim=2).values                              # [B, 5, T]
+        token_scores = token_scores.masked_fill(~token_mask, -float("inf"))
+        k_text = max(1, min(int(getattr(self, "routing_token_ot_topk_text", 8)), T))
+        topk_idx = token_scores.topk(k=k_text, dim=-1).indices            # [B, 5, K]
+        token_keep = torch.zeros_like(token_mask)
+        token_keep.scatter_(dim=-1, index=topk_idx, value=True)
+        token_keep = token_keep & token_mask                              # [B, 5, T]
+
+        eps = max(float(getattr(self, "routing_token_ot_eps", 0.05)), 1e-6)
+        logits = sim / eps                                                # [B, 5, N, T]
+        logits = logits.masked_fill(~token_keep.unsqueeze(2), -1e4)
+        if visual_attention_mask is not None:
+            patch_mask = visual_attention_mask.to(torch.bool).unsqueeze(1).unsqueeze(-1)  # [B,1,N,1]
+            logits = logits.masked_fill(~patch_mask, -1e4)
+
+        # Semi-balanced transport: each kept text token distributes its mass
+        # over visual patches; visual patches are not forced to a uniform
+        # marginal. This keeps evidence discriminative rather than flat.
+        patch_mass = torch.softmax(logits, dim=2)                         # [B, 5, N, T]
+        patch_mass = patch_mass * token_keep.unsqueeze(2).to(patch_mass.dtype)
+        denom = token_keep.sum(dim=-1).clamp_min(1).to(patch_mass.dtype)   # [B, 5]
+        evidence = patch_mass.sum(dim=-1) / denom.unsqueeze(-1)            # [B, 5, N]
+        evidence = evidence / evidence.amax(dim=-1, keepdim=True).clamp_min(1e-6)
+        evidence = evidence.transpose(1, 2).contiguous()                  # [B, N, 5]
+        assert evidence.shape == (B, N, NUM_LOCAL_PARTS), (
+            "token OT evidence must be [B, N, 5], got "
+            f"{tuple(evidence.shape)}"
+        )
+
+        bias = torch.zeros(B, N, M_route, device=visual_tokens_for_routing.device,
+                           dtype=visual_tokens_for_routing.dtype)
+        local_start = 1 if route_global_text_active else 0
+        local_end = min(local_start + NUM_LOCAL_PARTS, M_route)
+        if local_end > local_start:
+            local_count = local_end - local_start
+            bias[..., local_start:local_end] = evidence[..., :local_count].to(bias.dtype)
+        return bias
 
     @staticmethod
     def _remove_global_projection(
@@ -2562,7 +2757,12 @@ class SigLIP2SemanticOTModel(nn.Module):
         if self.router_type == "sinkhorn":
             cur_text_evidence_beta = self._current_routing_text_evidence_beta()
             cur_text_evidence_penalty = self._current_routing_text_evidence_penalty()
-            if cur_text_evidence_beta > 0.0 or cur_text_evidence_penalty > 0.0:
+            cur_token_ot_beta = self._current_routing_token_ot_beta()
+            if (
+                cur_text_evidence_beta > 0.0
+                or cur_text_evidence_penalty > 0.0
+                or (cur_token_ot_beta > 0.0 and use_text_routing)
+            ):
                 # v176/v177: soft evidence bias for Sinkhorn routing.
                 # visual_tokens_for_routing: [B, N, D]
                 # route_centroids_aug:       [B, M_route, D]
@@ -2571,6 +2771,27 @@ class SigLIP2SemanticOTModel(nn.Module):
                 _t_ev = F.normalize(route_centroids_aug, dim=-1)
                 sim_ev = torch.einsum("bnd,bmd->bnm", _v_ev, _t_ev)
                 cost_bias = cur_text_evidence_beta * sim_ev
+                if cur_token_ot_beta > 0.0 and use_text_routing:
+                    if cached_text_tokens is None:
+                        raise RuntimeError(
+                            "[model_siglip2] --routing_token_ot_evidence requires "
+                            "cached_text_tokens in text-routing training mode. "
+                            "Use a *_tokens feature cache built by "
+                            "extract_clip_text_token_features.py."
+                        )
+                    token_ot_bias = self._routing_token_ot_cost_bias(
+                        visual_tokens_for_routing=visual_tokens_for_routing,
+                        route_centroids_aug=route_centroids_aug,
+                        cached_text_tokens=cached_text_tokens,
+                        cached_text_token_mask=cached_text_token_mask,
+                        visual_attention_mask=visual_attention_mask,
+                        route_global_text_active=route_global_text_active,
+                    )
+                    assert token_ot_bias.shape == cost_bias.shape, (
+                        "token OT routing bias must match cost_bias, got "
+                        f"{tuple(token_ot_bias.shape)} vs {tuple(cost_bias.shape)}"
+                    )
+                    cost_bias = cost_bias + cur_token_ot_beta * token_ot_bias
                 assert cost_bias.shape == (
                     visual_tokens_for_routing.shape[0],
                     visual_tokens_for_routing.shape[1],

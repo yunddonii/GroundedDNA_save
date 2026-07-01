@@ -118,6 +118,8 @@ def _forward_text_routed(model, batch: Dict[str, Any], device) -> Dict[str, Any]
     cached_vt = batch.get("cached_visual_tokens_raw")
     cached_vg = batch.get("cached_visual_global")
     cached_tp = batch.get("cached_text_part_raw")
+    cached_tt = batch.get("cached_text_tokens")
+    cached_ttm = batch.get("cached_text_token_mask")
     cached_ht = batch.get("has_text")
 
     # Suppress EMA mutation. SemanticCodebookQuantizer._ema_update only fires
@@ -141,6 +143,11 @@ def _forward_text_routed(model, batch: Dict[str, Any], device) -> Dict[str, Any]
             cached_visual_tokens_raw=cached_vt,
             cached_visual_global=cached_vg,
             cached_text_part_raw=cached_tp,
+            # Optional v179a token-level text cache:
+            # cached_tt  : [B, M_text, T_text, D_text]
+            # cached_ttm : [B, M_text, T_text]
+            cached_text_tokens=cached_tt,
+            cached_text_token_mask=cached_ttm,
             cached_has_text=cached_ht,
         )
     finally:

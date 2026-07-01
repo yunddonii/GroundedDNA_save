@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+# v179a: CUB-200 v176a + local token-level text evidence routing prior.
+#
+# Motivation:
+#   v176a biases Sinkhorn routing with one pooled text embedding per semantic
+#   part. v179a keeps that prior but adds a token-level evidence map: each
+#   local part keeps the top-K text tokens whose CLIP token embeddings match
+#   the visual patches, then softly lowers Sinkhorn cost on those patches.
+#
+# Usage: bash scripts/train_cub200_v179a_v176a_tokenOTEvidence_FAIRrankL8K3_clip.sh <GPU_ID>
+set -eu
+
+GPU="${1:-1}"
+DONOR_CACHE="${DONOR_CACHE:-./cache/cub200_clip_v6bplus_FAIRrankL8K3}"
+CACHE="${CACHE:-./cache/cub200_clip_v6bplus_tokens_FAIRrankL8K3}"
+QWEN="${QWEN:-./cache/cub200_qwen_v6b_trainset.jsonl}"
+WHITEN_NPZ="${WHITEN_NPZ:-${CACHE}/text_whiten.npz}"
+WHITEN_GAMMA="${WHITEN_GAMMA:-0.25}"
+TAG="${TAG:-cub200_v179a_v176a_tokenOTEvidence_b005_eps005_top8_wass015_FAIRrankL8K3_stackedText_partialWhiten_gamma${WHITEN_GAMMA}}"
+LOG="logs/${TAG}.log"
+mkdir -p logs
+
+if [ ! -f "${CACHE}/text_tokens.f16.npy" ]; then
+    echo "[run-cub-v179a] token cache missing at ${CACHE}; building from ${DONOR_CACHE}"
+    CUDA_VISIBLE_DEVICES="$GPU" /home/yschoi/.conda/envs/dna_hashing/bin/python \
+        extract_clip_text_token_features.py \
+        --qwen_cache "$QWEN" \
+        --donor_dir "$DONOR_CACHE" \
+        --out_dir   "$CACHE"
+fi
+
+if [ ! -f "$WHITEN_NPZ" ]; then
+    echo "[run-cub-v179a] whitening .npz missing - computing it now ..."
+    /home/yschoi/.conda/envs/dna_hashing/bin/python \
+        scripts/build_text_whiten_matrix.py \
+        --cache_dir "$CACHE" \
+        --out       "$WHITEN_NPZ"
+fi
+
+echo "[run-cub-v179a] GPU=$GPU cache=$CACHE donor=$DONOR_CACHE whiten=$WHITEN_NPZ tag=$TAG"
+
+CUDA_VISIBLE_DEVICES="$GPU" \
+/home/yschoi/.conda/envs/dna_hashing/bin/python train_siglip2.py \
+    --tag "$TAG" \
+    --dataset CUB_200 --setting 1 \
+    --dataset_dir /home/yschoi/GroundedDNA/dataset \
+    --num_devices 0 \
+    -bs 64 -e 60 \
+    --proj_lr 1e-3 \
+    --num_workers 4 \
+    --qwen_text_cache_path "$QWEN" \
+    --siglip2_feature_cache_dir "$CACHE" \
+    --backbone_type clip \
+    --codebook_size 128 \
+    --c_global_source siglip2_global \
+    --per_slot_text_adapter \
+    --global_gate_init_logit -3.0 \
+    --router_type sinkhorn \
+    --sinkhorn_epsilon_init 1.0 --sinkhorn_epsilon_final 0.1 \
+    --sinkhorn_lambda_a 1.0 \
+    --sinkhorn_lambda_b 1.0 \
+    --routing_adaptive_topp \
+    --routing_adaptive_topp_min 0.6 \
+    --routing_adaptive_topp_max 1.0 \
+    --routing_text_evidence_beta 0.10 \
+    --routing_text_evidence_warmup_epochs 20 \
+    --routing_token_ot_evidence \
+    --routing_token_ot_beta 0.05 \
+    --routing_token_ot_eps 0.05 \
+    --routing_token_ot_topk_text 8 \
+    --routing_token_ot_warmup_epochs 20 \
+    --codon_residual_gamma 0.0 \
+    --text_embed_transform partial_whiten \
+    --text_whiten_npz "$WHITEN_NPZ" \
+    --text_whiten_gamma "$WHITEN_GAMMA" \
+    --use_paired_aug_ntxent \
+    --lambda_ntxent 0.0 \
+    --ntxent_temperature 0.3 \
+    --ntxent_mode per_codebook \
+    --ntxent_dynamic_tau \
+    --ntxent_dynamic_tau_alpha 0.3 \
+    --lambda_hash 0.0 \
+    --lambda_hash_hard 0.0 \
+    --lambda_hash_type mse \
+    --hash_target_mode siglip_cos \
+    --lambda_text_hash 0.0 \
+    --lambda_text_hash_ntxent 0.10 \
+    --text_hash_ntxent_temperature 0.07 \
+    --text_hash_ntxent_mode per_codebook \
+    --lambda_wasserstein 0.15 \
+    --lambda_vq 0.25 --lambda_quant 0.05 \
+    --lambda_xmodal_commit 0.10 \
+    --lambda_anchor 0.05 --lambda_dna 0.05 --lambda_bu 0.02 \
+    --eta_base_balance 1.0 \
+    --lambda_codeword_codon_sinkhorn 0.0 \
+    --lambda_cibhash_ntxent 1.0 \
+    --lambda_cibhash_kl 0.001 \
+    --cibhash_mode per_codebook \
+    --cibhash_temperature 0.3 \
+    --cibhash_dynamic_tau \
+    --cibhash_dynamic_tau_alpha 0.3 \
+    --cibhash_ntxent_continuous \
+    --cibhash_ntxent_source visual_token \
+    --eval_every 5 \
+    --post_eval_compositional \
+    --dna_distance_mode base \
+    --lambda_text_code_kl 0.10 \
+    --text_code_kl_tau_v 0.1 \
+    --text_code_kl_tau_t 0.07 \
+    --text_code_kl_conf_threshold 0.2 \
+    --text_code_kl_skip_global \
+    --eval_cache_dir ./cache/cub200_clip_v6bplus \
+    -ev -s 2>&1 | tee "$LOG"
