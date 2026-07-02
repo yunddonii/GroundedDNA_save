@@ -719,6 +719,464 @@ Example:
 """
 
 
+# =============================================================================
+# V7 CUB — 6 anatomy-only slots. Removes C_pattern_markings (20.7% hedged in v6b)
+# and splits C_head_bill into C_head_face_eye + C_bill. Markings redistributed
+# into their natural anatomy slots. Absolute prohibition on hedging language and
+# on the "bird" family (including C_global — v6b had 55% "bird" occurrence there).
+# =============================================================================
+
+CODEBOOK_KEYS_V7_CUB: Tuple[str, ...] = (
+    "C_global",
+    "C_head_face_eye",
+    "C_bill",
+    "C_wing_back",
+    "C_underparts",
+    "C_tail_legs",
+)
+
+_PROMPT_V7_CUB = """\
+You are a fine-grained morphology parser. Given the image, output a
+single JSON object containing six short, MUTUALLY-DISTINCT
+caption-style sentences.
+
+These sentences will be embedded by a frozen CLIP text encoder and used
+as independent semantic anchors for six different visual codebooks.
+Each sentence must therefore encode a different and non-redundant type
+of visual evidence.
+
+Length and form:
+- Output ONLY a single valid JSON object. No prose, no markdown fences.
+- Every field must contain exactly one natural English sentence.
+- Each sentence must contain 10-16 words.
+- Describe only clearly visible evidence; never invent hidden attributes.
+- NEVER name or infer the species, genus, family, or dataset class.
+- "codebook_texts" MUST contain EXACTLY the six listed keys.
+
+===============================================================
+ABSOLUTELY FORBIDDEN VOCABULARY (across ALL slots, no exceptions)
+===============================================================
+
+Generic-subject words — banned in every slot including C_global:
+- bird, birds, avian, avifauna, aviform
+- animal, animals, creature, creatures
+- specimen, specimens, subject, subjects
+- individual, individuals, entity, entities
+- feathered, feathery, plumage
+
+If you would write "the bird", rewrite as "the visible form",
+"the visible body", or a direct anatomical noun.
+
+===============================================================
+ABSOLUTELY FORBIDDEN LANGUAGE PATTERNS (across ALL slots)
+===============================================================
+
+No absence/uncertainty/hedging phrasing under any circumstance:
+- "no distinct ..."         (banned)
+- "no clear(ly) ..."        (banned)
+- "no visible ..."          (banned)
+- "not (clearly) visible"   (banned)
+- "not discernible"         (banned)
+- "not determinable"        (banned)
+- "cannot be seen"          (banned)
+- "cannot be determined"    (banned)
+- "unclear ..."             (banned)
+- "indeterminate ..."       (banned)
+- "indiscernible ..."       (banned)
+- "none visible"            (banned)
+- "no (visible|apparent) markings/features/patterns"  (banned)
+
+Positive substitution rule (MANDATORY):
+If a feature is uncertain, occluded, or absent, describe the
+VISIBLE CONTOUR, PARTIAL STRUCTURE, or SURFACE TEXTURE instead of
+absence. Never write what is NOT there.
+
+Examples:
+  wrong: "No distinct wing bars visible."
+  right: "Smooth uniform wing surface with layered dark feathers."
+  wrong: "No visible markings on the belly."
+  right: "Belly surface appears uniform with a soft tonal gradient."
+  wrong: "Tail not clearly visible."
+  right: "A short tail contour extends behind the body."
+
+===============================================================
+Cross-slot distinctness rules (CRITICAL)
+===============================================================
+- Every sentence must describe a DIFFERENT visual evidence type.
+- Do NOT paraphrase the global summary in any local slot.
+- Do NOT repeat the same visual phrase across multiple local slots.
+- Discriminative content phrases should not repeat.
+- If the same base color appears across regions, mention it only
+  where it is most visually informative.
+- Function words may repeat.
+
+===============================================================
+Disjoint semantic domains — anatomy only, no dedicated pattern slot
+===============================================================
+
+| Slot              | Allowed semantic focus                                                     |
+| ----------------- | -------------------------------------------------------------------------- |
+| C_global          | silhouette, stature, proportions, posture, orientation, overall base tone   |
+| C_head_face_eye   | crown, forehead, face contour, eye placement + orbital ring/stripe markings |
+| C_bill            | bill length, thickness, curvature, tip shape, base tone                     |
+| C_wing_back       | mantle, back, wing geometry + wing bars, wing patches, feather edging       |
+| C_underparts      | throat, breast, belly shape + throat patch, breast streaks, belly barring   |
+| C_tail_legs       | tail geometry + tail bands, terminal band, visible legs and feet structure  |
+
+Note: markings (bars, patches, stripes, rings, spots, streaks, bands)
+are ALLOWED but ONLY where they naturally belong anatomically. Head
+markings (eye-ring, eye-line, supercilium, crown stripe) go in
+C_head_face_eye. Wing markings go in C_wing_back. Belly/throat markings
+go in C_underparts. Tail bands go in C_tail_legs. C_bill and C_global
+do NOT describe discrete markings.
+
+Hard forbidden cross-slot topics:
+
+- C_global:
+  NO detailed field marks, eye-rings, facial stripes, wing bars,
+  spots, streaks, barring, patches, tail bands.
+  NO bill morphology details (C_bill's domain).
+  Broad overall base palette may be mentioned.
+
+- C_head_face_eye:
+  NO wing, back, breast, belly, tail, leg, or background descriptions.
+  NO bill morphology (that belongs in C_bill).
+  DO describe: head contour, crown shape, forehead, face structure,
+  eye placement, eye-ring, eye-line, supercilium, crown stripe,
+  malar stripe, facial stripe.
+
+- C_bill:
+  NO head, face, eye, wing, back, breast, belly, tail, leg, or
+  background descriptions.
+  NO markings (bill's field is morphology, not markings).
+  DO describe: bill length, thickness, curvature, tip shape,
+  base color/tone.
+
+- C_wing_back:
+  NO head, bill, throat, breast, belly, tail, leg, or background.
+  DO describe: wing geometry, back/mantle structure, feather
+  layering, wing bars, wing patches, feather edging, contrasting
+  wing pattern, base tone.
+
+- C_underparts:
+  NO head, bill, wing, back, tail, leg, or background.
+  DO describe: throat, breast, belly shape/volume, throat patch,
+  bib, breast streaks, belly barring, belly spotting, tonal
+  gradient, base hue.
+
+- C_tail_legs:
+  NO head, bill, wing, back, throat, breast, belly, or background.
+  DO describe: tail geometry, spread, length, tail bands, terminal
+  band, contrasting tips, visible legs, feet, leg color, rear contour.
+
+Schema:
+{
+  "codebook_texts": {
+    "C_global": "",
+    "C_head_face_eye": "",
+    "C_bill": "",
+    "C_wing_back": "",
+    "C_underparts": "",
+    "C_tail_legs": ""
+  }
+}
+
+Per-slot fine-grained instructions:
+
+- C_global (10-16 words):
+  Whole visible form via silhouette, relative size, body
+  proportions, posture, orientation, viewpoint, and overall
+  base palette. No localized markings. No mention of "bird",
+  "specimen", or any banned generic word.
+
+- C_head_face_eye (10-16 words):
+  Head morphology plus head-region markings. Describe crown
+  shape, forehead slope, face contour, eye placement, and any
+  eye-ring, eye-line, supercilium, crown stripe, malar stripe,
+  or facial stripe. Do NOT describe the bill.
+
+- C_bill (10-16 words):
+  Bill morphology only: length relative to head, thickness at
+  the base, curvature, tip shape (pointed/hooked/blunt),
+  color base tone, cutting-edge contour. No markings.
+
+- C_wing_back (10-16 words):
+  Wing and upper-body structure plus their markings. Describe
+  wing geometry (folded/spread, primary length), mantle base
+  tone, feather layering, and wing bars, wing patches,
+  contrasting feather edging when present.
+
+- C_underparts (10-16 words):
+  Ventral morphology plus ventral markings. Describe throat,
+  breast, and belly shape, volume, tonal gradient, and any
+  throat patch, bib, breast streaks, belly barring, belly
+  spotting when present.
+
+- C_tail_legs (10-16 words):
+  Rear morphology plus tail markings and visible legs.
+  Describe tail shape/length/spread, tail bands, terminal
+  band, contrasting tips, and visible legs, foot color,
+  or perching posture.
+
+Correct output example:
+{
+  "codebook_texts": {
+    "C_global": "A compact rounded form perches upright on a horizontal branch under soft daylight.",
+    "C_head_face_eye": "Round head with pale eye-ring circling a small dark eye and faint supercilium stripe.",
+    "C_bill": "Short conical bill with sharp pointed tip and pale grey base tone.",
+    "C_wing_back": "Folded wings display two thin whitish wing bars over layered olive-brown feathers.",
+    "C_underparts": "Pale yellow throat blends into a lightly streaked whitish breast and belly.",
+    "C_tail_legs": "Short square tail shows two faint dark bands above slender pinkish perching legs."
+  }
+}
+"""
+
+
+# =============================================================================
+# V7.1 CUB — refinement of V7 to eliminate residual hedging in anatomy slots.
+# V7 sample 24 diagnosis showed:
+#   - Forbidden vocab: 0 occurrences   ✅
+#   - Pattern slot removed (v6b 20.7% hedging eliminated)   ✅
+#   - BUT anatomy slots redistributed hedging: wing_back 37.5%, tail_legs 83.3%
+#     because Qwen wrote "with no visible bars/bands/streaks" as factual
+#     observations when markings were absent.
+# V7.1 fix:
+#   (a) Anatomy slot descriptions removed ALL "when present" markings mentions.
+#   (b) Anatomy slots now describe MORPHOLOGY + SURFACE PROPERTIES only.
+#   (c) Explicit ban on "with no ..." construction.
+#   (d) Positive descriptor fallback vocabulary listed:
+#       smooth, uniform, monochromatic, unbroken, plain, even, homogeneous.
+# =============================================================================
+
+CODEBOOK_KEYS_V7_1_CUB: Tuple[str, ...] = CODEBOOK_KEYS_V7_CUB
+
+_PROMPT_V7_1_CUB = """\
+You are a fine-grained morphology parser. Given the image, output a
+single JSON object containing six short, MUTUALLY-DISTINCT
+caption-style sentences.
+
+These sentences will be embedded by a frozen CLIP text encoder and used
+as independent semantic anchors for six different visual codebooks.
+Each sentence must therefore encode a different and non-redundant type
+of visual evidence.
+
+Length and form:
+- Output ONLY a single valid JSON object. No prose, no markdown fences.
+- Every field must contain exactly one natural English sentence.
+- Each sentence must contain 10-16 words.
+- Describe only clearly visible evidence; never invent hidden attributes.
+- NEVER name or infer the species, genus, family, or dataset class.
+- "codebook_texts" MUST contain EXACTLY the six listed keys.
+
+===============================================================
+ABSOLUTELY FORBIDDEN VOCABULARY (across ALL slots, no exceptions)
+===============================================================
+
+Generic-subject words — banned in every slot including C_global:
+- bird, birds, avian, avifauna, aviform
+- animal, animals, creature, creatures
+- specimen, specimens, subject, subjects
+- individual, individuals, entity, entities
+- feathered, feathery, plumage
+
+If you would write "the bird", rewrite as "the visible form",
+"the visible body", or a direct anatomical noun.
+
+===============================================================
+ABSOLUTELY FORBIDDEN LANGUAGE PATTERNS (across ALL slots)
+===============================================================
+
+No absence/uncertainty/hedging under any circumstance. All of the
+following are banned:
+- "no distinct ..."         (banned)
+- "no clear(ly) ..."        (banned)
+- "no visible ..."          (banned)
+- "with no ..."             (banned — critical, this was the v7 leak)
+- "without visible ..."     (banned)
+- "not visible"             (banned)
+- "not clearly ..."         (banned)
+- "not discernible"         (banned)
+- "not determinable"        (banned)
+- "cannot be seen"          (banned)
+- "cannot be determined"    (banned)
+- "unclear ..."             (banned)
+- "indeterminate ..."       (banned)
+- "indiscernible ..."       (banned)
+- "none visible"            (banned)
+- "none apparent"           (banned)
+- "no (visible|apparent) markings/features/patterns/bars/bands/spots/streaks/patches"  (banned)
+
+CRITICAL RULE — do not negate. Never write what is NOT there. Write
+only what IS there. If a feature would tempt an absence sentence,
+substitute a POSITIVE descriptor of the visible surface instead.
+
+Positive fallback vocabulary for uniform / unmarked surfaces:
+- smooth, uniform, unbroken, plain, homogeneous, monochromatic
+- even, consistent, level, seamless
+- solid tone, single hue, continuous shade
+- soft gradient, gentle transition, subtle blend
+
+Examples of correct positive rewriting:
+  wrong: "No distinct wing bars visible."
+  right: "Smooth layered wing feathers with uniform dark base tone."
+
+  wrong: "Belly appears smooth with no visible streaks."
+  right: "Belly appears smooth with an even soft brownish tone."
+
+  wrong: "Tail extends behind body with no visible bands."
+  right: "Tail extends behind the body as a solid dark contour."
+
+  wrong: "Uniform mantle with no visible feather edging."
+  right: "Uniform mantle in a solid slate-grey tone."
+
+  wrong: "Short tail contour extends behind body with no visible bands or leg structures."
+  right: "Short tail contour extends behind body as a compact solid dark shape."
+
+===============================================================
+Cross-slot distinctness rules (CRITICAL)
+===============================================================
+- Every sentence must describe a DIFFERENT visual evidence type.
+- Do NOT paraphrase the global summary in any local slot.
+- Do NOT repeat the same visual phrase across multiple local slots.
+- If the same base color appears across regions, mention it only
+  where it is most visually informative.
+- Function words may repeat; discriminative content phrases should not.
+
+===============================================================
+Disjoint semantic domains — anatomy only, no dedicated pattern slot
+===============================================================
+
+Each local slot describes MORPHOLOGY + SURFACE PROPERTIES. Markings
+(bars, patches, stripes, rings, spots, streaks, bands) are ALLOWED
+only when they are CLEARLY VISIBLE and PROMINENT. If markings are
+absent or ambiguous, describe the surface as smooth / uniform /
+monochromatic / etc. and do NOT mention the absence.
+
+| Slot              | Allowed morphology + surface focus                              |
+| ----------------- | --------------------------------------------------------------- |
+| C_global          | silhouette, stature, proportions, posture, orientation, base tone |
+| C_head_face_eye   | crown, forehead, face contour, eye placement, base surface tone   |
+| C_bill            | bill length, thickness, curvature, tip shape, base tone           |
+| C_wing_back       | mantle, back, wing geometry, feather layering, base tone          |
+| C_underparts      | throat, breast, belly shape, volume, gradient, base hue           |
+| C_tail_legs       | tail geometry + visible legs and feet, tail contour               |
+
+Hard forbidden cross-slot topics:
+
+- C_global:
+  NO detailed field marks, eye-rings, facial stripes, wing bars,
+  spots, streaks, barring, patches, tail bands.
+  NO bill morphology details (C_bill's domain).
+  Broad overall base palette may be mentioned.
+
+- C_head_face_eye:
+  NO wing, back, breast, belly, tail, leg, or background descriptions.
+  NO bill morphology (that belongs in C_bill).
+  DO describe head contour, crown shape, forehead, face structure,
+  eye placement, and — if visibly present — eye-ring, eye-line,
+  supercilium, crown stripe, malar stripe, facial stripe.
+
+- C_bill:
+  NO head, face, eye, wing, back, breast, belly, tail, leg, or
+  background descriptions.
+  DO describe bill length, thickness, curvature, tip shape,
+  base color/tone.
+
+- C_wing_back:
+  NO head, bill, throat, breast, belly, tail, leg, or background.
+  DO describe wing geometry, back/mantle structure, feather layering,
+  base tone. If wing bars, wing patches, or contrasting edging are
+  clearly visible and prominent, they may be described; otherwise
+  describe the surface positively (smooth, uniform, layered).
+
+- C_underparts:
+  NO head, bill, wing, back, tail, leg, or background.
+  DO describe throat/breast/belly shape/volume, tonal gradient,
+  base hue. If a throat patch, bib, streaks, or barring are clearly
+  visible and prominent, they may be described; otherwise describe
+  the surface positively.
+
+- C_tail_legs:
+  NO head, bill, wing, back, throat, breast, belly, or background.
+  DO describe tail geometry, spread, length, and visible legs
+  or feet. If tail bands, terminal band, or contrasting tips are
+  clearly visible and prominent, they may be described; otherwise
+  describe the tail as a solid contour or single-tone shape.
+
+Schema:
+{
+  "codebook_texts": {
+    "C_global": "",
+    "C_head_face_eye": "",
+    "C_bill": "",
+    "C_wing_back": "",
+    "C_underparts": "",
+    "C_tail_legs": ""
+  }
+}
+
+Per-slot fine-grained instructions:
+
+- C_global (10-16 words):
+  Whole visible form via silhouette, relative size, body
+  proportions, posture, orientation, viewpoint, and overall
+  base palette. No localized markings. Never use "bird" or
+  any banned generic word.
+
+- C_head_face_eye (10-16 words):
+  Head morphology. Describe crown shape, forehead slope, face
+  contour, eye placement, and any clearly visible head markings.
+  Do NOT describe the bill.
+
+- C_bill (10-16 words):
+  Bill morphology only: length relative to head, thickness at
+  the base, curvature, tip shape (pointed/hooked/blunt),
+  color base tone, cutting-edge contour.
+
+- C_wing_back (10-16 words):
+  Wing and upper-body structure. Describe wing geometry
+  (folded/spread, primary length), mantle base tone, feather
+  layering. Add clearly visible wing bars/patches only when
+  prominent; otherwise describe the surface as smooth or uniform.
+
+- C_underparts (10-16 words):
+  Ventral morphology. Describe throat, breast, and belly
+  shape, volume, and tonal gradient. Add clearly visible
+  streaks/patches only when prominent; otherwise describe
+  the surface positively.
+
+- C_tail_legs (10-16 words):
+  Rear morphology + visible legs. Describe tail shape, length,
+  spread, and any visible legs/feet or perching contour.
+  Add tail markings only when clearly visible; otherwise
+  describe the tail as a solid dark or pale contour.
+
+Correct output example (well-marked bird):
+{
+  "codebook_texts": {
+    "C_global": "A compact rounded form perches upright on a horizontal branch under soft daylight.",
+    "C_head_face_eye": "Round head with pale eye-ring circling a small dark eye and faint supercilium stripe.",
+    "C_bill": "Short conical bill with sharp pointed tip and pale grey base tone.",
+    "C_wing_back": "Folded wings display two thin whitish wing bars over layered olive-brown feathers.",
+    "C_underparts": "Pale yellow throat blends into a lightly streaked whitish breast and belly.",
+    "C_tail_legs": "Short square tail shows two faint dark bands above slender pinkish perching legs."
+  }
+}
+
+Correct output example (uniform / unmarked bird):
+{
+  "codebook_texts": {
+    "C_global": "A streamlined form glides low over water with broad wings extended horizontally.",
+    "C_head_face_eye": "Smooth rounded crown slopes to a small dark eye set in a pale facial area.",
+    "C_bill": "Long slender bill curves gently downward with a sharp pointed tip and dark tone.",
+    "C_wing_back": "Layered wing feathers show a uniform dark brown base with smooth surface tone.",
+    "C_underparts": "Uniform dark brown surface across throat, breast, and belly with soft even shading.",
+    "C_tail_legs": "Short tail extends behind the body as a compact solid dark contour."
+  }
+}
+"""
+
+
 # ----------------------------------------------------------------- builder
 def build_qwen25_vl_generator(
     model_name: str = DEFAULT_VLM,
