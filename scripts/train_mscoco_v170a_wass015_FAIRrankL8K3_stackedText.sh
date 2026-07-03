@@ -50,7 +50,7 @@ CACHE="${CACHE:-./cache/mscoco_clip_v5b_FAIRrankL8K3}"
 QWEN="${QWEN:-./cache/mscoco_qwen3_v5b_trainset.jsonl}"
 WHITEN_NPZ="${WHITEN_NPZ:-${CACHE}/text_whiten.npz}"
 WHITEN_GAMMA="${WHITEN_GAMMA:-0.25}"
-TAG="${TAG:-mscoco_v170a_FAIRrankL8K3_stackedText_K128_partialWhiten_gamma${WHITEN_GAMMA}}"
+TAG="${TAG:-mscoco_v170a_wass015_FAIRrankL8K3_stackedText_K128_partialWhiten_gamma${WHITEN_GAMMA}}"
 LOG="logs/${TAG}.log"
 mkdir -p logs
 
@@ -113,7 +113,7 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --lambda_text_hash_ntxent 0.10 \
     --text_hash_ntxent_temperature 0.07 \
     --text_hash_ntxent_mode per_codebook \
-    --lambda_wasserstein 0.05 \
+    --lambda_wasserstein 0.15 \
     --lambda_vq 0.25 --lambda_quant 0.05 \
     --lambda_xmodal_commit 0.10 \
     --lambda_anchor 0.05 --lambda_dna 0.05 --lambda_bu 0.02 \

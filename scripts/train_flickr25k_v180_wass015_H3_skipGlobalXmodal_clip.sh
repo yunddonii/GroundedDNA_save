@@ -31,7 +31,7 @@ CACHE="${CACHE:-./cache/flickr25k_clip_v4plus_qwen3_tokens_FAIRrankL8K3}"
 QWEN="${QWEN:-./cache/flickr25k_qwen3_v4_trainset.jsonl}"
 WHITEN_NPZ="${WHITEN_NPZ:-${CACHE}/text_whiten.npz}"
 WHITEN_GAMMA="${WHITEN_GAMMA:-0.25}"
-TAG="${TAG:-flickr25k_v180_H3_skipGlobalXmodal_K128_partialWhiten_gamma${WHITEN_GAMMA}}"
+TAG="${TAG:-flickr25k_v180_wass015_H3_skipGlobalXmodal_K128_partialWhiten_gamma${WHITEN_GAMMA}}"
 LOG="logs/${TAG}.log"
 mkdir -p logs
 
@@ -86,7 +86,7 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --lambda_text_hash_ntxent 0.05 \
     --text_hash_ntxent_temperature 0.07 \
     --text_hash_ntxent_mode per_codebook \
-    --lambda_wasserstein 0.05 \
+    --lambda_wasserstein 0.15 \
     --lambda_vq 0.25 --lambda_quant 0.05 \
     --lambda_xmodal_commit 0.05 \
     --lambda_anchor 0.05 --lambda_dna 0.05 --lambda_bu 0.02 \

@@ -137,4 +137,5 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --text_code_kl_skip_global \
     --xmodal_commit_skip_global \
     --text_hash_ntxent_skip_global \
+    --eval_cache_dir ./cache/mscoco_clip_v5b \
     -ev -s 2>&1 | tee "$LOG"

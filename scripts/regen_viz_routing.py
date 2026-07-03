@@ -85,6 +85,11 @@ def main() -> int:
     ap.add_argument("--num_samples", type=int, default=12,
                     help="Number of trainset images to visualize.")
     ap.add_argument("--device", default="cuda:0")
+    ap.add_argument("--cache_dir_override", default=None,
+                    help="Override siglip2_feature_cache_dir from args.txt "
+                         "(useful for whole-image viz on a FAIRrank-trained ckpt).")
+    ap.add_argument("--save_name", default="viz_routing_heatmap.png",
+                    help="Output filename inside result_dir.")
     cli = ap.parse_args()
 
     args_path = os.path.join(cli.result_dir, "args.txt")
@@ -98,6 +103,15 @@ def main() -> int:
 
     args = _parse_args_txt(args_path)
     args.device = cli.device
+    # Optional: override cache (e.g. whole-image cache for a FAIRrank-trained ckpt).
+    if cli.cache_dir_override:
+        old_cache = getattr(args, 'siglip2_feature_cache_dir', '?')
+        args.siglip2_feature_cache_dir = cli.cache_dir_override
+        # Also override text_whiten_npz to match the new cache
+        _maybe_whiten = os.path.join(cli.cache_dir_override, "text_whiten.npz")
+        if os.path.exists(_maybe_whiten):
+            args.text_whiten_npz = _maybe_whiten
+        print(f"[regen] cache OVERRIDE: {old_cache} -> {cli.cache_dir_override}")
     print(f"[regen] parsed {sum(1 for _ in vars(args))} args from {args_path}")
     print(f"[regen] dataset={getattr(args, 'dataset', '?')}  "
           f"cache={getattr(args, 'siglip2_feature_cache_dir', '?')}")
@@ -138,7 +152,7 @@ def main() -> int:
             siglip2_feature_cache_dir=cache_dir,
         )
 
-    save_path = os.path.join(cli.result_dir, "viz_routing_heatmap.png")
+    save_path = os.path.join(cli.result_dir, cli.save_name)
     visualize_routing(
         model, trainset,
         save_path=save_path,

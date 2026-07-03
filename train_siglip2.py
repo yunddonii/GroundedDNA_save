@@ -964,6 +964,21 @@ def main(args: Config):
         _eval_cache = getattr(args, "eval_cache_dir", None)
         _saved_cache = args.siglip2_feature_cache_dir
         _saved_whiten = getattr(args, "text_whiten_npz", None)
+        # AUTO-DETECT: if user did not set --eval_cache_dir, try stripping known
+        # multi-view/crop suffixes from the training cache. This ensures viz +
+        # final eval consistently use whole-image inference on any dataset that
+        # trained on a FAIRrank/localL8K3 cache with a matching whole-image
+        # sibling. User-provided --eval_cache_dir takes precedence.
+        if not _eval_cache:
+            _train_cache = str(_saved_cache).rstrip("/")
+            for _sfx in ("_FAIRrankL8K3", "_localL8K3"):
+                if _train_cache.endswith(_sfx):
+                    _candidate = _train_cache[: -len(_sfx)]
+                    if os.path.exists(_candidate):
+                        _eval_cache = _candidate
+                        print(f"[final-eval] AUTO-DETECT whole-image cache: {_train_cache} (train) -> {_eval_cache} (eval)")
+                        args.eval_cache_dir = _eval_cache
+                        break
         if _eval_cache and os.path.exists(_eval_cache):
             print(f"[final-eval] OVERRIDE cache: {_saved_cache} -> {_eval_cache}")
             args.siglip2_feature_cache_dir = _eval_cache

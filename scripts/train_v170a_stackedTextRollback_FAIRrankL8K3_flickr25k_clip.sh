@@ -108,4 +108,5 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --text_code_kl_tau_t 0.07 \
     --text_code_kl_conf_threshold 0.2 \
     --text_code_kl_skip_global \
+    --eval_cache_dir ./cache/flickr25k_clip_v4plus_qwen3_tokens \
     -ev -s 2>&1 | tee "$LOG"
