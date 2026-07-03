@@ -17138,3 +17138,50 @@ The user's architectural insight ("C_global uses pooled visual, not text-routed,
 1. MSCOCO v180 final result + universality verdict on the third dataset.
 2. Flickr v180 + hyperparameter tuning to further close the -0.007 gap to pre-v170 absolute champion (e.g., topp 0.2/0.5 which was v162b's distinctive knob).
 3. CUB v180a + v7.2 partial-view captions (reduces underparts hedging 34.7% → <15%) — may add remaining mAP recovery via cleaner local slot text.
+
+---
+
+## 2026-07-03 — MSCOCO v180 FINAL — **REGRESSES on every axis (mAP -0.012, NMI +0.039). v180 fix is NOT universal: MSCOCO champion recipe REJECTS skip_global.**
+
+🔴 **OUTCOME.** MSCOCO v180 (MSCOCO v170a champion + `--xmodal_commit_skip_global` + `--text_hash_ntxent_skip_global`) DISCARDED. Every axis regresses vs MSCOCO v170a base (previous champion): mAP -0.012, P@1 -0.009, P@10 -0.019, P@100 -0.018, DNA -0.009, and NMI +0.039 (LESS orthogonal — opposite direction from CUB v180a which won that axis by -0.126).
+
+📊 **Final whole-image comparison:**
+
+| Metric | MSCOCO v170a base (prev champ) | **MSCOCO v180 (this)** | Δ | direction |
+|---|---|---|---|---|
+| mAP | 0.6235 | 0.6112 | −0.012 | ❌ |
+| P@1 | 0.9348 | 0.9256 | −0.009 | ❌ |
+| P@10 | 0.9228 | 0.9043 | −0.019 | ❌ |
+| P@100 | 0.9126 | 0.8944 | −0.018 | ❌ |
+| DNA-uniq | 0.207 | 0.198 | −0.009 | ❌ |
+| cb-tuple | — | 0.300 | — | — |
+| NMI off-diag | **0.6445** | 0.6833 | +0.039 | ❌ LESS orthogonal |
+
+🎯 **v180 fix universality — REFUTED across all 3 datasets.** The user's architectural insight (skip cb0 from text supervision because cb0 uses pooled visual not text-routed) works on CUB and Flickr but NOT MSCOCO. Summary:
+
+| Dataset | mAP Δ | NMI Δ | Verdict |
+|---|---|---|---|
+| CUB v180a | −0.012 | **−0.126** (much more orthog) | ADOPTED ★ |
+| Flickr v180 | **+0.008** | +0.004 (small) | ADOPTED (v170-family champ) |
+| **MSCOCO v180** | **−0.012** | **+0.039** (less orthog) | **REJECTED** |
+
+Two dimensions of disagreement pattern:
+- CUB and Flickr both improve some axis, MSCOCO regresses every axis.
+- CUB gains huge NMI improvement (−0.126); Flickr gains mAP (+0.008); MSCOCO gains nothing.
+
+📐 **Hypotheses for MSCOCO-specific failure.**
+
+1. **Recipe balance.** MSCOCO champion uses full stackedText boost (3 λ at 0.10 each). Flickr champion uses stackedText ROLLBACK (3 λ at 0.05). CUB champion uses boost. If MSCOCO's recipe is finely optimized around cb0 receiving strong text supervision, removing that supervision breaks the finely-tuned balance. On Flickr, text supervision is already lighter, so removing cb0's share has smaller relative effect. On CUB, the accompanying v7.1 caption redesign provides an alternative signal path.
+
+2. **Caption sharpness.** MSCOCO uses PROMPT_V5b which was regenerated for maximum vocab-disjoint sharpness (see 2026-06-17 entry). C_global on MSCOCO v5b is thus a sharply-partitioned scene descriptor that provides useful retrieval signal via xmodal_commit; removing that signal hurts.
+
+3. **Scale.** MSCOCO 107K vs CUB 6K vs Flickr 25K. Larger scale may amplify the value of cb0 as a stable text-anchored slot for retrieval.
+
+4. **Multi-object vs single-object.** CUB is single-object (bird crops); Flickr and MSCOCO are multi-object scenes. But MSCOCO fails while Flickr succeeds, so this axis alone does not explain the split. Combined with hypothesis (1), MSCOCO's multi-object nature + heavy stackedText likely creates a co-dependency: multi-object needs the scene anchor, and the recipe is tuned to that anchor being text-supervised.
+
+🟢 **Adopt verdict.** MSCOCO champion **REMAINS MSCOCO v170a base (mAP 0.6235 all-axis champion)**. v180 fix is CUB / Flickr-specific and does not universally port.
+
+🔭 **Follow-ups for MSCOCO if we want v180-style benefits.**
+1. **MSCOCO v180 + stackedText rollback (skip_global on the lighter recipe).** Combines the two "reduce text pressure" interventions — perhaps the balance works when both are lighter.
+2. **MSCOCO v180 + partial skip.** Skip only xmodal_commit for cb0 (keep text_hash_ntxent full), or vice versa. Isolate which supervision term is load-bearing for MSCOCO.
+3. **MSCOCO caption redesign toward anatomy-style disjointness.** Not straightforward for scene captions, but a v6-style "anchor object / attribute / context" schema with hard forbidden generic words could act analogously to CUB v7.1.
