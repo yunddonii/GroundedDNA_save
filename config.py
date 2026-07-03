@@ -1356,6 +1356,16 @@ class Config():
                  'text-quantization path to be active (i.e., one of '
                  'lambda_text_hash / lambda_text_hash_ntxent / lambda_cw_xmodal '
                  '/ lambda_xmodal_commit > 0). Default 0.0 disables.')
+        # v176: skip cb0 (C_global) from xmodal_commit. C_global uses pooled
+        # visual_global (siglip2_global source) NOT text-anchored routing, so
+        # text supervision on cb0 is an architectural mismatch. Local slots
+        # (cb1..cb5) remain xmodal-supervised.
+        loss_arg.add_argument('--xmodal_commit_skip_global',
+            dest='xmodal_commit_skip_global',
+            action='store_true', default=False,
+            help='v176: skip cb0 (C_global) from xmodal_commit. Only local '
+                 'codebooks (cb1..cb5) contribute. C_global codebook then '
+                 'learns purely from visual + CIBHash NtXent.')
         # v161 (Uni-Code Section 4.3 simplified): bi-modal EMA codebook update.
         loss_arg.add_argument('--mm_ema',
             dest='mm_ema', action='store_true', default=False,
@@ -1524,6 +1534,15 @@ class Config():
                                 'part" compositional contribution claim: text '
                                 'directly supervises each codebook\'s DNA '
                                 'segment instead of only the whole hash.')
+        # v176: skip cb0 (C_global) from text_hash_ntxent per_codebook.
+        # Only valid in per_codebook mode. Global mode ignores this flag.
+        loss_arg.add_argument('--text_hash_ntxent_skip_global',
+            dest='text_hash_ntxent_skip_global',
+            action='store_true', default=False,
+            help='v176: skip cb0 (C_global) from text_hash_ntxent (per_codebook '
+                 'mode). Only local codebooks cb1..cb5 contribute. Match '
+                 'architectural role of C_global (visual-pooled input, not '
+                 'text-anchored routing).')
         # v73 (Exp 7): global DNA NtXent auxiliary loss alongside per-codebook.
         # When `ntxent_mode=per_codebook`, also compute the global NtXent
         # (whole 18-codon DNA code) using static base temperature and add

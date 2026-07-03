@@ -251,6 +251,9 @@ class DNACodonHashLoss(nn.Module):
         self.cw_xmodal_temperature = float(getattr(cfg, "cw_xmodal_temperature", 0.07))
         # v160 (Uni-Code Eq.8): cross-modal commitment weight (= beta/2 in paper).
         self.lambda_xmodal_commit  = float(getattr(cfg, "lambda_xmodal_commit", 0.0))
+        # v176: skip cb0 (C_global) options for xmodal_commit + text_hash_ntxent
+        self.xmodal_commit_skip_global    = bool(getattr(cfg, "xmodal_commit_skip_global",    False))
+        self.text_hash_ntxent_skip_global = bool(getattr(cfg, "text_hash_ntxent_skip_global", False))
         # v123: per-(codebook, codeword) text prototypes. The EMA prototype
         # is updated from text tokens assigned to each visual codeword, then
         # visual quantizer inputs are classified against those prototypes.
@@ -2511,19 +2514,26 @@ class DNACodonHashLoss(nn.Module):
                 # [B, R, 4] -> [B, M, L, 4] -> flatten last two -> [B, M, L*4]
                 t = text_cc.view(B, M_th, L_th, 4).reshape(B, M_th, L_th * 4)
                 i = u      .view(B, M_th, L_th, 4).reshape(B, M_th, L_th * 4)
-                t_n = F.normalize(t, dim=-1)                          # [B, M, L*4]
+                # v176: optionally skip cb0 (C_global).
+                if self.text_hash_ntxent_skip_global and M_th > 1:
+                    t = t[:, 1:, :]
+                    i = i[:, 1:, :]
+                    M_th_eff = M_th - 1
+                else:
+                    M_th_eff = M_th
+                t_n = F.normalize(t, dim=-1)                          # [B, M', L*4]
                 i_n = F.normalize(i, dim=-1)
                 # logits_it[m, i, j]: visual sample i vs text sample j for
-                # codebook m. Positives = diagonal per codebook. M
+                # codebook m. Positives = diagonal per codebook. M'
                 # independent CE losses, averaged.
-                logits_it = torch.einsum("bmd,cmd->mbc", i_n, t_n) / tau  # [M, B, B]
+                logits_it = torch.einsum("bmd,cmd->mbc", i_n, t_n) / tau  # [M', B, B]
                 labels = torch.arange(B, device=logits_it.device)
-                labels_m = labels.unsqueeze(0).expand(M_th, B).reshape(-1)
+                labels_m = labels.unsqueeze(0).expand(M_th_eff, B).reshape(-1)
                 loss_i2t = F.cross_entropy(
-                    logits_it              .reshape(M_th * B, B), labels_m,
+                    logits_it              .reshape(M_th_eff * B, B), labels_m,
                 )
                 loss_t2i = F.cross_entropy(
-                    logits_it.transpose(1, 2).reshape(M_th * B, B), labels_m,
+                    logits_it.transpose(1, 2).reshape(M_th_eff * B, B), labels_m,
                 )
                 loss_text_hash_ntxent_add = 0.5 * (loss_i2t + loss_t2i)
             else:
@@ -2580,18 +2590,21 @@ class DNACodonHashLoss(nn.Module):
             q_v = outputs.get("quantized_tokens_raw")         # [B, M, D]  visual quantized (sg target for text)
             t_v = outputs.get("text_part_tokens")             # [B, M, D]  text encoder output (post text_adapter)
             q_t = outputs.get("text_quantized_tokens")        # [B, M, D]  text quantized (sg target for visual)
+            # v176: optionally skip cb0 (C_global) — architectural mismatch
+            # because C_global uses pooled visual_global (not text-anchored).
+            start_m = 1 if self.xmodal_commit_skip_global else 0
             if (
                 z_v is not None and q_t is not None
                 and z_v.shape == q_t.shape
             ):
-                loss_xmodal_visual = F.mse_loss(z_v, q_t.detach())
+                loss_xmodal_visual = F.mse_loss(z_v[:, start_m:, :], q_t[:, start_m:, :].detach())
             else:
                 loss_xmodal_visual = u.new_zeros(())
             if (
                 t_v is not None and q_v is not None
                 and t_v.shape == q_v.shape
             ):
-                loss_xmodal_text   = F.mse_loss(t_v, q_v.detach())
+                loss_xmodal_text   = F.mse_loss(t_v[:, start_m:, :], q_v[:, start_m:, :].detach())
             else:
                 loss_xmodal_text   = u.new_zeros(())
             # Average the two symmetric directions (so the lambda represents
