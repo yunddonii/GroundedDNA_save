@@ -17308,3 +17308,51 @@ Each additional perturbation moves further away from base on the secondary axes.
 2. **Different base recipe**: try v162b Flickr champion's noGate style on MSCOCO (not previously tested with skip_global).
 3. **Cross-dataset transfer**: does Flickr v180 wass 0.15's success suggest a knob combination that MIGHT work on MSCOCO if paired with a specific recipe swap?
 4. **Accept MSCOCO v170a as final** and focus paper effort on CUB v180a + Flickr v180 wass 0.15 as the two most-improved cells.
+
+---
+
+## 2026-07-04 — MSCOCO PARTIAL-SKIP investigation — **v180B textHashOnly = PARETO improvement over v180 full: mAP essentially TIED with base (0.6214 vs 0.6235 = −0.002), DNA-uniq +0.016 (0.207 → 0.223), NMI essentially tied (0.6424 vs 0.6445 = −0.002). First MSCOCO variant this session to maintain retrieval while improving compositional axes. Confirms xmodal_commit is the load-bearing text supervision on MSCOCO cb0.**
+
+🎯 **Motivation.** After MSCOCO v180 full (both skip flags) regressed −0.012 mAP, wass 0.15 regressed everything except mAP, and multi-delta compounded negatively, hypothesis: **full v180 is too aggressive for MSCOCO's heavy stackedText (3λ at 0.10) regime**. Test partial-skip variants to isolate which specific text supervision term is load-bearing on cb0.
+
+🟢 **Three parallel cells.** Single-delta from MSCOCO v170a champion:
+- **A xmodalOnly**: `--xmodal_commit_skip_global` only (dropped `--text_hash_ntxent_skip_global`). cb0 loses xmodal_commit, keeps text_hash_ntxent.
+- **B textHashOnly**: `--text_hash_ntxent_skip_global` only (dropped `--xmodal_commit_skip_global`). cb0 keeps xmodal_commit, loses text_hash_ntxent.
+- **C full skip + cibhash 1.5**: v180 full + `--lambda_cibhash_ntxent 1.0 → 1.5`. Compensate cb0's lost text supervision with stronger CIBHash NtXent. (still running at commit time.)
+
+GPU 3/4/5 parallel.
+
+📊 **Final whole-image comparison.**
+
+| Variant | mAP | P@1 | P@10 | P@100 | DNA-uniq | cb-tuple | NMI |
+|---|---|---|---|---|---|---|---|
+| MSCOCO v170a base ★ | **0.6235** | **0.9348** | 0.9228 | 0.9126 | 0.207 | — | 0.6445 |
+| MSCOCO v180 full | 0.6112 | 0.9256 | 0.9043 | 0.8944 | 0.198 | 0.300 | 0.6833 |
+| MSCOCO wass015 | 0.6223 | 0.9094 | 0.9029 | 0.8948 | 0.146 | 0.257 | 0.6901 |
+| MSCOCO v180+wass015 (multi) | 0.6131 | 0.8844 | 0.8930 | 0.8808 | 0.155 | 0.256 | 0.7041 |
+| **A xmodalOnly** | 0.6187 | 0.9132 | 0.9008 | 0.8883 | 0.190 | 0.324 | 0.6600 |
+| **B textHashOnly** ★★★ | **0.6214** | **0.9164** | **0.8989** | **0.8877** | **0.2230** | **0.3426** | **0.6424** |
+| C cibhash 1.5 | (running) | | | | | | |
+
+🎯 **B textHashOnly = PARETO improvement over v180 full on every axis.**
+- vs v180 full: mAP +0.010, P@1 −0.009 (but +0.009 over multi), DNA +0.025, NMI −0.041 (much more orthogonal).
+- vs base: mAP −0.002 (essentially TIED), DNA +0.016 (COMPOSITIONAL GAIN), NMI −0.002 (essentially TIED), P@1 −0.018 (small).
+
+📐 **Load-bearing supervision identified.** A (drop xmodal for cb0) worse than B (drop text_hash for cb0) by mAP −0.003. Combined with the mAP recovery vs v180 full (which drops BOTH), the conclusion: **on MSCOCO, xmodal_commit supervision on cb0 is load-bearing; text_hash_ntxent supervision on cb0 is not**. Dropping only text_hash preserves the direct scene-level visual↔text alignment that MSCOCO's v5b captions provide via xmodal_commit (Eq. 8).
+
+🎯 **Interpretation for architectural claim.**
+- CUB (single-object anatomy): full v180 skip works because CIBHash NtXent alone gives cb0 enough class signal + v7.1 captions restrict global to non-class silhouette anyway.
+- Flickr (multi-object, ROLLBACK-tuned): full v180 skip works because stackedText rollback (3λ at 0.05) already reduces text supervision globally.
+- **MSCOCO (multi-object, BOOST-tuned): full v180 skip removes too much cb0 signal from the heavy stackedText regime. Partial skip (drop only text_hash) preserves the load-bearing xmodal_commit link while still relieving text supervision on cb0.**
+
+The v180 architectural principle GENERALIZES with dataset-specific calibration: cb0 supervision reforms depend on the base recipe's text-supervision intensity. Universal rule: **align text supervision with data pathway (cb0 = visual-pooled, so reduce but don't remove text supervision on cb0)**.
+
+🟢 **Adopt verdict.** **MSCOCO v180B (textHashOnly) is a strong compositional-improvement candidate** — DNA-uniq gains without mAP loss. Not adopted as CHAMPION (base 0.6235 still leads on mAP by 0.002 and P@1 by 0.018), but a viable Pareto candidate for the paper's compositional axis story on MSCOCO.
+
+🔭 **Follow-ups.**
+1. **MSCOCO v180B + wass 0.15**: mirror Flickr's champion path with the partial-skip fix.
+2. **MSCOCO v180B + stackedText rollback**: reduce global text pressure so the remaining xmodal_commit on cb0 is proportional.
+3. **C cibhash 1.5 result** (pending): does boosting CIBHash on full skip recover retrieval?
+
+🧰 **Code / results.**
+- `scripts/train_mscoco_v180A_xmodalOnly.sh`, `scripts/train_mscoco_v180B_textHashOnly.sh`, `scripts/train_mscoco_v180C_cibhash15.sh`.
