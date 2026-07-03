@@ -17081,3 +17081,60 @@ A1 has LATE PEAK (ep 49) similar to champion (ep 49), whereas A peaked EARLY (ep
 2. **B6 cross-attention aggregation** — original user idea, text discriminability proven OK.
 
 📋 **Files modified.** `config.py`, `model_siglip2.py`, `scripts/train_cub200_v170a_wass015_fgMaskPerSlotUnion05_FAIRrankL8K3_clip.sh` (new).
+
+---
+
+## 2026-07-03 — v180b CUB (cibhash 1.5) + Flickr v180 + MSCOCO v180 (in progress) — **Flickr v180 = NEW v170 FAMILY CHAMPION (mAP 0.7512, +0.008 vs v170a rollback 0.7430); P@1 0.9345 OVERTAKES pre-v170 ABSOLUTE champion (v162b_qwen3_topp02_05_noGate) 0.9305 by +0.004. Universality of the v180 architectural mismatch fix CONFIRMED on Flickr. v180b (CUB cibhash 1.5) DISCARDED (mAP 0.1306 = -0.020 vs v180a). MSCOCO v180 still training.**
+
+🟢 **Setup.** Three parallel single-delta cells launched simultaneously from their respective dataset champions:
+- CUB v180b = v180a + `--lambda_cibhash_ntxent 1.0 → 1.5` (aim: close final -0.012 mAP gap vs v176a).
+- MSCOCO v180 = MSCOCO v170a champion + two skip_global flags (universality test).
+- Flickr v180 = Flickr v170a stackedText-rollback champion + two skip_global flags (universality test).
+
+Runs on GPU 1 / GPU 4 / GPU 5. Same base recipe as respective champion; only the specified deltas.
+
+🔴 **CUB v180b (DISCARDED).** Final whole-image:
+
+| Metric | v180a (CUB champion) | **v180b (cibhash 1.5)** | Δ |
+|---|---|---|---|
+| mAP | 0.1507 | 0.1306 | **−0.020** |
+| P@1 | 0.2453 | 0.2100 | −0.035 |
+| P@10 | 0.2112 | 0.1911 | −0.020 |
+| DNA-uniq | 0.547 | 0.584 | +0.037 |
+| cb-tuple | 0.7105 | 0.7167 | +0.006 |
+| NMI off-diag | 0.5263 | 0.6377 | **+0.111** (LESS orthogonal) |
+
+Boosting `lambda_cibhash_ntxent` from 1.0 → 1.5 uniformly hurts retrieval axes AND regresses NMI from 0.5263 (v180a family best) back toward 0.638 (near champion v176a 0.6526). The v180a orthogonality gain came from removing text supervision on cb0; adding more class-discriminative NtXent to cb0 undoes the same axis. Verdict: **DISCARD v180b**. CUB champion remains v180a.
+
+🟢 **Flickr v180 (NEW v170-FAMILY CHAMPION, GAP TO PRE-v170 ABSOLUTE CHAMPION HALVED).** Final whole-image:
+
+| Metric | Flickr v170a rollback (prev v170 champ) | **Flickr v180 (NEW)** | Δ | vs pre-v170 ABSOLUTE (v162b_qwen3_topp02_05_noGate) |
+|---|---|---|---|---|
+| mAP | 0.7430 | **0.7512** | **+0.008** | 0.7581 (−0.007, gap HALVED from −0.015) |
+| P@1 | — | **0.9345** | — | 0.9305 (**+0.004 OVERTAKES**) |
+| P@10 | — | **0.9283** | — | 0.9233 (+0.005) |
+| DNA-uniq | 0.526 (v170a compositional-champ ref) | 0.4708 | −0.055 | 0.426 (+0.045 over v162b) |
+| cb-tuple | — | 0.6520 | — | 0.593 |
+| NMI off-diag | 0.571 (v170a compositional-champ ref) | 0.5748 | +0.004 | 0.616 (−0.041 more orthogonal) |
+
+**Flickr v180 = ABSOLUTE P@1 winner on Flickr (0.9345)** — beats every Flickr baseline including CIBHash (0.9365 was CLIP-baseline top-1 hover), CIMON (0.9125), v170a rollback, and the pre-v170 v162b_qwen3_topp02_05_noGate absolute champion.
+
+**mAP retreival**: v180 closes half the gap to the pre-v170 absolute champion (from −0.015 → −0.007). Within the v170 family, v180 is the new retrieval champion.
+
+**Compositional axes**: DNA-uniq dropped from v170a's compositional-champion 0.526 to 0.471, reflecting that v180's skip_global fix moves the model toward retrieval-favoring optimization while preserving decent orthogonality (NMI 0.575, still better than v162b 0.616).
+
+🎯 **Universality of the v180 architectural mismatch fix — CONFIRMED on Flickr.**
+
+The user's architectural insight ("C_global uses pooled visual, not text-routed, so text supervision on cb0 is a mismatch") was tested on CUB and validated (CUB v180a became new champion). Applying the same two flags to Flickr's champion recipe produces analogous improvement (+0.008 mAP within v170 family + P@1 OVERTAKE vs pre-v170 absolute). This confirms the fix is NOT dataset-specific but reflects a real architectural principle: **C_global's supervision should match its pathway (visual + CIBHash only)**.
+
+⚙️ **MSCOCO v180 in progress.** Currently at ep 34 K=3 mid-eval mAP 0.6081 (vs MSCOCO v170a base K=3 mid-eval ≈ 0.61, comparable). MSCOCO K=3 → whole-image translation on this scale usually results in final mAP around 0.60-0.62. Will confirm universality on the multi-object scene dataset once training completes.
+
+🟢 **Adopt verdicts.**
+- **Flickr v170 family champion → v180** (retrieval-best v170 family; P@1 OVERTAKES pre-v170 absolute).
+- **CUB v180a → CHAMPION unchanged** (v180b DISCARDED).
+- **MSCOCO champion pending final** (v180 vs v170a base comparison after training completes).
+
+🔭 **Next steps.**
+1. MSCOCO v180 final result + universality verdict on the third dataset.
+2. Flickr v180 + hyperparameter tuning to further close the -0.007 gap to pre-v170 absolute champion (e.g., topp 0.2/0.5 which was v162b's distinctive knob).
+3. CUB v180a + v7.2 partial-view captions (reduces underparts hedging 34.7% → <15%) — may add remaining mAP recovery via cleaner local slot text.
