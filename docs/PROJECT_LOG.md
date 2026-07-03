@@ -17266,3 +17266,45 @@ Wass boost is NOT universal — works on CUB and Flickr, breaks MSCOCO.
 1. **Multi-delta boost**: MSCOCO v180 + wass 0.15 combined (both losing single-delta - do they cancel or compound?).
 2. **Alternative single-deltas**: wass 0.10 (halfway), or an entirely different knob (topp tighter/wider, K sweep).
 3. **Caption side**: MSCOCO already regenerated v5b for disjoint vocab; further caption-side changes are constrained.
+
+---
+
+## 2026-07-04 — MSCOCO multi-delta v180 + wass 0.15 — **COMPOUND NEGATIVE: two failed single-deltas compound, don't cancel. mAP 0.6131 vs base 0.6235 (−0.010). WORST P@1 (0.8844) and WORST NMI (0.7041) among all MSCOCO variants tested.**
+
+🔴 **OUTCOME. DISCARDED.** Combining the two single-delta failures (v180 skip_global + wass 0.15) does NOT cancel their individual downsides — they compound. Result is worse than either single-delta on the most important secondary axes (P@1, NMI).
+
+🟢 **Test cell.** MSCOCO v170a champion + BOTH `--xmodal_commit_skip_global` + `--text_hash_ntxent_skip_global` (v180) + `--lambda_wasserstein 0.05 → 0.15`. Motivated by prior CUB observation where independent knobs cleanly compose; test whether MSCOCO breaks the composition pattern.
+
+📊 **All MSCOCO whole-image finals compared:**
+
+| Variant | mAP | P@1 | P@10 | DNA | NMI off-diag |
+|---|---|---|---|---|---|
+| MSCOCO v170a base (champion) ★ | **0.6235** | **0.9348** | **0.9228** | **0.207** | **0.6445** |
+| MSCOCO v180 (skip_global) | 0.6112 | 0.9256 | 0.9043 | 0.198 | 0.6833 |
+| MSCOCO wass015 | 0.6223 | 0.9094 | 0.9029 | 0.146 | 0.6901 |
+| MSCOCO v180 + wass015 (THIS) | 0.6131 | 0.8844 | 0.8930 | 0.155 | 0.7041 |
+
+**Compound-negative pattern confirmed:**
+- P@1: base 0.9348 → v180 0.9256 → wass015 0.9094 → **v180+wass015 0.8844** (worst)
+- NMI: base 0.6445 → v180 0.6833 → wass015 0.6901 → **v180+wass015 0.7041** (worst)
+
+Each additional perturbation moves further away from base on the secondary axes. mAP alone stays roughly tied but the composition axis (compositional structure via NMI) monotonically degrades.
+
+🎯 **MSCOCO brittleness pattern FULLY confirmed.** Four independent interventions in this session, all failed vs the MSCOCO v170a base champion:
+1. v180 architectural mismatch fix (skip_global): −0.012 mAP.
+2. wass 0.15 hyperparameter boost: −0.001 mAP but −0.025 P@1.
+3. v180 + wass 0.15 multi-delta: compound negative on P@1 and NMI.
+4. (Historical) v170b grounded routing (2026-06-24): mAP −0.020.
+
+**MSCOCO v170a base is a highly sensitive joint-optimum on the 6-axis loss landscape.** Any single-knob or dual-knob delta perturbs the balance; nothing cleanly composes. This is UNIQUE to MSCOCO among the three datasets:
+- CUB: clean single-delta composition (wass boost + skip_global + best-ckpt all stack cleanly).
+- Flickr: clean single-delta composition (skip_global lifts, wass boost lifts further, both stack → new absolute champion mAP 0.7675).
+- **MSCOCO: single-deltas fail individually AND compound negatively when combined.**
+
+🟢 **Adopt verdict.** **MSCOCO champion IRREVOCABLY REMAINS MSCOCO v170a base (mAP 0.6235 all-axis).** Further single-delta explorations against MSCOCO v170a are unlikely to be productive. Recommendation: MSCOCO needs a fundamentally different intervention (multi-delta joint-tune from scratch, new base recipe, or dataset-side redesign) rather than continued single-knob boosts.
+
+🔭 **Suggested follow-ups (deferred).**
+1. **Multi-knob joint tune from scratch**: run a grid over (wass, topp, xmodal_commit, text_code_kl) instead of single-deltas from champion.
+2. **Different base recipe**: try v162b Flickr champion's noGate style on MSCOCO (not previously tested with skip_global).
+3. **Cross-dataset transfer**: does Flickr v180 wass 0.15's success suggest a knob combination that MIGHT work on MSCOCO if paired with a specific recipe swap?
+4. **Accept MSCOCO v170a as final** and focus paper effort on CUB v180a + Flickr v180 wass 0.15 as the two most-improved cells.
