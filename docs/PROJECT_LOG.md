@@ -17227,3 +17227,42 @@ Flickr v180 + wass 0.15 becomes the new **absolute champion on Flickr for both r
 1. **Flickr v180 + wass 0.20** — one more step; +0.05 gave +0.013 mAP, is +0.05 more still linear or plateau?
 2. **MSCOCO v170a + wass 0.15**: currently mid-training, ep 34 K=3 mid 0.6224 with best-ckpt 0.6313 at ep 19. Will confirm whether wass boost also lifts MSCOCO retrieval on whole-image.
 3. **CUB v180a + wass 0.20**: CUB's champion already uses wass 0.15; try one step further.
+
+---
+
+## 2026-07-03 — MSCOCO v170a + wasserstein 0.05 → 0.15 — **DISCARDED. mAP essentially TIED (−0.001) but every other axis regresses. Wasserstein boost is NOT universal: it wins on CUB and Flickr but fails on MSCOCO.**
+
+🔴 **OUTCOME.** MSCOCO wass 0.15 final whole-image: mAP 0.6223 (v170a base 0.6235 = −0.0012 tied), P@1 0.9094 (base 0.9348 = −0.025), P@10 0.9029 (base 0.9228 = −0.020), P@100 0.8948 (base 0.9126 = −0.018), DNA-uniq 0.1463 (base 0.207 = −0.061), cb-tuple 0.2568, NMI 0.6901 (base 0.6445 = +0.046 LESS orthogonal). All axes except mAP regress. **DISCARDED**.
+
+🟢 **Test cell.** MSCOCO v170a champion (mAP 0.6235 all-axis) + single-delta `--lambda_wasserstein 0.05 → 0.15`. Autodetect override final eval + viz to `mscoco_clip_v5b` whole-image cache.
+
+📊 **Final whole-image comparison:**
+
+| Metric | MSCOCO v170a base (champion) | **wass 0.15 (this)** | Δ |
+|---|---|---|---|
+| mAP | 0.6235 | 0.6223 | −0.001 (TIED) |
+| P@1 | 0.9348 | 0.9094 | −0.025 ❌ |
+| P@10 | 0.9228 | 0.9029 | −0.020 ❌ |
+| P@100 | 0.9126 | 0.8948 | −0.018 ❌ |
+| DNA-uniq | 0.207 | 0.146 | −0.061 ❌ |
+| cb-tuple | — | 0.257 | — |
+| NMI off-diag | 0.6445 | 0.6901 | +0.046 ❌ (LESS orthogonal) |
+
+🎯 **Cross-dataset wasserstein universality — REFUTED.**
+
+| Dataset | wass 0.05 → 0.15 | Δ mAP | Verdict |
+|---|---|---|---|
+| CUB v170a | 0.05→0.10 (+0.015) then 0.10→0.15 (+0.012) | +0.027 total | ✅ ADOPTED (v180a uses wass 0.15) |
+| **Flickr v180** | 0.05 → 0.15 | **+0.013 mAP + P@1 tied + NMI −0.067** | ✅✅✅ **NEW ABSOLUTE CHAMPION** |
+| **MSCOCO v170a** | 0.05 → 0.15 | **−0.001 mAP + −0.025 P@1 + NMI +0.046** | ❌ **DISCARDED** |
+
+Wass boost is NOT universal — works on CUB and Flickr, breaks MSCOCO.
+
+📐 **MSCOCO-specific brittleness pattern.** MSCOCO v170a is now the 2nd single-delta variant to REGRESS across the board on MSCOCO (first was MSCOCO v180 skip_global with −0.012 mAP; now MSCOCO wass015 with −0.001 mAP + everything else worse). Both hyperparameter interventions and architectural interventions have failed on MSCOCO. Pattern: MSCOCO v170a champion recipe is at a delicate joint-optimum on the 6-axis loss landscape; any single-delta boost or removal disturbs the balance. This contrasts with CUB (fine-grained, single-object) and Flickr (Multi-object but small-scale, 25K) where individual knobs cleanly compose.
+
+🟢 **Adopt verdict.** **MSCOCO champion REMAINS MSCOCO v170a base (mAP 0.6235 all-axis champion)**. Two independent single-delta failures suggest MSCOCO needs different intervention paths (multi-delta joint tuning, or a different base recipe, or dataset-side redesign) rather than single-knob boosts.
+
+🔭 **Follow-ups for MSCOCO.**
+1. **Multi-delta boost**: MSCOCO v180 + wass 0.15 combined (both losing single-delta - do they cancel or compound?).
+2. **Alternative single-deltas**: wass 0.10 (halfway), or an entirely different knob (topp tighter/wider, K sweep).
+3. **Caption side**: MSCOCO already regenerated v5b for disjoint vocab; further caption-side changes are constrained.
