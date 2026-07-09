@@ -2714,10 +2714,44 @@ class SigLIP2SemanticOTModel(nn.Module):
             #   global         -> cb0 C_global text (default, legacy).
             #   local_pooled   -> GAP over local slots cb1..cb5 (anatomy-focused).
             #   per_slot_union -> independent top-K per local slot, take UNION.
+            #   per_slot_token_attention -> v182: pre-adapter cross-attention on
+            #     raw CLIP text tokens (per-token) and CLIP-projected visual
+            #     patches; per-slot importance from full attention scores;
+            #     UNION across slots for visual keep-mask.
             _v_n = F.normalize(visual_tokens_for_routing, dim=-1)           # [B, N, D]
             _N = _v_n.shape[1]
             _k = max(1, int(_N * fg_ratio))
             if (
+                self.foreground_text_mask_source == "per_slot_token_attention"
+                and cached_text_tokens is not None
+                and cached_text_tokens.shape[1] > 1
+                and self.backbone_type == "clip"
+            ):
+                # v182: token-level per-slot cross-attention.
+                #   text_tokens_raw : [B, M, T, D_proj=512]  (CLIP-projected)
+                #   visual_tokens_raw: [B, N, H_v=768] (pre-adapter hidden)
+                # Project visual patches to shared 512 via CLIP's visual_projection
+                # (frozen; no new params). Then compute per-slot cross-attention.
+                _vp = self.backbone.model.visual_projection                 # Linear(768, 512)
+                _v_hidden = feats["visual_tokens_raw"]                      # [B, N, 768]
+                _v_shared = _vp(_v_hidden)                                  # [B, N, 512]
+                _v_shared_n = F.normalize(_v_shared, dim=-1)
+                # Local slots only (skip cb0)
+                _tt = cached_text_tokens[:, 1:, :, :]                       # [B, M_loc, T, 512]
+                _tm = cached_text_token_mask[:, 1:, :] if cached_text_token_mask is not None else None
+                _tt_n = F.normalize(_tt, dim=-1)                            # [B, M_loc, T, 512]
+                # sim[b, m, n, t] = cos(v_shared[b, n], text[b, m, t])
+                _sim_tok = torch.einsum('bnd,bmtd->bmnt', _v_shared_n, _tt_n)  # [B, M_loc, N, T]
+                if _tm is not None:
+                    _sim_tok = _sim_tok + (~_tm.unsqueeze(2)).float() * (-1e4)
+                # per-patch importance per slot = sum over valid text tokens of softmax scores
+                _attn = _sim_tok.softmax(dim=-1)                            # [B, M_loc, N, T]
+                _v_imp_slot = _attn.sum(dim=-1)                             # [B, M_loc, N]
+                # per-slot top-K, then union across slots
+                _thr_per_slot = _v_imp_slot.topk(_k, dim=-1)[0][:, :, -1:]  # [B, M_loc, 1]
+                _per_slot_mask = (_v_imp_slot >= _thr_per_slot)             # [B, M_loc, N]
+                _fg_mask = _per_slot_mask.any(dim=1).to(_v_n.dtype)         # [B, N]
+            elif (
                 self.foreground_text_mask_source == "per_slot_union"
                 and text_part_tokens.shape[1] > 1
             ):

@@ -532,7 +532,7 @@ class Config():
         # rather than the global scene caption.
         siglip2_arg.add_argument('--foreground_text_mask_source',
             dest='foreground_text_mask_source',
-            choices=['global', 'local_pooled', 'per_slot_union'],
+            choices=['global', 'local_pooled', 'per_slot_union', 'per_slot_token_attention'],
             default='global',
             help='v175: anchor text for foreground mask. global = cb0 text '
                  '(default, legacy). local_pooled = GAP over local cb1..cb5 '

@@ -17437,3 +17437,51 @@ The MSCOCO v180B experiment identified that `--xmodal_commit_skip_global` is the
 🧰 **Result dirs.**
 - `result/260709+cub_200_setting1_cub200_v170a_v180a_partial_dropXmodalSkip_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001`
 - `result/260709+flickr25k_setting1_flickr25k_v180_wass015_partial_dropXmodalSkip_K128_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001`
+
+---
+
+## 2026-07-09 — v182 CUB per_slot_token_attention (fg_ratio 0.5) — **DISCARDED. mAP 0.1476 vs CUB partial 0.1539 = −0.006 despite HIGHER K=3 mid-eval peak (0.1787 vs 0.1751). Token-level cross-attention pruning helps multi-view training but hurts whole-image inference at 50% ratio.**
+
+🟢 **Setup.** User proposal (2026-07-09): per-slot cross-attention on pre-adapter raw CLIP text tokens + CLIP-projected visual patches. Score-based token pruning replaces prior post-adapter fg_mask sources.
+
+🟢 **Code added.**
+- `config.py`: `--foreground_text_mask_source` choices += `per_slot_token_attention`.
+- `model_siglip2.py`: new branch in fg_mask block. Applies CLIP's own `visual_projection` (Linear(768,512), frozen) to raw visual_tokens_raw → shared 512 space. Per-slot cross-attention: `sim[m, n, t] = cos(v_shared[n], text_tokens[m, t])`; softmax over T, sum → per-patch importance per slot [B, M_loc, N]. Top-K per slot, UNION across slots → final visual keep-mask [B, N].
+- Only active when backbone_type='clip' AND cached_text_tokens provided.
+- New cache: `cache/cub200_clip_v7_1_tokens_FAIRrankL8K3` (symlinks visual + adds text_tokens.f16.npy from v7_1 caption extraction, 5994 caps, 33s extract).
+
+🟢 **Test cell.** CUB partial (structural champion) + `--foreground_text_mask_topk_ratio 0.5 --foreground_text_mask_source per_slot_token_attention`. GPU 4.
+
+🟢 **Mid-eval K=3 trajectory (v182 HIGHER than CUB partial):**
+
+| ep | CUB partial K=3 | v182 K=3 | Δ |
+|---|---|---|---|
+| 14 | ~0.14 | 0.1381 | tied |
+| 24 | 0.1669 | 0.1610 | −0.006 |
+| 34 | **0.1751 (partial peak)** | 0.1755 | +0.004 |
+| 39 | — | **0.1787 (v182 peak)** | — |
+| 44 | — | 0.1755 | — |
+
+v182 K=3 peak (0.1787) is +0.004 HIGHER than partial's peak. Token pruning helps during multi-view training.
+
+🔴 **Final whole-image regression:**
+
+| Metric | CUB partial (champion) | **v182 tokenAttnPrune 0.5 (this)** | Δ |
+|---|---|---|---|
+| mAP | 0.1539 | 0.1476 | −0.006 ❌ |
+| P@1 | 0.2418 | 0.2330 | −0.009 |
+| P@10 | 0.2148 | 0.2130 | −0.002 |
+| DNA-uniq | 0.6071 | 0.5858 | −0.021 |
+| cb-tuple | 0.7289 | 0.7182 | −0.011 |
+| NMI | 0.6168 | 0.6314 | +0.015 |
+
+📐 **K=3 vs whole-image inversion.** K=3 mid-eval HIGHER but whole-image LOWER by −0.006. Root cause: training with FAIRrank L8K3 crops (588 tokens = 3 crops × 196 patches) + 50% pruning = 294 informative tokens per image; inference with whole-image (196 tokens) + 50% pruning = 98 tokens. Whole-image at 98 tokens is over-pruned. Attention scoring calibrated on 588-token distribution doesn't transfer to 196-token whole-image distribution well.
+
+🟡 **Verdict.** REJECT v182 at fg_ratio 0.5. Mechanism validated during training but over-aggressive at inference.
+
+🔭 **Follow-ups.**
+1. **v182 fg_ratio 0.7 or 0.8** (gentler pruning) — retain more tokens at whole-image inference.
+2. **v182 ratio scheduled by mode**: high ratio at inference, lower at training.
+3. **v182 + evaluate at whole-image with fresh scoring** (recompute attention on 196-token single view instead of relying on trained routing to generalize).
+
+🧰 **Files.** `scripts/train_cub200_v182_partial_tokenAttnPrune05_clip.sh`, cache `cache/cub200_clip_v7_1_tokens*`.
