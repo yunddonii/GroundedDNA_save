@@ -2721,8 +2721,14 @@ class SigLIP2SemanticOTModel(nn.Module):
             _v_n = F.normalize(visual_tokens_for_routing, dim=-1)           # [B, N, D]
             _N = _v_n.shape[1]
             _k = max(1, int(_N * fg_ratio))
+            _use_low_attn = (
+                self.foreground_text_mask_source == "per_slot_token_attention_low"
+            )
             if (
-                self.foreground_text_mask_source == "per_slot_token_attention"
+                self.foreground_text_mask_source in (
+                    "per_slot_token_attention",
+                    "per_slot_token_attention_low",
+                )
                 and cached_text_tokens is not None
                 and cached_text_tokens.shape[1] > 1
                 and self.backbone_type == "clip"
@@ -2747,9 +2753,16 @@ class SigLIP2SemanticOTModel(nn.Module):
                 # per-patch importance per slot = sum over valid text tokens of softmax scores
                 _attn = _sim_tok.softmax(dim=-1)                            # [B, M_loc, N, T]
                 _v_imp_slot = _attn.sum(dim=-1)                             # [B, M_loc, N]
-                # per-slot top-K, then union across slots
-                _thr_per_slot = _v_imp_slot.topk(_k, dim=-1)[0][:, :, -1:]  # [B, M_loc, 1]
-                _per_slot_mask = (_v_imp_slot >= _thr_per_slot)             # [B, M_loc, N]
+                # per-slot top-K (or bottom-K if 'low' variant), then union across slots.
+                # 'low' variant tests ICML26 fine-grained hypothesis: species-distinctive
+                # patches have LOW attention to generic caption words; keeping bottom-K
+                # attention scores may retain more discriminative subtle features.
+                if _use_low_attn:
+                    _thr_per_slot = _v_imp_slot.topk(_k, dim=-1, largest=False)[0][:, :, -1:]  # [B, M_loc, 1]
+                    _per_slot_mask = (_v_imp_slot <= _thr_per_slot)         # [B, M_loc, N]
+                else:
+                    _thr_per_slot = _v_imp_slot.topk(_k, dim=-1)[0][:, :, -1:]  # [B, M_loc, 1]
+                    _per_slot_mask = (_v_imp_slot >= _thr_per_slot)         # [B, M_loc, N]
                 _fg_mask = _per_slot_mask.any(dim=1).to(_v_n.dtype)         # [B, N]
             elif (
                 self.foreground_text_mask_source == "per_slot_union"

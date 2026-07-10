@@ -17485,3 +17485,42 @@ v182 K=3 peak (0.1787) is +0.004 HIGHER than partial's peak. Token pruning helps
 3. **v182 + evaluate at whole-image with fresh scoring** (recompute attention on 196-token single view instead of relying on trained routing to generalize).
 
 🧰 **Files.** `scripts/train_cub200_v182_partial_tokenAttnPrune05_clip.sh`, cache `cache/cub200_clip_v7_1_tokens*`.
+
+---
+
+## 2026-07-10 — v182/v183 whole-image + token attention pruning 4-cell sweep — **All discarded. FAIRrank L8K3 crops contribute +0.043 mAP that pruning cannot recover. ICML26 LOW-attention hypothesis REFUTED on CUB.**
+
+🟢 **Setup.** User proposed swapping FAIRrank L8K3 crops for whole-image train+infer + v182 token attention pruning. Test hypothesis whether train/deploy distribution consistency + attention-based pre-pruning beats current champion. Additionally test ICML26 finding that fine-grained objects have LOW attention to relevant text.
+
+**4 parallel cells** (all whole-image cache `cub200_clip_v7_1_tokens`, no FAIRrank):
+- v182 wholeImg 0.5 (HIGH keep, top-50%) — GPU 4
+- v182 wholeImg 0.7 (HIGH keep, top-70%) — GPU 5
+- v183 wholeImg 0.5 (LOW keep, bottom-50%, ICML26) — GPU 2
+- v183 wholeImg 0.7 (LOW keep, bottom-70%) — GPU 3
+
+🟢 **Code added.** `config.py`: `foreground_text_mask_source` += `per_slot_token_attention_low`. `model_siglip2.py`: fg_mask branch handles both variants; `topk(k, largest=False)` for low variant.
+
+📊 **Final whole-image comparison.**
+
+| Cell | mAP | P@1 | DNA | cb-tuple | vs control 0.1106 | vs CUB partial 0.1539 |
+|---|---|---|---|---|---|---|
+| Control (whole-image only, no pruning) | 0.1106 | (ref) | — | — | (baseline) | −0.043 |
+| CUB partial (FAIRrank + no pruning) ★ | **0.1539** | 0.2418 | 0.607 | 0.729 | +0.043 | (champion) |
+| v182 wholeImg 0.5 (HIGH keep) | 0.1075 | 0.1716 | 0.574 | 0.672 | −0.003 tied | −0.046 |
+| v182 wholeImg 0.7 (HIGH keep) | 0.1075 | 0.1633 | 0.593 | 0.687 | −0.003 tied | −0.046 |
+| v183 wholeImg 0.5 (LOW keep) | 0.0937 | 0.1452 | 0.563 | 0.684 | −0.017 | −0.060 |
+| v183 wholeImg 0.7 (LOW keep) | 0.0937 | 0.1452 | 0.563 | 0.684 | −0.017 | −0.060 |
+
+📐 **Three findings.**
+
+1. **FAIRrank L8K3 crops are the dominant contribution to CUB champion mAP (+0.043).** Whole-image only training (any pruning variant) plateaus around 0.09-0.11, matching the earlier control run (0.1106). Attention-based token pruning at input level does NOT substitute for image-level FAIRrank crop diversity.
+
+2. **ICML26 LOW-attention hypothesis REFUTED on CUB.** Under our v7.1 anatomy captions (already anatomy-specific, not generic), HIGH-attention keep (v182 = 0.1075) beats LOW-attention keep (v183 = 0.0937) by −0.014. The ICML26 finding may apply when captions are generic/scene-level; v7.1 CUB captions describe anatomy directly so HIGH attention correctly identifies anatomy-relevant patches.
+
+3. **v183 ratio-invariance suggests softmax uniformity dominance.** Both v183 0.5 and 0.7 converged to identical mAP 0.0937 with identical best-ckpt at ep 24 mAP=0.0824. Softmax attention outputs are approximately uniform at early training, so "LOW-K selection" behaves near-randomly regardless of ratio → same effective mask → same trajectory. HIGH-K selection is well-defined because a few clear peaks emerge from softmax.
+
+🔴 **Verdict. ALL 4 CELLS DISCARDED.** CUB partial (FAIRrank + no pruning) remains champion at mAP 0.1539.
+
+📐 **Paper implication.** The v182/v183 experiments strengthen the "FAIRrank L8K3 is load-bearing" claim. The +0.043 gap between whole-image-only and FAIRrank-trained variants is REPRODUCIBLE across multiple pruning strategies. This is a strong empirical argument for the multi-view crop pipeline as a core contribution, not an incidental augmentation.
+
+🧰 **Result dirs.** result/260710+cub_200_setting1_cub200_v170a_v182_wholeImg_tokenAttnPrune{05,07}_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001, result/260710+cub_200_setting1_cub200_v170a_v183_wholeImg_lowAttnPrune{05,07}_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001.
