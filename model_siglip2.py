@@ -1344,6 +1344,27 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.foreground_text_mask_source: str = str(
             getattr(args, "foreground_text_mask_source", "global")
         )
+        # v184: inference routing centroid source (codebook_mean vs text_prototype).
+        self.eval_routing_mode: str = str(
+            getattr(args, "eval_routing_mode", "codebook_mean")
+        )
+        self.text_prototype_ema_decay: float = float(
+            getattr(args, "text_prototype_ema_decay", 0.999)
+        )
+        # Register EMA text prototype buffer (5 local slots x d_model).
+        # Initialized as zeros. Updated during training when text_part_tokens
+        # available. Used at inference when eval_routing_mode == text_prototype.
+        _NUM_LOCAL_PARTS = 5
+        _d_model_arg = getattr(args, "d_model", None)
+        _dm = int(_d_model_arg) if _d_model_arg is not None else 768
+        self.register_buffer(
+            "text_prototype_ema",
+            torch.zeros(_NUM_LOCAL_PARTS, _dm),
+        )
+        self.register_buffer(
+            "_text_prototype_initialized",
+            torch.zeros(1, dtype=torch.bool),
+        )
         # v176a: soft text-evidence routing prior. Instead of hard-pruning
         # background tokens, lower the Sinkhorn cost for visual patches that
         # already match the routed text/codebook centroid. This is a routing
@@ -2606,10 +2627,42 @@ class SigLIP2SemanticOTModel(nn.Module):
                 route_centroids = local_centroids                         # [B, 5, D]
                 route_part_mask_used = part_mask[:, 1:] if part_mask is not None else None
         else:
-            local_anchor_tokens = local_codebook_mean_anchors_raw.unsqueeze(0).expand(B, -1, -1)  # [B, 5, D]
+            # v184: at inference, optionally use text_prototype (EMA of trainset
+            # text_part_tokens local slots) instead of codebook_mean anchors.
+            # Rationale (diagnostic 2026-07-10): codebook_mean at inference has
+            # near-uniform cost matrix (routing max 0.01) while text-anchored
+            # alignment shows sharp peaks (cos sim max 0.6). Text prototype
+            # substitution keeps 0-cost inference while injecting text signal
+            # geometry into the routing.
+            if (
+                (not self.training)
+                and getattr(self, "eval_routing_mode", "codebook_mean") == "text_prototype"
+                and bool(self._text_prototype_initialized.item())
+            ):
+                _tp = self.text_prototype_ema.to(local_codebook_mean_anchors_raw.dtype)  # [5, D]
+                local_anchor_tokens = _tp.unsqueeze(0).expand(B, -1, -1)   # [B, 5, D]
+            else:
+                local_anchor_tokens = local_codebook_mean_anchors_raw.unsqueeze(0).expand(B, -1, -1)  # [B, 5, D]
             local_centroids = local_anchor_tokens
             route_centroids = local_centroids                             # [B, 5, D]
             route_part_mask_used = None
+
+        # v184: EMA update text_prototype during training when text_part_tokens available.
+        if (
+            self.training
+            and text_part_tokens is not None
+            and text_part_tokens.shape[1] > 1
+        ):
+            with torch.no_grad():
+                _tp_batch = text_part_tokens[:, 1:, :].mean(dim=0).detach()  # [5, D]
+                if not bool(self._text_prototype_initialized.item()):
+                    self.text_prototype_ema.copy_(_tp_batch.to(self.text_prototype_ema.dtype))
+                    self._text_prototype_initialized.fill_(True)
+                else:
+                    _decay = float(self.text_prototype_ema_decay)
+                    self.text_prototype_ema.mul_(_decay).add_(
+                        _tp_batch.to(self.text_prototype_ema.dtype), alpha=(1.0 - _decay)
+                    )
 
         out: Dict[str, Any] = {
             "visual_tokens":                visual_tokens,

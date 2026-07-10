@@ -17524,3 +17524,61 @@ v182 K=3 peak (0.1787) is +0.004 HIGHER than partial's peak. Token pruning helps
 📐 **Paper implication.** The v182/v183 experiments strengthen the "FAIRrank L8K3 is load-bearing" claim. The +0.043 gap between whole-image-only and FAIRrank-trained variants is REPRODUCIBLE across multiple pruning strategies. This is a strong empirical argument for the multi-view crop pipeline as a core contribution, not an incidental augmentation.
 
 🧰 **Result dirs.** result/260710+cub_200_setting1_cub200_v170a_v182_wholeImg_tokenAttnPrune{05,07}_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001, result/260710+cub_200_setting1_cub200_v170a_v183_wholeImg_lowAttnPrune{05,07}_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001.
+
+---
+
+## 2026-07-10 — v184 CUB text_prototype centroid (EMA) — **DISCARDED both variants. Diagnostic-inspired hypothesis REFUTED: text-anchored inference hurts despite sharper text-alignment signal. Confirms codebook_mean is the downstream-optimal centroid post-training.**
+
+🎯 **Motivation.** Diagnostic (2026-07-10) showed inference routing (codebook_mean) has near-flat max 0.01 while text-anchored alignment shows sharp peaks max 0.6, with top-K patch overlap only 2.5-20%. User asked for a low-cost fix. Option 1: replace codebook_mean at inference with EMA text_prototype (per-slot trainset text_part average). Zero inference cost (both are static [5, D] centroids). Two variants: G1 FAIRrank + text_prototype (baseline: CUB partial 0.1539), G2 whole-image + text_prototype (baseline: control 0.1106).
+
+🟢 **Code added.**
+- `config.py`: `--eval_routing_mode` choices=[codebook_mean, text_prototype] (default codebook_mean). `--text_prototype_ema_decay` (default 0.999).
+- `model_siglip2.py`: register buffer `text_prototype_ema [5, D]` + `_text_prototype_initialized bool`. During training forward, EMA update from `text_part_tokens[:, 1:, :].mean(dim=0)` per batch. At inference, if flag == text_prototype AND initialized, use as `local_anchor_tokens` instead of `local_codebook_mean_anchors_raw`.
+
+🔴 **G1 FINAL (FAIRrank + text_prototype):**
+
+| Metric | CUB partial (codebook_mean) | **G1 (text_prototype)** | Δ |
+|---|---|---|---|
+| mAP | 0.1539 | 0.1327 | **−0.021** ❌ |
+| P@1 | 0.2418 | 0.2087 | −0.033 |
+| P@10 | 0.2148 | 0.1881 | −0.027 |
+| DNA-uniq | 0.607 | 0.453 | −0.154 |
+| cb-tuple | 0.729 | 0.645 | −0.084 |
+| NMI off-diag | 0.617 | 0.667 | +0.050 |
+
+🔴 **G2 FINAL (whole-image + text_prototype):**
+
+| Metric | Control (whole-image, codebook_mean) | **G2 (text_prototype)** | Δ |
+|---|---|---|---|
+| mAP | 0.1106 | 0.0994 | **−0.011** ❌ |
+| P@1 | (ref) | 0.1452 | — |
+| DNA-uniq | — | 0.543 | — |
+| cb-tuple | — | 0.658 | — |
+| NMI off-diag | — | 0.661 | — |
+
+🎯 **Diagnostic hypothesis REFUTED.** Despite text-anchored alignment being sharp (cos sim max 0.6) vs codebook_mean routing being flat (0.01), swapping in text_prototype as centroid HURTS retrieval on both G1 (−0.021) and G2 (−0.011). Text-anchored routing does NOT translate to better retrieval.
+
+📐 **Root cause: codebook_mean is downstream-optimal via co-adaptation.**
+
+- Codebook centroids are trained WITH the visual encoder via VQ, xmodal_commit, CIBHash, wasserstein losses. They embody the model's learned representation of "what codewords represent" and are co-adapted with the visual encoder's learned feature geometry.
+- Text_prototype is CLIP text encoder's raw output. It lives in CLIP's pretrained text-image alignment space, NOT the model's downstream-adapted space. Even though its cos-sim alignment with individual patches is sharp (CLIP pretraining alignment), the geometry doesn't match what the quantizer / visual encoder ended up using.
+- At inference, routing = Sinkhorn OT between visual_tokens and centroids. Centroid domain matters: codebook_mean is in the same space as the trained visual features (post-adapter, post-VQ), while text_prototype is in a foreign space causing worse cost-matrix geometry for the transport plan.
+
+📐 **Diagnostic re-interpretation.** The "text alignment sharp (0.6) vs routing flat (0.01)" gap is not a bug to fix. It reflects two different measurements:
+- Cos sim between text_part[m] and visual_tokens[p] measures pretrained CLIP alignment. Naturally sharp because CLIP was trained to align text↔visual at scene level.
+- Routing weights at inference measure post-training Sinkhorn OT decision. Flat/near-uniform because Sinkhorn balanced OT distributes mass evenly.
+
+Both are valid; they're just different metrics. Retrieval quality is determined by the routing decision's downstream utility, not by how "sharp" the raw text-visual alignment is.
+
+🟢 **Adopt verdicts.**
+- Both v184 variants DISCARDED.
+- CUB champion REMAINS CUB partial (mAP 0.1539) with codebook_mean at inference.
+- Paper narrative confirmed: text supervises codebook LEARNING; inference is codebook-centric visual routing that has already absorbed text signal into the learned centroids.
+
+🔭 **Follow-ups.**
+1. **Alternative viz metric**: overlay text-anchored attention scores (cos sim) as a SEPARATE diagnostic panel next to routing_matrix. Shows "what text points to" and "what routing decided" side-by-side. Doesn't change model — clarifies paper story.
+2. **Path B abandoned**: text-anchored inference doesn't help retrieval. Move focus back to model / caption improvements rather than inference-mode changes.
+
+🧰 **Result dirs.**
+- G1: `result/260710+cub_200_setting1_cub200_v170a_v184_partial_textProto_FAIRrank_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001`
+- G2: `result/260710+cub_200_setting1_cub200_v170a_v184_partial_textProto_wholeImg_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001`

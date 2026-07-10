@@ -415,6 +415,20 @@ class Config():
             help='If set with --routing_adaptive_topp, compute patch-specific '
                  'top-p threshold from normalized routing entropy instead '
                  'of max-probability confidence.')
+        # v184: inference routing centroid source. codebook_mean (default) uses
+        # learned visual prototypes. text_prototype uses EMA of trainset
+        # text_part_tokens as routing centroids. Zero cost increase, addresses
+        # the diagnostic finding that codebook_mean routing has flat cost
+        # matrix (0.01 max) vs text-anchored alignment sharp peaks (0.6).
+        siglip2_arg.add_argument('--eval_routing_mode',
+            dest='eval_routing_mode',
+            choices=['codebook_mean', 'text_prototype'],
+            default='codebook_mean',
+            help='v184: inference routing centroid source. text_prototype '
+                 'uses EMA text_part_tokens average as centroids.')
+        siglip2_arg.add_argument('--text_prototype_ema_decay',
+            dest='text_prototype_ema_decay', type=float, default=0.999,
+            help='v184: EMA decay for text_prototype tracker during training.')
         siglip2_arg.add_argument('--routing_perplexity_topk',
             dest='routing_perplexity_topk', action='store_true', default=False,
             help='v84a: per-patch top-k routing where k = ceil(M^H_norm). '
