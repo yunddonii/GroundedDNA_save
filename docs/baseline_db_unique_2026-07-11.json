@@ -1,0 +1,44 @@
+{
+  "Flickr25k_CIBHash": {
+    "N": 23000,
+    "DNA_uniq": 22253,
+    "DNA_ratio": 0.9675217391304348,
+    "bit_uniq": 22253,
+    "bit_ratio": 0.9675217391304348
+  },
+  "Flickr25k_CIMON": {
+    "N": 23000,
+    "DNA_uniq": 18412,
+    "DNA_ratio": 0.8005217391304348,
+    "bit_uniq": 18412,
+    "bit_ratio": 0.8005217391304348
+  },
+  "Flickr25k_MLS3RDUH": {
+    "N": 23000,
+    "DNA_uniq": 11840,
+    "DNA_ratio": 0.5147826086956522,
+    "bit_uniq": 11840,
+    "bit_ratio": 0.5147826086956522
+  },
+  "MSCOCO_CIBHash": {
+    "N": 107218,
+    "DNA_uniq": 79557,
+    "DNA_ratio": 0.742011602529426,
+    "bit_uniq": 79557,
+    "bit_ratio": 0.742011602529426
+  },
+  "MSCOCO_CIMON": {
+    "N": 107218,
+    "DNA_uniq": 45854,
+    "DNA_ratio": 0.42767072693017966,
+    "bit_uniq": 45854,
+    "bit_ratio": 0.42767072693017966
+  },
+  "MSCOCO_MLS3RDUH": {
+    "N": 107218,
+    "DNA_uniq": 46422,
+    "DNA_ratio": 0.43296834486746627,
+    "bit_uniq": 46422,
+    "bit_ratio": 0.43296834486746627
+  }
+}
