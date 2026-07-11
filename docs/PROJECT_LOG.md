@@ -17781,3 +17781,123 @@ Compositional code (Ours) vs flat 36-bit hash (baseline) 의 interpretability �
 
 🧰 **Artifacts (proposal).**
 - `docs/QUALITATIVE_INTERPRETABILITY_PROPOSAL_2026-07-11.md` — 완전 제안.
+
+---
+
+## 2026-07-11 EVE — PR-CURVE IMPROVEMENT: 3-cell experiment → 2 NEW CHAMPIONS + 1 discard
+
+🎯 **Motivation.** PR-curve 향상 필요 (사용자 지시). 3-dataset 각각에 개선 mechanism 적용.
+
+📋 **Cell 설계 및 결과 요약.**
+
+| Cell | Dataset | Delta | 판정 |
+|---|---|---|:---:|
+| **v185 bidirectional** | Flickr25k | +bidirectional token prune (v=0.5, t=0.5) | 🟢 **NEW CHAMPION** |
+| ccs=0.1 | CIFAR10 | +`lambda_codeword_codon_sinkhorn 0.1` | 🟢 **NEW CHAMPION** |
+| ccs=0.1 | MSCOCO | +`lambda_codeword_codon_sinkhorn 0.1` | 🔴 DISCARDED |
+
+---
+
+### v185 BIDIRECTIONAL TOKEN PRUNING (Flickr25k) — NEW CHAMPION
+
+Mechanism: CUB v182 visual-only pruning 을 텍스트 방향으로도 확장. 요청 사항: **downstream text embedding 이 KEPT tokens 로부터만 pool/mean/project 되도록** — text_part_raw 를 KEPT text tokens 의 mean-pool 로 rebuild 후 whiten + adapter + 모든 loss path 가 pruned pool 만 관찰.
+
+Per-slot importance:
+- Direction A (visual): `attn_v[b,m,n,t] = softmax_t(cos(v[b,n], text[b,m,t]))` → sum_t → per-patch importance → keep top-50% patches per slot → UNION → visual_attention_mask.
+- Direction B (text): `attn_t[b,m,n,t] = softmax_n(cos(v[b,n], text[b,m,t]))` → sum_n → per-token importance → keep top-50% tokens per slot → text keep mask.
+
+Text embedding rebuild:
+- `text_part_raw[b, 1..5, :] = (cached_text_tokens[b, m, :, :] * keep_mask[b, m, :, None]).sum(t) / keep_mask.sum(t)`
+- C_global (cb0) unchanged.
+
+📊 **Results (36-bit, CLIP frozen, K=128, 60 epoch, whole-image inference).**
+
+| Metric | Flickr v180 champion | **v185 bidirectional** | Δ | vs CIBHash |
+|---|---:|---:|---:|---:|
+| **mAP** | 0.7686 | **0.7712** | **+0.0026** | +0.087 |
+| **AUC-PR** | 0.0699 | **0.0714** | **+0.0015** | +0.006 |
+| P@1 | 0.9320 | 0.9235 | −0.0085 | CIBHash 0.9365 |
+| P@10 | 0.9243 | 0.9258 | +0.0015 | +0.001 |
+| P@100 | 0.9166 | 0.9227 | **+0.0061** | +0.013 |
+| P@1000 | 0.8933 | 0.9000 | **+0.0067** | +0.044 |
+| DB-unique | 0.436 | 0.472 | +0.036 | CIBHash 0.968 |
+| NMI mean | 0.553 | 0.563 | +0.010 | +0.371 |
+| B0 raw text | 0.063 | 0.067 | +0.004 | — |
+| B1 centered text | 0.138 | 0.145 | **+0.007** | — |
+| B2 visual-global | 0.091 | 0.094 | +0.003 | — |
+
+🟢 **Pareto win on 10 of 11 axes.** Only P@1 regresses (−0.008); every deep-rank + compositional axis improves.
+
+🧠 **Interpretation.** Text-side pruning (Direction B) 이 학습에 노이즈가 많은 "generic" 토큰 (예: "a", "the", "photo") 을 걸러내어 slot embedding 의 semantic 순도를 높임. 결과적으로:
+- Text supervision 신호가 sharper → text_hash_ntxent / xmodal_commit 이 더 유용 → 학습된 codebook 이 더 discriminative
+- Deep-rank precision (100, 1000) 개선 특히 뚜렷
+- Compositional axes (B1, B2, NMI) 모두 개선 → 텍스트-비주얼 alignment 가 semantic axis 학습에 더 도움
+
+Result dir: `result/260711+flickr25k_setting1_flickr25k_v185_bidir_v0.5_t0.5_K128_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001`
+
+---
+
+### CIFAR10 ccs=0.1 — NEW CHAMPION
+
+Delta vs CIFAR10 flickrChamp (K=64): `--lambda_codeword_codon_sinkhorn 0.0 → 0.1`. Sinkhorn OT 로 codeword ↔ codon 매핑 bijection 강제 (K=64 codewords = 4³=64 codons, exact bijection possible).
+
+📊 **Results.**
+
+| Metric | CIFAR10 F-recipe | **+ccs=0.1** | Δ | vs CIBHash |
+|---|---:|---:|---:|---:|
+| **mAP** | 0.8538 | **0.8590** | **+0.0052** | +0.060 |
+| **AUC-PR** | 0.1342 | **0.1368** | **+0.0026** | **+0.002 (WINS)** |
+| P@1 | 0.9110 | 0.9000 | −0.0110 | CIBHash 0.9170 |
+| P@10 | 0.9000 | 0.9024 | +0.0024 | −0.009 |
+| P@100 | 0.8907 | 0.9017 | **+0.0110** | −0.003 |
+| P@1000 | 0.8898 | 0.8980 | **+0.0082** | +0.010 |
+| DB-unique | 0.190 | **0.101** | −0.089⚠ | CIBHash ~1.0 |
+| NMI mean | 0.682 | 0.688 | +0.006 | — |
+
+⚠ **DB-unique 감소는 anomaly (예상: +).** 원인 분석 필요 — codeword_codon_sinkhorn 이 K=64 bijection 을 강제하지만 codon-level uniqueness 가 codeword-level 보다 aggressive 하게 압축된 것으로 추정. mAP + AUC-PR 개선은 확정이므로 adopt.
+
+🟢 **CIFAR10 최초로 AUC-PR 에서 CIBHash 를 넘음 (+0.002).**
+
+Result dir: `result/260711+cifar10_setting1_cifar10_flickrChamp_ccs01_K64_partialWhiten_g0.25+bs+64+e+60+proj_lr+0.001`
+
+---
+
+### MSCOCO ccs=0.1 — DISCARDED
+
+Delta vs MSCOCO v180B (K=128): `--lambda_codeword_codon_sinkhorn 0.0 → 0.1`. K=128 codewords vs 4³=64 codons → **pigeonhole guaranteed 2× collision** — bijection 불가능. Regularizer 는 codeword→codon 재배치를 강제하지만 학습된 semantic clustering 을 붕괴.
+
+📊 **Results.**
+
+| Metric | MSCOCO v180B | +ccs=0.1 | Δ | 판정 |
+|---|---:|---:|---:|:---:|
+| mAP | 0.6214 | 0.6098 | **−0.0116** | ❌ REGRESS |
+| P@1 | 0.9164 | 0.9082 | −0.0082 | ❌ REGRESS |
+| AUC-PR | 0.0734 | 0.0717 | **−0.0017** | ❌ REGRESS |
+| DB-unique | 0.223 | 0.260 | +0.037 | ✅ only gain |
+| NMI mean | 0.642 | 0.639 | −0.003 | ❌ tie |
+| B2 lift | 0.162 | 0.162 | 0.000 | ✅ tie |
+
+🔴 **판정: DISCARDED.** K=128 에서는 codeword-codon disjointness 가 불가능하므로 regularizer 가 semantic 학습을 방해. MSCOCO champion 은 v180B textHashOnly (mAP 0.6214) 유지.
+
+---
+
+### 종합 — 3-dataset 최종 champion 표 (2026-07-11 evening 기준)
+
+| Dataset | Champion recipe | mAP | AUC-PR | vs 2nd-best baseline mAP | AUC-PR vs CIBHash |
+|---|---|---:|---:|---:|:---:|
+| Flickr25k | **v185 bidirectional** | **0.7712** | **0.0714** | +0.039 vs CIMON | **+0.006 WINS** |
+| MSCOCO | v180B textHashOnly (unchanged) | 0.6214 | 0.0734 | +0.037 vs CIBHash | −0.002 loses |
+| CIFAR10 | **F-recipe + ccs=0.1** | **0.8590** | **0.1368** | +0.060 vs CIBHash | **+0.002 WINS** |
+
+🏆 **AUC-PR 2/3 wins (Flickr, CIFAR10).** MSCOCO 만 CIBHash 우세 (−0.002). mAP 은 여전히 3/3 SOTA.
+
+🧰 **Artifacts.**
+- `docs/pr_curve_data_v2_2026-07-11.json` — updated PR data.
+- `docs/pr_curves_unsup_baselines_v2_2026-07-11.png` — updated 3-panel plot.
+- Result dirs (all 3 cells): result/260711+...
+- Scripts: `scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh`, `scripts/train_cifar10_flickrChamp_ccs01_clip.sh`, `scripts/train_mscoco_v180B_ccs01_clip.sh` (last discarded).
+
+🔭 **Follow-ups.**
+1. **Flickr v185 sweep**: ratio 조정 (v=0.3/t=0.3, v=0.7/t=0.7) — 최적 pruning ratio 찾기.
+2. **CIFAR10 ccs01 DB-unique 조사**: 왜 unique 이 감소했는지 root-cause 분석.
+3. **MSCOCO AUC-PR gap (−0.002)** 대안 mechanism 탐색 — bidirectional 을 MSCOCO 에도 적용 (cache 준비 확인 필요).
