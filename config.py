@@ -555,6 +555,36 @@ class Config():
                  'top-K per local slot, take UNION (patches relevant to ANY '
                  'slot survive) — preserves per-slot localization. Only used '
                  'when --foreground_text_mask_topk_ratio is set.')
+        # v185 BIDIRECTIONAL token pruning (2026-07-11):
+        # Extension of v182 (visual-only pruning) with an EXPLICIT text-side
+        # pruning step. When enabled, model computes per-slot visual→text
+        # attention on the [B, N, 512] shared-space visual patches and the
+        # [B, M, T, 512] per-token text embeddings, then:
+        #   Direction A (visual): keep top-K% patches per slot, UNION across
+        #     slots → visual_attention_mask.
+        #   Direction B (text): keep top-K% tokens per slot (softmax over
+        #     patches, sum), then REBUILD text_part_raw as mean over the
+        #     KEPT text tokens ONLY. All downstream text-embedding paths
+        #     (per_slot_text_adapter, whiten, text_token_attention, losses,
+        #     compositional analysis) then observe ONLY pruned text tokens.
+        # Requires: --backbone_type clip, cached_text_tokens available,
+        # cached_text_token_mask available.
+        siglip2_arg.add_argument('--bidirectional_token_prune',
+            dest='bidirectional_token_prune', action='store_true',
+            default=False,
+            help='v185: enable bidirectional visual + text token pruning. '
+                 'Downstream text embeddings are recomputed by mean-pool '
+                 'over KEPT text tokens only.')
+        siglip2_arg.add_argument('--bidirectional_token_prune_visual_ratio',
+            dest='bidirectional_token_prune_visual_ratio',
+            type=float, default=0.5,
+            help='v185: fraction of visual patches to KEEP per slot before '
+                 'UNION (default 0.5).')
+        siglip2_arg.add_argument('--bidirectional_token_prune_text_ratio',
+            dest='bidirectional_token_prune_text_ratio',
+            type=float, default=0.5,
+            help='v185: fraction of text tokens to KEEP per slot when '
+                 'rebuilding text_part_raw (default 0.5).')
         # ---------- VQ codebook update mode -----------------------------
         # `gradient` (default, legacy) -- codebook is an nn.Parameter,
         #   updated by the VQ loss MSE term. Prone to dead-code collapse.

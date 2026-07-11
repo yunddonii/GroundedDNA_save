@@ -1344,6 +1344,16 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.foreground_text_mask_source: str = str(
             getattr(args, "foreground_text_mask_source", "global")
         )
+        # v185: bidirectional token pruning (visual + text).
+        self.bidirectional_token_prune: bool = bool(
+            getattr(args, "bidirectional_token_prune", False)
+        )
+        self.bidirectional_token_prune_visual_ratio: float = float(
+            getattr(args, "bidirectional_token_prune_visual_ratio", 0.5)
+        )
+        self.bidirectional_token_prune_text_ratio: float = float(
+            getattr(args, "bidirectional_token_prune_text_ratio", 0.5)
+        )
         # v184: inference routing centroid source (codebook_mean vs text_prototype).
         self.eval_routing_mode: str = str(
             getattr(args, "eval_routing_mode", "codebook_mean")
@@ -2392,6 +2402,73 @@ class SigLIP2SemanticOTModel(nn.Module):
         global_text_token_for_routing: Optional[torch.Tensor] = None
         local_text_tokens_for_routing: Optional[torch.Tensor] = None  # v116
         if use_text_routing and feats["text_part_raw"] is not None:
+            # v185: bidirectional token pruning. If enabled, OVERRIDE
+            # feats["text_part_raw"] with a mean-pool over kept text tokens
+            # BEFORE the whiten/adapter path so ALL downstream text embeddings
+            # (whiten, adapter, text_token_attention, losses) observe only
+            # the pruned text tokens. Simultaneously compute a visual keep
+            # mask to be applied in the fg_mask block below.
+            self._bi_visual_keep_mask = None
+            if (
+                self.bidirectional_token_prune
+                and self.backbone_type == "clip"
+                and cached_text_tokens is not None
+                and cached_text_tokens.dim() == 4
+                and cached_text_tokens.shape[1] >= 2
+            ):
+                _vp = self.backbone.model.visual_projection                 # Linear(768, 512) frozen
+                _v_hidden = feats["visual_tokens_raw"]                      # [B, N, 768]
+                _v_shared = _vp(_v_hidden)                                  # [B, N, 512]
+                _v_shared_n = F.normalize(_v_shared, dim=-1)                # [B, N, 512]
+                # Local slots only (skip cb0 global).
+                _tt_loc = cached_text_tokens[:, 1:, :, :]                   # [B, M_loc, T, 512]
+                _tm_loc = (
+                    cached_text_token_mask[:, 1:, :]
+                    if cached_text_token_mask is not None else None
+                )                                                            # [B, M_loc, T]
+                _tt_loc_n = F.normalize(_tt_loc, dim=-1)                    # [B, M_loc, T, 512]
+                _sim_tok = torch.einsum(
+                    'bnd,bmtd->bmnt', _v_shared_n, _tt_loc_n
+                )                                                            # [B, M_loc, N, T]
+                if _tm_loc is not None:
+                    _sim_tok = _sim_tok + (~_tm_loc.unsqueeze(2)).float() * (-1e4)
+                _B, _M_loc, _N, _T = _sim_tok.shape
+
+                # Direction A — visual keep mask (softmax over text tokens).
+                _attn_v = _sim_tok.softmax(dim=-1)                           # [B, M_loc, N, T]
+                _v_imp = _attn_v.sum(dim=-1)                                 # [B, M_loc, N]
+                _kv = max(1, int(_N * self.bidirectional_token_prune_visual_ratio))
+                _thr_v = _v_imp.topk(_kv, dim=-1)[0][:, :, -1:]              # [B, M_loc, 1]
+                _v_keep_per_slot = (_v_imp >= _thr_v)                        # [B, M_loc, N]
+                _v_keep_union = _v_keep_per_slot.any(dim=1)                  # [B, N]
+
+                # Direction B — text keep mask (softmax over visual patches).
+                _attn_t = _sim_tok.softmax(dim=-2)                           # [B, M_loc, N, T]
+                _t_imp = _attn_t.sum(dim=-2)                                 # [B, M_loc, T]
+                _kt = max(1, int(_T * self.bidirectional_token_prune_text_ratio))
+                _thr_t = _t_imp.topk(_kt, dim=-1)[0][:, :, -1:]              # [B, M_loc, 1]
+                _t_keep_per_slot = (_t_imp >= _thr_t)                        # [B, M_loc, T]
+                if _tm_loc is not None:
+                    _t_keep_per_slot = _t_keep_per_slot & _tm_loc
+
+                # Rebuild local text_part_raw as mean over kept text tokens.
+                _mask = _t_keep_per_slot.unsqueeze(-1).to(_tt_loc.dtype)     # [B, M_loc, T, 1]
+                _num  = (_tt_loc * _mask).sum(dim=2)                         # [B, M_loc, 512]
+                _den  = _mask.sum(dim=2).clamp(min=1.0)                      # [B, M_loc, 1]
+                _pooled_local_pruned = _num / _den                           # [B, M_loc, 512]
+
+                # C_global slot (cb0) is left unchanged; only local slots
+                # (cb1..cb5) are replaced with pruned-pool.
+                _cg = feats["text_part_raw"][:, 0:1, :]                      # [B, 1, 512]
+                _new_text_part_raw = torch.cat(
+                    [_cg, _pooled_local_pruned.to(_cg.dtype)], dim=1
+                )                                                             # [B, 6, 512]
+                feats = dict(feats)                                          # avoid mutating caller
+                feats["text_part_raw"] = _new_text_part_raw
+
+                # Save visual keep mask for consumption by fg_mask block.
+                self._bi_visual_keep_mask = _v_keep_union                    # [B, N]
+
             raw = feats["text_part_raw"]                                    # [B, 6, D_proj]
 
             # ----------------------------------------------------------------
@@ -2757,9 +2834,22 @@ class SigLIP2SemanticOTModel(nn.Module):
         # from all 6 codebook updates. Mass conservation still holds on the
         # remaining K patches. Designed for single-object fine-grained datasets
         # (CUB-200) where background tokens dominate the router by patch count.
+        # v185: if bidirectional_token_prune already computed a visual keep
+        # mask, apply it here and skip the fg_ratio branch.
+        _bi_v_keep = getattr(self, "_bi_visual_keep_mask", None)
+        if self.bidirectional_token_prune and _bi_v_keep is not None:
+            _fg_mask_bi = _bi_v_keep.to(visual_tokens_for_routing.dtype)     # [B, N]
+            if visual_attention_mask is not None:
+                visual_attention_mask = visual_attention_mask.to(
+                    visual_tokens_for_routing.dtype
+                ) * _fg_mask_bi
+            else:
+                visual_attention_mask = _fg_mask_bi
+            self._bi_visual_keep_mask = None
         fg_ratio = self.foreground_text_mask_topk_ratio
         if (
-            fg_ratio is not None
+            not self.bidirectional_token_prune
+            and fg_ratio is not None
             and 0.0 < fg_ratio < 1.0
             and text_part_tokens is not None
         ):
