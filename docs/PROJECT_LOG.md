@@ -17703,3 +17703,81 @@ Baseline flat hashes cluster near random-partition NMI (0.19–0.41). Ours 0.55�
 🔭 **Follow-ups.**
 1. Re-run CIFAR10 baselines with `--save_code` to enable NMI + DB-unique.
 2. Optional: baseline compositional B1/B2 on arbitrary 6×6-bit partition of the 36-bit flat hash — quantifies "random partition B1 vs learned partition B1" gap.
+
+---
+
+## 2026-07-11 PM — PR-CURVE EVALUATION + QUALITATIVE INTERPRETABILITY PROPOSAL
+
+🎯 **Motivation.** Deep-hashing 도메인 표준: mAP 뿐 아니라 **precision-recall curve** 로도 정량 평가. 또한 paper reviewer 대비 compositional code 의 interpretability 를 **정성적으로** 보이는 방법 제안 필요.
+
+---
+
+### Part 1 — PR-curve 3-dataset baseline 비교
+
+📊 **k-anchored PR data (k ∈ {1, 5, 10, 20, 50, 100, 500, 1000}).**
+Precision + Recall at k 를 모든 12개 method-dataset 조합 (Ours + CIBHash + CIMON + MLS3RDUH × 3 dataset) 에서 수집.
+
+| Dataset | Method | mAP | P@1 | P@10 | P@100 | P@1000 | R@1000 | AUC-PR* |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| Flickr25k | **Ours (v180+wass015)** ★ | **0.7686** | 0.9320 | 0.9243 | **0.9166** | **0.8933** | 0.0772 | **0.0699** |
+| Flickr25k | CIBHash | 0.6844 | **0.9365** | **0.9244** | 0.9092 | 0.8559 | 0.0742 | 0.0656 |
+| Flickr25k | CIMON | 0.7321 | 0.9125 | 0.9068 | 0.8944 | 0.8594 | 0.0740 | 0.0649 |
+| Flickr25k | MLS3RDUH | 0.6735 | 0.8495 | 0.8642 | 0.8456 | 0.8084 | 0.0690 | 0.0571 |
+| MSCOCO | **Ours (v180B)** ★ | **0.6214** | 0.9164 | 0.8989 | 0.8877 | 0.8458 | 0.0844 | 0.0734 |
+| MSCOCO | CIBHash | 0.5842 | **0.9264** | **0.9206** | **0.9025** | 0.8477 | 0.0854 | **0.0749** |
+| MSCOCO | CIMON | 0.5388 | 0.7838 | 0.7708 | 0.7458 | 0.6898 | 0.0476 | 0.0342 |
+| MSCOCO | MLS3RDUH | 0.5037 | 0.7610 | 0.7359 | 0.7088 | 0.6562 | 0.0426 | 0.0291 |
+| CIFAR10 | **Ours (F-recipe)** ★ | **0.8538** | 0.9110 | 0.9000 | 0.8907 | 0.8898 | 0.1508 | 0.1342 |
+| CIFAR10 | CIBHash | 0.7986 | **0.9170** | **0.9114** | **0.9050** | 0.8877 | 0.1505 | **0.1348** |
+| CIFAR10 | CIMON | 0.7312 | 0.8610 | 0.8583 | 0.8471 | 0.8175 | 0.1386 | 0.1152 |
+| CIFAR10 | MLS3RDUH | 0.4666 | 0.6250 | 0.6126 | 0.5844 | 0.5607 | 0.0950 | 0.0545 |
+
+*AUC-PR = trapezoidal integration of P vs R over k∈[1, 1000].
+
+📐 **PR-curve 관찰 — mAP 와 다른 story (paper narrative 중요).**
+
+| Dataset | mAP winner | AUC-PR winner | 해석 |
+|---|:---:|:---:|---|
+| Flickr25k | Ours (+0.036) | Ours (+0.004) | 두 지표 모두 Ours 우세 |
+| MSCOCO | Ours (+0.037) | CIBHash (+0.002) | **불일치**: mAP 우세이나 top-1000 sharp precision 은 CIBHash |
+| CIFAR10 | Ours (+0.055) | ≈ tie | **불일치**: mAP 우세이나 top-1000 은 tie |
+
+**해석**: mAP 는 full-rank precision 을 integrate; AUC-PR (k≤1000) 은 top-1000 만 반영. MSCOCO 107K DB 에서 k=1000 은 겨우 0.9% → deep-rank robustness 반영 못 함. CIBHash 는 top-1 sharp (near-perfect unique hash) → 초반 precision 이 높아 shallow-rank curve 에서 우세하지만, rank 깊어지면 semantic clustering 이 없어 성능 dropoff → mAP 낮음.
+
+🟢 **Paper narrative**: "**Ours 는 deep-rank retrieval SOTA (mAP), CIBHash 는 shallow-rank sharp (top-1000 PR)**" 이라는 정직한 trade-off 표현 → 우리 강점을 왜곡 없이 서술.
+
+🧰 **Artifacts (PR-curve).**
+- `docs/pr_curve_data_2026-07-11.json` — 12개 method-dataset PR 원본 데이터.
+- `docs/pr_curve_auc_2026-07-11.json` — 각 조합 AUC-PR.
+- `docs/pr_curves_unsup_baselines_2026-07-11.png` — 3-panel PR curve (recall vs precision).
+- `docs/pr_at_k_curves_2026-07-11.png` — 6-panel P@k / R@k vs k (log-scale).
+
+---
+
+### Part 2 — Qualitative interpretability 제안 (3가지 방법)
+
+Compositional code (Ours) vs flat 36-bit hash (baseline) 의 interpretability 차이를 시각적으로 보이는 3가지 방법 설계. 완전한 제안 은 `docs/QUALITATIVE_INTERPRETABILITY_PROPOSAL_2026-07-11.md` 참고.
+
+**Method A — Per-slot Codeword Atlas (1순위 추천).**
+- Ours: (slot m, codeword k) 조합 별로 라우팅되는 이미지 8-16장 grid.
+- Baseline: CIBHash 36-bit 를 6개 6-bit chunk 로 나누고 chunk 값 별 이미지 sample.
+- 예상 결과: Ours 는 각 (m, k) 이 coherent semantic theme (같은 새 종/같은 색 등), CIBHash 는 무작위 mix.
+- 구현: 2-3시간 (data 준비 완료; grid script 만).
+
+**Method B — Slot-swap Retrieval (2순위).**
+- Query image 의 6-slot code 에서 slot m 만 swap 후 유사 이미지 검색.
+- 예상: Ours 는 m 이 담당하는 axis 만 변화 (compositional controllability), baseline 은 semantic 관련성 없이 이동.
+- 구현: 반나절-1일.
+
+**Method C — Text-conditional Slot Activation Heatmap (3순위, paper-value 높음).**
+- Ours: `routing_matrix` 를 slot 별로 이미지 위 heatmap 으로 overlay (14×14 patch).
+- Baseline: text-visual routing 개념 자체가 없음 (구조적 열세).
+- 예상: slot 2 (primary_object) 는 새 몸통, slot 5 (scene_type) 는 배경 활성화 등 학습된 disentangled attention.
+- 구현: 기존 `scripts/diagnostic_text_alignment_viz.py` 확장, 2-3시간.
+
+🔮 **추천 순서**: Method A → C (main paper), B → supplementary.
+
+📎 **다음 tick 목표**: Method A + C 구현. Flickr champion 위에서 시연 후 3-dataset (Flickr, MSCOCO, CIFAR10) 적용.
+
+🧰 **Artifacts (proposal).**
+- `docs/QUALITATIVE_INTERPRETABILITY_PROPOSAL_2026-07-11.md` — 완전 제안.
