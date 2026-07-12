@@ -17943,3 +17943,40 @@ mAP 0.6214→0.6108 (−0.011), AUC-PR 0.0734→0.0715 (−0.002), P@1 0.9164→
 🔭 **Follow-ups.**
 1. MSCOCO structural-consistency decision (adopt v185 with −0.011, or keep v180B).
 2. Optional: MSCOCO bidirectional with milder text_ratio (0.7 = keep more tokens) to reduce regression while retaining structure.
+
+---
+
+## 2026-07-12 — DECISION: 3-DATASET STRUCTURAL UNIFICATION on v185 bidirectional (user-confirmed)
+
+⚖️ **User decision (2026-07-12):** adopt **v185 bidirectional token pruning as the official champion architecture on ALL 3 datasets**, accepting the MSCOCO internal −0.011 mAP cost for full structural consistency.
+
+🟢 **Official 3-dataset champions (unified architecture).**
+
+| Dataset | Recipe | mAP | AUC-PR | P@1 | NMI | vs best baseline mAP | AUC-PR vs CIBHash |
+|---|---|---:|---:|---:|---:|---:|:---:|
+| Flickr25k | v185 bidir (K=128) | **0.7712** | 0.0714 | 0.9235 | 0.563 | +0.039 vs CIMON | +0.006 🟢 |
+| MSCOCO | v185 bidir (K=128) | 0.6108 | 0.0715 | 0.9118 | 0.635 | +0.027 vs CIBHash | −0.003 |
+| CIFAR10 | v185 bidir + ccs=0.1 (K=64) | **0.8644** | **0.1381** | 0.9020 | 0.697 | +0.066 vs CIBHash | +0.003 🟢 |
+
+🏛️ **Structural consistency achieved (paper "universal recipe" claim).**
+Identical architecture across all 3 datasets:
+- CLIP-ViT-B/16 frozen backbone
+- 6-slot compositional codebook (K=128 Flickr/MSCOCO, K=64 CIFAR10)
+- `--per_slot_text_adapter`
+- `--codon_residual_gamma 0.0`
+- `--router_type sinkhorn` + adaptive top-p (0.3–0.7)
+- `--text_embed_transform partial_whiten`
+- Skip flags: `text_code_kl_skip_global` + `text_hash_ntxent_skip_global`
+- **`--bidirectional_token_prune` (visual 0.5 / text 0.5)** — the unifying mechanism
+- Same 18 active loss keys
+
+Dataset-tuned loss WEIGHTS only (allowed per v181):
+- `lambda_wasserstein`: 0.15 / 0.05 / 0.15
+- `lambda_xmodal_commit`: 0.05 / 0.10 / 0.05
+- `lambda_text_hash_ntxent`: 0.05 / 0.10 / 0.05
+- `lambda_text_code_kl`: 0.05 / 0.10 / 0.05
+- `lambda_codeword_codon_sinkhorn`: 0.0 / 0.0 / 0.1 (K-dependent bijection availability)
+
+📊 **Retrieval leadership.** mAP SOTA on all 3 (+0.027 to +0.066 vs strongest baseline). AUC-PR SOTA on 2/3 (Flickr +0.006, CIFAR10 +0.003); MSCOCO trails CIBHash by −0.003 (unchanged pre-existing gap).
+
+🧾 **Verdict.** **v185 bidirectional = official 3-dataset universal recipe.** MSCOCO −0.011 internal cost accepted for architectural uniformity; MSCOCO remains mAP-SOTA over all unsupervised baselines. Paper credibility (identical architecture + identical loss structure + identical pruning mechanism across 3 datasets of different scale/domain) prioritized over a single dataset's absolute peak.
