@@ -17901,3 +17901,45 @@ Delta vs MSCOCO v180B (K=128): `--lambda_codeword_codon_sinkhorn 0.0 → 0.1`. K
 1. **Flickr v185 sweep**: ratio 조정 (v=0.3/t=0.3, v=0.7/t=0.7) — 최적 pruning ratio 찾기.
 2. **CIFAR10 ccs01 DB-unique 조사**: 왜 unique 이 감소했는지 root-cause 분석.
 3. **MSCOCO AUC-PR gap (−0.002)** 대안 mechanism 탐색 — bidirectional 을 MSCOCO 에도 적용 (cache 준비 확인 필요).
+
+---
+
+## 2026-07-12 — v185 bidirectional token pruning EXTENDED to MSCOCO + CIFAR10 (structural consistency test)
+
+🎯 **Motivation.** User request 2026-07-12: apply v185 bidirectional token pruning to CIFAR10 and MSCOCO simultaneously; all 3 champion models must be **structurally identical**.
+
+🔬 **Setup.** Extended v185 (visual + text bidirectional pruning, text_part_raw rebuilt from KEPT tokens) to MSCOCO and CIFAR10. Added CIFAR10 token cache (`extract_clip_text_tokens_cifar10.py` → text_tokens [60000,6,32,512] + mask). MSCOCO token cache already present (symlinked). All 3 cells share identical architecture flags:
+- `--per_slot_text_adapter`, `--codon_residual_gamma 0.0`
+- `--text_code_kl_skip_global` + `--text_hash_ntxent_skip_global`
+- `--bidirectional_token_prune` + visual_ratio 0.5 + text_ratio 0.5
+- Loss weights dataset-tuned (v181 principle): `lambda_codeword_codon_sinkhorn` = 0.1 on CIFAR10 (K=64 bijection), 0.0 on Flickr/MSCOCO (K=128 pigeonhole).
+
+📊 **Results.**
+
+| Dataset | Champion (pre-v185) | v185 bidir | Δ mAP | Δ AUC-PR | verdict |
+|---|---:|---:|---:|---:|:---:|
+| Flickr25k | 0.7686 | **0.7712** | +0.0026 | +0.0015 | 🟢 ADOPT (prior) |
+| CIFAR10 | 0.8590 | **0.8644** | +0.0054 | +0.0013 | 🟢 ADOPT |
+| MSCOCO | 0.6214 | 0.6108 | **−0.0106** | −0.0019 | 🔴 REGRESS |
+
+**CIFAR10 v185 + ccs=0.1 — 8/8 axes Pareto win:**
+mAP 0.8590→0.8644, AUC-PR 0.1368→0.1381, P@1 0.900→0.902, P@10 0.9024→0.9065, P@100 0.9017→0.9052, P@1000 0.8980→0.9023, NMI 0.688→0.697. CIBHash AUC-PR 0.1348 대비 +0.003 격차 확대. **NEW CIFAR10 CHAMPION.**
+
+**MSCOCO v185 — regression (like ccs=0.1 before):**
+mAP 0.6214→0.6108 (−0.011), AUC-PR 0.0734→0.0715 (−0.002), P@1 0.9164→0.9118, NMI 0.642→0.635, B2 0.162 (tied). Still mAP SOTA vs CIBHash (+0.027) but internal regression. MSCOCO is once again the brittle dataset — same pattern as ccs=0.1 (multi-delta interventions compound negatively on MSCOCO).
+
+🧠 **Interpretation.** MSCOCO captions (Qwen v5b, scene-level multi-object) already carry disjoint per-slot vocab. Text-side token pruning removes tokens that MSCOCO's text supervision actually needs — unlike Flickr/CIFAR10 where generic-token removal sharpens the signal. The 3-dataset asymmetry mirrors the earlier PROMPT_V5b finding (caption-regen effectiveness scales with baseline redundancy).
+
+⚖️ **STRUCTURAL CONSISTENCY vs ABSOLUTE PERFORMANCE tension.**
+- Full structural unification (v185 bidirectional on all 3) → Flickr 0.7712, CIFAR10 0.8644, MSCOCO 0.6108. All 3 identical architecture. MSCOCO costs −0.011 mAP internally but stays mAP SOTA (+0.027 vs CIBHash).
+- Per-dataset-optimal (MSCOCO keeps non-bidirectional v180B) → MSCOCO 0.6214 but MSCOCO champion architecture differs from Flickr/CIFAR10 (no bidirectional).
+- **Decision pending user.**
+
+🧰 **Result dirs.**
+- Flickr: `result/260711+flickr25k_...v185_bidir_v0.5_t0.5_K128...`
+- CIFAR10: `result/260712+cifar10_...v185_bidir_v0.5_t0.5_ccs01_K64...`
+- MSCOCO: `result/260712+mscoco_...v185_bidir_v0.5_t0.5_K128...`
+
+🔭 **Follow-ups.**
+1. MSCOCO structural-consistency decision (adopt v185 with −0.011, or keep v180B).
+2. Optional: MSCOCO bidirectional with milder text_ratio (0.7 = keep more tokens) to reduce regression while retaining structure.
