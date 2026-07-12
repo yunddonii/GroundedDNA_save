@@ -17980,3 +17980,269 @@ Dataset-tuned loss WEIGHTS only (allowed per v181):
 📊 **Retrieval leadership.** mAP SOTA on all 3 (+0.027 to +0.066 vs strongest baseline). AUC-PR SOTA on 2/3 (Flickr +0.006, CIFAR10 +0.003); MSCOCO trails CIBHash by −0.003 (unchanged pre-existing gap).
 
 🧾 **Verdict.** **v185 bidirectional = official 3-dataset universal recipe.** MSCOCO −0.011 internal cost accepted for architectural uniformity; MSCOCO remains mAP-SOTA over all unsupervised baselines. Paper credibility (identical architecture + identical loss structure + identical pruning mechanism across 3 datasets of different scale/domain) prioritized over a single dataset's absolute peak.
+
+---
+
+## 2026-07-12 — v187a CONSENSUS-RESIDUAL PRUNE-ONLY (DISCARDED, full mAP 0.7576)
+
+🎯 **Motivation.** Slot-token grounding diagnosis found that local mutual-attention maps had mean cross-slot overlap 0.930 and 81.6% of samples exceeded 0.90. v187a tests whether removing evidence shared by all local slots can replace the overlapping OT routing stage entirely.
+
+🔬 **Method.** For mutual dual-softmax visual importance `A[m,n]`, normalize each slot over patches, compute the cross-slot geometric consensus, and retain only positive pointwise information above that consensus:
+
+`P[m,n] = A[m,n] / sum_n A[m,n]`
+
+`G[n] = exp(mean_m(log(P[m,n] + eps)))`
+
+`R[m,n] = P[m,n] * ReLU(log((P[m,n] + eps) / (G[n] + eps)))`
+
+- Training: top-20% patches per local slot from text-token-derived `R`; selected patches are uniformly mean-pooled. Five slots x 20% gives one image worth of total assignment capacity before legitimate subset overlap.
+- Image-only inference: no caption is passed. Learned EMA text prototypes score patches by cosine, followed by the same consensus-residual top-20% selector.
+- Sinkhorn, adaptive top-p, and Wasserstein OT loss are bypassed. `C0` keeps the existing CLIP global path.
+- Text-token pruning remains at 50% to isolate the visual routing replacement.
+
+📈 **Mid-eval trajectory (2K test self-retrieval).** Training was stopped during epoch 18 after three consecutive mAP regressions; epoch 4 remained the best checkpoint.
+
+| epoch | mAP | unique | dead-code | verdict |
+|---:|---:|---:|---:|:---:|
+| 4 | **0.7533** | 0.6300 | 25.65% | best |
+| 9 | 0.7455 | 0.6714 | 5.73% | regress |
+| 14 | 0.7415 | 0.6885 | 1.95% | regress |
+
+📊 **Full Flickr25k evaluation (best epoch 4, 23K DB / 2K query, image-only).**
+
+| Metric | v185 official | v187a prune-only | Delta | verdict |
+|---|---:|---:|---:|:---:|
+| mAP | **0.7712** | 0.7576 | **-0.0136** | ❌ |
+| P@1 | **0.9235** | 0.9215 | -0.0020 | ❌ |
+| P@10 | **0.9258** | 0.9211 | -0.0047 | ❌ |
+| P@100 | **0.9227** | 0.9097 | -0.0130 | ❌ |
+| P@1000 | **0.9000** | 0.8796 | -0.0204 | ❌ |
+| DB-unique | **0.4722** | 0.4261 | -0.0461 | ❌ |
+| dead-code mean | **0.26%** | 10.42% | +10.16%p | ❌ |
+| per-codebook unique ratio | 0.00193 | **0.00218** | +0.00025 | minor gain |
+
+🧭 **Selection diagnostics.** The intended structural effect did occur:
+- v186 mutual+OT at epoch 4: per-slot keep 49.9%, union 73.6%, effective-k 1.634, fraction-top1 50.9%.
+- v187a prune-only at epoch 4: per-slot keep 20.0%, union 63.7%, effective-k 1.002, fraction-top1 71.2%.
+- Image-only v187a union was 74.1%; learned prototypes produced mostly single-slot selections without captions.
+
+🧠 **Failure analysis.** Common-patch suppression improved mask separation, but separation alone was not sufficient for retrieval quality. Uniform pooling removed OT's soft semantic weighting and mass balancing, while the selector changed from frozen CLIP text-token evidence in training to learned EMA prototype cosine at inference. The resulting train/inference selector gap and aggressive 20% bottleneck fragmented early codebook usage. Dead codes recovered later, but mAP declined monotonically, indicating that recovery came from broader code reuse rather than better semantic neighborhoods.
+
+🔴 **Verdict: DISCARDED as a v185 replacement.** Keep the default-off implementation as a controlled no-OT ablation; retain v185 as the official Flickr25k champion.
+
+🧰 **Code and artifacts.**
+- Modes: `--bidirectional_token_prune_mode mutual_consensus_residual`, `--bidirectional_prune_only`.
+- Script: `scripts/train_flickr25k_v187a_consensusResidualPruneOnly_clip.sh`.
+- Result: `result/260712+flickr25k_setting1_flickr25k_v187a_consensusResidual_pruneOnly_v0.2_t0.5_K128_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001`.
+
+🔭 **Follow-up.** If consensus suppression is revisited, retain OT and change only its candidate score, or use residual-weighted soft pooling with the same selector at train and inference. Do not combine hard 20% selection, uniform pooling, and a different inference anchor in one main model.
+
+---
+
+## 2026-07-13 — v188a SPECIFICITY-WEIGHTED OT MARGINAL (REJECTED AS CHAMPION, full mAP 0.7633)
+
+🎯 **Motivation.** v187a showed that hard consensus-residual pruning without OT increased slot separation but damaged retrieval and codebook utilization. v188a tests the narrower hypothesis: keep every valid visual patch, suppress cross-slot-common evidence only through the visual OT marginal, and retain the established UOT, adaptive top-p routing, and Wasserstein supervision.
+
+🔬 **Method.** For the existing adapted-space patch-to-local-slot cosine matrix `S[b,n,m]`, compute each patch's normalized uncertainty across the valid local slots:
+
+`Q[b,n,:] = softmax_m(S[b,n,:])`
+
+`w[b,n] = 1 - H(Q[b,n,:]) / log(M_valid)`
+
+`a[b,n] = w[b,n] / sum_n w[b,n]`
+
+- `a` replaces only the legacy uniform visual marginal of Sinkhorn/UOT and is detached from gradient flow.
+- A patch similarly compatible with all local slots has high entropy and receives little OT mass; slot-specific evidence receives more mass.
+- No visual pre-top-k is applied (`visual keep=99.84%`; the non-valid token accounts for the remainder).
+- Text-side mutual dual-softmax pruning remains at 50% (`observed keep=51.35%`) for a clean comparison.
+- The existing UOT relaxation, adaptive top-p 0.3→0.7, and Wasserstein weight 0.15 are unchanged.
+
+📈 **Mid-eval trajectory (2K test self-retrieval).** Epoch 9 was the best checkpoint. Training was stopped after epoch 24 established three consecutive post-peak regressions.
+
+| epoch | mAP | unique | dead-code | train marginal effective ratio |
+|---:|---:|---:|---:|---:|
+| 4 | 0.7556 | 0.6759 | 11.33% | 0.8673 |
+| 9 | **0.7568** | 0.6789 | 4.43% | 0.8740 |
+| 14 | 0.7505 | 0.6809 | 1.69% | 0.8789 |
+| 19 | 0.7443 | **0.6880** | 1.69% | 0.8847 |
+| 24 | 0.7350 | 0.6648 | **1.17%** | 0.8877 |
+
+📊 **Full Flickr25k evaluation (best epoch 9, 23K DB / 2K query, image-only).**
+
+| Metric | v185 official | v188a | Delta | verdict |
+|---|---:|---:|---:|:---:|
+| mAP | **0.7712** | 0.7633 | **-0.0080** | ❌ |
+| P@1 | 0.9235 | **0.9295** | +0.0060 | ✅ |
+| P@10 | 0.9258 | **0.9279** | +0.0021 | ✅ |
+| P@100 | 0.9227 | **0.9237** | +0.0010 | ✅ |
+| P@1000 | 0.9000 | **0.9008** | +0.0008 | ✅ |
+| DB-unique | **0.4722** | 0.4499 | -0.0223 | ❌ |
+| dead-code mean | **0.26%** | 0.52% | +0.26%p | near parity |
+| codebook normalized entropy | **0.9561** | 0.9542 | -0.0019 | near parity |
+
+🧭 **Routing diagnostics.** The specificity marginal was active without becoming a hard bottleneck. Its train effective-support ratio moved from 0.804 at epoch 0 to 0.874 at the best epoch, while validation remained near 0.908. Thus OT used roughly 80–91% of the valid patch support rather than collapsing onto a few tokens. The raw mean specificity was small (`0.0049` at epoch 0 and `0.0102` at epoch 9), but normalization still produced a meaningful relative mass redistribution.
+
+🧠 **Analysis.** Soft common-evidence suppression fixed most of v187a's failure: versus v187a, full mAP improved by +0.0056, dead codes fell from 10.42% to 0.52%, and every reported P@K exceeded v185. However, it did not improve global ranking. Positive distance was essentially unchanged (v185 11.468 vs v188a 11.462), whereas negative distance contracted from 14.312 to 14.174. The positive-negative distance margin therefore narrowed from 2.844 to 2.712 (-0.132). This explains the apparently conflicting result: the most relevant neighbors became cleaner, but farther negatives were not separated as well, lowering mAP.
+
+🔴 **Verdict: REJECTED as the Flickr25k champion.** The central design choice is validated as a stable alternative to hard pruning, but a fully specificity-normalized visual marginal over-corrects the uniform OT prior. Retain v185 as the official model. Treat v188a as evidence that common-token suppression should be weak/relative rather than a wholesale replacement of visual mass balancing.
+
+🧰 **Code and artifacts.**
+- Flag: `--routing_specificity_marginal` (default off).
+- Script: `scripts/train_flickr25k_v188a_specificityMarginalOT_clip.sh`.
+- Result: `result/260713+flickr25k_setting1_flickr25k_v188a_specificityMarginalOT_noVisualTopk_t0.5_K128_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001`.
+
+🔭 **Follow-up.** If revisited, interpolate the specificity marginal with the original uniform marginal using one small fixed mixing coefficient, instead of normalizing specificity alone. The target is to preserve v188a's top-K precision gain while restoring v185's global negative-distance margin. Do not add another hard visual top-k stage.
+
+---
+
+## 2026-07-13 — v189a CENTERED-CONSENSUS MASK + LEGACY OT (mAP CHAMPION ONLY, full mAP 0.7745)
+
+🎯 **Motivation.** v188a improved every reported P@K but reduced mAP because replacing the complete visual marginal with normalized specificity weights contracted the negative-distance margin. v189a tests a smaller intervention: remove only patches that are positively common to every local slot, then run the original uniform-marginal UOT and adaptive top-p on the remaining support.
+
+🔬 **Method.** For router cosine similarity `S[b,n,m]`, compute the valid-patch mean independently for every local slot:
+
+`mu[b,m] = mean_n S[b,n,m]`
+
+`common[b,n] = AND_m (S[b,n,m] > mu[b,m])`
+
+`visual_valid[b,n] = NOT common[b,n]`
+
+- The detached binary mask applies only to the five local OT rows. `C0` retains its existing global visual path.
+- A token must be above average for every valid local slot to be removed; uniformly weak/background evidence is not removed merely for being ambiguous.
+- No visual top-k or fixed keep ratio is introduced. Remaining patches receive the legacy uniform visual marginal.
+- UOT (`lambda_a=lambda_b=1.0`), adaptive top-p 0.3→0.7, Wasserstein 0.15, and text-side 50% mutual pruning are unchanged.
+- If no candidate remains, the router falls back to the original valid support. Observed fallback was 0% throughout training.
+
+📈 **Mid-eval trajectory (2K test self-retrieval).** Epoch 4 was the best checkpoint. Training was stopped after epoch 19 confirmed three consecutive regressions.
+
+| epoch | mAP | unique | dead-code | train mask | val mask |
+|---:|---:|---:|---:|---:|---:|
+| 4 | **0.7699** | 0.6336 | 19.53% | 11.24% | 9.40% |
+| 9 | 0.7677 | **0.6497** | 6.64% | 10.87% | 7.10% |
+| 14 | 0.7545 | 0.6421 | 6.64% | 10.85% | 6.71% |
+| 19 | 0.7464 | 0.6411 | **5.86%** | 11.51% | 7.01% |
+
+📊 **Full Flickr25k evaluation (best epoch 4, 23K DB / 2K query, image-only).**
+
+| Metric | v185 official | v189a | Delta | verdict |
+|---|---:|---:|---:|:---:|
+| mAP | 0.7712 | **0.7745** | **+0.0033** | ✅ new mAP best |
+| P@1 | **0.9235** | **0.9235** | 0.0000 | tie |
+| P@10 | **0.9258** | 0.9199 | -0.0060 | ❌ |
+| P@100 | **0.9227** | 0.9131 | -0.0096 | ❌ |
+| P@1000 | **0.9000** | 0.8923 | -0.0077 | ❌ |
+| DB-unique | **0.4722** | 0.3769 | -0.0953 | ❌ |
+| dead-code mean | **0.26%** | 7.81% | +7.55%p | ❌ |
+| codebook normalized entropy | **0.9561** | 0.8826 | -0.0736 | ❌ |
+
+🧭 **Distance analysis.** The mask solved v188a's global-separation problem. Positive distance fell from 11.468 to 9.584 and negative distance from 14.312 to 12.595, increasing the positive-negative margin from 2.844 to **3.011** (+0.167). This larger average margin explains the mAP gain. However, the reduced unique-code ratio creates more ties/collisions near the front of the ranking, explaining why P@10–1000 worsened despite better mAP.
+
+🧩 **Compositional diagnostics.**
+- Mean off-diagonal codebook NMI improved from v185 `0.5631` to **0.5252**, indicating less redundant codebook assignments.
+- Full DB index-tuple uniqueness was 15,600/23,000 versus v185 15,887/23,000.
+- B0 raw-text lift: `0.0674 → 0.0593`; B1 centered-text lift: `0.1454 → 0.1281`; B2 visual-global lift: `0.0943 → 0.0840`. Interpretability concentration therefore decreased on all three measures.
+- Dropping any codebook reduced mAP, but contributions remained uneven: deltas for C0–C5 were `[-0.0069, -0.0069, -0.0033, -0.0071, -0.0007, -0.0109]`. C4 is close to redundant at this checkpoint.
+
+🧠 **Analysis.** Hard masking only clearly common tokens is substantially better than v187a's fixed 20% prune-only bottleneck and v188a's full marginal replacement. It preserves uniform OT mass balancing on 89–93% of patches after the first epoch and obtains the strongest Flickr25k mAP. The remaining weakness is temporal: retrieval separation peaks before codebook usage recovers. Continuing training reduces dead codes but monotonically degrades mAP, so checkpoint selection alone cannot satisfy both retrieval and compositional-code quality.
+
+🟡 **Verdict: retain as the Flickr25k mAP champion, but do not replace v185 as the all-metric official recipe.** v189a validates centered common-token masking as a useful routing contribution, yet it fails the project's stronger requirement of improving every evaluation metric and weakens the compositional-lift evidence. v185 remains the balanced official model until utilization can be repaired without losing the epoch-4 margin.
+
+🧰 **Code and artifacts.**
+- Flag: `--routing_centered_consensus_mask` (default off; mutually exclusive with `--routing_specificity_marginal`).
+- Script: `scripts/train_flickr25k_v189a_centeredConsensusMaskOT_clip.sh`.
+- Result: `result/260713+flickr25k_setting1_flickr25k_v189a_centeredConsensusMaskOT_noVisualTopk_t0.5_K128_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001`.
+- Standard artifacts: `evaluation_siglip2_base.json`, `pairwise_nmi.json`, `codebook_drop_ablation_subset2000.json`, and `compositional_eval.json`.
+
+🔭 **Follow-up.** Preserve the v189a routing mask and target only early codebook utilization. The next controlled experiment should warm-start or strengthen codebook usage/balance during epochs 0–5, then return to the original weight, without changing the mask criterion, OT, or adaptive top-p. The success condition is retaining mAP ≥0.7745 while recovering v185-level P@K, dead-code, and compositional lift.
+
+---
+
+## 2026-07-13 — v190a CLS-VERIFIED TEXT-CONSENSUS MASK (v189a PARETO IMPROVEMENT, full mAP 0.7745)
+
+🎯 **Motivation.** v189a obtained the best Flickr25k mAP by removing every patch whose cosine similarity was above the per-image mean for all local text slots. Its aggressive early mask also removed legitimate shared object evidence, producing low P@K, low DNA uniqueness, 7.81% dead codes, and weaker compositional lift. v190a adds a frozen CLIP global-evidence veto: a text-common patch is removed only when it is also weak relative to the image's CLIP global/CLS embedding.
+
+🔬 **Method.** All mask decisions use frozen CLIP shared space (`D=512`), while OT still uses the existing trainable adapted space.
+
+`s[b,n,m] = cos(CLIP_proj(patch[b,n]), raw_text[b,m])`
+
+`common[b,n] = AND_m (s[b,n,m] > mean_n s[b,n,m])`
+
+`r[b,n] = cos(CLIP_proj(patch[b,n]), CLIP_global[b])`
+
+`prune[b,n] = common[b,n] AND (r[b,n] < mean_n r[b,n])`
+
+- No entropy score, absolute threshold, top-k, or fixed visual keep ratio is used.
+- The hard mask is detached and applies only to the five local OT rows; `C0` remains unchanged.
+- Remaining patches use the legacy uniform visual marginal, UOT, adaptive top-p 0.3→0.7, and Wasserstein 0.15.
+- Training uses the current image's pruned raw local text embeddings. Image-only inference uses persistent raw-text EMA prototypes learned during training.
+- The router explicitly zeros masked rows after Sinkhorn so this is a true hard mask rather than approximately zero transport mass.
+
+📈 **Mid-eval trajectory (2K test self-retrieval).** Epoch 4 was best; training stopped after epoch 19 confirmed three consecutive regressions.
+
+| epoch | mAP | unique | dead-code | train mask | val mask |
+|---:|---:|---:|---:|---:|---:|
+| 4 | **0.7653** | 0.6930 | 11.33% | 1.82% | 5.02% |
+| 9 | 0.7634 | **0.7021** | 4.17% | 1.82% | 5.04% |
+| 14 | 0.7541 | 0.6956 | 2.21% | 1.82% | 5.05% |
+| 19 | 0.7484 | 0.6648 | **1.69%** | 1.82% | 5.05% |
+
+At epoch 0, 26.41% of train patches were text-common candidates and 58.69% were CLS-low, but their intersection masked only 1.82%. Validation/image-only values were 34.23%, 58.43%, and 4.95%, respectively. Fallback remained 0% throughout. Unlike v189a's 37%→11% transient, the frozen-space final mask was effectively constant after initialization.
+
+📊 **Full Flickr25k evaluation (best epoch 4, 23K DB / 2K query, image-only).**
+
+| Metric | v185 official | v189a | v190a | v190a vs v185 |
+|---|---:|---:|---:|---:|
+| mAP | 0.7712 | **0.7745** | **0.7745** | **+0.0033** |
+| P@1 | 0.9235 | 0.9235 | **0.9350** | **+0.0115** |
+| P@10 | **0.9258** | 0.9199 | 0.9235 | -0.0023 |
+| P@100 | **0.9227** | 0.9131 | 0.9182 | -0.0045 |
+| P@1000 | **0.9000** | 0.8923 | 0.8987 | -0.0013 |
+| DB-unique | **0.4722** | 0.3769 | 0.4461 | -0.0261 |
+| dead-code mean | **0.26%** | 7.81% | 4.43% | +4.17%p |
+| codebook norm. entropy | **0.9561** | 0.8826 | 0.9246 | -0.0316 |
+
+v190a and v189a differ by only `-0.00003` mAP, but v190a improves every other listed retrieval/utilization metric over v189a. The positive-negative distance margin is also strongest: v185 `2.844`, v189a `3.011`, v190a **`3.048`**.
+
+🧩 **Compositional diagnostics.**
+- Mean off-diagonal NMI: v185 `0.5631`, v189a `0.5252`, v190a **`0.5480`**. v190a retains more codebook independence than v185 while avoiding v189a's utilization loss.
+- Full DB codebook-index tuple uniqueness: v185 15,887, v189a 15,600, v190a **15,647**.
+- B0 raw-text lift: `0.0674 / 0.0593 / 0.0638` for v185/v189a/v190a.
+- B1 centered-text lift: `0.1454 / 0.1281 / 0.1387`.
+- B2 visual-global lift: `0.0943 / 0.0840 / 0.0897`.
+- Codebook-drop deltas C0–C5: `[-0.0085, -0.0038, -0.0070, -0.0040, -0.0035, -0.0092]`. Every slot contributes meaningfully; v189a's nearly redundant C4 (`-0.0007`) is repaired.
+
+🧠 **Analysis.** The user's global verification hypothesis is validated. Text consensus alone was too permissive: many legitimate globally important patches were shared across all captions. Requiring low CLS similarity removes only the suspicious subset, preserving v189a's improved global distance margin while restoring top-rank precision, code diversity, codebook entropy, compositional lift, and per-slot contribution. The remaining gap to v185 is no longer routing collapse but early-checkpoint codebook maturity: mAP peaks at epoch 4 before dead-code and entropy fully recover.
+
+🟢 **Verdict: v190a supersedes v189a as the preferred common-token mask design and is the strongest Flickr25k mAP/P@1 model.** It is a strict practical Pareto improvement over v189a. It still does not replace v185 as the all-metric official recipe because P@10–1000, DB uniqueness, dead-code, and B-lifts remain slightly worse than v185.
+
+🧰 **Code and artifacts.**
+- Flag: `--routing_cls_verified_consensus_mask` (default off; CLIP only).
+- Script: `scripts/train_flickr25k_v190a_clsVerifiedConsensusMaskOT_clip.sh`.
+- Result: `result/260713+flickr25k_setting1_flickr25k_v190a_clsVerifiedConsensusMaskOT_noVisualTopk_t0.5_K128_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001`.
+- Standard artifacts: `evaluation_siglip2_base.json`, `pairwise_nmi.json`, `codebook_drop_ablation_subset2000.json`, and `compositional_eval.json`.
+
+🔭 **Follow-up.** Keep the v190a mask unchanged. The remaining controlled target is codebook maturation without moving the epoch-4 routing geometry. Avoid strengthening assignment-uniformity losses that previously failed in v121a; prefer a fixed-K, data-supported dead-code revival or a geometry-preserving continuation phase.
+
+---
+
+## 2026-07-13 — NUS-WIDE 4th-dataset setup complete (10,500 balanced trainset + CLIP cache)
+
+🎯 **Goal.** Prepare NUS-WIDE as a 4th benchmark for the v185 universal recipe. Single-GPU caption + cache extraction per user request.
+
+🔬 **Trainset subset.** setting1/train.txt shipped with 193,734 rows (== database, atypical). Built a hashing-standard 10,500 balanced trainset (`dataset/NUSWIDE/setting1/train_10500.txt`): 500-per-tag first pass over 21 tags (10,146 unique) + random refill to 10,500. Per-tag coverage min 694 / median 1,153 / max 5,671 (seed=0). New setting dir `setting1_10500/` = 10,500 train + symlinked full 2,100 test + 193,734 database.
+
+📝 **Captions.** Qwen3-VL-8B-Instruct, PROMPT_V4 (Flickr-domain match — NUS-WIDE is Flickr web photos), single GPU batch=4. **10,500/10,500 rows, 0 parse failures**, all 6 slots non-empty. 18,107 s (5.0 h) at 0.58 img/s. Output `cache/nuswide_qwen3_v4_trainset.jsonl`.
+
+🗂️ **CLIP cache (single GPU, `scripts/build_nuswide_clip_cache.sh`).**
+- `cache/nuswide_clip/` — visual (195,834 unique images across train∪test∪database) + pooled text (10,500 covered) + 2 aug views.
+- `cache/nuswide_clip_tokens/` — token-level text (text_tokens [195834,6,32,512] + mask) for **bidirectional pruning support**; visual donor-symlinked. **This is the training cache dir.**
+- `text_whiten.npz` — partial-whitening from 63,000 (10,500×6) text vectors. top1 eigenvalue share 0.094.
+
+✅ **Verification.** All row counts N=195,834 aligned (visual/text/tokens/mask). has_text = 10,500/195,834 = 5.4% (train-only; DB/test use codebook_mean routing). Total cache footprint ~235 GB (3× 59 GB visual views + 38.5 GB text tokens). Disk 1.9 TB free.
+
+🔭 **Next.** Launch NUS-WIDE v185 bidirectional cell with the unified 3-dataset architecture (K=128, per_slot_text_adapter, sinkhorn adaptive top-p, partial_whiten, 2 skip flags, bidirectional_token_prune 0.5/0.5). Dataset-tuned loss weights TBD (start from Flickr weights since same photo domain). Then run CIBHash/CIMON/MLS3RDUH baselines for the 4-dataset comparison table.
+
+🧰 **Artifacts.**
+- `tools/qwen3_v4_nuswide_trainset.py`, `scripts/build_nuswide_clip_cache.sh`
+- `dataset/NUSWIDE/setting1/train_10500.txt`, `dataset/NUSWIDE/setting1_10500/`
+- `cache/nuswide_qwen3_v4_trainset.jsonl`, `cache/nuswide_clip{,_tokens}/`
