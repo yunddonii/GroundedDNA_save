@@ -18460,3 +18460,33 @@ Reference baselines (best-epoch): MLS3RDUH 0.6154, CIMON 0.6049, CIBHash 0.5730.
 🧰 **Result dirs.** `result/260713+nuswide_...sweep_{A..E}_...`. Winner E: `..._sweep_E_w0.15_x0.05_th0.05_tk0.05_cb1.5_ccs0.0_g4.595...`.
 
 🔭 **Follow-up.** Combine E+D (cibhash 1.5 + text down) — may stack. Re-run C/D full post-eval (NMI/compositional) if adopted for the paper table.
+
+---
+
+## 2026-07-13 PM — 🔬 CONTROL RESOLVED: v185 gain = TEXT MEAN-POOLING, not pruning. Real pruning HURTS.
+
+🎯 **Question.** Is the v185 retrieval gain from (a) token-mean text pooling, or (b) bidirectional semantic pruning? The legacy-mode bug proved pruning is ~no-op in the champions; two Flickr controls settle it decisively.
+
+📊 **Flickr controls (identical recipe, only the pruning mechanism differs).**
+
+| Recipe | mechanism | mAP | P@1 | AUC-PR | NMI | B1 lift | uniq |
+|---|---|---:|---:|---:|---:|---:|---:|
+| **F2 mean-pool only (1.0/1.0)** | keep 100% tokens → mean-pool; ZERO pruning | **0.7762** | **0.9380** | 0.0708 | 0.535 | 0.136 | 0.475 |
+| Legacy champion v185 (0.5/0.5) | mean-pool + fp-noise ~0.1% prune (constant importance) | 0.7712 | 0.9235 | **0.0714** | **0.563** | **0.145** | 0.472 |
+| F1 mutual REAL prune (0.5/0.5) | geometric-mean dual-softmax true pruning + v186 per-slot Sinkhorn bias | 0.7565 | 0.9300 | 0.0704 | 0.526 | 0.130 | 0.446 |
+| pre-v185 (v180+wass015) | CLIP EOS-pooled text, no pooling change | 0.7686 | — | — | — | — | — |
+
+🔑 **Conclusions (decisive).**
+1. **The mechanism is TEXT MEAN-POOLING.** F2 (pure mean-pool, zero pruning) = **0.7762**, the highest of all, **+0.0076 over pre-v185** and **+0.0050 over the legacy champion**. Replacing CLIP's EOS-pooled per-slot caption embedding with a **mean over all valid caption tokens** is the entire retrieval gain.
+2. **TRUE bidirectional pruning HURTS.** F1 real semantic pruning (0.5/0.5) = **0.7565**, the LOWEST — **−0.0197 vs mean-pool**, −0.0147 vs legacy. Removing 50% of tokens/patches (even by a correct mutual-matching score) discards retrieval-useful information. The v186 per-slot Sinkhorn routing constraint does not rescue it.
+3. **The legacy champion's edge on NMI/B1/AUC-PR is a fp-noise-pruning artifact.** Legacy has slightly higher NMI 0.563 / B1 0.145 / AUC-PR 0.0714 than pure mean-pool, but its ~0.1% arbitrary drop is not a principled mechanism — it is un-reproducible noise-driven regularization.
+
+🧭 **Paper mechanism story — CORRECTED.** The contribution is **per-slot token-mean text aggregation** ("mean-pool the caption tokens per compositional slot instead of using the EOS vector"), an encoder-side text-embedding improvement. The "bidirectional semantic token pruning" framing is **retracted** — it is at best a no-op (legacy) and at worst harmful (F1 real).
+
+⚠️ **Retroactive scope.** All 4-dataset v185 champions run `mode=legacy` = mean-pool + ~no-op prune. Their reported numbers stand as "mean-pooling champions." The cross-dataset SOTA claims are unaffected (the gain source is just renamed from "pruning" to "mean-pooling"). v182/v183 low-attention conclusions remain VOID (same constant-importance scoring).
+
+🔀 **Open decision (paper).**
+- **Option 1 — adopt F2 mean-pool-only as the clean champion** across all 4 datasets. Re-run MSCOCO/CIFAR10/NUS-WIDE at 1.0/1.0 (pure mean-pool, drop pruning entirely). Cleanest honest mechanism; Flickr already +0.005 mAP. Cost: 3 re-runs.
+- **Option 2 — keep legacy champions**, reframe the mechanism text honestly (mean-pooling, not pruning), note the ~no-op prune. Zero re-runs; slightly lower Flickr mAP than F2 but higher NMI/B1.
+
+🧰 **Result dirs.** F2 `result/260713+...flickr_F2_meanpool_legacy_v1.0_t1.0...`, F1 `...flickr_F1_mutualDualSoftmax_v0.5_t0.5...`.
