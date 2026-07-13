@@ -38,6 +38,7 @@ WHITEN_NPZ="${WHITEN_NPZ:-${CACHE}/text_whiten.npz}"
 WHITEN_GAMMA="${WHITEN_GAMMA:-0.25}"
 BI_V="${BI_V:-0.5}"
 BI_T="${BI_T:-0.5}"
+BIDIR_MODE="${BIDIR_MODE:-legacy}"
 TAG="${TAG:-flickr25k_v185_bidir_v${BI_V}_t${BI_T}_K128_partialWhiten_gamma${WHITEN_GAMMA}}"
 LOG="logs/${TAG}.log"
 mkdir -p logs
@@ -119,5 +120,6 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --bidirectional_token_prune \
     --bidirectional_token_prune_visual_ratio "$BI_V" \
     --bidirectional_token_prune_text_ratio "$BI_T" \
+    --bidirectional_token_prune_mode "$BIDIR_MODE" \
     --eval_cache_dir ./cache/flickr25k_clip_v4plus_qwen3_tokens \
     -ev -s 2>&1 | tee "$LOG"
