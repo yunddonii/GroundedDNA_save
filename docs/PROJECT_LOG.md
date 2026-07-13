@@ -18490,3 +18490,36 @@ Reference baselines (best-epoch): MLS3RDUH 0.6154, CIMON 0.6049, CIBHash 0.5730.
 - **Option 2 — keep legacy champions**, reframe the mechanism text honestly (mean-pooling, not pruning), note the ~no-op prune. Zero re-runs; slightly lower Flickr mAP than F2 but higher NMI/B1.
 
 🧰 **Result dirs.** F2 `result/260713+...flickr_F2_meanpool_legacy_v1.0_t1.0...`, F1 `...flickr_F1_mutualDualSoftmax_v0.5_t0.5...`.
+
+---
+
+## 2026-07-13 PM — COMPOSITIONAL / INTERPRETABILITY comparison of the 3 pruning mechanisms (Flickr)
+
+🎯 **User question.** Beyond retrieval mAP, compare F2 (mean-pool) / Legacy / F1 (real prune) on **compositional code quality + natural-language interpretability**.
+
+📊 **Full compositional table (Flickr, 23K DB).**
+
+| variant | mAP | NMI | B0 | B1 | B2 | DNA-uniq | dead |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| F2 mean-pool (1.0/1.0) | **0.7762** | 0.535 | 0.062 | 0.136 | 0.089 | **0.475** | 0.035 |
+| Legacy champ (0.5/0.5) | 0.7712 | **0.563** | **0.067** | **0.145** | **0.094** | 0.472 | **0.003** |
+| F1 real prune (0.5/0.5) | 0.7565 | 0.526 | 0.060 | 0.130 | 0.086 | 0.446 | 0.078 |
+
+**B1 text-grounding lift per slot (cb0..cb5) — the natural-language interpretability proxy:**
+- F2 mean-pool:  +0.170 +0.121 +0.111 +0.129 +0.106 +0.177
+- Legacy champ:  **+0.191 +0.133 +0.113 +0.136 +0.110 +0.188**  ← highest on EVERY slot
+- F1 real prune: +0.168 +0.123 +0.092 +0.111 +0.108 +0.180
+
+**Drop ablation Σ (all 6 slots informative in every variant, no anti-contributing slot):** F2 −0.0382 / Legacy −0.0399 / F1 −0.0412.
+
+🔑 **Findings.**
+1. **Interpretability ranking: Legacy > F2 > F1.** Legacy wins EVERY compositional axis (NMI, B0/B1/B2, per-slot B1 uniformly, dead-code 0.003 vs 0.035) — its codeword clusters align to text concepts marginally better on all 6 slots.
+2. **Retrieval ranking: F2 > Legacy > F1.** Pure mean-pool wins mAP (+0.005) and DNA-unique (+0.003).
+3. **🔴 F1 (real principled pruning) is DOMINATED on BOTH axes.** Real semantic token pruning helps neither retrieval NOR interpretability — it is worst or near-worst on every metric (weakest slot cb2 B1 0.092 vs 0.111/0.113). **The pruning-for-interpretability hypothesis fails on its own terms.**
+4. **Legacy's interpretability edge is accidental noise-regularization.** Its only mechanistic difference from F2 is a ~0.1% fp-noise-arbitrary token drop, which acts like dropout → keeps codebooks alive (dead 0.003 vs 0.035) → marginally sharper per-slot text-grounding. Real, not principled.
+
+🧭 **Interpretation for the paper.** The retrieval↔interpretability trade-off between F2 and Legacy is small and, crucially, **Legacy's interpretability advantage comes from noise regularization, not from pruning**. The principled way to get **F2's retrieval AND Legacy's interpretability** is: mean-pool text + an EXPLICIT regularizer (dead-code revival or per-codebook entropy) replacing the accidental noise drop. That is the clean follow-up.
+
+🟢 **Decisive for the mechanism story.** Both retrieval (F1 0.7565 worst) and interpretability (F1 B1 0.130 worst, cb2 0.092 worst) reject real bidirectional pruning. The contribution is **per-slot token-mean text aggregation**; pruning is retracted on BOTH axes.
+
+🔭 **Follow-up (proposed).** F3 = F2 mean-pool + explicit dead-code entropy regularizer (target dead≈0.003 without noise pruning) — tests whether principled regularization recovers Legacy's B1/NMI on top of F2's retrieval.
