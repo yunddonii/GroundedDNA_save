@@ -18421,3 +18421,42 @@ CIMON/MLS3RDUH are near-monotone (best ≈ final, gain ≤ +0.004). This is a pa
 📌 **Running NUSWIDE 5-cell weight sweep (GPU 0-4)**: imported the new code but runs `mode=legacy` (default) → mechanism identical to the 4-dataset champions → sweep results remain comparable to the 0.6012 reference. No restart needed.
 
 🧭 **Paper implication.** Either (a) adopt the honest mechanism story — "token-mean-pooled text supervision beats EOS-pooled" (supported by F2 if confirmed) — or (b) rerun champions under fixed mutual scoring if F1 shows true pruning adds value. Decision after F1/F2.
+
+---
+
+## 2026-07-13 PM — NUS-WIDE weight sweep → mAP SOTA RECOVERED (cell E, mAP 0.6260); 4-dataset mAP SOTA complete
+
+🎯 **Goal.** Close the NUS-WIDE mAP gap (base v185 Flickr-weights 0.6012 = 3rd, behind MLS3RDUH 0.6154 / CIMON 0.6049). 5-cell single/multi-delta sweep, all in `mode=legacy` (= the confirmed mean-pool mechanism shared by every 4-dataset champion, so cells are mutually comparable and comparable to the 0.6012 reference).
+
+⚠️ **Session teardown recovery.** The prior session was torn down mid-final-eval. Cells A/B/E completed all metrics; C/D died after extraction — their mAP was recovered offline from saved `extract_db.npz`/`extract_query.npz` (retrieval only; C/D have no NMI/compositional).
+
+📊 **Sweep results (best-ckpt, 193,734-image DB).**
+
+| Cell | Single-delta vs base | mAP | P@1 | AUC-PR | NMI | B1 lift | uniq | verdict |
+|---|---|---:|---:|---:|---:|---:|---:|:---:|
+| **E** | cibhash_ntxent 1.0→**1.5** | **0.6260** | 0.842 | 0.0154 | 0.594 | 0.204 | 0.177 | 🟢 **NEW CHAMPION** |
+| D | xmodal+tckl→**0.025** (text down) | 0.6251 | 0.855 | 0.0154 | — | — | — | 🟢 also >baseline |
+| B | wass 0.15→**0.25** | 0.6155 | 0.841 | 0.0153 | 0.605 | 0.203 | 0.152 | ties MLS3RDUH |
+| C | full MSCOCO weight set | 0.6088 | 0.857 | 0.0151 | — | — | — | discard |
+| A | wass 0.15→**0.05** | 0.6083 | 0.862 | 0.0152 | 0.590 | 0.207 | 0.191 | discard |
+| — | base (Flickr wts) | 0.6012 | 0.837 | 0.0153 | 0.590 | 0.204 | 0.169 | prior |
+
+Reference baselines (best-epoch): MLS3RDUH 0.6154, CIMON 0.6049, CIBHash 0.5730.
+
+🟢 **Verdict.** **Cell E (cibhash_ntxent 1.5) = NEW NUS-WIDE champion, mAP 0.6260** — beats MLS3RDUH by **+0.011** and every other baseline. NUS-WIDE flips from mAP-3rd to **mAP-1st**. Structurally consistent (only a per-dataset loss WEIGHT changed; v181 principle). D (text-down) nearly ties E (0.6251), reinforcing the anti-overfit reading (base mid-eval peaked ep4).
+
+🏆 **4-dataset mAP SOTA now COMPLETE** (all vs best-epoch baselines):
+| Dataset | Ours | best baseline | Δ |
+|---|---:|---:|---:|
+| Flickr25k | 0.7712 | 0.7329 (CIMON) | +0.038 |
+| MSCOCO | 0.6108 | 0.5855 (CIBHash) | +0.025 |
+| CIFAR10 | 0.8644 | 0.8337 (CIBHash) | +0.031 |
+| NUS-WIDE | **0.6260** | 0.6154 (MLS3RDUH) | **+0.011** |
+
+🧠 **Mechanism note.** Two independent knobs recover NUS-WIDE: (E) stronger instance contrastive `cibhash_ntxent` — directly targets the instance-discrimination weakness that let neighborhood-graph baselines (MLS3RDUH/CIMON) win; (D) weaker text supervision — counters the ep4-peak overfit. wass sweeps (A/B) and the MSCOCO weight port (C) do not help. Compositional axes unchanged/strong across all cells (B1 lift ~0.20, NMI ~0.59 — NUS-WIDE B1 remains the family maximum).
+
+📌 **Caveat unchanged.** All cells inherit the `mode=legacy` constant-importance mechanism (= token-mean pooling, not semantic pruning). The mAP gains are real weight-tuning gains on that mechanism. Whether TRUE bidirectional pruning (mutual_dual_softmax) adds anything is being tested separately (F1/F2 controls).
+
+🧰 **Result dirs.** `result/260713+nuswide_...sweep_{A..E}_...`. Winner E: `..._sweep_E_w0.15_x0.05_th0.05_tk0.05_cb1.5_ccs0.0_g4.595...`.
+
+🔭 **Follow-up.** Combine E+D (cibhash 1.5 + text down) — may stack. Re-run C/D full post-eval (NMI/compositional) if adopted for the paper table.
