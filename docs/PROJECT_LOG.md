@@ -18387,3 +18387,37 @@ CIMON/MLS3RDUH are near-monotone (best ≈ final, gain ≤ +0.004). This is a pa
 1. **NUS-WIDE weight tuning** (wass / xmodal / text_hash / text_code_kl sweep) to close the mAP gap vs MLS3RDUH/CIMON.
 2. Paper table: report ALL methods at best-epoch (fair). Add methodological note on CIBHash early-peak.
 3. Consider: does NUS-WIDE's mAP-3rd reflect a genuine limit of compositional hashing on 21-tag web-photo retrieval, or just un-tuned weights? The AUC-PR + compositional SOTA suggests the latter.
+
+---
+
+## 2026-07-13 PM — 🔴 v185 LEGACY SCORING BUG CONFIRMED: softmax-sum importance is CONSTANT; v185 champions are actually "valid-token mean pooling"
+
+⚖️ **User-submitted code review claim (verified this session).** The v185 bidirectional importance computes `softmax(dim=X).sum(dim=X)` — summing over the softmax'd axis — which is identically 1 for every patch/token. All three review claims **CONFIRMED empirically** on a real Flickr batch (B=32), and the reality is *worse* than the review's estimate:
+
+| Claim | Review | Measured |
+|---|---|---|
+| Visual importance constant | I≡1 | mean=1.00000000, **std=6.6e-08** (pure fp noise) |
+| Text importance constant | I≡1 | mean=1.00000000, **std=3.6e-07** |
+| Union keep ≈ 96.9% | 1−(0.5)^5 | **99.86%** (worse: `>=`-threshold keeps 71%/slot under massive ties, not 50%) |
+
+**Decisive arbitrariness test**: flipping patch order (semantically null) changes the kept-token set with only **51.6% agreement ≈ coin flip** — token selection is fp-noise-arbitrary, not semantic.
+
+**What v185 actually does**: cos(kept-token mean, all-valid-token mean) = **0.978**. The adopted mechanism is effectively **"replace CLIP EOS-pooled per-slot caption embedding with token-MEAN-pooled embedding"** + a ~0.1% arbitrary visual drop. The 4-dataset champion numbers (Flickr 0.7712 / MSCOCO 0.6108 / CIFAR10 0.8644 / NUSWIDE 0.6012) are REAL, but the "bidirectional semantic pruning" narrative is unsupported.
+
+🪦 **Retroactive impact on v182/v183.** Both used the same `softmax(-1).sum(-1)` importance → they tested *arbitrary* pruning, not attention-guided pruning. Their DISCARD verdicts stand only as "arbitrary pruning at these ratios doesn't help CUB"; the **ICML26 low-attention REFUTED conclusion is VOID** (bottom-K of a constant is as arbitrary as top-K).
+
+🟢 **New `mutual_dual_softmax` / `mutual_consensus_residual` implementation (uncommitted WIP in working tree) REVIEWED — mathematically sound.**
+- `mutual = sqrt(softmax_t(S) · softmax_n(S))` — geometric mean of dual attentions, non-constant under summation ✓
+- padding handled multiplicatively via `pair_valid` (the additive −1e4 alone is shift-invariant under the cross-axis softmax — the multiplicative mask is required and present) ✓
+- exact-count rank-based top-k (`_topk_visual_keep`), per-slot text_k = ceil(valid_count·ratio) — fixes the tie/padding-count defects of legacy ✓
+- **v186 per-slot Sinkhorn cost bias** (−1e4 on non-kept (patch, slot) pairs) — fixes the union-dilution problem structurally: union only controls row survival; each slot column sees only its own kept patches ✓
+- empty-text slots keep all valid patches (Sinkhorn feasibility) ✓
+- CLIP logit_scale reused as score temperature (no new hyperparameter) ✓
+
+🔬 **Control experiments.**
+- **F2 (launched, GPU5)**: Flickr v185 legacy `BI_V=1.0 BI_T=1.0` = mean-pool over ALL valid tokens, zero pruning. If mAP ≈ 0.7712 → confirms 100% of the v185 gain is mean pooling. `tag=flickr25k_v185_bidir_v1.0_t1.0_K128...`
+- **F1 (queued)**: Flickr `--bidirectional_token_prune_mode mutual_dual_softmax` 0.5/0.5 — does TRUE semantic pruning add anything beyond mean pooling? Launch when a sweep GPU frees.
+
+📌 **Running NUSWIDE 5-cell weight sweep (GPU 0-4)**: imported the new code but runs `mode=legacy` (default) → mechanism identical to the 4-dataset champions → sweep results remain comparable to the 0.6012 reference. No restart needed.
+
+🧭 **Paper implication.** Either (a) adopt the honest mechanism story — "token-mean-pooled text supervision beats EOS-pooled" (supported by F2 if confirmed) — or (b) rerun champions under fixed mutual scoring if F1 shows true pruning adds value. Decision after F1/F2.
