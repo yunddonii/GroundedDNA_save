@@ -18211,6 +18211,22 @@ v190a and v189a differ by only `-0.00003` mAP, but v190a improves every other li
 - B2 visual-global lift: `0.0943 / 0.0840 / 0.0897`.
 - Codebook-drop deltas C0–C5: `[-0.0085, -0.0038, -0.0070, -0.0040, -0.0035, -0.0092]`. Every slot contributes meaningfully; v189a's nearly redundant C4 (`-0.0007`) is repaired.
 
+🖼️ **Qualitative codeword-concept atlas (23K DB, 10 codewords/slot, 8 images/codeword).** Atlas words come from the Qwen-V4 slot captions, not ground-truth labels; label top-1 purity is reported only as an auxiliary check. Each conclusion below was verified against the representative image grids rather than inferred from words alone.
+
+| Slot / intended role | Active codes, v185→v190a | Text top-5, v185→v190a | Label top-1, v185→v190a | Representative-image finding |
+|---|---:|---:|---:|---|
+| C0 / global | 127→122 | 0.176→**0.192** | 0.913→**0.954** | Strongest semantic partition: people, flowers, pets, vehicles, architecture, city, coast, and dramatic-sky groups are visually coherent. |
+| C1 / primary object | 128→125 | **0.103**→0.093 | 0.865→0.860 | Flowers, trains, trees, and devices form coherent groups, but several codes mix unrelated objects through shared color, shape, or background; scene leakage is visible. |
+| C2 / secondary object | 127→124 | 0.103→**0.123** | 0.852→**0.935** | Flowers, food/tableware, devices, cars, walls, and contextual people are coherent. Some codes still follow the dominant category rather than a genuinely secondary object. |
+| C3 / activity-relation | 128→125 | 0.155→**0.181** | 0.806→**0.874** | Pose, meal, water-state, and parked-vehicle groups exist, but many captions and images encode generic state/category rather than an explicit action or relation. |
+| C4 / color-texture | 128→113 | **0.155**→0.150 | **0.910**→0.869 | Petals, skin/hair, rough walls, muted landscapes, and smooth dark/light surfaces are recognizable. However, 15 dead codes and vehicle/object-category clusters reveal severe under-utilization and category confounding. |
+| C5 / scene type | 128→125 | **0.290**→0.281 | **0.938**→0.819 | Garden, office, dining, coast, portrait/studio, and forest groups are clear, while several low-light/indoor codes mix unrelated scenes. |
+
+- **Positive evidence:** the images themselves, especially in C0, C2, and the cleaner C4/C5 subsets, share recognizable slot-relevant concepts. The atlas is therefore not merely reproducing label statistics.
+- **Failure evidence:** C1 does not consistently isolate the primary object, C3 often captures object/state instead of activity-relation, and C4 concentrates most dead codes. Semantic factors are identifiable but neither cleanly orthogonal nor uniformly utilized.
+- **Qualitative verdict:** v190a supports a **partially compositional code** claim: all six codebooks contribute and several codewords have stable visual meanings, but the evidence is insufficient for a claim of six fully disentangled factors. Compared with v185, v190a sharpens C0/C2/C3 concept concentration while sacrificing utilization and purity mainly in C4/C5.
+- Atlas artifacts: `codeword_concept_atlas/report.md`, `atlas.json`, and `C0_global.png` through `C5_scene_type.png` under the v190a result directory.
+
 🧠 **Analysis.** The user's global verification hypothesis is validated. Text consensus alone was too permissive: many legitimate globally important patches were shared across all captions. Requiring low CLS similarity removes only the suspicious subset, preserving v189a's improved global distance margin while restoring top-rank precision, code diversity, codebook entropy, compositional lift, and per-slot contribution. The remaining gap to v185 is no longer routing collapse but early-checkpoint codebook maturity: mAP peaks at epoch 4 before dead-code and entropy fully recover.
 
 🟢 **Verdict: v190a supersedes v189a as the preferred common-token mask design and is the strongest Flickr25k mAP/P@1 model.** It is a strict practical Pareto improvement over v189a. It still does not replace v185 as the all-metric official recipe because P@10–1000, DB uniqueness, dead-code, and B-lifts remain slightly worse than v185.
@@ -18222,6 +18238,79 @@ v190a and v189a differ by only `-0.00003` mAP, but v190a improves every other li
 - Standard artifacts: `evaluation_siglip2_base.json`, `pairwise_nmi.json`, `codebook_drop_ablation_subset2000.json`, and `compositional_eval.json`.
 
 🔭 **Follow-up.** Keep the v190a mask unchanged. The remaining controlled target is codebook maturation without moving the epoch-4 routing geometry. Avoid strengthening assignment-uniformity losses that previously failed in v121a; prefer a fixed-K, data-supported dead-code revival or a geometry-preserving continuation phase.
+
+---
+
+## 2026-07-13 — v191a/b INSTANCE PROJECTION + VISUAL-GROUNDED TEXT POOLING (BOTH DISCARDED; mAP 0.7397 / 0.7347)
+
+🎯 **Motivation.** In v190a, visual-token CIBHash NtXent contributes most of the weighted training objective and acts directly on the same pre-VQ semantic tokens used to form the DNA code. v191a tests whether a SimCLR-style projection space can absorb instance discrimination while preserving the semantic/VQ space. v191b additionally replaces the text-side 50% hard token selection and mean pooling with visual-grounded soft cross-attention over every valid slot caption token.
+
+🔬 **Controlled variants.** Both runs retain the complete v190a CLS-verified visual mask, UOT, adaptive top-p 0.3→0.7, K=128, partial whitening, and all loss weights.
+
+| Variant | Isolated change | Implementation |
+|---|---|---|
+| v191a | Per-slot CIBHash projection | Six independent `Linear(768,768) → GELU → Linear(768,768)` heads. Only visual-token CIBHash NtXent consumes the projected `[B,6,768]`; VQ, DNA extraction, and all semantic losses retain the original tokens. The v190a text hard-prune ratio 0.5 remains active. |
+| v191b | v191a + soft visual-grounded text pooling | For each local slot, pruned/routed visual tokens query all padding-valid caption tokens through shared multi-head attention. Detached local OT mass aggregates the visual-query outputs, which are residual-added to the original slot text embedding and layer-normalized. No content top-k or text hard mask is used; C0 is unchanged. |
+
+📈 **Mid-eval trajectory (2K test self-retrieval).** v191a gradually recovered from severe early codebook collapse but never recovered v190a retrieval. v191b peaked at epoch 14 while nearly half of all codewords were dead, then regressed despite a slow utilization recovery.
+
+| epoch | v191a mAP | v191a unique | v191a dead | v191b mAP | v191b unique | v191b dead | v191b train attn H |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 4 | 0.6941 | 0.1351 | 52.73% | 0.6669 | 0.1472 | 62.89% | 0.2573 |
+| 9 | 0.7029 | 0.3286 | 28.12% | 0.7032 | 0.2041 | 38.41% | 0.2890 |
+| 14 | 0.7186 | 0.3967 | 10.94% | **0.7318** | 0.1719 | 48.05% | 0.1599 |
+| 29 | 0.7304 | 0.4899 | 5.08% | 0.7239 | 0.2041 | 38.02% | 0.1718 |
+| 44 | 0.7420 | 0.4597 | 1.30% | 0.7023 | 0.2379 | 33.20% | 0.1697 |
+| 59 | **0.7437** | 0.4859 | 1.30% | 0.6977 | 0.3206 | 30.86% | 0.1845 |
+
+The normalized v191b attention entropy fell from 0.485 at epoch 0 to roughly 0.16–0.18 after epoch 14. The proposed soft pooling therefore converged toward near-single-token lexical selection rather than retaining broad caption evidence.
+
+📊 **Full Flickr25k evaluation (23K DB / 2K query, image-only; best mid-mAP checkpoint).**
+
+| Metric | v185 balanced | v190a | v191a projection | v191b + soft pool |
+|---|---:|---:|---:|---:|
+| mAP | 0.7712 | **0.7745** | 0.7397 | 0.7347 |
+| P@1 | 0.9235 | **0.9350** | 0.9140 | 0.8635 |
+| P@10 | **0.9258** | 0.9235 | 0.9126 | 0.8765 |
+| P@100 | **0.9227** | 0.9182 | 0.8994 | 0.8708 |
+| P@1000 | **0.9000** | 0.8987 | 0.8698 | 0.8327 |
+| base-DNA unique | **0.4722** | 0.4461 | 0.2509 | 0.0313 |
+| dead-code mean | **0.26%** | 4.43% | 1.43% | 41.80% |
+| mean base entropy | **0.9457** | 0.9198 | 0.6721 | 0.4693 |
+| mean off-diagonal NMI ↓ | 0.5631 | 0.5480 | 0.4732 | **0.3196** |
+| codebook-index tuple unique | 0.6907 | 0.6803 | **0.8624** | 0.4187 |
+
+The low NMI values are not positive disentanglement evidence here. v191a increases the number of unique codebook-index tuples while sharply reducing base-DNA uniqueness and retrieval, showing that more combinations do not form a useful Hamming geometry. v191b lowers NMI largely through slot collapse.
+
+🧩 **Compositional and drop diagnostics.**
+
+| Metric | v185 | v190a | v191a | v191b |
+|---|---:|---:|---:|---:|
+| B0 raw-text lift | **0.0674** | 0.0638 | 0.0627 | 0.0487 |
+| B1 centered-text lift | **0.1454** | 0.1387 | 0.1337 | 0.0982 |
+| B2 visual-global lift | **0.0943** | 0.0897 | 0.0847 | 0.0617 |
+
+- v191a codebook-drop deltas C0–C5 are `[+0.0066, -0.0017, -0.0096, -0.0142, -0.0009, -0.0143]`. Removing C0 improves mAP, so its globally projected instance signal is actively harmful; C1 and C4 are almost redundant.
+- v191b drop deltas remain negative, but this is not healthy contribution balance: the whole representation has only 3.13% unique base-DNA codes and C3 is constant.
+- v191a atlas active counts are `[128,128,128,128,117,128]`, but C4 color-texture entropy/purity collapse to `0.742/0.686` from v190a `0.895/0.869`. Its representative images mix people, objects, skies, and textures inside very large clusters.
+- v191b atlas active counts are `[128,96,108,1,16,98]`. C3 activity-relation maps all 23,000 DB images to one codeword; C4 has only 16 active codes, with the largest codeword receiving 7,984 images. Representative grids confirm loss of the intended slot roles rather than a benign label mismatch.
+
+🧠 **Failure analysis.**
+
+1. **The unconstrained projection head provides an optimization bypass.** CIBHash can organize its private MLP output without preserving neighborhoods in the pre-VQ semantic tokens. Early codebook usage collapses; later utilization recovers, but mAP remains about 0.035 below v190a because the recovered codewords do not restore the original retrieval geometry.
+2. **Tuple diversity is not semantic diversity.** v191a's 86.2% unique index tuples coexist with only 25.1% unique DNA strings, low base entropy, weaker B-lifts, and worse precision. The projection produces combinatorial variation that is poorly encoded by the final base-level hash.
+3. **Learnable cross-attention becomes a lexical shortcut.** Its entropy rapidly falls near 0.16. Relation and texture captions are reduced to a tiny set of dominant cues, directly matching the complete C3 and severe C4 collapses.
+4. **v191b is not a clean soft-pooling-only ablation.** It inherits the already failing v191a projection. The incremental comparison shows no reason to retain the combined design, but it does not prove that a carefully constrained visual-grounded pool on top of v190a must fail.
+
+🔴 **Verdict: DISCARD both variants.** Keep v190a as the mAP/P@1 champion and v185 as the balanced all-metric model. Do not carry either the unconstrained per-slot projection or the current learnable MHA pooling into MSCOCO.
+
+🧰 **Code and artifacts.** All new behavior is default-off and legacy runs are unchanged.
+- Flags: `--cibhash_visual_projection_head`, `--soft_visual_grounded_text_pool`.
+- Scripts: `scripts/train_flickr25k_v191a_cibProjection_clip.sh`, `scripts/train_flickr25k_v191b_softGroundedText_clip.sh`.
+- Results: `result/260713+flickr25k_setting1_flickr25k_v191a_v190a_cibProjection_t0.5_K128_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001` and `result/260713+flickr25k_setting1_flickr25k_v191b_v191a_softGroundedText_K128_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001`.
+- Each result contains full evaluation, pairwise NMI, codebook-drop, compositional B0/B1/B2, and `codeword_concept_atlas` artifacts.
+
+🔭 **Follow-up.** The next clean test should start directly from v190a, remove the projection head, and isolate visual-grounded text pooling. If retried, replace free MHA with normalized parameter-free visual-text cosine attention and a learned zero-initialized residual gate so the initial model is exactly v190a and cannot immediately overwrite slot semantics. Reject the run early if attention effective support or any slot's active-code count collapses; do not add an entropy-loss hyperparameter merely to rescue an over-flexible attention module.
 
 ---
 
@@ -18246,3 +18335,55 @@ v190a and v189a differ by only `-0.00003` mAP, but v190a improves every other li
 - `tools/qwen3_v4_nuswide_trainset.py`, `scripts/build_nuswide_clip_cache.sh`
 - `dataset/NUSWIDE/setting1/train_10500.txt`, `dataset/NUSWIDE/setting1_10500/`
 - `cache/nuswide_qwen3_v4_trainset.jsonl`, `cache/nuswide_clip{,_tokens}/`
+
+---
+
+## 2026-07-13 — FAIR BEST-EPOCH PROTOCOL + NUS-WIDE 4th dataset — full 4-dataset unsupervised comparison
+
+⚖️ **Fairness fix (user-raised).** Our model uses best-checkpoint selection (best mid-eval mAP over 12 checkpoints, eval_every=5). Baselines previously reported ONLY epoch-59 (eval_period=60). Unfair. **Re-ran ALL baselines (CIBHash/CIMON/MLS3RDUH) on all 4 datasets with eval_period=5**, then selected each baseline's best-epoch mAP — matching our best-ckpt protocol. User chose protocol A (give baselines best-epoch too; keep our numbers).
+
+🔑 **Best-epoch selection materially helps CIBHash (early-peak-then-overfit).** CIBHash peaks very early then degrades:
+- CIFAR10 CIBHash: 0.7986 (ep59) → **0.8337 (ep4)** = +0.035
+- NUS-WIDE CIBHash: 0.5550 → 0.5730 (ep4) = +0.018
+- Flickr CIBHash: 0.6847 → 0.7018 (ep4) = +0.017
+- MSCOCO CIBHash: 0.5843 → 0.5855 (ep24) = +0.001
+CIMON/MLS3RDUH are near-monotone (best ≈ final, gain ≤ +0.004). This is a paper-grade methodological note: reporting CIBHash at its final epoch understates it by up to +0.035.
+
+📊 **4-DATASET FAIR (best-epoch) COMPARISON — mAP.**
+
+| Dataset | Ours (v185) | CIBHash | CIMON | MLS3RDUH | Ours rank | Δ vs best baseline |
+|---|---:|---:|---:|---:|:---:|---:|
+| Flickr25k | **0.7712** | 0.7018 | 0.7329 | 0.6741 | 🥇 1st | +0.038 |
+| MSCOCO | **0.6108** | 0.5855 | 0.5397 | 0.5040 | 🥇 1st | +0.025 |
+| CIFAR10 | **0.8644** | 0.8337 | 0.7321 | 0.4651 | 🥇 1st | +0.031 |
+| NUS-WIDE | 0.6012 | 0.5730 | 0.6049 | **0.6154** | 🥉 3rd | −0.014 |
+
+🏅 **AUC-PR (best-epoch).**
+
+| Dataset | Ours | CIBHash | CIMON | MLS3RDUH | Ours rank |
+|---|---:|---:|---:|---:|:---:|
+| Flickr25k | **0.0714** | 0.0662 | 0.0645 | 0.0572 | 🥇 |
+| MSCOCO | 0.0715 | **0.0741** | 0.0340 | 0.0291 | 🥈 (−0.003) |
+| CIFAR10 | **0.1381** | 0.1361 | 0.1155 | 0.0542 | 🥇 |
+| NUS-WIDE | **0.0153** | 0.0146 | 0.0125 | 0.0117 | 🥇 |
+
+🟢 **Under the FAIR protocol:** Ours = **mAP SOTA on 3/4** (Flickr/MSCOCO/CIFAR10), **AUC-PR SOTA on 3/4** (Flickr/CIFAR10/NUS-WIDE). MSCOCO AUC-PR −0.003, NUS-WIDE mAP 3rd.
+
+🆕 **NUS-WIDE (4th dataset, first attempt) — honest finding.** Ours mAP 0.6012 is **3rd** (MLS3RDUH 0.6154, CIMON 0.6049 beat us; we beat CIBHash by +0.028). This is the FIRST dataset where our mAP is not SOTA. BUT:
+- **AUC-PR 0.0153 = SOTA** (top-rank precision still best).
+- **B1 compositional lift 0.204 = highest of all 4 datasets**; NMI 0.590 (vs baseline flat-hash 0.19).
+- Drop-cb0 = **+0.0072** (global slot mildly harmful on NUS-WIDE — a compositional diagnostic).
+- **CAVEAT: un-tuned.** NUS-WIDE used Flickr champion loss weights verbatim (same web-photo domain). mid-eval peaked at epoch 4 then drifted (best-ckpt = ep4). NUS-WIDE-specific weight tuning is unexplored — likely mAP headroom.
+
+📋 **NUS-WIDE setup recap.** 10,500 balanced trainset (500/tag×21, refilled), Qwen3-VL PROMPT_V4 (0 parse fail), CLIP cache over 193,734 DB images, v185 unified architecture (bidirectional 0.5/0.5, K=128, Flickr weights). N=193,734 DB, unique 0.169.
+
+🧰 **Artifacts.**
+- `docs/comparison_4dataset_bestep_2026-07-13.json` — full best-epoch table (mAP/P@k/AUC-PR per method-dataset).
+- `docs/nuswide_baseline_bestep_2026-07-13.json` — NUS-WIDE baseline best-epoch metrics.
+- Baseline ep5 result dirs: `result_baseline/260713/{method}_{dataset}_clip_ep5_unsup60/` (+ `_nuswide_clip_unsup60`).
+- Ours NUS-WIDE: `result/260713+nuswide_...v185_bidir_v0.5_t0.5_K128...`
+
+🔭 **Follow-ups.**
+1. **NUS-WIDE weight tuning** (wass / xmodal / text_hash / text_code_kl sweep) to close the mAP gap vs MLS3RDUH/CIMON.
+2. Paper table: report ALL methods at best-epoch (fair). Add methodological note on CIBHash early-peak.
+3. Consider: does NUS-WIDE's mAP-3rd reflect a genuine limit of compositional hashing on 21-tag web-photo retrieval, or just un-tuned weights? The AUC-PR + compositional SOTA suggests the latter.

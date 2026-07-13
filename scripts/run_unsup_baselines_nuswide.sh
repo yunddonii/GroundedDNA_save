@@ -7,7 +7,9 @@
 set -u
 PY=/home/yschoi/.conda/envs/dna_hashing/bin/python
 cd /home/yschoi/GroundedDNA
-COMMON="-d NUSWIDE -s setting1 --bit 36 -me 60 -ep 60 --batch_size 64 \
+# -ep 5: eval every 5 epochs (matches our model's eval_every=5) so each
+# baseline can be reported at its BEST epoch — fair vs our best-ckpt protocol.
+COMMON="-d NUSWIDE -s setting1 --bit 36 -me 60 -ep 5 --batch_size 64 \
   --model_root ./params_baseline --result_root ./result_baseline \
   --compress_root ./compress_baseline --cache_dir ./cache/nuswide_clip"
 
