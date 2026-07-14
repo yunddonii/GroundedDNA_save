@@ -18710,3 +18710,39 @@ Ours-F2 SOTA: +0.0075 vs best baseline
 ⚖️ **Decision open.** Full whole-image unification (clean structural story, MSCOCO 2nd) vs keep Flickr/MSCOCO on FAIRrank (MSCOCO tied, but training paradigm differs across datasets). Small numeric gap either way.
 
 🧰 **Scripts.** `scripts/train_flickr25k_F2_wholeimg_meanpool_clip.sh`, `scripts/train_mscoco_F2_wholeimg_meanpool_clip.sh`. Result dirs `260714+...F2_WHOLEIMG_meanpool...`. `docs/comparison_wholeimg_unified_mapr_2026-07-14.json`.
+
+---
+
+## 2026-07-14 EVE — AUTONOMOUS BATCH: Task 5 protocol/code audit + experiment prioritization
+
+🎯 **Context.** User away; asked to review + prioritize + complete 5 tasks (ablations, 4-base codon, MSCOCO tuning, FAIRrank on NUS/CIFAR, protocol/code audit) and write up results in PROJECT_LOG + paper draft.
+
+### Task 5 — Deep-hashing protocol audit + code-defect review
+
+✅ **No data leakage in splits.** All 4 datasets: `test ∩ database = 0` (no query in DB), `train ∩ test = 0`. Query = official test, DB = official database. Flickr/NUS-WIDE have `train ⊆ db` (standard); MSCOCO train not in db (also valid). Clean.
+
+✅ **Relevance definition = share ≥ 1 label** (multi-label: Jaccard>0 with threshold 0.0 ⟺ intersection>0). Matches CIBHash/HashNet/CSQ convention.
+
+✅ **mAP@R = canonical CalcTopMap** (verified numerically 2026-07-14). Cutoffs CIFAR10@1000, others @5000.
+
+✅ **Distance functions correct.** `base_hamming_distance` (18-base mismatch count) and `bit_hamming_distance_2bit` (36-bit) both correct.
+
+⚠️ **P0 — Test-based checkpoint selection (the one real protocol violation).** `train_siglip2.py` selects `model_state_dict_best.pth` by the highest **test-set** mid-eval mAP (every 5 epochs), then final-evaluates that checkpoint on the same test set. The official test query set is thus used for model selection — a checkpoint-selection leak (not a data-split leak). All current reported numbers inherit this. **Fix required: val split carved from train, checkpoint selected on val mAP@R, test touched once.** (REQUIRED_EXPERIMENTS P0.)
+
+⚠️ **Minor — mid-eval proxy ≠ final task.** Checkpoint is selected on test-vs-test 2100-image self-retrieval, whereas final eval is test-vs-fullDB. The selection proxy is a different (easier) task than the target.
+
+⚠️ **Minor — distance-mode asymmetry vs baselines.** We report `base` mode (18-base Hamming); baselines use bit Hamming on 36 bits. Defensible (each method uses its own code's natural distance) and ranking-equivalent within a method, but for strict comparability `bit2` mode (hash_2bit, 36-bit) is available and could be reported alongside.
+
+🟢 **No critical correctness defect found in eval/distance/relevance.** The single blocking methodological issue is the P0 test-based checkpoint selection.
+
+### Experiment prioritization (this batch)
+
+| Prio | Task | Rationale | Cost |
+|---|---|---|---|
+| P0 | Val-based checkpoint selection | Unblocks rigorous numbers; #1 in REQUIRED doc | code + smoke |
+| P1 | Task 1 ablations A1/A2/A4 (Flickr+MSCOCO) | Core mechanism claims (mean-pool, text, compositional) | 6 runs |
+| P1 | Task 3 MSCOCO sweep | Weakest dataset (2nd on mAP@R); highest headroom | ~5 runs |
+| P2 | Task 2 4-base codon (48-bit) | Removes K=128→64-codon collision (paper limitation §5) | code + runs |
+| P3 | Task 4 FAIRrank on NUS/CIFAR | Symmetry check; needs expensive crop-cache extraction | cache build + runs |
+
+Execution: P0 code first (val selection), then launch P1 ablations + MSCOCO sweep on free GPUs, then P2 code, P3 last.
