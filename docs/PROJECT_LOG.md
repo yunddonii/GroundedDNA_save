@@ -18746,3 +18746,37 @@ Ours-F2 SOTA: +0.0075 vs best baseline
 | P3 | Task 4 FAIRrank on NUS/CIFAR | Symmetry check; needs expensive crop-cache extraction | cache build + runs |
 
 Execution: P0 code first (val selection), then launch P1 ablations + MSCOCO sweep on free GPUs, then P2 code, P3 last.
+
+---
+
+## 2026-07-15 — 🔴 CRITICAL ABLATION A1: mean-pooling REFUTED — EOS pooling is equal-or-better (clean single-delta)
+
+🎯 **Task 1 ablation A1** (REQUIRED_EXPERIMENTS §4): does per-slot token-MEAN pooling (the currently-claimed mechanism) actually beat EOS pooling? Clean single-delta: A0 = F2 whole-image (mean over all valid caption tokens, `--bidirectional_token_prune` ratio 1.0/1.0), A1 = same recipe with the bidirectional block removed → uses CLIP EOS-pooled `text_part` (`get_text_features`). Whole-image train+infer, identical everything else.
+
+📊 **A0 (mean-pool) vs A1 (EOS), whole-image:**
+
+| Dataset | metric | A0 mean-pool | A1 EOS | Δ (A1−A0) |
+|---|---|---:|---:|---:|
+| Flickr25k | mAP@5000 | 0.8740 | **0.8773** | **+0.0033** |
+| | NMI | 0.567 | **0.569** | +0.003 |
+| | B1 lift | 0.140 | **0.143** | +0.003 |
+| | DNA-uniq | 0.380 | **0.388** | +0.008 |
+| MSCOCO | mAP@5000 | 0.8102 | **0.8131** | **+0.0029** |
+| | NMI | 0.670 | **0.678** | +0.008 |
+| | full mAP | 0.618 | 0.616 | −0.002 |
+| | DNA-uniq | 0.207 | 0.181 | −0.025 |
+
+🔑 **Finding.** In a clean single-delta comparison, **EOS pooling ≥ mean-pooling on retrieval (mAP@R) AND interpretability (NMI, B1) on BOTH datasets.** Mean-pooling provides **no benefit**; it is marginally worse on the headline metric. This **REFUTES the "per-slot token-mean pooling is the mechanism" claim** (the current paper draft's central mechanism).
+
+🪦 **Retraction chain now complete.** Three successive "mechanism" hypotheses have each been refuted by clean ablation:
+1. Bidirectional token pruning (v185 legacy) → fp-noise no-op (constant importance bug).
+2. Real semantic pruning (F1 mutual) → HURTS (−0.020 mAP).
+3. **Token-mean pooling (F2) → no benefit vs EOS (this ablation).**
+
+🧭 **Revised paper story.** The text-aggregation method (EOS / mean / pruning) is NOT the source of GroundedDNA's performance. The contribution must instead be located in (a) **text supervision itself** (A2 will test) and (b) the **compositional 6-codebook architecture** (A4 will test). This is actually a cleaner claim: the value is the text-supervised compositional structure, not a pooling trick. **The mechanism section of DRAFT_GROUNDEDDNA_PAPER_KO.md must be revised: replace "token-mean pooling mechanism" with "text-supervised compositional codebooks; text aggregation (EOS pooling) is standard and not the source of gains."**
+
+📌 **Numeric note.** Differences are tiny (~0.003 mAP@R). EOS is the simpler, standard, marginally-better choice → recommend adopting EOS pooling as the reported model. Re-running all 4 datasets with EOS is low-priority (sub-0.003 deltas) but should be done for the final paper table.
+
+🧰 Result dirs: `260714+...flickr_A1_EOSpool_wholeimg`, `260714+...mscoco_A1_EOSpool_wholeimg`.
+
+🔭 **Next (now critical): A2 (no-text) + A4 (single-codebook)** — these establish what ACTUALLY drives the model, now that pooling is ruled out.
