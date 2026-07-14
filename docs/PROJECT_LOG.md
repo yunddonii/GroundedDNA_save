@@ -18558,3 +18558,62 @@ Reference baselines (best-epoch): MLS3RDUH 0.6154, CIMON 0.6049, CIBHash 0.5730.
 ⚠️ **Baseline mAP@R pending.** Existing CIBHash/CIMON/MLS3RDUH runs saved eval-JSON only (no `extract_db.npz`), so their mAP@R cannot be recomputed offline. The baseline runner now emits `mAP@R` natively — **baselines must be re-run (with `--save_code` for future recompute) before the paper comparison table is finalized in the mAP@R metric.**
 
 🧰 **Artifacts.** `scripts/recompute_map_at_r.py` (recompute mAP@R for any dir with saved extractions). Champions' `evaluation_siglip2_base.json` updated in place.
+
+---
+
+## 2026-07-14 — 4-DATASET BASELINE COMPARISON in the PAPER METRIC (mAP@R)
+
+All 12 baselines (CIBHash/CIMON/MLS3RDUH × 4 datasets) re-run with `-ep 5` + `--save_code` + native mAP@R. Each baseline reported at its **best epoch selected by mAP@R** (paper metric). Our champions use best-ckpt (recomputed with mAP@R). 36-bit, CLIP-ViT-B/16 frozen, 60 epoch.
+
+### Flickr25k  (mAP@5000)
+
+| method | **mAP@5000** | full mAP | P@1 | best-ep |
+|---|---:|---:|---:|:---:|
+| **Ours (v185 bidir)** | **0.8745** | 0.7712 | 0.9235 | best-ckpt |
+| cimon | 0.8308 | 0.7329 | 0.9165 | 34 |
+| cibhash | 0.8233 | 0.7018 | 0.9295 | 4 |
+| mls3rduh | 0.7811 | 0.6741 | 0.8490 | 59 |
+
+Ours 🥇 SOTA: mAP@5000 0.8745 (+0.0437 vs best baseline)
+
+
+### MSCOCO  (mAP@5000)
+
+| method | **mAP@5000** | full mAP | P@1 | best-ep |
+|---|---:|---:|---:|:---:|
+| cibhash | 0.8161 | 0.5846 | 0.9288 | 54 |
+| **Ours (v185 bidir)** | **0.8148** | 0.6108 | 0.9118 | best-ckpt |
+| cimon | 0.6716 | 0.5397 | 0.7812 | 59 |
+| mls3rduh | 0.6423 | 0.5040 | 0.7592 | 59 |
+
+Ours 🥈 2nd: mAP@5000 0.8148 (-0.0013 vs best baseline)
+
+
+### NUSWIDE  (mAP@5000)
+
+| method | **mAP@5000** | full mAP | P@1 | best-ep |
+|---|---:|---:|---:|:---:|
+| **Ours (v185 bidir+cibhash1.5)** | **0.8334** | 0.6260 | 0.8424 | best-ckpt |
+| cibhash | 0.8164 | 0.5687 | 0.8738 | 9 |
+| cimon | 0.7874 | 0.6032 | 0.8400 | 59 |
+| mls3rduh | 0.7746 | 0.6149 | 0.7986 | 59 |
+
+Ours 🥇 SOTA: mAP@5000 0.8334 (+0.0170 vs best baseline)
+
+
+### CIFAR10  (mAP@1000)
+
+| method | **mAP@1000** | full mAP | P@1 | best-ep |
+|---|---:|---:|---:|:---:|
+| **Ours (v185 bidir+ccs)** | **0.9067** | 0.8644 | 0.9020 | best-ckpt |
+| cibhash | 0.9010 | 0.8208 | 0.9240 | 14 |
+| cimon | 0.8408 | 0.7269 | 0.8670 | 54 |
+| mls3rduh | 0.5793 | 0.4651 | 0.6230 | 59 |
+
+Ours 🥇 SOTA: mAP@1000 0.9067 (+0.0058 vs best baseline)
+
+🟢 **Summary (mAP@R, paper metric).** Ours = **SOTA on 3/4** (Flickr +0.044, NUS-WIDE +0.017, CIFAR10 +0.006); **MSCOCO essentially tied** (−0.0013 vs CIBHash).
+
+🔑 **Metric changes the MSCOCO story.** In full mAP Ours led MSCOCO by +0.025; under mAP@5000 CIBHash's near-perfect-unique flat hash gives sharp top-5000 precision and edges us by +0.0013 (statistical tie). CIBHash also benefits most from best-epoch selection (early-peak: NUS-WIDE ep9, CIFAR10 ep14, MSCOCO ep54, Flickr ep4). On the compositional axes (NMI, B0/B1/B2) Ours remains far ahead everywhere (baselines are flat hashes with no slots).
+
+🧰 **Artifacts.** `docs/comparison_4dataset_mapr_2026-07-14.json`; baseline dirs `result_baseline/*/{method}_{dataset}_clip_mapr_unsup60/` (with extract npz saved for recompute).
