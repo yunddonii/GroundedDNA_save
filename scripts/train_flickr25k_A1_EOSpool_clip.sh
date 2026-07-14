@@ -24,8 +24,6 @@
 #
 # Delta vs scripts/train_flickr25k_v180_wass015_partial_dropXmodalSkip_clip.sh:
 #   +--bidirectional_token_prune
-#   +--bidirectional_token_prune_visual_ratio 0.5
-#   +--bidirectional_token_prune_text_ratio   0.5
 #   (fg_ratio flag NOT set; the bidirectional block handles visual masking.)
 #
 # Usage: bash scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh <GPU_ID>
@@ -77,7 +75,6 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --routing_adaptive_topp_min 0.3 \
     --routing_adaptive_topp_max 0.7 \
     --codon_residual_gamma 0.0 \
-    --num_codons_per_codebook "${NUM_CODONS:-3}" \
     --text_embed_transform partial_whiten \
     --text_whiten_npz "$WHITEN_NPZ" \
     --text_whiten_gamma "$WHITEN_GAMMA" \
@@ -118,9 +115,5 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --text_code_kl_conf_threshold 0.2 \
     --text_code_kl_skip_global \
     --text_hash_ntxent_skip_global \
-    --bidirectional_token_prune \
-    --bidirectional_token_prune_visual_ratio "$BI_V" \
-    --bidirectional_token_prune_text_ratio "$BI_T" \
-    --bidirectional_token_prune_mode "$BIDIR_MODE" \
     --eval_cache_dir ./cache/flickr25k_clip_v4plus_qwen3_tokens \
     -ev -s 2>&1 | tee "$LOG"
