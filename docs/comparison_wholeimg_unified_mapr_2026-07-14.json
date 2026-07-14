@@ -1,0 +1,26 @@
+{
+  "Flickr25k": {
+    "WI_F2_mapr": 0.8740431525273168,
+    "best_baseline": "cimon",
+    "best_baseline_mapr": 0.830800162863044,
+    "delta": 0.04324298966427276
+  },
+  "MSCOCO": {
+    "WI_F2_mapr": 0.8101515352642161,
+    "best_baseline": "cibhash",
+    "best_baseline_mapr": 0.8160679291951896,
+    "delta": -0.005916393930973429
+  },
+  "NUSWIDE": {
+    "WI_F2_mapr": 0.8321521438371969,
+    "best_baseline": "cibhash",
+    "best_baseline_mapr": 0.8163885126544775,
+    "delta": 0.015763631182719395
+  },
+  "CIFAR10": {
+    "WI_F2_mapr": 0.9085334693962223,
+    "best_baseline": "cibhash",
+    "best_baseline_mapr": 0.9009873339954961,
+    "delta": 0.007546135400726128
+  }
+}

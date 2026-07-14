@@ -18685,3 +18685,28 @@ Ours-F2 SOTA: +0.0075 vs best baseline
 🟢 **Verdict.** Reported model = **F2 (token-mean text pooling)**. mAP@R SOTA on **3/4** (Flickr +0.048, NUS-WIDE +0.016, CIFAR10 +0.0075) and **exact tie with CIBHash on MSCOCO** (0.8161 = 0.8161). Adopting F2 improves MSCOCO from legacy-2nd (−0.0013) to tied-1st. Mechanism name corrected: 'bidirectional token pruning' → **'per-slot token-mean text pooling'**; pruning retracted (F1 real pruning HURT, legacy pruning was fp-noise no-op).
 
 🧰 F2 result dirs: flickr `260713+...flickr_F2_meanpool_legacy_v1.0_t1.0`, mscoco `260714+...mscoco_F2_meanpool_v1.0_t1.0`, nuswide `260713+...sweep_F2meanpool...cb1.5`, cifar10 `260714+...cifar10_F2_meanpool_ccs01...`. All have mAP@R in evaluation_siglip2_base.json.
+
+---
+
+## 2026-07-14 — FULL STRUCTURAL UNIFICATION: all 4 datasets whole-image train + infer (F2)
+
+🎯 **User request.** Train Flickr25k + MSCOCO on **whole-image** too (they trained on FAIRrank L8K3 multi-crop) so all 4 datasets are structurally + mechanistically identical.
+
+🔬 **Change.** Flickr/MSCOCO F2 training cache swapped from FAIRrank L8K3 (588-patch concatenated multi-crop) to the whole-image 196-patch tokens cache (`flickr25k_clip_v4plus_qwen3_tokens` / `mscoco_clip_v5b_tokens`). F2 recipe + weights unchanged (BI 1.0/1.0 mean-pool). CIFAR10/NUS-WIDE were already whole-image.
+
+📊 **Fully-unified whole-image F2 — 4-dataset comparison (mAP@R, paper metric).**
+
+| Dataset | **WI-F2 mAP@R** | FAIRrank-F2 | Δ (WI−FR) | best baseline | verdict |
+|---|---:|---:|---:|---|:---:|
+| Flickr25k @5000 | **0.8740** | 0.8783 | −0.0042 | CIMON 0.8308 | 🥇 SOTA +0.043 |
+| MSCOCO @5000 | 0.8102 | 0.8161 | −0.0059 | CIBHash 0.8161 | 🥈 2nd −0.006 |
+| NUS-WIDE @5000 | **0.8322** | (same) | 0 | CIBHash 0.8164 | 🥇 SOTA +0.016 |
+| CIFAR10 @1000 | **0.9085** | (same) | 0 | CIBHash 0.9010 | 🥇 SOTA +0.008 |
+
+🔑 **Cost of full unification is small.** Dropping FAIRrank multi-crop costs only −0.004 (Flickr) / −0.006 (MSCOCO) in mAP@R — far less than the +0.043 full-mAP FAIRrank gain seen in earlier (legacy, pre-F2) configs. MSCOCO whole-image full mAP actually RISES (0.6111 → 0.6180) though mAP@R dips (FAIRrank sharpens top-R precision more than deep rank).
+
+🟢 **Result.** Fully structurally + mechanistically unified model (all 4 datasets: whole-image train+infer, frozen CLIP-ViT-B/16, 6-slot codebook, F2 per-slot token-mean text pooling, Sinkhorn OT routing, partial_whiten, identical 18-loss set). Only K (128/64) and 2 dataset-tuned loss weights (NUS-WIDE cibhash 1.5, CIFAR10 ccs 0.1) differ. **mAP@R SOTA on 3/4; MSCOCO 2nd by −0.006 vs CIBHash** (was tied under FAIRrank).
+
+⚖️ **Decision open.** Full whole-image unification (clean structural story, MSCOCO 2nd) vs keep Flickr/MSCOCO on FAIRrank (MSCOCO tied, but training paradigm differs across datasets). Small numeric gap either way.
+
+🧰 **Scripts.** `scripts/train_flickr25k_F2_wholeimg_meanpool_clip.sh`, `scripts/train_mscoco_F2_wholeimg_meanpool_clip.sh`. Result dirs `260714+...F2_WHOLEIMG_meanpool...`. `docs/comparison_wholeimg_unified_mapr_2026-07-14.json`.
