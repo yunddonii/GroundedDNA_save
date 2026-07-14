@@ -18617,3 +18617,71 @@ Ours 🥇 SOTA: mAP@1000 0.9067 (+0.0058 vs best baseline)
 🔑 **Metric changes the MSCOCO story.** In full mAP Ours led MSCOCO by +0.025; under mAP@5000 CIBHash's near-perfect-unique flat hash gives sharp top-5000 precision and edges us by +0.0013 (statistical tie). CIBHash also benefits most from best-epoch selection (early-peak: NUS-WIDE ep9, CIFAR10 ep14, MSCOCO ep54, Flickr ep4). On the compositional axes (NMI, B0/B1/B2) Ours remains far ahead everywhere (baselines are flat hashes with no slots).
 
 🧰 **Artifacts.** `docs/comparison_4dataset_mapr_2026-07-14.json`; baseline dirs `result_baseline/*/{method}_{dataset}_clip_mapr_unsup60/` (with extract npz saved for recompute).
+
+---
+
+## 2026-07-14 — ADOPT F2 (clean token-mean pooling) as the reported model — 4-dataset comparison in mAP@R
+
+**Rationale.** The v185 'legacy' champions ran the constant-importance bug (= mean-pool over an fp-noise-arbitrary ~50% token subset), which is neither principled pruning (F1, which HURT) nor a clean mechanism. The honest model is **F2 = per-slot token-MEAN pooling over ALL valid caption tokens** (ratio 1.0/1.0, zero pruning). We now report F2. Same dataset-tuned weights as the legacy champions (NUS-WIDE cibhash 1.5; CIFAR10 ccs 0.1).
+
+**F2 is comparable-or-better than the legacy champions in the paper metric** (so adopting the honest mechanism costs nothing):
+
+| Dataset | legacy mAP@R | F2 mAP@R | Δ |
+|---|---:|---:|---:|
+| Flickr25k | 0.8745 | **0.8783** | +0.0038 |
+| MSCOCO | 0.8148 | **0.8161** | +0.0013 |
+| NUS-WIDE | 0.8334 | 0.8322 | −0.0012 |
+| CIFAR10 | 0.9067 | **0.9085** | +0.0018 |
+
+**4-dataset comparison vs baselines (F2 as reported model, mAP@R paper metric):**
+
+### Flickr25k  (mAP@5000)
+
+| method | **mAP@5000** | full mAP | P@1 |
+|---|---:|---:|---:|
+| **Ours-F2 (F2 mean-pool (K128))** | **0.8783** | 0.7762 | 0.9380 |
+| cimon | 0.8308 | 0.7329 | 0.9165 |
+| cibhash | 0.8233 | 0.7018 | 0.9295 |
+| mls3rduh | 0.7811 | 0.6741 | 0.8490 |
+
+Ours-F2 SOTA: +0.0475 vs best baseline
+
+
+### MSCOCO  (mAP@5000)
+
+| method | **mAP@5000** | full mAP | P@1 |
+|---|---:|---:|---:|
+| **Ours-F2 (F2 mean-pool (K128))** | **0.8161** | 0.6111 | 0.9164 |
+| cibhash | 0.8161 | 0.5846 | 0.9288 |
+| cimon | 0.6716 | 0.5397 | 0.7812 |
+| mls3rduh | 0.6423 | 0.5040 | 0.7592 |
+
+Ours-F2 SOTA: +0.0000 vs best baseline
+
+
+### NUSWIDE  (mAP@5000)
+
+| method | **mAP@5000** | full mAP | P@1 |
+|---|---:|---:|---:|
+| **Ours-F2 (F2 mean-pool + cibhash1.5 (K128))** | **0.8322** | 0.6061 | 0.7976 |
+| cibhash | 0.8164 | 0.5687 | 0.8738 |
+| cimon | 0.7874 | 0.6032 | 0.8400 |
+| mls3rduh | 0.7746 | 0.6149 | 0.7986 |
+
+Ours-F2 SOTA: +0.0158 vs best baseline
+
+
+### CIFAR10  (mAP@1000)
+
+| method | **mAP@1000** | full mAP | P@1 |
+|---|---:|---:|---:|
+| **Ours-F2 (F2 mean-pool + ccs0.1 (K64))** | **0.9085** | 0.8508 | 0.9170 |
+| cibhash | 0.9010 | 0.8208 | 0.9240 |
+| cimon | 0.8408 | 0.7269 | 0.8670 |
+| mls3rduh | 0.5793 | 0.4651 | 0.6230 |
+
+Ours-F2 SOTA: +0.0075 vs best baseline
+
+🟢 **Verdict.** Reported model = **F2 (token-mean text pooling)**. mAP@R SOTA on **3/4** (Flickr +0.048, NUS-WIDE +0.016, CIFAR10 +0.0075) and **exact tie with CIBHash on MSCOCO** (0.8161 = 0.8161). Adopting F2 improves MSCOCO from legacy-2nd (−0.0013) to tied-1st. Mechanism name corrected: 'bidirectional token pruning' → **'per-slot token-mean text pooling'**; pruning retracted (F1 real pruning HURT, legacy pruning was fp-noise no-op).
+
+🧰 F2 result dirs: flickr `260713+...flickr_F2_meanpool_legacy_v1.0_t1.0`, mscoco `260714+...mscoco_F2_meanpool_v1.0_t1.0`, nuswide `260713+...sweep_F2meanpool...cb1.5`, cifar10 `260714+...cifar10_F2_meanpool_ccs01...`. All have mAP@R in evaluation_siglip2_base.json.
