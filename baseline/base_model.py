@@ -462,18 +462,31 @@ def _multi_hot_relevance(qy: np.ndarray, db: np.ndarray, threshold: float = 0.0)
     return (sim > threshold).astype(np.uint8)
 
 
+# Paper-standard mAP@R cutoffs (must match evaluation_siglip2.MAP_AT_R_BY_DATASET)
+MAP_AT_R_BY_DATASET: Dict[str, int] = {
+    'CIFAR10': 1000, 'NUSWIDE': 5000, 'MSCOCO': 5000, 'Flickr25k': 5000,
+}
+
+
+def _ap_at_r(rel_sorted: np.ndarray, R: Optional[int] = None) -> float:
+    """Truncated AP (canonical deep-hashing CalcTopMap; R=None => full AP)."""
+    tgnd = rel_sorted if R is None else rel_sorted[:R]
+    tsum = int(tgnd.sum())
+    if tsum == 0: return 0.0
+    tindex = np.where(tgnd == 1)[0] + 1.0
+    counts = np.arange(1, tsum + 1, dtype=np.float64)
+    return float((counts / tindex).mean())
+
+
 def _ap_from_sorted_relevance(rel_sorted: np.ndarray) -> float:
-    nrel = int(rel_sorted.sum())
-    if nrel == 0: return 0.0
-    ranks = np.where(rel_sorted == 1)[0] + 1.0
-    counts = np.arange(1, nrel + 1, dtype=np.float64)
-    return float((counts / ranks).mean())
+    return _ap_at_r(rel_sorted, R=None)
 
 
 def evaluate_retrieval_model(query_codes: dict, retrieval_codes: dict,
                              query_labels: np.ndarray, retrieval_labels: np.ndarray,
                              precision_at_k_list=(1, 5, 10, 20, 50, 100, 500, 1000),
                              multi_label_relevance_threshold: float = 0.0,
+                             map_at_r: Optional[int] = None,
                              **_unused) -> dict:
     """Replaces lib.evaluation.evaluate_retrieval_model.
 
@@ -488,6 +501,7 @@ def evaluate_retrieval_model(query_codes: dict, retrieval_codes: dict,
                                      threshold=multi_label_relevance_threshold)
     Nq, Nd = distances.shape
     aps = []
+    aps_at_r = []
     p_at_k = {k: [] for k in precision_at_k_list}
     r_at_k = {k: [] for k in precision_at_k_list}
     for i in tqdm(range(Nq), desc='eval[binary]'):
@@ -495,6 +509,8 @@ def evaluate_retrieval_model(query_codes: dict, retrieval_codes: dict,
         order = np.argsort(d, kind='stable')
         rs = r[order]
         aps.append(_ap_from_sorted_relevance(rs))
+        if map_at_r is not None:
+            aps_at_r.append(_ap_at_r(rs, R=int(map_at_r)))
         nrel = int(r.sum())
         for k in precision_at_k_list:
             kk = min(k, Nd); top = rs[:kk]
@@ -504,6 +520,8 @@ def evaluate_retrieval_model(query_codes: dict, retrieval_codes: dict,
         'mAP':            float(np.mean(aps)) if aps else 0.0,
         'precision_at_k': {int(k): float(np.mean(v)) for k, v in p_at_k.items()},
         'recall_at_k':    {int(k): float(np.mean(v)) for k, v in r_at_k.items()},
+        **({'mAP_at_R': float(np.mean(aps_at_r)) if aps_at_r else 0.0,
+            'mAP_R_cutoff': int(map_at_r)} if map_at_r is not None else {}),
     }
 
 
@@ -809,13 +827,17 @@ class DeepHashBase(metaclass=ABCMeta):
         model = self.backbone_with_encoder.to(self.device)
         cont_q, bin_q, lbl_q = _extract_codes(model, qy_loader, self.device)
         cont_d, bin_d, lbl_d = _extract_codes(model, db_loader, self.device)
+        _map_r = MAP_AT_R_BY_DATASET.get(str(self.config.get('dataset')))
         result = evaluate_retrieval_model(
             query_codes={'B': bin_q, 'C': cont_q},
             retrieval_codes={'B': bin_d, 'C': cont_d},
             query_labels=lbl_q, retrieval_labels=lbl_d,
+            map_at_r=_map_r,
         )
         # flatten precision_at_k / recall_at_k for csv/console
         flat = {'mAP': result['mAP']}
+        if 'mAP_at_R' in result:
+            flat[f"mAP@{result['mAP_R_cutoff']}"] = result['mAP_at_R']
         for k, v in result['precision_at_k'].items(): flat[f'P@{k}'] = v
         for k, v in result['recall_at_k'   ].items(): flat[f'R@{k}'] = v
         self.logger.save_eval_model_log(model_id, id_type, **flat)

@@ -76,14 +76,47 @@ def _compute_distance(
     raise ValueError(f"[evaluation] unknown distance_mode={mode!r}")
 
 
-def _ap_from_sorted_relevance(rel_sorted: np.ndarray) -> float:
-    """Average Precision from a 0/1 vector already sorted by ascending distance."""
-    nrel = int(rel_sorted.sum())
-    if nrel == 0:
+# Paper-standard mAP@R cutoffs (deep-hashing convention). Report mAP truncated
+# at the top-R retrieved items per dataset — matches CIBHash / HashNet / CSQ /
+# DPSH benchmark tables (their `CalcTopMap(..., topk=R)`).
+MAP_AT_R_BY_DATASET: Dict[str, int] = {
+    "CIFAR10":   1000,
+    "NUSWIDE":   5000,
+    "MSCOCO":    5000,
+    "Flickr25k": 5000,
+}
+
+
+def resolve_map_at_r(dataset_name: Optional[str]) -> Optional[int]:
+    """Return the paper-standard mAP@R cutoff for a dataset (None if unknown)."""
+    if dataset_name is None:
+        return None
+    return MAP_AT_R_BY_DATASET.get(str(dataset_name))
+
+
+def _ap_at_r(rel_sorted: np.ndarray, R: Optional[int] = None) -> float:
+    """Average Precision truncated at the top-R retrieved items.
+
+    Canonical deep-hashing `CalcTopMap` convention (HashNet/DPSH/CSQ/CIBHash):
+    normalize by the number of relevant items *found within the top-R*, i.e.
+    ``mean(rank_count / rank_index)`` over the relevant hits in ``rel_sorted[:R]``.
+    With ``R=None`` (or R>=len) this reduces exactly to the full AP.
+    """
+    tgnd = rel_sorted if R is None else rel_sorted[:R]
+    tsum = int(tgnd.sum())
+    if tsum == 0:
         return 0.0
-    ranks = np.where(rel_sorted == 1)[0] + 1.0
-    counts = np.arange(1, nrel + 1, dtype=np.float64)
-    return float((counts / ranks).mean())
+    tindex = np.where(tgnd == 1)[0] + 1.0
+    counts = np.arange(1, tsum + 1, dtype=np.float64)
+    return float((counts / tindex).mean())
+
+
+def _ap_from_sorted_relevance(rel_sorted: np.ndarray) -> float:
+    """Average Precision from a 0/1 vector already sorted by ascending distance.
+
+    Full-ranking AP (== ``_ap_at_r`` with R = len(rel_sorted)).
+    """
+    return _ap_at_r(rel_sorted, R=None)
 
 
 # ----------------------------------------------------------------- retrieval
@@ -95,6 +128,7 @@ def evaluate_retrieval(
     precision_at_k_list=(1, 5, 10, 20, 50, 100, 500, 1000),
     multi_label_relevance_threshold: float = 0.0,
     remove_self_match: bool = False,
+    map_at_r: Optional[int] = None,
 ) -> Dict[str, Any]:
     distances = _compute_distance(
         query["base_indices"], db["base_indices"],
@@ -109,6 +143,7 @@ def evaluate_retrieval(
 
     Nq, Nd = distances.shape
     aps: list = []
+    aps_at_r: list = []
     p_at_k: Dict[int, list] = {k: [] for k in precision_at_k_list}
     r_at_k: Dict[int, list] = {k: [] for k in precision_at_k_list}
     pos_d:  list = []
@@ -123,6 +158,8 @@ def evaluate_retrieval(
         order = np.argsort(d, kind="stable")
         r_sorted = r[order]
         aps.append(_ap_from_sorted_relevance(r_sorted))
+        if map_at_r is not None:
+            aps_at_r.append(_ap_at_r(r_sorted, R=int(map_at_r)))
         nrel = int(r.sum())
         for k in precision_at_k_list:
             kk = min(k, Nd)
@@ -137,6 +174,10 @@ def evaluate_retrieval(
     out: Dict[str, Any] = {
         "mAP":             float(np.mean(aps)) if aps else 0.0,
         "precision_at_k":  {int(k): float(np.mean(v)) for k, v in p_at_k.items()},
+        **({
+            "mAP_at_R":     float(np.mean(aps_at_r)) if aps_at_r else 0.0,
+            "mAP_R_cutoff": int(map_at_r),
+        } if map_at_r is not None else {}),
         "recall_at_k":     {int(k): float(np.mean(v)) for k, v in r_at_k.items()},
         "pr_curve": {
             "k":         [int(k) for k in precision_at_k_list],
@@ -302,6 +343,7 @@ def evaluation(
     bio_gc_min_frac: float = 0.40,
     bio_gc_max_frac: float = 0.60,
     bio_max_homopolymer_run: int = 3,
+    map_at_r: Optional[int] = None,
 ) -> Dict[str, Any]:
     db_npz_path = os.path.join(path, "extract_db.npz")
     qy_npz_path = os.path.join(path, "extract_query.npz")
@@ -338,6 +380,7 @@ def evaluation(
         precision_at_k_list=precision_at_k_list,
         multi_label_relevance_threshold=multi_label_relevance_threshold,
         remove_self_match=remove_self_match,
+        map_at_r=map_at_r,
     )
     collapse = evaluate_code_collapse(db, codebook_size=codebook_size)
 
@@ -363,6 +406,9 @@ def evaluation(
     with open(out_json, "w") as f:
         json.dump(result, f, indent=2)
     print(f"[evaluation] mAP({distance_mode}{suffix}) = {result['mAP']:.4f}")
+    if "mAP_at_R" in result:
+        print(f"[evaluation] mAP@{result['mAP_R_cutoff']}({distance_mode}{suffix}) "
+              f"= {result['mAP_at_R']:.4f}  (PAPER metric)")
     if bio_project:
         print(f"[evaluation] mAP delta from bio-projection: "
               f"{result['mAP'] - bio_stats['mAP_pre_projection']:+.4f}")

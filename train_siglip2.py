@@ -23,6 +23,7 @@ Required batch keys provided by `dataloaders.ImgRtvCIFAR10` /
 
 import os
 import math
+from typing import Optional
 import torch
 import numpy as np
 
@@ -300,19 +301,57 @@ def _build_active_loss_types(args) -> list:
 
     # ---- routing diagnostics: always informative
     keys.extend(['routing_mean_effective_k', 'routing_fraction_top1'])
+    if _flag('routing_specificity_marginal'):
+        keys.extend([
+            'routing_visual_specificity_mean',
+            'routing_visual_marginal_effective_ratio',
+        ])
+    if _flag('routing_centered_consensus_mask'):
+        keys.extend([
+            'routing_visual_consensus_mask_ratio',
+            'routing_visual_consensus_remaining_ratio',
+            'routing_visual_consensus_fallback',
+        ])
+    if _flag('routing_cls_verified_consensus_mask'):
+        keys.extend([
+            'routing_visual_consensus_candidate_ratio',
+            'routing_visual_cls_low_ratio',
+            'routing_visual_consensus_mask_ratio',
+            'routing_visual_consensus_remaining_ratio',
+            'routing_visual_consensus_fallback',
+        ])
+    if _flag('bidirectional_token_prune'):
+        keys.extend([
+            'bidirectional_visual_keep_ratio_per_slot',
+            'bidirectional_visual_union_keep_ratio',
+            'bidirectional_text_keep_ratio_per_slot',
+        ])
+    if _flag('soft_visual_grounded_text_pool'):
+        keys.append('soft_grounded_text_attention_entropy')
+    if _flag('cosine_visual_grounded_text_pool'):
+        keys.extend([
+            'cosine_grounded_text_attention_entropy',
+            'cosine_grounded_text_effective_support',
+            'cosine_grounded_text_gate_mean',
+            'cosine_grounded_text_gate_abs_mean',
+        ])
 
     # de-dupe while preserving order (defensive)
     seen = set()
     return [k for k in keys if not (k in seen or seen.add(k))]
 
 
-def _mid_train_eval(model, loader, device, distance_mode: str, codebook_size: int):
+def _mid_train_eval(model, loader, device, distance_mode: str, codebook_size: int,
+                    map_at_r: Optional[int] = None):
     """Quick retrieval + collapse eval on a single (test) split.
 
     Treats the split as both query and db with self-match removed. Uses
     `extraction_siglip2.encode_split` + `evaluation_siglip2.evaluate_*` so
     that mid-training metrics are computed by the SAME functions used at
     final evaluation -- no metric drift between checkpoints.
+
+    NOTE: mid-eval runs on the small test split (query == db, self-removed), so
+    the reported mAP@R is a proxy on that split, not the full test-vs-DB number.
     """
     from extraction_siglip2 import encode_split
     from evaluation_siglip2 import evaluate_retrieval, evaluate_code_collapse
@@ -329,6 +368,7 @@ def _mid_train_eval(model, loader, device, distance_mode: str, codebook_size: in
         distance_mode=distance_mode,
         precision_at_k_list=(1, 5, 10, 50, 100),
         remove_self_match=True,
+        map_at_r=map_at_r,
     )
     collapse = evaluate_code_collapse(ext, codebook_size=codebook_size)
     return retrieval, collapse
@@ -747,14 +787,19 @@ def main(args: Config):
             # ---- accumulate -----------------------------------------------
             B = (cached_vt.shape[0] if using_cache else pixel_values.shape[0])
             for k in loss_types:
-                if k.startswith("routing_"):
+                if (
+                    k.startswith("routing_")
+                    or k.startswith("bidirectional_")
+                    or k.startswith("soft_grounded_")
+                    or k.startswith("cosine_grounded_")
+                ):
                     v = out.get(k, None)
                 else:
                     v = loss_dict.get(k, None)
                 if v is None:
                     continue
                 if isinstance(v, torch.Tensor):
-                    v = v.detach().item()
+                    v = v.detach().mean().item()
                 result[k] += float(v) * B
 
         # mean over the dataset
@@ -871,10 +916,13 @@ def main(args: Config):
             try:
                 model.eval()
                 print(f"[mid-eval] running retrieval+collapse eval at epoch {e}")
+                from evaluation_siglip2 import resolve_map_at_r as _resolve_map_at_r
+                _mid_map_r = _resolve_map_at_r(getattr(args, "dataset", None))
                 retrieval, collapse = _mid_train_eval(
                     model, test_loader, args.device,
                     distance_mode=distance_mode,
                     codebook_size=codebook_size_cf,
+                    map_at_r=_mid_map_r,
                 )
                 eval_row = {
                     "eval_mAP":                          retrieval["mAP"],
@@ -888,10 +936,17 @@ def main(args: Config):
                         "mean_per_codebook_unique_ratio", 0.0,
                     ),
                 }
+                if "mAP_at_R" in retrieval:
+                    eval_row["eval_mAP_at_R"] = retrieval["mAP_at_R"]
+                    eval_row["eval_mAP_R_cutoff"] = retrieval["mAP_R_cutoff"]
                 for k, v in eval_row.items():
                     val_writer.add_scalar(f"eval/{k}", float(v), e)
+                _map_r_str = (
+                    f", mAP@{retrieval['mAP_R_cutoff']}(proxy)={retrieval['mAP_at_R']:.4f}"
+                    if "mAP_at_R" in retrieval else ""
+                )
                 print(
-                    f"[mid-eval] epoch {e}: mAP={retrieval['mAP']:.4f}, "
+                    f"[mid-eval] epoch {e}: mAP={retrieval['mAP']:.4f}{_map_r_str}, "
                     f"unique={collapse['unique_code_ratio']:.4f}, "
                     f"per-cb-unique={collapse.get('mean_per_codebook_unique_ratio', 0.0):.4f}, "
                     f"dead={float(np.mean(collapse['dead_code_ratio'])):.4f}"
@@ -993,10 +1048,15 @@ def main(args: Config):
             print(f"[final-eval] extraction failed: {ex} -- continuing to viz.")
         try:
             print(f"[final-eval] running evaluation (distance_mode={distance_mode}) ...")
+            from evaluation_siglip2 import resolve_map_at_r as _resolve_map_at_r
+            _map_r = _resolve_map_at_r(getattr(args, "dataset", None))
+            if _map_r is not None:
+                print(f"[final-eval] paper mAP@R cutoff for {args.dataset} = {_map_r}")
             _evaluation(
                 args.save_result_path,
                 distance_mode=distance_mode,
                 codebook_size=codebook_size_cf,
+                map_at_r=_map_r,
             )
         except Exception as ex:
             print(f"[final-eval] evaluation failed: {ex} -- continuing to viz. "

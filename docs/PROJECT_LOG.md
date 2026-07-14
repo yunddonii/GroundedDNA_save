@@ -18523,3 +18523,38 @@ Reference baselines (best-epoch): MLS3RDUH 0.6154, CIMON 0.6049, CIBHash 0.5730.
 🟢 **Decisive for the mechanism story.** Both retrieval (F1 0.7565 worst) and interpretability (F1 B1 0.130 worst, cb2 0.092 worst) reject real bidirectional pruning. The contribution is **per-slot token-mean text aggregation**; pruning is retracted on BOTH axes.
 
 🔭 **Follow-up (proposed).** F3 = F2 mean-pool + explicit dead-code entropy regularizer (target dead≈0.003 without noise pruning) — tests whether principled regularization recovers Legacy's B1/NMI on top of F2's retrieval.
+
+---
+
+## 2026-07-14 — PAPER METRIC PROTOCOL: dataset-specific mAP@R (CalcTopMap)
+
+📏 **New reporting standard (user-mandated 2026-07-14).** All retrieval results are henceforth reported as **mAP@R** with dataset-specific cutoffs — the deep-hashing benchmark convention (`CalcTopMap`, normalize each query's AP by the number of relevant items found within the top-R). Cutoffs:
+
+| Dataset | mAP@R |
+|---|---|
+| CIFAR10 | **mAP@1000** |
+| NUS-WIDE | **mAP@5000** |
+| MS-COCO | **mAP@5000** |
+| Flickr25k | **mAP@5000** |
+
+**Implementation.** `evaluation_siglip2.py`: `_ap_at_r()` + `MAP_AT_R_BY_DATASET` + `resolve_map_at_r()`; `evaluate_retrieval(..., map_at_r=R)` returns `mAP_at_R` + `mAP_R_cutoff`. Same in `baseline/base_model.py` (identical convention → fair). Verified numerically equal to canonical `CalcTopMap`. Full mAP (`mAP`) is still computed and stored for continuity.
+
+**Recording rules (going forward).**
+1. **final-eval JSON** (`evaluation_siglip2_base.json`) now carries `mAP_at_R` + `mAP_R_cutoff` (auto, dataset-resolved).
+2. **mid-eval** prints + logs `eval_mAP_at_R` (proxy on the test-vs-test split; the headline number remains the final test-vs-DB `mAP@R`).
+3. **PROJECT_LOG** entries quote the paper metric as `mAP@R` (with R), not full mAP, for every new run.
+
+📊 **4-dataset champions restated in the paper metric (v185 legacy):**
+
+| Dataset | full mAP | **mAP@R (PAPER)** | R |
+|---|---:|---:|---:|
+| Flickr25k | 0.7712 | **0.8745** | 5000 |
+| MSCOCO | 0.6108 | **0.8148** | 5000 |
+| CIFAR10 | 0.8644 | **0.9067** | 1000 |
+| NUS-WIDE (champ E) | 0.6260 | **0.8334** | 5000 |
+
+(mAP@R > full mAP because truncation at R rewards high top-R precision and does not penalize relevant items ranked beyond R — the standard hashing-paper effect.)
+
+⚠️ **Baseline mAP@R pending.** Existing CIBHash/CIMON/MLS3RDUH runs saved eval-JSON only (no `extract_db.npz`), so their mAP@R cannot be recomputed offline. The baseline runner now emits `mAP@R` natively — **baselines must be re-run (with `--save_code` for future recompute) before the paper comparison table is finalized in the mAP@R metric.**
+
+🧰 **Artifacts.** `scripts/recompute_map_at_r.py` (recompute mAP@R for any dir with saved extractions). Champions' `evaluation_siglip2_base.json` updated in place.
