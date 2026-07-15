@@ -18780,3 +18780,29 @@ Execution: P0 code first (val selection), then launch P1 ablations + MSCOCO swee
 🧰 Result dirs: `260714+...flickr_A1_EOSpool_wholeimg`, `260714+...mscoco_A1_EOSpool_wholeimg`.
 
 🔭 **Next (now critical): A2 (no-text) + A4 (single-codebook)** — these establish what ACTUALLY drives the model, now that pooling is ruled out.
+
+---
+
+## 2026-07-15 — Task 2: 4-BASE CODON (48-bit) — resolves K=128 collision, improves mAP@R + DNA-uniq
+
+🎯 **Task 2.** Each codebook emits a **4-base codon** instead of 3-base → 6 codebooks × 4 = 24 bases = **48-bit**. 4^4 = 256 > K=128, so the codeword→codon collision (paper §5 limitation) is structurally eliminated. `--num_codons_per_codebook 4`. Single delta vs 3-base F2 whole-image.
+
+📊 **3-base (36-bit) vs 4-base (48-bit), whole-image F2:**
+
+| Dataset | metric | 3-base | 4-base | Δ |
+|---|---|---:|---:|---:|
+| Flickr25k | mAP@5000 | 0.8740 | **0.8796** | +0.0056 |
+| | DNA-uniq | 0.380 | **0.522** | **+0.142 (+37%)** |
+| | NMI | 0.567 | 0.582 | +0.015 |
+| MSCOCO | mAP@5000 | 0.8102 | **0.8250** | **+0.0148** |
+| | DNA-uniq | 0.207 | **0.233** | +0.026 |
+| | NMI | 0.670 | 0.666 | −0.004 |
+
+🔑 **Findings.**
+1. **4-base codon improves mAP@R** (+0.006 Flickr, +0.015 MSCOCO). MSCOCO gains most — it had the worst K=128→64-codon collision.
+2. **DNA-uniqueness rises sharply** (Flickr +37%), confirming the collision-fix: with 256-codon capacity, distinct codewords map to distinct codons instead of colliding.
+3. **NMI stable** — compositional structure preserved.
+
+⚠️ **Fairness caveat.** 48-bit > 36-bit, so part of the mAP gain is simply more bits. The clean paper claim requires **48-bit baselines** (CIBHash/CIMON/MLS3RDUH at `--bit 48`, = 24-base equivalent). Those are being run now for the matched-budget comparison. The DNA-uniq / collision result is bit-count-independent and stands on its own.
+
+🧰 Result dirs: `260715+...flickr_F2_wholeimg_4base_L4_K128`, `260715+...mscoco_F2_wholeimg_4base_L4_K128`.
