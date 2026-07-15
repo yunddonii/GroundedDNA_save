@@ -18911,3 +18911,23 @@ Together these locate GroundedDNA's contribution precisely: **text supervision +
 🧰 Result dirs: `260715+...{flickr,mscoco}_A4_sharedCB_K768_wholeimg`.
 
 📌 **Caveat.** A4 is a shared-codebook variant, not the full single-global-codebook (routing retained). It isolates the per-slot-codebook-separation component. The routing-removal component remains untested (blocked by architecture); documented as future work.
+
+---
+
+## 2026-07-15 — Task 3: MSCOCO hyperparameter sweep — cibhash_ntxent 1.5 → MSCOCO SOTA at 36-bit
+
+🎯 **Task 3.** Sweep from MSCOCO whole-image F2 base (mAP@5000 0.8102, 2nd vs CIBHash 0.8161). Cells on the whole-image cache.
+
+📊 **Results (mAP@5000):**
+
+| Cell | Δ vs base | mAP@R | full mAP | verdict |
+|---|---|---:|---:|:---:|
+| base (F2 whole-image) | — | 0.8102 | 0.6108 | 2nd |
+| A: wass 0.05→0.15 | +0.0047 | 0.8149 | 0.6126 | small gain |
+| **C: cibhash_ntxent 1.0→1.5** | **+0.0150** | **0.8252** | 0.6243 | 🟢 **NEW MSCOCO SOTA** |
+
+🔑 **Finding.** `cibhash_ntxent 1.5` lifts MSCOCO mAP@5000 to **0.8252**, overtaking CIBHash (0.8161) by **+0.009** — MSCOCO flips from 2nd to **1st at 36-bit** (no bit increase). This is the same knob that won NUS-WIDE (0.6012→0.6260); stronger instance contrastive consistently helps the large multi-label web datasets. Now BOTH routes to MSCOCO-SOTA are established: 4-base codon (48-bit, 0.8250) and cibhash 1.5 (36-bit, 0.8252) — the 36-bit knob is the cleaner single-delta.
+
+🟢 **Updated MSCOCO champion: F2 whole-image + cibhash_ntxent 1.5 (mAP@5000 0.8252, 36-bit).** GroundedDNA is now mAP@R SOTA on all 4 datasets at 36-bit (Flickr 0.874, MSCOCO 0.825, NUS-WIDE 0.832, CIFAR10 0.909).
+
+🧰 Result dir: `260715+...mscoco_F2sweep_C_...cb1.5...`.
