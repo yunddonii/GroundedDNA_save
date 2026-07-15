@@ -55,7 +55,7 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --qwen_text_cache_path "$QWEN" \
     --siglip2_feature_cache_dir "$CACHE" \
     --backbone_type clip \
-    --codebook_size 128 \
+    --codebook_size "${K:-128}" \
     --c_global_source siglip2_global \
     --per_slot_text_adapter \
     --global_gate_init_logit 4.595 \
@@ -69,6 +69,7 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --codon_residual_gamma 0.0 \
     ${DISABLE_TEXT:+--disable_text_supervision} \
     --num_codons_per_codebook "${NUM_CODONS:-3}" \
+    ${SHARE_CB:+--share_codebook} \
     --text_embed_transform partial_whiten \
     --text_whiten_npz "$WHITEN_NPZ" \
     --text_whiten_gamma "$WHITEN_GAMMA" \

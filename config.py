@@ -590,6 +590,11 @@ class Config():
         #     compositional analysis) then observe ONLY pruned text tokens.
         # Requires: --backbone_type clip, cached_text_tokens available,
         # cached_text_token_mask available.
+        siglip2_arg.add_argument('--share_codebook',
+            dest='share_codebook', action='store_true', default=False,
+            help='A4 ablation: tie all M slots to one shared codebook (slot 0). '
+                 'Use with matched-capacity --codebook_size (e.g. 768=6x128) to '
+                 'test whether SEPARATE per-slot codebooks are needed.')
         siglip2_arg.add_argument('--disable_text_supervision',
             dest='disable_text_supervision', action='store_true', default=False,
             help='A2 ablation: disable all text supervision (visual-only '

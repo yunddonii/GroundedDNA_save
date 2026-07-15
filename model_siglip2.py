@@ -409,10 +409,16 @@ class SemanticCodebookQuantizer(nn.Module):
         repel_every: int = 1,
         distance_mode: str = "euclidean",
         K_max: int = 0,
+        share_codebook: bool = False,
     ) -> None:
         super().__init__()
         self.num_codebooks = int(num_codebooks)
         self.codebook_size = int(codebook_size)
+        # A4 ablation: tie all M slots to a single shared codebook (slot 0).
+        # Tests whether SEPARATE per-slot codebooks are needed. Use with a
+        # matched-capacity codebook_size (e.g. 6*128=768) so total codeword
+        # count equals the full model.
+        self.share_codebook = bool(share_codebook)
         self.d_model       = int(d_model)
         self.update_mode   = str(update_mode)
         if self.update_mode not in ("gradient", "ema"):
@@ -897,16 +903,24 @@ class SemanticCodebookQuantizer(nn.Module):
                 f"but quantizer was built with d_model={self.d_model}"
             )
 
+        # A4 ablation: when share_codebook, all M slots quantize against the
+        # SAME codebook (slot 0). Expand is a view -> gradient accumulates into
+        # codebooks[0]; slots 1..M-1 params are unused (report effective count).
+        codebooks = (
+            self.codebooks[0:1].expand(self.num_codebooks, -1, -1)
+            if self.share_codebook else self.codebooks
+        )
+
         # nearest-neighbour distance to codewords. Distance tensor is sized
         # K_max; inactive codewords are masked with +inf so argmin can never
         # select them (v78a adaptive K).
         if self.distance_mode == "cosine":
             z_n  = F.normalize(semantic_visual_tokens, dim=-1)                 # [B, M, D]
-            cb_n = F.normalize(self.codebooks, dim=-1)                         # [M, K_max, D]
+            cb_n = F.normalize(codebooks, dim=-1)                             # [M, K_max, D]
             cos_sim   = torch.einsum("bmd,mkd->bmk", z_n, cb_n)                # [B, M, K_max]
             distances = 1.0 - cos_sim                                          # [B, M, K_max] in [0, 2]
         else:
-            diff = semantic_visual_tokens.unsqueeze(2) - self.codebooks.unsqueeze(0)
+            diff = semantic_visual_tokens.unsqueeze(2) - codebooks.unsqueeze(0)
             distances = (diff ** 2).sum(dim=-1)                                # [B, M, K_max]
         # v78a: mask inactive codewords from lookup
         if self.K_max != self.codebook_size or (~self.active_mask).any():
@@ -918,7 +932,7 @@ class SemanticCodebookQuantizer(nn.Module):
         #   quantized[b, m, :] = codebooks[m, indices[b, m], :]
         device = semantic_visual_tokens.device
         m_idx  = torch.arange(self.num_codebooks, device=device).view(1, -1).expand(B, -1)  # [B, M]
-        quantized = self.codebooks[m_idx, indices]                         # [B, M, D]
+        quantized = codebooks[m_idx, indices]                              # [B, M, D]
 
         # straight-through estimator (gradient passes through to the encoder
         # while the actual values are the quantized codewords)
@@ -2120,6 +2134,7 @@ class SigLIP2SemanticOTModel(nn.Module):
             repel_every=int(getattr(args, "codebook_repel_every", 1)),
             distance_mode=str(getattr(args, "vq_distance_mode", "euclidean")),
             K_max=int(getattr(args, "codebook_K_max", 0)),
+            share_codebook=bool(getattr(args, "share_codebook", False)),
         )
 
         # ---------- gated global addition --------------------------------
