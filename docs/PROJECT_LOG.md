@@ -18823,3 +18823,30 @@ Execution: P0 code first (val selection), then launch P1 ablations + MSCOCO swee
 🟢 **Verdict: 4-base codon is a Pareto improvement** — higher mAP@R, higher DNA-uniqueness, collision structurally resolved, SOTA on both K=128 datasets at matched budget. Strong candidate for the paper's main configuration (resolves the §5 collision limitation).
 
 🧰 Baseline 48-bit dirs: `result_baseline/*/{method}_{flickr25k,mscoco}_clip_48bit_unsup60/`.
+
+---
+
+## 2026-07-15 — Task 1 ablation A2 (no text supervision): text supervision is a real retrieval contributor
+
+🎯 **A2** (REQUIRED §4): remove ALL text supervision (`--disable_text_supervision` → visual-only codebook_mean routing during training; text-derived losses inactive). Single delta vs A0 (F2 whole-image). Tests the paper's central claim: does text supervision actually drive performance (now that pooling is ruled out by A1)?
+
+📊 **A0 (text) vs A2 (no-text):**
+
+| Dataset | metric | A0 (text) | A2 (no-text) | Δ (A2−A0) |
+|---|---|---:|---:|---:|
+| Flickr25k | mAP@5000 | 0.8740 | 0.8617 | **−0.0123** |
+| | DNA-uniq | 0.380 | 0.262 | −0.118 |
+| | NMI | 0.567 | 0.593 | +0.026 |
+| | B1 lift | 0.140 | 0.139 | −0.002 |
+| MSCOCO | mAP@5000 | 0.8102 | 0.7598 | **−0.0504** |
+| | DNA-uniq | 0.207 | 0.128 | −0.079 |
+| | NMI | 0.670 | 0.690 | +0.020 |
+
+🔑 **Findings.**
+1. **Text supervision improves retrieval** — removing it drops mAP@R by −0.012 (Flickr) and **−0.050 (MSCOCO)**. On MSCOCO the drop is large: no-text GroundedDNA (0.760) falls BELOW CIBHash (0.816); text supervision is what makes GroundedDNA competitive there.
+2. **Text supervision improves code diversity** — DNA-uniq drops sharply without text (Flickr 0.380→0.262, MSCOCO 0.207→0.128). Text guidance spreads codewords across more distinct codes.
+3. **Honest nuance:** the interpretability PROXIES (NMI, B1) do NOT drop without text — NMI even rises slightly. B1 (text-grounding lift) is nearly unchanged. This is because the frozen CLIP backbone is inherently text-aligned, so codes retain some text-concept correlation even without explicit supervision. The clean, measurable benefit of text supervision is **retrieval + code diversity**, not the NMI/B1 proxies. This should be reported honestly (interpretability claims rest on held-out decoding + intervention, not NMI alone).
+
+🟢 **Contrast A1 vs A2.** A1 (pooling method) had NO effect (±0.003); A2 (text supervision presence) has a REAL effect (−0.012 to −0.050). This cleanly separates the two: the *aggregation trick* does not matter, but *having text supervision at all* does. Confirms the revised paper story — the contribution is text-supervised structure, not a pooling mechanism.
+
+🧰 Result dirs: `260715+...flickr_A2_noText_wholeimg`, `260715+...mscoco_A2_noText_wholeimg`.
