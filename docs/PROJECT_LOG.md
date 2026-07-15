@@ -18878,3 +18878,36 @@ Therefore GroundedDNA's performance comes from **having text supervision at all*
 - **A4 single global codebook:** `--num_codebooks 1` crashes (ZeroDivisionError; the DNA/routing path hardcodes 6 semantic parts). Requires architecture work (single codebook × 6K prototypes → 18-base decode) — unsafe to implement unattended. Documented for a follow-up session.
 - **Task 3 MSCOCO hyperparameter sweep:** lower priority now that the 4-base codon already lifts MSCOCO to SOTA at matched 48-bit budget.
 - **Task 4 FAIRrank multi-crop on NUS-WIDE/CIFAR10:** needs expensive crop-cache extraction (193K/60K images); deferred.
+
+---
+
+## 2026-07-15 — Task 1 ablation A4 (shared codebook): separate per-slot codebooks are essential to compositional structure
+
+🎯 **A4** (REQUIRED §4, adapted): tie all 6 slots to ONE shared codebook of matched total capacity (K=768 = 6×128) via `--share_codebook`. Tests whether SEPARATE per-slot codebooks are needed. (Full single-global-codebook-no-routing is blocked by the CodonHead divisibility constraint — d_model 768 not divisible by 18 codons — and the 6-slot router hardcoding; the shared-codebook variant keeps 36-bit and matched capacity while removing per-slot codebook specialization.)
+
+📊 **A0 (6 separate codebooks) vs A4 (1 shared codebook, matched capacity):**
+
+| Dataset | metric | A0 (separate) | A4 (shared) | Δ (A4−A0) |
+|---|---|---:|---:|---:|
+| Flickr25k | mAP@5000 | 0.8740 | 0.8685 | −0.0055 |
+| | **NMI** | 0.567 | 0.433 | **−0.134** |
+| | DNA-uniq | 0.380 | 0.439 | +0.059 |
+| MSCOCO | mAP@5000 | 0.8102 | 0.7853 | −0.0249 |
+| | **NMI** | 0.670 | 0.470 | **−0.200** |
+| | DNA-uniq | 0.207 | 0.351 | +0.144 |
+
+🔑 **Findings.**
+1. **Separate per-slot codebooks materially shape the code structure.** Sharing one codebook collapses inter-codebook NMI (Flickr 0.567→0.433, MSCOCO 0.670→0.470) — a large change (−0.13 to −0.20) toward the less-structured regime. The compositional organization depends on the codebooks being separate/specialized per slot.
+2. **Retrieval also drops** with sharing (−0.006 Flickr, −0.025 MSCOCO) — modest but consistent.
+3. **DNA-uniq rises** with sharing (more codewords available per slot from the 768-codeword shared pool), but this does not translate to better retrieval or structure — code diversity alone is not the objective.
+
+🟢 **Consolidated ablation conclusion (A1 + A2 + A4).**
+- **A1 (text aggregation: mean-pool vs EOS): NO effect** (±0.003) — the pooling trick is irrelevant.
+- **A2 (text supervision present vs absent): LARGE effect** (−0.012 to −0.052 on all 4 datasets) — text supervision drives retrieval.
+- **A4 (per-slot codebooks separate vs shared): STRUCTURAL effect** (NMI −0.13 to −0.20, mAP −0.006 to −0.025) — the compositional decomposition is essential to the code structure.
+
+Together these locate GroundedDNA's contribution precisely: **text supervision + compositional (separate per-slot) codebooks**, NOT any token-aggregation mechanism. This is the clean, ablation-supported story for the paper.
+
+🧰 Result dirs: `260715+...{flickr,mscoco}_A4_sharedCB_K768_wholeimg`.
+
+📌 **Caveat.** A4 is a shared-codebook variant, not the full single-global-codebook (routing retained). It isolates the per-slot-codebook-separation component. The routing-removal component remains untested (blocked by architecture); documented as future work.

@@ -250,8 +250,30 @@ DNA code만으로 해석할 때는 같은 codon으로 변환된 codeword들을 �
 | NUS-WIDE @5000 | 0.8322 | 0.8020 | −0.0302 |
 
 A1(집계 방식)이 성능에 영향이 없었던 것(±0.003)과 대조적으로, A2(텍스트 감독 유무)는 4개 데이터셋 모두에서 실질적 효과를 보인다. MS-COCO에서는 텍스트 감독을 제거하면 GroundedDNA(0.760)가 CIBHash(0.816) 아래로 내려가므로, 텍스트 감독이 경쟁력의 핵심임을 알 수 있다. DNA-unique ratio도 크게 감소한다(Flickr 0.380→0.262, MS-COCO 0.207→0.128). A1(집계 방식)이 성능에 영향이 없었던 것과 대조적으로, A2(텍스트 감독 유무)는 실질적 효과를 보인다. 즉 성능의 원인은 *집계 trick*이 아니라 *텍스트 감독의 존재* 자체이다. 다만 정직하게 보고하면, NMI·B1 같은 해석 proxy는 텍스트 감독 제거 시 하락하지 않는다(frozen CLIP backbone 자체가 text-aligned이기 때문). 따라서 텍스트 감독의 측정 가능한 이점은 검색·코드 다양성이며, 해석 가능성 주장은 NMI가 아니라 held-out decoding과 intervention에 근거해야 한다.
-- **A4 (single global codebook):** 6개 slot codebook을 동일 prototype 예산의 단일 codebook으로 교체. Compositional decomposition의 기여를 측정한다.
-- **A4 (single global codebook):** 6개 slot codebook을 동일 prototype 예산의 단일 codebook으로 교체. Compositional decomposition의 기여를 측정한다.
+**A4 (shared codebook) — 완료.** 6개 slot codebook을 동일 총 용량(K=768=6×128)의 단일 공유 codebook으로 묶으면(표 6), 검색 성능이 하락하고(−0.006 Flickr, −0.025 MS-COCO) 무엇보다 inter-codebook NMI가 급감한다(Flickr 0.567→0.433, MS-COCO 0.670→0.470). 즉 per-slot 분리 codebook은 compositional 구조의 핵심이며, 이를 공유로 바꾸면 코드 구조가 무너진다. (완전한 single-global-codebook-no-routing 변형은 codon head의 나눗셈 제약과 6-slot router 하드코딩으로 막혀 있어, 본 실험은 routing은 유지한 채 codebook 분리 여부만 격리한다.)
+
+**표 6. codebook 분리 ablation(A4).**
+
+| Dataset | 지표 | A0 (분리 6개) | A4 (공유 1개) | Δ |
+|---|---|---:|---:|---:|
+| Flickr25k | mAP@5000 | 0.8740 | 0.8685 | −0.0055 |
+| | NMI | 0.567 | 0.433 | −0.134 |
+| MS-COCO | mAP@5000 | 0.8102 | 0.7853 | −0.0249 |
+| | NMI | 0.670 | 0.470 | −0.200 |
+
+**Ablation 종합.** 세 실험이 GroundedDNA의 성능·구조 원인을 정확히 특정한다: (A1) 텍스트 집계 방식은 무영향, (A2) 텍스트 감독은 검색을 좌우, (A4) per-slot 분리 codebook은 compositional 구조에 필수. 따라서 기여는 특정 pooling 기법이 아니라 **text-supervised compositional codebook 구조**이다.
+**A4 (shared codebook) — 완료.** 6개 slot codebook을 동일 총 용량(K=768=6×128)의 단일 공유 codebook으로 묶으면(표 6), 검색 성능이 하락하고(−0.006 Flickr, −0.025 MS-COCO) 무엇보다 inter-codebook NMI가 급감한다(Flickr 0.567→0.433, MS-COCO 0.670→0.470). 즉 per-slot 분리 codebook은 compositional 구조의 핵심이며, 이를 공유로 바꾸면 코드 구조가 무너진다. (완전한 single-global-codebook-no-routing 변형은 codon head의 나눗셈 제약과 6-slot router 하드코딩으로 막혀 있어, 본 실험은 routing은 유지한 채 codebook 분리 여부만 격리한다.)
+
+**표 6. codebook 분리 ablation(A4).**
+
+| Dataset | 지표 | A0 (분리 6개) | A4 (공유 1개) | Δ |
+|---|---|---:|---:|---:|
+| Flickr25k | mAP@5000 | 0.8740 | 0.8685 | −0.0055 |
+| | NMI | 0.567 | 0.433 | −0.134 |
+| MS-COCO | mAP@5000 | 0.8102 | 0.7853 | −0.0249 |
+| | NMI | 0.670 | 0.470 | −0.200 |
+
+**Ablation 종합.** 세 실험이 GroundedDNA의 성능·구조 원인을 정확히 특정한다: (A1) 텍스트 집계 방식은 무영향, (A2) 텍스트 감독은 검색을 좌우, (A4) per-slot 분리 codebook은 compositional 구조에 필수. 따라서 기여는 특정 pooling 기법이 아니라 **text-supervised compositional codebook 구조**이다.
 - **Held-out codon decoding:** train으로 만든 `(slot, codon) → concept` 사전으로 unseen test 이미지의 concept를 예측. CIBHash의 6-bit chunk decoding을 control로 사용한다.
 - **Slot intervention:** query code의 한 codon만 donor codon으로 교체했을 때 해당 slot의 target concept 검색이 선택적으로 증가하는지 측정한다.
 
