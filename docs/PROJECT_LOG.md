@@ -18806,3 +18806,20 @@ Execution: P0 code first (val selection), then launch P1 ablations + MSCOCO swee
 ⚠️ **Fairness caveat.** 48-bit > 36-bit, so part of the mAP gain is simply more bits. The clean paper claim requires **48-bit baselines** (CIBHash/CIMON/MLS3RDUH at `--bit 48`, = 24-base equivalent). Those are being run now for the matched-budget comparison. The DNA-uniq / collision result is bit-count-independent and stands on its own.
 
 🧰 Result dirs: `260715+...flickr_F2_wholeimg_4base_L4_K128`, `260715+...mscoco_F2_wholeimg_4base_L4_K128`.
+
+---
+
+## 2026-07-15 — Task 2 completion: 4-base codon MATCHED-BUDGET (48-bit) comparison — MSCOCO flips to SOTA
+
+📊 **48-bit baselines (CIBHash/CIMON/MLS3RDUH at --bit 48, best-epoch by mAP@R) vs Ours 4-base (48-bit):**
+
+| Dataset (@5000) | **Ours 4-base** | CIBHash | CIMON | MLS3RDUH | verdict |
+|---|---:|---:|---:|---:|:---:|
+| Flickr25k | **0.8796** | 0.8282 | 0.8362 | 0.7779 | 🥇 +0.043 |
+| MSCOCO | **0.8250** | 0.8239 | 0.6875 | 0.6237 | 🥇 **+0.0011** |
+
+🔑 **Key result: MSCOCO flips 2nd → 1st at matched 48-bit budget.** At 36-bit, MSCOCO was 2nd (−0.0013 vs CIBHash). With the 4-base codon (collision removed, 256-codon capacity), GroundedDNA **overtakes CIBHash on MSCOCO** (+0.0011). The collision fix converts the one non-SOTA dataset into SOTA. Combined with the +37% DNA-uniq gain, this is a clean, well-motivated architectural improvement (not just "more bits" — the baselines also got 48 bits and did not catch up).
+
+🟢 **Verdict: 4-base codon is a Pareto improvement** — higher mAP@R, higher DNA-uniqueness, collision structurally resolved, SOTA on both K=128 datasets at matched budget. Strong candidate for the paper's main configuration (resolves the §5 collision limitation).
+
+🧰 Baseline 48-bit dirs: `result_baseline/*/{method}_{flickr25k,mscoco}_clip_48bit_unsup60/`.

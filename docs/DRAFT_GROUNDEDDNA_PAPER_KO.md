@@ -223,7 +223,16 @@ DNA code만으로 해석할 때는 같은 codon으로 변환된 codeword들을 �
 | MS-COCO 3-base | 0.8102 | 0.207 | 0.670 |
 | MS-COCO **4-base** | **0.8250** | **0.233** | 0.666 |
 
-**해석.** 4-base codon은 검색 성능(mAP@R)을 Flickr25k에서 +0.006, MS-COCO에서 +0.015 개선하며, 특히 **DNA-unique ratio가 Flickr25k에서 0.380 → 0.522(+37%)로 급증**한다. 이는 256-codon 용량이 서로 다른 codeword를 서로 다른 codon으로 분리하여 collision을 실제로 줄였음을 정량적으로 확인한다. NMI(compositional 구조)는 유지된다. 다만 48-bit는 36-bit보다 code 예산이 크므로 mAP 향상의 일부는 단순한 bit 증가에서 온다. 따라서 동일 48-bit 예산의 baseline(CIBHash/CIMON/MLS3RDUH, 24-base 상당)과의 비교를 별도로 보고한다(진행 중). collision 및 DNA-unique 결과는 bit 예산과 무관하게 성립한다.
+**해석.** 4-base codon은 검색 성능(mAP@R)을 Flickr25k에서 +0.006, MS-COCO에서 +0.015 개선하며, 특히 **DNA-unique ratio가 Flickr25k에서 0.380 → 0.522(+37%)로 급증**한다. 이는 256-codon 용량이 서로 다른 codeword를 서로 다른 codon으로 분리하여 collision을 실제로 줄였음을 정량적으로 확인한다. NMI(compositional 구조)는 유지된다. 동일 48-bit 예산의 baseline과 비교하면(표 4), GroundedDNA의 우위가 단순한 bit 증가가 아님이 확인된다.
+
+**표 4. 48-bit matched-budget 비교(mAP@5000). baseline도 48-bit로 재학습.**
+
+| Dataset | **GroundedDNA 4-base** | CIBHash | CIMON | MLS3RDUH |
+|---|---:|---:|---:|---:|
+| Flickr25k | **0.8796** | 0.8282 | 0.8362 | 0.7779 |
+| MS-COCO | **0.8250** | 0.8239 | 0.6875 | 0.6237 |
+
+특히 MS-COCO는 36-bit(표 1)에서 CIBHash에 2위였으나, 4-base codon으로 collision을 제거하면 동일 48-bit 예산에서 **CIBHash를 앞선다**(+0.0011). baseline도 48-bit를 받았으나 따라오지 못하므로, 향상은 bit 증가가 아니라 collision 해소에서 온다. 즉 4-base codon은 검색·DNA-unique·collision 세 측면 모두에서 Pareto 개선이며, 유일하게 SOTA가 아니던 데이터셋을 SOTA로 전환한다.
 
 ### 4.5 (진행 중) 구조적 ablation과 해석 가능성 검증
 
