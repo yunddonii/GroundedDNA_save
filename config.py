@@ -415,6 +415,27 @@ class Config():
             help='If set with --routing_adaptive_topp, compute patch-specific '
                  'top-p threshold from normalized routing entropy instead '
                  'of max-probability confidence.')
+        siglip2_arg.add_argument('--routing_specificity_marginal',
+            dest='routing_specificity_marginal', action='store_true',
+            default=False,
+            help='Replace the uniform Sinkhorn visual marginal with detached '
+                 'slot-specificity weights 1-H(softmax_slot(cos))/log(M). '
+                 'Slot-common patches receive little transport mass without '
+                 'a visual top-k threshold; default off.')
+        siglip2_arg.add_argument('--routing_centered_consensus_mask',
+            dest='routing_centered_consensus_mask', action='store_true',
+            default=False,
+            help='Mask a visual patch from local Sinkhorn routing only when '
+                 'its cosine similarity exceeds each valid slot\'s per-image '
+                 'patch mean. Remaining patches use the legacy uniform visual '
+                 'marginal; default off.')
+        siglip2_arg.add_argument('--routing_cls_verified_consensus_mask',
+            dest='routing_cls_verified_consensus_mask', action='store_true',
+            default=False,
+            help='In frozen CLIP shared space, mask a visual patch from local '
+                 'OT only when it is above the per-image mean similarity for '
+                 'every local text slot but below the per-image mean cosine '
+                 'to the CLIP global/CLS embedding. Default off.')
         # v184: inference routing centroid source. codebook_mean (default) uses
         # learned visual prototypes. text_prototype uses EMA of trainset
         # text_part_tokens as routing centroids. Zero cost increase, addresses
@@ -569,6 +590,11 @@ class Config():
         #     compositional analysis) then observe ONLY pruned text tokens.
         # Requires: --backbone_type clip, cached_text_tokens available,
         # cached_text_token_mask available.
+        siglip2_arg.add_argument('--disable_text_supervision',
+            dest='disable_text_supervision', action='store_true', default=False,
+            help='A2 ablation: disable all text supervision (visual-only '
+                 'codebook_mean routing during training; text-derived losses '
+                 'become inactive because the text path is never taken).')
         siglip2_arg.add_argument('--bidirectional_token_prune',
             dest='bidirectional_token_prune', action='store_true',
             default=False,
@@ -585,6 +611,26 @@ class Config():
             type=float, default=0.5,
             help='v185: fraction of text tokens to KEEP per slot when '
                  'rebuilding text_part_raw (default 0.5).')
+        siglip2_arg.add_argument('--bidirectional_token_prune_mode',
+            dest='bidirectional_token_prune_mode',
+            choices=[
+                'legacy', 'mutual_dual_softmax',
+                'mutual_consensus_residual',
+            ], default='legacy',
+            help='Bidirectional pruning score. legacy preserves the v185 '
+                 'softmax-sum implementation for reproducibility. '
+                 'mutual_dual_softmax uses the geometric mean of visual-to-text '
+                 'and text-to-visual attention and applies a distinct visual '
+                 'candidate mask to every local routing slot. '
+                 'mutual_consensus_residual additionally removes visual '
+                 'evidence shared uniformly across local slots.')
+        siglip2_arg.add_argument('--bidirectional_prune_only',
+            dest='bidirectional_prune_only', action='store_true',
+            default=False,
+            help='Bypass the learned/OT router and uniformly pool the visual '
+                 'tokens selected by each slot-specific pruning mask. At '
+                 'image-only evaluation, masks are rebuilt from the learned '
+                 'slot anchors with the same consensus-residual selection.')
         # ---------- VQ codebook update mode -----------------------------
         # `gradient` (default, legacy) -- codebook is an nn.Parameter,
         #   updated by the VQ loss MSE term. Prone to dead-code collapse.
@@ -1125,6 +1171,20 @@ class Config():
                  'refine local 5 codebooks. Default True (global caption is '
                  'a whole-image summary; token-pruning is meaningful only '
                  'for local semantic parts).')
+        siglip2_arg.add_argument('--soft_visual_grounded_text_pool',
+            dest='soft_visual_grounded_text_pool', action='store_true',
+            default=False,
+            help='Use detached local OT mass to aggregate visual-query to '
+                 'text-token cross-attention, then residual-pool all valid '
+                 'text tokens into the local semantic text embeddings. No '
+                 'content top-k or text hard mask is used; C_0 is unchanged.')
+        siglip2_arg.add_argument('--cosine_visual_grounded_text_pool',
+            dest='cosine_visual_grounded_text_pool', action='store_true',
+            default=False,
+            help='Refine each local text embedding with parameter-free cosine '
+                 'attention over all valid caption tokens, aggregated by '
+                 'detached local OT mass. A zero-initialized learned slot gate '
+                 'makes the initial forward exactly match the base text path.')
 
         # ---------- LR scheduler ----------------------------------------
         # The legacy default `StepLR(step_size=10, gamma=1e-4)` killed lr
@@ -1696,6 +1756,13 @@ class Config():
                  '[B, M, D] from the router (D-dim continuous, full cosine '
                  'granularity). KL term is implicitly disabled in visual_token '
                  'mode (Bernoulli KL undefined on continuous vectors).')
+        loss_arg.add_argument('--cibhash_visual_projection_head',
+            dest='cibhash_visual_projection_head', action='store_true',
+            default=False,
+            help='Apply the visual-token CIBHash NtXent to six independent '
+                 'two-layer projection heads instead of directly to the '
+                 'pre-VQ semantic tokens. Projection outputs are train-only '
+                 'and do not alter the VQ/DNA inference path.')
         # ---------- v138: prototype passthrough + paired-view InfoNCE -----
         # Two flags to *remove the VQ codebook bottleneck* for codon_head
         # input while keeping prototype-based clustering as a separate

@@ -1,6 +1,6 @@
 # GroundedDNA: 해석 가능한 이미지 검색을 위한 텍스트 감독 조합적 DNA 코드
 
-> **한글 작업 초안.** 본 문서는 `PROJECT_LOG.md`의 최신 결론을 반영한다. 현재 모델의 핵심 메커니즘은 *bidirectional token pruning*이 아니라 **의미 슬롯별 text-token mean pooling**이다. 따라서 pruning은 논문의 기여에서 제외한다. 아래의 성능 및 해석 가능성 주장은 실험 절이 완성되기 전까지 가설 또는 검증 대상이다.
+> **한글 작업 초안.** 본 문서는 `PROJECT_LOG.md`의 최신 결론을 반영한다. **중요(2026-07-15 갱신):** 통제된 ablation(§4.3, A1) 결과, 검색 성능은 텍스트 집계 방식(token pruning, token-mean pooling, EOS pooling)의 선택에서 오지 않는다. 세 가지 집계 가설이 모두 반박되었으므로, 본 논문은 특정 pooling 기법을 기여로 주장하지 않으며 표준 EOS pooling을 사용한다. 성능·해석의 원인은 **text-supervised compositional codebook 구조**에 있으며, 이는 구조적 ablation(A2 no-text, A4 single-codebook)으로 규명한다. (아래 초록·서론의 "mean pooling" 관련 표현은 이 결론에 맞추어 최종본에서 수정 예정이다.)
 
 ## 초록
 

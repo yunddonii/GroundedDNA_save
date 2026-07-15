@@ -80,6 +80,290 @@ LOCAL_PART_ORDER: Tuple[str, ...] = PART_ORDER[1:]
 NUM_LOCAL_PARTS = len(LOCAL_PART_ORDER)     # 5
 
 
+def _cls_verified_consensus_mask(
+    visual_tokens_shared: torch.Tensor,
+    local_text_shared: torch.Tensor,
+    visual_global_shared: torch.Tensor,
+    visual_mask: Optional[torch.Tensor] = None,
+) -> Dict[str, torch.Tensor]:
+    """Mask text-common patches only when they are globally weak.
+
+    Every comparison is centered within the current image, so this rule has
+    no absolute cosine threshold. The returned masks are detached because
+    they select OT support rather than define a differentiable objective.
+
+    Shapes:
+        visual_tokens_shared: [B, N, D_shared]
+        local_text_shared:    [B, M_local, D_shared]
+        visual_global_shared: [B, D_shared]
+        visual_mask:          [B, N] bool, or None
+    """
+    assert visual_tokens_shared.dim() == 3
+    assert local_text_shared.dim() == 3
+    assert visual_global_shared.dim() == 2
+    B, N, D_shared = visual_tokens_shared.shape
+    Bt, M_local, Dt = local_text_shared.shape
+    assert (Bt, Dt) == (B, D_shared), (
+        "local_text_shared must align with visual tokens, got "
+        f"{tuple(local_text_shared.shape)} vs {tuple(visual_tokens_shared.shape)}"
+    )
+    assert M_local == NUM_LOCAL_PARTS
+    assert visual_global_shared.shape == (B, D_shared)
+    if visual_mask is None:
+        visual_valid = torch.ones(
+            B, N, dtype=torch.bool, device=visual_tokens_shared.device,
+        )
+    else:
+        assert visual_mask.shape == (B, N)
+        visual_valid = visual_mask.to(
+            device=visual_tokens_shared.device, dtype=torch.bool,
+        )
+
+    visual_n = F.normalize(visual_tokens_shared, dim=-1)             # [B, N, D_shared]
+    text_n = F.normalize(local_text_shared, dim=-1)                  # [B, M_local, D_shared]
+    global_n = F.normalize(visual_global_shared, dim=-1)             # [B, D_shared]
+    slot_similarity = torch.einsum(
+        "bnd,bmd->bnm", visual_n, text_n,
+    )                                                                # [B, N, M_local]
+    valid_f = visual_valid.to(slot_similarity.dtype)                 # [B, N]
+    valid_count = valid_f.sum(dim=-1, keepdim=True).clamp_min(1.0)   # [B, 1]
+    slot_mean = (
+        (slot_similarity * valid_f.unsqueeze(-1)).sum(dim=1)
+        / valid_count
+    )                                                                # [B, M_local]
+    common_candidate = (
+        (slot_similarity > slot_mean.unsqueeze(1)).all(dim=-1)
+        & visual_valid
+    )                                                                # [B, N]
+
+    global_similarity = torch.einsum(
+        "bnd,bd->bn", visual_n, global_n,
+    )                                                                # [B, N]
+    global_mean = (
+        (global_similarity * valid_f).sum(dim=-1, keepdim=True)
+        / valid_count
+    )                                                                # [B, 1]
+    global_low = (global_similarity < global_mean) & visual_valid    # [B, N]
+    prune = (common_candidate & global_low).detach()                 # [B, N]
+    remaining = visual_valid & ~prune                               # [B, N]
+    fallback = remaining.sum(dim=-1, keepdim=True) == 0              # [B, 1]
+    keep = torch.where(fallback, visual_valid, remaining).detach()   # [B, N]
+
+    valid_count_safe = visual_valid.sum(dim=-1).clamp_min(1).to(slot_similarity.dtype)
+    return {
+        "keep": keep,
+        "common_candidate": common_candidate.detach(),
+        "global_low": global_low.detach(),
+        "prune": prune,
+        "common_candidate_ratio": (
+            common_candidate.sum(dim=-1).to(slot_similarity.dtype) / valid_count_safe
+        ),                                                           # [B]
+        "global_low_ratio": (
+            global_low.sum(dim=-1).to(slot_similarity.dtype) / valid_count_safe
+        ),                                                           # [B]
+        "mask_ratio": (
+            prune.sum(dim=-1).to(slot_similarity.dtype) / valid_count_safe
+        ),                                                           # [B]
+        "remaining_ratio": (
+            keep.sum(dim=-1).to(slot_similarity.dtype) / valid_count_safe
+        ),                                                           # [B]
+        "fallback": fallback.squeeze(-1).to(slot_similarity.dtype), # [B]
+    }
+
+
+def _slot_consensus_residual_importance(
+    importance: torch.Tensor,
+    visual_mask: Optional[torch.Tensor] = None,
+    slot_mask: Optional[torch.Tensor] = None,
+    eps: float = 1e-12,
+) -> torch.Tensor:
+    """Remove evidence shared uniformly by all valid local slots.
+
+    ``importance`` is first normalized over visual tokens per slot. The
+    geometric-mean distribution across slots is then treated as consensus,
+    and only the positive pointwise information above that consensus remains.
+
+    Shapes:
+        importance: [B, M_local, N], non-negative
+        visual_mask: [B, N] bool, or None
+        slot_mask:   [B, M_local] bool, or None
+    """
+    assert importance.dim() == 3, (
+        f"importance must be [B, M_local, N], got {tuple(importance.shape)}"
+    )
+    B, M_local, N = importance.shape
+    if visual_mask is None:
+        visual_valid = torch.ones(
+            B, N, dtype=torch.bool, device=importance.device,
+        )
+    else:
+        assert visual_mask.shape == (B, N), (
+            f"visual_mask must be {(B, N)}, got {tuple(visual_mask.shape)}"
+        )
+        visual_valid = visual_mask.to(device=importance.device, dtype=torch.bool)
+    if slot_mask is None:
+        slot_valid = torch.ones(
+            B, M_local, dtype=torch.bool, device=importance.device,
+        )
+    else:
+        assert slot_mask.shape == (B, M_local), (
+            f"slot_mask must be {(B, M_local)}, got {tuple(slot_mask.shape)}"
+        )
+        slot_valid = slot_mask.to(device=importance.device, dtype=torch.bool)
+
+    valid = visual_valid[:, None, :] & slot_valid[:, :, None]       # [B, M_local, N]
+    positive = importance.clamp_min(0.0) * valid.to(importance.dtype)
+    distribution = positive / positive.sum(dim=-1, keepdim=True).clamp_min(eps)
+
+    # log G_n = mean_m log P_mn over valid slots. A visual token receives a
+    # positive residual for slot m only when P_mn exceeds this consensus.
+    log_distribution = distribution.clamp_min(eps).log()            # [B, M_local, N]
+    slot_weight = slot_valid.to(importance.dtype).unsqueeze(-1)      # [B, M_local, 1]
+    log_consensus = (
+        (log_distribution * slot_weight).sum(dim=1, keepdim=True)
+        / slot_weight.sum(dim=1, keepdim=True).clamp_min(1.0)
+    )                                                               # [B, 1, N]
+    residual = distribution * F.relu(log_distribution - log_consensus)
+    residual = residual * valid.to(residual.dtype)                  # [B, M_local, N]
+
+    # Exact equality across slots makes every residual zero. In that
+    # degenerate case, preserve the original normalized ranking so top-k
+    # selection remains well-defined rather than depending on argsort ties.
+    degenerate = residual.sum(dim=-1, keepdim=True) <= eps           # [B, M_local, 1]
+    residual = torch.where(degenerate & slot_valid.unsqueeze(-1), distribution, residual)
+    assert residual.shape == (B, M_local, N)
+    return residual
+
+
+def _topk_visual_keep(
+    importance: torch.Tensor,
+    visual_mask: Optional[torch.Tensor],
+    keep_ratio: float,
+) -> torch.Tensor:
+    """Return an exact-count slot-specific visual keep mask."""
+    assert importance.dim() == 3
+    B, M_local, N = importance.shape
+    if not (0.0 < float(keep_ratio) <= 1.0):
+        raise ValueError(f"keep_ratio must be in (0, 1], got {keep_ratio}")
+    if visual_mask is None:
+        visual_valid = torch.ones(B, N, dtype=torch.bool, device=importance.device)
+    else:
+        assert visual_mask.shape == (B, N)
+        visual_valid = visual_mask.to(device=importance.device, dtype=torch.bool)
+    ranked = importance.masked_fill(~visual_valid[:, None, :], -float("inf"))
+    order = ranked.argsort(dim=-1, descending=True)
+    rank = order.argsort(dim=-1)
+    valid_count = visual_valid.sum(dim=-1).clamp_min(1)              # [B]
+    k = torch.ceil(
+        valid_count.to(torch.float32) * float(keep_ratio)
+    ).to(torch.long).clamp(min=1, max=N)                             # [B]
+    keep = rank < k[:, None, None]                                   # [B, M_local, N]
+    keep = keep & visual_valid[:, None, :]
+    assert keep.shape == (B, M_local, N)
+    return keep
+
+
+def _mutual_dual_softmax_pruning(
+    similarity: torch.Tensor,
+    text_mask: Optional[torch.Tensor],
+    visual_mask: Optional[torch.Tensor],
+    visual_keep_ratio: float,
+    text_keep_ratio: float,
+    suppress_visual_consensus: bool = False,
+) -> Dict[str, torch.Tensor]:
+    """Build slot-specific visual/text masks from mutual token matching.
+
+    Shapes:
+        similarity:  [B, M_local, N, T]
+        text_mask:   [B, M_local, T] bool, or None
+        visual_mask: [B, N] bool, or None
+
+    Unlike ``softmax(...).sum(softmax_axis)``, the geometric mean of the
+    visual-to-text and text-to-visual attentions is not constant. A pair gets
+    a high score only when the patch and text token select each other.
+    """
+    assert similarity.dim() == 4, (
+        f"similarity must be [B, M_local, N, T], got {tuple(similarity.shape)}"
+    )
+    B, M_local, N, T = similarity.shape
+    if not (0.0 < float(visual_keep_ratio) <= 1.0):
+        raise ValueError(f"visual_keep_ratio must be in (0, 1], got {visual_keep_ratio}")
+    if not (0.0 < float(text_keep_ratio) <= 1.0):
+        raise ValueError(f"text_keep_ratio must be in (0, 1], got {text_keep_ratio}")
+
+    if text_mask is None:
+        text_valid = torch.ones(
+            B, M_local, T, dtype=torch.bool, device=similarity.device,
+        )
+    else:
+        assert text_mask.shape == (B, M_local, T), (
+            f"text_mask must be {(B, M_local, T)}, got {tuple(text_mask.shape)}"
+        )
+        text_valid = text_mask.to(device=similarity.device, dtype=torch.bool)
+    if visual_mask is None:
+        visual_valid = torch.ones(B, N, dtype=torch.bool, device=similarity.device)
+    else:
+        assert visual_mask.shape == (B, N), (
+            f"visual_mask must be {(B, N)}, got {tuple(visual_mask.shape)}"
+        )
+        visual_valid = visual_mask.to(device=similarity.device, dtype=torch.bool)
+
+    pair_valid = (
+        visual_valid[:, None, :, None]
+        & text_valid[:, :, None, :]
+    )                                                               # [B, M_local, N, T]
+    masked_similarity = similarity.masked_fill(~pair_valid, -1e4)
+    visual_to_text = masked_similarity.softmax(dim=-1)              # [B, M_local, N, T]
+    text_to_visual = masked_similarity.softmax(dim=-2)              # [B, M_local, N, T]
+    mutual = torch.sqrt((visual_to_text * text_to_visual).clamp_min(0.0))
+    mutual = mutual * pair_valid.to(mutual.dtype)                    # [B, M_local, N, T]
+
+    visual_importance_raw = mutual.sum(dim=-1)                       # [B, M_local, N]
+    text_importance = mutual.sum(dim=-2)                             # [B, M_local, T]
+
+    slot_has_text = text_valid.any(dim=-1)                           # [B, M_local]
+    visual_importance = (
+        _slot_consensus_residual_importance(
+            visual_importance_raw,
+            visual_mask=visual_valid,
+            slot_mask=slot_has_text,
+        )
+        if suppress_visual_consensus else visual_importance_raw
+    )                                                               # [B, M_local, N]
+
+    # Rank/scatter gives an exact keep count even when scores are tied.
+    visual_keep = _topk_visual_keep(
+        visual_importance, visual_valid, visual_keep_ratio,
+    )                                                               # [B, M_local, N]
+
+    # Empty text slots carry no evidence. Keep every valid patch for those
+    # slots so pruning cannot create an infeasible Sinkhorn support.
+    visual_keep = torch.where(
+        slot_has_text.unsqueeze(-1),
+        visual_keep,
+        visual_valid[:, None, :].expand(-1, M_local, -1),
+    )
+
+    text_order = text_importance.argsort(dim=-1, descending=True)
+    text_rank = text_order.argsort(dim=-1)
+    text_count = text_valid.sum(dim=-1)                              # [B, M_local]
+    text_k = torch.ceil(
+        text_count.to(torch.float32) * float(text_keep_ratio)
+    ).to(torch.long).clamp(min=1, max=T)                             # [B, M_local]
+    text_keep = (text_rank < text_k.unsqueeze(-1)) & text_valid      # [B, M_local, T]
+
+    assert visual_keep.shape == (B, M_local, N)
+    assert text_keep.shape == (B, M_local, T)
+    return {
+        "mutual_scores": mutual,
+        "visual_importance_raw": visual_importance_raw,
+        "visual_importance": visual_importance,
+        "text_importance": text_importance,
+        "visual_keep": visual_keep,
+        "text_keep": text_keep,
+    }
+
+
 # =====================================================================
 # Semantic codebook quantizer
 # =====================================================================
@@ -1344,6 +1628,10 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.foreground_text_mask_source: str = str(
             getattr(args, "foreground_text_mask_source", "global")
         )
+        # A2 ablation: disable text supervision entirely (visual-only anchors).
+        self.disable_text_supervision: bool = bool(
+            getattr(args, "disable_text_supervision", False)
+        )
         # v185: bidirectional token pruning (visual + text).
         self.bidirectional_token_prune: bool = bool(
             getattr(args, "bidirectional_token_prune", False)
@@ -1354,12 +1642,37 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.bidirectional_token_prune_text_ratio: float = float(
             getattr(args, "bidirectional_token_prune_text_ratio", 0.5)
         )
+        self.bidirectional_token_prune_mode: str = str(
+            getattr(args, "bidirectional_token_prune_mode", "legacy")
+        )
+        if self.bidirectional_token_prune_mode not in (
+            "legacy", "mutual_dual_softmax", "mutual_consensus_residual",
+        ):
+            raise ValueError(
+                "bidirectional_token_prune_mode must be 'legacy', "
+                "'mutual_dual_softmax', or 'mutual_consensus_residual', "
+                f"got {self.bidirectional_token_prune_mode!r}"
+            )
+        self.bidirectional_prune_only: bool = bool(
+            getattr(args, "bidirectional_prune_only", False)
+        )
+        if self.bidirectional_prune_only and (
+            not self.bidirectional_token_prune
+            or self.bidirectional_token_prune_mode != "mutual_consensus_residual"
+        ):
+            raise ValueError(
+                "--bidirectional_prune_only requires --bidirectional_token_prune "
+                "and --bidirectional_token_prune_mode mutual_consensus_residual"
+            )
         # v184: inference routing centroid source (codebook_mean vs text_prototype).
         self.eval_routing_mode: str = str(
             getattr(args, "eval_routing_mode", "codebook_mean")
         )
         self.text_prototype_ema_decay: float = float(
             getattr(args, "text_prototype_ema_decay", 0.999)
+        )
+        self.routing_cls_verified_consensus_mask: bool = bool(
+            getattr(args, "routing_cls_verified_consensus_mask", False)
         )
         # Register EMA text prototype buffer (5 local slots x d_model).
         # Initialized as zeros. Updated during training when text_part_tokens
@@ -1375,6 +1688,15 @@ class SigLIP2SemanticOTModel(nn.Module):
             "_text_prototype_initialized",
             torch.zeros(1, dtype=torch.bool),
         )
+        if self.routing_cls_verified_consensus_mask:
+            self.register_buffer(
+                "cls_mask_text_prototype_ema",
+                torch.zeros(_NUM_LOCAL_PARTS, int(self.proj_dim)),
+            )
+            self.register_buffer(
+                "_cls_mask_text_prototype_initialized",
+                torch.zeros(1, dtype=torch.bool),
+            )
         # v176a: soft text-evidence routing prior. Instead of hard-pruning
         # background tokens, lower the Sinkhorn cost for visual patches that
         # already match the routed text/codebook centroid. This is a routing
@@ -1528,6 +1850,72 @@ class SigLIP2SemanticOTModel(nn.Module):
             # Stage-2 outputs comparable to baseline embeds in distribution.
             self.grounded_text_ln = nn.LayerNorm(self.d_model)
 
+        # Soft visual-grounded text pooling. Unlike the v162 path, this keeps
+        # every valid text token and uses detached local OT mass to aggregate
+        # visual-query cross-attention. It refines the text supervision after
+        # routing without feeding the result back into the same OT pass.
+        self.soft_visual_grounded_text_pool = bool(
+            getattr(args, "soft_visual_grounded_text_pool", False)
+        )
+        if self.soft_visual_grounded_text_pool and self.grounded_text_routing:
+            raise ValueError(
+                "--soft_visual_grounded_text_pool and "
+                "--grounded_text_routing are mutually exclusive"
+            )
+        if self.soft_visual_grounded_text_pool:
+            n_heads = int(getattr(args, "text_attn_num_heads", 4))
+            self.soft_grounded_text_attn = nn.MultiheadAttention(
+                embed_dim=self.d_model,
+                num_heads=n_heads,
+                batch_first=True,
+                dropout=0.0,
+            )
+            self.soft_grounded_text_ln = nn.LayerNorm(self.d_model)
+
+        # v192: parameter-free alternative to the failed learnable MHA pool.
+        # Each zero-initialized ReZero gate interpolates from the unchanged
+        # baseline text slot toward an OT-grounded all-token cosine pool.
+        self.cosine_visual_grounded_text_pool = bool(
+            getattr(args, "cosine_visual_grounded_text_pool", False)
+        )
+        if self.cosine_visual_grounded_text_pool and (
+            self.grounded_text_routing or self.soft_visual_grounded_text_pool
+        ):
+            raise ValueError(
+                "--cosine_visual_grounded_text_pool is mutually exclusive "
+                "with --grounded_text_routing and "
+                "--soft_visual_grounded_text_pool"
+            )
+        if self.cosine_visual_grounded_text_pool:
+            self.cosine_grounded_text_gate = nn.Parameter(
+                torch.zeros(NUM_LOCAL_PARTS)
+            )                                                       # [5]
+        else:
+            self.register_parameter("cosine_grounded_text_gate", None)
+
+        # Semantic-instance separation for the dominant visual-token CIBHash
+        # objective. The six heads are discarded at inference; VQ and DNA use
+        # the unprojected semantic_visual_tokens exactly as before.
+        self.cibhash_visual_projection_head = bool(
+            getattr(args, "cibhash_visual_projection_head", False)
+        )
+        if self.cibhash_visual_projection_head:
+            if str(getattr(args, "cibhash_ntxent_source", "continuous_code")) != "visual_token":
+                raise ValueError(
+                    "--cibhash_visual_projection_head requires "
+                    "--cibhash_ntxent_source visual_token"
+                )
+            self.cibhash_visual_projectors = nn.ModuleList([
+                nn.Sequential(
+                    nn.Linear(self.d_model, self.d_model),
+                    nn.GELU(),
+                    nn.Linear(self.d_model, self.d_model),
+                )
+                for _ in range(NUM_SEMANTIC_PARTS)
+            ])
+        else:
+            self.cibhash_visual_projectors = None
+
         # ---------- Sinkhorn router (5 local parts) ----------------------
         self.num_semantic_parts: int = int(
             getattr(args, "num_semantic_parts", NUM_SEMANTIC_PARTS)
@@ -1628,6 +2016,31 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.routing_adaptive_topp_min   = float(getattr(args, "routing_adaptive_topp_min", 0.5))
         self.routing_adaptive_topp_max   = float(getattr(args, "routing_adaptive_topp_max", 0.9))
         self.routing_adaptive_topp_entropy = bool(getattr(args, "routing_adaptive_topp_entropy", False))
+        self.routing_specificity_marginal = bool(
+            getattr(args, "routing_specificity_marginal", False)
+        )
+        self.routing_centered_consensus_mask = bool(
+            getattr(args, "routing_centered_consensus_mask", False)
+        )
+        _consensus_modes = sum(bool(v) for v in (
+            self.routing_specificity_marginal,
+            self.routing_centered_consensus_mask,
+            self.routing_cls_verified_consensus_mask,
+        ))
+        if _consensus_modes > 1:
+            raise ValueError(
+                "specificity marginal, centered consensus mask, and "
+                "CLS-verified consensus mask are mutually exclusive"
+            )
+        if (
+            self.routing_specificity_marginal
+            or self.routing_centered_consensus_mask
+            or self.routing_cls_verified_consensus_mask
+        ) and self.router_type != "sinkhorn":
+            raise ValueError(
+                "specificity marginal / centered consensus mask requires "
+                "--router_type sinkhorn"
+            )
         # v84a: perplexity-rounded top-k routing (zero hand-tuned thresholds).
         # k_n = ceil(M^H_norm(P_n)). Mutually exclusive with adaptive_topp.
         self.routing_perplexity_topk     = bool(getattr(args, "routing_perplexity_topk", False))
@@ -1947,6 +2360,239 @@ class SigLIP2SemanticOTModel(nn.Module):
         refined  = (selected * topk_w.unsqueeze(-1)).sum(dim=2)   # [B, M, D]
         refined  = self.grounded_text_ln(refined)
         return refined
+
+    def _soft_visual_grounded_text_pooling(
+        self,
+        visual_tokens: torch.Tensor,                  # [B, N, D]
+        routing_matrix: torch.Tensor,                 # [B, N, M=6]
+        base_text_tokens: torch.Tensor,               # [B, M=6, D]
+        cached_text_tokens: torch.Tensor,             # [B, M=6, T, D_proj]
+        cached_text_token_mask: Optional[torch.Tensor],  # [B, M=6, T] bool
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Refine local text slots with OT-weighted soft cross-attention.
+
+        Visual patches query all valid tokens in the corresponding text slot.
+        The per-query outputs are pooled with detached local OT mass, so only
+        patches surviving the visual mask and assigned to slot ``m`` affect
+        that slot's text representation. C_0 remains unchanged.
+
+        Returns:
+            refined_text: [B, 6, D]
+            normalized_attention_entropy: [B, 5]
+        """
+        B, N, D = visual_tokens.shape
+        assert D == self.d_model
+        assert routing_matrix.shape == (B, N, NUM_SEMANTIC_PARTS), (
+            f"routing_matrix must be {(B, N, NUM_SEMANTIC_PARTS)}, got "
+            f"{tuple(routing_matrix.shape)}"
+        )
+        assert base_text_tokens.shape == (B, NUM_SEMANTIC_PARTS, D)
+        assert cached_text_tokens.dim() == 4
+        assert cached_text_tokens.shape[:2] == (B, NUM_SEMANTIC_PARTS)
+
+        adapted_text = self._adapt_cached_text_tokens_for_routing(
+            cached_text_tokens,
+        )                                                           # [B, 6, T, D]
+        _, _, T, _ = adapted_text.shape
+        if cached_text_token_mask is None:
+            text_valid = torch.ones(
+                B, NUM_SEMANTIC_PARTS, T,
+                dtype=torch.bool,
+                device=visual_tokens.device,
+            )
+        else:
+            assert cached_text_token_mask.shape == (B, NUM_SEMANTIC_PARTS, T)
+            text_valid = cached_text_token_mask.to(
+                device=visual_tokens.device, dtype=torch.bool,
+            )
+
+        # The visual query is evidence, not an optimization shortcut: text
+        # losses train the attention/text branch but cannot move the router by
+        # choosing easier words through this query path.
+        visual_query = visual_tokens.detach()                         # [B, N, D]
+        local_route = routing_matrix[:, :, 1:].detach().clamp_min(0.0) # [B, N, 5]
+        refined_local: List[torch.Tensor] = []
+        entropy_local: List[torch.Tensor] = []
+        for m in range(NUM_LOCAL_PARTS):
+            token_m = adapted_text[:, m + 1, :, :]                    # [B, T, D]
+            valid_m = text_valid[:, m + 1, :]                         # [B, T]
+            # A cache row should always contain at least one real token. Keep
+            # the operation finite if malformed input reaches this path.
+            empty = ~valid_m.any(dim=-1)
+            if bool(empty.any()):
+                valid_m = valid_m.clone()
+                valid_m[empty, 0] = True
+
+            attn_out, attn_weights = self.soft_grounded_text_attn(
+                query=visual_query,
+                key=token_m,
+                value=token_m,
+                key_padding_mask=~valid_m,
+                need_weights=True,
+                average_attn_weights=True,
+            )                                                        # [B,N,D], [B,N,T]
+            assert attn_out.shape == (B, N, D)
+            assert attn_weights.shape == (B, N, T)
+
+            route_m = local_route[:, :, m]                           # [B, N]
+            route_m = route_m / route_m.sum(dim=-1, keepdim=True).clamp_min(1e-6)
+            pooled_m = (attn_out * route_m.unsqueeze(-1)).sum(dim=1) # [B, D]
+            refined_m = self.soft_grounded_text_ln(
+                base_text_tokens[:, m + 1, :] + pooled_m,
+            )                                                        # [B, D]
+            refined_local.append(refined_m)
+
+            token_weight = (
+                attn_weights * route_m.unsqueeze(-1)
+            ).sum(dim=1)                                             # [B, T]
+            token_weight = token_weight * valid_m.to(token_weight.dtype)
+            token_weight = token_weight / token_weight.sum(
+                dim=-1, keepdim=True,
+            ).clamp_min(1e-8)
+            entropy = -(
+                token_weight * token_weight.clamp_min(1e-8).log()
+            ).sum(dim=-1)                                            # [B]
+            valid_count = valid_m.sum(dim=-1).to(entropy.dtype)
+            norm = valid_count.log()
+            entropy = torch.where(
+                valid_count > 1.0,
+                entropy / norm.clamp_min(1e-8),
+                torch.zeros_like(entropy),
+            )
+            entropy_local.append(entropy)
+
+        refined = torch.cat([
+            base_text_tokens[:, :1, :],
+            torch.stack(refined_local, dim=1),
+        ], dim=1)                                                      # [B, 6, D]
+        attention_entropy = torch.stack(entropy_local, dim=1)         # [B, 5]
+        assert refined.shape == (B, NUM_SEMANTIC_PARTS, D)
+        assert attention_entropy.shape == (B, NUM_LOCAL_PARTS)
+        return refined, attention_entropy
+
+    def _project_cibhash_visual_tokens(
+        self,
+        semantic_visual_tokens: torch.Tensor,
+    ) -> torch.Tensor:
+        """Project each semantic slot for the train-only CIBHash objective."""
+        B, M, D = semantic_visual_tokens.shape
+        assert (M, D) == (NUM_SEMANTIC_PARTS, self.d_model)
+        assert self.cibhash_visual_projectors is not None
+        projected = torch.stack([
+            self.cibhash_visual_projectors[m](semantic_visual_tokens[:, m, :])
+            for m in range(NUM_SEMANTIC_PARTS)
+        ], dim=1)                                                       # [B, 6, D]
+        assert projected.shape == (B, NUM_SEMANTIC_PARTS, D)
+        return projected
+
+    def _cosine_visual_grounded_text_pooling(
+        self,
+        visual_tokens: torch.Tensor,                  # [B, N, D]
+        routing_matrix: torch.Tensor,                 # [B, N, M=6]
+        base_text_tokens: torch.Tensor,               # [B, M=6, D]
+        cached_text_tokens: torch.Tensor,             # [B, M=6, T, D_proj]
+        cached_text_token_mask: Optional[torch.Tensor],  # [B, M=6, T] bool
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Interpolate local text slots toward an OT-grounded cosine pool.
+
+        The attention has no projection matrix or temperature parameter.
+        Detached visual tokens and OT mass only define token weights; the
+        learned text branch and the five zero-initialized residual gates
+        receive gradients. C_0 is unchanged.
+
+        Returns:
+            refined_text: [B, 6, D]
+            normalized_attention_entropy: [B, 5]
+            effective_token_support_ratio: [B, 5]
+        """
+        B, N, D = visual_tokens.shape
+        assert D == self.d_model
+        assert routing_matrix.shape == (B, N, NUM_SEMANTIC_PARTS), (
+            f"routing_matrix must be {(B, N, NUM_SEMANTIC_PARTS)}, got "
+            f"{tuple(routing_matrix.shape)}"
+        )
+        assert base_text_tokens.shape == (B, NUM_SEMANTIC_PARTS, D)
+        assert cached_text_tokens.dim() == 4
+        assert cached_text_tokens.shape[:2] == (B, NUM_SEMANTIC_PARTS)
+        assert self.cosine_grounded_text_gate is not None
+        assert self.cosine_grounded_text_gate.shape == (NUM_LOCAL_PARTS,)
+
+        adapted_text = self._adapt_cached_text_tokens_for_routing(
+            cached_text_tokens,
+        )                                                           # [B, 6, T, D]
+        _, _, T, _ = adapted_text.shape
+        if cached_text_token_mask is None:
+            text_valid = torch.ones(
+                B, NUM_SEMANTIC_PARTS, T,
+                dtype=torch.bool,
+                device=visual_tokens.device,
+            )
+        else:
+            assert cached_text_token_mask.shape == (B, NUM_SEMANTIC_PARTS, T)
+            text_valid = cached_text_token_mask.to(
+                device=visual_tokens.device, dtype=torch.bool,
+            )
+
+        local_tokens = adapted_text[:, 1:, :, :]                    # [B, 5, T, D]
+        local_valid = text_valid[:, 1:, :]                           # [B, 5, T]
+        empty = ~local_valid.any(dim=-1)                              # [B, 5]
+        if bool(empty.any()):
+            local_valid = local_valid.clone()
+            empty_b, empty_m = empty.nonzero(as_tuple=True)
+            local_valid[empty_b, empty_m, 0] = True
+
+        visual_n = F.normalize(
+            visual_tokens.detach(), dim=-1,
+        )                                                            # [B, N, D]
+        text_n = F.normalize(local_tokens, dim=-1)                    # [B, 5, T, D]
+        cosine = torch.einsum(
+            "bnd,bmtd->bmnt", visual_n, text_n,
+        )                                                            # [B, 5, N, T]
+        cosine = cosine.masked_fill(
+            ~local_valid[:, :, None, :], -1e4,
+        )
+        patch_to_text = cosine.softmax(dim=-1)                       # [B, 5, N, T]
+
+        local_route = (
+            routing_matrix[:, :, 1:].detach().clamp_min(0.0)
+            .transpose(1, 2)
+        )                                                            # [B, 5, N]
+        local_route = local_route / local_route.sum(
+            dim=-1, keepdim=True,
+        ).clamp_min(1e-6)
+        token_weight = (
+            patch_to_text * local_route.unsqueeze(-1)
+        ).sum(dim=2)                                                 # [B, 5, T]
+        token_weight = token_weight * local_valid.to(token_weight.dtype)
+        token_weight = token_weight / token_weight.sum(
+            dim=-1, keepdim=True,
+        ).clamp_min(1e-8)
+
+        pooled_local = (
+            token_weight.unsqueeze(-1) * local_tokens
+        ).sum(dim=2)                                                 # [B, 5, D]
+        base_local = base_text_tokens[:, 1:, :]                      # [B, 5, D]
+        gate = self.cosine_grounded_text_gate.view(1, NUM_LOCAL_PARTS, 1)
+        refined_local = base_local + gate * (pooled_local - base_local)
+        refined = torch.cat([
+            base_text_tokens[:, :1, :], refined_local,
+        ], dim=1)                                                     # [B, 6, D]
+
+        entropy = -(
+            token_weight * token_weight.clamp_min(1e-8).log()
+        ).sum(dim=-1)                                                # [B, 5]
+        valid_count = local_valid.sum(dim=-1).to(entropy.dtype)      # [B, 5]
+        normalized_entropy = torch.where(
+            valid_count > 1.0,
+            entropy / valid_count.log().clamp_min(1e-8),
+            torch.zeros_like(entropy),
+        )
+        effective_support = torch.exp(entropy) / valid_count.clamp_min(1.0)
+
+        assert refined.shape == (B, NUM_SEMANTIC_PARTS, D)
+        assert normalized_entropy.shape == (B, NUM_LOCAL_PARTS)
+        assert effective_support.shape == (B, NUM_LOCAL_PARTS)
+        return refined, normalized_entropy, effective_support
 
     def _current_sinkhorn_epsilon(self) -> Optional[float]:
         """Return the annealed Sinkhorn epsilon for the current epoch, or
@@ -2368,6 +3014,11 @@ class SigLIP2SemanticOTModel(nn.Module):
                 # Defensive: cached_* takes priority. We do not run the encoder.
                 pass
             has_real_text = cached_text_part_raw is not None and cached_has_text is not None and bool(cached_has_text.any().item())
+            # A2 ablation: force visual-only (no text supervision, codebook_mean
+            # routing during training too). Text-derived losses go to 0 because
+            # the text path is never taken.
+            if getattr(self, "disable_text_supervision", False):
+                has_real_text = False
             use_text_routing = bool(self.training and has_real_text)
             routing_mode = "text" if use_text_routing else "codebook_mean"
             feats = {
@@ -2401,6 +3052,14 @@ class SigLIP2SemanticOTModel(nn.Module):
         local_text_tokens: Optional[torch.Tensor] = None
         global_text_token_for_routing: Optional[torch.Tensor] = None
         local_text_tokens_for_routing: Optional[torch.Tensor] = None  # v116
+        _cls_mask_text_raw: Optional[torch.Tensor] = None             # [B, M_local, D_shared]
+        _bi_visual_keep_union: Optional[torch.Tensor] = None          # [B, N]
+        _bi_visual_keep_per_slot: Optional[torch.Tensor] = None       # [B, M_local, N]
+        _bi_visual_importance_per_slot: Optional[torch.Tensor] = None # [B, M_local, N]
+        _bi_text_keep_per_slot: Optional[torch.Tensor] = None         # [B, M_local, T]
+        _bi_visual_keep_ratio_per_slot: Optional[torch.Tensor] = None # [B, M_local]
+        _bi_visual_union_keep_ratio: Optional[torch.Tensor] = None    # [B]
+        _bi_text_keep_ratio_per_slot: Optional[torch.Tensor] = None   # [B, M_local]
         if use_text_routing and feats["text_part_raw"] is not None:
             # v185: bidirectional token pruning. If enabled, OVERRIDE
             # feats["text_part_raw"] with a mean-pool over kept text tokens
@@ -2408,7 +3067,6 @@ class SigLIP2SemanticOTModel(nn.Module):
             # (whiten, adapter, text_token_attention, losses) observe only
             # the pruned text tokens. Simultaneously compute a visual keep
             # mask to be applied in the fg_mask block below.
-            self._bi_visual_keep_mask = None
             if (
                 self.bidirectional_token_prune
                 and self.backbone_type == "clip"
@@ -2430,26 +3088,85 @@ class SigLIP2SemanticOTModel(nn.Module):
                 _sim_tok = torch.einsum(
                     'bnd,bmtd->bmnt', _v_shared_n, _tt_loc_n
                 )                                                            # [B, M_loc, N, T]
-                if _tm_loc is not None:
-                    _sim_tok = _sim_tok + (~_tm_loc.unsqueeze(2)).float() * (-1e4)
                 _B, _M_loc, _N, _T = _sim_tok.shape
+                assert _B == B and _M_loc == NUM_LOCAL_PARTS and _N == N, (
+                    "bidirectional similarity must be [B, M_local, N, T], got "
+                    f"{tuple(_sim_tok.shape)}"
+                )
 
-                # Direction A — visual keep mask (softmax over text tokens).
-                _attn_v = _sim_tok.softmax(dim=-1)                           # [B, M_loc, N, T]
-                _v_imp = _attn_v.sum(dim=-1)                                 # [B, M_loc, N]
-                _kv = max(1, int(_N * self.bidirectional_token_prune_visual_ratio))
-                _thr_v = _v_imp.topk(_kv, dim=-1)[0][:, :, -1:]              # [B, M_loc, 1]
-                _v_keep_per_slot = (_v_imp >= _thr_v)                        # [B, M_loc, N]
+                if self.bidirectional_token_prune_mode in (
+                    "mutual_dual_softmax", "mutual_consensus_residual",
+                ):
+                    # Reuse CLIP's pretrained contrast scale; no extra pruning
+                    # temperature is introduced. The score stays in the frozen
+                    # CLIP shared space used to produce both token streams.
+                    _logit_scale = getattr(self.backbone.model, "logit_scale", None)
+                    if _logit_scale is not None:
+                        _scale = _logit_scale.exp().detach().clamp(max=100.0)
+                        _sim_tok = _sim_tok * _scale.to(_sim_tok.dtype)
+                    _mutual = _mutual_dual_softmax_pruning(
+                        similarity=_sim_tok,
+                        text_mask=_tm_loc,
+                        visual_mask=visual_attention_mask,
+                        visual_keep_ratio=self.bidirectional_token_prune_visual_ratio,
+                        text_keep_ratio=self.bidirectional_token_prune_text_ratio,
+                        suppress_visual_consensus=(
+                            self.bidirectional_token_prune_mode
+                            == "mutual_consensus_residual"
+                        ),
+                    )
+                    _v_keep_per_slot = _mutual["visual_keep"]                # [B, M_loc, N]
+                    _bi_visual_importance_per_slot = _mutual["visual_importance"]  # [B, M_loc, N]
+                    _t_keep_per_slot = _mutual["text_keep"]                 # [B, M_loc, T]
+                else:
+                    # Legacy v185 path retained for exact experiment
+                    # reproducibility. Its softmax-sum importance is constant.
+                    _sim_legacy = _sim_tok
+                    if _tm_loc is not None:
+                        _sim_legacy = _sim_legacy + (
+                            ~_tm_loc.unsqueeze(2)
+                        ).float() * (-1e4)
+                    _attn_v = _sim_legacy.softmax(dim=-1)                    # [B, M_loc, N, T]
+                    _v_imp = _attn_v.sum(dim=-1)                             # [B, M_loc, N]
+                    _kv = max(1, int(_N * self.bidirectional_token_prune_visual_ratio))
+                    _thr_v = _v_imp.topk(_kv, dim=-1)[0][:, :, -1:]          # [B, M_loc, 1]
+                    _v_keep_per_slot = (_v_imp >= _thr_v)                    # [B, M_loc, N]
+
+                    _attn_t = _sim_legacy.softmax(dim=-2)                    # [B, M_loc, N, T]
+                    _t_imp = _attn_t.sum(dim=-2)                             # [B, M_loc, T]
+                    _kt = max(1, int(_T * self.bidirectional_token_prune_text_ratio))
+                    _thr_t = _t_imp.topk(_kt, dim=-1)[0][:, :, -1:]          # [B, M_loc, 1]
+                    _t_keep_per_slot = (_t_imp >= _thr_t)                    # [B, M_loc, T]
+                    if _tm_loc is not None:
+                        _t_keep_per_slot = _t_keep_per_slot & _tm_loc
+
                 _v_keep_union = _v_keep_per_slot.any(dim=1)                  # [B, N]
-
-                # Direction B — text keep mask (softmax over visual patches).
-                _attn_t = _sim_tok.softmax(dim=-2)                           # [B, M_loc, N, T]
-                _t_imp = _attn_t.sum(dim=-2)                                 # [B, M_loc, T]
-                _kt = max(1, int(_T * self.bidirectional_token_prune_text_ratio))
-                _thr_t = _t_imp.topk(_kt, dim=-1)[0][:, :, -1:]              # [B, M_loc, 1]
-                _t_keep_per_slot = (_t_imp >= _thr_t)                        # [B, M_loc, T]
-                if _tm_loc is not None:
-                    _t_keep_per_slot = _t_keep_per_slot & _tm_loc
+                _bi_visual_keep_union = _v_keep_union
+                _bi_visual_keep_per_slot = _v_keep_per_slot
+                _bi_text_keep_per_slot = _t_keep_per_slot
+                _visual_valid_count = (
+                    visual_attention_mask.to(torch.bool).sum(dim=-1)
+                    if visual_attention_mask is not None
+                    else torch.full(
+                        (B,), N, dtype=torch.long, device=visual_tokens.device,
+                    )
+                ).clamp_min(1)                                                # [B]
+                _text_valid_count = (
+                    _tm_loc.to(torch.bool).sum(dim=-1)
+                    if _tm_loc is not None
+                    else torch.full(
+                        (B, _M_loc), _T, dtype=torch.long, device=visual_tokens.device,
+                    )
+                ).clamp_min(1)                                                # [B, M_local]
+                _bi_visual_keep_ratio_per_slot = (
+                    _v_keep_per_slot.sum(dim=-1) / _visual_valid_count.unsqueeze(-1)
+                )                                                             # [B, M_local]
+                _bi_visual_union_keep_ratio = (
+                    _v_keep_union.sum(dim=-1) / _visual_valid_count
+                )                                                             # [B]
+                _bi_text_keep_ratio_per_slot = (
+                    _t_keep_per_slot.sum(dim=-1) / _text_valid_count
+                )                                                             # [B, M_local]
 
                 # Rebuild local text_part_raw as mean over kept text tokens.
                 _mask = _t_keep_per_slot.unsqueeze(-1).to(_tt_loc.dtype)     # [B, M_loc, T, 1]
@@ -2466,10 +3183,12 @@ class SigLIP2SemanticOTModel(nn.Module):
                 feats = dict(feats)                                          # avoid mutating caller
                 feats["text_part_raw"] = _new_text_part_raw
 
-                # Save visual keep mask for consumption by fg_mask block.
-                self._bi_visual_keep_mask = _v_keep_union                    # [B, N]
-
             raw = feats["text_part_raw"]                                    # [B, 6, D_proj]
+            if self.routing_cls_verified_consensus_mask:
+                _cls_mask_text_raw = raw[:, 1:, :]                           # [B, M_local, D_proj]
+                assert _cls_mask_text_raw.shape == (
+                    B, NUM_LOCAL_PARTS, self.proj_dim,
+                )
 
             # ----------------------------------------------------------------
             # v113: pre-adapter text-embedding transform (anisotropy fix).
@@ -2740,6 +3459,24 @@ class SigLIP2SemanticOTModel(nn.Module):
                     self.text_prototype_ema.mul_(_decay).add_(
                         _tp_batch.to(self.text_prototype_ema.dtype), alpha=(1.0 - _decay)
                     )
+        if (
+            self.routing_cls_verified_consensus_mask
+            and self.training
+            and _cls_mask_text_raw is not None
+        ):
+            with torch.no_grad():
+                _raw_tp_batch = _cls_mask_text_raw.mean(dim=0).detach()      # [M_local, D_shared]
+                if not bool(self._cls_mask_text_prototype_initialized.item()):
+                    self.cls_mask_text_prototype_ema.copy_(
+                        _raw_tp_batch.to(self.cls_mask_text_prototype_ema.dtype)
+                    )
+                    self._cls_mask_text_prototype_initialized.fill_(True)
+                else:
+                    _decay = float(self.text_prototype_ema_decay)
+                    self.cls_mask_text_prototype_ema.mul_(_decay).add_(
+                        _raw_tp_batch.to(self.cls_mask_text_prototype_ema.dtype),
+                        alpha=(1.0 - _decay),
+                    )
 
         out: Dict[str, Any] = {
             "visual_tokens":                visual_tokens,
@@ -2755,8 +3492,25 @@ class SigLIP2SemanticOTModel(nn.Module):
             "routing_matrix":               None,
             "routing_mean_effective_k":      None,
             "routing_fraction_top1":         None,
+            "routing_visual_specificity_mean": None,
+            "routing_visual_marginal_effective_ratio": None,
+            "routing_visual_consensus_candidate_ratio": None,
+            "routing_visual_cls_low_ratio": None,
+            "routing_visual_consensus_mask_ratio": None,
+            "routing_visual_consensus_remaining_ratio": None,
+            "routing_visual_consensus_fallback": None,
+            "bidirectional_visual_keep_ratio_per_slot": _bi_visual_keep_ratio_per_slot,
+            "bidirectional_visual_union_keep_ratio": _bi_visual_union_keep_ratio,
+            "bidirectional_text_keep_ratio_per_slot": _bi_text_keep_ratio_per_slot,
+            "bidirectional_visual_importance_per_slot": _bi_visual_importance_per_slot,
+            "soft_grounded_text_attention_entropy": None,
+            "cosine_grounded_text_attention_entropy": None,
+            "cosine_grounded_text_effective_support": None,
+            "cosine_grounded_text_gate_mean": None,
+            "cosine_grounded_text_gate_abs_mean": None,
             "local_semantic_visual_tokens": None,
             "semantic_visual_tokens":       None,
+            "cibhash_visual_tokens":         None,
             "quantizer_input":              None,
             "quantized_tokens":             None,
             "quantized_tokens_raw":         None,
@@ -2829,23 +3583,24 @@ class SigLIP2SemanticOTModel(nn.Module):
         else:
             visual_tokens_for_routing = visual_tokens
 
+        _cls_verified_diag: Optional[Dict[str, torch.Tensor]] = None
+
         # Foreground-text mask: cosine(visual_tokens, C_global text) → keep
         # top-K% patches; rest get visual_attention_mask=0 so they are excluded
         # from all 6 codebook updates. Mass conservation still holds on the
         # remaining K patches. Designed for single-object fine-grained datasets
         # (CUB-200) where background tokens dominate the router by patch count.
-        # v185: if bidirectional_token_prune already computed a visual keep
-        # mask, apply it here and skip the fg_ratio branch.
-        _bi_v_keep = getattr(self, "_bi_visual_keep_mask", None)
-        if self.bidirectional_token_prune and _bi_v_keep is not None:
-            _fg_mask_bi = _bi_v_keep.to(visual_tokens_for_routing.dtype)     # [B, N]
+        # v185/v186: the union controls only the visual row marginal. In
+        # mutual-dual-softmax mode, the distinct [B, M_local, N] masks are also
+        # applied to their matching Sinkhorn columns below.
+        if self.bidirectional_token_prune and _bi_visual_keep_union is not None:
+            _fg_mask_bi = _bi_visual_keep_union.to(visual_tokens_for_routing.dtype)  # [B, N]
             if visual_attention_mask is not None:
                 visual_attention_mask = visual_attention_mask.to(
                     visual_tokens_for_routing.dtype
                 ) * _fg_mask_bi
             else:
                 visual_attention_mask = _fg_mask_bi
-            self._bi_visual_keep_mask = None
         fg_ratio = self.foreground_text_mask_topk_ratio
         if (
             not self.bidirectional_token_prune
@@ -2938,6 +3693,37 @@ class SigLIP2SemanticOTModel(nn.Module):
             else:
                 visual_attention_mask = _fg_mask
 
+        if self.routing_cls_verified_consensus_mask:
+            assert self.backbone_type == "clip", (
+                "--routing_cls_verified_consensus_mask requires CLIP shared-space features"
+            )
+            assert feats.get("visual_global") is not None
+            _visual_projection = self.backbone.model.visual_projection
+            _visual_shared = _visual_projection(
+                feats["visual_tokens_raw"]
+            )                                                               # [B, N, D_shared]
+            assert _visual_shared.shape == (B, N, self.proj_dim)
+            _global_shared = feats["visual_global"].to(_visual_shared.dtype) # [B, D_shared]
+            assert _global_shared.shape == (B, self.proj_dim)
+            if _cls_mask_text_raw is not None:
+                _local_text_shared = _cls_mask_text_raw.to(_visual_shared.dtype)
+            else:
+                if not bool(self._cls_mask_text_prototype_initialized.item()):
+                    raise RuntimeError(
+                        "CLS-verified mask inference requires initialized raw text prototypes"
+                    )
+                _local_text_shared = self.cls_mask_text_prototype_ema.to(
+                    device=_visual_shared.device, dtype=_visual_shared.dtype,
+                ).unsqueeze(0).expand(B, -1, -1)                            # [B, M_local, D_shared]
+            assert _local_text_shared.shape == (B, NUM_LOCAL_PARTS, self.proj_dim)
+            _cls_verified_diag = _cls_verified_consensus_mask(
+                visual_tokens_shared=_visual_shared,
+                local_text_shared=_local_text_shared,
+                visual_global_shared=_global_shared,
+                visual_mask=visual_attention_mask,
+            )
+            visual_attention_mask = _cls_verified_diag["keep"]             # [B, N]
+
         router_kwargs = {
             "visual_tokens":    visual_tokens_for_routing,
             "text_part_tokens": route_centroids_aug,           # [B, 5/6 (+ null), D]
@@ -2945,6 +3731,50 @@ class SigLIP2SemanticOTModel(nn.Module):
             "part_mask":        route_part_mask_used_aug,
         }
         if self.router_type == "sinkhorn":
+            # v186: slot-specific visual pruning support. The row mask above
+            # removes patches selected by no local slot. This [B, N, M_route]
+            # bias additionally prevents a patch selected for slot m from being
+            # reused by a different slot. Global/null route-only columns remain
+            # available on every surviving row.
+            cost_bias: Optional[torch.Tensor] = None
+            if (
+                self.bidirectional_token_prune
+                and self.bidirectional_token_prune_mode in (
+                    "mutual_dual_softmax", "mutual_consensus_residual",
+                )
+                and not self.bidirectional_prune_only
+                and _bi_visual_keep_per_slot is not None
+            ):
+                assert _bi_visual_keep_per_slot.shape == (B, NUM_LOCAL_PARTS, N), (
+                    "slot-specific visual keep mask must be [B, M_local, N], got "
+                    f"{tuple(_bi_visual_keep_per_slot.shape)}"
+                )
+                _local_route_keep = _bi_visual_keep_per_slot.transpose(1, 2)  # [B, N, M_local]
+                _surviving_rows = (
+                    visual_attention_mask.to(torch.bool)
+                    if visual_attention_mask is not None
+                    else torch.ones(B, N, dtype=torch.bool, device=visual_tokens.device)
+                )                                                             # [B, N]
+                _route_keep_parts = []
+                if route_global_text_active:
+                    _route_keep_parts.append(_surviving_rows.unsqueeze(-1))   # [B, N, 1]
+                _route_keep_parts.append(_local_route_keep)                   # [B, N, 5]
+                if self.use_null_centroid and self.null_centroid is not None:
+                    _route_keep_parts.append(_surviving_rows.unsqueeze(-1))   # [B, N, 1]
+                _route_keep = torch.cat(_route_keep_parts, dim=-1)            # [B, N, M_route]
+                assert _route_keep.shape == (
+                    B, N, route_centroids_aug.shape[1],
+                ), (
+                    "slot-specific route mask must match router columns, got "
+                    f"{tuple(_route_keep.shape)} vs "
+                    f"{(B, N, route_centroids_aug.shape[1])}"
+                )
+                cost_bias = torch.zeros(
+                    _route_keep.shape,
+                    dtype=visual_tokens_for_routing.dtype,
+                    device=visual_tokens_for_routing.device,
+                ).masked_fill(~_route_keep, -1e4)                             # [B, N, M_route]
+
             cur_text_evidence_beta = self._current_routing_text_evidence_beta()
             cur_text_evidence_penalty = self._current_routing_text_evidence_penalty()
             cur_token_ot_beta = self._current_routing_token_ot_beta()
@@ -2960,7 +3790,7 @@ class SigLIP2SemanticOTModel(nn.Module):
                 _v_ev = F.normalize(visual_tokens_for_routing, dim=-1)
                 _t_ev = F.normalize(route_centroids_aug, dim=-1)
                 sim_ev = torch.einsum("bnd,bmd->bnm", _v_ev, _t_ev)
-                cost_bias = cur_text_evidence_beta * sim_ev
+                evidence_cost_bias = cur_text_evidence_beta * sim_ev
                 if cur_token_ot_beta > 0.0 and use_text_routing:
                     if cached_text_tokens is None:
                         raise RuntimeError(
@@ -2977,18 +3807,18 @@ class SigLIP2SemanticOTModel(nn.Module):
                         visual_attention_mask=visual_attention_mask,
                         route_global_text_active=route_global_text_active,
                     )
-                    assert token_ot_bias.shape == cost_bias.shape, (
+                    assert token_ot_bias.shape == evidence_cost_bias.shape, (
                         "token OT routing bias must match cost_bias, got "
-                        f"{tuple(token_ot_bias.shape)} vs {tuple(cost_bias.shape)}"
+                        f"{tuple(token_ot_bias.shape)} vs {tuple(evidence_cost_bias.shape)}"
                     )
-                    cost_bias = cost_bias + cur_token_ot_beta * token_ot_bias
-                assert cost_bias.shape == (
+                    evidence_cost_bias = evidence_cost_bias + cur_token_ot_beta * token_ot_bias
+                assert evidence_cost_bias.shape == (
                     visual_tokens_for_routing.shape[0],
                     visual_tokens_for_routing.shape[1],
                     route_centroids_aug.shape[1],
                 ), (
                     "routing text-evidence bias must be [B, N, M_route], got "
-                    f"{tuple(cost_bias.shape)}"
+                    f"{tuple(evidence_cost_bias.shape)}"
                 )
                 keep_ratio = float(getattr(self, "routing_text_evidence_keep_ratio", 1.0))
                 if cur_text_evidence_penalty > 0.0 and 0.0 < keep_ratio < 1.0:
@@ -3023,12 +3853,18 @@ class SigLIP2SemanticOTModel(nn.Module):
                         # the penalty is bounded and strongest on clear non-evidence.
                         evidence01 = (0.5 * (local_sim + 1.0)).clamp(0.0, 1.0)
                         penalty_term = cur_text_evidence_penalty * (1.0 - evidence01)
-                        local_bias = cost_bias[..., local_start:local_end]
+                        local_bias = evidence_cost_bias[..., local_start:local_end]
                         local_bias = torch.where(keep, local_bias, local_bias - penalty_term)
-                        cost_bias = cost_bias.clone()
-                        cost_bias[..., local_start:local_end] = local_bias
+                        evidence_cost_bias = evidence_cost_bias.clone()
+                        evidence_cost_bias[..., local_start:local_end] = local_bias
                 if self.use_null_centroid and self.null_centroid is not None:
-                    cost_bias[..., -1] = 0.0
+                    evidence_cost_bias[..., -1] = 0.0
+                cost_bias = (
+                    evidence_cost_bias
+                    if cost_bias is None
+                    else cost_bias + evidence_cost_bias
+                )
+            if cost_bias is not None:
                 router_kwargs["cost_bias"] = cost_bias.detach()
             cur_eps = self._current_sinkhorn_epsilon()
             if cur_eps is not None:
@@ -3044,6 +3880,32 @@ class SigLIP2SemanticOTModel(nn.Module):
                 router_kwargs["adaptive_topp_min"] = float(self.routing_adaptive_topp_min)
                 router_kwargs["adaptive_topp_max"] = float(self.routing_adaptive_topp_max)
                 router_kwargs["adaptive_topp_use_entropy"] = bool(self.routing_adaptive_topp_entropy)
+            if self.routing_specificity_marginal:
+                if route_global_text_active:
+                    raise ValueError(
+                        "--routing_specificity_marginal currently supports the "
+                        "five local routing slots only; disable --route_global_text."
+                    )
+                if self.use_null_centroid and self.null_centroid is not None:
+                    raise ValueError(
+                        "--routing_specificity_marginal does not include a null "
+                        "centroid in its slot entropy; disable --use_null_centroid."
+                    )
+                router_kwargs["specificity_weighted_marginal"] = True
+            if self.routing_centered_consensus_mask:
+                if route_global_text_active:
+                    raise ValueError(
+                        "--routing_centered_consensus_mask supports the five "
+                        "local routing slots only; disable --route_global_text."
+                    )
+                if self.use_null_centroid and self.null_centroid is not None:
+                    raise ValueError(
+                        "--routing_centered_consensus_mask does not include a "
+                        "null centroid; disable --use_null_centroid."
+                    )
+                router_kwargs["centered_consensus_mask"] = True
+            if self.routing_cls_verified_consensus_mask:
+                router_kwargs["hard_visual_mask"] = True
             if self.routing_perplexity_topk:
                 if self.routing_adaptive_topp:
                     raise ValueError(
@@ -3065,7 +3927,84 @@ class SigLIP2SemanticOTModel(nn.Module):
                 router_kwargs["adaptive_topp_min"] = float(self.routing_adaptive_topp_min)
                 router_kwargs["adaptive_topp_max"] = float(self.routing_adaptive_topp_max)
                 router_kwargs["adaptive_topp_use_entropy"] = bool(self.routing_adaptive_topp_entropy)
-        if self.router_type == "cluster_attn":
+        if self.bidirectional_prune_only:
+            if route_global_text_active:
+                raise ValueError(
+                    "--bidirectional_prune_only does not support "
+                    "--route_global_text; C0 uses its existing global path."
+                )
+            if self.use_null_centroid and self.null_centroid is not None:
+                raise ValueError(
+                    "--bidirectional_prune_only does not support a null centroid."
+                )
+
+            if _bi_visual_keep_per_slot is None:
+                # Image-only evaluation has no captions. Reconstruct the same
+                # consensus-residual selector from learned slot anchors rather
+                # than falling back to OT routing.
+                assert local_anchor_tokens is not None and local_anchor_tokens.shape == (
+                    B, NUM_LOCAL_PARTS, D,
+                ), (
+                    "prune-only image evaluation requires local slot anchors "
+                    f"[B, M_local, D], got "
+                    f"{None if local_anchor_tokens is None else tuple(local_anchor_tokens.shape)}"
+                )
+                _v_anchor_n = F.normalize(visual_tokens_for_routing, dim=-1)  # [B, N, D]
+                _anchor_n = F.normalize(local_anchor_tokens, dim=-1)          # [B, M_local, D]
+                _anchor_sim = torch.einsum(
+                    "bnd,bmd->bmn", _v_anchor_n, _anchor_n,
+                )                                                             # [B, M_local, N]
+                _eval_visual_valid = (
+                    visual_attention_mask.to(torch.bool)
+                    if visual_attention_mask is not None
+                    else torch.ones(B, N, dtype=torch.bool, device=visual_tokens.device)
+                )                                                             # [B, N]
+                _anchor_sim = _anchor_sim.masked_fill(
+                    ~_eval_visual_valid[:, None, :], -float("inf"),
+                )
+                _anchor_importance = _anchor_sim.softmax(dim=-1)              # [B, M_local, N]
+                _bi_visual_importance_per_slot = _slot_consensus_residual_importance(
+                    _anchor_importance,
+                    visual_mask=_eval_visual_valid,
+                )                                                             # [B, M_local, N]
+                _bi_visual_keep_per_slot = _topk_visual_keep(
+                    _bi_visual_importance_per_slot,
+                    visual_mask=_eval_visual_valid,
+                    keep_ratio=self.bidirectional_token_prune_visual_ratio,
+                )                                                             # [B, M_local, N]
+                _bi_visual_keep_union = _bi_visual_keep_per_slot.any(dim=1)   # [B, N]
+                _valid_count = _eval_visual_valid.sum(dim=-1).clamp_min(1)    # [B]
+                _bi_visual_keep_ratio_per_slot = (
+                    _bi_visual_keep_per_slot.sum(dim=-1)
+                    / _valid_count.unsqueeze(-1)
+                )                                                             # [B, M_local]
+                _bi_visual_union_keep_ratio = (
+                    _bi_visual_keep_union.sum(dim=-1) / _valid_count
+                )                                                             # [B]
+
+            assert _bi_visual_keep_per_slot.shape == (B, NUM_LOCAL_PARTS, N), (
+                "prune-only selection mask must be [B, M_local, N], got "
+                f"{tuple(_bi_visual_keep_per_slot.shape)}"
+            )
+            prune_selection = _bi_visual_keep_per_slot.transpose(1, 2).to(
+                visual_tokens.dtype
+            )                                                                 # [B, N, M_local]
+            r_out = {
+                "routing_matrix": prune_selection,
+                "ot_cost": None,
+            }
+            # Diagnostics may have been constructed after the initial output
+            # dictionary in the image-only evaluation branch.
+            out["bidirectional_visual_keep_ratio_per_slot"] = (
+                _bi_visual_keep_ratio_per_slot
+            )
+            out["bidirectional_visual_union_keep_ratio"] = (
+                _bi_visual_union_keep_ratio
+            )
+            out["bidirectional_visual_importance_per_slot"] = (
+                _bi_visual_importance_per_slot
+            )
+        elif self.router_type == "cluster_attn":
             # v141: ClusterAttentionRouter operates on raw patches only;
             # no text_part_tokens / part_mask / topp kwargs apply. It
             # returns {routing_matrix, semantic_tokens, ot_cost}.
@@ -3108,8 +4047,25 @@ class SigLIP2SemanticOTModel(nn.Module):
         )                                                       # [B, N, 5]
         route_nonzero = local_routing_matrix > 0.0                   # [B, N, 5]
         routing_effective_k = route_nonzero.to(local_routing_matrix.dtype).sum(dim=-1)  # [B, N]
-        routing_fraction_top1 = (routing_effective_k <= 1.0).to(local_routing_matrix.dtype).mean()
-        routing_mean_effective_k = routing_effective_k.mean()
+        if (
+            self.routing_centered_consensus_mask
+            or self.routing_cls_verified_consensus_mask
+        ):
+            route_has_mass = local_routing_matrix.sum(dim=-1) > 0.0  # [B, N]
+            active_count = route_has_mass.sum().clamp_min(1).to(local_routing_matrix.dtype)
+            routing_fraction_top1 = (
+                ((routing_effective_k <= 1.0) & route_has_mass)
+                .to(local_routing_matrix.dtype).sum() / active_count
+            )
+            routing_mean_effective_k = (
+                routing_effective_k.sum() / active_count
+            )
+        else:
+            routing_fraction_top1 = (
+                (routing_effective_k <= 1.0)
+                .to(local_routing_matrix.dtype).mean()
+            )
+            routing_mean_effective_k = routing_effective_k.mean()
 
         if route_global_text_active:
             # v119: all six codebooks, including C_0, are pooled from visual
@@ -3210,6 +4166,64 @@ class SigLIP2SemanticOTModel(nn.Module):
             routing_matrix = ca_out["routing_matrix"]
             local_semantic_visual_tokens = semantic_visual_tokens[:, 1:, :]
 
+        if self.soft_visual_grounded_text_pool and use_text_routing:
+            if cached_text_tokens is None:
+                raise ValueError(
+                    "--soft_visual_grounded_text_pool requires cached text tokens"
+                )
+            if text_part_tokens is None:
+                raise ValueError(
+                    "--soft_visual_grounded_text_pool requires preliminary text_part_tokens"
+                )
+            refined_text, attention_entropy = self._soft_visual_grounded_text_pooling(
+                visual_tokens=visual_tokens,
+                routing_matrix=routing_matrix,
+                base_text_tokens=text_part_tokens,
+                cached_text_tokens=cached_text_tokens,
+                cached_text_token_mask=cached_text_token_mask,
+            )
+            text_part_tokens = refined_text                              # [B, 6, D]
+            global_text_token = text_part_tokens[:, 0, :]
+            local_text_tokens = text_part_tokens[:, 1:, :]
+            out["text_part_tokens"] = text_part_tokens
+            out["global_text_token"] = global_text_token
+            out["local_text_tokens"] = local_text_tokens
+            out["soft_grounded_text_attention_entropy"] = attention_entropy
+
+        if self.cosine_visual_grounded_text_pool and use_text_routing:
+            if cached_text_tokens is None:
+                raise ValueError(
+                    "--cosine_visual_grounded_text_pool requires cached text tokens"
+                )
+            if text_part_tokens is None:
+                raise ValueError(
+                    "--cosine_visual_grounded_text_pool requires preliminary "
+                    "text_part_tokens"
+                )
+            refined_text, attention_entropy, effective_support = (
+                self._cosine_visual_grounded_text_pooling(
+                    visual_tokens=visual_tokens,
+                    routing_matrix=routing_matrix,
+                    base_text_tokens=text_part_tokens,
+                    cached_text_tokens=cached_text_tokens,
+                    cached_text_token_mask=cached_text_token_mask,
+                )
+            )
+            text_part_tokens = refined_text                          # [B, 6, D]
+            global_text_token = text_part_tokens[:, 0, :]
+            local_text_tokens = text_part_tokens[:, 1:, :]
+            out["text_part_tokens"] = text_part_tokens
+            out["global_text_token"] = global_text_token
+            out["local_text_tokens"] = local_text_tokens
+            out["cosine_grounded_text_attention_entropy"] = attention_entropy
+            out["cosine_grounded_text_effective_support"] = effective_support
+            out["cosine_grounded_text_gate_mean"] = (
+                self.cosine_grounded_text_gate.mean().detach()
+            )
+            out["cosine_grounded_text_gate_abs_mean"] = (
+                self.cosine_grounded_text_gate.abs().mean().detach()
+            )
+
         # v162: grounded text routing — visually-routed semantic_visual_tokens
         # query per-codebook local text tokens (Stage-2 top-k_t pool). The
         # refined per-codebook text embed REPLACES the static pooled
@@ -3237,6 +4251,12 @@ class SigLIP2SemanticOTModel(nn.Module):
             out["text_part_tokens"]   = text_part_tokens
             out["global_text_token"]  = global_text_token
             out["local_text_tokens"]  = local_text_tokens
+
+        cibhash_visual_tokens = None
+        if self.cibhash_visual_projection_head:
+            cibhash_visual_tokens = self._project_cibhash_visual_tokens(
+                semantic_visual_tokens,
+            )                                                            # [B, 6, D]
 
         # 6) v32: train-only text injection into the quantizer input.
         # When `--text_inject_train_only=add` and the text path is active,
@@ -3562,8 +4582,32 @@ class SigLIP2SemanticOTModel(nn.Module):
             "routing_matrix":               routing_matrix,
             "routing_mean_effective_k":      routing_mean_effective_k.detach(),
             "routing_fraction_top1":         routing_fraction_top1.detach(),
+            "routing_visual_specificity_mean": r_out.get(
+                "visual_specificity_mean", None,
+            ),
+            "routing_visual_marginal_effective_ratio": r_out.get(
+                "visual_marginal_effective_ratio", None,
+            ),
+            "routing_visual_consensus_candidate_ratio": (
+                _cls_verified_diag["common_candidate_ratio"]
+                if _cls_verified_diag is not None else None
+            ),
+            "routing_visual_cls_low_ratio": (
+                _cls_verified_diag["global_low_ratio"]
+                if _cls_verified_diag is not None else None
+            ),
+            "routing_visual_consensus_mask_ratio": r_out.get(
+                "visual_consensus_mask_ratio", None,
+            ) if _cls_verified_diag is None else _cls_verified_diag["mask_ratio"],
+            "routing_visual_consensus_remaining_ratio": r_out.get(
+                "visual_consensus_remaining_ratio", None,
+            ) if _cls_verified_diag is None else _cls_verified_diag["remaining_ratio"],
+            "routing_visual_consensus_fallback": r_out.get(
+                "visual_consensus_fallback", None,
+            ) if _cls_verified_diag is None else _cls_verified_diag["fallback"],
             "local_semantic_visual_tokens": local_semantic_visual_tokens,
             "semantic_visual_tokens":       semantic_visual_tokens,
+            "cibhash_visual_tokens":         cibhash_visual_tokens,
             # entropic-OT cost (W_e) per sample, [B]. Used by the Wasserstein
             # alignment loss to push visual_adapter and text_adapter into a
             # shared space where the patch <-> text-part coupling is "cheap".

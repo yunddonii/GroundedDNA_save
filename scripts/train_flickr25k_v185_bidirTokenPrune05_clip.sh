@@ -77,6 +77,7 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --routing_adaptive_topp_min 0.3 \
     --routing_adaptive_topp_max 0.7 \
     --codon_residual_gamma 0.0 \
+    ${DISABLE_TEXT:+--disable_text_supervision} \
     --num_codons_per_codebook "${NUM_CODONS:-3}" \
     --text_embed_transform partial_whiten \
     --text_whiten_npz "$WHITEN_NPZ" \
