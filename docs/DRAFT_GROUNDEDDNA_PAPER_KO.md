@@ -238,7 +238,18 @@ DNA code만으로 해석할 때는 같은 codon으로 변환된 codeword들을 �
 
 다음 실험은 성능·해석의 원인을 인과적으로 규명하기 위한 것으로 완료 후 갱신한다.
 
-**A2 (no text supervision) — 완료.** 모든 text-derived routing/loss를 제거하고 visual-only codebook_mean anchor로 대체한 결과, 검색 성능이 하락한다: Flickr25k −0.012, **MS-COCO −0.050**(mAP@5000). MS-COCO에서는 텍스트 감독을 제거하면 GroundedDNA(0.760)가 CIBHash(0.816) 아래로 내려가므로, 텍스트 감독이 경쟁력의 핵심임을 알 수 있다. DNA-unique ratio도 크게 감소한다(Flickr 0.380→0.262, MS-COCO 0.207→0.128). A1(집계 방식)이 성능에 영향이 없었던 것과 대조적으로, A2(텍스트 감독 유무)는 실질적 효과를 보인다. 즉 성능의 원인은 *집계 trick*이 아니라 *텍스트 감독의 존재* 자체이다. 다만 정직하게 보고하면, NMI·B1 같은 해석 proxy는 텍스트 감독 제거 시 하락하지 않는다(frozen CLIP backbone 자체가 text-aligned이기 때문). 따라서 텍스트 감독의 측정 가능한 이점은 검색·코드 다양성이며, 해석 가능성 주장은 NMI가 아니라 held-out decoding과 intervention에 근거해야 한다.
+**A2 (no text supervision) — 완료(4개 데이터셋).** 모든 text-derived routing/loss를 제거하고 visual-only codebook_mean anchor로 대체하면 검색 성능이 4개 데이터셋 모두에서 일관되게 하락한다(표 5). 하락폭은 −0.012(Flickr25k)에서 −0.052(CIFAR10)이며 평균 약 −0.036이다.
+
+**표 5. 텍스트 감독 ablation(A2, mAP@R).**
+
+| Dataset | A0 (text) | A2 (no-text) | Δ |
+|---|---:|---:|---:|
+| Flickr25k @5000 | 0.8740 | 0.8617 | −0.0123 |
+| MS-COCO @5000 | 0.8102 | 0.7598 | −0.0504 |
+| CIFAR-10 @1000 | 0.9085 | 0.8563 | −0.0522 |
+| NUS-WIDE @5000 | 0.8322 | 0.8020 | −0.0302 |
+
+A1(집계 방식)이 성능에 영향이 없었던 것(±0.003)과 대조적으로, A2(텍스트 감독 유무)는 4개 데이터셋 모두에서 실질적 효과를 보인다. MS-COCO에서는 텍스트 감독을 제거하면 GroundedDNA(0.760)가 CIBHash(0.816) 아래로 내려가므로, 텍스트 감독이 경쟁력의 핵심임을 알 수 있다. DNA-unique ratio도 크게 감소한다(Flickr 0.380→0.262, MS-COCO 0.207→0.128). A1(집계 방식)이 성능에 영향이 없었던 것과 대조적으로, A2(텍스트 감독 유무)는 실질적 효과를 보인다. 즉 성능의 원인은 *집계 trick*이 아니라 *텍스트 감독의 존재* 자체이다. 다만 정직하게 보고하면, NMI·B1 같은 해석 proxy는 텍스트 감독 제거 시 하락하지 않는다(frozen CLIP backbone 자체가 text-aligned이기 때문). 따라서 텍스트 감독의 측정 가능한 이점은 검색·코드 다양성이며, 해석 가능성 주장은 NMI가 아니라 held-out decoding과 intervention에 근거해야 한다.
 - **A4 (single global codebook):** 6개 slot codebook을 동일 prototype 예산의 단일 codebook으로 교체. Compositional decomposition의 기여를 측정한다.
 - **A4 (single global codebook):** 6개 slot codebook을 동일 prototype 예산의 단일 codebook으로 교체. Compositional decomposition의 기여를 측정한다.
 - **Held-out codon decoding:** train으로 만든 `(slot, codon) → concept` 사전으로 unseen test 이미지의 concept를 예측. CIBHash의 6-bit chunk decoding을 control로 사용한다.

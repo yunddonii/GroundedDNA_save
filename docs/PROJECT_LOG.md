@@ -18850,3 +18850,31 @@ Execution: P0 code first (val selection), then launch P1 ablations + MSCOCO swee
 🟢 **Contrast A1 vs A2.** A1 (pooling method) had NO effect (±0.003); A2 (text supervision presence) has a REAL effect (−0.012 to −0.050). This cleanly separates the two: the *aggregation trick* does not matter, but *having text supervision at all* does. Confirms the revised paper story — the contribution is text-supervised structure, not a pooling mechanism.
 
 🧰 Result dirs: `260715+...flickr_A2_noText_wholeimg`, `260715+...mscoco_A2_noText_wholeimg`.
+
+---
+
+## 2026-07-15 — A2 (no text supervision) COMPLETE on all 4 datasets
+
+📊 **Text-supervision ablation, full 4-dataset (mAP@R):**
+
+| Dataset | A0 (text) | A2 (no-text) | Δ (A2−A0) |
+|---|---:|---:|---:|
+| Flickr25k @5000 | 0.8740 | 0.8617 | −0.0123 |
+| MSCOCO @5000 | 0.8102 | 0.7598 | **−0.0504** |
+| CIFAR10 @1000 | 0.9085 | 0.8563 | **−0.0522** |
+| NUS-WIDE @5000 | 0.8322 | 0.8020 | −0.0302 |
+
+🔑 **Consistent, sizeable drop across ALL 4 datasets** (−0.012 to −0.052; mean ≈ −0.036). Removing text supervision hurts retrieval everywhere, most on MSCOCO/CIFAR10 (−0.05). This firmly establishes **text supervision as a real, dataset-general contributor** — the paper's central claim now has clean ablation support on all 4 benchmarks.
+
+🟢 **Ablation study — consolidated conclusion.** Two contrasting single-delta ablations settle the mechanism question:
+- **A1 (aggregation method: mean-pool ↔ EOS): NO effect** (±0.003). The text-pooling trick is irrelevant.
+- **A2 (text supervision present ↔ absent): LARGE effect** (−0.012 to −0.052 on all 4 datasets).
+
+Therefore GroundedDNA's performance comes from **having text supervision at all**, not from any specific token-aggregation mechanism. Combined with the earlier retractions (bidirectional pruning = fp-noise no-op; real pruning F1 = harmful; mean-pooling A1 = no benefit), the paper's contribution is correctly located in the **text-supervised compositional codebook architecture**, and the standard EOS pooling is used for text aggregation.
+
+🧰 Result dirs: `260715+...{nuswide,cifar10}_...A2noText...`.
+
+### Deferred (need attended session / lower priority)
+- **A4 single global codebook:** `--num_codebooks 1` crashes (ZeroDivisionError; the DNA/routing path hardcodes 6 semantic parts). Requires architecture work (single codebook × 6K prototypes → 18-base decode) — unsafe to implement unattended. Documented for a follow-up session.
+- **Task 3 MSCOCO hyperparameter sweep:** lower priority now that the 4-base codon already lifts MSCOCO to SOTA at matched 48-bit budget.
+- **Task 4 FAIRrank multi-crop on NUS-WIDE/CIFAR10:** needs expensive crop-cache extraction (193K/60K images); deferred.
