@@ -176,8 +176,10 @@ DNA code만으로 해석할 때는 같은 codon으로 변환된 codeword들을 �
 - **Query/Database:** 공식 test를 query, 공식 database를 retrieval DB로 사용한다. 모든 데이터셋에서 `test ∩ database = ∅`, `train ∩ test = ∅`임을 확인하였다.
 - **Relevance:** multi-label 데이터셋은 최소 한 개의 label을 공유하면 relevant로 정의한다(deep hashing 표준).
 - **평가지표(main):** deep hashing 관행에 따라 데이터셋별 **mAP@R**(CalcTopMap 규약)을 주 지표로 보고한다. Cutoff는 CIFAR-10 @1000, 나머지 @5000이다. 참고로 full mAP도 함께 보고한다.
-- **Baselines:** CIBHash, CIMON, MLS3RDUH를 동일 backbone·동일 36-bit·동일 evaluation code로 재학습한다. 공정성을 위해 각 baseline은 5 epoch마다 평가하여 **best epoch**을 선택한다(우리 모델의 best-checkpoint 선택과 대칭).
-- **재현성 한계(고지).** 현재 checkpoint 선택이 official test mAP에 의존한다(test-based selection). 이는 절대 수치에 낙관적 편향을 줄 수 있으며, validation-based protocol로의 이전이 필요하다(§5). 아래의 ablation은 모두 동일 protocol에서 상대 비교(delta)이므로 이 편향의 영향을 받지 않는다.
+- **Baselines:** CIBHash, CIMON, MLS3RDUH를 동일 backbone·동일 36-bit·동일 evaluation code로 재학습한다.
+- **모델 선택 protocol (leakage-free).** 모든 방법이 **공식 test를 단 한 번만** 사용한다. Epoch 선택은 official test가 아니라 **train에서 분리한 held-out validation split**으로 수행한다: 각 데이터셋의 train을 optimization-train 90% / validation query 10%로 나누고(seed 고정, 단일 label 데이터셋은 class-stratified), 5 epoch마다 **validation query vs optimization-train DB**로 검색 평가하여 **val mAP@R이 최대인 epoch**의 checkpoint를 선택한 뒤, 그 checkpoint로 공식 test를 1회 평가한다. Gradient 갱신·codebook 초기화·text whitening 통계 추정은 모두 optimization-train만 관측한다. Baseline도 동일한 val split·동일한 평가 주기(5 epoch)·동일한 선택 지표(val mAP@R)로 epoch을 선택하여 protocol을 완전히 대칭으로 맞춘다.
+- **선택 편향의 크기(측정값).** 이 protocol로의 이전은 단순한 형식이 아니다. 이전 protocol(official test mAP로 checkpoint 선택)은 **방법마다 다른 크기의 이득**을 준다: GroundedDNA는 test 기반 선택으로 +0.005~+0.025(mAP@R)를 얻는 반면, baseline들은 +0.000~+0.004에 그친다. Baseline은 학습이 plateau에 도달해 val이 test-최적 epoch을 거의 그대로 집어내지만, 우리 모델은 epoch 간 변동이 커 선택 이득을 더 많이 흡수했다. 즉 test 기반 선택으로 두 방법을 비교하면 **우리에게 유리한 비대칭**이 발생하며, 본 논문의 모든 수치는 이를 제거한 값이다.
+- **Whitening 통계.** Text partial-whitening 행렬(μ, Σ의 고유분해)은 optimization-train의 caption에서만 추정한다. 초기 구현은 caption이 존재하는 모든 행에서 추정하여 Flickr25k(test 2,000행)와 CIFAR-10(query 1,000행)의 test caption 통계가 학습에 유입되었다(transductive leak). 영향은 작았으나(변환된 text embedding cos 0.990) protocol 위반이므로 제거하였다.
 
 ### 4.2 검색 성능 비교
 
