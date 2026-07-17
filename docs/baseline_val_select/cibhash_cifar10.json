@@ -1,0 +1,104 @@
+{
+  "trial": "cibhash_cifar10_clip_mapr_unsup60",
+  "dataset": "CIFAR10",
+  "bit": 36,
+  "map_at_r_cutoff": 1000,
+  "val_split": {
+    "ratio": 0.1,
+    "seed": 42,
+    "strategy": "class-stratified over 10 classes",
+    "n_val": 500,
+    "n_opt_train": 4500
+  },
+  "selected_epoch_by_val": 4,
+  "test_mAP_at_R_val_selected": 0.9004189967136207,
+  "test_mAP_at_R_final_epoch": 0.8984107060773895,
+  "test_mAP_at_R_test_selected_LEAKY": 0.9009873339954961,
+  "selection_bias_leaky_minus_val": 0.0005683372818754417,
+  "per_epoch": [
+    {
+      "epoch": 4,
+      "val_mAP_at_R": 0.8735623819513504,
+      "val_mAP": 0.8550789977469645,
+      "test_mAP_at_R": 0.9004189967136207,
+      "test_mAP": 0.8336925012987535
+    },
+    {
+      "epoch": 9,
+      "val_mAP_at_R": 0.8674828273702787,
+      "val_mAP": 0.8468589739601733,
+      "test_mAP_at_R": 0.8984232494888234,
+      "test_mAP": 0.8243756044253471
+    },
+    {
+      "epoch": 14,
+      "val_mAP_at_R": 0.8627606966476009,
+      "val_mAP": 0.8408101701276456,
+      "test_mAP_at_R": 0.9009873339954961,
+      "test_mAP": 0.8207683423349006
+    },
+    {
+      "epoch": 19,
+      "val_mAP_at_R": 0.8555570722650584,
+      "val_mAP": 0.8325132884152386,
+      "test_mAP_at_R": 0.9001986898139744,
+      "test_mAP": 0.8130082938015544
+    },
+    {
+      "epoch": 24,
+      "val_mAP_at_R": 0.8502839977395327,
+      "val_mAP": 0.8263671247814173,
+      "test_mAP_at_R": 0.899657757885231,
+      "test_mAP": 0.8100932066628607
+    },
+    {
+      "epoch": 29,
+      "val_mAP_at_R": 0.8487414329520727,
+      "val_mAP": 0.8243879908062586,
+      "test_mAP_at_R": 0.8982051111393962,
+      "test_mAP": 0.8076541345930282
+    },
+    {
+      "epoch": 34,
+      "val_mAP_at_R": 0.8466893875413813,
+      "val_mAP": 0.8214038824100403,
+      "test_mAP_at_R": 0.8978432973612843,
+      "test_mAP": 0.8047911729028518
+    },
+    {
+      "epoch": 39,
+      "val_mAP_at_R": 0.8447380538682614,
+      "val_mAP": 0.8194718925184241,
+      "test_mAP_at_R": 0.899328663052946,
+      "test_mAP": 0.8041176967042548
+    },
+    {
+      "epoch": 44,
+      "val_mAP_at_R": 0.8430703926494623,
+      "val_mAP": 0.8169502584008742,
+      "test_mAP_at_R": 0.8979745574883964,
+      "test_mAP": 0.8019518892998058
+    },
+    {
+      "epoch": 49,
+      "val_mAP_at_R": 0.842354939014073,
+      "val_mAP": 0.8157930817412818,
+      "test_mAP_at_R": 0.898416863063274,
+      "test_mAP": 0.800673631340219
+    },
+    {
+      "epoch": 54,
+      "val_mAP_at_R": 0.8425752933338856,
+      "val_mAP": 0.815578926152563,
+      "test_mAP_at_R": 0.8984143571284549,
+      "test_mAP": 0.7997683264097832
+    },
+    {
+      "epoch": 59,
+      "val_mAP_at_R": 0.8418333701088698,
+      "val_mAP": 0.8148496004124258,
+      "test_mAP_at_R": 0.8984107060773895,
+      "test_mAP": 0.7999374766235235
+    }
+  ]
+}

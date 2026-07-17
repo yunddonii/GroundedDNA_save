@@ -1,0 +1,104 @@
+{
+  "trial": "cimon_flickr25k_clip_mapr_unsup60",
+  "dataset": "Flickr25k",
+  "bit": 36,
+  "map_at_r_cutoff": 5000,
+  "val_split": {
+    "ratio": 0.1,
+    "seed": 42,
+    "strategy": "random (multi-label split)",
+    "n_val": 500,
+    "n_opt_train": 4500
+  },
+  "selected_epoch_by_val": 34,
+  "test_mAP_at_R_val_selected": 0.830800162863044,
+  "test_mAP_at_R_final_epoch": 0.8292654377064737,
+  "test_mAP_at_R_test_selected_LEAKY": 0.830800162863044,
+  "selection_bias_leaky_minus_val": 0.0,
+  "per_epoch": [
+    {
+      "epoch": 4,
+      "val_mAP_at_R": 0.7017951022470081,
+      "val_mAP": 0.7017951022470081,
+      "test_mAP_at_R": 0.7821700893234974,
+      "test_mAP": 0.6885599647705938
+    },
+    {
+      "epoch": 9,
+      "val_mAP_at_R": 0.7222389474080658,
+      "val_mAP": 0.7222389474080658,
+      "test_mAP_at_R": 0.808345753037381,
+      "test_mAP": 0.7099949344066393
+    },
+    {
+      "epoch": 14,
+      "val_mAP_at_R": 0.7320740383574666,
+      "val_mAP": 0.7320740383574666,
+      "test_mAP_at_R": 0.81941582729519,
+      "test_mAP": 0.72027543815735
+    },
+    {
+      "epoch": 19,
+      "val_mAP_at_R": 0.7387509877082352,
+      "val_mAP": 0.7387509877082352,
+      "test_mAP_at_R": 0.8252766049458937,
+      "test_mAP": 0.7262158938897105
+    },
+    {
+      "epoch": 24,
+      "val_mAP_at_R": 0.7435441526437915,
+      "val_mAP": 0.7435441526437915,
+      "test_mAP_at_R": 0.8296398854371689,
+      "test_mAP": 0.7310323221224669
+    },
+    {
+      "epoch": 29,
+      "val_mAP_at_R": 0.7408108117198334,
+      "val_mAP": 0.7408108117198334,
+      "test_mAP_at_R": 0.828006542474255,
+      "test_mAP": 0.7289181220793265
+    },
+    {
+      "epoch": 34,
+      "val_mAP_at_R": 0.7453617653468263,
+      "val_mAP": 0.7453617653468263,
+      "test_mAP_at_R": 0.830800162863044,
+      "test_mAP": 0.7328571327032057
+    },
+    {
+      "epoch": 39,
+      "val_mAP_at_R": 0.7427428599079657,
+      "val_mAP": 0.7427428599079657,
+      "test_mAP_at_R": 0.8301627311380612,
+      "test_mAP": 0.7315872800995812
+    },
+    {
+      "epoch": 44,
+      "val_mAP_at_R": 0.7435368043261315,
+      "val_mAP": 0.7435368043261315,
+      "test_mAP_at_R": 0.8307850596124201,
+      "test_mAP": 0.7324045806627086
+    },
+    {
+      "epoch": 49,
+      "val_mAP_at_R": 0.7394432983919698,
+      "val_mAP": 0.7394432983919698,
+      "test_mAP_at_R": 0.8288317210290643,
+      "test_mAP": 0.7297279049716882
+    },
+    {
+      "epoch": 54,
+      "val_mAP_at_R": 0.7415491388651204,
+      "val_mAP": 0.7415491388651204,
+      "test_mAP_at_R": 0.8297639517199172,
+      "test_mAP": 0.7304973306136437
+    },
+    {
+      "epoch": 59,
+      "val_mAP_at_R": 0.740217866754283,
+      "val_mAP": 0.740217866754283,
+      "test_mAP_at_R": 0.8292654377064737,
+      "test_mAP": 0.7289631920726329
+    }
+  ]
+}
