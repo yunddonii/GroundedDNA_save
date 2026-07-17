@@ -98,8 +98,5 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --text_code_kl_conf_threshold 0.2 \
     --text_code_kl_skip_global \
     --text_hash_ntxent_skip_global \
-    --bidirectional_token_prune \
-    --bidirectional_token_prune_visual_ratio "$BI_V" \
-    --bidirectional_token_prune_text_ratio "$BI_T" \
-    --eval_cache_dir "${EVAL_CACHE:-$CACHE}" \
+    --eval_cache_dir "$CACHE" \
     -ev -s 2>&1 | tee "$LOG"

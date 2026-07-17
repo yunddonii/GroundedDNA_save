@@ -18931,3 +18931,27 @@ Together these locate GroundedDNA's contribution precisely: **text supervision +
 🟢 **Updated MSCOCO champion: F2 whole-image + cibhash_ntxent 1.5 (mAP@5000 0.8252, 36-bit).** GroundedDNA is now mAP@R SOTA on all 4 datasets at 36-bit (Flickr 0.874, MSCOCO 0.825, NUS-WIDE 0.832, CIFAR10 0.909).
 
 🧰 Result dir: `260715+...mscoco_F2sweep_C_...cb1.5...`.
+
+---
+
+## 2026-07-17 — Task 4: FAIRrank multi-crop on NUS-WIDE — REJECTED (hurts on every axis); CIFAR10 N/A
+
+🎯 **Task 4.** Apply FAIRrank L8K3 multi-crop training to NUS-WIDE (and CIFAR10) — the reverse of the whole-image unification — and compare.
+
+🗂️ **Cache build (efficient).** FAIRrank is a TRAINING-only augmentation (DB is evaluated whole-image), so crops were extracted for **train+test only (12,600 imgs)** instead of all 195,834 → **34 GB instead of ~531 GB**. Built `cache/nuswide_clip_FAIRrankL8K3_tokens`: visual_tokens (12600, **588**, 768) = 3 crops × 196 patches (+2 aug views), **plus text_tokens (12600, 6, 32, 512) spliced from the whole-image tokens cache** — text tokens depend only on captions, not on visual crops, so they transfer exactly. This let the FAIRrank run use the **identical champion recipe** (BI 1.0/1.0 mean-pool + cibhash 1.5) instead of an EOS workaround → clean single-delta.
+
+📊 **NUS-WIDE: whole-image vs FAIRrank multi-crop (identical recipe; train view is the ONLY delta; both eval whole-image on the 193K DB):**
+
+| training view | mAP@5000 | full mAP | NMI | B1 lift | DNA-uniq |
+|---|---:|---:|---:|---:|---:|
+| **whole-image (champion)** | **0.8322** | **0.6061** | **0.668** | **0.219** | 0.142 |
+| FAIRrank L8K3 multi-crop | 0.8191 | 0.5937 | 0.564 | 0.205 | 0.219 |
+| Δ (FAIRrank − whole) | **−0.0131** | −0.0124 | **−0.104** | −0.014 | +0.077 |
+
+🔴 **Verdict: FAIRrank multi-crop REJECTED on NUS-WIDE.** It hurts retrieval (−0.013 mAP@R), inter-codebook structure (NMI −0.104) and text-grounding (B1 −0.014). Only DNA-uniq rises (+0.077), which does not convert to retrieval or structure. FAIRrank was designed for fine-grained single-object CUB; on multi-object web photos the crops discard scene-level context that NUS-WIDE retrieval depends on.
+
+🚫 **CIFAR10 FAIRrank: not applicable.** CIFAR10 images are 32×32 upscaled to 224 — RandomResizedCrop sub-regions contain no additional detail (pure upsampling noise), and the byte-hash cache has no path-list for the crop extractor. Running it would measure nothing meaningful. Documented as N/A rather than producing a vacuous number.
+
+🟢 **This VALIDATES the whole-image unification** (2026-07-14 user decision). The structurally clean choice (all 4 datasets train+infer whole-image) is also the empirically better one: FAIRrank costs −0.004/−0.006 on Flickr/MSCOCO and −0.013 on NUS-WIDE. **No dataset benefits from multi-crop training.** The paper can drop FAIRrank entirely with no performance argument against it.
+
+🧰 Artifacts: `cache/nuswide_clip_FAIRrankL8K3_{trainonly,testonly,tokens}`, result dir `260717+...nuswide_v185_sweep_FAIRrankChampion_...cb1.5...`.
