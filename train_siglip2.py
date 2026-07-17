@@ -342,16 +342,21 @@ def _build_active_loss_types(args) -> list:
 
 
 def _mid_train_eval(model, loader, device, distance_mode: str, codebook_size: int,
-                    map_at_r: Optional[int] = None):
-    """Quick retrieval + collapse eval on a single (test) split.
+                    map_at_r: Optional[int] = None,
+                    db_loader=None):
+    """Quick retrieval + collapse eval on a single split.
 
-    Treats the split as both query and db with self-match removed. Uses
-    `extraction_siglip2.encode_split` + `evaluation_siglip2.evaluate_*` so
+    Uses `extraction_siglip2.encode_split` + `evaluation_siglip2.evaluate_*` so
     that mid-training metrics are computed by the SAME functions used at
     final evaluation -- no metric drift between checkpoints.
 
-    NOTE: mid-eval runs on the small test split (query == db, self-removed), so
-    the reported mAP@R is a proxy on that split, not the full test-vs-DB number.
+    Two modes:
+      * db_loader is None (legacy): the split is both query and db, with
+        self-match removed. Runs on the official test split -- this is the
+        LEAKY path, kept only for --val_split_ratio 0.0 runs.
+      * db_loader given (P0 protocol): `loader` is the held-out val_query and
+        `db_loader` is the disjoint optimization-train db, mirroring the real
+        query-vs-database task. No self-match removal (splits are disjoint).
     """
     from extraction_siglip2 import encode_split
     from evaluation_siglip2 import evaluate_retrieval, evaluate_code_collapse
@@ -360,17 +365,21 @@ def _mid_train_eval(model, loader, device, distance_mode: str, codebook_size: in
     model.eval()
     try:
         ext = encode_split(model, loader, device, split_name="mid-eval")
+        ext_db = (
+            ext if db_loader is None
+            else encode_split(model, db_loader, device, split_name="mid-eval-db")
+        )
     finally:
         if was_training:
             model.train()
     retrieval = evaluate_retrieval(
-        ext, ext,
+        ext, ext_db,
         distance_mode=distance_mode,
         precision_at_k_list=(1, 5, 10, 50, 100),
-        remove_self_match=True,
+        remove_self_match=(db_loader is None),
         map_at_r=map_at_r,
     )
-    collapse = evaluate_code_collapse(ext, codebook_size=codebook_size)
+    collapse = evaluate_code_collapse(ext_db, codebook_size=codebook_size)
     return retrieval, collapse
 
 
@@ -467,6 +476,44 @@ def main(args: Config):
         dataset=testset, batch_size=args.batch_size,
         shuffle=False, num_workers=args.num_workers, drop_last=True,
     )
+
+    # ---------- P0: held-out validation protocol ----------------------------
+    # Carve val_query out of TRAIN. Everything downstream that previously saw
+    # the full trainset (codebook init, training loop) now sees only the
+    # optimization-train rows, and mid-eval switches from the official test
+    # split to val_query-vs-val_db. The test split is then touched exactly once,
+    # at final evaluation, with the val-selected checkpoint.
+    val_query_loader = None
+    val_db_loader    = None
+    _val_ratio = float(getattr(args, "val_split_ratio", 0.0) or 0.0)
+    if _val_ratio > 0.0:
+        from torch.utils.data import Subset
+        from val_split import carve_val_indices, get_train_labels
+
+        _n_train = len(trainset)
+        _opt_idx, _val_idx, _strat = carve_val_indices(
+            get_train_labels(trainset),
+            ratio=_val_ratio,
+            seed=int(getattr(args, "val_split_seed", 42)),
+        )
+
+        train_loader = torch.utils.data.DataLoader(
+            dataset=Subset(trainset, _opt_idx.tolist()), batch_size=args.batch_size,
+            shuffle=True, num_workers=args.num_workers, drop_last=True,
+        )
+        val_query_loader = torch.utils.data.DataLoader(
+            dataset=Subset(trainset, _val_idx.tolist()), batch_size=args.batch_size,
+            shuffle=False, num_workers=args.num_workers, drop_last=False,
+        )
+        val_db_loader = torch.utils.data.DataLoader(
+            dataset=Subset(trainset, _opt_idx.tolist()), batch_size=args.batch_size,
+            shuffle=False, num_workers=args.num_workers, drop_last=False,
+        )
+        args._val_protocol = True
+        print(f"[val-protocol] P0 ENABLED: train {_n_train} -> opt-train {len(_opt_idx)} "
+              f"+ val_query {len(_val_idx)} ({_strat}, seed={args.val_split_seed}). "
+              f"mid-eval = val_query vs val_db(opt-train); test split held out until "
+              f"final eval. Checkpoint selected on val {args.val_select_metric}.")
 
     # ---------- v41 (5-G): text-supervised codebook init --------------------
     # Replace the random Gaussian codebook init with K vectors derived from
@@ -899,7 +946,11 @@ def main(args: Config):
 
         with torch.no_grad():
             model.eval()
-            val_result = one_epoch(train=False, loader=test_loader, epoch=e)
+            val_result = one_epoch(
+                train=False,
+                loader=(val_query_loader if val_query_loader is not None else test_loader),
+                epoch=e,
+            )
 
         # tensorboard
         for loss in loss_types:
@@ -919,10 +970,13 @@ def main(args: Config):
                 from evaluation_siglip2 import resolve_map_at_r as _resolve_map_at_r
                 _mid_map_r = _resolve_map_at_r(getattr(args, "dataset", None))
                 retrieval, collapse = _mid_train_eval(
-                    model, test_loader, args.device,
+                    model,
+                    (val_query_loader if val_query_loader is not None else test_loader),
+                    args.device,
                     distance_mode=distance_mode,
                     codebook_size=codebook_size_cf,
                     map_at_r=_mid_map_r,
+                    db_loader=val_db_loader,
                 )
                 eval_row = {
                     "eval_mAP":                          retrieval["mAP"],
@@ -968,10 +1022,21 @@ def main(args: Config):
         # Track best mid-eval mAP checkpoint. SigLIP2 backbone is frozen so
         # only the trainable adapter / codebook params get saved — small
         # disk footprint (<300 MB), safe to keep alongside final.
-        _eval_mAP = float(eval_row.get("eval_mAP", -1.0)) if eval_row else -1.0
+        # Under the P0 protocol this score comes from the held-out val split and
+        # defaults to mAP@R (the reported paper metric); without P0 it is the
+        # legacy test-split mAP.
+        _sel_key = (
+            "eval_mAP_at_R"
+            if (getattr(args, "_val_protocol", False)
+                and getattr(args, "val_select_metric", "mAP_at_R") == "mAP_at_R"
+                and "eval_mAP_at_R" in eval_row)
+            else "eval_mAP"
+        )
+        _eval_mAP = float(eval_row.get(_sel_key, -1.0)) if eval_row else -1.0
         if _eval_mAP > getattr(args, "_best_mid_mAP", -1.0):
             args._best_mid_mAP = _eval_mAP
             args._best_mid_epoch = int(e)
+            args._best_mid_metric = _sel_key
             best_model_path = os.path.join(args.save_model_state_path, "model_state_dict_best.pth")
             best_crit_path  = os.path.join(args.save_model_state_path, "criterion_state_dict_best.pth")
             torch.save(model.state_dict(),     best_model_path)
@@ -998,7 +1063,11 @@ def main(args: Config):
                 best_model_path = os.path.join(args.save_model_state_path, "model_state_dict_best.pth")
                 if os.path.exists(best_model_path):
                     import shutil
-                    print(f"[best-ckpt] swapping final checkpoint with best (epoch {args._best_mid_epoch}, mAP={args._best_mid_mAP:.4f}) for final eval")
+                    _sel_src = "val" if getattr(args, "_val_protocol", False) else "test(LEAKY)"
+                    print(f"[best-ckpt] swapping final checkpoint with best "
+                          f"(epoch {args._best_mid_epoch}, "
+                          f"{getattr(args, '_best_mid_metric', 'eval_mAP')}={args._best_mid_mAP:.4f} "
+                          f"on {_sel_src}) for final eval")
                     shutil.copy2(best_model_path, model_path)
                     best_crit_path = os.path.join(args.save_model_state_path, "criterion_state_dict_best.pth")
                     if os.path.exists(best_crit_path):

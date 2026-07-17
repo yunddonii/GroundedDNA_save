@@ -18955,3 +18955,74 @@ Together these locate GroundedDNA's contribution precisely: **text supervision +
 🟢 **This VALIDATES the whole-image unification** (2026-07-14 user decision). The structurally clean choice (all 4 datasets train+infer whole-image) is also the empirically better one: FAIRrank costs −0.004/−0.006 on Flickr/MSCOCO and −0.013 on NUS-WIDE. **No dataset benefits from multi-crop training.** The paper can drop FAIRrank entirely with no performance argument against it.
 
 🧰 Artifacts: `cache/nuswide_clip_FAIRrankL8K3_{trainonly,testonly,tokens}`, result dir `260717+...nuswide_v185_sweep_FAIRrankChampion_...cb1.5...`.
+
+---
+
+## 2026-07-17 — Evaluation protocol overhaul: test-selection leak quantified → P0 validation protocol + whitening leak found & fixed
+
+🎯 **Why.** Until today every reported number selected the checkpoint by **mid-eval mAP on the official test split** (`_best_mid_epoch` → `shutil.copy2(best, final)`). That is test-set-informed model selection: the reported number is an optimistic upper bound, not a held-out estimate. Two successive protocols were built to remove it.
+
+### 1. `--final_epoch_eval` (interim: leakage-free but arbitrary)
+
+Skips the best-ckpt swap and evaluates the FINAL-epoch weights. Removes the leak with no val split, but pins the model to epoch 60 with no evidence that epoch 60 is a good stopping point.
+
+**Selection bias, measured (best-ckpt − final-epoch), mAP@R:**
+
+| Dataset | best-ckpt (reported until now) | final-epoch | **bias** |
+|---|---:|---:|---:|
+| Flickr25k | 0.8740 | 0.8597 | **+0.014** |
+| MSCOCO | 0.8252 | 0.8158 | **+0.009** |
+| NUS-WIDE | 0.8322 | 0.8270 | **+0.005** |
+| CIFAR10 | 0.9085 | 0.8834 | **+0.025** |
+
+🔴 **The bias is NOT uniform across methods — this is the important part.** On CIFAR10 ours gains **+0.025** from checkpoint selection while CIBHash gains only **+0.003** (0.9010 → 0.8984). Comparing best-ckpt-to-best-ckpt therefore flatters us by ~0.022 on CIFAR10.
+
+**4-dataset comparison under final-epoch (ours epoch-60 vs baselines epoch-59):**
+
+| Dataset | Ours | CIBHash | CIMON | MLS3RDUH | verdict |
+|---|---:|---:|---:|---:|---|
+| Flickr25k | **0.8597** | 0.8119 | 0.8293 | 0.7811 | 🥇 +0.030 |
+| NUS-WIDE | **0.8270** | 0.8128 | 0.7874 | 0.7746 | 🥇 +0.014 |
+| MSCOCO | 0.8158 | **0.8159** | 0.6716 | 0.6423 | ⚖️ −0.0001 (tie) |
+| CIFAR10 | 0.8834 | **0.8984** | 0.8367 | 0.5793 | 🔴 −0.015 (2nd) |
+
+⚠️ **The "SOTA on all 4 datasets at 36-bit" claim does not survive.** Under a leak-free protocol it becomes SOTA on 2, tied on 1, second on 1. The earlier claim was partly an artifact of test-based checkpoint selection.
+
+### 2. Whitening matrix fitted on TEST captions (independent protocol defect — found while auditing)
+
+`text_whiten.npz` (partial-whitening μ, U, S for the text path) was built by `build_text_whiten_matrix.py`, which by default keeps **every row with `has_text=True`** — not just train rows. Verified by mapping split manifests to cache rows:
+
+| Dataset | whitening fit rows | contains test? |
+|---|---:|---|
+| **Flickr25k** | 25,000 (train 5,000 + **test 2,000** + DB 23,000) | 🔴 **LEAK** |
+| **CIFAR10** | 6,097 (train 5,000 + **query 1,000** + 97) | 🔴 **LEAK** |
+| MSCOCO | 10,000 (train only) | ✅ clean |
+| NUS-WIDE | 10,500 (train only) | ✅ clean |
+
+Test-caption statistics reached training on exactly the two datasets whose final-epoch verdicts are contested (Flickr's +0.030 win, CIFAR10's −0.015 loss). **Magnitude (Flickr, leaky vs opt-train fit):** μ cos 0.9919 / relative L2 0.166; W relative Frobenius 0.063; transformed text embeddings cos(leaky, clean) mean **0.9898**, min 0.9454. Small — unlikely to flip a 0.030 gap — but it is a protocol violation, not a modelling choice, so it is fixed rather than argued away.
+
+**Fix:** `build_text_whiten_matrix.py --row_index_npy` restricts the fit to given cache rows; `scripts/build_opt_train_rows.py` emits the optimization-train rows. Rebuilt for all 4 datasets as `text_whiten_optTrain.npz` (Flickr 25,000→4,500; CIFAR10 6,097→4,500; MSCOCO 10,000→9,000; NUS-WIDE 10,500→9,450).
+
+### 3. P0 validation protocol (the protocol of record)
+
+`--val_split_ratio 0.1` carves a held-out val query set **out of train**; nothing else changes:
+
+| stage | before (leaky) | P0 |
+|---|---|---|
+| gradient updates | train (100%) | **opt-train (90%)** |
+| text-supervised codebook init | train (100%) | **opt-train** |
+| whitening fit | all captioned rows (incl. test) | **opt-train** |
+| val loss | test split | **val_query** |
+| mid-eval retrieval | test self-retrieval | **val_query vs opt-train DB** |
+| checkpoint selection | test mAP | **val mAP@R** |
+| test split touched | every 5 epochs (12×) | **once, at final eval** |
+
+Design points: mid-eval became **query-vs-db** (disjoint val_query vs opt-train) instead of self-retrieval, mirroring the real task; the selection metric is **mAP@R**, matching the reported metric; the split is seeded and class-stratified for single-label (CIFAR10: 10 classes × 50), seeded-random for multi-label. The carve-out lives in **`val_split.py`, imported by both the trainer and the whitening-row builder** — duplicating it risked the two drifting apart and silently re-introducing the leak.
+
+🧪 **Verified:** smoke run shows `extract[mid-eval] 8/8` (500 val queries) + `extract[mid-eval-db] 71/71` (4,500 opt-train), split reproducible bit-exact across trainer and helper, CIFAR10 (`targets`, no `img_labels`) handled.
+
+⚠️ **Known caveat:** the val DB (4,500) is smaller than the mAP@R cutoff (5,000), so val selection is effectively mAP@all rather than a truncated-rank proxy. Both are monotone in ranking quality, so epoch ranking is preserved in practice; recorded for transparency.
+
+🧰 New/changed: `val_split.py`, `scripts/build_opt_train_rows.py`, `--val_split_ratio/--val_split_seed/--val_select_metric` (config.py), P0 wiring + query-vs-db mid-eval (train_siglip2.py), `--row_index_npy` (build_text_whiten_matrix.py), `scripts/queue_p0_gpu{4,5}.sh`.
+
+🔄 **Status:** P0 re-runs launched for all 4 datasets (clean whitening + val selection). Their numbers — not the best-ckpt ones — become the paper's table. Baselines need no re-run (`-ep 5` already produced per-epoch evals) but must be re-selected on a comparable val split for a fully symmetric comparison.

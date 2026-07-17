@@ -595,6 +595,22 @@ class Config():
             help='Leakage-free protocol: do NOT swap in the best-mid-eval '
                  'checkpoint; evaluate the FINAL-epoch weights. Removes '
                  'test-based checkpoint selection (mid-eval still logged).')
+        # ---- P0: held-out validation protocol (leakage-free epoch selection) --
+        # Carves a stratified subset out of the TRAIN split. Training uses only
+        # the remaining optimization-train rows; mid-eval retrieval runs
+        # val_query (held-out) vs val_db (= optimization-train) so the official
+        # test split is never touched before the single final evaluation.
+        # Checkpoint selection then uses val mAP@R instead of test mAP.
+        siglip2_arg.add_argument('--val_split_ratio', type=float, default=0.0,
+            help='P0 protocol: fraction of the TRAIN split held out as the '
+                 'validation query set for epoch selection (e.g. 0.1). '
+                 '0.0 = off (legacy: select on test = leaky).')
+        siglip2_arg.add_argument('--val_split_seed', type=int, default=42,
+            help='Seed for the deterministic train/val carve-out.')
+        siglip2_arg.add_argument('--val_select_metric', type=str,
+            default='mAP_at_R', choices=['mAP_at_R', 'mAP'],
+            help='Which validation metric selects the checkpoint under the P0 '
+                 'protocol. Default mAP@R = the reported paper metric.')
         siglip2_arg.add_argument('--share_codebook',
             dest='share_codebook', action='store_true', default=False,
             help='A4 ablation: tie all M slots to one shared codebook (slot 0). '

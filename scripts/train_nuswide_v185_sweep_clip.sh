@@ -57,6 +57,8 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --routing_adaptive_topp_max 0.7 \
     --codon_residual_gamma 0.0 \
     ${FINAL_EPOCH:+--final_epoch_eval} \
+    ${VAL_RATIO:+--val_split_ratio "$VAL_RATIO"} \
+    ${VAL_SEED:+--val_split_seed "$VAL_SEED"} \
     ${DISABLE_TEXT:+--disable_text_supervision} \
     --num_codons_per_codebook "${NUM_CODONS:-3}" \
     --text_embed_transform partial_whiten \

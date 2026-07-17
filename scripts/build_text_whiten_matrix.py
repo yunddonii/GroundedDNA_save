@@ -33,6 +33,13 @@ def main() -> None:
     ap.add_argument("--include_no_text", action="store_true",
                     help="If set, do NOT filter by has_text mask. Default "
                          "is to include only rows with valid captions.")
+    ap.add_argument("--row_index_npy", default=None,
+                    help="Path to an .npy of cache row indices to fit on "
+                         "(intersected with the has_text filter). Use this to "
+                         "restrict the whitening statistics to the "
+                         "optimization-train rows. Without it, EVERY captioned "
+                         "row is used -- which on Flickr25k includes the test "
+                         "and database splits (transductive leak).")
     ap.add_argument("--residualize_first", action="store_true",
                     help="If set, subtract T_global (slot 0) from each local "
                          "slot (1..5) BEFORE computing the covariance. The "
@@ -60,6 +67,15 @@ def main() -> None:
         keep_idx = np.where(ht)[0]
     else:
         keep_idx = np.arange(N)
+    if args.row_index_npy:
+        restrict = np.asarray(np.load(args.row_index_npy)).astype(np.int64).ravel()
+        before = len(keep_idx)
+        keep_idx = np.intersect1d(keep_idx, restrict)
+        print(f"[whiten] row restriction from {args.row_index_npy}: "
+              f"{before} captioned rows -> {len(keep_idx)} after intersecting with "
+              f"{len(np.unique(restrict))} allowed rows (leakage-free fit).")
+        if len(keep_idx) == 0:
+            raise SystemExit("[whiten] row restriction left 0 rows.")
     n_keep = len(keep_idx)
     if n_keep == 0:
         raise SystemExit("[whiten] no rows passed the has_text filter.")
@@ -113,6 +129,9 @@ def main() -> None:
         "rows_used": int(centered.shape[0]),
         "D": int(D),
         "residualize_first": bool(args.residualize_first),
+        "row_index_npy": (os.path.abspath(args.row_index_npy)
+                          if args.row_index_npy else None),
+        "leakage_free_fit": bool(args.row_index_npy),
         "top1_ratio": float(pos_S[0] / pos_S.sum()),
         "top5_ratio": float(pos_S[:5].sum() / pos_S.sum()),
     }
