@@ -36,20 +36,34 @@ def main() -> None:
     ap.add_argument("--dataset_dir", default="dataset")
     ap.add_argument("--cache_dir", required=True)
     ap.add_argument("--setting", default="setting1")
-    ap.add_argument("--val_split_ratio", type=float, required=True)
+    ap.add_argument("--val_split_ratio", type=float, default=None,
+                    help="Held-out fraction. Omit with --all_train.")
     ap.add_argument("--val_split_seed", type=int, default=42)
+    ap.add_argument("--all_train", action="store_true",
+                    help="Emit EVERY train row instead of carving a val split. "
+                         "For the P0 stage-2 refit, which trains on 100%% of "
+                         "train -- the whitening must then see all train rows "
+                         "(but still never test/database).")
     ap.add_argument("--out", required=True)
     args = ap.parse_args()
+    if not args.all_train and args.val_split_ratio is None:
+        ap.error("--val_split_ratio is required unless --all_train is given")
 
     root = os.path.join(args.dataset_dir, args.dataset)
     ds = DATASET[args.dataset](root, None, None, "train", args.setting,
                                siglip2_feature_cache_dir=args.cache_dir)
 
     # ---- identical carve-out to train_siglip2.py (shared definition) -------
-    opt_idx, val_idx, strat = carve_val_indices(
-        get_train_labels(ds), ratio=args.val_split_ratio, seed=args.val_split_seed,
-    )
-    n_train = len(opt_idx) + len(val_idx)
+    if args.all_train:
+        n_train = len(get_train_labels(ds))
+        opt_idx = np.arange(n_train)
+        val_idx = np.array([], dtype=np.int64)
+        strat = "ALL train rows (stage-2 refit; no val carve-out)"
+    else:
+        opt_idx, val_idx, strat = carve_val_indices(
+            get_train_labels(ds), ratio=args.val_split_ratio, seed=args.val_split_seed,
+        )
+        n_train = len(opt_idx) + len(val_idx)
 
     # ---- dataset index -> cache row ---------------------------------------
     row_map = cache_rows_for_dataset(ds, root)

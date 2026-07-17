@@ -22,6 +22,7 @@ CUDA_VISIBLE_DEVICES="$GPU" /home/yschoi/.conda/envs/dna_hashing/bin/python trai
     --routing_adaptive_topp --routing_adaptive_topp_min 0.3 --routing_adaptive_topp_max 0.7 \
     --codon_residual_gamma 0.0 --num_codons_per_codebook "$NUM_CODONS" ${FINAL_EPOCH:+--final_epoch_eval} \
     ${VAL_RATIO:+--val_split_ratio "$VAL_RATIO"} ${VAL_SEED:+--val_split_seed "$VAL_SEED"} \
+    ${STOP_EP:+--stop_after_epoch "$STOP_EP"} \
     --text_embed_transform partial_whiten --text_whiten_npz "$WHITEN_NPZ" --text_whiten_gamma 0.25 \
     --use_paired_aug_ntxent --lambda_ntxent 0.0 --ntxent_temperature 0.3 --ntxent_mode per_codebook \
     --ntxent_dynamic_tau --ntxent_dynamic_tau_alpha 0.3 \

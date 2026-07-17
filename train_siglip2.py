@@ -1046,7 +1046,9 @@ def main(args: Config):
         # Save ONLY the final-epoch checkpoint. Per-epoch intermediates were
         # ~1.5 GB each (SigLIP2 backbone serialized), filling /home quickly.
         # `args.best_save` is now a no-op for intermediate epochs.
-        if (e + 1) == args.epoch:
+        _stop_ep = getattr(args, "stop_after_epoch", None)
+        _is_stop_point = (_stop_ep is not None and e >= int(_stop_ep))
+        if (e + 1) == args.epoch or _is_stop_point:
             model_path = os.path.join(args.save_model_state_path, "model_state_dict.pth")
             crit_path  = os.path.join(args.save_model_state_path, "criterion_state_dict.pth")
             torch.save(model.state_dict(),     model_path)
@@ -1074,6 +1076,14 @@ def main(args: Config):
                         shutil.copy2(best_crit_path, crit_path)
                     # Reload model from best checkpoint for in-memory use too
                     model.load_state_dict(torch.load(best_model_path, map_location=args.device, weights_only=False))
+
+        if _is_stop_point:
+            _lr_now = optimizer.param_groups[0]["lr"]
+            print(f"[refit-stop] stopping after epoch {e} (E* chosen on val); "
+                  f"LR schedule left at T_max={args.epoch} so this matches epoch {e} "
+                  f"of a full {args.epoch}-epoch run (lr now {_lr_now:.3e}). "
+                  f"Trained on the FULL train split.")
+            break
 
     args.save_arg()
 

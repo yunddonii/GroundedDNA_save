@@ -74,6 +74,7 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     ${FINAL_EPOCH:+--final_epoch_eval} \
     ${VAL_RATIO:+--val_split_ratio "$VAL_RATIO"} \
     ${VAL_SEED:+--val_split_seed "$VAL_SEED"} \
+    ${STOP_EP:+--stop_after_epoch "$STOP_EP"} \
     ${DISABLE_TEXT:+--disable_text_supervision} \
     --num_codons_per_codebook "${NUM_CODONS:-3}" \
     --text_embed_transform partial_whiten \

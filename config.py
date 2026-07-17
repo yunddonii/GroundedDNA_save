@@ -607,6 +607,21 @@ class Config():
                  '0.0 = off (legacy: select on test = leaky).')
         siglip2_arg.add_argument('--val_split_seed', type=int, default=42,
             help='Seed for the deterministic train/val carve-out.')
+        # ---- P0 stage 2: refit on the full train split, stop at E* -----------
+        # The val split picks E* (the best epoch) from a 90% optimization-train
+        # run; stage 2 then refits on 100% of train and stops there, so the
+        # evaluated model saw all the training data while the epoch count was
+        # still chosen without touching test.
+        # `--epoch` MUST stay at the original budget (e.g. 60): the LR scheduler
+        # is built with T_max=args.epoch, so re-running with `-e 5` would
+        # complete a whole cosine cycle in 5 epochs and produce a completely
+        # different model than epoch 4 of a 60-epoch schedule. This flag stops
+        # the loop while leaving the schedule intact -- which also matches how
+        # the baselines' epoch_XXX.pth checkpoints were produced.
+        siglip2_arg.add_argument('--stop_after_epoch', type=int, default=None,
+            help='Stop training after this 0-indexed epoch, keeping the LR '
+                 'schedule defined by --epoch. Use with --final_epoch_eval to '
+                 'evaluate exactly this epoch (P0 stage-2 refit).')
         siglip2_arg.add_argument('--val_select_metric', type=str,
             default='mAP_at_R', choices=['mAP_at_R', 'mAP'],
             help='Which validation metric selects the checkpoint under the P0 '

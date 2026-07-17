@@ -376,6 +376,21 @@ class CachedFeatureDataset(Dataset):
         self.labels = np.array(labels, dtype=np.int64)
         self.paths = paths
 
+    def restrict_to(self, indices) -> None:
+        """Shrink this split in place to `indices` (P0 optimization-train).
+
+        Restricting the dataset's own rows/labels/paths -- rather than wrapping
+        it in a torch Subset -- is what keeps `idx` correct: `__getitem__`
+        returns its positional index, and MLS3RDUH (`x_feature[batch['idx']]`)
+        and CIMON (`S_1[batch['idx']][:, batch['idx']]`) use it to address
+        train-sized buffers. A Subset would pass through the ORIGINAL indices
+        while those buffers were sized to the subset, indexing out of range.
+        """
+        idx = np.asarray(indices, dtype=np.int64)
+        self.rows   = self.rows[idx]
+        self.labels = self.labels[idx]
+        self.paths  = [self.paths[int(i)] for i in idx]
+
     def __len__(self): return int(self.rows.shape[0])
 
     def __getitem__(self, idx: int) -> Dict[str, Any]:
@@ -633,6 +648,14 @@ class DeepHashBase(metaclass=ABCMeta):
         g = parser.add_argument_group(BOLD + 'Train Loop' + END)
         g.add_argument('-me', '--max_epoch', default=60, type=int)
         g.add_argument('-ep', '--eval_period', default=20, type=int)
+        # P0 stage 1: train on the optimization-train split only, so the epoch
+        # can later be selected on val rows the model never trained on. Uses the
+        # same carve-out as train_siglip2.py (val_split.py) -- both sides of the
+        # comparison must hold out the identical rows.
+        g.add_argument('--val_split_ratio', default=0.0, type=float,
+                       help='Hold out this fraction of train (P0 stage 1). '
+                            '0.0 = train on the full split (stage 2 / legacy).')
+        g.add_argument('--val_split_seed', default=42, type=int)
 
         g = parser.add_argument_group(BOLD + 'Optimizer' + END)
         g.add_argument('-opt', '--optimizer_name', type=str, default='adam')
@@ -799,6 +822,20 @@ class DeepHashBase(metaclass=ABCMeta):
             return_paired_aug_img=bool(config.get('dataset_return_paired_aug_img', False)),
             cache_dir=config.get('cache_dir'),
         )
+        # ---- P0 stage 1: restrict training to the optimization-train rows ----
+        _vr = float(config.get('val_split_ratio', 0.0) or 0.0)
+        if _vr > 0.0:
+            sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            from val_split import carve_val_indices
+            _n = len(self.trainset)
+            _opt, _val, _strat = carve_val_indices(
+                np.asarray(self.trainset.labels), ratio=_vr,
+                seed=int(config.get('val_split_seed', 42)))
+            self.trainset.restrict_to(_opt)
+            print(f"[val-protocol] P0 stage 1: train {_n} -> opt-train "
+                  f"{len(self.trainset)} (+ {len(_val)} val held out; {_strat}, "
+                  f"seed={config.get('val_split_seed', 42)}). Epoch will be "
+                  f"selected on those held-out rows, not on test.")
         self._set_n_class(config['dataset'], config['setting'])
         self._set_multi_label(config['dataset'])
         self.logger = Logger(self.result_dir, config=config)
