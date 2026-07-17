@@ -274,6 +274,22 @@ A1(집계 방식)이 성능에 영향이 없었던 것(±0.003)과 대조적으�
 | | NMI | 0.670 | 0.470 | −0.200 |
 
 **Ablation 종합.** 세 실험이 GroundedDNA의 성능·구조 원인을 정확히 특정한다: (A1) 텍스트 집계 방식은 무영향, (A2) 텍스트 감독은 검색을 좌우, (A4) per-slot 분리 codebook은 compositional 구조에 필수. 따라서 기여는 특정 pooling 기법이 아니라 **text-supervised compositional codebook 구조**이다.
+### 4.6 학습 뷰: multi-crop은 도움이 되지 않는다
+
+FAIRrank L8K3 multi-crop 학습(이미지당 8개 random crop 중 텍스트 앵커 유사도 상위 3개를 연결, 588 patch)을 whole-image 학습과 동일 recipe로 비교하였다(표 7). 추론은 양쪽 모두 whole-image이다.
+
+**표 7. NUS-WIDE 학습 뷰 ablation(동일 recipe, 학습 뷰만 상이).**
+
+| 학습 뷰 | mAP@5000 | NMI | B1 lift |
+|---|---:|---:|---:|
+| **whole-image** | **0.8322** | **0.668** | **0.219** |
+| FAIRrank multi-crop | 0.8191 | 0.564 | 0.205 |
+| Δ | −0.0131 | −0.104 | −0.014 |
+
+**해석.** multi-crop 학습은 검색(−0.013), inter-codebook 구조(−0.104), text-grounding(−0.014) 모두를 악화시킨다. Flickr25k(−0.004)와 MS-COCO(−0.006)에서도 이득이 없었으므로, **어떤 데이터셋도 multi-crop 학습의 혜택을 받지 않는다.** multi-crop은 단일 객체 fine-grained 설정을 위해 설계된 기법이며, 다중 객체 장면에서는 검색에 필요한 장면 수준 문맥을 잘라낸다. 따라서 본 논문은 4개 데이터셋 모두 whole-image 학습·추론으로 통일하며, 이는 구조적 일관성과 성능이 동시에 만족되는 선택이다. (CIFAR-10은 32×32 이미지를 224로 확대해 사용하므로 crop이 추가 정보를 담지 않아 이 실험을 적용하지 않는다.)
+
+### 4.7 (진행 중) 해석 가능성 검증
+
 - **Held-out codon decoding:** train으로 만든 `(slot, codon) → concept` 사전으로 unseen test 이미지의 concept를 예측. CIBHash의 6-bit chunk decoding을 control로 사용한다.
 - **Slot intervention:** query code의 한 codon만 donor codon으로 교체했을 때 해당 slot의 target concept 검색이 선택적으로 증가하는지 측정한다.
 
