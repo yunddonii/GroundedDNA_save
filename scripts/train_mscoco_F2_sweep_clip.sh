@@ -20,7 +20,7 @@ CUDA_VISIBLE_DEVICES="$GPU" /home/yschoi/.conda/envs/dna_hashing/bin/python trai
     --global_gate_init_logit 4.595 --router_type sinkhorn \
     --sinkhorn_epsilon_init 1.0 --sinkhorn_epsilon_final 0.1 --sinkhorn_lambda_a 1.0 --sinkhorn_lambda_b 1.0 \
     --routing_adaptive_topp --routing_adaptive_topp_min 0.3 --routing_adaptive_topp_max 0.7 \
-    --codon_residual_gamma 0.0 --num_codons_per_codebook "$NUM_CODONS" \
+    --codon_residual_gamma 0.0 --num_codons_per_codebook "$NUM_CODONS" ${FINAL_EPOCH:+--final_epoch_eval} \
     --text_embed_transform partial_whiten --text_whiten_npz "$WHITEN_NPZ" --text_whiten_gamma 0.25 \
     --use_paired_aug_ntxent --lambda_ntxent 0.0 --ntxent_temperature 0.3 --ntxent_mode per_codebook \
     --ntxent_dynamic_tau --ntxent_dynamic_tau_alpha 0.3 \

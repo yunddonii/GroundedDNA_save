@@ -991,7 +991,10 @@ def main(args: Config):
             # If best-checkpoint differs from final, replace final with best
             # for the downstream evaluation / extraction. Best is preserved
             # as model_state_dict_best.pth.
-            if hasattr(args, "_best_mid_epoch") and args._best_mid_epoch != e:
+            if bool(getattr(args, "final_epoch_eval", False)):
+                print(f"[final-epoch-eval] keeping FINAL-epoch checkpoint "
+                      f"(epoch {e}); best-ckpt swap SKIPPED (leakage-free protocol)")
+            elif hasattr(args, "_best_mid_epoch") and args._best_mid_epoch != e:
                 best_model_path = os.path.join(args.save_model_state_path, "model_state_dict_best.pth")
                 if os.path.exists(best_model_path):
                     import shutil

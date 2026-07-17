@@ -590,6 +590,11 @@ class Config():
         #     compositional analysis) then observe ONLY pruned text tokens.
         # Requires: --backbone_type clip, cached_text_tokens available,
         # cached_text_token_mask available.
+        siglip2_arg.add_argument('--final_epoch_eval',
+            dest='final_epoch_eval', action='store_true', default=False,
+            help='Leakage-free protocol: do NOT swap in the best-mid-eval '
+                 'checkpoint; evaluate the FINAL-epoch weights. Removes '
+                 'test-based checkpoint selection (mid-eval still logged).')
         siglip2_arg.add_argument('--share_codebook',
             dest='share_codebook', action='store_true', default=False,
             help='A4 ablation: tie all M slots to one shared codebook (slot 0). '
