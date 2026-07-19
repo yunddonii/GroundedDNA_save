@@ -19080,3 +19080,226 @@ E* moved in 3/12 cells; every move costs the baseline a little (−0.001 to −0
 🧰 New: `scripts/baseline_val_select_p0.py`, `docs/baseline_p0_stage2.json` (per-epoch val curve + E* + test source path per pair), `docs/baseline_p0_stage2.md`, `docs/baseline_p0_stage2_partial/*.json`, `logs/p0s2_*.log`.
 
 ✅ **Verdict: adopt.** These are the baseline numbers of record for the paper. Ours and theirs now share: same features (CLIP), same 36 bits, same splits, same 10%/seed-42 carve, same 5-epoch cadence, same val-selection metric, same "refit on 100%, stop at E*" stage 2.
+
+## 2026-07-19 — Held-out decoding control §2.9 extended to MSCOCO + NUS-WIDE: flat-hash chunks lose to our codons on all 3 datasets
+
+The `(slot, code) -> concept` held-out decoding experiment (REQUIRED_EXPERIMENTS §2) previously ran its
+flat-hash chunk control on Flickr25k only, because only `result_baseline/260527/*_flickr25k_clip_unsup60/`
+had saved code extractions. MSCOCO's `260529` dirs held db+query but no train (and MSCOCO train is
+**disjoint** from its DB, so it cannot be sliced out), and NUS-WIDE had no baseline extraction at all.
+This entry closes both gaps, so the §2.9 control now exists on every multi-label dataset in the paper.
+
+### Setup
+
+Baseline codes were re-extracted from the **100 %-train runs** (`params_baseline/260714/`) at the
+**P0-selected epoch E\*** taken from `docs/baseline_p0_stage2.json` — i.e. the same checkpoint that
+produces the retrieval number of record for each cell, so the decoding control and the mAP@R table
+describe the same model.
+
+| dataset | cibhash E\* | cimon E\* | mls3rduh E\* | cache_dir (per run `config.json`) |
+|---|---:|---:|---:|---|
+| MSCOCO | 019 | 059 | 059 | `./cache/mscoco_clip_v4plus` |
+| NUS-WIDE | 004 | 054 | 059 | `./cache/nuswide_clip` |
+
+Extraction is `sign(continuous_code) -> {0,1}` on the frozen CLIP cache, grouped into 6 contiguous
+6-bit chunks (K=64/slot) and 18 2-bit bases, i.e. the identical imposed partition used on Flickr25k.
+Only `train` + `query` splits were written (the control needs nothing else; `--splits db` is available).
+
+### Results — concept mAP of the held-out `(slot, code) -> concept` decoder
+
+α=1.0, min_support=10, seed=42, never tuned on test. Train rows realigned to OUR train rows by image
+basename (0 missing in all 6 cells; query multi-hot labels verified row-identical after realignment).
+
+| unit | Flickr25k | MSCOCO | NUS-WIDE |
+|---|---:|---:|---:|
+| ours-codeword (K=128) | **0.8143** | **0.7147** | **0.7806** |
+| ours-codon (64) | 0.7794 | 0.6323 | 0.7339 |
+| cibhash-chunk (64) | 0.6670 | 0.5338 | 0.6516 |
+| cimon-chunk (64) | 0.7200 | 0.5074 | 0.6765 |
+| mls3rduh-chunk (64) | 0.6749 | 0.4837 | 0.6403 |
+| majority (code-blind) | 0.4730 | 0.3160 | 0.4822 |
+| shuffled | 0.4810 | 0.3129 | 0.4795 |
+
+Top-1 concept accuracy / support-weighted H(concept | code), same rows:
+
+| unit | Flickr top1 / H | MSCOCO top1 / H | NUS-WIDE top1 / H |
+|---|---|---|---|
+| ours-codon | 0.8726 / 0.2713 | 0.7225 / 0.1082 | 0.7402 / 0.2697 |
+| cibhash-chunk | 0.6879 / 0.3297 | 0.6090 / 0.1263 | 0.6615 / 0.3143 |
+| cimon-chunk | 0.7872 / 0.3044 | 0.6037 / 0.1210 | 0.6863 / 0.3002 |
+| mls3rduh-chunk | 0.7259 / 0.3213 | 0.5843 / 0.1237 | 0.6723 / 0.3217 |
+
+Paired bootstrap (1000 resamples over test images), ours-codon − control, new cells:
+
+| control | MSCOCO Δ [95 % CI] | NUS-WIDE Δ [95 % CI] |
+|---|---|---|
+| cibhash-chunk | +0.0985 [+0.0944, +0.1028] | +0.0823 [+0.0763, +0.0884] |
+| cimon-chunk | +0.1250 [+0.1199, +0.1300] | +0.0575 [+0.0511, +0.0638] |
+| mls3rduh-chunk | +0.1486 [+0.1433, +0.1537] | +0.0937 [+0.0863, +0.1004] |
+| majority | +0.3163 [+0.3094, +0.3237] | +0.2517 [+0.2393, +0.2631] |
+| shuffled | +0.3195 [+0.3127, +0.3268] | +0.2544 [+0.2422, +0.2657] |
+
+Every CI excludes zero. Coverage ≥ 0.994 everywhere, so no result is carried by an `unknown`-fallback
+artefact, and the codon-vs-chunk comparison is at equal alphabet size (64 = 64).
+
+### Key findings
+
+- **The §2.9 control now generalises.** At matched alphabet size, our learned codon beats the best
+  flat-hash chunk by +0.059 (Flickr, vs cimon) / +0.099 (MSCOCO, vs cibhash) / +0.058 (NUS-WIDE, vs
+  cimon). The gap is largest on MSCOCO — the dataset with 80 labels and the weakest baseline retrieval —
+  consistent with slot-conditioned routing mattering most when the concept space is large.
+- **Flat chunks are not code-blind.** Every chunk control beats majority/shuffled by a wide margin, so a
+  36-bit unsupervised hash *does* carry per-chunk concept information; the claim being defended is
+  specifically that *learned slot structure decodes better than an arbitrary bit partition*, and that is
+  what the paired CIs support.
+- **Entropy agrees with mAP on Flickr/NUS-WIDE but not MSCOCO.** H(concept | code) is lower for our codon
+  than for every chunk control on Flickr (0.271 vs 0.304–0.330) and NUS-WIDE (0.270 vs 0.300–0.322), but
+  on MSCOCO all five units sit at 0.108–0.126 — with 80 sparse labels the per-label Bernoulli entropy is
+  dominated by the marginal, so ranking quality (mAP/top1) separates the methods where entropy cannot.
+- **Codeword > codon on every dataset** (+0.035 / +0.082 / +0.047), the known K=128→64 collision cost;
+  MSCOCO's is the largest, as expected from the forced 2× pigeonhole collisions at K=128 vs 4³=64.
+  Only 21–23 of 64 codons are active per slot on MSCOCO/NUS-WIDE, vs 54–64 chunk units — our advantage
+  is therefore *not* explained by using more effective symbols; it uses roughly a third as many.
+
+🧰 New: `scripts/baseline_extract_splits.py` (any split incl. `train`, all 5 datasets, rebuilds the head
+from the ckpt state dict); `result_baseline/260719/{cibhash,cimon,mls3rduh}_{mscoco,nuswide}_clip_decodectl/`
+(gitignored); regenerated `docs/heldout_decoding_{mscoco,nuswide}.json` (now with the 3 chunk controls).
+Modified: `scripts/heldout_codon_decoding.py` — baseline train-side pool now prefers the baseline's own
+`extract_train.npz` when present, falling back to `extract_db.npz` otherwise. Flickr25k re-run is
+byte-identical to the previously committed JSON, so the change is a pure extension.
+
+**Caveat.** The Flickr25k chunk controls in `docs/heldout_decoding_flickr25k.json` still come from the
+older `result_baseline/260527/` extraction at **epoch 059** for all three methods, not at their P0 E\*
+(cibhash 4, cimon 49, mls3rduh 59). MLS3RDUH matches; cibhash and cimon do not. For strict cross-dataset
+consistency the Flickr controls should be re-extracted at E\* with the same script before the table goes
+into the paper — the decoding control is not very epoch-sensitive, but the mismatch should not survive
+into a camera-ready.
+
+**Note:** no 4-axis compositional analysis (NMI / B0-B1-B2 / drop grids) — these are external binary
+hashing baselines with no codon/DNA structure, so the protocol does not apply (same rationale as the
+2026-07-19 P0 stage-2 entry).
+
+✅ **Verdict: adopt.** §2.9 is now satisfied on Flickr25k, MSCOCO and NUS-WIDE, with the flat-hash control
+losing significantly on all three.
+
+---
+
+## 2026-07-19 — Slot role specialisation (A) + within-slot graded consistency (B) — **A REFUTED, B dataset-dependent**
+
+🎯 **Why.** The user challenged the framing used in the 2026-07-19 intervention entry: *orthogonality between
+slots is not a precondition for the contribution.* The claim that actually matters is the weaker, more
+natural one — (①) each slot explains **its own** assigned semantic part, (②) inside a slot, semantically
+similar images map to **similar codewords**, and (③) this survives quantisation to the codon. Held-out
+codon decoding (2026-07-19) could test none of these directly: its target was a single image-level label
+vector shared by all six slots, so it showed "the slot explains *something*" and only the binary
+`same code → same concept`, never the graded relation. Two new measurements were built for ①–③.
+
+### (A) Cross-slot decoding matrix — tests ①
+
+`D[m, m']` = decode slot *m'*'s caption vocabulary from slot *m*'s code, dictionary on train, evaluated on
+test. Role specialisation = **column-wise diagonal advantage** (for a fixed target slot, its own code
+should beat the other five). Off-diagonal cells are *expected* to be well above chance — that is
+redundancy, not failure, and orthogonality is never required.
+
+🔴 **Circularity, stated up front.** Per-slot targets are the Qwen captions that also supervised training,
+which `REQUIRED_EXPERIMENTS` §2.2 explicitly forbids as a held-out answer key. (A) is therefore a
+**relative diagnostic only** — the diagonal-vs-off-diagonal contrast is meaningful because the circularity
+applies equally to every cell, but the absolute numbers are *not* grounding evidence.
+
+📊 **Flickr25k, codon level, slot-distinctive vocabulary (`--distinctive_ratio 2.0`, 100 words/slot):**
+
+| target slot | diagonal | off-diag mean | advantage | vs best other | column argmax |
+|---|---:|---:|---:|---:|:---:|
+| global | 0.3599 | 0.3712 | **−0.0112** | −0.0345 | OTHER |
+| primary_object | 0.3106 | 0.2845 | +0.0261 | +0.0042 | OWN |
+| secondary_object | 0.2236 | 0.2245 | −0.0009 | −0.0101 | OTHER |
+| activity_relation | 0.3074 | 0.3067 | +0.0007 | −0.0058 | OTHER |
+| color_texture | 0.3071 | 0.3016 | +0.0055 | +0.0028 | OWN |
+| scene_type | 0.4498 | 0.4318 | +0.0180 | +0.0087 | OWN |
+
+Prior reference 0.173–0.338, shuffled 0.160–0.332 — **every cell, diagonal and off-diagonal alike, sits far
+above chance**, i.e. all six codes carry substantial information about all six slot vocabularies.
+
+🔬 **Vocabulary confound checked and ruled out.** The first run used plain top-df vocabularies, which
+overlap heavily across slots ('white' appears in global/primary/secondary/color) — shared vocabulary would
+make cross-slot decoding trivially easy and could *manufacture* a null result. Re-running with only
+slot-distinctive words (≥2× more frequent in that slot than the mean of the other five) changes nothing:
+3/6 argmax OWN either way, advantages −0.011…+0.026 vs −0.009…+0.025. **The null is real, not an artefact.**
+
+🔴 **Verdict (A): role specialisation is NOT demonstrated.** Only 3 of 6 slots are best decoded by their own
+code, and the largest diagonal advantage (+0.026, primary_object) is an order of magnitude smaller than the
+gap our codons hold over flat-hash chunks in the label-decoding experiment (+0.059…+0.099). `global`,
+`secondary_object` and `activity_relation` are decoded *better by other slots' codes than by their own*.
+
+⚠️ **(A) is Flickr25k-only and cannot currently be extended.** MSCOCO and NUS-WIDE have Qwen captions for
+their **train split only** (`mscoco_qwen_v4.jsonl` 10,000 = train; `nuswide_qwen*.jsonl` covers 0/2100 test
+images), so no per-slot test target exists. Flickr is the sole dataset whose caption jsonl
+(`cache/flickr25k_qwen_v4.jsonl`, 25,000 rows) spans train+test — which is the same coverage that caused
+the whitening leak found on 2026-07-17.
+
+### (B) Within-slot graded consistency — tests ② and ③
+
+Over ~200k random test image pairs, Spearman ρ between **code distance inside one slot** and **semantic
+distance**, against a shuffled-assignment control. Semantic distance = `1 − Jaccard` of image multi-hot
+labels, which is **independent of the Qwen captions** — so unlike (A), (B) is not circular.
+Code distance = cosine between assigned codeword embeddings (`quantizer.codebooks`), or base-Hamming
+between 3-base codons. Flat-hash control = bit-Hamming inside the corresponding 6-bit chunk.
+
+📊 **Mean over the 6 slots (ρ vs label distance):**
+
+| Dataset | ours codeword | **ours codon** | CIBHash chunk | CIMON chunk | shuffled | Δ (codon − best flat) |
+|---|---:|---:|---:|---:|---:|---:|
+| Flickr25k | 0.3688 | **0.3497** | 0.1382 | 0.2708 | 0.0002 | **+0.079** |
+| NUS-WIDE | 0.2391 | **0.2697** | 0.1537 | 0.2590 | 0.0003 | +0.011 |
+| MSCOCO | 0.0848 | **0.1654** | 0.0928 | 0.1531 | 0.0007 | +0.012 |
+
+Per-slot codon ρ: Flickr 0.314–0.418, NUS-WIDE 0.187–0.365, MSCOCO 0.112–0.260. Every slot on every
+dataset is far above the shuffled control (≈0.000), so **② and ③ hold in absolute terms everywhere**.
+
+🔑 **Findings.**
+1. **② and ③ are confirmed against chance on all 3 datasets.** Similar-meaning images do land on similar
+   codewords within a slot, and the relation survives codon quantisation.
+2. **Against the flat-hash control the margin is dataset-dependent.** Decisive on Flickr25k (+0.079 over
+   CIMON), but only +0.011/+0.012 on NUS-WIDE/MSCOCO — i.e. **essentially tied with CIMON on two of three
+   datasets.** This does not reproduce the uniform, large advantage the label-decoding experiment showed.
+3. 🔬 **Codon ρ > codeword ρ on MSCOCO (+0.081) and NUS-WIDE (+0.031)** — quantising to 3 bases *increases*
+   the correlation, which is impossible if the codeword metric were a faithful semantic proxy. Read as a
+   **methodological caveat, not a finding**: cosine between learned codebook embeddings is a poor stand-in
+   for semantic distance (the embedding geometry is shaped by the VQ objective, not by label similarity).
+   On MSCOCO ours-codeword (0.085) is *below* both flat baselines. The codon-level row is the trustworthy
+   one; the codeword row should not be quoted without this caveat.
+
+### Consolidated verdict
+
+| claim | status |
+|---|---|
+| ① each slot explains **its own** semantic part | 🔴 **refuted** on Flickr25k (3/6 argmax OWN, advantage ≤ +0.026); untestable elsewhere |
+| ② similar meaning → similar codeword **within** a slot | 🟢 confirmed vs chance on 3/3; vs flat hash decisive only on Flickr25k |
+| ③ ② survives to the codon | 🟢 confirmed — codon ρ ≥ codeword ρ on 2/3 datasets |
+
+🧭 **Consequence for the paper.** Dropping the orthogonality requirement (correct — it was imported from the
+intervention protocol and is not a precondition) does **not** by itself rescue a slot-role claim. `slot-specialized`
+cannot be claimed: (A) refutes it on the one dataset where it is testable. What survives is the weaker,
+still-useful statement that **the code is semantically organised within each slot and that organisation
+survives codon quantisation** — plus the already-established held-out decoding advantage over flat hashes,
+which remains the strongest and most uniform result in the project.
+
+The honest reading is that the six slots behave as **six partially-redundant views of the same semantic
+content**, not as six role-assigned parts. That is consistent with every other structural measurement to
+date (per-slot decoding spread 0.023; local-slot pairwise NMI 0.74–0.82; intervention off-target drift ≈
+target gain). The paper should say so explicitly rather than implying a role decomposition it cannot show.
+
+🧰 **New:** `scripts/slot_role_analysis.py` (both analyses; `--distinctive_ratio` for the vocabulary
+confound check; `--caption_jsonl` optional so (B) runs without captions).
+**Outputs:** `docs/slot_role_flickr25k.json` (plain vocab), `docs/slot_role_flickr25k_distinctive.json`
+(distinctive vocab — the reported one), `docs/slot_role_{mscoco,nuswide}.json` (B only).
+
+**Note:** no 4-axis compositional analysis (NMI / B0-B1-B2 / drop grids) — these two analyses *are*
+compositional-structure measurements and supersede the NMI axis, which the 2026-07-19 findings document
+recommends removing entirely (its sign convention is inverted throughout the paper draft and it does not
+respond to text supervision).
+
+🔭 **Next.** CUB-200 attribute-based per-slot decoding is now the only remaining route to ①: its 312
+image-level attributes group by body part, are independent of Qwen, and exist for all splits. If ① fails
+there too, the role-assignment framing should be dropped from the paper title and contributions rather
+than defended.

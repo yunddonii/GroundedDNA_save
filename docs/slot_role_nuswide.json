@@ -1,0 +1,259 @@
+{
+  "dataset": "NUSWIDE",
+  "config": {
+    "ours_dir": "result/260717+nuswide_setting1_nuswide_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+    "caption_jsonl": null,
+    "train_manifest": "dataset/NUSWIDE/setting1/train.txt",
+    "ckpt": null,
+    "baseline_dirs": [
+      "result_baseline/260719/cibhash_nuswide_clip_decodectl",
+      "result_baseline/260719/cimon_nuswide_clip_decodectl"
+    ],
+    "baseline_names": [
+      "cibhash",
+      "cimon"
+    ],
+    "dataset": "NUSWIDE",
+    "out": "docs/slot_role_nuswide.json",
+    "vocab_size": 100,
+    "distinctive_ratio": 0.0,
+    "min_df": 20,
+    "max_df_frac": 0.5,
+    "alpha": 1.0,
+    "min_support": 10,
+    "n_pairs": 200000,
+    "seed": 42
+  },
+  "slot_names": [
+    "global",
+    "primary_object",
+    "secondary_object",
+    "activity_relation",
+    "color_texture",
+    "scene_type"
+  ],
+  "caveat": "(A) targets are Qwen captions that also supervised training; REQUIRED_EXPERIMENTS \u00a72.2 forbids these as a held-out answer key. (A) is therefore a RELATIVE role-specialisation diagnostic (diagonal vs off-diagonal), NOT grounding evidence. (B) 'label' targets are independent of Qwen; 'slot_caption' targets are not.",
+  "A_ran": false,
+  "A_cross_slot_matrix": {},
+  "A_prior_reference": [
+    NaN,
+    NaN,
+    NaN,
+    NaN,
+    NaN,
+    NaN
+  ],
+  "A_shuffled_reference": [
+    NaN,
+    NaN,
+    NaN,
+    NaN,
+    NaN,
+    NaN
+  ],
+  "A_diagonal_advantage": {},
+  "A_vocabularies": null,
+  "B_graded_consistency": [
+    {
+      "slot": "global",
+      "codeword_vs_label": {
+        "spearman": 0.2513069881290973,
+        "shuffled_mean": -0.0015350823494604746,
+        "shuffled_std": 0.0016711971452478462,
+        "lift": 0.2528420704785578
+      },
+      "codon_vs_label": {
+        "spearman": 0.1867069583028824,
+        "shuffled_mean": 0.00011793871608827691,
+        "shuffled_std": 0.0020610504211079766,
+        "lift": 0.1865890195867941
+      }
+    },
+    {
+      "slot": "primary_object",
+      "codeword_vs_label": {
+        "spearman": 0.24357203950790104,
+        "shuffled_mean": 0.0007865621803797649,
+        "shuffled_std": 0.0031924849464987563,
+        "lift": 0.2427854773275213
+      },
+      "codon_vs_label": {
+        "spearman": 0.25450396814838006,
+        "shuffled_mean": 3.870811832843431e-05,
+        "shuffled_std": 0.0012646024566917381,
+        "lift": 0.2544652600300516
+      }
+    },
+    {
+      "slot": "secondary_object",
+      "codeword_vs_label": {
+        "spearman": 0.25201563082620876,
+        "shuffled_mean": -0.0019156755902851152,
+        "shuffled_std": 0.0007861228736369384,
+        "lift": 0.25393130641649386
+      },
+      "codon_vs_label": {
+        "spearman": 0.36472166806354506,
+        "shuffled_mean": -0.0012139021206983157,
+        "shuffled_std": 0.0015606683136415095,
+        "lift": 0.3659355701842434
+      }
+    },
+    {
+      "slot": "activity_relation",
+      "codeword_vs_label": {
+        "spearman": 0.22992175097020756,
+        "shuffled_mean": 0.0003327743832205069,
+        "shuffled_std": 0.0030105973256985205,
+        "lift": 0.22958897658698704
+      },
+      "codon_vs_label": {
+        "spearman": 0.3079630988910478,
+        "shuffled_mean": 0.0016460071120508117,
+        "shuffled_std": 0.0018198708218751397,
+        "lift": 0.30631709177899696
+      }
+    },
+    {
+      "slot": "color_texture",
+      "codeword_vs_label": {
+        "spearman": 0.22820743735615542,
+        "shuffled_mean": 0.00036972596556837883,
+        "shuffled_std": 0.0018560232312902181,
+        "lift": 0.22783771139058703
+      },
+      "codon_vs_label": {
+        "spearman": 0.29677110969016296,
+        "shuffled_mean": -0.00046362427723781847,
+        "shuffled_std": 0.0007711654936362992,
+        "lift": 0.2972347339674008
+      }
+    },
+    {
+      "slot": "scene_type",
+      "codeword_vs_label": {
+        "spearman": 0.22940152745645845,
+        "shuffled_mean": 0.00044182491455734544,
+        "shuffled_std": 0.0016878110331698766,
+        "lift": 0.2289597025419011
+      },
+      "codon_vs_label": {
+        "spearman": 0.2074388974588449,
+        "shuffled_mean": 0.0013918631084954315,
+        "shuffled_std": 0.0035081885836799474,
+        "lift": 0.20604703435034946
+      }
+    }
+  ],
+  "B_flat_chunk_control": [
+    {
+      "method": "cibhash",
+      "slot": "global",
+      "chunk_vs_label": {
+        "spearman": 0.1528846339315898,
+        "shuffled_mean": -6.838424882837563e-05,
+        "lift": 0.15295301818041818
+      }
+    },
+    {
+      "method": "cibhash",
+      "slot": "primary_object",
+      "chunk_vs_label": {
+        "spearman": 0.1308434141796249,
+        "shuffled_mean": -0.0015620047161180746,
+        "lift": 0.13240541889574298
+      }
+    },
+    {
+      "method": "cibhash",
+      "slot": "secondary_object",
+      "chunk_vs_label": {
+        "spearman": 0.1287252791366937,
+        "shuffled_mean": -0.0020329385332900586,
+        "lift": 0.13075821766998377
+      }
+    },
+    {
+      "method": "cibhash",
+      "slot": "activity_relation",
+      "chunk_vs_label": {
+        "spearman": 0.17396776234324832,
+        "shuffled_mean": -4.437687424885374e-05,
+        "lift": 0.17401213921749717
+      }
+    },
+    {
+      "method": "cibhash",
+      "slot": "color_texture",
+      "chunk_vs_label": {
+        "spearman": 0.16073938248690584,
+        "shuffled_mean": -0.0006669401655858997,
+        "lift": 0.16140632265249175
+      }
+    },
+    {
+      "method": "cibhash",
+      "slot": "scene_type",
+      "chunk_vs_label": {
+        "spearman": 0.1747712973271615,
+        "shuffled_mean": -0.0018389840659560424,
+        "lift": 0.17661028139311755
+      }
+    },
+    {
+      "method": "cimon",
+      "slot": "global",
+      "chunk_vs_label": {
+        "spearman": 0.2815963926802923,
+        "shuffled_mean": -0.0009380720757386689,
+        "lift": 0.28253446475603095
+      }
+    },
+    {
+      "method": "cimon",
+      "slot": "primary_object",
+      "chunk_vs_label": {
+        "spearman": 0.30831542690653946,
+        "shuffled_mean": -0.0005364166799198889,
+        "lift": 0.30885184358645934
+      }
+    },
+    {
+      "method": "cimon",
+      "slot": "secondary_object",
+      "chunk_vs_label": {
+        "spearman": 0.16081851374398287,
+        "shuffled_mean": 0.00015891991531413082,
+        "lift": 0.16065959382866873
+      }
+    },
+    {
+      "method": "cimon",
+      "slot": "activity_relation",
+      "chunk_vs_label": {
+        "spearman": 0.30139577282087276,
+        "shuffled_mean": 0.0010837635314161155,
+        "lift": 0.30031200928945667
+      }
+    },
+    {
+      "method": "cimon",
+      "slot": "color_texture",
+      "chunk_vs_label": {
+        "spearman": 0.25946776191038606,
+        "shuffled_mean": -0.0002563757605850745,
+        "lift": 0.25972413767097113
+      }
+    },
+    {
+      "method": "cimon",
+      "slot": "scene_type",
+      "chunk_vs_label": {
+        "spearman": 0.24256009220998928,
+        "shuffled_mean": 9.077352818322548e-05,
+        "lift": 0.24246931868180605
+      }
+    }
+  ],
+  "n_pairs_used": 199894
+}

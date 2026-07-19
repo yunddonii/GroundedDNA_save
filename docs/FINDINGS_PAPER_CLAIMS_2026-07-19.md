@@ -261,6 +261,61 @@ query code에서 **codon 하나만** donor의 것으로 교체 후 재검색. **
 
 ---
 
+## 4b. 실험 4 — Slot 역할 특화 (A) + 슬롯 내 등급적 일관성 (B)
+
+> **동기.** 직교성은 contribution의 전제가 아니다(이 요구는 §3 intervention 프로토콜에서 딸려온 것). 실제로 필요한 주장은 ① 각 슬롯이 **자기 몫**의 의미를 설명하고, ② 슬롯 **안에서** 비슷한 의미 → 비슷한 codeword, ③ 그것이 codon까지 이어진다는 것이다. §2 decoding은 타깃이 슬롯 공유 label 하나여서 ①②③ 어느 것도 직접 검증하지 못했다.
+
+### (A) Cross-slot decoding matrix — ① 검증 → 🔴 **반박됨**
+
+`D[m,m']` = 슬롯 m의 코드로 슬롯 m'의 캡션 어휘를 디코딩. 역할 특화 = **열 방향 대각 우세**. 비대각이 높은 것은 중복이지 실패가 아니다.
+
+🔴 **순환성 명시**: 슬롯별 타깃이 학습에 쓰인 Qwen 캡션이라 §2.2 위반. **상대 진단(대각 vs 비대각)으로만 유효**하며 절대값은 grounding 근거가 아니다.
+
+**Flickr25k, codon, 슬롯 고유 어휘(≥2배):**
+
+| target slot | diag | off-diag mean | advantage | column argmax |
+|---|---:|---:|---:|:---:|
+| global | 0.3599 | 0.3712 | **−0.0112** | OTHER |
+| primary_object | 0.3106 | 0.2845 | +0.0261 | OWN |
+| secondary_object | 0.2236 | 0.2245 | −0.0009 | OTHER |
+| activity_relation | 0.3074 | 0.3067 | +0.0007 | OTHER |
+| color_texture | 0.3071 | 0.3016 | +0.0055 | OWN |
+| scene_type | 0.4498 | 0.4318 | +0.0180 | OWN |
+
+**6개 중 3개만 자기 코드가 argmax.** 최대 대각 우세(+0.026)가 §2의 flat-hash 대비 격차(+0.059~+0.099)보다 한 자릿수 작다. `global`·`secondary_object`·`activity_relation`은 **자기 코드보다 남의 코드로 더 잘 디코딩된다.**
+
+🔬 **어휘 교란 배제됨.** 슬롯 캡션은 일반 어휘를 공유하므로('white'가 4개 슬롯에 등장) 공유 어휘가 null을 *만들어낼* 수 있다. 슬롯 고유 어휘만으로 재실행해도 결과 동일(3/6 argmax OWN, 우세 −0.011…+0.026 vs 평범 어휘 −0.009…+0.025). **진짜 null이다.**
+
+⚠️ **Flickr 전용, 확장 불가.** MS-COCO·NUS-WIDE는 Qwen 캡션이 **train에만** 존재(NUS-WIDE는 test 2100장 중 0장 커버). Flickr만 `cache/flickr25k_qwen_v4.jsonl`이 25,000행으로 train+test를 덮는다 — 2026-07-17 whitening leak의 원인과 같은 커버리지다.
+
+### (B) 슬롯 내 등급적 일관성 — ②③ 검증 → 🟢 **확인, 단 flat 대비 마진은 데이터셋 의존**
+
+test 이미지 쌍 ~20만 개에서 **슬롯 내 코드 거리 ↔ 의미 거리** Spearman ρ. 의미 거리 = `1 − label Jaccard` (**Qwen과 독립 → 비순환**).
+
+| Dataset | ours codeword | **ours codon** | CIBHash chunk | CIMON chunk | shuffled | Δ(codon − best flat) |
+|---|---:|---:|---:|---:|---:|---:|
+| Flickr25k | 0.3688 | **0.3497** | 0.1382 | 0.2708 | 0.0002 | **+0.079** |
+| NUS-WIDE | 0.2391 | **0.2697** | 0.1537 | 0.2590 | 0.0003 | +0.011 |
+| MS-COCO | 0.0848 | **0.1654** | 0.0928 | 0.1531 | 0.0007 | +0.012 |
+
+1. **②③은 3/3 데이터셋에서 chance 대비 확인** (shuffled ≈ 0.000).
+2. **flat 대비 마진은 Flickr에서만 결정적** (+0.079). NUS-WIDE·MS-COCO는 CIMON과 사실상 동률(+0.011/+0.012).
+3. 🔬 **codon ρ > codeword ρ (MS-COCO +0.081, NUS-WIDE +0.031)** — 3-base 양자화가 상관을 *높이는* 건 codeword 거리가 충실한 의미 proxy라면 불가능하다. **발견이 아니라 방법론적 caveat**: codebook 임베딩 코사인은 VQ 목적함수가 빚은 기하라 label 유사도의 대리가 못 된다. MS-COCO에서 ours-codeword(0.085)는 flat baseline 둘 다보다 낮다. **codon 행만 인용할 것.**
+
+### 종합
+
+| 주장 | 상태 |
+|---|---|
+| ① 각 슬롯이 **자기** 의미를 설명 | 🔴 **반박** (Flickr, 3/6) — 다른 데이터셋은 검증 불가 |
+| ② 슬롯 내 비슷한 의미 → 비슷한 codeword | 🟢 3/3 chance 대비 확인, flat 대비는 Flickr만 결정적 |
+| ③ ②가 codon까지 유지 | 🟢 확인 (codon ρ ≥ codeword ρ, 2/3) |
+
+🧭 **결론.** 직교성 요구를 버려도 **역할 배정 주장은 살아나지 않는다.** `slot-specialized`는 주장 불가. 남는 것은 "코드가 슬롯 내에서 의미적으로 조직되어 있고 그 조직이 codon까지 유지된다" + §2의 held-out decoding 우위다. 여섯 슬롯은 **역할이 배정된 여섯 부분이 아니라 같은 의미 내용의 부분적으로 중복된 여섯 view**로 서술해야 한다.
+
+**산출물**: `scripts/slot_role_analysis.py`, `docs/slot_role_flickr25k_distinctive.json`(보고본), `docs/slot_role_flickr25k.json`(평범 어휘), `docs/slot_role_{mscoco,nuswide}.json`(B만).
+
+---
+
 ## 5. 최종 판정 — 무엇을 주장할 수 있는가
 
 ### ✅ 주장 가능 (측정으로 뒷받침)
@@ -275,6 +330,7 @@ query code에서 **codon 하나만** donor의 것으로 교체 후 재검색. **
 - **코드가 flat baseline보다 덜 중복** — slot 중복률 86.2% vs CIBHash 98.4%, 6 unit 독립정보 **3.81b vs 0.56b (6.8배)** (§3). `disentangled`를 주장하지 않고 쓸 수 있는 구조 지표.
 - 텍스트 집계 방식(EOS vs mean-pool vs pruning)은 성능 원인이 아님 — negative result지만 강건성의 증거 (A1, ±0.003)
 - codebook drop ablation: 5~6개 slot이 non-trivial retrieval 기여 (Σ|drop| 0.038~0.053)
+- **슬롯 내 의미 조직화가 codon까지 유지됨** (§4b-B): 코드 거리↔의미 거리 Spearman ρ가 shuffled(≈0.000) 대비 3/3 데이터셋에서 확인. flat hash 대비 우세는 Flickr25k(+0.079)에서만 결정적, NUS-WIDE·MS-COCO는 동률(+0.011/+0.012) — **데이터셋 의존임을 함께 적을 것**
 
 ### ❌ 주장 불가
 
@@ -282,7 +338,7 @@ query code에서 **codon 하나만** donor의 것으로 교체 후 재검색. **
 |---|---|
 | `disentangled`, `independently controllable`, `causal semantic factor` | intervention selectivity **미통과** — 핵심 control 대비 8/18 셀만 유의, 단위 섭동당 gain은 CIBHash가 **60% 우세**, slot 고유 정보 0.635b (§3) |
 | "여섯 개의 독립 semantic factor" | decoding per-slot spread 0.023 + **slot 중복률 86.2%** (H(m\|나머지)=0.635b / H=4.59b) → 중복 확정 |
-| slot 역할 배정의 타당성 (global slot = global 등) | per-slot 독립 타깃 미측정 |
+| **`slot-specialized`, slot 역할 배정의 타당성** (global slot = global 등) | §4b-A에서 **능동적으로 반박됨** — Flickr 6개 중 3개만 자기 코드가 argmax, 대각 우세 ≤ +0.026. 어휘 교란 배제 확인. 미측정이 아니라 **반증 있음** |
 | NMI 기반 compositional 주장 | 부호 반대 + baseline 비교 무효 + 텍스트 감독에 무반응 |
 | "4개 데이터셋 SOTA" | MS-COCO +0.002, CIFAR-10 +0.004는 noise |
 | atlas grounding이 baseline의 3.2배 | CUB 모델 vs Flickr baseline — cross-dataset 아티팩트 |
@@ -291,7 +347,7 @@ query code에서 **codon 하나만** donor의 것으로 교체 후 재검색. **
 
 ### 포지셔닝 한 줄
 
-**`compositional` · `readable`은 지키고, `disentangled`는 버린다.** 제목의 "Grounded"는 decoding 결과가 지탱하지만, "여섯 역할이 분리된다"는 함의는 제거해야 한다.
+**`compositional` · `readable`은 지키고, `disentangled`와 `slot-specialized`를 모두 버린다.** 제목의 "Grounded"는 §2 decoding 결과가 지탱한다. 여섯 슬롯은 **역할이 배정된 여섯 부분이 아니라 같은 의미 내용의 부분적으로 중복된 여섯 view**로 서술한다 — §4b-A가 역할 배정을 능동적으로 반박했으므로, 이는 신중한 표현이 아니라 **측정에 따른 서술**이다.
 
 ---
 
@@ -319,7 +375,7 @@ query code에서 **codon 하나만** donor의 것으로 교체 후 재검색. **
 | P0 | **A4(codebook 분리)를 decoding 지표로 재측정** | NMI 제거로 A4 근거가 비었음. compositional 구조 주장의 유일한 구조적 ablation | 기존 A4 런에 `heldout_codon_decoding.py` 적용 — GPU 불필요 |
 | P0 | Flickr chunk control을 E\*로 재추출 | 표 정합성 (§2 미해결 이슈) | ~2분 |
 | P1 | **A2(no-text)를 decoding 지표로 재측정** | 텍스트 감독이 *해석 가능성*에 기여하는지 — B1·NMI로는 못 보였음. 성공하면 핵심 주장이 대폭 강화 | GPU 불필요 |
-| P1 | CUB-200 attribute 기반 per-slot decoding | slot **역할 배정**의 유일한 검증 경로. `dataset/CUB_200/attributes/` 존재 | 중간 |
+| **P0** | **CUB-200 attribute 기반 per-slot decoding** | §4b-A가 Flickr에서 역할 배정을 반박했고, MS-COCO·NUS-WIDE는 test 캡션이 없어 검증 자체가 불가. CUB의 312 attribute는 부위별로 묶이고 Qwen과 독립이며 전 split에 존재 — **①의 유일한 남은 경로**. 여기서도 실패하면 역할 배정 프레이밍을 제목·contribution에서 제거할 것 | 중간 |
 | P2 | 48-bit / 4-base codon을 P0로 재실행 | §4.4 전체가 미검증 | 런 4개 |
 | P2 | 3 seeds + 신뢰구간 | `REQUIRED_EXPERIMENTS` §4.5 요구 | 런 다수 |
 | P3 | human evaluation | relation·color·scene slot은 label로 검증 불가 | 높음 |
