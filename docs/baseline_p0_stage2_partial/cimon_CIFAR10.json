@@ -1,0 +1,90 @@
+{
+  "method": "cimon",
+  "dataset": "CIFAR10",
+  "val_split": {
+    "ratio": 0.1,
+    "seed": 42,
+    "strategy": "class-stratified over 10 classes",
+    "n_train": 5000,
+    "n_opt_train": 4500,
+    "n_val_query": 500,
+    "val_idx_sha": 1253480,
+    "val_idx_head": [
+      0,
+      2,
+      9,
+      11,
+      22
+    ]
+  },
+  "map_at_r_cutoff": 1000,
+  "per_epoch_val": {
+    "4": {
+      "val_mAP_at_R": 0.6694433905027737,
+      "val_mAP": 0.6303586034531039,
+      "val_P_at_1": 0.838
+    },
+    "9": {
+      "val_mAP_at_R": 0.7238556984486759,
+      "val_mAP": 0.6965270169432939,
+      "val_P_at_1": 0.858
+    },
+    "14": {
+      "val_mAP_at_R": 0.7472797863692652,
+      "val_mAP": 0.7219286776130447,
+      "val_P_at_1": 0.862
+    },
+    "19": {
+      "val_mAP_at_R": 0.759609686690241,
+      "val_mAP": 0.7349271044795849,
+      "val_P_at_1": 0.878
+    },
+    "24": {
+      "val_mAP_at_R": 0.762499445146271,
+      "val_mAP": 0.7381735752587927,
+      "val_P_at_1": 0.844
+    },
+    "29": {
+      "val_mAP_at_R": 0.7617568554213173,
+      "val_mAP": 0.7365783084532118,
+      "val_P_at_1": 0.858
+    },
+    "34": {
+      "val_mAP_at_R": 0.76322481206155,
+      "val_mAP": 0.7387657233217574,
+      "val_P_at_1": 0.846
+    },
+    "39": {
+      "val_mAP_at_R": 0.7637769292438622,
+      "val_mAP": 0.7397527852480789,
+      "val_P_at_1": 0.86
+    },
+    "44": {
+      "val_mAP_at_R": 0.7683198103468137,
+      "val_mAP": 0.744370088356144,
+      "val_P_at_1": 0.866
+    },
+    "49": {
+      "val_mAP_at_R": 0.7717155290731446,
+      "val_mAP": 0.7489058491383116,
+      "val_P_at_1": 0.864
+    },
+    "54": {
+      "val_mAP_at_R": 0.7718170953227421,
+      "val_mAP": 0.750998052843413,
+      "val_P_at_1": 0.836
+    },
+    "59": {
+      "val_mAP_at_R": 0.7749668251572444,
+      "val_mAP": 0.7534617205124524,
+      "val_P_at_1": 0.84
+    }
+  },
+  "best_epoch": 59,
+  "best_val_mAP_at_R": 0.7749668251572444,
+  "test_mAP_at_R": 0.8367481860743342,
+  "test_mAP": 0.7320639999324922,
+  "test_mAP_R_cutoff": 1000,
+  "test_P_at_1": 0.874,
+  "source": "result_baseline/260714/cimon_cifar10_clip_mapr_unsup60/eval_epoch_059.json"
+}

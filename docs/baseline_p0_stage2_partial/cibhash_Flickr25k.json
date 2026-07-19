@@ -1,0 +1,90 @@
+{
+  "method": "cibhash",
+  "dataset": "Flickr25k",
+  "val_split": {
+    "ratio": 0.1,
+    "seed": 42,
+    "strategy": "random (multi-label split)",
+    "n_train": 5000,
+    "n_opt_train": 4500,
+    "n_val_query": 500,
+    "val_idx_sha": 1184631,
+    "val_idx_head": [
+      8,
+      12,
+      23,
+      26,
+      29
+    ]
+  },
+  "map_at_r_cutoff": 5000,
+  "per_epoch_val": {
+    "4": {
+      "val_mAP_at_R": 0.7100500499164687,
+      "val_mAP": 0.7100500499164687,
+      "val_P_at_1": 0.938
+    },
+    "9": {
+      "val_mAP_at_R": 0.7034224102237401,
+      "val_mAP": 0.7034224102237401,
+      "val_P_at_1": 0.93
+    },
+    "14": {
+      "val_mAP_at_R": 0.6997883289520276,
+      "val_mAP": 0.6997883289520276,
+      "val_P_at_1": 0.932
+    },
+    "19": {
+      "val_mAP_at_R": 0.6983227958306473,
+      "val_mAP": 0.6983227958306473,
+      "val_P_at_1": 0.936
+    },
+    "24": {
+      "val_mAP_at_R": 0.6962828475795568,
+      "val_mAP": 0.6962828475795568,
+      "val_P_at_1": 0.93
+    },
+    "29": {
+      "val_mAP_at_R": 0.6961600113633604,
+      "val_mAP": 0.6961600113633604,
+      "val_P_at_1": 0.934
+    },
+    "34": {
+      "val_mAP_at_R": 0.6944243485869813,
+      "val_mAP": 0.6944243485869813,
+      "val_P_at_1": 0.932
+    },
+    "39": {
+      "val_mAP_at_R": 0.6941440258689799,
+      "val_mAP": 0.6941440258689799,
+      "val_P_at_1": 0.934
+    },
+    "44": {
+      "val_mAP_at_R": 0.6932680534610942,
+      "val_mAP": 0.6932680534610942,
+      "val_P_at_1": 0.938
+    },
+    "49": {
+      "val_mAP_at_R": 0.6926978174752513,
+      "val_mAP": 0.6926978174752513,
+      "val_P_at_1": 0.94
+    },
+    "54": {
+      "val_mAP_at_R": 0.6924687221703532,
+      "val_mAP": 0.6924687221703532,
+      "val_P_at_1": 0.942
+    },
+    "59": {
+      "val_mAP_at_R": 0.6920647956852826,
+      "val_mAP": 0.6920647956852826,
+      "val_P_at_1": 0.946
+    }
+  },
+  "best_epoch": 4,
+  "best_val_mAP_at_R": 0.7100500499164687,
+  "test_mAP_at_R": 0.8233066262741747,
+  "test_mAP": 0.7018443883873061,
+  "test_mAP_R_cutoff": 5000,
+  "test_P_at_1": 0.9295,
+  "source": "result_baseline/260714/cibhash_flickr25k_clip_mapr_unsup60/eval_epoch_004.json"
+}

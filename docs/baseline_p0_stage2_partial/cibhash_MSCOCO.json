@@ -1,0 +1,90 @@
+{
+  "method": "cibhash",
+  "dataset": "MSCOCO",
+  "val_split": {
+    "ratio": 0.1,
+    "seed": 42,
+    "strategy": "random (multi-label split)",
+    "n_train": 10000,
+    "n_opt_train": 9000,
+    "n_val_query": 1000,
+    "val_idx_sha": 4997385,
+    "val_idx_head": [
+      0,
+      3,
+      8,
+      14,
+      23
+    ]
+  },
+  "map_at_r_cutoff": 5000,
+  "per_epoch_val": {
+    "4": {
+      "val_mAP_at_R": 0.624539877080148,
+      "val_mAP": 0.5810900367806909,
+      "val_P_at_1": 0.894
+    },
+    "9": {
+      "val_mAP_at_R": 0.6227441547198775,
+      "val_mAP": 0.5791359096183746,
+      "val_P_at_1": 0.892
+    },
+    "14": {
+      "val_mAP_at_R": 0.625568378582793,
+      "val_mAP": 0.5815388718676391,
+      "val_P_at_1": 0.903
+    },
+    "19": {
+      "val_mAP_at_R": 0.6264946964326555,
+      "val_mAP": 0.5824306168810487,
+      "val_P_at_1": 0.905
+    },
+    "24": {
+      "val_mAP_at_R": 0.6243900861973583,
+      "val_mAP": 0.5804206674783936,
+      "val_P_at_1": 0.907
+    },
+    "29": {
+      "val_mAP_at_R": 0.6230195123770689,
+      "val_mAP": 0.5791673717028679,
+      "val_P_at_1": 0.909
+    },
+    "34": {
+      "val_mAP_at_R": 0.623121193652144,
+      "val_mAP": 0.5794721319713425,
+      "val_P_at_1": 0.908
+    },
+    "39": {
+      "val_mAP_at_R": 0.6233554112166555,
+      "val_mAP": 0.5796088490813674,
+      "val_P_at_1": 0.911
+    },
+    "44": {
+      "val_mAP_at_R": 0.6225753969979144,
+      "val_mAP": 0.5788920415237185,
+      "val_P_at_1": 0.912
+    },
+    "49": {
+      "val_mAP_at_R": 0.6225640136483329,
+      "val_mAP": 0.578846605758303,
+      "val_P_at_1": 0.911
+    },
+    "54": {
+      "val_mAP_at_R": 0.6225285371322233,
+      "val_mAP": 0.5787878116983992,
+      "val_P_at_1": 0.906
+    },
+    "59": {
+      "val_mAP_at_R": 0.6223904998254827,
+      "val_mAP": 0.5786368450048144,
+      "val_P_at_1": 0.906
+    }
+  },
+  "best_epoch": 19,
+  "best_val_mAP_at_R": 0.6264946964326555,
+  "test_mAP_at_R": 0.8111781133404788,
+  "test_mAP": 0.5843153129375769,
+  "test_mAP_R_cutoff": 5000,
+  "test_P_at_1": 0.924,
+  "source": "result_baseline/260714/cibhash_mscoco_clip_mapr_unsup60/eval_epoch_019.json"
+}

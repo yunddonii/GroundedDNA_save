@@ -1,0 +1,90 @@
+{
+  "method": "cimon",
+  "dataset": "Flickr25k",
+  "val_split": {
+    "ratio": 0.1,
+    "seed": 42,
+    "strategy": "random (multi-label split)",
+    "n_train": 5000,
+    "n_opt_train": 4500,
+    "n_val_query": 500,
+    "val_idx_sha": 1184631,
+    "val_idx_head": [
+      8,
+      12,
+      23,
+      26,
+      29
+    ]
+  },
+  "map_at_r_cutoff": 5000,
+  "per_epoch_val": {
+    "4": {
+      "val_mAP_at_R": 0.6990215794929684,
+      "val_mAP": 0.6990215794929684,
+      "val_P_at_1": 0.89
+    },
+    "9": {
+      "val_mAP_at_R": 0.7171855404634534,
+      "val_mAP": 0.7171855404634534,
+      "val_P_at_1": 0.896
+    },
+    "14": {
+      "val_mAP_at_R": 0.7279894377266851,
+      "val_mAP": 0.7279894377266851,
+      "val_P_at_1": 0.906
+    },
+    "19": {
+      "val_mAP_at_R": 0.7377962760926325,
+      "val_mAP": 0.7377962760926325,
+      "val_P_at_1": 0.9
+    },
+    "24": {
+      "val_mAP_at_R": 0.7385066421189392,
+      "val_mAP": 0.7385066421189392,
+      "val_P_at_1": 0.91
+    },
+    "29": {
+      "val_mAP_at_R": 0.7393884637626664,
+      "val_mAP": 0.7393884637626664,
+      "val_P_at_1": 0.918
+    },
+    "34": {
+      "val_mAP_at_R": 0.7435020607666601,
+      "val_mAP": 0.7435020607666601,
+      "val_P_at_1": 0.914
+    },
+    "39": {
+      "val_mAP_at_R": 0.7461458360769604,
+      "val_mAP": 0.7461458360769604,
+      "val_P_at_1": 0.918
+    },
+    "44": {
+      "val_mAP_at_R": 0.7429708421657004,
+      "val_mAP": 0.7429708421657004,
+      "val_P_at_1": 0.908
+    },
+    "49": {
+      "val_mAP_at_R": 0.7469893353079523,
+      "val_mAP": 0.7469893353079523,
+      "val_P_at_1": 0.902
+    },
+    "54": {
+      "val_mAP_at_R": 0.7453884394273903,
+      "val_mAP": 0.7453884394273903,
+      "val_P_at_1": 0.908
+    },
+    "59": {
+      "val_mAP_at_R": 0.744116184903552,
+      "val_mAP": 0.744116184903552,
+      "val_P_at_1": 0.908
+    }
+  },
+  "best_epoch": 49,
+  "best_val_mAP_at_R": 0.7469893353079523,
+  "test_mAP_at_R": 0.8288317210290643,
+  "test_mAP": 0.7297279049716882,
+  "test_mAP_R_cutoff": 5000,
+  "test_P_at_1": 0.9135,
+  "source": "result_baseline/260714/cimon_flickr25k_clip_mapr_unsup60/eval_epoch_049.json"
+}

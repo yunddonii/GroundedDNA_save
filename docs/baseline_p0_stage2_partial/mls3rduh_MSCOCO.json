@@ -1,0 +1,90 @@
+{
+  "method": "mls3rduh",
+  "dataset": "MSCOCO",
+  "val_split": {
+    "ratio": 0.1,
+    "seed": 42,
+    "strategy": "random (multi-label split)",
+    "n_train": 10000,
+    "n_opt_train": 9000,
+    "n_val_query": 1000,
+    "val_idx_sha": 4997385,
+    "val_idx_head": [
+      0,
+      3,
+      8,
+      14,
+      23
+    ]
+  },
+  "map_at_r_cutoff": 5000,
+  "per_epoch_val": {
+    "4": {
+      "val_mAP_at_R": 0.4793229137905237,
+      "val_mAP": 0.45636090033155524,
+      "val_P_at_1": 0.662
+    },
+    "9": {
+      "val_mAP_at_R": 0.5046556635765421,
+      "val_mAP": 0.47436119577337776,
+      "val_P_at_1": 0.694
+    },
+    "14": {
+      "val_mAP_at_R": 0.5100804751356877,
+      "val_mAP": 0.4778885126447451,
+      "val_P_at_1": 0.671
+    },
+    "19": {
+      "val_mAP_at_R": 0.5116881396598475,
+      "val_mAP": 0.4788872827285236,
+      "val_P_at_1": 0.689
+    },
+    "24": {
+      "val_mAP_at_R": 0.5133610778121618,
+      "val_mAP": 0.47998386330465653,
+      "val_P_at_1": 0.682
+    },
+    "29": {
+      "val_mAP_at_R": 0.51505896251235,
+      "val_mAP": 0.48099539538406766,
+      "val_P_at_1": 0.693
+    },
+    "34": {
+      "val_mAP_at_R": 0.5182875522043874,
+      "val_mAP": 0.48369941869036337,
+      "val_P_at_1": 0.709
+    },
+    "39": {
+      "val_mAP_at_R": 0.5204860322312151,
+      "val_mAP": 0.4853704392514227,
+      "val_P_at_1": 0.709
+    },
+    "44": {
+      "val_mAP_at_R": 0.5228694369403536,
+      "val_mAP": 0.4874111308672827,
+      "val_P_at_1": 0.697
+    },
+    "49": {
+      "val_mAP_at_R": 0.5255568787532274,
+      "val_mAP": 0.489682991039266,
+      "val_P_at_1": 0.707
+    },
+    "54": {
+      "val_mAP_at_R": 0.5269903304391435,
+      "val_mAP": 0.4907091462541946,
+      "val_P_at_1": 0.715
+    },
+    "59": {
+      "val_mAP_at_R": 0.5294974540350834,
+      "val_mAP": 0.4931095068919743,
+      "val_P_at_1": 0.723
+    }
+  },
+  "best_epoch": 59,
+  "best_val_mAP_at_R": 0.5294974540350834,
+  "test_mAP_at_R": 0.6422835619722944,
+  "test_mAP": 0.5040052118814632,
+  "test_mAP_R_cutoff": 5000,
+  "test_P_at_1": 0.7592,
+  "source": "result_baseline/260714/mls3rduh_mscoco_clip_mapr_unsup60/eval_epoch_059.json"
+}

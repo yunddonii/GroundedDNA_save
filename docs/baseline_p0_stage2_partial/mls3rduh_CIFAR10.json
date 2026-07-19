@@ -1,0 +1,90 @@
+{
+  "method": "mls3rduh",
+  "dataset": "CIFAR10",
+  "val_split": {
+    "ratio": 0.1,
+    "seed": 42,
+    "strategy": "class-stratified over 10 classes",
+    "n_train": 5000,
+    "n_opt_train": 4500,
+    "n_val_query": 500,
+    "val_idx_sha": 1253480,
+    "val_idx_head": [
+      0,
+      2,
+      9,
+      11,
+      22
+    ]
+  },
+  "map_at_r_cutoff": 1000,
+  "per_epoch_val": {
+    "4": {
+      "val_mAP_at_R": 0.2760831068109998,
+      "val_mAP": 0.24179444517309617,
+      "val_P_at_1": 0.11
+    },
+    "9": {
+      "val_mAP_at_R": 0.33857546995316684,
+      "val_mAP": 0.3307582075602872,
+      "val_P_at_1": 0.114
+    },
+    "14": {
+      "val_mAP_at_R": 0.3469377997990276,
+      "val_mAP": 0.32854129433313334,
+      "val_P_at_1": 0.114
+    },
+    "19": {
+      "val_mAP_at_R": 0.3603605179127244,
+      "val_mAP": 0.32909556859047495,
+      "val_P_at_1": 0.124
+    },
+    "24": {
+      "val_mAP_at_R": 0.37753467205288327,
+      "val_mAP": 0.33572090532624665,
+      "val_P_at_1": 0.13
+    },
+    "29": {
+      "val_mAP_at_R": 0.4092051318829847,
+      "val_mAP": 0.3548194069310283,
+      "val_P_at_1": 0.166
+    },
+    "34": {
+      "val_mAP_at_R": 0.4381127034301825,
+      "val_mAP": 0.38203500409446306,
+      "val_P_at_1": 0.186
+    },
+    "39": {
+      "val_mAP_at_R": 0.46099325604364494,
+      "val_mAP": 0.40932927141820463,
+      "val_P_at_1": 0.21
+    },
+    "44": {
+      "val_mAP_at_R": 0.4816038467832339,
+      "val_mAP": 0.43111966088229664,
+      "val_P_at_1": 0.242
+    },
+    "49": {
+      "val_mAP_at_R": 0.4943710332480744,
+      "val_mAP": 0.4442204349200044,
+      "val_P_at_1": 0.252
+    },
+    "54": {
+      "val_mAP_at_R": 0.503653871702447,
+      "val_mAP": 0.45134343103708735,
+      "val_P_at_1": 0.236
+    },
+    "59": {
+      "val_mAP_at_R": 0.505986925006522,
+      "val_mAP": 0.45630335383539,
+      "val_P_at_1": 0.192
+    }
+  },
+  "best_epoch": 59,
+  "best_val_mAP_at_R": 0.505986925006522,
+  "test_mAP_at_R": 0.5792841582963452,
+  "test_mAP": 0.46511394970764014,
+  "test_mAP_R_cutoff": 1000,
+  "test_P_at_1": 0.623,
+  "source": "result_baseline/260714/mls3rduh_cifar10_clip_mapr_unsup60/eval_epoch_059.json"
+}

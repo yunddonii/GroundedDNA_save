@@ -1,0 +1,90 @@
+{
+  "method": "mls3rduh",
+  "dataset": "Flickr25k",
+  "val_split": {
+    "ratio": 0.1,
+    "seed": 42,
+    "strategy": "random (multi-label split)",
+    "n_train": 5000,
+    "n_opt_train": 4500,
+    "n_val_query": 500,
+    "val_idx_sha": 1184631,
+    "val_idx_head": [
+      8,
+      12,
+      23,
+      26,
+      29
+    ]
+  },
+  "map_at_r_cutoff": 5000,
+  "per_epoch_val": {
+    "4": {
+      "val_mAP_at_R": 0.586798211612723,
+      "val_mAP": 0.586798211612723,
+      "val_P_at_1": 0.698
+    },
+    "9": {
+      "val_mAP_at_R": 0.6291743510760852,
+      "val_mAP": 0.6291743510760852,
+      "val_P_at_1": 0.74
+    },
+    "14": {
+      "val_mAP_at_R": 0.6480263196329622,
+      "val_mAP": 0.6480263196329622,
+      "val_P_at_1": 0.78
+    },
+    "19": {
+      "val_mAP_at_R": 0.6584060293368866,
+      "val_mAP": 0.6584060293368866,
+      "val_P_at_1": 0.782
+    },
+    "24": {
+      "val_mAP_at_R": 0.6656393183650817,
+      "val_mAP": 0.6656393183650817,
+      "val_P_at_1": 0.862
+    },
+    "29": {
+      "val_mAP_at_R": 0.670575161291356,
+      "val_mAP": 0.670575161291356,
+      "val_P_at_1": 0.87
+    },
+    "34": {
+      "val_mAP_at_R": 0.6738456296471222,
+      "val_mAP": 0.6738456296471222,
+      "val_P_at_1": 0.862
+    },
+    "39": {
+      "val_mAP_at_R": 0.6766755248285671,
+      "val_mAP": 0.6766755248285671,
+      "val_P_at_1": 0.856
+    },
+    "44": {
+      "val_mAP_at_R": 0.6790881323044261,
+      "val_mAP": 0.6790881323044261,
+      "val_P_at_1": 0.872
+    },
+    "49": {
+      "val_mAP_at_R": 0.6799951544134137,
+      "val_mAP": 0.6799951544134137,
+      "val_P_at_1": 0.876
+    },
+    "54": {
+      "val_mAP_at_R": 0.6812846617207814,
+      "val_mAP": 0.6812846617207814,
+      "val_P_at_1": 0.882
+    },
+    "59": {
+      "val_mAP_at_R": 0.6833747064498346,
+      "val_mAP": 0.6833747064498346,
+      "val_P_at_1": 0.868
+    }
+  },
+  "best_epoch": 59,
+  "best_val_mAP_at_R": 0.6833747064498346,
+  "test_mAP_at_R": 0.7810725700682228,
+  "test_mAP": 0.674100072210521,
+  "test_mAP_R_cutoff": 5000,
+  "test_P_at_1": 0.849,
+  "source": "result_baseline/260714/mls3rduh_flickr25k_clip_mapr_unsup60/eval_epoch_059.json"
+}

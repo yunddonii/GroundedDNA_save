@@ -1,0 +1,90 @@
+{
+  "method": "cibhash",
+  "dataset": "CIFAR10",
+  "val_split": {
+    "ratio": 0.1,
+    "seed": 42,
+    "strategy": "class-stratified over 10 classes",
+    "n_train": 5000,
+    "n_opt_train": 4500,
+    "n_val_query": 500,
+    "val_idx_sha": 1253480,
+    "val_idx_head": [
+      0,
+      2,
+      9,
+      11,
+      22
+    ]
+  },
+  "map_at_r_cutoff": 1000,
+  "per_epoch_val": {
+    "4": {
+      "val_mAP_at_R": 0.8680632995088869,
+      "val_mAP": 0.850846006247788,
+      "val_P_at_1": 0.93
+    },
+    "9": {
+      "val_mAP_at_R": 0.8639849564924581,
+      "val_mAP": 0.844191358884271,
+      "val_P_at_1": 0.922
+    },
+    "14": {
+      "val_mAP_at_R": 0.8558008041005053,
+      "val_mAP": 0.8346575955893623,
+      "val_P_at_1": 0.924
+    },
+    "19": {
+      "val_mAP_at_R": 0.8536083142748361,
+      "val_mAP": 0.831540196412397,
+      "val_P_at_1": 0.932
+    },
+    "24": {
+      "val_mAP_at_R": 0.8509875035089841,
+      "val_mAP": 0.8271891972388975,
+      "val_P_at_1": 0.938
+    },
+    "29": {
+      "val_mAP_at_R": 0.8484002151660806,
+      "val_mAP": 0.8240319634107552,
+      "val_P_at_1": 0.938
+    },
+    "34": {
+      "val_mAP_at_R": 0.8488673053421579,
+      "val_mAP": 0.8239957008342121,
+      "val_P_at_1": 0.934
+    },
+    "39": {
+      "val_mAP_at_R": 0.8440441586167957,
+      "val_mAP": 0.8184626313430985,
+      "val_P_at_1": 0.93
+    },
+    "44": {
+      "val_mAP_at_R": 0.842767461521301,
+      "val_mAP": 0.817406870243129,
+      "val_P_at_1": 0.928
+    },
+    "49": {
+      "val_mAP_at_R": 0.8418326149672207,
+      "val_mAP": 0.8157980967560621,
+      "val_P_at_1": 0.93
+    },
+    "54": {
+      "val_mAP_at_R": 0.8419107488238264,
+      "val_mAP": 0.8157183683541634,
+      "val_P_at_1": 0.93
+    },
+    "59": {
+      "val_mAP_at_R": 0.8410949369907884,
+      "val_mAP": 0.8146065937174036,
+      "val_P_at_1": 0.932
+    }
+  },
+  "best_epoch": 4,
+  "best_val_mAP_at_R": 0.8680632995088869,
+  "test_mAP_at_R": 0.9004189967136207,
+  "test_mAP": 0.8336925012987535,
+  "test_mAP_R_cutoff": 1000,
+  "test_P_at_1": 0.913,
+  "source": "result_baseline/260714/cibhash_cifar10_clip_mapr_unsup60/eval_epoch_004.json"
+}

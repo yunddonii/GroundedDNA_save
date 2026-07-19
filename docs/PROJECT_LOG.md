@@ -19026,3 +19026,57 @@ Design points: mid-eval became **query-vs-db** (disjoint val_query vs opt-train)
 🧰 New/changed: `val_split.py`, `scripts/build_opt_train_rows.py`, `--val_split_ratio/--val_split_seed/--val_select_metric` (config.py), P0 wiring + query-vs-db mid-eval (train_siglip2.py), `--row_index_npy` (build_text_whiten_matrix.py), `scripts/queue_p0_gpu{4,5}.sh`.
 
 🔄 **Status:** P0 re-runs launched for all 4 datasets (clean whitening + val selection). Their numbers — not the best-ckpt ones — become the paper's table. Baselines need no re-run (`-ep 5` already produced per-epoch evals) but must be re-selected on a comparable val split for a fully symmetric comparison.
+
+---
+
+## 2026-07-19 — P0 stage 2 for the baselines (held-out E* selection; protocol now fully symmetric)
+
+**Gap this closes.** Stage 1 (`scripts/run_baselines_p0_stage1.sh`) retrained cibhash/cimon/mls3rduh × 4 datasets at 36-bit on the optimization-train 90% and dumped 12 checkpoints each (`params_baseline/260718/{method}_{ds}_clip_P0s1_unsup60/epoch_XXX.pth`). But those runs' `result_baseline/260718/.../eval_epoch_*.json` contain **only test** metrics — E* could not be read off them without leaking test into the selection. The earlier `docs/baseline_val_select/` selection did use val, but scored checkpoints from the **100%-train** runs, so its "val" rows were in-sample.
+
+**What was added.** `scripts/baseline_val_select_p0.py`: rebuilds each baseline head from the config stored inside its checkpoint, carves the split with the *imported* `val_split.carve_val_indices(labels, 0.1, 42)` (never reimplemented), extracts `sign(encoder(cached_feat))` via the same `_extract_codes` that produced the test numbers, and scores **val_query vs opt-train DB** with `evaluate_retrieval_model(..., map_at_r=MAP_AT_R_BY_DATASET[ds])`. E* = argmax val mAP@R. The reported cell is then the **existing 100%-train run's** `result_baseline/260714/.../eval_epoch_{E*}.json` test mAP@R — mirroring our own stage 2 (refit on 100%, stop at E*). All 12 E* had their 100%-train eval present; nothing substituted.
+
+**Split identity verified**, not assumed: for CIFAR10 the baseline loader passes a one-hot `[N,10]` matrix while `train_siglip2.py` passes the `[N]` integer `targets`; `carve_val_indices` argmaxes the one-hot, so both take the same branch on the same class ids. Checked directly — `ImgRtvCIFAR10(mode='train').targets` equals `CachedFeatureDataset(...).labels.argmax(1)` element-wise (both go through `get_idx_for_uniform_sampling(ds,10,500)`, seed 0), and the resulting `val_idx` arrays are identical. Multi-label datasets take the seeded-shuffle branch and match trivially.
+
+### Reported table (test mAP@R at the val-selected E*)
+
+| Dataset | CIBHash | CIMON | MLS3RDUH |
+|---|---|---|---|
+| Flickr25k | 0.8233 (E*=4) | **0.8288** (E*=49) | 0.7811 (E*=59) |
+| NUS-WIDE | **0.8152** (E*=4) | 0.7860 (E*=54) | 0.7746 (E*=59) |
+| MSCOCO | **0.8112** (E*=19) | 0.6716 (E*=59) | 0.6423 (E*=59) |
+| CIFAR10 | **0.9004** (E*=4) | 0.8367 (E*=59) | 0.5793 (E*=59) |
+
+**Bar to beat (best baseline, held-out-val-selected):** Flickr 0.8288 · NUS-WIDE 0.8152 · MSCOCO 0.8112 · CIFAR10 0.9004.
+
+### Diagnostic 1 — held-out val is a well-calibrated proxy (regret is tiny)
+
+Selection regret = (best test mAP@R over the 12 epochs) − (test mAP@R at E*):
+
+| | CIFAR10 | Flickr25k | MSCOCO | NUS-WIDE |
+|---|---|---|---|---|
+| CIBHash | 0.0006 | 0.0000 | 0.0049 | 0.0012 |
+| CIMON | 0.0040 | 0.0020 | 0.0000 | 0.0014 |
+| MLS3RDUH | 0.0000 | 0.0000 | 0.0000 | 0.0000 |
+
+Max regret 0.005. Val curves are monotone or single-peaked in every cell (MLS3RDUH monotone increasing everywhere → E*=59; CIBHash monotone decreasing on Flickr/NUS-WIDE → E*=4), so no cell is decided by selection noise.
+
+### Diagnostic 2 — in-sample val vs held-out val (what the leak was worth)
+
+Old = `docs/baseline_val_select/` (checkpoints from 100%-train runs, val rows in-sample). New = this run (checkpoints from 90%-train runs, val genuinely held out).
+
+| pair | old E* | old test | new E* | new test | Δ |
+|---|---:|---:|---:|---:|---:|
+| cibhash/MSCOCO | 24 | 0.8136 | 19 | 0.8112 | −0.0024 |
+| cimon/Flickr25k | 34 | 0.8308 | 49 | 0.8288 | −0.0020 |
+| cimon/NUS-WIDE | 59 | 0.7874 | 54 | 0.7860 | −0.0014 |
+| *other 9 pairs* | — | — | *unchanged* | *unchanged* | 0.0000 |
+
+E* moved in 3/12 cells; every move costs the baseline a little (−0.001 to −0.002), i.e. the in-sample val was mildly optimistic in exactly the direction expected. The 4-dataset bar changes only on Flickr (0.8308 → 0.8288) and MSCOCO (0.8136 → 0.8112).
+
+⚠️ **Caveat carried forward.** The val DB is the opt-train split (4,500 / 9,000 / 9,450 / 4,500 rows). On **Flickr25k the R=5000 cutoff never binds** (DB 4,500), so the *selection* statistic degenerates to full mAP there while the *reported* statistic is truncated mAP@5000. Same for our model (same val DB), so the comparison stays symmetric — but selection and reporting are not the identical statistic on Flickr25k. CIFAR10 (R=1000), MSCOCO and NUS-WIDE (R=5000) all truncate normally.
+
+**Note:** no compositional analysis (NMI / B0-B1-B2 / drop grids) for this entry — these are external binary-hashing baselines with no codon/DNA structure, so the 4-axis protocol does not apply.
+
+🧰 New: `scripts/baseline_val_select_p0.py`, `docs/baseline_p0_stage2.json` (per-epoch val curve + E* + test source path per pair), `docs/baseline_p0_stage2.md`, `docs/baseline_p0_stage2_partial/*.json`, `logs/p0s2_*.log`.
+
+✅ **Verdict: adopt.** These are the baseline numbers of record for the paper. Ours and theirs now share: same features (CLIP), same 36 bits, same splits, same 10%/seed-42 carve, same 5-epoch cadence, same val-selection metric, same "refit on 100%, stop at E*" stage 2.
