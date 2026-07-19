@@ -19303,3 +19303,53 @@ respond to text supervision).
 image-level attributes group by body part, are independent of Qwen, and exist for all splits. If ① fails
 there too, the role-assignment framing should be dropped from the paper title and contributions rather
 than defended.
+
+---
+
+## 2026-07-19 — 관행(convention) 프로토콜 4-dataset 비교 + slot 역할 타당성 측정
+
+🎯 **왜 관행으로 전환했나.** 선행 연구의 모델 선택 관행을 조사한 결과, 이 분야 표 수치는 대부분 **학습 중 test mAP 를 주기적으로 재서 그 최댓값**이다. 결정적 증거: `swuxyj/DeepHash-pytorch`(최근 논문 다수가 DPSH/HashNet/CSQ/DSDH baseline 수치를 뽑는 저장소)의 `validate()` 는 **validation 데이터를 인자로 받지 않고** test 에서 `Best_mAP` 를 갱신한다. 7개 데이터셋 디렉터리에 `train/test/database` 21개 파일뿐, val 파일 0개. GreedyHash·CSQ·DSDH 공식 저장소도 동일 패턴. Luo et al. 서베이(ACM TKDD 2023)가 규정하는 표준 split 자체가 **query/database/train 세 역할뿐**이다.
+
+예외 하나: **CIBHash 공식 코드는 실제로 val 을 쓴다**(`model/base_model.py` early stopping + `utils/data.py` 가 query pool 10,000 을 5,000 val / 5,000 test 로 분할). **논문에는 한 줄도 없다.** 즉 표의 CIBHash 수치가 어느 프로토콜인지 원 논문만으로는 알 수 없다. 그리고 CIBHash 는 train 을 깎지 않고 **query pool** 을 쪼갠다 — 우리가 train 에서 10% 를 뗀 것과 다르다.
+
+비판은 존재하나 hashing 에는 도달하지 않았다: Musgrave et al. "A Metric Learning Reality Check"(ECCV 2020) §2.3 이 "there is no validation set ... **This breaks one of the most basic commandments of machine learning**" 이라 지적했지만, 인용 537편 중 제목에 hash 가 있는 논문 0편이고 deep hashing 서베이는 평가 프로토콜 문제를 다루지 않는다.
+
+🧪 **적용.** 양측 모두 학습 100%, val 없음, 5 epoch 마다 test 평가 후 **최댓값** 보고, 선택 지표를 **보고 지표(mAP@R)로 통일**(기존 legacy 경로는 full mAP 로 선택하고 있어 baseline 과 기준이 달랐음 — 수정). **단 whitening 누수는 그대로 두지 않았다**: 관행은 test 기반 epoch 선택을 허용할 뿐 전처리 통계를 test caption 에 적합하는 것은 별개의 결함이므로, `text_whiten_trainOnly.npz` 로 4개를 재학습했다(기존 best-ckpt 수치 0.8740/0.9085 는 폐기).
+
+📊 **결과 (mAP@R, 36-bit, frozen CLIP-ViT-B/16, whole-image, 양측 동일 규칙):**
+
+| Dataset (cutoff) | **GroundedDNA** | CIBHash | CIMON | MLS3RDUH | Δ vs best |
+|---|---:|---:|---:|---:|---:|
+| Flickr25k (@5000) | **0.8810** | 0.8233 | 0.8308 | 0.7811 | **+0.0502** |
+| NUS-WIDE (@5000) | **0.8334** | 0.8164 | 0.7874 | 0.7746 | **+0.0170** |
+| MS-COCO (@5000) | **0.8190** | 0.8161 | 0.6716 | 0.6423 | +0.0029 |
+| CIFAR-10 (@1000) | **0.9046** | 0.9010 | 0.8408 | 0.5793 | +0.0036 |
+
+ours 선택 epoch: Flickr 4, NUS-WIDE 4, CIFAR-10 14, MS-COCO 24.
+
+🟢 **프로토콜 강건성 — 논문 방어의 핵심.** test 로 고른 epoch 과 P0 val 로 고른 epoch 이 **4개 중 3개에서 동일**하다(Flickr 4=4, CIFAR-10 14=14, NUS-WIDE 4=4; MS-COCO 만 24 vs 49). 일치하는 경우 결과가 **소수점 6자리까지 동일**하다(Flickr 0.881043, CIFAR-10 0.904628 — 같은 epoch·같은 데이터·같은 whitening 이므로 문자 그대로 같은 모델). "test 로 골라서 부풀려진 것 아니냐"는 지적에 **"val 로 골라도 같은 모델이 선택된다"**고 실측으로 답할 수 있다. 정직한 표현은 여전히 **"2개에서 명확한 우위(+0.050/+0.017), 2개에서 동등(+0.003/+0.004)"**.
+
+📌 **판정.** 표 1 은 이 표로 확정. P0 stage-1/stage-2 수치는 폐기하지 않고 **부록의 선택 편향 정량화**로 유지한다(이 분야에서 측정된 적 없는 값).
+
+---
+
+### slot 역할 타당성 — 새 측정 (`scripts/slot_role_alignment.py`)
+
+🎯 **동기.** "slot 끼리 직교해야 contribution 이 성립하는 것은 아니다. slot 별로 맡은 semantic part 를 잘 설명하고, 비슷한 의미의 샘플이 slot 내에서 비슷한 codeword 로 가며, 그것이 codon 까지 이어지면 된다" — 사용자 재구성(2026-07-19). 실제로 자연 이미지에서 색·객체·장면은 원래 상관되므로 slot 간 중복의 상당 부분은 모델 실패가 아니라 세계의 구조다. 86% 중복은 위 주장을 반증하지 않는다.
+
+🧪 **설계.** code slot m 의 codeword 분할이 caption slot k 의 임베딩을 얼마나 잘 조직하는지 6×6 lift 행렬로 잰다. lift = (같은 codeword 그룹 내 평균 코사인) − (크기 맞춘 무작위 분할 baseline). caption 은 slot 별로 **중심화** 후 L2 정규화(슬롯 평균 오프셋이 정렬로 오독되지 않게). 평가는 **학습에 쓰지 않은 18,000장**(DB 23,000 − train 5,000), 그 caption 은 감독에 쓰인 적 없다.
+
+📊 **Flickr25k (P0refit e4 모델):**
+
+| 주장 | 지표 | 결과 |
+|---|---|:---:|
+| ① slot 내 의미 일관성 | 전 셀 lift | **0.04–0.15, 전부 chance 상회** ✅ |
+| ② slot 역할 타당성 | 이중중심화 대각 우위 | **+0.0052** ❌ |
+| | 열 기준 자기 slot rank-1 | **1/6** (global 뿐) ❌ |
+| ③ codon 전이 | codeword→codon lift | 0.095 → 0.070 (**74% 보존**) ✅ / 역할은 2/6→1/6 악화 |
+
+**행렬이 주효과로 거의 다 설명된다:** 행 효과 global **0.125** vs 나머지 0.073–0.089, 열 효과 scene **0.120**·global 0.105 vs secondary 0.065. "slot m 이 caption m 을 담당한다"는 상호작용 성분은 **+0.005** 뿐. `secondary_object` 는 자기 caption 이 6위(꼴찌).
+
+🔎 **실패의 형태가 원인을 지목한다.** 모든 local slot 이 자기 caption 이 아니라 **global·scene caption 과 가장 잘 정렬**된다. 이는 `q_conditioned_local = q_local + sigmoid(gate)·q_global`(학습된 gate **0.993**×5)가 만들 패턴 그대로다. → `--disable_global_gate` ablation 진행 중, 비교 지표는 **상호작용 대각 우위(+0.0052)** 와 **열 rank-1(1/6)**.
+
+🧰 산출물: `scripts/slot_role_alignment.py`, `docs/slot_role_alignment_flickr25k.json`, `result/*_CONV*`(4개), `docs/baseline_val_select/*.json`.

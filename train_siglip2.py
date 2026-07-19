@@ -1025,10 +1025,13 @@ def main(args: Config):
         # Under the P0 protocol this score comes from the held-out val split and
         # defaults to mAP@R (the reported paper metric); without P0 it is the
         # legacy test-split mAP.
+        # Select on the metric that gets reported (mAP@R) whenever it is
+        # available -- under both protocols. The baselines' checkpoints are
+        # likewise chosen by mAP@R, so selecting on full mAP here would compare
+        # two different selection criteria.
         _sel_key = (
             "eval_mAP_at_R"
-            if (getattr(args, "_val_protocol", False)
-                and getattr(args, "val_select_metric", "mAP_at_R") == "mAP_at_R"
+            if (getattr(args, "val_select_metric", "mAP_at_R") == "mAP_at_R"
                 and "eval_mAP_at_R" in eval_row)
             else "eval_mAP"
         )

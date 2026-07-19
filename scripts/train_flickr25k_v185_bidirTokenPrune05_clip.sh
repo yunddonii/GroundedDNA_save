@@ -81,6 +81,7 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     ${VAL_RATIO:+--val_split_ratio "$VAL_RATIO"} \
     ${VAL_SEED:+--val_split_seed "$VAL_SEED"} \
     ${STOP_EP:+--stop_after_epoch "$STOP_EP"} \
+    ${DISABLE_GATE:+--disable_global_gate} \
     ${DISABLE_TEXT:+--disable_text_supervision} \
     --num_codons_per_codebook "${NUM_CODONS:-3}" \
     ${SHARE_CB:+--share_codebook} \
