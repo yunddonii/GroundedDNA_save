@@ -1,0 +1,29 @@
+[
+  {
+    "dataset": "Flickr25k",
+    "text_slot_id_acc": 0.6856458333333333,
+    "text_xslot_cos": 0.649631679058075,
+    "n_rows": 8000,
+    "chance": 0.16666666666666666,
+    "q_xslot_cos": 0.5356067419052124,
+    "q_slot_id_acc": 0.25314583333333335
+  },
+  {
+    "dataset": "NUS-WIDE",
+    "text_slot_id_acc": 0.7093541666666666,
+    "text_xslot_cos": 0.6139819622039795,
+    "n_rows": 8000,
+    "chance": 0.16666666666666666,
+    "q_xslot_cos": 0.5360994338989258,
+    "q_slot_id_acc": 0.2689166666666667
+  },
+  {
+    "dataset": "MSCOCO",
+    "text_slot_id_acc": 0.7903541666666667,
+    "text_xslot_cos": 0.5793720483779907,
+    "n_rows": 8000,
+    "chance": 0.16666666666666666,
+    "q_xslot_cos": 0.4247797429561615,
+    "q_slot_id_acc": 0.3233333333333333
+  }
+]

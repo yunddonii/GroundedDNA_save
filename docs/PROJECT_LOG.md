@@ -19353,3 +19353,135 @@ ours 선택 epoch: Flickr 4, NUS-WIDE 4, CIFAR-10 14, MS-COCO 24.
 🔎 **실패의 형태가 원인을 지목한다.** 모든 local slot 이 자기 caption 이 아니라 **global·scene caption 과 가장 잘 정렬**된다. 이는 `q_conditioned_local = q_local + sigmoid(gate)·q_global`(학습된 gate **0.993**×5)가 만들 패턴 그대로다. → `--disable_global_gate` ablation 진행 중, 비교 지표는 **상호작용 대각 우위(+0.0052)** 와 **열 rank-1(1/6)**.
 
 🧰 산출물: `scripts/slot_role_alignment.py`, `docs/slot_role_alignment_flickr25k.json`, `result/*_CONV*`(4개), `docs/baseline_val_select/*.json`.
+
+---
+
+## 2026-07-19 — Codebook semantic alignment: a new diagnostic; MSCOCO's codebook geometry is degenerate and four candidate causes are REFUTED
+
+🎯 **Why.** `slot_role_analysis.py` (B) produced an impossible-looking number: on MSCOCO the correlation
+between **codon** distance and semantic distance (0.165) *exceeds* the **codeword** one (0.085), and
+ours-codeword falls below both flat baselines. Quantising further cannot add information, so the codeword
+metric had to be at fault. The user asked to diagnose this before touching the paper's claims — the goal is
+to fix the model/framework, not to weaken the text.
+
+### New diagnostic: codebook semantic alignment ρ
+
+`scripts/codebook_semantic_alignment.py`. For each slot, over all active codeword pairs (support ≥ 20):
+
+```
+ρ_m = Spearman( 1 − cos(e_a, e_b) ,  ‖P_a − P_b‖ )
+```
+
+where `P_a` is the empirical label distribution of the images assigned to codeword `a`. This measures the
+**codebook geometry directly**, not through image pairs: high ρ = codewords that sit far apart geometrically
+also mean different things, i.e. the codebook is a graded metric space. Low ρ = the codebook has collapsed
+into near-categorical symbols with no usable metric between them, so `similar meaning → similar codeword`
+is *geometrically inexpressible* however well the model trains.
+
+⚠️ Uses labels → **diagnostic only, never for model selection.**
+
+📊 **Baseline geometry (P0refit champions, DB split):**
+
+| Dataset | ρ | eff_rank (of 768) | cos mean | cos sd |
+|---|---:|---:|---:|---:|
+| Flickr25k | **+0.586** | 11.5 | −0.00 | 0.291 |
+| NUS-WIDE | **+0.492** | 16.3 | −0.00 | 0.232 |
+| MSCOCO | **+0.134** | 40.6 | −0.01 | 0.123 |
+
+### Cause hunt — four hypotheses, all refuted
+
+**1. Cone / hubness (over-concentration). 🔴 REFUTED.** Mean pairwise cosine ≈ 0 on all three datasets and
+centring the codebook changes nothing (Flickr −0.007, NUS −0.005, MSCOCO −0.007). The failure is the
+*opposite* of a cone: MSCOCO's codewords are mutually near-orthogonal with tiny cosine spread (sd 0.123),
+i.e. 128 effectively one-hot symbols.
+
+**2. `cibhash_ntxent` 1.0 → 1.5 (adopted for MSCOCO SOTA). 🔴 REFUTED as the cause.** Single-delta sweep:
+
+| MSCOCO run | ρ | eff_rank | cos_sd |
+|---|---:|---:|---:|
+| base F2-WI (cb1.0, w0.05) | **+0.208** | 27.5 | 0.166 |
+| sweepA (cb1.0, **w0.15**) | +0.167 | 30.5 | 0.153 |
+| sweepC (**cb1.5**, w0.05) = champion | +0.164 | 32.8 | 0.137 |
+| P0refit e49 (cb1.5) | +0.134 | 40.6 | 0.123 |
+| **A2 no-text** | **+0.262** | 29.3 | 0.155 |
+| A4 sharedCB | +0.134 | 14.4 | 0.281 |
+
+`cibhash` 1.0→1.5 costs −0.044, but `wasserstein` 0.05→0.15 costs −0.041 — comparable. No single loss term
+is responsible.
+
+**3. Out-of-sample / generalisation. 🔴 REFUTED decisively.** MSCOCO's `train ∩ db = 0` while Flickr/NUS
+have `train ⊆ db`, so DB-side ρ is out-of-sample only for MSCOCO. Controlled:
+
+| model | in-sample | out-of-sample | Δ |
+|---|---:|---:|---:|
+| MSCOCO P0refit | train 0.134 | db 0.134 | 0.000 |
+| Flickr P0refit | train rows 0.581 | db−train (18K, never trained on) 0.588 | +0.007 |
+
+The geometry is equally (un)graded on the model's own training data. Not a generalisation failure.
+
+**4. Teacher quality / routing collapse. 🔴 BOTH REFUTED — and reversed.** `scripts/teacher_slot_separability.py`:
+
+| Dataset | teacher slot-id ↑ | teacher cross-slot cos ↓ | model q slot-id ↑ | model q cross-slot cos ↓ | ρ |
+|---|---:|---:|---:|---:|---:|
+| Flickr25k | 0.686 | 0.650 | 0.253 | 0.536 | 0.578 |
+| NUS-WIDE | 0.709 | 0.614 | 0.269 | 0.536 | 0.492 |
+| MSCOCO | **0.790** | **0.579** | **0.323** | **0.425** | **0.134** |
+
+(slot-id chance = 1/6 = 0.167.) MSCOCO's per-slot captions are the **most** slot-discriminative and its
+quantised slots the **most** differentiated. Neither a mushy teacher nor collapsed routing.
+
+**All four columns are in perfect inverse order with ρ: the more the slots differentiate, the less graded each
+individual codebook becomes.**
+
+### The metric-confound reinterpretation was tested and also refuted
+
+Hypothesis: ρ uses image-level labels shared by all six slots, so it would *reward redundancy and penalise
+specialisation* — a genuinely colour-specialised codebook would score low against COCO object labels through
+no fault of its own. Re-measured with each slot's **own caption-word profile** as the target (train rows,
+slot-specific vocabulary, 150 words):
+
+| Dataset | ρ (image-label target) | ρ (slot-own-caption target) |
+|---|---:|---:|
+| Flickr25k | 0.581 | 0.411 |
+| NUS-WIDE | 0.541 | 0.383 |
+| MSCOCO | **0.134** | **0.154** |
+
+🔴 **Refuted.** MSCOCO stays last under a slot-appropriate target. The degeneracy is real, not an artefact of
+the target choice. The original reading stands.
+
+### What this establishes
+
+🟢 **Text supervision *is* the mechanism that builds codebook metric structure — on 2 of 3 datasets:**
+
+| Dataset | text | no-text (A2) | Δ |
+|---|---:|---:|---:|
+| Flickr25k | 0.578 | 0.422 | **+0.156** |
+| NUS-WIDE | 0.492 | 0.305 | **+0.187** |
+| MSCOCO | 0.208 | 0.262 | **−0.054** |
+
+On NUS-WIDE text supervision drives eff_rank 41.6 → 16.3 while lifting ρ 0.305 → 0.492 — it *concentrates*
+the codebook into a low-dimensional graded manifold. On MSCOCO that organisation fails and reverses.
+
+🔴 **Low rank is NOT sufficient.** Flickr A4 sharedCB has eff_rank 11.0 (vs base 11.3) but ρ 0.325 (vs 0.578).
+A factorised/low-rank codebook is therefore **not** a promising fix — that design direction is dropped.
+
+🟢 **Bonus: ρ is a candidate replacement for NMI as the paper's structural metric.** NMI had to be dropped
+(sign inverted throughout the draft, cross-method comparison invalid, insensitive to text supervision). ρ
+responds strongly to text supervision (+0.156/+0.187), has an intuitive direction, and drops under A4
+(0.578 → 0.325) — so it **restores the A4 ablation's evidentiary basis**, which the NMI removal had emptied.
+
+### Verdict
+
+**Adopt the diagnostic; no model change yet.** Four candidate causes and one metric-confound reinterpretation
+are eliminated. The remaining untested mechanism is upstream of the codebook: the effective geometry of the
+**routed pre-quantisation features z**. If z is intrinsically higher-rank/isotropic on MSCOCO, the codebook is
+faithfully mirroring its input and the fix belongs in the encoder/router, not in a codebook-side loss. That
+requires a forward pass (modest GPU) and is the next step. Adding a codebook metric loss (Gram-matrix
+distillation, text-anchored codewords) before knowing this risks stacking a term that fights the encoder.
+
+🧰 New: `scripts/codebook_semantic_alignment.py`, `scripts/teacher_slot_separability.py`.
+Outputs: `docs/codebook_alignment_mscoco.json`, `docs/codebook_alignment_crossdataset.json`,
+`docs/teacher_slot_separability.json`.
+
+**Note:** no 4-axis compositional analysis — this entry *is* a compositional-structure analysis and supersedes
+the NMI axis for the reasons above.
