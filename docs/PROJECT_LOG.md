@@ -20168,3 +20168,84 @@ CUB 200종 분류 정확도(centroid, split-half, chance 0.5%):
 ⚠️ **예외 1건.** **부리 슬롯만 CLIP 손실이 유독 크다**(원문 9.4% → CLIP 6.5%, 상대 −31%). CLIP이 미세 형태 서술어("slender, slightly curved bill with a pointed tip")를 못 잡는 것으로, fine-grained 도메인의 알려진 CLIP 약점과 일치. CUB에서 head_bill 슬롯이 교사 배정 16/269로 최저였던 것과 정합.
 
 📌 **누적 판정.** 역할 타당성 천장을 설명하는 후보로 **라우팅 날카로움(반증)·K(p=0.165)·fgMask(p=0.630)·캡션 균형(p=0.669)·CLIP 인코더(반증)** 가 모두 배제됐다. 남은 설명은 (a) image-level/부위 타깃의 본질적 한계, (b) 손실 예산 ~80:1, (c) 아직 세우지 않은 가설.
+
+---
+
+## 2026-07-20 — 🔴 PSOT follow-up: λ_a is a smooth Flickr-only knob. The "0.20 optimum" was a 3-point artefact, and **MSCOCO transfer FAILS** — the mechanism is not general
+
+🎯 **Why.** The trade-off entry reported per-slot independent OT (PSOT, reached by lowering
+`--sinkhorn_lambda_a`) as the first cell to *move* the capacity ↔ gradedness trade-off, with two stated gaps:
+a 3-point λ_a grid and no transfer test. Both are closed here, and both outcomes are negative for the
+strong reading.
+
+### (1) Flickr λ_a sweep — the "optimum at 0.20" does not exist
+
+| λ_a | mAP@R | DNA-uniq | ρ_codebook | eff_rank | Δ mAP | Δ ρ |
+|---:|---:|---:|---:|---:|---:|---:|
+| **1.00 (champion)** | **0.8810** | **0.4014** | 0.586 | 11.5 | — | — |
+| 0.50 | 0.8731 | 0.3849 | 0.616 | 9.6 | −0.0079 | +0.030 |
+| 0.35 | 0.8720 | 0.3829 | 0.635 | 8.7 | −0.0091 | +0.049 |
+| 0.20 | 0.8708 | 0.3837 | 0.655 | 8.3 | −0.0102 | +0.069 |
+| 0.10 | 0.8566 | 0.2420 | 0.677 | 6.7 | −0.0244 | +0.091 |
+| 0.05 | 0.8628 | 0.1818 | 0.710 | 6.5 | −0.0183 | +0.124 |
+
+🔴 **Correction to the previous entry.** λ_a = 0.20 is **not** an optimum; it is the low end of a
+**plateau spanning 0.20–0.50** where DNA-uniq is flat (0.383–0.385) and mAP@R is flat (0.871–0.873) while ρ
+varies monotonically. ρ and eff_rank are perfectly monotone in λ_a across all six points
+(ρ 0.586→0.616→0.635→0.655→0.677→0.710; eff_rank 11.5→9.6→8.7→8.3→6.7→6.5), so λ_a is a real, smooth
+control axis — but there is no special point, and the earlier "interior optimum" claim was an artefact of
+sampling only {0.05, 0.20, 1.0}. Below 0.20 capacity collapses (DNA-uniq 0.242 / 0.182). One non-monotonicity
+(mAP at λ_a 0.10 < 0.05) is unexplained and most likely single-seed noise; both points are inside the
+collapse regime and were never candidates.
+
+🟡 **What survives on Flickr.** Within the plateau the model buys ρ +0.03…+0.07 for −0.008…−0.010 mAP@R at
+~96% of champion capacity. That is a genuine and cheap improvement in the reported exchange rate, but it is
+a *flat region of one knob*, not a new mechanism.
+
+### (2) 🔴 MSCOCO transfer — FAILED
+
+Single delta on the MSCOCO champion (cb1.5, E\*=49):
+
+| cell | mAP@R | full mAP | P@1 | DNA-uniq | ρ_codebook | eff_rank |
+|---|---:|---:|---:|---:|---:|---:|
+| **champion λ_a=1.0** | 0.8134 | 0.6141 | 0.9086 | **0.1865** | **0.134** | 40.6 |
+| λ_a=0.35 | **0.8173** | 0.6112 | 0.9128 | 0.1702 | 0.123 | 40.3 |
+| λ_a=0.20 | 0.8104 | 0.6111 | 0.9114 | 0.1674 | 0.121 | 40.0 |
+
+🔴 **On MSCOCO, ρ does not rise — it falls slightly (0.134 → 0.123 → 0.121), DNA-uniq falls (0.1865 →
+0.167), and eff_rank is unmoved (40.6 → 40.0).** Retrieval is within noise (+0.004 / −0.003). Freeing the
+visual marginal does essentially nothing on MSCOCO except cost a little code diversity.
+
+**The Flickr effect therefore does not generalise.** Every quantity that moved sharply on Flickr
+(ρ +0.069, eff_rank −3.2) is inert on MSCOCO. This is consistent with the 07-20 finding that MSCOCO's
+geometry is set far along the diversity end by its own capacity demands (107K DB, 80 labels, highest
+`cibhash_ntxent` of any dataset): the OT column-marginal coupling was not what was binding there.
+
+### Consolidated verdict
+
+| candidate | Flickr | MSCOCO | verdict |
+|---|---|---|---|
+| F3 usage regulariser (`lambda_bu`) | improves exchange rate, capacity still 54% of champion | not run | 🔴 traverses, does not move |
+| PSOT (`sinkhorn_lambda_a`) | +0.03…+0.07 ρ at ~96% capacity, −0.008…−0.010 mAP | ρ −0.01, DNA-uniq −0.02, no effect | 🔴 **not general** |
+
+🧭 **Reading.** Two of the three "move the trade-off" candidates are now spent, and the third (codebook-side)
+was refuted earlier by measurement. The capacity ↔ gradedness trade-off has survived four distinct attacks
+(codebook-side, routing-sharpening, usage-regulariser, OT-decoupling) and looks structural rather than
+incidental. For the paper this is a limitation to state plainly, not a bug to keep hunting: **within this
+architecture, semantic gradedness of the codebook and code capacity are in tension, and the operating point
+is dataset-dependent.**
+
+🟢 **Still usable.** λ_a ∈ [0.2, 0.5] is a documented, cheap, monotone knob for trading a little Flickr
+retrieval for codebook gradedness. It is a tuning option, not a contribution, and must not be presented as
+a general mechanism given the MSCOCO null.
+
+⚠️ **Caveats.** Single seed throughout; Flickr cells run 5 epochs at the champion's E\*, MSCOCO 50 at its
+own. The MSCOCO null is the more robust of the two results (three quantities all inert, not a marginal
+miss), but neither has seed replication, and the Flickr plateau's −0.01 mAP is close to what a seed sweep
+could absorb.
+
+🧰 Outputs: `docs/psot_grid_alignment.json`, `docs/psot_mscoco_alignment.json`.
+Result dirs `result/260720+{flickr25k,mscoco}*PSOT_la*`.
+
+**Note:** no 4-axis compositional analysis — the ρ/eff_rank/DNA-uniq/mAP@R panel is the axis set this
+trade-off is defined on; NMI excluded per the 2026-07-19 entry.
