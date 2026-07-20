@@ -20488,3 +20488,52 @@ Result dirs `result/2607*flickr25k*SEQRES_g*`.
 
 **Note:** no 4-axis compositional analysis — reported on the ρ / decoding / role-argmax panel, which is the
 axis set this intervention targeted; NMI excluded per 2026-07-19.
+
+---
+
+## 2026-07-21 — CUB A/B: **슬롯별 입력 분리는 역할 분화를 만들지 않는다** (핵심 개입 실패)
+
+🎯 **가설.** "6개 slot이 동일 visual token을 가중치만 달리해 본다. 각 slot이 자기 텍스트가 가리키는 패치만 가져가면 역할 분화가 생길 것" (사용자 제안). §4c 지표가 작동하는 유일한 설정인 CUB에서 검정.
+
+🧪 **설계 — 진짜 단일 delta.** 기존 CUB 기준 모델은 bidirectional prune 자체를 안 쓰므로 B만 돌리면 "모드 차이"와 "prune을 켠 것"이 교란된다. 두 arm을 모두 학습:
+
+| | A (대조) | B (실험) |
+|---|---|---|
+| `--bidirectional_token_prune_mode` | **legacy** (slot 마스크를 `.any(dim=1)`로 union) | **mutual_dual_softmax** (slot 마스크를 Sinkhorn 열 cost_bias로 유지) |
+| 나머지 | 동일 캐시(`cub200_clip_v6bplus_tokens`)·동일 하이퍼파라미터·동일 seed | 동일 |
+
+캐시 검증: `cub200_clip_v6bplus`와 `_tokens`의 `visual_global`·`text_part`가 **bit-identical** → 기존 기준 모델(0.264)과의 비교도 유효.
+
+📊 **구조 — delta는 의도대로 적용됐다:**
+
+| 지표 | A: legacy | **B: per-slot** |
+|---|---:|---:|
+| 슬롯당 keep 비율 | 0.762 | **0.496** |
+| union keep 비율 | 0.992 | **0.694** |
+| 단일 slot 커밋 패치 | 0.409 | **0.684** |
+
+B에서 slot은 패치의 절반만 보고, **31%는 어느 slot도 가져가지 않으며**, 패치의 68%가 한 slot 전용이다. **요청한 구조가 실현됐다.**
+
+📊 **역할 타당성 — 둘 다 실패:**
+
+| 지표 | A: legacy | B: per-slot |
+|---|---:|---:|
+| 일치율(주효과 제거) | 0.182 | 0.190 |
+| 경계파괴 대조 | 0.157 | 0.199 |
+| **경계대비 우위** | **+0.025** | **−0.010** |
+| 우연 상한 | 0.197 | 0.219 |
+| **판정** | **비유의** | **비유의** |
+
+**B − A = +0.007(일치율)이지만 경계대비 우위는 −0.035로 오히려 악화.** 통제된 지표에서 B가 A보다 낫지 않다.
+
+📊 **비용:** mAP A 0.0830 → B 0.0851 (**+0.0021, 사실상 중립**). DNA-uniq A 0.507 → B 0.444 (−0.063). (CUB mAP 정상 범위는 0.075~0.137 — 절대값이 낮은 것은 fine-grained 200종 36-bit의 특성이지 결함이 아니다.)
+
+🔴 **판정 1: 가설 반증.** 슬롯이 물리적으로 다른 패치를 보게 만들어도 역할 분화는 생기지 않는다. 사전 등록한 세 시나리오 중 **"B ≈ A → 음성 결과"** 에 해당(경계대비 우위는 오히려 B가 낮음).
+
+🔴 **판정 2 (예상 못 한 발견): bidirectional prune 자체가 역할 타당성에 해롭다.** 동일 캐시·동일 레시피에서 prune만 켠 두 arm이 **0.182 / 0.190**으로, prune을 안 쓴 §4c 기준 모델 **0.264**보다 크게 낮다. 즉 **패치를 버리는 것 자체가 손해**이며, 어떻게 버리느냐(union vs per-slot)는 부차적이다.
+
+📌 **누적 — 7번째 배제.** 역할 타당성 천장 설명 후보: 라우팅 날카로움(반증)·global gate(반증)·K(p=0.165)·fgMask(p=0.630)·캡션 균형(p=0.669)·CLIP 인코더(반증)·**슬롯별 입력 분리(반증)**. **7개 모두 실패.** §4c의 0.264는 현 아키텍처가 주는 값이며, 이를 올릴 알려진 방법이 없다.
+
+🟢 **논문에 쓸 수 있는 것.** "슬롯이 서로 다른 시각 증거를 보도록 구조적으로 강제해도(패치 공유 0.99→0.69) 역할 분화는 개선되지 않는다"는 **인과적 음성 결과**. §4c의 한계 서술을 상관이 아닌 **개입 근거**로 뒷받침한다. 또한 "역할 정보는 어느 패치를 보느냐가 아니라 codebook 경계에 있다"는 §4c 경계파괴 대조 결과와 정합.
+
+🧰 산출물: `scripts/train_cub200_bidirAB_clip.sh`, `docs/cub_AB_{legacy,mutual_dual_softmax}.json`, `result/*cub200_bidirAB_*`.
