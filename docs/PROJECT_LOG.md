@@ -19765,3 +19765,48 @@ statistics, independent of label mix), unlike the prototype analyses which use b
 **Outputs:** `docs/text_target_dynamic_range.json`, `docs/routing_selectivity.json`.
 
 **Note:** no 4-axis compositional analysis — diagnostic entry, no model variant trained.
+
+---
+
+## 2026-07-20 — CUB per-attribute 역할 타당성: **처음으로 유의한 양성 결과** (경계 특이적, 단 주효과에 가려짐)
+
+🎯 **왜 CUB인가.** image-level label로는 역할 배정을 검증할 수 없다 — 6개 slot이 하나의 타깃을 공유하고, 2026-07-20 열 효과 대조에서 그 결과가 **caption의 성질**(flat chunk와 Spearman +1.000)임이 확인됐다. CUB는 312개 부위별 이진 속성을 주고, v6b 캡션이 **해부학적 부위별로** 작성됐다(`tools/qwen3_v6b_cub_trainset.py`): C_global→전체, C_primary_object→**head/bill**, C_secondary_object→**wing/upperparts**, C_activity_or_relation→**underparts**, C_color_texture→**tail/appendages**, C_scene_type→**pattern/markings**. (CUB에서 slot 이름은 잔재이며 내용은 부위다.)
+
+🧪 **설계 (`scripts/cub_per_slot_role.py`).** 속성 이름·28개 표준 그룹 **둘 다 불필요**하다(이 사본에 attributes.txt 없음, 그룹 경험적 복원은 색상 그룹이 다중선택이라 61개로 파편화 — 폐기). 대신 속성 a마다 두 질문의 답을 비교한다:
+- **교사 측** T(a): 어느 **caption slot**이 a를 가장 잘 예측하는가 (centroid AUC)
+- **코드 측** C(a): 어느 **code slot**이 a를 가장 잘 디코딩하는가 (train 사전 → held-out test AUC)
+- 역할 타당성 = agreement(T, C)
+
+fit=train(=CUB database, 5,994), 평가=official test(5,794, disjoint). 사용 속성 269/312(min_pos=50).
+
+⚠️ **1차 실행은 버그였다.** 교사 측 AUC가 6개 slot 전부 0.4895로 **동일**하게 나옴 → CUB 캡션은 **train에만 존재**(has_text 5,994/11,788)하는데 test에서 채점해 전부 chance가 된 것. 교사 측을 캡션 보유 행 내부 split-half로 변경하여 수정.
+
+📊 **결과 — raw argmax는 주효과에 완전히 가려진다:**
+
+| | slot별 배정 (269개 속성) |
+|---|---|
+| 교사(caption) | global 20, head/bill 16, **wing 124**, underparts 55, tail 14, markings 40 |
+| 코드 | **global 244**, head/bill 6, wing 4, underparts 3, tail 2, markings 10 |
+
+raw 일치율 0.074 vs 우연 0.084 — **우연 이하**. code slot 0(global)이 269개 중 244개에서 최고 AUC(행 평균 0.703 vs 나머지 0.629~0.659)라 argmax가 그 행 효과만 잰다.
+
+📊 **주효과 제거(이중중심화) 후 — 유의한 역할 계승:**
+
+| 조건 | 일치율 |
+|---|---:|
+| **진짜 슬롯 경계** (교사 seed 42 / 7 / 123) | **0.264 / 0.253 / 0.249** |
+| permutation null (우연) | 0.168 [0.126, **0.216**] |
+| **슬롯 경계 파괴 대조** (같은 18 base 무작위 재분할 ×5) | 0.164, 0.141, 0.201, 0.164, 0.138 → **평균 0.161** |
+
+🟢 **판정: 역할 타당성 = 유의 (CUB 한정).** 3중 대조 통과 — (1) 우연 대비 유의(0.264 > 상한 0.216), (2) 교사 split seed 3개에서 안정(0.249~0.264), (3) **경계 특이적**: 같은 비트를 유지한 채 슬롯 경계만 무작위로 재분할하면 우연 수준(0.161)으로 붕괴. 즉 역할 정보는 코드의 **정보량이 아니라 경계 위치**에 있다. 효과 크기 **0.264 / 0.161 = 1.64×**.
+
+📌 **이것이 답하는 질문.** 2026-07-20 gate ablation 이후 남은 물음 — "역할이 없는 것인가, image-level caption으로 볼 수 없는 것인가" — 에 대해 **후자**임을 보인다. per-part 타깃을 주면 역할 계승이 검출된다. 동시에 교사 측이 6개 slot에 고루 분화되므로(20/16/124/55/14/40) **측정 도구는 작동한다**.
+
+⚠️ **정직하게 함께 적을 것.**
+1. **CUB 한정.** Flickr/MSCOCO/NUS-WIDE는 per-part 타깃이 없어 미검증.
+2. **절대값은 낮다.** 26.4%로, 속성 다수는 여전히 교사 배정을 따르지 않는다.
+3. **주효과 제거 후에만 보인다.** raw로는 global slot이 244/269를 독식 — "6개 역할이 분리되어 있다"는 서술은 여전히 불가.
+4. 교사 측은 train 내부(캡션이 train에만 존재), 코드 측은 held-out test. 두 측의 평가 범위가 다르다.
+5. flat baseline(CIBHash/CIMON/MLS3RDUH) 대조는 **미실행** — CUB baseline은 체크포인트만 있고 코드 추출물이 없다. 경계 파괴 대조가 대체 역할을 하지만, camera-ready 전 추출 권장.
+
+🧰 산출물: `scripts/cub_per_slot_role.py`, `docs/cub_per_slot_role.json`, `logs/cub_per_slot_role.log`.
