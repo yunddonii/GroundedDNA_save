@@ -19485,3 +19485,39 @@ Outputs: `docs/codebook_alignment_mscoco.json`, `docs/codebook_alignment_crossda
 
 **Note:** no 4-axis compositional analysis — this entry *is* a compositional-structure analysis and supersedes
 the NMI axis for the reasons above.
+
+---
+
+## 2026-07-20 — `--disable_global_gate` ablation: global-행 지배의 원인은 gate가 **아니다** (가설 반증)
+
+🎯 **가설.** 2026-07-19 slot 역할 타당성 측정에서 모든 local slot이 자기 caption이 아니라 **global·scene caption과 가장 잘 정렬**됐다(global 행 평균 lift 0.125 vs local 0.083). 이 패턴은 `model_siglip2.py:4360`의 `q_conditioned_local = q_local + sigmoid(gate)·q_global`(학습된 gate **0.993**×5, init 4.595 → 4.89~5.05로 상승)가 만들 것으로 예측되는 형태와 정확히 일치했다. → **공유 global conditioning이 역할 분화를 막는다**는 가설을 세우고 `--disable_global_gate`(v23b, 기구현)로 검정.
+
+🧪 **설정.** Flickr25k, 관행 프로토콜(CONV), `text_whiten_trainOnly.npz`, 나머지 전부 동일. 단일 delta = gate 제거. val이 아닌 test 기반 선택(관행), 선택 epoch 4(gate 런과 동일).
+
+📊 **역할 타당성 (held-out 18,000장, codeword 단위):**
+
+| 지표 | gate (0.993) | **no-gate** | 변화 |
+|---|---:|---:|---|
+| 상호작용 대각 우위(이중중심화) | +0.0052 | +0.0064 | +0.0012 |
+| 열 기준 자기 slot rank-1 | 1/6 | **1/6** | **불변** |
+| 열 순위 [g,po,so,act,col,sc] | [1,2,5,3,6,2] | [1,2,5,3,4,2] | color 6→4위만 |
+| global 행 평균 lift | 0.1253 | 0.1232 | −0.002 |
+| local 행 평균 lift | 0.0834 | 0.0862 | +0.003 |
+| **global/local 행 비** | 1.50 | **1.43** | 거의 불변 |
+
+📊 **retrieval / diversity:**
+
+| | mAP@R | P@1 | DNA-uniq(DB) |
+|---|---:|---:|---:|
+| gate | **0.8810** | 0.9315 | 0.4014 |
+| no-gate | 0.8684 | **0.9375** | **0.4242** |
+
+🔴 **판정: 가설 반증.** gate를 완전히 제거해도(gate=0 하드코딩) 역할 구조가 **사실상 그대로**다 — 상호작용 +0.0012, 열 rank-1 불변(1/6), global-행 지배 1.50→1.43으로 거의 유지. 반면 retrieval은 **−0.0126** 손해. **global-행 지배는 gate가 만드는 것이 아니다.**
+
+남는 원인 후보: (a) 손실 예산 ~80:1로 slot 무관 `cibhash_ntxent` 지배, (b) bidirectional prune의 visual mask가 slot 간 **UNION**이라 6 slot이 같은 패치를 봄, (c) **측정 대상의 성질** — global·scene caption은 원래 다른 모든 것과 상관되므로 무엇으로 분할해도 잘 조직된다. (c)라면 이는 모델 결함이 아니라 image-level caption으로 slot 역할을 검증하려는 시도의 한계이며, per-slot 독립 타깃(CUB attribute)이 유일한 우회로다.
+
+🔗 **2026-07-19 codebook geometry 진단(`8b97cf6`)과의 정합.** 그 세션은 "slot이 분화될수록 개별 codebook은 덜 graded해진다"는 역상관을 4개 열에서 관측했다(MSCOCO: 가장 slot-discriminative한 caption + 가장 분화된 quantised slot + 가장 낮은 rho 0.134). 본 ablation도 **같은 축** 위에 있다: gate 제거 → local 행 lift +0.003, DNA-uniq +0.023(더 categorical) → retrieval −0.013. **slot 분화와 codebook gradedness는 교환관계**이며, gate는 그 축을 gradedness 쪽으로 당기는 손잡이였을 뿐 역할 분화의 병목이 아니다.
+
+🟢 **부수 소득.** gate는 retrieval을 위해 code diversity를 희생하는 트레이드오프다(DNA-uniq 0.401→0.424, P@1 0.9315→0.9375, mAP@R −0.013). DNA-축 우선 변형이 필요하면 기록해둘 값.
+
+🧰 산출물: `result/*flickr_CONV_noGlobalGate*`, `docs/slot_role_alignment_flickr25k_noGate.json`, `logs/flickr_CONV_noGlobalGate.log`.
