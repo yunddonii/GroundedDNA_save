@@ -318,6 +318,20 @@ test 이미지 쌍 ~20만 개에서 **슬롯 내 코드 거리 ↔ 의미 거리
 
 ## 5. 최종 판정 — 무엇을 주장할 수 있는가
 
+### 🆕 2026-07-20 추가 — 열 효과 대조 + gate ablation
+
+**(1) 열 효과는 caption의 성질이다 (H_data 확정).** 역할 타당성 행렬의 열 효과(scene·global이 높고 secondary가 낮음)를, semantic slot 개념이 **전혀 없는** flat baseline의 임의 6-bit chunk로 재현했다. 열 프로파일 순위가 **완전히 동일**하다(ours vs CIBHash Spearman **+1.000**, vs CIMON **+1.000**, vs MLS3RDUH +0.886). scene_type은 eff_rank 58.5로 압도적 저차원(나머지 111~219)이며 모든 분할에서 1위.
+→ **이중중심화가 검증됐다**(주효과는 반드시 제거). 상호작용 +0.0052는 이미 제거한 값이므로 **역할 타당성 미성립 판정은 불변**.
+→ 단 2026-07-19의 "모든 local slot이 global caption과 정렬 = 모델이 global을 퍼뜨림"이라는 해석은 **열 방향에 한해 철회**한다.
+
+**(2) gate는 원인이 아니다.** `--disable_global_gate`로 검정: 상호작용 +0.0052→+0.0064, 열 rank-1 1/6→**1/6 불변**, global/local 행 비 1.50→1.43, retrieval **−0.0126**. global-행 지배는 gate가 만드는 것이 아니다. 남은 후보는 손실 예산(~80:1), UNION visual mask, 또는 측정 도구의 한계.
+
+**(3) 새 양성 결과 — 조직화 우위 1.53×.** 열 순위는 데이터가 정하지만 **크기는 모델이 정한다**: ours가 best flat 대비 6개 caption 차원 **전부**에서 1.41~1.64× (평균 **1.53×**) 높은 lift. 평가 이미지 18,000장의 caption은 감독에 쓰인 적 없다. §2 held-out decoding(label 기준)의 **텍스트 측 대응물**이며, orthogonality·역할 배정을 주장하지 않고 성립한다.
+
+**(4) slot 내 일관성·codon 전이는 성립.** 전 셀 lift 0.04~0.15(chance 상회), codeword→codon 0.095→0.070(**74% 보존**).
+
+---
+
 ### ✅ 주장 가능 (측정으로 뒷받침)
 
 **Main contribution (단일):**
@@ -328,6 +342,8 @@ test 이미지 쌍 ~20만 개에서 **슬롯 내 코드 거리 ↔ 의미 거리
 - 검색 성능이 해석 가능성을 위해 희생되지 않음 (Flickr +0.052, NUS-WIDE +0.018; MS-COCO·CIFAR-10 동등)
 - slot 위치는 무의미하지 않음 — 단 **약한 근거**. 의도한 slot이 random slot보다 target gain은 크지만, selectivity 차이가 유의한 셀은 **18개 중 8개**뿐 (§3 재분석). "slot 선택이 무작위보다 낫다" 정도로만 쓰고 조작 가능성으로 확장하지 말 것.
 - **코드가 flat baseline보다 덜 중복** — slot 중복률 86.2% vs CIBHash 98.4%, 6 unit 독립정보 **3.81b vs 0.56b (6.8배)** (§3). `disentangled`를 주장하지 않고 쓸 수 있는 구조 지표.
+- **조직화 우위 1.53×** — 6개 caption 차원 전부에서 동일 예산 flat 분할보다 1.41~1.64× 높은 lift (2026-07-20). held-out 이미지, caption은 감독 미사용.
+- **slot 내 의미 일관성 + codon 전이** — 전 셀 lift가 chance 상회, codeword→codon 74% 보존 (2026-07-19 role alignment).
 - 텍스트 집계 방식(EOS vs mean-pool vs pruning)은 성능 원인이 아님 — negative result지만 강건성의 증거 (A1, ±0.003)
 - codebook drop ablation: 5~6개 slot이 non-trivial retrieval 기여 (Σ|drop| 0.038~0.053)
 - **슬롯 내 의미 조직화가 codon까지 유지됨** (§4b-B): 코드 거리↔의미 거리 Spearman ρ가 shuffled(≈0.000) 대비 3/3 데이터셋에서 확인. flat hash 대비 우세는 Flickr25k(+0.079)에서만 결정적, NUS-WIDE·MS-COCO는 동률(+0.011/+0.012) — **데이터셋 의존임을 함께 적을 것**
