@@ -19656,3 +19656,112 @@ scene_type은 압도적 저차원(eff_rank 58.5, 다음이 111.2)이고 모든 �
 3. **논문에 쓸 수 있는 새 문장**: "우리 코드는 6개 caption 차원 **전부**에서 동일 예산 flat 분할보다 1.4~1.6× 잘 조직한다"(orthogonality·역할 배정을 주장하지 않고 성립).
 
 🧰 산출물: `scripts/caption_column_effect.py`, `docs/caption_column_effect_flickr25k.json`, `logs/caption_column_effect.log`.
+
+---
+
+## 2026-07-20 — Signal chain: the model AMPLIFIES semantic structure (patch-mean → z), MSCOCO is the one place it inverts; text-relational loss and routing-sharpening both REFUTED
+
+🎯 **Why.** The 2026-07-20 z-geometry entry located MSCOCO's degeneracy upstream of the codebook and proposed
+a **within-slot relational loss** on text distance as the fix. The user objected that CLIP text embeddings sit
+at high mutual cosine, so that target may be degenerate. That objection was tested, and it is correct — but
+the mechanism is not the one expected, and the measurement reframes the whole problem.
+
+### 1. The text target: range is fine after whitening, but it barely tracks meaning
+
+`scripts/text_target_dynamic_range.py`, image pairs **within the same slot**, train rows with captions.
+`whitened` reproduces the model's actual `partial_whiten` (W = U diag((S+eps)^-γ) Uᵀ, γ=0.25).
+
+| Dataset | variant | cos mean | cos sd | p5 | p95 | **ρ(text dist ↔ label dist)** | eff_rank |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Flickr25k | raw | 0.483 | 0.114 | 0.297 | 0.670 | **0.226** | 49.2 |
+| | whitened | 0.029 | 0.079 | −0.071 | 0.173 | 0.164 | 187.6 |
+| NUS-WIDE | raw | 0.506 | 0.114 | 0.320 | 0.693 | **0.091** | 43.4 |
+| | whitened | 0.033 | 0.085 | −0.074 | 0.189 | 0.145 | 167.4 |
+| MSCOCO | raw | 0.521 | 0.110 | 0.342 | 0.703 | **0.072** | 44.0 |
+| | whitened | 0.037 | 0.085 | −0.067 | 0.192 | 0.097 | 155.3 |
+
+The high-cosine observation is confirmed (raw mean ≈ 0.5) and whitening does remove the cone (mean → 0.03).
+But the binding defect is not range — it is that **text distance barely predicts semantic distance anywhere**
+(ρ 0.07–0.23).
+
+### 2. Signal chain — the decisive table
+
+Same train rows, same image pairs, ρ = Spearman(1 − cos, ‖Δlabel‖):
+
+| Dataset | CLIP CLS | patch-mean | TEXT raw | TEXT whitened | **z** |
+|---|---:|---:|---:|---:|---:|
+| Flickr25k | 0.183 | 0.021 | 0.226 | 0.164 | **0.338** |
+| NUS-WIDE | 0.038 | 0.063 | 0.091 | 0.150 | **0.332** |
+| MSCOCO | 0.131 | **−0.115** | 0.069 | 0.097 | **0.080** |
+
+🔴 **The proposed within-slot text-relational loss is REFUTED, quantitatively.** On Flickr25k and NUS-WIDE
+**z (0.34) already far exceeds the text target (0.09–0.23)**. A loss pulling z-distances toward text-distances
+would drag those two datasets *down* toward a weaker signal. The prescription would damage 2 of 3 datasets.
+
+🔴 **Teacher quality is NOT the binding constraint.** NUS-WIDE has the *worst* text target of the three
+(raw ρ 0.091) and the *best* z (0.332). A weak teacher is evidently sufficient.
+
+🟢 **The framework contains a real amplifier.** patch-mean 0.021 → z 0.338 (Flickr), 0.063 → 0.332
+(NUS-WIDE). The trained routing + objective manufactures graded semantic structure that is in **neither**
+input — the visual features nor the text. This is a positive, previously unrecorded finding about what the
+model actually does.
+
+🔴 **MSCOCO is where the amplifier inverts.** CLS 0.131 → z 0.080: the model *destroys* signal its input had.
+And MSCOCO's input is not the weak one — its CLS (0.131) is far better than NUS-WIDE's (0.038). What is
+distinctive is **patch-mean = −0.115, actively anti-correlated**: with ~2.9 labels/img over diverse
+backgrounds, averaging 196 patches yields a scene-texture vector whose similarity is driven by background
+rather than objects.
+
+### 3. Routing sharpening — hypothesis and REFUTATION
+
+Hypothesis: z inherits patch-mean's defect exactly when routing is diffuse; sharp routing escapes it.
+`scripts/routing_selectivity.py`, from the model's own `routing_matrix` [B, 196, 6], 2048 DB images.
+Slot 0 excluded (under `c_global_source=siglip2_global` its routing column is functionally inert — it reads
+as exactly uniform, eff_k = 196.0); `(image, slot)` pairs whose adaptive-top-p mass is entirely zeroed are
+masked and reported separately.
+
+| Dataset | eff_k (of 196) | % of patches | top1 mass | top10 mass | silent-slot frac | slot routing overlap |
+|---|---:|---:|---:|---:|---:|---:|
+| Flickr25k | 120.1 | 61.3% | 0.0304 | 0.1853 | 0.018 | 0.443 |
+| NUS-WIDE | 124.0 | 63.3% | 0.0437 | 0.1898 | 0.047 | 0.428 |
+| MSCOCO | 125.5 | 64.0% | 0.0113 | 0.1077 | 0.000 | 0.537 |
+
+🔴 **REFUTED.** MSCOCO's routing is **not** meaningfully more diffuse: eff_k 125.5 vs 120.1/124.0 — a 2–4%
+difference where the ρ gap is 4×. Routing is diffuse on *all three* datasets (61–64% of patches), including
+the two where the amplifier works. **Patch selection is not the mechanism**, so routing-sharpening knobs
+(adaptive top-p range, Sinkhorn ε) are not the fix.
+
+Two secondary observations, offered as leads rather than conclusions: MSCOCO has the flattest per-patch
+weighting (top1 0.0113 vs 0.0304/0.0437; top10 0.108 vs 0.185/0.190) and the highest inter-slot routing
+overlap (0.537 vs 0.443/0.428). So MSCOCO's slots read *more of the same patches, more uniformly* — but the
+effective-count statistic says the difference is small, and Flickr's own routing is diffuse too.
+
+### Consolidated: five design directions now refuted
+
+| direction | verdict | refuted by |
+|---|---|---|
+| (c) low-rank / factorised codebook | 🔴 | Flickr A4: eff_rank 11.0 ≈ base 11.3, ρ 0.325 vs 0.578 (07-19) |
+| (a) text-anchored codewords | 🔴 | codebook already sits on its empirical z-prototypes, cos 0.93–0.97 (07-20) |
+| (b) Gram-matrix distillation onto codebook | 🔴 | same — would fix a second-order gap while the first-order one is upstream (07-20) |
+| (d) within-slot text-relational loss | 🔴 | z already exceeds the text target on 2/3 datasets (this entry) |
+| (e) routing sharpening | 🔴 | eff_k is equal across datasets; routing is diffuse everywhere (this entry) |
+
+🧭 **Where this leaves the problem.** The question is no longer "why is MSCOCO's codebook bad" but
+**"what is the amplifier, and why does it invert on MSCOCO?"** Neither input metric explains z's 0.33 on
+Flickr/NUS-WIDE, so the structure comes from the training objective itself — the leading candidate is
+instance discrimination (`cibhash_ntxent`, augmented-view NtXent) interacting with VQ commitment, which
+imposes an instance-level metric that happens to align with labels on scene-level datasets. On MSCOCO,
+where patch statistics are anti-correlated with label similarity, that same pressure may be actively
+counterproductive. **This is a hypothesis, not a result** — the next step is an intervention that varies the
+instance-discrimination pressure on MSCOCO and checks whether ρ_z moves.
+
+⚠️ **Caveats.** (1) n=3 datasets throughout; every cross-dataset claim here is correlational. (2) z is
+measured on the DB split while visual/text/label rows are train; for Flickr/NUS train ⊆ db, and for MSCOCO
+train and db are disjoint — but MSCOCO's codebook ρ was verified identical on train and db (0.134 both,
+07-20 entry), so the comparison holds. (3) Routing statistics use a contiguous DB head (per-image
+statistics, independent of label mix), unlike the prototype analyses which use block-strided sampling.
+
+🧰 **New:** `scripts/text_target_dynamic_range.py`, `scripts/routing_selectivity.py`.
+**Outputs:** `docs/text_target_dynamic_range.json`, `docs/routing_selectivity.json`.
+
+**Note:** no 4-axis compositional analysis — diagnostic entry, no model variant trained.
