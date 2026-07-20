@@ -43,6 +43,14 @@ BIDIR_MODE="${BIDIR_MODE:-legacy}"
 # (2026-07-20). Default 1.0 == the previously hardcoded value, so every existing
 # invocation of this script is bit-identical.
 CIBNT="${CIBNT:-1.0}"
+# Codebook usage-balance weight (loss_bu) and Sinkhorn visual-marginal strength.
+# Both env-overridable for the 2026-07-20 trade-off experiments; defaults equal
+# the previously hardcoded values so every prior invocation stays bit-identical.
+#   LBU  0.02 -> higher = stronger explicit pressure to keep codewords alive
+#   SLA  1.0  -> lower  = visual marginal freed; at ~0 each slot selects tokens
+#                independently (no cross-slot competition for patch mass)
+LBU="${LBU:-0.02}"
+SLA="${SLA:-1.0}"
 TAG="${TAG:-flickr25k_v185_bidir_v${BI_V}_t${BI_T}_K128_partialWhiten_gamma${WHITEN_GAMMA}}"
 LOG="logs/${TAG}.log"
 mkdir -p logs
@@ -75,7 +83,7 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --global_gate_init_logit 4.595 \
     --router_type sinkhorn \
     --sinkhorn_epsilon_init 1.0 --sinkhorn_epsilon_final 0.1 \
-    --sinkhorn_lambda_a 1.0 \
+    --sinkhorn_lambda_a "$SLA" \
     --sinkhorn_lambda_b 1.0 \
     --routing_adaptive_topp \
     --routing_adaptive_topp_min 0.3 \
@@ -109,7 +117,7 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --lambda_wasserstein 0.15 \
     --lambda_vq 0.25 --lambda_quant 0.05 \
     --lambda_xmodal_commit 0.05 \
-    --lambda_anchor 0.05 --lambda_dna 0.05 --lambda_bu 0.02 \
+    --lambda_anchor 0.05 --lambda_dna 0.05 --lambda_bu "$LBU" \
     --eta_base_balance 0.3 \
     --lambda_codeword_codon_sinkhorn 0.0 \
     --lambda_cibhash_ntxent "$CIBNT" \

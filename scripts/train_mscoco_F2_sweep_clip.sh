@@ -9,6 +9,10 @@ QWEN="${QWEN:-./cache/mscoco_qwen3_v5b_trainset.jsonl}"
 WHITEN_NPZ="${WHITEN_NPZ:-${CACHE}/text_whiten.npz}"
 WASS="${WASS:-0.05}"; XMODAL="${XMODAL:-0.10}"; THASH="${THASH:-0.10}"; TCKL="${TCKL:-0.10}"
 CIBNT="${CIBNT:-1.0}"; CCS="${CCS:-0.0}"; CELL="${CELL:-base}"; NUM_CODONS="${NUM_CODONS:-3}"
+# Sinkhorn visual-marginal strength (2026-07-20 PSOT experiment). Default 1.0 ==
+# the previously hardcoded value, so prior invocations stay bit-identical.
+# Lower = visual marginal freed; at ~0 each slot selects its tokens independently.
+SLA="${SLA:-1.0}"
 TAG="${TAG:-mscoco_F2sweep_${CELL}_w${WASS}_x${XMODAL}_th${THASH}_tk${TCKL}_cb${CIBNT}_ccs${CCS}_L${NUM_CODONS}}"
 LOG="logs/${TAG}.log"; mkdir -p logs
 echo "[mscoco-sweep-$CELL] GPU=$GPU WASS=$WASS XMODAL=$XMODAL THASH=$THASH TCKL=$TCKL CIBNT=$CIBNT CCS=$CCS L=$NUM_CODONS"
@@ -18,7 +22,7 @@ CUDA_VISIBLE_DEVICES="$GPU" /home/yschoi/.conda/envs/dna_hashing/bin/python trai
     --qwen_text_cache_path "$QWEN" --siglip2_feature_cache_dir "$CACHE" \
     --backbone_type clip --codebook_size 128 --c_global_source siglip2_global --per_slot_text_adapter \
     --global_gate_init_logit 4.595 --router_type sinkhorn \
-    --sinkhorn_epsilon_init 1.0 --sinkhorn_epsilon_final 0.1 --sinkhorn_lambda_a 1.0 --sinkhorn_lambda_b 1.0 \
+    --sinkhorn_epsilon_init 1.0 --sinkhorn_epsilon_final 0.1 --sinkhorn_lambda_a "$SLA" --sinkhorn_lambda_b 1.0 \
     --routing_adaptive_topp --routing_adaptive_topp_min 0.3 --routing_adaptive_topp_max 0.7 \
     --codon_residual_gamma 0.0 --num_codons_per_codebook "$NUM_CODONS" ${FINAL_EPOCH:+--final_epoch_eval} \
     ${VAL_RATIO:+--val_split_ratio "$VAL_RATIO"} ${VAL_SEED:+--val_split_seed "$VAL_SEED"} \

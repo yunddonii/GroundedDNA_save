@@ -19905,3 +19905,80 @@ Outputs: `docs/amplifier_z_geometry.json`, `docs/amplifier_codebook_alignment.js
 
 **Note:** the 4-axis compositional analysis is superseded here by the ρ/eff_rank/DNA-uniq/mAP@R panel, which
 is the axis set this trade-off is defined on; NMI is excluded for the reasons in the 2026-07-19 entry.
+
+---
+
+## 2026-07-20 — Trade-off experiments: F3 usage-regulariser TRAVERSES the trade-off, per-slot independent OT MOVES it (Flickr; +0.069 ρ at 96% of champion capacity)
+
+🎯 **Why.** The amplifier intervention established a **capacity ↔ gradedness trade-off** governed by
+instance discrimination. Two candidates for *moving* rather than traversing it were run in parallel, both
+prompted by a user proposal to redesign routing. The proposal's six components were reviewed first: four are
+already implemented or already refuted (token pruning — refuted 4×: v185 no-op, F1 −0.020 mAP, v182/183
+sweep, v187a; plan-probability weighted sum — that *is* the current `z_i^m = Σ_n R[i,n,m]·v[i,n]`;
+per-part Wasserstein then summed — `ot_cost=(P*cost).sum(dim=(1,2))` already sums over slots and
+⟨π,C⟩ = Σ_m⟨π_·m,C_·m⟩ makes it an identity; text-confidence filtering — A1 showed text aggregation is
+worth ±0.003). **One component was genuinely new: per-slot independent OT.**
+
+🔬 **Neither experiment needed new model code.**
+- **F3** = raise `--lambda_bu`. `_loss_bu` already implements exactly the proposed regulariser (per-codebook
+  usage → uniform MSE + off-diagonal Gram decorrelation). Proposed as "F3" on 2026-07-13, never run.
+- **PSOT** = lower `--sinkhorn_lambda_a`. In `_log_sinkhorn`, `tau_a = λ_a/(λ_a+ε)`; driving λ_a → 0 sends
+  tau_a → 0 so `log_u` stays 0 and only the column scaling survives, making `P[:,:,m]` an **independent
+  per-slot softmax over patches** — no cross-slot competition for patch mass. Exactly the proposal's ask.
+
+Single delta throughout; cache, trainOnly whitening, schedule, E\*=4 and `--final_epoch_eval` identical to
+the P0refit champion. `LBU`/`SLA` env vars added to the Flickr script and `SLA` to the MSCOCO sweep script,
+both defaulting to the previously hardcoded values so prior invocations stay bit-identical.
+
+📊 **Flickr25k (E\*=4):**
+
+| cell | mAP@R | **DNA-uniq** | **ρ_codebook** | ρ_z (proto) | eff_rank_z | slot routing overlap |
+|---|---:|---:|---:|---:|---:|---:|
+| **cb1.0 champion** | **0.8810** | **0.4014** | 0.586 | 0.619 | 17.0 | 0.442 |
+| cb0.5 | 0.8654 | 0.2036 | 0.690 | 0.697 | 12.0 | — |
+| cb0.0 | 0.5766 | 0.0003 | 0.740 | n/a | ∞ | — |
+| F3 bu0.10 (cb0.5) | 0.8690 | 0.2165 | **0.711** | **0.714** | 11.8 | — |
+| F3 bu0.30 (cb0.5) | 0.8622 | 0.2273 | 0.694 | 0.691 | 12.0 | — |
+| PSOT λ_a=0.05 | 0.8628 | 0.1818 | 0.710 | 0.720 | 10.5 | 0.409 |
+| **PSOT λ_a=0.20** | **0.8708** | **0.3837** | **0.655** | 0.648 | 13.0 | **0.414** |
+
+🔑 **Findings.**
+
+1. **🟡 F3 improves the trade-off but does NOT move it — it fails its pre-registered criterion.** At cb0.5,
+   `lambda_bu` 0.02 → 0.10 improves all three axes slightly (mAP +0.004, DNA-uniq +0.013, ρ +0.021), and the
+   exchange rate beats plain cb0.5 (−0.012 mAP for +0.125 ρ, vs −0.016 for +0.104). But the criterion was
+   **"DNA-uniq maintained"**, and 0.2165 is **54% of the champion's 0.4014** — capacity is not restored, so
+   this is still a traversal. bu 0.30 overshoots (mAP −0.007 vs bu 0.10, ρ −0.017). Explicit usage balance
+   cannot substitute for what instance discrimination supplies.
+
+2. **🟢 PSOT λ_a=0.20 moves it.** vs the champion: **96% of code diversity retained** (0.3837 vs 0.4014),
+   **ρ_codebook +0.069** (0.655 vs 0.586), for **−0.010 mAP@R**. Compare cb0.5, which bought a similar ρ gain
+   by burning capacity down to 51%. This is the first cell in the investigation to raise ρ while holding
+   capacity — a different point on the plane, not a slide along the old curve.
+
+3. **🔴 The pre-registered PSOT kill criterion did not fire, and my stated mechanism was wrong.** I predicted
+   that removing inter-slot competition would make every slot read the same patches (overlap → 1.0). Measured
+   overlap went **down**: 0.442 (champion) → 0.414 (λ_a=0.20) → 0.409 (λ_a=0.05). Slot differentiation is
+   therefore driven by the **text centroids**, not by the OT column-marginal coupling. The coupling was
+   costing capacity while contributing nothing to differentiation.
+
+4. **λ_a has an interior optimum.** 0.05 frees the marginal too far and capacity collapses (DNA-uniq 0.1818,
+   below even cb0.5); 0.20 is the best of the three points; 1.0 is the champion. ρ_z tracks ρ_codebook closely
+   across every cell (0.648↔0.656, 0.714↔0.711, 0.720↔0.709), consistent with the 07-20 finding that
+   quantisation is near-lossless and the geometry is set upstream.
+
+⚠️ **Caveats.** (1) Single seed, Flickr only, 5 epochs (E\*=4 was selected for the champion weight, not for
+each cell). (2) The λ_a grid has three points; 0.20 being optimal is not established. (3) PSOT's −0.010 mAP
+and +0.069 ρ have not been checked against seed noise. These are exactly the gaps the follow-up addresses.
+
+🔭 **Running now** (`scripts/run_psot_followup.sh`): Flickr λ_a ∈ {0.10, 0.35, 0.50} to resolve the optimum,
+and **MSCOCO λ_a ∈ {0.20, 0.35}** (champion cb1.5, E\*=49) as the generality test — MSCOCO is under the
+greatest capacity pressure (107K DB, 80 labels, highest instance-discrimination weight of any dataset), so
+if PSOT transfers there it is a real mechanism rather than a Flickr artefact.
+
+🧰 New: `scripts/run_tradeoff_experiments.sh`, `scripts/run_psot_followup.sh`; `LBU`/`SLA` env vars in
+`scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh`, `SLA` in `scripts/train_mscoco_F2_sweep_clip.sh`.
+Outputs: `docs/tradeoff_z_geometry.json`, `docs/tradeoff_codebook_alignment.json`, `docs/tradeoff_routing.json`.
+
+**Note:** the 4-axis compositional analysis is superseded by the ρ/eff_rank/DNA-uniq/mAP@R panel that this
+trade-off is defined on; NMI is excluded per the 2026-07-19 entry.
