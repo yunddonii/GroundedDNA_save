@@ -51,6 +51,9 @@ CIBNT="${CIBNT:-1.0}"
 #                independently (no cross-slot competition for patch mass)
 LBU="${LBU:-0.02}"
 SLA="${SLA:-1.0}"
+# Sequential cross-slot residual pooling (2026-07-21). Unset = off = unchanged.
+SEQRES="${SEQRES:-}"
+SEQRES_G="${SEQRES_G:-1.0}"
 TAG="${TAG:-flickr25k_v185_bidir_v${BI_V}_t${BI_T}_K128_partialWhiten_gamma${WHITEN_GAMMA}}"
 LOG="logs/${TAG}.log"
 mkdir -p logs
@@ -89,6 +92,7 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --routing_adaptive_topp_min 0.3 \
     --routing_adaptive_topp_max 0.7 \
     --codon_residual_gamma 0.0 \
+    ${SEQRES:+--slot_sequential_residual --slot_seq_residual_gamma "$SEQRES_G"} \
     ${FINAL_EPOCH:+--final_epoch_eval} \
     ${VAL_RATIO:+--val_split_ratio "$VAL_RATIO"} \
     ${VAL_SEED:+--val_split_seed "$VAL_SEED"} \

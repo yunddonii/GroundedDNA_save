@@ -20422,3 +20422,69 @@ clean fix is to re-score P0 versions of A2/A4. (2) NUS-WIDE A4 was never trained
 
 **Note:** no 4-axis compositional analysis — this is a re-scoring of existing ablations on the decoding axis,
 which supersedes the NMI axis for interpretability claims per the 2026-07-19 entry.
+
+---
+
+## 2026-07-21 — 🔴 Sequential cross-slot residual pooling: REFUTED, and it makes the very thing it targeted WORSE (role argmax OWN 3/6 → 0/6)
+
+🎯 **Hypothesis.** The measured cause of failed slot specialisation was **information redundancy, not
+routing sharpness**: every local slot pools ~61–64% of the *same* 196 patches (eff_k 120–125, identical
+across all three datasets), so the six `z^m` are re-weightings of one global content (local-slot pairwise
+NMI 0.74–0.82; cross-slot decoding puts only 3/6 slots' own code at the column argmax). Per-slot text
+supervision is present and discriminative (teacher slot-id 0.686–0.790 vs chance 0.167) but cannot induce
+specialisation when the visual evidence is not separable.
+
+Proposed fix: pool slot *m* from the **token residual** left by slots 1..m−1, so each slot only sees what
+earlier slots did not explain. Chosen because it is **constructive** rather than a penalty — penalising
+inter-slot MI was rejected earlier (it trades away retrieval), and sharpening/pruning the routing was
+refuted separately. Explicitly distinct from `--local_residual_quant` (v132a, no-op/harmful), which removes
+only the single global C0 projection from the slot *vectors*; here removal is token-level and chained across
+the five local slots, with routing weights untouched (single delta on the pooling step).
+
+🧰 **Implementation.** `--slot_sequential_residual` + `--slot_seq_residual_gamma` (model_siglip2.py pooling
+site, config.py). Default off. **Backward compatibility verified**: with the flag off the model reproduces
+the champion's stored `extract_db.npz` codebook indices bit-identically.
+
+📊 **Flickr25k, E\*=4, single delta:**
+
+| cell | mAP@R | DNA-uniq | ρ_codebook | **held-out decoding (codon)** | role argmax OWN |
+|---|---:|---:|---:|---:|:---:|
+| **champion (off)** | **0.8810** | 0.4014 | **0.586** | **0.7794** | **3/6** |
+| γ=0.25 | 0.8705 | **0.4518** | 0.591 | 0.7678 | **0/6** |
+| γ=0.50 | 0.8702 | 0.3887 | 0.513 | 0.7366 | **0/6** |
+| γ=1.00 | 0.8414 | 0.1672 | 0.404 | 0.6927 | — |
+
+🔴 **Refuted on every axis, monotonically in γ.** Retrieval −0.011 → −0.040, ρ +0.005 → −0.182, held-out
+decoding −0.012 → −0.087. The single exception is DNA-uniq at γ=0.25 (0.4518 vs 0.4014, +0.050), i.e. the
+residual does spread the codes — but that extra diversity buys nothing on any semantic axis.
+
+🔴 **Most decisively: it makes the target metric WORSE.** The intervention was designed to raise role
+specialisation, and cross-slot decoding (slot-distinctive vocabulary, the same protocol that produced the
+3/6 baseline) drops to **0 of 6 slots being best-decoded by their own code**, at both γ=0.25 and γ=0.50.
+Column diagonal advantages stay within ±0.026 of zero as before, but now no slot wins its own column.
+
+🧭 **Interpretation.** Forcing slots to read disjoint evidence does not create specialisation — it destroys
+information. The redundancy between slots is evidently *load-bearing*: each slot needs the global scene
+content to place its own contribution, and removing what earlier slots explained leaves later slots with a
+progressively impoverished, order-dependent view. The chain is also inherently asymmetric (slot 1 sees
+everything, slot 5 sees a quadruple residual), which is itself a bad prior for six roles that are not
+hierarchically ordered.
+
+**This closes the "make the slots see different things" family.** Together with the earlier refutations the
+score is now: codebook-side (3 variants), routing-sharpening, usage-regulariser, OT-decoupling, and
+token-residual decomposition — **seven distinct architectural attacks, none of which improved the
+gradedness/specialisation axes without paying more elsewhere.** The capacity ↔ gradedness trade-off and the
+slot-redundancy property both look structural to this architecture rather than incidental.
+
+⚠️ **Caveats.** Single seed; Flickr only; 5 epochs at the champion's E\* (chosen for the champion config, not
+for these cells). γ=0.25 is close enough to the champion on mAP that a seed sweep could move it, but the
+decoding and argmax results are not marginal.
+
+🟢 **Kept anyway.** The flag is committed (default off, backward-compatible) so the negative result is
+reproducible and the mechanism is not re-proposed later.
+
+🧰 Outputs: `docs/seqres_alignment.json`, `docs/heldout_seqres_*.json`, `docs/seqres_role_g{0.25,0.5}.json`.
+Result dirs `result/2607*flickr25k*SEQRES_g*`.
+
+**Note:** no 4-axis compositional analysis — reported on the ρ / decoding / role-argmax panel, which is the
+axis set this intervention targeted; NMI excluded per 2026-07-19.

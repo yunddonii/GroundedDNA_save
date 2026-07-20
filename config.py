@@ -1160,6 +1160,19 @@ class Config():
             choices=['local', 'all'],
             help='v119 companion to --routed_cls_add_gamma. local adds CLS '
                  'only to C_1..C_5; all also adds it to C_0.')
+        siglip2_arg.add_argument('--slot_sequential_residual',
+            dest='slot_sequential_residual', action='store_true', default=False,
+            help='2026-07-21: pool each local slot from the TOKEN residual left '
+                 'by the previous slots, so slot m only sees what slots 1..m-1 '
+                 'did not explain. Targets the measured redundancy between '
+                 'local slots (each pools ~62%% of the same patches; pairwise '
+                 'NMI 0.74-0.82). Constructive, not a redundancy penalty. '
+                 'Distinct from --local_residual_quant, which removes only the '
+                 'global C_0 projection from the slot vectors. Default off.')
+        siglip2_arg.add_argument('--slot_seq_residual_gamma',
+            dest='slot_seq_residual_gamma', type=float, default=1.0,
+            help='Strength of the --slot_sequential_residual token projection '
+                 'removal. 1.0 = full removal, 0.0 = disabled.')
         siglip2_arg.add_argument('--local_residual_quant',
             dest='local_residual_quant', action='store_true', default=False,
             help='v122: before codeword assignment, remove each local slot '

@@ -37,7 +37,7 @@ What's OUT of scope this stage (do NOT add here):
 """
 
 from __future__ import annotations
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import math
 import os
@@ -1790,6 +1790,12 @@ class SigLIP2SemanticOTModel(nn.Module):
             )
         # v122: C0-orthogonal local quantization. C_global keeps the coarse
         # semantic axis; local codebooks quantize the residual concept.
+        # Sequential cross-slot residual pooling (2026-07-21). See the pooling
+        # site for the diagnosis; default off so every existing run is unchanged.
+        self.slot_sequential_residual: bool = bool(
+            getattr(args, "slot_sequential_residual", False))
+        self.slot_seq_residual_gamma: float = float(
+            getattr(args, "slot_seq_residual_gamma", 1.0))
         self.local_residual_quant: bool = bool(getattr(args, "local_residual_quant", False))
         self.local_residual_gamma: float = float(getattr(args, "local_residual_gamma", 1.0))
         self.local_residual_detach_global: bool = bool(
@@ -4100,6 +4106,44 @@ class SigLIP2SemanticOTModel(nn.Module):
                 torch.bmm(local_routing_matrix.transpose(1, 2), visual_tokens)        # [B, 5, D]
                 / denom.unsqueeze(-1)
             )
+
+            # ---- sequential cross-slot residual pooling (2026-07-21) --------
+            # Diagnosis it targets: every local slot pools ~61-64% of the SAME
+            # 196 patches (measured eff_k 120-125/196 on all datasets), so the
+            # six z^m are re-weightings of one global content and carry highly
+            # redundant information (local-slot pairwise NMI 0.74-0.82;
+            # cross-slot decoding puts only 3/6 slots' own code at the column
+            # argmax). Per-slot text supervision cannot induce specialisation
+            # when the visual evidence is not separable.
+            #
+            # Mechanism: pool slot m from the token residual left by slots
+            # 1..m-1 -- each token has the component already explained by an
+            # earlier slot removed before the next slot reads it. This is
+            # CONSTRUCTIVE (a reparameterisation of what each slot sees), not a
+            # redundancy penalty: penalising inter-slot MI was tried and
+            # rejected earlier because it traded away retrieval, and sharpening
+            # / pruning the routing was refuted separately.
+            #
+            # Distinct from `--local_residual_quant` (v132a, no-op/harmful),
+            # which removes only the single global C0 projection from the slot
+            # VECTORS. Here the removal is token-level and chained across the
+            # five local slots. Routing weights are untouched, so this is a
+            # single delta on the pooling step alone.
+            if self.slot_sequential_residual and self.slot_seq_residual_gamma > 0.0:
+                g = float(self.slot_seq_residual_gamma)
+                v_res = visual_tokens                                             # [B, N, D]
+                pooled: List[torch.Tensor] = []
+                n_local = local_routing_matrix.shape[-1]
+                for m in range(n_local):
+                    w = local_routing_matrix[:, :, m]                             # [B, N]
+                    z_m = torch.bmm(w.unsqueeze(1), v_res).squeeze(1) / \
+                        w.sum(dim=1).clamp_min(1e-6).unsqueeze(-1)                # [B, D]
+                    pooled.append(z_m)
+                    if m < n_local - 1:
+                        z_dir = F.normalize(z_m, dim=-1)                          # [B, D]
+                        coef = torch.einsum("bnd,bd->bn", v_res, z_dir)           # [B, N]
+                        v_res = v_res - g * coef.unsqueeze(-1) * z_dir.unsqueeze(1)
+                local_semantic_visual_tokens = torch.stack(pooled, dim=1)         # [B, 5, D]
 
             # v79d (#1.3-lite): override local_semantic_visual_tokens with
             # per-codebook learnable attention pool over visual_tokens.
