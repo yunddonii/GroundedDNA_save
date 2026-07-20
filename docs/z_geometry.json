@@ -1,0 +1,200 @@
+[
+  {
+    "dir": "260717+flickr25k_setting1_flickr_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+    "n_used": 23000,
+    "mean_rho_z_image": 0.3412525792682873,
+    "mean_rho_z_proto": 0.6192871271425967,
+    "mean_rho_codebook": 0.5859580831580904,
+    "mean_eff_rank_z": 16.977294603983562,
+    "mean_proto_vs_codebook_cos": 0.9587383170922598,
+    "per_slot": [
+      {
+        "slot": 0,
+        "n_active": 89,
+        "rho_z_image": 0.2733625753435744,
+        "rho_z_proto": 0.5399783637585917,
+        "rho_codebook": 0.46660833176685906,
+        "eff_rank_z": 48.41267013549805,
+        "proto_vs_codebook_cos": 0.9648320078849792
+      },
+      {
+        "slot": 1,
+        "n_active": 118,
+        "rho_z_image": 0.34261410491361255,
+        "rho_z_proto": 0.6279206143505844,
+        "rho_codebook": 0.6168906603274749,
+        "eff_rank_z": 10.653743743896484,
+        "proto_vs_codebook_cos": 0.9716804027557373
+      },
+      {
+        "slot": 2,
+        "n_active": 113,
+        "rho_z_image": 0.3413126386707665,
+        "rho_z_proto": 0.6185065962441653,
+        "rho_codebook": 0.6026103685408809,
+        "eff_rank_z": 10.434743881225586,
+        "proto_vs_codebook_cos": 0.9545766711235046
+      },
+      {
+        "slot": 3,
+        "n_active": 118,
+        "rho_z_image": 0.36644805914450834,
+        "rho_z_proto": 0.6247964352752822,
+        "rho_codebook": 0.6294794652630349,
+        "eff_rank_z": 10.404650688171387,
+        "proto_vs_codebook_cos": 0.9562585353851318
+      },
+      {
+        "slot": 4,
+        "n_active": 109,
+        "rho_z_image": 0.3633611288620322,
+        "rho_z_proto": 0.6470887096806024,
+        "rho_codebook": 0.5873084073638661,
+        "eff_rank_z": 10.931625366210938,
+        "proto_vs_codebook_cos": 0.9478304982185364
+      },
+      {
+        "slot": 5,
+        "n_active": 122,
+        "rho_z_image": 0.36041696867522993,
+        "rho_z_proto": 0.6574320435463543,
+        "rho_codebook": 0.6128512656864267,
+        "eff_rank_z": 11.026333808898926,
+        "proto_vs_codebook_cos": 0.957251787185669
+      }
+    ],
+    "label": "Flickr25k"
+  },
+  {
+    "dir": "260717+nuswide_setting1_nuswide_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+    "n_used": 20000,
+    "mean_rho_z_image": 0.3314494651124212,
+    "mean_rho_z_proto": 0.506063715987393,
+    "mean_rho_codebook": 0.485959239374371,
+    "mean_eff_rank_z": 16.41649341583252,
+    "mean_proto_vs_codebook_cos": 0.9693579375743866,
+    "per_slot": [
+      {
+        "slot": 0,
+        "n_active": 124,
+        "rho_z_image": 0.3106442355351778,
+        "rho_z_proto": 0.5238018730282107,
+        "rho_codebook": 0.44279277171378545,
+        "eff_rank_z": 38.811485290527344,
+        "proto_vs_codebook_cos": 0.9562690854072571
+      },
+      {
+        "slot": 1,
+        "n_active": 120,
+        "rho_z_image": 0.35079770388427056,
+        "rho_z_proto": 0.5095793803832065,
+        "rho_codebook": 0.4818949082170457,
+        "eff_rank_z": 11.673523902893066,
+        "proto_vs_codebook_cos": 0.9796217083930969
+      },
+      {
+        "slot": 2,
+        "n_active": 122,
+        "rho_z_image": 0.3356130209092095,
+        "rho_z_proto": 0.5198308862119991,
+        "rho_codebook": 0.5273506792035572,
+        "eff_rank_z": 12.227335929870605,
+        "proto_vs_codebook_cos": 0.9698197245597839
+      },
+      {
+        "slot": 3,
+        "n_active": 121,
+        "rho_z_image": 0.34418648841026805,
+        "rho_z_proto": 0.45681021823739365,
+        "rho_codebook": 0.457306862475761,
+        "eff_rank_z": 12.115435600280762,
+        "proto_vs_codebook_cos": 0.9799736738204956
+      },
+      {
+        "slot": 4,
+        "n_active": 118,
+        "rho_z_image": 0.3542337904895169,
+        "rho_z_proto": 0.5646422813355785,
+        "rho_codebook": 0.5276849530924164,
+        "eff_rank_z": 11.497483253479004,
+        "proto_vs_codebook_cos": 0.9586471915245056
+      },
+      {
+        "slot": 5,
+        "n_active": 124,
+        "rho_z_image": 0.2932215514460843,
+        "rho_z_proto": 0.46171765672796977,
+        "rho_codebook": 0.47872526154366035,
+        "eff_rank_z": 12.173696517944336,
+        "proto_vs_codebook_cos": 0.9718162417411804
+      }
+    ],
+    "label": "NUS-WIDE"
+  },
+  {
+    "dir": "260717+mscoco_setting1_mscoco_P0refit_e49+bs+64+e+60+proj_lr+0.001",
+    "n_used": 20000,
+    "mean_rho_z_image": 0.07896009736842984,
+    "mean_rho_z_proto": 0.24518668831430898,
+    "mean_rho_codebook": 0.1355562090492641,
+    "mean_eff_rank_z": 49.97492663065592,
+    "mean_proto_vs_codebook_cos": 0.9323146541913351,
+    "per_slot": [
+      {
+        "slot": 0,
+        "n_active": 128,
+        "rho_z_image": 0.09964319854401392,
+        "rho_z_proto": 0.25756232611552815,
+        "rho_codebook": 0.2664254305410149,
+        "eff_rank_z": 49.53031921386719,
+        "proto_vs_codebook_cos": 0.9867226481437683
+      },
+      {
+        "slot": 1,
+        "n_active": 121,
+        "rho_z_image": 0.06353569484073521,
+        "rho_z_proto": 0.3086289183480919,
+        "rho_codebook": 0.08022202860249489,
+        "eff_rank_z": 49.77841567993164,
+        "proto_vs_codebook_cos": 0.9201893210411072
+      },
+      {
+        "slot": 2,
+        "n_active": 124,
+        "rho_z_image": 0.07178421120704058,
+        "rho_z_proto": 0.1694740522626545,
+        "rho_codebook": 0.12564282767384918,
+        "eff_rank_z": 50.3073844909668,
+        "proto_vs_codebook_cos": 0.9393109679222107
+      },
+      {
+        "slot": 3,
+        "n_active": 123,
+        "rho_z_image": 0.09078575692466989,
+        "rho_z_proto": 0.2404028795225246,
+        "rho_codebook": 0.11576525774890127,
+        "eff_rank_z": 53.19001388549805,
+        "proto_vs_codebook_cos": 0.9225693941116333
+      },
+      {
+        "slot": 4,
+        "n_active": 123,
+        "rho_z_image": 0.061768831502974554,
+        "rho_z_proto": 0.20367953080656445,
+        "rho_codebook": 0.1180488187863969,
+        "eff_rank_z": 47.84566116333008,
+        "proto_vs_codebook_cos": 0.9140302538871765
+      },
+      {
+        "slot": 5,
+        "n_active": 124,
+        "rho_z_image": 0.08624289119114487,
+        "rho_z_proto": 0.2913724228304901,
+        "rho_codebook": 0.10723289094292751,
+        "eff_rank_z": 49.1977653503418,
+        "proto_vs_codebook_cos": 0.9110653400421143
+      }
+    ],
+    "label": "MSCOCO"
+  }
+]

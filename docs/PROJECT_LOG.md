@@ -19521,3 +19521,84 @@ the NMI axis for the reasons above.
 🟢 **부수 소득.** gate는 retrieval을 위해 code diversity를 희생하는 트레이드오프다(DNA-uniq 0.401→0.424, P@1 0.9315→0.9375, mAP@R −0.013). DNA-축 우선 변형이 필요하면 기록해둘 값.
 
 🧰 산출물: `result/*flickr_CONV_noGlobalGate*`, `docs/slot_role_alignment_flickr25k_noGate.json`, `logs/flickr_CONV_noGlobalGate.log`.
+
+---
+
+## 2026-07-20 — z geometry: MSCOCO's degeneracy originates UPSTREAM of the codebook — a codebook-side loss would be the wrong fix
+
+🎯 **Why.** The 2026-07-19 diagnostic found MSCOCO's codebook geometry degenerate (ρ 0.134 vs 0.586/0.492)
+and refuted four codebook-side causes plus one metric-confound reinterpretation. The single remaining
+mechanism was upstream: the routed pre-quantisation features **z = `quant_input`** that the codebook
+quantises. The codebook is EMA-placed to minimise quantisation error of z, so **it can only be as graded as
+z is**. Two outcomes with opposite prescriptions:
+
+| ρ_z | ρ_codebook | diagnosis | prescription |
+|---|---|---|---|
+| LOW | LOW | z itself is ungraded | fix encoder/router |
+| HIGH | LOW | quantisation destroys structure | codebook-side loss (Gram distillation, text-anchored codewords) |
+
+🧰 **Instrumentation.** `scripts/extract_z_prequant.py` captures z with a **forward pre-hook on
+`model.quantizer`** — z is a call argument, not an output, so no model edit was needed. `extract_z_db.npz`
+is additive; existing extraction schemas untouched.
+
+📊 **Result (P0refit champions, DB split; Flickr 23,000 rows, MSCOCO/NUS-WIDE 20,000):**
+
+| Dataset | ρ_z (image pairs) | ρ_z (prototype) | ρ_codebook | eff_rank_z | proto~codebook cos |
+|---|---:|---:|---:|---:|---:|
+| Flickr25k | 0.341 | **0.619** | 0.586 | 17.0 | 0.959 |
+| NUS-WIDE | 0.331 | **0.506** | 0.486 | 16.4 | 0.969 |
+| MSCOCO | 0.079 | **0.245** | 0.136 | **50.0** | 0.932 |
+
+`ρ_z (prototype)` replaces each codeword with the **empirical mean of its assigned z's** and recomputes the
+identical statistic — isolating *where the z's actually sit* (assignment geometry) from *where the learned
+codebook sits* (quantisation geometry). Both are then directly comparable to ρ_codebook.
+
+🔑 **Findings.**
+
+1. **🟢 The answer is LOW/LOW — the degeneracy is upstream.** MSCOCO's ρ_z(proto) is 0.245 against
+   Flickr 0.619 / NUS-WIDE 0.506. The routed features themselves are ungraded before any quantisation
+   happens. **A codebook-side loss cannot manufacture metric structure that is not in its input.**
+2. **Quantisation is nearly lossless everywhere, including MSCOCO.** ρ_codebook tracks ρ_z(proto) closely
+   (0.586 vs 0.619; 0.486 vs 0.506; 0.136 vs 0.245) and the learned codewords sit almost exactly on their
+   empirical prototypes (cos 0.932–0.969). **The codebook is faithfully mirroring its input — it is not the
+   culprit.** The MSCOCO gap (0.245 → 0.136) is the largest of the three but is a second-order effect on top
+   of an already-degenerate input.
+3. **eff_rank_z is the upstream signature.** MSCOCO's z spans ~50 effective dimensions vs ~17 for both
+   Flickr and NUS-WIDE — and eff_rank of the *codebook* was 40.6 vs 11.5/16.3. The codebook's high rank is
+   **inherited from z**, not self-generated. The router/encoder emits a near-isotropic cloud on MSCOCO.
+4. **Image-level ρ_z is uniformly lower than prototype-level ρ_z** (0.341 vs 0.619 etc.) — expected:
+   individual z's carry instance noise that averaging removes. The prototype level is the right comparison
+   against the codebook, which is itself a set of prototypes.
+
+🔴 **Design directions now REFUTED (three, cumulative across this and the 2026-07-19 entry).**
+- **(c) low-rank / factorised codebook** — refuted 2026-07-19 (Flickr A4 has eff_rank 11.0 ≈ base 11.3 but
+  ρ 0.325 vs 0.578).
+- **(a) text-anchored codewords** and **(b) Gram-matrix distillation onto the codebook** — refuted here.
+  Both operate on the codebook, which this entry shows is already an accurate image of z. They would fight
+  the encoder rather than fix it, and at best could recover MSCOCO's 0.245 → 0.136 second-order gap while
+  leaving the 0.619 → 0.245 first-order gap untouched.
+
+🧭 **Where the fix must go.** The target is the **router / slot adapters that produce z**, not the
+quantiser. The open question is why MSCOCO's routed features are isotropic when its *teacher* is the most
+slot-discriminative of the three (2026-07-19: slot-id 0.790 vs 0.686/0.709) and its *slots* the most
+differentiated (cross-slot cos 0.425 vs 0.536/0.536). A teacher that separates slots well, feeding a router
+that produces an unstructured per-slot cloud, points at the **z ← text alignment path within each slot**:
+slots are pushed apart from each other, but nothing shapes the *within-slot* geometry, and on MSCOCO
+(80 sparse labels, 2.93 labels/img) that within-slot signal is evidently weakest.
+
+⚠️ **Correlational, not causal.** Three datasets, no intervention yet. eff_rank_z ↔ ρ_z is a consistent
+pattern (17.0/0.619, 16.4/0.506, 50.0/0.245) but n=3; the next step must be an intervention that changes z's
+geometry and checks whether ρ_z and ρ_codebook move together.
+
+🧰 **New:** `scripts/extract_z_prequant.py` (forward-pre-hook capture; `Z_SPLIT`, `Z_MAX`, `Z_BLOCKS`),
+`scripts/z_geometry_analysis.py`. **Output:** `docs/z_geometry.json`.
+
+📌 **Sampling note (methodological).** z extraction is **I/O bound, not compute bound** (GPU at 0%): the
+feature caches are 36–57 GB memory-mapped arrays. Scattered index sampling made it ~90× slower
+(25 s/batch vs 0.26 s/batch). Final scheme = **40 evenly-spaced contiguous blocks**, which keeps mmap reads
+sequential while spreading coverage over the manifest. Head-only sampling was rejected on measurement:
+the first 25K rows of NUS-WIDE deviate 0.271 (of 2.09 labels/img) from the full-DB label profile, vs 0.055
+(of 2.93) for MSCOCO.
+
+**Note:** no 4-axis compositional analysis — this entry is itself a compositional-structure diagnostic and
+introduces no model variant.
