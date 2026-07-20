@@ -19810,3 +19810,98 @@ raw 일치율 0.074 vs 우연 0.084 — **우연 이하**. code slot 0(global)�
 5. flat baseline(CIBHash/CIMON/MLS3RDUH) 대조는 **미실행** — CUB baseline은 체크포인트만 있고 코드 추출물이 없다. 경계 파괴 대조가 대체 역할을 하지만, camera-ready 전 추출 권장.
 
 🧰 산출물: `scripts/cub_per_slot_role.py`, `docs/cub_per_slot_role.json`, `logs/cub_per_slot_role.log`.
+
+---
+
+## 2026-07-20 — 🎯 AMPLIFIER INTERVENTION: instance discrimination is the amplifier; it trades semantic gradedness for code capacity. MSCOCO is not degenerate — it is tuned to the far end of that trade-off
+
+🎯 **Why.** Five design directions had been refuted by measurement alone, leaving one hypothesis: the
+amplifier that lifts z from patch-mean (ρ 0.02–0.06) to 0.33 on Flickr/NUS-WIDE is **instance discrimination**
+(`lambda_cibhash_ntxent`), and on MSCOCO — where patch-mean is anti-correlated with label similarity
+(−0.115) — the same pressure is counterproductive. First intervention of this investigation.
+
+🧪 **Design.** Single delta: `lambda_cibhash_ntxent` only. Cache, whitening (`text_whiten_trainOnly`),
+schedule, `--stop_after_epoch` E\*, and `--final_epoch_eval` all identical to the P0refit champions, so each
+cell is directly comparable to its own champion. `scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh`
+gained a `CIBNT` env var (default 1.0 = the previously hardcoded value, so all prior invocations stay
+bit-identical). Driver: `scripts/run_amplifier_intervention.sh`; analysis: `scripts/analyse_amplifier_cells.sh`.
+
+📊 **Results (Flickr E\*=4, MSCOCO E\*=49; ρ on the DB split):**
+
+| cell | mAP@R | DNA-uniq | ρ_z (proto) | ρ_codebook | eff_rank_z | codewords used /128 |
+|---|---:|---:|---:|---:|---:|---:|
+| **FLK cb1.0 (champion)** | **0.8810** | 0.4014 | 0.619 | 0.586 | 17.0 | 124.2 |
+| FLK cb0.5 | 0.8654 | 0.2036 | **0.697** | **0.690** | 12.0 | 105.7 |
+| FLK cb0.0 | **0.5766** | 0.0003 | n/a | 0.740 | ∞ | **10.5** |
+| **COCO cb1.5 (champion)** | **0.8134** | 0.1865 | 0.245 | 0.134 | 50.0 | 127.8 |
+| COCO cb0.5 | 0.8002 | 0.1877 | 0.232 | 0.122 | 31.4 | 125.0 |
+| COCO cb0.0 | **0.6871** | 0.0658 | **0.615** | **0.602** | **2.4** | 112.2 |
+
+🔑 **Findings.**
+
+1. **🟢 Instance discrimination IS the amplifier — confirmed on both datasets.** Removing it costs
+   −0.304 mAP@R (Flickr 0.8810 → 0.5766) and −0.126 (MSCOCO 0.8134 → 0.6871). Nothing else in the
+   objective sustains retrieval.
+
+2. **🔴 But it does NOT work by building semantic structure — it works by preventing collapse, and it
+   trades AWAY gradedness.** At cb0.0 ρ_codebook *rises* on both datasets (Flickr 0.586 → 0.740, MSCOCO
+   0.134 → 0.602) while retrieval crashes. The relationship between instance discrimination and semantic
+   gradedness is **negative**, not positive. This refutes the entry hypothesis as stated.
+
+3. **Two distinct collapse modes.** Flickr cb0.0 collapses in **count** (10.5 codewords used; slots 1–5 use
+   1–5 codewords, so slot 2 emits a constant and its ρ is undefined — hence the `nan`). MSCOCO cb0.0
+   collapses in **dimension** (112.2 codewords still used, but they span eff_rank 2.4). Different failure,
+   same cause.
+
+4. **🎯 The real axis is a capacity ↔ gradedness trade-off, and it explains the original MSCOCO puzzle.**
+   Instance discrimination spreads the codebook (high eff_rank, high DNA-uniq, good retrieval) at the cost
+   of semantic ordering. MSCOCO's champion runs the **highest** pressure of any dataset (cb1.5 vs Flickr's
+   1.0) because its 107K DB and 80 labels demand the capacity — which places it at the far diversity end,
+   hence eff_rank 50 and ρ 0.134. **MSCOCO's codebook was never "degenerate"; it is tuned to a different
+   point on a real trade-off.** The 2026-07-19/20 framing ("MSCOCO's geometry is broken, find the bug") was
+   wrong, and the entries that used that framing should be read with this correction.
+
+5. **🟢 Flickr's champion overshoots the trade-off.** cb0.5 buys ρ_codebook +0.104 (0.586 → 0.690) and
+   ρ_z +0.078, lowering eff_rank_z 17.0 → 12.0, for only **−0.016 mAP@R**. On MSCOCO the same move is nearly
+   free but also nearly useless (−0.013 mAP@R, ρ −0.012). So the trade-off is exploitable on Flickr and flat
+   on MSCOCO in this range.
+
+🔬 **Metric control: ρ is NOT rank-confounded.** Since ρ rose exactly where eff_rank fell, ρ had to be tested
+for an artefactual rank dependence. Control: project a champion codebook onto its top-k principal components
+(k = 2…768) with **assignments unchanged**, so any ρ movement is pure metric artefact.
+
+| | k=2 | k=3 | k=5 | k=10 | k=20 | k=50 | k=768 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| FLK champ | +0.522 | +0.596 | +0.601 | +0.593 | +0.589 | +0.589 | +0.586 |
+| COCO champ | +0.146 | +0.143 | +0.150 | +0.168 | +0.156 | +0.132 | +0.134 |
+
+Flat across five orders of rank. **ρ measures semantic ordering, not dimensionality** — the cb0.0 rises are
+real, and ρ survives as a structural metric (its proposed role as the NMI replacement stands).
+
+⚠️ **What this costs the interpretability story.** ρ and retrieval are **dissociable**: MSCOCO cb0.0 has the
+second-highest ρ_codebook in the table (0.602) and the second-worst mAP@R (0.6871). A high-ρ codebook can be
+a low-capacity one. Therefore **ρ must never be reported as a standalone "better structure" claim** — it has
+to be paired with retrieval and code-diversity numbers, exactly as in the table above. This also means the
+paper cannot argue "our codebook is more semantically graded than baselines" without showing the capacity
+side, or a reviewer will correctly note that collapse maximises ρ.
+
+⚠️ **Caveats.** (1) Flickr cells train only 5 epochs (E\*=4), so cb0.0's count-collapse could in principle be
+non-convergence; the champion and cb0.5 share that budget and behave normally, so short training is not
+sufficient to explain it, but a longer-schedule cb0.0 would settle it. (2) Two datasets, three points each —
+the trade-off curve is sketched, not mapped. (3) E\* was selected for the champion weight; each cell uses
+the champion's E\*, which is the correct controlled choice but is not each cell's own optimum.
+
+🔭 **Next.** The actionable question is no longer "why is MSCOCO broken" but **"can the trade-off be moved
+rather than traversed?"** — i.e. is there a mechanism that supplies capacity without destroying ordering, so
+a model could sit at Flickr-cb0.5-like ρ *and* champion-level mAP@R. Candidates that do not touch the
+codebook (already refuted) or routing (refuted): an explicit dead-code/entropy regulariser to hold capacity
+while lowering instance-discrimination pressure — which is exactly the follow-up proposed and never run on
+2026-07-13 ("F3 = F2 + explicit dead-code entropy regulariser").
+
+🧰 New: `scripts/run_amplifier_intervention.sh`, `scripts/analyse_amplifier_cells.sh`; `CIBNT` env var in
+`scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh`.
+Outputs: `docs/amplifier_z_geometry.json`, `docs/amplifier_codebook_alignment.json`,
+`docs/amplifier_z_flickr.json`. Result dirs `result/260720+*_AMPL_cb*`.
+
+**Note:** the 4-axis compositional analysis is superseded here by the ρ/eff_rank/DNA-uniq/mAP@R panel, which
+is the axis set this trade-off is defined on; NMI is excluded for the reasons in the 2026-07-19 entry.

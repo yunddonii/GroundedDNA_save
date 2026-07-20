@@ -39,6 +39,10 @@ WHITEN_GAMMA="${WHITEN_GAMMA:-0.25}"
 BI_V="${BI_V:-0.5}"
 BI_T="${BI_T:-0.5}"
 BIDIR_MODE="${BIDIR_MODE:-legacy}"
+# Instance-discrimination weight, env-overridable for the amplifier intervention
+# (2026-07-20). Default 1.0 == the previously hardcoded value, so every existing
+# invocation of this script is bit-identical.
+CIBNT="${CIBNT:-1.0}"
 TAG="${TAG:-flickr25k_v185_bidir_v${BI_V}_t${BI_T}_K128_partialWhiten_gamma${WHITEN_GAMMA}}"
 LOG="logs/${TAG}.log"
 mkdir -p logs
@@ -108,7 +112,7 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --lambda_anchor 0.05 --lambda_dna 0.05 --lambda_bu 0.02 \
     --eta_base_balance 0.3 \
     --lambda_codeword_codon_sinkhorn 0.0 \
-    --lambda_cibhash_ntxent 1.0 \
+    --lambda_cibhash_ntxent "$CIBNT" \
     --lambda_cibhash_kl 0.001 \
     --cibhash_mode per_codebook \
     --cibhash_temperature 0.3 \

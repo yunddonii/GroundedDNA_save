@@ -1,0 +1,200 @@
+[
+  {
+    "dir": "260717+flickr25k_setting1_flickr_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+    "n_used": 23000,
+    "mean_rho_z_image": 0.3412525792682873,
+    "mean_rho_z_proto": 0.6192871271425967,
+    "mean_rho_codebook": 0.5859580831580904,
+    "mean_eff_rank_z": 16.977294603983562,
+    "mean_proto_vs_codebook_cos": 0.9587383170922598,
+    "per_slot": [
+      {
+        "slot": 0,
+        "n_active": 89,
+        "rho_z_image": 0.2733625753435744,
+        "rho_z_proto": 0.5399783637585917,
+        "rho_codebook": 0.46660833176685906,
+        "eff_rank_z": 48.41267013549805,
+        "proto_vs_codebook_cos": 0.9648320078849792
+      },
+      {
+        "slot": 1,
+        "n_active": 118,
+        "rho_z_image": 0.34261410491361255,
+        "rho_z_proto": 0.6279206143505844,
+        "rho_codebook": 0.6168906603274749,
+        "eff_rank_z": 10.653743743896484,
+        "proto_vs_codebook_cos": 0.9716804027557373
+      },
+      {
+        "slot": 2,
+        "n_active": 113,
+        "rho_z_image": 0.3413126386707665,
+        "rho_z_proto": 0.6185065962441653,
+        "rho_codebook": 0.6026103685408809,
+        "eff_rank_z": 10.434743881225586,
+        "proto_vs_codebook_cos": 0.9545766711235046
+      },
+      {
+        "slot": 3,
+        "n_active": 118,
+        "rho_z_image": 0.36644805914450834,
+        "rho_z_proto": 0.6247964352752822,
+        "rho_codebook": 0.6294794652630349,
+        "eff_rank_z": 10.404650688171387,
+        "proto_vs_codebook_cos": 0.9562585353851318
+      },
+      {
+        "slot": 4,
+        "n_active": 109,
+        "rho_z_image": 0.3633611288620322,
+        "rho_z_proto": 0.6470887096806024,
+        "rho_codebook": 0.5873084073638661,
+        "eff_rank_z": 10.931625366210938,
+        "proto_vs_codebook_cos": 0.9478304982185364
+      },
+      {
+        "slot": 5,
+        "n_active": 122,
+        "rho_z_image": 0.36041696867522993,
+        "rho_z_proto": 0.6574320435463543,
+        "rho_codebook": 0.6128512656864267,
+        "eff_rank_z": 11.026333808898926,
+        "proto_vs_codebook_cos": 0.957251787185669
+      }
+    ],
+    "label": "FLK cb1.0 champ"
+  },
+  {
+    "dir": "260720+flickr25k_setting1_flickr_AMPL_cb0.5_e4+bs+64+e+60+proj_lr+0.001",
+    "n_used": 20000,
+    "mean_rho_z_image": 0.3839724595324814,
+    "mean_rho_z_proto": 0.6965379874627636,
+    "mean_rho_codebook": 0.6901932605660063,
+    "mean_eff_rank_z": 12.005226214726767,
+    "mean_proto_vs_codebook_cos": 0.9595220784346262,
+    "per_slot": [
+      {
+        "slot": 0,
+        "n_active": 86,
+        "rho_z_image": 0.2797574572897049,
+        "rho_z_proto": 0.5521092800794847,
+        "rho_codebook": 0.4594740377524157,
+        "eff_rank_z": 46.98016357421875,
+        "proto_vs_codebook_cos": 0.9665992856025696
+      },
+      {
+        "slot": 1,
+        "n_active": 81,
+        "rho_z_image": 0.3965276757298693,
+        "rho_z_proto": 0.6688840054441657,
+        "rho_codebook": 0.7000427933723555,
+        "eff_rank_z": 4.8978729248046875,
+        "proto_vs_codebook_cos": 0.9379057884216309
+      },
+      {
+        "slot": 2,
+        "n_active": 79,
+        "rho_z_image": 0.36186192084952706,
+        "rho_z_proto": 0.6649909044946789,
+        "rho_codebook": 0.667302301367139,
+        "eff_rank_z": 5.293396472930908,
+        "proto_vs_codebook_cos": 0.9334506988525391
+      },
+      {
+        "slot": 3,
+        "n_active": 102,
+        "rho_z_image": 0.42938676229074685,
+        "rho_z_proto": 0.7787819705557918,
+        "rho_codebook": 0.789543937678386,
+        "eff_rank_z": 4.709969520568848,
+        "proto_vs_codebook_cos": 0.9737358093261719
+      },
+      {
+        "slot": 4,
+        "n_active": 111,
+        "rho_z_image": 0.44338823888155315,
+        "rho_z_proto": 0.7738026578588577,
+        "rho_codebook": 0.7633794559174016,
+        "eff_rank_z": 5.07601261138916,
+        "proto_vs_codebook_cos": 0.9787123203277588
+      },
+      {
+        "slot": 5,
+        "n_active": 80,
+        "rho_z_image": 0.3929127021534869,
+        "rho_z_proto": 0.7406591063436024,
+        "rho_codebook": 0.7614170373083392,
+        "eff_rank_z": 5.073942184448242,
+        "proto_vs_codebook_cos": 0.9667285680770874
+      }
+    ],
+    "label": "FLK cb0.5"
+  },
+  {
+    "dir": "260720+flickr25k_setting1_flickr_AMPL_cb0.0_e4+bs+64+e+60+proj_lr+0.001",
+    "n_used": 20000,
+    "mean_rho_z_image": NaN,
+    "mean_rho_z_proto": NaN,
+    "mean_rho_codebook": NaN,
+    "mean_eff_rank_z": Infinity,
+    "mean_proto_vs_codebook_cos": 0.8315538962682089,
+    "per_slot": [
+      {
+        "slot": 0,
+        "n_active": 30,
+        "rho_z_image": -0.027762169466187613,
+        "rho_z_proto": 0.722522330767986,
+        "rho_codebook": 0.7169651148720655,
+        "eff_rank_z": 1.1077684164047241,
+        "proto_vs_codebook_cos": 0.9904689192771912
+      },
+      {
+        "slot": 1,
+        "n_active": 5,
+        "rho_z_image": -0.13010447327808936,
+        "rho_z_proto": 0.9030303030303028,
+        "rho_codebook": -0.11515151515151514,
+        "eff_rank_z": 6.444876670837402,
+        "proto_vs_codebook_cos": 0.999763011932373
+      },
+      {
+        "slot": 2,
+        "n_active": 1,
+        "rho_z_image": NaN,
+        "rho_z_proto": NaN,
+        "rho_codebook": NaN,
+        "eff_rank_z": Infinity,
+        "proto_vs_codebook_cos": 0.0
+      },
+      {
+        "slot": 3,
+        "n_active": 3,
+        "rho_z_image": -0.07251815502637432,
+        "rho_z_proto": 0.5,
+        "rho_codebook": 0.5,
+        "eff_rank_z": 7.221866130828857,
+        "proto_vs_codebook_cos": 0.9997485280036926
+      },
+      {
+        "slot": 4,
+        "n_active": 2,
+        "rho_z_image": -0.05535905248718742,
+        "rho_z_proto": NaN,
+        "rho_codebook": NaN,
+        "eff_rank_z": 6.1073808670043945,
+        "proto_vs_codebook_cos": 0.9995835423469543
+      },
+      {
+        "slot": 5,
+        "n_active": 2,
+        "rho_z_image": -0.07245803077531054,
+        "rho_z_proto": NaN,
+        "rho_codebook": NaN,
+        "eff_rank_z": 7.167577266693115,
+        "proto_vs_codebook_cos": 0.9997593760490417
+      }
+    ],
+    "label": "FLK cb0.0"
+  }
+]
