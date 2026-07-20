@@ -1,0 +1,130 @@
+{
+  "results": {
+    "ours": {
+      "agreement": 0.19330855018587362,
+      "n_attributes": 269,
+      "per_teacher_slot": {
+        "global": {
+          "n_attributes": 52,
+          "code_agrees": 0.8269230769230769
+        },
+        "head_bill": {
+          "n_attributes": 46,
+          "code_agrees": 0.06521739130434782
+        },
+        "wing_upperparts": {
+          "n_attributes": 44,
+          "code_agrees": 0.0
+        },
+        "underparts": {
+          "n_attributes": 40,
+          "code_agrees": 0.05
+        },
+        "tail_appendages": {
+          "n_attributes": 52,
+          "code_agrees": 0.057692307692307696
+        },
+        "pattern_markings": {
+          "n_attributes": 35,
+          "code_agrees": 0.02857142857142857
+        }
+      },
+      "teacher_assignment_counts": [
+        52,
+        46,
+        44,
+        40,
+        52,
+        35
+      ],
+      "code_assignment_counts": [
+        227,
+        12,
+        4,
+        8,
+        10,
+        8
+      ]
+    },
+    "ours_residual": {
+      "agreement": 0.19330855018587362,
+      "n_attributes": 269,
+      "per_teacher_slot": {
+        "global": {
+          "n_attributes": 22,
+          "code_agrees": 0.18181818181818182
+        },
+        "head_bill": {
+          "n_attributes": 29,
+          "code_agrees": 0.06896551724137931
+        },
+        "wing_upperparts": {
+          "n_attributes": 43,
+          "code_agrees": 0.046511627906976744
+        },
+        "underparts": {
+          "n_attributes": 82,
+          "code_agrees": 0.15853658536585366
+        },
+        "tail_appendages": {
+          "n_attributes": 29,
+          "code_agrees": 0.3793103448275862
+        },
+        "pattern_markings": {
+          "n_attributes": 64,
+          "code_agrees": 0.3125
+        }
+      },
+      "teacher_assignment_counts": [
+        22,
+        29,
+        43,
+        82,
+        29,
+        64
+      ],
+      "code_assignment_counts": [
+        47,
+        27,
+        27,
+        37,
+        68,
+        63
+      ]
+    },
+    "shuffled_slot_boundaries": {
+      "agreements": [
+        0.18587360594795538,
+        0.17472118959107807
+      ],
+      "mean": 0.18029739776951673,
+      "note": "same 18 bases regrouped at random; destroys slot boundaries only"
+    },
+    "permutation_null": {
+      "mean": 0.16789591078066915,
+      "ci95_low": 0.12639405204460966,
+      "ci95_high": 0.21189591078066913
+    }
+  },
+  "slot_names": [
+    "global",
+    "head_bill",
+    "wing_upperparts",
+    "underparts",
+    "tail_appendages",
+    "pattern_markings"
+  ],
+  "teacher_auc_mean": 0.5082327942605873,
+  "config": {
+    "ours_dir": "result/260622+cub_200_setting1_cub200_v160b_v6b_K64_clip336_partialWhiten_gamma0.25+bs+64+e+60+proj_lr+0.001/",
+    "baseline_dirs": [],
+    "baseline_names": [],
+    "cache_dir": "cache/cub200_clip336_v6bplus",
+    "dataset_root": "dataset/CUB_200",
+    "min_pos": 50,
+    "n_perm": 500,
+    "n_shuffle_partitions": 2,
+    "seed": 42,
+    "out": "docs/cub_sharpness/cub200_v160b_v6b_K64_clip336_partialWhiten_gamma0.25.json"
+  }
+}
