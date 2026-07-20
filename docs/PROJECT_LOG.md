@@ -19602,3 +19602,57 @@ the first 25K rows of NUS-WIDE deviate 0.271 (of 2.09 labels/img) from the full-
 
 **Note:** no 4-axis compositional analysis — this entry is itself a compositional-structure diagnostic and
 introduces no model variant.
+
+---
+
+## 2026-07-20 — 열 효과(column effect)는 **caption의 성질**이다 (H_data 확정) + 부수 양성 결과
+
+🎯 **질문.** slot 역할 타당성 행렬이 주효과에 지배된다(열 효과: scene 0.120·global 0.105 vs secondary 0.065). 이것이 (H_model) 우리 모델이 global/scene 정보를 전 slot에 퍼뜨려서인지, (H_data) global/scene caption이 원래 어떤 분할로도 잘 조직되는 성질이라서인지 판별.
+
+🧪 **대조 설계 (`scripts/caption_column_effect.py`).** **우리 모델과 무관한 분할** — flat baseline의 임의 6-bit chunk(semantic slot 개념 없음) — 로 동일한 lift 행렬을 만들고 열 프로파일을 비교. 동일 조건: held-out 18,000장(train 5,000 제외, 그 caption은 감독에 쓰인 적 없음), 같은 caption 임베딩·whitening·min_support, 6 unit × 64 symbol. 사전 판정 기준을 결과 보기 전에 고정.
+
+📊 **열 프로파일 (caption slot별 평균 lift, 모든 code slot 평균):**
+
+| 분할 | scene | global | activity | primary | color | secondary |
+|---|---:|---:|---:|---:|---:|---:|
+| **ours** | 0.088 **#1** | 0.074 #2 | 0.072 #3 | 0.063 #4 | 0.058 #5 | 0.046 #6 |
+| cibhash chunk | 0.046 **#1** | 0.040 #2 | 0.037 #3 | 0.033 #4 | 0.029 #5 | 0.023 #6 |
+| cimon chunk | 0.062 **#1** | 0.048 #2 | 0.046 #3 | 0.040 #4 | 0.037 #5 | 0.028 #6 |
+| mls3rduh chunk | 0.054 **#1** | 0.042 #3 | 0.044 #2 | 0.036 #5 | 0.039 #4 | 0.025 #6 |
+
+**ours vs flat 열 프로파일 상관: CIBHash Spearman +1.000 / CIMON +1.000 / MLS3RDUH +0.886.**
+
+🔴 **판정: H_data 확정.** semantic slot 개념이 전혀 없는 임의 chunk가 "어떤 caption이 조직하기 쉬운가"에 대해 우리와 **완전히 동일한 순위**를 낸다. 열 효과는 우리 모델에 귀속할 수 없다.
+
+**기계적 설명(부분).** caption slot별 내재적 차원:
+
+| caption slot | eff_rank (of 512) | top1_var_share | 열 순위 |
+|---|---:|---:|:---:|
+| scene_type | **58.5** | **0.089** | #1 |
+| color_texture | 111.2 | 0.044 | #5 |
+| activity_relation | 148.7 | 0.031 | #3 |
+| global | 205.6 | 0.023 | #2 |
+| secondary_object | 207.6 | 0.023 | #6 |
+| primary_object | 219.4 | 0.024 | #4 |
+
+scene_type은 압도적 저차원(eff_rank 58.5, 다음이 111.2)이고 모든 분할에서 1위 — 저차원일수록 어떤 분할로도 잘 조직된다. 단 상관은 spearman +0.486으로 **부분 설명**이다(color는 저차원인데 5위, global은 고차원인데 2위). global은 차원이 아니라 **의미적 중심성**(다른 모든 caption과 상관)으로 설명되는 것으로 보이며, 이는 별도 측정 필요.
+
+🟢 **부수 양성 결과 — 순위는 같지만 크기가 다르다.**
+
+| caption slot | ours | best flat | 배율 |
+|---|---:|---:|---:|
+| global | 0.074 | 0.048 | 1.54× |
+| primary_object | 0.063 | 0.040 | 1.55× |
+| secondary_object | 0.046 | 0.028 | 1.64× |
+| activity_relation | 0.072 | 0.046 | 1.56× |
+| color_texture | 0.058 | 0.039 | 1.49× |
+| scene_type | 0.088 | 0.062 | 1.41× |
+
+**전 caption 평균 1.53× (6/6에서 ours 우세, 최소 1.41×).** 즉 **어떤 caption이 쉬운지는 데이터가 정하지만, 얼마나 잘 조직하는지는 모델이 정한다.** 이는 §2 held-out codon decoding(label 기준, +0.057~+0.099)의 **텍스트 측 대응물**이며, 평가에 쓴 caption은 감독에 사용된 적이 없으므로 일반화 증거다.
+
+📌 **함의 3가지.**
+1. **이중중심화 접근이 검증됐다.** 열 효과가 순수 데이터 성질이므로 역할 타당성 판정에서 주효과는 반드시 제거해야 한다. 기존 이중중심화 상호작용 **+0.0052**는 이미 이를 제거한 값이므로 **역할 타당성 미성립 판정은 그대로 유지**된다.
+2. **원인 귀속이 정정된다.** 2026-07-19 "모든 local slot이 global caption과 가장 잘 정렬 = 모델이 global을 퍼뜨림"이라는 해석은 **열 방향에 한해 틀렸다**. 행 방향(global code slot이 다른 slot보다 잘 조직함)은 별개 문제이며 gate ablation(2026-07-20)에서 gate 원인이 아님이 확인됐다.
+3. **논문에 쓸 수 있는 새 문장**: "우리 코드는 6개 caption 차원 **전부**에서 동일 예산 flat 분할보다 1.4~1.6× 잘 조직한다"(orthogonality·역할 배정을 주장하지 않고 성립).
+
+🧰 산출물: `scripts/caption_column_effect.py`, `docs/caption_column_effect_flickr25k.json`, `logs/caption_column_effect.log`.

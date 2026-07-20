@@ -1,0 +1,119 @@
+{
+  "n": 18000,
+  "column_profiles": {
+    "ours": [
+      0.07357279359009594,
+      0.06267140602926262,
+      0.04605866037425399,
+      0.0719017195173783,
+      0.057598577352498036,
+      0.08793559504786432
+    ],
+    "cibhash": [
+      0.03992858419537355,
+      0.03283684723111826,
+      0.023468303228524414,
+      0.036814074459791596,
+      0.029355490054908655,
+      0.04603867404490808
+    ],
+    "cimon": [
+      0.047834243932947086,
+      0.04044511419287388,
+      0.028083315873443548,
+      0.046041349153397505,
+      0.03702801155750599,
+      0.0621666652739243
+    ],
+    "mls3rduh": [
+      0.04197477115251667,
+      0.03594040870986232,
+      0.024853383524087145,
+      0.04396768395673439,
+      0.03862415108506881,
+      0.053523314874076945
+    ]
+  },
+  "profile_correlation_vs_ours": {
+    "cibhash": {
+      "spearman": 1.0,
+      "pearson": 0.9953093635606417
+    },
+    "cimon": {
+      "spearman": 1.0,
+      "pearson": 0.9936394808210922
+    },
+    "mls3rduh": {
+      "spearman": 0.8857142857142857,
+      "pearson": 0.9639959350228186
+    }
+  },
+  "caption_intrinsic": [
+    {
+      "slot": "global",
+      "eff_rank": 205.55853732009842,
+      "mean_pairwise_cos": 7.62911891329429e-05,
+      "top1_var_share": 0.02259711600330496
+    },
+    {
+      "slot": "primary_object",
+      "eff_rank": 219.42492063317962,
+      "mean_pairwise_cos": 1.8051027459879487e-05,
+      "top1_var_share": 0.024071459828643216
+    },
+    {
+      "slot": "secondary_object",
+      "eff_rank": 207.58448973292295,
+      "mean_pairwise_cos": 0.00011573200537742134,
+      "top1_var_share": 0.023103347414350245
+    },
+    {
+      "slot": "activity_relation",
+      "eff_rank": 148.7120101651579,
+      "mean_pairwise_cos": 4.397861760155676e-05,
+      "top1_var_share": 0.031466873584827824
+    },
+    {
+      "slot": "color_texture",
+      "eff_rank": 111.16771679354939,
+      "mean_pairwise_cos": 0.00011536307079008399,
+      "top1_var_share": 0.04439152409942491
+    },
+    {
+      "slot": "scene_type",
+      "eff_rank": 58.463502684821464,
+      "mean_pairwise_cos": 0.00027327947594904837,
+      "top1_var_share": 0.08884100196046003
+    }
+  ],
+  "slot_names": [
+    "global",
+    "primary_object",
+    "secondary_object",
+    "activity_relation",
+    "color_texture",
+    "scene_type"
+  ],
+  "config": {
+    "ours_dir": "result/260717+flickr25k_setting1_flickr_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+    "baseline_dirs": [
+      "result_baseline/260527/cibhash_flickr25k_clip_unsup60",
+      "result_baseline/260527/cimon_flickr25k_clip_unsup60",
+      "result_baseline/260527/mls3rduh_flickr25k_clip_unsup60"
+    ],
+    "baseline_names": [
+      "cibhash",
+      "cimon",
+      "mls3rduh"
+    ],
+    "cache_dir": "cache/flickr25k_clip_v4plus_qwen3_tokens",
+    "train_manifest": "dataset/Flickr25k/setting1/train.txt",
+    "whiten_npz": "cache/flickr25k_clip_v4plus_qwen3_tokens/text_whiten_trainOnly.npz",
+    "whiten_gamma": 0.25,
+    "min_support": 10,
+    "n_shuffle": 5,
+    "max_n": 18000,
+    "seed": 42,
+    "out": "docs/caption_column_effect_flickr25k.json"
+  }
+}
