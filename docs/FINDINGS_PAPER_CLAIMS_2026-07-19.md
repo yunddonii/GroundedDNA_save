@@ -141,7 +141,7 @@ decoding 타깃이 **image-level label 하나**이고 6개 slot이 이를 공유
 
 Flickr per-slot codon 점수는 0.768 / 0.791 / 0.787 / 0.779 / 0.775 / 0.776 — **spread 0.023**. 여섯 slot이 거의 균일하다. 이는 slot 특화보다 **중복(redundancy)**을 시사하며, `ANALYSIS_compositional_contribution.md`의 "local slot pairwise NMI 0.74–0.82"와 일치한다.
 
-역할 검증에는 per-slot 독립 타깃(CUB attribute)이 필요하다. **미실행.**
+역할 검증에는 per-slot 독립 타깃(CUB attribute)이 필요하다. → **2026-07-20 실행 완료, §4c.** 주효과 제거 후 유의한 역할 계승 검출(0.264 vs 경계파괴 0.161).
 
 ### 산출물
 
@@ -316,6 +316,65 @@ test 이미지 쌍 ~20만 개에서 **슬롯 내 코드 거리 ↔ 의미 거리
 
 ---
 
+## 4c. 실험 5 — CUB per-attribute 역할 타당성 ✅ **유의 (경계 특이적), 단 약함**
+
+### 왜 CUB인가
+
+image-level label로는 역할 배정을 검증할 수 없다. 6개 slot이 **하나의 타깃을 공유**하고, 2026-07-20 열 효과 대조에서 그 결과가 **caption의 성질**임이 확정됐다(semantic slot 개념이 없는 flat chunk와 열 프로파일 Spearman **+1.000**). CUB는 312개 부위별 이진 속성을 주고, v6b 캡션이 해부학적 부위별로 작성됐다(`tools/qwen3_v6b_cub_trainset.py`): C_global→전체, C_primary_object→**head/bill**, C_secondary_object→**wing/upperparts**, C_activity_or_relation→**underparts**, C_color_texture→**tail/appendages**, C_scene_type→**pattern/markings**. (CUB에서 slot 이름은 잔재이며 내용은 부위다.)
+
+### 설계 (`scripts/cub_per_slot_role.py`)
+
+속성 이름·28개 표준 그룹 **둘 다 불필요**하다(이 사본에 `attributes.txt` 없음; 경험적 그룹 복원은 색상 그룹이 다중선택이라 61개로 파편화되어 폐기). 속성 a마다:
+
+| | 정의 | 평가 범위 |
+|---|---|---|
+| 교사 측 T(a) | 어느 **caption slot**이 a를 가장 잘 예측 (centroid AUC) | 캡션 보유 행 내부 split-half |
+| 코드 측 C(a) | 어느 **code slot**이 a를 가장 잘 디코딩 (train 사전 → test AUC) | **held-out test** |
+
+역할 타당성 = agreement(T, C). fit=train(=CUB database, 5,994), 평가=official test(5,794, disjoint), 사용 속성 269/312(min_pos=50).
+
+### ⚠️ 1차 실행은 버그였다 (기록)
+
+교사 측 AUC가 6개 slot 전부 **0.4895로 동일**하게 나왔다 → CUB 캡션은 **train에만 존재**(has_text 5,994/11,788)하는데 test에서 채점해 영벡터를 비교한 것. 의미 있는 수치처럼 보였을 값이다. 교사 측을 캡션 보유 행 내부 split-half로 변경하여 수정.
+
+### 결과 — raw argmax는 주효과에 완전히 가려진다
+
+| | slot별 배정 (269개 속성) |
+|---|---|
+| 교사(caption) | global 20, head/bill 16, **wing 124**, underparts 55, tail 14, markings 40 |
+| 코드 | **global 244**, head/bill 6, wing 4, underparts 3, tail 2, markings 10 |
+
+raw 일치율 **0.074** vs 우연 0.084 — 우연 이하. code slot 0(global)이 269개 중 244개에서 최고 AUC(행 평균 **0.703** vs 나머지 0.629~0.659)라 argmax가 그 행 효과만 잰다. **교사 측은 6개 slot에 고루 분화되므로 측정 도구 자체는 작동한다.**
+
+### 주효과 제거(이중중심화) 후 — 유의한 역할 계승
+
+| 조건 | 일치율 |
+|---|---:|
+| **진짜 슬롯 경계** (교사 seed 42 / 7 / 123) | **0.264 / 0.253 / 0.249** |
+| permutation null (우연) | 0.168 [0.126, **0.216**] |
+| **슬롯 경계 파괴 대조** (같은 18 base 무작위 재분할 ×5) | 0.164, 0.141, 0.201, 0.164, 0.138 → **평균 0.161** |
+
+🟢 **3중 대조 통과.** (1) 우연 대비 유의(0.264 > 상한 0.216), (2) 교사 split seed 3개에서 안정, (3) **경계 특이적** — 같은 비트를 유지한 채 슬롯 경계만 무작위로 재분할하면 우연 수준(0.161)으로 붕괴. **역할 정보는 코드의 정보량이 아니라 경계 위치에 있다.** 효과 크기 **1.64×**.
+
+### 이것이 답하는 질문
+
+2026-07-20 gate ablation 이후 남은 물음 — "역할이 없는 것인가, image-level caption으로 볼 수 없는 것인가" — 에 대해 **후자**임을 보인다. per-part 타깃을 주면 역할 계승이 검출된다. §4b-A의 Flickr 반박과 모순되지 않는다: Flickr는 image-level label, CUB는 per-part attribute다.
+
+### 반드시 함께 적을 한계
+
+1. **CUB 한정.** Flickr/MS-COCO/NUS-WIDE는 per-part 타깃이 없어 미검증.
+2. **절대값 26.4%** — 속성 다수는 여전히 교사 배정을 따르지 않는다.
+3. **주효과 제거 후에만 가시.** raw로는 global slot이 244/269 독식 → "6개 역할이 분리되어 있다", "slot m = 역할 m" 서술은 **여전히 불가**.
+4. 교사 측은 train 내부, 코드 측은 held-out test — 평가 범위가 다르다.
+5. **flat baseline 대조 미실행** (CUB baseline은 체크포인트만 있고 코드 추출물 없음). 경계 파괴 대조가 대체 중이나 camera-ready 전 추출 권장 → §7 P1.
+
+### 산출물
+
+- `scripts/cub_per_slot_role.py`, `docs/cub_per_slot_role.json`, `logs/cub_per_slot_role.log`
+- commit `85b1e48`
+
+---
+
 ## 5. 최종 판정 — 무엇을 주장할 수 있는가
 
 ### 🆕 2026-07-20 추가 — 열 효과 대조 + gate ablation
@@ -343,6 +402,7 @@ test 이미지 쌍 ~20만 개에서 **슬롯 내 코드 거리 ↔ 의미 거리
 - slot 위치는 무의미하지 않음 — 단 **약한 근거**. 의도한 slot이 random slot보다 target gain은 크지만, selectivity 차이가 유의한 셀은 **18개 중 8개**뿐 (§3 재분석). "slot 선택이 무작위보다 낫다" 정도로만 쓰고 조작 가능성으로 확장하지 말 것.
 - **코드가 flat baseline보다 덜 중복** — slot 중복률 86.2% vs CIBHash 98.4%, 6 unit 독립정보 **3.81b vs 0.56b (6.8배)** (§3). `disentangled`를 주장하지 않고 쓸 수 있는 구조 지표.
 - **조직화 우위 1.53×** — 6개 caption 차원 전부에서 동일 예산 flat 분할보다 1.41~1.64× 높은 lift (2026-07-20). held-out 이미지, caption은 감독 미사용.
+- **slot 경계가 교사의 역할 분담을 부분 계승 (CUB, §4c)** — 주효과 제거 후 교사-코드 배정 일치율 **0.264** vs 우연 0.168[상한 0.216], **경계 파괴 대조 0.161** (같은 18 base 무작위 재분할). 교사 seed 3개에서 0.249~0.264로 안정. **역할 정보는 정보량이 아니라 경계 위치에 있다** (1.64×). ⚠️ CUB 한정·절대값 26%·주효과 제거 후에만 가시.
 - **slot 내 의미 일관성 + codon 전이** — 전 셀 lift가 chance 상회, codeword→codon 74% 보존 (2026-07-19 role alignment).
 - 텍스트 집계 방식(EOS vs mean-pool vs pruning)은 성능 원인이 아님 — negative result지만 강건성의 증거 (A1, ±0.003)
 - codebook drop ablation: 5~6개 slot이 non-trivial retrieval 기여 (Σ|drop| 0.038~0.053)
@@ -354,7 +414,7 @@ test 이미지 쌍 ~20만 개에서 **슬롯 내 코드 거리 ↔ 의미 거리
 |---|---|
 | `disentangled`, `independently controllable`, `causal semantic factor` | intervention selectivity **미통과** — 핵심 control 대비 8/18 셀만 유의, 단위 섭동당 gain은 CIBHash가 **60% 우세**, slot 고유 정보 0.635b (§3) |
 | "여섯 개의 독립 semantic factor" | decoding per-slot spread 0.023 + **slot 중복률 86.2%** (H(m\|나머지)=0.635b / H=4.59b) → 중복 확정 |
-| **`slot-specialized`, slot 역할 배정의 타당성** (global slot = global 등) | §4b-A에서 **능동적으로 반박됨** — Flickr 6개 중 3개만 자기 코드가 argmax, 대각 우세 ≤ +0.026. 어휘 교란 배제 확인. 미측정이 아니라 **반증 있음** |
+| **`slot-specialized`** 강한 형태 ("global slot = global", slot별 역할 명명) | Flickr §4b-A에서 반박(6개 중 3개만 argmax, 대각 우세 ≤ +0.026). **CUB에서도 raw argmax는 global slot이 269개 중 244개 독식** → 개별 slot에 역할 이름을 붙이는 서술은 불가 (§4c) |
 | NMI 기반 compositional 주장 | 부호 반대 + baseline 비교 무효 + 텍스트 감독에 무반응 |
 | "4개 데이터셋 SOTA" | MS-COCO +0.002, CIFAR-10 +0.004는 noise |
 | atlas grounding이 baseline의 3.2배 | CUB 모델 vs Flickr baseline — cross-dataset 아티팩트 |
@@ -391,7 +451,8 @@ test 이미지 쌍 ~20만 개에서 **슬롯 내 코드 거리 ↔ 의미 거리
 | P0 | **A4(codebook 분리)를 decoding 지표로 재측정** | NMI 제거로 A4 근거가 비었음. compositional 구조 주장의 유일한 구조적 ablation | 기존 A4 런에 `heldout_codon_decoding.py` 적용 — GPU 불필요 |
 | P0 | Flickr chunk control을 E\*로 재추출 | 표 정합성 (§2 미해결 이슈) | ~2분 |
 | P1 | **A2(no-text)를 decoding 지표로 재측정** | 텍스트 감독이 *해석 가능성*에 기여하는지 — B1·NMI로는 못 보였음. 성공하면 핵심 주장이 대폭 강화 | GPU 불필요 |
-| **P0** | **CUB-200 attribute 기반 per-slot decoding** | §4b-A가 Flickr에서 역할 배정을 반박했고, MS-COCO·NUS-WIDE는 test 캡션이 없어 검증 자체가 불가. CUB의 312 attribute는 부위별로 묶이고 Qwen과 독립이며 전 split에 존재 — **①의 유일한 남은 경로**. 여기서도 실패하면 역할 배정 프레이밍을 제목·contribution에서 제거할 것 | 중간 |
+| ~~P0~~ **완료** | ~~CUB-200 attribute 기반 per-slot decoding~~ → **§4c 참조** | **실패 아님.** 주효과 제거 후 일치율 0.264 vs 경계파괴 대조 0.161 (1.64×, 유의, seed 안정). 역할 배정 프레이밍을 **완전히 제거할 필요는 없으나**, 개별 slot 명명은 여전히 불가 | 완료 |
+| P1 | CUB **flat baseline** chunk control 추출 | §4c의 유일한 미실행 대조. CUB baseline은 체크포인트만 있고 코드 추출물 없음. 경계파괴 대조가 대체 중 | `scripts/baseline_extract_splits.py`, ~10분 |
 | P2 | 48-bit / 4-base codon을 P0로 재실행 | §4.4 전체가 미검증 | 런 4개 |
 | P2 | 3 seeds + 신뢰구간 | `REQUIRED_EXPERIMENTS` §4.5 요구 | 런 다수 |
 | P3 | human evaluation | relation·color·scene slot은 label로 검증 불가 | 높음 |
