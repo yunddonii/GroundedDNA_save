@@ -353,6 +353,11 @@ raw 일치율 **0.074** vs 우연 0.084 — 우연 이하. code slot 0(global)�
 | **진짜 슬롯 경계** (교사 seed 42 / 7 / 123) | **0.264 / 0.253 / 0.249** |
 | permutation null (우연) | 0.168 [0.126, **0.216**] |
 | **슬롯 경계 파괴 대조** (같은 18 base 무작위 재분할 ×5) | 0.164, 0.141, 0.201, 0.164, 0.138 → **평균 0.161** |
+| CIMON chunk (flat, 2026-07-20 추가) | 0.141 |
+| CIBHash chunk (flat) | 0.112 |
+| MLS3RDUH chunk (flat) | 0.063 |
+
+**flat baseline 3개 모두 우연 이하이고 ours만 상한(0.216)을 넘는다.** 최고 flat 대비 **1.87×**.
 
 🟢 **3중 대조 통과.** (1) 우연 대비 유의(0.264 > 상한 0.216), (2) 교사 split seed 3개에서 안정, (3) **경계 특이적** — 같은 비트를 유지한 채 슬롯 경계만 무작위로 재분할하면 우연 수준(0.161)으로 붕괴. **역할 정보는 코드의 정보량이 아니라 경계 위치에 있다.** 효과 크기 **1.64×**.
 
@@ -366,7 +371,7 @@ raw 일치율 **0.074** vs 우연 0.084 — 우연 이하. code slot 0(global)�
 2. **절대값 26.4%** — 속성 다수는 여전히 교사 배정을 따르지 않는다.
 3. **주효과 제거 후에만 가시.** raw로는 global slot이 244/269 독식 → "6개 역할이 분리되어 있다", "slot m = 역할 m" 서술은 **여전히 불가**.
 4. 교사 측은 train 내부, 코드 측은 held-out test — 평가 범위가 다르다.
-5. **flat baseline 대조 미실행** (CUB baseline은 체크포인트만 있고 코드 추출물 없음). 경계 파괴 대조가 대체 중이나 camera-ready 전 추출 권장 → §7 P1.
+5. ~~flat baseline 대조 미실행~~ → **2026-07-20 완료.** `scripts/baseline_extract_splits.py`로 CUB baseline 코드 추출(epoch 059), 3개 전부 우연 이하(0.063~0.141). §4c의 모든 대조가 채워졌다.
 
 ### 산출물
 
@@ -452,7 +457,7 @@ raw 일치율 **0.074** vs 우연 0.084 — 우연 이하. code slot 0(global)�
 | P0 | Flickr chunk control을 E\*로 재추출 | 표 정합성 (§2 미해결 이슈) | ~2분 |
 | P1 | **A2(no-text)를 decoding 지표로 재측정** | 텍스트 감독이 *해석 가능성*에 기여하는지 — B1·NMI로는 못 보였음. 성공하면 핵심 주장이 대폭 강화 | GPU 불필요 |
 | ~~P0~~ **완료** | ~~CUB-200 attribute 기반 per-slot decoding~~ → **§4c 참조** | **실패 아님.** 주효과 제거 후 일치율 0.264 vs 경계파괴 대조 0.161 (1.64×, 유의, seed 안정). 역할 배정 프레이밍을 **완전히 제거할 필요는 없으나**, 개별 slot 명명은 여전히 불가 | 완료 |
-| P1 | CUB **flat baseline** chunk control 추출 | §4c의 유일한 미실행 대조. CUB baseline은 체크포인트만 있고 코드 추출물 없음. 경계파괴 대조가 대체 중 | `scripts/baseline_extract_splits.py`, ~10분 |
+| ~~P1~~ **완료** | ~~CUB flat baseline chunk control~~ | 3개 전부 우연 이하(CIMON 0.141, CIBHash 0.112, MLS3RDUH 0.063) vs ours 0.264. §4c 대조 완결 | 완료 |
 | P2 | 48-bit / 4-base codon을 P0로 재실행 | §4.4 전체가 미검증 | 런 4개 |
 | P2 | 3 seeds + 신뢰구간 | `REQUIRED_EXPERIMENTS` §4.5 요구 | 런 다수 |
 | P3 | human evaluation | relation·color·scene slot은 label로 검증 불가 | 높음 |
