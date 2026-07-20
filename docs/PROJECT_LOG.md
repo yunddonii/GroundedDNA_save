@@ -20249,3 +20249,33 @@ Result dirs `result/260720+{flickr25k,mscoco}*PSOT_la*`.
 
 **Note:** no 4-axis compositional analysis — the ρ/eff_rank/DNA-uniq/mAP@R panel is the axis set this
 trade-off is defined on; NMI excluded per the 2026-07-19 entry.
+
+### 2026-07-20 추가 2 — 가설 정밀화: "CLIP은 instance-level alt-text로 학습돼 Qwen의 상세 서술문을 구별 못 한다"
+
+🎯 **가설(사용자).** CLIP text encoder는 짧은 instance-level alt-text로 학습됐으므로, Qwen3-VL이 생성한 **상세 서술문끼리의 미세 차이**를 임베딩에 담지 못한다 → semantic part 감독이 무너진다.
+
+🧪 **직접 검정.** 문장 간 **어휘 유사도(Jaccard)** 가 임베딩 코사인에 얼마나 보존되는지(Spearman), 그리고 코사인의 **동적 범위**를 측정. n=1,200 캡션, 슬롯별.
+
+| slot | 보존도 raw | +whiten γ0.25 | raw 코사인 최소값 |
+|---|---:|---:|---:|
+| secondary_object | 0.647 | **0.733** | **0.54** |
+| primary_object | 0.641 | 0.712 | 0.42 |
+| global | 0.550 | 0.613 | 0.18 |
+| activity_or_relation | 0.501 | 0.649 | 0.40 |
+| color_texture | 0.349 | 0.498 | 0.52 |
+| scene_type | **0.277** | 0.545 | 0.36 |
+
+🟢 **가설의 메커니즘은 실재한다(확인).** 완전히 다른 날개 서술문 두 개도 코사인이 **0.54 아래로 내려가지 않는다**. 512차원 중 실효 **10.5차원**만 사용(aniso 0.716). 어휘 차이 보존도 raw에서 0.28~0.65로 절반 수준.
+
+🔴 **그러나 설계는 무너지지 않는다 — 4가지 반증:**
+
+1. **whitening이 모든 텍스트 경로에 이미 적용된다.** `model_siglip2.py:1620` — `text_part_raw`에 **adapter 이전에** 적용되므로 라우팅·손실 전부 whitened 텍스트를 본다. 효과: aniso 0.716→**0.111**, eff_rank 10.5→**67.4**, 어휘 보존 0.28~0.65→**0.50~0.73**.
+2. **최종 성능이 원문 어휘 상한을 넘는다.** whitened CLIP **47.3%** > 원문 TF-IDF **44.3%** (200종). CLIP의 의미적 일반화(동의어·표현 변형 통합)가 bag-of-words를 상회.
+3. **fine-grained 전용 인코더가 더 나쁘다.** 동일 캡션·동일 프로토콜: FG-CLIP(`qihoo360/fg-clip-base`) whitened **40.3%** vs CLIP **47.3%** (raw는 15.3% vs 39.9%, aniso 0.894로 더 심함).
+4. γ=0.25가 최적(0.5→45.8%, 1.0→22.0%) — 현재 설정이 이미 최적점.
+
+⚠️ **가설이 맞는 잔여 영역 1건.** **부리 슬롯만 CLIP 손실이 회복되지 않는다**(원문 9.4% → CLIP 6.5%, 상대 **−31%**, 6개 중 최악). "slender, slightly curved bill with a pointed tip" 류 미세 형태 서술어를 CLIP이 못 잡는 것으로, §4c에서 head_bill이 교사 배정 **16/269로 최저**였던 것과 정합. **부위 중 형태 기반(부리·꼬리)이 색·무늬 기반보다 불리하다**는 국소적 한계로 논문에 기록 가능.
+
+🐛 **부수 발견: `cache/cub200_clip336_v6bplus` 텍스트 캐시가 퇴화 상태.** eff_rank **1.9**, aniso 0.002, 200종 정확도 **3.4%**(정상 39.9%). 사실상 정보가 없다. 이 캐시로 학습된 런이 있다면 결과 무효 — 사용처 점검 필요.
+
+📌 **누적.** 역할 타당성 천장 후보 배제 목록에 **텍스트 인코더**가 추가된다(라우팅·gate·K·fgMask·캡션 균형·인코더 = 6개).
