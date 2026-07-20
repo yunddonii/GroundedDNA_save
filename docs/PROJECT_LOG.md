@@ -20365,3 +20365,60 @@ slot이 패치의 절반만 보고, 26%는 아예 배제되며, 패치의 58%가
 - 이것은 **메커니즘이 명확**(slot별 입력 분리)하고, Flickr에서 **global 지배 완화가 실측**되며, 평가 지표를 직접 최적화하지 않는다(순환논법 아님).
 - 비용: 학습 1회(~1시간) + 평가 수 분.
 - 예상 트레이드오프: 검색 −0.02 내외. 역할 타당성이 유의하게 오르면 **"구조적 분리가 역할을 만든다"는 인과적 주장**이 성립하고, 안 오르면 §4c 한계 서술이 강화된다. **어느 쪽이든 논문에 쓸 결과가 나온다.**
+
+---
+
+## 2026-07-21 — 🟢 Held-out decoding ATTRIBUTION: the decoding advantage is caused by text supervision (−0.052…−0.122) and per-slot codebook separation (−0.021…−0.051), on 3 datasets
+
+🎯 **Why.** The user asked directly whether the paper's contribution is weak. The honest diagnosis: the
+headline result (our codons decode held-out concepts better than flat-hash chunks, +0.057…+0.099) had **no
+attribution ablation**. A reviewer's first objection would be "you trained with text supervision and use six
+separate codebooks — of course you beat an arbitrary partition of a flat hash; which design choice causes
+it?" A2 (no-text) and A4 (shared codebook) existed but were only ever scored on **retrieval** and **NMI** —
+and NMI was discarded on 2026-07-19 (sign inverted, cross-method comparison invalid, insensitive to text
+supervision). So the interpretability claim had no causal support from our own ablations.
+
+🔬 **What was run.** The existing A2/A4 checkpoints were re-scored with `heldout_codon_decoding.py` — the
+same train-only dictionary, official-test evaluation, `alpha=1.0`, `min_support=10`, image-multi-hot targets
+(independent of the Qwen teacher). No retraining; MSCOCO A4 needed an `extract_train.npz` (its train split is
+disjoint from its DB) which was generated with the existing additive extractor.
+
+📊 **Codon-level concept mAP, and paired bootstrap of the champion minus each ablation:**
+
+| Dataset | **A0 (champion)** | A2 no-text | Δ (A0−A2) | 95% CI | A4 shared CB | Δ (A0−A4) | 95% CI |
+|---|---:|---:|---:|---|---:|---:|---|
+| Flickr25k | 0.7794 | 0.7275 | **+0.0519** | [+0.0474, +0.0561] | 0.7588 | **+0.0206** | [+0.0161, +0.0254] |
+| NUS-WIDE | 0.7339 | 0.6570 | **+0.0770** | [+0.0712, +0.0823] | — | — | — |
+| MSCOCO | 0.6323 | 0.5101 | **+0.1223** | [+0.1181, +0.1266] | 0.5812 | **+0.0511** | [+0.0476, +0.0547] |
+
+**Every CI excludes zero.** (NUS-WIDE has no A4 run; that cell is missing, not null.)
+
+🔑 **Why this matters more than its size suggests.**
+
+1. **This is the first evidence that text supervision improves INTERPRETABILITY.** A2 had previously been
+   scored on NMI (which *rose* without text) and B1 text-grounding lift (0.140 → 0.139, unchanged), which
+   forced the honest but damaging note that "the measurable benefit of text supervision is retrieval and code
+   diversity, not the interpretability proxies." That note is now superseded: on the decoding axis the effect
+   is −0.052…−0.122, **comparable to or larger than our entire advantage over the flat-hash baselines**
+   (+0.057…+0.099). The frozen-CLIP confound that flattened NMI and B1 does not flatten decoding.
+2. **A4 is restored.** After NMI was discarded, A4 retained only mAP −0.006/−0.025 and its role as the
+   "compositional structure is essential" ablation was evidentially empty. Per-slot codebook separation now
+   has direct, significant decoding support on both datasets where it was run.
+3. **The contribution can now be stated causally**: our code decodes held-out concepts better than an
+   arbitrary bit partition (+0.057…+0.099 vs the best flat chunk), **and that comes from text supervision and
+   from keeping the six codebooks separate** — not from a pooling trick (A1, ±0.003), not from code capacity
+   (we use 1/3 the active symbols).
+4. **MSCOCO shows the largest attribution effects** (−0.122 text, −0.051 codebook separation) despite being
+   the dataset where our retrieval margin is noise-level (+0.002). Retrieval and decodability are separable
+   axes, and MSCOCO is strong on the second.
+
+⚠️ **Caveats.** (1) The A2/A4 runs are pre-P0 (best-checkpoint selected on test) while A0 here is the P0refit
+champion, so the comparison is not protocol-symmetric; the direction is very unlikely to flip at these effect
+sizes (0.05–0.12 vs a measured selection bias of ~0.014 on Flickr) but the asymmetry must be stated, and the
+clean fix is to re-score P0 versions of A2/A4. (2) NUS-WIDE A4 was never trained. (3) Single seed.
+
+🧰 Outputs: `docs/heldout_decoding_flickr_{A0_champion,A2_noText,A4_sharedCB}.json`,
+`docs/heldout_decoding_{nuswide,mscoco}_A{0,2,4}.json`.
+
+**Note:** no 4-axis compositional analysis — this is a re-scoring of existing ablations on the decoding axis,
+which supersedes the NMI axis for interpretability claims per the 2026-07-19 entry.
