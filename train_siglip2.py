@@ -226,6 +226,11 @@ def _build_active_loss_types(args) -> list:
     if _on('lambda_text_hash_ntxent'):
         keys.append('loss_text_hash_ntxent_add')
     if _on('lambda_cw_xmodal'):         keys.append('loss_cw_xmodal')
+    # loss_xmodal_commit (cross-modal codeword commitment; a load-bearing
+    # text-supervision term in the cross-dataset champion at lambda 0.05-0.10)
+    # is a SEPARATE dict key from loss_cw_xmodal. It was previously summed into
+    # the total but never logged, leaving its per-epoch curve invisible.
+    if _on('lambda_xmodal_commit'):     keys.append('loss_xmodal_commit')
 
     # ---- routing-side alignment
     if _on('lambda_wasserstein'): keys.append('loss_wasserstein')

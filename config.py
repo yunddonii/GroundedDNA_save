@@ -1322,7 +1322,10 @@ class Config():
                  "targets the 224x224 RGB image (v28a, ConvTranspose stack).")
         loss_arg.add_argument('--lambda_recon',         type=float, default=1.0,
             help="Weight on loss_recon. Default 1.0 puts it on par with "
-                 "loss_hash. Set 0 to disable even when --use_decoder is on.")
+                 "loss_hash. Set 0 to disable even when --use_decoder is on. "
+                 "NOTE: this weight is inert unless --use_decoder is set -- the "
+                 "loss is gated on outputs['reconstruction'] being present, so "
+                 "the default 1.0 is a no-op for the decoder-free champion.")
         # ---------- v29: paired-aug NtXent on DNA code ------------------
         # CIBHash-style instance-discrimination contrastive loss applied
         # directly on the DNA code (forward = STE one-hot per position).
