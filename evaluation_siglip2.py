@@ -423,9 +423,17 @@ if __name__ == "__main__":
     parser.add_argument("--codebook_size", type=int, default=64)
     parser.add_argument("--remove_self_match", action="store_true")
     parser.add_argument("--multi_label_relevance_threshold", type=float, default=0.0)
-    parser.add_argument("--bio_project", action="store_true",
+    # Biological-constraint projection is a MANDATORY, ALWAYS-ON step of the
+    # method (2026-07-21): the paper reports DNA hashing, so every emitted code
+    # must be a valid DNA strand (GC in [40,60]%, homopolymer run <= 3). The
+    # Hamming-minimum DP projection enforces this on both query and DB codes
+    # before retrieval, for our model AND the baselines symmetrically. Pass
+    # --no-bio_project only for diagnostic pre-projection numbers.
+    parser.add_argument("--bio_project", action=argparse.BooleanOptionalAction,
+        default=True,
         help="Apply bio-constraint minimum-edit projection to all DNA codes "
-             "before retrieval evaluation.")
+             "before retrieval evaluation. ON by default (mandatory invariant); "
+             "use --no-bio_project to disable for diagnostics only.")
     parser.add_argument("--bio_gc_min_frac", type=float, default=0.40)
     parser.add_argument("--bio_gc_max_frac", type=float, default=0.60)
     parser.add_argument("--bio_max_homopolymer_run", type=int, default=3)
