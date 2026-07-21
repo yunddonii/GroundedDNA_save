@@ -33,9 +33,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from typing import Dict, List, Sequence
 
 import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 SLOT_NAMES = [
     "global", "primary_object", "secondary_object",
@@ -325,6 +328,15 @@ def main() -> None:
     ap.add_argument("--n_shuffle", type=int, default=DEFAULT_N_SHUFFLE)
     ap.add_argument("--n_boot", type=int, default=DEFAULT_N_BOOT)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--bio_project", action="store_true",
+                    help="project every 18-base DNA code to bio-valid (GC window "
+                         "by code length, homopolymer <= 3) before codon "
+                         "extraction, matching the deployed valid-DNA codes. "
+                         "Baseline chunk control becomes the projected per-slot "
+                         "codon of the baseline's own DNA code.")
+    ap.add_argument("--gc_min_frac", type=float, default=0.4444)
+    ap.add_argument("--gc_max_frac", type=float, default=0.5556)
+    ap.add_argument("--max_run", type=int, default=3)
     args = ap.parse_args()
 
     d = load_split(args.ours_dir, args.train_manifest)
@@ -336,13 +348,34 @@ def main() -> None:
           f"test={len(te_lab)} labels={tr_lab.shape[1]} bases/slot={n_bases} "
           f"(train rows not found: {d['n_train_missing']})")
 
+    # bio-projection (2026-07-21 invariant): project the 18-base DNA sequence to
+    # bio-valid before codon extraction, so decoding uses the deployed valid-DNA
+    # codes. codebook_indices are NOT touched, so ours_codeword is invariant.
+    def _bioproj(base_arr):
+        if not args.bio_project:
+            return base_arr
+        from dna_utils.bio_constraints import project_to_valid, is_valid_batch
+        arr = np.ascontiguousarray(base_arr).astype(np.int8)
+        uniq, inv = np.unique(arr, axis=0, return_inverse=True)
+        valid = is_valid_batch(uniq, args.gc_min_frac, args.gc_max_frac, args.max_run)
+        out = uniq.copy()
+        for i in np.where(~valid)[0]:
+            out[i], _ = project_to_valid(uniq[i], args.gc_min_frac,
+                                         args.gc_max_frac, args.max_run)
+        return out[inv].astype(np.int64)
+
+    tag_bp = " [bio-projected]" if args.bio_project else ""
+    tr_base = _bioproj(src["base_indices"][tr_idx])
+    qy_base = _bioproj(qy["base_indices"])
+
     K = int(max(src["codebook_indices"].max(), qy["codebook_indices"].max())) + 1
     tr_cw = src["codebook_indices"][tr_idx]
     units = {
         "ours_codeword": (tr_cw, qy["codebook_indices"], K),
-        "ours_codon": (codon_ids(src["base_indices"][tr_idx], n_bases),
-                       codon_ids(qy["base_indices"], n_bases), 4 ** n_bases),
+        "ours_codon": (codon_ids(tr_base, n_bases),
+                       codon_ids(qy_base, n_bases), 4 ** n_bases),
     }
+    print(f"[{args.dataset}]{tag_bp} decoding units built")
 
     results: Dict[str, dict] = {}
     for name, (tu, qu, n_u) in units.items():
@@ -368,10 +401,22 @@ def main() -> None:
         tr_b = np.array([bpos[b] for b in d["train_basenames"]])
         te_b = np.array([qpos[b] for b in _basenames(qy["image_paths"])])
         key = f"{bname}_chunk"
-        results[key] = decode_all_slots(
-            bit_chunk_ids(bdb["hash_2bit"][tr_b]), tr_lab,
-            bit_chunk_ids(bqy["hash_2bit"][te_b]), te_lab,
-            2 ** (bdb["hash_2bit"].shape[1] // N_SLOTS), args.alpha, args.min_support)
+        if args.bio_project:
+            # DNA-space-consistent control: baseline's own 36-bit hash -> 18
+            # bases -> project to bio-valid -> per-slot 3-base codon, decoded
+            # exactly like ours. (Same 64 values/slot as the bit chunk.)
+            def _hash_to_base(h2):
+                b = (h2 > 0).astype(np.int64).reshape(len(h2), 18, 2)
+                return b[:, :, 0] * 2 + b[:, :, 1]
+            btr_codon = codon_ids(_bioproj(_hash_to_base(bdb["hash_2bit"][tr_b])), n_bases)
+            bte_codon = codon_ids(_bioproj(_hash_to_base(bqy["hash_2bit"][te_b])), n_bases)
+            results[key] = decode_all_slots(btr_codon, tr_lab, bte_codon, te_lab,
+                                            4 ** n_bases, args.alpha, args.min_support)
+        else:
+            results[key] = decode_all_slots(
+                bit_chunk_ids(bdb["hash_2bit"][tr_b]), tr_lab,
+                bit_chunk_ids(bqy["hash_2bit"][te_b]), te_lab,
+                2 ** (bdb["hash_2bit"].shape[1] // N_SLOTS), args.alpha, args.min_support)
         print(f"  {key:16s} mAP={results[key]['slot_mean']['concept_mAP']:.4f} "
               f"cov={results[key]['slot_mean']['coverage']:.3f}")
 

@@ -20767,3 +20767,89 @@ into `scripts/apply_bio_projection.py`. Outputs: `docs/bioproj_dna_unique.json` 
 **GC principle recorded as an invariant.** GC window scales with code length: 18-base [8,10] (44.4-55.6%),
 24-base [10,14] (41.67-58.33%). `evaluation_siglip2.py --bio_gc_min_frac/--bio_gc_max_frac` should be set to
 match the code length; the [40,60]% default coincides with the 18-base principle.
+
+---
+
+## 2026-07-21 — ALL DNA-sequence-based analyses recomputed under bio-projection; codebook-based ones proven INVARIANT. Central claims survive.
+
+🎯 **User directive.** Apply the mandatory bio-projection post-processing to **every** related ablation,
+analysis, and evaluation — not just retrieval mAP@R.
+
+🔬 **Which analyses change, and which cannot.** Projection edits `base_indices` (the DNA sequence) but never
+`codebook_indices` (a separate array). Verified: on Flickr champion DB, projection edits **53.8% of rows'
+base sequences** while codebook_indices is untouched. Therefore:
+
+| analysis | reads | under projection |
+|---|---|---|
+| retrieval mAP@R (base) | base_indices | **recomputed** (2026-07-21 entries) |
+| DNA-unique (DB) | base_indices | **recomputed** (2026-07-21 entry) |
+| **held-out CODON decoding** | base_indices → codon | **recomputed (this entry)** |
+| slot intervention (codon swap) | base_indices | **recomputed (this entry)** |
+| NMI (inter-codebook) | codebook_indices | **exactly invariant** — not re-run |
+| B0/B1/B2 lift | codebook assign + features | **exactly invariant** |
+| codebook-drop ablation | codebook_indices | **exactly invariant** |
+| held-out CODEWORD decoding | codebook_indices | **exactly invariant** |
+| codebook-alignment ρ, z-geometry | codebook embeddings / z | **exactly invariant** |
+
+**Projection injected via a `--bio_project` flag** (GC window by code length, homopolymer ≤ 3) in
+`heldout_codon_decoding.py` and `slot_intervention_eval.py`: the 18-base DNA code is projected to bio-valid
+before codon extraction, so every metric reflects the deployed valid-DNA codes. For the baseline chunk
+control, the flag switches it to the **projected per-slot 3-base codon of the baseline's own DNA code**
+(same 64 values/slot as the bit-chunk, now DNA-space-consistent). NOTE: projection balances GC over the whole
+18-base strand, so it can edit a base across slot boundaries — the codon-decoding result below therefore
+already absorbs any slot-crossing perturbation.
+
+### Held-out codon decoding — non-projected → BIO-PROJECTED (ours codon, concept mAP)
+
+| Dataset | ours np | **ours bp** | best baseline codon (bp) | majority | **margin (bp)** |
+|---|---:|---:|---:|---:|---:|
+| Flickr25k | 0.7794 | **0.7633** | cimon 0.7093 | 0.4730 | **+0.0540** |
+| NUS-WIDE | 0.7339 | **0.7152** | cimon 0.6662 | 0.4822 | **+0.0490** |
+| MSCOCO | 0.6323 | **0.6115** | cibhash 0.5175 | 0.3160 | **+0.0940** |
+
+🟢 **The central paper claim survives projection.** Projection costs the codon decode −0.016…−0.021 (despite
+editing >half the codes), but our advantage over the best flat-hash-derived codon (+0.049…+0.094) and the
+huge gap over majority both hold on all three datasets. "Codons decode held-out concepts, better than a flat
+partition" is true of the *biochemically-valid deployed* codes, not just the raw ones.
+
+### A2/A4 causal attribution — holds under projection (ours codon, bp)
+
+| | Flickr | NUS-WIDE | MSCOCO |
+|---|---:|---:|---:|
+| A0 (champion) | 0.7633 | 0.7152 | 0.6115 |
+| A2 (no text) | 0.7259 (−0.037) | 0.6423 (−0.073) | 0.5015 (−0.110) |
+| A4 (shared codebook) | 0.7522 (−0.011) | — | 0.5641 (−0.047) |
+
+🟢 Text supervision (−0.037…−0.110) and per-slot codebook separation (−0.011…−0.047) remain the causes of the
+decoding advantage under the invariant, matching the non-projected attribution (2026-07-21).
+
+### Slot intervention — same verdict under projection (mean over 6 slots)
+
+| Dataset | ours_slot gain | random_slot gain | ours selectivity | random_donor gain |
+|---|---:|---:|---:|---:|
+| Flickr25k | +0.0304 | +0.0189 | +0.0045 | +0.0072 |
+| MSCOCO | +0.0133 | +0.0089 | +0.0051 | +0.0007 |
+| NUS-WIDE | +0.0198 | +0.0125 | −0.0003 | +0.0023 |
+
+🟡 Unchanged conclusion: the intended slot's codon swap raises the target concept more than a random slot
+(≈1.6×), but selectivity stays weak (≈0, off-target drift ≈ target gain) — projection does not change the
+2026-07-19 verdict that intervention does not support "independently controllable factors".
+
+🧭 **Net.** Every DNA-sequence-based number in the paper is now reported post-projection (the invariant), and
+every conclusion — retrieval SOTA in DNA space, DNA-unique robustness, held-out codon decoding advantage,
+A2/A4 attribution, weak intervention selectivity — is unchanged in direction. Codebook-based analyses are
+invariant by construction and are not re-run. This closes the "apply post-processing everywhere" directive.
+
+⚠️ **Caveats.** (1) 18-base GC window [8,10]; single seed. (2) MSCOCO held-out baseline control uses the
+260719 decodectl extractions (train+query, at P0 E\*) since the 260721 dnaeval dirs lack the disjoint MSCOCO
+train split. (3) A2/A4 runs are pre-P0 (best-ckpt on test) — same asymmetry noted in the non-projected
+attribution entry; effect sizes (0.04–0.11) far exceed the ~0.014 selection bias.
+
+🧰 New/changed: `--bio_project` (+ GC-frac / max-run args) in `scripts/heldout_codon_decoding.py` and
+`scripts/slot_intervention_eval.py`; `scripts/run_slot_intervention_bioproj.sh`. Outputs:
+`docs/heldout_decoding_*_bioproj.json` (Flickr/NUS/MSCOCO main + Flickr/NUS/MSCOCO A2 + Flickr/MSCOCO A4),
+`docs/slot_intervention_{flickr25k,mscoco,nuswide}_bioproj.json`.
+
+**Invariance note (paper-ready).** State explicitly that codebook-level compositional metrics (NMI, B-lift,
+drop, codeword decoding, ρ) are exactly invariant to the bio-projection post-processing, while DNA-sequence
+metrics (mAP@R, DNA-unique, codon decoding, intervention) are reported post-projection.

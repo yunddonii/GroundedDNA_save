@@ -176,15 +176,38 @@ def main() -> None:
     ap.add_argument("--alpha", type=float, default=1.0)
     ap.add_argument("--n_boot", type=int, default=1000)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--bio_project", action="store_true",
+                    help="project DNA codes to bio-valid (GC by length, "
+                         "homopolymer<=3) before the codon-swap intervention")
+    ap.add_argument("--gc_min_frac", type=float, default=0.4444)
+    ap.add_argument("--gc_max_frac", type=float, default=0.5556)
+    ap.add_argument("--max_run", type=int, default=3)
     args = ap.parse_args()
 
     rng = np.random.default_rng(args.seed)
-    db = np.load(os.path.join(args.ours_dir, "extract_db.npz"), allow_pickle=True)
-    qy = np.load(os.path.join(args.ours_dir, "extract_query.npz"), allow_pickle=True)
+    db = dict(np.load(os.path.join(args.ours_dir, "extract_db.npz"), allow_pickle=True))
+    qy = dict(np.load(os.path.join(args.ours_dir, "extract_query.npz"), allow_pickle=True))
     tr_path = os.path.join(args.ours_dir, "extract_train.npz")
-    tr = np.load(tr_path, allow_pickle=True) if os.path.exists(tr_path) else None
+    tr = dict(np.load(tr_path, allow_pickle=True)) if os.path.exists(tr_path) else None
 
-    lab_key = "multi_hot_labels" if "multi_hot_labels" in db.files else "labels"
+    if args.bio_project:
+        import sys as _sys
+        _sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from dna_utils.bio_constraints import project_to_valid, is_valid_batch
+        def _bp(arr):
+            a = np.ascontiguousarray(arr).astype(np.int8)
+            uu, iv = np.unique(a, axis=0, return_inverse=True)
+            vv = is_valid_batch(uu, args.gc_min_frac, args.gc_max_frac, args.max_run)
+            oo = uu.copy()
+            for i in np.where(~vv)[0]:
+                oo[i], _ = project_to_valid(uu[i], args.gc_min_frac, args.gc_max_frac, args.max_run)
+            return oo[iv].astype(np.int64)
+        for _d in (db, qy, tr):
+            if _d is not None and "base_indices" in _d:
+                _d["base_indices"] = _bp(_d["base_indices"])
+        print(f"[{args.dataset}] [bio-projected] codes")
+
+    lab_key = "multi_hot_labels" if "multi_hot_labels" in db else "labels"
     db_lab_full = np.asarray(db[lab_key])
     if db_lab_full.ndim == 1:
         n_cls = int(db_lab_full.max()) + 1
