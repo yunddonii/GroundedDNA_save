@@ -129,6 +129,9 @@ class SemanticSinkhornRouter(nn.Module):
         codebook_choice_capacity: Optional[float] = None,
         codebook_choice_beta: float = 1.0,
         cost_bias: Optional[torch.Tensor] = None,
+        specificity_weighted_marginal: bool = False,
+        centered_consensus_mask: bool = False,
+        hard_visual_mask: bool = False,
         uot_lambda_a:     Optional[float] = None,
         uot_lambda_b:     Optional[float] = None,
     ) -> Dict[str, torch.Tensor]:
@@ -165,14 +168,112 @@ class SemanticSinkhornRouter(nn.Module):
         eps_eff = float(epsilon_override) if epsilon_override is not None else self.epsilon
         log_K = -kernel_cost / max(eps_eff, 1e-6)        # [B, N, M]
 
-        # ---- 3) marginals (uniform unless masks supplied) ---------------
+        # ---- 3) marginals (uniform unless masks / specificity supplied) --
         device = visual_tokens.device
         dtype  = visual_tokens.dtype
-        if visual_mask is None:
-            a = torch.full((B, N), 1.0 / N, device=device, dtype=dtype)
+        visual_valid = (
+            torch.ones(B, N, dtype=torch.bool, device=device)
+            if visual_mask is None else visual_mask.to(device=device, dtype=torch.bool)
+        )                                                               # [B, N]
+        visual_specificity_mean = None
+        visual_marginal_effective_ratio = None
+        visual_consensus_mask_ratio = None
+        visual_consensus_remaining_ratio = None
+        visual_consensus_fallback = None
+        if specificity_weighted_marginal and centered_consensus_mask:
+            raise ValueError(
+                "specificity_weighted_marginal and centered_consensus_mask "
+                "are mutually exclusive"
+            )
+        if centered_consensus_mask:
+            part_valid = (
+                torch.ones(B, M, dtype=torch.bool, device=device)
+                if part_mask is None else part_mask.to(device=device, dtype=torch.bool)
+            )                                                           # [B, M]
+            visual_count = visual_valid.sum(dim=1, keepdim=True).clamp_min(1)
+            slot_mean = (
+                (sim * visual_valid.unsqueeze(-1).to(dtype)).sum(dim=1)
+                / visual_count.to(dtype)
+            )                                                           # [B, M]
+            above_slot_mean = sim > slot_mean.unsqueeze(1)              # [B, N, M]
+            above_or_invalid = above_slot_mean | ~part_valid.unsqueeze(1)
+            common_visual = (
+                above_or_invalid.all(dim=-1)
+                & part_valid.any(dim=-1, keepdim=True)
+                & visual_valid
+            ).detach()                                                  # [B, N]
+            remaining_visual = visual_valid & ~common_visual            # [B, N]
+
+            # This fallback is only a feasibility guard for malformed or
+            # empty masks. Under the strict above-mean criterion, at least
+            # one valid token necessarily remains for every non-empty slot.
+            fallback = remaining_visual.sum(dim=-1, keepdim=True) == 0   # [B, 1]
+            effective_visual_valid = torch.where(
+                fallback, visual_valid, remaining_visual,
+            )                                                           # [B, N]
+            valid_count_f = visual_valid.sum(dim=-1).clamp_min(1).to(dtype)
+            visual_consensus_mask_ratio = (
+                common_visual.sum(dim=-1).to(dtype) / valid_count_f
+            )                                                           # [B]
+            visual_consensus_remaining_ratio = (
+                effective_visual_valid.sum(dim=-1).to(dtype) / valid_count_f
+            )                                                           # [B]
+            visual_consensus_fallback = fallback.squeeze(-1).to(dtype)  # [B]
+            visual_valid = effective_visual_valid
+
+            valid_weight = visual_valid.to(dtype)
+            a = valid_weight / valid_weight.sum(
+                dim=1, keepdim=True,
+            ).clamp_min(1e-12)                                         # [B, N]
+        elif specificity_weighted_marginal:
+            part_valid = (
+                torch.ones(B, M, dtype=torch.bool, device=device)
+                if part_mask is None else part_mask.to(device=device, dtype=torch.bool)
+            )                                                           # [B, M]
+            sim_for_specificity = sim.masked_fill(
+                ~part_valid.unsqueeze(1), -1e4,
+            )                                                           # [B, N, M]
+            q_slot = sim_for_specificity.softmax(dim=-1)
+            q_slot = q_slot * part_valid.unsqueeze(1).to(q_slot.dtype) # [B, N, M]
+            entropy = -(
+                q_slot * q_slot.clamp_min(1e-12).log()
+            ).sum(dim=-1)                                               # [B, N]
+            valid_part_count = part_valid.sum(dim=-1).clamp_min(1)      # [B]
+            log_part_count = valid_part_count.to(dtype).log()           # [B]
+            entropy_norm = torch.where(
+                valid_part_count[:, None] > 1,
+                entropy / log_part_count[:, None].clamp_min(1e-12),
+                torch.zeros_like(entropy),
+            ).clamp(0.0, 1.0)                                          # [B, N]
+            specificity = (1.0 - entropy_norm) * visual_valid.to(dtype) # [B, N]
+            specificity = specificity.detach()
+
+            # If every patch is exactly slot-uniform, retain the legacy
+            # uniform valid-patch marginal instead of creating a zero mass.
+            valid_weight = visual_valid.to(dtype)                       # [B, N]
+            has_specific_mass = specificity.sum(dim=-1, keepdim=True) > 1e-12
+            visual_weight = torch.where(
+                has_specific_mass, specificity, valid_weight,
+            )                                                           # [B, N]
+            a = visual_weight / visual_weight.sum(
+                dim=1, keepdim=True,
+            ).clamp_min(1e-12)                                         # [B, N]
+
+            valid_count = visual_valid.sum(dim=-1).clamp_min(1).to(dtype)
+            visual_specificity_mean = (
+                specificity.sum(dim=-1) / valid_count
+            )                                                           # [B]
+            marginal_entropy = -(
+                a * a.clamp_min(1e-12).log()
+            ).sum(dim=-1)                                               # [B]
+            visual_marginal_effective_ratio = (
+                marginal_entropy.exp() / valid_count
+            ).clamp(0.0, 1.0)                                          # [B]
         else:
-            m = visual_mask.to(dtype)
-            a = m / m.sum(dim=1, keepdim=True).clamp_min(1e-12)
+            valid_weight = visual_valid.to(dtype)
+            a = valid_weight / valid_weight.sum(
+                dim=1, keepdim=True,
+            ).clamp_min(1e-12)                                         # [B, N]
         if part_mask is None:
             b = torch.full((B, M), 1.0 / M, device=device, dtype=dtype)
         else:
@@ -194,6 +295,10 @@ class SemanticSinkhornRouter(nn.Module):
             lambda_b=uot_lambda_b,
         )
         P = torch.exp(log_P)                             # [B, N, M]
+        if centered_consensus_mask or hard_visual_mask:
+            # Make the candidate exclusion exact. The legacy visual-mask
+            # path remains bit-for-bit unchanged when both flags are disabled.
+            P = P * visual_valid.unsqueeze(-1).to(P.dtype)             # [B, N, M]
 
         # ---- 4b) optional top-k mask per patch (v33b hardening) ---------
         # Keep only the top-k largest part-assignments per patch (along the
@@ -414,6 +519,11 @@ class SemanticSinkhornRouter(nn.Module):
             "routing_matrix":         P,            # [B, N, M]
             "semantic_visual_tokens": semantic_v,   # [B, M, D]
             "ot_cost":                ot_cost,      # [B]   per-sample W_e value
+            "visual_specificity_mean": visual_specificity_mean,
+            "visual_marginal_effective_ratio": visual_marginal_effective_ratio,
+            "visual_consensus_mask_ratio": visual_consensus_mask_ratio,
+            "visual_consensus_remaining_ratio": visual_consensus_remaining_ratio,
+            "visual_consensus_fallback": visual_consensus_fallback,
         }
 
 

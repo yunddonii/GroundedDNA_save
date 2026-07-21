@@ -2746,8 +2746,14 @@ class DNACodonHashLoss(nn.Module):
             _src = getattr(self, "cibhash_ntxent_source", "continuous_code")
             if _src == "visual_token":
                 # v150: NtXent on pre-VQ semantic_visual_tokens [B, M, D].
-                sv_v1 = outputs.get("semantic_visual_tokens")
-                sv_v2 = outputs_view2.get("semantic_visual_tokens")
+                # Optional projection heads isolate this dominant instance
+                # objective from the semantic VQ/DNA representation.
+                sv_v1 = outputs.get("cibhash_visual_tokens")
+                sv_v2 = outputs_view2.get("cibhash_visual_tokens")
+                if sv_v1 is None:
+                    sv_v1 = outputs.get("semantic_visual_tokens")
+                if sv_v2 is None:
+                    sv_v2 = outputs_view2.get("semantic_visual_tokens")
                 if sv_v1 is not None and sv_v2 is not None:
                     loss_cibhash_ntxent_v, loss_cibhash_kl_v = self._loss_cibhash_visual_per_codebook(
                         sv_v1, sv_v2, temperature=self.cibhash_temperature,
