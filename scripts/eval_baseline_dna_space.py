@@ -104,8 +104,9 @@ def main() -> int:
 
     q_bits, q_lbl = _load_split(a.extract_dir, "query")
     db_bits, db_lbl = _load_split(a.extract_dir, "db")
-    assert q_bits.shape[1] == 36 and db_bits.shape[1] == 36, \
-        f"expected 36-bit codes, got q={q_bits.shape} db={db_bits.shape}"
+    assert q_bits.shape[1] == db_bits.shape[1] and q_bits.shape[1] % 2 == 0, \
+        ("query/db bit widths must match and be even (2 bits/base); got "
+         f"q={q_bits.shape} db={db_bits.shape}")  # 36->18 base or 48->24 base
 
     # ---- BIT space (sanity) ----
     bit_map = _map_at_r_from_codes(q_bits, db_bits, q_lbl, db_lbl,
@@ -114,7 +115,7 @@ def main() -> int:
     # ---- BASE (DNA) space ----
     q_base = _two_bit_to_bases(q_bits)                          # [Nq, 18]
     db_base = _two_bit_to_bases(db_bits)                        # [Nd, 18]
-    assert q_base.shape[1] == 18 and db_base.shape[1] == 18
+    assert q_base.shape[1] == db_base.shape[1] == q_bits.shape[1] // 2
     base_map = _map_at_r_from_codes(q_base, db_base, q_lbl, db_lbl,
                                     cutoff, a.device, a.q_chunk)
 
