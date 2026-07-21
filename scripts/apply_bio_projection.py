@@ -66,6 +66,7 @@ def project_batch_memoized(codes: np.ndarray, gc_min, gc_max, max_run) -> dict:
     }
 
 CUTOFF = {"Flickr25k": 5000, "MSCOCO": 5000, "NUSWIDE": 5000, "CIFAR10": 1000}
+SAVE_PROJECTED = False
 
 
 def base_from_hash(h2: np.ndarray) -> np.ndarray:
@@ -116,17 +117,34 @@ def run_cell(name: str, ddir: str, dataset: str, gc_min, gc_max, max_run) -> dic
     ql = np.asarray(qy["multi_hot_labels"], dtype=np.int64)
     R = CUTOFF[dataset]
 
+    L = dbb.shape[1]
+    gc_min_c = int(np.ceil(gc_min * L)); gc_max_c = int(np.floor(gc_max * L))
+
+    def dna_unique(codes):
+        return len(np.unique(codes, axis=0)) / len(codes)
+
     pre_valid_db = is_valid_batch(dbb, gc_min, gc_max, max_run)
     pre_valid_qy = is_valid_batch(qb, gc_min, gc_max, max_run)
     map_pre = map_at_r(qb, dbb, ql, dl, R)
+    dna_unique_pre = dna_unique(dbb)
 
     proj_db = project_batch_memoized(dbb, gc_min, gc_max, max_run)
     proj_qy = project_batch_memoized(qb, gc_min, gc_max, max_run)
     dbb_p, qb_p = proj_db["projected_codes"], proj_qy["projected_codes"]
     map_post = map_at_r(qb_p, dbb_p, ql, dl, R)
+    dna_unique_post = dna_unique(dbb_p)
+
+    if SAVE_PROJECTED:
+        np.savez(os.path.join(ddir, "extract_db_bioproj.npz"),
+                 base_indices=dbb_p.astype(np.int64),
+                 multi_hot_labels=dl, image_paths=db.get("image_paths"))
+        np.savez(os.path.join(ddir, "extract_query_bioproj.npz"),
+                 base_indices=qb_p.astype(np.int64),
+                 multi_hot_labels=ql, image_paths=qy.get("image_paths"))
 
     return {
         "name": name, "dataset": dataset, "dir": ddir,
+        "L": int(L), "gc_count_range": [gc_min_c, gc_max_c], "max_run": int(max_run),
         "pre_compliance_db": float(pre_valid_db.mean()),
         "pre_compliance_qy": float(pre_valid_qy.mean()),
         "post_compliance_db": float(proj_db["compliance_rate"]),
@@ -135,6 +153,9 @@ def run_cell(name: str, ddir: str, dataset: str, gc_min, gc_max, max_run) -> dic
         "map_at_R_pre": map_pre,
         "map_at_R_post": map_post,
         "delta_proj": map_post - map_pre,
+        "dna_unique_pre": dna_unique_pre,
+        "dna_unique_post": dna_unique_post,
+        "dna_unique_delta": dna_unique_post - dna_unique_pre,
         "R": R,
     }
 
@@ -146,7 +167,11 @@ def main():
     ap.add_argument("--gc_max", type=float, default=DEFAULT_GC_MAX_FRAC)
     ap.add_argument("--max_run", type=int, default=DEFAULT_MAX_HOMOPOLYMER_RUN)
     ap.add_argument("--only", nargs="*", default=None, help="restrict to these datasets")
+    ap.add_argument("--save_projected", action="store_true",
+                    help="also save bio-projected extractions for downstream compositional eval")
     args = ap.parse_args()
+    global SAVE_PROJECTED
+    SAVE_PROJECTED = args.save_projected
 
     ours = {
         "Flickr25k": "result/260717+flickr25k_setting1_flickr_P0refit_e4+bs+64+e+60+proj_lr+0.001",

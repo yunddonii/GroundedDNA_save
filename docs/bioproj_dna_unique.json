@@ -1,0 +1,236 @@
+[
+  {
+    "name": "Ours|Flickr25k",
+    "dir": "260717+flickr25k_setting1_flickr_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+    "L": 18,
+    "gc_count_range": [
+      8,
+      10
+    ],
+    "dna_unique_pre": 0.4013913043478261,
+    "dna_unique_post": 0.3728695652173913,
+    "pre_compliance": 0.4623478260869565,
+    "dataset": "Flickr25k"
+  },
+  {
+    "name": "Ours|MSCOCO",
+    "dir": "260717+mscoco_setting1_mscoco_P0refit_e49+bs+64+e+60+proj_lr+0.001",
+    "L": 18,
+    "gc_count_range": [
+      8,
+      10
+    ],
+    "dna_unique_pre": 0.18653584286220598,
+    "dna_unique_post": 0.17485869909903187,
+    "pre_compliance": 0.513029528623925,
+    "dataset": "MSCOCO"
+  },
+  {
+    "name": "Ours|NUSWIDE",
+    "dir": "260717+nuswide_setting1_nuswide_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+    "L": 18,
+    "gc_count_range": [
+      8,
+      10
+    ],
+    "dna_unique_pre": 0.1768920272125698,
+    "dna_unique_post": 0.15650324671972912,
+    "pre_compliance": 0.4854646061094077,
+    "dataset": "NUSWIDE"
+  },
+  {
+    "name": "Ours|CIFAR10",
+    "dir": "260717+cifar10_setting1_cifar10_P0refit_e14+bs+64+e+60+proj_lr+0.001",
+    "L": 18,
+    "gc_count_range": [
+      8,
+      10
+    ],
+    "dna_unique_pre": 0.11371186440677966,
+    "dna_unique_post": 0.10772881355932204,
+    "pre_compliance": 0.33259322033898303,
+    "dataset": "CIFAR10"
+  },
+  {
+    "name": "cibhash|Flickr25k",
+    "dir": "cibhash_Flickr25k_clip_E4_dnaeval",
+    "L": 18,
+    "gc_count_range": [
+      8,
+      10
+    ],
+    "dna_unique_pre": 0.9625652173913043,
+    "dna_unique_post": 0.9516086956521739,
+    "pre_compliance": 0.4551304347826087,
+    "dataset": "Flickr25k"
+  },
+  {
+    "name": "cibhash|MSCOCO",
+    "dir": "cibhash_MSCOCO_clip_E19_dnaeval",
+    "L": 18,
+    "gc_count_range": [
+      8,
+      10
+    ],
+    "dna_unique_pre": 0.7246544423510978,
+    "dna_unique_post": 0.690005409539443,
+    "pre_compliance": 0.44408588110205377,
+    "dataset": "MSCOCO"
+  },
+  {
+    "name": "cibhash|NUSWIDE",
+    "dir": "cibhash_NUSWIDE_clip_E4_dnaeval",
+    "L": 18,
+    "gc_count_range": [
+      8,
+      10
+    ],
+    "dna_unique_pre": 0.8126451732788256,
+    "dna_unique_post": 0.7755014607657923,
+    "pre_compliance": 0.41976111575665603,
+    "dataset": "NUSWIDE"
+  },
+  {
+    "name": "cibhash|CIFAR10",
+    "dir": "cibhash_CIFAR10_clip_E4_dnaeval",
+    "L": 18,
+    "gc_count_range": [
+      8,
+      10
+    ],
+    "dna_unique_pre": 0.5036949152542373,
+    "dna_unique_post": 0.47622033898305083,
+    "pre_compliance": 0.4809322033898305,
+    "dataset": "CIFAR10"
+  },
+  {
+    "name": "cimon|Flickr25k",
+    "dir": "cimon_Flickr25k_clip_E49_dnaeval",
+    "L": 18,
+    "gc_count_range": [
+      8,
+      10
+    ],
+    "dna_unique_pre": 0.8168695652173913,
+    "dna_unique_post": 0.785608695652174,
+    "pre_compliance": 0.4058260869565217,
+    "dataset": "Flickr25k"
+  },
+  {
+    "name": "cimon|MSCOCO",
+    "dir": "cimon_MSCOCO_clip_E59_dnaeval",
+    "L": 18,
+    "gc_count_range": [
+      8,
+      10
+    ],
+    "dna_unique_pre": 0.42875263481878045,
+    "dna_unique_post": 0.399541121826559,
+    "pre_compliance": 0.42647689753586154,
+    "dataset": "MSCOCO"
+  },
+  {
+    "name": "cimon|NUSWIDE",
+    "dir": "cimon_NUSWIDE_clip_E54_dnaeval",
+    "L": 18,
+    "gc_count_range": [
+      8,
+      10
+    ],
+    "dna_unique_pre": 0.49833792726108994,
+    "dna_unique_post": 0.4519650655021834,
+    "pre_compliance": 0.3779512114548814,
+    "dataset": "NUSWIDE"
+  },
+  {
+    "name": "cimon|CIFAR10",
+    "dir": "cimon_CIFAR10_clip_E59_dnaeval",
+    "L": 18,
+    "gc_count_range": [
+      8,
+      10
+    ],
+    "dna_unique_pre": 0.23366101694915253,
+    "dna_unique_post": 0.21396610169491526,
+    "pre_compliance": 0.36435593220338985,
+    "dataset": "CIFAR10"
+  },
+  {
+    "name": "mls3rduh|Flickr25k",
+    "dir": "mls3rduh_Flickr25k_clip_E59_dnaeval",
+    "L": 18,
+    "gc_count_range": [
+      8,
+      10
+    ],
+    "dna_unique_pre": 0.5111304347826087,
+    "dna_unique_post": 0.4768695652173913,
+    "pre_compliance": 0.3858695652173913,
+    "dataset": "Flickr25k"
+  },
+  {
+    "name": "mls3rduh|MSCOCO",
+    "dir": "mls3rduh_MSCOCO_clip_E59_dnaeval",
+    "L": 18,
+    "gc_count_range": [
+      8,
+      10
+    ],
+    "dna_unique_pre": 0.43499225876252123,
+    "dna_unique_post": 0.4049320076852767,
+    "pre_compliance": 0.43077654871383536,
+    "dataset": "MSCOCO"
+  },
+  {
+    "name": "mls3rduh|NUSWIDE",
+    "dir": "mls3rduh_NUSWIDE_clip_E59_dnaeval",
+    "L": 18,
+    "gc_count_range": [
+      8,
+      10
+    ],
+    "dna_unique_pre": 0.46009476911641733,
+    "dna_unique_post": 0.42578483900605985,
+    "pre_compliance": 0.45382328347115114,
+    "dataset": "NUSWIDE"
+  },
+  {
+    "name": "mls3rduh|CIFAR10",
+    "dir": "mls3rduh_CIFAR10_clip_E59_dnaeval",
+    "L": 18,
+    "gc_count_range": [
+      8,
+      10
+    ],
+    "dna_unique_pre": 0.007338983050847458,
+    "dna_unique_post": 0.007084745762711864,
+    "pre_compliance": 0.2117457627118644,
+    "dataset": "CIFAR10"
+  },
+  {
+    "name": "Ours-4base|Flickr25k",
+    "dir": "260715+flickr25k_setting1_flickr_F2_wholeimg_4base_L4_K128+bs+64+e+60+proj_lr+0.001",
+    "L": 24,
+    "gc_count_range": [
+      10,
+      14
+    ],
+    "dna_unique_pre": 0.5215217391304348,
+    "dna_unique_post": 0.5131739130434783,
+    "pre_compliance": 0.5644347826086956,
+    "dataset": "Flickr25k"
+  },
+  {
+    "name": "Ours-4base|MSCOCO",
+    "dir": "260715+mscoco_setting1_mscoco_F2_wholeimg_4base_L4_K128+bs+64+e+60+proj_lr+0.001",
+    "L": 24,
+    "gc_count_range": [
+      10,
+      14
+    ],
+    "dna_unique_pre": 0.2329366337741797,
+    "dna_unique_post": 0.22421608312037158,
+    "pre_compliance": 0.512768378443918,
+    "dataset": "MSCOCO"
+  }
+]

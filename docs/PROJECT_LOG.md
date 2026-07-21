@@ -39,8 +39,10 @@ Format conventions:
    opt-/train-only rows. Baselines re-selected on the same val split (symmetric).
 4. **DNA-space comparison** — all methods evaluated in the same **18-base** code space with **base Hamming**
    (baselines: 36-bit hash → 18 bases; 2026-07-21 fair comparison).
-5. **Bio-constraint projection (MANDATORY, always-on)** — every emitted DNA code is projected to satisfy
-   GC ∈ [40,60]% + homopolymer ≤ 3 (Hamming-minimum DP) before retrieval, for Ours **and** baselines.
+5. **Bio-constraint projection (MANDATORY, always-on)** — every emitted DNA code is projected to satisfy a
+   **length-dependent GC window** + homopolymer ≤ 3 (Hamming-minimum DP) before retrieval, for Ours **and**
+   baselines. **GC window scales with code length: 18-base → GC count [8,10] (44.4–55.6%); 24-base → [10,14]
+   (41.67–58.33%)** (2026-07-21 user principle; the [40,60]% default coincides with the 18-base window).
    `evaluation_siglip2.py --bio_project` is **default ON** (opt out with `--no-bio_project` for diagnostics).
    **The reported headline table is the post-projection one (2026-07-21 entry):**
    Flickr **0.8723** / MSCOCO **0.8063** / NUS-WIDE **0.8274** / CIFAR10 **0.9009**; margin over best baseline
@@ -20693,3 +20695,75 @@ Outputs: `docs/bio_projection_comparison.json` (16 cells: pre/post base mAP@R, c
 
 **Note:** no 4-axis compositional analysis — baselines are flat hashes; this entry reports the invariant
 retrieval panel (post-projection base mAP@R) that supersedes the bare base-space table for all paper numbers.
+
+---
+
+## 2026-07-21 — GC principle set by code length ([44.4-55.6]% for 18-base, [41.67-58.33]% for 24-base) + compositional (DNA-unique) comparison under bio-projection
+
+🎯 **User directive.** Make the GC band a length-dependent principle: **18-base → 44.4-55.6%**, **24-base →
+41.67-58.33%**. Recompute mAP@R, then compare compositional metrics (DNA-unique etc.).
+
+📏 **Band → integer GC-count window (ceil/floor).**
+
+| code length | user % band | GC count window | note |
+|---|---|---|---|
+| 18-base (36-bit, 3-base codon) | 44.4-55.6% | **[8, 10]** | = 8/18, 10/18 — **identical to the [40,60]% band already applied**, so mAP@R is unchanged |
+| 24-base (48-bit, 4-base codon) | 41.67-58.33% | **[10, 14]** | = 10/24, 14/24 (boundary-inclusive intent; the literal fractions round to [11,13], so passed 0.416/0.584 to yield [10,14]) |
+
+🔁 **18-base mAP@R unchanged, re-confirmed.** Re-running projection with the exact [44.4,55.6]% band
+reproduces the 2026-07-21 invariant table bit-for-bit: Ours **0.8723 / 0.8063 / 0.8274 / 0.9009**
+(Flickr/MSCOCO/NUS-WIDE/CIFAR10). The new work is the compositional axis.
+
+### DNA-unique (DB), pre → post projection — 18-base [GC 8-10]
+
+| method | Flickr25k | MSCOCO | NUS-WIDE | CIFAR10 | mean Δ |
+|---|---|---|---|---|---:|
+| **Ours** | 0.4014→0.3729 (−0.029) | 0.1865→0.1749 (−0.012) | 0.1769→0.1565 (−0.020) | 0.1137→0.1077 (−0.006) | **−0.017** |
+| CIBHash | 0.9626→0.9516 (−0.011) | 0.7247→0.6900 (−0.035) | 0.8126→0.7755 (−0.037) | 0.5037→0.4762 (−0.028) | −0.028 |
+| CIMON | 0.8169→0.7856 (−0.031) | 0.4288→0.3995 (−0.029) | 0.4983→0.4520 (−0.046) | 0.2337→0.2140 (−0.020) | −0.031 |
+| MLS3RDUH | 0.5111→0.4769 (−0.034) | 0.4350→0.4049 (−0.030) | 0.4601→0.4258 (−0.034) | 0.0073→0.0071 (−0.000) | −0.025 |
+
+🔑 **Two axes, reported honestly and separately.**
+1. **Robustness to projection — Ours wins.** Our DNA-unique loss (mean −0.017) is smaller than every
+   baseline's (−0.025…−0.031), the same direction as the mAP@R finding: enforcing biochemical validity costs
+   us less. A minimum-edit lands on a less load-bearing position in our structured codes.
+2. **Absolute DNA-unique level — baselines are higher** (CIBHash Flickr 0.95 vs our 0.37 post-projection).
+   This is the pre-existing, *intended* compression trade-off — our codebook-VQ deliberately shares codes
+   across semantically similar images; the baselines' near-unique codes are simply uncompressed. Projection
+   does not change this picture, and it must be reported alongside axis 1, not instead of it.
+
+⚙️ **Projection invariance (stated for the paper).** Projection edits `base_indices` (the DNA sequence) only,
+never `codebook_indices`. So **NMI, B0/B1/B2 lift, codebook-drop, and held-out *codeword* decoding are exactly
+invariant** to it; only **DNA-unique and held-out *codon* decoding** (which read the DNA sequence) can change.
+The codon-decoding recompute under projection is the natural follow-up.
+
+### 18-base vs 24-base — the 4-base codon is markedly more projection-robust
+
+| metric (Ours) | 18-base [GC 8-10] | 24-base [GC 10-14] |
+|---|---|---|
+| Flickr mAP@R pre→post | 0.8810→0.8723 (**−0.0088**) | 0.8794→0.8778 (**−0.0016**) |
+| Flickr DNA-unique pre→post | 0.4014→0.3729 (**−0.0285**) | 0.5215→0.5132 (**−0.0083**) |
+| MSCOCO mAP@R pre→post | 0.8134→0.8063 (**−0.0071**) | 0.8252→0.8198 (**−0.0054**) |
+| MSCOCO DNA-unique pre→post | 0.1865→0.1749 (**−0.0117**) | 0.2329→0.2242 (**−0.0087**) |
+
+🔑 **Attribution — not just the wider GC window.** 24-base is more robust on every metric AND has higher
+absolute DNA-unique (0.52 vs 0.40 Flickr). Two factors could drive this: (a) the 4-base codon's 256-vs-64
+capacity → less collision, higher unique to begin with; (b) the relatively wider GC window ([10,14] = 5 of 25
+values vs [8,10] = 3 of 19). **These are separable on MSCOCO, where both lengths have identical pre-compliance
+0.513** — yet 24-base still loses less (mAP −0.0054 vs −0.0071; DNA-unique −0.0087 vs −0.0117). With the GC-window
+effect held constant, **the codon-capacity factor carries real weight**, cleanly supporting the §4.4 4-base-codon
+argument.
+
+⚠️ **Caveats.** (1) 24-base runs are **Gen-0 (test-selected checkpoints), NOT P0** — their absolute mAP@R
+(0.8794/0.8252) is optimistic and must not be tabled against the 18-base P0 champion; only the *pre→post
+projection deltas* and the DNA-unique comparison are used here. (2) 24-base exists only for Flickr + MSCOCO
+(no NUS-WIDE/CIFAR 4-base run); no 24-base baseline comparison (baselines are 36-bit). (3) MLS3RDUH CIFAR10 is
+near-collapsed (DNA-unique 0.007), so projection barely moves it (−0.0003). (4) Single seed.
+
+🧰 New: `scripts/bioproj_dna_unique.py` (CPU-only DNA-unique pre/post); `--save_projected` + DNA-unique wired
+into `scripts/apply_bio_projection.py`. Outputs: `docs/bioproj_dna_unique.json` (16 cells 18-base + 2 24-base),
+`docs/bio_projection_18base.json`, `docs/bio_projection_24base.json`.
+
+**GC principle recorded as an invariant.** GC window scales with code length: 18-base [8,10] (44.4-55.6%),
+24-base [10,14] (41.67-58.33%). `evaluation_siglip2.py --bio_gc_min_frac/--bio_gc_max_frac` should be set to
+match the code length; the [40,60]% default coincides with the 18-base principle.

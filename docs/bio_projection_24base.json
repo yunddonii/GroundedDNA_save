@@ -1,0 +1,58 @@
+{
+  "config": {
+    "L": 24,
+    "gc_count_range": [
+      10,
+      14
+    ],
+    "note": "Gen-0 test-selected 4-base codon, NOT P0"
+  },
+  "cells": [
+    {
+      "name": "Ours-4base",
+      "dataset": "Flickr25k",
+      "dir": "result/260715+flickr25k_setting1_flickr_F2_wholeimg_4base_L4_K128+bs+64+e+60+proj_lr+0.001",
+      "L": 24,
+      "gc_count_range": [
+        10,
+        14
+      ],
+      "max_run": 3,
+      "pre_compliance_db": 0.5644347826086956,
+      "pre_compliance_qy": 0.567,
+      "post_compliance_db": 1.0,
+      "mean_edit_db": 0.641,
+      "mean_edit_qy": 0.6445,
+      "map_at_R_pre": 0.8793607354164124,
+      "map_at_R_post": 0.877808153629303,
+      "delta_proj": -0.001552581787109375,
+      "dna_unique_pre": 0.5215217391304348,
+      "dna_unique_post": 0.5131739130434783,
+      "dna_unique_delta": -0.0083478260869565,
+      "R": 5000
+    },
+    {
+      "name": "Ours-4base",
+      "dataset": "MSCOCO",
+      "dir": "result/260715+mscoco_setting1_mscoco_F2_wholeimg_4base_L4_K128+bs+64+e+60+proj_lr+0.001",
+      "L": 24,
+      "gc_count_range": [
+        10,
+        14
+      ],
+      "max_run": 3,
+      "pre_compliance_db": 0.512768378443918,
+      "pre_compliance_qy": 0.5116,
+      "post_compliance_db": 1.0,
+      "mean_edit_db": 0.9219347497621668,
+      "mean_edit_qy": 0.9244,
+      "map_at_R_pre": 0.825218915939331,
+      "map_at_R_post": 0.8197853565216064,
+      "delta_proj": -0.005433559417724609,
+      "dna_unique_pre": 0.2329366337741797,
+      "dna_unique_post": 0.22421608312037158,
+      "dna_unique_delta": -0.008720550653808112,
+      "R": 5000
+    }
+  ]
+}

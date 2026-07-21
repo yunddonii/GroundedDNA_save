@@ -1,0 +1,105 @@
+{
+  "config": {
+    "L": 18,
+    "gc_count_range": [
+      8,
+      10
+    ],
+    "gc_pct": "44.4-55.6%",
+    "max_run": 3
+  },
+  "cells": [
+    {
+      "name": "Ours",
+      "dataset": "Flickr25k",
+      "dir": "result/260717+flickr25k_setting1_flickr_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+      "L": 18,
+      "gc_count_range": [
+        8,
+        10
+      ],
+      "max_run": 3,
+      "pre_compliance_db": 0.4623478260869565,
+      "pre_compliance_qy": 0.4625,
+      "post_compliance_db": 1.0,
+      "mean_edit_db": 0.9298260869565217,
+      "mean_edit_qy": 0.9385,
+      "map_at_R_pre": 0.8810426592826843,
+      "map_at_R_post": 0.8722919225692749,
+      "delta_proj": -0.008750736713409424,
+      "dna_unique_pre": 0.4013913043478261,
+      "dna_unique_post": 0.3728695652173913,
+      "dna_unique_delta": -0.02852173913043482,
+      "R": 5000
+    },
+    {
+      "name": "Ours",
+      "dataset": "CIFAR10",
+      "dir": "result/260717+cifar10_setting1_cifar10_P0refit_e14+bs+64+e+60+proj_lr+0.001",
+      "L": 18,
+      "gc_count_range": [
+        8,
+        10
+      ],
+      "max_run": 3,
+      "pre_compliance_db": 0.33259322033898303,
+      "pre_compliance_qy": 0.338,
+      "post_compliance_db": 1.0,
+      "mean_edit_db": 1.411406779661017,
+      "mean_edit_qy": 1.411,
+      "map_at_R_pre": 0.9046275615692139,
+      "map_at_R_post": 0.9008912444114685,
+      "delta_proj": -0.0037363171577453613,
+      "dna_unique_pre": 0.11371186440677966,
+      "dna_unique_post": 0.10772881355932204,
+      "dna_unique_delta": -0.005983050847457622,
+      "R": 1000
+    },
+    {
+      "name": "cibhash",
+      "dataset": "Flickr25k",
+      "dir": "result_baseline/260721/cibhash_Flickr25k_clip_E4_dnaeval",
+      "L": 18,
+      "gc_count_range": [
+        8,
+        10
+      ],
+      "max_run": 3,
+      "pre_compliance_db": 0.4551304347826087,
+      "pre_compliance_qy": 0.459,
+      "post_compliance_db": 1.0,
+      "mean_edit_db": 0.9080869565217391,
+      "mean_edit_qy": 0.8805,
+      "map_at_R_pre": 0.8052257299423218,
+      "map_at_R_post": 0.7914167642593384,
+      "delta_proj": -0.013808965682983398,
+      "dna_unique_pre": 0.9625652173913043,
+      "dna_unique_post": 0.9516086956521739,
+      "dna_unique_delta": -0.01095652173913042,
+      "R": 5000
+    },
+    {
+      "name": "Ours",
+      "dataset": "MSCOCO",
+      "dir": "result/260717+mscoco_setting1_mscoco_P0refit_e49+bs+64+e+60+proj_lr+0.001",
+      "L": 18,
+      "gc_count_range": [
+        8,
+        10
+      ],
+      "max_run": 3,
+      "pre_compliance_db": 0.513029528623925,
+      "pre_compliance_qy": 0.521,
+      "post_compliance_db": 1.0,
+      "mean_edit_db": 0.7441008039694827,
+      "mean_edit_qy": 0.7424,
+      "map_at_R_pre": 0.8133625984191895,
+      "map_at_R_post": 0.8062658905982971,
+      "delta_proj": -0.007096707820892334,
+      "dna_unique_pre": 0.18653584286220598,
+      "dna_unique_post": 0.17485869909903187,
+      "dna_unique_delta": -0.011677143763174108,
+      "R": 5000
+    }
+  ]
+}
