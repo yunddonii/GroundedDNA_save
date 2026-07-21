@@ -146,4 +146,4 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --bidirectional_token_prune_text_ratio "$BI_T" \
     --bidirectional_token_prune_mode "$BIDIR_MODE" \
     --eval_cache_dir ./cache/flickr25k_clip_v4plus_qwen3_tokens \
-    -ev -s 2>&1 | tee "$LOG"
+    ${EXTRA_ARGS:-} -ev -s 2>&1 | tee "$LOG"

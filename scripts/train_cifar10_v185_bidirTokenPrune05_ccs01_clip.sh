@@ -99,8 +99,8 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --lambda_xmodal_commit 0.05 \
     --lambda_anchor 0.05 --lambda_dna 0.05 --lambda_bu 0.02 \
     --eta_base_balance 0.3 \
-    --lambda_codeword_codon_sinkhorn 0.1 \
-    --lambda_cibhash_ntxent 1.0 \
+    --lambda_codeword_codon_sinkhorn "${CCS:-0.1}" \
+    --lambda_cibhash_ntxent "${CIBNT:-1.0}" \
     --lambda_cibhash_kl 0.001 \
     --cibhash_mode per_codebook \
     --cibhash_temperature 0.3 \
@@ -121,4 +121,4 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --bidirectional_token_prune_visual_ratio "$BI_V" \
     --bidirectional_token_prune_text_ratio "$BI_T" \
     --eval_cache_dir "$CACHE" \
-    -ev -s 2>&1 | tee "$LOG"
+    ${EXTRA_ARGS:-} -ev -s 2>&1 | tee "$LOG"

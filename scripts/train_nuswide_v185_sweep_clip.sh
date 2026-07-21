@@ -44,7 +44,7 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --qwen_text_cache_path "$QWEN" \
     --siglip2_feature_cache_dir "$CACHE" \
     --backbone_type clip \
-    --codebook_size 128 \
+    --codebook_size "${K:-128}" \
     --c_global_source siglip2_global \
     --per_slot_text_adapter \
     --global_gate_init_logit "$GATE" \
@@ -106,4 +106,4 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --bidirectional_token_prune_visual_ratio "$BI_V" \
     --bidirectional_token_prune_text_ratio "$BI_T" \
     --eval_cache_dir "${EVAL_CACHE:-$CACHE}" \
-    -ev -s 2>&1 | tee "$LOG"
+    ${EXTRA_ARGS:-} -ev -s 2>&1 | tee "$LOG"

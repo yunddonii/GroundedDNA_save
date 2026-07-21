@@ -20,7 +20,7 @@ CUDA_VISIBLE_DEVICES="$GPU" /home/yschoi/.conda/envs/dna_hashing/bin/python trai
     --tag "$TAG" --dataset MSCOCO --setting 1 --dataset_dir /home/yschoi/GroundedDNA/dataset \
     --num_devices 0 -bs 64 -e 60 --proj_lr 1e-3 --num_workers 4 \
     --qwen_text_cache_path "$QWEN" --siglip2_feature_cache_dir "$CACHE" \
-    --backbone_type clip --codebook_size 128 --c_global_source siglip2_global --per_slot_text_adapter \
+    --backbone_type clip --codebook_size "${K:-128}" --c_global_source siglip2_global --per_slot_text_adapter \
     --global_gate_init_logit 4.595 --router_type sinkhorn \
     --sinkhorn_epsilon_init 1.0 --sinkhorn_epsilon_final 0.1 --sinkhorn_lambda_a "$SLA" --sinkhorn_lambda_b 1.0 \
     --routing_adaptive_topp --routing_adaptive_topp_min 0.3 --routing_adaptive_topp_max 0.7 \
@@ -41,4 +41,4 @@ CUDA_VISIBLE_DEVICES="$GPU" /home/yschoi/.conda/envs/dna_hashing/bin/python trai
     --lambda_text_code_kl "$TCKL" --text_code_kl_tau_v 0.1 --text_code_kl_tau_t 0.07 --text_code_kl_conf_threshold 0.2 \
     --text_code_kl_skip_global --text_hash_ntxent_skip_global \
     --bidirectional_token_prune --bidirectional_token_prune_visual_ratio 1.0 --bidirectional_token_prune_text_ratio 1.0 \
-    --eval_cache_dir ./cache/mscoco_clip_v5b -ev -s 2>&1 | tee "$LOG"
+    --eval_cache_dir ./cache/mscoco_clip_v5b ${EXTRA_ARGS:-} -ev -s 2>&1 | tee "$LOG"
