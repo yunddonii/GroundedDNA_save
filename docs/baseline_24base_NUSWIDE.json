@@ -1,0 +1,103 @@
+{
+  "config": {
+    "bit": 48,
+    "base_length": 24,
+    "gc_min_frac": 0.416,
+    "gc_max_frac": 0.584,
+    "max_run": 3,
+    "ratio": 0.1,
+    "seed": 42
+  },
+  "cells": [
+    {
+      "method": "cibhash",
+      "dataset": "NUSWIDE",
+      "val_strategy": "random (multi-label split)",
+      "stage1_dir": "/home/yschoi/GroundedDNA/params_baseline/260722/cibhash_nuswide_clip_P0s1_48bit",
+      "per_epoch_val": {
+        "4": 0.7051902912027762,
+        "9": 0.6994416961276808,
+        "14": 0.6955806006582769,
+        "19": 0.6936599029361573,
+        "24": 0.6932447568907472,
+        "29": 0.691536348868015,
+        "34": 0.6912530825391825,
+        "39": 0.6903186948883676,
+        "44": 0.6897306071777324,
+        "49": 0.6894241910909172,
+        "54": 0.689208426781156,
+        "59": 0.6889982504984413
+      },
+      "best_epoch": 4,
+      "map_at_R_pre": 0.8171034811341945,
+      "map_at_R_post": 0.8074038622446458,
+      "delta_proj": -0.009699618889548733,
+      "db_pre_compliance": 0.5115519217070829,
+      "dna_unique_db_post": 0.9159207986207893,
+      "full_ckpt": "/home/yschoi/GroundedDNA/params_baseline/260722/cibhash_nuswide_clip_48bit_unsup60/epoch_004.pth",
+      "n_query": 2100,
+      "n_db": 193734,
+      "base_length": 24
+    },
+    {
+      "method": "cimon",
+      "dataset": "NUSWIDE",
+      "val_strategy": "random (multi-label split)",
+      "stage1_dir": "/home/yschoi/GroundedDNA/params_baseline/260722/cimon_nuswide_clip_P0s1_48bit",
+      "per_epoch_val": {
+        "4": 0.678408260806424,
+        "9": 0.7025817798152342,
+        "14": 0.7114519196198409,
+        "19": 0.714694529218568,
+        "24": 0.7151932748823746,
+        "29": 0.7190090513612203,
+        "34": 0.7204640047198282,
+        "39": 0.7194349212899128,
+        "44": 0.7186648772666281,
+        "49": 0.7206378297847281,
+        "54": 0.7204196288715697,
+        "59": 0.7201782467639244
+      },
+      "best_epoch": 49,
+      "map_at_R_pre": 0.7889997198764415,
+      "map_at_R_post": 0.7858240129003906,
+      "delta_proj": -0.0031757069760508516,
+      "db_pre_compliance": 0.48879391330380834,
+      "dna_unique_db_post": 0.6873961204538181,
+      "full_ckpt": "/home/yschoi/GroundedDNA/params_baseline/260722/cimon_nuswide_clip_48bit_unsup60/epoch_049.pth",
+      "n_query": 2100,
+      "n_db": 193734,
+      "base_length": 24
+    },
+    {
+      "method": "mls3rduh",
+      "dataset": "NUSWIDE",
+      "val_strategy": "random (multi-label split)",
+      "stage1_dir": "/home/yschoi/GroundedDNA/params_baseline/260722/mls3rduh_nuswide_clip_P0s1_48bit",
+      "per_epoch_val": {
+        "4": 0.6422616492486452,
+        "9": 0.6819954400530382,
+        "14": 0.6937915058587827,
+        "19": 0.7039615989971326,
+        "24": 0.7087453894373887,
+        "29": 0.713574491378833,
+        "34": 0.7170272313619579,
+        "39": 0.7192480187917225,
+        "44": 0.7196339734171179,
+        "49": 0.7211813351279117,
+        "54": 0.7225342902534774,
+        "59": 0.7232812472371777
+      },
+      "best_epoch": 59,
+      "map_at_R_pre": 0.7784380380728495,
+      "map_at_R_post": 0.7764836159516914,
+      "delta_proj": -0.0019544221211581503,
+      "db_pre_compliance": 0.6273756800561595,
+      "dna_unique_db_post": 0.5734409035068703,
+      "full_ckpt": "/home/yschoi/GroundedDNA/params_baseline/260722/mls3rduh_nuswide_clip_48bit_unsup60/epoch_059.pth",
+      "n_query": 2100,
+      "n_db": 193734,
+      "base_length": 24
+    }
+  ]
+}

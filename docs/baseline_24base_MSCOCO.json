@@ -1,0 +1,103 @@
+{
+  "config": {
+    "bit": 48,
+    "base_length": 24,
+    "gc_min_frac": 0.416,
+    "gc_max_frac": 0.584,
+    "max_run": 3,
+    "ratio": 0.1,
+    "seed": 42
+  },
+  "cells": [
+    {
+      "method": "cibhash",
+      "dataset": "MSCOCO",
+      "val_strategy": "random (multi-label split)",
+      "stage1_dir": "/home/yschoi/GroundedDNA/params_baseline/260722/cibhash_mscoco_clip_P0s1_48bit",
+      "per_epoch_val": {
+        "4": 0.6073486943703722,
+        "9": 0.6136472342917324,
+        "14": 0.6154532399371239,
+        "19": 0.6150185154859755,
+        "24": 0.6154470431271366,
+        "29": 0.6154008493631183,
+        "34": 0.6155803217388596,
+        "39": 0.6154983443210337,
+        "44": 0.6155818603129821,
+        "49": 0.6149863320351101,
+        "54": 0.614525406848823,
+        "59": 0.6144624960507724
+      },
+      "best_epoch": 44,
+      "map_at_R_pre": 0.8118529387451657,
+      "map_at_R_post": 0.8018263338546867,
+      "delta_proj": -0.010026604890479018,
+      "db_pre_compliance": 0.547771829357011,
+      "dna_unique_db_post": 0.8509671883452405,
+      "full_ckpt": "/home/yschoi/GroundedDNA/params_baseline/260715/cibhash_mscoco_clip_48bit_unsup60/epoch_044.pth",
+      "n_query": 5000,
+      "n_db": 107218,
+      "base_length": 24
+    },
+    {
+      "method": "cimon",
+      "dataset": "MSCOCO",
+      "val_strategy": "random (multi-label split)",
+      "stage1_dir": "/home/yschoi/GroundedDNA/params_baseline/260722/cimon_mscoco_clip_P0s1_48bit",
+      "per_epoch_val": {
+        "4": 0.535164640447182,
+        "9": 0.5487819163093625,
+        "14": 0.5546661597852721,
+        "19": 0.5540775565547897,
+        "24": 0.5543303736041951,
+        "29": 0.5538414304302955,
+        "34": 0.5574622947264406,
+        "39": 0.5600254810325173,
+        "44": 0.5597678374120442,
+        "49": 0.5600082366239463,
+        "54": 0.5602530051068724,
+        "59": 0.5600001588445496
+      },
+      "best_epoch": 54,
+      "map_at_R_pre": 0.6746294622076714,
+      "map_at_R_post": 0.6723432336837223,
+      "delta_proj": -0.0022862285239491076,
+      "db_pre_compliance": 0.5054561734037195,
+      "dna_unique_db_post": 0.5532839635135891,
+      "full_ckpt": "/home/yschoi/GroundedDNA/params_baseline/260715/cimon_mscoco_clip_48bit_unsup60/epoch_054.pth",
+      "n_query": 5000,
+      "n_db": 107218,
+      "base_length": 24
+    },
+    {
+      "method": "mls3rduh",
+      "dataset": "MSCOCO",
+      "val_strategy": "random (multi-label split)",
+      "stage1_dir": "/home/yschoi/GroundedDNA/params_baseline/260722/mls3rduh_mscoco_clip_P0s1_48bit",
+      "per_epoch_val": {
+        "4": 0.4671856725992718,
+        "9": 0.49727540487800803,
+        "14": 0.505893601702139,
+        "19": 0.5077110642195769,
+        "24": 0.5104009276775956,
+        "29": 0.512344105939182,
+        "34": 0.5136050957225629,
+        "39": 0.514864167625203,
+        "44": 0.5160812155049005,
+        "49": 0.5177369117165964,
+        "54": 0.5181382922012296,
+        "59": 0.5208221654125459
+      },
+      "best_epoch": 59,
+      "map_at_R_pre": 0.6335172072362919,
+      "map_at_R_post": 0.6294074627735309,
+      "delta_proj": -0.0041097444627610225,
+      "db_pre_compliance": 0.5333526087037624,
+      "dna_unique_db_post": 0.5125445354324834,
+      "full_ckpt": "/home/yschoi/GroundedDNA/params_baseline/260715/mls3rduh_mscoco_clip_48bit_unsup60/epoch_059.pth",
+      "n_query": 5000,
+      "n_db": 107218,
+      "base_length": 24
+    }
+  ]
+}

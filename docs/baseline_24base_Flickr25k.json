@@ -1,0 +1,103 @@
+{
+  "config": {
+    "bit": 48,
+    "base_length": 24,
+    "gc_min_frac": 0.416,
+    "gc_max_frac": 0.584,
+    "max_run": 3,
+    "ratio": 0.1,
+    "seed": 42
+  },
+  "cells": [
+    {
+      "method": "cibhash",
+      "dataset": "Flickr25k",
+      "val_strategy": "random (multi-label split)",
+      "stage1_dir": "/home/yschoi/GroundedDNA/params_baseline/260722/cibhash_flickr25k_clip_P0s1_48bit",
+      "per_epoch_val": {
+        "4": 0.7043371765909073,
+        "9": 0.6981886045625532,
+        "14": 0.6933341793354703,
+        "19": 0.6916773800759188,
+        "24": 0.6895428853378138,
+        "29": 0.6878952120272536,
+        "34": 0.6865227639640588,
+        "39": 0.6853328511073907,
+        "44": 0.6848399609999999,
+        "49": 0.6838791676952767,
+        "54": 0.6834194185395195,
+        "59": 0.6832739542317491
+      },
+      "best_epoch": 4,
+      "map_at_R_pre": 0.8134824793181434,
+      "map_at_R_post": 0.8057241602553374,
+      "delta_proj": -0.007758319062805996,
+      "db_pre_compliance": 0.5374347826086957,
+      "dna_unique_db_post": 0.9882173913043478,
+      "full_ckpt": "/home/yschoi/GroundedDNA/params_baseline/260715/cibhash_flickr25k_clip_48bit_unsup60/epoch_004.pth",
+      "n_query": 2000,
+      "n_db": 23000,
+      "base_length": 24
+    },
+    {
+      "method": "cimon",
+      "dataset": "Flickr25k",
+      "val_strategy": "random (multi-label split)",
+      "stage1_dir": "/home/yschoi/GroundedDNA/params_baseline/260722/cimon_flickr25k_clip_P0s1_48bit",
+      "per_epoch_val": {
+        "4": 0.6795530109170558,
+        "9": 0.697130375162391,
+        "14": 0.7131082124841504,
+        "19": 0.721419090294265,
+        "24": 0.7253082381020226,
+        "29": 0.7318959015436587,
+        "34": 0.7341133492072272,
+        "39": 0.7377894819691971,
+        "44": 0.7381829817689836,
+        "49": 0.7422816599107289,
+        "54": 0.7402451338953341,
+        "59": 0.7442092768171307
+      },
+      "best_epoch": 59,
+      "map_at_R_pre": 0.8313335977357688,
+      "map_at_R_post": 0.8277475060107983,
+      "delta_proj": -0.003586091724970486,
+      "db_pre_compliance": 0.4557391304347826,
+      "dna_unique_db_post": 0.9265652173913044,
+      "full_ckpt": "/home/yschoi/GroundedDNA/params_baseline/260715/cimon_flickr25k_clip_48bit_unsup60/epoch_059.pth",
+      "n_query": 2000,
+      "n_db": 23000,
+      "base_length": 24
+    },
+    {
+      "method": "mls3rduh",
+      "dataset": "Flickr25k",
+      "val_strategy": "random (multi-label split)",
+      "stage1_dir": "/home/yschoi/GroundedDNA/params_baseline/260722/mls3rduh_flickr25k_clip_P0s1_48bit",
+      "per_epoch_val": {
+        "4": 0.5723438398990408,
+        "9": 0.6099499142697435,
+        "14": 0.634481903827535,
+        "19": 0.647092426512827,
+        "24": 0.6572058335223147,
+        "29": 0.6645778578699606,
+        "34": 0.6685047726204428,
+        "39": 0.6708557859174865,
+        "44": 0.6734574318233417,
+        "49": 0.6764241283486474,
+        "54": 0.6774067968801051,
+        "59": 0.6793526037202675
+      },
+      "best_epoch": 59,
+      "map_at_R_pre": 0.7738572261578508,
+      "map_at_R_post": 0.7669622130188626,
+      "delta_proj": -0.006895013138988215,
+      "db_pre_compliance": 0.4989130434782609,
+      "dna_unique_db_post": 0.5912608695652174,
+      "full_ckpt": "/home/yschoi/GroundedDNA/params_baseline/260715/mls3rduh_flickr25k_clip_48bit_unsup60/epoch_059.pth",
+      "n_query": 2000,
+      "n_db": 23000,
+      "base_length": 24
+    }
+  ]
+}

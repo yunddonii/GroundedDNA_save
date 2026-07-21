@@ -20947,3 +20947,69 @@ sweep cells); per-cell `cell_result.json` (mAP@R pre/post, DNA-unique).
 P0 protocol for all 4 datasets, evaluated in the 24-base space with bio-projection GC[10,14] — training
 launched (`scripts/run_baselines_48bit.sh`); the 18-base baseline comparison already exists
 (2026-07-21 bio-projection table).
+
+---
+
+## 2026-07-22 — 🟢 BASELINE 24-base (48-bit) comparison completes the main table: Ours SOTA on all 4 datasets in the 24-base DNA space too
+
+🎯 **Completes the main table's baseline side.** The 18-base (36-bit) baseline comparison already existed
+(2026-07-21 bio-projection table); the user's main table also lists baselines in the **24-base (48-bit)** DNA
+space. This entry trains CIBHash/CIMON/MLS3RDUH at **`--bit 48`** under the P0 protocol on all 4 datasets and
+evaluates them in the 24-base space with the mandatory bio-projection (GC [0.416,0.584] → count [10,14],
+homopolymer ≤ 3) — symmetric with our model's 24-base cells (2026-07-22 grid).
+
+🔬 **Protocol (fully symmetric with Ours).** `scripts/run_baselines_48bit.sh` trained stage-1 (90% opt-train,
+val_split 0.1 seed 42) for all 4 datasets + 100%-train for NUS/CIFAR (Flickr/MSCOCO 100%-train already at
+result_baseline/260715); consistent clip_v4plus / nuswide_clip / cifar10_clip cache for both stages.
+`scripts/baseline_48bit_dnaeval.py` then: (1) selects **E\*** leak-free = argmax **non-projected** 24-base
+val_query-vs-opt-DB mAP@R over the 12 stage-1 checkpoints (test never touched); (2) extracts test-query +
+official-DB from the 100%-train checkpoint at E\*, maps 48 sign bits → 24 DNA bases, applies bio-projection,
+and reports **bio-projected** 24-base mAP@R. Selection = non-projected, report = post-projection — identical
+to our cells' `eval_cell_bioproj.py`.
+
+📊 **Baseline 24-base bio-projected mAP@R (E\* in parens; DNA-unique DB).**
+
+| method | Flickr25k @5000 | MSCOCO @5000 | NUS-WIDE @5000 | CIFAR10 @1000 |
+|---|---:|---:|---:|---:|
+| CIBHash | 0.8057 (E4, u.99) | 0.8018 (E44, u.85) | 0.8074 (E4, u.92) | 0.8994 (E4, u.71) |
+| CIMON | 0.8277 (E59, u.93) | 0.6723 (E54, u.55) | 0.7858 (E49, u.69) | 0.8231 (E44, u.45) |
+| MLS3RDUH | 0.7670 (E59, u.59) | 0.6294 (E59, u.51) | 0.7765 (E59, u.57) | 0.5694 (E59, u.01) |
+
+📊 **Main-table 24-base comparison (bio-projected mAP@R).** Our 24-base cells use the DEFAULT per-dataset
+recipe (CIBNT 1.0 Flickr/CIFAR, 1.5 MSCOCO/NUS) — no per-cell tuning was needed (every 24-base cell already
+beat its 18-base champion).
+
+| method | Flickr25k | MSCOCO | NUS-WIDE | CIFAR10 |
+|---|---:|---:|---:|---:|
+| **Ours K=128** | 0.8742 | **0.8257** | **0.8328** | **0.9033** |
+| **Ours K=64** | **0.8762** | 0.8251 | 0.8313 | 0.9013 |
+| CIBHash | 0.8057 | 0.8018 | 0.8074 | 0.8994 |
+| CIMON | 0.8277 | 0.6723 | 0.7858 | 0.8231 |
+| MLS3RDUH | 0.7670 | 0.6294 | 0.7765 | 0.5694 |
+| **margin (Ours−best baseline)** | **+0.0485** | **+0.0239** | **+0.0254** | **+0.0039** |
+
+🔑 **Findings.**
+1. **🟢 SOTA on all 4 datasets in the 24-base space** (Flickr +0.049 vs CIMON, MSCOCO +0.024 vs CIBHash,
+   NUS +0.025 vs CIBHash, CIFAR +0.004 vs CIBHash). The one-dataset-tie worry never materialises: even at
+   matched 48-bit budget where the flat baselines gain capacity, our structured codes lead everywhere.
+2. **Margins vs the 18-base table** (Flickr +0.056 / MSCOCO +0.030 / NUS +0.037 / CIFAR +0.008): at 48-bit
+   both sides improve, so our lead narrows slightly but holds on all four — the honest matched-budget story.
+   The projection cost is again larger for the near-unique flat baselines (CIBHash DB-unique 0.85–0.99) than
+   for our structured codes, same mechanism as 18-base.
+3. **Both K reported.** K=128 wins MSCOCO/NUS/CIFAR; K=64 edges Flickr (0.8762 vs 0.8742) — the extra
+   capacity helps the larger-DB / more-label datasets, consistent with the K story in the model grid.
+
+⚠️ **Caveats.** Single seed. Baselines are 48-bit sign hashes re-encoded into the 24-base space (evaluation
+parity / Level 1), not DNA-head retrains — the standard, defensible choice (same code space, same metric,
+each method's own trained code), same as the 18-base comparison. NUS/MSCOCO E\* skew late (44–59) while
+CIBHash peaks early (E4) on Flickr/NUS/CIFAR — the known CIBHash early-peak behaviour, selected leak-free on val.
+
+🧰 **New/artifacts.** `scripts/run_baselines_48bit.sh` (training), `scripts/baseline_48bit_dnaeval.py` (P0
+select + extract + DNA-space + bio-projection, memoised projection), `scripts/run_baseline_24base_eval.sh`
+(dataset-parallel driver); `scripts/eval_baseline_dna_space.py` made length-agnostic (commit `a5b1f58`).
+Outputs `docs/baseline_24base_dnaeval_all.json` (+ per-dataset). Baseline 48-bit dirs
+`params_baseline/260722/*_48bit_*` + `result_baseline/260715/*_48bit_unsup60` (Flickr/MSCOCO 100%-train).
+
+🟢 **Main table COMPLETE.** Our model at K∈{128,64} × {18-base, 24-base} (2026-07-22 grid) + baselines at both
+18-base (2026-07-21) and 24-base (this entry), all 4 datasets, all P0 + bio-projected. **Ours is SOTA on all
+4 datasets in BOTH code spaces.**
