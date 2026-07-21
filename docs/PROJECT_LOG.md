@@ -20537,3 +20537,77 @@ B에서 slot은 패치의 절반만 보고, **31%는 어느 slot도 가져가지
 🟢 **논문에 쓸 수 있는 것.** "슬롯이 서로 다른 시각 증거를 보도록 구조적으로 강제해도(패치 공유 0.99→0.69) 역할 분화는 개선되지 않는다"는 **인과적 음성 결과**. §4c의 한계 서술을 상관이 아닌 **개입 근거**로 뒷받침한다. 또한 "역할 정보는 어느 패치를 보느냐가 아니라 codebook 경계에 있다"는 §4c 경계파괴 대조 결과와 정합.
 
 🧰 산출물: `scripts/train_cub200_bidirAB_clip.sh`, `docs/cub_AB_{legacy,mutual_dual_softmax}.json`, `result/*cub200_bidirAB_*`.
+
+---
+
+## 2026-07-21 — 🟢 FAIR DNA-space comparison: baselines re-evaluated in our 18-base code space at P0 E* — our margin GROWS on all 4 datasets (MSCOCO +0.002 → +0.015)
+
+🎯 **Why.** The paper's claim is that GroundedDNA is a superior *DNA-hashing* framework. Until now our model
+was scored with **base Hamming** (18-position A/C/G/T mismatch) while the baselines were scored with **bit
+Hamming** on 36 sign bits — different metrics on different code spaces. The user required the baselines be
+put in the **same DNA code space** so the comparison is apples-to-apples within the DNA-hashing setting.
+
+🔬 **Procedure** (the 2026-05-14 "4-base DNA space" method, now applied to the current P0 baselines).
+Baseline 36-bit sign hash → reshape [N, 18, 2] → map each 2-bit pair to a base id
+(`BASE_TO_BITS` 00=A, 01=C, 10=G, 11=T; `base = hi*2 + lo`) → **base Hamming**, dataset-cutoff mAP@R,
+Jaccard>0 relevance — the identical evaluation our model already uses. Each baseline extracted at its **P0
+val-selected E\*** from `params_baseline/260714/{method}_{ds}_clip_mapr_unsup60/epoch_{E*}.pth`. Our numbers
+are unchanged (already base-native). `scripts/eval_baseline_dna_space.py` reuses `base_model._ap_at_r` /
+`_multi_hot_relevance` verbatim, so the metric construction is identical to the P0 table.
+
+✅ **Sanity gate — 12/12 pass, max delta 0.00e+00.** The bit-Hamming mAP@R recomputed from each fresh
+extraction reproduced the P0 table's `test_mAP_at_R` exactly (11 cells delta 0.0, cimon|MSCOCO +6e-7),
+confirming the correct epoch and cache for every cell. Cache dirs were read from each checkpoint's embedded
+config (runs had no config.json): Flickr `clip_v4plus`, MSCOCO `clip_v4plus`, NUS `nuswide_clip`, CIFAR
+`cifar10_clip` — the exact reproduction proves these are right.
+
+📊 **Table 1 — base mAP@R (the fair DNA-space table).**
+
+| Dataset | CIBHash | CIMON | MLS3RDUH | **Ours** | best baseline | **margin** |
+|---|---:|---:|---:|---:|---|---:|
+| Flickr25k @5000 | 0.8052 | 0.8241 | 0.7774 | **0.8810** | cimon 0.8241 | **+0.0569** |
+| MSCOCO @5000 | 0.7981 | 0.6679 | 0.6373 | **0.8134** | cibhash 0.7981 | **+0.0153** |
+| NUS-WIDE @5000 | 0.8050 | 0.7832 | 0.7719 | **0.8334** | cibhash 0.8050 | **+0.0284** |
+| CIFAR10 @1000 | 0.8972 | 0.8316 | 0.5786 | **0.9046** | cibhash 0.8972 | **+0.0074** |
+
+📊 **Table 2 — margin change, bit-space (P0) → base-space (fair).** The best-baseline identity is unchanged
+(cimon on Flickr, cibhash elsewhere), so this is clean apples-to-apples.
+
+| Dataset | margin bit-space | margin base-space | change |
+|---|---:|---:|---:|
+| Flickr25k | +0.0522 | **+0.0569** | +0.0047 |
+| MSCOCO | +0.0022 | **+0.0153** | **+0.0130** |
+| NUS-WIDE | +0.0182 | **+0.0284** | +0.0102 |
+| CIFAR10 | +0.0042 | **+0.0074** | +0.0032 |
+
+🔑 **Findings.**
+1. **Our margin grows on all four datasets** because forcing a flat hash into the DNA representation costs
+   the baseline (−0.003…−0.018 per cell) while our base-native number is unchanged. base Hamming saturates —
+   a base counts as different if *either* of its two bits differ — which discards the fine-grained bit
+   distinctions a near-unique flat hash relies on. **CIBHash loses the most** (−0.018 Flickr, −0.013 MSCOCO)
+   precisely because its ~0.96-unique bits carry exactly the sub-base information base Hamming throws away.
+2. **MSCOCO is the decisive flip.** In bit-space it was a statistical tie (+0.0022 vs CIBHash). In the DNA
+   space that the paper actually claims, GroundedDNA leads by **+0.0153** — no longer noise-level. The one
+   dataset that dented the "superior on all four" story is now a clear win in the fair metric.
+3. **Framing this correctly is a strength, not a handicap.** In DNA hashing the code *is* a base sequence and
+   the retrieval distance *is* base Hamming (what molecular hybridisation approximates). Evaluating everyone
+   there is the domain-correct choice, and "flat hashes degrade when forced into a DNA representation, our
+   learned base structure does not" is the paper's thesis stated as a measurement.
+
+⚠️ **Honest scope.** This is **evaluation parity (Level 1)**: the baseline's trained bits are re-encoded into
+the DNA space post-hoc. It does **not** give the baseline a DNA output head trained for base distance
+(Level 2), which would be a different architecture and invites the "that's no longer CIBHash" objection.
+Level 1 is the standard and defensible choice — same code space, same metric, each method's own trained code
+— and must be described as such in the paper, not as "we retrained the baselines as DNA methods."
+
+📌 **Compression axis unchanged.** base DB-unique ratio equals bit DB-unique ratio for every baseline (the
+2-bit→base map is a bijection, so DNA conversion re-ranks retrieval but preserves code multiplicity):
+CIBHash 0.96/0.72/0.81/0.50, down to mls3rduh CIFAR 0.007 (near-total collapse). Our model's low DB-unique
+(0.40 Flickr etc.) remains the separate compression story from 2026-05-14 — flat hashes live in a different,
+far-less-compressed regime.
+
+🧰 New: `scripts/eval_baseline_dna_space.py`. Outputs: `docs/baseline_dna_space_comparison.{json,md}`,
+`result_baseline/260721/{method}_{Dataset}_clip_E{E*}_dnaeval/` (12 dirs with extractions + per-cell eval).
+
+**Note:** no 4-axis compositional analysis — the baselines are flat hashes with no codon/slot structure, so
+the compositional protocol does not apply (same rationale as the P0 baseline entries).
