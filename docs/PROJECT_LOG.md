@@ -17664,6 +17664,8 @@ MSCOCO champion   0.05  0.10    0.10      0.10        0.8247     0.886   0.6203
 
 ## 2026-07-11 — 3-DATASET UNSUPERVISED BASELINE COMPARISON completed (CIBHash / CIMON / MLS3RDUH vs Ours)
 
+> ⚠️ **SUPERSEDED (2026-07-21).** The reported headline numbers are the **post-bio-projection** values in the Current State snapshot and the 2026-07-21 bio-projection entries. The numbers in this entry predate one or more paper invariants (P0 selection / DNA-space evaluation / bio-constraint projection) and are kept as the historical record only.
+
 🎯 **Motivation.** Complete the paper-grade unsupervised baseline table by running the 3 canonical unsupervised deep hashing methods (CIBHash / CIMON / MLS3RDUH) on CIFAR10 with the same CLIP-ViT-B/16 frozen backbone as our champions, and recomputing DB-unique on all Flickr / MSCOCO baselines using our standard `evaluate_code_collapse` definition.
 
 📊 **Retrieval results (mAP, 36-bit, CLIP frozen, 60 epoch).**
@@ -18545,6 +18547,8 @@ Reference baselines (best-epoch): MLS3RDUH 0.6154, CIMON 0.6049, CIBHash 0.5730.
 
 ## 2026-07-14 — PAPER METRIC PROTOCOL: dataset-specific mAP@R (CalcTopMap)
 
+> ⚠️ **SUPERSEDED (2026-07-21).** The reported headline numbers are the **post-bio-projection** values in the Current State snapshot and the 2026-07-21 bio-projection entries. The numbers in this entry predate one or more paper invariants (P0 selection / DNA-space evaluation / bio-constraint projection) and are kept as the historical record only.
+
 📏 **New reporting standard (user-mandated 2026-07-14).** All retrieval results are henceforth reported as **mAP@R** with dataset-specific cutoffs — the deep-hashing benchmark convention (`CalcTopMap`, normalize each query's AP by the number of relevant items found within the top-R). Cutoffs:
 
 | Dataset | mAP@R |
@@ -18579,6 +18583,8 @@ Reference baselines (best-epoch): MLS3RDUH 0.6154, CIMON 0.6049, CIBHash 0.5730.
 ---
 
 ## 2026-07-14 — 4-DATASET BASELINE COMPARISON in the PAPER METRIC (mAP@R)
+
+> ⚠️ **SUPERSEDED (2026-07-21).** The reported headline numbers are the **post-bio-projection** values in the Current State snapshot and the 2026-07-21 bio-projection entries. The numbers in this entry predate one or more paper invariants (P0 selection / DNA-space evaluation / bio-constraint projection) and are kept as the historical record only.
 
 All 12 baselines (CIBHash/CIMON/MLS3RDUH × 4 datasets) re-run with `-ep 5` + `--save_code` + native mAP@R. Each baseline reported at its **best epoch selected by mAP@R** (paper metric). Our champions use best-ckpt (recomputed with mAP@R). 36-bit, CLIP-ViT-B/16 frozen, 60 epoch.
 
@@ -18638,6 +18644,8 @@ Ours 🥇 SOTA: mAP@1000 0.9067 (+0.0058 vs best baseline)
 ---
 
 ## 2026-07-14 — ADOPT F2 (clean token-mean pooling) as the reported model — 4-dataset comparison in mAP@R
+
+> ⚠️ **SUPERSEDED (2026-07-21).** The reported headline numbers are the **post-bio-projection** values in the Current State snapshot and the 2026-07-21 bio-projection entries. The numbers in this entry predate one or more paper invariants (P0 selection / DNA-space evaluation / bio-constraint projection) and are kept as the historical record only.
 
 **Rationale.** The v185 'legacy' champions ran the constant-importance bug (= mean-pool over an fp-noise-arbitrary ~50% token subset), which is neither principled pruning (F1, which HURT) nor a clean mechanism. The honest model is **F2 = per-slot token-MEAN pooling over ALL valid caption tokens** (ratio 1.0/1.0, zero pruning). We now report F2. Same dataset-tuned weights as the legacy champions (NUS-WIDE cibhash 1.5; CIFAR10 ccs 0.1).
 
@@ -18706,6 +18714,8 @@ Ours-F2 SOTA: +0.0075 vs best baseline
 ---
 
 ## 2026-07-14 — FULL STRUCTURAL UNIFICATION: all 4 datasets whole-image train + infer (F2)
+
+> ⚠️ **SUPERSEDED (2026-07-21).** The reported headline numbers are the **post-bio-projection** values in the Current State snapshot and the 2026-07-21 bio-projection entries. The numbers in this entry predate one or more paper invariants (P0 selection / DNA-space evaluation / bio-constraint projection) and are kept as the historical record only.
 
 🎯 **User request.** Train Flickr25k + MSCOCO on **whole-image** too (they trained on FAIRrank L8K3 multi-crop) so all 4 datasets are structurally + mechanistically identical.
 
@@ -18802,6 +18812,8 @@ Execution: P0 code first (val selection), then launch P1 ablations + MSCOCO swee
 
 ## 2026-07-15 — Task 2: 4-BASE CODON (48-bit) — resolves K=128 collision, improves mAP@R + DNA-uniq
 
+> ⚠️ **SUPERSEDED (2026-07-21).** The reported headline numbers are the **post-bio-projection** values in the Current State snapshot and the 2026-07-21 bio-projection entries. The numbers in this entry predate one or more paper invariants (P0 selection / DNA-space evaluation / bio-constraint projection) and are kept as the historical record only.
+
 🎯 **Task 2.** Each codebook emits a **4-base codon** instead of 3-base → 6 codebooks × 4 = 24 bases = **48-bit**. 4^4 = 256 > K=128, so the codeword→codon collision (paper §5 limitation) is structurally eliminated. `--num_codons_per_codebook 4`. Single delta vs 3-base F2 whole-image.
 
 📊 **3-base (36-bit) vs 4-base (48-bit), whole-image F2:**
@@ -18827,6 +18839,8 @@ Execution: P0 code first (val selection), then launch P1 ablations + MSCOCO swee
 ---
 
 ## 2026-07-15 — Task 2 completion: 4-base codon MATCHED-BUDGET (48-bit) comparison — MSCOCO flips to SOTA
+
+> ⚠️ **SUPERSEDED (2026-07-21).** The reported headline numbers are the **post-bio-projection** values in the Current State snapshot and the 2026-07-21 bio-projection entries. The numbers in this entry predate one or more paper invariants (P0 selection / DNA-space evaluation / bio-constraint projection) and are kept as the historical record only.
 
 📊 **48-bit baselines (CIBHash/CIMON/MLS3RDUH at --bit 48, best-epoch by mAP@R) vs Ours 4-base (48-bit):**
 
@@ -19048,6 +19062,8 @@ Design points: mid-eval became **query-vs-db** (disjoint val_query vs opt-train)
 
 ## 2026-07-19 — P0 stage 2 for the baselines (held-out E* selection; protocol now fully symmetric)
 
+> ⚠️ **SUPERSEDED (2026-07-21).** The reported headline numbers are the **post-bio-projection** values in the Current State snapshot and the 2026-07-21 bio-projection entries. The numbers in this entry predate one or more paper invariants (P0 selection / DNA-space evaluation / bio-constraint projection) and are kept as the historical record only.
+
 **Gap this closes.** Stage 1 (`scripts/run_baselines_p0_stage1.sh`) retrained cibhash/cimon/mls3rduh × 4 datasets at 36-bit on the optimization-train 90% and dumped 12 checkpoints each (`params_baseline/260718/{method}_{ds}_clip_P0s1_unsup60/epoch_XXX.pth`). But those runs' `result_baseline/260718/.../eval_epoch_*.json` contain **only test** metrics — E* could not be read off them without leaking test into the selection. The earlier `docs/baseline_val_select/` selection did use val, but scored checkpoints from the **100%-train** runs, so its "val" rows were in-sample.
 
 **What was added.** `scripts/baseline_val_select_p0.py`: rebuilds each baseline head from the config stored inside its checkpoint, carves the split with the *imported* `val_split.carve_val_indices(labels, 0.1, 42)` (never reimplemented), extracts `sign(encoder(cached_feat))` via the same `_extract_codes` that produced the test numbers, and scores **val_query vs opt-train DB** with `evaluate_retrieval_model(..., map_at_r=MAP_AT_R_BY_DATASET[ds])`. E* = argmax val mAP@R. The reported cell is then the **existing 100%-train run's** `result_baseline/260714/.../eval_epoch_{E*}.json` test mAP@R — mirroring our own stage 2 (refit on 100%, stop at E*). All 12 E* had their 100%-train eval present; nothing substituted.
@@ -19099,6 +19115,8 @@ E* moved in 3/12 cells; every move costs the baseline a little (−0.001 to −0
 ✅ **Verdict: adopt.** These are the baseline numbers of record for the paper. Ours and theirs now share: same features (CLIP), same 36 bits, same splits, same 10%/seed-42 carve, same 5-epoch cadence, same val-selection metric, same "refit on 100%, stop at E*" stage 2.
 
 ## 2026-07-19 — Held-out decoding control §2.9 extended to MSCOCO + NUS-WIDE: flat-hash chunks lose to our codons on all 3 datasets
+
+> ⚠️ **SUPERSEDED (2026-07-21).** The reported headline numbers are the **post-bio-projection** values in the Current State snapshot and the 2026-07-21 bio-projection entries. The numbers in this entry predate one or more paper invariants (P0 selection / DNA-space evaluation / bio-constraint projection) and are kept as the historical record only.
 
 The `(slot, code) -> concept` held-out decoding experiment (REQUIRED_EXPERIMENTS §2) previously ran its
 flat-hash chunk control on Flickr25k only, because only `result_baseline/260527/*_flickr25k_clip_unsup60/`
@@ -19324,6 +19342,8 @@ than defended.
 ---
 
 ## 2026-07-19 — 관행(convention) 프로토콜 4-dataset 비교 + slot 역할 타당성 측정
+
+> ⚠️ **SUPERSEDED (2026-07-21).** The reported headline numbers are the **post-bio-projection** values in the Current State snapshot and the 2026-07-21 bio-projection entries. The numbers in this entry predate one or more paper invariants (P0 selection / DNA-space evaluation / bio-constraint projection) and are kept as the historical record only.
 
 🎯 **왜 관행으로 전환했나.** 선행 연구의 모델 선택 관행을 조사한 결과, 이 분야 표 수치는 대부분 **학습 중 test mAP 를 주기적으로 재서 그 최댓값**이다. 결정적 증거: `swuxyj/DeepHash-pytorch`(최근 논문 다수가 DPSH/HashNet/CSQ/DSDH baseline 수치를 뽑는 저장소)의 `validate()` 는 **validation 데이터를 인자로 받지 않고** test 에서 `Best_mAP` 를 갱신한다. 7개 데이터셋 디렉터리에 `train/test/database` 21개 파일뿐, val 파일 0개. GreedyHash·CSQ·DSDH 공식 저장소도 동일 패턴. Luo et al. 서베이(ACM TKDD 2023)가 규정하는 표준 split 자체가 **query/database/train 세 역할뿐**이다.
 
@@ -20387,6 +20407,8 @@ slot이 패치의 절반만 보고, 26%는 아예 배제되며, 패치의 58%가
 
 ## 2026-07-21 — 🟢 Held-out decoding ATTRIBUTION: the decoding advantage is caused by text supervision (−0.052…−0.122) and per-slot codebook separation (−0.021…−0.051), on 3 datasets
 
+> ⚠️ **SUPERSEDED (2026-07-21).** The reported headline numbers are the **post-bio-projection** values in the Current State snapshot and the 2026-07-21 bio-projection entries. The numbers in this entry predate one or more paper invariants (P0 selection / DNA-space evaluation / bio-constraint projection) and are kept as the historical record only.
+
 🎯 **Why.** The user asked directly whether the paper's contribution is weak. The honest diagnosis: the
 headline result (our codons decode held-out concepts better than flat-hash chunks, +0.057…+0.099) had **no
 attribution ablation**. A reviewer's first objection would be "you trained with text supervision and use six
@@ -20558,6 +20580,8 @@ B에서 slot은 패치의 절반만 보고, **31%는 어느 slot도 가져가지
 ---
 
 ## 2026-07-21 — 🟢 FAIR DNA-space comparison: baselines re-evaluated in our 18-base code space at P0 E* — our margin GROWS on all 4 datasets (MSCOCO +0.002 → +0.015)
+
+> ⚠️ **SUPERSEDED (2026-07-21).** The reported headline numbers are the **post-bio-projection** values in the Current State snapshot and the 2026-07-21 bio-projection entries. The numbers in this entry predate one or more paper invariants (P0 selection / DNA-space evaluation / bio-constraint projection) and are kept as the historical record only.
 
 🎯 **Why.** The paper's claim is that GroundedDNA is a superior *DNA-hashing* framework. Until now our model
 was scored with **base Hamming** (18-position A/C/G/T mismatch) while the baselines were scored with **bit
