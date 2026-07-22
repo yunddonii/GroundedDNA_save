@@ -16898,6 +16898,104 @@ Updated claim to add to `docs/ANALYSIS_compositional_contribution.md`:
 
 ---
 
+## 2026-07-22 — 🟢 Fair common-P0 unsupervised baseline matrix: source-faithful training + common DNA conversion/projection (RUNNING)
+
+🟢 **Status: experiment matrix in progress; this is a result skeleton and no metric has been admitted yet.**
+The tables in this entry intentionally remain separate from the strict/paper main table. Every completed
+cell in the current queue uses the legacy CLIP cache and is therefore a **single-seed diagnostic (`†`)**,
+not a paper-main result: the cached arrays are byte-identical to the incumbent inputs, but their metadata do
+not attest the canonical transform, augmentation transform/seed, and immutable Hugging Face model revision.
+Accordingly, the run manifests must retain `main_protocol_eligible=false` until provenance-complete caches
+are regenerated. The paper's three-seed mean±std cells remain `-`.
+
+🔬 **Common fair protocol.** What is made identical is the data/selection/evaluation contract; what remains
+method-specific is the framework that defines each baseline.
+
+| Axis | Fixed common-P0 contract |
+|---|---|
+| Input/split | Same frozen CLIP cache and official setting-1 query/database split; stage-1 designated train is split into 90% optimization / 10% validation with validation seed 42 |
+| Train seed | `42` for this diagnostic matrix (matched to the current GroundedDNA champion); three-seed repeat pending |
+| Source fidelity | Preserve each paper/release head, loss, optimizer, batch size, nominal horizon, schedule, and method-defined one/two/three-view input |
+| Checkpoint selection | Candidate epochs `4, 9, ...` (zero-based) within each method's own horizon; choose E\* on validation by **raw, non-projected base-Hamming mAP@R**, never by test or binary-Hamming; an exact tie resolves to the earliest candidate epoch |
+| Refit/test | Scratch refit on 100% designated train for `E*+1` optimization epochs while retaining the source nominal schedule horizon; freeze that checkpoint, then allow test access only after every selection decision is fixed. The same fixed checkpoint's test metric may be recomputed for extraction/projection integrity checks, but no test value can affect E* or training |
+| Common DNA conversion | Final sign bits are paired in order and mapped `00/01/10/11 → A/C/G/T`; 36 bit → 18 bases and 48 bit → 24 bases |
+| Mandatory post-processing | Apply the same exact minimum-Hamming DP projection to **both query and database**: homopolymer ≤ 3; GC count `[8,10]` for 18 bases and `[10,14]` for 24 bases |
+| Report | Post-projection base-Hamming mAP@R (`@5000` Flickr/MSCOCO/NUS-WIDE, `@1000` CIFAR-10), post-projection DB DNA-unique, and E\*; raw/pre-projection values remain diagnostics |
+
+The source nominal horizons are CIBHash 100, CIMON 150, MLS³RDUH 150, GreedyHash 60,
+Bi-half 100/150/100/300 (Flickr/MSCOCO/NUS/CIFAR), SDC-paper 100, OH 200, HHCH 80,
+CroVCA 5, and UMRCH 100 epochs. No global 60-epoch override is used. In particular, the older
+CIBHash/CIMON/MLS³RDUH entries use at least one non-current choice (the shared 60-epoch budget and/or a
+binary-Hamming E* selection path). They are historical artifacts and are **not copied into the tables
+below**; they will be superseded diagnostically only by manifest-validated cells from this matrix.
+
+📊 **U0 visual-only — 36 bit / 18 bases.** Cell format after aggregation:
+`post-bio mAP@R (E*, post-bio DB-unique)`.
+
+| Method | Flickr25K @5000 | MSCOCO @5000 | NUS-WIDE @5000 | CIFAR-10 @1000 |
+|---|---:|---:|---:|---:|
+| CIBHash | - | - | - | - |
+| CIMON | - | - | - | - |
+| MLS³RDUH | - | - | - | - |
+| GreedyHash | - | - | - | - |
+| Bi-half | - | - | -‡ | - |
+| SDC-paper | - | - | - | - |
+| OH | - | - | - | - |
+| HHCH | - | - | - | - |
+| CroVCA-cache2v-probe | - | - | - | - |
+
+📊 **U0 visual-only — 48 bit / 24 bases.** Cell format after aggregation:
+`post-bio mAP@R (E*, post-bio DB-unique)`.
+
+| Method | Flickr25K @5000 | MSCOCO @5000 | NUS-WIDE @5000 | CIFAR-10 @1000 |
+|---|---:|---:|---:|---:|
+| CIBHash | - | - | - | - |
+| CIMON | - | - | - | - |
+| MLS³RDUH | - | - | - | - |
+| GreedyHash | - | - | - | - |
+| Bi-half | - | - | -‡ | - |
+| SDC-paper | - | - | - | - |
+| OH | - | - | - | - |
+| HHCH | - | - | - | - |
+| CroVCA-cache2v-probe | - | - | - | - |
+
+📊 **U2 taxonomy-assisted — separate comparison panel.** UMRCH consumes the exact target-benchmark
+class/concept taxonomy; it is not an unsupervised `U0` visual-only baseline and must not be used to set the
+U0 headline margin. The released benchmark scope does not provide a matched CIFAR-10 cell.
+
+| Budget | Flickr25K @5000 | MSCOCO @5000 | NUS-WIDE @5000 | CIFAR-10 |
+|---|---:|---:|---:|---:|
+| UMRCH, 36 bit / 18 bases | - | - | - | n/a |
+| UMRCH, 48 bit / 24 bases | - | - | - | n/a |
+
+⛔ **Exact DUH-EG remains blocked, not estimated.** The released materials do not contain the authors'
+ordered selected-WordNet noun bank or an unambiguous selection specification; the available preparation
+path loses source identity/provenance. Therefore an exact DUH-EG number would be fabricated. Keep every
+dataset/budget cell as `- (author artifact required)` until that artifact or an equivalent authoritative
+specification is obtained; do not substitute the released-objective adapter into the exact row.
+
+⚙️ **Method/audit qualifiers.** These are matched-core comparisons, not claims that every cell reproduces
+the corresponding paper's published table. `‡` Bi-half on NUS-WIDE is an explicit common-cache adaptation
+because the upstream release has no NUS-WIDE trainer. GreedyHash outside CIFAR-10, OH outside its released
+CIFAR-10/64-bit setting, HHCH on MSCOCO, and UMRCH's fixed-CLIP-cache path are likewise benchmark/protocol
+adaptations and must be labeled as such in the final appendix. SDC-paper is the predeclared primary SDC row;
+release-noCL and release-SimCLR remain diagnostic variants. CroVCA is a frozen matched-cache probing
+adaptation, not the paper's LoRA/asymmetric-Hamming reproduction. `†` on a filled score means
+`legacy_cache_diagnostic_only_not_main_table_eligible`.
+
+🧰 **Artifacts / fill source.** Matrix roots:
+`result_baseline/p0_matrix_seeds42_legacy_cache`,
+`params_baseline/p0_matrix_seeds42_legacy_cache`,
+`compress_baseline/p0_matrix_seeds42_legacy_cache`, and
+`logs/p0_baseline_matrix_seeds42_legacy_cache`; independently queued CroVCA cells are under
+`result_baseline/260722`. Fill these tables only from the validator output
+`docs/baseline_p0_matrix_seeds42_legacy_cache.{json,md}` after combining both result roots. A cell is
+admitted only when `p0_run_manifest.json` and its referenced `bio_projection.json`, checkpoint, extraction,
+protocol identity, and SHA-256 records all validate uniquely; missing/invalid/duplicate cells remain
+`-`/`ERR`/`DUP` rather than being selected by test score or timestamp.
+
+---
+
 ## Infrastructure & repo hygiene
 
 🟢 active
@@ -21013,3 +21111,73 @@ Outputs `docs/baseline_24base_dnaeval_all.json` (+ per-dataset). Baseline 48-bit
 🟢 **Main table COMPLETE.** Our model at K∈{128,64} × {18-base, 24-base} (2026-07-22 grid) + baselines at both
 18-base (2026-07-21) and 24-base (this entry), all 4 datasets, all P0 + bio-projected. **Ours is SOTA on all
 4 datasets in BOTH code spaces.**
+
+---
+
+## 2026-07-22 — 📚 Convention audit v2 (official-code verified): held-out-val checkpoint selection (P0) is STRICTER-than-convention, not the norm
+
+🎯 **Why.** Before defending the paper's P0 protocol (carve val from train → select E\* on val mAP@R → touch
+official test exactly once, applied symmetrically to baselines), the user asked to verify against recent
+literature whether P0 *is* the field convention. The 2026-07-19 "관행(convention)" entry made this claim from
+secondary reading; this entry confirms it at the **primary-source / official-code** level via a deep-research
+harness (106 agents, 23 primary sources fetched, 25 claims adversarially verified 3-vote → 23 confirmed, 2
+refuted).
+
+🔑 **Verdict: the deep-hashing convention is TEST-set best-epoch selection (no validation split). P0 is a
+stricter, leakage-free choice — not the norm.** Verified from official code (all 3-0 unless noted):
+
+| source | what the official code does |
+|---|---|
+| **swuxyj/DeepHash-pytorch** (CSQ.py, HashNet.py) — source of many DPSH/HashNet/CSQ/DSDH/GreedyHash baseline numbers | `Best_mAP = validate(…, test_loader, dataset_loader, …)` every N epochs; **no val split** |
+| **GreedyHash** (ssppp/GreedyHash cifar1.py) | saves ckpt when **test** accuracy improves; no val |
+| **OrthoHash** (kamwoh/orthohash, NeurIPS'21) | `if best < curr_metric: save best.pth` on **test mAP**; 3 splits only |
+| **CSQ** | periodic **test** eval, keep best |
+| **DUH-EG** (ICML **2025** unsup SOTA) | official train.py has **no val split**; reports a **"best-T2" row = hyperparameter chosen to maximise test MAP** |
+| VTS (ICME'22) | "testing every 30 epochs, best results reported" |
+
+So the convention persists into 2025 SOTA. Held-out-val touch-test-once is stricter than the field norm.
+
+📌 **The three GroundedDNA baselines, at official-code level:**
+- **CIBHash** (zexuanqiu): `utils/data.py get_cifar()` **carves val out of the query pool** (`X_val = test_dat[…]`),
+  selects the reported checkpoint by **val** mAP, touches test once — a **P0-style** protocol. Caveats: only
+  CIFAR-10 is fully implemented (NUS/MSCOCO `NotImplementedError`); val is carved from the **query pool** (P0
+  carves from **train**); the **paper does not disclose** it.
+- **CIMON** (luoxiao12): **no** held-out val; evaluates directly on **test/query** during training → test-select.
+- **MLS3RDUH** (rongchengtu1): fixed epochs → reports **final-epoch** model, single test touch, **no best-epoch
+    selection at all**.
+
+🔴 **Two claims REFUTED (transparency, 1-2 votes):** (a) "MLS3RDUH is strictly *less* rigorous than P0" — WRONG:
+it touches test once like P0 and does no selection, so it has no selection-leak (it simply performs no model
+selection). (b) "CIBHash quotes baselines with no shared protocol" — not supported. **Do not claim the
+baselines are uniformly leaky.**
+
+🧭 **Methodological critique / context.**
+- **Musgrave et al., "A Metric Learning Reality Check" (ECCV 2020)** §2.3 *"Training with test set feedback"*
+  names exactly this flaw and prescribes **class-disjoint held-out cross-validation** — which P0 follows.
+  ⚠️ Corroborated by source fetch but did **not** survive as an independently-verified top-25 claim; **re-check
+  the exact §2.3 wording before quoting it in the paper.**
+- **Kapoor & Narayanan (Patterns 2023)** leakage survey: L1 "no clean train/test separation" — use as the
+  general leakage-hygiene rationale (note L1.1 "no test set" is a *stronger* error than best-epoch-on-test, so
+  don't cite it as literally naming the hashing convention as leakage).
+- **Hashing-subfield uptake of the critique: essentially none** found (low confidence — no citation audit).
+
+🟢 **Paper recommendation (defense).**
+1. State plainly that the field convention selects on test (cite DeepHash-pytorch, CSQ/GreedyHash/OrthoHash,
+   DUH-EG 2025); we adopt the stricter held-out-val touch-test-once protocol **symmetrically for all baselines**.
+2. Report **both** tables — convention-style (test-selected, symmetric) headline + P0 rigor table — and show they
+   agree (2026-07-19: E\* identical in 3/4 datasets, selection bias 0.005–0.025). Defends both "inflated by test
+   selection?" and "not the convention?" objections at once.
+3. Use **CIBHash's own val-selection code as precedent**: the strongest baseline already does touch-test-once
+   val selection; P0 generalises it (train-carved val) and unifies it across methods.
+
+⚠️ **Coverage gaps (not adjudicated):** official repos/protocol of Prototypical-Learning (MM'22),
+Semantic-Concept-Mining, Bit-mask-RCKD (2024), HashNet; CIMON/CIBHash *paper-text* disclosure (only repos /
+arXiv v2 checked). Flagged for a follow-up if a reviewer presses.
+
+🧰 Deep-research transcript: `…/subagents/workflows/wf_3ad9215a-6b7/journal.jsonl`. Primary sources: CIBHash
+(github.com/zexuanqiu/CIBHash), CIMON (luoxiao12/CIMON), MLS3RDUH (rongchengtu1/MLS3RDUH),
+swuxyj/DeepHash-pytorch (CSQ.py/HashNet.py), ssppp/GreedyHash, kamwoh/orthohash, XLearning-SCU/2025-ICML-DUHEG,
+Musgrave ECCV'20, Kapoor & Narayanan Patterns'23.
+
+**Supersedes** the 2026-07-19 convention entry's secondary-source reasoning with official-code verification;
+the 2026-07-19 numeric protocol-robustness result (E\* agreement, bias quantification) still stands.
