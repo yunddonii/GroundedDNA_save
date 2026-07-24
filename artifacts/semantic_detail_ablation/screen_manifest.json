@@ -1,0 +1,45 @@
+{
+  "a_local_only_whiten": "/data/yschoi/dataset/deephashing/cache/flickr25k_clip_v4plus_qwen3_tokens/text_whiten_trainOnly_localOnly.npz",
+  "arms": {
+    "A_strict_global_free": {
+      "extra_args": [
+        "--no_visualize",
+        "--xmodal_commit_skip_global",
+        "--cibhash_dynamic_tau_skip_global"
+      ],
+      "gpu": 0
+    },
+    "B_own_foil": {
+      "gpu": 1,
+      "margin": 0.02,
+      "rho": 0.1,
+      "warmup_epochs": 1
+    },
+    "C_bit_kl": {
+      "extra_args": [
+        "--no_visualize",
+        "--cibhash_visual_token_bit_kl"
+      ],
+      "gpu": 2,
+      "lambda_cibhash_kl": 0.001
+    },
+    "control": {
+      "extra_args": [
+        "--no_visualize"
+      ],
+      "gpu": 3
+    }
+  },
+  "base_cache": "/data/yschoi/dataset/deephashing/cache/flickr25k_clip_v4plus_qwen3_tokens",
+  "created_at": "2026-07-23T05:51:32.563630+00:00",
+  "foil_cache": "/data/yschoi/dataset/deephashing/cache/flickr25k_clip_v4plus_qwen3_tokens_foils",
+  "protocol": "Flickr25k fixed-E*=4 refit screen; seed=42; K=128; L=4",
+  "source_sha256": {
+    "config.py": "ce7e7c27aee1748a6b24a01adf9b37613e1a1a4d2fe364aa8f702a0c7bf2b2eb",
+    "dataloaders.py": "8632d4328e529c5b9967f4ffadcc5eeda6809c51fa844d3fdbdda2462e5f8315",
+    "loss_siglip2.py": "6340cf85c826f8a8771ca66632cbabdf7705cfd770b92e2137d764c4dac0e183",
+    "model_siglip2.py": "6599ef81d86a8cecaf5e85125d5ca683554742b9dbdbdc5642639de9817bcc1e",
+    "scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh": "94e2159978e22c602b413ee808ecfec6f326358a7afb0789e4693fba8789d995",
+    "train_siglip2.py": "d8e3c884828758b2a90a7c7b71b27f67fac8d2fa6905ef5ca104375129a641fa"
+  }
+}

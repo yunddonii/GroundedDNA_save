@@ -1,0 +1,273 @@
+{
+  "cache": {
+    "base": "/data/yschoi/dataset/deephashing/cache/nuswide_clip_tokens",
+    "evaluation": "/data/yschoi/dataset/deephashing/cache/nuswide_clip_tokens",
+    "foil_overlay": "/data/yschoi/dataset/deephashing/cache/nuswide_clip_tokens_foils",
+    "preparation_manifest": {
+      "path": "/data/yschoi/dataset/deephashing/cache/nuswide_clip_tokens_foils/semantic_detail_cache_manifest.json",
+      "payload": {
+        "base_cache": "/data/yschoi/dataset/deephashing/cache/nuswide_clip_tokens",
+        "dataset": "nuswide",
+        "foil_jsonl": "/home/yschoi/GroundedDNA/artifacts/semantic_detail_multidataset/nuswide.foils.jsonl",
+        "foil_jsonl_sha256": "18241e6c947d3f1616cb9cb9dde2d6d36d89dd21ff8418d15abcacdc4c19f42c",
+        "foil_seed": 0,
+        "image_ids_sha256": "f2076800cc565402c283fe734f1edf53c181252865267869e5d3bfd1616abf11",
+        "overlay": "/data/yschoi/dataset/deephashing/cache/nuswide_clip_tokens_foils",
+        "pooled_shape": [
+          195834,
+          6,
+          512
+        ],
+        "qwen_jsonl": "/data/yschoi/dataset/deephashing/cache/nuswide_qwen3_v4_trainset.jsonl",
+        "qwen_jsonl_sha256": "ec7643111d2539d67cee26fab25ba541e75fb52402643539c338efc98c82e931",
+        "schema_version": "groundeddna-semantic-detail-cache-overlay-v1",
+        "source_sha256": {
+          "scripts/build_counterfactual_caption_foils.py": "fdb319ab12c2ccfb8650ce09815e4e4150b556b8c4b85d26a33d8e494f923046",
+          "scripts/build_text_whiten_matrix.py": "76e9332662154b1cc3579aeea343c8ec4d917d6fea2007188909cafd456338a0",
+          "scripts/extract_counterfactual_foil_features.py": "1e70058e4118e7d5f0c868ba9750d5ad5006149320f1d681a37a54a378d68982",
+          "scripts/extract_counterfactual_foil_token_features.py": "a1c38f90931fb4d1362926a0c9048ee799708784317667e900015ff82b67cad7",
+          "scripts/prepare_semantic_detail_cache.py": "0fc8877c0bc7badc6ab8448e28fa666ac632d4249afe5f6d45b5fa085a58d870"
+        },
+        "token_shape": [
+          195834,
+          6,
+          32,
+          512
+        ],
+        "valid_per_slot": [
+          0,
+          7890,
+          8180,
+          3810,
+          10042,
+          9960
+        ],
+        "whitening": {
+          "text_whiten_optTrain_localOnly.npz": {
+            "row_index": "/data/yschoi/dataset/deephashing/cache/nuswide_clip_tokens/opt_train_rows.npy",
+            "row_index_sha256": "373c3074604c7110ef38b0024ce70a97cd1a4ce86f970641cc27815165923089",
+            "rows_used": 47250,
+            "sha256": "7ac36f0cd7e0a4d967fd9e3bb89c0ed730ec9703f245722a10ad5feddfa8f067"
+          },
+          "text_whiten_trainOnly_localOnly.npz": {
+            "row_index": "/data/yschoi/dataset/deephashing/cache/nuswide_clip_tokens/train_all_rows.npy",
+            "row_index_sha256": "d15305d7157fe1f9608cd577db203bcf153cc19d1f096603a27c390da5b4de6c",
+            "rows_used": 52500,
+            "sha256": "06c3440cb0e3932826fc00ac9e78013196a5180be0cd106148496337a8c35537"
+          }
+        }
+      },
+      "sha256": "f6bbfb0048335593c0158d586f7f51497515acad6aef5cf4bc942bf615ab2f5e"
+    },
+    "qwen_jsonl": "/data/yschoi/dataset/deephashing/cache/nuswide_qwen3_v4_trainset.jsonl",
+    "training": "/data/yschoi/dataset/deephashing/cache/nuswide_clip_tokens_foils"
+  },
+  "cell_result": {
+    "DNA_unique_DB": 0.2096431189156266,
+    "K": 128,
+    "dataset": "NUSWIDE",
+    "full_mAP_bioproj": 0.6316530124128226,
+    "full_mAP_pre_projection": 0.6347287313986544,
+    "gc_max_frac": 0.584,
+    "gc_min_frac": 0.416,
+    "mAP_at_R_bioproj": 0.8348835329633593,
+    "map_r_cutoff": 5000
+  },
+  "completed_at": "2026-07-23T19:43:58.957940+00:00",
+  "created_at": "2026-07-23T13:25:30.292385+00:00",
+  "extra_args": "--no-post_eval_compositional --no_visualize --xmodal_commit_skip_global --cibhash_dynamic_tau_skip_global --text_hash_counterfactual_weight 0.10 --text_hash_counterfactual_margin 0.02 --text_hash_counterfactual_warmup_epochs 1",
+  "factual_arrays": {
+    "has_text.bool.npy": {
+      "bytes": 195834,
+      "dtype": "bool",
+      "path": "/data/yschoi/dataset/deephashing/cache/nuswide_clip/has_text.bool.npy",
+      "shape": [
+        195834
+      ]
+    },
+    "text_part.f16.npy": {
+      "bytes": 1203204096,
+      "dtype": "float16",
+      "path": "/data/yschoi/dataset/deephashing/cache/nuswide_clip/text_part.f16.npy",
+      "shape": [
+        195834,
+        6,
+        512
+      ]
+    },
+    "text_token_mask.bool.npy": {
+      "bytes": 37600128,
+      "dtype": "bool",
+      "path": "/data/yschoi/dataset/deephashing/cache/nuswide_clip_tokens/text_token_mask.bool.npy",
+      "shape": [
+        195834,
+        6,
+        32
+      ]
+    },
+    "text_tokens.f16.npy": {
+      "bytes": 38502531072,
+      "dtype": "float16",
+      "path": "/data/yschoi/dataset/deephashing/cache/nuswide_clip_tokens/text_tokens.f16.npy",
+      "shape": [
+        195834,
+        6,
+        32,
+        512
+      ]
+    },
+    "visual_tokens_aug0.f16.npy": {
+      "bytes": 58957000704,
+      "dtype": "float16",
+      "path": "/data/yschoi/dataset/deephashing/cache/nuswide_clip/visual_tokens_aug0.f16.npy",
+      "shape": [
+        195834,
+        196,
+        768
+      ]
+    },
+    "visual_tokens_aug1.f16.npy": {
+      "bytes": 58957000704,
+      "dtype": "float16",
+      "path": "/data/yschoi/dataset/deephashing/cache/nuswide_clip/visual_tokens_aug1.f16.npy",
+      "shape": [
+        195834,
+        196,
+        768
+      ]
+    }
+  },
+  "foil_artifacts": {
+    "text_foil_image_ids.json": {
+      "path": "/data/yschoi/dataset/deephashing/cache/nuswide_clip_tokens_foils/text_foil_image_ids.json",
+      "sha256": "be3ba13759cdace935a40e13bb7f04976fce6b6cb320634f57a19aa7ce84c94b"
+    },
+    "text_foil_part.f16.npy": {
+      "bytes": 1203204096,
+      "dtype": "float16",
+      "path": "/data/yschoi/dataset/deephashing/cache/nuswide_clip_tokens_foils/text_foil_part.f16.npy",
+      "shape": [
+        195834,
+        6,
+        512
+      ]
+    },
+    "text_foil_token_image_ids.json": {
+      "path": "/data/yschoi/dataset/deephashing/cache/nuswide_clip_tokens_foils/text_foil_token_image_ids.json",
+      "sha256": "be3ba13759cdace935a40e13bb7f04976fce6b6cb320634f57a19aa7ce84c94b"
+    },
+    "text_foil_token_mask.bool.npy": {
+      "bytes": 37600128,
+      "dtype": "bool",
+      "path": "/data/yschoi/dataset/deephashing/cache/nuswide_clip_tokens_foils/text_foil_token_mask.bool.npy",
+      "shape": [
+        195834,
+        6,
+        32
+      ]
+    },
+    "text_foil_tokens.f16.npy": {
+      "bytes": 38502531072,
+      "dtype": "float16",
+      "path": "/data/yschoi/dataset/deephashing/cache/nuswide_clip_tokens_foils/text_foil_tokens.f16.npy",
+      "shape": [
+        195834,
+        6,
+        32,
+        512
+      ]
+    },
+    "text_foil_valid.bool.npy": {
+      "bytes": 1175004,
+      "dtype": "bool",
+      "path": "/data/yschoi/dataset/deephashing/cache/nuswide_clip_tokens_foils/text_foil_valid.bool.npy",
+      "shape": [
+        195834,
+        6
+      ]
+    }
+  },
+  "gpu": 2,
+  "launcher": "scripts/train_nuswide_v185_sweep_clip.sh",
+  "protocol": {
+    "K": 128,
+    "arm": "AB",
+    "bio_projection": {
+      "gc_max_frac": 0.584,
+      "gc_min_frac": 0.416,
+      "mandatory": true
+    },
+    "canonical_dataset": "NUSWIDE",
+    "dataset": "nuswide",
+    "dna_bases": 24,
+    "name": "semantic-detail cross-dataset P0",
+    "num_codons_per_codebook": 4,
+    "official_test_evaluations": 1,
+    "seed": 42,
+    "stage1": "90% opt-train; 10% held-out train validation; select E*",
+    "stage2": "scratch refit on 100% train through E*"
+  },
+  "schema_version": 1,
+  "selected_epoch": 9,
+  "source_sha256": {
+    "config.py": "b6f13665191ed30a8f9b0761a8aceac1e759939e02c74fae09bdd5a67b3b0f8d",
+    "dataloaders.py": "8632d4328e529c5b9967f4ffadcc5eeda6809c51fa844d3fdbdda2462e5f8315",
+    "dna_utils/__init__.py": "b20f32c8266c4bbdd4efa88fc1ce23bb17cacd7c76fa7ddcdd04437275c082e3",
+    "dna_utils/bio_constraints.py": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+    "dna_utils/csv_logger.py": "68450e316bf775989f547b2593131e767e24903b3bef0893bda7a27055cb8d6f",
+    "dna_utils/dna_code_utils.py": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+    "dna_utils/text_description_processor.py": "e2028a9d007de711eebcb1b00e7a5fcb37e593d06c28231f3fa9bbf0a0541221",
+    "dna_utils/training_utils.py": "f1a6ef9a0383312e4d52e0d693656c778ea620e53e69dc61f75d2510946cddb8",
+    "dna_utils/visualization.py": "96d82f88eef14794b3b7282136a40a2fdb2d40d0f1994ee1cf7a2387ebfbc2e5",
+    "dna_utils/vlm_qwen25_descriptions.py": "3c5a865ed264612dd0ff4b9663cd6e7e27c0b4d7c1b02f5045d22c633719f39c",
+    "evaluation_siglip2.py": "97496f62e3b3349745af1d1c84cc48feb142ee32ecd61a8cc58b50c1b76b03c7",
+    "extraction_siglip2.py": "77e24917180ddbef22a5ad304c447beddeedcf6f4e3dacd75d8847f0eb0fa614",
+    "loss_siglip2.py": "6340cf85c826f8a8771ca66632cbabdf7705cfd770b92e2137d764c4dac0e183",
+    "model_siglip2.py": "6599ef81d86a8cecaf5e85125d5ca683554742b9dbdbdc5642639de9817bcc1e",
+    "models/__init__.py": "18106eb4dc331c9fbad2734a6e7bf5bc4d1870ba6cde514e9361baee10978444",
+    "models/adapters.py": "0aa62a08472ef29662480023747caf661104d70b006f14311be7ffc165c68c4a",
+    "models/cluster_attention_router.py": "2c69889d8d84b70fdf3fb2c571217da1ca06f76f0b49be8dd0d0485ffdc7c13e",
+    "models/pretrained_backbone.py": "e86953f0760c8f46649b2152b0d2e812053f549da75b9c5a97de05fbd5801b3f",
+    "models/pretrained_backbone_clip.py": "3ea4612eac5740ff6e36cc414550bfa48ec7a0a5fcc90deb6496b817e226c530",
+    "models/semantic_router.py": "37588d540e4a7fea2471fda5f5dbcf138625bf49a661b6c6343825c251294ee3",
+    "models/text_cross_attention_router.py": "559677f2659ab1a543e1fed145891a67ffc5a7eb38ecb4f197b0cfa76e3302ec",
+    "models/text_encoder.py": "0ed8d4f6db5ce87f0f5c18ccc804a631fe0c2502ff218630c91b7217938c0a7b",
+    "models/visual_encoder.py": "9d38599dcd07377c3e4b8f89a1da4f5965515529023761c26dae587592cf8565",
+    "p0_protocol.py": "da9aee20f221e896ca2cec3371bb1568568ec831b2c7eaf4f2b0f5f68fade399",
+    "scripts/build_text_whiten_matrix.py": "76e9332662154b1cc3579aeea343c8ec4d917d6fea2007188909cafd456338a0",
+    "scripts/eval_cell_bioproj.py": "bc8d74138b2a0146ecf22d051ba880786fa3e6f277fab8bf1b24d9ec9264978a",
+    "scripts/prepare_semantic_detail_cache.py": "0fc8877c0bc7badc6ab8448e28fa666ac632d4249afe5f6d45b5fa085a58d870",
+    "scripts/prepare_semantic_detail_cache.sh": "ea1539f891401d35edfce9cffe22ea972da63e58920ed4224dc30ecc8543c20e",
+    "scripts/run_semantic_detail_ab_multidataset_p0.sh": "4fcdd1b55d74b64b3f47f6e93700b66c081026c89584ee2107af2bf1f93d281f",
+    "scripts/run_semantic_detail_ab_p0_cell.sh": "e33f9e0a7386b125da8a9b38186984cfadd99f70430ee448b05f16f0073ee905",
+    "scripts/train_nuswide_v185_sweep_clip.sh": "99215f473404762792d1d6f077b28d57292f70b6bb4b611c10c46bca1c0a74e7",
+    "train_siglip2.py": "4f860fd16029cef74f8c6647cdef1b875e24957be11c95df7a8e509b0544cfc7",
+    "val_split.py": "95e415c6f43b714fc349c44c5d449e667429bc0f15fb4af9c4389e82ca9eecc2"
+  },
+  "stage1_result_dir": "/home/yschoi/GroundedDNA/result/260723+nuswide_setting1_nuswide_semantic_detail_AB_K128L4_P0val_s42+bs+64+e+60+proj_lr+0.001",
+  "stage1_tag": "nuswide_semantic_detail_AB_K128L4_P0val_s42",
+  "stage2_result_dir": "/home/yschoi/GroundedDNA/result/260724+nuswide_setting1_nuswide_semantic_detail_AB_K128L4_P0refit_e9_s42+bs+64+e+60+proj_lr+0.001",
+  "stage2_tag": "nuswide_semantic_detail_AB_K128L4_P0refit_e9_s42",
+  "status": "complete",
+  "updated_at": "2026-07-23T18:44:34.816016+00:00",
+  "whitening": {
+    "stage1_optTrain_localOnly": {
+      "N_kept": 9450,
+      "meta_path": "/data/yschoi/dataset/deephashing/cache/nuswide_clip_tokens_foils/text_whiten_optTrain_localOnly.npz.meta.json",
+      "meta_sha256": "dfbf0011f4f663afd78b70c59f9afc6ff9945d7b17f70b82fae8a359742ca9e7",
+      "path": "/data/yschoi/dataset/deephashing/cache/nuswide_clip_tokens_foils/text_whiten_optTrain_localOnly.npz",
+      "row_index": "/data/yschoi/dataset/deephashing/cache/nuswide_clip_tokens/opt_train_rows.npy",
+      "sha256": "7ac36f0cd7e0a4d967fd9e3bb89c0ed730ec9703f245722a10ad5feddfa8f067",
+      "vectors_used": 47250
+    },
+    "stage2_trainOnly_localOnly": {
+      "N_kept": 10500,
+      "meta_path": "/data/yschoi/dataset/deephashing/cache/nuswide_clip_tokens_foils/text_whiten_trainOnly_localOnly.npz.meta.json",
+      "meta_sha256": "17687aa7ad0454eeb76cdb6c6e002f99c19ba64d00e97939bbfabc000930b986",
+      "path": "/data/yschoi/dataset/deephashing/cache/nuswide_clip_tokens_foils/text_whiten_trainOnly_localOnly.npz",
+      "row_index": "/data/yschoi/dataset/deephashing/cache/nuswide_clip_tokens/train_all_rows.npy",
+      "sha256": "06c3440cb0e3932826fc00ac9e78013196a5180be0cd106148496337a8c35537",
+      "vectors_used": 52500
+    }
+  }
+}

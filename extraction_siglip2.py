@@ -159,7 +159,7 @@ def encode_split(
     if mh_list:
         out["multi_hot_labels"] = np.concatenate(mh_list, axis=0).astype(np.int64)
     if paths_list:
-        out["image_paths"] = np.array(paths_list, dtype=object)
+        out["image_paths"] = np.asarray(paths_list, dtype=np.str_)
     return out
 
 

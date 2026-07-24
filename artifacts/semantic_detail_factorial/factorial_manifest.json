@@ -1,0 +1,90 @@
+{
+  "arms": {
+    "AB": {
+      "cache": "/data/yschoi/dataset/deephashing/cache/flickr25k_clip_v4plus_qwen3_tokens_foils",
+      "flags": [
+        "--xmodal_commit_skip_global",
+        "--cibhash_dynamic_tau_skip_global",
+        "--text_hash_counterfactual_weight",
+        "0.10",
+        "--text_hash_counterfactual_margin",
+        "0.02",
+        "--text_hash_counterfactual_warmup_epochs",
+        "1"
+      ],
+      "gpu": 1,
+      "tag": "semantic_detail_e4_AB_strictGlobalFree_ownFoil_rho0p10_K128L4"
+    },
+    "ABC": {
+      "cache": "/data/yschoi/dataset/deephashing/cache/flickr25k_clip_v4plus_qwen3_tokens_foils",
+      "flags": [
+        "--xmodal_commit_skip_global",
+        "--cibhash_dynamic_tau_skip_global",
+        "--text_hash_counterfactual_weight",
+        "0.10",
+        "--text_hash_counterfactual_margin",
+        "0.02",
+        "--text_hash_counterfactual_warmup_epochs",
+        "1",
+        "--cibhash_visual_token_bit_kl"
+      ],
+      "gpu": 4,
+      "tag": "semantic_detail_e4_ABC_strictGlobalFree_ownFoil_rho0p10_bitKL_K128L4"
+    },
+    "AC": {
+      "cache": "/data/yschoi/dataset/deephashing/cache/flickr25k_clip_v4plus_qwen3_tokens",
+      "flags": [
+        "--xmodal_commit_skip_global",
+        "--cibhash_dynamic_tau_skip_global",
+        "--cibhash_visual_token_bit_kl"
+      ],
+      "gpu": 2,
+      "tag": "semantic_detail_e4_AC_strictGlobalFree_bitKL_K128L4"
+    },
+    "BC": {
+      "cache": "/data/yschoi/dataset/deephashing/cache/flickr25k_clip_v4plus_qwen3_tokens_foils",
+      "flags": [
+        "--text_hash_counterfactual_weight",
+        "0.10",
+        "--text_hash_counterfactual_margin",
+        "0.02",
+        "--text_hash_counterfactual_warmup_epochs",
+        "1",
+        "--cibhash_visual_token_bit_kl"
+      ],
+      "gpu": 3,
+      "tag": "semantic_detail_e4_BC_ownFoil_rho0p10_bitKL_K128L4"
+    }
+  },
+  "base_cache": "/data/yschoi/dataset/deephashing/cache/flickr25k_clip_v4plus_qwen3_tokens",
+  "created_at": "2026-07-23T06:56:57.135986+00:00",
+  "foil_cache": "/data/yschoi/dataset/deephashing/cache/flickr25k_clip_v4plus_qwen3_tokens_foils",
+  "local_only_whiten": "/data/yschoi/dataset/deephashing/cache/flickr25k_clip_v4plus_qwen3_tokens/text_whiten_trainOnly_localOnly.npz",
+  "protocol": "Flickr25k missing 2^3 factorial cells; fixed-E*=4 refit screen; seed=42; K=128; L=4",
+  "singleton_manifest": "/home/yschoi/GroundedDNA/artifacts/semantic_detail_ablation/screen_manifest.json",
+  "singleton_manifest_sha256": "1478d1a57c0b11a967c1903d1c998e9a41f10e59e2ff063427168d6e82c1c9d2",
+  "source_delta_from_singleton": {
+    "scripts/codebook_drop_ablation_fast.py": {
+      "factorial": "0037672933de0f183482b051cbf7bde2a8e93664c34ba0ef982366e8b13f4bb9",
+      "singleton": null
+    },
+    "scripts/run_semantic_detail_factorial.sh": {
+      "factorial": "d43d20277a59cfc494614bf6fd1937651239e7eeb566fac4e147f427d898fb39",
+      "singleton": null
+    },
+    "train_siglip2.py": {
+      "factorial": "479fb596245f2ad555bbd4e6088f30fbe4987cb78a676eb1744b10f96a186ccc",
+      "singleton": "d8e3c884828758b2a90a7c7b71b27f67fac8d2fa6905ef5ca104375129a641fa"
+    }
+  },
+  "source_sha256": {
+    "config.py": "ce7e7c27aee1748a6b24a01adf9b37613e1a1a4d2fe364aa8f702a0c7bf2b2eb",
+    "dataloaders.py": "8632d4328e529c5b9967f4ffadcc5eeda6809c51fa844d3fdbdda2462e5f8315",
+    "loss_siglip2.py": "6340cf85c826f8a8771ca66632cbabdf7705cfd770b92e2137d764c4dac0e183",
+    "model_siglip2.py": "6599ef81d86a8cecaf5e85125d5ca683554742b9dbdbdc5642639de9817bcc1e",
+    "scripts/codebook_drop_ablation_fast.py": "0037672933de0f183482b051cbf7bde2a8e93664c34ba0ef982366e8b13f4bb9",
+    "scripts/run_semantic_detail_factorial.sh": "d43d20277a59cfc494614bf6fd1937651239e7eeb566fac4e147f427d898fb39",
+    "scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh": "94e2159978e22c602b413ee808ecfec6f326358a7afb0789e4693fba8789d995",
+    "train_siglip2.py": "479fb596245f2ad555bbd4e6088f30fbe4987cb78a676eb1744b10f96a186ccc"
+  }
+}

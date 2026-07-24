@@ -26,6 +26,22 @@ def _base_dist(qbi: np.ndarray, dbbi: np.ndarray) -> np.ndarray:
     return out
 
 
+def codebook_slices(num_bases: int, num_codebooks: int):
+    """Return equal contiguous base-index slices for semantic codebooks."""
+    if num_codebooks <= 0:
+        raise ValueError(f"num_codebooks must be positive, got {num_codebooks}")
+    if num_bases % num_codebooks != 0:
+        raise ValueError(
+            f"base-index width R={num_bases} is not divisible by "
+            f"num_codebooks={num_codebooks}"
+        )
+    codons_per_codebook = num_bases // num_codebooks
+    return [
+        slice(m * codons_per_codebook, (m + 1) * codons_per_codebook)
+        for m in range(num_codebooks)
+    ]
+
+
 def compute_mAP_pk(q_bi, db_bi, q_lbl, db_lbl, p_at_k=(1, 10, 100, 1000), batch=200):
     Nq = q_bi.shape[0]
     aps = np.zeros(Nq, dtype=np.float32)
@@ -53,6 +69,12 @@ def main():
     ap.add_argument("--subset_queries", type=int, default=0,
                     help="If >0, randomly subsample queries for speed.")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument(
+        "--num_codebooks",
+        type=int,
+        default=6,
+        help="Number of semantic codebooks. Each codebook drops R/M bases.",
+    )
     args = ap.parse_args()
     rd = args.result_dir
 
@@ -68,21 +90,31 @@ def main():
         q_bi = q_bi[idx]; q_lbl = q_lbl[idx]
         print(f"[fast_drop] subsampled queries -> {len(q_bi)}")
     Nq, R = q_bi.shape
-    M = R // 3
-    print(f"[fast_drop] R={R}, M={M}, Nq={Nq}, Ndb={db_bi.shape[0]}", flush=True)
+    M = int(args.num_codebooks)
+    slices = codebook_slices(R, M)
+    L = R // M
+    print(
+        f"[fast_drop] R={R}, M={M}, L={L}, Nq={Nq}, Ndb={db_bi.shape[0]}",
+        flush=True,
+    )
 
     t0 = time.time()
     base = compute_mAP_pk(q_bi, db_bi, q_lbl, db_lbl)
     print(f"[fast_drop] baseline: mAP={base['mAP']:.4f}  P@1={base['P@1']:.4f}  "
           f"P@10={base['P@10']:.4f}  ({time.time()-t0:.1f}s)", flush=True)
 
-    results = {"baseline": base, "drops": {},
-               "subset_queries": int(args.subset_queries)}
-    for m in range(M):
+    results = {
+        "baseline": base,
+        "drops": {},
+        "subset_queries": int(args.subset_queries),
+        "num_codebooks": M,
+        "codons_per_codebook": L,
+    }
+    for m, codebook_slice in enumerate(slices):
         t1 = time.time()
         qd = q_bi.copy(); ddb = db_bi.copy()
-        qd[:, m*3:m*3+3] = 0
-        ddb[:, m*3:m*3+3] = 0
+        qd[:, codebook_slice] = 0
+        ddb[:, codebook_slice] = 0
         r = compute_mAP_pk(qd, ddb, q_lbl, db_lbl)
         delta = r["mAP"] - base["mAP"]
         results["drops"][m] = {**r, "delta_mAP": delta}

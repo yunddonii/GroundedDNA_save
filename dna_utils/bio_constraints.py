@@ -5,7 +5,7 @@ For DNA-storage applications the synthesizer / sequencer typically requires:
     GC content        :  fraction of {C, G} bases in the strand falls in
                           ``[gc_min, gc_max]``.  Default range here is
                           ``[40%, 60%]`` which on an 18-base code maps to
-                          ``GC count in [7, 11]``.
+                          the integer feasible range ``GC count in [8, 10]``.
     Homopolymer       :  no run of identical bases longer than ``max_run``
                           (default 3 -- i.e. ``AAAA`` / ``GGGG`` are bad).
 
@@ -21,7 +21,8 @@ behind the ``--bio_project`` CLI flag.
 """
 
 from __future__ import annotations
-from typing import Dict, Iterable, List, Optional, Tuple
+from numbers import Integral, Real
+from typing import Dict, Iterable, Optional, Tuple
 
 import numpy as np
 
@@ -39,9 +40,64 @@ DEFAULT_GC_MIN_FRAC: float = 0.40
 DEFAULT_GC_MAX_FRAC: float = 0.60
 DEFAULT_MAX_HOMOPOLYMER_RUN: int = 3
 
+# The Hamming objective can have many minimisers.  This string is part of the
+# on-disk evaluation protocol: changing the DP traversal or tie comparison must
+# produce a new policy/version instead of silently changing paper numbers.
+PROJECTION_TIE_POLICY: str = (
+    "dp_base_hamming_v1:equal_cost_keeps_first_predecessor_under_"
+    "prev_base_ACGT_then_run_asc_then_gc_asc;terminal_base_ACGT_"
+    "then_run_asc_then_gc_asc"
+)
+
+
+def _validate_constraint_parameters(
+    gc_min_frac: float,
+    gc_max_frac: float,
+    max_run: int,
+) -> Tuple[float, float, int]:
+    """Validate the public constraint domain without changing its values."""
+    if (not isinstance(gc_min_frac, Real)
+            or not isinstance(gc_max_frac, Real)):
+        raise TypeError("GC bounds must be real numbers")
+    gc_min_frac = float(gc_min_frac)
+    gc_max_frac = float(gc_max_frac)
+    if not np.isfinite(gc_min_frac) or not np.isfinite(gc_max_frac):
+        raise ValueError("GC bounds must be finite")
+    if not (0.0 <= gc_min_frac <= gc_max_frac <= 1.0):
+        raise ValueError(
+            "expected 0 <= gc_min_frac <= gc_max_frac <= 1; got "
+            f"{gc_min_frac}, {gc_max_frac}")
+    if (isinstance(max_run, (bool, np.bool_))
+            or not isinstance(max_run, Integral)
+            or int(max_run) < 1):
+        raise ValueError(f"max_run must be a positive integer; got {max_run!r}")
+    return gc_min_frac, gc_max_frac, int(max_run)
+
+
+def _validated_code_array(code: np.ndarray, *, ndim: int) -> np.ndarray:
+    """Return an int8 view/copy after rejecting lossy or invalid base IDs."""
+    arr = np.asarray(code)
+    if arr.ndim != ndim:
+        shape = getattr(arr, "shape", None)
+        raise ValueError(f"expected rank-{ndim} base array, got {shape}")
+    if arr.shape[-1] == 0:
+        raise ValueError("DNA codes must contain at least one base")
+    if (not np.issubdtype(arr.dtype, np.integer)
+            or np.issubdtype(arr.dtype, np.bool_)):
+        raise TypeError(f"DNA base IDs must have integer dtype; got {arr.dtype}")
+    if arr.size and (int(arr.min()) < 0 or int(arr.max()) >= NUM_BASES):
+        raise ValueError("DNA base IDs must all lie in {0, 1, 2, 3}")
+    return arr.astype(np.int8, copy=False)
+
 
 def _resolve_gc_count_range(L: int, gc_min_frac: float, gc_max_frac: float) -> Tuple[int, int]:
     """Convert fractional GC bounds to integer counts for length L."""
+    if (isinstance(L, (bool, np.bool_))
+            or not isinstance(L, Integral)
+            or int(L) < 1):
+        raise ValueError(f"DNA length must be a positive integer; got {L!r}")
+    gc_min_frac, gc_max_frac, _ = _validate_constraint_parameters(
+        gc_min_frac, gc_max_frac, DEFAULT_MAX_HOMOPOLYMER_RUN)
     gc_min = int(np.ceil (gc_min_frac * L))
     gc_max = int(np.floor(gc_max_frac * L))
     return gc_min, gc_max
@@ -59,7 +115,9 @@ def is_valid(
 
     code : ``[L]`` int array, values in ``{0, 1, 2, 3}``.
     """
-    c = np.asarray(code, dtype=np.int8)
+    gc_min_frac, gc_max_frac, max_run = _validate_constraint_parameters(
+        gc_min_frac, gc_max_frac, max_run)
+    c = _validated_code_array(code, ndim=1)
     L = c.shape[-1]
     gc_min, gc_max = _resolve_gc_count_range(L, gc_min_frac, gc_max_frac)
     # GC content
@@ -85,7 +143,9 @@ def violation_report(
     max_run:     int   = DEFAULT_MAX_HOMOPOLYMER_RUN,
 ) -> Dict[str, int]:
     """Itemize what's wrong with `code` (zeros if all good)."""
-    c = np.asarray(code, dtype=np.int8)
+    gc_min_frac, gc_max_frac, max_run = _validate_constraint_parameters(
+        gc_min_frac, gc_max_frac, max_run)
+    c = _validated_code_array(code, ndim=1)
     L = c.shape[-1]
     gc_min, gc_max = _resolve_gc_count_range(L, gc_min_frac, gc_max_frac)
     gc = int(_IS_GC[c].sum())
@@ -121,8 +181,9 @@ def is_valid_batch(
     max_run:     int   = DEFAULT_MAX_HOMOPOLYMER_RUN,
 ) -> np.ndarray:
     """``[N, L] -> [N] bool``. Vectorized over the batch dim only."""
-    arr = np.asarray(codes, dtype=np.int8)
-    assert arr.ndim == 2, f"expected [N, L], got {arr.shape}"
+    gc_min_frac, gc_max_frac, max_run = _validate_constraint_parameters(
+        gc_min_frac, gc_max_frac, max_run)
+    arr = _validated_code_array(codes, ndim=2)
     N, L = arr.shape
     gc_min, gc_max = _resolve_gc_count_range(L, gc_min_frac, gc_max_frac)
     gc = _IS_GC[arr].sum(axis=1)                                  # [N]
@@ -167,8 +228,9 @@ def project_to_valid(
             edit_distance == -1 -> no valid trajectory (e.g. impossible
                                    constraint range); original returned unchanged.
     """
-    c = np.asarray(code, dtype=np.int8)
-    assert c.ndim == 1, f"expected [L], got {c.shape}"
+    gc_min_frac, gc_max_frac, max_run = _validate_constraint_parameters(
+        gc_min_frac, gc_max_frac, max_run)
+    c = _validated_code_array(code, ndim=1)
     L = c.shape[0]
     if is_valid(c, gc_min_frac, gc_max_frac, max_run):
         return c.copy(), 0
@@ -250,20 +312,23 @@ def batch_project_to_valid(
     gc_max_frac: float = DEFAULT_GC_MAX_FRAC,
     max_run:     int   = DEFAULT_MAX_HOMOPOLYMER_RUN,
     progress:    bool  = True,
+    allow_projection_failures: bool = False,
 ) -> Dict[str, np.ndarray]:
     """Per-row projection over a ``[N, L]`` batch.
 
     Returns:
         {
           "projected_codes" : np.ndarray [N, L] int8,
-          "edit_distances"  : np.ndarray [N]    int32  (-1 if no valid solution),
+          "edit_distances"  : np.ndarray [N]    int32  (-1 if no valid solution;
+                                                    diagnostic opt-in only),
           "was_valid"       : np.ndarray [N]    bool   (input already valid),
           "compliance_rate" : float    fraction of OUTPUT rows that are valid,
           "mean_edit_distance": float (over all N),
         }
     """
-    arr = np.asarray(codes, dtype=np.int8)
-    assert arr.ndim == 2, f"expected [N, L], got {arr.shape}"
+    gc_min_frac, gc_max_frac, max_run = _validate_constraint_parameters(
+        gc_min_frac, gc_max_frac, max_run)
+    arr = _validated_code_array(codes, ndim=2)
     N, L = arr.shape
     out_codes = np.empty_like(arr)
     edits     = np.zeros(N, dtype=np.int32)
@@ -287,6 +352,11 @@ def batch_project_to_valid(
         edits[i]     = cost
 
     new_valid = is_valid_batch(out_codes, gc_min_frac, gc_max_frac, max_run)
+    n_failed = int((edits < 0).sum())
+    if n_failed and not allow_projection_failures:
+        raise RuntimeError(
+            f"bio-projection failed for {n_failed}/{N} rows; refusing to "
+            "return invalid DNA unless allow_projection_failures=True")
     compliance_rate = float(new_valid.mean())
     # only count edit distances on rows whose projection succeeded
     succ_edits = edits[edits >= 0]
@@ -295,6 +365,7 @@ def batch_project_to_valid(
         "projected_codes":   out_codes,
         "edit_distances":    edits,
         "was_valid":         was_valid,
+        "n_failed":          n_failed,
         "compliance_rate":   compliance_rate,
         "mean_edit_distance": mean_edit,
     }

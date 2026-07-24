@@ -1,0 +1,46 @@
+{
+  "contract": {
+    "edits_per_foil_caption": 1,
+    "generation_uses_external_model_or_api": false,
+    "global_slot_valid": false,
+    "replacement_absent_from_all_factual_captions": true
+  },
+  "edit_family_counts": {
+    "action": 2412,
+    "color": 14235,
+    "ground": 839,
+    "lighting": 184,
+    "material": 171,
+    "object": 2647,
+    "relation": 5302,
+    "scene": 8781,
+    "shape": 1706,
+    "size": 2048,
+    "texture": 1480,
+    "weather": 77
+  },
+  "max_rows": -1,
+  "output_jsonl": "/home/yschoi/GroundedDNA/artifacts/semantic_detail_multidataset/nuswide.foils.jsonl",
+  "output_sha256": "18241e6c947d3f1616cb9cb9dde2d6d36d89dd21ff8418d15abcacdc4c19f42c",
+  "rows": 10500,
+  "schema_version": "groundeddna-local-caption-foil-v1",
+  "seed": 0,
+  "slot_keys": [
+    "C_global",
+    "C_primary_object",
+    "C_secondary_object",
+    "C_activity_or_relation",
+    "C_color_texture",
+    "C_scene_type"
+  ],
+  "source_jsonl": "/home/yschoi/GroundedDNA/cache/nuswide_qwen3_v4_trainset.jsonl",
+  "source_sha256": "ec7643111d2539d67cee26fab25ba541e75fb52402643539c338efc98c82e931",
+  "valid_per_slot": {
+    "C_activity_or_relation": 3810,
+    "C_color_texture": 10042,
+    "C_global": 0,
+    "C_primary_object": 7890,
+    "C_scene_type": 9960,
+    "C_secondary_object": 8180
+  }
+}

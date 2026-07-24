@@ -120,5 +120,5 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --bidirectional_token_prune \
     --bidirectional_token_prune_visual_ratio "$BI_V" \
     --bidirectional_token_prune_text_ratio "$BI_T" \
-    --eval_cache_dir "$CACHE" \
+    --eval_cache_dir "${EVAL_CACHE:-$CACHE}" \
     ${EXTRA_ARGS:-} -ev -s 2>&1 | tee "$LOG"

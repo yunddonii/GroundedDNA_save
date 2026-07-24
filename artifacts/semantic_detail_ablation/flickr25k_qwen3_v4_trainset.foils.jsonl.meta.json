@@ -1,0 +1,46 @@
+{
+  "contract": {
+    "edits_per_foil_caption": 1,
+    "generation_uses_external_model_or_api": false,
+    "global_slot_valid": false,
+    "replacement_absent_from_all_factual_captions": true
+  },
+  "edit_family_counts": {
+    "action": 862,
+    "color": 6849,
+    "ground": 227,
+    "lighting": 84,
+    "material": 208,
+    "object": 2033,
+    "relation": 2673,
+    "scene": 4362,
+    "shape": 751,
+    "size": 755,
+    "texture": 586,
+    "weather": 10
+  },
+  "max_rows": -1,
+  "output_jsonl": "/home/yschoi/GroundedDNA/artifacts/semantic_detail_ablation/flickr25k_qwen3_v4_trainset.foils.jsonl",
+  "output_sha256": "f4d89115fc2abe09d45d00c9eacd86dfa665cd795250dcfcfe5dd468b1201dbd",
+  "rows": 5000,
+  "schema_version": "groundeddna-local-caption-foil-v1",
+  "seed": 0,
+  "slot_keys": [
+    "C_global",
+    "C_primary_object",
+    "C_secondary_object",
+    "C_activity_or_relation",
+    "C_color_texture",
+    "C_scene_type"
+  ],
+  "source_jsonl": "/home/yschoi/GroundedDNA/cache/flickr25k_qwen3_v4_trainset.jsonl",
+  "source_sha256": "e01137bcc7f762da2bd6d824fa2727e9b9e3d1c584f526dee73ea8c6dacd9047",
+  "valid_per_slot": {
+    "C_activity_or_relation": 1770,
+    "C_color_texture": 4781,
+    "C_global": 0,
+    "C_primary_object": 3985,
+    "C_scene_type": 4780,
+    "C_secondary_object": 4084
+  }
+}

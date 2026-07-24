@@ -1,0 +1,46 @@
+{
+  "contract": {
+    "edits_per_foil_caption": 1,
+    "generation_uses_external_model_or_api": false,
+    "global_slot_valid": false,
+    "replacement_absent_from_all_factual_captions": true
+  },
+  "edit_family_counts": {
+    "action": 390,
+    "color": 6559,
+    "ground": 443,
+    "lighting": 24,
+    "material": 174,
+    "object": 4996,
+    "relation": 2323,
+    "scene": 1123,
+    "shape": 445,
+    "size": 568,
+    "texture": 151,
+    "weather": 21
+  },
+  "max_rows": -1,
+  "output_jsonl": "/home/yschoi/GroundedDNA/artifacts/semantic_detail_multidataset/cifar10.foils.jsonl",
+  "output_sha256": "88086635fc433e002da581ff11be33fc51eaf22d1d3fbf90a7755926d5548c65",
+  "rows": 6097,
+  "schema_version": "groundeddna-local-caption-foil-v1",
+  "seed": 0,
+  "slot_keys": [
+    "C_global",
+    "C_head_or_main_part",
+    "C_body_or_secondary_part",
+    "C_limb_or_detail_part",
+    "C_color_texture",
+    "C_background_null"
+  ],
+  "source_jsonl": "/home/yschoi/GroundedDNA/cache/cifar10_qwen.jsonl",
+  "source_sha256": "6e2f055bc3f763b883d42d28ae112836dad9f670cf31a817e715b701fb0d017c",
+  "valid_per_slot": {
+    "C_background_null": 3712,
+    "C_body_or_secondary_part": 3199,
+    "C_color_texture": 5925,
+    "C_global": 0,
+    "C_head_or_main_part": 3870,
+    "C_limb_or_detail_part": 511
+  }
+}

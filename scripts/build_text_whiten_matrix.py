@@ -47,7 +47,17 @@ def main() -> None:
                          "residualized local population (N * 5 vectors) and "
                          "should pair with --text_embed_transform "
                          "global_residual_whiten at training time.")
+    ap.add_argument("--local_slots_only", action="store_true",
+                    help="Fit whitening statistics from local slots 1..5 only. "
+                         "This is the strict global-caption-free fit used with "
+                         "partial_whiten; slot 0 never contributes to mu/Sigma.")
     args = ap.parse_args()
+
+    if args.local_slots_only and args.residualize_first:
+        raise SystemExit(
+            "[whiten] --local_slots_only cannot be combined with "
+            "--residualize_first: residualization consumes C_global."
+        )
 
     tp_path = os.path.join(args.cache_dir, "text_part.f16.npy")
     ht_path = os.path.join(args.cache_dir, "has_text.bool.npy")
@@ -89,6 +99,19 @@ def main() -> None:
         T_local_res = T_full[:, 1:, :] - T_global                           # [N, 5, D]
         T_all = T_local_res.reshape(-1, D)                                  # [N*5, D]
         print(f"[whiten] T_all shape={T_all.shape}  load+residualize={time.time()-t0:.1f}s")
+    elif args.local_slots_only:
+        print(
+            f"[whiten] strict local-only fit: gathering {n_keep} rows * "
+            f"(M-1)={M - 1} = {n_keep * (M - 1)} vectors ..."
+        )
+        t0 = time.time()
+        T_all = np.asarray(
+            t_arr[keep_idx, 1:, :], dtype=np.float32,
+        ).reshape(-1, D)
+        print(
+            f"[whiten] T_all shape={T_all.shape}  "
+            f"load+cast={time.time()-t0:.1f}s"
+        )
     else:
         print(f"[whiten] gathering {n_keep} rows * M={M} = {n_keep * M} vectors ...")
         t0 = time.time()
@@ -129,6 +152,7 @@ def main() -> None:
         "rows_used": int(centered.shape[0]),
         "D": int(D),
         "residualize_first": bool(args.residualize_first),
+        "local_slots_only": bool(args.local_slots_only),
         "row_index_npy": (os.path.abspath(args.row_index_npy)
                           if args.row_index_npy else None),
         "leakage_free_fit": bool(args.row_index_npy),

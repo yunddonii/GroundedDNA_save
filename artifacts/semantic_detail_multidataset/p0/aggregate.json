@@ -1,0 +1,474 @@
+{
+  "cells": {
+    "cifar10:A": {
+      "arm": "A",
+      "dataset": "cifar10",
+      "errors": [],
+      "manifest": "/home/yschoi/GroundedDNA/artifacts/semantic_detail_multidataset/p0/cifar10_A_K128L4_p0.json",
+      "manifest_sha256": "395fbbae9cb5f4f3923fd6d2d8d4444ce3124a6d14e53efdc9f126c2fe976329",
+      "manifest_status": "complete",
+      "metrics": {
+        "DNA_unique_DB": 0.2519491525423729,
+        "full_mAP_bioproj": 0.8545192192669162,
+        "full_mAP_pre_projection": 0.8645984070040602,
+        "mAP_at_R_bioproj": 0.9073469593827228,
+        "map_r_cutoff": 1000
+      },
+      "stage1": {
+        "log": "/home/yschoi/GroundedDNA/logs/cifar10_semantic_detail_A_K128L4_P0val_s42.log",
+        "result_dir": "/home/yschoi/GroundedDNA/result/260723+cifar10_setting1_cifar10_semantic_detail_A_K128L4_P0val_s42+bs+64+e+60+proj_lr+0.001",
+        "selected_epoch": 9
+      },
+      "stage2": {
+        "log": "/home/yschoi/GroundedDNA/logs/cifar10_semantic_detail_A_K128L4_P0refit_e9_s42.log",
+        "result_dir": "/home/yschoi/GroundedDNA/result/260723+cifar10_setting1_cifar10_semantic_detail_A_K128L4_P0refit_e9_s42+bs+64+e+60+proj_lr+0.001"
+      },
+      "validation_status": "complete_valid"
+    },
+    "cifar10:ABC": {
+      "arm": "ABC",
+      "dataset": "cifar10",
+      "errors": [],
+      "manifest": "/home/yschoi/GroundedDNA/artifacts/semantic_detail_multidataset/p0/cifar10_ABC_K128L4_p0.json",
+      "manifest_sha256": "6aae80047b361936614b6e7d2d862ddfbc11faf2f6ea8e82edc24c4df511b2a6",
+      "manifest_status": "complete",
+      "metrics": {
+        "DNA_unique_DB": 0.24422033898305084,
+        "full_mAP_bioproj": 0.8424320341503448,
+        "full_mAP_pre_projection": 0.84911358656213,
+        "mAP_at_R_bioproj": 0.9056391396097602,
+        "map_r_cutoff": 1000
+      },
+      "stage1": {
+        "log": "/home/yschoi/GroundedDNA/logs/cifar10_semantic_detail_ABC_K128L4_P0val_s42.log",
+        "result_dir": "/home/yschoi/GroundedDNA/result/260723+cifar10_setting1_cifar10_semantic_detail_ABC_K128L4_P0val_s42+bs+64+e+60+proj_lr+0.001",
+        "selected_epoch": 14
+      },
+      "stage2": {
+        "log": "/home/yschoi/GroundedDNA/logs/cifar10_semantic_detail_ABC_K128L4_P0refit_e14_s42.log",
+        "result_dir": "/home/yschoi/GroundedDNA/result/260723+cifar10_setting1_cifar10_semantic_detail_ABC_K128L4_P0refit_e14_s42+bs+64+e+60+proj_lr+0.001"
+      },
+      "validation_status": "complete_valid"
+    },
+    "flickr:A": {
+      "arm": "A",
+      "dataset": "flickr",
+      "errors": [],
+      "manifest": "/home/yschoi/GroundedDNA/artifacts/semantic_detail_multidataset/p0/flickr_A_K128L4_p0.json",
+      "manifest_sha256": "e7189f4e8b759829600bf2a5e507d075fdf5eedcce5cafe30481a582fe4e055c",
+      "manifest_status": "complete",
+      "metrics": {
+        "DNA_unique_DB": 0.4923913043478261,
+        "full_mAP_bioproj": 0.7821772425104859,
+        "full_mAP_pre_projection": 0.7846371994624982,
+        "mAP_at_R_bioproj": 0.8807220398370806,
+        "map_r_cutoff": 5000
+      },
+      "stage1": {
+        "log": "/home/yschoi/GroundedDNA/logs/flickr_semantic_detail_A_K128L4_P0val_s42.log",
+        "result_dir": "/home/yschoi/GroundedDNA/result/260723+flickr25k_setting1_flickr_semantic_detail_A_K128L4_P0val_s42+bs+64+e+60+proj_lr+0.001",
+        "selected_epoch": 4
+      },
+      "stage2": {
+        "log": "/home/yschoi/GroundedDNA/logs/flickr_semantic_detail_A_K128L4_P0refit_e4_s42.log",
+        "result_dir": "/home/yschoi/GroundedDNA/result/260723+flickr25k_setting1_flickr_semantic_detail_A_K128L4_P0refit_e4_s42+bs+64+e+60+proj_lr+0.001"
+      },
+      "validation_status": "complete_valid"
+    },
+    "flickr:ABC": {
+      "arm": "ABC",
+      "dataset": "flickr",
+      "errors": [],
+      "manifest": "/home/yschoi/GroundedDNA/artifacts/semantic_detail_multidataset/p0/flickr_ABC_K128L4_p0.json",
+      "manifest_sha256": "d37ff2aaf79af3aa7e40eb03dc7ad78f961f1b142cd3d7c8fc2e1435f83062e5",
+      "manifest_status": "complete",
+      "metrics": {
+        "DNA_unique_DB": 0.48769565217391303,
+        "full_mAP_bioproj": 0.7788549012378231,
+        "full_mAP_pre_projection": 0.7832240262243202,
+        "mAP_at_R_bioproj": 0.8793014589589057,
+        "map_r_cutoff": 5000
+      },
+      "stage1": {
+        "log": "/home/yschoi/GroundedDNA/logs/flickr_semantic_detail_ABC_K128L4_P0val_s42.log",
+        "result_dir": "/home/yschoi/GroundedDNA/result/260723+flickr25k_setting1_flickr_semantic_detail_ABC_K128L4_P0val_s42+bs+64+e+60+proj_lr+0.001",
+        "selected_epoch": 4
+      },
+      "stage2": {
+        "log": "/home/yschoi/GroundedDNA/logs/flickr_semantic_detail_ABC_K128L4_P0refit_e4_s42.log",
+        "result_dir": "/home/yschoi/GroundedDNA/result/260723+flickr25k_setting1_flickr_semantic_detail_ABC_K128L4_P0refit_e4_s42+bs+64+e+60+proj_lr+0.001"
+      },
+      "validation_status": "complete_valid"
+    },
+    "mscoco:A": {
+      "arm": "A",
+      "dataset": "mscoco",
+      "errors": [],
+      "manifest": "/home/yschoi/GroundedDNA/artifacts/semantic_detail_multidataset/p0/mscoco_A_K128L4_p0.json",
+      "manifest_sha256": "095708cc085cbe42544656f946dd20a89d01052076f5d5cb43852ab5886b4570",
+      "manifest_status": "complete",
+      "metrics": {
+        "DNA_unique_DB": 0.21847077916021562,
+        "full_mAP_bioproj": 0.5994901231904329,
+        "full_mAP_pre_projection": 0.607408879128655,
+        "mAP_at_R_bioproj": 0.8154965281627852,
+        "map_r_cutoff": 5000
+      },
+      "stage1": {
+        "log": "/home/yschoi/GroundedDNA/logs/mscoco_semantic_detail_A_K128L4_P0val_s42.log",
+        "result_dir": "/home/yschoi/GroundedDNA/result/260723+mscoco_setting1_mscoco_semantic_detail_A_K128L4_P0val_s42+bs+64+e+60+proj_lr+0.001",
+        "selected_epoch": 39
+      },
+      "stage2": {
+        "log": "/home/yschoi/GroundedDNA/logs/mscoco_semantic_detail_A_K128L4_P0refit_e39_s42.log",
+        "result_dir": "/home/yschoi/GroundedDNA/result/260723+mscoco_setting1_mscoco_semantic_detail_A_K128L4_P0refit_e39_s42+bs+64+e+60+proj_lr+0.001"
+      },
+      "validation_status": "complete_valid"
+    },
+    "mscoco:ABC": {
+      "arm": "ABC",
+      "dataset": "mscoco",
+      "errors": [],
+      "manifest": "/home/yschoi/GroundedDNA/artifacts/semantic_detail_multidataset/p0/mscoco_ABC_K128L4_p0.json",
+      "manifest_sha256": "a3a9f3f71f37a36d8261763f97b1c4efec77e1432fa52491a4a3096bab2567e0",
+      "manifest_status": "complete",
+      "metrics": {
+        "DNA_unique_DB": 0.22295696618105168,
+        "full_mAP_bioproj": 0.6078589577674892,
+        "full_mAP_pre_projection": 0.6121788569960674,
+        "mAP_at_R_bioproj": 0.820677966820762,
+        "map_r_cutoff": 5000
+      },
+      "stage1": {
+        "log": "/home/yschoi/GroundedDNA/logs/mscoco_semantic_detail_ABC_K128L4_P0val_s42.log",
+        "result_dir": "/home/yschoi/GroundedDNA/result/260723+mscoco_setting1_mscoco_semantic_detail_ABC_K128L4_P0val_s42+bs+64+e+60+proj_lr+0.001",
+        "selected_epoch": 24
+      },
+      "stage2": {
+        "log": "/home/yschoi/GroundedDNA/logs/mscoco_semantic_detail_ABC_K128L4_P0refit_e24_s42.log",
+        "result_dir": "/home/yschoi/GroundedDNA/result/260723+mscoco_setting1_mscoco_semantic_detail_ABC_K128L4_P0refit_e24_s42+bs+64+e+60+proj_lr+0.001"
+      },
+      "validation_status": "complete_valid"
+    },
+    "nuswide:A": {
+      "arm": "A",
+      "dataset": "nuswide",
+      "errors": [],
+      "manifest": "/home/yschoi/GroundedDNA/artifacts/semantic_detail_multidataset/p0/nuswide_A_K128L4_p0.json",
+      "manifest_sha256": "e3122b46996cea9bb9d1fc652f58b839977fb5d6c15333a9bea7f0f8de076924",
+      "manifest_status": "complete",
+      "metrics": {
+        "DNA_unique_DB": 0.24193481784302187,
+        "full_mAP_bioproj": 0.6242446772104654,
+        "full_mAP_pre_projection": 0.6285430170619507,
+        "mAP_at_R_bioproj": 0.8340972053889655,
+        "map_r_cutoff": 5000
+      },
+      "stage1": {
+        "log": "/home/yschoi/GroundedDNA/logs/nuswide_semantic_detail_A_K128L4_P0val_s42.log",
+        "result_dir": "/home/yschoi/GroundedDNA/result/260723+nuswide_setting1_nuswide_semantic_detail_A_K128L4_P0val_s42+bs+64+e+60+proj_lr+0.001",
+        "selected_epoch": 4
+      },
+      "stage2": {
+        "log": "/home/yschoi/GroundedDNA/logs/nuswide_semantic_detail_A_K128L4_P0refit_e4_s42.log",
+        "result_dir": "/home/yschoi/GroundedDNA/result/260723+nuswide_setting1_nuswide_semantic_detail_A_K128L4_P0refit_e4_s42+bs+64+e+60+proj_lr+0.001"
+      },
+      "validation_status": "complete_valid"
+    },
+    "nuswide:ABC": {
+      "arm": "ABC",
+      "dataset": "nuswide",
+      "errors": [],
+      "manifest": "/home/yschoi/GroundedDNA/artifacts/semantic_detail_multidataset/p0/nuswide_ABC_K128L4_p0.json",
+      "manifest_sha256": "629d16d913b21623b243a714a4466e5e1a5c62d3e79fceb8228322878e0a4473",
+      "manifest_status": "complete",
+      "metrics": {
+        "DNA_unique_DB": 0.22261451268233765,
+        "full_mAP_bioproj": 0.6297222973967088,
+        "full_mAP_pre_projection": 0.635172341176735,
+        "mAP_at_R_bioproj": 0.8365910688092545,
+        "map_r_cutoff": 5000
+      },
+      "stage1": {
+        "log": "/home/yschoi/GroundedDNA/logs/nuswide_semantic_detail_ABC_K128L4_P0val_s42.log",
+        "result_dir": "/home/yschoi/GroundedDNA/result/260723+nuswide_setting1_nuswide_semantic_detail_ABC_K128L4_P0val_s42+bs+64+e+60+proj_lr+0.001",
+        "selected_epoch": 4
+      },
+      "stage2": {
+        "log": "/home/yschoi/GroundedDNA/logs/nuswide_semantic_detail_ABC_K128L4_P0refit_e4_s42.log",
+        "result_dir": "/home/yschoi/GroundedDNA/result/260723+nuswide_setting1_nuswide_semantic_detail_ABC_K128L4_P0refit_e4_s42+bs+64+e+60+proj_lr+0.001"
+      },
+      "validation_status": "complete_valid"
+    }
+  },
+  "comparisons": {
+    "cifar10": {
+      "A": {
+        "DNA_unique_DB": 0.2519491525423729,
+        "full_mAP_bioproj": 0.8545192192669162,
+        "full_mAP_pre_projection": 0.8645984070040602,
+        "mAP_at_R_bioproj": 0.9073469593827228,
+        "map_r_cutoff": 1000
+      },
+      "ABC": {
+        "DNA_unique_DB": 0.24422033898305084,
+        "full_mAP_bioproj": 0.8424320341503448,
+        "full_mAP_pre_projection": 0.84911358656213,
+        "mAP_at_R_bioproj": 0.9056391396097602,
+        "map_r_cutoff": 1000
+      },
+      "ABC_minus_A": {
+        "DNA_unique_DB": -0.007728813559322034,
+        "mAP_at_R_bioproj": -0.0017078197729626376
+      },
+      "ABC_minus_archived_incumbent": {
+        "DNA_unique_DB": -0.012966101694915244,
+        "mAP_at_R_bioproj": 0.002378481673559474
+      },
+      "archived_incumbent": {
+        "DNA_unique_DB": 0.2571864406779661,
+        "mAP_at_R_bioproj": 0.9032606579362007,
+        "map_r_cutoff": 1000,
+        "source": "/home/yschoi/GroundedDNA/result/260722+cifar10_setting1_cifar10_K128_L4_P0refit_e14+bs+64+e+60+proj_lr+0.001/cell_result.json",
+        "source_sha256": "4a46cec9699ebb7397f57977aa81e0274e3c418bf250b7259ead6ad637132674"
+      }
+    },
+    "flickr": {
+      "A": {
+        "DNA_unique_DB": 0.4923913043478261,
+        "full_mAP_bioproj": 0.7821772425104859,
+        "full_mAP_pre_projection": 0.7846371994624982,
+        "mAP_at_R_bioproj": 0.8807220398370806,
+        "map_r_cutoff": 5000
+      },
+      "ABC": {
+        "DNA_unique_DB": 0.48769565217391303,
+        "full_mAP_bioproj": 0.7788549012378231,
+        "full_mAP_pre_projection": 0.7832240262243202,
+        "mAP_at_R_bioproj": 0.8793014589589057,
+        "map_r_cutoff": 5000
+      },
+      "ABC_minus_A": {
+        "DNA_unique_DB": -0.004695652173913045,
+        "mAP_at_R_bioproj": -0.0014205808781749818
+      },
+      "ABC_minus_archived_incumbent": {
+        "DNA_unique_DB": -0.010478260869565215,
+        "mAP_at_R_bioproj": 0.005066826397811863
+      },
+      "archived_incumbent": {
+        "DNA_unique_DB": 0.49817391304347824,
+        "mAP_at_R_bioproj": 0.8742346325610938,
+        "map_r_cutoff": 5000,
+        "source": "/home/yschoi/GroundedDNA/result/260722+flickr25k_setting1_flickr_K128_L4_P0refit_e4+bs+64+e+60+proj_lr+0.001/cell_result.json",
+        "source_sha256": "60d014cd2e70f334ba5d5baaf296880454b9f7911f6a03e181895e48697678da"
+      }
+    },
+    "mscoco": {
+      "A": {
+        "DNA_unique_DB": 0.21847077916021562,
+        "full_mAP_bioproj": 0.5994901231904329,
+        "full_mAP_pre_projection": 0.607408879128655,
+        "mAP_at_R_bioproj": 0.8154965281627852,
+        "map_r_cutoff": 5000
+      },
+      "ABC": {
+        "DNA_unique_DB": 0.22295696618105168,
+        "full_mAP_bioproj": 0.6078589577674892,
+        "full_mAP_pre_projection": 0.6121788569960674,
+        "mAP_at_R_bioproj": 0.820677966820762,
+        "map_r_cutoff": 5000
+      },
+      "ABC_minus_A": {
+        "DNA_unique_DB": 0.004486187020836058,
+        "mAP_at_R_bioproj": 0.005181438657976822
+      },
+      "ABC_minus_archived_incumbent": {
+        "DNA_unique_DB": 0.004514167397265373,
+        "mAP_at_R_bioproj": -0.004996737809562779
+      },
+      "archived_incumbent": {
+        "DNA_unique_DB": 0.2184427987837863,
+        "mAP_at_R_bioproj": 0.8256747046303248,
+        "map_r_cutoff": 5000,
+        "source": "/home/yschoi/GroundedDNA/result/260721+mscoco_setting1_mscoco_K128_L4_P0refit_e24+bs+64+e+60+proj_lr+0.001/cell_result.json",
+        "source_sha256": "38690043b0439fb7bd813508c521193c21715783260b83653ba313830dd242fd"
+      }
+    },
+    "nuswide": {
+      "A": {
+        "DNA_unique_DB": 0.24193481784302187,
+        "full_mAP_bioproj": 0.6242446772104654,
+        "full_mAP_pre_projection": 0.6285430170619507,
+        "mAP_at_R_bioproj": 0.8340972053889655,
+        "map_r_cutoff": 5000
+      },
+      "ABC": {
+        "DNA_unique_DB": 0.22261451268233765,
+        "full_mAP_bioproj": 0.6297222973967088,
+        "full_mAP_pre_projection": 0.635172341176735,
+        "mAP_at_R_bioproj": 0.8365910688092545,
+        "map_r_cutoff": 5000
+      },
+      "ABC_minus_A": {
+        "DNA_unique_DB": -0.019320305160684226,
+        "mAP_at_R_bioproj": 0.002493863420289011
+      },
+      "ABC_minus_archived_incumbent": {
+        "DNA_unique_DB": -0.01409148626467216,
+        "mAP_at_R_bioproj": 0.003763799452213168
+      },
+      "archived_incumbent": {
+        "DNA_unique_DB": 0.2367059989470098,
+        "mAP_at_R_bioproj": 0.8328272693570413,
+        "map_r_cutoff": 5000,
+        "source": "/home/yschoi/GroundedDNA/result/260721+nuswide_setting1_nuswide_K128_L4_P0refit_e4+bs+64+e+60+proj_lr+0.001/cell_result.json",
+        "source_sha256": "fec63c800e95574491fc096dd0bbeaab76296bade960e20110118276476e25f8"
+      }
+    }
+  },
+  "generated_at": "2026-07-23T20:29:33.477482+00:00",
+  "matrix": {
+    "K": 128,
+    "arms": [
+      "A",
+      "ABC"
+    ],
+    "datasets": [
+      "flickr",
+      "mscoco",
+      "nuswide",
+      "cifar10"
+    ],
+    "dna_bases": 24,
+    "manifest_dir": "/home/yschoi/GroundedDNA/artifacts/semantic_detail_multidataset/p0",
+    "num_codons_per_codebook": 4,
+    "seed": 42
+  },
+  "protocol_identity": {
+    "common_source_versions": {
+      "config.py": [
+        "b6f13665191ed30a8f9b0761a8aceac1e759939e02c74fae09bdd5a67b3b0f8d"
+      ],
+      "dataloaders.py": [
+        "8632d4328e529c5b9967f4ffadcc5eeda6809c51fa844d3fdbdda2462e5f8315"
+      ],
+      "dna_utils/__init__.py": [
+        "b20f32c8266c4bbdd4efa88fc1ce23bb17cacd7c76fa7ddcdd04437275c082e3"
+      ],
+      "dna_utils/bio_constraints.py": [
+        "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030"
+      ],
+      "dna_utils/csv_logger.py": [
+        "68450e316bf775989f547b2593131e767e24903b3bef0893bda7a27055cb8d6f"
+      ],
+      "dna_utils/dna_code_utils.py": [
+        "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888"
+      ],
+      "dna_utils/text_description_processor.py": [
+        "e2028a9d007de711eebcb1b00e7a5fcb37e593d06c28231f3fa9bbf0a0541221"
+      ],
+      "dna_utils/training_utils.py": [
+        "f1a6ef9a0383312e4d52e0d693656c778ea620e53e69dc61f75d2510946cddb8"
+      ],
+      "dna_utils/visualization.py": [
+        "96d82f88eef14794b3b7282136a40a2fdb2d40d0f1994ee1cf7a2387ebfbc2e5"
+      ],
+      "dna_utils/vlm_qwen25_descriptions.py": [
+        "3c5a865ed264612dd0ff4b9663cd6e7e27c0b4d7c1b02f5045d22c633719f39c"
+      ],
+      "evaluation_siglip2.py": [
+        "97496f62e3b3349745af1d1c84cc48feb142ee32ecd61a8cc58b50c1b76b03c7"
+      ],
+      "extraction_siglip2.py": [
+        "77e24917180ddbef22a5ad304c447beddeedcf6f4e3dacd75d8847f0eb0fa614"
+      ],
+      "loss_siglip2.py": [
+        "6340cf85c826f8a8771ca66632cbabdf7705cfd770b92e2137d764c4dac0e183"
+      ],
+      "model_siglip2.py": [
+        "6599ef81d86a8cecaf5e85125d5ca683554742b9dbdbdc5642639de9817bcc1e"
+      ],
+      "models/__init__.py": [
+        "18106eb4dc331c9fbad2734a6e7bf5bc4d1870ba6cde514e9361baee10978444"
+      ],
+      "models/adapters.py": [
+        "0aa62a08472ef29662480023747caf661104d70b006f14311be7ffc165c68c4a"
+      ],
+      "models/cluster_attention_router.py": [
+        "2c69889d8d84b70fdf3fb2c571217da1ca06f76f0b49be8dd0d0485ffdc7c13e"
+      ],
+      "models/pretrained_backbone.py": [
+        "e86953f0760c8f46649b2152b0d2e812053f549da75b9c5a97de05fbd5801b3f"
+      ],
+      "models/pretrained_backbone_clip.py": [
+        "3ea4612eac5740ff6e36cc414550bfa48ec7a0a5fcc90deb6496b817e226c530"
+      ],
+      "models/semantic_router.py": [
+        "37588d540e4a7fea2471fda5f5dbcf138625bf49a661b6c6343825c251294ee3"
+      ],
+      "models/text_cross_attention_router.py": [
+        "559677f2659ab1a543e1fed145891a67ffc5a7eb38ecb4f197b0cfa76e3302ec"
+      ],
+      "models/text_encoder.py": [
+        "0ed8d4f6db5ce87f0f5c18ccc804a631fe0c2502ff218630c91b7217938c0a7b"
+      ],
+      "models/visual_encoder.py": [
+        "9d38599dcd07377c3e4b8f89a1da4f5965515529023761c26dae587592cf8565"
+      ],
+      "p0_protocol.py": [
+        "da9aee20f221e896ca2cec3371bb1568568ec831b2c7eaf4f2b0f5f68fade399"
+      ],
+      "scripts/build_text_whiten_matrix.py": [
+        "76e9332662154b1cc3579aeea343c8ec4d917d6fea2007188909cafd456338a0"
+      ],
+      "scripts/eval_cell_bioproj.py": [
+        "bc8d74138b2a0146ecf22d051ba880786fa3e6f277fab8bf1b24d9ec9264978a"
+      ],
+      "scripts/prepare_semantic_detail_cache.py": [
+        "0fc8877c0bc7badc6ab8448e28fa666ac632d4249afe5f6d45b5fa085a58d870"
+      ],
+      "scripts/prepare_semantic_detail_cache.sh": [
+        "ea1539f891401d35edfce9cffe22ea972da63e58920ed4224dc30ecc8543c20e"
+      ],
+      "scripts/run_semantic_detail_multidataset_p0.sh": [
+        "9850fbda02e85c38182ef6701996a5e0de6f3dae762620fa4cad6bf584d0dcb8"
+      ],
+      "scripts/run_semantic_detail_p0_cell.sh": [
+        "4c1a52802f203ee84be9673828dc3faed90def12a7e80f32ef755c67a531cf4d"
+      ],
+      "train_siglip2.py": [
+        "4f860fd16029cef74f8c6647cdef1b875e24957be11c95df7a8e509b0544cfc7"
+      ],
+      "val_split.py": [
+        "95e415c6f43b714fc349c44c5d449e667429bc0f15fb4af9c4389e82ca9eecc2"
+      ]
+    },
+    "fixed_contract": {
+      "K": 128,
+      "bio_projection": {
+        "gc_max_frac": 0.584,
+        "gc_min_frac": 0.416,
+        "mandatory": true
+      },
+      "dna_bases": 24,
+      "name": "semantic-detail cross-dataset P0",
+      "num_codons_per_codebook": 4,
+      "official_test_evaluations": 1,
+      "seed": 42,
+      "stage1": "90% opt-train; 10% held-out train validation; select E*",
+      "stage2": "scratch refit on 100% train through E*"
+    },
+    "fixed_contract_sha256": "d226f28738e198cc1bd0705e5e5f294440b509b940ac1f61006c7827a7662333"
+  },
+  "schema_version": 1,
+  "summary": {
+    "archived_incumbent_errors": [],
+    "complete_valid": 8,
+    "expected": 8,
+    "incomplete_valid": 0,
+    "invalid": 0,
+    "missing": 0,
+    "table_ready": true
+  }
+}

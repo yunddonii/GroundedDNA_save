@@ -2073,6 +2073,11 @@ class SigLIP2SemanticOTModel(nn.Module):
         # by the InfoNCE-form visual-textual contrastive loss alone (without
         # requiring the MSE-form lambda_text_hash > 0).
         self.lambda_text_hash_ntxent     = float(getattr(args, "lambda_text_hash_ntxent", 0.0))
+        # Counterfactual foil path is train-only and loss-only: foils never
+        # become routing centroids or quantizer EMA observations.
+        self.text_hash_counterfactual_weight = float(
+            getattr(args, "text_hash_counterfactual_weight", 0.0)
+        )
         # v93: per-codebook cross-modal codeword InfoNCE. When > 0, the same
         # text path used by lambda_text_hash is activated (text_part_tokens
         # through EMA-disabled quantizer) and the resulting text codeword is
@@ -2907,6 +2912,252 @@ class SigLIP2SemanticOTModel(nn.Module):
             head.gumbel_tau = tau
         self.gumbel_tau = tau
 
+    def _adapt_pooled_text_for_loss(self, raw: torch.Tensor) -> torch.Tensor:
+        """Apply the factual loss-side pooled-text transform to foil features.
+
+        Counterfactual captions are intentionally not routed and do not use
+        visual-conditioned token attention.  They do, however, share the
+        same fixed whitening/centering transform, prompt bias, and learnable
+        per-slot text adapter as the factual text-DNA path.
+        """
+        if raw.dim() != 3 or raw.shape[1] != NUM_SEMANTIC_PARTS:
+            raise ValueError(
+                "pooled text for DNA loss must be [B, 6, D_proj], got "
+                f"{tuple(raw.shape)}"
+            )
+        original_dtype = raw.dtype
+        tx_mode = self.text_embed_transform
+        routing_only = bool(getattr(self, "text_transform_routing_only", False))
+        if routing_only and tx_mode in (
+            "per_image_mean", "global_residual", "partial_whiten",
+        ):
+            # The factual branch uses untransformed embeddings for losses in
+            # this mode; only its routing centroids are transformed.
+            tx_mode = "none"
+
+        if tx_mode == "per_image_mean":
+            global_slot = raw[:, :1, :]
+            local = raw[:, 1:, :]
+            local = F.normalize(local - local.mean(dim=1, keepdim=True), dim=-1)
+            raw = torch.cat([global_slot, local], dim=1)
+        elif tx_mode == "global_residual":
+            global_slot = raw[:, :1, :]
+            local = F.normalize(raw[:, 1:, :] - global_slot, dim=-1)
+            raw = torch.cat([global_slot, local], dim=1)
+        elif tx_mode == "partial_whiten":
+            if not getattr(self, "_text_whiten_ready", False):
+                raise RuntimeError(
+                    "counterfactual text path requires loaded partial-whiten buffers"
+                )
+            shape = raw.shape
+            flat = raw.reshape(-1, shape[-1]).to(self.text_whiten_mu.dtype)
+            flat = (flat - self.text_whiten_mu) @ self.text_whiten_W
+            raw = flat.reshape(shape).to(original_dtype)
+        elif tx_mode == "global_residual_whiten":
+            if not getattr(self, "_text_whiten_ready", False):
+                raise RuntimeError(
+                    "counterfactual text path requires loaded residual-whiten buffers"
+                )
+            global_slot = raw[:, :1, :]
+            local = raw[:, 1:, :] - global_slot
+            shape = local.shape
+            flat = local.reshape(-1, shape[-1]).to(self.text_whiten_mu.dtype)
+            flat = (flat - self.text_whiten_mu) @ self.text_whiten_W
+            local = flat.reshape(shape).to(original_dtype)
+            raw = torch.cat([global_slot, local], dim=1)
+
+        if self.codebook_text_prompts is not None:
+            raw = raw + self.codebook_text_prompts.unsqueeze(0)
+        if self.per_slot_text_adapter:
+            return torch.stack(
+                [self.text_adapter[m](raw[:, m, :])
+                 for m in range(NUM_SEMANTIC_PARTS)],
+                dim=1,
+            )
+        return self.text_adapter(raw)
+
+    def _pool_local_foil_tokens_like_factual(
+        self,
+        cached_text_foil_tokens: torch.Tensor,
+        cached_text_foil_token_mask: torch.Tensor,
+        visual_tokens_raw: torch.Tensor,
+        visual_attention_mask: Optional[torch.Tensor],
+    ) -> torch.Tensor:
+        """Reproduce v185's factual token-prune/mean pool for local foils.
+
+        Using the ordinary CLIP pooled/EOS feature here would give the
+        classifier a trivial representation-domain cue instead of forcing it
+        to learn the edited word. The implementation intentionally mirrors
+        the factual block in ``forward`` without letting foil tokens affect
+        the visual keep mask or routing.
+        """
+        if self.backbone_type != "clip":
+            raise RuntimeError(
+                "token-matched counterfactual pooling currently requires CLIP"
+            )
+        if cached_text_foil_tokens.dim() != 4:
+            raise ValueError(
+                "cached_text_foil_tokens must be [B, 6, T, D_proj]"
+            )
+        B, M, T, D_proj = cached_text_foil_tokens.shape
+        if M != NUM_SEMANTIC_PARTS or D_proj != self.proj_dim:
+            raise ValueError(
+                "cached_text_foil_tokens must be [B, 6, T, D_proj], got "
+                f"{tuple(cached_text_foil_tokens.shape)}"
+            )
+        if cached_text_foil_token_mask.dtype != torch.bool:
+            raise TypeError(
+                "cached_text_foil_token_mask must have dtype torch.bool"
+            )
+        if cached_text_foil_token_mask.shape != (B, M, T):
+            raise ValueError(
+                "cached_text_foil_token_mask shape does not match token cache"
+            )
+
+        visual_projection = self.backbone.model.visual_projection
+        visual_shared = visual_projection(visual_tokens_raw)
+        visual_shared_n = F.normalize(visual_shared, dim=-1)
+        token_local = cached_text_foil_tokens[:, 1:, :, :]
+        mask_local = cached_text_foil_token_mask[:, 1:, :]
+        token_local_n = F.normalize(token_local, dim=-1)
+        similarity = torch.einsum(
+            "bnd,bmtd->bmnt", visual_shared_n, token_local_n,
+        )
+        _, M_local, N, _ = similarity.shape
+        if M_local != NUM_LOCAL_PARTS:
+            raise ValueError("foil token cache must contain five local slots")
+
+        if self.bidirectional_token_prune_mode in (
+            "mutual_dual_softmax", "mutual_consensus_residual",
+        ):
+            logit_scale = getattr(self.backbone.model, "logit_scale", None)
+            if logit_scale is not None:
+                scale = logit_scale.exp().detach().clamp(max=100.0)
+                similarity = similarity * scale.to(similarity.dtype)
+            mutual = _mutual_dual_softmax_pruning(
+                similarity=similarity,
+                text_mask=mask_local,
+                visual_mask=visual_attention_mask,
+                visual_keep_ratio=self.bidirectional_token_prune_visual_ratio,
+                text_keep_ratio=self.bidirectional_token_prune_text_ratio,
+                suppress_visual_consensus=(
+                    self.bidirectional_token_prune_mode
+                    == "mutual_consensus_residual"
+                ),
+            )
+            text_keep = mutual["text_keep"]
+        else:
+            similarity = similarity + (
+                ~mask_local.unsqueeze(2)
+            ).float() * (-1e4)
+            attention_text = similarity.softmax(dim=-2)
+            text_importance = attention_text.sum(dim=-2)
+            keep_count = max(
+                1,
+                int(T * self.bidirectional_token_prune_text_ratio),
+            )
+            threshold = text_importance.topk(
+                keep_count, dim=-1,
+            )[0][:, :, -1:]
+            text_keep = (text_importance >= threshold) & mask_local
+
+        keep = text_keep.unsqueeze(-1).to(token_local.dtype)
+        pooled = (token_local * keep).sum(dim=2)
+        pooled = pooled / keep.sum(dim=2).clamp(min=1.0)
+        if pooled.shape != (B, NUM_LOCAL_PARTS, self.proj_dim):
+            raise AssertionError(
+                f"unexpected pooled foil shape {tuple(pooled.shape)}"
+            )
+        return pooled
+
+    def _encode_text_tokens_to_dna(
+        self,
+        text_tokens: torch.Tensor,
+        *,
+        allow_mm_ema: bool,
+        deterministic_codon: bool = False,
+    ) -> Dict[str, torch.Tensor]:
+        """Shared text -> VQ -> codon path for factual captions and foils."""
+        if text_tokens.dim() != 3 or text_tokens.shape[1:] != (
+            NUM_SEMANTIC_PARTS, self.d_model,
+        ):
+            raise ValueError(
+                "text DNA encoder expects [B, 6, d_model], got "
+                f"{tuple(text_tokens.shape)}"
+            )
+        B = text_tokens.shape[0]
+        quantizer_tokens = text_tokens
+        if (
+            self.local_residual_quant
+            and self.local_residual_text
+            and self.local_residual_gamma > 0.0
+        ):
+            quantizer_tokens = self._remove_global_projection(
+                text_tokens,
+                gamma=self.local_residual_gamma,
+                detach_global=self.local_residual_detach_global,
+                name="text_tokens",
+            )
+
+        prev_train = self.quantizer.training
+        if not (allow_mm_ema and self.mm_ema):
+            self.quantizer.eval()
+        try:
+            tq_out = self.quantizer(quantizer_tokens)
+        finally:
+            if prev_train and not (allow_mm_ema and self.mm_ema):
+                self.quantizer.train()
+
+        text_q_st = tq_out["quantized_tokens"]
+        text_q_raw = tq_out["quantized_tokens_raw"]
+        text_cb_indices = tq_out["codebook_indices"]
+        text_codon_residual = (
+            quantizer_tokens - text_q_raw
+            if self.codon_residual_gamma > 0.0 else None
+        )
+        text_head_inputs = (
+            quantizer_tokens if self.codon_input_source == "routed"
+            else text_q_st
+        )
+        continuous = []
+        previous_head_modes = [head.training for head in self.codon_heads]
+        if deterministic_codon:
+            # CodonHead computes the same softmax probabilities in eval mode
+            # but skips its unused train-time Gumbel sample. This keeps the
+            # detached foil branch from perturbing the factual RNG stream.
+            for head in self.codon_heads:
+                head.eval()
+        try:
+            for m, head in enumerate(self.codon_heads):
+                residual_m = (
+                    text_codon_residual[:, m, :]
+                    if text_codon_residual is not None else None
+                )
+                text_chunk_m = quantizer_tokens[:, m, :] \
+                    if self.codon_text_anchor else None
+                head_out = head(
+                    text_head_inputs[:, m, :],
+                    residual=residual_m,
+                    gamma=self.codon_residual_gamma,
+                    text_chunks=text_chunk_m,
+                )
+                continuous.append(head_out["continuous_code"])
+        finally:
+            if deterministic_codon:
+                for head, was_training in zip(
+                    self.codon_heads, previous_head_modes,
+                ):
+                    head.train(was_training)
+        L = self.num_codons_per_codebook
+        return {
+            "continuous_code": torch.stack(continuous, dim=1).reshape(
+                B, NUM_SEMANTIC_PARTS * L, 4,
+            ),
+            "quantized_tokens": text_q_st,
+            "codebook_indices": text_cb_indices,
+            "quantizer_input": quantizer_tokens,
+        }
+
     # ====================================================== encoders
 
     def feature_extraction(
@@ -2966,6 +3217,11 @@ class SigLIP2SemanticOTModel(nn.Module):
         cached_has_text:          Optional[torch.Tensor] = None,       # [B] bool
         cached_text_tokens:       Optional[torch.Tensor] = None,       # [B, M, T, D_proj]
         cached_text_token_mask:   Optional[torch.Tensor] = None,       # [B, M, T] bool
+        cached_text_foil_raw:     Optional[torch.Tensor] = None,       # [B, M, D_proj]
+        cached_text_foil_valid:   Optional[torch.Tensor] = None,       # [B, M] bool
+        cached_text_foil_tokens:  Optional[torch.Tensor] = None,       # [B, M, T, D_proj]
+        cached_text_foil_token_mask: Optional[torch.Tensor] = None,    # [B, M, T] bool
+        compute_text_foil:        bool = True,
     ) -> Dict[str, Any]:
         """One full pass: encoders -> adapters -> routing -> quantization.
 
@@ -4550,6 +4806,7 @@ class SigLIP2SemanticOTModel(nn.Module):
                 )
         text_continuous_code = None
         text_quantized_tokens = None
+        text_cb_indices = None
         # v109: include lambda_text_hash_ntxent in the activation check so that
         # the text codon path is computed even when only the InfoNCE-form
         # visual-textual contrastive loss is enabled (lambda_text_hash=0 +
@@ -4562,54 +4819,104 @@ class SigLIP2SemanticOTModel(nn.Module):
              or _lam_text_hash_ntxent_local      > 0.0
              or float(self.lambda_cw_xmodal)     > 0.0
              or _lam_xmodal_commit_local         > 0.0)
-            and text_quantizer_tokens is not None
-            and text_quantizer_tokens.shape == (B, NUM_SEMANTIC_PARTS, D)
+            and text_part_tokens is not None
+            and text_part_tokens.shape == (B, NUM_SEMANTIC_PARTS, D)
         )
         if _text_path_active:
-            # (a) text quantization
-            # v161 MM-EMA: when self.mm_ema is True, keep the quantizer in
-            # train mode so the EMA codebook update sees text contributions
-            # as well as visual ones. Default (mm_ema=False) preserves
-            # legacy behavior of EMA-disabled text pass.
-            prev_train = self.quantizer.training
-            if not getattr(self, "mm_ema", False):
-                self.quantizer.eval()
-            try:
-                tq_out = self.quantizer(text_quantizer_tokens)
-            finally:
-                if prev_train and not getattr(self, "mm_ema", False):
-                    self.quantizer.train()
-            text_q_st       = tq_out["quantized_tokens"]       # [B, 6, D]  STE
-            text_q_raw      = tq_out["quantized_tokens_raw"]   # [B, 6, D]  codeword
-            text_cb_indices = tq_out["codebook_indices"]       # [B, 6]
-            # v93 exposure: text codeword (STE form so the InfoNCE gradient
-            # flows back through text_adapter via straight-through).
-            text_quantized_tokens = text_q_st
-            # (b) text codon-residual
-            if self.codon_residual_gamma > 0.0:
-                text_codon_residual = text_quantizer_tokens - text_q_raw
-            else:
-                text_codon_residual = None
-            # (c) skip global gate -> head input == text codeword directly
-            # v138: with codon_input_source=="routed", bypass the text-side
-            # VQ too; use the raw text-adapter output (text_quantizer_tokens)
-            # so the text codon path stays a continuous mirror of the visual one.
-            text_head_inputs = (
-                text_quantizer_tokens
-                if self.codon_input_source == "routed"
-                else text_q_st
+            factual_text_dna = self._encode_text_tokens_to_dna(
+                text_part_tokens,
+                allow_mm_ema=True,
             )
-            text_continuous_list = []
-            for m, head in enumerate(self.codon_heads):
-                r_m = (text_codon_residual[:, m, :]
-                       if text_codon_residual is not None else None)
-                t_m = (text_quantizer_tokens[:, m, :] if self.codon_text_anchor else None)
-                h_out = head(text_head_inputs[:, m, :],
-                             residual=r_m,
-                             gamma=self.codon_residual_gamma,
-                             text_chunks=t_m)
-                text_continuous_list.append(h_out["continuous_code"])  # [B, 3, 4]
-            text_continuous_code = torch.stack(text_continuous_list, dim=1).reshape(B, Mp3, 4)
+            text_continuous_code = factual_text_dna["continuous_code"]
+            text_quantized_tokens = factual_text_dna["quantized_tokens"]
+            text_cb_indices = factual_text_dna["codebook_indices"]
+            text_quantizer_tokens = factual_text_dna["quantizer_input"]
+
+        # B variant: encode one independently edited minimal-pair caption for
+        # every valid local slot through the same text adapter, quantizer, and
+        # codon heads. Foils never participate in routing or EMA updates and
+        # are consumed only as detached own-sample negatives by the loss.
+        text_foil_continuous_code = None
+        text_foil_codebook_indices = None
+        text_foil_valid_mask = None
+        if (
+            self.training
+            and
+            self.text_hash_counterfactual_weight > 0.0
+            and compute_text_foil
+        ):
+            if cached_text_foil_raw is None or cached_text_foil_valid is None:
+                raise RuntimeError(
+                    "counterfactual text-DNA training is enabled, but the "
+                    "batch has no text foil sidecars. Build/load "
+                    "text_foil_part.f16.npy and text_foil_valid.bool.npy."
+                )
+            if cached_text_foil_raw.dim() != 3 or cached_text_foil_raw.shape != (
+                B, NUM_SEMANTIC_PARTS, self.proj_dim,
+            ):
+                raise ValueError(
+                    "cached_text_foil_raw must be [B, 6, D_proj], got "
+                    f"{tuple(cached_text_foil_raw.shape)}"
+                )
+            if cached_text_foil_valid.dtype != torch.bool:
+                raise TypeError(
+                    "cached_text_foil_valid must have dtype torch.bool, got "
+                    f"{cached_text_foil_valid.dtype}"
+                )
+            if cached_text_foil_valid.shape != (B, NUM_SEMANTIC_PARTS):
+                raise ValueError(
+                    "cached_text_foil_valid must be [B, 6], got "
+                    f"{tuple(cached_text_foil_valid.shape)}"
+                )
+            if bool(cached_text_foil_valid[:, 0].any().item()):
+                raise ValueError("counterfactual C_global (slot 0) must be invalid")
+            if (
+                bool(cached_text_foil_valid.any().item())
+                and not bool(torch.isfinite(
+                    cached_text_foil_raw[cached_text_foil_valid],
+                ).all().item())
+            ):
+                raise ValueError("valid counterfactual text features must be finite")
+
+            # No gradient may optimize the foil encoder toward an easy
+            # language-only shortcut. Its value is nevertheless refreshed
+            # every step from the current factual text adapter/codon heads.
+            with torch.no_grad():
+                foil_raw_for_loss = cached_text_foil_raw
+                if self.bidirectional_token_prune:
+                    if (
+                        cached_text_foil_tokens is None
+                        or cached_text_foil_token_mask is None
+                    ):
+                        raise RuntimeError(
+                            "v185 counterfactual training requires token-level "
+                            "foil sidecars so factual and foil captions use "
+                            "the same prune/mean pooling path"
+                        )
+                    pooled_foil_local = self._pool_local_foil_tokens_like_factual(
+                        cached_text_foil_tokens,
+                        cached_text_foil_token_mask,
+                        feats["visual_tokens_raw"],
+                        visual_attention_mask,
+                    )
+                    foil_raw_for_loss = torch.cat(
+                        [
+                            torch.zeros_like(cached_text_foil_raw[:, :1, :]),
+                            pooled_foil_local.to(cached_text_foil_raw.dtype),
+                        ],
+                        dim=1,
+                    )
+                foil_text_tokens = self._adapt_pooled_text_for_loss(
+                    foil_raw_for_loss,
+                )
+                foil_text_dna = self._encode_text_tokens_to_dna(
+                    foil_text_tokens,
+                    allow_mm_ema=False,
+                    deterministic_codon=True,
+                )
+            text_foil_continuous_code = foil_text_dna["continuous_code"]
+            text_foil_codebook_indices = foil_text_dna["codebook_indices"]
+            text_foil_valid_mask = cached_text_foil_valid
 
         # 10) shape sanity --------------------------------------------------
         assert local_routing_matrix.shape == (B, N, NUM_LOCAL_PARTS), (
@@ -4702,6 +5009,10 @@ class SigLIP2SemanticOTModel(nn.Module):
             # [B, 18, 4] continuous code derived from text_part_tokens by
             # reusing the shared quantizer (EMA-disabled) and codon_heads.
             "text_continuous_code":              text_continuous_code,               # [B, 18, 4] or None
+            "text_codebook_indices":              text_cb_indices,                    # [B, 6] or None
+            "text_foil_continuous_code":          text_foil_continuous_code,          # [B, 18, 4] or None
+            "text_foil_codebook_indices":         text_foil_codebook_indices,         # [B, 6] or None
+            "text_foil_valid_mask":               text_foil_valid_mask,               # [B, 6] bool or None
             # v93 text codeword path. None when text path inactive; otherwise
             # the per-codebook quantized text codeword (codebook entry the
             # text_part_tokens were nearest-neighbour to). Used by

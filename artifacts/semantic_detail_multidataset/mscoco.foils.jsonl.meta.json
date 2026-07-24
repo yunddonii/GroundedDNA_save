@@ -1,0 +1,46 @@
+{
+  "contract": {
+    "edits_per_foil_caption": 1,
+    "generation_uses_external_model_or_api": false,
+    "global_slot_valid": false,
+    "replacement_absent_from_all_factual_captions": true
+  },
+  "edit_family_counts": {
+    "action": 2482,
+    "color": 11701,
+    "ground": 1241,
+    "lighting": 385,
+    "material": 406,
+    "object": 5857,
+    "relation": 6599,
+    "scene": 7970,
+    "shape": 3462,
+    "size": 2076,
+    "texture": 959,
+    "weather": 54
+  },
+  "max_rows": -1,
+  "output_jsonl": "/home/yschoi/GroundedDNA/artifacts/semantic_detail_multidataset/mscoco.foils.jsonl",
+  "output_sha256": "55e21b85b01b37e028c712ce86aa18e8b9f9fa7618fa55f438ad26b4b509f9f0",
+  "rows": 10000,
+  "schema_version": "groundeddna-local-caption-foil-v1",
+  "seed": 0,
+  "slot_keys": [
+    "C_global",
+    "C_primary_object",
+    "C_secondary_object",
+    "C_activity_or_relation",
+    "C_color_texture",
+    "C_scene_type"
+  ],
+  "source_jsonl": "/home/yschoi/GroundedDNA/cache/mscoco_qwen3_v5b_trainset.jsonl",
+  "source_sha256": "e4056c31cc40f2d659af15b46d38931239650d4861fdf237e599cd9a23d03cd0",
+  "valid_per_slot": {
+    "C_activity_or_relation": 6202,
+    "C_color_texture": 9973,
+    "C_global": 0,
+    "C_primary_object": 8844,
+    "C_scene_type": 9680,
+    "C_secondary_object": 8493
+  }
+}

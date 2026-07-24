@@ -59,12 +59,26 @@ def parse(text: str):
         raise SystemExit("PROJECT_LOG.md has no ## section?")
     preamble = "".join(lines[:first_h2])
 
-    # Find the trailing HTML comment block.
+    # Find the trailing HTML comment block.  Treating a mid-document comment
+    # as the footer would silently hide every later H2 from the sorter, so
+    # fail closed if any section follows the comment.
     html_start = None
     for i, ln in enumerate(lines):
         if ln.startswith("<!--"):
             html_start = i
             break
+    if html_start is not None:
+        html_end = next(
+            (i for i in range(html_start, len(lines)) if "-->" in lines[i]),
+            None,
+        )
+        if html_end is None:
+            raise SystemExit("PROJECT_LOG.md has an unterminated HTML footer comment")
+        if any(H2_RE.match(ln) for ln in lines[html_end + 1:]):
+            raise SystemExit(
+                "PROJECT_LOG.md HTML footer comment is not trailing; "
+                "move it after the final ## section before reordering"
+            )
     footer = "".join(lines[html_start:]) if html_start is not None else ""
     body_end = html_start if html_start is not None else len(lines)
 

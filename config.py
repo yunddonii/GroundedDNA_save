@@ -81,6 +81,13 @@ class Config():
         train_arg.add_argument('--scheduler', dest='scheduler', nargs='?', type=str, choices=['step', 'lambda', 'exponential', 'cosine', 'reduce'], default='reduce', help='scheduler (default: %(default)s)')
         train_arg.add_argument('--weight_decay', dest='weight_decay', nargs='?', type=int, default=6e-2)
         train_arg.add_argument('--num_workers', dest='num_workers', nargs='?', type=int, default=16)
+        train_arg.add_argument(
+            '--random_seed',
+            dest='random_seed',
+            type=int,
+            default=42,
+            help='Global Python/NumPy/PyTorch training seed (default: %(default)s).',
+        )
         
         model_arg = parser.add_argument_group("Transformer parameters")
         model_arg.add_argument('-emb', '--embedding_dim', dest='embed_dim', nargs='?', type=int, default=64, help='d_model in transformer')
@@ -148,6 +155,13 @@ class Config():
                  'end-of-training extract_db + extract_query + evaluation use '
                  'this cache instead. Use case: train on FAIRrank multi-view '
                  'cache but report final results on whole-image cache.')
+        siglip2_arg.add_argument('--eval_text_whiten_npz',
+            dest='eval_text_whiten_npz', default=None,
+            help='Optional explicit whitening matrix for FINAL extraction. '
+                 'By default, changing --eval_cache_dir preserves the training '
+                 '--text_whiten_npz (required for local-only/P0 transforms); '
+                 'set this only when evaluation intentionally requires a '
+                 'different precomputed text transform.')
         siglip2_arg.add_argument('--d_model', dest='d_model', type=int, default=None,
             help='Adapter output dim; None = use SigLIP2 projection_dim.')
         # v30 ablation: control adapter capacity. 'mlp' (default) keeps
@@ -598,9 +612,10 @@ class Config():
         # ---- P0: held-out validation protocol (leakage-free epoch selection) --
         # Carves a stratified subset out of the TRAIN split. Training uses only
         # the remaining optimization-train rows; mid-eval retrieval runs
-        # val_query (held-out) vs val_db (= optimization-train) so the official
-        # test split is never touched before the single final evaluation.
-        # Checkpoint selection then uses val mAP@R instead of test mAP.
+        # val_query (held-out) vs val_db (= optimization-train). Stage 1 does
+        # not instantiate an official-test dataset/loader; checkpoint selection
+        # uses validation mAP@R. The separate scratch full-train refit (stage 2)
+        # constructs and evaluates the official test split once.
         siglip2_arg.add_argument('--val_split_ratio', type=float, default=0.0,
             help='P0 protocol: fraction of the TRAIN split held out as the '
                  'validation query set for epoch selection (e.g. 0.1). '
@@ -611,7 +626,10 @@ class Config():
         # The val split picks E* (the best epoch) from a 90% optimization-train
         # run; stage 2 then refits on 100% of train and stops there, so the
         # evaluated model saw all the training data while the epoch count was
-        # still chosen without touching test.
+        # still chosen without touching test. When paired with
+        # --final_epoch_eval, no official-test dataset/loader, validation pass,
+        # retrieval mid-eval, or test-based visualization is run during the
+        # refit; the test split is encoded only by final extraction.
         # `--epoch` MUST stay at the original budget (e.g. 60): the LR scheduler
         # is built with T_max=args.epoch, so re-running with `-e 5` would
         # complete a whole cosine cycle in 5 epochs and produce a completely
@@ -1705,6 +1723,23 @@ class Config():
                  'mode). Only local codebooks cb1..cb5 contribute. Match '
                  'architectural role of C_global (visual-pooled input, not '
                  'text-anchored routing).')
+        # Counterfactual minimal-pair hard negative integrated into the local
+        # text-DNA InfoNCE denominator.  A zero weight is exactly the legacy
+        # objective; no separate TripletLoss is added to the total.
+        loss_arg.add_argument('--text_hash_counterfactual_weight',
+            dest='text_hash_counterfactual_weight', type=float, default=0.0,
+            help='Relative denominator weight rho for each sample\'s own '
+                 'counterfactual text-DNA foil in per-codebook text-DNA '
+                 'NT-Xent. Requires optional foil cache sidecars and '
+                 '--text_hash_ntxent_skip_global. 0 disables bit-exactly.')
+        loss_arg.add_argument('--text_hash_counterfactual_margin',
+            dest='text_hash_counterfactual_margin', type=float, default=0.02,
+            help='Additive cosine margin mu applied to the own-foil logit '
+                 'before division by text_hash_ntxent_temperature.')
+        loss_arg.add_argument('--text_hash_counterfactual_warmup_epochs',
+            dest='text_hash_counterfactual_warmup_epochs', type=int, default=0,
+            help='Linear warmup epochs for counterfactual denominator weight. '
+                 '0 applies the configured weight from epoch 0.')
         # v73 (Exp 7): global DNA NtXent auxiliary loss alongside per-codebook.
         # When `ntxent_mode=per_codebook`, also compute the global NtXent
         # (whole 18-codon DNA code) using static base temperature and add
@@ -1787,6 +1822,13 @@ class Config():
             dest='cibhash_dynamic_tau_alpha', type=float, default=0.3,
             help='v120e: alpha for cibhash dynamic tau. tau_ij = T * '
                  '(1 + alpha * cos(text_i, text_j)). 0 disables.')
+        loss_arg.add_argument('--cibhash_dynamic_tau_skip_global',
+            dest='cibhash_dynamic_tau_skip_global',
+            action='store_true', default=False,
+            help='Keep visual CIBHash NT-Xent active for cb0, but use the '
+                 'static base temperature there. Text-cos dynamic temperature '
+                 'remains active only for local cb1..cb5. This removes the '
+                 'global-caption dependency without deleting visual C_global.')
         # v149: continuous NtXent (no STE-sign quantization) to restore
         # cosine granularity for uniformity gradient -- aligns with the
         # original CIBHash paper which operates on continuous Bernoulli
@@ -1813,6 +1855,13 @@ class Config():
                  '[B, M, D] from the router (D-dim continuous, full cosine '
                  'granularity). KL term is implicitly disabled in visual_token '
                  'mode (Bernoulli KL undefined on continuous vectors).')
+        loss_arg.add_argument('--cibhash_visual_token_bit_kl',
+            dest='cibhash_visual_token_bit_kl',
+            action='store_true', default=False,
+            help='Hybrid CIBHash mode: keep NT-Xent on pre-VQ visual tokens '
+                 'while computing lambda_cibhash_kl on Bernoulli bit '
+                 'probabilities derived from each view\'s post-VQ continuous '
+                 'DNA code. Has effect only with source=visual_token.')
         loss_arg.add_argument('--cibhash_visual_projection_head',
             dest='cibhash_visual_projection_head', action='store_true',
             default=False,

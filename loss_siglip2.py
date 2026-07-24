@@ -157,6 +157,7 @@ class DNACodonHashLoss(nn.Module):
     def __init__(self, cfg: Any) -> None:
         super().__init__()
         self.cfg = cfg
+        self.num_codebooks = int(getattr(cfg, "num_codebooks", 6))
 
         # ---------- loss weights ------------------------------------------
         # Active set after the 2026-05-13 cleanup. The R1–R4 alignment family
@@ -190,6 +191,9 @@ class DNACodonHashLoss(nn.Module):
         # v120: CIBHash extension knobs (mode + text-cos dynamic tau).
         self.cibhash_mode               = str(getattr(cfg, "cibhash_mode", "per_codebook"))
         self.cibhash_dynamic_tau        = bool(getattr(cfg, "cibhash_dynamic_tau", False))
+        self.cibhash_dynamic_tau_skip_global = bool(
+            getattr(cfg, "cibhash_dynamic_tau_skip_global", False)
+        )
         # v121: SwAV-style swapped balanced codeword-assignment loss.
         self.lambda_swav_assign         = float(getattr(cfg, "lambda_swav_assign", 0.0))
         self.swav_assign_tau            = float(getattr(cfg, "swav_assign_tau",    0.1))
@@ -202,6 +206,9 @@ class DNACodonHashLoss(nn.Module):
         # v150: cibhash NtXent input source -- "continuous_code" (legacy) or
         # "visual_token" (pre-VQ semantic_visual_tokens [B, M, D]).
         self.cibhash_ntxent_source = str(getattr(cfg, "cibhash_ntxent_source", "continuous_code"))
+        self.cibhash_visual_token_bit_kl = bool(
+            getattr(cfg, "cibhash_visual_token_bit_kl", False)
+        )
         # v138: prototype-cluster paired-view InfoNCE on codebook_distances.
         self.lambda_proto_cluster        = float(getattr(cfg, "lambda_proto_cluster",        0.0))
         self.proto_cluster_temperature   = float(getattr(cfg, "proto_cluster_temperature",   0.3))
@@ -242,6 +249,48 @@ class DNACodonHashLoss(nn.Module):
         # M independent symmetric InfoNCEs on per-codebook (L*4)-dim DNA
         # segments.
         self.text_hash_ntxent_mode = str(getattr(cfg, "text_hash_ntxent_mode", "global"))
+        # Counterfactual minimal-pair extension. This is folded into the
+        # visual->text InfoNCE denominator rather than added as a separate
+        # TripletLoss, so rho=0 exactly recovers the legacy objective.
+        self.text_hash_counterfactual_weight = float(
+            getattr(cfg, "text_hash_counterfactual_weight", 0.0)
+        )
+        self.text_hash_counterfactual_margin = float(
+            getattr(cfg, "text_hash_counterfactual_margin", 0.02)
+        )
+        self.text_hash_counterfactual_warmup_epochs = int(
+            getattr(cfg, "text_hash_counterfactual_warmup_epochs", 0)
+        )
+        if self.text_hash_counterfactual_weight < 0.0:
+            raise ValueError("text_hash_counterfactual_weight must be >= 0")
+        if self.text_hash_counterfactual_margin < 0.0:
+            raise ValueError("text_hash_counterfactual_margin must be >= 0")
+        if self.text_hash_counterfactual_warmup_epochs < 0:
+            raise ValueError("text_hash_counterfactual_warmup_epochs must be >= 0")
+        if (
+            self.text_hash_counterfactual_weight > 0.0
+            and self.lambda_text_hash_ntxent <= 0.0
+        ):
+            raise ValueError(
+                "counterfactual text-DNA negatives require "
+                "--lambda_text_hash_ntxent > 0"
+            )
+        if (
+            self.text_hash_counterfactual_weight > 0.0
+            and self.text_hash_ntxent_mode != "per_codebook"
+        ):
+            raise ValueError(
+                "counterfactual text-DNA negatives require "
+                "--text_hash_ntxent_mode per_codebook"
+            )
+        if (
+            self.text_hash_counterfactual_weight > 0.0
+            and not bool(getattr(cfg, "text_hash_ntxent_skip_global", False))
+        ):
+            raise ValueError(
+                "counterfactual text-DNA training is local-only; enable "
+                "--text_hash_ntxent_skip_global"
+            )
         # v93: per-codebook cross-modal codeword InfoNCE. Symmetric InfoNCE
         # between visual `quantized_tokens[:, m, :]` and text
         # `text_quantized_tokens[:, m, :]` for each codebook m.
@@ -1292,6 +1341,7 @@ class DNACodonHashLoss(nn.Module):
         temperature: float,
         text_part_raw: Optional[torch.Tensor] = None,
         dynamic_tau_alpha: float = 0.0,
+        dynamic_tau_skip_global: bool = False,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """v150: per-codebook NtXent on pre-VQ routed visual tokens.
 
@@ -1329,7 +1379,7 @@ class DNACodonHashLoss(nn.Module):
             v_n = F.normalize(v, dim=-1, eps=1e-8)
             sim_raw = v_n @ v_n.T                                          # [2B, 2B], cosine
 
-            if use_dyn:
+            if use_dyn and not (dynamic_tau_skip_global and m == 0):
                 t_m = text_part_raw[:, m, :]                                # [B, D_text]
                 t_m_n = F.normalize(t_m.float(), dim=-1)
                 cos_tt = (t_m_n @ t_m_n.T).clamp(-1.0, 1.0)                 # [B, B]
@@ -1361,6 +1411,7 @@ class DNACodonHashLoss(nn.Module):
         mode: str = "per_codebook",
         text_part_raw: Optional[torch.Tensor] = None,
         dynamic_tau_alpha: float = 0.0,
+        dynamic_tau_skip_global: bool = False,
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """v119/v120: CIBHash NtXent + symmetric Bernoulli KL on binary
         hash, with two switches added in v120.
@@ -1447,7 +1498,7 @@ class DNACodonHashLoss(nn.Module):
             z_n = F.normalize(z, dim=-1, eps=1e-8)
             sim_raw = z_n @ z_n.T                                              # [2B, 2B], cosine
 
-            if use_dyn:
+            if use_dyn and not (dynamic_tau_skip_global and m == 0):
                 # Per-pair temperature from text-cos for codebook m.
                 t_m = text_part_raw[:, m, :]                                    # [B, D]
                 t_m_n = F.normalize(t_m.float(), dim=-1)
@@ -1477,6 +1528,45 @@ class DNACodonHashLoss(nn.Module):
         ntxent = torch.stack(ntxent_per_cb).mean()
         kl     = torch.stack(kl_per_cb).mean()
         return ntxent, kl
+
+    def _loss_cibhash_bit_kl_only(
+        self,
+        continuous_code_view1: torch.Tensor,
+        continuous_code_view2: torch.Tensor,
+        mode: str = "per_codebook",
+    ) -> torch.Tensor:
+        """Original-domain CIBHash KL for the visual-token hybrid variant.
+
+        Visual-token NT-Xent lives on unconstrained D-dimensional embeddings,
+        where Bernoulli KL is undefined.  This helper deliberately computes
+        *only* the KL on the two views' post-VQ DNA bit probabilities, keeping
+        the domains of the two CIBHash terms explicit.
+        """
+        bits_v1 = self._continuous_code_to_bit_probs(
+            continuous_code_view1, num_codebooks=self.num_codebooks,
+        )
+        bits_v2 = self._continuous_code_to_bit_probs(
+            continuous_code_view2, num_codebooks=self.num_codebooks,
+        )
+        if bits_v1.shape != bits_v2.shape:
+            raise ValueError(
+                "CIBHash hybrid bit KL requires matching view shapes; "
+                f"got {tuple(bits_v1.shape)} and {tuple(bits_v2.shape)}"
+            )
+        if mode == "global":
+            return self._cibhash_kl(
+                bits_v1.reshape(bits_v1.shape[0], -1),
+                bits_v2.reshape(bits_v2.shape[0], -1),
+            )
+        if mode != "per_codebook":
+            raise ValueError(
+                f"Unsupported cibhash_mode={mode!r}; expected per_codebook/global"
+            )
+        per_codebook = [
+            self._cibhash_kl(bits_v1[:, m, :], bits_v2[:, m, :])
+            for m in range(bits_v1.shape[1])
+        ]
+        return torch.stack(per_codebook).mean()
 
     # ------------------------------------------------------------------
     # v121: SwAV-style swapped balanced codeword-assignment loss
@@ -2354,6 +2444,7 @@ class DNACodonHashLoss(nn.Module):
         epoch: Optional[int] = None,
         pixel_target: Optional[torch.Tensor] = None,
         outputs_view2: Optional[Dict[str, Any]] = None,
+        enable_counterfactual: bool = True,
     ) -> Dict[str, torch.Tensor]:
         # ---- pull required tensors from the model output dict ------------
         u                            = outputs.get("continuous_code")          # [B, 18, 4]
@@ -2463,6 +2554,16 @@ class DNACodonHashLoss(nn.Module):
         else:
             loss_text_hash = u.new_zeros(())
 
+        # Diagnostics for the integrated counterfactual hard-negative branch.
+        # They stay zero when the branch is disabled or a batch has no valid
+        # foils; no separate weighted loss is added to `total`.
+        loss_text_hash_counterfactual = u.new_zeros(())
+        counterfactual_pos_sim = u.new_zeros(())
+        counterfactual_foil_sim = u.new_zeros(())
+        counterfactual_margin_violation = u.new_zeros(())
+        counterfactual_codeword_flip = u.new_zeros(())
+        counterfactual_valid_ratio = u.new_zeros(())
+
         # v100 + v128: ADDITIVE text-DNA NtXent. When lambda_text_hash_ntxent
         # > 0, compute symmetric InfoNCE between visual continuous DNA code u
         # [B, R, 4] and textual continuous DNA code text_cc [B, R, 4].
@@ -2529,9 +2630,145 @@ class DNACodonHashLoss(nn.Module):
                 logits_it = torch.einsum("bmd,cmd->mbc", i_n, t_n) / tau  # [M', B, B]
                 labels = torch.arange(B, device=logits_it.device)
                 labels_m = labels.unsqueeze(0).expand(M_th_eff, B).reshape(-1)
-                loss_i2t = F.cross_entropy(
-                    logits_it              .reshape(M_th_eff * B, B), labels_m,
-                )
+                # Counterfactual minimal-pair integration. Each visual anchor
+                # gets exactly one own foil column; other samples' foils are
+                # deliberately excluded to avoid uncontrolled false negatives.
+                rho_cfg = float(self.text_hash_counterfactual_weight)
+                if not enable_counterfactual:
+                    rho_eff = 0.0
+                elif self.text_hash_counterfactual_warmup_epochs > 0:
+                    _ep = 0 if epoch is None else max(int(epoch), 0)
+                    rho_eff = rho_cfg * min(
+                        1.0,
+                        float(_ep) / float(self.text_hash_counterfactual_warmup_epochs),
+                    )
+                else:
+                    rho_eff = rho_cfg
+                foil_cc = outputs.get("text_foil_continuous_code")
+                foil_valid = outputs.get("text_foil_valid_mask")
+                if rho_eff > 0.0 and (
+                    foil_cc is None or foil_valid is None
+                ):
+                    raise RuntimeError(
+                        "counterfactual text-DNA loss is active, but model "
+                        "outputs contain no foil code/mask"
+                    )
+                use_foil = rho_eff > 0.0
+                if use_foil:
+                    if foil_cc.shape != text_cc.shape:
+                        raise ValueError(
+                            "text foil continuous code must match factual text "
+                            f"shape; got foil={tuple(foil_cc.shape)} "
+                            f"factual={tuple(text_cc.shape)}"
+                        )
+                    if foil_valid.shape != (B, int(getattr(self, "num_codebooks", 6))):
+                        raise ValueError(
+                            "text_foil_valid_mask must be [B, M]; got "
+                            f"{tuple(foil_valid.shape)}"
+                        )
+                    if foil_valid.dtype != torch.bool:
+                        raise TypeError(
+                            "text_foil_valid_mask must have dtype torch.bool, "
+                            f"got {foil_valid.dtype}"
+                        )
+                    if bool(foil_valid[:, 0].any().item()):
+                        raise ValueError(
+                            "counterfactual C_global (slot 0) must be invalid"
+                        )
+                    f4 = foil_cc.view(B, M_th, L_th, 4)
+                    if (
+                        bool(foil_valid.any().item())
+                        and not bool(torch.isfinite(
+                            f4[foil_valid],
+                        ).all().item())
+                    ):
+                        raise ValueError(
+                            "valid counterfactual text-DNA codes must be finite"
+                        )
+                    f = f4.reshape(
+                        B, M_th, L_th * 4,
+                    )
+                    fv = foil_valid
+                    if self.text_hash_ntxent_skip_global and M_th > 1:
+                        f = f[:, 1:, :]
+                        fv = fv[:, 1:]
+                    # Stop-gradient on the foil prevents the negative text
+                    # branch from satisfying the loss by learning a language
+                    # shortcut. Positive text and visual branches retain their
+                    # existing gradients.
+                    f_n = F.normalize(f.detach(), dim=-1)
+                    foil_cos = torch.einsum("bmd,bmd->mb", i_n, f_n)
+                    own_foil_logits = (
+                        (foil_cos + float(self.text_hash_counterfactual_margin))
+                        / tau
+                        + math.log(max(rho_eff, 1e-12))
+                    )                                                        # [M', B]
+                    own_foil_logits = own_foil_logits.masked_fill(
+                        ~fv.transpose(0, 1), -float("inf"),
+                    )
+                    if bool(fv.any().item()):
+                        logits_i2t = torch.cat(
+                            [logits_it, own_foil_logits.unsqueeze(-1)], dim=-1,
+                        )                                                    # [M', B, B+1]
+                        base_i2t_per = F.cross_entropy(
+                            logits_it.reshape(M_th_eff * B, B),
+                            labels_m,
+                            reduction="none",
+                        ).reshape(M_th_eff, B)
+                        foil_i2t_per = F.cross_entropy(
+                            logits_i2t.reshape(M_th_eff * B, B + 1),
+                            labels_m,
+                            reduction="none",
+                        ).reshape(M_th_eff, B)
+                        valid_mb = fv.transpose(0, 1)
+                        # Preserve the full factual InfoNCE mean, then average
+                        # only the integrated own-foil increment across valid
+                        # anchors. This prevents sparse slot coverage from
+                        # implicitly shrinking rho.
+                        loss_i2t = (
+                            base_i2t_per.mean()
+                            + (foil_i2t_per - base_i2t_per)[valid_mb].mean()
+                        )
+                        pos_cos = torch.einsum("bmd,bmd->mb", i_n, t_n)
+                        cf_soft_triplet = F.softplus(
+                            (
+                                foil_cos
+                                - pos_cos
+                                + float(self.text_hash_counterfactual_margin)
+                            ) / tau
+                        )
+                        loss_text_hash_counterfactual = cf_soft_triplet[valid_mb].mean()
+                        counterfactual_pos_sim = pos_cos[valid_mb].mean()
+                        counterfactual_foil_sim = foil_cos[valid_mb].mean()
+                        counterfactual_margin_violation = (
+                            pos_cos[valid_mb]
+                            <= foil_cos[valid_mb]
+                               + float(self.text_hash_counterfactual_margin)
+                        ).to(i_n.dtype).mean()
+                        counterfactual_valid_ratio = fv.to(i_n.dtype).mean()
+                        pos_idx_text = outputs.get("text_codebook_indices")
+                        foil_idx_text = outputs.get("text_foil_codebook_indices")
+                        if (
+                            pos_idx_text is not None
+                            and foil_idx_text is not None
+                            and pos_idx_text.shape == foil_idx_text.shape == (B, M_th)
+                        ):
+                            pos_idx_local = pos_idx_text[:, 1:] \
+                                if self.text_hash_ntxent_skip_global else pos_idx_text
+                            foil_idx_local = foil_idx_text[:, 1:] \
+                                if self.text_hash_ntxent_skip_global else foil_idx_text
+                            counterfactual_codeword_flip = (
+                                (pos_idx_local != foil_idx_local)[fv]
+                                .to(i_n.dtype).mean()
+                            )
+                    else:
+                        loss_i2t = F.cross_entropy(
+                            logits_it.reshape(M_th_eff * B, B), labels_m,
+                        )
+                else:
+                    loss_i2t = F.cross_entropy(
+                        logits_it.reshape(M_th_eff * B, B), labels_m,
+                    )
                 loss_t2i = F.cross_entropy(
                     logits_it.transpose(1, 2).reshape(M_th_eff * B, B), labels_m,
                 )
@@ -2759,7 +2996,22 @@ class DNACodonHashLoss(nn.Module):
                         sv_v1, sv_v2, temperature=self.cibhash_temperature,
                         text_part_raw=_ttp_raw,
                         dynamic_tau_alpha=_dyn_alpha,
+                        dynamic_tau_skip_global=self.cibhash_dynamic_tau_skip_global,
                     )
+                    if (
+                        self.cibhash_visual_token_bit_kl
+                        and self.lambda_cibhash_kl > 0.0
+                    ):
+                        u_v1 = outputs.get("continuous_code")
+                        u_v2 = outputs_view2.get("continuous_code")
+                        if u_v1 is None or u_v2 is None:
+                            raise ValueError(
+                                "--cibhash_visual_token_bit_kl requires "
+                                "continuous_code from both augmented views"
+                            )
+                        loss_cibhash_kl_v = self._loss_cibhash_bit_kl_only(
+                            u_v1, u_v2, mode=self.cibhash_mode,
+                        )
             else:
                 u_v1 = outputs.get("continuous_code")
                 u_v2 = outputs_view2.get("continuous_code")
@@ -2769,6 +3021,7 @@ class DNACodonHashLoss(nn.Module):
                         mode=getattr(self, "cibhash_mode", "per_codebook"),
                         text_part_raw=_ttp_raw,
                         dynamic_tau_alpha=_dyn_alpha,
+                        dynamic_tau_skip_global=self.cibhash_dynamic_tau_skip_global,
                     )
 
         # v144: text -> code KL distillation. Per-codebook distribution
@@ -3121,6 +3374,12 @@ class DNACodonHashLoss(nn.Module):
             "loss_wasserstein":  loss_wasserstein,
             "loss_text_hash":    loss_text_hash,
             "loss_text_hash_ntxent_add": loss_text_hash_ntxent_add,
+            "loss_text_hash_counterfactual": loss_text_hash_counterfactual,
+            "counterfactual_pos_sim": counterfactual_pos_sim,
+            "counterfactual_foil_sim": counterfactual_foil_sim,
+            "counterfactual_margin_violation": counterfactual_margin_violation,
+            "counterfactual_codeword_flip": counterfactual_codeword_flip,
+            "counterfactual_valid_ratio": counterfactual_valid_ratio,
             "loss_cw_xmodal":    loss_cw_xmodal,
             "loss_xmodal_commit": loss_xmodal_commit,
             "loss_codeword_text_proto": loss_codeword_text_proto,

@@ -57,6 +57,124 @@ class _SigLIP2FeatureCache:
             print(f"[siglip2-cache] loaded token-level text cache from {cache_dir} "
                   f"(text_tokens {self.text_tokens.shape}).")
 
+        # Optional local counterfactual-caption features. Both files are an
+        # atomic sidecar contract; loading just one could silently turn the
+        # enabled hard-negative experiment into a no-op.
+        tf_p = os.path.join(cache_dir, "text_foil_part.f16.npy")
+        tfv_p = os.path.join(cache_dir, "text_foil_valid.bool.npy")
+        tfi_p = os.path.join(cache_dir, "text_foil_image_ids.json")
+        self.text_foil_part = None
+        self.text_foil_valid = None
+        if os.path.exists(tf_p) != os.path.exists(tfv_p):
+            raise FileNotFoundError(
+                "[siglip2-cache] counterfactual sidecars are incomplete; "
+                "text_foil_part.f16.npy and text_foil_valid.bool.npy must "
+                "either both exist or both be absent."
+            )
+        if os.path.exists(tf_p):
+            self.text_foil_part = np.load(tf_p, mmap_mode="r")
+            self.text_foil_valid = np.load(tfv_p, mmap_mode="r")
+            if self.text_foil_part.shape != self.text_part.shape:
+                raise ValueError(
+                    "[siglip2-cache] text foil/factual feature shapes differ: "
+                    f"{self.text_foil_part.shape} vs {self.text_part.shape}"
+                )
+            if self.text_foil_valid.shape != self.text_part.shape[:2]:
+                raise ValueError(
+                    "[siglip2-cache] text_foil_valid must be [N, M], got "
+                    f"{self.text_foil_valid.shape}"
+                )
+            if self.text_foil_valid.dtype != np.bool_:
+                raise TypeError(
+                    "[siglip2-cache] text_foil_valid must be bool, got "
+                    f"{self.text_foil_valid.dtype}"
+                )
+            if bool(np.asarray(self.text_foil_valid[:, 0]).any()):
+                raise ValueError(
+                    "[siglip2-cache] counterfactual C_global must be invalid"
+                )
+            if os.path.exists(tfi_p):
+                with open(tfi_p, "r") as f:
+                    foil_image_ids = json.load(f)
+                if foil_image_ids != self.image_ids:
+                    raise ValueError(
+                        "[siglip2-cache] text foil row order does not match "
+                        "image_ids.json"
+                    )
+            print(
+                f"[siglip2-cache] loaded local counterfactual text sidecars "
+                f"from {cache_dir} (valid={int(self.text_foil_valid.sum())})."
+            )
+
+        tft_p = os.path.join(cache_dir, "text_foil_tokens.f16.npy")
+        tftm_p = os.path.join(cache_dir, "text_foil_token_mask.bool.npy")
+        tfti_p = os.path.join(cache_dir, "text_foil_token_image_ids.json")
+        self.text_foil_tokens = None
+        self.text_foil_token_mask = None
+        if os.path.exists(tft_p) != os.path.exists(tftm_p):
+            raise FileNotFoundError(
+                "[siglip2-cache] token-level counterfactual sidecars are "
+                "incomplete; feature and mask files must be paired."
+            )
+        if os.path.exists(tft_p):
+            if self.text_foil_part is None:
+                raise FileNotFoundError(
+                    "[siglip2-cache] token-level foils require pooled foil "
+                    "features and validity mask"
+                )
+            if self.text_tokens is None or self.text_token_mask is None:
+                raise FileNotFoundError(
+                    "[siglip2-cache] token-level foils require the factual "
+                    "text token cache"
+                )
+            self.text_foil_tokens = np.load(tft_p, mmap_mode="r")
+            self.text_foil_token_mask = np.load(tftm_p, mmap_mode="r")
+            if self.text_foil_tokens.shape != self.text_tokens.shape:
+                raise ValueError(
+                    "[siglip2-cache] factual/foil token shapes differ: "
+                    f"{self.text_tokens.shape} vs "
+                    f"{self.text_foil_tokens.shape}"
+                )
+            if self.text_foil_token_mask.shape != self.text_token_mask.shape:
+                raise ValueError(
+                    "[siglip2-cache] factual/foil token-mask shapes differ"
+                )
+            if self.text_foil_token_mask.dtype != np.bool_:
+                raise TypeError(
+                    "[siglip2-cache] token-level foil mask must be bool"
+                )
+            if bool(np.asarray(self.text_foil_token_mask[:, 0, :]).any()):
+                raise ValueError(
+                    "[siglip2-cache] C_global foil token mask must be empty"
+                )
+            token_slot_valid = np.asarray(
+                self.text_foil_token_mask,
+            ).any(axis=-1)
+            if not np.array_equal(
+                token_slot_valid,
+                np.asarray(self.text_foil_valid),
+            ):
+                raise ValueError(
+                    "[siglip2-cache] token-mask slot coverage does not match "
+                    "text_foil_valid"
+                )
+            if not os.path.exists(tfti_p):
+                raise FileNotFoundError(
+                    "[siglip2-cache] token-level foil image-id contract is missing"
+                )
+            with open(tfti_p, "r") as f:
+                foil_token_image_ids = json.load(f)
+            if foil_token_image_ids != self.image_ids:
+                raise ValueError(
+                    "[siglip2-cache] token-level foil row order does not "
+                    "match image_ids.json"
+                )
+            print(
+                f"[siglip2-cache] loaded token-level counterfactual text "
+                f"sidecars from {cache_dir} "
+                f"(tokens {self.text_foil_tokens.shape})."
+            )
+
         # Optional paired-augmentation visual feature cache. Files are
         # produced by `extract_siglip2_features.py --save_aug_views K`.
         # Used by v29+ paired-aug NtXent so the model doesn't have to run
@@ -88,6 +206,22 @@ class _SigLIP2FeatureCache:
         if self.text_tokens is not None:
             out["cached_text_tokens"]     = torch.from_numpy(np.asarray(self.text_tokens    [row_idx], dtype=np.float32))
             out["cached_text_token_mask"] = torch.from_numpy(np.asarray(self.text_token_mask[row_idx], dtype=np.bool_))
+        if self.text_foil_part is not None:
+            out["cached_text_foil_raw"] = torch.from_numpy(
+                np.asarray(self.text_foil_part[row_idx], dtype=np.float32)
+            )
+            out["cached_text_foil_valid"] = torch.from_numpy(
+                np.asarray(self.text_foil_valid[row_idx], dtype=np.bool_)
+            )
+        if self.text_foil_tokens is not None:
+            out["cached_text_foil_tokens"] = torch.from_numpy(
+                np.asarray(self.text_foil_tokens[row_idx], dtype=np.float32)
+            )
+            out["cached_text_foil_token_mask"] = torch.from_numpy(
+                np.asarray(
+                    self.text_foil_token_mask[row_idx], dtype=np.bool_,
+                )
+            )
         # Paired-augmentation views (built by `--save_aug_views K`).
         # Exposed as cached_visual_{tokens,global}_aug{i}. Trainer can
         # use these as view-1/view-2 inputs to skip the live backbone
@@ -1048,4 +1182,3 @@ if __name__ == "__main__":
                 break
 
             print(epoch)
-

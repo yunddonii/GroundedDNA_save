@@ -19,6 +19,10 @@ Required batch keys provided by `dataloaders.ImgRtvCIFAR10` /
     cached_visual_global       FloatTensor [B, D_proj]
     cached_text_part_raw       FloatTensor [B, 6, D_proj]
     has_text                   BoolTensor  [B]                    True = Qwen text valid
+    cached_text_foil_raw       FloatTensor [B, 6, D_proj]         optional local foils
+    cached_text_foil_valid     BoolTensor  [B, 6]                 C_global always false
+    cached_text_foil_tokens    FloatTensor [B, 6, T, D_proj]      v185-matched foils
+    cached_text_foil_token_mask BoolTensor [B, 6, T]
 """
 
 import os
@@ -225,6 +229,15 @@ def _build_active_loss_types(args) -> list:
         keys.append('loss_text_hash')
     if _on('lambda_text_hash_ntxent'):
         keys.append('loss_text_hash_ntxent_add')
+        if _on('text_hash_counterfactual_weight'):
+            keys.extend([
+                'loss_text_hash_counterfactual',
+                'counterfactual_pos_sim',
+                'counterfactual_foil_sim',
+                'counterfactual_margin_violation',
+                'counterfactual_codeword_flip',
+                'counterfactual_valid_ratio',
+            ])
     if _on('lambda_cw_xmodal'):         keys.append('loss_cw_xmodal')
     # loss_xmodal_commit (cross-modal codeword commitment; a load-bearing
     # text-supervision term in the cross-dataset champion at lambda 0.05-0.10)
@@ -278,7 +291,14 @@ def _build_active_loss_types(args) -> list:
     # ---- CIBHash family (v119)
     if _on('lambda_cibhash_ntxent'):
         keys.append('loss_cibhash_ntxent')
-    if _on('lambda_cibhash_kl'):
+    if (
+        _on('lambda_cibhash_kl')
+        and (
+            str(getattr(args, 'cibhash_ntxent_source', 'continuous_code'))
+            != 'visual_token'
+            or _flag('cibhash_visual_token_bit_kl')
+        )
+    ):
         keys.append('loss_cibhash_kl')
 
     # ---- SwAV-style swapped balanced assignment (v121)
@@ -390,6 +410,11 @@ def _mid_train_eval(model, loader, device, distance_mode: str, codebook_size: in
 
 def main(args: Config):
 
+    # Seed before constructing the model, loaders, optimizer, or any auxiliary
+    # clustering state. Keeping this inside main also covers programmatic
+    # callers, not only the CLI entry point below.
+    set_random_seed(int(getattr(args, "random_seed", 42)))
+
     # ---------- model -------------------------------------------------------
     model = SigLIP2SemanticOTModel(args).to(args.device)
     model.assert_no_shared_trainable_params(verbose=True)
@@ -461,10 +486,37 @@ def main(args: Config):
             T.ToTensor(),
             T.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225]),
         ])
+    # In P0 stage 1, do not even construct the official-test dataset/loader.
+    # This is stronger than merely suppressing the final metric: dataset
+    # construction may load test labels, image paths, and cache-row mappings.
+    from p0_protocol import (
+        is_p0_refit,
+        is_p0_stage1,
+        should_load_official_test_split,
+        should_run_training_time_evaluation,
+    )
+
+    _val_ratio = float(getattr(args, "val_split_ratio", 0.0) or 0.0)
+    _p0_stage1 = is_p0_stage1(val_split_ratio=_val_ratio)
+    _p0_refit = is_p0_refit(
+        stop_after_epoch=getattr(args, "stop_after_epoch", None),
+        final_epoch_eval=getattr(args, "final_epoch_eval", False),
+    )
+    if _p0_stage1 and _p0_refit:
+        raise ValueError(
+            "A run cannot be both P0 stage 1 (--val_split_ratio > 0) "
+            "and P0 stage 2 (--stop_after_epoch + --final_epoch_eval)."
+        )
+    if _p0_refit:
+        args._p0_refit_protocol = True
     trainset, testset, _ = load_dataset(
         args.dataset_dir, args.dataset, setting='setting1',
         train_transform=transform, test_transform=test_transform,
-        load_train=True, load_database=False, load_test=True,
+        load_train=True, load_database=False,
+        load_test=should_load_official_test_split(
+            val_protocol_active=_p0_stage1,
+            p0_refit_active=_p0_refit,
+        ),
         return_index=True, return_paired_aug_img=True,
         qwen_text_cache_path=qwen_text_cache_path,
         siglip2_feature_cache_dir=feature_cache_dir,
@@ -477,21 +529,34 @@ def main(args: Config):
         dataset=trainset, batch_size=args.batch_size,
         shuffle=True, num_workers=args.num_workers, drop_last=True,
     )
-    test_loader = torch.utils.data.DataLoader(
-        dataset=testset, batch_size=args.batch_size,
-        shuffle=False, num_workers=args.num_workers, drop_last=True,
+    test_loader = (
+        torch.utils.data.DataLoader(
+            dataset=testset, batch_size=args.batch_size,
+            shuffle=False, num_workers=args.num_workers, drop_last=True,
+        )
+        if testset is not None
+        else None
     )
+    if _p0_refit:
+        assert testset is None and test_loader is None, (
+            "P0 stage 2 must isolate the official test until final extraction"
+        )
+        print(
+            "[p0-stage2] OFFICIAL TEST ISOLATED: no test dataset/loader, "
+            "per-epoch test validation, retrieval mid-eval, or test t-SNE "
+            "during full-train refit; final extraction/evaluation only."
+        )
 
     # ---------- P0: held-out validation protocol ----------------------------
     # Carve val_query out of TRAIN. Everything downstream that previously saw
     # the full trainset (codebook init, training loop) now sees only the
     # optimization-train rows, and mid-eval switches from the official test
-    # split to val_query-vs-val_db. The test split is then touched exactly once,
-    # at final evaluation, with the val-selected checkpoint.
+    # split to val_query-vs-val_db. The official-test dataset remains absent
+    # throughout stage 1; the separate scratch full-train refit constructs and
+    # evaluates it once.
     val_query_loader = None
     val_db_loader    = None
-    _val_ratio = float(getattr(args, "val_split_ratio", 0.0) or 0.0)
-    if _val_ratio > 0.0:
+    if _p0_stage1:
         from torch.utils.data import Subset
         from val_split import carve_val_indices, get_train_labels
 
@@ -515,10 +580,14 @@ def main(args: Config):
             shuffle=False, num_workers=args.num_workers, drop_last=False,
         )
         args._val_protocol = True
+        assert testset is None and test_loader is None, (
+            "P0 stage 1 must not construct the official-test dataset/loader"
+        )
         print(f"[val-protocol] P0 ENABLED: train {_n_train} -> opt-train {len(_opt_idx)} "
               f"+ val_query {len(_val_idx)} ({_strat}, seed={args.val_split_seed}). "
-              f"mid-eval = val_query vs val_db(opt-train); test split held out until "
-              f"final eval. Checkpoint selected on val {args.val_select_metric}.")
+              f"mid-eval = val_query vs val_db(opt-train); official-test dataset "
+              f"not constructed in stage 1. Checkpoint selected on val "
+              f"{args.val_select_metric}.")
 
     # ---------- v41 (5-G): text-supervised codebook init --------------------
     # Replace the random Gaussian codebook init with K vectors derived from
@@ -686,6 +755,40 @@ def main(args: Config):
             cached_ht  = batch.get("has_text",                 None)
             cached_tt  = batch.get("cached_text_tokens",       None)
             cached_ttm = batch.get("cached_text_token_mask",   None)
+            _counterfactual_on = (
+                bool(train)
+                and float(
+                    getattr(args, "text_hash_counterfactual_weight", 0.0)
+                ) > 0.0
+            )
+            cached_tf = (
+                batch.get("cached_text_foil_raw", None)
+                if _counterfactual_on else None
+            )
+            cached_tfv = (
+                batch.get("cached_text_foil_valid", None)
+                if _counterfactual_on else None
+            )
+            cached_tft = (
+                batch.get("cached_text_foil_tokens", None)
+                if _counterfactual_on else None
+            )
+            cached_tftm = (
+                batch.get("cached_text_foil_token_mask", None)
+                if _counterfactual_on else None
+            )
+            if (cached_tf is None) != (cached_tfv is None):
+                raise RuntimeError(
+                    "counterfactual text sidecars must be collated as a pair"
+                )
+            if (cached_tft is None) != (cached_tftm is None):
+                raise RuntimeError(
+                    "token-level counterfactual text sidecars must be paired"
+                )
+            cached_tf = cached_tf.to(args.device) if cached_tf is not None else None
+            cached_tfv = cached_tfv.to(args.device) if cached_tfv is not None else None
+            cached_tft = cached_tft.to(args.device) if cached_tft is not None else None
+            cached_tftm = cached_tftm.to(args.device) if cached_tftm is not None else None
             # v29 paired-aug NtXent (train-only): prefer the cached
             # `visual_{tokens,global}_aug{0,1}` views when present
             # (built by extract_siglip2_features.py --save_aug_views 2).
@@ -765,6 +868,10 @@ def main(args: Config):
                 cached_has_text=cached_ht,
                 cached_text_tokens=cached_tt,
                 cached_text_token_mask=cached_ttm,
+                cached_text_foil_raw=cached_tf,
+                cached_text_foil_valid=cached_tfv,
+                cached_text_foil_tokens=cached_tft,
+                cached_text_foil_token_mask=cached_tftm,
             )
 
             # ---- v29 paired-aug NtXent: forward a SECOND augmented view --
@@ -788,6 +895,9 @@ def main(args: Config):
                     cached_has_text=cached_ht,
                     cached_text_tokens=cached_tt,
                     cached_text_token_mask=cached_ttm,
+                    cached_text_foil_raw=cached_tf,
+                    cached_text_foil_valid=cached_tfv,
+                    compute_text_foil=False,
                 )
             elif v29_aug_live and ('img_tr2' in batch):
                 pix_v2 = batch['img_tr2'].to(args.device)
@@ -798,6 +908,9 @@ def main(args: Config):
                     return_routing=True,
                     cached_text_tokens=cached_tt,
                     cached_text_token_mask=cached_ttm,
+                    cached_text_foil_raw=cached_tf,
+                    cached_text_foil_valid=cached_tfv,
+                    compute_text_foil=False,
                 )
 
             # ---- labels ----------------------------------------------------
@@ -827,6 +940,7 @@ def main(args: Config):
                 epoch=epoch,
                 pixel_target=pixel_target,
                 outputs_view2=out_view2,
+                enable_counterfactual=bool(train),
             )
             loss = loss_dict['loss']
 
@@ -892,6 +1006,9 @@ def main(args: Config):
         except ValueError:
             _split_epochs = set()
     _split_max = int(getattr(args, "split_max_per_epoch", 12))
+    _run_training_time_eval = should_run_training_time_evaluation(
+        p0_refit_active=_p0_refit
+    )
 
     for e in range(args.epoch):
 
@@ -921,7 +1038,8 @@ def main(args: Config):
                 cb_mask = model.quantizer.active_mask              # [M, K_max] bool
                 _method = str(getattr(args, "hierarchical_cluster_method", "kmeans"))
                 _diag = criterion.refresh_clusters(
-                    cb_buf, cb_mask, method=_method, seed=42,
+                    cb_buf, cb_mask, method=_method,
+                    seed=int(getattr(args, "random_seed", 42)),
                 )
                 print(f"[v112-hierarchical] epoch {e}: refreshed clusters -- "
                       f"C={_diag['C']}, active_per_cb={_diag['active_per_cb']}, "
@@ -949,13 +1067,23 @@ def main(args: Config):
         if scheduler is not None:
             scheduler.step()
 
-        with torch.no_grad():
-            model.eval()
-            val_result = one_epoch(
-                train=False,
-                loader=(val_query_loader if val_query_loader is not None else test_loader),
-                epoch=e,
-            )
+        if not _run_training_time_eval:
+            # E* is already fixed by stage 1. Running a validation loss here
+            # would require consuming the official test split and serves no
+            # selection purpose, so retain the CSV schema with explicit NaNs.
+            val_result = {loss_name: float("nan") for loss_name in loss_types}
+        else:
+            with torch.no_grad():
+                model.eval()
+                val_result = one_epoch(
+                    train=False,
+                    loader=(
+                        val_query_loader
+                        if val_query_loader is not None
+                        else test_loader
+                    ),
+                    epoch=e,
+                )
 
         # tensorboard
         for loss in loss_types:
@@ -965,7 +1093,8 @@ def main(args: Config):
         # ---------- mid-training retrieval eval (every eval_every epochs)
         eval_row: dict = {}
         run_mid_eval = (
-            eval_every > 0
+            _run_training_time_eval
+            and eval_every > 0
             and ((e + 1) % eval_every == 0 or (e + 1) == args.epoch)
         )
         if run_mid_eval:
@@ -1099,7 +1228,27 @@ def main(args: Config):
     val_writer.flush();   val_writer.close()
 
     # ---------- end-of-training extraction + full evaluation -------------
-    if getattr(args, "evaluation", False):
+    # Dataset launchers carry `-ev` for their normal/full-train path.  A P0
+    # stage-1 run also goes through those launchers, but exists only to select
+    # E* on held-out train data and must never consume the official test split.
+    # Stage 2 has no `_val_protocol` flag and therefore performs the one
+    # permitted official-test extraction/evaluation after scratch refitting.
+    from p0_protocol import should_run_official_test_evaluation
+
+    _official_test_eval_allowed = should_run_official_test_evaluation(
+        evaluation_requested=getattr(args, "evaluation", False),
+        val_protocol_active=getattr(args, "_val_protocol", False),
+    )
+    if (
+        getattr(args, "evaluation", False)
+        and not _official_test_eval_allowed
+    ):
+        print(
+            "[p0-stage1] SKIP official-test extraction/evaluation: "
+            "E* was selected on held-out train validation; official test is "
+            "reserved for the scratch full-train refit."
+        )
+    if _official_test_eval_allowed:
         from extraction_siglip2 import extract_code as _extract_code
         from evaluation_siglip2 import evaluation as _evaluation
         # Optionally swap cache for final evaluation (e.g., train on FAIRrank
@@ -1109,6 +1258,19 @@ def main(args: Config):
         _eval_cache = getattr(args, "eval_cache_dir", None)
         _saved_cache = args.siglip2_feature_cache_dir
         _saved_whiten = getattr(args, "text_whiten_npz", None)
+        from p0_protocol import resolve_eval_text_whiten_path
+
+        _eval_whiten = resolve_eval_text_whiten_path(
+            training_text_whiten_path=_saved_whiten,
+            explicit_eval_text_whiten_path=getattr(
+                args, "eval_text_whiten_npz", None
+            ),
+        )
+        if _eval_whiten and not os.path.exists(_eval_whiten):
+            raise FileNotFoundError(
+                "FINAL extraction text-whitening matrix does not exist: "
+                f"{_eval_whiten}"
+            )
         # AUTO-DETECT: if user did not set --eval_cache_dir, try stripping known
         # multi-view/crop suffixes from the training cache. This ensures viz +
         # final eval consistently use whole-image inference on any dataset that
@@ -1127,15 +1289,24 @@ def main(args: Config):
         if _eval_cache and os.path.exists(_eval_cache):
             print(f"[final-eval] OVERRIDE cache: {_saved_cache} -> {_eval_cache}")
             args.siglip2_feature_cache_dir = _eval_cache
-            _maybe_whiten = os.path.join(_eval_cache, "text_whiten.npz")
-            if os.path.exists(_maybe_whiten):
-                args.text_whiten_npz = _maybe_whiten
-                print(f"[final-eval] OVERRIDE text_whiten: {_maybe_whiten}")
+        args.text_whiten_npz = _eval_whiten
+        if _eval_whiten != _saved_whiten:
+            print(f"[final-eval] EXPLICIT text_whiten override: {_eval_whiten}")
+        elif _eval_cache and _saved_whiten:
+            print(
+                "[final-eval] PRESERVE training text_whiten across cache "
+                f"override: {_saved_whiten}"
+            )
         try:
             print("[final-eval] running extraction ...")
             _extract_code(args)
         except Exception as ex:
             print(f"[final-eval] extraction failed: {ex} -- continuing to viz.")
+        finally:
+            # The explicit override is scoped to extraction. Post-eval
+            # diagnostics and the in-memory training model retain the
+            # training transform contract.
+            args.text_whiten_npz = _saved_whiten
         try:
             print(f"[final-eval] running evaluation (distance_mode={distance_mode}) ...")
             from evaluation_siglip2 import resolve_map_at_r as _resolve_map_at_r
@@ -1180,7 +1351,8 @@ def main(args: Config):
                     os.path.join(os.path.dirname(__file__),
                                  "scripts/codebook_drop_ablation_fast.py"),
                     "--result_dir", _rd,
-                    "--subset_queries", str(_subset)],
+                    "--subset_queries", str(_subset),
+                    "--num_codebooks", str(model.num_codebooks)],
                     check=False, timeout=1800)
             except Exception as ex:
                 print(f"[post-eval] drop_ablation failed: {ex}")
@@ -1204,7 +1376,30 @@ def main(args: Config):
     # ---------- end-of-training diagnostic plots --------------------------
     # Routing heatmap + per-codebook t-SNE go into the run directory next to
     # log.csv / evaluation_*.json. Disable with --no_visualize.
-    if bool(getattr(args, "visualize", True)):
+    from p0_protocol import should_run_test_consuming_visualization
+
+    _visualization_requested = bool(getattr(args, "visualize", True))
+    _visualize_allowed = should_run_test_consuming_visualization(
+        visualization_requested=_visualization_requested,
+        val_protocol_active=getattr(args, "_val_protocol", False),
+        p0_refit_active=_p0_refit,
+    )
+    if (
+        getattr(args, "_val_protocol", False)
+        and _visualization_requested
+    ):
+        print(
+            "[p0-stage1] SKIP end-of-training visualization because the "
+            "codebook t-SNE path consumes the official test split."
+        )
+        _visualize_allowed = False
+    elif _p0_refit and _visualization_requested:
+        print(
+            "[p0-stage2] SKIP end-of-training visualization because the "
+            "codebook t-SNE path would consume the official test after the "
+            "single final extraction."
+        )
+    if _visualize_allowed:
         try:
             from dna_utils import visualize_routing, visualize_codebook_tsne
         except ImportError as ie:
@@ -1257,9 +1452,6 @@ def main(args: Config):
 
 
 if __name__ == '__main__':
-
-    set_random_seed(42)
-
     args = Config()
     args.set_args()
     # Override the legacy nested layout (`result/<date>/<tag>/log/...` +
