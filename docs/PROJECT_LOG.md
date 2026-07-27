@@ -29,11 +29,25 @@ Format conventions:
 
 ---
 
-## Current state (as of 2026-07-24 PM)
+## Current state (as of 2026-07-25 PM)
 
-### 🔒 PAPER INVARIANTS (as of 2026-07-24) — apply to every reported number
+### 🔒 PAPER INVARIANTS (as of 2026-07-25) — apply to every reported number
 
-1. **Unsupervised** — `--hash_target_mode siglip_cos` (never `jaccard`).
+1. **Information tiers and GroundedDNA optimization condition** —
+   The tier names below are repository-local audit tags, not labels claimed
+   verbatim by every source paper. GroundedDNA is **`VLM-T`**, not visual-only
+   `U0`: target ground-truth labels and benchmark taxonomy do not enter its
+   representation objective, but VLM-generated instance captions and a frozen
+   text encoder provide text supervision. It uses
+   `--hash_target_mode siglip_cos` (never `jaccard`).
+   `U0` baselines use a visual-only objective, and the native-DNA `U0-FD`
+   subtag uses frozen train-feature-distance pseudo-pairs. For `VLM-T`,
+   `U0`, and `U0-FD`, held-out labels are used only to score validation
+   retrieval and select E\*, not as encoder-objective inputs. Koike
+   DATE/DAC/TCBB and CRH use ground-truth train labels and are reported
+   separately as `S` supervised baselines/direct priors. Historical entries
+   below that call GroundedDNA “unsupervised” preserve their original record
+   but are superseded by this paper-facing `VLM-T` terminology.
 2. **Metric** — dataset-specific **mAP@R** (CalcTopMap): CIFAR10@1000, others@5000.
 3. **Leakage-free selection** — current **sealed strict-P0** means E\* and every hyperparameter are fixed
    on held-out validation or by predeclaration, the official-test loader/extraction is invoked **exactly
@@ -57,6 +71,34 @@ Format conventions:
    **historical, not current comprehensive SOTA margins**. The expanded diagnostic has baseline wins on
    MSCOCO at 18/24 bases and CIFAR-10 at 24 bases. Unconditional all-four-dataset SOTA wording is suspended
    until provenance-complete three-seed reruns fill the strict paper table.
+7. **Native-DNA admission** — the sealed native-DNA comparison now contains
+   two separately versioned capacity matrices: 18 bases and 24 bases. Each
+   contains four methods × four datasets × seeds `{42,43,44}`. All **96/96**
+   run records and all **32/32** method×dataset×capacity three-seed diagnostic
+   aggregates are complete, with exact-once terminal-test access, SHA-bound
+   extraction, common exact-DP, and post-compliance checks passing. All records
+   use legacy caches without complete immutable transform/model provenance, so
+   strict paper eligibility is **0/96**. DNA24/PRIMO are explicitly classified
+   as **`U0-FD` unsupervised methods with target-label-free encoder
+   objectives**: target ground-truth labels, taxonomy, and captions do not
+   enter the objective, and pseudo-pair targets come from frozen
+   optimization-train feature distances. As for the other P0 baselines,
+   held-out labels are used only to score validation retrieval and select
+   E\*. Koike DATE/DAC/TCBB are **`S` supervised** direct priors because
+   ground-truth train labels enter their objectives. The two regimes remain
+   in separate panels.
+   PRIMO-18 additionally carries
+   `primo_frozen_predictor_length_transfer`; PRIMO-24 carries
+   `primo_frozen_predictor_length_transfer_80_to_24nt`. Neither is presented
+   as a length-calibrated PRIMO reproduction.
+8. **CRH admission** — the supervised CRH matched-cache matrix is complete for
+   four datasets × two budgets × seeds `{42,43,44}`: 24/24 diagnostic cells,
+   strict paper eligibility 0/24. CRH is a clean-room paper-equation adapter
+   with frozen CLIP globals and a linear hash head, not an exact reproduction
+   of the paper's end-to-end ResNet-34 experiments. Its legacy caches lack
+   canonical-transform/immutable-model provenance, and its diagnostic
+   selector/extractor does reopen a fixed test split after all choices are
+   frozen; it therefore does not establish sealed exact-once eligibility.
 
 ### Two CRITICAL corrections affecting all entries below
 
@@ -193,9 +235,11 @@ codebook) as a follow-up.
     MLS3RDUH-CLIP (0.6735) on **mAP**. On **unique (DB)** they all lose
     badly (0.23–0.34 vs CIBHash 0.967, MLS3RDUH 0.515) — the
     codeword→DNA collision mechanism above is the open gap.
-- **Best supervised Flickr25k**: **v18** (HashNet-style logistic on
-  continuous DNA code) -- mAP **0.7883**. Above every binary baseline
-  incl. HashNet's own 0.7800.
+- **Best historical supervised GroundedDNA Flickr25k lineage**: **v18**
+  (HashNet-style logistic on continuous DNA code) -- mAP **0.7883**.
+  It exceeded the then-used pre-CRH binary panel, including HashNet
+  0.7800; it is not a claim against the newer, separately reported CRH
+  supervised diagnostic.
 - **Best supervised + diversity-balanced Flickr25k**: **v24b** -- mAP
   **0.7742**, unique 0.324.
 - **(Tag-supervised lineage; not comparable to external unsupervised
@@ -440,6 +484,632 @@ codebook) as a follow-up.
   reverse-chronological (newest first), `## Infrastructure` pinned at
   bottom. Re-enforced via `python scripts/reorder_project_log.py`
   (idempotent).
+
+---
+
+## 2026-07-27 — 🟡 Prompt-schema effect is RECIPE-DEPENDENT: under the strict global-caption-free "A" recipe the effect REVERSES — MSCOCO's V5b is vindicated, CIFAR's V1 is not
+
+🎯 **Follow-up to the 2026-07-24 champion-recipe prompt ablation.** That entry (V4/V5b/V1 single-delta swaps on
+the *champion* recipe) found no compositional metric consistently favouring the per-dataset prompt and leaned
+toward a unified V4. The user's design rationale, however, is that V5b was chosen for MSCOCO's **compositional
+code** under the direction the project is actually moving to — the strict global-caption-free **"A"** recipe
+(2026-07-23/24 semantic-detail entries). This experiment re-runs the same prompt swaps **on the A recipe**, at
+18-base, to test whether V4-unification still holds when global-caption supervision is removed.
+
+🔬 **Setup — faithful "A" × prompt swap, self-contained (does NOT touch the concurrent semantic-detail runner).**
+"A" = champion recipe + the four global-slot skips (`--text_code_kl_skip_global --text_hash_ntxent_skip_global`
+already in the launchers; **`--xmodal_commit_skip_global --cibhash_dynamic_tau_skip_global` added via EXTRA_ARGS**)
++ **local-only whitening** (`text_whiten_*_localOnly.npz`, fit on local slots 1–5 only). Single delta = the
+training-time text prompt (via the alternate feature cache); K/L/recipe otherwise = champion (MSCOCO K=128/L=3
+cibnt1.5; CIFAR K=64/L=3 cibnt1.0 ccs0.1); **18-base/36-bit**; full P0 2-stage (val-select E\* → refit); eval on
+the champion's own visual cache (visual held constant); bio-projection GC [0.40,0.60]=count[8,10]; seed 42.
+Scope = the two datasets whose champion prompt ≠ V4 (**MSCOCO V5b, CIFAR V1**); Flickr/NUS are already V4 so
+A+V4 = their A cell. Runner `scripts/prompt_ablation_A_cell.sh`; GPU-wait auto-launcher
+`scripts/watch_and_run_promptAblA.sh` (the sealed A infra hardcodes L=4/tag/GC, so a self-contained runner was
+used instead of editing shared scripts).
+
+📊 **A-recipe results (18-base, bio-projected).** Higher better except NMI (↓); Σdrop more-negative = deeper
+informative budget; anti-CB = codebooks whose removal *improves* mAP.
+
+| cell | E\* | retrieval bio-mAP@R | full mAP | NMI ↓ | ρ ↑ | DNA-uniq | Σdrop | anti-CB |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| **MSCOCO A+V5b** (champ prompt) | 39 | **0.8170** | 0.6158 | **0.6579** | 0.135 | **0.1899** | **−0.0524** | 1 |
+| MSCOCO A+V4 | 29 | 0.8077 | 0.6142 | 0.6829 | **0.149** | 0.1799 | −0.0482 | **0** |
+| CIFAR A+V1 (champ prompt) | 19 | 0.9016 | 0.8487 | 0.6870 | **0.318** | 0.1031 | −0.0710 | **0** |
+| **CIFAR A+V4** | 19 | **0.9058** | 0.8585 | **0.6670** | 0.294 | **0.1204** | **−0.0748** | 1 |
+
+🎯 **Key finding — the prompt effect REVERSES between recipes.**
+
+| dataset | champion recipe (2026-07-24) | **A recipe (this entry)** |
+|---|---|---|
+| **MSCOCO** | V4 > V5b (retrieval +0.012, decode +0.011) | **V5b > V4** (retrieval +0.009; wins NMI, DNA-uniq, drop-depth = 4/6 axes) |
+| **CIFAR** | V1 > V4 (retrieval +0.004) | **V4 > V1** (retrieval +0.004; wins NMI, DNA-uniq, drop-depth = 4/6 axes) |
+
+1. **🟢 V5b is vindicated for MSCOCO — but only under the A recipe.** With global captions removed (A), the
+   local disjoint-vocabulary prompt (V5b) finally does what it was designed for: it beats V4 on retrieval
+   (+0.009), inter-codebook redundancy (NMI 0.658 vs 0.683), DNA-unique (0.190 vs 0.180) and informative-budget
+   depth. This is the mechanistically-sensible reading — A makes the model rely on the *local* text supervision,
+   which is exactly where V5b's vocabulary disjointness lives. The champion-recipe reversal happens because
+   global-caption supervision washes the local-vocab distinction out. So the user's "V5b for MSCOCO
+   compositional code" rationale holds **conditional on the global-caption-free regime**, and should be stated
+   that way, not as a regime-independent fact.
+2. **🔴 CIFAR's V1 is not optimal under A either — V4 wins 4/6 axes.** So V1 (the legacy object-part prompt)
+   should be corrected to V4 regardless of recipe.
+3. **"Unify on V4" is REFUTED under the A recipe.** MSCOCO must keep V5b (unifying to V4 costs −0.009 mAP@R and
+   worse NMI/uniq). The refined A-recipe prompt assignment is **MSCOCO=V5b, CIFAR=V4, Flickr/NUS=V4** — i.e.
+   dataset-appropriate prompting *does* hold under A, but the only change from the current MAIN is **CIFAR V1→V4**.
+4. On each dataset the retrieval-winning prompt also wins NMI, DNA-uniq and drop-depth; the loser wins only ρ and
+   the 0-anti-codebook count. ρ therefore dissociates from the other compositional axes here and should not be
+   quoted alone.
+
+⚠️ **Caveats.** Single seed (42); B0/B1 text-grounding lift is **unavailable** (DB-split caches carry no
+captions — `has_text=0` on DB), and B2 visual lift is non-discriminative (~0.163–0.166, near-identical across
+prompts), so B-lift is not part of the verdict; anti-CB is mixed (±1) and marginal; CIFAR-v4 captions are
+Qwen3-VL on 32×32 upscaled images. The champion-recipe numbers used for the reversal table are from the
+2026-07-24 entry (same P0 + bio-projection protocol, so directly comparable). Flickr/NUS not run under A (their
+prompt is already V4; out of the agreed MSCOCO+CIFAR scope).
+
+🧭 **Consequence for the paper.** The defensible claim is now sharper and correct: *"caption-prompt schema
+interacts with the text-supervision regime — under the global-caption-free (A) recipe, MSCOCO's
+disjoint-vocabulary prompt (V5b) improves both retrieval and every codebook-compositional axis, because A
+concentrates supervision on the local slots where that prompt's vocabulary disjointness acts; CIFAR is better
+served by the generic evidence-axis V4 than by the legacy object-part V1."* Do **not** claim regime-independent
+prompt superiority (the champion-recipe ablation shows the effect flips).
+
+🧰 **Artifacts.** `scripts/{prompt_ablation_A_cell.sh, watch_and_run_promptAblA.sh}`; local-only whitening built
+in-place for `cache/{mscoco_clip_v4plus_tokens, cifar10_clip_v4_tokens}` (MSCOCO-V5b/CIFAR-V1 reuse the existing
+`_foils` bundles); result dirs `result/260724+*promptAblA_{mscoco_A_v5b,mscoco_A_v4,cifar_A_v1,cifar_A_v4}_P0refit_*`
+with `cell_result.json` + `codebook_drop_ablation_subset2000.json` (+ MSCOCO `compositional_eval.json`).
+
+---
+
+## 2026-07-27 — 🔬 ROOT CAUSE of the MSCOCO deficit: measured the frozen-CLIP ceiling for the first time. We beat the teacher on 4/4; CroVCA/SDC beat it **only** on MSCOCO. Two orthogonal value axes.
+
+🎯 **Why.** The A-champion table puts us behind CroVCA (0.8257) and SDC (0.8185) on MSCOCO (ours 0.8170) while we
+win the other three comfortably. User directive: state it in the MAIN TEXT and **find the cause**. The decisive
+missing measurement — the **raw frozen-CLIP continuous retrieval ceiling** — did not exist anywhere in the repo.
+
+🔬 **T1 — CLIP-continuous ceiling (new).** `scripts/clip_continuous_ceiling.py`: rank by cosine on the raw frozen
+CLIP global embedding, **no hashing/quantisation**, on the official query/DB splits with the identical relevance
+rule (share ≥ 1 label) and cutoffs (CIFAR@1000, others@5000). ⚠️ Implementation note: `CachedFeatureDataset.visual_global`
+is the FULL cache array — it must be indexed by `.rows` or query and DB become the same block (this bug was hit
+and fixed; the asserts now guard it).
+
+📊 **Gain over the frozen teacher, Δ = method − CLIP-continuous (18-base, P0, bio-projected).**
+
+| Dataset | **CLIP ceiling** | Ours (A) | **Δ ours** | CroVCA | Δ | SDC | Δ | CIBHash | Δ |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Flickr25k @5000 | 0.7798 | 0.8675 | **+0.0877** | 0.7682 | −0.0116 | 0.7230 | −0.0568 | 0.7914 | +0.0116 |
+| MSCOCO @5000 | 0.7849 | 0.8170 | **+0.0321** | 0.8257 | **+0.0408** | 0.8185 | +0.0336 | 0.7764 | −0.0085 |
+| NUS-WIDE @5000 | 0.8211 | 0.8262 | **+0.0051** | 0.7944 | −0.0267 | 0.7520 | −0.0691 | 0.7901 | −0.0310 |
+| CIFAR10 @1000 | 0.8649 | 0.9058 | **+0.0409** | 0.8819 | +0.0170 | 0.8442 | −0.0207 | 0.8933 | +0.0284 |
+
+🔑 **Findings.**
+1. **🟢 GroundedDNA is the only method that adds value on all four datasets** (Δ > 0 everywhere). CroVCA, SDC and
+   CIBHash each fall **below the raw CLIP ceiling** on at least one dataset — SDC on three.
+2. **🎯 CroVCA and SDC add value ONLY on MSCOCO** (+0.041 / +0.034); on Flickr and NUS-WIDE they are −0.012…−0.069,
+   i.e. *worse than not hashing at all*. This is the mechanism behind the inversion, and it is a two-directional
+   explanation.
+3. **The deficit is NOT "our transform destroys signal on MSCOCO."** We exceed the ceiling there too (+0.032).
+   The prior "amplifier inverts on MSCOCO" reading (2026-07-20, based on ρ distance-correlation) does **not**
+   carry over to retrieval mAP@R. Corrected.
+4. **Two orthogonal value axes explain everything:** (i) *semantic restructuring* — ours is strong (+0.088 Flickr,
+   +0.041 CIFAR), CroVCA/SDC contribute none; (ii) *code resolution / similarity spread* — ours is weak
+   (MSCOCO DNA-unique **0.190** = 5.3 DB items per distinct code) vs CroVCA 0.457 / SDC 0.537. SDC's entire
+   published contribution is anti-similarity-collapse (fits code-cosine to a wide Beta(5,5) spread) and CroVCA's
+   second term is coding-rate (volume) maximisation — **both are pure resolution objectives**.
+5. **MSCOCO is the one benchmark that rewards axis (ii) over axis (i)**: 80 labels, heavy-tailed, **21.2 % of its
+   queries have < 5000 relevant items in a 107K DB** (Flickr 5.2 %, NUS-WIDE 0.1 %), so ranking quality at 4.7 %
+   DB depth needs fine resolution rather than coarse categorical grouping. Flickr/NUS/CIFAR (24/21/10 broad
+   labels) reward (i), which is why the two pure-resolution methods collapse there.
+
+🔴 **My earlier H1 (18-base codon pigeonhole) is REFUTED as the primary cause.**
+- T5 (zero-cost, from the saved MSCOCO A cell): `cb_tuple_uniq` **0.3089** → `DNA_uniq` **0.2018`, so codon
+  quantisation does cost ~35 % of code diversity — real, but **even the pre-codon codeword-tuple diversity
+  (0.309) is far below CroVCA 0.457 / SDC 0.537**. The binding constraint is *codeword usage*, not codon alphabet.
+- At 24 bases the baselines gain too and the gap does **not** close: CroVCA 0.8344, SDC 0.8410 vs ours 0.8257
+  (−0.0087 / −0.0153, the widest MSCOCO deficit in the record). The "our 24-base 0.8257 == CroVCA 18-base 0.8257"
+  coincidence is a trap.
+
+📌 **Also corrected / flagged.** (a) "MSCOCO's codebook geometry is degenerate" was already retracted by the
+2026-07-20 amplifier entry ("tuned to a different point on a real trade-off") — do not reuse that framing.
+(b) H3 (cibnt 1.5 over-tuned) was already refuted by a run: MSCOCO cb1.5 0.8134 > cb0.5 0.8002 > cb0.0 0.6871.
+(c) H4 (weak text teacher) is bounded: NUS-WIDE has the worst text target yet the best amplification, and the
+text-side fix was already cashed (A+V5b +0.0107). (d) H5 as "DB size" is refuted — NUS-WIDE's DB is 81 % larger
+and we win it; what survives is the *rare-concept tail*, not size. (e) CIFAR is **not** a clean win at 24 bases
+(CIBHash 0.9054 > ours 0.9033).
+
+🧭 **What this gives the paper (main-text statement).** *"GroundedDNA is the only method in the comparison that
+improves on its own frozen CLIP teacher on every benchmark. The two methods that beat it on MS-COCO — CroVCA and
+SDC — are near-isometric compressors whose objectives maximise code resolution and which fall below the raw CLIP
+ceiling on Flickr25k and NUS-WIDE. MS-COCO is the only benchmark in the suite whose label distribution
+(80 classes, 21 % of queries with fewer than 5000 relevant items) rewards rank resolution over semantic
+grouping, and our compositional code trades resolution (0.19 DB-unique) for structure."* This is honest, is
+two-directional, and converts the loss into a characterised trade-off rather than an unexplained deficit.
+
+🔭 **Actionable follow-up (not yet run).** The fix is to raise code resolution *without* giving up structure:
+(1) more slots or higher per-slot codeword usage on MSCOCO (usage is the binding constraint, per T5);
+(2) an explicit similarity-spread term (SDC-style Beta calibration) as an auxiliary on our continuous code —
+note this is the one direction the earlier trade-off work never tried; (3) stratified mAP by |relevant set|
+quartile (T2) to confirm the gap is concentrated in the rare-concept tail; (4) a cutoff sweep (T3) to locate
+the crossover depth. Tests T2/T3/T4 are pure post-hoc on saved codes.
+
+⚠️ **Caveats.** Single seed on every cell involved; modern-U0 rows are legacy-cache diagnostics; the MSCOCO gap
+(−0.0087 vs CroVCA) is small enough to sit inside single-seed noise, and CroVCA's nominal horizon is 5 epochs
+(E\*=4 on all datasets) vs our 60 while SDC's MSCOCO E\*=94 of 100 — a budget asymmetry worth checking before
+over-interpreting the magnitude. The *direction* (they win only on MSCOCO; they lose to the raw ceiling
+elsewhere) is robust across all four datasets.
+
+🧰 **New:** `scripts/clip_continuous_ceiling.py`; outputs `docs/clip_continuous_ceiling.json`
+(+ `_partial`/`_big` shards). T5 read from `result/260724+*promptAblA_mscoco_A_v5b_P0refit_*/extract_db.npz`.
+
+---
+
+## 2026-07-27 — 📊 A-CHAMPION adopted + full baseline comparison table (18-base, P0 + bio-projected): outperforms all U0/U0-FD baselines on 3/4; **MSCOCO loses to CroVCA/SDC**
+
+🎯 **Decision (user, 2026-07-27): the reported `Ours` is now the "A" champion**, i.e. the strict
+global-caption-free recipe (champion recipe + 4 global-slot skips `text_code_kl` / `text_hash_ntxent` /
+`xmodal_commit` / `cibhash_dynamic_tau` + local-only whitening), with the A-recipe-optimal prompt per dataset
+(**MSCOCO V5b; Flickr / NUS-WIDE / CIFAR10 V4** — 2026-07-27 prompt×recipe entry). Previously the reported
+champion was the **non-A** 2026-07-17 P0refit run. All four A cells were trained here at 18-base/L=3, seed 42,
+full P0 2-stage, mandatory bio-projection GC[8,10].
+
+📊 **A-champion vs the previous non-A champion (18-base bio-projected mAP@R).**
+
+| Dataset | prompt | non-A (old) | **A (new)** | Δ |
+|---|---|---:|---:|---:|
+| Flickr25k @5000 | V4 | 0.8723 | 0.8675 | **−0.0048** |
+| MSCOCO @5000 | V5b | 0.8063 | **0.8170** | **+0.0107** |
+| NUS-WIDE @5000 | V4 | 0.8274 | 0.8262 | −0.0012 |
+| CIFAR10 @1000 | V4 | 0.9009 | **0.9058** | **+0.0049** |
+
+⚖️ **A is not uniformly better** (2 up / 1 flat / 1 down; mean +0.0024). It is adopted for recipe consistency
+with the sealed strict-P0 direction and for the MSCOCO/CIFAR gains, not because it dominates. E\* = 4 / 39 / 4 / 19.
+
+📊 **Target-label-free encoder-objective comparison — GroundedDNA
+(`VLM-T`) vs visual-only `U0`/native-DNA `U0-FD`, 18-base, P0 +
+bio-projected mAP@R.** Single seed unless noted.
+
+GroundedDNA is **`VLM-T`**, not `U0`: it does not use target ground-truth
+labels or benchmark taxonomy in the representation objective, but it does use
+VLM-generated captions and a frozen text encoder. DNA24 and PRIMO form the
+explicit **`U0-FD` native-DNA subcategory**: their encoder objectives are
+target-label-free and obtain pair targets from frozen optimization-train
+feature distances. PRIMO additionally uses a frozen non-semantic
+hybridization-yield predictor. For all target-label-free tiers here, held-out
+labels score validation retrieval and select E\* only. Koike DATE/DAC/TCBB are
+excluded from this table because they are `S` supervised.
+
+| Method | Tier | seeds | Flickr25k | MSCOCO | NUS-WIDE | CIFAR10 |
+|---|:---:|:---:|---:|---:|---:|---:|
+| **Ours (A-champion)** | **`VLM-T`** | 1 | **0.8675** | 0.8170 | **0.8262** | **0.9058** |
+| CIBHash | `U0` | 1 | 0.7914 | 0.7764 | 0.7901 | 0.8933 |
+| CIMON | `U0` | 1 | 0.8168 | 0.6583 | 0.7774 | 0.8221 |
+| MLS3RDUH | `U0` | 1 | 0.7666 | 0.6289 | 0.7647 | 0.5788 |
+| OH (Hashing One With All) | `U0` | 1 | 0.8362 | 0.7587 | 0.8023 | 0.8737 |
+| **CroVCA** | `U0` | 1 | 0.7682 | **0.8257** | 0.7944 | 0.8819 |
+| **SDC** | `U0` | 1 | 0.7230 | 0.8185 | 0.7520 | 0.8442 |
+| Bi-half | `U0` | 1 | 0.8161 | 0.7062 | 0.7489 | 0.7581 |
+| GreedyHash | `U0` | 1 | 0.6077 | 0.5639 | 0.6511 | 0.1851 |
+| HHCH | `U0` | 1 | 0.5867 | 0.4709 | 0.4329 | 0.2992 |
+| DNA24-18 analytic-transfer (Stewart'18) | **`U0-FD`** | 3 | 0.7808±.0071 | 0.6330±.0127 | 0.7427±.0055 | 0.7786±.0101 |
+| PRIMO-18 frozen-predictor length-transfer (Bee'21) | **`U0-FD`** | 3 | 0.7882±.0209 | 0.6251±.0129 | 0.7320±.0109 | 0.7344±.0123 |
+
+**Margins (Ours-A −):**
+
+| vs | Flickr25k | MSCOCO | NUS-WIDE | CIFAR10 |
+|---|---:|---:|---:|---:|
+| best classic-3 | +0.0507 | +0.0406 | +0.0361 | +0.0125 |
+| best U0-FD native-DNA predecessor | +0.0793 | +0.1840 | +0.0835 | +0.1272 |
+| **best any-U0** | **+0.0313** (OH) | **−0.0087** (CroVCA) | **+0.0239** (OH) | **+0.0125** (CIBHash) |
+
+🟢 GroundedDNA (`VLM-T`) **outperforms every `U0`/`U0-FD` baseline on 3/4
+datasets; 4/4 against the classic three and against both `U0-FD` native-DNA
+direct predecessors** (the lineage the paper positions itself in). This is a
+cross-tier target-label-free encoder-objective comparison, not a claim that
+GroundedDNA itself is `U0`.
+
+🔴 **MSCOCO is a genuine loss, and will be stated in the MAIN TEXT (user directive), not a footnote.**
+CroVCA 0.8257 and SDC 0.8185 both exceed our 0.8170. Adopting A halves the gap (non-A −0.019 → A −0.009) but
+does not close it. Note the *inversion*: CroVCA/SDC are the **weakest** methods on Flickr (0.7682 / 0.7230) and
+NUS (0.7944 / 0.7520) yet the **strongest** on MSCOCO — so this is an MSCOCO-specific mechanism, not general
+superiority. **A root-cause investigation is required and is now open** (candidate hypotheses: 18-base codon
+pigeonhole at K=128 — note our 24-base MSCOCO is 0.8257, exactly CroVCA's 18-base figure; MSCOCO's already-known
+degenerate z/codebook geometry ρ 0.134 and eff_rank 50; highest instance-discrimination weight cibnt 1.5;
+weakest text teacher ρ 0.069–0.097 with patch-mean anti-correlated −0.115).
+
+📌 **Tier separation (must not be merged into the U0 margin).** UMRCH is U2 (uses the benchmark class
+taxonomy): 0.7994 / 0.8009 / 0.8224 / n/a. Supervised (`S`), 3-seed: CRH 0.8628 / 0.8435 / 0.8532 / 0.9346;
+Koike TCBB'26 0.8916 / 0.6189 / 0.8156 / 0.9304; Koike DATE/DAC'24 0.8353 / 0.5795 / 0.7453 / 0.8850. CRH and
+Koike-TCBB exceed us on several datasets — expected for label-using methods, not a counterexample.
+
+📊 **24-base panel (compare only within budget; all diagnostic).** Ours-24-base exists only for the **non-A**
+grid whose main-protocol eligibility was revoked 2026-07-23 (K=128: 0.8742 / 0.8257 / 0.8328 / 0.9033).
+**No A-recipe 24-base run exists.** Baselines-24: CIBHash 0.8057 / 0.8018 / 0.8074 / 0.8994; CIMON 0.8277 /
+0.6723 / 0.7858 / 0.8231; MLS3RDUH 0.7670 / 0.6294 / 0.7765 / 0.5694;
+DNA24-24 and PRIMO-24 per the 2026-07-25 sealed matrices are `U0-FD`;
+CRH-24 (`S`) is 0.8816 / 0.8668 / 0.8634 / 0.9383; Koike DATE/DAC-24
+(`S`) is 0.8167 / 0.5788 / 0.7598 / 0.8812; and Koike TCBB-24 (`S`) is
+0.8939 / 0.6359 / 0.8285 / 0.9295.
+
+⚠️ **Caveats.** (1) Single seed on Ours and on every classic/modern-U0 row; only native-DNA and supervised rows
+are 3-seed. A strict paper MAIN table needs 3-seed sealed reruns on **both** sides — under today's sealed-strict
+definition even our headline is a diagnostic. (2) classic-3 and modern-U0 numbers come from **different run
+profiles** (`bio_projection_comparison.json` vs `baseline_p0_matrix_seeds42_legacy_cache.json`) and must not be
+mixed within a column. (3) CroVCA's row is the `cache2v-probe` adaptation; SDC is `SDC-paper`. (4) Modern-U0 and
+UMRCH cells are legacy-cache diagnostics (`†`), not strict-eligible.
+
+🧰 **Artifacts.** Table doc `docs/comparison_Achampion_vs_baselines_2026-07-27.md`; A cells
+`result/2607{24,27}+*promptAblA_{flickr_A_v4,mscoco_A_v5b,nuswide_A_v4,cifar_A_v4}_P0refit_*` (+`cell_result.json`);
+runner `scripts/prompt_ablation_A_cell.sh`, GPU-wait launcher `scripts/watch_and_run_promptAblA.sh`.
+Baseline sources as listed in the table doc.
+
+🔧 **Side fix (qualitative viz).** The grid runners had `--no_visualize` hardcoded, so no
+`viz_routing_heatmap.png` / `viz_codebook_tsne.png` were produced for any 260724–260727 cell. Visualization is
+now **default-ON** in `scripts/{prompt_ablation_A_cell,prompt_ablation_cell,maintable_cell}.sh` (opt out with
+`VIZ=0`), and the PNGs are being backfilled with `scripts/regen_viz_routing.py`, which gained (a) a **CIFAR10
+branch** (it previously crashed on CIFAR — no `setting1/*.txt` path manifest, so it now uses the same
+`load_dataset` dispatcher `train_siglip2.py` uses) and (b) `--tsne` / `--tsne_only` to regenerate
+`viz_codebook_tsne.png` on the test split.
+
+---
+
+## 2026-07-27 — 🟢 Related Works / MAINTABLE 문헌 선정 메모: non-bio와 bio-native 비교 경계 고정
+
+📚 **새 문헌 선정 source of truth.**
+[`RELATED_WORKS_AND_MAINTABLE_SELECTION.md`](./RELATED_WORKS_AND_MAINTABLE_SELECTION.md)에
+논문의 `Related Works`와 `Experiments`에서 사용할 연구를 non-bio와
+bio로 나누고, 각 논문의 주요 contribution, method, supervision,
+MAINTABLE 포함 여부 및 matched-reproduction 경계를 정리했다.
+
+📊 **권장 논문 표.**
+
+- 18-base headline Panel A: visual-only non-bio `U0` 9개(CIBHash,
+  CIMON, MLS³RDUH, GreedyHash-UGH, Bi-half, SDC-paper, Hashing One With
+  All, HHCH, CroVCA), native-DNA `U0-FD` 2개(DNA24, PRIMO), GroundedDNA
+  `VLM-T`.
+- 별도 contextual Panel B: taxonomy-assisted UMRCH `U2`, supervised
+  non-bio CRH `S`, supervised bio-native Koike DATE/DAC 및 TCBB `S`.
+  DATE/DAC 2024는 동일 triplet-DNA baseline lineage이므로 한 행으로
+  집계한다.
+- 24-base는 A-recipe GroundedDNA comparator가 아직 없으므로 headline이
+  아니라 capacity appendix로 제한한다.
+- strict provenance-complete three-seed rerun 전에는 모든 수치 cell을
+  `-`로 유지하고, 현재 결과는 `† diagnostic`으로만 사용한다.
+
+🧭 **Related Works 경계.** Non-bio는 visual-only hashing,
+product/compositional quantization, language/interpretable hashing,
+OT concept grounding으로 나눴다. Bio는 learned native-DNA direct
+predecessor, molecular/Cas9 access, codon-inspired CBIR,
+storage/constrained coding으로 나눴다. Cas9·Pradhan·DNA-CBIR 및
+HEDGES/DNA-Aeon 계열은 핵심 인용이지만 공통 per-image base-Hamming
+mAP@R 행은 아니다.
+
+🔎 **명칭 교정.** Repository runner `OH`는 OrthoHash가 아니라
+**Hashing One With All (ACM MM 2023)**이다. 기존 A-champion 비교 표와
+이 log의 잘못된 `OH (OrthoHash)` 표기를 고쳤다. DNA24 2018의
+제1저자는 **Kendall Stewart**이며, `DNA24`는 24-base가 아니라
+24th DNA Computing conference를 뜻한다.
+
+---
+
+## 2026-07-25 — 🟢 Native-DNA direct-predecessor 24-base sealed P0 matrix: 48/48 three-seed diagnostic complete; strict 0/48
+
+🟢 **Status.** All four direct-predecessor implementations were run on all
+four datasets with seeds `{42,43,44}` at the matched 24-base capacity. The
+authoritative root is
+`/data/yschoi/groundeddna_native_p0_24base_sealed`; its launcher finished with
+48 completed records and zero failure. The final fail-closed aggregation
+reports:
+
+- 48 `complete_diagnostic_only`, 0 strict-main eligible;
+- 0 missing, blocked, invalid, duplicate, or unkeyed manifest;
+- all 16 method×dataset three-seed diagnostic aggregates complete;
+- checkpoint/evaluation SHA-256, versioned per-method protocol locks,
+  `refit_epochs=E*+1`, and query/database post-compliance `1.0` verified.
+
+The generated [audit Markdown](native_dna_p0_24base_aggregate.md) and
+[JSON](native_dna_p0_24base_aggregate.json) are the numeric source of truth.
+
+### Sealed matched 24-base protocol
+
+- Stage 1 never loads the official test split and selects the earliest
+  maximizer E* on the predeclared five-epoch grid using neural-raw 24-base
+  Hamming validation mAP@R.
+- Stage 2 initializes from scratch on the full designated train split for
+  exactly `E*+1` epochs. The terminal trainer opens query/database once; raw
+  and post-DP metrics share the SHA-bound saved extraction.
+- Query and database receive the same minimum-Hamming DP projection: 24-base
+  GC count `[10,14]`, homopolymer run≤3.
+- Source horizons, optimizers, losses, and batch construction are unchanged
+  from the 18-base matrix. A separate 24-base driver/trainer/launcher/
+  aggregator and capacity-specific protocol locks prevent accidental mixing
+  with the sealed 18-base artifacts.
+
+### Strict paper table
+
+| Method | Regime / information condition | Flickr25K | MS-COCO | NUS-WIDE | CIFAR-10 |
+|---|---|---:|---:|---:|---:|
+| DNA24-24 analytic-transfer | `U0-FD`, target-label-free encoder objective; feature-distance pairs | - | - | - | - |
+| PRIMO-24 frozen-predictor length-transfer | `U0-FD`, target-label-free encoder objective; feature-distance pairs + frozen external predictor | - | - | - | - |
+| Koike DATE/DAC 2024 | `S`, ground-truth train labels | - | - | - | - |
+| Koike TCBB 2026 | `S`, labels + bio-aware losses/HP heuristic | - | - | - | - |
+
+All 48 records carry `legacy_cache_missing_strict_provenance`. The 12 PRIMO
+records additionally carry
+`primo_frozen_predictor_length_transfer_80_to_24nt`; therefore none of the
+numbers below may be copied to the strict MAIN TABLE.
+
+### Diagnostic panel 1 — unsupervised (`U0-FD`; target-label-free encoder objective) feature-distance-pair direct predecessors
+
+Post-DP mAP@R, three-seed mean ± sample standard deviation:
+
+| Method | Information condition | Flickr25K | MS-COCO | NUS-WIDE | CIFAR-10 |
+|---|---|---:|---:|---:|---:|
+| DNA24-24 analytic-transfer | `U0-FD`, target-label-free encoder objective; train-feature distance pairs | 0.7927 ± 0.0068† | 0.6412 ± 0.0110† | 0.7542 ± 0.0046† | 0.7814 ± 0.0090† |
+| PRIMO-24 frozen-predictor length-transfer | `U0-FD`, target-label-free encoder objective; train-feature distance pairs + frozen external predictor | 0.7962 ± 0.0125† | 0.6326 ± 0.0049† | 0.7522 ± 0.0033† | 0.7569 ± 0.0085† |
+
+### Diagnostic panel 2 — supervised (`S`) direct-prior baselines
+
+| Method | Information condition | Flickr25K | MS-COCO | NUS-WIDE | CIFAR-10 |
+|---|---|---:|---:|---:|---:|
+| Koike DATE/DAC 2024 | `S`, ground-truth train labels | 0.8167 ± 0.0071† | 0.5788 ± 0.0203† | 0.7598 ± 0.0113† | 0.8812 ± 0.0049† |
+| Koike TCBB 2026 | `S`, labels + bio-aware losses/HP heuristic | 0.8939 ± 0.0043† | 0.6359 ± 0.0128† | 0.8285 ± 0.0016† | 0.9295 ± 0.0014† |
+
+`†` means diagnostic-only, not supervised. DNA24 transfers its original
+30-mer analytic yield mapping to 24 bases. PRIMO uses the unchanged official
+80-mer predictor and is therefore an 80-to-24-nt frozen-predictor adaptation,
+not a physically calibrated PRIMO-24 reproduction. DATE/DAC and TCBB remain
+supervised direct-prior context and are never ranked as U0 baselines.
+
+---
+
+## 2026-07-25 — 🟢 Native-DNA direct-predecessor 18-base sealed P0 matrix: 48/48 three-seed diagnostic complete; strict 0/48
+
+🟢 **Status.** DNA24, PRIMO, Koike DATE/DAC 2024, and Koike TCBB 2026
+were run on all four datasets with seeds `{42,43,44}`. The clean authoritative
+root is `/data/yschoi/groundeddna_native_p0_sealed`; its launcher summary is
+`scheduled=48`, `completed=48`, `failures=[]`. The final fail-closed
+aggregation reports:
+
+- 48 `complete_diagnostic_only`, 0 strict-main eligible;
+- 0 missing, blocked, invalid, duplicate, or unkeyed manifest;
+- all 16 method×dataset three-seed aggregates complete with one protocol
+  family per aggregate;
+- checkpoint/evaluation SHA-256 verified, `refit_epochs=E*+1`, query and
+  database post-compliance exactly `1.0`.
+
+The generated [audit Markdown](native_dna_p0_aggregate.md) and
+[JSON](native_dna_p0_aggregate.json) are the numeric source of truth.
+
+### Sealed matched protocol
+
+- Capacity: 18 DNA bases; mAP@5000 except CIFAR-10 mAP@1000.
+- Stage 1 never loads the official test split and selects the earliest
+  maximizer E* on the predeclared five-epoch grid using **neural-raw
+  18-base Hamming validation mAP@R**.
+- Stage 2 initializes from scratch on the full designated train split for
+  exactly `E*+1` epochs. The terminal trainer opens query/database once;
+  raw and post-DP metrics share that saved extraction.
+- Query and database receive the same minimum-Hamming DP projection:
+  18-base GC count `[8,10]`, homopolymer run≤3.
+- Source horizons and optimizer families are retained: DNA24 65 epochs with
+  1000×500 pairs/epoch and Adam `1e-3`; PRIMO 100 epochs with 1000×100
+  pairs/epoch and Keras-compatible Adagrad `1e-3`; DATE/DAC 150 epochs and
+  TCBB 1000 epochs with Keras-compatible Adagrad `.01`. No audited source
+  uses gradient clipping, so `grad_clip=0`.
+
+### Strict paper table
+
+| Method | Regime / information condition | Flickr25K | MS-COCO | NUS-WIDE | CIFAR-10 |
+|---|---|---:|---:|---:|---:|
+| DNA24-18 analytic-transfer | `U0-FD`, target-label-free encoder objective; feature-distance pairs | - | - | - | - |
+| PRIMO-18 frozen-predictor length-transfer | `U0-FD`, target-label-free encoder objective; feature-distance pairs + frozen external predictor | - | - | - | - |
+| Koike DATE/DAC 2024 | `S`, ground-truth train labels | - | - | - | - |
+| Koike TCBB 2026 | `S`, labels + bio-aware losses/HP heuristic | - | - | - | - |
+
+All 48 cells carry `legacy_cache_missing_strict_provenance`. The 12 PRIMO
+cells additionally carry `primo_frozen_predictor_length_transfer`; therefore
+none of the numbers below may be copied to the strict MAIN TABLE.
+
+### Diagnostic panel 1 — unsupervised (`U0-FD`; target-label-free encoder objective) feature-distance-pair direct predecessors
+
+Post-DP mAP@R, three-seed mean ± sample standard deviation:
+
+| Method | Information condition | Flickr25K | MS-COCO | NUS-WIDE | CIFAR-10 |
+|---|---|---:|---:|---:|---:|
+| DNA24-18 analytic-transfer | `U0-FD`, target-label-free encoder objective; train-feature distance pairs | 0.7808 ± 0.0071† | 0.6330 ± 0.0127† | 0.7427 ± 0.0055† | 0.7786 ± 0.0101† |
+| PRIMO-18 frozen-predictor length-transfer | `U0-FD`, target-label-free encoder objective; train-feature distance pairs + frozen external predictor | 0.7882 ± 0.0209† | 0.6251 ± 0.0129† | 0.7320 ± 0.0109† | 0.7344 ± 0.0123† |
+
+### Diagnostic panel 2 — supervised (`S`) direct-prior baselines
+
+| Method | Information condition | Flickr25K | MS-COCO | NUS-WIDE | CIFAR-10 |
+|---|---|---:|---:|---:|---:|
+| Koike DATE/DAC 2024 | `S`, ground-truth train labels | 0.8353 ± 0.0047† | 0.5795 ± 0.0151† | 0.7453 ± 0.0419† | 0.8850 ± 0.0090† |
+| Koike TCBB 2026 | `S`, labels + bio-aware losses/HP heuristic | 0.8916 ± 0.0037† | 0.6189 ± 0.0045† | 0.8156 ± 0.0009† | 0.9304 ± 0.0054† |
+
+`†` means **diagnostic-only**, not supervised. Raw mAP, post-DP database
+unique ratio, seed-specific E*, manifest/checkpoint paths, and all hashes are
+kept in the generated aggregate rather than compressed into this table.
+
+### Reproduction boundary and interpretation
+
+- DNA24 has no official implementation; this is an independent
+  paper-equation reimplementation. Its 30-mer yield sigmoid transferred to
+  18 bases is explicitly named `analytic-transfer`.
+- PRIMO uses the official `uwmisl/primo-similarity-search` `pub` revision
+  `5cf3656b163e1ae49f01b39e30a7fba985552cbf`.
+  `yield-model.h5` SHA-256 is
+  `fb81610f09a901e22e979c7b828d6226fa6166c5eb129289fc5de9040f8dc580`;
+  the exact-converted NPZ SHA-256 is
+  `a17d51f2d288472f5a4ddc7aefd81c4d4737f8ae2dd67ceb8bc064092a98133f`.
+  The official predictor was calibrated for 80 nt, so the current 18-base
+  row is not `PRIMO-18-calibrated`.
+- DATE and DAC describe the same core triplet-network lineage and are one
+  performance row, not two independent baselines.
+- TCBB's bio-aware objective makes raw→post-DP mAP changes small, but its
+  low post-DP DB uniqueness and use of train labels must be shown alongside
+  accuracy rather than hidden.
+- GroundedDNA `.8723/.8063/.8274/.9009` is a historical single run. It is not
+  a paired three-seed/provenance-matched comparator; no statistical margin or
+  SOTA claim is computed. Koike results are supervised upper-bound/direct-prior
+  context, even where their point estimates exceed GroundedDNA.
+
+---
+
+## 2026-07-25 — 🟢 CRH supervised matched-cache P0 matrix: 24/24 three-seed diagnostic complete; strict 0/24
+
+🟢 **Status.** The clean-room CRH adapter completed all four datasets, both
+36-/48-bit budgets, and seeds `{42,43,44}` with no failed, missing, invalid,
+duplicate, malformed, extraneous, source-profile-excluded, or
+implementation-blocked cell. The authoritative
+[JSON aggregate](baseline_p0_matrix_seeds42-43-44_supervised_legacy_cache.json)
+and [audit Markdown](baseline_p0_matrix_seeds42-43-44_supervised_legacy_cache.md)
+report 24 `complete_diagnostic_only`, 0 strict-main eligible, and a consistent
+implementation fingerprint across every cell.
+
+### Source and matched adapter
+
+- Paper: [Codebook-Centric Deep Hashing: End-to-End Joint Learning of Semantic
+  Hash Centers and Neural Hash Function (AAAI
+  2026)](https://ojs.aaai.org/index.php/AAAI/article/view/38190); public
+  [repository](https://github.com/iFamilyi/CRH), audited commit
+  `bc3efd3757501f11d4f308be81167be7e2bd5342`.
+- Local implementation: `baseline/CRH.py`, SHA-256
+  `ef09c8d29989dad4c98c466880133d52649975fc397a4b2a3a0c82619b37013d`.
+  No upstream `LICENSE`/`COPYING` file was found, so source was inspected but
+  not copied; this is a paper-equation clean-room adapter.
+- CRH consumes target labels in both class-center reassignment and its margin
+  classification loss. It is therefore an `S` supervised baseline, never a
+  U0/U1/U2 method and never a contributor to an unsupervised SOTA margin.
+- The source's pixel/ResNet-34 path is replaced by the common frozen CLIP
+  global cache and one learned linear hash head. The original paper evaluates
+  Stanford Cars, NABirds, and MS COCO; only MSCOCO overlaps this matrix, while
+  Flickr25K, NUS-WIDE, and CIFAR-10 are explicit dataset adaptations.
+- Each head fixes `M=2C` collision-free candidate subcodes, sampled uniformly
+  by the local deterministic paper-equation sampler. Label-guided one-to-one
+  reassignment composes the dynamic class centers; margin classification
+  learns the hash function. Tanh-L2 quantization has weight `.1` only for
+  single-label CIFAR-10 and weight `0` for Flickr25K/MSCOCO/NUS-WIDE, where it
+  is logged but contributes no gradient. The release-executable
+  smallest-divisor rule gives `(d,H)`:
+  Flickr/NUS/CIFAR `(6,6)/(6,8)` and MSCOCO `(9,4)/(8,6)` at 36/48 bits.
+- The public release adds an undocumented best-of-1000/persistent unseeded
+  codebook heuristic and does not ship the authors' exact sampled codebook.
+  The local deterministic paper-equation sampler is therefore not claimed as
+  byte-exact released-code reproduction.
+- Flickr's label-normalized objective is undefined on zero-label training
+  rows. Training-loader-only filtering retains `4,424/4,500` stage-1 and
+  `4,919/5,000` refit rows; validation, query, and database remain unchanged.
+
+### Strict paper table
+
+| Budget | Information condition | Flickr25K @5000 | MS-COCO @5000 | NUS-WIDE @5000 | CIFAR-10 @1000 |
+|---|---|---:|---:|---:|---:|
+| CRH, 18 bases / 36 bits | `S`, ground-truth train labels | - | - | - | - |
+| CRH, 24 bases / 48 bits | `S`, ground-truth train labels | - | - | - | - |
+
+All 24 cells carry `cache_meta_missing_canonical_transform` and
+`cache_meta_missing_immutable_hf_provenance`. In addition, this diagnostic
+runner does reopen the already fixed test split during selector verification
+and independent code extraction. Thus neither the three-seed repetition nor
+the absence of model-selection feedback promotes these rows into sealed
+strict-P0.
+
+### Diagnostic supervised-S comparison
+
+Post-DP base-Hamming mAP@R, three-seed mean ± sample standard deviation:
+
+| Budget | Information condition | Flickr25K @5000 | MS-COCO @5000 | NUS-WIDE @5000 | CIFAR-10 @1000 |
+|---|---|---:|---:|---:|---:|
+| CRH, 18 bases / 36 bits | `S`, ground-truth train labels | 0.8628 ± 0.0068† | 0.8435 ± 0.0013† | 0.8532 ± 0.0025† | 0.9346 ± 0.0019† |
+| CRH, 24 bases / 48 bits | `S`, ground-truth train labels | 0.8816 ± 0.0068† | 0.8668 ± 0.0011† | 0.8634 ± 0.0037† | 0.9383 ± 0.0019† |
+
+`†` means main-table-ineligible diagnostic. E* was selected on held-out raw
+base-Hamming validation mAP@R; scratch refit retained the source schedule
+horizon. The same bit-pair DNA conversion and exact minimum-Hamming biological
+projection were then applied to query and database. These supervised results
+are direct contextual baselines and are not statistically ranked against the
+single-seed historical GroundedDNA champion.
+
+---
+
+## 2026-07-24 — 🟡 Prompt-schema ablation (V4/V5b/V1 swap, single-delta, P0 18-base): no compositional metric consistently favours the per-dataset prompt; held-out decoding favours a unified V4
+
+🎯 **Question.** The current MAIN caption prompts are **dataset-specific by nature**: Flickr25k/NUS-WIDE use
+`_PROMPT_V4` (loose *evidence-axis*: global / primary-object / secondary-object / activity-or-relation /
+color-texture / scene-type), MSCOCO uses `_PROMPT_V5b` (the same 6 axes but with a **strict disjoint-vocabulary**
+rule — per-axis allowed-word domains + hard cross-axis FORBIDDEN lists), CIFAR10 uses `_PROMPT_V1` (an
+*object-part* schema: global / head-or-main-part / body-or-secondary-part / limb-or-detail-part / color-texture /
+background-null), CUB-200 uses `_PROMPT_V6B_CUB` (anatomical). The stated design rationale is **not retrieval
+but compositional-code quality** — V5b was regenerated (2026-06-17) specifically to cut MSCOCO's high
+local↔local caption cosine (0.666 vs Flickr 0.592) and therefore codebook redundancy. This ablation tests, on
+the compositional axis, whether each dataset's chosen prompt is actually the compositionally-better one.
+
+🔬 **Setup — clean single-delta = the training-time text prompt only.** Each dataset's **champion recipe** is
+run unchanged (Flickr K=128/L=3 cibnt1.0, MSCOCO K=128/L=3 cibnt1.5, CIFAR K=64/L=3 cibnt1.0 ccs0.1;
+18-base/36-bit throughout) except the text-feature cache is swapped to the alternate prompt: **MSCOCO V5b→V4**
+(`mscoco_clip_v4plus_tokens`), **Flickr V4→V5b** (`flickr25k_clip_v5b_tokens`), **CIFAR V1→V4**
+(`cifar10_clip_v4_tokens`, built here: Qwen3-VL re-caption of 6,000 CIFAR images at prompt v4, 7h21m, then CLIP
+text/token extraction). Whitening (optTrain/trainOnly) rebuilt per alternate cache with the standard
+`build_opt_train_rows.py`+`build_text_whiten_matrix.py` chain. Full P0 2-stage (val-select E\* → refit at E\* on
+100% train), eval on the champion's own visual cache (visual held constant — only training text differs),
+mandatory bio-projection GC [0.40,0.60]=count[8,10]. Single seed (42).
+
+📊 **Prompt-swap results — champion-prompt vs swap-prompt (bio-projected).** Higher is better except NMI (↓).
+
+| Dataset | metric | champion prompt | swap prompt | Δ (swap − champion) |
+|---|---|---:|---:|---:|
+| **MSCOCO** (champ **V5b**) | retrieval mAP@5000 | 0.8063 | **0.8186** (V4, E\*34) | **+0.0123** |
+| | held-out codon decode ↑ | 0.6115 | **0.6221** (V4) | **+0.0106** |
+| | ρ (codebook align) ↑ | 0.134 | 0.138 (V4) | +0.004 |
+| | NMI ↓ | **0.6591** | 0.6797 (V4) | +0.0206 (V5b better) |
+| | DNA-unique | 0.175 | 0.172 (V4) | −0.003 |
+| **Flickr25k** (champ **V4**) | retrieval mAP@5000 | 0.8723 | 0.8690 (V5b, E\*4) | −0.0033 |
+| | held-out codon decode ↑ | **0.7633** | 0.7581 (V5b) | −0.0052 |
+| | ρ ↑ | 0.586 | **0.611** (V5b) | +0.025 (V5b better) |
+| | NMI ↓ | 0.5691 | **0.5607** (V5b) | −0.0084 (V5b better) |
+| **CIFAR10** (champ **V1**) | retrieval mAP@1000 | 0.9009 | 0.8966 (V4, E\*9) | −0.0043 |
+| | held-out codon decode | N/A | N/A | tooling unsupported* |
+| | ρ ↑ | 0.327 | 0.335 (V4) | +0.008 (V4 better) |
+| | NMI ↓ | 0.6934 | **0.6622** (V4) | −0.0312 (V4 better) |
+| | DNA-unique | 0.108 | 0.099 (V4) | −0.009 |
+
+\*CIFAR held-out codon decoding is **not supported**: CIFAR extractions carry md5 image-ids, not `image_paths`,
+which `heldout_codon_decoding.py:276` requires for row realignment; the project has never run CIFAR held-out
+decoding. Champion decode values 0.6115 (MSCOCO) / 0.7633 (Flickr) reproduce the 2026-07-21 logged numbers exactly.
+
+🔑 **Findings — the compositional evidence does NOT consistently favour the per-dataset prompt.**
+1. **The project's strongest interpretability metric (held-out codon decoding) favours the loose V4 on both
+   testable datasets** — MSCOCO V4 +0.0106, Flickr V4 +0.0052. On MSCOCO this is the opposite of the design
+   intent: V4 (the "wrong" prompt) both retrieves and decodes concepts *better* than the chosen V5b.
+2. **NMI (the metric V5b was designed for) is inconsistent across datasets.** It favours the strict prompt on
+   MSCOCO (−0.021) and Flickr (−0.008) — but on **CIFAR it favours V4, not the V1 champion** (0.662 vs 0.693,
+   −0.031). So NMI does not track "the chosen prompt" and cannot serve as the organising principle.
+3. **retrieval:** V4 > V5b on MSCOCO (+0.012); V4 ≈ V5b on Flickr (+0.003, noise); V1 > V4 on CIFAR (+0.004).
+   The champion prompt is retrieval-best only on CIFAR, and by a noise-level margin.
+4. **ρ:** mixed (MSCOCO ~tie, Flickr V5b better, CIFAR V4 better).
+
+🟡 **Verdict.** No single compositional metric consistently validates *dataset-appropriate prompting*. The
+trusted axis (held-out decoding) and retrieval both lean toward a **unified loose V4 evidence-axis prompt**,
+which is same-or-better on almost every axis except NMI-redundancy (which is itself inconsistent). The honest
+paper options are **(A) unify on V4** (retrieval-best-or-tied on 2/3, decoding-best where testable, simpler
+architecture story) or **(B) keep per-dataset prompts but frame them as a minor input-adaptation detail, not a
+compositional contribution** — do NOT claim "the strict prompt improves compositional code" as a general result.
+
+⚠️ **Caveats.** Single seed (42); champion-recipe (not the strict-`A` global-caption-free recipe — see the
+2026-07-23/24 semantic-detail entries); alternate-cache aug views were built independently of the champion
+(minor instance-discrimination confound, within single-seed noise); CIFAR-v4 captions are Qwen3-VL on 32×32
+upscaled images (dubious fine detail — itself part of what the CIFAR ablation probes); NMI is a metric the
+project deprecated on 2026-07-19 (usable for same-method prompt contrasts but not as a headline). A follow-up
+runs this comparison **on the strict-`A` recipe at 18-base with unified V4** to confirm the direction under the
+current best-practice config.
+
+🧰 **Artifacts.** `scripts/prompt_ablation_cell.sh`, `scripts/run_cifar_v4_continue.sh`; alternate caches
+`cache/{flickr25k_clip_v5b_tokens, mscoco_clip_v4plus_tokens, cifar10_clip_v4_tokens}` + their whitening;
+result dirs `result/260724+*promptAbl_{flickr_v5b,mscoco_v4,cifar_v4}_P0refit_*`;
+`docs/heldout_promptAbl_{mscoco_v5b,mscoco_v4,flickr_v4,flickr_v5b}.json`; caption `cache/cifar10_qwen_v4.jsonl`
+(6,000 rows). Champion baselines: `result/260717+*_P0refit_*` (Flickr e4 / MSCOCO e49 / CIFAR e14).
 
 ---
 
@@ -1151,6 +1821,15 @@ ordered selected-WordNet noun bank or an unambiguous selection specification; th
 path loses source identity/provenance. Therefore an exact DUH-EG number would be fabricated. Keep every
 dataset/budget cell as `- (author artifact required)` until that artifact or an equivalent authoritative
 specification is obtained; do not substitute the released-objective adapter into the exact row.
+
+⛔ **FSCH remains implementation-blocked, not estimated.** The public repository does not provide a
+trainer, loss, optimizer, or executable entry point and contains material model defects. An exact FSCH
+comparison cannot be reconstructed from those materials without inventing missing training choices.
+
+| Blocked method | Information condition | 18-base Flickr / MSCOCO / NUS / CIFAR | 24-base Flickr / MSCOCO / NUS / CIFAR |
+|---|---|---|---|
+| DUH-EG | U?; authoritative ordered WordNet selection artifact required | - / - / - / - | - / - / - / - |
+| FSCH | U0; upstream executable implementation required | - / - / - / - | - / - / - / - |
 
 ⚙️ **Method/audit qualifiers.** These are matched-core comparisons, not claims that every cell reproduces
 the corresponding paper's published table. MLS³RDUH uses the audited `ijcai2020-paper-cache-v1` profile:

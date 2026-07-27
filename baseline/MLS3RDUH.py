@@ -18,6 +18,74 @@ from tqdm import tqdm
 from copy import deepcopy
 import random
 
+
+# The IJCAI paper and the authors' public implementation disagree in three
+# places which materially affect a reproduction.  Keep the choices named here
+# instead of hiding them behind numeric literals:
+#
+# * paper:  o = 0.06 N, Xavier hash projection, SGD momentum 0.9;
+# * release (commit below): o = 0.06 N * 1.5, torch Linear defaults, and the
+#   SGD constructor omits momentum (therefore uses 0.0).
+#
+# The registered ``mls3rduh`` runner deliberately follows the paper choices.
+# The release policy remains callable through ``mls3rduh_neighbor_counts`` and
+# ``initialize_mls3rduh_hash_head`` for an explicitly named diagnostic; it is
+# never selected silently.
+PAPER_SOURCE_PROFILE = "ijcai2020-paper-cache-v1"
+RELEASE_SOURCE_PROFILE = "authors-release-5c9a99f-cache-v1"
+PAPER_NEIGHBOR_POLICY = "paper_o_equals_o_nn_times_N"
+RELEASE_NEIGHBOR_POLICY = "release_o_equals_1.5_times_o_nn_times_N"
+PAPER_HASH_INIT_POLICY = "xavier_uniform_weight_zero_bias"
+RELEASE_HASH_INIT_POLICY = "torch_nn_linear_default"
+OFFICIAL_RELEASE_COMMIT = "5c9a99f23aea415e933c9b34e0297e64d96ff7c6"
+PAPER_DOI = "10.24963/ijcai.2020/479"
+
+
+def mls3rduh_neighbor_counts(num_train, k_nn, o_nn,
+                             policy=PAPER_NEIGHBOR_POLICY):
+    """Resolve the paper/release k and o definitions without ambiguity."""
+    if policy == PAPER_NEIGHBOR_POLICY:
+        o_multiplier = 1.0
+    elif policy == RELEASE_NEIGHBOR_POLICY:
+        o_multiplier = 1.5
+    else:
+        raise ValueError(f"unknown MLS3RDUH neighbor policy: {policy!r}")
+    k = int(num_train * k_nn)
+    o = int(num_train * o_nn * o_multiplier)
+    return k, o
+
+
+def _hash_projection(backbone_with_encoder):
+    """Return the final linear hash projection of the cached-feature head."""
+    encoder = getattr(backbone_with_encoder, "encoder_layers", None)
+    if encoder is None:
+        raise TypeError("MLS3RDUH model has no encoder_layers module")
+    projections = [module for module in encoder.modules()
+                   if isinstance(module, nn.Linear)]
+    if not projections:
+        raise TypeError("MLS3RDUH encoder has no linear hash projection")
+    return projections[-1]
+
+
+def initialize_mls3rduh_hash_head(
+        backbone_with_encoder, policy=PAPER_HASH_INIT_POLICY):
+    """Apply the selected source initialization to the final hash layer.
+
+    ``RELEASE_HASH_INIT_POLICY`` is intentionally a no-op: a freshly-created
+    ``nn.Linear`` already has the public release's PyTorch-default parameters.
+    The paper policy explicitly applies Glorot/Xavier uniform weights and a
+    zero bias before the optimizer is constructed.
+    """
+    projection = _hash_projection(backbone_with_encoder)
+    if policy == PAPER_HASH_INIT_POLICY:
+        nn.init.xavier_uniform_(projection.weight)
+        if projection.bias is not None:
+            nn.init.zeros_(projection.bias)
+    elif policy != RELEASE_HASH_INIT_POLICY:
+        raise ValueError(f"unknown MLS3RDUH hash initialization: {policy!r}")
+    return projection
+
+
 def AdjustLearningRate(optimizer, epoch, learning_rate):
     lr = learning_rate * (0.1 ** (epoch // 30))
     for param_group in optimizer.param_groups:
@@ -34,16 +102,20 @@ def calc_hammingDist(B1, B2):
     return distH
 
 
-def generate_similarity_matrix(train_loader, num_train, model, dim_feature, num_class, k_nn, o_nn, alpha, device):
+def generate_similarity_matrix(train_loader, num_train, model, dim_feature,
+                               num_class, k_nn, o_nn, alpha, device,
+                               neighbor_policy=PAPER_NEIGHBOR_POLICY):
     
     print("=" * 10 , "start generating similarity matrix", "="*10)
     
     x_feature = torch.FloatTensor(num_train, dim_feature).to(device)
     x_label = torch.FloatTensor(num_train, num_class).to(device)
     
-    # num of nearest neighbors 
-    k = int(num_train * k_nn)
-    o = int(num_train * o_nn * 1.5)
+    # Number of nearest neighbors.  The canonical path follows the paper's
+    # k=0.06N, o=0.06N definition.  The public release's 1.5 multiplier is
+    # available only through the explicitly named release policy above.
+    k, o = mls3rduh_neighbor_counts(
+        num_train, k_nn, o_nn, policy=neighbor_policy)
     
     model.eval()
     
@@ -229,9 +301,37 @@ class MLS3RDUH(DeepHashBase):
             "transform" : "CenterCrop",
             "encoder_type" : "linear",
             "encoder_layers" : "layer=1",
+            # Immutable source-boundary metadata.  These scalar strings are
+            # retained by both config.json and checkpoint config payloads.
+            "implementation_variant" : PAPER_SOURCE_PROFILE,
+            "release_implementation_variant" : RELEASE_SOURCE_PROFILE,
+            "source_paper_doi" : PAPER_DOI,
+            "source_code_commit" : OFFICIAL_RELEASE_COMMIT,
+            "mls3rduh_neighbor_policy" : PAPER_NEIGHBOR_POLICY,
+            "mls3rduh_effective_o_formula" : "int(N * o_nn)",
+            "mls3rduh_release_effective_o_formula" : "int(N * o_nn * 1.5)",
+            "mls3rduh_hash_head_initialization" : PAPER_HASH_INIT_POLICY,
+            "mls3rduh_release_hash_head_initialization" : RELEASE_HASH_INIT_POLICY,
+            "mls3rduh_optimizer_choice" : "paper_sgd_momentum_0.9",
+            "mls3rduh_release_optimizer_choice" : "release_sgd_momentum_0.0",
+            "mls3rduh_common_similarity" : "mutual_knn_random_walk_plus_2cosine_minus_1",
+            "mls3rduh_common_objective" : "log_cosh_of_tanh_code_inner_product",
+            "sgd_momentum" : 0.9,
             
         }
         return fixed_config
+
+    def _build_model_from_config(self, d_in: int, config: dict) -> Module:
+        """Build the cache head and initialize its hash layer per the paper."""
+        model = super()._build_model_from_config(d_in, config)
+        initialize_mls3rduh_hash_head(
+            model,
+            policy=config.get(
+                "mls3rduh_hash_head_initialization",
+                PAPER_HASH_INIT_POLICY,
+            ),
+        )
+        return model
     
     def _add_model_specific_args_into_parser(self, parser: ArgumentParser) -> ArgumentParser:
         
@@ -266,14 +366,19 @@ class MLS3RDUH(DeepHashBase):
             raise ValueError(f"[MLS3RDUH] unknown backbone {config['backbone']!r} -- "
                              "add a dim_feature mapping above.")
         
-        similarity = generate_similarity_matrix(train_loader, len(trainset), model, dim_feature, num_class, config["k_nn"], config["o_nn"], config["alpha"], device) 
+        similarity = generate_similarity_matrix(
+            train_loader, len(trainset), model, dim_feature, num_class,
+            config["k_nn"], config["o_nn"], config["alpha"], device,
+            neighbor_policy=config.get(
+                "mls3rduh_neighbor_policy", PAPER_NEIGHBOR_POLICY),
+        )
         
         for epoch in range(config["max_epoch"]):
             
             model.train()
             
             for batch in train_loader:
-                
+
                 data = batch["img"].to(device)
                 # label = batch["label"].to(device)
                 idx = batch["idx"].to(device)
@@ -301,4 +406,3 @@ class MLS3RDUH(DeepHashBase):
                 model.eval()
                 self.start_eval_process(model_name, "epoch")
                 self._save_train_model_params(model_name, "epoch")
-                

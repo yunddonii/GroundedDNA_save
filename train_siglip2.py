@@ -244,6 +244,7 @@ def _build_active_loss_types(args) -> list:
     # is a SEPARATE dict key from loss_cw_xmodal. It was previously summed into
     # the total but never logged, leaving its per-epoch curve invisible.
     if _on('lambda_xmodal_commit'):     keys.append('loss_xmodal_commit')
+    if _on('lambda_sim_spread'):        keys.append('loss_sim_spread')
 
     # ---- routing-side alignment
     if _on('lambda_wasserstein'): keys.append('loss_wasserstein')

@@ -18,6 +18,7 @@ backup/
 slides_assets/
 
 # pre-extracted feature caches + Qwen text caches + training logs
+/cache
 cache/
 logs/
 

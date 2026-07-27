@@ -1,0 +1,233 @@
+{
+  "dataset": "Flickr25k",
+  "config": {
+    "alpha": 1.0,
+    "min_support": 10,
+    "n_shuffle": 5,
+    "n_boot": 1000,
+    "seed": 42,
+    "n_train": 5000,
+    "n_test": 2000,
+    "n_labels": 24,
+    "K": 128,
+    "n_bases_per_slot": 4,
+    "ours_dir": "/home/yschoi/GroundedDNA/result/260723+flickr25k_setting1_flickr_semantic_detail_ABC_K128L4_P0refit_e4_s42+bs+64+e+60+proj_lr+0.001",
+    "baselines": {}
+  },
+  "slot_names": [
+    "global",
+    "primary_object",
+    "secondary_object",
+    "activity_relation",
+    "color_texture",
+    "scene_type"
+  ],
+  "results": {
+    "ours_codeword": {
+      "per_slot": [
+        {
+          "concept_mAP": 0.8137971520558435,
+          "concept_mAP_covered_only": 0.8262122787280385,
+          "top1_acc": 0.8958120531154239,
+          "coverage": 0.9685,
+          "n_active_units": 77,
+          "n_units": 128,
+          "H_cond": 0.264087863818965,
+          "H_marg": 0.3735952594706558
+        },
+        {
+          "concept_mAP": 0.8119663324178831,
+          "concept_mAP_covered_only": 0.818770563447607,
+          "top1_acc": 0.9029622063329928,
+          "coverage": 0.9815,
+          "n_active_units": 100,
+          "n_units": 128,
+          "H_cond": 0.27320543125549274,
+          "H_marg": 0.3735952594706558
+        },
+        {
+          "concept_mAP": 0.8077303063066301,
+          "concept_mAP_covered_only": 0.8108074041652173,
+          "top1_acc": 0.906026557711951,
+          "coverage": 0.9895,
+          "n_active_units": 90,
+          "n_units": 128,
+          "H_cond": 0.2725832812368428,
+          "H_marg": 0.3735952594706558
+        },
+        {
+          "concept_mAP": 0.803280654113688,
+          "concept_mAP_covered_only": 0.8107723962706532,
+          "top1_acc": 0.8963227783452502,
+          "coverage": 0.979,
+          "n_active_units": 106,
+          "n_units": 128,
+          "H_cond": 0.28103596946691534,
+          "H_marg": 0.3735952594706558
+        },
+        {
+          "concept_mAP": 0.8134724113704749,
+          "concept_mAP_covered_only": 0.8160434663485926,
+          "top1_acc": 0.9116445352400409,
+          "coverage": 0.991,
+          "n_active_units": 88,
+          "n_units": 128,
+          "H_cond": 0.2677892162560603,
+          "H_marg": 0.3735952594706558
+        },
+        {
+          "concept_mAP": 0.8083181970336151,
+          "concept_mAP_covered_only": 0.812526391665763,
+          "top1_acc": 0.8963227783452502,
+          "coverage": 0.9885,
+          "n_active_units": 108,
+          "n_units": 128,
+          "H_cond": 0.27661169520606727,
+          "H_marg": 0.3735952594706558
+        }
+      ],
+      "slot_mean": {
+        "concept_mAP": 0.8097608422163557,
+        "top1_acc": 0.9015151515151515,
+        "coverage": 0.9830000000000001,
+        "H_cond": 0.2725522428733906
+      }
+    },
+    "ours_codon": {
+      "per_slot": [
+        {
+          "concept_mAP": 0.7743952146883865,
+          "concept_mAP_covered_only": 0.7756133788633945,
+          "top1_acc": 0.8667007150153218,
+          "coverage": 0.997,
+          "n_active_units": 26,
+          "n_units": 256,
+          "H_cond": 0.27530851146985863,
+          "H_marg": 0.3735952594706558
+        },
+        {
+          "concept_mAP": 0.7975136401237121,
+          "concept_mAP_covered_only": 0.8000027247505684,
+          "top1_acc": 0.8998978549540347,
+          "coverage": 0.9885,
+          "n_active_units": 56,
+          "n_units": 256,
+          "H_cond": 0.2682908270033679,
+          "H_marg": 0.3735952594706558
+        },
+        {
+          "concept_mAP": 0.7834666190062524,
+          "concept_mAP_covered_only": 0.7861749292540046,
+          "top1_acc": 0.881511746680286,
+          "coverage": 0.9855,
+          "n_active_units": 61,
+          "n_units": 256,
+          "H_cond": 0.2725130259904618,
+          "H_marg": 0.3735952594706558
+        },
+        {
+          "concept_mAP": 0.7946880673275375,
+          "concept_mAP_covered_only": 0.8000259680141663,
+          "top1_acc": 0.8907048008171604,
+          "coverage": 0.98,
+          "n_active_units": 70,
+          "n_units": 256,
+          "H_cond": 0.2749677639006556,
+          "H_marg": 0.3735952594706558
+        },
+        {
+          "concept_mAP": 0.7928658829627897,
+          "concept_mAP_covered_only": 0.796253106746874,
+          "top1_acc": 0.8937691521961185,
+          "coverage": 0.985,
+          "n_active_units": 57,
+          "n_units": 256,
+          "H_cond": 0.27062677507984945,
+          "H_marg": 0.3735952594706558
+        },
+        {
+          "concept_mAP": 0.7898384667563713,
+          "concept_mAP_covered_only": 0.7963856714414168,
+          "top1_acc": 0.8825331971399387,
+          "coverage": 0.982,
+          "n_active_units": 59,
+          "n_units": 256,
+          "H_cond": 0.27168085702479583,
+          "H_marg": 0.3735952594706558
+        }
+      ],
+      "slot_mean": {
+        "concept_mAP": 0.7887946484775082,
+        "top1_acc": 0.88585291113381,
+        "coverage": 0.9863333333333334,
+        "H_cond": 0.27223129341149815
+      }
+    },
+    "majority": {
+      "concept_mAP": 0.47298387088659133,
+      "top1_acc": 0.4080694586312564,
+      "H_marg": 0.3735952594706558
+    },
+    "shuffled": {
+      "concept_mAP": 0.47814176201281955,
+      "concept_mAP_std": 0.013968631629436967,
+      "n_rep": 5
+    },
+    "collision": {
+      "decoding_loss_codeword_minus_codon": 0.02096619373884745,
+      "entropy_increase_codon_minus_codeword": -0.000320949461892428,
+      "per_slot_jsd": [
+        {
+          "mean_jsd": 0.027013655110588834,
+          "max_jsd": 0.07060599832252473,
+          "n_merged_pairs": 240
+        },
+        {
+          "mean_jsd": 0.021857883495684564,
+          "max_jsd": 0.0768067940668913,
+          "n_merged_pairs": 266
+        },
+        {
+          "mean_jsd": 0.022358898061118147,
+          "max_jsd": 0.07336061064748772,
+          "n_merged_pairs": 150
+        },
+        {
+          "mean_jsd": 0.021522656117500705,
+          "max_jsd": 0.07240903446082415,
+          "n_merged_pairs": 224
+        },
+        {
+          "mean_jsd": 0.022525295211815986,
+          "max_jsd": 0.0724251621187484,
+          "n_merged_pairs": 132
+        },
+        {
+          "mean_jsd": 0.022904380688849067,
+          "max_jsd": 0.08600118819935469,
+          "n_merged_pairs": 236
+        }
+      ]
+    },
+    "bootstrap_vs_ours_codon": {
+      "ours_codeword": {
+        "delta": -0.02096619373884745,
+        "ci95_low": -0.02355257892229424,
+        "ci95_high": -0.01802089903829091,
+        "excludes_zero": true
+      },
+      "majority": {
+        "delta": 0.31581077759091697,
+        "ci95_low": 0.30455911368314625,
+        "ci95_high": 0.3261629206573418,
+        "excludes_zero": true
+      },
+      "shuffled": {
+        "delta": 0.31065288646468875,
+        "ci95_low": 0.30048287333400364,
+        "ci95_high": 0.32030515354929984,
+        "excludes_zero": true
+      }
+    }
+  }
+}

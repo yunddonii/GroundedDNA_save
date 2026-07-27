@@ -57,7 +57,8 @@ WHITEN_OPT="$CACHE/text_whiten_optTrain.npz"
 WHITEN_TR="$CACHE/text_whiten_trainOnly.npz"
 BASE="${DS}_K${K}_L${L}${SUF}"
 PY=/home/yschoi/.conda/envs/dna_hashing/bin/python
-SKIP_SLOW="--no-post_eval_compositional --no_visualize"
+SKIP_SLOW="--no-post_eval_compositional"
+[ "${VIZ:-1}" = "0" ] && SKIP_SLOW="$SKIP_SLOW --no_visualize"
 
 echo "[cell $BASE] GPU=$GPU CANON=$CANON CIBNT=$CIBNT ${CCS_ENV[*]:-} GC=[$GC_MIN,$GC_MAX] @ $(date '+%F %T')"
 

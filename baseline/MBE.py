@@ -1,3 +1,11 @@
+"""Legacy, unregistered Bi-half prototype; do not use for comparisons.
+
+This historical file predates the cached-feature runner and does not implement
+the AAAI release proxy gradient or inference contract.  The audited baseline is
+``baseline/BiHalf.py`` and its only registered CLI key is ``--method bihalf``.
+The prototype is retained solely to avoid deleting prior repository work.
+"""
+
 import argparse
 import torch
 from torch import nn

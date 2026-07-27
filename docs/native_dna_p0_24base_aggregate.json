@@ -1,0 +1,2693 @@
+{
+  "blocked_methods": {},
+  "datasets": [
+    "Flickr25k",
+    "MSCOCO",
+    "NUSWIDE",
+    "CIFAR10"
+  ],
+  "diagnostic_aggregate": [
+    {
+      "aggregate_status": "complete",
+      "all_seeds_complete": true,
+      "best_epoch_zero_based_by_seed": {
+        "42": 19,
+        "43": 29,
+        "44": 64
+      },
+      "dataset": "Flickr25k",
+      "diagnostic_only": true,
+      "display_name": "DNA24 (Stewart et al., 2018)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": 0.932623188405797,
+      "mean_post_dp_map_at_R": 0.7926604136201738,
+      "mean_raw_map_at_R": 0.796796571306808,
+      "method": "bee2018",
+      "mode": "diagnostic",
+      "panel": "feature_distance_pair",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": 0.0007842173483170138,
+      "sample_std_post_dp_map_at_R": 0.006823837624460598,
+      "sample_std_raw_map_at_R": 0.006792865490484549,
+      "seeds_admitted": [
+        42,
+        43,
+        44
+      ],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "complete",
+      "all_seeds_complete": true,
+      "best_epoch_zero_based_by_seed": {
+        "42": 64,
+        "43": 14,
+        "44": 4
+      },
+      "dataset": "MSCOCO",
+      "diagnostic_only": true,
+      "display_name": "DNA24 (Stewart et al., 2018)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": 0.651414252581967,
+      "mean_post_dp_map_at_R": 0.6411557284716215,
+      "mean_raw_map_at_R": 0.6446920143413255,
+      "method": "bee2018",
+      "mode": "diagnostic",
+      "panel": "feature_distance_pair",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": 0.02982447142699704,
+      "sample_std_post_dp_map_at_R": 0.011042247858289398,
+      "sample_std_raw_map_at_R": 0.011280167803316466,
+      "seeds_admitted": [
+        42,
+        43,
+        44
+      ],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "complete",
+      "all_seeds_complete": true,
+      "best_epoch_zero_based_by_seed": {
+        "42": 14,
+        "43": 9,
+        "44": 29
+      },
+      "dataset": "NUSWIDE",
+      "diagnostic_only": true,
+      "display_name": "DNA24 (Stewart et al., 2018)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": 0.70927491646622,
+      "mean_post_dp_map_at_R": 0.7542297581273917,
+      "mean_raw_map_at_R": 0.757659207219444,
+      "method": "bee2018",
+      "mode": "diagnostic",
+      "panel": "feature_distance_pair",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": 0.02934644213699977,
+      "sample_std_post_dp_map_at_R": 0.004579971199774944,
+      "sample_std_raw_map_at_R": 0.004768671612747428,
+      "seeds_admitted": [
+        42,
+        43,
+        44
+      ],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "complete",
+      "all_seeds_complete": true,
+      "best_epoch_zero_based_by_seed": {
+        "42": 44,
+        "43": 59,
+        "44": 64
+      },
+      "dataset": "CIFAR10",
+      "diagnostic_only": true,
+      "display_name": "DNA24 (Stewart et al., 2018)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": 0.5402259887005649,
+      "mean_post_dp_map_at_R": 0.7813645036822873,
+      "mean_raw_map_at_R": 0.7839818486586526,
+      "method": "bee2018",
+      "mode": "diagnostic",
+      "panel": "feature_distance_pair",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": 0.023793895816349935,
+      "sample_std_post_dp_map_at_R": 0.008957097096735681,
+      "sample_std_raw_map_at_R": 0.00869870043674689,
+      "seeds_admitted": [
+        42,
+        43,
+        44
+      ],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "complete",
+      "all_seeds_complete": true,
+      "best_epoch_zero_based_by_seed": {
+        "42": 79,
+        "43": 99,
+        "44": 24
+      },
+      "dataset": "Flickr25k",
+      "diagnostic_only": true,
+      "display_name": "PRIMO-24 frozen-predictor length-transfer",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance",
+        "primo_frozen_predictor_length_transfer_80_to_24nt"
+      ],
+      "mean_db_unique_post": 0.47731884057971014,
+      "mean_post_dp_map_at_R": 0.7962159613137259,
+      "mean_raw_map_at_R": 0.7983768715189725,
+      "method": "bee2021",
+      "mode": "diagnostic",
+      "panel": "feature_distance_pair",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": 0.030927818071872275,
+      "sample_std_post_dp_map_at_R": 0.012509586501975402,
+      "sample_std_raw_map_at_R": 0.01443195002075575,
+      "seeds_admitted": [
+        42,
+        43,
+        44
+      ],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "complete",
+      "all_seeds_complete": true,
+      "best_epoch_zero_based_by_seed": {
+        "42": 99,
+        "43": 99,
+        "44": 89
+      },
+      "dataset": "MSCOCO",
+      "diagnostic_only": true,
+      "display_name": "PRIMO-24 frozen-predictor length-transfer",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance",
+        "primo_frozen_predictor_length_transfer_80_to_24nt"
+      ],
+      "mean_db_unique_post": 0.2858319809484726,
+      "mean_post_dp_map_at_R": 0.6325969616389707,
+      "mean_raw_map_at_R": 0.6373939059070067,
+      "method": "bee2021",
+      "mode": "diagnostic",
+      "panel": "feature_distance_pair",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": 0.05856655236460421,
+      "sample_std_post_dp_map_at_R": 0.0049330601737655935,
+      "sample_std_raw_map_at_R": 0.005295859493926494,
+      "seeds_admitted": [
+        42,
+        43,
+        44
+      ],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "complete",
+      "all_seeds_complete": true,
+      "best_epoch_zero_based_by_seed": {
+        "42": 99,
+        "43": 94,
+        "44": 79
+      },
+      "dataset": "NUSWIDE",
+      "diagnostic_only": true,
+      "display_name": "PRIMO-24 frozen-predictor length-transfer",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance",
+        "primo_frozen_predictor_length_transfer_80_to_24nt"
+      ],
+      "mean_db_unique_post": 0.3756731738707024,
+      "mean_post_dp_map_at_R": 0.7521880412745197,
+      "mean_raw_map_at_R": 0.7551096170648852,
+      "method": "bee2021",
+      "mode": "diagnostic",
+      "panel": "feature_distance_pair",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": 0.03890366211344062,
+      "sample_std_post_dp_map_at_R": 0.003299315164481013,
+      "sample_std_raw_map_at_R": 0.0024417628457500972,
+      "seeds_admitted": [
+        42,
+        43,
+        44
+      ],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "complete",
+      "all_seeds_complete": true,
+      "best_epoch_zero_based_by_seed": {
+        "42": 94,
+        "43": 99,
+        "44": 89
+      },
+      "dataset": "CIFAR10",
+      "diagnostic_only": true,
+      "display_name": "PRIMO-24 frozen-predictor length-transfer",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance",
+        "primo_frozen_predictor_length_transfer_80_to_24nt"
+      ],
+      "mean_db_unique_post": 0.18994350282485875,
+      "mean_post_dp_map_at_R": 0.756897587745029,
+      "mean_raw_map_at_R": 0.7622110085216909,
+      "method": "bee2021",
+      "mode": "diagnostic",
+      "panel": "feature_distance_pair",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": 0.018435289695506122,
+      "sample_std_post_dp_map_at_R": 0.008512843778300312,
+      "sample_std_raw_map_at_R": 0.0066895666168045095,
+      "seeds_admitted": [
+        42,
+        43,
+        44
+      ],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "complete",
+      "all_seeds_complete": true,
+      "best_epoch_zero_based_by_seed": {
+        "42": 149,
+        "43": 149,
+        "44": 149
+      },
+      "dataset": "Flickr25k",
+      "diagnostic_only": true,
+      "display_name": "Koike et al. (DATE/DAC 2024)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": 0.35081159420289854,
+      "mean_post_dp_map_at_R": 0.8167060629946948,
+      "mean_raw_map_at_R": 0.8230405561711295,
+      "method": "koike2024",
+      "mode": "diagnostic",
+      "panel": "supervised_direct_prior",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": 0.02894752221206543,
+      "sample_std_post_dp_map_at_R": 0.007148109258871687,
+      "sample_std_raw_map_at_R": 0.009871990916056714,
+      "seeds_admitted": [
+        42,
+        43,
+        44
+      ],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "complete",
+      "all_seeds_complete": true,
+      "best_epoch_zero_based_by_seed": {
+        "42": 149,
+        "43": 149,
+        "44": 149
+      },
+      "dataset": "MSCOCO",
+      "diagnostic_only": true,
+      "display_name": "Koike et al. (DATE/DAC 2024)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": 0.021414314760581244,
+      "mean_post_dp_map_at_R": 0.5788268733655869,
+      "mean_raw_map_at_R": 0.5792410862114773,
+      "method": "koike2024",
+      "mode": "diagnostic",
+      "panel": "supervised_direct_prior",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": 0.005169239395515377,
+      "sample_std_post_dp_map_at_R": 0.020256334592717844,
+      "sample_std_raw_map_at_R": 0.02066306798362794,
+      "seeds_admitted": [
+        42,
+        43,
+        44
+      ],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "complete",
+      "all_seeds_complete": true,
+      "best_epoch_zero_based_by_seed": {
+        "42": 149,
+        "43": 149,
+        "44": 149
+      },
+      "dataset": "NUSWIDE",
+      "diagnostic_only": true,
+      "display_name": "Koike et al. (DATE/DAC 2024)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": 0.10093392658662564,
+      "mean_post_dp_map_at_R": 0.7597582589352189,
+      "mean_raw_map_at_R": 0.7637135577175652,
+      "method": "koike2024",
+      "mode": "diagnostic",
+      "panel": "supervised_direct_prior",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": 0.016182377727899464,
+      "sample_std_post_dp_map_at_R": 0.011292176972680888,
+      "sample_std_raw_map_at_R": 0.011769373853253336,
+      "seeds_admitted": [
+        42,
+        43,
+        44
+      ],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "complete",
+      "all_seeds_complete": true,
+      "best_epoch_zero_based_by_seed": {
+        "42": 149,
+        "43": 149,
+        "44": 149
+      },
+      "dataset": "CIFAR10",
+      "diagnostic_only": true,
+      "display_name": "Koike et al. (DATE/DAC 2024)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": 0.10751977401129943,
+      "mean_post_dp_map_at_R": 0.8812123938344792,
+      "mean_raw_map_at_R": 0.8834424346390276,
+      "method": "koike2024",
+      "mode": "diagnostic",
+      "panel": "supervised_direct_prior",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": 0.020596737743362882,
+      "sample_std_post_dp_map_at_R": 0.0049346937126357885,
+      "sample_std_raw_map_at_R": 0.006150156181094208,
+      "seeds_admitted": [
+        42,
+        43,
+        44
+      ],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "complete",
+      "all_seeds_complete": true,
+      "best_epoch_zero_based_by_seed": {
+        "42": 619,
+        "43": 779,
+        "44": 454
+      },
+      "dataset": "Flickr25k",
+      "diagnostic_only": true,
+      "display_name": "Koike et al. (TCBB 2026)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": 0.07908695652173912,
+      "mean_post_dp_map_at_R": 0.8938645615329919,
+      "mean_raw_map_at_R": 0.8944794950935065,
+      "method": "koike2026",
+      "mode": "diagnostic",
+      "panel": "supervised_direct_prior",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": 0.00740510221079783,
+      "sample_std_post_dp_map_at_R": 0.00431309936544952,
+      "sample_std_raw_map_at_R": 0.0048266790953203275,
+      "seeds_admitted": [
+        42,
+        43,
+        44
+      ],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "complete",
+      "all_seeds_complete": true,
+      "best_epoch_zero_based_by_seed": {
+        "42": 79,
+        "43": 74,
+        "44": 69
+      },
+      "dataset": "MSCOCO",
+      "diagnostic_only": true,
+      "display_name": "Koike et al. (TCBB 2026)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": 0.040437861801811886,
+      "mean_post_dp_map_at_R": 0.6359158561411495,
+      "mean_raw_map_at_R": 0.6359642509992501,
+      "method": "koike2026",
+      "mode": "diagnostic",
+      "panel": "supervised_direct_prior",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": 0.00311649331695312,
+      "sample_std_post_dp_map_at_R": 0.01276944440083098,
+      "sample_std_raw_map_at_R": 0.012768871534115215,
+      "seeds_admitted": [
+        42,
+        43,
+        44
+      ],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "complete",
+      "all_seeds_complete": true,
+      "best_epoch_zero_based_by_seed": {
+        "42": 994,
+        "43": 964,
+        "44": 999
+      },
+      "dataset": "NUSWIDE",
+      "diagnostic_only": true,
+      "display_name": "Koike et al. (TCBB 2026)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": 0.07652588944979542,
+      "mean_post_dp_map_at_R": 0.8284751226508874,
+      "mean_raw_map_at_R": 0.8285074420532472,
+      "method": "koike2026",
+      "mode": "diagnostic",
+      "panel": "supervised_direct_prior",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": 0.016283092361413808,
+      "sample_std_post_dp_map_at_R": 0.001623513731964043,
+      "sample_std_raw_map_at_R": 0.0015232539049848844,
+      "seeds_admitted": [
+        42,
+        43,
+        44
+      ],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "complete",
+      "all_seeds_complete": true,
+      "best_epoch_zero_based_by_seed": {
+        "42": 999,
+        "43": 999,
+        "44": 984
+      },
+      "dataset": "CIFAR10",
+      "diagnostic_only": true,
+      "display_name": "Koike et al. (TCBB 2026)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": 0.05759322033898305,
+      "mean_post_dp_map_at_R": 0.9294915100712751,
+      "mean_raw_map_at_R": 0.9296675048148155,
+      "method": "koike2026",
+      "mode": "diagnostic",
+      "panel": "supervised_direct_prior",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": 0.003263273119236658,
+      "sample_std_post_dp_map_at_R": 0.0013885157661132751,
+      "sample_std_raw_map_at_R": 0.0010841216704498711,
+      "seeds_admitted": [
+        42,
+        43,
+        44
+      ],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    }
+  ],
+  "display_names": {
+    "bee2018": "DNA24 (Stewart et al., 2018)",
+    "bee2021": "PRIMO-24 frozen-predictor length-transfer",
+    "koike2024": "Koike et al. (DATE/DAC 2024)",
+    "koike2026": "Koike et al. (TCBB 2026)"
+  },
+  "generated_at_utc": "2026-07-25T04:21:08+00:00",
+  "length_bases": 24,
+  "manifest_name": "native_p0_run_manifest.json",
+  "method_protocol_lock_sha256": {
+    "bee2018": "f368fe4f366e61d1bea8dce1117cf9a191abb2312bd19bd7359e6a8e6e30186d",
+    "bee2021": "79d5fb8afe255f71c730799eae946501a51f214b70be7beaf6739ca8d4318e7b",
+    "koike2024": "4196f4dfdb287bb2ad95d2b83755f66bdb1254a486cdf2a71aacc976809fac58",
+    "koike2026": "30403cd4b4ed4e4895f3a9db94f3a1ed05f0123d2ea32c34467c9cf6b49b569a"
+  },
+  "panels": {
+    "feature_distance_pair": [
+      "bee2018",
+      "bee2021"
+    ],
+    "supervised_direct_prior": [
+      "koike2024",
+      "koike2026"
+    ]
+  },
+  "records": [
+    {
+      "best_epoch_zero_based": 44,
+      "dataset": "CIFAR10",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.5408305084745763,
+      "display_name": "DNA24 (Stewart et al., 2018)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_cifar10_24nt_P0_seed42_pb6dbe08543b3/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "448c21cf09c8627f37b43721840c14b95daa006e828b7ad18e012bf577515b7d",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_cifar10_24nt_P0_seed42_pb6dbe08543b3/refit/epoch_044.pth",
+      "final_checkpoint_sha256": "1f8b31d802a04d03720ed50d7c9c9f16145e9b72d44cb7092e0322538dc75459",
+      "key": "feature_distance_pair/bee2018/CIFAR10/seed42",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_cifar10_24nt_P0_seed42_pb6dbe08543b3/native_p0_run_manifest.json",
+      "manifest_sha256": "7c2a5531fa93f898946b6406aa7d604e820101aeca89ee71bd6a6580088b6ec0",
+      "method": "bee2018",
+      "method_protocol_lock_sha256": "f368fe4f366e61d1bea8dce1117cf9a191abb2312bd19bd7359e6a8e6e30186d",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.771101811150962,
+      "protocol_digest_sha256": "b6dbe08543b3f20c735c83ec3f6d652ac26bf5bb759601c06d34dc28a1a4ed89",
+      "protocol_family_sha256": "29a42415d66a853ef416509087e196a7ec5bd1f91050f92a724ee01d7d8950f9",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.7739482515490074,
+      "refit_epochs": 45,
+      "seed": 42,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 59,
+      "dataset": "CIFAR10",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.516135593220339,
+      "display_name": "DNA24 (Stewart et al., 2018)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_cifar10_24nt_P0_seed43_pd89fe9deb493/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "021f51cee11b6ca5656614af4fedd08f0d916791cf39ebf78dddb8337ba05eca",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_cifar10_24nt_P0_seed43_pd89fe9deb493/refit/epoch_059.pth",
+      "final_checkpoint_sha256": "9826a46d1faaa76d0c6732eca4150eb8bce44a8d043b0968e630d938c033be75",
+      "key": "feature_distance_pair/bee2018/CIFAR10/seed43",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_cifar10_24nt_P0_seed43_pd89fe9deb493/native_p0_run_manifest.json",
+      "manifest_sha256": "17c1e404d1c500940f92dfe073c4024d492149dc39fd591e6a4225dfa2a0ad35",
+      "method": "bee2018",
+      "method_protocol_lock_sha256": "f368fe4f366e61d1bea8dce1117cf9a191abb2312bd19bd7359e6a8e6e30186d",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.7853834449380899,
+      "protocol_digest_sha256": "d89fe9deb493e50f6a38ce208f34b886b4036d828ee7891fe0a29459ecfdbcc5",
+      "protocol_family_sha256": "29a42415d66a853ef416509087e196a7ec5bd1f91050f92a724ee01d7d8950f9",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.7894018668425238,
+      "refit_epochs": 60,
+      "seed": 43,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 64,
+      "dataset": "CIFAR10",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.5637118644067797,
+      "display_name": "DNA24 (Stewart et al., 2018)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_cifar10_24nt_P0_seed44_p627a6fc7d2ab/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "084714c75adafa07dbced8c3618d52622515f3b9e093466d8667e3f07325105a",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_cifar10_24nt_P0_seed44_p627a6fc7d2ab/refit/epoch_064.pth",
+      "final_checkpoint_sha256": "678033cb59fcda34c8234e78e725caa64ed305b04b73a6190bf0b48a22751e4a",
+      "key": "feature_distance_pair/bee2018/CIFAR10/seed44",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_cifar10_24nt_P0_seed44_p627a6fc7d2ab/native_p0_run_manifest.json",
+      "manifest_sha256": "418e69d361d056a63bc5f8403306742c197c67985bc784d4a9036989dc14c728",
+      "method": "bee2018",
+      "method_protocol_lock_sha256": "f368fe4f366e61d1bea8dce1117cf9a191abb2312bd19bd7359e6a8e6e30186d",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.7876082549578098,
+      "protocol_digest_sha256": "627a6fc7d2ab3ec9b4499aa79eb0ae7d417bc4bc4d1fc1652f5a1aa849247a42",
+      "protocol_family_sha256": "29a42415d66a853ef416509087e196a7ec5bd1f91050f92a724ee01d7d8950f9",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.7885954275844266,
+      "refit_epochs": 65,
+      "seed": 44,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 19,
+      "dataset": "Flickr25k",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.9318695652173913,
+      "display_name": "DNA24 (Stewart et al., 2018)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_flickr25k_24nt_P0_seed42_peb3929d18dd9/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "d8232b906b429fb016e7c1f4f2c2d4c099ae8cfd78a167b4b6255b2dd557f833",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_flickr25k_24nt_P0_seed42_peb3929d18dd9/refit/epoch_019.pth",
+      "final_checkpoint_sha256": "9b75a479fa8a2136fd21f40b60835b7d1803ca59fb4031ffae31e71fc34686cf",
+      "key": "feature_distance_pair/bee2018/Flickr25k/seed42",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_flickr25k_24nt_P0_seed42_peb3929d18dd9/native_p0_run_manifest.json",
+      "manifest_sha256": "0a9e727dcbbc201a63c1270ceed3d354eb89d9c50c4891d2d52d2d9d93371e5b",
+      "method": "bee2018",
+      "method_protocol_lock_sha256": "f368fe4f366e61d1bea8dce1117cf9a191abb2312bd19bd7359e6a8e6e30186d",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.7994003171022621,
+      "protocol_digest_sha256": "eb3929d18dd939f49ef04722ce7a5717de9c4cec232016880d6448dd1034cf90",
+      "protocol_family_sha256": "c01a24f3d55dfd01e427a851f219dba2a7c14eea4cdc34c993f3f1142ccc6ad1",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.8042611059468254,
+      "refit_epochs": 20,
+      "seed": 42,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 29,
+      "dataset": "Flickr25k",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.9325652173913044,
+      "display_name": "DNA24 (Stewart et al., 2018)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_flickr25k_24nt_P0_seed43_pc9876e8ff597/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "28b33fa00fb26f226af4fbc2f745ad7032e33c1bb9ea49877157d3f9227bde57",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_flickr25k_24nt_P0_seed43_pc9876e8ff597/refit/epoch_029.pth",
+      "final_checkpoint_sha256": "8544aa854ac90e16c7f92ff1ab5fb249d36df678d46f3dd5f115707f7e46072d",
+      "key": "feature_distance_pair/bee2018/Flickr25k/seed43",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_flickr25k_24nt_P0_seed43_pc9876e8ff597/native_p0_run_manifest.json",
+      "manifest_sha256": "3d046eb587df5f11f1d2bf11d080f6a017d0aa71c63a8187b4b601ffa32e319a",
+      "method": "bee2018",
+      "method_protocol_lock_sha256": "f368fe4f366e61d1bea8dce1117cf9a191abb2312bd19bd7359e6a8e6e30186d",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.7928252936593002,
+      "protocol_digest_sha256": "c9876e8ff5971a5871579b2c0ace76d88fe5032580eeb0bcacf557438d9a67ef",
+      "protocol_family_sha256": "c01a24f3d55dfd01e427a851f219dba2a7c14eea4cdc34c993f3f1142ccc6ad1",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.7951508234637754,
+      "refit_epochs": 30,
+      "seed": 43,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 64,
+      "dataset": "Flickr25k",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.9334347826086956,
+      "display_name": "DNA24 (Stewart et al., 2018)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_flickr25k_24nt_P0_seed44_p86a9de133da9/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "135285971a8055f55ce292b536089b77c0e5e48133adb15a1002e5cc2a3b111a",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_flickr25k_24nt_P0_seed44_p86a9de133da9/refit/epoch_064.pth",
+      "final_checkpoint_sha256": "03616030c3a2f023f62dae92f2c0a82efd9a5b2217a7fc73851a6252bd225403",
+      "key": "feature_distance_pair/bee2018/Flickr25k/seed44",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_flickr25k_24nt_P0_seed44_p86a9de133da9/native_p0_run_manifest.json",
+      "manifest_sha256": "1f974db86c17f9034fd6dcb19d61a924e228357504cdaf91ec41eb9bd17fc6fe",
+      "method": "bee2018",
+      "method_protocol_lock_sha256": "f368fe4f366e61d1bea8dce1117cf9a191abb2312bd19bd7359e6a8e6e30186d",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.785755630098959,
+      "protocol_digest_sha256": "86a9de133da9e7e75ecf3c78d1006d7271974260edfc5bbdd0478a621917d90f",
+      "protocol_family_sha256": "c01a24f3d55dfd01e427a851f219dba2a7c14eea4cdc34c993f3f1142ccc6ad1",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.7909777845098231,
+      "refit_epochs": 65,
+      "seed": 44,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 64,
+      "dataset": "MSCOCO",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.6177600775989106,
+      "display_name": "DNA24 (Stewart et al., 2018)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_mscoco_24nt_P0_seed42_p01c3f404df76/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "5d1d1b3dc4e2e60b9fb3f535447a81f6463bf975a042969684445b4631a45fa8",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_mscoco_24nt_P0_seed42_p01c3f404df76/refit/epoch_064.pth",
+      "final_checkpoint_sha256": "98a83612a99a9fe23cd6dbc1316e4846217e53c5b37d91b402b473101522d7c2",
+      "key": "feature_distance_pair/bee2018/MSCOCO/seed42",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_mscoco_24nt_P0_seed42_p01c3f404df76/native_p0_run_manifest.json",
+      "manifest_sha256": "45c64c6bceb7604c5db6d1bb268c9e8440bd602da7a9c037becc1a7cf3ba3505",
+      "method": "bee2018",
+      "method_protocol_lock_sha256": "f368fe4f366e61d1bea8dce1117cf9a191abb2312bd19bd7359e6a8e6e30186d",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.6538492691201675,
+      "protocol_digest_sha256": "01c3f404df76cb6ee5206df23418fd3eefda20d0cb18efe60dd6ecf9eb7b68e6",
+      "protocol_family_sha256": "9a7c49d1812394bf748898533ddfc321ce125527440010158cf10352677ee598",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.6577143173353481,
+      "refit_epochs": 65,
+      "seed": 42,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 14,
+      "dataset": "MSCOCO",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.6745695685425954,
+      "display_name": "DNA24 (Stewart et al., 2018)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_mscoco_24nt_P0_seed43_pf32f6939508c/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "61ca867c7d94e3ada785184154632c07edc113dc5149a465fcece255c20edaaf",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_mscoco_24nt_P0_seed43_pf32f6939508c/refit/epoch_014.pth",
+      "final_checkpoint_sha256": "c5d857e16de62b7cf8f72c54f7cfc1b9e9bb875c0e5a1b6d67044790966edc4a",
+      "key": "feature_distance_pair/bee2018/MSCOCO/seed43",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_mscoco_24nt_P0_seed43_pf32f6939508c/native_p0_run_manifest.json",
+      "manifest_sha256": "5d3fe19cef374c849c4631d4ed4ac7cf13d083c115ccba78cdbe46d633b4ee5e",
+      "method": "bee2018",
+      "method_protocol_lock_sha256": "f368fe4f366e61d1bea8dce1117cf9a191abb2312bd19bd7359e6a8e6e30186d",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.6337664817127565,
+      "protocol_digest_sha256": "f32f6939508c66bdb4dc0bdde22eb8f70928305553c821c2073e89635eb456c8",
+      "protocol_family_sha256": "9a7c49d1812394bf748898533ddfc321ce125527440010158cf10352677ee598",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.6379423167903133,
+      "refit_epochs": 15,
+      "seed": 43,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 4,
+      "dataset": "MSCOCO",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.6619131116043948,
+      "display_name": "DNA24 (Stewart et al., 2018)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_mscoco_24nt_P0_seed44_p42bd11717528/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "0f8bb16025a985d1ca3fb7d5254b164fdb31f10018be5266527aa90b8fe57fbf",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_mscoco_24nt_P0_seed44_p42bd11717528/refit/epoch_004.pth",
+      "final_checkpoint_sha256": "bb63eb86a6bfbe1dc5a327c2271250a373a5bc7d4b2871bc452fcc7f938e68c8",
+      "key": "feature_distance_pair/bee2018/MSCOCO/seed44",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_mscoco_24nt_P0_seed44_p42bd11717528/native_p0_run_manifest.json",
+      "manifest_sha256": "02dcac6580047875bf713533bcb23940f7111b5ffb7725acb8a1fecf2e6e339d",
+      "method": "bee2018",
+      "method_protocol_lock_sha256": "f368fe4f366e61d1bea8dce1117cf9a191abb2312bd19bd7359e6a8e6e30186d",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.6358514345819405,
+      "protocol_digest_sha256": "42bd117175284a5e6f0174776f69fe13910b634b1e2f3b225fc1cec76385ccdc",
+      "protocol_family_sha256": "9a7c49d1812394bf748898533ddfc321ce125527440010158cf10352677ee598",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.638419408898315,
+      "refit_epochs": 5,
+      "seed": 44,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 14,
+      "dataset": "NUSWIDE",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.7417644811958665,
+      "display_name": "DNA24 (Stewart et al., 2018)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_nuswide_24nt_P0_seed42_pa79832f2d2a9/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "a030623dd748b226ebf02de925bd31445c8563bb065d5a5000c6474020bb6490",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_nuswide_24nt_P0_seed42_pa79832f2d2a9/refit/epoch_014.pth",
+      "final_checkpoint_sha256": "343c52f27a40ba05b32889e118057dd551539252d4e5ab0b6a17c85725a010c7",
+      "key": "feature_distance_pair/bee2018/NUSWIDE/seed42",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_nuswide_24nt_P0_seed42_pa79832f2d2a9/native_p0_run_manifest.json",
+      "manifest_sha256": "60daebdcde70b94078b7d5ea16583b48ca723d0bab6afb87d99dde4850f71d3e",
+      "method": "bee2018",
+      "method_protocol_lock_sha256": "f368fe4f366e61d1bea8dce1117cf9a191abb2312bd19bd7359e6a8e6e30186d",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.7578308038067505,
+      "protocol_digest_sha256": "a79832f2d2a973df3caaa4cb4cac4c314008644c581848970497ced2e618ff4a",
+      "protocol_family_sha256": "6816688c5f3f103611e6eb11ec48294bc46234d4050eab64eb70368a13541581",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.7617578141482796,
+      "refit_epochs": 15,
+      "seed": 42,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 9,
+      "dataset": "NUSWIDE",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.684691380965654,
+      "display_name": "DNA24 (Stewart et al., 2018)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_nuswide_24nt_P0_seed43_pd90c40d1b425/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "2018c9d73b57895512ed7e4a938489a172a2aa99b46ace8339bd3d0b82f9f542",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_nuswide_24nt_P0_seed43_pd90c40d1b425/refit/epoch_009.pth",
+      "final_checkpoint_sha256": "7a83c14b232762c3d6bcc6bbc54084da4c9f678c1be4eb73cbff15dddefe1e2a",
+      "key": "feature_distance_pair/bee2018/NUSWIDE/seed43",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_nuswide_24nt_P0_seed43_pd90c40d1b425/native_p0_run_manifest.json",
+      "manifest_sha256": "7cbcc7a83f8df1ff4fbaac9da03b21619d62941fec2d7d62c79c34f7d85a8af1",
+      "method": "bee2018",
+      "method_protocol_lock_sha256": "f368fe4f366e61d1bea8dce1117cf9a191abb2312bd19bd7359e6a8e6e30186d",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.749075060470839,
+      "protocol_digest_sha256": "d90c40d1b42530fc7921852e848515fe35aee1c154f3482af0549ab196b7cc26",
+      "protocol_family_sha256": "6816688c5f3f103611e6eb11ec48294bc46234d4050eab64eb70368a13541581",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.7524253637753119,
+      "refit_epochs": 10,
+      "seed": 43,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 29,
+      "dataset": "NUSWIDE",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.7013688872371396,
+      "display_name": "DNA24 (Stewart et al., 2018)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_nuswide_24nt_P0_seed44_p456ed119308e/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "e6181a734e772035d0ecc60fb91b8e5877c600bcc774bfcc06964cd0ad764af1",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_nuswide_24nt_P0_seed44_p456ed119308e/refit/epoch_029.pth",
+      "final_checkpoint_sha256": "50a45bfa10f133ff4a224b016590dcc2ec91250829e33731480d72aa5ccd4a37",
+      "key": "feature_distance_pair/bee2018/NUSWIDE/seed44",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2018_nuswide_24nt_P0_seed44_p456ed119308e/native_p0_run_manifest.json",
+      "manifest_sha256": "a5244b0d0263339efe7e8c1c42952aadf1e86e5d3c5f1c43ec2e067dc3349f61",
+      "method": "bee2018",
+      "method_protocol_lock_sha256": "f368fe4f366e61d1bea8dce1117cf9a191abb2312bd19bd7359e6a8e6e30186d",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.7557834101045854,
+      "protocol_digest_sha256": "456ed119308e66f02431176592024f349065eaefc22ef431ab04d5e5aeb8a95c",
+      "protocol_family_sha256": "6816688c5f3f103611e6eb11ec48294bc46234d4050eab64eb70368a13541581",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.7587944437347405,
+      "refit_epochs": 30,
+      "seed": 44,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 94,
+      "dataset": "CIFAR10",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.21122033898305084,
+      "display_name": "PRIMO-24 frozen-predictor length-transfer",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_cifar10_24nt_P0_seed42_p4fd64b84847d/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "74c096895e638973b1d45c9218d270dd8cc64781d73afae238916134f776efbc",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_cifar10_24nt_P0_seed42_p4fd64b84847d/refit/epoch_094.pth",
+      "final_checkpoint_sha256": "6346546641652c74fb9c4795d20cdd3a024ce22a5febb25885533acf1ecfc7c2",
+      "key": "feature_distance_pair/bee2021/CIFAR10/seed42",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance",
+        "primo_frozen_predictor_length_transfer_80_to_24nt"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_cifar10_24nt_P0_seed42_p4fd64b84847d/native_p0_run_manifest.json",
+      "manifest_sha256": "95ff9491f7a248f0bf1161b24647fcd6db0b457568bd00e568cca38a53e599bc",
+      "method": "bee2021",
+      "method_protocol_lock_sha256": "79d5fb8afe255f71c730799eae946501a51f214b70be7beaf6739ca8d4318e7b",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.7572019424867358,
+      "protocol_digest_sha256": "4fd64b84847d6ecd27a3c09fd93d915c02215c041808fba929faa7f8a3112ea0",
+      "protocol_family_sha256": "e95c130100962dfd5d7123d2d032339f72da20459f03968fd6aeb5a6435be56a",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.7635884830666412,
+      "refit_epochs": 95,
+      "seed": 42,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 99,
+      "dataset": "CIFAR10",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.17872881355932205,
+      "display_name": "PRIMO-24 frozen-predictor length-transfer",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_cifar10_24nt_P0_seed43_p41249fae021e/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "417fec00ad9e87bbd56073d9691ac61c768f4e6a379114d28e8d43707db7944e",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_cifar10_24nt_P0_seed43_p41249fae021e/refit/epoch_099.pth",
+      "final_checkpoint_sha256": "9132b32189e599faf1e06663cab75a181a9e6c61adec72e1574a005a76a96376",
+      "key": "feature_distance_pair/bee2021/CIFAR10/seed43",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance",
+        "primo_frozen_predictor_length_transfer_80_to_24nt"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_cifar10_24nt_P0_seed43_p41249fae021e/native_p0_run_manifest.json",
+      "manifest_sha256": "67cbdb9ecc7dafb7d69532fc893c6faf400353de87698b13999647c9ea1fcde8",
+      "method": "bee2021",
+      "method_protocol_lock_sha256": "79d5fb8afe255f71c730799eae946501a51f214b70be7beaf6739ca8d4318e7b",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.7482366481059519,
+      "protocol_digest_sha256": "41249fae021ef33d4472671952d5fa7a41d7a0bca1e93295da79a8313f52c2b7",
+      "protocol_family_sha256": "e95c130100962dfd5d7123d2d032339f72da20459f03968fd6aeb5a6435be56a",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.754939929384106,
+      "refit_epochs": 100,
+      "seed": 43,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 89,
+      "dataset": "CIFAR10",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.1798813559322034,
+      "display_name": "PRIMO-24 frozen-predictor length-transfer",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_cifar10_24nt_P0_seed44_pd5296b1486db/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "4a60169c83b4180db12d7319aa0e7d1fbb9175d72f30cd8a19ffebb2cec87284",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_cifar10_24nt_P0_seed44_pd5296b1486db/refit/epoch_089.pth",
+      "final_checkpoint_sha256": "b2d5e1defea8a3e7f3e16c266a5383f20af093b06d833f69c484115148a8fc8a",
+      "key": "feature_distance_pair/bee2021/CIFAR10/seed44",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance",
+        "primo_frozen_predictor_length_transfer_80_to_24nt"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_cifar10_24nt_P0_seed44_pd5296b1486db/native_p0_run_manifest.json",
+      "manifest_sha256": "657e07a4e92fe25b636b3eb1e345541264328700e045a4fefef05ea8bab0053c",
+      "method": "bee2021",
+      "method_protocol_lock_sha256": "79d5fb8afe255f71c730799eae946501a51f214b70be7beaf6739ca8d4318e7b",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.7652541726423993,
+      "protocol_digest_sha256": "d5296b1486db9d9ff925e22726458e568888e6e13e17fc00207015832b19e59d",
+      "protocol_family_sha256": "e95c130100962dfd5d7123d2d032339f72da20459f03968fd6aeb5a6435be56a",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.7681046131143254,
+      "refit_epochs": 90,
+      "seed": 44,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 79,
+      "dataset": "Flickr25k",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.4830869565217391,
+      "display_name": "PRIMO-24 frozen-predictor length-transfer",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_flickr25k_24nt_P0_seed42_pf1e40125c6e5/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "b53c7a66bb2fb5b972eaf2665b51bdd302b56b603b646cd4bcb83936a1fa694a",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_flickr25k_24nt_P0_seed42_pf1e40125c6e5/refit/epoch_079.pth",
+      "final_checkpoint_sha256": "04d026dd40719746506e3f492c719454b273bd006d3003fb805dac18a9edd71a",
+      "key": "feature_distance_pair/bee2021/Flickr25k/seed42",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance",
+        "primo_frozen_predictor_length_transfer_80_to_24nt"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_flickr25k_24nt_P0_seed42_pf1e40125c6e5/native_p0_run_manifest.json",
+      "manifest_sha256": "5ee47e1c2a6718237400821a9888247fbc777687ae4ce4de5f2810cd70783f4c",
+      "method": "bee2021",
+      "method_protocol_lock_sha256": "79d5fb8afe255f71c730799eae946501a51f214b70be7beaf6739ca8d4318e7b",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.7985130213515002,
+      "protocol_digest_sha256": "f1e40125c6e5ea887579047e083cee07f03f49cda4bfd107efe8f8943d410c7f",
+      "protocol_family_sha256": "43b0b4e36b25423bf1d1b7b9fdc199d7b2c87ccf4b1a88dd0637d936f81e297e",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.8007557000168842,
+      "refit_epochs": 80,
+      "seed": 42,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 99,
+      "dataset": "Flickr25k",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.5049565217391304,
+      "display_name": "PRIMO-24 frozen-predictor length-transfer",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_flickr25k_24nt_P0_seed43_pc5747e63a440/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "be2db55285bfce10f234c8f5d7ba8bf6f05df0ac416022ea73b67a0d20b73385",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_flickr25k_24nt_P0_seed43_pc5747e63a440/refit/epoch_099.pth",
+      "final_checkpoint_sha256": "5116b4a641705070d33ea5b100caa080652f494ec2ac1965fe4f5a7f0bfedd8e",
+      "key": "feature_distance_pair/bee2021/Flickr25k/seed43",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance",
+        "primo_frozen_predictor_length_transfer_80_to_24nt"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_flickr25k_24nt_P0_seed43_pc5747e63a440/native_p0_run_manifest.json",
+      "manifest_sha256": "2415657692c7af018c39ca877c1f003235315c00ba7808eaada1e5824ec4a9a8",
+      "method": "bee2021",
+      "method_protocol_lock_sha256": "79d5fb8afe255f71c730799eae946501a51f214b70be7beaf6739ca8d4318e7b",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.8074178317271141,
+      "protocol_digest_sha256": "c5747e63a44090bb7e265eff5512f20a458c43b319425d232bacbc5db7c2bab7",
+      "protocol_family_sha256": "43b0b4e36b25423bf1d1b7b9fdc199d7b2c87ccf4b1a88dd0637d936f81e297e",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.8114716115199097,
+      "refit_epochs": 100,
+      "seed": 43,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 24,
+      "dataset": "Flickr25k",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.4439130434782609,
+      "display_name": "PRIMO-24 frozen-predictor length-transfer",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_flickr25k_24nt_P0_seed44_pd5f8f83eddac/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "02accffb39bf78bb6c39a0fadcaa97cbf1c9e043a19fa3e24388ef0947408c43",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_flickr25k_24nt_P0_seed44_pd5f8f83eddac/refit/epoch_024.pth",
+      "final_checkpoint_sha256": "99092b9003bdaf6718379fb0b8df92f68352beb0bc68e14352de896edcfcf9c5",
+      "key": "feature_distance_pair/bee2021/Flickr25k/seed44",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance",
+        "primo_frozen_predictor_length_transfer_80_to_24nt"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_flickr25k_24nt_P0_seed44_pd5f8f83eddac/native_p0_run_manifest.json",
+      "manifest_sha256": "a090f961c79828d7d1592fdd17bbada37278d7747a940fa2a849739fae1a71f2",
+      "method": "bee2021",
+      "method_protocol_lock_sha256": "79d5fb8afe255f71c730799eae946501a51f214b70be7beaf6739ca8d4318e7b",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.7827170308625632,
+      "protocol_digest_sha256": "d5f8f83eddac3131cc3de709d33b85cd5d4ffdd04141fd6f029494c3154451d8",
+      "protocol_family_sha256": "43b0b4e36b25423bf1d1b7b9fdc199d7b2c87ccf4b1a88dd0637d936f81e297e",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.7829033030201238,
+      "refit_epochs": 25,
+      "seed": 44,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 99,
+      "dataset": "MSCOCO",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.28658434218135015,
+      "display_name": "PRIMO-24 frozen-predictor length-transfer",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_mscoco_24nt_P0_seed42_pc6bbbb6ac40c/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "92df0e9eb2937f2fd5ca38611246f10c5799d026f9ff01533116ae8c36b11c79",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_mscoco_24nt_P0_seed42_pc6bbbb6ac40c/refit/epoch_099.pth",
+      "final_checkpoint_sha256": "c982287cdb0008e64fcb7e18c223932242a2423f67b4cc931c7984a9f1a4a540",
+      "key": "feature_distance_pair/bee2021/MSCOCO/seed42",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance",
+        "primo_frozen_predictor_length_transfer_80_to_24nt"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_mscoco_24nt_P0_seed42_pc6bbbb6ac40c/native_p0_run_manifest.json",
+      "manifest_sha256": "3e5d2ca80b924220c366282ad232176cc6643531f95fbf6fd7221ae9df4b6e49",
+      "method": "bee2021",
+      "method_protocol_lock_sha256": "79d5fb8afe255f71c730799eae946501a51f214b70be7beaf6739ca8d4318e7b",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.6327000984876499,
+      "protocol_digest_sha256": "c6bbbb6ac40c50621663f2bb1e28837aa7c44917e47a5a5a92f94903e0306818",
+      "protocol_family_sha256": "207a48ed21f11ae8d8d1aed2e9ccec0bf71b11a5c149d3807a5cf580816b367d",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.6343375951584902,
+      "refit_epochs": 100,
+      "seed": 42,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 99,
+      "dataset": "MSCOCO",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.22689287246544423,
+      "display_name": "PRIMO-24 frozen-predictor length-transfer",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_mscoco_24nt_P0_seed43_p98a8e508c4a7/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "e36889d48eff28480b40e1570529fe4d18b367b25a7aa7b10d8f808030bd5d2f",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_mscoco_24nt_P0_seed43_p98a8e508c4a7/refit/epoch_099.pth",
+      "final_checkpoint_sha256": "1601cc4ac5cb7a348f3cc407ae669884b47a21f2f6c2e314de837b7e454d77c8",
+      "key": "feature_distance_pair/bee2021/MSCOCO/seed43",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance",
+        "primo_frozen_predictor_length_transfer_80_to_24nt"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_mscoco_24nt_P0_seed43_p98a8e508c4a7/native_p0_run_manifest.json",
+      "manifest_sha256": "86788e4870440cf1c857c13d56c9686ffeb56a9806a465941f0e2df7b15db160",
+      "method": "bee2021",
+      "method_protocol_lock_sha256": "79d5fb8afe255f71c730799eae946501a51f214b70be7beaf6739ca8d4318e7b",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.6276131417235953,
+      "protocol_digest_sha256": "98a8e508c4a7b7bad80545fb267f4c5773518324d11f6cfb3deec0109c66ffd6",
+      "protocol_family_sha256": "207a48ed21f11ae8d8d1aed2e9ccec0bf71b11a5c149d3807a5cf580816b367d",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.6343350850184325,
+      "refit_epochs": 100,
+      "seed": 43,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 89,
+      "dataset": "MSCOCO",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.3440187281986234,
+      "display_name": "PRIMO-24 frozen-predictor length-transfer",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_mscoco_24nt_P0_seed44_p11ef55138f75/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "67533d834d4d2e5c035f39eaf3c9647c1750af91bacfdefe227a6275d2cc7314",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_mscoco_24nt_P0_seed44_p11ef55138f75/refit/epoch_089.pth",
+      "final_checkpoint_sha256": "ef665bff3a04e269294eeb838ee41512e0996cf2759df5e6fc89577655e82513",
+      "key": "feature_distance_pair/bee2021/MSCOCO/seed44",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance",
+        "primo_frozen_predictor_length_transfer_80_to_24nt"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_mscoco_24nt_P0_seed44_p11ef55138f75/native_p0_run_manifest.json",
+      "manifest_sha256": "476f2c2aed61202f3d578e6efba9cd4fe97f1b1513f1bbbf99b2233653085d83",
+      "method": "bee2021",
+      "method_protocol_lock_sha256": "79d5fb8afe255f71c730799eae946501a51f214b70be7beaf6739ca8d4318e7b",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.637477644705667,
+      "protocol_digest_sha256": "11ef55138f75b0254b2f2396aee1aa8a781e2ea9e51388e01eed04e9f95c3730",
+      "protocol_family_sha256": "207a48ed21f11ae8d8d1aed2e9ccec0bf71b11a5c149d3807a5cf580816b367d",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.6435090375440974,
+      "refit_epochs": 90,
+      "seed": 44,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 99,
+      "dataset": "NUSWIDE",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.3307731219094222,
+      "display_name": "PRIMO-24 frozen-predictor length-transfer",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_nuswide_24nt_P0_seed42_p873a2be3d27b/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "f92ce6fc722800467dafc61cd5cda064478f259e00b8fd3174ae32feb48700c8",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_nuswide_24nt_P0_seed42_p873a2be3d27b/refit/epoch_099.pth",
+      "final_checkpoint_sha256": "ca5a4467ef4b541ab44ba4601c7d1568e9e149e6937ccd9937209b80a7cee7ff",
+      "key": "feature_distance_pair/bee2021/NUSWIDE/seed42",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance",
+        "primo_frozen_predictor_length_transfer_80_to_24nt"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_nuswide_24nt_P0_seed42_p873a2be3d27b/native_p0_run_manifest.json",
+      "manifest_sha256": "673f83a342ba310d9b9106203e019ea0e93d40c13094e25917fb0145aa128a2d",
+      "method": "bee2021",
+      "method_protocol_lock_sha256": "79d5fb8afe255f71c730799eae946501a51f214b70be7beaf6739ca8d4318e7b",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.7553432143514237,
+      "protocol_digest_sha256": "873a2be3d27b1775aca0f04b774a41f35aba4909d9e0e33c02bd1e8a2d56a780",
+      "protocol_family_sha256": "3ff4736b320ce5e1618b283729eae17fd826f4976440f60e2be2daff6790c76b",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.7568550705782036,
+      "refit_epochs": 100,
+      "seed": 42,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 94,
+      "dataset": "NUSWIDE",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.3969050347383526,
+      "display_name": "PRIMO-24 frozen-predictor length-transfer",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_nuswide_24nt_P0_seed43_pfdd2bd13c936/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "e0d7ea80da89c4b921c1b430cd7c6cf9799a3f95926a0827b4b0601b5ef6f684",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_nuswide_24nt_P0_seed43_pfdd2bd13c936/refit/epoch_094.pth",
+      "final_checkpoint_sha256": "be96c394aefb9b287e4c23490e63317933e282b5a4dbc0fc6e5a1576673dbda4",
+      "key": "feature_distance_pair/bee2021/NUSWIDE/seed43",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance",
+        "primo_frozen_predictor_length_transfer_80_to_24nt"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_nuswide_24nt_P0_seed43_pfdd2bd13c936/native_p0_run_manifest.json",
+      "manifest_sha256": "b5a9662b5900db625bfc982d9f12a2a0db125f2db7321a01add6769953d970b1",
+      "method": "bee2021",
+      "method_protocol_lock_sha256": "79d5fb8afe255f71c730799eae946501a51f214b70be7beaf6739ca8d4318e7b",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.7487613623382521,
+      "protocol_digest_sha256": "fdd2bd13c93600fa843008ede68cfdcce0324964025e8a46fcdd337e71ea889b",
+      "protocol_family_sha256": "3ff4736b320ce5e1618b283729eae17fd826f4976440f60e2be2daff6790c76b",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.7523192746482151,
+      "refit_epochs": 95,
+      "seed": 43,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 79,
+      "dataset": "NUSWIDE",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.39934136496433253,
+      "display_name": "PRIMO-24 frozen-predictor length-transfer",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_nuswide_24nt_P0_seed44_p544af4307d49/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "c61de0568bb6fa4a30fc3bcfc60bde6d728c3269baae8be7415dd55b0c5cbf5b",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_nuswide_24nt_P0_seed44_p544af4307d49/refit/epoch_079.pth",
+      "final_checkpoint_sha256": "1e49edffc1fecf6744e9f9ed9938b6d26b731eed06351ab3e32f0d2e01fad01f",
+      "key": "feature_distance_pair/bee2021/NUSWIDE/seed44",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance",
+        "primo_frozen_predictor_length_transfer_80_to_24nt"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/bee2021_nuswide_24nt_P0_seed44_p544af4307d49/native_p0_run_manifest.json",
+      "manifest_sha256": "34705ff9e4017a9a71c6965ea04719bd82f80c2065173853256c6ac2fb4ef802",
+      "method": "bee2021",
+      "method_protocol_lock_sha256": "79d5fb8afe255f71c730799eae946501a51f214b70be7beaf6739ca8d4318e7b",
+      "panel": "feature_distance_pair",
+      "post_dp_map_at_R": 0.7524595471338831,
+      "protocol_digest_sha256": "544af4307d497cccea4073d062331dbaa93e0025f9c9b25d87227349cf6acf2c",
+      "protocol_family_sha256": "3ff4736b320ce5e1618b283729eae17fd826f4976440f60e2be2daff6790c76b",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.756154505968237,
+      "refit_epochs": 80,
+      "seed": 44,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 149,
+      "dataset": "CIFAR10",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.10554237288135593,
+      "display_name": "Koike et al. (DATE/DAC 2024)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_cifar10_24nt_P0_seed42_p6e9da53cf273/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "f308f01f9234040ebe44654f63da1d76eb9532eee7ffa497edf129fcaee94666",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_cifar10_24nt_P0_seed42_p6e9da53cf273/refit/epoch_149.pth",
+      "final_checkpoint_sha256": "98d9f1c7591dbe0e84d4db89715a394634e0a74e3ee7ea8a3db0da1616403e9e",
+      "key": "supervised_direct_prior/koike2024/CIFAR10/seed42",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_cifar10_24nt_P0_seed42_p6e9da53cf273/native_p0_run_manifest.json",
+      "manifest_sha256": "5c0bc712c94270b22b357d4d93b0261130e76501a08db14d1e6ac0ac96ac866b",
+      "method": "koike2024",
+      "method_protocol_lock_sha256": "4196f4dfdb287bb2ad95d2b83755f66bdb1254a486cdf2a71aacc976809fac58",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.8835693315023891,
+      "protocol_digest_sha256": "6e9da53cf273f5231d5706d99ae47c86b46b8736321f964df2a46f7453e878fd",
+      "protocol_family_sha256": "c75336e88e7918d95653461c71cbe8556e1a37d67165563cb4111d5751c27e22",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.8843823199269147,
+      "refit_epochs": 150,
+      "seed": 42,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 149,
+      "dataset": "CIFAR10",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.12903389830508474,
+      "display_name": "Koike et al. (DATE/DAC 2024)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_cifar10_24nt_P0_seed43_paa228e90f52d/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "630cbc9ccbd52dee8abd9036c04b7fdc6b266b4a91df3c28479df973a90ce325",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_cifar10_24nt_P0_seed43_paa228e90f52d/refit/epoch_149.pth",
+      "final_checkpoint_sha256": "75e695bbd786e379405cf99e21a4a5a0b88d297ae866ee9eb5b0720e8d9b43e7",
+      "key": "supervised_direct_prior/koike2024/CIFAR10/seed43",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_cifar10_24nt_P0_seed43_paa228e90f52d/native_p0_run_manifest.json",
+      "manifest_sha256": "67cd24bc4a6c61265d677e28ae0f6d3e2a9a67f2ce118da7941e9794335c7518",
+      "method": "koike2024",
+      "method_protocol_lock_sha256": "4196f4dfdb287bb2ad95d2b83755f66bdb1254a486cdf2a71aacc976809fac58",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.8755411713171228,
+      "protocol_digest_sha256": "aa228e90f52d606e5cb7b6b3c939d1c28ef48de1f2fab0c45d578a42332b2429",
+      "protocol_family_sha256": "c75336e88e7918d95653461c71cbe8556e1a37d67165563cb4111d5751c27e22",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.8768764373048716,
+      "refit_epochs": 150,
+      "seed": 43,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 149,
+      "dataset": "CIFAR10",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.08798305084745763,
+      "display_name": "Koike et al. (DATE/DAC 2024)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_cifar10_24nt_P0_seed44_p177c2c1f9f05/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "055e1f197f92f0d6899f3bf74f25f6df9c2e2e5905954c5d6e5b59a59bdc95dd",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_cifar10_24nt_P0_seed44_p177c2c1f9f05/refit/epoch_149.pth",
+      "final_checkpoint_sha256": "fc3eef3d1b05fe39c0206326e0b6fc5acdd3ea284bf42e917ea811a116ebc0b6",
+      "key": "supervised_direct_prior/koike2024/CIFAR10/seed44",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_cifar10_24nt_P0_seed44_p177c2c1f9f05/native_p0_run_manifest.json",
+      "manifest_sha256": "d13763819350118091a9cbbdcc2643205e1193a641c2c7bf197989e413f733e9",
+      "method": "koike2024",
+      "method_protocol_lock_sha256": "4196f4dfdb287bb2ad95d2b83755f66bdb1254a486cdf2a71aacc976809fac58",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.8845266786839259,
+      "protocol_digest_sha256": "177c2c1f9f0541ddc2e6203fab686d289ab637bb22e473175a8e5814f909d0ac",
+      "protocol_family_sha256": "c75336e88e7918d95653461c71cbe8556e1a37d67165563cb4111d5751c27e22",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.8890685466852966,
+      "refit_epochs": 150,
+      "seed": 44,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 149,
+      "dataset": "Flickr25k",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.36191304347826087,
+      "display_name": "Koike et al. (DATE/DAC 2024)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_flickr25k_24nt_P0_seed42_pea2079125ebe/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "d1ef001874725fd6f10beba11ba8f1f521ac01b160ee9555295fbe6c82f4af56",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_flickr25k_24nt_P0_seed42_pea2079125ebe/refit/epoch_149.pth",
+      "final_checkpoint_sha256": "710332416b542400a53e731be0b868b477efacff8b10c1ee953ec0db11f984fb",
+      "key": "supervised_direct_prior/koike2024/Flickr25k/seed42",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_flickr25k_24nt_P0_seed42_pea2079125ebe/native_p0_run_manifest.json",
+      "manifest_sha256": "eabed43b250206ca3b6e9cb451a56efaeb3331372d85d0d18ea8bb73398c74f0",
+      "method": "koike2024",
+      "method_protocol_lock_sha256": "4196f4dfdb287bb2ad95d2b83755f66bdb1254a486cdf2a71aacc976809fac58",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.8084614752311138,
+      "protocol_digest_sha256": "ea2079125ebe2d3c00f644fc9c3a5e5e07bdcd1efe199cd2be5ff44554c15c52",
+      "protocol_family_sha256": "fd065cb28bfe28a12c22fbf2b80f516a3ad502fab5c74900dbcc1e64350a1561",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.8117244635613863,
+      "refit_epochs": 150,
+      "seed": 42,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 149,
+      "dataset": "Flickr25k",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.3725652173913043,
+      "display_name": "Koike et al. (DATE/DAC 2024)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_flickr25k_24nt_P0_seed43_p30441c1d48a5/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "929c73c3a3a2014a4e546aa264a7ddcaef6feb7a45bda1bce491c536ef53f776",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_flickr25k_24nt_P0_seed43_p30441c1d48a5/refit/epoch_149.pth",
+      "final_checkpoint_sha256": "585ca5ebf98d2428453b7ffbef9d400dc5b0f879b36efb811a078cbec67660d1",
+      "key": "supervised_direct_prior/koike2024/Flickr25k/seed43",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_flickr25k_24nt_P0_seed43_p30441c1d48a5/native_p0_run_manifest.json",
+      "manifest_sha256": "22e2d4121dd63b84d72f8297879eb0e10f482cad4cc9aebd47f9c7fbb53424ed",
+      "method": "koike2024",
+      "method_protocol_lock_sha256": "4196f4dfdb287bb2ad95d2b83755f66bdb1254a486cdf2a71aacc976809fac58",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.8204884371312163,
+      "protocol_digest_sha256": "30441c1d48a5cd5498a181d873407b4562e302867739e44c92e2e2d1e1b399df",
+      "protocol_family_sha256": "fd065cb28bfe28a12c22fbf2b80f516a3ad502fab5c74900dbcc1e64350a1561",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.8298884514926802,
+      "refit_epochs": 150,
+      "seed": 43,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 149,
+      "dataset": "Flickr25k",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.3179565217391304,
+      "display_name": "Koike et al. (DATE/DAC 2024)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_flickr25k_24nt_P0_seed44_p87343fe3005a/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "48e1aec35640e4aaf7ba60f7c9a6cdf50c8a8621efc231a4843cfbf8ddd3d3dd",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_flickr25k_24nt_P0_seed44_p87343fe3005a/refit/epoch_149.pth",
+      "final_checkpoint_sha256": "306a7e4b445856ca56219c1e8f3e01f37c4bf9160fb386e827d1f59f72d6d190",
+      "key": "supervised_direct_prior/koike2024/Flickr25k/seed44",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_flickr25k_24nt_P0_seed44_p87343fe3005a/native_p0_run_manifest.json",
+      "manifest_sha256": "052d4c9829d85ba76f048435d90de09593291f0d849bd00c973a83fdf10540e5",
+      "method": "koike2024",
+      "method_protocol_lock_sha256": "4196f4dfdb287bb2ad95d2b83755f66bdb1254a486cdf2a71aacc976809fac58",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.8211682766217545,
+      "protocol_digest_sha256": "87343fe3005a1f9a336bf44c39b96bc7c001d8e9450f06039fbd2f0b42313d3b",
+      "protocol_family_sha256": "fd065cb28bfe28a12c22fbf2b80f516a3ad502fab5c74900dbcc1e64350a1561",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.8275087534593221,
+      "refit_epochs": 150,
+      "seed": 44,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 149,
+      "dataset": "MSCOCO",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.015529108918278647,
+      "display_name": "Koike et al. (DATE/DAC 2024)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_mscoco_24nt_P0_seed42_p9f2cbe30c379/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "81d9c284520944647b666b71859ac2c13bf355e426be53edf4152d4ca979e6cd",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_mscoco_24nt_P0_seed42_p9f2cbe30c379/refit/epoch_149.pth",
+      "final_checkpoint_sha256": "6bdb1fffd899c6d565ec4fe7c604d8851de4f9fb2d86afd7d282555c3f6ada39",
+      "key": "supervised_direct_prior/koike2024/MSCOCO/seed42",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_mscoco_24nt_P0_seed42_p9f2cbe30c379/native_p0_run_manifest.json",
+      "manifest_sha256": "36d738aff9879bccfe61852a11fca3b159c827df72126e747c98903b93d5fe2a",
+      "method": "koike2024",
+      "method_protocol_lock_sha256": "4196f4dfdb287bb2ad95d2b83755f66bdb1254a486cdf2a71aacc976809fac58",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.5585020358981128,
+      "protocol_digest_sha256": "9f2cbe30c379f0094905df08c06e3fecf93716f1e1d249850b375c536cc6cce1",
+      "protocol_family_sha256": "226b77180cdbba37d31c03a4b2824906589b582e63dfb70c703748fa1f80972b",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.5583898525991517,
+      "refit_epochs": 150,
+      "seed": 42,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 149,
+      "dataset": "MSCOCO",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.02349418940849484,
+      "display_name": "Koike et al. (DATE/DAC 2024)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_mscoco_24nt_P0_seed43_p93385c77a13a/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "4f7e22a28315a21da1a153a7fe79c4ccfc43eca056328522c9f3c32975fd2ef1",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_mscoco_24nt_P0_seed43_p93385c77a13a/refit/epoch_149.pth",
+      "final_checkpoint_sha256": "1ca8e838e022d1b38031709c8e115adc93c118cb4b3e0160c363ec2d411a55a2",
+      "key": "supervised_direct_prior/koike2024/MSCOCO/seed43",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_mscoco_24nt_P0_seed43_p93385c77a13a/native_p0_run_manifest.json",
+      "manifest_sha256": "646382f6088cad0118c24778dab6ff42cf6618fef75f4f75981e7c70497bbd9b",
+      "method": "koike2024",
+      "method_protocol_lock_sha256": "4196f4dfdb287bb2ad95d2b83755f66bdb1254a486cdf2a71aacc976809fac58",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.5789645812519875,
+      "protocol_digest_sha256": "93385c77a13aac55e994e349409c80a277754dbbbce97433dfd417038c4f9765",
+      "protocol_family_sha256": "226b77180cdbba37d31c03a4b2824906589b582e63dfb70c703748fa1f80972b",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.579622703757923,
+      "refit_epochs": 150,
+      "seed": 43,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 149,
+      "dataset": "MSCOCO",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.025219645954970248,
+      "display_name": "Koike et al. (DATE/DAC 2024)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_mscoco_24nt_P0_seed44_p30c573cd26b6/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "616e6345e70fa4908a27dc84f2cc1d9c76210f65bb8bbcb62b853a5ed2ada5b9",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_mscoco_24nt_P0_seed44_p30c573cd26b6/refit/epoch_149.pth",
+      "final_checkpoint_sha256": "fd94891ab5c0e198c94bdb3b65e8087f85f2e648a13b5a0ebb2fdaaf50ef1f56",
+      "key": "supervised_direct_prior/koike2024/MSCOCO/seed44",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_mscoco_24nt_P0_seed44_p30c573cd26b6/native_p0_run_manifest.json",
+      "manifest_sha256": "099c182196aa346deafb7afff0080bf8df4f9e40075fcc63a644dce15a8754ae",
+      "method": "koike2024",
+      "method_protocol_lock_sha256": "4196f4dfdb287bb2ad95d2b83755f66bdb1254a486cdf2a71aacc976809fac58",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.5990140029466605,
+      "protocol_digest_sha256": "30c573cd26b6ee5c00a143da332a1f68bf004912dbe7d296c93e3ce3ba306681",
+      "protocol_family_sha256": "226b77180cdbba37d31c03a4b2824906589b582e63dfb70c703748fa1f80972b",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.5997107022773572,
+      "refit_epochs": 150,
+      "seed": 44,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 149,
+      "dataset": "NUSWIDE",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.0947174992515511,
+      "display_name": "Koike et al. (DATE/DAC 2024)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_nuswide_24nt_P0_seed42_pe8cd9e98c956/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "9326c3f3e3edfa3637c7230ac5de5aa7ee5dc2458388f056c44b97997ec4f7dc",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_nuswide_24nt_P0_seed42_pe8cd9e98c956/refit/epoch_149.pth",
+      "final_checkpoint_sha256": "1f110d068dfee81223e1da67bcbfc9d4c39521032ca9037fea4cd1ba3d47596a",
+      "key": "supervised_direct_prior/koike2024/NUSWIDE/seed42",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_nuswide_24nt_P0_seed42_pe8cd9e98c956/native_p0_run_manifest.json",
+      "manifest_sha256": "f2c517440047e0845940879b925a85a45ec4959f4323993e515a70a240d06352",
+      "method": "koike2024",
+      "method_protocol_lock_sha256": "4196f4dfdb287bb2ad95d2b83755f66bdb1254a486cdf2a71aacc976809fac58",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.7661299707660328,
+      "protocol_digest_sha256": "e8cd9e98c9563bfd225146e410e0b2f7c99292aa7095b4582e5da1269b3cc382",
+      "protocol_family_sha256": "40d4b8514621bd425a16bde16620715ef0068939e65227486b802d4d96f05a40",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.7679862265522887,
+      "refit_epochs": 150,
+      "seed": 42,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 149,
+      "dataset": "NUSWIDE",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.11930275532431066,
+      "display_name": "Koike et al. (DATE/DAC 2024)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_nuswide_24nt_P0_seed43_p8de7da9662af/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "292aa672e788c0ac55027beaa13336c0b0001a2869a6a4ac9940dd3ebd823efb",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_nuswide_24nt_P0_seed43_p8de7da9662af/refit/epoch_149.pth",
+      "final_checkpoint_sha256": "27aa02eeed7c2a73eafaf45530a38aa21585c4d3dd879f6644f75f376f72edbe",
+      "key": "supervised_direct_prior/koike2024/NUSWIDE/seed43",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_nuswide_24nt_P0_seed43_p8de7da9662af/native_p0_run_manifest.json",
+      "manifest_sha256": "f1918fa08a1b780e39a4f46ee9a156212242ed30a4813b1564f8d9c8738cdd02",
+      "method": "koike2024",
+      "method_protocol_lock_sha256": "4196f4dfdb287bb2ad95d2b83755f66bdb1254a486cdf2a71aacc976809fac58",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.7664245209160383,
+      "protocol_digest_sha256": "8de7da9662af6f390665b8654c1a6b7cca0940836b24c3bcc17c3b2a485662f5",
+      "protocol_family_sha256": "40d4b8514621bd425a16bde16620715ef0068939e65227486b802d4d96f05a40",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.772749796265695,
+      "refit_epochs": 150,
+      "seed": 43,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 149,
+      "dataset": "NUSWIDE",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.08878152518401519,
+      "display_name": "Koike et al. (DATE/DAC 2024)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_nuswide_24nt_P0_seed44_pc1baf52b1860/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "e6190c95605b1846f70e3c42964b86c8ec19e6bd5db20b7646de6246116de0ba",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_nuswide_24nt_P0_seed44_pc1baf52b1860/refit/epoch_149.pth",
+      "final_checkpoint_sha256": "f62dd63e0b13713a83e35b7f8a23acb0e5ab282f5a8031e187321f001d3e69f2",
+      "key": "supervised_direct_prior/koike2024/NUSWIDE/seed44",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2024_nuswide_24nt_P0_seed44_pc1baf52b1860/native_p0_run_manifest.json",
+      "manifest_sha256": "cc800213cd7042f6238353e809eb2cec238a54164cda1e0fb6bcba0d54497efa",
+      "method": "koike2024",
+      "method_protocol_lock_sha256": "4196f4dfdb287bb2ad95d2b83755f66bdb1254a486cdf2a71aacc976809fac58",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.7467202851235856,
+      "protocol_digest_sha256": "c1baf52b1860bca5439d931d398ae47fdf02bfc32d4e4aeab438c2b11de3a1c7",
+      "protocol_family_sha256": "40d4b8514621bd425a16bde16620715ef0068939e65227486b802d4d96f05a40",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.750404650334712,
+      "refit_epochs": 150,
+      "seed": 44,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 999,
+      "dataset": "CIFAR10",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.054152542372881356,
+      "display_name": "Koike et al. (TCBB 2026)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_cifar10_24nt_P0_seed42_pf6412bf3140f/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "7bec83bec587f8bc7d27b63a8f593ada82ae909f4c6f3871bf2086d4cde800ae",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_cifar10_24nt_P0_seed42_pf6412bf3140f/refit/epoch_999.pth",
+      "final_checkpoint_sha256": "e3a94b69d5d63d6832383037809a094b1edf825c4623107f264821044590b868",
+      "key": "supervised_direct_prior/koike2026/CIFAR10/seed42",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_cifar10_24nt_P0_seed42_pf6412bf3140f/native_p0_run_manifest.json",
+      "manifest_sha256": "cff70d69ed063cd1308c2f8abe0b70f68bfd8425b1fdb0db06d469258358e40b",
+      "method": "koike2026",
+      "method_protocol_lock_sha256": "30403cd4b4ed4e4895f3a9db94f3a1ed05f0123d2ea32c34467c9cf6b49b569a",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.9282734640816723,
+      "protocol_digest_sha256": "f6412bf3140f433edd55c3ce37d1a20873407e24220db579dfd3ac3fae1c6dc1",
+      "protocol_family_sha256": "4d804b493772cd0db09da8c357bd5259295075947ab397475b710255dc16ec65",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.9291535798379198,
+      "refit_epochs": 1000,
+      "seed": 42,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 999,
+      "dataset": "CIFAR10",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.057983050847457626,
+      "display_name": "Koike et al. (TCBB 2026)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_cifar10_24nt_P0_seed43_p7db6426447a7/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "2dd256f0488d1d70c54ef37c0ab0d84c20e74b8877a36e0358650280b13d90f7",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_cifar10_24nt_P0_seed43_p7db6426447a7/refit/epoch_999.pth",
+      "final_checkpoint_sha256": "4f58e6574624ed90288f886c6fecdd850a8a44771e5123164fe2b9de7f7e7aae",
+      "key": "supervised_direct_prior/koike2026/CIFAR10/seed43",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_cifar10_24nt_P0_seed43_p7db6426447a7/native_p0_run_manifest.json",
+      "manifest_sha256": "aa6092ed3fa0b23d918a0ac718112da67d763138151ca8d0b071f5c6783ca257",
+      "method": "koike2026",
+      "method_protocol_lock_sha256": "30403cd4b4ed4e4895f3a9db94f3a1ed05f0123d2ea32c34467c9cf6b49b569a",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.9310034444726688,
+      "protocol_digest_sha256": "7db6426447a72d7bf26bfc3c4d73c122512c9c212e46c225182f3038d32f88e7",
+      "protocol_family_sha256": "4d804b493772cd0db09da8c357bd5259295075947ab397475b710255dc16ec65",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.9309130170667711,
+      "refit_epochs": 1000,
+      "seed": 43,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 984,
+      "dataset": "CIFAR10",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.06064406779661017,
+      "display_name": "Koike et al. (TCBB 2026)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_cifar10_24nt_P0_seed44_pc49798809d55/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "e9913342f6d47f6062e1f0f1bf247b2e7b111600efc247c7ec61c878f582939c",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_cifar10_24nt_P0_seed44_pc49798809d55/refit/epoch_984.pth",
+      "final_checkpoint_sha256": "a95b008f361d3aacfb3293605b1a38e6e91ce0f019f76979088eb5f425dbe227",
+      "key": "supervised_direct_prior/koike2026/CIFAR10/seed44",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_cifar10_24nt_P0_seed44_pc49798809d55/native_p0_run_manifest.json",
+      "manifest_sha256": "5a5d443bb90c3b202bd3f69be1ff84863f42c183582b01edca313f3a9d3f9e49",
+      "method": "koike2026",
+      "method_protocol_lock_sha256": "30403cd4b4ed4e4895f3a9db94f3a1ed05f0123d2ea32c34467c9cf6b49b569a",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.9291976216594839,
+      "protocol_digest_sha256": "c49798809d5523945734086a43b353b2b94093a7ca6c1c0b3376d3fc64e98b65",
+      "protocol_family_sha256": "4d804b493772cd0db09da8c357bd5259295075947ab397475b710255dc16ec65",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.9289359175397558,
+      "refit_epochs": 985,
+      "seed": 44,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 619,
+      "dataset": "Flickr25k",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.07056521739130435,
+      "display_name": "Koike et al. (TCBB 2026)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_flickr25k_24nt_P0_seed42_p85ac12746dd9/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "e00bc68243f966597af7314660e74ab8871dcbd9b9c8a3ca1e984b0939d63bea",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_flickr25k_24nt_P0_seed42_p85ac12746dd9/refit/epoch_619.pth",
+      "final_checkpoint_sha256": "09031d5fffec5e5612166aeecb9bd4a3247bf8914506d11e5719185d248a5c38",
+      "key": "supervised_direct_prior/koike2026/Flickr25k/seed42",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_flickr25k_24nt_P0_seed42_p85ac12746dd9/native_p0_run_manifest.json",
+      "manifest_sha256": "eaebcc1986bb43f9c2147793830eb8cdd4667953bf3d55542f9dd32a5f3cc951",
+      "method": "koike2026",
+      "method_protocol_lock_sha256": "30403cd4b4ed4e4895f3a9db94f3a1ed05f0123d2ea32c34467c9cf6b49b569a",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.8936231505307771,
+      "protocol_digest_sha256": "85ac12746dd93c84e8e2370a176c1f2ecd5a10fc31ea04d9638057670fc45ee1",
+      "protocol_family_sha256": "baff3fcc4ef6905fd340b4275d1a46244c00e88eb0cb7a64ba98d2ea40ab1937",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.894297357319233,
+      "refit_epochs": 620,
+      "seed": 42,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 779,
+      "dataset": "Flickr25k",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.08395652173913043,
+      "display_name": "Koike et al. (TCBB 2026)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_flickr25k_24nt_P0_seed43_pcbbb8e675b92/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "84508e25d7f54eef8bc9adcb8fdaceef4aeaf8ab6d30cf5580382e6dca299328",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_flickr25k_24nt_P0_seed43_pcbbb8e675b92/refit/epoch_779.pth",
+      "final_checkpoint_sha256": "604c24aabf7a45089a9169abb41adfd9eb5a4f0c7a136f1684f5897be2f6c7fb",
+      "key": "supervised_direct_prior/koike2026/Flickr25k/seed43",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_flickr25k_24nt_P0_seed43_pcbbb8e675b92/native_p0_run_manifest.json",
+      "manifest_sha256": "cec24fb1e722b4024010800561a7638557473b0d5a38f419e1d6c8fbfbe0baba",
+      "method": "koike2026",
+      "method_protocol_lock_sha256": "30403cd4b4ed4e4895f3a9db94f3a1ed05f0123d2ea32c34467c9cf6b49b569a",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.8982932963610941,
+      "protocol_digest_sha256": "cbbb8e675b92428fcbc7df69312fefcc84825a2c7315749f7b16569cc99b6058",
+      "protocol_family_sha256": "baff3fcc4ef6905fd340b4275d1a46244c00e88eb0cb7a64ba98d2ea40ab1937",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.8993946649810981,
+      "refit_epochs": 780,
+      "seed": 43,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 454,
+      "dataset": "Flickr25k",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.0827391304347826,
+      "display_name": "Koike et al. (TCBB 2026)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_flickr25k_24nt_P0_seed44_p1813328c4460/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "b73d784af333c14957ee84a090fad67f811cf79fd9320dfea06bb68e92b225a9",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_flickr25k_24nt_P0_seed44_p1813328c4460/refit/epoch_454.pth",
+      "final_checkpoint_sha256": "450ce9554a7751b4de15f27ca94474018ad8c1c6f91972743c7abebf8fec1fb2",
+      "key": "supervised_direct_prior/koike2026/Flickr25k/seed44",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_flickr25k_24nt_P0_seed44_p1813328c4460/native_p0_run_manifest.json",
+      "manifest_sha256": "6dd50c39008f1b5fff80ffa0c4bf381924e8f34def7b7253a72e5a4ebf27b292",
+      "method": "koike2026",
+      "method_protocol_lock_sha256": "30403cd4b4ed4e4895f3a9db94f3a1ed05f0123d2ea32c34467c9cf6b49b569a",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.8896772377071043,
+      "protocol_digest_sha256": "1813328c4460a206174026c53416da569f6033a4f13c83fdd6ba64ad1e162639",
+      "protocol_family_sha256": "baff3fcc4ef6905fd340b4275d1a46244c00e88eb0cb7a64ba98d2ea40ab1937",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.8897464629801884,
+      "refit_epochs": 455,
+      "seed": 44,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 79,
+      "dataset": "MSCOCO",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.03726986140386875,
+      "display_name": "Koike et al. (TCBB 2026)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_mscoco_24nt_P0_seed42_p7b9082f00acf/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "17ba145e3838141f8edcf1a95a32eabb6aec6c2f823359f47052e44ba6c2a5fe",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_mscoco_24nt_P0_seed42_p7b9082f00acf/refit/epoch_079.pth",
+      "final_checkpoint_sha256": "58e4bfc80c32f4c6c0e5786f5cc63b5bf55fd0f85524f7f2fbb5cff6985719d7",
+      "key": "supervised_direct_prior/koike2026/MSCOCO/seed42",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_mscoco_24nt_P0_seed42_p7b9082f00acf/native_p0_run_manifest.json",
+      "manifest_sha256": "555f89334591144c89e13920d8d6e6a1294138e32a4538303a26a625c8a2c6a4",
+      "method": "koike2026",
+      "method_protocol_lock_sha256": "30403cd4b4ed4e4895f3a9db94f3a1ed05f0123d2ea32c34467c9cf6b49b569a",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.6244953724525772,
+      "protocol_digest_sha256": "7b9082f00acfa1bfc40c3e8fcfd15481b3e79609596be6cac7c443f498478e35",
+      "protocol_family_sha256": "e91ede227ceef9e3408729e2a9df63f4aeef8448bdff06e7c0560bc8f8af8666",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.6245076936276948,
+      "refit_epochs": 80,
+      "seed": 42,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 74,
+      "dataset": "MSCOCO",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.043500158555466434,
+      "display_name": "Koike et al. (TCBB 2026)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_mscoco_24nt_P0_seed43_pb7af49d14f37/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "0fe11d400b8204f2a0a71426fb3eb7d708b7549126590e5509d60df601c2a1bb",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_mscoco_24nt_P0_seed43_pb7af49d14f37/refit/epoch_074.pth",
+      "final_checkpoint_sha256": "ff8feb807aa99d6c1ef9708485f611d99a9cd6d1793ce09a96fb67c8d4d932ca",
+      "key": "supervised_direct_prior/koike2026/MSCOCO/seed43",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_mscoco_24nt_P0_seed43_pb7af49d14f37/native_p0_run_manifest.json",
+      "manifest_sha256": "46dba81117fab711c7517e3a038b95d536a00385174c7929749cadba64efdced",
+      "method": "koike2026",
+      "method_protocol_lock_sha256": "30403cd4b4ed4e4895f3a9db94f3a1ed05f0123d2ea32c34467c9cf6b49b569a",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.6497031100904906,
+      "protocol_digest_sha256": "b7af49d14f37037e8a07af579d78c3ba989939f64b17f551efdb5f88826eb8ff",
+      "protocol_family_sha256": "e91ede227ceef9e3408729e2a9df63f4aeef8448bdff06e7c0560bc8f8af8666",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.6497302252595649,
+      "refit_epochs": 75,
+      "seed": 43,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 69,
+      "dataset": "MSCOCO",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.040543565446100466,
+      "display_name": "Koike et al. (TCBB 2026)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_mscoco_24nt_P0_seed44_pdf59599ca2e5/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "86c616489be8708e953c5b7b4b43f605efc0a412d3464f4f8fae45048dab215e",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_mscoco_24nt_P0_seed44_pdf59599ca2e5/refit/epoch_069.pth",
+      "final_checkpoint_sha256": "e7dffd73c5276b74e8eb1006d5df78bd589f7f39a57f0c407bd05ae8ba88feb9",
+      "key": "supervised_direct_prior/koike2026/MSCOCO/seed44",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_mscoco_24nt_P0_seed44_pdf59599ca2e5/native_p0_run_manifest.json",
+      "manifest_sha256": "8783edce9a60029b8c535d58f9b7e4423f84fd01fc74ae07c1249ebeb067b944",
+      "method": "koike2026",
+      "method_protocol_lock_sha256": "30403cd4b4ed4e4895f3a9db94f3a1ed05f0123d2ea32c34467c9cf6b49b569a",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.6335490858803807,
+      "protocol_digest_sha256": "df59599ca2e5f123b811b9e7645aa48a85c4bea8e52c1a0e807656b37f36bbb1",
+      "protocol_family_sha256": "e91ede227ceef9e3408729e2a9df63f4aeef8448bdff06e7c0560bc8f8af8666",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.6336548341104908,
+      "refit_epochs": 70,
+      "seed": 44,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 994,
+      "dataset": "NUSWIDE",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.06294713369878287,
+      "display_name": "Koike et al. (TCBB 2026)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_nuswide_24nt_P0_seed42_p0bc032f35e43/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "bbe3e64288ae849a56035359c54d949731a6debd90f692b85c635ff1b98cf1f4",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_nuswide_24nt_P0_seed42_p0bc032f35e43/refit/epoch_994.pth",
+      "final_checkpoint_sha256": "5e4542cb6ec2f73f212d98af066ce430e93e9869eed6c0dec52e42cf7d46282f",
+      "key": "supervised_direct_prior/koike2026/NUSWIDE/seed42",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_nuswide_24nt_P0_seed42_p0bc032f35e43/native_p0_run_manifest.json",
+      "manifest_sha256": "c6a2d72c12b7af4edb7730d8199430c5bbdf9e5c144fab7e0f43e3b57e32d474",
+      "method": "koike2026",
+      "method_protocol_lock_sha256": "30403cd4b4ed4e4895f3a9db94f3a1ed05f0123d2ea32c34467c9cf6b49b569a",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.8268924211836002,
+      "protocol_digest_sha256": "0bc032f35e432a7c0fe3f5ac0570c5f4ec8170d1a827ceefa5beb18c1cb89df3",
+      "protocol_family_sha256": "a0b0d8eb51ec3992dff52b61286ec47a17c3744088459c9b4b584bddc3c7125e",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.8269943151384853,
+      "refit_epochs": 995,
+      "seed": 42,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 964,
+      "dataset": "NUSWIDE",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.07205240174672489,
+      "display_name": "Koike et al. (TCBB 2026)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_nuswide_24nt_P0_seed43_p260fe747077f/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "a62c97bc47b27acfad87071ab1fa6a0145123bd6bad10d21a465cbe6e671b32c",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_nuswide_24nt_P0_seed43_p260fe747077f/refit/epoch_964.pth",
+      "final_checkpoint_sha256": "f8182b7816b1672b50c8a2fb88ec8a7dd50ac0d12896594561ca264316d82670",
+      "key": "supervised_direct_prior/koike2026/NUSWIDE/seed43",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_nuswide_24nt_P0_seed43_p260fe747077f/native_p0_run_manifest.json",
+      "manifest_sha256": "bfd3dcd04f5259b1cf0c6fc5449d0ef2e0a0051c8776dc498d95b8e95a3ed6c1",
+      "method": "koike2026",
+      "method_protocol_lock_sha256": "30403cd4b4ed4e4895f3a9db94f3a1ed05f0123d2ea32c34467c9cf6b49b569a",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.8283963648355781,
+      "protocol_digest_sha256": "260fe747077f7e8c094bf8e8bde462a6f78ab49ea8c08f70338f32e3130741e0",
+      "protocol_family_sha256": "a0b0d8eb51ec3992dff52b61286ec47a17c3744088459c9b4b584bddc3c7125e",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.8284873861290009,
+      "refit_epochs": 965,
+      "seed": 43,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    },
+    {
+      "best_epoch_zero_based": 999,
+      "dataset": "NUSWIDE",
+      "db_post_compliance": 1.0,
+      "db_unique_post": 0.09457813290387851,
+      "display_name": "Koike et al. (TCBB 2026)",
+      "evaluation_native_dna": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_nuswide_24nt_P0_seed44_p9434906d45c2/refit/evaluation_native_dna.json",
+      "evaluation_native_dna_sha256": "115ac254f22ead0f6535cbef40c97ea025bf84d6cc026bb6c6c75539a6573fce",
+      "final_checkpoint": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_nuswide_24nt_P0_seed44_p9434906d45c2/refit/epoch_999.pth",
+      "final_checkpoint_sha256": "760dbb082b0b9f1e901fc5e3fab0a60686006ce9d98f1fb859e8ac3e39f56c70",
+      "key": "supervised_direct_prior/koike2026/NUSWIDE/seed44",
+      "length": 24,
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "main_protocol_eligible": false,
+      "manifest": "/data/yschoi/groundeddna_native_p0_24base_sealed/runs/koike2026_nuswide_24nt_P0_seed44_p9434906d45c2/native_p0_run_manifest.json",
+      "manifest_sha256": "f43aa3ef34e0e4d63d0dfb3fdf79e9fdb03835ed0d17216e71ac925aca992ad3",
+      "method": "koike2026",
+      "method_protocol_lock_sha256": "30403cd4b4ed4e4895f3a9db94f3a1ed05f0123d2ea32c34467c9cf6b49b569a",
+      "panel": "supervised_direct_prior",
+      "post_dp_map_at_R": 0.8301365819334839,
+      "protocol_digest_sha256": "9434906d45c281cae3306161ea34b6495f653e2e8aa4a708c95d0cc606cd8886",
+      "protocol_family_sha256": "a0b0d8eb51ec3992dff52b61286ec47a17c3744088459c9b4b584bddc3c7125e",
+      "query_post_compliance": 1.0,
+      "raw_map_at_R": 0.8300406248922554,
+      "refit_epochs": 1000,
+      "seed": 44,
+      "status": "complete_diagnostic_only",
+      "validation_errors": []
+    }
+  ],
+  "roots": [
+    "/data/yschoi/groundeddna_native_p0_24base_sealed/runs"
+  ],
+  "schema_version": 1,
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "strict_main_aggregate": [
+    {
+      "aggregate_status": "missing",
+      "all_seeds_complete": false,
+      "best_epoch_zero_based_by_seed": {},
+      "dataset": "Flickr25k",
+      "diagnostic_only": false,
+      "display_name": "DNA24 (Stewart et al., 2018)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": null,
+      "mean_post_dp_map_at_R": null,
+      "mean_raw_map_at_R": null,
+      "method": "bee2018",
+      "mode": "strict_main",
+      "panel": "feature_distance_pair",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": null,
+      "sample_std_post_dp_map_at_R": null,
+      "sample_std_raw_map_at_R": null,
+      "seeds_admitted": [],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "missing",
+      "all_seeds_complete": false,
+      "best_epoch_zero_based_by_seed": {},
+      "dataset": "MSCOCO",
+      "diagnostic_only": false,
+      "display_name": "DNA24 (Stewart et al., 2018)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": null,
+      "mean_post_dp_map_at_R": null,
+      "mean_raw_map_at_R": null,
+      "method": "bee2018",
+      "mode": "strict_main",
+      "panel": "feature_distance_pair",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": null,
+      "sample_std_post_dp_map_at_R": null,
+      "sample_std_raw_map_at_R": null,
+      "seeds_admitted": [],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "missing",
+      "all_seeds_complete": false,
+      "best_epoch_zero_based_by_seed": {},
+      "dataset": "NUSWIDE",
+      "diagnostic_only": false,
+      "display_name": "DNA24 (Stewart et al., 2018)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": null,
+      "mean_post_dp_map_at_R": null,
+      "mean_raw_map_at_R": null,
+      "method": "bee2018",
+      "mode": "strict_main",
+      "panel": "feature_distance_pair",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": null,
+      "sample_std_post_dp_map_at_R": null,
+      "sample_std_raw_map_at_R": null,
+      "seeds_admitted": [],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "missing",
+      "all_seeds_complete": false,
+      "best_epoch_zero_based_by_seed": {},
+      "dataset": "CIFAR10",
+      "diagnostic_only": false,
+      "display_name": "DNA24 (Stewart et al., 2018)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": null,
+      "mean_post_dp_map_at_R": null,
+      "mean_raw_map_at_R": null,
+      "method": "bee2018",
+      "mode": "strict_main",
+      "panel": "feature_distance_pair",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": null,
+      "sample_std_post_dp_map_at_R": null,
+      "sample_std_raw_map_at_R": null,
+      "seeds_admitted": [],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "missing",
+      "all_seeds_complete": false,
+      "best_epoch_zero_based_by_seed": {},
+      "dataset": "Flickr25k",
+      "diagnostic_only": false,
+      "display_name": "PRIMO-24 frozen-predictor length-transfer",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance",
+        "primo_frozen_predictor_length_transfer_80_to_24nt"
+      ],
+      "mean_db_unique_post": null,
+      "mean_post_dp_map_at_R": null,
+      "mean_raw_map_at_R": null,
+      "method": "bee2021",
+      "mode": "strict_main",
+      "panel": "feature_distance_pair",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": null,
+      "sample_std_post_dp_map_at_R": null,
+      "sample_std_raw_map_at_R": null,
+      "seeds_admitted": [],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "missing",
+      "all_seeds_complete": false,
+      "best_epoch_zero_based_by_seed": {},
+      "dataset": "MSCOCO",
+      "diagnostic_only": false,
+      "display_name": "PRIMO-24 frozen-predictor length-transfer",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance",
+        "primo_frozen_predictor_length_transfer_80_to_24nt"
+      ],
+      "mean_db_unique_post": null,
+      "mean_post_dp_map_at_R": null,
+      "mean_raw_map_at_R": null,
+      "method": "bee2021",
+      "mode": "strict_main",
+      "panel": "feature_distance_pair",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": null,
+      "sample_std_post_dp_map_at_R": null,
+      "sample_std_raw_map_at_R": null,
+      "seeds_admitted": [],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "missing",
+      "all_seeds_complete": false,
+      "best_epoch_zero_based_by_seed": {},
+      "dataset": "NUSWIDE",
+      "diagnostic_only": false,
+      "display_name": "PRIMO-24 frozen-predictor length-transfer",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance",
+        "primo_frozen_predictor_length_transfer_80_to_24nt"
+      ],
+      "mean_db_unique_post": null,
+      "mean_post_dp_map_at_R": null,
+      "mean_raw_map_at_R": null,
+      "method": "bee2021",
+      "mode": "strict_main",
+      "panel": "feature_distance_pair",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": null,
+      "sample_std_post_dp_map_at_R": null,
+      "sample_std_raw_map_at_R": null,
+      "seeds_admitted": [],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "missing",
+      "all_seeds_complete": false,
+      "best_epoch_zero_based_by_seed": {},
+      "dataset": "CIFAR10",
+      "diagnostic_only": false,
+      "display_name": "PRIMO-24 frozen-predictor length-transfer",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance",
+        "primo_frozen_predictor_length_transfer_80_to_24nt"
+      ],
+      "mean_db_unique_post": null,
+      "mean_post_dp_map_at_R": null,
+      "mean_raw_map_at_R": null,
+      "method": "bee2021",
+      "mode": "strict_main",
+      "panel": "feature_distance_pair",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": null,
+      "sample_std_post_dp_map_at_R": null,
+      "sample_std_raw_map_at_R": null,
+      "seeds_admitted": [],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "missing",
+      "all_seeds_complete": false,
+      "best_epoch_zero_based_by_seed": {},
+      "dataset": "Flickr25k",
+      "diagnostic_only": false,
+      "display_name": "Koike et al. (DATE/DAC 2024)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": null,
+      "mean_post_dp_map_at_R": null,
+      "mean_raw_map_at_R": null,
+      "method": "koike2024",
+      "mode": "strict_main",
+      "panel": "supervised_direct_prior",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": null,
+      "sample_std_post_dp_map_at_R": null,
+      "sample_std_raw_map_at_R": null,
+      "seeds_admitted": [],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "missing",
+      "all_seeds_complete": false,
+      "best_epoch_zero_based_by_seed": {},
+      "dataset": "MSCOCO",
+      "diagnostic_only": false,
+      "display_name": "Koike et al. (DATE/DAC 2024)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": null,
+      "mean_post_dp_map_at_R": null,
+      "mean_raw_map_at_R": null,
+      "method": "koike2024",
+      "mode": "strict_main",
+      "panel": "supervised_direct_prior",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": null,
+      "sample_std_post_dp_map_at_R": null,
+      "sample_std_raw_map_at_R": null,
+      "seeds_admitted": [],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "missing",
+      "all_seeds_complete": false,
+      "best_epoch_zero_based_by_seed": {},
+      "dataset": "NUSWIDE",
+      "diagnostic_only": false,
+      "display_name": "Koike et al. (DATE/DAC 2024)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": null,
+      "mean_post_dp_map_at_R": null,
+      "mean_raw_map_at_R": null,
+      "method": "koike2024",
+      "mode": "strict_main",
+      "panel": "supervised_direct_prior",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": null,
+      "sample_std_post_dp_map_at_R": null,
+      "sample_std_raw_map_at_R": null,
+      "seeds_admitted": [],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "missing",
+      "all_seeds_complete": false,
+      "best_epoch_zero_based_by_seed": {},
+      "dataset": "CIFAR10",
+      "diagnostic_only": false,
+      "display_name": "Koike et al. (DATE/DAC 2024)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": null,
+      "mean_post_dp_map_at_R": null,
+      "mean_raw_map_at_R": null,
+      "method": "koike2024",
+      "mode": "strict_main",
+      "panel": "supervised_direct_prior",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": null,
+      "sample_std_post_dp_map_at_R": null,
+      "sample_std_raw_map_at_R": null,
+      "seeds_admitted": [],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "missing",
+      "all_seeds_complete": false,
+      "best_epoch_zero_based_by_seed": {},
+      "dataset": "Flickr25k",
+      "diagnostic_only": false,
+      "display_name": "Koike et al. (TCBB 2026)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": null,
+      "mean_post_dp_map_at_R": null,
+      "mean_raw_map_at_R": null,
+      "method": "koike2026",
+      "mode": "strict_main",
+      "panel": "supervised_direct_prior",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": null,
+      "sample_std_post_dp_map_at_R": null,
+      "sample_std_raw_map_at_R": null,
+      "seeds_admitted": [],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "missing",
+      "all_seeds_complete": false,
+      "best_epoch_zero_based_by_seed": {},
+      "dataset": "MSCOCO",
+      "diagnostic_only": false,
+      "display_name": "Koike et al. (TCBB 2026)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": null,
+      "mean_post_dp_map_at_R": null,
+      "mean_raw_map_at_R": null,
+      "method": "koike2026",
+      "mode": "strict_main",
+      "panel": "supervised_direct_prior",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": null,
+      "sample_std_post_dp_map_at_R": null,
+      "sample_std_raw_map_at_R": null,
+      "seeds_admitted": [],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "missing",
+      "all_seeds_complete": false,
+      "best_epoch_zero_based_by_seed": {},
+      "dataset": "NUSWIDE",
+      "diagnostic_only": false,
+      "display_name": "Koike et al. (TCBB 2026)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": null,
+      "mean_post_dp_map_at_R": null,
+      "mean_raw_map_at_R": null,
+      "method": "koike2026",
+      "mode": "strict_main",
+      "panel": "supervised_direct_prior",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": null,
+      "sample_std_post_dp_map_at_R": null,
+      "sample_std_raw_map_at_R": null,
+      "seeds_admitted": [],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    },
+    {
+      "aggregate_status": "missing",
+      "all_seeds_complete": false,
+      "best_epoch_zero_based_by_seed": {},
+      "dataset": "CIFAR10",
+      "diagnostic_only": false,
+      "display_name": "Koike et al. (TCBB 2026)",
+      "main_eligibility_blockers": [
+        "legacy_cache_missing_strict_provenance"
+      ],
+      "mean_db_unique_post": null,
+      "mean_post_dp_map_at_R": null,
+      "mean_raw_map_at_R": null,
+      "method": "koike2026",
+      "mode": "strict_main",
+      "panel": "supervised_direct_prior",
+      "record_status_by_seed": {
+        "42": "complete_diagnostic_only",
+        "43": "complete_diagnostic_only",
+        "44": "complete_diagnostic_only"
+      },
+      "sample_std_db_unique_post": null,
+      "sample_std_post_dp_map_at_R": null,
+      "sample_std_raw_map_at_R": null,
+      "seeds_admitted": [],
+      "seeds_expected": [
+        42,
+        43,
+        44
+      ]
+    }
+  ],
+  "summary": {
+    "blocked": 0,
+    "complete_diagnostic_only": 48,
+    "complete_main_eligible": 0,
+    "diagnostic_complete_cells": 16,
+    "diagnostic_partial_cells": 0,
+    "duplicate": 0,
+    "expected_records": 48,
+    "invalid": 0,
+    "missing": 0,
+    "strict_complete_cells": 0,
+    "strict_partial_cells": 0,
+    "unkeyed_manifests": 0
+  },
+  "unkeyed_manifests": [],
+  "verify_hashes": true
+}

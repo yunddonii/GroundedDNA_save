@@ -88,6 +88,12 @@ def main() -> int:
     ap.add_argument("--cache_dir_override", default=None,
                     help="Override siglip2_feature_cache_dir from args.txt "
                          "(useful for whole-image viz on a FAIRrank-trained ckpt).")
+    ap.add_argument("--tsne", action="store_true",
+                    help="Also regenerate viz_codebook_tsne.png (test split).")
+    ap.add_argument("--tsne_only", action="store_true",
+                    help="Regenerate ONLY the t-SNE, skip the routing heatmap.")
+    ap.add_argument("--tsne_samples", type=int, default=2000)
+    ap.add_argument("--tsne_save_name", default="viz_codebook_tsne.png")
     ap.add_argument("--save_name", default="viz_routing_heatmap.png",
                     help="Output filename inside result_dir.")
     cli = ap.parse_args()
@@ -134,7 +140,20 @@ def main() -> int:
     setting = getattr(args, "setting", "setting1")
     dataset_dir = getattr(args, "dataset_dir", "dataset")
     qwen_path = getattr(args, "qwen_text_cache_path", None)
-    if dataset_name == "CUB_200":
+    if dataset_name == "CIFAR10":
+        # CIFAR10 is md5/byte-hash keyed and has no setting1/*.txt path
+        # manifest, so ImgRtvDataset cannot build it. Use the same dispatcher
+        # train_siglip2.py uses for its in-run visualization.
+        from dataloaders import load_dataset as _load_dataset
+        trainset, _, _ = _load_dataset(
+            dataset_dir, dataset_name, setting=setting,
+            train_transform=None, test_transform=None,
+            load_train=True, load_database=False, load_test=False,
+            return_index=True,
+            qwen_text_cache_path=qwen_path,
+            siglip2_feature_cache_dir=cache_dir,
+        )
+    elif dataset_name == "CUB_200":
         trainset = ImgRtvCUB2011(
             root=os.path.join(dataset_dir, "CUB_200"),
             mode="train",
@@ -153,14 +172,46 @@ def main() -> int:
         )
 
     save_path = os.path.join(cli.result_dir, cli.save_name)
-    visualize_routing(
-        model, trainset,
-        save_path=save_path,
-        qwen_jsonl_path=getattr(args, "qwen_text_cache_path", None),
-        num_samples=cli.num_samples,
-        device=cli.device,
-    )
-    print(f"[regen] DONE -> {save_path}")
+    if not cli.tsne_only:
+        visualize_routing(
+            model, trainset,
+            save_path=save_path,
+            qwen_jsonl_path=getattr(args, "qwen_text_cache_path", None),
+            num_samples=cli.num_samples,
+            device=cli.device,
+        )
+        print(f"[regen] DONE -> {save_path}")
+
+    # Optional: also regenerate viz_codebook_tsne.png. train_siglip2.py builds
+    # this one on the TEST split (not train), so mirror that exactly.
+    if cli.tsne or cli.tsne_only:
+        from dna_utils import visualize_codebook_tsne
+        from dataloaders import load_dataset as _load_dataset_t
+        testset, _t = None, None
+        try:
+            _tr, _te, _ = _load_dataset_t(
+                dataset_dir, dataset_name, setting=setting,
+                train_transform=None, test_transform=None,
+                load_train=False, load_database=False, load_test=True,
+                return_index=True,
+                qwen_text_cache_path=qwen_path,
+                siglip2_feature_cache_dir=cache_dir,
+            )
+            testset = _te
+        except Exception as e:                                   # noqa: BLE001
+            print(f"[regen-tsne] test split build failed: {e}")
+        if testset is not None:
+            tsne_path = os.path.join(cli.result_dir, cli.tsne_save_name)
+            try:
+                visualize_codebook_tsne(
+                    model, testset,
+                    save_path=tsne_path,
+                    num_samples=cli.tsne_samples,
+                    device=cli.device,
+                )
+                print(f"[regen-tsne] DONE -> {tsne_path}")
+            except Exception as e:                               # noqa: BLE001
+                print(f"[regen-tsne] failed: {e}")
     return 0
 
 

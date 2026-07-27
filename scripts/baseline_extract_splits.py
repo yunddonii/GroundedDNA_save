@@ -31,10 +31,9 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from typing import List
-
 import numpy as np
 import torch
+from torch.nn import Module
 from torch.utils.data import DataLoader
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -42,7 +41,9 @@ REPO = os.path.dirname(HERE)
 sys.path.insert(0, REPO)
 
 from baseline.base_model import (  # noqa: E402
-    BackboneWithEncoder, CachedFeatureDataset, NUM_CLASS, _extract_codes,
+    CachedFeatureDataset, NUM_CLASS, _extract_codes,
+    build_model_from_checkpoint_payload,
+    verify_checkpoint_data_context,
 )
 from scripts.extract_flat_baseline import pack_bits_to_indices  # noqa: E402
 
@@ -51,29 +52,13 @@ SPLIT_TO_FILE = {"train": "extract_train.npz", "query": "extract_query.npz",
                  "db": "extract_db.npz"}
 
 
-def build_model(ckpt: dict, device: str) -> BackboneWithEncoder:
-    """Rebuild the trained head from the checkpoint's encoder state dict."""
-    enc = ckpt["encoder_layers"]
+def build_model(ckpt: dict, device: str) -> Module:
+    """Rebuild the exact registered model, with legacy compatibility."""
     bit = int(ckpt["config"]["bit"])
     if bit % 6 or bit % 2:
         raise ValueError(f"bit={bit} must be divisible by 6 and by 2")
-    # Linear/GELU/Dropout triples => Linear layers live at net.0, net.3, ...
-    n_lin = sum(1 for k in enc if k.startswith("net.") and k.endswith(".weight"))
-    hidden: List[int] = []
-    for i in range(n_lin - 1):
-        w = enc.get(f"net.{i * 3}.weight")
-        if w is not None:
-            hidden.append(int(w.shape[0]))
-    d_in = int(enc["net.0.weight"].shape[1])
-    model = BackboneWithEncoder(
-        d_in=d_in, bit=bit, hidden_nodes=hidden or None,
-        batch_norm=bool(ckpt["config"].get("batch_norm", False)), finetune=False,
-    ).to(device)
-    missing, unexpected = model.encoder_layers.load_state_dict(enc, strict=True)
-    if missing or unexpected:
-        raise RuntimeError(f"state dict mismatch: {missing} / {unexpected}")
-    model.eval()
-    return model
+    return build_model_from_checkpoint_payload(
+        ckpt, d_in=None, device=device, strict=True)
 
 
 def main() -> int:
@@ -93,9 +78,15 @@ def main() -> int:
 
     ckpt = torch.load(args.weights, map_location="cpu", weights_only=False)
     bit = int(ckpt["config"]["bit"])
+    verify_checkpoint_data_context(
+        ckpt, dataset=args.dataset, setting=args.setting,
+        cache_dir=args.cache_dir, expected_bit=36)
     model = build_model(ckpt, args.device)
+    n_params = sum(parameter.numel() for parameter in model.parameters())
     print(f"[extract_splits] {args.dataset} bit={bit} "
-          f"d_in={model.encoder_layers.net[0].in_features} weights={args.weights}")
+          f"method={ckpt['config'].get('method', 'legacy')} params={n_params} "
+          f"load={getattr(model, '_checkpoint_load_format', 'unknown')} "
+          f"weights={args.weights}")
 
     os.makedirs(args.out, exist_ok=True)
     ds_root = os.path.join(args.dataset_root, args.dataset)
@@ -113,7 +104,7 @@ def main() -> int:
         _cont, bin_pm, lbls = _extract_codes(model, loader, args.device)
         bits01 = ((bin_pm + 1) // 2).astype(np.uint8)          # {-1,+1} -> {0,1}
         image_paths = np.array([os.path.join(ds_root, p) for p in dset.paths],
-                               dtype=object)
+                               dtype=np.str_)
         assert len(image_paths) == len(bits01) == len(lbls)
 
         out_path = os.path.join(args.out, SPLIT_TO_FILE[split])

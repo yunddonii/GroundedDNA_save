@@ -15,7 +15,7 @@ Usage:
 Outputs (under --cache_dir): matches extract_clip_features.py cache layout.
 """
 from __future__ import annotations
-import argparse, hashlib, json, os, sys
+import argparse, hashlib, json, os, random, sys
 from typing import List, Tuple
 import numpy as np
 import torch
@@ -29,6 +29,11 @@ if _REPO not in sys.path: sys.path.insert(0, _REPO)
 from models.pretrained_backbone import coerce_pooled_to_tensor
 from models.pretrained_backbone_clip import CLIPBackbone, DEFAULT_CLIP_BACKBONE
 from dna_utils import build_clip_text_tokenizer, DEFAULT_CLIP_TOKENIZER_NAME
+from extract_clip_features import (
+    _atomic_write_json,
+    _resolve_hf_provenance,
+    _seed_worker,
+)
 
 
 SLOT_KEYS_V3V4 = (
@@ -107,6 +112,25 @@ def _load_qwen_cache(path: str) -> dict:
     return out
 
 
+def _assert_fresh_cache_targets(
+        cache_dir: str, save_aug_views: int, *, overwrite_cache: bool) -> None:
+    names = [
+        'visual_tokens.f16.npy', 'visual_global.f16.npy', 'text_part.f16.npy',
+        'has_text.bool.npy', 'image_ids.json', 'meta.json',
+    ]
+    names += [
+        f'visual_{kind}_aug{view}.f16.npy'
+        for view in range(int(save_aug_views))
+        for kind in ('global', 'tokens')
+    ]
+    existing = [os.path.join(cache_dir, name) for name in names
+                if os.path.exists(os.path.join(cache_dir, name))]
+    if existing and not overwrite_cache:
+        raise FileExistsError(
+            'refusing to overwrite an existing cache without --overwrite_cache: '
+            f'{existing}')
+
+
 @torch.no_grad()
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -122,7 +146,18 @@ def main() -> int:
     ap.add_argument("--dtype", default="float16", choices=["float16", "float32"])
     ap.add_argument("--num_workers", type=int, default=4)
     ap.add_argument("--save_aug_views", type=int, default=0)
+    ap.add_argument('--seed', type=int, default=42)
+    ap.add_argument('--overwrite_cache', action='store_true', default=False)
     args = ap.parse_args()
+    if args.seed < 0:
+        raise ValueError('--seed must be non-negative')
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
+    augmentation_generator = torch.Generator()
+    augmentation_generator.manual_seed(args.seed)
 
     os.makedirs(args.cache_dir, exist_ok=True)
     np_dtype = np.float16 if args.dtype == "float16" else np.float32
@@ -134,6 +169,9 @@ def main() -> int:
     image_ids = [iid for iid, _ in rows]
     image_arrs = [arr for _, arr in rows]
     print(f"[extract-clip-cifar10] N={N}")
+    _assert_fresh_cache_targets(
+        args.cache_dir, args.save_aug_views,
+        overwrite_cache=args.overwrite_cache)
 
     # ---- 2. load backbone (frozen) -----------------------------
     print(f"[extract-clip-cifar10] loading {args.clip_backbone}")
@@ -141,6 +179,7 @@ def main() -> int:
     for p in backbone.parameters(): p.requires_grad = False
     H_v = backbone.vision_hidden_dim
     D_proj = backbone.projection_dim
+    hf_provenance = _resolve_hf_provenance(args.clip_backbone, backbone.model)
 
     # Warm-up to get num_tokens
     dummy = _default_transform(args.image_size)(
@@ -250,24 +289,44 @@ def main() -> int:
         "dtype": args.dtype, "backbone": args.clip_backbone,
         "tokenizer": args.tokenizer_name, "text_max_length": args.text_max_length,
         "source": "CIFAR10 via torchvision",
+        "hf_provenance": hf_provenance,
+        "augmentation_seed": (
+            int(args.seed) if int(args.save_aug_views) > 0 else None),
+        "canonical_transform": {
+            "resize": [int(args.image_size), int(args.image_size)],
+            "interpolation": "bicubic",
+            "normalization": "openai_clip",
+        },
+        "augmentation_transform": ({
+            "random_resized_crop": {"size": int(args.image_size),
+                                     "scale": [0.5, 1.0],
+                                     "interpolation": "bicubic"},
+            "horizontal_flip_probability": 0.5,
+            "color_jitter": [0.4, 0.4, 0.4, 0.1],
+            "color_jitter_probability": 1.0,
+            "grayscale_probability": 0.2,
+            "normalization": "openai_clip",
+            "gaussian_blur": False,
+        } if args.save_aug_views > 0 else None),
     }
-    with open(paths["meta"], "w") as f:
-        json.dump(meta, f, indent=2)
-
     # ---- 7. Optional aug views --------------------------------
     if args.save_aug_views > 0:
         for k in range(args.save_aug_views):
             print(f"[extract-clip-cifar10] extracting aug view {k}")
             aug_tr = _build_aug_transform(args.image_size)
             aug_tokens_mm = np.lib.format.open_memmap(
-                os.path.join(args.cache_dir, f"visual_tokens_aug{k}.f16.npy"),
+                os.path.join(
+                    args.cache_dir, f"visual_tokens_aug{k}.f16.npy.partial"),
                 mode="w+", dtype=np_dtype, shape=(N, num_tokens, H_v))
             aug_global_mm = np.lib.format.open_memmap(
-                os.path.join(args.cache_dir, f"visual_global_aug{k}.f16.npy"),
+                os.path.join(
+                    args.cache_dir, f"visual_global_aug{k}.f16.npy.partial"),
                 mode="w+", dtype=np_dtype, shape=(N, D_proj))
             ds_aug = _ArrDS(image_arrs, aug_tr)
             dl_aug = DataLoader(ds_aug, batch_size=args.batch_size, shuffle=False,
-                                num_workers=int(args.num_workers), pin_memory=True)
+                                num_workers=int(args.num_workers), pin_memory=True,
+                                worker_init_fn=_seed_worker,
+                                generator=augmentation_generator)
             for idx_batch, pix_batch in tqdm(dl_aug, total=(N + args.batch_size - 1) // args.batch_size,
                                               desc=f"aug{k}"):
                 pix_batch = pix_batch.to(args.device, non_blocking=True)
@@ -280,6 +339,18 @@ def main() -> int:
                 aug_global_mm[idx_np] = g_feat.cpu().numpy().astype(np_dtype)
             aug_tokens_mm.flush(); aug_global_mm.flush()
             del aug_tokens_mm, aug_global_mm
+            os.replace(
+                os.path.join(
+                    args.cache_dir, f"visual_tokens_aug{k}.f16.npy.partial"),
+                os.path.join(args.cache_dir, f"visual_tokens_aug{k}.f16.npy"))
+            os.replace(
+                os.path.join(
+                    args.cache_dir, f"visual_global_aug{k}.f16.npy.partial"),
+                os.path.join(args.cache_dir, f"visual_global_aug{k}.f16.npy"))
+
+    # Publish metadata only after every declared augmentation array completed.
+    meta['save_aug_views'] = int(args.save_aug_views)
+    _atomic_write_json(paths["meta"], meta)
 
     print(f"[extract-clip-cifar10] DONE. cache -> {args.cache_dir}")
     return 0

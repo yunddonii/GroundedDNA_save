@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Unsupervised hashing baselines (CIBHash / CIMON / MLS3RDUH) on NUS-WIDE
-# setting1_10500 (10,500 balanced train / 2,100 test / 193,734 database),
+# setting1 (10,500 balanced train / 2,100 test / 193,734 database),
 # CLIP ViT-B/16 frozen features (cache/nuswide_clip). 36-bit codes.
 #
 # Usage: bash scripts/run_unsup_baselines_nuswide.sh [gpu_cib] [gpu_cimon] [gpu_mls]

@@ -3,13 +3,13 @@
 #
 # Prerequisites:
 #   cache/nuswide_qwen3_v4_trainset.jsonl exists (Qwen captions for 10,500 subset).
-#   dataset/NUSWIDE/setting1_10500/ exists with train.txt (10,500 balanced) +
-#   symlinks to full test.txt / database.txt.
+#   dataset/NUSWIDE/setting1/ contains train.txt (10,500 balanced) plus the
+#   full test.txt / database.txt manifests.
 #
 # Outputs (single GPU, sequential; ETA ~2-3 hours total for 193K images):
 #   1. cache/nuswide_clip/                  visual (visual_tokens, visual_global,
 #                                            aug0/1) + text_part (pooled) + has_text +
-#                                            image_ids/meta. Uses setting1_10500 so
+#                                            image_ids/meta. Uses setting1 so
 #                                            train.txt is 10,500 but test/database
 #                                            still full 193K (unioned).
 #   2. cache/nuswide_clip_tokens/           text_tokens.f16.npy + text_token_mask
@@ -48,7 +48,7 @@ if [ ! -f "$POOLED_DIR/text_part.f16.npy" ]; then
     CUDA_VISIBLE_DEVICES="$GPU" $PY extract_clip_features.py \
         --mode pathlist \
         --pathlist_root "$DATASET_ROOT" \
-        --pathlist_setting setting1_10500 \
+        --pathlist_setting setting1 \
         --qwen_cache_path "$QWEN_JSONL" \
         --cache_dir "$POOLED_DIR" \
         --save_aug_views 2 \

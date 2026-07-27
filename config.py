@@ -1907,6 +1907,15 @@ class Config():
         # usage balance — directly counteracting the dead-codeword collapse
         # the CIBHash regime induces. Applied to local codebooks (slot 1..5)
         # by default; slot 0 (C_global) excluded unless --swav_assign_include_global.
+        loss_arg.add_argument('--lambda_sim_spread', type=float, default=0.0,
+            help="(b) SDC-style similarity-spread calibration on the continuous "
+                 "code: rank in-batch pairs by frozen-teacher cosine and fit the "
+                 "code cosine onto a symmetric Beta quantile spread. Targets code "
+                 "RESOLUTION (the axis where CroVCA/SDC beat us on MSCOCO). 0 = off.")
+        loss_arg.add_argument('--sim_spread_beta', type=float, default=5.0,
+            help="Beta(b,b) shape for the spread target (SDC uses 5).")
+        loss_arg.add_argument('--sim_spread_pairs', type=int, default=4096,
+            help="Number of sampled in-batch pairs for the spread loss.")
         loss_arg.add_argument('--lambda_swav_assign', type=float, default=0.0,
             help='v121: weight for SwAV-style swapped balanced codeword-'
                  'assignment loss (additive). 0 disables.')

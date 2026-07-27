@@ -1,0 +1,66 @@
+{
+  "asset_contract_version": 2,
+  "mode": "umrch",
+  "cache_meta": "/home/yschoi/GroundedDNA/cache/flickr25k_clip_v4plus_qwen3_tokens/meta.json",
+  "cache_meta_sha256": "b56727b6cbd62a4e1057ed18d37023eba149cb3674c1e6fb3f4703914dda7787",
+  "cache_backbone": "openai/clip-vit-base-patch16",
+  "hf_provenance": {
+    "checkpoint": "openai/clip-vit-base-patch16",
+    "model_revision": "57c216476eefef5ab752ec549e440a49ae4ae5f3",
+    "transformers_version": "5.8.0",
+    "model_weight_file": "/home/yschoi/.cache/huggingface/hub/models--openai--clip-vit-base-patch16/snapshots/57c216476eefef5ab752ec549e440a49ae4ae5f3/pytorch_model.bin",
+    "model_weight_sha256": "ec89c7b09c749a60aae3c9cd910516f24b58214a7df060b48962d14c469cfbf0",
+    "tokenizer_files_sha256": {
+      "/home/yschoi/.cache/huggingface/hub/models--openai--clip-vit-base-patch16/snapshots/57c216476eefef5ab752ec549e440a49ae4ae5f3/tokenizer.json": "a83e0809aa4c3af7208b2df632a7a69668c6d48775b3c3fe4e1b1199d1f8b8f4",
+      "/home/yschoi/.cache/huggingface/hub/models--openai--clip-vit-base-patch16/snapshots/57c216476eefef5ab752ec549e440a49ae4ae5f3/tokenizer_config.json": "3f74b6a4d97fee70b3b96921a687fc5e3f2fb583f5f81e7c178c0c22281beade",
+      "/home/yschoi/.cache/huggingface/hub/models--openai--clip-vit-base-patch16/snapshots/57c216476eefef5ab752ec549e440a49ae4ae5f3/vocab.json": "3f0c4f7d2086b61b38487075278ea9ed04edb53a03cbb045b86c27190fa8fb69",
+      "/home/yschoi/.cache/huggingface/hub/models--openai--clip-vit-base-patch16/snapshots/57c216476eefef5ab752ec549e440a49ae4ae5f3/merges.txt": "9fd691f7c8039210e0fced15865466c65820d09b63988b0174bfe25de299051a",
+      "/home/yschoi/.cache/huggingface/hub/models--openai--clip-vit-base-patch16/snapshots/57c216476eefef5ab752ec549e440a49ae4ae5f3/special_tokens_map.json": "f8c0d6c39aee3f8431078ef6646567b0aba7f2246e9c54b8b99d55c22b707cbf"
+    }
+  },
+  "terms_file": "/home/yschoi/GroundedDNA/artifacts/umrch_flickr25k_terms.txt",
+  "terms_file_sha256": "5f05ab599b09add2bcc8c324fe51fb244c169a4226a75ea9bdd509a62209e4e2",
+  "ordered_terms": [
+    "animals",
+    "baby",
+    "bird",
+    "car",
+    "clouds",
+    "dog",
+    "female",
+    "flower",
+    "food",
+    "indoor",
+    "lake",
+    "male",
+    "night",
+    "people",
+    "plant_life",
+    "portrait",
+    "river",
+    "sea",
+    "sky",
+    "structures",
+    "sunset",
+    "transport",
+    "tree",
+    "water"
+  ],
+  "ordered_terms_sha256": "091c8903128022249b330f2344c33afb1dc3bb934b001e8da2c96ee4b2adb781",
+  "n_terms": 24,
+  "embedding_dim": 512,
+  "prompt": "a photo of the {class}",
+  "term_source": "audited UMRCH release taxonomy",
+  "duheg_selection_included": null,
+  "outputs": {
+    "embeddings": "/home/yschoi/GroundedDNA/artifacts/umrch_flickr25k_embeddings.npy",
+    "vision_adapter": "/home/yschoi/GroundedDNA/artifacts/umrch_flickr25k_vision_adapter.npz"
+  },
+  "outputs_sha256": {
+    "embeddings": "43ddbf76872f3f5f2034d73bb1498dafeab22c6a59ee7aba3916e11673c9a2f0",
+    "vision_adapter": "9fb27d3b55984e828c685e9ab5bb32c1eac631ee408ad1ae5bd9c44ad00184b4"
+  },
+  "information_tier": "U2",
+  "term_source_condition": "target-benchmark-taxonomy-byte-exact",
+  "matched_official_taxonomy_dataset": "Flickr25k"
+}

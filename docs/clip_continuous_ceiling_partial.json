@@ -1,0 +1,23 @@
+{
+  "note": "raw frozen CLIP global cosine, no hashing; relevance = share >=1 label; CalcTopMap mAP@R",
+  "cells": [
+    {
+      "dataset": "CIFAR10",
+      "map_at_R_clip_continuous": 0.864861011505127,
+      "R": 1000,
+      "n_query": 1000,
+      "n_db": 59000,
+      "cache": "./cache/cifar10_clip",
+      "feat_dim": 512
+    },
+    {
+      "dataset": "Flickr25k",
+      "map_at_R_clip_continuous": 0.7798077464103699,
+      "R": 5000,
+      "n_query": 2000,
+      "n_db": 23000,
+      "cache": "./cache/flickr25k_clip_v4plus",
+      "feat_dim": 512
+    }
+  ]
+}

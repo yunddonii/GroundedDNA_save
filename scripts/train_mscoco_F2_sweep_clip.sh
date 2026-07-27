@@ -33,7 +33,7 @@ CUDA_VISIBLE_DEVICES="$GPU" /home/yschoi/.conda/envs/dna_hashing/bin/python trai
     --lambda_hash 0.0 --lambda_hash_hard 0.0 --lambda_hash_type mse --hash_target_mode siglip_cos \
     --lambda_text_hash 0.0 --lambda_text_hash_ntxent "$THASH" --text_hash_ntxent_temperature 0.07 --text_hash_ntxent_mode per_codebook \
     --lambda_wasserstein "$WASS" --lambda_vq 0.25 --lambda_quant 0.05 --lambda_xmodal_commit "$XMODAL" \
-    --lambda_anchor 0.05 --lambda_dna 0.05 --lambda_bu 0.02 --eta_base_balance 0.3 \
+    --lambda_anchor 0.05 --lambda_dna 0.05 --lambda_bu "${LBU:-0.02}" --eta_base_balance 0.3 \
     --lambda_codeword_codon_sinkhorn "$CCS" --lambda_cibhash_ntxent "$CIBNT" --lambda_cibhash_kl 0.001 \
     --cibhash_mode per_codebook --cibhash_temperature 0.3 --cibhash_dynamic_tau --cibhash_dynamic_tau_alpha 0.3 \
     --cibhash_ntxent_continuous --cibhash_ntxent_source visual_token \

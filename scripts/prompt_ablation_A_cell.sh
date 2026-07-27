@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Faithful "A" (strict global-caption-free) recipe × prompt swap, at 18-base (L=3),
+# under P0 2-stage + bio-projected mAP@R. Self-contained: uses the champion
+# launchers with env overrides + the A flags via EXTRA_ARGS + local-only
+# whitening. Does NOT touch the concurrent session's semantic_detail runner.
+#
+# "A" = champion recipe + the 4 global-slot skips + local-only whitening:
+#   already in champion launchers: --text_code_kl_skip_global --text_hash_ntxent_skip_global
+#   added here (EXTRA_ARGS):       --xmodal_commit_skip_global --cibhash_dynamic_tau_skip_global
+#   local-only whitening:          text_whiten_*_localOnly.npz
+#
+#   Usage: bash scripts/prompt_ablation_A_cell.sh <GPU> <mscoco_A_v5b|mscoco_A_v4|cifar_A_v1|cifar_A_v4>
+set -u
+GPU="$1"; EXP="$2"
+PY=/home/yschoi/.conda/envs/dna_hashing/bin/python
+A_FLAGS="--xmodal_commit_skip_global --cibhash_dynamic_tau_skip_global ${AUX_ARGS:-}"
+SKIP="--no-post_eval_compositional${VIZ:+}"
+[ "${VIZ:-1}" = "0" ] && SKIP="$SKIP --no_visualize"
+
+case "$EXP" in
+  mscoco_A_v5b)   # A + champion prompt (V5b) at L=3
+    CANON=MSCOCO; SCRIPT=scripts/train_mscoco_F2_sweep_clip.sh
+    CACHE=./cache/mscoco_clip_v5b_tokens; QWEN=./cache/mscoco_qwen3_v5b_trainset.jsonl
+    WDIR=./cache/mscoco_clip_v5b_tokens_foils; K=128; CIBNT=1.5; EXTRA=(CELL=Aprompt) ;;
+  mscoco_A_v4)    # A + V4 prompt at L=3
+    CANON=MSCOCO; SCRIPT=scripts/train_mscoco_F2_sweep_clip.sh
+    CACHE=./cache/mscoco_clip_v4plus_tokens; QWEN=./cache/mscoco_qwen3_v4_trainset.jsonl
+    WDIR=./cache/mscoco_clip_v4plus_tokens; K=128; CIBNT=1.5; EXTRA=(CELL=Aprompt) ;;
+  cifar_A_v1)     # A + champion prompt (V1) at L=3
+    CANON=CIFAR10; SCRIPT=scripts/train_cifar10_v185_bidirTokenPrune05_ccs01_clip.sh
+    CACHE=./cache/cifar10_clip; QWEN=./cache/cifar10_qwen.jsonl
+    WDIR=./cache/cifar10_clip_foils; K=64; CIBNT=1.0; EXTRA=(CCS=0.1) ;;
+  cifar_A_v4)     # A + V4 prompt at L=3
+    CANON=CIFAR10; SCRIPT=scripts/train_cifar10_v185_bidirTokenPrune05_ccs01_clip.sh
+    CACHE=./cache/cifar10_clip_v4_tokens; QWEN=./cache/cifar10_qwen_v4.jsonl
+    WDIR=./cache/cifar10_clip_v4_tokens; K=64; CIBNT=1.0; EXTRA=(CCS=0.1) ;;
+  flickr_A_v4)    # A + V4 (Flickr champion prompt) at L=3
+    CANON=Flickr25k; SCRIPT=scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh
+    CACHE=./cache/flickr25k_clip_v4plus_qwen3_tokens; QWEN=./cache/flickr25k_qwen3_v4_trainset.jsonl
+    WDIR=./cache/flickr25k_clip_v4plus_qwen3_tokens_foils; K=128; CIBNT=1.0; EXTRA=(BIDIR_MODE=legacy) ;;
+  nuswide_A_v4)   # A + V4 (NUS champion prompt) at L=3
+    CANON=NUSWIDE; SCRIPT=scripts/train_nuswide_v185_sweep_clip.sh
+    CACHE=./cache/nuswide_clip_tokens; QWEN=./cache/nuswide_qwen3_v4_trainset.jsonl
+    WDIR=./cache/nuswide_clip_tokens_foils; K=128; CIBNT=1.5; EXTRA=(CELL=Aprompt) ;;
+  *) echo "[promptAblA] unknown EXP=$EXP"; exit 2 ;;
+esac
+
+WOPT="$WDIR/text_whiten_optTrain_localOnly.npz"
+WTR="$WDIR/text_whiten_trainOnly_localOnly.npz"
+for f in "$WOPT" "$WTR"; do [ -f "$f" ] || { echo "[promptAblA $EXP] MISSING $f"; exit 3; }; done
+BASE="promptAblA_${EXP}${TAG_SUFFIX:-}"
+echo "[promptAblA $EXP] GPU=$GPU CANON=$CANON K=$K CIBNT=$CIBNT L=3 cache=$CACHE @ $(date '+%F %T')"
+
+# ---- stage 1: P0 val ----
+env LBU="${LBU:-0.02}" CACHE="$CACHE" QWEN="$QWEN" WHITEN_NPZ="$WOPT" K="$K" NUM_CODONS=3 CIBNT="$CIBNT" \
+    VAL_RATIO=0.1 VAL_SEED=42 TAG="${BASE}_P0val" EXTRA_ARGS="$A_FLAGS $SKIP" "${EXTRA[@]}" \
+    bash "$SCRIPT" "$GPU"
+S1LOG="logs/${BASE}_P0val.log"
+ESTAR=$(grep -oE "new best mid-eval mAP=[0-9.]+ at epoch [0-9]+" "$S1LOG" 2>/dev/null \
+        | grep -oE "epoch [0-9]+$" | grep -oE "[0-9]+" | tail -1)
+[ -z "${ESTAR:-}" ] && { echo "[promptAblA $EXP] WARN E* parse fail -> 59"; ESTAR=59; }
+echo "[promptAblA $EXP] E*=$ESTAR"
+
+# ---- stage 2: refit ----
+env LBU="${LBU:-0.02}" CACHE="$CACHE" QWEN="$QWEN" WHITEN_NPZ="$WTR" K="$K" NUM_CODONS=3 CIBNT="$CIBNT" \
+    FINAL_EPOCH=1 STOP_EP="$ESTAR" TAG="${BASE}_P0refit_e${ESTAR}" EXTRA_ARGS="$A_FLAGS $SKIP" "${EXTRA[@]}" \
+    bash "$SCRIPT" "$GPU"
+
+RD=$(ls -d result/*"${BASE}_P0refit_e${ESTAR}"* 2>/dev/null | head -1)
+[ -n "${RD:-}" ] && [ -f "$RD/extract_db.npz" ] || { echo "[promptAblA $EXP] ERROR refit dir/extract missing (RD=$RD)"; exit 4; }
+"$PY" scripts/eval_cell_bioproj.py --dir "$RD" --dataset "$CANON" --K "$K" --gc_min 0.40 --gc_max 0.60
+echo "[promptAblA $EXP] DONE @ $(date '+%F %T')  RD=$RD"

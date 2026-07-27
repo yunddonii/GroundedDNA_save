@@ -49,7 +49,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import random
 from typing import List, Tuple
+import re
 
 import numpy as np
 import torch
@@ -164,6 +166,167 @@ def _iter_pathlist(root: str, setting: str = "setting1") -> List[Tuple[str, str]
     return rows
 
 
+def _canonical_transform_record(image_size: int) -> dict:
+    return {
+        "resize": [int(image_size), int(image_size)],
+        "interpolation": "bilinear",
+        "crop": False,
+        "normalization": "openai_clip",
+    }
+
+
+def _sha256_file(path: str) -> str:
+    import hashlib
+    digest = hashlib.sha256()
+    with open(path, 'rb') as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _atomic_write_json(path: str, payload: dict) -> None:
+    partial = path + '.partial'
+    with open(partial, 'w', encoding='utf-8') as handle:
+        json.dump(payload, handle, indent=2)
+        handle.write('\n')
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(partial, path)
+
+
+def _seed_worker(worker_id: int) -> None:
+    del worker_id
+    worker_seed = int(torch.initial_seed() % (2 ** 32))
+    random.seed(worker_seed)
+    np.random.seed(worker_seed)
+
+
+def _resolve_hf_provenance(checkpoint: str, model: torch.nn.Module) -> dict:
+    """Resolve immutable model/tokenizer artifacts used by this extraction."""
+    import transformers
+    from transformers.utils import cached_file
+
+    revision = getattr(model.config, '_commit_hash', None)
+    if not isinstance(revision, str) or re.fullmatch(r'[0-9a-f]{40}', revision) is None:
+        raise ValueError(
+            'CLIP extraction requires an immutable Hugging Face commit hash')
+
+    def resolve(name: str) -> str | None:
+        try:
+            path = cached_file(
+                checkpoint, name, revision=revision, local_files_only=True)
+        except (OSError, ValueError):
+            return None
+        return None if path is None else os.path.realpath(path)
+
+    weight_path = resolve('model.safetensors') or resolve('pytorch_model.bin')
+    if weight_path is None:
+        raise FileNotFoundError(
+            f'cannot resolve immutable local model weights for {checkpoint!r}')
+    tokenizer_hashes = {}
+    for name in ('tokenizer.json', 'tokenizer_config.json', 'vocab.json',
+                 'merges.txt', 'special_tokens_map.json'):
+        path = resolve(name)
+        if path is not None:
+            tokenizer_hashes[path] = _sha256_file(path)
+    if not tokenizer_hashes:
+        raise FileNotFoundError(
+            f'cannot resolve immutable tokenizer artifacts for {checkpoint!r}')
+    return {
+        'checkpoint': checkpoint,
+        'model_revision': revision,
+        'transformers_version': str(transformers.__version__),
+        'model_weight_file': weight_path,
+        'model_weight_sha256': _sha256_file(weight_path),
+        'tokenizer_files_sha256': tokenizer_hashes,
+    }
+
+
+def _validate_aug_only_cache(
+        cache_dir: str, image_ids: list[str], *, clip_backbone: str,
+        image_size: int, dtype: str, save_aug_views: int,
+        overwrite_aug_views: bool) -> dict:
+    """Fail closed before appending stochastic views to a canonical cache."""
+    if int(save_aug_views) <= 0:
+        raise ValueError('--aug_only requires --save_aug_views > 0')
+    meta_path = os.path.join(cache_dir, 'meta.json')
+    ids_path = os.path.join(cache_dir, 'image_ids.json')
+    for path in (meta_path, ids_path):
+        if not os.path.isfile(path):
+            raise FileNotFoundError(
+                f'--aug_only requires existing canonical cache file: {path}')
+    with open(meta_path, encoding='utf-8') as handle:
+        meta = json.load(handle)
+    with open(ids_path, encoding='utf-8') as handle:
+        cached_ids = json.load(handle)
+    if cached_ids != image_ids:
+        raise ValueError(
+            '--aug_only image_ids differ from the enumerated dataset order')
+    expected = {
+        'N': len(image_ids),
+        'backbone': clip_backbone,
+        'dtype': dtype,
+        'canonical_transform': _canonical_transform_record(image_size),
+    }
+    mismatches = {
+        key: (meta.get(key), value)
+        for key, value in expected.items() if meta.get(key) != value
+    }
+    if mismatches:
+        raise ValueError(
+            f'--aug_only canonical cache metadata mismatch: {mismatches}')
+    try:
+        n, d_proj = int(meta['N']), int(meta['D_proj'])
+        n_tokens, h_v = int(meta['num_tokens']), int(meta['H_v'])
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError('--aug_only cache meta lacks valid dimensions') from error
+    expected_np_dtype = np.dtype(dtype)
+    arrays = {
+        'visual_global.f16.npy': (n, d_proj),
+        'visual_tokens.f16.npy': (n, n_tokens, h_v),
+    }
+    for name, shape in arrays.items():
+        path = os.path.join(cache_dir, name)
+        if not os.path.isfile(path):
+            raise FileNotFoundError(
+                f'--aug_only requires existing canonical array: {path}')
+        array = np.load(path, mmap_mode='r')
+        if array.shape != shape or array.dtype != expected_np_dtype:
+            raise ValueError(
+                f'--aug_only canonical array {name} is {array.shape}/{array.dtype}, '
+                f'expected {shape}/{expected_np_dtype}')
+    targets = [
+        os.path.join(cache_dir, f'visual_{kind}_aug{view}.f16.npy')
+        for view in range(int(save_aug_views))
+        for kind in ('global', 'tokens')
+    ]
+    existing = [path for path in targets if os.path.exists(path)]
+    if existing and not overwrite_aug_views:
+        raise FileExistsError(
+            'refusing to overwrite existing augmented cache arrays without '
+            f'--overwrite_aug_views: {existing}')
+    return meta
+
+
+def _assert_fresh_full_cache_targets(
+        cache_dir: str, save_aug_views: int, *, overwrite_cache: bool) -> None:
+    names = [
+        'visual_tokens.f16.npy', 'visual_global.f16.npy', 'text_part.f16.npy',
+        'has_text.bool.npy', 'image_ids.json', 'meta.json',
+    ]
+    names += [
+        f'visual_{kind}_aug{view}.f16.npy'
+        for view in range(int(save_aug_views))
+        for kind in ('global', 'tokens')
+    ]
+    existing = [os.path.join(cache_dir, name) for name in names
+                if os.path.exists(os.path.join(cache_dir, name))]
+    if existing and not overwrite_cache:
+        raise FileExistsError(
+            'refusing to overwrite an existing cache without --overwrite_cache: '
+            f'{existing}')
+
+
 # --------------------------------------------------------------- main
 
 @torch.no_grad()
@@ -211,11 +374,32 @@ def main() -> int:
                          "image (SimCLR/CIBHash transform). Saved as "
                          "visual_{tokens,global}_aug{0..K-1}.f16.npy. Set to 2 "
                          "for v81a paired-aug NtXent.")
+    ap.add_argument(
+        '--seed', type=int, default=42,
+        help='Seed for deterministic augmentation-cache generation.',
+    )
     ap.add_argument("--aug_only", action="store_true", default=False,
                     help="Skip the deterministic visual + text extraction and "
                          "ONLY produce the aug views (assumes the deterministic "
                          "cache already exists).")
+    ap.add_argument(
+        '--overwrite_aug_views', action='store_true', default=False,
+        help='Allow --aug_only to atomically replace existing aug-view arrays.',
+    )
+    ap.add_argument(
+        '--overwrite_cache', action='store_true', default=False,
+        help='Allow a full extraction to replace existing cache artifacts.',
+    )
     args = ap.parse_args()
+    if args.seed < 0:
+        raise ValueError('--seed must be non-negative')
+    random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(args.seed)
+    augmentation_generator = torch.Generator()
+    augmentation_generator.manual_seed(args.seed)
 
     if not args.cache_dir:
         ds_name = os.path.basename(os.path.normpath(args.pathlist_root)).lower()
@@ -236,6 +420,19 @@ def main() -> int:
     image_paths = [p   for _, p   in rows_in]
     print(f"[extract-clip] {N} images total")
 
+    if args.aug_only:
+        existing_aug_meta = _validate_aug_only_cache(
+            args.cache_dir, image_ids,
+            clip_backbone=args.clip_backbone, image_size=args.image_size,
+            dtype=args.dtype, save_aug_views=args.save_aug_views,
+            overwrite_aug_views=args.overwrite_aug_views,
+        )
+    else:
+        existing_aug_meta = None
+        _assert_fresh_full_cache_targets(
+            args.cache_dir, args.save_aug_views,
+            overwrite_cache=args.overwrite_cache)
+
     # ---- 2. load backbone (FROZEN) ---------------------------------------
     print(f"[extract-clip] loading backbone {args.clip_backbone} on {args.device} ...")
     backbone = CLIPBackbone(args.clip_backbone).to(args.device).eval()
@@ -243,6 +440,15 @@ def main() -> int:
         p.requires_grad = False
     H_v    = backbone.vision_hidden_dim
     D_proj = backbone.projection_dim
+    hf_provenance = _resolve_hf_provenance(args.clip_backbone, backbone.model)
+    if existing_aug_meta is not None:
+        if (int(existing_aug_meta['H_v']) != int(H_v)
+                or int(existing_aug_meta['D_proj']) != int(D_proj)):
+            raise ValueError(
+                '--aug_only loaded backbone dimensions differ from canonical cache')
+        if existing_aug_meta.get('hf_provenance') != hf_provenance:
+            raise ValueError(
+                '--aug_only loaded CLIP revision/weights differ from canonical cache')
     print(f"[extract-clip] backbone dims: vision_hidden={H_v}, projection={D_proj}")
 
     # ---- 2b. warm-up forward to discover num_tokens (= patches; CLS dropped) ---
@@ -362,13 +568,16 @@ def main() -> int:
         for i in range(K):
             pg = os.path.join(args.cache_dir, f"visual_global_aug{i}.f16.npy")
             pt = os.path.join(args.cache_dir, f"visual_tokens_aug{i}.f16.npy")
+            pg_partial = pg + '.partial'
+            pt_partial = pt + '.partial'
             mm_g = np.lib.format.open_memmap(
-                pg, mode="w+", dtype=np_dtype, shape=(N, D_proj),
+                pg_partial, mode="w+", dtype=np_dtype, shape=(N, D_proj),
             )
             mm_t = np.lib.format.open_memmap(
-                pt, mode="w+", dtype=np_dtype, shape=(N, num_tokens, H_v),
+                pt_partial, mode="w+", dtype=np_dtype,
+                shape=(N, num_tokens, H_v),
             )
-            aug_paths.append(pg); aug_paths.append(pt)
+            aug_paths.append((pg_partial, pg)); aug_paths.append((pt_partial, pt))
             aug_global_mms.append(mm_g); aug_token_mms.append(mm_t)
 
         aug_transform = _build_aug_transform(args.image_size)
@@ -392,7 +601,9 @@ def main() -> int:
             aug_ds = _AugPathDS(image_paths, aug_transform)
             aug_dl = _TDL(aug_ds, batch_size=bs, shuffle=False,
                           num_workers=int(args.num_workers), pin_memory=True,
-                          persistent_workers=(int(args.num_workers) > 0))
+                          persistent_workers=(int(args.num_workers) > 0),
+                          worker_init_fn=_seed_worker,
+                          generator=augmentation_generator)
             for idx_batch, pix_batch, ok_batch in tqdm(
                 aug_dl, total=(N + bs - 1) // bs, desc=f"aug{view_idx}",
             ):
@@ -414,7 +625,9 @@ def main() -> int:
         for mm in aug_global_mms + aug_token_mms:
             mm.flush()
         del aug_global_mms, aug_token_mms
-        for p in aug_paths:
+        for partial, final in aug_paths:
+            os.replace(partial, final)
+        for _, p in aug_paths:
             paths[os.path.basename(p).replace(".f16.npy", "")] = p
 
     # ---- 4c. aug_only short-circuit --------------------------------------
@@ -422,14 +635,21 @@ def main() -> int:
         print("[extract-clip] aug_only=True -> skipping text extraction.")
         if int(args.save_aug_views) > 0:
             meta_p = os.path.join(args.cache_dir, "meta.json")
-            if os.path.exists(meta_p):
-                with open(meta_p, "r") as f:
-                    meta = json.load(f)
-            else:
-                meta = {}
+            meta = dict(existing_aug_meta)
             meta["save_aug_views"] = int(args.save_aug_views)
-            with open(meta_p, "w") as f:
-                json.dump(meta, f, indent=2)
+            meta["augmentation_seed"] = int(args.seed)
+            meta["augmentation_transform"] = {
+                "random_resized_crop": {"size": int(args.image_size),
+                                         "scale": [0.5, 1.0],
+                                         "interpolation": "bilinear"},
+                "horizontal_flip_probability": 0.5,
+                "color_jitter": [0.4, 0.4, 0.4, 0.1],
+                "color_jitter_probability": 0.8,
+                "grayscale_probability": 0.2,
+                "normalization": "openai_clip",
+                "gaussian_blur": False,
+            }
+            _atomic_write_json(meta_p, meta)
         print("[extract-clip] done (aug_only):")
         for k, p in paths.items():
             sz_mb = os.path.getsize(p) / 1e6 if os.path.exists(p) else 0.0
@@ -513,18 +733,32 @@ def main() -> int:
         "n_failed_image_decode": int(n_failed),
         "failed_image_indices":  list(failed_indices)[:5000],
         "save_aug_views": int(args.save_aug_views),
+        "augmentation_seed": (
+            int(args.seed) if int(args.save_aug_views) > 0 else None),
         "text_part_source": "clip",
         "qwen_cache":  os.path.basename(args.qwen_cache_path) if args.qwen_cache_path else "",
         "image_normalize_mean": CLIP_PIXEL_MEAN,
         "image_normalize_std":  CLIP_PIXEL_STD,
         "cls_token_stripped":   True,
         "backbone_family":      "clip",
+        "hf_provenance":        hf_provenance,
+        "canonical_transform": _canonical_transform_record(args.image_size),
+        "augmentation_transform": ({
+            "random_resized_crop": {"size": int(args.image_size),
+                                     "scale": [0.5, 1.0],
+                                     "interpolation": "bilinear"},
+            "horizontal_flip_probability": 0.5,
+            "color_jitter": [0.4, 0.4, 0.4, 0.1],
+            "color_jitter_probability": 0.8,
+            "grayscale_probability": 0.2,
+            "normalization": "openai_clip",
+            "gaussian_blur": False,
+        } if int(args.save_aug_views) > 0 else None),
     }
     if n_failed > 0:
         print(f"[extract-clip] WARNING: {n_failed} images failed PIL decode "
               f"(zeroed out, recorded in meta.json).")
-    with open(paths["meta"], "w") as f:
-        json.dump(meta, f, indent=2)
+    _atomic_write_json(paths["meta"], meta)
 
     print("[extract-clip] done:")
     for k, p in paths.items():

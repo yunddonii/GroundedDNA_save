@@ -1,0 +1,63 @@
+{
+  "asset_contract_version": 2,
+  "mode": "umrch",
+  "cache_meta": "/home/yschoi/GroundedDNA/cache/nuswide_clip_tokens/meta.json",
+  "cache_meta_sha256": "b7d83c0f9d509a5966694a74fd1f7693c2f4db080ca5eb1c243aa1084cae8230",
+  "cache_backbone": "openai/clip-vit-base-patch16",
+  "hf_provenance": {
+    "checkpoint": "openai/clip-vit-base-patch16",
+    "model_revision": "57c216476eefef5ab752ec549e440a49ae4ae5f3",
+    "transformers_version": "5.8.0",
+    "model_weight_file": "/home/yschoi/.cache/huggingface/hub/models--openai--clip-vit-base-patch16/snapshots/57c216476eefef5ab752ec549e440a49ae4ae5f3/pytorch_model.bin",
+    "model_weight_sha256": "ec89c7b09c749a60aae3c9cd910516f24b58214a7df060b48962d14c469cfbf0",
+    "tokenizer_files_sha256": {
+      "/home/yschoi/.cache/huggingface/hub/models--openai--clip-vit-base-patch16/snapshots/57c216476eefef5ab752ec549e440a49ae4ae5f3/tokenizer.json": "a83e0809aa4c3af7208b2df632a7a69668c6d48775b3c3fe4e1b1199d1f8b8f4",
+      "/home/yschoi/.cache/huggingface/hub/models--openai--clip-vit-base-patch16/snapshots/57c216476eefef5ab752ec549e440a49ae4ae5f3/tokenizer_config.json": "3f74b6a4d97fee70b3b96921a687fc5e3f2fb583f5f81e7c178c0c22281beade",
+      "/home/yschoi/.cache/huggingface/hub/models--openai--clip-vit-base-patch16/snapshots/57c216476eefef5ab752ec549e440a49ae4ae5f3/vocab.json": "3f0c4f7d2086b61b38487075278ea9ed04edb53a03cbb045b86c27190fa8fb69",
+      "/home/yschoi/.cache/huggingface/hub/models--openai--clip-vit-base-patch16/snapshots/57c216476eefef5ab752ec549e440a49ae4ae5f3/merges.txt": "9fd691f7c8039210e0fced15865466c65820d09b63988b0174bfe25de299051a",
+      "/home/yschoi/.cache/huggingface/hub/models--openai--clip-vit-base-patch16/snapshots/57c216476eefef5ab752ec549e440a49ae4ae5f3/special_tokens_map.json": "f8c0d6c39aee3f8431078ef6646567b0aba7f2246e9c54b8b99d55c22b707cbf"
+    }
+  },
+  "terms_file": "/home/yschoi/GroundedDNA/artifacts/umrch_nuswide_terms.txt",
+  "terms_file_sha256": "09a56a19f992f5ef23cbfb6711e13c2d549f268b1b458772adccd71b92336242",
+  "ordered_terms": [
+    "animal",
+    "beach",
+    "building",
+    "clouds",
+    "flowers",
+    "grass",
+    "lake",
+    "mountain",
+    "ocean",
+    "person",
+    "plants",
+    "reflection",
+    "road",
+    "rocks",
+    "sky",
+    "snow",
+    "sunset",
+    "tree",
+    "vehicle",
+    "water",
+    "window"
+  ],
+  "ordered_terms_sha256": "65874989eb493e486461166e26edeaa5ce28e15d4d8b1e348ee4be29d2811f10",
+  "n_terms": 21,
+  "embedding_dim": 512,
+  "prompt": "a photo of the {class}",
+  "term_source": "audited UMRCH release taxonomy",
+  "duheg_selection_included": null,
+  "outputs": {
+    "embeddings": "/home/yschoi/GroundedDNA/artifacts/umrch_nuswide_embeddings.npy",
+    "vision_adapter": "/home/yschoi/GroundedDNA/artifacts/umrch_nuswide_vision_adapter.npz"
+  },
+  "outputs_sha256": {
+    "embeddings": "8649a08114b5f0efaf3780e61461a3f4e227ce2ce9f5a2a85db2dd39d222c3f2",
+    "vision_adapter": "9fb27d3b55984e828c685e9ab5bb32c1eac631ee408ad1ae5bd9c44ad00184b4"
+  },
+  "information_tier": "U2",
+  "term_source_condition": "target-benchmark-taxonomy-byte-exact",
+  "matched_official_taxonomy_dataset": "NUSWIDE"
+}

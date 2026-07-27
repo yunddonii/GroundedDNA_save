@@ -1,0 +1,23 @@
+{
+  "note": "raw frozen CLIP global cosine, no hashing; relevance = share >=1 label; CalcTopMap mAP@R",
+  "cells": [
+    {
+      "dataset": "MSCOCO",
+      "map_at_R_clip_continuous": 0.7849249243736267,
+      "R": 5000,
+      "n_query": 5000,
+      "n_db": 107218,
+      "cache": "./cache/mscoco_clip_v4plus",
+      "feat_dim": 512
+    },
+    {
+      "dataset": "NUSWIDE",
+      "map_at_R_clip_continuous": 0.8211043477058411,
+      "R": 5000,
+      "n_query": 2100,
+      "n_db": 193734,
+      "cache": "./cache/nuswide_clip",
+      "feat_dim": 512
+    }
+  ]
+}

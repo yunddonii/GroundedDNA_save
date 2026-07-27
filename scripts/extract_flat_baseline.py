@@ -1,11 +1,12 @@
-"""Extract 36-bit codes from a trained flat baseline (CIBHash / CIMON /
-MLS3RDUH) and reshape them as if they were a 6-codebook x 3-codon x 2-bit
-DNA hash. Saves `extract_db.npz` / `extract_query.npz` in the same schema as
-our SigLIP2 result dirs so the existing compositional analysis tools
+"""Extract 36/48-bit codes from a registered flat hashing baseline and reshape
+them as fixed 6-bit codebooks and 2-bit DNA bases. The checkpoint
+is reconstructed through its method class, so both legacy linear encoders and
+modern custom heads are supported. Saves `extract_db.npz` /
+`extract_query.npz` in the same schema as our result dirs so analysis tools
 (pairwise_nmi.py, codebook_drop_ablation*.py, compositional_eval.py) can run
 on them without modification.
 
-Imposed partition: bits [6m : 6m+6] of the 36-bit code are treated as
+Imposed partition: bits [6m : 6m+6] of the flat code are treated as
 "codebook m" (giving K=2^6=64 codewords, matching our K=64 setting), and
 bits [2p : 2p+2] are treated as "base position p" (giving 4 bases A/C/G/T).
 This is an ARTIFICIAL grouping with no learned structure; the whole point
@@ -22,10 +23,8 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import os
 import sys
-from typing import List
 
 import numpy as np
 import torch
@@ -36,7 +35,12 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 sys.path.insert(0, REPO)
 
-from baseline.base_model import BackboneWithEncoder, load_dataset, _extract_codes  # noqa: E402
+from baseline.base_model import (  # noqa: E402
+    _extract_codes,
+    build_model_from_checkpoint_payload,
+    load_dataset,
+    verify_checkpoint_data_context,
+)
 
 
 def pack_bits_to_indices(bits01: np.ndarray, group_size: int) -> np.ndarray:
@@ -58,8 +62,9 @@ def pack_bits_to_indices(bits01: np.ndarray, group_size: int) -> np.ndarray:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--weights", required=True,
-                    help="trained baseline .pth (must contain encoder_layers state_dict and config)")
-    ap.add_argument("--dataset", required=True, choices=["Flickr25k", "MSCOCO", "CIFAR10"])
+                    help="trained baseline .pth (full or legacy encoder-only checkpoint)")
+    ap.add_argument("--dataset", required=True,
+                    choices=["Flickr25k", "MSCOCO", "NUSWIDE", "CIFAR10"])
     ap.add_argument("--setting", default="setting1")
     ap.add_argument("--cache_dir", required=True,
                     help="SigLIP2 feature cache directory (e.g. cache/flickr25k_siglip2_v4plus)")
@@ -74,44 +79,17 @@ def main() -> int:
     # ---- Load checkpoint ------------------------------------------------
     ckpt = torch.load(args.weights, map_location="cpu", weights_only=False)
     bit = int(ckpt["config"]["bit"])
-    if bit % 6 != 0 or bit % 2 != 0:
+    if bit not in (36, 48):
         raise ValueError(
-            f"bit={bit} must be divisible by both 6 (codebooks) and 2 "
-            f"(bits per base). Use a 36-bit checkpoint."
+            f"bit={bit} is outside the registered comparison budgets; "
+            "use a 36-bit or 48-bit checkpoint."
         )
     n_codebooks = bit // 6
     n_bases = bit // 2
     print(f"[extract_flat] bit={bit}  ->  {n_codebooks} codebooks x {n_bases // n_codebooks} codons x 2 bits")
-
-    # ---- Build model + load weights -------------------------------------
-    enc_layers = ckpt.get("encoder_layers", {})
-    hidden_nodes: List[int] = []
-    # Infer hidden dims from state-dict keys (net.0, net.3, ... are Linear layers)
-    n_linears = sum(1 for k in enc_layers if k.endswith(".weight") and k.startswith("net."))
-    if n_linears > 1:
-        # Determine hidden sizes via .weight shapes
-        for i in range(n_linears - 1):
-            wkey = f"net.{i * 3}.weight"  # Linear, GELU, Dropout => 3-stride
-            if wkey in enc_layers:
-                hidden_nodes.append(int(enc_layers[wkey].shape[0]))
-    # Auto-detect d_in from the FIRST Linear's weight matrix (which has
-    # shape [out_dim, in_dim]). SigLIP2 baselines saved with in_dim=768,
-    # CLIP baselines (D_proj=512) with in_dim=512.
-    d_in = 768
-    first_w = enc_layers.get("net.0.weight")
-    if first_w is not None:
-        d_in = int(first_w.shape[1])
-    model = BackboneWithEncoder(
-        d_in=d_in, bit=bit,
-        hidden_nodes=hidden_nodes or None,
-        batch_norm=bool(ckpt["config"].get("batch_norm", False)),
-        finetune=False,
-    ).to(args.device)
-    missing, unexpected = model.encoder_layers.load_state_dict(enc_layers, strict=False)
-    if missing or unexpected:
-        print(f"[extract_flat] WARN missing={missing} unexpected={unexpected}")
-    model.eval()
-    print(f"[extract_flat] loaded encoder ({sum(p.numel() for p in model.encoder_layers.parameters())} params)")
+    verify_checkpoint_data_context(
+        ckpt, dataset=args.dataset, setting=args.setting,
+        cache_dir=args.cache_dir, expected_bit=bit)
 
     # ---- Build dataset splits (test + database) -------------------------
     _, test_set, db_set = load_dataset(
@@ -121,13 +99,23 @@ def main() -> int:
         cache_dir=args.cache_dir,
     )
 
+    # ---- Build the exact method model + load all checkpoint weights ------
+    device = args.device if torch.cuda.is_available() else "cpu"
+    d_in = int(test_set.visual_global.shape[1])
+    model = build_model_from_checkpoint_payload(
+        ckpt, d_in=d_in, device=device, strict=True)
+    n_params = sum(p.numel() for p in model.parameters())
+    print(f"[extract_flat] loaded {ckpt['config'].get('method', 'legacy')} model "
+          f"from {getattr(model, '_checkpoint_load_format', 'unknown')} "
+          f"({n_params} params)")
+
     os.makedirs(args.out, exist_ok=True)
 
     for split, dset, out_name in [("query", test_set, "extract_query.npz"),
                                    ("db",    db_set,   "extract_db.npz")]:
         loader = DataLoader(dset, batch_size=args.batch_size, shuffle=False,
                             num_workers=args.num_workers)
-        cont, bin_pm, lbls = _extract_codes(model, loader, args.device)
+        cont, bin_pm, lbls = _extract_codes(model, loader, device)
         bits01 = ((bin_pm + 1) // 2).astype(np.uint8)                       # {0,1}
         codebook_indices = pack_bits_to_indices(bits01, group_size=6)       # [N, M]
         base_indices     = pack_bits_to_indices(bits01, group_size=2)       # [N, R]
@@ -137,11 +125,11 @@ def main() -> int:
         if hasattr(dset, "paths"):
             ds_root = os.path.join(args.dataset_root, args.dataset)
             image_paths = np.array(
-                [os.path.join(ds_root, p) for p in dset.paths], dtype=object,
+                [os.path.join(ds_root, p) for p in dset.paths], dtype=np.str_,
             )
         else:
             image_paths = np.array([f"{args.dataset}:{i}" for i in range(len(dset))],
-                                   dtype=object)
+                                   dtype=np.str_)
         out_path = os.path.join(args.out, out_name)
         np.savez(
             out_path,

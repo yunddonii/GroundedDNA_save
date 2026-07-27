@@ -1,329 +1,1704 @@
-# GroundedDNA: 해석 가능한 이미지 검색을 위한 텍스트 감독 조합적 DNA 코드
+# GroundedDNA: 언어로 정초된 조합적 DNA 코드를 이용한 이미지 검색
 
-> **한글 작업 초안.** 본 문서는 `PROJECT_LOG.md`의 최신 결론을 반영한다. **중요(2026-07-15 갱신):** 통제된 ablation(§4.3, A1) 결과, 검색 성능은 텍스트 집계 방식(token pruning, token-mean pooling, EOS pooling)의 선택에서 오지 않는다. 세 가지 집계 가설이 모두 반박되었으므로, 본 논문은 특정 pooling 기법을 기여로 주장하지 않으며 표준 EOS pooling을 사용한다. 성능·해석의 원인은 **text-supervised compositional codebook 구조**에 있으며, 이는 구조적 ablation(A2 no-text, A4 single-codebook)으로 규명한다. (아래 초록·서론의 "mean pooling" 관련 표현은 이 결론에 맞추어 최종본에서 수정 예정이다.)
+> 논문 뼈대 초안 · 2026-07-25 저장소/실험 스냅샷 기준 · 본문 문장화 전 개조식 문서
 
-## 초록
+## 0. 작성 원칙과 현재 결론
 
-기존 deep hashing은 이미지를 짧은 이진 코드로 압축하여 빠른 검색을 가능하게 하지만, 개별 bit 또는 부분 코드가 무엇을 의미하는지 알기 어렵다. DNA 기반 이미지 검색 역시 이미지 특징을 A/C/G/T 서열로 변환하지만, 기존 연구는 주로 전체 서열의 거리 보존, DNA-DNA hybridization 효율, 또는 GC 비율과 homopolymer 같은 생화학적 제약에 초점을 둔다. 따라서 검색 결과가 어떤 객체, 관계, 색상, 장면 정보에 의해 결정되었는지를 코드만 보고 설명하기 어렵다.
+- 한 문장 문제 정의
+  - ground-truth label을 gradient objective에 넣지 않고 VLM이 만든 구조화 caption을 학습 시 semantic teacher로 사용
+  - 이미지 한 장을 여섯 의미 슬롯의 조합으로 분해
+  - 각 슬롯을 독립 EMA codebook에서 양자화하고 3-base codon으로 변환
+  - 추론 시 text 없이 18-base DNA-valued code를 생성하고 생물학적 제약으로 투영하여 검색
+- `PROJECT_LOG.md`에서 확인한 설계 의도
+  - flat retrieval code를 global/object/relation/appearance/scene 단위의 typed composition으로 바꾸어 “가까운 이유”를 분석 가능하게 만들기
+  - 강한 VLM text를 privileged training signal로만 쓰고 deployment에서는 image-only 검색을 유지하기
+  - local patch를 caption-defined slot에 정초하되 UOT marginal relaxation으로 저친화 patch의 상대 질량을 낮추기
+  - slot별 독립 EMA codebook으로 조합 용량과 online prototype learning을 얻고, 각 slot을 고정 길이 codon으로 직렬화하기
+  - retrieval 성능뿐 아니라 code usage, collision, semantic decoding, 생물 제약 만족을 동시에 평가하기
+  - 의도와 현재 증거를 구분: slot은 완전 독립 factor가 아니고, K=128 codon collision이 불가피하며, fixed DP는 학습 모듈이 아님
+- 안전한 novelty 문구
+  - **언어로 정의된 semantic slots, patch-to-slot UOT routing, 독립 multi-codebook quantization, codon 구조의 DNA-valued code, 고정된 생물 제약 투영을 하나의 image hashing framework로 통합**
+- 사용하지 않을 novelty 문구
+  - “최초의 DNA 이미지 검색” — Bee/Koike/Cas9 계열 존재
+  - “최초의 codon 기반 CBIR” — Pradhan 계열 존재
+  - “최초의 4진 이미지 해시” — quaternary/multi-valued hashing 존재
+  - “최초의 text-guided/interpretable sub-code hashing” — ConceptHash, LPAH, HTH 등 존재
+  - “최초의 patch–text OT/UOT” — DOT-CBM, OMIT, ConceptOT 등 존재
+- 학습 체제 명칭
+  - 권장: **label-free representation learning with VLM text supervision and label-aware validation selection**
+  - 금지: “purely unsupervised”
+  - 이유: ground-truth class label은 optimization objective에는 쓰지 않지만 Qwen caption과 frozen CLIP text tower의 외부 지식을 사용하고, held-out validation label은 \(E^*\) 선택에 사용
+  - 재현 flag: `hash_target_mode=siglip_cos`; `jaccard` 사용 금지
+  - 단, current P0는 `lambda_hash=lambda_hash_hard=0`이어서 해당 pairwise hash target 자체의 gradient 기여는 없음
+- DNA 관련 주장 범위
+  - 권장: “DNA-valued”, “bio-constrained”, “two representative biochemical constraints satisfied”
+  - 금지: “synthesis-ready”, “wet-lab validated”, “molecular retrieval system”
+  - 이유: primer/address/ECC, forbidden motif, secondary structure, synthesis·sequencing·hybridization 실험 없음
+- 해석 가능성 주장 범위
+  - 권장: “partially interpretable”, “semantically organized, partially redundant compositional views”
+  - 금지: “fully disentangled”, “independently controllable semantic factors”, “one codon = one concept”
+- 성능 주장 범위
+  - 권장: “GroundedDNA의 current single-run 절대 성능과 native-DNA matched adaptation의 sealed 3-seed diagnostic mean±std를 보고하되, provenance-complete strict 표와 통계적 상대 우위는 보류”
+  - 금지: “statistically significant SOTA”, “전 데이터셋 전역 최적 K/L”
+  - 이유: GroundedDNA와 최신 binary baseline의 strict 3-seed 반복 및 K/L grid 대부분이 미완료이고, native-DNA 3-seed 결과도 legacy cache provenance 때문에 diagnostic-only; 기존 CIBHash/CIMON/MLS3RDUH post-bio 수치는 binary-Hamming으로 고른 historical E*를 사용하여 새 raw-base-Hamming 선택 규약의 main row로 소급 사용할 수 없음
+- 구현과 논문 서술의 핵심 경고
+  - P0 champion backbone: 파일명과 달리 **frozen OpenAI CLIP ViT-B/16**, SigLIP2 아님
+  - P0 router: classical partial OT가 아니라 **양 marginal KL-relaxed entropic UOT**
+  - P0 caption pooling: legacy bidirectional-pruning flag가 켜져 있으나 score가 상수로 퇴화; semantic pruning으로 주장 불가
+  - PROJECT_LOG의 clean EOS 권고안과 headline P0 결과를 분리하여 기술
+  - P0의 `lambda_anchor=.05`, `lambda_cibhash_kl=.001` 등은 양수여도 실효 gradient가 없음
+- 정본 우선순위
+  - 논문 불변 조건: [`PROJECT_LOG.md`](./PROJECT_LOG.md)의 `PAPER INVARIANTS`
+  - 수치: [`bio_projection_comparison.json`](./bio_projection_comparison.json), [`bioproj_dna_unique.json`](./bioproj_dna_unique.json), P0 result artifact
+  - 구조/수식: `model_siglip2.py`, `models/semantic_router.py`, `loss_siglip2.py`, `dna_utils/bio_constraints.py`
+  - 재현 설정: 각 P0 directory의 `args.txt`
 
-본 연구는 유전 정보에서 세 염기의 codon이 특정 번역 단위를 지정한다는 사실에서 영감을 받아, 이미지의 표현을 **언어로 정의된 의미 슬롯들의 조합**으로 구성하는 GroundedDNA를 제안한다. 모델은 이미지를 전역 의미, 주요 객체, 보조 객체, 활동 및 관계, 색상 및 질감, 장면 및 배경의 여섯 슬롯으로 분해하고, 각 슬롯을 독립적인 codebook에서 양자화한다. 학습 시에는 사전 학습된 vision-language model이 생성한 슬롯별 설명을 semantic supervision으로 사용한다. 다섯 local slot 설명의 유효 textual token을 평균 집계하고 슬롯별 adapter로 변환한 뒤, 이를 visual token routing과 이산 code 학습에 사용한다. 각 슬롯의 representation은 세 개의 A/C/G/T 위치로 변환되며, 여섯 슬롯을 연결하여 36-bit DNA code를 형성한다.
+## 제목 후보
 
-GroundedDNA의 목적은 검색 정확도를 높이는 데 그치지 않는다. 각 codebook에 의미 역할을 부여하고, `(slot, codon)`별 concept 분포와 대표 이미지를 사전 형태로 제공함으로써 사용자는 추론 시 생성된 DNA code만으로 검색을 지배한 의미 요소를 부분적으로 해석할 수 있다. 또한 대규모 cross-modal backbone을 고정하고 작은 adapter, router, codebook 및 codon head만 학습하며, 추론 시에는 텍스트 입력 없이 이미지에서 직접 compact code를 생성한다. 이는 flat binary hashing과 기존 molecular DNA retrieval 사이에 없었던 **label-free text-supervised, compositional, and interpretable hashing**의 관점을 제시한다.
+- 1안: **GroundedDNA: Text-Grounded Compositional DNA Codes for Image Retrieval**
+- 2안: **From Images to Semantic Codons: Bio-Constrained Compositional Hashing with Language Supervision**
+- 3안: **Semantically Organized DNA-Valued Hashes: Language-Grounded Compositional Codes for Image Retrieval**
+- 제목에서 피할 표현
+  - “Molecular Retrieval” — wet-lab 검증 없음
+  - “Biological Semantics” — 실제 genetic translation/amino-acid mapping 없음
+  - “Unsupervised” 단독 표기 — VLM text supervision 은폐 위험
 
-**핵심어:** deep hashing, interpretable retrieval, compositional code, text supervision, vector quantization, DNA code
+## 초록 뼈대
 
-## 1. 서론
+- 배경
+  - deep hashing의 짧고 빠른 code와 DNA storage의 고밀도·장기 보존 잠재력
+  - 기존 flat binary/DNA code의 낮은 sub-code 해석 가능성
+- 공백
+  - 기존 molecular image retrieval: hybridization·triplet distance·물리 제약 중심
+  - 기존 interpretable hashing: binary concept sub-code 중심, DNA/codon·bio-feasibility 미통합
+- 제안
+  - Qwen이 생성한 여섯 semantic-axis caption을 privileged supervision으로 사용
+  - frozen CLIP patch와 local caption anchor 사이 KL-relaxed UOT routing
+  - 여섯 독립 EMA codebook과 slot-conditioned 3-base codon head
+  - image-only inference와 최소 base-Hamming bio projection
+- 결과
+  - 동일 18-base 공간과 동일 bio projection 아래 mAP@R
+  - Flickr25K `.8723`, MS-COCO `.8063`, NUS-WIDE `.8274`, CIFAR-10 `.9009`
+  - native-DNA matched adaptation은 동일 5-epoch candidate grid에서 raw 18-base validation mAP@R로 E*를 선택한 sealed 3-seed scratch refit 결과를 별도 diagnostic 표에 보고
+  - 최신/legacy binary hashing baseline의 strict 3-seed 결과는 provenance-complete 재실행 전까지 `-`
+- 해석성 결과
+  - held-out projected-codon decoding의 majority·post-hoc chunk control 대비 결과를 보고하되, 새 공통 E*로 baseline을 재생성하기 전 기존 우위 수치는 historical diagnostic으로만 유지
+  - local slot은 완전 분리 요인이 아니라 부분 중복된 semantic views
+- 결론
+  - semantic organization을 학습하고 고정된 inference-time bio projection과 함께 평가하는 관점 제안
 
-대규모 이미지 검색 시스템은 한 장의 이미지를 짧은 코드로 바꾸고, 코드 사이의 거리로 가장 가까운 이미지를 찾는다. 이 방식은 수많은 이미지를 빠르게 탐색하게 해 주지만, 검색 결과 앞에서 한 가지 질문을 남긴다. **두 이미지가 왜 가깝다고 판단되었는가?** 사람이 비슷하다고 보았기 때문인지, 같은 행동이 나타났기 때문인지, 혹은 색상이나 배경이 우연히 닮았기 때문인지는 최종 코드만으로 좀처럼 알기 어렵다. 표현이 짧아질수록 검색은 효율적이 되지만, 판단에 사용된 의미의 흔적은 함께 압축되어 사라지는 셈이다.
+## 1. Introduction
 
-Deep hashing은 이러한 압축과 검색 효율의 문제를 성공적으로 다루어 왔다. CIBHash [4], CIMON [5], MLS3RDUH [6]와 같은 방법은 instance consistency와 이웃 구조를 학습하여 의미적으로 가까운 이미지를 Hamming space에 모은다. 그러나 이들이 생성하는 코드는 대체로 하나의 flat bit vector이며, 각 bit에는 사람이 미리 이해할 수 있는 역할이 없다. 예를 들어 7번째 bit가 주요 객체를, 12번째부터 17번째 bit가 배경을 설명한다고 해석할 근거는 없다. 학습이 끝난 뒤 코드를 임의로 나누는 것 역시 의미 분해를 학습한 것과는 다르다. 따라서 높은 검색 정확도는 이웃 관계가 잘 보존되었음을 보여 주지만, 그 관계를 **코드 자체가 설명할 수 있음**을 보장하지는 않는다.
+### 1.1 도입부 스토리텔링
 
-이 불투명성은 단순히 결과에 설명문을 덧붙이는 문제에 그치지 않는다. 서로 다른 의미를 가진 이미지가 같은 코드로 충돌했을 때 무엇이 원인이었는지, 모델이 객체보다 배경의 우연한 상관관계에 의존했는지, 또는 코드의 어느 부분이 검색 결과를 바꾸었는지를 진단하기 어렵게 만든다. 검색 코드를 단지 압축된 식별자가 아니라, 검색 판단을 구성한 의미 단위의 기록으로 만들 수 있다면 효율성과 해석 가능성을 같은 표현 안에서 다룰 수 있다.
+- 문단 1 — “저장”에서 “검색”으로
+  - DNA가 초고밀도·장기 archive 매체라는 점으로 시작
+  - 파일을 DNA에 쓰는 것만으로는 대규모 archive 안에서 원하는 내용을 찾을 수 없다는 전환
+  - exact address/PCR access와 content-based similarity access의 차이 제시
+  - Church et al. 2012, Goldman et al. 2013, Organick et al. 2018 인용
+- 문단 2 — DNA 위의 유사도 검색
+  - Stewart et al. DNA24 2018: **`U0-FD` unsupervised; target-label-free encoder objective**; VGG+PCA feature를 30-nt sequence로 학습하고 Hamming 기반 yield 근사와 소규모 wet-lab 검증
+  - Bee et al. PRIMO: **`U0-FD` unsupervised; target-label-free encoder objective**; learned DNA sequence와 hybridization을 통한 1.6M image similarity search
+  - Koike et al. DATE/DAC 2024: **`S` supervised**; ground-truth label 기반 triplet-network DNA encoder를 통한 image retrieval
+  - Koike et al. TCBB 2026: **`S` supervised**; GC·homopolymer-aware loss를 추가한 bio-aware 확장
+  - Cas9 semantic search: molecular random access와 semantic cluster retrieval
+  - 성과 인정 후 공백 제시: sequence가 “왜 두 이미지가 가까운가”를 semantic parts로 설명하지는 않음
+- 문단 3 — conventional hashing의 장점과 한계
+  - compact binary code와 Hamming search의 효율성
+  - 전통적 방법 대부분은 global/flat code 중심
+  - 단, category-aware·concept-subcode 방법도 존재하므로 “모두 불투명”이라는 절대화 금지
+  - 최신 엄격한 visual-only 계열은 false-negative 완화(DDCH), similarity-distribution calibration(SDC), 전체 memory를 hash-distance attention으로 요약하는 Overview Hashing(OH), hidden-group/similarity-knowledge modeling(CGHash), hyperbolic hierarchy(HHCH), masked-patch 복원(CTMIH), foundation-feature cross-view code alignment(CroVCA)로 label-free visual structure를 강화
+  - HiHPQ는 `U0` visual-only이지만 asymmetric product-quantization distance를 쓰므로 binary/Hamming main comparison과 분리하고, 외부 Faster R-CNN pseudo-label을 쓰는 OMUH는 `U1` 계열로 분리
+  - FSCH는 regional common feature와 global–local similarity를 제안하는 중요한 선행이지만, 공개 repo에 trainer·loss·optimizer가 누락되어 현재 exact executable baseline으로는 취급하지 않음
+  - DUH-EG의 의도된 조건은 WordNet+CLIP `U1`이지만, 저자 ordered bank provenance가 없는 현재 user-list adapter는 `U?`; target taxonomy semantic set과 일치하면 `U2`로 보수적으로 재분류. UHSCM·UMRCH도 benchmark taxonomy를 쓰므로 visual-only와 분리
+  - TGUH는 generated/descriptive text를 소비하는 별도 multimodal-guidance 계열; 공개 code completeness 감사 완료 전에는 실행 baseline으로 주장하지 않음
+  - 따라서 “language가 처음 hashing을 감독한다”가 아니라, “language-defined semantic roles를 bio-valid compositional DNA code의 고정 위치에 조직한다”를 차별점으로 설정
+  - 남는 질문: semantic guidance를 flat binary code가 아니라 bio-valid, role-typed compositional DNA code로 어떻게 조직할 것인가
+- 문단 4 — naïve binary-to-DNA adaptation의 한계
+  - 실험 baseline으로서 `00→A, 01→C, 10→G, 11→T` 변환 정의
+  - bit geometry를 base geometry로 재표기할 뿐 semantic role, codon boundary, biochemical feasibility를 새로 학습하지 않음
+  - 실제 Bee/Koike/Pradhan 계열 전체를 이 단순 변환으로 일반화하지 않음
+- 문단 5 — compositional/interpretable code의 필요성
+  - 검색 code를 하나의 opaque identifier가 아닌 근거 단위들의 조합으로 설계할 필요
+  - global/object/relation/appearance/background를 고정 위치에 기록하면 failure diagnosis와 부분 분석 가능
+  - ConceptHash, attribute-aware hashing과의 연결 및 차이 예고
+- 문단 6 — codon motivation
+  - 자연 codon: 세 nucleotide로 구성된 번역 단위, 64 triplets, genetic-code degeneracy
+  - 본 연구: amino acid 번역을 모사하지 않고 “짧은 기호 묶음이 위치별 기능 단위가 된다”는 구조적 비유만 사용
+  - 선택된 slot codeword를 slot-conditioned head로 3-base 단위에 decode하고 여섯 단위를 연결; codeword–codon 일대일 대응은 보장하지 않음
+  - Pradhan 계열은 pixel/MSB-derived DNA plane에서 codon·amino-acid feature를 구성하지만, 본 연구는 genetic translation table 없이 language-defined slot을 학습된 codon에 기록
+- 문단 7 — GroundedDNA 개요
+  - Qwen caption → CLIP text anchor → patch-to-slot UOT → EMA VQ → codon head → bio projection
+  - 학습 시 text teacher, 추론 시 image only
+  - representation-learning gradient에는 relevance label을 사용하지 않으며, held-out validation/test label은 \(E^*\) 선택과 공식 평가에만 사용
+- 문단 8 — 핵심 실험 메시지
+  - 네 표준 image hashing benchmark
+  - 모든 방법을 동일 18-base·base Hamming·동일 bio projection으로 평가
+  - 검색 성능, bio feasibility, held-out decoding, code semantics를 함께 보고
 
-DNA 기반 이미지 검색은 이 문제를 바라보는 또 다른 출발점을 제공한다. 기존 연구는 이미지 특징을 A/C/G/T 서열로 변환하고, molecular hybridization이나 Hamming distance가 시각적 유사성을 반영하도록 학습하였다 [8-12]. 이는 DNA를 고밀도 저장 및 병렬 검색 매체로 활용한다는 점에서 중요한 진전이다. 다만 이들 방법에서 서열은 주로 전체적인 거리, hybridization 특성, GC content, homopolymer와 같은 물리적·생화학적 조건을 만족하도록 설계된다. 어떤 nucleotide 구간이 객체를 나타내고 다른 구간이 관계나 장면을 나타내는 식의 의미 구조는 일반적으로 부여되지 않는다. 다시 말해 alphabet을 이진수에서 네 염기로 바꾸는 것만으로 검색 코드가 읽을 수 있는 표현이 되지는 않는다.
+### 1.2 Main Contributions 초안
 
-본 연구는 DNA의 네 문자 자체보다, 그 문자가 **기능을 가진 짧은 단위로 조직되는 방식**에 주목한다. 생물학적 유전 부호에서 codon은 세 염기의 순서 있는 조합으로 amino acid 또는 번역 신호를 지정한다. 유전 부호에는 여러 codon이 같은 amino acid를 나타내는 중복성이 있으므로 codon과 의미가 단순한 일대일 관계를 이루는 것은 아니다. 그럼에도 짧은 기호 묶음의 위치와 조합이 해석 가능한 기능 단위가 된다는 점은 새로운 질문을 이끈다. 이미지 검색 코드도 하나의 불투명한 문자열이 아니라, 각 구간이 서로 다른 의미 역할을 맡는 짧은 문장처럼 구성할 수 있을까?
+- **Text-grounded compositional DNA hashing**
+  - 여섯 language-defined slots와 독립 codebook/codon head로 구성된 18-base retrieval representation
+- **Train–deployment decoupled UOT routing**
+  - 학습 시 instance caption anchor, 추론 시 codebook-mean anchor를 사용하는 text-free image hashing
+  - adaptive top-p로 UOT plan의 patch-to-slot 상대 가중치를 희소화
+- **EMA multi-codebook와 bio-aware decoding의 통합**
+  - 학습된 slot별 online-k-means형 codebook·soft/argmax codon decoder와 고정된 최소 base-Hamming DP projection
+- **검색·생물 제약·코드 의미의 통합 평가**
+  - 동일 post-projection code space에서 baseline 비교
+  - held-out codon decoding, semantic-distance correlation, intervention 및 failure-analysis protocol
+- 기여 문장 끝의 보수적 한정
+  - “codon 자체가 해석 가능성을 보장하지 않으며, 관측된 의미 구조를 정량 분석으로 검증”
 
-이 질문에 답하기 위해 우리는 **GroundedDNA**를 제안한다. GroundedDNA는 이미지를 다음과 같이 여섯 개의 의미 슬롯으로 표현한다.
+## 2. Related Works
 
-```text
-[global | primary object | secondary object | activity/relation | color/texture | scene]
-```
+### 2.1 문헌 조사 범위와 포함·제외 기준
 
-각 슬롯은 자신의 codebook과 codon head를 가지며, 세 개의 A/C/G/T 염기로 된 codon 하나를 출력한다. 여섯 codon을 연결하면 18-base, 즉 36-bit DNA code가 된다. 이 구조에서 코드의 위치는 무엇에 관한 정보인지를 나타내고, 그 위치에서 선택된 codeword와 codon은 어떤 concept가 관찰되었는지를 나타낸다. 따라서 전체 코드는 전역 문맥, 객체, 관계, 외관 및 장면에 관한 부분 코드의 조합으로 읽을 수 있다.
+- 조사 cutoff: 2026-07-21
+- high-recall 검색 대상
+  - Google Scholar, Crossref, DBLP, arXiv, PubMed, IEEE Xplore
+  - CVF Open Access, PMLR, IJCAI, NeurIPS, Nature 계열
+  - 핵심 논문의 backward/forward citation chaining과 공개 code 확인
+- 권장 검색식 묶음
+  - `deep image hashing`, `unimodal image retrieval hashing`, `interpretable sub-code hashing`
+  - `quaternary hash image retrieval`, `multiple code hashing`, `compositional quantization`
+  - `DNA image retrieval`, `DNA similarity search`, `codon content-based image retrieval`
+  - `text supervised image hashing`, `caption supervised hashing`, `language guided patch hashing`
+  - `patch text optimal transport`, `unbalanced optimal transport visual grounding`, `selective Sinkhorn routing`
+- “전부”의 논문상 표현
+  - 문자 그대로의 완전성 주장 금지
+  - “2026-07-21까지 정의한 DB·검색식·citation chaining으로 수행한 재현 가능한 high-recall review”로 기술
+- main scope 포함
+  - unimodal image-to-image hashing
+  - non-binary/compositional quantization
+  - text-supervised/interpretable image hashing
+  - DNA storage의 random/similarity retrieval와 codon-inspired CBIR
+  - OT 기반 fine-grained vision–language alignment
+- main baseline에서 제외
+  - image↔text cross-modal hashing — query/database modality가 다름
+  - genomic sequence/k-mer hashing — DNA가 출력 code가 아니라 입력 생물 서열
+  - DNA image encryption — 보안 변환 목적
+  - image-to-DNA reconstruction/storage — similarity retrieval 목적 아님
+  - 단, 경계 설정과 bio-constraint 설계 근거에는 관련 문헌으로 인용
 
-코드의 각 부분에 실제 의미를 부여하기 위해 GroundedDNA는 학습 단계에서 구조화된 텍스트를 semantic teacher로 사용한다. 범용 VLM이 이미지별로 생성한 슬롯 설명을 frozen cross-modal text encoder에 입력하고, 각 local slot의 유효 textual token을 평균하여 단어 수준의 근거를 간결하게 보존한다. 슬롯별 adapter는 이 표현을 서로 다른 의미 공간으로 분리하며, text-supervised optimal transport routing은 대응하는 visual token을 각 local slot에 모은다. 이후 visual representation을 슬롯별 codebook에서 양자화함으로써 언어의 의미 구조를 이산 codeword와 codon에 증류한다. 이 과정은 class label이나 사람이 만든 pairwise annotation을 요구하지 않지만, 텍스트 모델의 지식을 사용하는 **label-free text supervision**이라는 점에서 순수한 unsupervised learning과는 구분된다.
+### 2.2 Deep binary hashing과 non-binary/compositional code
 
-학습에 텍스트를 사용한다고 해서 검색 시에도 텍스트가 필요한 것은 아니다. GroundedDNA는 강력한 vision-language backbone을 고정하고 adapter, router, codebook 및 codon head와 같은 비교적 작은 모듈만 학습한다. 추론 단계에서는 이미지 특징과 학습된 codebook anchor만으로 DNA code를 생성하므로, 실제 검색은 기존 hashing과 마찬가지로 compact code 사이의 효율적인 거리 계산으로 수행된다. 텍스트는 배포 시 추가 입력 modality가 아니라, 코드의 의미를 조직하기 위해 학습 과정에서만 사용되는 teacher이다.
+| 연구 | 핵심 내용 | 본 논문에서 사용할 요점 |
+|---|---|---|
+| [DSH, CVPR 2016](https://openaccess.thecvf.com/content_cvpr_2016/html/Liu_Deep_Supervised_Hashing_CVPR_2016_paper.html) | pairwise supervised similarity와 quantization | CNN deep hashing의 출발점; label-dependent baseline 계보 |
+| [DHN, AAAI 2016](https://ojs.aaai.org/index.php/AAAI/article/view/10235) | pairwise likelihood와 quantization | continuous relaxation→binary code 학습 계보 |
+| [HashNet, ICCV 2017](https://openaccess.thecvf.com/content_iccv_2017/html/Cao_HashNet_Deep_Learning_ICCV_2017_paper.html) | continuation으로 discrete sign 최적화, imbalance 처리 | binary discreteness 문제 설명 |
+| [GreedyHash, NeurIPS 2018](https://papers.nips.cc/paper_files/paper/2018/hash/13f3cf8c531952d72e5847c4183e6910-Abstract.html) | sign forward와 straight-through gradient | 본 연구 Gumbel-ST와 구별되는 binary 학습 계보 |
+| [MLS3RDUH, IJCAI 2020](https://www.ijcai.org/proceedings/2020/479) | manifold local similarity reconstruction | 현재 unsupervised baseline; noisy neighbor 구조 처리 |
+| [CIBHash, IJCAI 2021](https://www.ijcai.org/proceedings/2021/133) | contrastive information bottleneck | 현재 가장 강한 baseline 중 하나; paired-view contrastive loss의 출발점 |
+| [CIMON, IJCAI 2021](https://www.ijcai.org/proceedings/2021/125) | refined similarity와 semantic/contrastive consistency | 현재 baseline; disturbance robustness |
+| [Bi-half, AAAI 2021](https://ojs.aaai.org/index.php/AAAI/article/view/16296) | balanced binary activation | bit-balance 계열 보조 인용 |
+| [CSQ, CVPR 2020](https://openaccess.thecvf.com/content_CVPR_2020/html/Yuan_Central_Similarity_Quantization_for_Efficient_Image_and_Video_Retrieval_CVPR_2020_paper.html) | global hash centers | flat center-based code와 slot codebook 대비 |
+| [DHD, ECCV 2022](https://arxiv.org/abs/2112.08816) | self-distillation과 proxy/hash loss | 대표적인 strong self-distillation/proxy baseline 계보 |
+| [AMVH, CVPR 2017](https://openaccess.thecvf.com/content_cvpr_2017/papers/Da_AMVH_Asymmetric_Multi-Valued_CVPR_2017_paper.pdf) | asymmetric multi-valued hashing | non-binary hashing 선행; 4진 alphabet 최초 주장 방지 |
+| [Yu et al., SKG 2019](https://doi.org/10.1109/SKG49510.2019.00018) | four-valued/quaternary image hash | DNA의 4-symbol 형식 자체는 novelty가 아님 |
+| [Instance-Aware Hashing](https://arxiv.org/abs/1603.03234) | category별 code pieces로 multi-label image 표현 | compositional sub-code 선행 인정 |
+| [Dual Purpose Hashing, CVPR 2017](https://openaccess.thecvf.com/content_cvpr_2017/html/Liu_Learning_Multifunctional_Binary_CVPR_2017_paper.html) | category·attribute retrieval과 code-to-attribute reconstruction | interpretable attribute sub-code의 직접 선행 |
+| [A²-Net, NeurIPS 2021](https://proceedings.neurips.cc/paper_files/paper/2021/hash/2d3acd3e240c61820625fff66a19938f-Abstract.html) | attribute annotation 없이 hash–visual attribute 대응 학습 | ConceptHash 이전의 attribute-level interpretability 계보 |
+| [Multiple Code Hashing](https://arxiv.org/abs/2008.01503) | region별 multiple hash codes | multiple/local code 최초 주장 방지 |
+| [DSCH](https://arxiv.org/abs/2203.09420) | latent semantic components와 hierarchy | latent compositional hashing 대비 |
 
-이 설계가 지향하는 해석은 완전한 symbolic decoding이 아니라 **slot-conditioned probabilistic interpretation**이다. 동일한 `(slot, codon)`에 배정된 이미지와 텍스트 concept의 분포를 사전으로 구성하면, 추론 시 DNA code만 보고도 각 부분이 주로 어떤 객체, 관계, 외관 또는 장면을 가리키는지 추정할 수 있다. 반대로 특정 slot을 제거하거나 교체했을 때 검색 결과가 어떻게 변하는지를 통해 그 의미적 역할을 점검할 수 있다. Codebook size와 세 염기 codon의 표현 용량 차이로 인해 충돌이 존재하고, local slot 사이에도 일부 의존성이 남을 수 있으므로, 우리는 각 codon이 하나의 단어와 완벽히 대응하거나 여섯 요인이 완전히 disentangle된다고 가정하지 않는다. 목표는 검색 코드를 사람이 **부분적으로 읽고, 비교하고, 실패 원인을 추적할 수 있는 표현**으로 만드는 것이다.
+- 작성 방향
+  - “기존 hashing은 모두 flat” 대신 “global flat code가 지배적이지만 category/region/concept sub-code 계열이 확장 중”으로 서술
+  - GroundedDNA의 차이: fixed semantic axes + spatial UOT grounding + independent VQ + codon/DNA feasibility
 
-이러한 관점에서 GroundedDNA는 기존 연구와 경쟁하는 동시에 서로 다른 질문을 다룬다. Flat deep hashing이 “어떻게 이웃 관계를 짧은 코드에 보존할 것인가”를, molecular DNA retrieval이 “어떻게 유사한 이미지를 물리적으로 검색 가능한 서열로 만들 것인가”를 주로 묻는다면, GroundedDNA는 “검색 코드 자체가 어떤 semantic evidence로 이웃을 선택했는지 전달할 수 있는가”를 묻는다. 검색 정확도는 이 해석 가능성이 검색 기능을 훼손하지 않았는지를 확인하는 필수 조건이지만, 본 연구의 중심은 정확도만으로는 드러나지 않는 코드의 의미 구조에 있다.
+#### 2.2.1 2023–2026 최신 uni-modal deep binary hashing audit
 
-본 연구의 주요 기여는 다음과 같다.
+- repository-local supervision/information-condition 판정(“unsupervised” 자체 표기보다 우선하며, 원 논문이 사용하는 공식 명칭으로 주장하지 않음)
+  - `VLM-T text-supervised, target-label-free objective`: target ground-truth label·benchmark taxonomy는 representation objective에 미사용하지만 VLM 생성 instance caption과 frozen text encoder를 supervision으로 사용; GroundedDNA의 tier
+  - `U0 visual-only`: 학습 objective에 instance label, class name, caption, external text bank 모두 미사용
+  - `U0-FD feature-distance pseudo-pair`: `U0`의 native-DNA subtag; frozen optimization-train visual-feature distance로 pair target을 구성
+  - `U1 external-knowledge`: 학습 objective에 instance label·benchmark taxonomy는 미사용, WordNet/CLIP과 같은 범용 외부 지식 사용
+  - `U2 taxonomy-assisted`: 학습 objective에 instance label은 미사용이지만 평가 benchmark의 class-name/concept taxonomy 사용
+  - `U? source-unverified`: 외부 term source 또는 selection provenance를 검증할 수 없어 `U1`을 주장할 수 없는 상태; target taxonomy semantic-set match는 즉시 `U2`로 승격
+  - `S / SEMI / WEAK`: 각각 ground-truth label / 일부 label / tag·weak annotation을 사용; `S`는 Koike·CRH 표기와 동일하며 main target-label-free 표와 분리
+  - 모든 tier의 P0 모델 선택에는 공통으로 held-out train label을 **평가에만** 사용하므로, tier는 representation objective의 정보 조건이고 전체 protocol이 label-blind라는 뜻은 아님
+- 구현 상태 표기
+  - `I — IMPLEMENTED`: 논문 수식과 공개 코드 차이를 감사한 clean-room runner 구현; full 3-seed 수치는 아직 `-`
+  - `B — BLOCKED`: 공개 자료로 exact implementation을 검증할 수 없음; 숫자를 만들지 않고 `-`
+  - `P — PLANNED`: 논문상 수동 이식 가능성이 있으나 아직 검증된 runner가 없음
+  - `C — CITE`: task·supervision·평가가 달라 related work/별도 oracle에서만 다룸
+  - protocol-boundary suffix `M`: method core를 공통 frozen-cache에 이식한 matched adapter; published-table reproduction 아님
+  - external-boundary suffix `E`: method core는 구현했으나 공개되지 않거나 모순된 외부 artifact 때문에 exact paper row는 blocked
+- 공통 적용 조건
+  - 논문의 32/64-bit 수치를 36-bit와 직접 비교하거나 보간하지 않음
+  - 모든 후보를 정확히 36-bit로 재학습한 뒤 `2 bits↔1 base` 변환과 동일 DP projection을 적용
+  - 동일 split·frozen CLIP backbone·36-bit capacity·18-base evaluator를 사용하되, 방법 정의에 필요한 global/local/two-view/text 입력은 숨기지 않고 열로 표시
+  - released-backbone official reproduction과 frozen-CLIP matched adaptation을 혼합하지 않음
+  - checkpoint·cache metadata·split·implementation·semantic asset를 SHA-256 run fingerprint로 고정하고, 기존 trial directory 재사용을 거부
 
-1. **의미적으로 typed된 compositional DNA code.** Flat binary vector를 전역 문맥, 객체, 관계, 외관 및 장면의 역할이 지정된 여섯 부분 코드로 재구성하고, 각 부분을 codon으로 표현한다. 이를 통해 코드의 위치와 값이 함께 해석의 단서가 되는 retrieval representation을 제시한다.
-2. **구조화된 text supervision을 통한 codeword grounding.** VLM이 생성한 슬롯별 설명, per-slot token-mean aggregation 및 text-guided routing을 이용해 언어의 의미 구조를 discrete codebook에 증류한다. 텍스트는 검색 modality가 아니라 codeword와 codon의 의미를 형성하는 teacher로 사용된다.
-3. **해석 가능성과 검색 효율을 위한 train-deployment decoupling.** Frozen cross-modal backbone 위에 가벼운 학습 모듈을 두고, 텍스트 감독은 오프라인 학습에만 사용하면서 추론 시에는 이미지로부터 36-bit DNA code를 직접 생성한다.
-4. **코드 수준의 해석 가능성 평가 관점.** Codeword concept atlas, held-out codon decoding, text-grounding 분석, codebook-drop ablation, inter-codebook dependence 및 slot intervention을 통해 검색 성능뿐 아니라 각 부분 코드의 의미 일관성과 조합적 역할을 검증하는 평가 틀을 제안한다.
+| 연구 | 연도·상태 | 정보 조건과 핵심 | 공개 구현·공통 dataset | 비교 판단 |
+|---|---|---|---|---|
+| [Similarity Distribution Calibration (SDC)](https://papers.bmvc2023.org/0053.pdf) | BMVC 2023 Oral | `U0`; pairwise hash-similarity 분포를 beta target quantile에 calibration | [code](https://github.com/kamwoh/sdc); paper/release의 head·SDC 적용 view·WD·target clipping 차이 존재 | `I/M`; `release_no_cl`, `release_simclr`, `paper_cache2v`를 서로 섞지 않고 별도 구현·보고 |
+| [Deep Debiased Contrastive Hashing (DDCH)](https://doi.org/10.1016/j.patcog.2023.109483) | Pattern Recognition 2023, 139:109483 | `U0`; contrastive hashing에서 false-negative/semantic bias를 완화 | 검증 가능한 공식 code 미확인; CIFAR/NUS/COCO | `B`; 최신 visual-only 계보의 필수 인용, 저자 구현 또는 독립 equation audit 전 수치는 `-` |
+| [UHSCM](https://arxiv.org/abs/2209.11475) | Proc. ACM Manag. Data 2023 | `U2`; VLP prompt concept를 mining·denoising하여 semantic similarity 구성 | [code](https://github.com/rongchengtu1/UHSCM); benchmark taxonomy file 사용, 공개 train path의 미정의 변수/스케줄 오류 | `B`; 엄격한 visual-only가 아니며 public train path repair 전 exact runner 주장 보류 |
+| [Hashing One With All / Overview Hashing (OH)](https://doi.org/10.1145/3581783.3611977) | ACM MM 2023 | `U0`; binary-head Hamming affinity로 continuous memory를 집계하고 EMA key encoder·세 queue·두 contrastive loss로 학습 | [code](https://github.com/RosieYuu/OH); TensorFlow/CIFAR-10/online ResNet-50 release | `I/M`; 공개 실행 core를 fixed two-view CLIP cache와 36-bit에 이식한 clean-room adapter, 원 table 재현과 분리 |
+| [CGHash](https://doi.org/10.1145/3581783.3612596) | ACM MM 2023 | `U0`; 비지도 contrastive similarity knowledge와 hidden structure | [code](https://github.com/KARLSZP/CGHash); 실질적 CIFAR path, 외부 SimCLR checkpoint 및 실행 defect | `B`; COCO/NUS loader·config와 검증된 external checkpoint가 없어 exact 공통 runner 수치 생성 금지 |
+| [MDSHC](https://openaccess.thecvf.com/content/CVPR2023/html/Wang_Deep_Hashing_With_Minimal-Distance-Separated_Hash_Centers_CVPR_2023_paper.html) | CVPR 2023 | 감독; 최소거리 보장이 있는 class hash center | 논문 기반 이식 가능 | `C — CITE`; supervised oracle 후보, label-free main 표와 분리 |
+| [HHCH](https://pubmed.ncbi.nlm.nih.gov/38442063/) | IEEE TIP 2024 | `U0`; hyperbolic hierarchy와 instance/prototype contrast | [code](https://github.com/HUST-IDSM-AI/HHCH); paper/release의 K-means·quantization·temperature·scheduler 차이 존재 | `I/M`; 논문 수식 `paper_cache3v`를 명시적 구현 |
+| [CTMIH](https://www.ijcai.org/proceedings/2024/0135) | IJCAI 2024 | `U0`; degraded-image retrieval을 위한 transformed/masked ViT, cross-view debiased contrast와 patch-level semantic mask reconstruction | 검증 가능한 공식 code 미확인; raw patch reconstruction이 method-defining | `B`; frozen global cache head로 바꾸면 CTMIH가 아니므로 실행 상태는 blocked, Related Works에만 인용하며 저자 구현 확보 전 exact 수치 `-` |
+| [HiHPQ](https://ojs.aaai.org/index.php/AAAI/article/view/28261) | AAAI 2024 | `U0`; hyperbolic product codebook와 hierarchical contrastive quantization | PQ의 asymmetric query–codeword 실수 distance를 사용 | `C`; binary/Hamming main table이 아닌 non-binary/compositional quantization 선행 및 별도 PQ protocol 후보 |
+| [FSCH](https://dblp.org/rec/journals/tcsv/CaoHNW24) | IEEE TCSVT 2024 | `U0` 주장; regional common feature와 global–local fine-grained similarity | [code](https://github.com/huanglab-research/FSCH); trainer·loss·optimizer·entry point 누락, 공개 model의 shape/constructor defect | `B — BLOCKED`; 저자 artifact 없이 exact 수치 생성 금지 |
+| [A²-SSL](https://openaccess.thecvf.com/content/CVPR2024/html/Hu_An_Asymmetric_Augmented_Self-Supervised_Learning_Method_for_Unsupervised_Fine-Grained_Image_CVPR_2024_paper.html) | CVPR 2024 | 비지도 fine-grained; asymmetric augmentation, part-oriented dense contrast, self-consistent hash | 공식 code 미확인; CUB/Flowers/Dogs/Cars/Food101 | `C — CITE`; CUB/local-part 계보의 필수 직접 선행 |
+| [HQT](https://bmvc2024.org/proceedings/482/) | BMVC 2024 | hierarchical binary clustering/quantization tree를 기존 hasher에 부착 | [code](https://github.com/Lab-LVM/HQT); 실질적으로 CIFAR 중심 | `P`; 독립 method 행이 아니라 `HQT+base` 보조 실험 |
+| [BRCD](https://arxiv.org/abs/2403.06071) | WWW 2024 | bit-mask robust contrastive distillation; base hasher용 teacher/student add-on | [code](https://github.com/hly1998/BRCD); CIFAR/COCO/ImageNet100 | `P`; standalone baseline이 아니라 효율·강건성 보조 |
+| [LGH](https://icmr2024.org/virtual-posters/168_outline.html) | ICMR 2024 | language model에서 high-level concept와 similarity를 채굴하는 image-only retrieval hash | 공식 code 미확인; CIFAR/NUS/COCO | `P`; 필수 인용, 실행 우선순위는 DUH-EG보다 낮음 |
+| [HARR](https://doi.org/10.1145/3627162) | ACM TOMM 2024, 20(5) | 비지도 Winner-Take-All similarity, bit-correlation reduction, cosine quantization | 공식 code 미확인 | `C — CITE`; manual 재구현 우선순위 낮음 |
+| [UDHPM](https://doi.org/10.1109/LSP.2024.3379085) | IEEE SPL 2024 | 비지도 dynamic soft-clustering pseudo-multilabel과 KL 학습 | 공식 code 미확인 | `C — CITE`; manual 재구현 우선순위 낮음 |
+| [DUH-EG](https://proceedings.mlr.press/v267/song25h.html) | ICML 2025 | intended `U1`; WordNet+CLIP external guidance와 multi-positive contrastive hashing. 현재 arbitrary bank는 `U?`, target-taxonomy semantic match는 `U2` | [code](https://github.com/XLearning-SCU/2025-ICML-DUHEG); 네 dataset, selected-noun bank이 외부 artifact | `I/E`; released objective 구현, official ordered bank/provenance 부재로 exact row blocked; U0 표와 분리 |
+| [RCSH](https://doi.org/10.1109/TNNLS.2023.3333294) | IEEE TNNLS 2025, online 2023 | self-supervised; data–prototype/data–data relational consistency | [claimed code](https://github.com/IMAG-LuJin/RCSH)는 README-only | `B`; 현재 공식 repo만으로 exact 실행 불가 |
+| [MambaHash](https://doi.org/10.1145/3731715.3733380) | ICMR 2025 | 감독; visual state-space hashing | [code](https://github.com/shuaichaochao/MambaHash); CIFAR/NUS/ImageNet | `C`; supervised oracle 후보, label-free main 표와 분리 |
+| [GDSH](https://ojs.aaai.org/index.php/AAAI/article/view/32600) | AAAI 2025 | semi-supervised; label completion과 debiasing | 공식 code 미확인; CIFAR/COCO/NUS/Flickr 등 | `C — CITE`; label-free main protocol과 정보 조건 불일치 |
+| [VPDS](https://proceedings.neurips.cc/paper_files/paper/2025/hash/c23ccf9eedf87e4380e92b75b24955bb-Abstract-Conference.html) | NeurIPS 2025 | VLM pseudo-label을 쓰는 unsupervised domain-adaptive hashing | 안정적 공식 repo 미확인; Office 계열/MNIST↔USPS | `C — CITE`; VLM novelty 방어, task는 domain adaptation |
+| [Few-shot Prompt Learning for Image Deep Hashing](https://doi.org/10.1109/ICME59968.2025.11209312) | ICME 2025 | few-shot supervised VLM prompt adaptation | 공식 code 미확인 | `C — CITE`; KALAHash와 함께 prompt/VLM-guided 계보 |
+| [Factorized Transformer Hashing with Adaptive Routing](https://doi.org/10.1145/3746027.3755201) | ACM MM 2025 | 감독; factorized transformer와 learnable selector/router | [code](https://github.com/QinLab-WFU/FTH); Flickr/NUS/COCO, 현재 Flickr 중심 script·36-bit 미지원 | `C`; supervised 별도 표 후보, GroundedDNA의 OT router와 목적·정보 조건을 구분 |
+| [KALAHash](https://ojs.aaai.org/index.php/AAAI/article/view/33136) | AAAI 2025 | knowledge-anchored low-resource supervised adaptation | 공식 논문 기준 재현 가능 | `C — CITE`; label budget이 다른 별도 oracle |
+| [DGOH](https://ojs.aaai.org/index.php/AAAI/article/view/32191) | AAAI 2025 | supervised online/streaming multi-label hashing | 공식 논문 | `C — CITE`; offline fixed-database main protocol에서 제외 |
+| [DBHE](https://doi.org/10.1016/j.neucom.2025.131411) | Neurocomputing 2025, 655:131411 | 감독; ViT와 Poincaré pairwise objective | [code](https://github.com/QinLab-WFU/DBHE); Flickr/NUS/COCO | `C`; supervised upper-bound 후보 |
+| [UMRCH](https://www.sciencedirect.com/science/article/pii/S0957417425040291) | ESWA 2026, 301:130414 | `U2`; benchmark class-name CLIP probability와 ViT global/local multi-semantic reconstruction | [code](https://github.com/Lab201A/UMRCH); Flickr/NUS/COCO | `I/M`; exact objective + official taxonomy + matched CLIP local-token adapter, taxonomy-assisted 보조 표에 보고 |
+| [TGUH](https://doi.org/10.1109/TMM.2026.3673565) | IEEE TMM 2026 | 생성/서술 text-guided multimodal fusion, dynamic community, hash center | [code](https://github.com/caoyuan618/TGUH) 공개 표기 | `B`; 공개 trainer의 hard-coded/incomplete 경로와 test-selection을 해소하기 전 exact 실행 금지 |
+| [Multi-scale aggregation + OT hashing](https://www.sciencedirect.com/science/article/pii/S092523122503262X) | Neurocomputing 2026, 671:132590 | 비지도; multi-scale region과 augmented-view dense correspondence를 OT로 정렬 | 공식 code 미확인; CIFAR/COCO/ImageNet | `P`; “OT hashing 최초” 주장 방지, 목적이 router UOT와 다름 |
+| [OMUH](https://www.sciencedirect.com/science/article/pii/S0893608026003084) | Neural Networks 2026, 200:108846 | `U1`; 외부 Faster R-CNN object pseudo-label과 multi-granularity affinity | [code](https://github.com/caoyuan618/OMUH); VOC/Flickr 중심, pseudo-label row alignment·test-best selection·hard-coded path 문제 | `B`; visual-only `U0`로 분류하지 않으며 공개 protocol defect 해소 전 exact 수치 금지 |
+| [CroVCA/HashCoder](https://openaccess.thecvf.com/content/CVPR2026W/ECV/html/Moummad_Image_Hashing_via_Cross-View_Code_Alignment_in_the_Age_of_CVPRW_2026_paper.html) | CVPRW 2026 | `U0`; foundation embedding의 cross-view stop-gradient BCE와 coding-rate maximization | [code](https://github.com/ilyassmoummad/cross-view-code-alignment); 공개 SimDINO/DFN loader defect와 paper/code coding-rate 표기 차이 존재 | `I/M`; official objective의 frozen matched-cache probing 구현, paper 주 결과의 LoRA/asymmetric-Hamming reproduction과 분리 |
+| [FAPI](https://doi.org/10.1145/3786797) | ACM TOMM 2026, 22(3):89 | 비지도 fine-grained; feature augmentation, cross-contrastive learning, progressive granularity fusion | 공식 code 미확인; CUB/Flowers/Dogs/Cars/Food101 | `C — CITE`; 공통 4-dataset과 불일치하지만 CUB 관련 필수 |
+| [CS3H](https://arxiv.org/abs/2605.18288) | ICIP 2026 accepted preprint | 비지도 fine-grained; normalized Hamming 직접 최적화와 collision-sensitive attention | 공식 code 미확인; fine-grained 5종+NUS | `P`; collision 분석과 가까우나 proceedings/코드 확인 필요 |
+| [MKDH](https://doi.org/10.1109/TMM.2026.3651086) | IEEE TMM 2026 | weakly supervised tag+CLIP multi-knowledge distillation | [code](https://github.com/IMAG-LZY/MKDH); Flickr/NUS/COCO | `B`; 공개 script의 미정의 인자·절대경로 수정 필요, label-free 표와 분리 |
+| [Deep Semantic Channel Hashing (DSCH-2026)](https://doi.org/10.1016/j.image.2026.117559) | SPIC 2026, 146:117559 | 감독; label similarity별 differentiated hash constraint | [code](https://github.com/QinLab-WFU/DSCH); Flickr/NUS/COCO | `C`; supervised upper-bound 후보 |
+| [DGrH](https://doi.org/10.1016/j.eswa.2026.131557) | ESWA 2026 | 감독; 최신 generic deep hashing | [code](https://github.com/QinLab-WFU/DGrH); Flickr/NUS/COCO | `C`; supervised upper-bound 후보 |
+| [AHIR](https://doi.org/10.1016/j.neucom.2026.132639) | Neurocomputing 2026, 671:132639 | 감독; ResNet50+autoencoder hashing | 공식 code 미확인; Flickr/NUS/COCO | `C — CITE`; 실행보다 최신 서지 보강용 |
+| [DNCPH](https://doi.org/10.1016/j.eswa.2026.131924) | ESWA 2026, 317:131924 | 감독; neighborhood-component proxy와 triplet upper bound | [code](https://github.com/QinLab-WFU/DNCPH); Flickr/NUS/COCO | `C`; supervised upper-bound 후보 |
+| [CRH](https://ojs.aaai.org/index.php/AAAI/article/view/38190) | AAAI 2026 | 감독; dynamic semantic-center reassignment | [code](https://github.com/iFamilyi/CRH); 공통은 COCO 중심 | `C — CITE`; supervised oracle/analysis 전용 |
 
-GroundedDNA는 생물학적 번역 과정을 그대로 모사하거나 완전히 분리된 여섯 개의 의미 요인을 보장하려는 모델이 아니다. 대신 codon이라는 생물학적 비유를 계산 가능한 설계 원리로 옮겨, **빠르게 검색할 수 있는 코드가 동시에 어느 정도 읽을 수도 있는 코드가 될 수 있는지**를 탐구한다. 이러한 문제 설정은 retrieval representation의 품질을 순위 정확도만이 아니라, 그 내부에 남아 있는 의미적 증거까지 포함해 평가할 수 있는 기반을 제공한다.
+- 추가 2025–2026 bibliography screen (`C — CITE`, main 실행 전 protocol/code 재감사)
+  - [Graph Hashing Network](https://doi.org/10.1016/j.imavis.2025.105677), [DCPH](https://doi.org/10.1016/j.neucom.2025.130014), [LECH](https://doi.org/10.1016/j.ipm.2025.104277), [CTSAH](https://doi.org/10.1016/j.asoc.2025.112752), [CAPMH](https://doi.org/10.1016/j.eswa.2025.128228), [Deep Global Distance Estimation Hashing](https://doi.org/10.1109/TBDATA.2025.3566532)
+  - [DRKDH](https://doi.org/10.1145/3820061): sparse/noisy-label supervised, [code](https://github.com/QinLab-WFU/DRKDH)
+  - [DQAH](https://doi.org/10.1016/j.dsp.2026.106092): supervised, Flickr/NUS/COCO, 공식 code 미확인
+  - FAPI의 개별 논문 DOI는 `10.1145/3786797`; `10.1145/3762853`은 TOMM 22(3) issue DOI이며, 기존 DFMH는 2022 JVCIR의 별도 방법임
+- 실행 shortlist
+  - `U0` visual-only main: `UGH(GreedyHash)-cache`, `Bi-half-cache`, `SDC-release-noCL`, `SDC-release-SimCLR`, `SDC-paper-cache2v`, `OH-cache2v`, `HHCH-paper-cache3v`, `CroVCA-cache2v-probe`
+  - external-knowledge 별도: `DUH-EG`의 현재 released-objective adapter는 `U?`; 공식 ordered selected-noun bank/provenance 확보 시에만 `U1`, target-taxonomy semantic match면 `U2`. OMUH는 공개 protocol defect로 실행 `B`
+  - `U2` taxonomy-assisted 별도: `UMRCH`; `UHSCM`은 공개-code defect 해소 전 수치 보류
+  - `U0` non-binary 경계: HiHPQ는 `C`; asymmetric PQ distance 전용 protocol 없이 binary/Hamming main table에 포함하지 않음
+  - exact 실행 blocked: `DDCH`, `CGHash`, `CTMIH`, `FSCH`; 저자 trainer/loss/checkpoint 또는 method-defining raw-image pipeline 확보 전까지 `-`
+  - text-generated multimodal: `TGUH`(code completeness 감사 후)
+  - CUB/fine-grained 별도 track: `A²-SSL`, `FAPI`, `CS3H`
+  - 여력이 있을 때: multi-scale OT hashing, `RCSH` 수동 이식, `HQT+base`, `BRCD+base`
+  - 별도 supervised upper-bound: `DNCPH`, `DBHE`, `DSCH-2026`, `DGrH`, `MDSHC/CRH`, `MambaHash`
+- novelty 문장 수정
+  - “최초의 VLM/text-guided hashing”, “최초의 local semantic hashing”, “최초의 OT hashing”은 사용하지 않음
+  - 안전한 구분점: direct quaternary DNA learning + role-typed selective UOT + EMA multi-codebook/codon composition + exact biological projection의 결합
 
-## 2. 관련 연구
+### 2.3 Product/compositional quantization과 discrete representation
 
-### 2.1 Deep hashing과 불투명한 이진 코드
+| 연구 | 핵심 내용 | 본 논문과의 연결 |
+|---|---|---|
+| [Product Quantization](https://pubmed.ncbi.nlm.nih.gov/21088323/) | vector subspace별 codebook의 Cartesian product | multi-codebook 조합 용량의 고전적 근거 |
+| [Cartesian k-means, CVPR 2013](https://openaccess.thecvf.com/content_cvpr_2013/papers/Norouzi_Cartesian_K-Means_2013_CVPR_paper.pdf) | Cartesian product codebook 학습 | 독립 subspace quantization 계보 |
+| [Additive Quantization, CVPR 2014](https://openaccess.thecvf.com/content_cvpr_2014/html/Babenko_Additive_Quantization_for_2014_CVPR_paper.html) | 여러 codeword의 합으로 근사 | additive composition과 slot-typed composition 구별 |
+| [Composite Quantization, ICML 2014](https://proceedings.mlr.press/v32/zhangd14.html) | near-orthogonal composite codebooks | codebook interaction 관련 근거 |
+| [SUBIC, ICCV 2017](https://openaccess.thecvf.com/content_ICCV_2017/papers/Jain_SUBIC_A_Supervised_ICCV_2017_paper.pdf) | concatenated one-hot blocks와 entropy | block-structured discrete code의 직접 선행 |
+| [VQ-VAE, NeurIPS 2017](https://arxiv.org/pdf/1711.00937) | vector quantization, STE, Appendix의 EMA update | EMA 수식의 직접 출처; 원 논문 본 실험에서는 EMA 미사용임을 정확히 표기 |
+| [Product Quantization Network, ECCV 2018](https://openaccess.thecvf.com/content_ECCV_2018/html/Tan_Yu_Product_Quantization_Network_ECCV_2018_paper.html) | end-to-end product quantization | learned retrieval quantizer 계보 |
+| [DPQ, CVPR 2019](https://openaccess.thecvf.com/content_CVPR_2019/papers/Klein_End-To-End_Supervised_Product_Quantization_for_Image_Search_and_Retrieval_CVPR_2019_paper.pdf) | soft/hard product quantization 공동학습 | hard deployment와 soft training 대비 |
+| [Uni-Code, NeurIPS 2023](https://proceedings.neurips.cc/paper_files/paper/2023/hash/c89f09849eb5af489abb122394ff0f0b-Abstract-Conference.html) | paired modality를 shared discrete latent space에 맞추는 cross-modal commitment와 MM-EMA | champion XM loss의 직접 출처; 본 구현은 Eq. (8)형 commitment만 차용하고 full DCID/MM-EMA는 사용하지 않음 |
 
-기존 deep hashing은 의미적으로 유사한 이미지를 Hamming space에서 가깝게 배치하는 데 집중한다. CIBHash는 contrastive information bottleneck을, CIMON은 정제된 similarity와 consistency를, MLS3RDUH는 manifold 기반 local semantic structure를 이용한다. 이들은 검색 정확도와 코드 안정성을 개선하지만, 출력 bit에 고정된 semantic role을 부여하지 않는다. 사후에 이진 코드를 임의의 chunk로 나누더라도 그 구분은 학습 목적에 포함되지 않았으므로 compositional interpretation을 보장하지 않는다.
+- 본 논문의 구분점
+  - 전통 PQ: dimension partition이 중심
+  - GroundedDNA: 각 codebook이 사전에 정의된 semantic role을 담당하도록 text/UOT로 정초
+  - 조합 용량 (K^6)과 최종 codon 용량 (64^6)을 혼동하지 않도록 별도 보고
 
-GroundedDNA는 전체 코드의 거리 보존이라는 목표는 유지하면서, 코드의 좌표를 미리 정의된 의미 슬롯에 배정한다. 따라서 기존 방법과의 핵심 차이는 alphabet이 binary인지 quaternary인지가 아니라, **코드 부분의 의미가 학습 과정에서 명시적으로 typed되고 grounded되는지**에 있다.
+### 2.4 Text-supervised visual representation과 interpretable hashing
 
-### 2.2 Text-supervised visual representation과 cross-modal hashing
+| 연구 | 핵심 내용 | 본 논문에서의 위치 |
+|---|---|---|
+| [CLIP, ICML 2021](https://arxiv.org/abs/2103.00020) | 대규모 image–text contrastive pretraining | frozen image/text feature teacher |
+| [ALIGN, ICML 2021](https://arxiv.org/abs/2102.05918) | noisy web-scale image–text supervision | language-supervised visual representation 배경 |
+| [SigLIP, ICCV 2023](https://openaccess.thecvf.com/content/ICCV2023/papers/Zhai_Sigmoid_Loss_for_Language_Image_Pre-Training_ICCV_2023_paper.pdf) | pairwise sigmoid image–text objective | repository의 대안 backbone 계보; current P0가 CLIP임을 구분 |
+| [SigLIP2, 2025](https://arxiv.org/abs/2502.14786) | captioning·self-distillation·localization을 결합한 multilingual VLM | future backbone ablation; 파일명과 champion backbone 혼동 방지 |
+| [VirTex, CVPR 2021](https://openaccess.thecvf.com/content/CVPR2021/html/Desai_VirTex_Learning_Visual_Representations_From_Textual_Annotations_CVPR_2021_paper.html) | caption generation을 dense visual supervision으로 활용 | caption이 label보다 풍부한 신호라는 근거 |
+| [FILIP, ICLR 2022](https://openreview.net/pdf?id=cpDhcsEDC2) | token-wise late interaction | patch/token fine-grained alignment 계보 |
+| [RegionCLIP, CVPR 2022](https://openaccess.thecvf.com/content/CVPR2022/html/Zhong_RegionCLIP_Region-Based_Language-Image_Pretraining_CVPR_2022_paper) | region–text alignment | local semantic grounding 근거 |
+| [GroupViT, CVPR 2022](https://openaccess.thecvf.com/content/CVPR2022/papers/Xu_GroupViT_Semantic_Segmentation_Emerges_From_Text_Supervision_CVPR_2022_paper.pdf) | image-level text에서 semantic group 발견 | dense annotation 없는 visual grouping 근거 |
+| [WDHT, CVPR 2019](https://openaccess.thecvf.com/content_CVPR_2019/html/Gattupalli_Weakly_Supervised_Deep_Image_Hashing_Through_Tag_Embeddings_CVPR_2019_paper.html) | tag embedding으로 image-only hash 감독 | text-supervised unimodal hashing의 직접 선행 |
+| [SCADH, IEEE TIP 29:1271–1284, 2020 (online 2019)](https://doi.org/10.1109/TIP.2019.2940693) | refined social-tag semantics로 image hash 학습 | accompanying text를 privileged supervision으로 쓰는 직접 선행 |
+| [Tag-based Weakly-supervised Hashing, IJCAI 2018](https://www.ijcai.org/proceedings/2018/525) | noisy tag와 latent semantic vector 공동학습 | label-free가 text-free는 아님을 설명 |
+| [DSRPH, Information Sciences 2020](https://doi.org/10.1016/j.ins.2020.05.114) | caption embedding으로 semantic similarity/ranking 감독 | caption-supervised hashing의 직접 선행 |
+| [ConceptHash, CVPRW 2024](https://arxiv.org/abs/2406.08457) | concept token별 interpretable binary sub-code, language class center | 가장 가까운 해석 가능 hashing 선행; 반드시 직접 비교 |
+| [Attribute-Aware Hashing, ICML 2025](https://proceedings.mlr.press/v267/wang25bj.html) | query를 visual attribute와 hash code에 대응 | attribute-level interpretability 선행 |
+| [LPAH, PRCV 2025; LNCS 16283, 2026, pp. 63–77](https://github.com/zhenglab/LPAH) | synthetic text로 patch aggregation·patch-word alignment | synthetic-caption-guided patch hashing 선행 |
+| [HTH, IEEE TCSVT 2026](https://doi.org/10.1109/TCSVT.2026.3651707) | hierarchical global/local text-guided open-world hashing | 최신 text-guided binary hashing 비교 |
+| [Interpretable Binary Codes, Pattern Recognition 172:112380, 2026](https://doi.org/10.1016/j.patcog.2025.112380) | semantic alignment로 bit-level customized retrieval | interpretable bit selection 선행 |
 
-CLIP은 대규모 image-text contrastive learning을 통해 강력한 전역 의미 표현을 제공한다. GroupViT와 RegionCLIP은 text supervision이 별도의 dense annotation 없이도 visual group 또는 region-level semantics를 유도할 수 있음을 보였다. PromptHash는 prompt-aware alignment를 cross-modal hashing에 활용하지만, 목표는 image-text 간 공통 flat hash space를 학습하는 데 있으며, image-only retrieval code의 각 부분을 사람이 읽을 수 있는 semantic unit으로 만드는 문제와는 다르다.
+- ConceptHash와의 핵심 차이 문장
+  - ConceptHash: fine-grained class label/class-name guidance, learned concept token, binary sub-code
+  - GroundedDNA: instance-level VLM captions, fixed six axes, patch-to-slot UOT, EMA VQ, codon/DNA projection, image-only inference
+- cross-modal hashing의 처리
+  - 관련 문단에서만 경계 설명
+  - image↔text retrieval 수치를 image→image main table에 혼합하지 않음
 
-GroundedDNA는 새로운 거대 backbone을 사전 학습하지 않는다. 대신 frozen cross-modal backbone의 지식을 여섯 슬롯의 discrete codebook으로 증류한다. 이때 text는 검색 대상 modality가 아니라 **이산 코드의 의미를 조직하는 학습 신호**로 사용된다.
+### 2.5 DNA storage, molecular similarity search, codon-inspired CBIR
 
-### 2.3 DNA 기반 유사 이미지 검색
+| 연구 | 핵심 내용 | 본 논문에서 사용할 요점 |
+|---|---|---|
+| [Church et al., Science 2012](https://doi.org/10.1126/science.1226355) | digital information의 DNA encoding | DNA storage 서사의 출발점 |
+| [Goldman et al., Nature 2013](https://www.nature.com/articles/nature11875) | scalable archival encoding과 error correction | density·durability·archive 맥락 |
+| [DNA Fountain, Science 2017](https://doi.org/10.1126/science.aaj2038) | near-capacity robust DNA storage | storage codec 계보 |
+| [Organick et al., Nature Biotechnology 2018](https://doi.org/10.1038/nbt.4079) | large-scale random access | address-based access와 semantic access 대비 |
+| [Stewart et al., DNA24 2018](https://www.microsoft.com/en-us/research/wp-content/uploads/2018/08/dna24.pdf) | learned content-addressable DNA database의 전신; 공식 PDF의 제1저자는 Kendall Stewart | 직접 선행의 초기 형태; “Bee et al. 2018”로 잘못 표기하지 않음 |
+| [Bee et al., Nature Communications 2021](https://www.nature.com/articles/s41467-021-24991-z) | VGG feature→80-base sequence, hybridization-aware 1.6M image search | molecular similarity retrieval의 핵심 직접 선행; [code](https://github.com/uwmisl/primo-similarity-search) |
+| [Koike et al., DATE 2024](https://past.date-conference.com/proceedings-archive/2024/DATA/478_pdf_upload.pdf) | triplet network DNA encoder, CIFAR-100 | learned image-to-DNA metric encoding 직접 비교; [official code](https://github.com/tkoike-kuee/dna-triplet-network) |
+| [Koike et al., DAC 2024](https://doi.org/10.1145/3649329.3657320) | DATE의 6-page 확장판; 동일 triplet-DNA core | DATE와 독립 baseline 두 개로 세지 않음 |
+| [Koike et al., IEEE TCBB 2026](https://pubmed.ncbi.nlm.nih.gov/41824343/) | triplet encoder에 probability·GC·homopolymer loss와 inference heuristic 추가 | 가장 최신 직접 경쟁 연구; [official code](https://github.com/tkoike-kuee/DNA-Encoder-under-Bioconstraints) |
+| [Cas9 semantic search, Nature Communications 2025](https://www.nature.com/articles/s41467-025-61264-5) | 20-nt target(+3-nt PAM); 1.74M images를 457 semantic cluster address에 매핑 | molecular random/semantic access의 최신 사례; [code](https://github.com/uwmisl/cas9-similarity-search) |
+| [Pradhan et al., IEEE TNB 2023](https://pubmed.ncbi.nlm.nih.gov/35486561/) | DNA transcription/translation 기반 CBIR | codon·amino-acid CBIR 직접 선행 |
+| [Pradhan et al., IEEE TNB 2024](https://doi.org/10.1109/TNB.2023.3303512) | pixel bit-plane DNA pattern + deep feature retrieval | handcrafted nucleotide-pattern 계열 |
+| [DNA-CBIR, IEEE TNB 2025](https://pubmed.ncbi.nlm.nih.gov/40031697/) | 3-MSB→DNA plane→codon-pattern deep feature | “codon 최초” 주장 방지; learned semantic codon과 대비 |
+| [HEDGES, PNAS 2020](https://pmc.ncbi.nlm.nih.gov/articles/PMC7414044/) | indel/substitution 및 sequence constraint 고려 | physical-channel 제약의 더 넓은 범위 |
+| [DNA-Aeon, Nature Communications 2023](https://www.nature.com/articles/s41467-023-36297-3) | user-defined GC, homopolymer, motif 제약 | 본 연구 40–60% GC/run≤3의 설계 근거 |
+| [Capacity-Approaching Constrained Codes](https://arxiv.org/abs/2001.02839) | GC/RLL/error-correcting constrained code | DP projection의 coding-theory 맥락 |
+| [DNA-ELMR, ESWA 2026](https://www.sciencedirect.com/science/article/pii/S0957417426006391) | image storage/reconstruction와 다중 생물 제약 | bio-loss 참고; retrieval baseline에서는 제외 |
 
-Stewart et al.과 Bee et al.은 image feature를 DNA strand로 인코딩하고 molecular hybridization을 통해 유사 이미지를 검색하는 content-addressable DNA database를 제안했다. Koike et al.은 triplet network와 Hamming distance를 이용해 DNA encoder의 정확도와 학습 효율을 개선했으며, 후속 연구에서는 GC content와 homopolymer 길이 같은 생물학적 제약을 추가했다.
+- 직접 비교 프레임
+  - Bee/Koike: 거리·hybridization과 biochemical validity 중심, flat DNA sequence
+  - Pradhan: pixel/MSB에서 nucleotide/codon/amino-acid feature를 구성하는 handcrafted CBIR
+  - GroundedDNA: language-defined role, learned local codebook, compact hashing benchmark, text-free deployment
+- codon 표현의 한계
+  - 자연 genetic code의 translation table을 사용하지 않음
+  - “biological semantics”가 아니라 “3-base typed unit이라는 structural analogy”로 한정
 
-이들 연구의 중심 질문은 “시각적으로 유사한 이미지가 잘 hybridize되는 DNA strand를 어떻게 만들 것인가”이다. 반면 GroundedDNA의 중심 질문은 “생성된 DNA code를 사람이 semantic part의 조합으로 읽을 수 있는가”이다. GroundedDNA는 wet-lab hybridization을 직접 목표로 하지 않으며, 각 세 염기 구간을 언어로 정의된 slot에 배치한다. 따라서 기존 연구가 **molecularly searchable DNA**를 지향한다면, 본 연구는 **semantically readable DNA-shaped retrieval code**를 지향한다.
+#### 2.5.1 직접 DNA-image retrieval 연구의 code/재현 가능성 판단
 
-## 3. 제안 방법
+| 연구 | 공개 구현 | 이 repository에서의 재현 판단 | main comparison 계획 |
+|---|---|---|---|
+| Stewart et al. DNA24 2018 | 공식 code 미공개 | 논문 수식 기반 독립 PyTorch 구현 완료: train-only PCA-10, shared pointwise encoder, soft cosine-Hamming, analytic yield BCE | **`U0-FD` unsupervised; target-label-free encoder objective**; `DNA24-30-original`과 `DNA24-18-matched` 분리; strict `-`, sealed 3-seed diagnostic 완료 |
+| Bee et al. 2021 | [PRIMO code/data](https://github.com/uwmisl/primo-similarity-search), [Zenodo](https://doi.org/10.5281/zenodo.5090717) | clean-room encoder/local-match CNN과 공식 `pub` commit의 Keras predictor를 exact 변환·검증; full alternating refit은 외부 NUPACK oracle가 필요 | **`U0-FD` unsupervised; target-label-free encoder objective**; `PRIMO-80-original`, 완료된 diagnostic `PRIMO-18-frozen-predictor-length-transfer`, 향후 미완료 `PRIMO-18-calibrated`를 분리; strict `-`, sealed 3-seed diagnostic 완료 |
+| Koike DATE/DAC 2024 | [official code](https://github.com/tkoike-kuee/dna-triplet-network) | masked-softmax normalized-Hamming과 semi-hard triplet의 독립 PyTorch 구현 완료 | **`S` supervised**; `Koike-TN-DNA`, 18-base adaptation; strict `-`, sealed 3-seed diagnostic 완료 |
+| Koike TCBB 2026 | [official code](https://github.com/tkoike-kuee/DNA-Encoder-under-Bioconstraints) | entropy/probability/HP/GC loss와 HP inference heuristic의 독립 PyTorch 구현 완료 | **`S` supervised**; `Koike-BC-TN-DNA`, bio-aware 18-base adaptation; strict `-`, sealed 3-seed diagnostic 완료 |
+| Cas9 semantic search 2025 | [similarity-search code](https://github.com/uwmisl/cas9-similarity-search), [random-access code](https://github.com/uwmisl/cas9-random-access) | computational address encoder는 재현 가능; Cas9 off-target cleavage와 wet-lab protocol은 현재 범위 밖 | Related Work/qualitative context, 직접 mAP baseline은 `-` |
+| Pradhan 2023–2025 | 공식 code 미확인 | pixel MSB→DNA plane→codon/amino-acid feature algorithm은 논문 기반 구현 가능하나 learned compact hashing과 task가 크게 다름 | 소규모 원 dataset 재현 또는 method-boundary 설명, main table은 `-` |
+| Binary→2-bit/base | repository 구현 존재 | 완전 재현 완료; native DNA learner가 아닌 naïve transcoding control | 현재 main controlled baseline |
+
+- 완료된 matrix와 남은 재현 과제
+  - 구현 entry point: `baseline/native_dna.py`, `scripts/train_native_dna_baseline.py`
+  - PRIMO weight adapter: `scripts/convert_primo_predictor.py`
+  - 완료: 네 방법 × 네 데이터셋 × 세 seed의 18-base sealed diagnostic matrix 48/48; launcher failure 0, strict-main eligible 0/48
+  - 완료: official PRIMO predictor exact conversion
+  - 남음: provenance-complete cache의 strict matrix 재실행
+  - 남음: DNA24 original 30-nt 및 Koike original 80-base computational sanity reproduction
+  - 남음: 새 18-mer thermodynamic yield로 PRIMO predictor를 재보정한 `PRIMO-18-calibrated`
+  - wet-lab 요소가 필요한 Cas9/PRIMO physical assay는 본 논문 범위 밖으로 명시
+  - 외부 repository는 모두 명시적 code license가 없으므로 source 복사가 아닌 clean-room 구현을 유지
+
+### 2.6 OT, sparse/selective routing, concept grounding
+
+| 연구 | 핵심 내용 | 사용 방식 |
+|---|---|---|
+| [Cuturi, NeurIPS 2013](https://proceedings.neurips.cc/paper_files/paper/2013/hash/af21d0c97db2e27e13572cbf59eb343d-Abstract.html) | entropy-regularized OT와 Sinkhorn | balanced entropic OT의 기초 |
+| [Liero, Mielke, Savaré, Inventiones Mathematicae 2018](https://doi.org/10.1007/s00222-017-0759-8) | marginal deviation을 entropy/KL로 완화하는 optimal entropy-transport | KL-relaxed UOT objective의 이론적 기초 |
+| [Chizat et al., Math. Comp. 2018](https://arxiv.org/abs/1607.05816) | KL-relaxed UOT generalized scaling | P0 UOT 수식의 직접 근거 |
+| [Pham et al., ICML 2020](https://proceedings.mlr.press/v119/pham20a.html) | UOT Sinkhorn 분석 | 수렴·복잡도 보조 근거 |
+| [Smooth and Sparse OT, AISTATS 2018](https://proceedings.mlr.press/v84/blondel18a.html) | entropy plan의 dense 문제와 sparse regularization | top-p 동기; 동일 알고리즘이라고 주장하지 않음 |
+| [Sparsity-Constrained OT](https://arxiv.org/abs/2209.15466) | explicit cardinality constraint | sparse plan 이론 비교; 본 heuristic과 구분 |
+| [UNITER, ECCV 2020](https://www.ecva.net/papers/eccv_2020/papers_ECCV/html/7093_ECCV_2020_paper.php) | word–region OT alignment | image–text local alignment의 기반 선행 |
+| [Graph Optimal Transport, ICML 2020](https://proceedings.mlr.press/v119/chen20e.html) | image object–sentence word의 구조적 OT | cross-modal graph alignment 계보 |
+| [VoLTA, TMLR 2023](https://shramanpramanick.github.io/VoLTA/) | caption-only patch–token graph-OT alignment | caption-supervised local routing과 가까운 선행 |
+| [Semantic Correspondence as OT, CVPR 2020](https://openaccess.thecvf.com/content_CVPR_2020/html/Liu_Semantic_Correspondence_as_an_Optimal_Transport_Problem_CVPR_2020_paper.html) | visual correspondence를 OT로 정식화 | vision alignment 선행 |
+| [Unbalanced Feature Transport, CVPR 2021](https://openaccess.thecvf.com/content/CVPR2021/html/Zhan_Unbalanced_Feature_Transport_for_Exemplar-Based_Image_Translation_CVPR_2021_paper.html) | feature alignment에서 UOT | visual UOT 응용 근거 |
+| [UOT for Object Detection, CVPR 2023](https://openaccess.thecvf.com/content/CVPR2023/html/De_Plaen_Unbalanced_Optimal_Transport_A_Unified_Framework_for_Object_Detection_CVPR_2023_paper.html) | matching과 discard를 UOT로 통합 | relaxed mass의 selection 해석 보조 |
+| [FedOTP, CVPR 2024](https://openaccess.thecvf.com/content/CVPR2024/html/Li_Global_and_Local_Prompts_Cooperation_via_Optimal_Transport_for_Federated_CVPR_2024_paper.html) | prompt와 core patch의 relaxed OT alignment | patch selection 동기 |
+| [DOT-CBM, CVPR 2025](https://openaccess.thecvf.com/content/CVPR2025/html/Xie_Discovering_Fine-Grained_Visual-Concept_Relations_by_Disentangled_Optimal_Transport_Concept_Bottleneck_CVPR_2025_paper.html) | patch↔text concept OT와 localization | 가장 가까운 concept-grounding 선행; classification CBM과 retrieval codon 차이 |
+| [Selective Sinkhorn Routing, ICML 2026 AdaptFM Workshop; arXiv first posted 2025](https://arxiv.org/abs/2511.08972) | top-k Sinkhorn MoE routing, KL projection 정리 | top-k renormalization 증명 참고; task/solver 동일성 주장 금지 |
+| [OMIT, 2026 preprint](https://arxiv.org/abs/2603.14349) | dustbin을 둔 optimal partial image–text matching | partial/dustbin OT와 본 UOT 구분 |
+| [ConceptOT, CVPRW 2026](https://openreview.net/pdf?id=EU0tuTbrKn) | CLIP patch–concept low-rank UOT | concurrent closest work; DNA hashing·fixed six slots·bio projection 차이 |
+
+- 용어 선택
+  - 본문: **KL-relaxed entropic unbalanced optimal transport**
+  - `PSOT`를 쓸 경우 프로젝트 variant 이름으로만 정의
+  - fixed-mass partial OT의 `$P\mathbf 1\le a$`, `$P^\top\mathbf 1\le b$`, 총질량 제약을 만족한다고 주장하지 않음
+- adaptive top-p의 위치
+  - UOT 해 이후의 row-wise sparsification heuristic
+  - 전체 sparsity-constrained UOT의 exact optimizer라고 주장하지 않음
+
+## 3. Methodology
 
 ### 3.1 문제 정의
 
-학습 이미지 집합을 `D = {x_i} (i=1,...,N)`라 하자. class label은 사용하지 않는다. 각 이미지 `x_i`에 대해 오프라인 VLM은 여섯 semantic slot의 설명 `T_i = {t_i^m} (m=0,...,5)`을 생성한다. 목표는 image encoder `f`와 DNA encoder `h`를 학습하여
+- label-free parameter optimization set
+  - \(\mathcal D_{\rm tr}=\{x_i\}_{i=1}^{N}\)
+  - ground-truth class/multi-label은 parameter optimization, caption 생성, codebook 초기화에 사용하지 않음
+  - 단, 표준 hashing protocol의 held-out validation relevance로 \(E^*\)를 선택하고 test label로 공식 metric/probe를 계산
+  - frozen VLM으로 train image별 six-axis description \(T_i=\{t_i^m\}_{m=0}^{5}\) 사전 생성
+- 학습 목표
+  - \(h_\theta:\mathcal X\rightarrow\mathcal A^{18}\), \(\mathcal A=\{A,C,G,T\}\)
+  - \(h_\theta(x)=[c^0;c^1;\ldots;c^5]\), \(c^m\in\mathcal A^3\)
+- 검색 거리
+  - base-wise Hamming distance
+  - \(d_{\rm DNA}(y,y')=\sum_{\ell=1}^{18}\mathbf1[y_\ell\ne y'_\ell]\)
+  - raw alphabet capacity: \(4^{18}=2^{36}\)
+- 평가 relevance
+  - single-label: 같은 class
+  - multi-label: 하나 이상의 label 공유
+  - label은 held-out validation의 \(E^*\) 선택, official retrieval metric, interpretability probe에 사용
+- 용량 구분
+  - pre-codon tuple capacity: \(K^6\)
+  - 3-base codon capacity/slot: \(4^3=64\)
+  - \(K=128\)에서는 서로 다른 codeword의 codon collision이 구조적으로 불가피
+
+### 3.2 전체 학습 프레임워크
 
 ```text
-h(x_i) = [b_i^0, b_i^1, ..., b_i^5]
-b_i^m belongs to {A, C, G, T}^3
+offline caches
+train image ──Qwen3-VL──> 6 axis captions ──CLIP text──> pooled/token text features
+split-union images ──frozen CLIP vision──> 196 patch tokens + global image feature
+
+training
+global feature ───────────────> global slot
+patches + 5 local text anchors ─UOT + adaptive top-p─> 5 local slots
+6 slots ─6 independent EMA VQ codebooks─> 6 codewords
+6 codewords ─global-conditioned codon heads─> 6×3 bases
+
+inference
+image ─frozen CLIP─> global + patches
+patches + 5 codebook-mean anchors ─UOT/top-p─> local slots
+fixed VQ + argmax codon ─> raw 18-base code ─DP bio projection─> valid code
+query/database ─base Hamming─> ranked retrieval
 ```
 
-을 얻는 것이다. `b_i^m`은 slot `m`에 대응하는 세 염기 codon이며, 전체 18개 염기 위치는 2-bit/base 표현에서 36-bit code가 된다. 검색 시에는 두 code의 base-wise distance 또는 이에 대응하는 Hamming distance를 사용한다.
+### 3.3 Offline caption 및 feature cache
 
-### 3.2 구조화된 텍스트 감독
+#### 3.3.1 Six-axis caption 생성
 
-범용 VLM은 이미지마다 전역 주제, 주요 객체, 보조 객체, 활동 및 관계, 색상 및 질감, 장면 및 배경을 각각 기술한다. 이 설명은 사람이 부여한 class label을 대체하는 open-vocabulary semantic supervision이다.
+- offline annotator
+  - [`Qwen/Qwen3-VL-8B-Instruct`](https://github.com/QwenLM/Qwen3-VL)
+  - bfloat16, `do_sample=False`, `max_new_tokens=384`, batch size 4
+  - 학습 가능한 모듈 아님; retrieval inference에 포함되지 않음
+- six axes
+  - \(m=0\): global summary
+  - \(m=1\): primary object
+  - \(m=2\): secondary object/cue
+  - \(m=3\): activity/relation
+  - \(m=4\): color/texture
+  - \(m=5\): scene/background
+- 데이터셋별 cache provenance
 
-각 설명을 cross-modal text encoder에 입력해 token feature `e_(i,m,t)`를 얻는다. 최신 모델은 local slot `m in {1,...,5}`에서 의미 있는 단어를 임의로 제거하지 않고 모든 유효 token을 평균한다.
+| Dataset | Caption rows | Prompt/cache | 논문에 적을 상태 |
+|---|---:|---|---|
+| Flickr25K | 5,000 | Qwen3-VL-8B, V4 | model/prompt/generation config 확인됨 |
+| MS-COCO | 10,000 | Qwen3-VL-8B, vocabulary-constrained V5b | 16 decode failure와 fallback 처리 공개 필요 |
+| NUS-WIDE | 10,500 | Qwen3-VL-8B, V4 | model/prompt/generation config 확인됨 |
+| CIFAR-10 | 6,097 | legacy V1, old head/body/limb schema remap | 생성 script/model revision metadata 미확인; 재생성 또는 artifact 보완 필요 |
+
+- leakage 규칙
+  - visual feature cache: train/query/database split union을 path 기준 deduplicate하여 구축; 이는 frozen feature의 계산 cache이며 supervision leakage가 아님
+  - structured caption supervision 대상: designated train rows
+  - stage-1 whitening: optimization-train rows만 사용
+  - stage-2 refit whitening: full designated train rows만 사용
+  - query/database caption을 inference input으로 사용하지 않음
+- missing-caption 구현 위험
+  - `cached_has_text`가 sample-wise criterion mask까지 전달되지 않음
+  - mixed batch의 fallback row가 text routing/loss에 들어갈 수 있음
+  - 최종 제출 전 mask 수정 + 영향 ablation 필요
+
+#### 3.3.2 Frozen CLIP encoder의 입력과 출력
+
+- 실제 champion checkpoint: `openai/clip-vit-base-patch16`; result/script 이름의 `siglip2`와 구분
+
+| 경로 | 입력 | frozen encoder 출력 | 학습 모듈 입력/출력 |
+|---|---|---|---|
+| Image global | 224×224 normalized RGB | projected image \(g_i\in\mathbb R^{512}\) | Linear \(512\to768\), global slot \(z_i^0\) |
+| Image local | 같은 image/augmentation | final hidden \([197,768]\), CLS 제외 \(V_i\in\mathbb R^{196\times768}\) | visual MLP \(768\to1536\to768\) |
+| Text pooled | six captions, tokenizer max length 64 | cached \([6,512]\) | P0 global slot의 pooled CLIP feature |
+| Text token | six captions | cached \([6,32,512]\) + token mask | P0 local 5 slots의 legacy selected-token mean |
+
+- 실제 P0 text assembly
+  - global slot: caption 0의 pooled CLIP feature \([B,1,512]\)
+  - local slots: caption 1–5의 token feature에서 legacy mask로 선택된 token mean \([B,5,512]\)
+  - 두 경로를 \([B,6,512]\)로 결합한 뒤 train-only partial whitening과 slot별 독립 MLP \(512\to1536\to768\) 적용
+
+- paired-view training cache
+  - random resized crop, horizontal flip, color jitter, grayscale augmentation의 두 visual views
+  - 두 view feature는 offline 한 번 생성·저장되어 epoch마다 새로 sampling되지 않음
+  - visual patch/global과 text cache는 fp16 저장 후 row loading 시 fp32 계산
+- backbone 동결
+  - vision tower와 text tower 모두 gradient 없음
+  - cache training에서는 backbone forward 자체를 생략
+- partial whitening
+  - train-only text covariance \(\Sigma=U\operatorname{diag}(s)U^\top\)
+  - \(W_\gamma=U\operatorname{diag}((s+10^{-5})^{-\gamma})U^\top\), \(\gamma=.25\)
+  - \(\tilde t=(t-\mu)W_\gamma\)
+- P0 legacy pooling 사실
+  - Flickr/NUS/CIFAR visual/text keep ratio `.5/.5`; MS-COCO `1/1`
+  - legacy score가 `softmax(...).sum(same axis)`로 상수화
+  - tied score에 `>= kth`를 적용하므로 `.5` 요청이 정확히 50% 유지됨을 보장하지 않으며 모든 token이 남을 수도 있음
+  - 따라서 selected subset은 semantic importance가 아니라 tie/index behavior일 가능성
+  - 논문 canonical clean EOS/full-token 경로의 P0 재실험 전까지 “semantic mutual pruning”을 방법 기여에서 제외
+
+### 3.4 Text-guided UOT Router
+
+#### 3.4.1 입력과 cost
+
+- global slot \(m=0\)
+  - CLIP projected global image feature에서 직접 생성
+  - local OT 경쟁에 참여하지 않음
+- local slots \(m=1,\ldots,5\)
+  - visual token \(v_n\in\mathbb R^{768}\), \(n=1,\ldots,196\)
+  - text centroid \(c_m\in\mathbb R^{768}\)
+  - cosine cost
+
+\[
+C_{nm}=1-\frac{v_n^\top c_m}{\lVert v_n\rVert_2\lVert c_m\rVert_2}.
+\]
+
+- 주의
+  - UOT에서는 총질량이 고정되지 않으므로 \(1-\cos\)와 \(-\cos\)의 상수차가 일반적으로 동치가 아님
+  - 논문과 실험은 실제 P0의 `one_minus_cos`만 정의
+
+#### 3.4.2 KL-relaxed entropic UOT
+
+- prior mass
+  - patch/slot validity mask를 각각 \(\mu_{in},\nu_{im}\in\{0,1\}\)라 두면
+
+\[
+a_{in}=\frac{\mu_{in}}{\sum_j\mu_{ij}},\qquad
+b_{im}=\frac{\nu_{im}}{\sum_j\nu_{ij}}.
+\]
+
+  - champion의 일반적인 no-mask case에서만 \(a_n=1/196\), \(b_m=1/5\)로 환원
+- objective
+
+\[
+\min_{P\ge0}
+\langle P,C\rangle
++\varepsilon\sum_{n,m}P_{nm}(\log P_{nm}-1)
++\lambda_a\,\mathrm{KL}(P\mathbf1\Vert a)
++\lambda_b\,\mathrm{KL}(P^\top\mathbf1\Vert b).
+\]
+
+\[
+\mathrm{KL}(p\Vert q)=\sum_j\left[p_j\log\frac{p_j}{q_j}-p_j+q_j\right]
+\quad\text{(generalized KL for non-normalized masses)}.
+\]
+
+- champion 설정
+  - \(\lambda_a=\lambda_b=1\)
+  - log-domain generalized Sinkhorn 20 iterations
+  - 60-epoch nominal cosine schedule \(\varepsilon:1.0\rightarrow0.1\)
+  - objective의 exact minimizer \(P^*\)와 실제 20-step 근사 plan \(\widehat P^{(20)}\)을 논문에서 구분
+- scaling
+
+\[
+K=\exp(-C/\varepsilon),\qquad
+\tau_a=\frac{\lambda_a}{\lambda_a+\varepsilon},\qquad
+\tau_b=\frac{\lambda_b}{\lambda_b+\varepsilon},
+\]
+
+\[
+u\leftarrow\left(\frac{a}{Kv}\right)^{\tau_a},\qquad
+v\leftarrow\left(\frac{b}{K^\top u}\right)^{\tau_b},\qquad
+P=\operatorname{diag}(u)K\operatorname{diag}(v).
+\]
+
+- reviewer용 proof sketch
+  - entropy 항이 양의 영역에서 strict convex이므로 양의 prior와 \(\varepsilon>0\) 아래 minimizer의 유일성 설명
+  - first-order optimality로 \(P_{nm}=u_nK_{nm}v_m\) factorization 도출
+  - KL marginal penalty의 convex conjugate/coordinate minimization으로 exponent \(\tau_a,\tau_b\) 도출
+  - Chizat et al.의 generalized Sinkhorn scaling을 직접 인용
+- “selective”의 정확한 해석
+  - generalized Sinkhorn이 수렴한 fixed point에서 \(q_n=(Kv)_n\), row mass \(r_n=(P^*\mathbf1)_n=a_n^{\tau_a}q_n^{1-\tau_a}\)
+  - 따라서 fixed point에서 \(r_n/a_n=(q_n/a_n)^{1-\tau_a}\)
+  - 실제 20-step \(\widehat P^{(20)}\)에서는 이 항등식이 근사적으로만 성립할 수 있음
+  - prior 대비 semantic affinity가 낮은 patch는 mass가 줄고 높은 patch는 커질 수 있음
+  - 모든 \(r_n\le a_n\)이라고 주장하지 않음
+  - 양 marginal이 relaxed되어 total transported mass도 1로 강제되지 않음
+
+#### 3.4.3 Adaptive top-p sparsification
+
+- 20-step UOT plan \(\widehat P\)의 row를 조건부 slot distribution으로 변환
+
+\[
+r_n=\sum_m\widehat P_{nm},\qquad
+p_{nm}=\frac{\widehat P_{nm}}{r_n},\qquad q_n=\max_m p_{nm}.
+\]
+
+- patch별 threshold
+
+\[
+\rho_n=\rho_{\min}+(1-q_n)(\rho_{\max}-\rho_{\min}),
+\qquad(\rho_{\min},\rho_{\max})=(.3,.7).
+\]
+
+- selection
+  - \(p_{n,:}\)를 내림차순 정렬
+  - cumulative mass가 \(\rho_n\)에 도달하는 최소 prefix 유지
+  - top-1은 항상 유지
+  - 선택 후 원래 UOT row mass \(r_n\)으로 재정규화
+  - exact column marginal은 이 단계에서 깨질 수 있음
+
+\[
+\widetilde P_{nm}=
+r_n\frac{p_{nm}\mathbf1[m\in S_n]}
+{\sum_{j\in S_n}p_{nj}}.
+\]
+- KL projection lemma
+  - 고정 support \(S\)에서 \(\min_{q\in\Delta,\operatorname{supp}(q)\subseteq S}\mathrm{KL}(q\Vert p)\)의 해는 \(q_j=p_j/\sum_{s\in S}p_s\)
+  - proof: Lagrange multiplier로 conditional normalization 도출
+  - \(|S|=k\)일 때 objective는 \(-\log\sum_{s\in S}p_s\); retained mass가 가장 큰 top-k support가 최적
+  - 본 adaptive rule은 \(k\)를 cumulative threshold로 선택한 뒤 그 support 위 KL projection을 수행
+  - 전체 heuristic이 cardinality-constrained UOT의 전역해라는 주장은 하지 않음
+- barycentric pooling
+
+\[
+z_m=\frac{\sum_n\widetilde P_{nm}v_n}
+{\max(\sum_n\widetilde P_{nm},10^{-12})}.
+\]
+
+- 해석상 주의
+  - column-normalized pooling이 absolute column mass를 상쇄
+  - UOT 효과는 주로 slot 내부 patch 상대 가중치와 \(\langle \widetilde P,C\rangle\)에 남음
+  - “background를 이론적으로 버린다”보다 “low-affinity patch를 transport plan에서 downweight”로 표현
+
+#### 3.4.4 Training–inference 차이
+
+| 요소 | Training | Inference |
+|---|---|---|
+| Local centroid | image별 Qwen caption→CLIP text→whitening→slot adapter | local codebook의 normalized active-codeword mean |
+| Text/Qwen | offline cache로 사용 | 완전 제거 |
+| UOT/top-p | 현재 image의 196 patches와 5 instance anchors | 196 patches와 5 dataset-level learned anchors |
+| Codebook | EMA update + dead-code revival | 고정 |
+| Codon output | soft distribution·deterministic argmax target와 별도로 Gumbel-hard ST sample 생성 | deterministic argmax |
+| Bio projection | training objective에는 미포함 | query/database code 모두 retrieval 직전 적용 |
+
+- inference anchor
+
+\[
+\bar e_m=\operatorname{norm}\!\left(\frac1{|\mathcal K_m|}
+\sum_{k\in\mathcal K_m}\operatorname{norm}(e_{mk})\right),\qquad m=1,\ldots,5.
+\]
+
+- 논문에 명시할 deployment gap
+  - training은 instance-conditioned text anchors
+  - inference는 dataset-level codebook anchors
+  - `text_prototype` inference가 실패하고 `codebook_mean`을 채택한 실험 근거를 appendix에 기록
+  - anchor swap에 대한 localization/accuracy 민감도 분석 추가
+  - 현재 champion의 gradient-effective loss는 생성된 Gumbel-ST sample을 소비하지 않으므로 temperature schedule의 실효 기여를 주장하지 않음
+
+### 3.5 Independent Multi-Codebook Quantization
+
+- 여섯 독립 codebooks
+
+\[
+\mathcal E_m=\{e_{mk}\in\mathbb R^{768}\}_{k=1}^{K_m},\qquad m=0,\ldots,5.
+\]
+
+- nearest Euclidean assignment
+
+\[
+k^*_{im}=\arg\min_k\lVert z_{im}-e_{mk}\rVert_2^2,qquad
+q_{im}=e_{m,k^*_{im}}.
+\]
+
+- straight-through token
+
+\[
+q^{\rm ST}_{im}=z_{im}+\operatorname{sg}(q_{im}-z_{im}).
+\]
+
+- EMA statistics
+
+\[
+n_{mk}^{(t)}=\sum_i\mathbf1[k^*_{im}=k],\qquad
+s_{mk}^{(t)}=\sum_i\mathbf1[k^*_{im}=k]z_{im},
+\]
+
+\[
+N_{mk}^{(t)}=\gamma N_{mk}^{(t-1)}+(1-\gamma)n_{mk}^{(t)},
+\]
+
+\[
+A_{mk}^{(t)}=\gamma A_{mk}^{(t-1)}+(1-\gamma)s_{mk}^{(t)},
+\]
+
+\[
+\widetilde N_{mk}=\frac{N_{mk}+\epsilon_{\rm ema}}
+{\sum_jN_{mj}+K\epsilon_{\rm ema}}\sum_jN_{mj},\qquad
+e_{mk}\leftarrow\frac{A_{mk}}{\widetilde N_{mk}}.
+\]
+
+- hyperparameters
+  - \(\gamma=.99\), \(\epsilon_{\rm ema}=10^{-5}\)
+  - 50 forward마다 count가 slot 최대 count의 1% 미만인 entry를 현재 batch vector로 revive
+  - codebook은 trainable parameter가 아니라 EMA buffer
+- 의미
+  - 여섯 slot index tuple \((k_i^0,\ldots,k_i^5)\)이 Cartesian compositional representation
+  - 동일 index \(k\)라도 slot이 다르면 별도 vector와 의미
+  - independent codebook이 independent semantic factor를 보장하지는 않음
+
+### 3.6 Global-conditioned codon composition
+
+- global conditioning
+
+\[
+\widetilde q_{i0}=q^{\rm ST}_{i0},\qquad
+\widetilde q_{im}=q^{\rm ST}_{im}+\sigma(\alpha_m)\operatorname{sg}(q^{\rm ST}_{i0}),\quad m=1,\ldots,5.
+\]
+
+- gate
+  - \(\alpha_m\) 초기값 `4.595`, \(\sigma(\alpha_m)\approx.99\)
+  - local code에 image-global context 주입
+  - local head에 복사해 넣는 global token만 stop-gradient
+  - global codon branch 자체는 \(q^{\rm ST}_{i0}\)를 직접 받아 upstream gradient가 흐름
+- slot별 독립 CodonHead
+  - \(\widetilde q_{im}\in\mathbb R^{768}\)을 세 256-D chunk로 분할
+  - 같은 slot 안의 세 위치는 동일 `Linear(256,4)` 공유
+  - slot 간 head parameter는 공유하지 않음
+
+\[
+\widetilde q_{im}=[\widetilde q_{im}^{(1)};\widetilde q_{im}^{(2)};\widetilde q_{im}^{(3)}],
+\qquad
+u_{imr}=\operatorname{softmax}(W_m\widetilde q_{im}^{(r)}+b_m).
+\]
+
+- training/inference
+  - training forward: soft \(u\), deterministic argmax one-hot \(h\), hard Gumbel-softmax ST sample을 모두 생성
+  - nominal Gumbel temperature schedule \(2.0\rightarrow.3\)
+  - 그러나 champion의 활성 loss는 soft \(u\)와 deterministic \(h\) target을 사용하고, `lambda_hash_hard=lambda_ntxent=0`이므로 Gumbel-ST sample에는 실효 gradient가 없음
+  - inference: \(b_{imr}=\arg\max_c u_{imr,c}\), \(c\in\{A,C,G,T\}\)
+- 전체 DNA code
+  - \(6\) slots \(\times3\) bases = 18 bases = raw 36 bits
+- codon collision
+  - Flickr/MS-COCO/NUS: \(K=128>64\), one-to-one codeword→codon 불가능
+  - CIFAR: \(K=64\), balanced codeword–codon OT를 사용할 수 있는 용량 조건
+  - codon collision rate와 codeword/codon mutual information을 별도 보고
+- text-side auxiliary path의 비대칭
+  - visual과 같은 codebook/CodonHead를 사용하지만 text quantization 동안 quantizer를 eval mode로 두어 EMA를 갱신하지 않음
+  - text codon에는 global residual gate를 적용하지 않음
+  - XM/TDNA 해석에서 image-conditioned local codon과 ungated text codon의 비대칭을 명시
+
+### 3.7 Bio-constrained post-processing
+
+#### 3.7.1 제약 정의
+
+- alphabet: \(\Sigma=\{A,C,G,T\}\)
+- GC count
+
+\[
+g_{\min}=\lceil.4L\rceil,\qquad g_{\max}=\lfloor.6L\rfloor.
+\]
+
+- homopolymer
+  - 동일 base의 최대 연속 길이 \(R_{\max}=3\)
+- 실제 window
+  - \(L=18\): GC count `[8,10]`, 즉 44.4–55.6%
+  - \(L=24\): GC count `[10,14]`, 즉 41.67–58.33%
+- 해석
+  - 40–60%/run≤3은 보편 법칙이 아니라 흔한 platform-dependent design rule
+  - 두 제약만 만족하며 synthesis-ready를 의미하지 않음
+
+#### 3.7.2 Algorithm: minimum-Hamming valid projection
 
 ```text
-e_bar_i^m = (1 / |V_i^m|) * sum(e_(i,m,t) for t in V_i^m)
+Algorithm 1  Bio-constrained projection Πbio(x)
+Input: raw strand x1:L, alphabet Σ, GC interval [gmin,gmax], Rmax=3
+Output: projected strand y1:L and edit count d minimizing dH(x,y)
+
+1: if x already satisfies both constraints: return (x, 0)
+2: define DP state D[i,g,b,r]
+      i = processed length, g = cumulative GC count,
+      b = last base, r = current homopolymer run length
+3: initialize for every b in Σ:
+      D[1, 1GC(b), b, 1] = 1[b ≠ x1]
+4: for i = 1,...,L-1:
+5:   for every reachable (g,b,r) and next base b' in Σ:
+6:      r' = r+1 if b'=b else 1
+7:      if r' > Rmax: continue
+8:      g' = g + 1GC(b')
+9:      relax
+          D[i+1,g',b',r'] = min(
+             D[i+1,g',b',r'],
+             D[i,g,b,r] + 1[b' ≠ xi+1])
+10: choose the minimum terminal state with g in [gmin,gmax]
+11: if no feasible terminal exists: return (x, -1)
+12: otherwise recover y by backpointers and return (y, dH(x,y))
 ```
 
-`C_global`은 전체 caption의 pooled representation `e_bar_i^0`을 유지한다. 이후 여섯 slot별 adapter `g_m`을 적용해 `s_i^m = g_m(e_bar_i^m)`을 얻는다. 하나의 shared adapter 대신 slot-specific adapter를 사용함으로써 전역적으로 유사한 caption representation을 서로 다른 의미 subspace로 분리한다.
+- optimality 설명
+  - state가 prefix의 미래 feasibility에 필요한 정보 `(GC count, last base, run length)`를 모두 보존
+  - optimal substructure에 의해 Bellman recurrence가 최소 base-Hamming edit 보장
+- 복잡도
+  - 시간 \(O(L^2|\Sigma|^2R_{\max})\)
+  - backpointer 포함 메모리 \(O(L^2|\Sigma|R_{\max})\)
+- 평가 적용
+  - query와 database 양쪽의 모든 row에 동일 projection
+  - 동일 code의 projection은 순수함수이므로 unique code마다 정확히 한 번 계산하고 inverse index로 복원하는 exact memoization 사용
+  - equal-cost DP 해는 versioned traversal tie policy(이전 base A→C→G→T, run/GC 오름차순; terminal도 동일 순서)로 결정하며 manifest에 기록
+  - projected base Hamming으로 ranking
+  - baseline에도 완전히 동일한 projection
+- 한계
+  - 18-base 전체에서 편집하여 3-base codon boundary/slot semantics를 보존하지 않음
+  - pre/post mAP, edit count, codon decoding 변화를 함께 보고
 
-### 3.3 Text-guided semantic routing
+### 3.8 Training Objectives
 
-Frozen vision backbone은 patch token `V_i = {v_(i,n)} (n=1,...,P)`과 전역 visual feature를 출력한다. `C_global`은 전체 이미지 정보를 보존하도록 전역 feature에서 직접 구성한다. 나머지 다섯 local slot은 학습 시 텍스트 slot embedding `s_i^m`을 centroid로 사용하는 Sinkhorn OT routing을 통해 visual token을 집계한다.
+#### 3.8.1 실제 gradient가 있는 champion loss
 
-```text
-R_i   = Sinkhorn(sim(V_i, S_i) / epsilon)
-z_i^m = sum(R_(i,n,m) * v_(i,n) for n=1,...,P)
-```
+- notation
+  - \(z\): pre-VQ semantic token
+  - \(q\): selected codeword
+  - \(u\in[0,1]^{18\times4}\): soft base distribution
+  - \(h\): argmax one-hot base code
+  - \(\operatorname{MSE}(A,B)=|A|^{-1}\sum_j(A_j-B_j)^2\): PyTorch default mean reduction
+- VQ commitment
 
-Adaptive top-p는 각 이미지와 슬롯의 routing 분포에 따라 유효 visual evidence의 양을 조절한다. 텍스트는 학습 시 visual evidence를 의미 슬롯에 배치하는 역할을 한다. 추론 시에는 텍스트 대신 학습된 codebook의 mean anchor를 사용하므로, 동일한 image-only forward path에서 여섯 visual slot을 생성할 수 있다.
+\[
+\mathcal L_{\rm VQ}=
+\operatorname{MSE}(q,\operatorname{sg}(z))
++\beta_{\rm VQ}\operatorname{MSE}(z,\operatorname{sg}(q)),
+\qquad\beta_{\rm VQ}=.25.
+\]
 
-### 3.4 독립 codebook과 compositional quantization
+  - EMA buffer이므로 첫 codebook-side 항은 실제 parameter gradient 없음
+  - encoder commitment 항이 실효 학습 신호
+- hard codon commitment
 
-각 슬롯 `m`은 별도의 codebook `E^m = {e_k^m} (k=1,...,K)`을 가진다. Routed visual token은 해당 슬롯 안에서만 nearest codeword로 양자화된다.
+\[
+\mathcal L_{\rm quant}=\operatorname{MSE}(u,\operatorname{sg}(h)).
+\]
 
-```text
-k_i^m = argmin_k d(z_i^m, e_k^m)
-q_i^m = e_(k_i^m)^m
-```
+  - \(h\)는 Gumbel sample이 아니라 soft \(u\)의 deterministic argmax one-hot
 
-따라서 동일한 codeword index라도 slot이 다르면 의미가 다르며, 하나의 이미지는 `(k_i^0, ..., k_i^5)`의 조합으로 표현된다. 이 구조는 단일 flat codebook이 모든 variation을 한 축에 섞는 문제를 줄이고, 부분 코드의 역할을 명시적으로 제한한다.
+- DNA discreteness와 base balance
 
-### 3.5 Codeword-to-codon 변환
+\[
+\mathcal L_{\rm DNA}
+=-\frac1{BL}\sum_{i,\ell,c}u_{i\ell c}\log u_{i\ell c}
++\eta\frac1L\sum_\ell
+\mathrm{KL}\!\left(U_4\middle\Vert\bar u_\ell\right),
+\quad \bar u_\ell=\frac1B\sum_i u_{i\ell},\quad\eta=.3.
+\]
 
-각 slot은 독립적인 codon head `d_m`을 갖는다. 현재 모델은 local codeword에 gated global context를 더한 뒤 codon head에 입력한다.
+- codebook balance/uncorrelation
 
-```text
-q_tilde_i^0 = q_i^0
-q_tilde_i^m = q_i^m + sigmoid(alpha_m) * stopgrad(q_i^0),  m=1,...,5
-```
+\[
+p_{imk}=\operatorname{softmax}_k(-d_{imk}/.1),\qquad
+\bar p_{mk}=B^{-1}\sum_ip_{imk},
+\]
 
-Codon head는 이 context-conditioned slot representation을 세 위치의 네 base 확률로 변환한다.
+\[
+\mathcal L_{\rm bal}=\frac1{MK}\sum_{m,k}(\bar p_{mk}-1/K)^2,
+\quad
+G_m=\frac KBP_m^\top P_m,
+\quad
+\mathcal L_{\rm uncorr}=\frac1{MK^2}\sum_{m,k,j}
+[\operatorname{offdiag}(G_m)_{kj}]^2,
+\]
 
-```text
-p_i^m     = d_m(q_tilde_i^m), where p_i^m has shape [3, 4]
-b_(i,r)^m = argmax over a in {A, C, G, T} of p_(i,r,a)^m
-```
+\[
+\mathcal L_{\rm BU}=\mathcal L_{\rm bal}+.1\mathcal L_{\rm uncorr}.
+\]
 
-Straight-through Gumbel-Softmax를 사용해 hard DNA code를 생성하면서도 end-to-end gradient를 전달한다. 최종 code는 여섯 codon을 고정된 slot 순서로 연결한다. 여기서 생물학적 codon은 설계의 영감이며, 본 모델이 실제 genetic code의 amino-acid mapping을 재현한다고 주장하지 않는다.
+- routed transport cost
 
-### 3.6 학습 목적
+\[
+\mathcal L_{\rm OT}=B^{-1}\sum_i\langle \widetilde P_i,C_i\rangle.
+\]
 
-전체 목적함수는 다음과 같이 요약할 수 있다.
+  - 이름은 `loss_wasserstein`
+  - 전체 UOT objective가 아니라 sparsification 이후 transport term만 사용
+- paired-view per-codebook contrastive loss
+  - 두 augmentation의 같은 image/slot을 positive, 다른 image를 negative로 하는 symmetric InfoNCE
+  - visual pre-VQ routed token 기준
+  - pairwise text-conditioned temperature
 
-```text
-L_total = L_retrieval
-        + lambda_txt * L_text_ground
-        + lambda_ot  * L_OT
-        + lambda_vq  * L_VQ
-        + lambda_dna * L_DNA
-```
+\[
+\tau_{ij}^{m}=.3\left[1+.3\cos(t_i^{m,{\rm raw}},t_j^{m,{\rm raw}})\right].
+\]
 
-- `L_retrieval`: augmentation 간 instance consistency와 per-codebook contrastive learning으로 검색 가능한 이산 표현을 학습한다.
-- `L_text_ground`: visual/text quantized token의 commitment, text-code distribution consistency, 그리고 per-codebook text-hash contrastive loss를 통해 각 codebook을 대응하는 언어 의미에 정렬한다.
-- `L_OT`: visual token과 local semantic slot 사이의 transport cost를 최소화한다.
-- `L_VQ`: routed token과 codeword의 commitment를 유지하고 dead code를 억제한다.
-- `L_DNA`: base entropy, A/C/G/T balance 및 codebook usage를 조절하여 특정 codon으로의 붕괴를 방지한다.
+  - \(t^{m,{\rm raw}}\)는 whitening/adapter 전 512-D feature; local P0에서는 legacy token-mean feature
+  - \(\zeta_r^m\)를 두 view의 normalized pre-VQ token을 이어 붙인 \(2B\)개 vector, \(\pi(r)\)를 같은 image의 반대 view index, \(\iota(r)\)를 원 image index라 두면
 
-이 설계에서 retrieval loss만으로는 코드가 잘 검색되더라도 의미 역할이 없는 flat partition이 될 수 있다. 반대로 text alignment만 강제하면 서로 다른 slot이 공통 class 정보에 수렴할 수 있다. 따라서 검색 가능성, 언어 grounding, codebook utilization을 함께 최적화한다.
+\[
+s_{rj}^m=
+\frac{(\zeta_r^m)^\top\zeta_j^m}
+{\tau_{\iota(r)\iota(j)}^m},\qquad
+\mathcal L_{\rm CIB}=
+-\frac1{6(2B)}\sum_{m=0}^{5}\sum_{r=1}^{2B}
+\log\frac{\exp s_{r,\pi(r)}^m}
+{\sum_{j\ne r}\exp s_{rj}^m}.
+\]
 
-### 3.7 DNA code의 해석
+  - 현재 `source=visual_token`에서는 별도 Bernoulli CIB-KL이 exact zero이고 위 InfoNCE만 실효
+- cross-modal commitment
 
-학습 집합으로부터 먼저 각 `(slot m, codeword k)`에 할당된 이미지와 슬롯 설명을 모아 codeword concept dictionary를 만든다.
+\[
+\mathcal L_{\rm XM}=\frac12\left[
+\operatorname{MSE}(z^v,\operatorname{sg}(q^t))
++\operatorname{MSE}(t,\operatorname{sg}(q^v))
+\right].
+\]
 
-```text
-I_cw(m, k) = TopConcepts({t_i^m | k_i^m = k})
-```
+  - champion은 global 포함
+- confidence-weighted text-code KL
 
-DNA code만으로 해석할 때는 같은 codon으로 변환된 codeword들을 합쳐 `(slot m, codon b)`의 concept 분포 `I_codon(m, b)`를 구성한다. 추론 이미지의 DNA code가 주어지면 사용자는 각 codon을 해당 slot의 dictionary에서 조회하여 “주요 객체”, “활동”, “색상/질감”, “장면” 등의 후보 concept를 확인할 수 있다. 하나의 codon이 항상 하나의 자연어 concept와 일대일 대응한다고 가정하지 않으며, concept 빈도와 신뢰도를 함께 제시한다. 따라서 본 연구의 interpretability는 완전한 symbolic decoding이 아니라 **slot-conditional, prototype-based semantic interpretation**이다.
+\[
+p^v_{imk}\propto\exp(\cos(z^v_{im},e_{mk})/.1),\qquad
+p^t_{imk}\propto\exp(\cos(t_{im},e_{mk})/.07),
+\]
 
-## 4. 실험
+\[
+w_{im}=1-\frac{H(p^t_{im})}{\log K},\qquad
+\mathcal L_{\rm TCKL}=\mathbb E_{m=1:5,w>.2}
+\left[w_{im}\mathrm{KL}(\operatorname{sg}(p^t_{im})\Vert p^v_{im})\right].
+\]
 
-> **작성 상태(2026-07-15).** 아래 수치는 `PROJECT_LOG.md`의 실험 결과를 반영한 초안이다. 일부 실험(A2 no-text, A4 single-codebook, held-out codon decoding, slot intervention, 48-bit 공정 baseline)은 진행 중이며 완료 시 갱신한다. 현재 결과가 이미 확정한 중요한 사실은 다음과 같다. **검색 성능은 텍스트 집계 방식(EOS pooling, token-mean pooling, token pruning)의 선택에서 오지 않는다.** 세 가지 집계 가설이 모두 통제된 ablation에서 반박되었으므로, 본 절은 성능의 원인을 특정 pooling trick이 아니라 **text-supervised compositional codebook 구조**에 둔다.
+- local text–DNA InfoNCE
+  - visual/text soft DNA의 slot별 12-D block
+  - local slots 1–5에 symmetric InfoNCE, temperature `.07`
+  - global slot skip
 
-### 4.1 실험 설정
+\[
+d_{im}^{v}=\operatorname{vec}(u_{im}^{v})\in\mathbb R^{12},\qquad
+d_{im}^{t}=\operatorname{vec}(u_{im}^{t})\in\mathbb R^{12},
+\]
 
-- **Backbone:** 모든 방법이 동일한 frozen CLIP-ViT-B/16을 공유한다. Visual/text feature는 사전 추출하여 재사용하므로 방법 간 입력이 동일하다.
-- **Datasets:** Flickr25k, MS-COCO, NUS-WIDE(10,500 balanced trainset), CIFAR-10. 학습·추론 모두 whole-image(196 patch)로 통일한다.
-- **Code length:** 기본 36-bit(6 slot × 3-base codon). 4.4절에서 48-bit(4-base codon) 변형을 별도로 분석한다.
-- **Query/Database:** 공식 test를 query, 공식 database를 retrieval DB로 사용한다. 모든 데이터셋에서 `test ∩ database = ∅`, `train ∩ test = ∅`임을 확인하였다.
-- **Relevance:** multi-label 데이터셋은 최소 한 개의 label을 공유하면 relevant로 정의한다(deep hashing 표준).
-- **평가지표(main):** deep hashing 관행에 따라 데이터셋별 **mAP@R**(CalcTopMap 규약)을 주 지표로 보고한다. Cutoff는 CIFAR-10 @1000, 나머지 @5000이다. 참고로 full mAP도 함께 보고한다.
-- **Baselines:** CIBHash, CIMON, MLS3RDUH를 동일 backbone·동일 36-bit·동일 evaluation code로 재학습한다.
-- **모델 선택 protocol (leakage-free).** 모든 방법이 **공식 test를 단 한 번만** 사용한다. Epoch 선택은 official test가 아니라 **train에서 분리한 held-out validation split**으로 수행한다: 각 데이터셋의 train을 optimization-train 90% / validation query 10%로 나누고(seed 고정, 단일 label 데이터셋은 class-stratified), 5 epoch마다 **validation query vs optimization-train DB**로 검색 평가하여 **val mAP@R이 최대인 epoch**의 checkpoint를 선택한 뒤, 그 checkpoint로 공식 test를 1회 평가한다. Gradient 갱신·codebook 초기화·text whitening 통계 추정은 모두 optimization-train만 관측한다. Baseline도 동일한 val split·동일한 평가 주기(5 epoch)·동일한 선택 지표(val mAP@R)로 epoch을 선택하여 protocol을 완전히 대칭으로 맞춘다.
-- **선택 편향의 크기(측정값).** 이 protocol로의 이전은 단순한 형식이 아니다. 이전 protocol(official test mAP로 checkpoint 선택)은 **방법마다 다른 크기의 이득**을 준다: GroundedDNA는 test 기반 선택으로 +0.005~+0.025(mAP@R)를 얻는 반면, baseline들은 +0.000~+0.004에 그친다. Baseline은 학습이 plateau에 도달해 val이 test-최적 epoch을 거의 그대로 집어내지만, 우리 모델은 epoch 간 변동이 커 선택 이득을 더 많이 흡수했다. 즉 test 기반 선택으로 두 방법을 비교하면 **우리에게 유리한 비대칭**이 발생하며, 본 논문의 모든 수치는 이를 제거한 값이다.
-- **Whitening 통계.** Text partial-whitening 행렬(μ, Σ의 고유분해)은 optimization-train의 caption에서만 추정한다. 초기 구현은 caption이 존재하는 모든 행에서 추정하여 Flickr25k(test 2,000행)와 CIFAR-10(query 1,000행)의 test caption 통계가 학습에 유입되었다(transductive leak). 영향은 작았으나(변환된 text embedding cos 0.990) protocol 위반이므로 제거하였다.
+\[
+S_{ij}^{m}=\frac{\cos(d_{im}^{v},d_{jm}^{t})}{.07},\qquad
+\mathcal L_{\rm TDNA}=\frac1{10}\sum_{m=1}^{5}
+\left[\operatorname{CE}(S^m,I)+\operatorname{CE}((S^m)^\top,I)\right].
+\]
+- CIFAR 전용 codeword–codon Sinkhorn
 
-### 4.2 검색 성능 비교
+\[
+p_{mk}(c_1c_2c_3)=\prod_{r=1}^{3}p_{mk}^{(r)}(c_r),\qquad
+C_{mk,c}=-\log p_{mk}(c),
+\]
 
-표 1은 4개 데이터셋에서의 mAP@R을 보고한다. GroundedDNA는 4개 중 3개(Flickr25k, NUS-WIDE, CIFAR-10)에서 최고 성능이며, MS-COCO에서는 CIBHash와 근소한 차이의 2위이다.
+\[
+T_m^*=\operatorname{Sinkhorn}(C_m;U_K,U_{64},\epsilon=.1,30\text{ iters}),
+\qquad
+\mathcal L_{\rm CCS}=\frac1M\sum_m\langle T_m^*,C_m\rangle.
+\]
 
-**표 1. mAP@R 검색 성능(36-bit, frozen CLIP-ViT-B/16, whole-image).**
+  - \(K=64\)일 때 soft balanced assignment가 bijection을 장려
+  - 여기서 \(p_{mk}\)는 raw EMA codeword를 gate/residual 없이 \(H_m(e_{mk})\)로 decode하여 구성
+  - 실제 local sample은 \(H_m(q^{\rm ST}_{im}+\sigma(\alpha_m)\operatorname{sg}(q^{\rm ST}_{i0}))\)에서 방출되므로 CCS가 emitted local codon의 bijection을 직접 강제하지는 않음
+  - codebook은 EMA buffer이므로 CCS gradient는 주로 CodonHead parameter로 전달
+  - deterministic argmax codon의 완전한 일대일성을 수학적으로 보장한다고 쓰지 않음
 
-| Dataset (cutoff) | **GroundedDNA** | CIBHash | CIMON | MLS3RDUH |
+#### 3.8.2 Gradient-effective champion objective
+
+- 아래 식은 parameter update에 실효 gradient를 주는 항만 모은 objective
+- 실제 `loss_total` scalar에는 no-gradient anchor와 exact-zero CIB-KL 등도 config weight와 함께 더해짐
+
+\[
+\begin{aligned}
+\mathcal L={}&
+\lambda_{\rm VQ}\mathcal L_{\rm VQ}
++\lambda_{\rm quant}\mathcal L_{\rm quant}
++\lambda_{\rm DNA}\mathcal L_{\rm DNA}
++\lambda_{\rm BU}\mathcal L_{\rm BU}\\
+&+\lambda_{\rm OT}\mathcal L_{\rm OT}
++\lambda_{\rm CIB}\mathcal L_{\rm CIB}
++\lambda_{\rm XM}\mathcal L_{\rm XM}
++\lambda_{\rm TCKL}\mathcal L_{\rm TCKL}\\
+&+\lambda_{\rm TDNA}\mathcal L_{\rm TDNA}
++\lambda_{\rm CCS}\mathcal L_{\rm CCS}.
+\end{aligned}
+\]
+
+#### 3.8.3 양수 config지만 실질적으로 비활성인 항
+
+| 항 | Config | 실제 상태 | 논문 처리 |
+|---|---:|---|---|
+| Anchor alignment | `.05` | EMA codebook mean과 detached text EMA만 사용하여 trainable gradient 없음 | gradient-effective objective에서 제외; implementation audit로 명시 |
+| CIBHash KL | `.001` | `source=visual_token` branch가 exact zero 반환 | gradient-effective objective에서 제외 |
+| Reconstruction | `1.0` | `use_decoder=False` | 비활성 |
+| Codon text anchor | `.1` | `codon_text_anchor=False` | 비활성 |
+| Pairwise hash / hard hash | `0/0` | similarity target은 구성되더라도 loss weight 0 | label-free gradient objective 확인 |
+| Generic DNA NtXent | `0` | 비활성 | per-codebook CIB와 혼동 금지 |
+
+- 그 밖의 weight 0 champion 경로
+  - codebook orthogonality
+  - codeword-codon aggregated entropy/pairwise
+  - text-cluster codon OT, text-codon relation, hierarchical codon
+  - hash reconstruction, dual semantic/instance heads
+  - text-hash MSE, codeword xmodal, routing-text
+  - text-codeword/pre-quant/visual-hash contrastive
+  - codeword-text prototype, global DNA NtXent, text orthogonality
+  - prototype clustering, SwAV assignment
+
+### 3.9 데이터셋별 현재 P0 champion recipe
+
+| Dataset | Selected E* | K | Legacy V/T keep | OT | XM | TDNA | TCKL | CIB | CCS |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Flickr25K | 4 | 128 | `.5/.5` | `.15` | `.05` | `.05` | `.05` | `1.0` | `0` |
+| MS-COCO | 49 | 128 | `1/1` | `.05` | `.10` | `.10` | `.10` | `1.5` | `0` |
+| NUS-WIDE | 4 | 128 | `.5/.5` | `.15` | `.05` | `.05` | `.05` | `1.5` | `0` |
+| CIFAR-10 | 14 | 64 | `.5/.5` | `.15` | `.05` | `.05` | `.05` | `1.0` | `.10` |
+
+- 공통
+  - E*는 0-indexed epoch tag; 예: `E*=4`는 epoch 0–4의 5회 학습
+  - batch 64, Adam, trainable-module LR `.001`
+  - frozen backbone; args의 weight decay `.06`은 trainable group에 실질 적용되지 않아 effective weight decay 0
+  - \(\lambda_{\rm VQ}=.25\), \(\lambda_{\rm quant}=.05\), \(\lambda_{\rm DNA}=.05\), \(\lambda_{\rm BU}=.02\)
+  - UOT \(\lambda_a=\lambda_b=1\), 20 iterations, adaptive top-p `.3–.7`
+  - EMA `.99`, revival threshold `.01`, every 50
+  - partial whitening \(\gamma=.25\)
+  - nominal 60-epoch cosine schedules
+- schedule 주의
+
+\[
+\varepsilon(e)=.1+.9\frac{1+\cos(\pi e/59)}2,qquad
+\tau_g(e)=.3+1.7\frac{1+\cos(\pi e/59)}2.
+\]
+
+  - P0 refit은 60-epoch schedule을 유지한 채 E*에서 종료
+  - E*=4/14/49 model이 반드시 최종 `.1/.3`에 도달했다고 쓰지 않음
+- optimal 표현
+  - “완료된 실험 셀 중 dataset-specific champion”
+  - K/L 전체 grid 완료 전 “optimal configuration” 금지
+
+## 4. Experiments
+
+### 4.1 Research Questions
+
+- RQ1: 동일 bio-valid 18-base space에서 GroundedDNA가 binary hashing baseline보다 높은 retrieval accuracy를 보이는가?
+- RQ2: text/UOT/multi-codebook 중 무엇이 성능과 codon semantics에 기여하는가?
+- RQ3: DP projection이 feasibility를 얻는 대가로 retrieval·uniqueness·semantic decoding을 얼마나 바꾸는가?
+- RQ4: 각 slot/codon은 held-out data에서 어떤 의미 구조를 보존하는가?
+- RQ5: train-time text anchor와 inference codebook anchor의 gap은 얼마나 큰가?
+- RQ6: code length, K, codebook 수, latency/memory 사이 trade-off는 무엇인가?
+
+### 4.2 Dataset과 관행적 protocol
+
+| Dataset | 사용 subset | Train | Query | Retrieval DB | Relevance | Metric |
+|---|---:|---:|---:|---:|---|---|
+| Flickr25K | 25,000 / 24 concepts | 5,000 | 2,000 | 23,000 | ≥1 shared label | mAP@5,000 |
+| MS-COCO | 122,218 / 80 classes | 10,000 | 5,000 | 107,218 | ≥1 shared label | mAP@5,000 |
+| NUS-WIDE | 195,834 / 21 frequent concepts | 10,500 | 2,100 | 193,734 | ≥1 shared label | mAP@5,000 |
+| CIFAR-10 | 60,000 / 10 classes | 5,000 | 1,000 | 59,000 | same class | mAP@1,000 |
+
+- 현재 설정의 문헌 계보
+  - CIFAR/NUS/COCO: [CIBHash protocol](https://www.ijcai.org/proceedings/2021/0133.pdf) 계열
+  - Flickr 5K train: [SPQ, ICCV 2021](https://openaccess.thecvf.com/content/ICCV2021/papers/Jang_Self-Supervised_Product_Quantization_for_Deep_Unsupervised_Image_Retrieval_ICCV_2021_paper.pdf) 계열
+- repository split의 정확한 포함 관계
+  - Flickr/NUS/CIFAR: train set이 retrieval DB의 subset인 관행적 형태
+  - MS-COCO: train 10K와 DB 107,218이 disjoint
+  - CIBHash 원 protocol의 “query 5K, remaining 117,218 DB, 그중 train 10K sample”과 다를 수 있으므로 CIBHash와 완전히 동일한 split이라고 쓰지 않음
+  - split file 자체와 path-level overlap count를 supplementary에 공개
+- protocol이 하나가 아니라는 점 명시
+  - CIMON 원 논문 Flickr: train 10K
+  - CIMON 원 논문 CIFAR: mAP@50K
+  - CSQ/DHD NUS subset 및 split count가 서로 다름
+  - published number를 다른 protocol끼리 한 표에 직접 혼합하지 않음
+- main table의 baseline 의미
+  - 논문 원문 수치가 아니라 repository에서 동일 split/artifact와 동일 post-processing으로 재평가한 결과
+  - split manifest, seed, file hash를 supplementary에 공개
+
+### 4.3 Validation-based P0 selection/refit 및 test-use audit
+
+- Stage 1
+  - designated train의 90% optimization / 10% validation query
+  - single-label: stratified split
+  - multi-label actual code: seed 42 random shuffle
+  - 문서의 iterative stratification 권고와 실제 구현 불일치; 수정 또는 명시 필요
+  - validation query는 optimization-train database에 검색
+  - 5 epoch마다 validation mAP로 E* 선택
+  - Flickr validation DB 4,500 < R=5,000이어서 사실상 full-DB validation mAP
+- Stage 2 P0 refit
+  - GroundedDNA: 전체 designated train에서 scratch refit, stage-1과 동일한 nominal 60-epoch schedule을 두고 E*에서 `stop_after_epoch`
+  - GroundedDNA whitening 통계는 full train에만 재적합
+  - 최신 baseline runner: full designated train에서 scratch refit하되 `max_epoch=E*+1`과 nominal `schedule_horizon=H`를 분리; DUH-EG/CroVCA cosine schedule을 짧은 refit 길이로 압축하지 않음
+  - legacy CIBHash/CIMON/MLS3RDUH historical artifact: 90%-train validation checkpoint로 E*를 고른 뒤 별도 100%-train run의 epoch-E* checkpoint를 사용; strict one-shot clean refit과 구분
+- Test-use audit
+  - 모든 method의 보고 E* 선택은 held-out validation에만 의존하여 test-independent
+  - GroundedDNA final refit은 E*에서 멈추고 final test를 한 번 평가
+  - 최신 baseline runner도 test/database를 stage 1에서 생성하지 않고 test와 무관하게 하나의 final checkpoint를 고정; raw와 post-projection metric은 같은 checkpoint에서 계산하므로 extraction이 test를 다시 읽더라도 test-dependent choice는 없음
+  - historical baseline artifact에는 여러 epoch의 test JSON/curve가 존재하므로 모든 method의 literal “test touched once”를 주장하지 않음
+  - strict one-shot protocol 주장을 위해서는 baseline clean rerun 필요
+- 현재 반복
+  - validation carve seed `42`
+  - method당 single training run: GroundedDNA seed `42`, baseline 기본 training seed `1`
+  - 최종본: 3 seeds mean±std + query bootstrap 95% CI 필요
+
+### 4.4 Baselines와 공정한 DNA 변환
+
+- 현재 main baselines
+  - CIBHash
+  - CIMON
+  - MLS3RDUH
+- 추가 구현·실행 queue
+  - direct native DNA: DNA24-18, PRIMO-18, Koike-TN-DNA, Koike-BC-TN-DNA의 sealed 3-seed diagnostic 48/48 완료; strict provenance 재실행 대기
+  - `U0` visual-only: UGH/GreedyHash(`official unsupervised core`), Bi-half(`official image-release core`), SDC(`release_no_cl`, `release_simclr`, `paper_cache2v`), OH(`OH-cache2v` matched adapter), HHCH(`paper_cache3v`), CroVCA(`matched-cache probing`)
+  - `U0` 실행 `B` / Related Works 인용: DDCH(공식 code 미확인), CGHash(외부 checkpoint·dataset path 불완전), CTMIH(raw masked-ViT/patch 복원 core와 공식 code 부재), FSCH(trainer/loss/optimizer 누락)
+  - `U0` 대표 공간 경계 `C`: HiHPQ는 asymmetric product-quantization distance이므로 binary/Hamming main table에서 제외
+  - external-semantic: DUH-EG objective adapter는 현재 `U?` (`I/E`), 저자 ordered bank provenance 확보 시에만 `U1`; OMUH는 detector pseudo-label·공개 protocol defect로 `B`; TGUH는 caption pipeline·36-bit 파라미터·test-selection 문제 감사 후
+  - `U2` target-taxonomy-guided: UMRCH; UHSCM은 공개 train code repair 전에는 cite-only
+  - CUB/fine-grained 별도 track: A²-SSL, FAPI, CS3H
+  - supervised upper-bound 별도 표: FTH, MambaHash, DSCH-2026, DGrH
+- baseline conversion
+  - 36-bit sign code \([N,36]\)을 \([N,18,2]\)로 reshape
+  - `00→A`, `01→C`, `10→G`, `11→T`
+  - query/database 양쪽 DP projection
+  - projected base-Hamming으로 재평가
+- 공정성 범위
+  - 동일 raw capacity 36 bits ↔ 18 bases
+  - 동일 frozen CLIP backbone, split, relevance, cutoff, bio constraints, distance
+  - 단, method-defining 정보는 허용: global-only(GreedyHash/Bi-half/SDC/OH/DUH-EG/HHCH/CroVCA), global+local(UMRCH), fixed cached two-view/three-view, external noun/taxonomy bank 여부를 information-condition 열에 명시
+  - `stage 1`: test split을 로드하지 않고 val-query vs opt-train DB의 **raw 2-bit→18-base base-Hamming mAP@R**로 (E^*) 선택
+  - E* candidate grid: GroundedDNA/legacy P0와 동일한 5-epoch cadence, 즉 0-indexed epoch `4,9,...`; 방법별 candidate 수를 임의로 늘리지 않음
+  - `stage 2`: full designated train에서 scratch refit 후 test와 무관하게 final checkpoint 1개 고정; binary-Hamming val 선택과 혼용 금지; nominal schedule horizon은 stage 1과 동일하게 유지
+  - 공통 cache의 fixed augmentation은 각 논문의 online augmentation을 그대로 재현하지 않으므로 결과를 published-table reproduction이 아닌 matched-cache adapter로 명시
+  - 현재 repository의 default legacy cache metadata에는 exact transform/augmentation seed/immutable HF revision·weight provenance 중 일부가 없으므로 modern binary runner는 기본적으로 학습 전 중단하고 `--allow-main-ineligible-smoke`를 명시한 smoke만 허용
+  - native-DNA driver는 `--allow-main-ineligible-diagnostic`을 명시한 full sealed 실행을 허용하되 main 승격은 금지; 현재 extractor로 cache를 재생성한 뒤 consumed NPY SHA까지 protocol/checkpoint에 고정해야 strict main row 가능
+  - 특히 UMRCH release는 CLIP ViT-B/32의 49 patch를 사용하지만 공통 cache adapter는 CLIP ViT-B/16의 196 patch를 사용
+- 한계
+  - binary hashing baseline은 DNA head를 재학습한 비교가 아니라 Level-1 transcoding
+  - DNA24/PRIMO/Koike는 learned 4-way native-DNA head를 사용하므로 위 transcoding 한계에 해당하지 않지만, matched-cache adaptation이며 strict provenance 결과는 아직 `-`
+  - Pradhan 계열의 표준 benchmark 재구현 비교는 아직 `-`
+  - GreedyHash·Bi-half·SDC·OH·HHCH·CroVCA·DUH-EG·UMRCH runner는 구현했으나 full P0 3-seed 결과는 아직 `-`
+  - DUH-EG는 공개 자료가 representative/center noun 선택에서 서로 모순되고 ordered selected-noun artifact가 없어 **exact paper baseline은 blocked**; 현재 코드는 manifest·명시적 opt-in이 필요한 released-objective adapter만 제공
+  - UMRCH는 target taxonomy를 쓰므로 main U0 표와 분리
+  - FSCH는 구현한 것으로 표기하지 않으며, 저자의 누락 artifact를 받기 전까지 `-`
+  - ConceptHash/LPAH/HTH의 동일 protocol 재학습 비교도 아직 `-`
+
+#### 4.4.0 최신 hashing baseline 구현 변형과 재현 경계
+
+| Runner | 학습 정보 | 구현·보고 단위 | 현재 상태 |
+|---|---|---|---|
+| UGH(GreedyHash)-cache | `U0`, canonical global | hard-sign forward/identity-backward STE, half-pair cosine MSE, cubic quantization; official SGD recipe | clean-room runner·release-parity test; frozen VGG16-fc7/train-mode dropout→deterministic common cache·36-bit adaptation, full run `-` |
+| Bi-half-cache | `U0`, canonical global | per-bit half-rank assignment, released proxy `g+6(U-B)/(NK)`, half-pair cosine MSE, inference sign | clean-room runner·release-parity test; paper coefficient 3 vs release 6 차이 명시, NUS trainer 미공개, full run `-` |
+| SDC-release-noCL | `U0`, canonical global | 공개 기본 D→D→36+BN, SDC+cosine quantization, Adam (10^{-4}), WD (10^{-5}) | runner·unit test 구현; full run `-` |
+| SDC-release-SimCLR | `U0`, fixed two-view global | 공개 실행 config D→D→36+BN, 양 view에 4-block SDC+quantization, ReLU-clipped target, NT-Xent, WD (10^{-5}) | runner·pair-layout golden test; full run `-` |
+| SDC-paper-cache2v | `U0`, fixed two-view global | paper Algorithm 1의 4096-hidden, 첫 view에만 SDC+quantization, 두 view NT-Xent, unclipped [-1,1] target, WD (5×10^{-4}) | runner·unit test 구현; release config과 혼합하지 않음; full run `-` |
+| OH-cache2v | `U0`, fixed two-view global | 2048 shared trunk, sigmoid hard-`0/1` STE와 1024-D continuous head, EMA key encoder, P/B/C FIFO queue, old→updated queue 순서의 두 CE loss | 공개 TensorFlow core의 clean-room runner·queue/checkpoint/signed-code golden test; online ResNet-50 원 table 재현 아님; full run `-` |
+| HHCH-paper-cache3v | `U0`, canonical+fixed two-view global | paper HIC/HPC, Poincaré hierarchy, K-means++/Einstein midpoint, log-cosh quantization; paper에 없는 LR schedule은 official release의 epoch-30 piecewise decay로 고정 | clean-room runner·math/schedule-boundary test; full run `-` |
+| CroVCA-cache2v-probe | `U0`, fixed two-view global | small HashCoder, symmetric stop-gradient BCE, Algorithm-1 coding-rate loss; frozen probing adaptation | runner·independent equation/gradient test; LoRA official reproduction 아님; full run `-` |
+| DUH-EG-cache2v | 현재 `U?`, source/selection-unverified external terms; taxonomy semantic match는 `U2` | released three-way multi-positive objective; prompt·ordered noun·cache/output SHA manifest 검증 | objective adapter 구현·legacy-cache smoke 통과; 저자 ordered bank provenance 전 main/exact row **blocked**, full result `-` |
+| UMRCH-cache2v-local | `U2`, target class names+CLIP | released distribution/contrastive objective; cached pre-LN patch에 exact CLIP LN/projection 적용 | official ordered taxonomy SHA·asset verification·real-cache smoke 통과; ViT-B/16 adaptation, full result `-` |
+| FSCH | `U0` 주장 | 공개 repo만으로 loss/training 재구성 불가 | **blocked**, `-` |
+
+- 구현 provenance
+  - GreedyHash·Bi-half·SDC·OH·HHCH·FSCH·CroVCA·DUH-EG·UMRCH 공개 repo에서 명시적 software license를 확인하지 못했으므로 source copy 대신 논문 수식 기반 clean-room 재구현
+  - 공개 repo는 equation/config audit에만 사용; paper/release discrepancy를 variant 이름·checkpoint config에 저장
+  - 공식 논문의 16/32/64-bit 숫자는 가져오지 않고 36-bit matched run만 main comparison에 기입
+  - external CLIP asset는 immutable Hugging Face commit, model/tokenizer SHA, ordered term SHA, cache-meta SHA까지 manifest로 검증
+
+#### 4.4.1 직접 선행 native-DNA baseline의 구현 및 보고 단위
+
+- 결과를 두 층으로 분리
+  - `original reproduction`: 원 feature, 30/80 nt, 원 query와 NUPACK/DDH 또는 wet-lab 지표
+  - `matched adaptation`: 동일 cached CLIP feature, 동일 split, 18 bases, per-image query, 공통 DP, base-Hamming mAP@R
+  - 원 논문의 classification accuracy·molecular recall을 matched mAP 표에 복사하지 않음
+- `DNA24-18-matched`
+  - train feature에만 PCA-10 fitting
+  - original Caltech/PCA space의 Euclidean threshold `.2`는 original reproduction에만 사용; matched CLIP cache에서는 optimization-train pair-distance quantile로 threshold를 calibration하고 값을 기록
+  - shared $1\to128$ sine, $128\to128$ ReLU pointwise layers와 $18\times4$ softmax output
+  - $d_{ij}=L^{-1}\sum_t[1-\cos(p_{it},p_{jt})]$
+  - $\widehat Y_{ij}=[1+\exp\{12.1(d_{ij}-.5)\}]^{-1}$, feature-distance pair label과 BCE
+  - `12.1/.5`는 30-mer calibration이므로 18-mer에서 그대로 쓴 행에는 `analytic-transfer` 표기
+- `PRIMO-18`
+  - $D\to D/2\to18\times4$, position softmax, entropy coefficient $10^{-2}$
+  - source-equivalent entropy: regularizer 자체가 batch mean을 반환한 뒤 Keras `activity_regularizer`가 각 encoder call을 다시 $B$로 나누므로; pair의 두 call을 합하여 $10^{-2}(H_1+H_2)/B$
+  - original VGG-FC2 space의 Euclidean threshold `75`는 original reproduction에만 고정; source sampler는 유사/비유사 candidate pool을 균형 있게 구성한 뒤 합쳐 shuffle하고 batch 크기로 truncate하므로 실제 minibatch를 강제로 50:50으로 만들지 않음
+  - matched CLIP cache threshold는 optimization-train에서만 calibration
+  - local 3-mer interaction $4\times3\times3=36$ channels → avg-pool → Conv1D-36 → global pool → yield logit
+  - 공식 `pub` commit의 NUPACK-trained Keras predictor를 PyTorch layout으로 exact 변환·검증했으며, artifact가 없거나 SHA가 다르면 실행을 중단; random predictor나 DNA24 sigmoid를 PRIMO로 부르지 않음
+  - official 80-mer predictor를 freeze한 18-mer 사용은 `frozen-predictor-length-transfer`; 매 encoder epoch의 NUPACK label 생성·10-epoch predictor refit까지 수행한 경우만 full PRIMO reproduction, 새 18-mer thermo yield로 refit한 경우만 `PRIMO-18-calibrated`
+- `Koike-TN-DNA`
+  - DATE/DAC는 동일 core이므로 한 행
+  - $z_{itb}=p_{itb}\mathbf1[b=\arg\max_c p_{itc}]$
+  - $d(i,j)=(2L)^{-1}\sum_t\|z_{it}-z_{jt}\|_1$
+  - semi-hard triplet margin `.8` + source-equivalent entropy $.01H/B$; Keras Adagrad LR `.01`, initial accumulator `.1`, epsilon $10^{-7}$
+- `Koike-BC-TN-DNA`
+  - 위 목적 + $\mathcal L_{prob}=-\operatorname{mean}\log(\max p-\min p+\epsilon)$
+  - expected GC를 `.5`로 당기는 $\mathcal L_{GC}=\operatorname{mean}(g_i-.5)^2$
+  - adjacent soft-cosine window 기반 $\mathcal L_{HP}$와 원 저자 HP heuristic
+  - heuristic은 minimum edit와 GC validity를 보장하지 않으므로 이후 공통 exact DP 적용
+  - `neural raw`(argmax) → `paper HP post-process` → `common exact DP`의 세 단계 성능·validity를 분리; soft probability와 argmax가 일치하는 neural-raw code도 artifact에 별도 저장
+- supervision 경계
+  - GroundedDNA는 **`VLM-T`**: target-dataset ground-truth label·taxonomy는 representation objective에 넣지 않지만 VLM-generated caption과 frozen text encoder를 supervision으로 사용하므로 visual-only `U0`로 부르지 않음
+  - DNA24/PRIMO는 **`U0-FD` unsupervised; target-label-free encoder objective**: target-dataset ground-truth label·taxonomy·caption을 목적함수에 넣지 않고 frozen optimization-train feature distance에서 pair target을 구성
+  - PRIMO의 frozen hybridization-yield predictor는 non-semantic external artifact이므로 정보 조건에는 명시하지만 `S`로 재분류하지 않음
+  - Koike DATE/DAC/TCBB는 ground-truth training label을 사용하는 **`S` supervised direct-prior baseline**
+  - `VLM-T`/`U0`/`U0-FD`도 held-out label을 validation retrieval 평가와 \(E^*\) 선택에만 사용하므로, 이 tag는 encoder objective의 정보 조건이지 전체 protocol의 label-blind성을 뜻하지 않음
+  - multi-label에서는 $y_i^\top y_j>0$을 positive, `=0`을 negative로 정의한 명시적 adaptation
+  - 결과표의 `†`는 supervision이 아니라 strict-main 승격이 금지된 diagnostic-only cell만 뜻함
+- P0 실행
+  - stage 1: `val_split.carve_val_indices(...,.1,42)`, **neural-raw 18-base Hamming** val mAP@R로 E* 선택, test 미로딩; projected-E* 선택은 별도 protocol ablation으로만 허용
+  - stage 2: 전체 designated train에서 E*+1 epochs refit 후 test와 무관하게 checkpoint 1개를 고정; raw·post-projection terminal metric은 같은 checkpoint에서 계산하며 test-dependent 선택은 없음
+  - artifact: `extract_{query,db}_neural_raw.npz`, standard pre-DP deployment `extract_{query,db}.npz`, projected files; train file은 `neural_raw_base_indices`를 함께 저장
+  - metric key도 `neural_raw`, `paper_hp_postprocessed`(TCBB), `projected`로 분리; DP edit/compliance/unique ratio의 기준 stage를 필드명에 표시
+- 구현 검증
+  - hard one-hot에서 Koike soft distance = normalized base-Hamming 확인
+  - `A,T,C,G→A,C,G,T` remap과 2-bit serialization 확인
+  - query/DB 양쪽 exact DP 후 18-base GC count `[8,10]`·run≤3 확인
+  - 실제 Flickr25K cache로 TCBB variant의 1-step P0 stage-1 smoke test 완료
+
+### 4.5 Main Results — bio projection 이후
+
+#### Panel A — shared-cache main comparison
+
+| Method | Training information | Flickr25K mAP@5K | MS-COCO mAP@5K | NUS-WIDE mAP@5K | CIFAR-10 mAP@1K |
+|---|---|---:|---:|---:|---:|
+| MLS3RDUH → 18-base + bio projection | `U0` | - | - | - | - |
+| CIMON → 18-base + bio projection | `U0` | - | - | - | - |
+| CIBHash → 18-base + bio projection | `U0` | - | - | - | - |
+| UGH(GreedyHash)-cache | `U0`, frozen-feature matched adapter | - | - | - | - |
+| Bi-half-cache | `U0`, frozen-feature matched adapter; NUS source trainer 미공개 | - | - | - | - |
+| SDC-release-noCL | `U0` | - | - | - | - |
+| SDC-release-SimCLR | `U0` | - | - | - | - |
+| SDC-paper-cache2v | `U0` | - | - | - | - |
+| OH-cache2v | `U0`, frozen matched-cache adaptation | - | - | - | - |
+| HHCH-paper-cache3v | `U0` | - | - | - | - |
+| CroVCA-cache2v-probe | `U0`, frozen matched-cache adaptation | - | - | - | - |
+| FSCH | `U0` claim; exact implementation blocked | - | - | - | - |
+| **GroundedDNA, current single run** | **`VLM-T`**, VLM instance-caption supervision; target-label-free objective | **.8723** | **.8063** | **.8274** | **.9009** |
+| GroundedDNA, clean P0 3-seed mean±std | **`VLM-T`**, VLM instance-caption supervision; target-label-free objective | - | - | - | - |
+
+- CIBHash/CIMON/MLS3RDUH의 strict row는 현재 `-`
+  - 기존 post-bio artifact는 **binary-Hamming validation E***에서 추출됨
+  - 새 공통 규약은 raw 18-base validation mAP@R로 E*를 선택하므로 selector 재실행→해당 full checkpoint 추출→bio projection 재계산 전 main cell로 사용 금지
+
+#### Panel B — external/text-assisted label-free comparison
+
+| Method | Training information | Flickr25K | MS-COCO | NUS-WIDE | CIFAR-10 |
+|---|---|---:|---:|---:|---:|
+| DUH-EG-cache2v objective adapter | 현재 `U?`, user-supplied source/selection-unverified bank; taxonomy match는 `U2`; 저자 ordered bank provenance 전 exact row blocked | - | - | - | - |
+| UMRCH-cache2v-local | `U2`, exact benchmark taxonomy; ViT-B/16 matched adapter | - | - | - | n/a |
+| OMUH | `U1`, external detector pseudo-label; exact runner blocked | - | - | - | - |
+| TGUH | instance-generated text; exact runner blocked | - | - | - | - |
+| ConceptHash / LPAH / HTH | class/text-guided; planned | - | - | - | - |
+
+#### Panel C-strict — supervision-separated direct native-DNA predecessors
+
+| Method | Supervision/reproduction boundary | Flickr25K | MS-COCO | NUS-WIDE | CIFAR-10 |
+|---|---|---:|---:|---:|---:|
+| DNA24-18-matched, analytic-transfer | `U0-FD`, unsupervised; target-label-free encoder objective with feature-distance pseudo-pairs | - | - | - | - |
+| PRIMO-18-frozen-predictor-length-transfer | `U0-FD`, unsupervised; target-label-free encoder objective with feature-distance pairs; external 80-mer predictor | - | - | - | - |
+| Koike-TN-DNA (DATE/DAC 2024) | `S`, supervised 18-base adaptation | - | - | - | - |
+| Koike-BC-TN-DNA (TCBB 2026) | `S`, supervised bio-aware 18-base adaptation | - | - | - | - |
+
+- strict cell이 `-`인 이유
+  - 48/48 sealed run과 test-access/SHA/common-DP 검증은 완료
+  - 그러나 사용한 legacy CLIP cache에 immutable transform/model-weight provenance가 완전하지 않아 strict-main eligible은 0/48
+
+#### Panel C-diagnostic 1 — unsupervised (`U0-FD`; target-label-free encoder objective) feature-distance-pair direct predecessors
+
+| Method | Information condition | Flickr25K | MS-COCO | NUS-WIDE | CIFAR-10 |
+|---|---|---:|---:|---:|---:|
+| DNA24-18 analytic-transfer | `U0-FD`, target-label-free encoder objective; train-feature distance pairs | 0.7808 ± 0.0071† | 0.6330 ± 0.0127† | 0.7427 ± 0.0055† | 0.7786 ± 0.0101† |
+| PRIMO-18 frozen-predictor length-transfer | `U0-FD`, target-label-free encoder objective; train-feature distance pairs + frozen external predictor | 0.7882 ± 0.0209† | 0.6251 ± 0.0129† | 0.7320 ± 0.0109† | 0.7344 ± 0.0123† |
+
+#### Panel C-diagnostic 2 — supervised (`S`) direct-prior baselines
+
+| Method | Information condition | Flickr25K | MS-COCO | NUS-WIDE | CIFAR-10 |
+|---|---|---:|---:|---:|---:|
+| Koike-TN-DNA (DATE/DAC 2024) | `S`, ground-truth train labels | 0.8353 ± 0.0047† | 0.5795 ± 0.0151† | 0.7453 ± 0.0419† | 0.8850 ± 0.0090† |
+| Koike-BC-TN-DNA (TCBB 2026) | `S`, labels + bio-aware losses/HP heuristic | 0.8916 ± 0.0037† | 0.6189 ± 0.0045† | 0.8156 ± 0.0009† | 0.9304 ± 0.0054† |
+
+- 보고 규칙
+  - 값은 공통 DP 이후 mAP@R의 seeds `{42,43,44}` 평균 ± 표본표준편차
+  - `†`는 **diagnostic-only**를 뜻하며 supervision 표지가 아님
+  - raw mAP, DB unique, seed별 E*, checkpoint/evaluation SHA는 [`native_dna_p0_aggregate.md`](./native_dna_p0_aggregate.md)와 [`native_dna_p0_aggregate.json`](./native_dna_p0_aggregate.json)에 보존
+  - PRIMO 12개 셀은 legacy-cache blocker 외에 `primo_frozen_predictor_length_transfer` blocker를 추가로 가짐
+
+#### Historical diagnostic — main table에 사용 금지
+
+| Method, legacy binary-space E* | Flickr25K | MS-COCO | NUS-WIDE | CIFAR-10 |
 |---|---:|---:|---:|---:|
-| Flickr25k (@5000) | **0.8740** | 0.8233 | 0.8308 | 0.7811 |
-| MS-COCO (@5000) | 0.8102 | **0.8161** | 0.6716 | 0.6423 |
-| NUS-WIDE (@5000) | **0.8322** | 0.8164 | 0.7874 | 0.7746 |
-| CIFAR-10 (@1000) | **0.9085** | 0.9010 | 0.8408 | 0.5793 |
+| MLS3RDUH → post-bio | .7666 | .6289 | .7647 | .5788 |
+| CIMON → post-bio | .8168 | .6583 | .7774 | .8221 |
+| CIBHash → post-bio | .7914 | .7764 | .7901 | .8933 |
 
-**해석.** Flickr25k(+0.043), NUS-WIDE(+0.016), CIFAR-10(+0.008)에서 GroundedDNA가 최고 baseline을 앞선다. MS-COCO에서는 CIBHash가 +0.0013로 근소 우세인데, 이는 CIBHash의 flat sign hash가 거의 모든 이미지에 고유 코드를 부여하여 top-R 구간의 sharp precision에서 유리하기 때문이다. 그러나 full mAP(전체 순위)에서는 GroundedDNA가 MS-COCO에서도 앞선다(0.618 vs 0.585). 즉 truncated metric은 flat hash의 top-rank 첨예도를, full metric은 compositional code의 deep-rank 안정성을 각각 반영한다. 어느 경우든 GroundedDNA는 flat baseline과 경쟁적이며, 검색 성능이 해석 가능성을 위해 희생되지 않았음을 보인다.
+- 본문 해석 예정
+  - `-`는 미완료이거나 strict admission을 통과하지 못한 cell이며 원 논문 수치를 protocol 혼합해 채우지 않음
+  - native-DNA는 raw-base-E* 3-seed diagnostic을 완료했지만 cache provenance가 strict하지 않고, modern hashing/GroundedDNA strict 3-seed는 미완료이므로 상대 margin 및 “best” 표현을 계산하지 않음
+  - “published SOTA”가 아니라 “same-pipeline controlled comparison”으로 명시
+  - native-DNA sealed 3-seed diagnostic은 완료되었지만 strict provenance 결과와 최신 hashing strict 실행이 없으므로 범용 SOTA 결론 보류
+  - GroundedDNA current 값은 single run이고 native 행은 diagnostic-only mean±std이므로 통계적 상대 margin을 계산하지 않음
+  - Koike는 ground-truth train label을 사용하는 supervised direct-prior이므로 feature-distance-pair/label-free 계열과 순위를 합치지 않음
 
-### 4.3 Ablation: 성능의 원인은 텍스트 집계 방식이 아니다
+### 4.6 Bio projection 효과
 
-각 semantic slot의 caption을 하나의 벡터로 요약하는 방식(EOS pooling vs 모든 유효 token의 평균)을 통제된 단일 변경으로 비교하였다(A1). 표 2는 두 방식이 검색·해석 지표 모두에서 사실상 동일하며, 오히려 표준 EOS pooling이 근소하게 우세함을 보인다.
+- 아래 수치는 legacy `docs/bio_projection_18base.json`/`24base.json`에서 온 historical diagnostic이며 새 schema·tie-policy·checkpoint/protocol provenance가 없어 **현재 main claim에 인용 금지**; immutable protocol manifest로 재생성 후 교체
 
-**표 2. 텍스트 집계 ablation(A1). A0 = token-mean pooling, A1 = EOS pooling. 동일 recipe, whole-image.**
+| Dataset | Pre mAP | Post mAP | Δ | Mean DB edits | DB DNA unique pre→post | Valid post |
+|---|---:|---:|---:|---:|---:|---:|
+| Flickr25K | .8810 | .8723 | -.0088 | .930 | .4014→.3729 | 100% |
+| MS-COCO | .8134 | .8063 | -.0071 | .744 | .1865→.1749 | 100% |
+| NUS-WIDE | .8334 | .8274 | -.0060 | 1.037 | .1769→.1565 | 100% |
+| CIFAR-10 | .9046 | .9009 | -.0037 | 1.411 | .1137→.1077 | 100% |
 
-| Dataset | 지표 | A0 (mean-pool) | A1 (EOS) | Δ(A1−A0) |
-|---|---|---:|---:|---:|
-| Flickr25k | mAP@5000 | 0.8740 | **0.8773** | +0.0033 |
-| | NMI | 0.567 | 0.569 | +0.003 |
-| | B1 lift | 0.140 | 0.143 | +0.003 |
-| MS-COCO | mAP@5000 | 0.8102 | **0.8131** | +0.0029 |
-| | NMI | 0.670 | 0.678 | +0.008 |
+- 작성 포인트
+  - feasibility를 100% 얻으면서 mAP 감소는 `.0037–.0088`
+  - unique ratio는 전 데이터셋에서 감소; projection이 항상 diversity를 개선한다고 주장하지 않음
+  - 기존 binary-space E* artifact를 쓴 historical diagnostic에서는 ours의 평균 mAP projection loss가 baseline들과 가장 작거나 사실상 동률; 새 raw-base-E* 재생성 전 main claim으로 사용하지 않음
+  - 같은 historical diagnostic의 DNA-unique 감소 평균: ours `-.017`, CIBHash `-.028`, CIMON `-.031`, MLS3RDUH `-.025`
+  - 절대 post-projection DNA-unique는 CIBHash가 훨씬 높음
+    - Flickr `.9516` vs ours `.3729`
+    - MS-COCO `.6900` vs ours `.1749`
+    - NUS-WIDE `.7755` vs ours `.1565`
+    - CIFAR-10 `.4762` vs ours `.1077`
+  - 따라서 “projection robustness”와 “absolute code diversity/compression”를 별도 축으로 정직하게 보고
+  - projection은 `base_indices`만 바꾸고 `codebook_indices`는 바꾸지 않음
+  - mAP/DNA-unique/codon-decoding/intervention은 post-projection 재계산
+  - NMI/B-lift/codebook-drop/codeword-decoding은 구조적으로 불변임을 명시
+  - GC-only, homopolymer-only, joint projection의 순서/개별 영향 추가 필요
+  - nearest-valid 해가 여러 개인 경우가 있으므로 versioned deterministic tie policy를 본문에 명시하고, alternative optimal tie rule에 대한 retrieval/collision sensitivity를 보고
+  - base-Hamming 동률은 stable database order로 해소하므로 collision 증가와 결합된 order sensitivity를 별도 점검
+  - codon boundary-preserving projection을 향후 variant로 제안
 
-**해석.** 통제된 비교에서 EOS pooling이 token-mean pooling과 동등하거나 근소하게 낫다. 이는 개발 과정에서 제안되었던 token pruning 및 token-mean pooling이 성능 향상의 원인이라는 가설을 **반박**한다. 따라서 본 논문은 특정 pooling 기법을 기여로 주장하지 않으며, 표준 EOS pooling을 사용한다. 성능의 원인은 4.5절의 구조적 ablation(text supervision 유무, compositional codebook 유무)에서 규명한다. 이 음성 결과는 방법의 강건성을 보여 준다. 즉 GroundedDNA의 이점은 취약한 집계 trick이 아니라 구조 자체에서 나온다.
+### 4.7 Held-out codon decoding — 기존 baseline은 historical diagnostic
 
-### 4.4 4-base codon: codeword-codon collision 해소
-
-기본 설정(K=128, 3-base codon)에서는 slot당 codeword가 128개인 반면 3-base codon의 표현 용량은 `4^3 = 64`뿐이어서, 서로 다른 codeword가 같은 codon으로 병합되는 구조적 collision이 발생한다. 이를 해소하기 위해 codon을 **4-base**로 확장하면(slot당 24 대신 `6×4=24`-base, 총 48-bit) 표현 용량이 `4^4 = 256 > 128`이 되어 collision이 원리적으로 사라진다.
-
-**표 3. 3-base(36-bit) vs 4-base(48-bit) codon. whole-image.**
-
-| Dataset | mAP@5000 | DNA-unique ratio | NMI |
-|---|---:|---:|---:|
-| Flickr25k 3-base | 0.8740 | 0.380 | 0.567 |
-| Flickr25k **4-base** | **0.8796** | **0.522** | 0.582 |
-| MS-COCO 3-base | 0.8102 | 0.207 | 0.670 |
-| MS-COCO **4-base** | **0.8250** | **0.233** | 0.666 |
-
-**해석.** 4-base codon은 검색 성능(mAP@R)을 Flickr25k에서 +0.006, MS-COCO에서 +0.015 개선하며, 특히 **DNA-unique ratio가 Flickr25k에서 0.380 → 0.522(+37%)로 급증**한다. 이는 256-codon 용량이 서로 다른 codeword를 서로 다른 codon으로 분리하여 collision을 실제로 줄였음을 정량적으로 확인한다. NMI(compositional 구조)는 유지된다. 동일 48-bit 예산의 baseline과 비교하면(표 4), GroundedDNA의 우위가 단순한 bit 증가가 아님이 확인된다.
-
-**표 4. 48-bit matched-budget 비교(mAP@5000). baseline도 48-bit로 재학습.**
-
-| Dataset | **GroundedDNA 4-base** | CIBHash | CIMON | MLS3RDUH |
+| Dataset | GroundedDNA | Historical projected chunk control | Majority | Diagnostic margin |
 |---|---:|---:|---:|---:|
-| Flickr25k | **0.8796** | 0.8282 | 0.8362 | 0.7779 |
-| MS-COCO | **0.8250** | 0.8239 | 0.6875 | 0.6237 |
+| Flickr25K | .7633 | CIMON .7093 | .4730 | +.0540 |
+| MS-COCO | .6115 | CIBHash .5175 | .3160 | +.0940 |
+| NUS-WIDE | .7152 | CIMON .6662 | .4822 | +.0490 |
+| CIFAR-10 | - | - | - | - |
 
-특히 MS-COCO는 36-bit(표 1)에서 CIBHash에 2위였으나, 4-base codon으로 collision을 제거하면 동일 48-bit 예산에서 **CIBHash를 앞선다**(+0.0011). baseline도 48-bit를 받았으나 따라오지 못하므로, 향상은 bit 증가가 아니라 collision 해소에서 온다. 즉 4-base codon은 검색·DNA-unique·collision 세 측면 모두에서 Pareto 개선이며, 유일하게 SOTA가 아니던 데이터셋을 SOTA로 전환한다.
+- probe 정의를 본문/appendix에 명시
+  - train code로 `(slot,codon)→label/concept` decoder 학습
+  - held-out projected code에서 평가
+  - baseline은 18-base 위치를 같은 3-base chunks로 나눈 post-hoc control
+  - baseline control은 legacy binary-space E* artifact이므로 새 raw-base-E*·3-seed 재계산 전 “best baseline” 본문 결론에 사용하지 않음
+- 해석
+  - 구조적으로 학습한 codon이 임의 chunk baseline보다 label information을 더 보존
+  - 이 결과만으로 human-readable one-to-one semantics를 주장하지 않음
+  - class decoder 외 caption word/concept purity와 human evaluation 추가 필요
 
-### 4.5 (진행 중) 구조적 ablation과 해석 가능성 검증
+### 4.8 현재 ablation 결과와 빈칸
 
-다음 실험은 성능·해석의 원인을 인과적으로 규명하기 위한 것으로 완료 후 갱신한다.
+#### A1. Text pooling/pruning
 
-**A2 (no text supervision) — 완료(4개 데이터셋).** 모든 text-derived routing/loss를 제거하고 visual-only codebook_mean anchor로 대체하면 검색 성능이 4개 데이터셋 모두에서 일관되게 하락한다(표 5). 하락폭은 −0.012(Flickr25k)에서 −0.052(CIFAR10)이며 평균 약 −0.036이다.
+| 비교 | Flickr | MS-COCO | NUS-WIDE | CIFAR-10 | 상태 |
+|---|---:|---:|---:|---:|---|
+| Clean EOS − clean mean, pre-P0/pre-bio controlled diagnostic | +.0033 | +.0029 | - | - | pooling 자체는 기여 아님 |
+| Clean EOS P0 + bio projection | - | - | - | - | 필수 재실험 |
+| Current legacy P0 + bio | .8723 | .8063 | .8274 | .9009 | headline이나 semantic pruning 주장 불가 |
 
-**표 5. 텍스트 감독 ablation(A2, mAP@R).**
+- 결론 예정
+  - 특정 pooling을 contribution에서 제외
+  - clean rerun 전에는 실제 legacy 경로를 숨기지 않음
 
-| Dataset | A0 (text) | A2 (no-text) | Δ |
+#### A2. No text supervision — pre-P0/pre-bio diagnostic
+
+| Dataset | Full | No text | Δ |
 |---|---:|---:|---:|
-| Flickr25k @5000 | 0.8740 | 0.8617 | −0.0123 |
-| MS-COCO @5000 | 0.8102 | 0.7598 | −0.0504 |
-| CIFAR-10 @1000 | 0.9085 | 0.8563 | −0.0522 |
-| NUS-WIDE @5000 | 0.8322 | 0.8020 | −0.0302 |
+| Flickr25K | .8740 | .8617 | -.0123 |
+| MS-COCO | .8102 | .7598 | -.0504 |
+| NUS-WIDE | .8322 | .8020 | -.0302 |
+| CIFAR-10 | .9085 | .8563 | -.0522 |
 
-A1(집계 방식)이 성능에 영향이 없었던 것(±0.003)과 대조적으로, A2(텍스트 감독 유무)는 4개 데이터셋 모두에서 실질적 효과를 보인다. MS-COCO에서는 텍스트 감독을 제거하면 GroundedDNA(0.760)가 CIBHash(0.816) 아래로 내려가므로, 텍스트 감독이 경쟁력의 핵심임을 알 수 있다. DNA-unique ratio도 크게 감소한다(Flickr 0.380→0.262, MS-COCO 0.207→0.128). A1(집계 방식)이 성능에 영향이 없었던 것과 대조적으로, A2(텍스트 감독 유무)는 실질적 효과를 보인다. 즉 성능의 원인은 *집계 trick*이 아니라 *텍스트 감독의 존재* 자체이다. 다만 정직하게 보고하면, NMI·B1 같은 해석 proxy는 텍스트 감독 제거 시 하락하지 않는다(frozen CLIP backbone 자체가 text-aligned이기 때문). 따라서 텍스트 감독의 측정 가능한 이점은 검색·코드 다양성이며, 해석 가능성 주장은 NMI가 아니라 held-out decoding과 intervention에 근거해야 한다.
-**A4 (shared codebook) — 완료.** 6개 slot codebook을 동일 총 용량(K=768=6×128)의 단일 공유 codebook으로 묶으면(표 6), 검색 성능이 하락하고(−0.006 Flickr, −0.025 MS-COCO) 무엇보다 inter-codebook NMI가 급감한다(Flickr 0.567→0.433, MS-COCO 0.670→0.470). 즉 per-slot 분리 codebook은 compositional 구조의 핵심이며, 이를 공유로 바꾸면 코드 구조가 무너진다. (완전한 single-global-codebook-no-routing 변형은 codon head의 나눗셈 제약과 6-slot router 하드코딩으로 막혀 있어, 본 실험은 routing은 유지한 채 codebook 분리 여부만 격리한다.)
+- 주의
+  - label-diagnostic 성격의 과거 결과
+  - P0 selection + bio projection으로 재실험 전 main causal table에 사용하지 않음
 
-**표 6. codebook 분리 ablation(A4).**
+#### A4. Shared-codebook ablation — six routed slots share one K=768 bank, pre-P0/pre-bio diagnostic
 
-| Dataset | 지표 | A0 (분리 6개) | A4 (공유 1개) | Δ |
-|---|---|---:|---:|---:|
-| Flickr25k | mAP@5000 | 0.8740 | 0.8685 | −0.0055 |
-| | NMI | 0.567 | 0.433 | −0.134 |
-| MS-COCO | mAP@5000 | 0.8102 | 0.7853 | −0.0249 |
-| | NMI | 0.670 | 0.470 | −0.200 |
-
-**Ablation 종합.** 세 실험이 GroundedDNA의 성능·구조 원인을 정확히 특정한다: (A1) 텍스트 집계 방식은 무영향, (A2) 텍스트 감독은 검색을 좌우, (A4) per-slot 분리 codebook은 compositional 구조에 필수. 따라서 기여는 특정 pooling 기법이 아니라 **text-supervised compositional codebook 구조**이다.
-**A4 (shared codebook) — 완료.** 6개 slot codebook을 동일 총 용량(K=768=6×128)의 단일 공유 codebook으로 묶으면(표 6), 검색 성능이 하락하고(−0.006 Flickr, −0.025 MS-COCO) 무엇보다 inter-codebook NMI가 급감한다(Flickr 0.567→0.433, MS-COCO 0.670→0.470). 즉 per-slot 분리 codebook은 compositional 구조의 핵심이며, 이를 공유로 바꾸면 코드 구조가 무너진다. (완전한 single-global-codebook-no-routing 변형은 codon head의 나눗셈 제약과 6-slot router 하드코딩으로 막혀 있어, 본 실험은 routing은 유지한 채 codebook 분리 여부만 격리한다.)
-
-**표 6. codebook 분리 ablation(A4).**
-
-| Dataset | 지표 | A0 (분리 6개) | A4 (공유 1개) | Δ |
-|---|---|---:|---:|---:|
-| Flickr25k | mAP@5000 | 0.8740 | 0.8685 | −0.0055 |
-| | NMI | 0.567 | 0.433 | −0.134 |
-| MS-COCO | mAP@5000 | 0.8102 | 0.7853 | −0.0249 |
-| | NMI | 0.670 | 0.470 | −0.200 |
-
-**Ablation 종합.** 세 실험이 GroundedDNA의 성능·구조 원인을 정확히 특정한다: (A1) 텍스트 집계 방식은 무영향, (A2) 텍스트 감독은 검색을 좌우, (A4) per-slot 분리 codebook은 compositional 구조에 필수. 따라서 기여는 특정 pooling 기법이 아니라 **text-supervised compositional codebook 구조**이다.
-### 4.6 학습 뷰: multi-crop은 도움이 되지 않는다
-
-FAIRrank L8K3 multi-crop 학습(이미지당 8개 random crop 중 텍스트 앵커 유사도 상위 3개를 연결, 588 patch)을 whole-image 학습과 동일 recipe로 비교하였다(표 7). 추론은 양쪽 모두 whole-image이다.
-
-**표 7. NUS-WIDE 학습 뷰 ablation(동일 recipe, 학습 뷰만 상이).**
-
-| 학습 뷰 | mAP@5000 | NMI | B1 lift |
+| Dataset | Separate K=128 | Shared K=768 | Δ |
 |---|---:|---:|---:|
-| **whole-image** | **0.8322** | **0.668** | **0.219** |
-| FAIRrank multi-crop | 0.8191 | 0.564 | 0.205 |
-| Δ | −0.0131 | −0.104 | −0.014 |
+| Flickr25K | .8740 | .8685 | -.0055 |
+| MS-COCO | .8102 | .7853 | -.0249 |
+| NUS-WIDE | - | - | - |
+| CIFAR-10 | - | - | - |
 
-**해석.** multi-crop 학습은 검색(−0.013), inter-codebook 구조(−0.104), text-grounding(−0.014) 모두를 악화시킨다. Flickr25k(−0.004)와 MS-COCO(−0.006)에서도 이득이 없었으므로, **어떤 데이터셋도 multi-crop 학습의 혜택을 받지 않는다.** multi-crop은 단일 객체 fine-grained 설정을 위해 설계된 기법이며, 다중 객체 장면에서는 검색에 필요한 장면 수준 문맥을 잘라낸다. 따라서 본 논문은 4개 데이터셋 모두 whole-image 학습·추론으로 통일하며, 이는 구조적 일관성과 성능이 동시에 만족되는 선택이다. (CIFAR-10은 32×32 이미지를 224로 확대해 사용하므로 crop이 추가 정보를 담지 않아 이 실험을 적용하지 않는다.)
+#### Projected decoding ablation
 
-### 4.7 (진행 중) 해석 가능성 검증
+| Dataset | Full A0 | No text A2 | Shared A4 |
+|---|---:|---:|---:|
+| Flickr25K | .7633 | .7259 | .7522 |
+| MS-COCO | .6115 | .5015 | .5641 |
+| NUS-WIDE | .7152 | .6423 | - |
 
-- **Held-out codon decoding:** train으로 만든 `(slot, codon) → concept` 사전으로 unseen test 이미지의 concept를 예측. CIBHash의 6-bit chunk decoding을 control로 사용한다.
-- **Slot intervention:** query code의 한 codon만 donor codon으로 교체했을 때 해당 slot의 target concept 검색이 선택적으로 증가하는지 측정한다.
+- 해석 예정
+  - text 제거가 retrieval보다 decoding에 더 큰 영향을 주는 데이터셋 존재
+  - separate codebooks가 codon semantic organization에 기여
+  - NUS A4와 CIFAR 전체 projected probe는 `-`
+  - A0는 leakage-free P0이나 A2/A4는 pre-P0 test-selected checkpoint
+  - effect size가 커도 최종 causal table에는 동일 P0 selection으로 재실행한 값만 사용
 
-## 5. 논의 및 한계
+### 4.9 K × bases-per-slot grid
 
-GroundedDNA의 핵심 가치는 더 긴 설명을 생성하는 것이 아니라, 검색에 실제 사용되는 discrete code의 내부 구조에 semantic address를 부여하는 데 있다. 사용자는 전체 embedding이나 attention map을 다시 계산하지 않고도 slot별 codon과 concept dictionary를 통해 검색 근거를 조사할 수 있다.
+| Dataset | K64, L3 | K64, L4 | K128, L3 | K128, L4 |
+|---|---:|---:|---:|---:|
+| Flickr25K | - | - | .8723 | - |
+| MS-COCO | - | - | .8063 | - |
+| NUS-WIDE | - | - | .8274 | - |
+| CIFAR-10 | .9009 | - | - | - |
 
-다만 현재 내부 분석은 여섯 codebook이 완전히 독립적인 semantic factor라고 결론 내리기에 충분하지 않다. 모든 슬롯에서 positive text-grounding lift와 유의미한 codebook-drop 영향이 관찰되지만, 일부 local codebook은 class 및 scene 정보를 공유한다. 따라서 본 논문은 **완전히 disentangled된 여섯 요인**이 아니라 **서로 다른 역할을 갖되 부분적으로 중복되는 compositional code**를 주장해야 한다.
+- 해석 보류
+  - 16 cells 중 4 cells만 완료
+  - 현재 K128/L3 또는 K64/L3는 완료된 셀 중 champion
+  - global optimum, length scaling, capacity trend는 grid 완료 후 작성
+- 과거 24-base Gen-0 diagnostic
 
-또한 본 방법은 class label을 사용하지 않지만 VLM이 생성한 텍스트에 의존한다. 그러므로 단순히 “unsupervised”라고 부르기보다 “label-free text-supervised” 또는 “VLM-distilled”로 기술하는 것이 정확하다. VLM의 hallucination과 bias가 codeword concept에 전달될 수 있으며, 오프라인 caption 생성 비용도 전체 학습 비용에 포함해야 한다. 이를 줄이기 위한 caption consistency 검사와 human evaluation이 필요하다.
+| Dataset | Raw→projected mAP | Unique raw→projected | 상태 |
+|---|---:|---:|---|
+| Flickr25K | .8794→.8778 | .5215→.5132 | test-selected, P0 아님 |
+| MS-COCO | .8252→.8198 | .2329→.2242 | test-selected, P0 아님 |
+| NUS-WIDE | - | - | 미완료 |
+| CIFAR-10 | - | - | 미완료 |
 
-현재 주요 K=128 설정에서는 한 slot의 codeword가 128개인 반면, 세 염기로 표현 가능한 codon은 `4^3 = 64`개뿐이다. 따라서 codeword-to-codon mapping에는 필연적인 collision이 있으며, gated global context도 local codon을 변화시킬 수 있다. 기존 codeword atlas만으로는 “DNA codon만 보고 concept를 유추할 수 있다”는 주장이 완성되지 않는다. 최종 논문에서는 held-out 데이터에서 **codon-level concept purity와 decoding accuracy**를 별도로 측정해야 한다.
+- 18-base P0와 절대값 직접 비교 금지
+- 공정한 24-base P0 + 48-bit baseline 재평가 필요
 
-마지막으로 본 연구의 DNA 표현은 우선 전자적 image retrieval을 위한 것이다. 실제 DNA synthesis, hybridization, GC-content 및 homopolymer 제약을 직접 만족하는지는 별개의 문제다. Molecular DNA storage로 확장하려면 semantic interpretability와 biochemical feasibility를 동시에 최적화하는 후속 연구가 필요하다.
+#### 4.9.1 Visual-marginal relaxation 진단 — project label `PSOT`
 
-## 6. 결론
+- 용어 경고
+  - 이 실험의 `PSOT`는 repository variant tag
+  - classical fixed-mass partial OT가 아님
+  - champion에서 `sinkhorn_lambda_a=1`인 visual marginal만 더 완화하고 `lambda_b=1`은 유지
+- Flickr25K, champion-selected E*=4 fixed, no per-cell validation selection, raw/pre-bio single-seed diagnostic
 
-본 연구는 이미지 retrieval code를 의미 없는 flat bit vector가 아니라, 언어로 정의된 semantic part의 조합으로 재구성한다. GroundedDNA는 frozen cross-modal backbone의 지식을 여섯 개의 독립 codebook과 codon으로 증류하고, 학습 시 text supervision을 사용하면서 추론 시 image-only compact retrieval을 유지한다. 이를 통해 각 codon을 slot-conditioned concept로 해석할 수 있는 경로를 제공하며, 기존 deep hashing의 불투명성과 기존 DNA image retrieval의 비의미적 서열 표현 사이의 간극을 다룬다.
+| lambda_a | mAP@R | DNA unique | rho_codebook | Effective rank |
+|---:|---:|---:|---:|---:|
+| 1.00 champion | .8810 | .4014 | .586 | 11.5 |
+| .50 | .8731 | .3849 | .616 | 9.6 |
+| .35 | .8720 | .3829 | .635 | 8.7 |
+| .20 | .8708 | .3837 | .655 | 8.3 |
+| .10 | .8566 | .2420 | .677 | 6.7 |
+| .05 | .8628 | .1818 | .710 | 6.5 |
 
-향후 연구의 핵심은 검색 성능을 더 높이는 것만이 아니라, codon을 읽었을 때 예측되는 concept가 held-out 이미지에서도 일관되는지, 하나의 slot을 바꾸었을 때 해당 의미만 선택적으로 변하는지, 그리고 이러한 해석이 flat hashing보다 사람에게 실제로 유용한지를 엄밀히 검증하는 것이다.
+- Flickr 해석
+  - `.20–.50`에서 code diversity 약 96%를 유지하며 gradedness rho를 `+.03–+.07`, mAP를 `-.008–-.010` 교환
+  - `.20` 단일 optimum이 아니라 smooth plateau
+  - `.10` 이하에서는 DNA unique 급락
+- MS-COCO transfer, champion-selected E*=49 fixed, no per-cell validation selection, raw/pre-bio single-seed diagnostic
 
-## 참고문헌 초안
+| lambda_a | mAP@R | DNA unique | rho_codebook | Effective rank |
+|---:|---:|---:|---:|---:|
+| 1.00 champion | .8134 | .1865 | .134 | 40.6 |
+| .35 | .8173 | .1702 | .123 | 40.3 |
+| .20 | .8104 | .1674 | .121 | 40.0 |
 
-1. Radford et al., [Learning Transferable Visual Models From Natural Language Supervision](https://arxiv.org/abs/2103.00020), ICML 2021.
-2. Xu et al., [GroupViT: Semantic Segmentation Emerges from Text Supervision](https://openaccess.thecvf.com/content/CVPR2022/html/Xu_GroupViT_Semantic_Segmentation_Emerges_From_Text_Supervision_CVPR_2022_paper.html), CVPR 2022.
-3. Zhong et al., [RegionCLIP: Region-Based Language-Image Pretraining](https://openaccess.thecvf.com/content/CVPR2022/html/Zhong_RegionCLIP_Region-Based_Language-Image_Pretraining_CVPR_2022_paper.html), CVPR 2022.
-4. Qiu et al., [Unsupervised Hashing with Contrastive Information Bottleneck](https://www.ijcai.org/proceedings/2021/133), IJCAI 2021.
-5. Luo et al., [CIMON: Towards High-quality Hash Codes](https://www.ijcai.org/proceedings/2021/125), IJCAI 2021.
-6. Tu et al., [MLS3RDUH: Deep Unsupervised Hashing via Manifold based Local Semantic Similarity Structure Reconstructing](https://www.ijcai.org/proceedings/2020/479), IJCAI 2020.
-7. Zou et al., [PromptHash: Affinity-Prompted Collaborative Cross-Modal Learning for Adaptive Hashing Retrieval](https://openaccess.thecvf.com/content/CVPR2025/html/Zou_PromptHashAffinity-Prompted_Collaborative_Cross-Modal_Learning_for_Adaptive_Hashing_Retrieval_CVPR_2025_paper.html), CVPR 2025.
-8. Stewart et al., [A Content-Addressable DNA Database with Learned Sequence Encodings](https://www.microsoft.com/en-us/research/publication/a-content-addressable-dna-database-with-learned-sequence-encodings/), DNA Computing 2018.
-9. Bee et al., [Molecular-level similarity search brings computing to DNA data storage](https://www.nature.com/articles/s41467-021-24991-z), Nature Communications 2021.
-10. Koike et al., [DNA-Based Similar Image Retrieval via Triplet Network-Driven Encoder](https://past.date-conference.com/proceedings-archive/2024/DATA/478_pdf_upload.pdf), DATE 2024.
-11. Koike et al., [Triplet Network-Based DNA Encoding for Enhanced Similarity Image Retrieval](https://doi.org/10.1145/3649329.3657320), DAC 2024.
-12. Koike et al., [Biologically Constrained DNA Encoding with Triplet Networks for Similarity Image Retrieval](https://pubmed.ncbi.nlm.nih.gov/41824343/), IEEE Transactions on Computational Biology and Bioinformatics 2026.
+- MS-COCO 해석
+  - rho 증가 없음, diversity 감소, retrieval 변화는 작은 범위
+  - Flickr mechanism의 cross-dataset transfer 실패
+- 논문 처리
+  - dataset-specific tuning knob와 structural capacity–gradedness tension의 limitation으로만 기술
+  - general selective-routing contribution으로 주장하지 않음
+  - 세포별 bio projection과 seed 반복 전 main table에서 제외
+
+### 4.10 Analysis에 넣을 항목
+
+- 완료된 정량 분석
+  - within-slot codon semantic distance와 label distance Spearman — P0 checkpoint, pre-bio historical diagnostic; projection 후 재계산 필요
+    - Flickr `.3497`, NUS `.2697`, MS-COCO `.1654`
+    - 모두 chance 이상; flat baseline 대비 강한 우위는 Flickr에서만 뚜렷
+  - simple role specialization — P0 checkpoint, pre-bio historical diagnostic; projection 후 재계산 필요
+    - 6 slots 중 3 slots만 own-role probe 최고
+    - 결론: 완전 역할 분리보다 부분 중복 semantic views
+  - slot intervention
+    - intended gain이 random slot 대비 약 `1.6×`
+    - selectivity는 거의 0
+    - 결론: 독립 제어 가능 factor 주장을 지지하지 않음
+  - CUB attribute boundary diagnostic — pre-P0/pre-bio historical supplementary diagnostic
+    - role boundary `.264` vs boundary-breaking `.161`
+    - controlled prune A/B 실패; 본 논문 main claim이 아닌 supplementary 제한적 근거
+- 추가할 정량 분석
+  - UOT transported row mass와 foreground/part mask overlap
+  - adaptive top-p effective support-size histogram
+  - train text anchor vs inference codebook anchor cosine/assignment agreement
+  - per-slot codebook perplexity, dead/revived code count, tuple/codon collision
+  - codon concept purity, mutual information, top words/representative images
+  - seed 간 codon dictionary stability와 Hungarian-aligned codeword stability
+  - query별 retrieval gain/loss와 caption quality의 상관
+  - DP edit 위치의 slot별 빈도와 decoding degradation
+  - code length·K·database size별 query latency와 memory
+- qualitative figure 후보
+  - 한 query의 raw image, six captions, five UOT heatmaps, six codewords/codons, pre/post DNA, top retrieved images
+  - 성공/실패 pair 각각 제시
+  - caption hallucination, background shortcut, codon collision, DP semantic edit 사례
+
+### 4.11 필수 추가 ablation 우선순위
+
+- P0 + bio projection + 3 seeds
+  - clean EOS/full-token model
+  - no text
+  - shared codebook
+  - NUS A4와 CIFAR decoding
+- Router
+  - mean pooling vs balanced OT vs full UOT
+  - \(\lambda_a,\lambda_b\), \(\varepsilon\), Sinkhorn iterations
+  - adaptive top-p 제거/fixed top-k/fixed top-p
+  - `one_minus_cos` vs `neg_cos` — UOT에서는 상수 shift 비동치
+- Text supervision
+  - global caption only / local captions / six axes
+  - Qwen prompt V4 vs V5b
+  - Qwen/CLIP swap 또는 smaller VLM
+  - missing-caption mask fix 전/후
+  - train anchor vs codebook-mean anchor
+- Codebook/codon
+  - 1 vs 6 codebooks
+  - K=64/128, L=3/4
+  - EMA decay, revival off, codeword-codon Sinkhorn on/off
+  - global gate on/off 및 stop-gradient
+- Bio projection
+  - no projection / GC only / homopolymer only / joint DP
+  - codon-boundary-preserving DP
+  - post-hoc baseline과 native constraint-aware training 비교
+- Backbone
+  - CLIP ViT-B/16 vs SigLIP2 under identical pipeline
+  - frozen vs light adapter tuning
+
+### 4.12 Efficiency 보고 계획
+
+- training
+  - offline Qwen caption GPU-hours
+  - CLIP cache 시간·disk size
+  - trainable parameter 수와 refit wall-clock
+- inference
+  - frozen CLIP image encode time
+  - UOT 20 iterations latency
+  - VQ/codon/DP projection latency
+  - text tower/Qwen 호출 0회 확인
+- storage/search
+  - 18 bases/item = raw 36-bit symbol storage
+  - codebook memory \(6K\times768\)
+  - base-Hamming exhaustive search time와 packed implementation
+  - binary baseline과 동일 database size에서 latency 비교
+- 아직 측정되지 않은 값은 모두 `-`
+
+## 5. Discussion
+
+### 5.1 예상 핵심 해석
+
+- retrieval gain의 원인
+  - 특정 token pooling이 아니라 text-guided slot organization + multi-codebook 구조
+  - 단, clean P0 causal ablation 완료 후 확정 문장 작성
+- codon의 의미
+  - nucleotide triplet 자체가 의미를 만드는 것이 아님
+  - slot role, text-aligned codebook, held-out dictionary가 함께 probabilistic interpretation 제공
+- 생물 제약의 역할
+  - retrieval code를 실제 oligo 설계에 한 단계 가깝게 만드는 post-processing
+  - 완전한 DNA storage codec이나 molecular query mechanism은 아님
+- deployment
+  - text는 privileged training signal
+  - inference의 image-only 경로가 실제 활용 장점
+  - train/inference anchor mismatch는 동시에 핵심 한계
+
+### 5.2 한계
+
+- GroundedDNA 자체의 method당 single training run과 미완료 grid
+- direct native-DNA 18-base sealed 3-seed diagnostic은 48/48 완료했지만 legacy-cache provenance로 strict 승격되지 못했으며, PRIMO는 18-mer thermodynamic recalibration이 남음
+- GroundedDNA와 최신 binary/interpretable hashing의 strict 3-seed 동일-protocol 실행은 미완료
+- CIFAR caption generator provenance 미확인
+- sample-wise missing-caption mask bug 가능성
+- legacy pruning artifact가 current P0 headline에 포함
+- K128에서 unavoidable codeword–codon collisions
+- DP projection이 codon boundary와 semantic assignment를 변경
+- slots 간 redundancy와 낮은 intervention selectivity
+- VLM hallucination·bias·closed semantic-axis design
+- 18-base code에 primer/address/ECC/motif/hairpin/secondary-structure 제약 없음
+- wet-lab synthesis, sequencing, hybridization 검증 없음
+- multi-label validation이 iterative stratification이 아닌 random split
+- cache generation 비용과 carbon/compute cost 미보고
+
+### 5.3 Threats to validity
+
+- protocol validity
+  - 동일 dataset 이름이라도 subset/train/query/R가 다른 published number와 직접 비교 위험
+- capacity validity
+  - 18 bases의 raw 36 bits와 \(K^6\) latent tuple capacity 차이
+  - codebook memory를 code length에서 숨기지 않음
+- interpretability validity
+  - decoder accuracy가 human understanding이나 causal control과 동일하지 않음
+  - qualitative atlas만으로 claim하지 않음
+- biochemical validity
+  - GC/homopolymer 만족이 synthesis 성공을 보장하지 않음
+- selection validity
+  - historical test-selected diagnostic를 leakage-free P0 main result와 분리
+
+## 6. Conclusion 뼈대
+
+- GroundedDNA의 문제 재진술
+  - 빠른 image retrieval code를 semantic parts의 조합이자 DNA-valued sequence로 설계
+- 기술 요약
+  - VLM caption supervision, CLIP patch UOT, EMA multi-codebook, codon decoder, DP projection
+- 결과 요약
+  - 네 benchmark의 controlled post-projection mAP와 held-out decoding
+- 보수적 결론
+  - 완전한 disentanglement나 molecular readiness가 아니라 semantic organization과 feasibility의 공동 가능성 제시
+- 향후 연구
+  - codon-preserving constrained decoding
+  - constraint-aware training
+  - native molecular retrieval/wet-lab validation
+  - open-vocabulary/dynamic semantic slots
+
+## Appendix 구성 계획
+
+- A. 전체 notation과 tensor-shape table
+- B. Qwen prompts, decoding config, cache schema/hash, failure rows
+- C. CLIP preprocessing, augmentation, whitening derivation
+- D. UOT first-order condition과 generalized Sinkhorn proof
+- E. fixed-support top-k KL projection proof
+- F. EMA update와 dead-code revival pseudocode
+- G. bio projection optimality proof 및 complexity
+- H. 모든 loss의 exact implementation equation과 active/inactive audit
+- I. split manifests, P0 selection curves, E*와 schedule의 실제 값
+- J. pre/post projection full metrics: mAP, P@1/5/10/100, unique, edits, validity
+- K. per-seed table와 confidence intervals
+- L. code atlas, routing maps, collision/failure cases
+- M. source-code/result artifact mapping
+
+## 제출 전 체크리스트
+
+- [ ] Clean EOS/full-token P0 네 데이터셋 재실행
+- [ ] 3 seeds와 bootstrap CI
+- [ ] baseline clean P0 one-shot rerun 또는 historical test-curve 사용 명시
+- [ ] K/L 12개 미완료 셀
+- [ ] P0 projected A2/A4 및 NUS A4
+- [ ] sample-wise caption mask 수정/ablation
+- [ ] CIFAR Qwen provenance 복원 또는 cache 재생성
+- [ ] multi-label iterative stratification 여부 결정 후 manifest 고정
+- [x] 최신 baseline supervision audit: `U0/U1/U2/S` 분리
+- [x] GreedyHash·Bi-half·SDC·OH·HHCH·CroVCA·DUH-EG·UMRCH clean-room matched runner 구현·unit/checkpoint protocol 검증; 신규 2개도 Flickr25K 1-epoch CPU에서 E* selection→scratch refit→query/database extraction→bio-projection→SHA manifest 전 경로 통과(`--allow-main-ineligible-smoke`, 비표준 horizon/cadence·legacy cache로 main-ineligible, full-horizon 수치는 미실행)
+- [ ] `U0` 36-bit 3-seed full 실행: GreedyHash, Bi-half, SDC 세 variant, OH, HHCH paper variant, CroVCA frozen-probe variant
+- [ ] DUH-EG: 저자 ordered selected-WordNet bank provenance 확정→`U1` 승격 후 36-bit 3-seed 실행; 그 전 `U?`/main-ineligible
+- [ ] default legacy CLIP cache를 현재 extractor로 재생성(transform·augmentation seed·immutable HF provenance·consumed-array SHA contract 충족)
+- [ ] legacy bio-projection JSON을 immutable protocol/checkpoint/extraction provenance와 versioned tie policy로 재생성하고 optimal-tie/order sensitivity 추가
+- [ ] `U2` UMRCH: official ordered taxonomy SHA 검증은 완료; 별도 표 3-seed full 실행
+- [ ] FSCH 저자에게 누락 trainer/loss/config 문의; 확보 전 exact row는 `-`
+- [ ] UHSCM/TGUH는 public-code defect·caption pipeline·test-selection 해소 후만 실행
+- [ ] CUB/fine-grained 별도 track: A²-SSL, FAPI, CS3H 수동 이식/실행
+- [ ] supervised upper-bound 별도 표: FTH, MambaHash, DSCH-2026, DGrH
+- [ ] ConceptHash/LPAH/HTH 동일 protocol baseline
+- [x] DNA24/PRIMO/Koike DATE·DAC/TCBB clean-room computational core 구현
+- [x] DNA24-18/PRIMO-18/Koike-TN-DNA/Koike-BC-TN-DNA sealed P0 3-seed diagnostic 48/48 완료; strict 0/48
+- [x] PRIMO official `pub` predictor artifact exact conversion·weight 검증
+- [ ] provenance-complete cache에서 native-DNA strict 48-cell 재실행
+- [ ] PRIMO 18-mer thermodynamic yield 재생성·predictor calibration
+- [ ] DNA24 original 30-nt computational sanity reproduction
+- [ ] Koike original 80-base CIFAR classification sanity reproduction
+- [ ] Koike/PRIMO 저자에게 공식 code license와 누락 artifact 문의
+- [ ] 24-base P0와 48-bit baseline 공정 비교
+- [ ] UOT localization·mass·support analysis
+- [ ] efficiency/parameter/cache-cost 측정
+- [ ] codon dictionary seed stability와 human-readable concept study
+- [ ] codon-boundary-preserving bio projection 비교
+- [ ] wet-lab 미수행 범위와 용어 최종 점검
+
+## 참고문헌 정리 방침
+
+- 본문 핵심 인용
+  - deep hashing: DSH, CIBHash, CIMON, MLS3RDUH, DDCH, SDC, OH, CGHash, HHCH, CTMIH, FSCH, CroVCA, DUH-EG, UMRCH, OMUH, TGUH
+  - non-binary/PQ 경계: HiHPQ는 중요한 U0 retrieval 선행이지만 asymmetric product-quantization distance이므로 binary/Hamming main table과 분리
+  - compositional/non-binary: PQ, SUBIC, VQ-VAE, Uni-Code, quaternary hashing, ConceptHash
+  - text supervision/interpretability: CLIP, VirTex, RegionCLIP/GroupViT, WDHT, Dual Purpose Hashing, A²-Net, LPAH
+  - DNA retrieval: Stewart 2018, Bee 2021, Koike DATE/DAC 2024와 TCBB 2026, Cas9 2025, Pradhan 2023/2025
+  - OT: Cuturi 2013, Liero/Chizat 2018, UNITER/VoLTA, sparse OT, DOT-CBM, concurrent ConceptOT/OMIT
+  - bio constraints: HEDGES, DNA-Aeon, constrained DNA codes
+- supplementary literature table
+  - 검색식별 검색일, DB, hit 수, screening 사유, code/data URL 기록
+  - peer-reviewed / workshop / preprint 상태를 분리
+  - 직접 인용 문장 없이 원 논문 내용을 paraphrase
+- 최종 bibliography 검증
+  - DOI, venue, year, author order를 Crossref/공식 publisher에서 재확인
+  - 2026 논문의 final volume/page와 preprint version 갱신
