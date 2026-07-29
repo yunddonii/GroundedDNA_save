@@ -39,6 +39,6 @@ CUDA_VISIBLE_DEVICES="$GPU" /home/yschoi/.conda/envs/dna_hashing/bin/python trai
     --cibhash_ntxent_continuous --cibhash_ntxent_source visual_token \
     --eval_every 5 --post_eval_compositional --dna_distance_mode base \
     --lambda_text_code_kl "$TCKL" --text_code_kl_tau_v 0.1 --text_code_kl_tau_t 0.07 --text_code_kl_conf_threshold 0.2 \
-    --text_code_kl_skip_global --text_hash_ntxent_skip_global \
+    ${GLOBAL_SKIPS-"--text_code_kl_skip_global --text_hash_ntxent_skip_global"} \
     --bidirectional_token_prune --bidirectional_token_prune_visual_ratio 1.0 --bidirectional_token_prune_text_ratio 1.0 \
     --eval_cache_dir ./cache/mscoco_clip_v5b ${EXTRA_ARGS:-} -ev -s 2>&1 | tee "$LOG"

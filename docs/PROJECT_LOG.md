@@ -487,6 +487,205 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-07-29 — 🟢 Fairness audit of the DNA arena + **constraint-AWARE training works**: pre-projection validity 53%→90% at zero retrieval cost; held-out decoding upgraded to raw-base-E\* controls on **4/4** datasets (CIFAR cell filled for the first time)
+
+🎯 **Why.** A structured interrogation of the paper's claims (grill-me session) produced four
+answerable objections. This entry reports the four blocks that completed. Two training cells
+(MSCOCO slot0-symmetric, NUS-WIDE A4 shared-codebook) are still running and are **not** reported here.
+
+---
+
+### Block 1 — 🟢 Constraint-AWARE training (`--lambda_bio_constraint`, NEW): the DNA constraints can be learned, and it is nearly free
+
+🔴 **The premise that forced this experiment.** `homopolymer` / `gc_*` appear **0 times** in
+`loss_siglip2.py`, `model_siglip2.py`, `train_siglip2.py`, `config.py`. Until today the two bio
+constraints were enforced **only** by the post-hoc DP projection, and the same projection is applied
+to baselines — so "DNA is load-bearing" had no support. `DRAFT_GROUNDEDDNA_PAPER_KO.md` already says
+this (§5.1 calls the constraints "post-processing"; §6 lists `constraint-aware training` as future work).
+
+🧰 **New loss** (default OFF, champion bit-identical). On `continuous_code` `u : [B, R, 4]`:
+- **GC hinge** on the expected GC count `g = Σ_r (u[r,C] + u[r,G])`, bounds resolved from `R` with the
+  **same convention as the evaluator** (18 → `[8,10]`; 24 → `[10,14]`), normalised by `R`.
+- **Homopolymer** = expected number of `(max_run+1)`-windows that are constant,
+  `Σ_w Σ_b Π_j u[w+j, b]`, via `unfold`. Spans slot boundaries exactly as the deployed sequence does.
+- Unit-tested: exactly `0` on a valid code, `8/18` GC + `15/18` HP on all-A, bounds `(8,10)` / `(10,14)`
+  reproduce `bc._resolve_gc_count_range`, gradients finite.
+
+📊 **Flickr25k, A+V4 recipe, 18-base, full P0 2-stage, seed 42.**
+
+| cell | bio mAP@R | Δ vs A | **pre-proj validity** | mean GC | projection cost | DNA-uniq |
+|---|---:|---:|---:|---:|---:|---:|
+| **A baseline** | 0.8675 | — | 53.1% | 8.23 | −0.0093 | **0.3978** |
+| **bioAware λ=10** | **0.8682** | **+0.0007** | **90.1%** | **9.06** | **−0.0014** | 0.2931 |
+| noGumbel | 0.8634 | −0.0042 | 54.5% | 8.27 | −0.0082 | 0.3940 |
+
+🔑 **Findings.**
+1. **🟢 It works and it is free.** Validity **+37 points** (53.1 → 90.1 %) at **+0.0007 mAP@R**. Mean GC
+   moves to 9.06, the exact centre of the `[8,10]` window. **85 % of the projection loss is eliminated**
+   (−0.0093 → −0.0014) — the paper can now say feasibility costs ~0.001 rather than ~0.009.
+2. **🟡 The price is code diversity**: DNA-unique 0.3978 → 0.2931 (**−26 %**). Constraining the code to
+   a feasible subspace removes exactly the extreme-GC codes that carried diversity. This is a real
+   trade-off, not a free lunch, and it sits on the same resolution axis as the MSCOCO deficit.
+3. **🔴 `--no_gumbel_softmax` does NOT replicate on Flickr25k** (−0.0042). The 2026-07-29 campaign called
+   it a "clean Pareto win" on MSCOCO (+0.0031 mAP, +0.0139 codon decode); it is **dataset-specific**.
+   The earlier recommendation to adopt it as a default is **withdrawn pending a 4-dataset check**.
+
+---
+
+### Block 2 — 🔴 Pre-projection validity: ours is BELOW chance on 3/4 datasets (the reachability hypothesis is refuted)
+
+🎯 The naive capacity defence of DNA ("4^L sub-codes vs binary 2^L") **fails at matched storage**:
+36 bits ↔ 18 bases is a bijection, so the alphabet buys nothing — `DRAFT §5.3 capacity validity` already
+warns about this. The salvageable claim was **reachability**: a per-position 4-way softmax has a natural
+handle on GC/homopolymer that 36 independent bits do not. This block tests it and **refutes it for the
+current model**.
+
+📊 **Pre-projection validity (no DP applied). `chance` is the EXACT fraction of uniform 4^L sequences
+that satisfy both constraints, computed by DP over (position, GC, last base, run) = 45.2 %.**
+
+| Dataset | **Ours** | CIBHash | CIMON | OH | SDC | Bi-half | GreedyHash | HHCH | MLS3RDUH | CroVCA | chance |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Flickr25k | **53.1** | 43.7 | 41.2 | 40.8 | 45.5 | 45.6 | 55.9 | 0.1 | 43.1 | 43.1 | 45.2 |
+| MSCOCO | **32.6** | 42.4 | 44.5 | 44.1 | 40.3 | 53.4 | 59.6 | 0.8 | 30.4 | 48.0 | 45.2 |
+| NUS-WIDE | **41.1** | 44.2 | 40.1 | 42.8 | 48.9 | 41.1 | 66.8 | 75.9 | 43.8 | 43.6 | 45.2 |
+| CIFAR10 | **32.1** | 45.5 | 57.6 | 37.5 | 43.6 | 36.6 | 97.3 | 8.0 | 49.2 | 46.8 | 45.2 |
+
+🔑 **Findings.**
+1. **🔴 Ours is below chance on MSCOCO / NUS-WIDE / CIFAR10.** With nothing in the loss pointing at the
+   constraints, building semantic structure actively pushes the code **out** of the feasible set. This is
+   the mechanism that Block 1 then repairs (Flickr 53.1 → 90.1 %).
+2. **🟢 Baselines sit exactly on the independent-balanced-bit signature.** Measured GC on Flickr:
+   CIBHash 9.04 ± 2.14, SDC 8.84 ± 2.15, OH 9.56 ± 2.19, CroVCA 8.74 ± 2.22 — versus the
+   **Binomial(18, ½) prediction 9.00 ± 2.12**. Ours is the only distribution that departs from it
+   (8.23 ± 1.76: tighter, but off-centre).
+3. **Mechanism, and it is paper-usable.** `base ∈ {C,G}` ⟺ the bit pair differs, so for a binary method
+   **GC content = the number of bit-pairs with XOR = 1** — a parity predicate that independent per-bit
+   objectives cannot address. This is why every binary baseline lands on chance.
+4. ⚠️ **Control.** GreedyHash CIFAR 97.3 % and HHCH NUS 75.9 % are artefacts of code collapse
+   (their mAP@R is 0.185 and 0.433); high validity there means "few distinct codes, and they happen to
+   be valid", not constraint awareness.
+
+🧭 **Corrected paper claim.** Do **not** claim an alphabet capacity advantage. The defensible statement is
+about the coordinate system in which the constraint is expressible: *"GC is a position-wise linear
+functional of our 4-way base posterior and a bit-pair parity predicate for binary codes; we exploit this
+by putting both constraints in the training objective, reaching 90 % pre-projection feasibility at no
+retrieval cost."*
+
+---
+
+### Block 3 — 🟢 Dual-arena scoring: the base-Hamming objection is quantified, and survived
+
+🎯 **The objection.** Our head emits a 4-way softmax per base; binary baselines emit 36 signs which the
+DNA comparison packs 2-bits-per-base. **base-Hamming is a coarsening of the bit-Hamming the baselines
+actually optimised** (one bit wrong and two bits wrong inside a pair are both one base error), so the
+arena may favour us. Answerable at **zero training cost**: 36 bits ↔ 18 bases is a bijection, our
+extraction stores both views (`hash_2bit` verified to reconstruct `base_indices` exactly on 23000/23000
+rows), and `evaluation_siglip2.py` already has `mode='bit2'`.
+
+📊 **Flickr25k, mAP@5000, bio-projected, one unified run profile (P0-matrix legacy cache).**
+
+| method | base-Hamming | **bit-Hamming** | Δ (base − bit) |
+|---|---:|---:|---:|
+| **Ours (A-champion)** | **0.8675** | **0.8618** | **+0.0057** |
+| OH | 0.8362 | 0.8430 | −0.0068 |
+| CIMON | 0.8165 | 0.8224 | −0.0059 |
+| Bi-half | 0.8161 | 0.8209 | −0.0048 |
+| CIBHash | 0.7824 | 0.8006 | −0.0182 |
+| CroVCA | 0.7682 | 0.7888 | −0.0206 |
+| MLS3RDUH | 0.7577 | 0.7652 | −0.0075 |
+| SDC | 0.7230 | 0.7491 | −0.0262 |
+| GreedyHash | 0.6077 | 0.6067 | +0.0009 |
+| HHCH | 0.5867 | 0.5846 | +0.0022 |
+
+🔑 **Findings.**
+1. **The bias is real and now measured**: 7 of 9 baselines score higher in their native bit arena
+   (−0.005 … −0.026); ours is the only strong method that prefers the base arena (+0.0057).
+2. **🟢 It does not change the conclusion.** In the **baselines' own metric** ours 0.8618 still leads the
+   best baseline (OH 0.8430) by **+0.0188**. The margin drops ~40 % from +0.0313 and survives.
+3. **The two exceptions confirm the reading**: only GreedyHash (+0.0009) and HHCH (+0.0022) prefer the
+   base arena, and they are exactly the two collapsed models — with collapsed codes the arena is moot.
+4. 🧭 **Consequence:** there is **no need to re-head the baselines** (a proposal considered and rejected —
+   each baseline's objective is defined on binary codes, e.g. SDC's Beta(5,5) calibration assumes ±1 bits
+   per Eq. 2/7 and Bi-half's entire contribution is per-bit half-half balance, so converting them would
+   mean authoring new methods and inviting "the authors reimplemented the baselines and they got worse").
+   Report a bit-Hamming column instead.
+
+⚠️ **Profile note.** modern-U0 rows reproduce the 2026-07-27 table exactly (OH .8362 / CroVCA .7682 /
+SDC .7230). classic-3 rows differ (CIBHash .7824 vs .7914, MLS3RDUH .7577 vs .7666) because this table
+unifies **everything** on the P0-matrix profile while the 2026-07-27 table used the classic profile for
+those three. The unification is the correct direction under invariant #6's no-mixing rule, but the main
+table must state it.
+
+---
+
+### Block 4 — 🟢 Held-out codon decoding re-run against raw-base-E\* controls: 3/4 → **4/4**, CIFAR filled
+
+🎯 `DRAFT §4.7` blocked the decoding table from the main text because its baseline chunk controls came
+from **binary-Hamming-selected** E\* artifacts. **No baseline retraining was needed**: the modern-U0 P0
+matrix already selects on `raw_18base_base_hamming_mAP_at_R`
+(`scripts/run_modern_baseline_p0.py:177`, argmax at `scripts/baseline_val_select_p0.py:434`, enforced at
+`scripts/aggregate_baseline_p0_matrix.py:687`). The fix is to **swap the control**, not rebuild it.
+
+📊 **Held-out codon decoding, bio-projected, raw-base-E\* controls.**
+
+| Dataset | **ours_codon** | ours_codeword | best control | margin | majority | shuffled |
+|---|---:|---:|---|---:|---:|---:|
+| Flickr25k | **0.7593** | 0.8097 | OH 0.7261 | **+0.0332** | 0.4730 | 0.4793 ± 0.0138 |
+| MS-COCO | **0.6144** | 0.7175 | CroVCA 0.5727 | **+0.0417** | 0.3160 | 0.3128 ± 0.0033 |
+| NUS-WIDE | **0.7129** | 0.7788 | OH 0.6772 | **+0.0357** | 0.4822 | 0.4786 ± 0.0030 |
+| **CIFAR10 (NEW)** | **0.8676** | 0.9361 | CroVCA 0.8263 | **+0.0413** | 0.2929 | 0.2977 ± 0.0603 |
+
+🔑 **Findings.**
+1. **🟢 4/4 positive against protocol-matched controls**, and `shuffled ≈ majority` on every dataset, so
+   the probe is behaving.
+2. **🟡 Margins roughly halve** versus the historical binary-E\* table (MSCOCO +0.0940 → +0.0417,
+   Flickr +0.0540 → +0.0332) because the new controls are **stronger** — OH and CroVCA beat the old
+   CIMON/CIBHash controls. The table is smaller but now admissible in the main text.
+3. **🔍 Why the CIFAR cell was blank all along — it was never a missing manifest.** CIFAR extractions
+   carry only `base_indices, hash_2bit, codebook_indices, multi_hot_labels` and **no `image_paths`**
+   (the other three datasets have it), so the decoder could not align train rows to DB rows at all.
+   Fixed with `scripts/cifar_inject_image_ids.py`, which recomputes `dataloaders._cifar10_image_id`
+   (content md5, the same key the feature cache uses) and writes an **overlay** copy under
+   `<result_dir>/withids/`; the paper artifacts stay byte-identical. Verified three ways: per-row label
+   agreement, 59000/59000 basename overlap with the baselines' independently-stored ids, and
+   5000/5000 train ids present in the DB.
+4. MSCOCO needed purpose-built train extractions (its train split is disjoint from its DB, so the
+   decoder's db-slice fallback raises `KeyError`); built with
+   `scripts/extract_mscoco_baseline_decodectl.sh` into `result_baseline/260729_mscoco_decodectl_rawbaseEstar/`.
+
+---
+
+🧭 **Two further corrections to standing claims.**
+- **Prompt selection is NOT test-informed.** The 2026-07-27 prompt entry reported test mAP@R, which reads
+  as selection on test. The stage-1 **validation** mAP@R exists for every cell and gives the identical
+  assignment: MSCOCO V5b 0.6497 > V4 0.6452; CIFAR V4 0.9028 > V1 0.8915. Declare the rule as
+  "prompt schema is validation-selected, like E\*" and cite the val numbers. Zero cost.
+- **The native-DNA lineage does not compare against binary hashing at all** (checked in the originals):
+  Koike DATE 2024's only baseline is PRIMO, on CIFAR-100 DDH classification accuracy, with a same-feature
+  non-DNA "Software" column as the upper bound and a Ratio column; Stewart DNA24 2018's "baseline" is the
+  chance cumulative distribution and its reference is an oracle. **Both report a same-feature non-DNA
+  upper reference — which is exactly the frozen-CLIP ceiling column added on 2026-07-27.** That column can
+  therefore be presented as following the lineage's own reporting convention. All four predecessors also
+  use a per-position 4-way softmax head identical to ours (`native_dna.py:236, 282`), so no head-structure
+  fairness question arises against the direct predecessors. ⚠️ PRIMO (Nat Commun 2021) and Koike TCBB 2026
+  full texts could **not** be retrieved (paywall/captcha); do not write "no predecessor compared against
+  binary hashing" as an unqualified claim until they are checked.
+
+🧰 **New.** `--lambda_bio_constraint` + `--bio_constraint_{gc_min,gc_max,max_run,gc_weight,hp_weight}`
+(config.py, loss_siglip2.py, train_siglip2.py logging); `scripts/preprojection_validity.py`,
+`scripts/dual_metric_arena.py`, `scripts/cifar_inject_image_ids.py`,
+`scripts/extract_mscoco_baseline_decodectl.sh`. `scripts/prompt_ablation_A_cell.sh` gained
+`A_SKIPS` / `WHITEN_VARIANT` and `scripts/train_mscoco_F2_sweep_clip.sh` gained `GLOBAL_SKIPS`
+— all three use `${VAR-default}` so an unset variable reproduces the previous behaviour exactly
+(verified). Outputs: `docs/{preprojection_validity,dual_metric_arena_flickr}.json`,
+`docs/heldout_decoding_{flickr,mscoco,nuswide,cifar10}_rawbaseEstar.json`.
+
+⚠️ **Caveats.** Single seed (42) everywhere. Block 1 is Flickr-only and λ=10 was not swept. Block 3 is
+Flickr-only (CIFAR/MSCOCO arenas running). Blocks 2–3 use legacy-cache baseline artifacts and remain
+diagnostic-only under invariant #6.
+
+---
+
 ## 2026-07-29 — 🟡 Bottleneck campaign for minimal-pair discriminability: #2 and #5 refuted, **#4 (double quantisation) partly confirmed**. Two interventions succeed; the goal metric still fails.
 
 🎯 **Goal.** Make fine caption differences ("cat on grass" vs "cat on sand") propagate into codon differences, i.e.

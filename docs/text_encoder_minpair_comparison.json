@@ -1,0 +1,51 @@
+{
+  "note": "diagnostic only; nothing fitted to the foils",
+  "dataset": "MSCOCO V5b held-out foils",
+  "cells": [
+    {
+      "encoder": "CLIP-B/16 (current)",
+      "model": "openai/clip-vit-base-patch16",
+      "own_foil_cos": 0.9483846426010132,
+      "unrelated_cos": 0.49503472447395325,
+      "separation": 0.45334991812705994,
+      "foil_closer_frac": 0.9985,
+      "n": 2000
+    },
+    {
+      "encoder": "SigLIP2-base",
+      "model": "google/siglip2-base-patch16-224",
+      "own_foil_cos": 0.9712253212928772,
+      "unrelated_cos": 0.6545518636703491,
+      "separation": 0.3166734576225281,
+      "foil_closer_frac": 0.9985,
+      "n": 2000
+    },
+    {
+      "encoder": "FG-CLIP-base",
+      "model": "qihoo360/fg-clip-base",
+      "own_foil_cos": 0.9302744269371033,
+      "unrelated_cos": 0.36898574233055115,
+      "separation": 0.5612887144088745,
+      "foil_closer_frac": 0.9985,
+      "n": 2000
+    },
+    {
+      "encoder": "all-mpnet-base-v2",
+      "model": "sentence-transformers/all-mpnet-base-v2",
+      "own_foil_cos": 0.9406281113624573,
+      "unrelated_cos": 0.20579639077186584,
+      "separation": 0.734831690788269,
+      "foil_closer_frac": 0.9985,
+      "n": 2000
+    },
+    {
+      "encoder": "all-MiniLM-L6-v2",
+      "model": "sentence-transformers/all-MiniLM-L6-v2",
+      "own_foil_cos": 0.943101704120636,
+      "unrelated_cos": 0.20688828825950623,
+      "separation": 0.7362134456634521,
+      "foil_closer_frac": 0.9985,
+      "n": 2000
+    }
+  ]
+}

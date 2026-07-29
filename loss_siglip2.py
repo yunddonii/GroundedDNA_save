@@ -376,6 +376,17 @@ class DNACodonHashLoss(nn.Module):
         # bits). base_match uses the differentiable expected base-agreement
         # s_ij = mean_r <p_i[r], p_j[r]> in [0,1], which IS 1 - E[baseHamming]/R.
         self.sim_spread_metric = str(getattr(cfg, "sim_spread_metric", "cosine"))
+        # ---- constraint-AWARE training (2026-07-29), default OFF -------------
+        # Until now GC / homopolymer were enforced ONLY by the post-hoc DP
+        # projection (dna_utils/bio_constraints.py) -- the training objective
+        # never saw them, so "DNA is load-bearing" was unsupported. These two
+        # differentiable surrogates put the same two constraints in the loss.
+        self.lambda_bio_constraint    = float(getattr(cfg, "lambda_bio_constraint", 0.0))
+        self.bio_constraint_gc_min    = getattr(cfg, "bio_constraint_gc_min", None)
+        self.bio_constraint_gc_max    = getattr(cfg, "bio_constraint_gc_max", None)
+        self.bio_constraint_max_run   = int(getattr(cfg, "bio_constraint_max_run", 3))
+        self.bio_constraint_gc_weight = float(getattr(cfg, "bio_constraint_gc_weight", 1.0))
+        self.bio_constraint_hp_weight = float(getattr(cfg, "bio_constraint_hp_weight", 1.0))
         self.proto_cluster_cos_tau    = float(getattr(cfg, "proto_cluster_cos_tau",    0.1))
         # v112 (Hierarchical Codon Decomposition): force first base of each
         # codon to encode text-similarity cluster identity of the assigned
@@ -3437,9 +3448,45 @@ class DNACodonHashLoss(nn.Module):
         else:
             loss_sim_spread = u.new_zeros(())
 
+        # ---- (c) constraint-AWARE training: GC + homopolymer, default OFF ----
+        # u : [B, R, 4] softmax over (A, C, G, T) at each of the R = 18/24
+        # positions of the concatenated code -- the SAME sequence the post-hoc
+        # DP projection operates on, so the penalty spans slot boundaries
+        # exactly as the constraint does.  Base order A=0 C=1 G=2 T=3 matches
+        # dna_utils/bio_constraints._IS_GC = [0, 1, 1, 0].
+        if self.lambda_bio_constraint > 0.0 and u is not None:
+            _R = int(u.shape[1])
+            _uf = u.float()
+            # (i) GC hinge on the EXPECTED GC count.  Bounds follow the
+            # evaluation convention: ceil(min_frac*R) .. floor(max_frac*R)
+            # (18 -> [8, 10]; 24 -> [10, 14]).
+            _gmin_f = (0.40 if self.bio_constraint_gc_min is None
+                       else float(self.bio_constraint_gc_min))
+            _gmax_f = (0.60 if self.bio_constraint_gc_max is None
+                       else float(self.bio_constraint_gc_max))
+            _gc_lo = float(math.ceil (_gmin_f * _R))
+            _gc_hi = float(math.floor(_gmax_f * _R))
+            _gc = _uf[:, :, 1].sum(dim=1) + _uf[:, :, 2].sum(dim=1)      # [B]
+            _l_gc = (F.relu(_gc_lo - _gc) + F.relu(_gc - _gc_hi)).mean() / _R
+            # (ii) Homopolymer: expected number of (max_run + 1)-windows whose
+            # bases are all identical.  Under a per-position independence
+            # surrogate, P(window w constant at base b) = prod_j p[w+j, b].
+            _w = int(self.bio_constraint_max_run) + 1
+            if _R > _w:
+                _win = _uf.unfold(1, _w, 1)                # [B, R-w+1, 4, w]
+                _l_hp = _win.prod(dim=-1).sum(dim=-1).sum(dim=-1).mean() / _R
+            else:
+                _l_hp = _uf.new_zeros(())
+            loss_bio_constraint = (self.bio_constraint_gc_weight * _l_gc
+                                   + self.bio_constraint_hp_weight * _l_hp)
+            total = total + self.lambda_bio_constraint * loss_bio_constraint
+        else:
+            loss_bio_constraint = u.new_zeros(())
+
         return {
             "loss":              total,
             "loss_sim_spread":   loss_sim_spread,
+            "loss_bio_constraint": loss_bio_constraint,
             "loss_hash":         loss_hash,
             "loss_hash_hard":    loss_hash_hard,
             "loss_vq":           loss_vq,

@@ -13,7 +13,11 @@
 set -u
 GPU="$1"; EXP="$2"
 PY=/home/yschoi/.conda/envs/dna_hashing/bin/python
-A_FLAGS="--xmodal_commit_skip_global --cibhash_dynamic_tau_skip_global ${AUX_ARGS:-}"
+# A_SKIPS: the two A-recipe global-slot skips added here (the other two,
+# --text_code_kl_skip_global / --text_hash_ntxent_skip_global, live in the
+# champion launchers and are toggled there via GLOBAL_SKIPS). Set A_SKIPS=""
+# AND GLOBAL_SKIPS="" to train slot0 exactly like the local slots.
+A_FLAGS="${A_SKIPS-"--xmodal_commit_skip_global --cibhash_dynamic_tau_skip_global"} ${AUX_ARGS:-}"
 SKIP="--no-post_eval_compositional${VIZ:+}"
 [ "${VIZ:-1}" = "0" ] && SKIP="$SKIP --no_visualize"
 
@@ -45,8 +49,11 @@ case "$EXP" in
   *) echo "[promptAblA] unknown EXP=$EXP"; exit 2 ;;
 esac
 
-WOPT="$WDIR/text_whiten_optTrain_localOnly.npz"
-WTR="$WDIR/text_whiten_trainOnly_localOnly.npz"
+# WHITEN_VARIANT: "_localOnly" (A recipe default, fit on local slots 1-5 only)
+# or "" for full-slot whitening, which is what a symmetric slot0 needs.
+WV="${WHITEN_VARIANT-_localOnly}"
+WOPT="$WDIR/text_whiten_optTrain${WV}.npz"
+WTR="$WDIR/text_whiten_trainOnly${WV}.npz"
 for f in "$WOPT" "$WTR"; do [ -f "$f" ] || { echo "[promptAblA $EXP] MISSING $f"; exit 3; }; done
 BASE="promptAblA_${EXP}${TAG_SUFFIX:-}"
 echo "[promptAblA $EXP] GPU=$GPU CANON=$CANON K=$K CIBNT=$CIBNT L=3 cache=$CACHE @ $(date '+%F %T')"

@@ -1934,6 +1934,28 @@ class Config():
             help="Beta(b,b) shape for the spread target (SDC uses 5).")
         loss_arg.add_argument('--sim_spread_pairs', type=int, default=4096,
             help="Number of sampled in-batch pairs for the spread loss.")
+        loss_arg.add_argument('--lambda_bio_constraint', type=float, default=0.0,
+            help="Constraint-AWARE training (2026-07-29). Differentiable "
+                 "surrogate for the two bio constraints that are currently "
+                 "only enforced by the post-hoc DP projection: (i) GC-count "
+                 "hinge on the expected GC of continuous_code, (ii) expected "
+                 "probability of any homopolymer run > --bio_constraint_max_run "
+                 "over the concatenated 18/24-base sequence. Tests whether the "
+                 "DNA constraints are load-bearing (learned) or decorative "
+                 "(projected). 0 = off, champion bit-identical.")
+        loss_arg.add_argument('--bio_constraint_gc_min', type=float, default=None,
+            help="GC lower bound as a FRACTION for the training penalty. "
+                 "Default None = use the evaluation convention resolved from "
+                 "code length L (18-base -> count [8,10]; 24-base -> [10,14]).")
+        loss_arg.add_argument('--bio_constraint_gc_max', type=float, default=None,
+            help="GC upper bound as a fraction; see --bio_constraint_gc_min.")
+        loss_arg.add_argument('--bio_constraint_max_run', type=int, default=3,
+            help="Maximum allowed homopolymer run; the penalty charges the "
+                 "expected number of (max_run+1)-windows that are constant.")
+        loss_arg.add_argument('--bio_constraint_gc_weight', type=float, default=1.0,
+            help="Relative weight of the GC term inside the bio penalty.")
+        loss_arg.add_argument('--bio_constraint_hp_weight', type=float, default=1.0,
+            help="Relative weight of the homopolymer term inside the penalty.")
         loss_arg.add_argument('--lambda_swav_assign', type=float, default=0.0,
             help='v121: weight for SwAV-style swapped balanced codeword-'
                  'assignment loss (additive). 0 disables.')

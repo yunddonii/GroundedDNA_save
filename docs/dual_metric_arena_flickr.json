@@ -1,0 +1,78 @@
+{
+  "dataset": "Flickr25k",
+  "cutoff": 5000,
+  "bio_projected": true,
+  "note": "same deployed codes scored in both arenas; 36 bits <-> 18 bases is a bijection",
+  "cells": [
+    {
+      "dataset": "Flickr25k",
+      "method": "Ours (A-champion)",
+      "base_mAP_at_R": 0.8675105366616245,
+      "bit_mAP_at_R": 0.8617799369809818,
+      "dir": "result/260727+flickr25k_setting1_promptAblA_flickr_A_v4_P0refit_e4+bs+64+e+60+proj_lr+0.001"
+    },
+    {
+      "dataset": "Flickr25k",
+      "method": "CIBHash",
+      "base_mAP_at_R": 0.7824373097315305,
+      "bit_mAP_at_R": 0.8006046100725333,
+      "dir": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_cibhash_flickr25k_36b_seed42/attempt_001/260722/cibhash_flickr25k_36b_P0refit_seed42_p3f8f4d7f4fdd_e4_dnaeval"
+    },
+    {
+      "dataset": "Flickr25k",
+      "method": "CIMON",
+      "base_mAP_at_R": 0.8164834351339546,
+      "bit_mAP_at_R": 0.8224325923873914,
+      "dir": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_cimon_flickr25k_36b_seed42/attempt_001/260722/cimon_flickr25k_36b_P0refit_seed42_p7fa8c30bf47d_e14_dnaeval"
+    },
+    {
+      "dataset": "Flickr25k",
+      "method": "OH",
+      "base_mAP_at_R": 0.8361623958821436,
+      "bit_mAP_at_R": 0.8429769138900866,
+      "dir": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_oh_flickr25k_36b_seed42/attempt_001/260722/oh_flickr25k_36b_P0refit_seed42_p3906592da93c_e179_dnaeval"
+    },
+    {
+      "dataset": "Flickr25k",
+      "method": "SDC",
+      "base_mAP_at_R": 0.7229580821826923,
+      "bit_mAP_at_R": 0.7491433123505119,
+      "dir": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_sdc-paper_flickr25k_36b_seed42/attempt_001/260722/sdc_paper_flickr25k_36b_P0refit_seed42_p70d265a59910_e49_dnaeval"
+    },
+    {
+      "dataset": "Flickr25k",
+      "method": "Bi-half",
+      "base_mAP_at_R": 0.8160834229456841,
+      "bit_mAP_at_R": 0.8209039678196444,
+      "dir": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_bihalf_flickr25k_36b_seed42/attempt_001/260722/bihalf_flickr25k_36b_P0refit_seed42_p0ba848638c66_e99_dnaeval"
+    },
+    {
+      "dataset": "Flickr25k",
+      "method": "GreedyHash",
+      "base_mAP_at_R": 0.6076631793722772,
+      "bit_mAP_at_R": 0.6067415701445079,
+      "dir": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_greedyhash_flickr25k_36b_seed42/attempt_001/260722/greedyhash_flickr25k_36b_P0refit_seed42_p8b0278321c66_e59_dnaeval"
+    },
+    {
+      "dataset": "Flickr25k",
+      "method": "HHCH",
+      "base_mAP_at_R": 0.5867456919248807,
+      "bit_mAP_at_R": 0.5845590453562369,
+      "dir": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_hhch_flickr25k_36b_seed42/attempt_001/260722/hhch_flickr25k_36b_P0refit_seed42_pe4eb39f66948_e14_dnaeval"
+    },
+    {
+      "dataset": "Flickr25k",
+      "method": "MLS3RDUH",
+      "base_mAP_at_R": 0.7577278911160075,
+      "bit_mAP_at_R": 0.7651946917872646,
+      "dir": "result_baseline/p0_matrix_seeds42_mls3rduh_paper_cache/u0_mls3rduh_flickr25k_36b_seed42/attempt_001/260722/mls3rduh_flickr25k_36b_P0refit_seed42_p95ca9201b7cf_e114_dnaeval"
+    },
+    {
+      "dataset": "Flickr25k",
+      "method": "CroVCA",
+      "base_mAP_at_R": 0.7682267699949755,
+      "bit_mAP_at_R": 0.7888221776160684,
+      "dir": "result_baseline/260722/crovca_flickr25k_36b_P0refit_seed42_pba6437354086_e4_dnaeval"
+    }
+  ]
+}
