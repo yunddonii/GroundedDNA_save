@@ -202,6 +202,17 @@ class Config():
             help='Freeze SigLIP2 backbone (default: True).')
         siglip2_arg.add_argument('--no_freeze_backbone', dest='freeze_backbone',
             action='store_false')
+        siglip2_arg.add_argument('--codon_chunk_layernorm', dest='codon_chunk_layernorm',
+            action='store_true', default=False,
+            help="(Exp1') LayerNorm each codon-position chunk before the 4-way "
+                 "Linear. Fixes the slot0 scale imbalance (chunk std 0.39 vs "
+                 "0.86-0.92) that drove |W|=16.4 and collapsed 128 codewords "
+                 "onto 21 codons (6.1:1 vs the 2:1 floor).")
+        siglip2_arg.add_argument('--pq_slot_subspace', dest='pq_slot_subspace',
+            action='store_true', default=False,
+            help="(Exp2) Product-Quantization-style disjoint slot subspaces: "
+                 "slot m only sees feature dims [m*D/M, (m+1)*D/M) before VQ. "
+                 "Targets the measured 65%% inter-slot code redundancy.")
         siglip2_arg.add_argument('--num_codebooks', dest='num_codebooks',
             type=int, default=6)
         # K=32 default chosen empirically on CIFAR10 setting1 (5K train).
@@ -1912,6 +1923,13 @@ class Config():
                  "code: rank in-batch pairs by frozen-teacher cosine and fit the "
                  "code cosine onto a symmetric Beta quantile spread. Targets code "
                  "RESOLUTION (the axis where CroVCA/SDC beat us on MSCOCO). 0 = off.")
+        loss_arg.add_argument('--sim_spread_metric', type=str, default='cosine',
+            choices=['cosine', 'base_match'],
+            help="Similarity used by the spread calibration. 'cosine' is the "
+                 "literal SDC port (assumes +-1 bits, SDC Eq.2). 'base_match' is "
+                 "the 4-ary DNA adaptation: expected base agreement "
+                 "mean_r <p_i[r],p_j[r]> in [0,1] = 1 - E[baseHamming]/R, with a "
+                 "Binomial(R,1/4)-matched Beta((R-1)/4, 3(R-1)/4) target.")
         loss_arg.add_argument('--sim_spread_beta', type=float, default=5.0,
             help="Beta(b,b) shape for the spread target (SDC uses 5).")
         loss_arg.add_argument('--sim_spread_pairs', type=int, default=4096,

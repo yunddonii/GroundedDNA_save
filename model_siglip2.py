@@ -1003,12 +1003,22 @@ class CodonHead(nn.Module):
         residual_split: bool = False,
         residual_gate: bool = False,
         use_full_linear: bool = False,
-        num_codons: int = 3,                 # v122: L = codon-positions per codebook
+        num_codons: int = 3,
+        chunk_layernorm: bool = False,                 # v122: L = codon-positions per codebook
     ) -> None:
         super().__init__()
         self.num_codons: int = int(num_codons)
         if self.num_codons < 1:
             raise ValueError(f"[CodonHead] num_codons must be >= 1; got {self.num_codons}")
+        # (Exp1') Normalise each codon-position chunk before the 4-way Linear.
+        # Diagnosis 2026-07-27: slot0 receives siglip2_global (chunk std 0.39 vs
+        # 0.86-0.92 for routed slots); its head compensated with |W|=16.4 (8-10x
+        # the others), saturating the logits and collapsing 128 codewords onto
+        # 21 codons (6.1:1 vs the 2:1 pigeonhole floor). Normalising the chunk
+        # removes the scale imbalance that drives that compensation.
+        self.chunk_norm = None
+        if bool(chunk_layernorm):
+            self.chunk_norm = nn.LayerNorm(int(d_model) // self.num_codons)
         if d_model % self.num_codons != 0:
             raise ValueError(
                 f"[CodonHead] d_model must be divisible by num_codons={self.num_codons} "
@@ -1147,6 +1157,8 @@ class CodonHead(nn.Module):
         # v69b (Exp 2): residual-split path (3-position only; guarded at __init__).
         if residual_active and self.residual_split:
             q_chunks = x.view(B, L, self.chunk)                            # [B, L, chunk]
+            if self.chunk_norm is not None:
+                q_chunks = self.chunk_norm(q_chunks)
             r_chunks = (gamma * residual).view(B, L, self.chunk)
             l0 = self.semantic_fc_pos0(q_chunks[:, 0, :])                  # [B, 4]
             l1 = self.semantic_fc_pos1(q_chunks[:, 1, :])                  # [B, 4]
@@ -1163,6 +1175,8 @@ class CodonHead(nn.Module):
                 combined = torch.cat([x, gamma * residual], dim=-1)      # [B, 2D]
                 x = self.input_proj(combined)                             # [B, D]
             h = x.view(B, L, self.chunk)                                  # [B, L, D/L]
+            if self.chunk_norm is not None:
+                h = self.chunk_norm(h)
             # v66 text-anchored prototype head
             if self.use_text_anchor:
                 h_n     = F.normalize(h, dim=-1)
@@ -1519,6 +1533,14 @@ class SigLIP2SemanticOTModel(nn.Module):
         # MAP-pooled + projection-head output, [B, proj_dim]) through a small
         # dedicated linear into d_model space. `mean_pool` keeps the legacy
         # behavior (mean of post-adapter visual_tokens).
+        # (Exp2) PQ-style slot subspace partition. Default OFF.
+        # Diagnosis (2026-07-27): the 6 slots share the full d_model and differ
+        # only by routing weights, so their codes are 65% mutually redundant
+        # (sum H(codon)=31.2 -> H(joint)=11.1 bits). Product-Quantization-style
+        # disjoint subspaces make that redundancy structurally impossible:
+        # slot m only sees dims [m*D/M, (m+1)*D/M).
+        self.pq_slot_subspace: bool = bool(getattr(args, "pq_slot_subspace", False))
+        self.codon_chunk_layernorm: bool = bool(getattr(args, "codon_chunk_layernorm", False))
         self.c_global_source: str = str(getattr(args, "c_global_source", "siglip2_global"))
         if self.c_global_source not in ("mean_pool", "siglip2_global"):
             raise ValueError(
@@ -2248,6 +2270,7 @@ class SigLIP2SemanticOTModel(nn.Module):
                     residual_gate=self.codon_residual_gate,
                     use_full_linear=self.codon_full_linear,
                     num_codons=self.num_codons_per_codebook,
+                    chunk_layernorm=self.codon_chunk_layernorm,
                 )
                 for _ in range(self.num_codebooks)
             ]
@@ -4632,6 +4655,21 @@ class SigLIP2SemanticOTModel(nn.Module):
             f"!= expected ({B}, {NUM_SEMANTIC_PARTS}, {D})"
         )
 
+        if self.pq_slot_subspace:
+            # Zero every dimension outside slot m's own block. VQ distances then
+            # depend only on that block, so slots cannot encode each other's
+            # information. Shapes are preserved (codebook learns 0 elsewhere).
+            _B, _M, _D = quant_input.shape
+            if not hasattr(self, "_pq_mask") or self._pq_mask.shape != (1, _M, _D) \
+               or self._pq_mask.device != quant_input.device:
+                _blk = _D // _M
+                _mk = torch.zeros(1, _M, _D, device=quant_input.device,
+                                  dtype=quant_input.dtype)
+                for _m in range(_M):
+                    _hi = (_m + 1) * _blk if _m < _M - 1 else _D
+                    _mk[0, _m, _m * _blk:_hi] = 1.0
+                self._pq_mask = _mk
+            quant_input = quant_input * self._pq_mask.to(quant_input.dtype)
         q_out = self.quantizer(quant_input)
         quantized_tokens     = q_out["quantized_tokens"]      # [B, 6, D]   STE
         quantized_tokens_raw = q_out["quantized_tokens_raw"]  # [B, 6, D]   pure codewords

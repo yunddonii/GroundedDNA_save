@@ -369,6 +369,13 @@ class DNACodonHashLoss(nn.Module):
         self.lambda_sim_spread = float(getattr(cfg, "lambda_sim_spread", 0.0))
         self.sim_spread_beta   = float(getattr(cfg, "sim_spread_beta", 5.0))
         self.sim_spread_pairs  = int(getattr(cfg, "sim_spread_pairs", 4096))
+        # metric: "cosine" = literal SDC port (valid for +-1 binary codes);
+        # "base_match" = the 4-ary DNA adaptation. Our retrieval distance is
+        # base Hamming over R positions of a 4-way softmax codon, so cosine on
+        # flattened logits does NOT map linearly to it (SDC Eq.2 assumes +-1
+        # bits). base_match uses the differentiable expected base-agreement
+        # s_ij = mean_r <p_i[r], p_j[r]> in [0,1], which IS 1 - E[baseHamming]/R.
+        self.sim_spread_metric = str(getattr(cfg, "sim_spread_metric", "cosine"))
         self.proto_cluster_cos_tau    = float(getattr(cfg, "proto_cluster_cos_tau",    0.1))
         # v112 (Hierarchical Codon Decomposition): force first base of each
         # codon to encode text-similarity cluster identity of the assigned
@@ -3377,7 +3384,11 @@ class DNACodonHashLoss(nn.Module):
         # ---- (b) similarity-spread calibration (SDC-style), default OFF ----
         if self.lambda_sim_spread > 0.0 and vg is not None and B >= 8:
             _t = F.normalize(vg.detach().float(), dim=-1)            # frozen teacher
-            _c = F.normalize(u.reshape(B, -1).float(), dim=-1)       # continuous code
+            _base_match = (self.sim_spread_metric == "base_match")
+            if _base_match:
+                _p = u.float()                                       # [B,R,4] softmax probs
+            else:
+                _c = F.normalize(u.reshape(B, -1).float(), dim=-1)   # continuous code
             _n = min(int(self.sim_spread_pairs), B * (B - 1) // 2)
             _ia = torch.randint(0, B, (_n,), device=device)
             _ib = torch.randint(0, B, (_n,), device=device)
@@ -3385,13 +3396,29 @@ class DNACodonHashLoss(nn.Module):
             _ia, _ib = _ia[_keep], _ib[_keep]
             if _ia.numel() >= 8:
                 _ts = (_t[_ia] * _t[_ib]).sum(-1).detach()           # teacher cos
-                _cs = (_c[_ia] * _c[_ib]).sum(-1)                    # code cos
+                if _base_match:
+                    # E[# matching bases]/R = mean_r <p_i[r], p_j[r]>  in [0,1]
+                    _cs = (_p[_ia] * _p[_ib]).sum(-1).mean(-1)
+                else:
+                    _cs = (_c[_ia] * _c[_ib]).sum(-1)                # code cos
                 _order = torch.argsort(_ts)                          # rank by teacher
                 _m = _ia.numel()
                 # symmetric Beta(b,b) quantile targets, mapped to [-1, 1]
                 # torch.distributions.Beta has no icdf -> use scipy ppf, cached
                 # per (m, beta) since the target vector is deterministic.
-                _key = (int(_m), float(self.sim_spread_beta))
+                if _base_match:
+                    # Calibration prior for a 4-ary code (SDC Eq.7 analogue):
+                    # two uniform DNA codes agree per position w.p. 1/4, so the
+                    # match count ~ Binomial(R, 1/4). Moment-matched Beta:
+                    #   alpha = (R-1)/4,  beta = 3(R-1)/4   (mean 1/4)
+                    _R = int(u.shape[1])
+                    _al = max((_R - 1) / 4.0, 1e-3)
+                    _be = max(3.0 * (_R - 1) / 4.0, 1e-3)
+                    _lo, _hi = 0.0, 1.0                              # s already in [0,1]
+                else:
+                    _al = _be = float(self.sim_spread_beta)
+                    _lo, _hi = -1.0, 1.0                             # cosine range
+                _key = (int(_m), _al, _be, _lo)
                 _cache = getattr(self, "_sim_spread_tgt_cache", None)
                 if _cache is None:
                     _cache = {}
@@ -3400,8 +3427,7 @@ class DNACodonHashLoss(nn.Module):
                     from scipy.stats import beta as _sp_beta
                     import numpy as _np
                     _qn = (_np.arange(_m, dtype=_np.float64) + 0.5) / _m
-                    _tn = _sp_beta.ppf(_qn, self.sim_spread_beta,
-                                       self.sim_spread_beta) * 2.0 - 1.0
+                    _tn = _sp_beta.ppf(_qn, _al, _be) * (_hi - _lo) + _lo
                     _cache[_key] = torch.tensor(_tn, dtype=torch.float32)
                 _tgt = _cache[_key].to(device)
                 loss_sim_spread = F.l1_loss(_cs[_order], _tgt.detach())

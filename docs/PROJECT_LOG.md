@@ -487,6 +487,183 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-07-29 — 🟡 Bottleneck campaign for minimal-pair discriminability: #2 and #5 refuted, **#4 (double quantisation) partly confirmed**. Two interventions succeed; the goal metric still fails.
+
+🎯 **Goal.** Make fine caption differences ("cat on grass" vs "cat on sand") propagate into codon differences, i.e.
+per-semantic-part discriminative codes. The 2026-07-28 audit found no evidence for this and named five
+structural bottlenecks. This entry attacks them and reports what broke.
+
+📊 **Primary metric = held-out minimal-pair** (`scripts/eval_heldout_caption_foils.py`, MSCOCO, factual vs
+own single-atom lexical foil). The decisive number is
+`visual_dna_prefers_factual_by_base_distance` — does the image's DNA sit closer (base Hamming) to its factual
+caption's DNA than to the foil's. Baseline **0.1511** (chance is 0.5, so the baseline actually prefers the FOIL).
+
+| cell | mAP@R | DNA-uniq | **dna_prefers_factual** | text_dna_base_hamming | margin_viol ↓ | factual_pref | codon decode |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| **base** (A+V5b) | **0.8170** | 0.1899 | 0.1511 | 0.4699 | 0.8171 | 0.4611 | 0.6144 |
+| CIBNT 0.5 | 0.7989 | 0.1730 | 0.1372 | 0.3729 | 0.8125 | 0.4238 | — |
+| CIBNT 0.25 | 0.7769 | 0.1405 | 0.1355 | 0.4064 | 0.8415 | 0.3783 | — |
+| **codonRouted** | 0.8159 | **0.3683** | 0.1546 | 0.4001 | **0.6937** | **0.5665** | 0.6118 |
+| **noGumbel** | **0.8201** | 0.1787 | 0.1457 | 0.4553 | 0.8062 | 0.4771 | **0.6283** |
+| **dual** (routed+noGumbel) | 0.8088 | **0.3758** | **0.1683** | 0.4212 | **0.6821** | 0.5811 | — |
+| triple (dual + own-foil ρ0.1) | 0.8084 | 0.3669 | 0.1555 | **0.3964** | 0.6995 | 0.5851 | — |
+
+🔴 **Bottleneck #2 (loss budget: `cibhash_ntxent` crowds out text) — REFUTED.** Relaxing 1.5 → 0.5 → 0.25
+degrades **all three axes monotonically**: retrieval (0.8170→0.7989→0.7769), diversity (0.1899→0.1730→0.1405)
+and the minimal-pair metric (0.1511→0.1372→0.1355). Instance discrimination is not a competitor that suppresses
+text; it is the substrate the code needs. The earlier "ρ jumps to 0.602 at cb0.0" (2026-07-20) is an artefact of
+code collapse (eff_rank 2.4, DNA-unique 0.066), not recovered semantic structure.
+⚠️ *Process*: the first CIBNT sweep was invalid — my runner hard-coded `CIBNT=1.5` inside the per-dataset `case`
+block, overriding the exported value, so both cells silently reproduced the baseline bit-for-bit. Fixed
+(`CIBNT="${CIBNT:-…}"`, same for `K`), cells re-run, and every later launch now verifies `args.txt` immediately.
+
+🟡 **Bottleneck #4 (double quantisation) — PARTLY CONFIRMED; the first real wins of the campaign.**
+- **`--codon_input_source routed`** feeds the codon head the *continuous* routed z instead of the quantised
+  codeword, bypassing quantisation-1. Mechanism proven by an impossible-otherwise inequality:
+  **DNA-unique 0.3901 > cb-tuple-unique 0.2867**. A codon that is a deterministic function of the codeword can
+  only merge, never split, so `DNA ≤ cb_tuple` is forced; breaking it proves the codebook grid is bypassed.
+  Effect: **DNA-unique +94 %** (0.1899→0.3683) at **no retrieval cost** (−0.0011), margin-violation
+  **0.817→0.694**, factual-preference **0.461→0.567** (first time above chance).
+- **`--no_gumbel_softmax`** (deterministic STE) is a **clean Pareto win**: mAP@R **+0.0031** and held-out codon
+  decoding **+0.0139** (0.6144→0.6283) — the only intervention all campaign to improve interpretability.
+  Confirms the train/eval mismatch hypothesis (Gumbel noise at train vs argmax at eval).
+- **Interpretability is preserved under `routed`**: held-out **codon** decoding 0.6144 → 0.6118 (−0.003, noise).
+  This matters because codon decoding reads `base_indices` — the deployed DNA — so it stays exactly the right
+  measurement even when the codebook is bypassed. Only the codebook-based analyses (codeword decoding
+  0.7175→0.7047, NMI, drop, ρ) now describe a structure the DNA no longer directly inherits: the codebook's
+  role shifts from *output device* to *regulariser of z* (λ_vq 0.25 / λ_quant 0.05 remain active).
+- **But combining is not complementary**: dual (routed+noGumbel) costs −0.008 mAP@R where the singles cost
+  −0.001/+0.003, while giving the campaign-best minimal-pair 0.1683 and DNA-unique 0.3758.
+
+🔴 **own-foil counterfactual NT-Xent (arm B, ρ=0.10, μ=0.02, warmup 1) — REFUTED on its own target.**
+It adds each sample's own single-atom foil as one extra denominator column in the per-slot text-DNA InfoNCE.
+Its target metric — `text_dna_base_hamming_count`, how many of 18 bases separate the factual and foil *text*
+DNA — got **worse** (dual 0.4212 → triple 0.3964), and `triple − dual` is ≈0 or negative on every other axis.
+A cosine-margin term (μ=0.02) does not survive the argmax that produces the bases.
+
+🔑 **The residual, unbroken bottleneck is the TEXT branch, not the visual one.** Factual and foil captions —
+differing by one lexical atom — produce text DNA codes that differ by only **0.40–0.47 of 18 bases (~2.5 %)**,
+and 2 of 3 pairs do not even flip a codeword. The headline metric compares the image DNA against two nearly
+*identical* targets, which caps it near chance regardless of visual-side quality: `codonRouted` raised
+DNA-unique by 94 % and moved every cosine-level metric, yet `dna_prefers_factual` moved only +0.003. Every
+intervention that improved the visual side *lowered* text separation (0.470 → 0.396–0.421).
+
+✅ **Campaign scoreboard (13 interventions).** Succeeded: `codonRouted` (resolution/cosine axes),
+`noGumbel` (retrieval + interpretability, no cost). Refuted by measurement: LBU usage regulariser, SDC-cosine
+spread, PQ subspace, route_global_text, chunk-LayerNorm, 24-base, CIBNT 0.5/0.25, own-foil, dual/triple
+combination. Pre-refuted at zero GPU cost: SDC base-match target (our base-match distribution is already
+*wider* than the Binomial(R,¼) ideal, so the calibration would compress it), collision repulsion (97.3 % of
+exact-code collisions share a label — they are correct, not false), slot0 removal (leave-one-slot-out: −0.0070).
+
+🧭 **Recommendation.** Adopt **`--no_gumbel_softmax`** (strict improvement on both reported axes, no cost).
+Treat `--codon_input_source routed` as a documented trade-off (resolution +94 % vs a weakened
+codeword→codon interpretability chain), not an automatic default. For the paper, report minimal-pair
+discriminability as a **quantified negative result with a located cause** (the text branch's DNA collapse),
+which is stronger than an unexamined limitation.
+
+⚠️ **Caveats.** Single seed; MSCOCO only; all cells are the A+V5b recipe under P0 2-stage + bio-projection.
+The minimal-pair evaluator is the concurrent session's held-out foil harness; its pairs were generated for
+L=4 while these cells are L=3 (the evaluator re-encodes per model, but the pair set was not regenerated).
+
+🧰 `--sim_spread_metric base_match` and `--lambda_sim_spread` (default OFF) added earlier remain unused after
+pre-refutation. Runner gained `CACHE_OVERRIDE` (to train on the `_foils` overlay) and fixed `CIBNT`/`K`
+overrides. Outputs: `docs/minpair_{cibnt_sweep,q4,q5}_mscoco.json`, `docs/heldout_codon_q4_*.json`,
+result dirs `result/260728+*promptAblA_mscoco_A_v5b_{cib050,cib025,codonRouted,noGumbel,dual,triple}_P0refit_*`.
+
+---
+
+## 2026-07-28 — 🔴 Architecture-level attack on the MSCOCO top-shell deficit: information-theoretic diagnosis + FOUR interventions, all refuted. Slot redundancy and slot0's low-capacity path are load-bearing.
+
+🎯 **Why.** The 2026-07-27 root-cause entry localised the MSCOCO deficit to the top shell of rare-concept
+queries (Q1 −0.042 vs CroVCA, reversing to +0.025 in Q4). Three non-architectural fixes had already failed
+(LBU usage regulariser measured; SDC-spread and collision-repulsion pre-refuted at zero cost). The user asked
+for an architecture-level analysis and structural directions.
+
+🔬 **Diagnosis 1 — where the code's bits go (MSCOCO DB, 107,218 rows; ceiling log2 N = 16.71 bits).**
+
+| | ΣH(base) | H(joint) | redundancy loss | efficiency | distinct |
+|---|---:|---:|---:|---:|---:|
+| **Ours** | 34.98 | **11.06 bits** | 23.93 | 31.6% | 20,365 |
+| CroVCA | 35.69 | **12.45 bits** | 23.24 | 34.9% | 48,995 |
+
+Per-base entropy is already saturated (mean 1.944 / 2.0), so base-balance is NOT the bottleneck. Slot decomposition:
+
+| slot | 0 (global) | 1 | 2 | 3 | 4 | 5 |
+|---|---:|---:|---:|---:|---:|---:|
+| H(codon), max 6.0 | **3.92** | 5.43 | 5.56 | 5.58 | 5.47 | 5.25 |
+| effective codons /64 | **15.1** | 43.3 | 47.3 | 47.8 | 44.4 | 38.0 |
+
+ΣH(codon) 31.22 → H(joint) 11.06 = **65% inter-slot redundancy**. ⚠️ Honest control: CroVCA's arbitrary
+3-base chunks are 62% redundant too, so 65% is not ours alone; the gap is slot0's low starting capacity.
+
+🔬 **Diagnosis 2 — slot0's collapse is deterministic, and it is a SCALE problem, not a codebook problem.**
+- codeword usage is maximal (128/128 used, 118.4 effective — the **highest** of all slots, top1 occupancy 1.6%)
+- but the deterministic codeword→codon map collapses **128 codewords onto 21 codons (6.1:1)** vs 53–59
+  codons (2.2–2.4:1, near the 2:1 pigeonhole floor) for slots 1–5
+- codebook geometry is healthy (chunk effective rank 62.4, the highest; inter-chunk cos 0.013)
+- the anomalies are **chunk std 0.3946** (vs 0.858–0.924) and **codon-head ‖W‖ = 16.41** (vs 1.58–2.17, **8–10×**)
+
+Mechanism: slot0 alone bypasses Sinkhorn routing (`c_global_source=siglip2_global` feeds the CLIP global
+embedding directly), so its input scale is half that of the routed slots; the head compensated with a 8–10×
+weight norm, saturating the logits and collapsing the argmax. Note the codon heads are **already per-slot
+independent** (`nn.ModuleList` of 6 `CodonHead`s, no weight sharing) — an earlier suggestion to "separate the
+heads" was wrong and is retracted.
+
+🔬 **Zero-cost pre-refutation — slot0 is not dead weight.** Leave-one-slot-out on the frozen champion codes
+(15-base, bio-projected): dropping slot0 costs **−0.0070**; slot1 −0.0163; slot2 −0.0064; slot3 −0.0082;
+slot4 −0.0098; **slot5 +0.0003** (the only harmless one). Low entropy ≠ useless. The proposed
+"remove slot0 → 15-base" training run was therefore never launched.
+
+📊 **Four architectural interventions (MSCOCO, A+V5b recipe, P0 2-stage, bio-projected; baseline mAP@R
+0.8170 / DNA-unique 0.1899).**
+
+| intervention | mAP@R | Δ | DNA-uniq | Δ | slot0 distinct codon | slot0 ‖W‖ |
+|---|---:|---:|---:|---:|---:|---:|
+| *(baseline)* | *0.8170* | — | *0.1899* | — | *21 (6.1:1)* | *16.41* |
+| **24-base** (`--num_codons_per_codebook 4`) | 0.8155 | −0.0015 | **0.2185** | **+0.029** | — | — |
+| **codon-head chunk LayerNorm** | 0.7973 | **−0.0197** | 0.1332 | −0.057 | **26 (4.9:1)** | **5.80** |
+| **`--route_global_text`** (slot0 routed by C_global) | 0.7851 | **−0.0319** | 0.0990 | −0.091 | **1 (total collapse)** | 14.96 |
+| **PQ disjoint slot subspaces** | 0.6564 | **−0.1606** | 0.0079 | −0.182 | — | — |
+
+🔑 **Findings.**
+1. **🔴 The chunk-LayerNorm result is the decisive one: the mechanism worked and the model still got worse.**
+   ‖W‖ fell 16.41 → 5.80 (−65%), the collapse ratio improved 6.1:1 → 4.9:1, distinct codons 21 → 26 — exactly
+   the intended repair of the diagnosed chain — yet mAP@R −0.020 and DNA-unique −0.057. **slot0's low codon
+   capacity is an operating point the model chose, not a defect to fix.** This refutes the diagnosis-driven
+   prescription even though the diagnosis itself was correct.
+2. **🔴 Routing slot0 with the existing C_global caption (`--route_global_text`, v119, already implemented)
+   collapses slot0 to a single codon.** Its chunk std normalises (0.39 → 0.93) as predicted, but with all six
+   slots competing for the same patch pool slot0 degenerates to a constant. The heterogeneous, routing-free
+   global path is **load-bearing complementarity**, not an inconsistency to remove.
+3. **🔴 PQ-style disjoint subspaces are catastrophic** (−0.161 mAP@R, DNA-unique 0.19 → **0.008**, i.e. nearly
+   every image shares one code). The measured 65% inter-slot redundancy is **required for the representation**,
+   independently reproducing the 2026-07-21 sequential-residual conclusion that slot redundancy is load-bearing.
+4. **🟡 Only the intervention that leaves slot structure alone is neutral-or-positive**: 24-base adds capacity
+   (DNA-unique +0.029) but does not convert it into retrieval (mAP@R −0.0015). Note A-recipe 24-base (0.8155)
+   is *below* the non-A 24-base diagnostic (0.8257).
+5. **Consolidated:** every intervention that touches slot heterogeneity, redundancy, or capacity allocation
+   lowers DNA-unique and hurts retrieval; three of four also hurt the very axis they targeted.
+
+🧭 **Paper-usable statement.** *"The six slots' 65% mutual redundancy and slot0's heterogeneous low-capacity
+path are load-bearing rather than wasteful. Four architectural interventions — PQ subspace separation,
+routing the global slot by its caption, codon-head chunk normalisation, and code-length extension — all fail
+to preserve retrieval, and three reduce code diversity. Chunk normalisation is the strongest negative: it
+verifiably removed the diagnosed weight blow-up (‖W‖ −65%) and still degraded both axes."*
+
+⚠️ **Caveats and process notes.** Single seed; MSCOCO only; each cell is one P0 2-stage run at the champion's
+recipe. **Two runs crashed from my own resource contention** (four concurrent runs): `route_global_text` hit a
+checkpoint-write failure (`PytorchStreamWriter ... file write failed`) and chunk-LayerNorm hit file-descriptor
+exhaustion (`multiprocessing.reduction.DupFd`) — disk and quota were *not* the cause (936 GB free on /data,
+533 GB on /). Both were re-run stage-2-only, reusing the leak-free stage-1 E\* (24 and 29), which is protocol-
+valid but means those two cells' stage-2 ran under different IO conditions than the others.
+
+🧰 **New (all default OFF, champion bit-identical): `--pq_slot_subspace`, `--codon_chunk_layernorm`
+(model_siglip2.py + config.py). Reused existing `--route_global_text` (v119). Runner gained `NUM_CODONS`/
+auto-GC and `AUX_ARGS`/`LBU`/`TAG_SUFFIX` passthrough (scripts/prompt_ablation_A_cell.sh).
+Result dirs `result/2607{27,28}+*promptAblA_mscoco_A_v5b_{L4,chunkLN,routeGT,pqsub}_P0refit_*`.
+
+---
+
 ## 2026-07-27 — 🟡 Prompt-schema effect is RECIPE-DEPENDENT: under the strict global-caption-free "A" recipe the effect REVERSES — MSCOCO's V5b is vindicated, CIFAR's V1 is not
 
 🎯 **Follow-up to the 2026-07-24 champion-recipe prompt ablation.** That entry (V4/V5b/V1 single-delta swaps on
