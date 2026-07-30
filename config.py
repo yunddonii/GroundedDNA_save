@@ -897,6 +897,18 @@ class Config():
             help='v69a: per-codon-position separate Linear(chunk, 4). 3 fc '
                  'layers replace the shared one. Allows codon positions 0/1/2 '
                  'to specialize.')
+        siglip2_arg.add_argument('--codon_position_specific_head_slots',
+            dest='codon_position_specific_head_slots', type=str, default='',
+            help="Restrict --codon_position_specific_head to specific slots, "
+                 "e.g. '0' for the global slot only. Empty (default) applies "
+                 "--codon_position_specific_head uniformly to all slots, which "
+                 "is the legacy behaviour. Motivation (2026-07-30 diagnosis): "
+                 "slot0 reaches only 21/64 codons versus the 48.6 its own "
+                 "per-position marginals allow (other slots hit their marginal "
+                 "budget), because ONE shared Linear(chunk,4) reads all three "
+                 "codon positions and a single codeword direction moves all "
+                 "three bases together (joint-logit PC1 24.5%% vs 16-20%%). "
+                 "Three independent heads break that coupling.")
         # v87a: shared CodonHead + zero-initialized position residual adapters.
         # Keeps the legacy shared Linear(chunk, 4) path as the main classifier,
         # then adds a small per-position correction to logits. This preserves

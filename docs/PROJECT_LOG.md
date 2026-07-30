@@ -487,6 +487,159 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-07-30 — 🔬 slot-0 codon collapse ROOT-CAUSED to **joint (3-way) dependence, not per-position collapse**; the shared-head hypothesis is REFUTED by two position-specific-head cells. Plus dual-arena CIFAR/MSCOCO and NUS A4.
+
+🎯 **Why.** slot0 emits only 21/64 codons while slots 1–5 emit 53–59. Two prior interventions failed
+(chunk-LayerNorm 2026-07-28: mechanism verified, performance worse; slot0-symmetric 2026-07-29: slot0
+went to 1/64 even with all four global losses restored). User directive: find the cause exhaustively.
+
+### Block 1 — 🔬 Exhaustive diagnosis: the collapse is in the JOINT, not the marginals
+
+🧰 **Method.** With `codon_input_source=quantized` and `codon_residual_gamma=0` the codon is a **pure
+deterministic function of the codeword index**, so the entire map can be reconstructed by enumerating
+all K=128 codewords without running the model:
+`e = codebooks[m,k] → e.view(3,256) → shared Linear(256,4) → argmax → codon`.
+Agreement with the saved extraction: **1.000000**. (`scripts/diagnose_slot0_codon_collapse.py`)
+
+📊 **The decisive table — observed coverage vs what each slot's OWN per-position marginals allow**
+(expected distinct cells under independence, `Σ_cells 1-(1-p)^K`; MSCOCO A-champion, unweighted over
+the 128 codewords).
+
+| slot | distinct codons | **E[indep]** | **gap** | multi-information ΣH(pos) − H(joint) |
+|---|---:|---:|---:|---:|
+| **0** | **21** | **48.6** | **−27.6** | **1.722 bit** |
+| 1 | 57 | 53.6 | +3.4 | 0.265 |
+| 2 | 58 | 54.9 | +3.1 | 0.249 |
+| 3 | 59 | 54.6 | +4.4 | 0.252 |
+| 4 | 53 | 54.2 | −1.2 | 0.353 |
+| 5 | 54 | 52.8 | +1.2 | 0.407 |
+
+🔑 **Findings.**
+1. **🎯 Slots 1–5 behave as if their three codon positions were INDEPENDENT** (gap ≈ 0; a random map of
+   128 codewords onto 64 cells would cover 55.5). **Only slot0 falls 27.6 cells short of its own
+   marginal budget.**
+2. **The marginals are NOT the problem.** slot0 uses all four bases at every position; normalised
+   per-position entropy 0.932 vs 0.951–0.985 elsewhere. Usage-weighted pairwise MI between positions:
+   slot0 **0.560 / 0.393 / 0.680** vs 0.02–0.25 for every other slot.
+3. **A single shared factor drives all three positions.** PC1 of the joint 12-d logit space
+   (3 positions × 4 classes) explains **24.5 %** for slot0 vs 16.0–19.9 % elsewhere; the top two
+   components cover **47.9 %** vs 31.1–37.8 %. And MI(codebook-PC1, base) is **uniform across the three
+   positions for slot0 (0.349 / 0.353 / 0.343)** while it is uneven for every other slot
+   (e.g. slot2 0.156 / 0.196 / 0.091).
+
+🔴 **Six hypotheses REFUTED by measurement** (all previously plausible):
+
+| hypothesis | measurement | verdict |
+|---|---|---|
+| bias dominates the argmax | slot0 bias/signal **0.09 — the LOWEST** of all slots (others 0.11–0.33) | refuted |
+| the three chunks are mutually aligned | cos(c0,c1)=0.001, (c0,c2)=0.022, (c1,c2)=0.018 ≈ 0 for every slot | refuted |
+| codeword **norm** is the shared factor | MI(‖c‖, base) = 0.062 / 0.077 / 0.143, same as other slots | refuted |
+| W is rank-deficient in the logit-difference space | centered-W singular values 10.7 / 8.7 / 8.3 — full rank 3 | refuted |
+| `loss_base_balance` blind spot (soft mean hides argmax collapse) | hard entropy 0.932 ≈ soft entropy 0.932 | refuted |
+| CLIP-global anisotropy gives slot0 a dominant PC1 | codebook PC1 share **4.91 %** (others 4.31–8.65 %); PC1 chunk balance 0.715 (others 0.700–0.822) | refuted |
+
+⚠️ **Real but NON-CAUSAL anomalies** (this is why 2026-07-28 mis-prescribed): slot0's ‖W‖ = 16.41 vs
+1.58–2.17, singular values 10.9/8.7/8.4/2.2 vs ~1.2/1.0/0.9/0.6, chunk std 0.390 vs 0.858–0.924, and
+softmax `pmax` = **1.000** vs 0.893–0.955 (complete saturation). All real. But the coupling that causes
+the collapse is **scale-invariant**, so chunk-LayerNorm — which fixed exactly these numbers
+(‖W‖ 16.41 → 5.80) — could not touch it. **The 2026-07-28 diagnosis identified a true anomaly and the
+wrong cause.**
+
+### Block 2 — 🔴 Position-specific codon heads: the shared-`Linear` hypothesis is REFUTED
+
+🎯 **Hypothesis under test.** Within a slot, ONE `nn.Linear(chunk, 4)` serves all three codon positions
+([model_siglip2.py:1111](../model_siglip2.py#L1111)) unless `--codon_position_specific_head` is set.
+(Note: the six `CodonHead`s are separate ACROSS slots — that was correctly established on 2026-07-28 —
+but the three positions WITHIN a slot share one weight matrix, which is a different and untested axis.)
+Three independent heads cannot read the same codeword direction identically, so if weight sharing were
+the coupling, this should break it.
+
+🧰 **New:** `--codon_position_specific_head_slots` (default `''` = legacy, bit-identical) restricts
+position-specific heads to a subset of slots, so slot0 can be treated alone.
+
+📊 **MSCOCO, A+V5b, 18-base, P0 2-stage, seed 42.** E\* = 24 / 34; stage-1 val 0.6506 / 0.6477 vs A 0.6497.
+
+| cell | mAP@R | Δ | DNA-uniq | Δ | **slot0 codons** | **slot0 gap** | slot0 ΣH−Hj | slots 1–5 codons |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| A baseline | 0.8170 | — | 0.1899 | — | **21** | **−27.6** | 1.722 | [57, 58, 59, 53, 54] |
+| **psAll** (all 6 slots) | **0.8215** | **+0.0045** | 0.1561 | **−0.0338** | **22** | −26.5 | **2.015** | [51, 55, 57, 56, 49] |
+| **psSlot0** (slot0 only) | 0.8081 | −0.0089 | 0.1822 | −0.0077 | **23** | −22.3 | 1.758 | [56, 59, 59, **61**, 52] |
+
+🔑 **Findings.**
+1. **🔴 REFUTED, and cleanly.** Removing the weight sharing entirely moves slot0 from 21 to **22 / 23**
+   codons; the gap stays at −26.5 / −22.3 and the multi-information actually **rises** under psAll
+   (1.722 → 2.015). Unlike the chunk-LayerNorm case, this failure is unambiguous: the intervention did
+   not move the metric it targeted.
+2. **🎯 Therefore the dependence lives BELOW the head, in the codeword representation itself.** The three
+   chunks are mutually orthogonal, yet *which codeword is selected* already determines all three bases
+   jointly. The remaining head-side degree of freedom is how the 768-d codeword is *partitioned* into
+   three chunks; everything else is upstream, in codebook formation.
+3. **psAll trades diversity for retrieval** (+0.0045 mAP@R, −0.0338 DNA-unique) and also lowers codon
+   usage in slots 1–5. It pushes on the axis where MSCOCO already loses — not adoptable.
+4. **psSlot0 has a side effect worth noting**: touching only slot0 *raised* codon usage in slots 1–4
+   (57/58/59/53 → 56/59/59/**61**), but slot0 itself stays at 23 and overall mAP@R drops 0.0089.
+
+🧭 **Next candidates (the two that survive).** (i) **chunk partition** — interleave dimensions with
+stride 3 instead of contiguous slicing (zero parameters); this is the last head-side freedom.
+(ii) **a joint-diversity loss** on the measured quantity (ΣH(pos) − H(joint) per slot, or distinct-codon
+coverage) — `loss_base_balance` only sees per-position marginals and is structurally blind to this
+collapse, so a new term is required. (ii) targets the symptom directly and does not depend on knowing
+the cause.
+
+### Block 3 — 🟢 dual-arena completed for CIFAR-10 and MS-COCO: the base-Hamming advantage is dataset-dependent
+
+Same protocol as the 2026-07-29 Flickr arena (identical deployed codes scored under base-Hamming and
+under the baselines' native bit-Hamming; 36 bits ↔ 18 bases is a bijection).
+
+| Dataset | Ours base | **Ours bit** | best baseline (bit) | **margin in the BASELINES' metric** |
+|---|---:|---:|---|---:|
+| Flickr25k | 0.8675 | 0.8618 | OH 0.8430 | **+0.0188** |
+| CIFAR-10 | 0.9058 | 0.9064 | CIBHash 0.8964 | **+0.0100** |
+| **MS-COCO** | 0.8170 | **0.8117** | **CroVCA 0.8355** | **−0.0238** |
+
+🔑 **Findings.**
+1. **CIFAR-10: the arena barely matters** — every |Δ| < 0.011 (most < 0.002). Ours leads both columns.
+2. **🔴 MS-COCO: the deficit WIDENS in the binary arena** — vs CroVCA, base −0.0087 → **bit −0.0238**;
+   vs SDC, base −0.0015 → bit −0.0210. Ours is again the only method that prefers base (+0.0053) while
+   8 of 9 baselines prefer bit.
+3. 🧭 **Consequence for the paper: "leads in both arenas" is a 3/4 claim, not 4/4.** The bit-Hamming
+   column is a defence on Flickr/CIFAR/NUS-pending and an *aggravation* on MS-COCO. It must be reported
+   either way — it is the honest answer to "you chose your own distance", and MS-COCO is already stated
+   as a loss in the main text.
+
+### Block 4 — 🟡 NUS-WIDE A4 (shared codebook): separate codebooks give NO retrieval advantage here
+
+| | mAP@R | Δ vs A | DNA-uniq |
+|---|---:|---:|---:|
+| NUS A baseline (separate, K=128 × 6) | 0.8262 | — | — |
+| **NUS A4 shared (K=768, one bank)** | **0.8301** | **+0.0039** | 0.2086 |
+
+E\* = 29; stage-1 val 0.7558 vs 0.7429, so the direction is consistent across selection and test.
+This **contradicts** the draft's A4 rows (Flickr −0.0055, MS-COCO −0.0249 favouring separate codebooks).
+⚠️ **Scope:** this is the retrieval axis only. A4's purpose is to test whether per-slot codebook
+separation drives *codon semantic organisation*, which is measured by held-out codon decoding
+(separate wins there: Flickr .7633 vs .7522, MS-COCO .6115 vs .5641). The NUS decoding cell is **not yet
+run**, so the only admissible statement today is "on NUS-WIDE, separate codebooks buy no retrieval".
+
+⚠️ **Process note.** My `GLOBAL_SKIPS` refactor used `${VAR-"--a --b"}`, which bash expands to a
+**single token** — argparse rejected it and both position-specific-head cells died at launch. Fixed to
+`${VAR---a --b}` (verified to split into two tokens). **No results were contaminated**: slot0sym passed
+`GLOBAL_SKIPS=""` explicitly, NUS uses a different launcher, and the two failed cells produced no
+artifacts. The post-launch `args.txt` check introduced on 2026-07-29 is what caught it.
+
+🧰 **New.** `scripts/diagnose_slot0_codon_collapse.py` (+ `docs/slot0_collapse_mscoco.json`);
+`--codon_position_specific_head_slots` (config.py + model_siglip2.py, default `''` = bit-identical);
+`scripts/train_mscoco_F2_sweep_clip.sh` `GLOBAL_SKIPS` quoting fix. Outputs
+`docs/dual_metric_arena_{cifar10,mscoco}.json`; result dirs
+`result/260730+*promptAblA_mscoco_A_v5b_{psAll,psSlot0}_P0refit_*`,
+`result/260729+*promptAblA_nuswide_A_v4_A4shared_P0refit_e29*`.
+
+⚠️ **Caveats.** Single seed (42) throughout. Blocks 1–2 are MSCOCO-only; the enumeration argument holds
+only while `codon_input_source=quantized` and `codon_residual_gamma=0` (both true for the champion).
+Baseline arena rows are legacy-cache diagnostics under invariant #6. The NUS-WIDE arena is not yet run.
+
+---
+
 ## 2026-07-29 — 🟢 Fairness audit of the DNA arena + **constraint-AWARE training works**: pre-projection validity 53%→90% at zero retrieval cost; held-out decoding upgraded to raw-base-E\* controls on **4/4** datasets (CIFAR cell filled for the first time)
 
 🎯 **Why.** A structured interrogation of the paper's claims (grill-me session) produced four

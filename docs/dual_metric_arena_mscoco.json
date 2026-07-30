@@ -1,0 +1,78 @@
+{
+  "dataset": "MSCOCO",
+  "cutoff": 5000,
+  "bio_projected": true,
+  "note": "same deployed codes scored in both arenas; 36 bits <-> 18 bases is a bijection",
+  "cells": [
+    {
+      "dataset": "MSCOCO",
+      "method": "Ours (A-champion)",
+      "base_mAP_at_R": 0.8169744501303711,
+      "bit_mAP_at_R": 0.8116854769044562,
+      "dir": "result/260724+mscoco_setting1_promptAblA_mscoco_A_v5b_P0refit_e39+bs+64+e+60+proj_lr+0.001"
+    },
+    {
+      "dataset": "MSCOCO",
+      "method": "CIBHash",
+      "base_mAP_at_R": 0.7739223385028782,
+      "bit_mAP_at_R": 0.7886750185220863,
+      "dir": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_cibhash_mscoco_36b_seed42/attempt_001/260722/cibhash_mscoco_36b_P0refit_seed42_p61251b540593_e19_dnaeval"
+    },
+    {
+      "dataset": "MSCOCO",
+      "method": "CIMON",
+      "base_mAP_at_R": 0.67508089084218,
+      "bit_mAP_at_R": 0.6821382219086525,
+      "dir": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_cimon_mscoco_36b_seed42/attempt_001/260722/cimon_mscoco_36b_P0refit_seed42_pc5961cbaf28c_e149_dnaeval"
+    },
+    {
+      "dataset": "MSCOCO",
+      "method": "OH",
+      "base_mAP_at_R": 0.7586977041935629,
+      "bit_mAP_at_R": 0.7634514458636561,
+      "dir": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_oh_mscoco_36b_seed42/attempt_002/260722/oh_mscoco_36b_P0refit_seed42_p7d1635a09f94_e189_dnaeval"
+    },
+    {
+      "dataset": "MSCOCO",
+      "method": "SDC",
+      "base_mAP_at_R": 0.8184719608947765,
+      "bit_mAP_at_R": 0.8327060919601703,
+      "dir": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_sdc-paper_mscoco_36b_seed42/attempt_001/260722/sdc_paper_mscoco_36b_P0refit_seed42_pa6b6a598d967_e94_dnaeval"
+    },
+    {
+      "dataset": "MSCOCO",
+      "method": "Bi-half",
+      "base_mAP_at_R": 0.7061669295432242,
+      "bit_mAP_at_R": 0.7106099296387947,
+      "dir": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_bihalf_mscoco_36b_seed42/attempt_002/260722/bihalf_mscoco_36b_P0refit_seed42_p6630c330db4c_e119_dnaeval"
+    },
+    {
+      "dataset": "MSCOCO",
+      "method": "GreedyHash",
+      "base_mAP_at_R": 0.5638557466727938,
+      "bit_mAP_at_R": 0.5692057836299542,
+      "dir": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_greedyhash_mscoco_36b_seed42/attempt_001/260722/greedyhash_mscoco_36b_P0refit_seed42_pe80ec15d15e0_e59_dnaeval"
+    },
+    {
+      "dataset": "MSCOCO",
+      "method": "HHCH",
+      "base_mAP_at_R": 0.4708736799691904,
+      "bit_mAP_at_R": 0.4702772084639257,
+      "dir": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_hhch_mscoco_36b_seed42/attempt_001/260722/hhch_mscoco_36b_P0refit_seed42_pef1355ca3a8d_e69_dnaeval"
+    },
+    {
+      "dataset": "MSCOCO",
+      "method": "MLS3RDUH",
+      "base_mAP_at_R": 0.6310639973797363,
+      "bit_mAP_at_R": 0.6365288800336574,
+      "dir": "result_baseline/p0_matrix_seeds42_mls3rduh_paper_cache/u0_mls3rduh_mscoco_36b_seed42/attempt_001/260722/mls3rduh_mscoco_36b_P0refit_seed42_pf17d91e02598_e149_dnaeval"
+    },
+    {
+      "dataset": "MSCOCO",
+      "method": "CroVCA",
+      "base_mAP_at_R": 0.8256884120664808,
+      "bit_mAP_at_R": 0.8354758742286822,
+      "dir": "result_baseline/260722/crovca_mscoco_36b_P0refit_seed42_pb01bbab4e8a6_e4_dnaeval"
+    }
+  ]
+}

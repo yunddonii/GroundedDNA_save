@@ -2254,6 +2254,16 @@ class SigLIP2SemanticOTModel(nn.Module):
             (_lam_sinkhorn + _lam_agg_ent + _lam_pairw
              + _lam_txt_clu + self.lambda_text_codon_rel + _lam_hcc) > 0.0
         )
+        # 2026-07-30: `position_specific_head` may be restricted to a subset of
+        # slots. Empty spec -> apply `codon_position_specific_head` to every
+        # slot (legacy behaviour, bit-identical).
+        _psh_spec = str(getattr(args, "codon_position_specific_head_slots", "") or "").strip()
+        _psh_slots = ({int(s) for s in _psh_spec.split(",") if s.strip() != ""}
+                      if _psh_spec else None)
+        if _psh_slots is not None and not _psh_slots <= set(range(self.num_codebooks)):
+            raise ValueError(
+                f"--codon_position_specific_head_slots={_psh_spec!r} out of range "
+                f"for num_codebooks={self.num_codebooks}")
         self.codon_heads = nn.ModuleList(
             [
                 CodonHead(
@@ -2264,7 +2274,9 @@ class SigLIP2SemanticOTModel(nn.Module):
                     head_hidden_dim=self.codon_head_hidden_dim,
                     use_text_anchor=self.codon_text_anchor,
                     anchor_temperature=self.codon_anchor_temperature,
-                    position_specific_head=self.codon_position_specific_head,
+                    position_specific_head=(
+                        self.codon_position_specific_head if _psh_slots is None
+                        else (_m in _psh_slots)),
                     position_residual_adapter=self.codon_position_residual_adapter,
                     residual_split=self.codon_residual_split,
                     residual_gate=self.codon_residual_gate,
@@ -2272,7 +2284,7 @@ class SigLIP2SemanticOTModel(nn.Module):
                     num_codons=self.num_codons_per_codebook,
                     chunk_layernorm=self.codon_chunk_layernorm,
                 )
-                for _ in range(self.num_codebooks)
+                for _m in range(self.num_codebooks)
             ]
         )
 

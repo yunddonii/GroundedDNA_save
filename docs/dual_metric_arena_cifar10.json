@@ -1,0 +1,78 @@
+{
+  "dataset": "CIFAR10",
+  "cutoff": 1000,
+  "bio_projected": true,
+  "note": "same deployed codes scored in both arenas; 36 bits <-> 18 bases is a bijection",
+  "cells": [
+    {
+      "dataset": "CIFAR10",
+      "method": "Ours (A-champion)",
+      "base_mAP_at_R": 0.9058068474256836,
+      "bit_mAP_at_R": 0.906389899893717,
+      "dir": "result/260724+cifar10_setting1_promptAblA_cifar_A_v4_P0refit_e19+bs+64+e+60+proj_lr+0.001"
+    },
+    {
+      "dataset": "CIFAR10",
+      "method": "CIBHash",
+      "base_mAP_at_R": 0.8967719489649219,
+      "bit_mAP_at_R": 0.8963756384926883,
+      "dir": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_cibhash_cifar10_36b_seed42/attempt_001/260722/cibhash_cifar10_36b_P0refit_seed42_p1a85fe43b576_e4_dnaeval"
+    },
+    {
+      "dataset": "CIFAR10",
+      "method": "CIMON",
+      "base_mAP_at_R": 0.847802448493539,
+      "bit_mAP_at_R": 0.8480510440316973,
+      "dir": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_cimon_cifar10_36b_seed42/attempt_001/260722/cimon_cifar10_36b_P0refit_seed42_p8312f1415dd7_e149_dnaeval"
+    },
+    {
+      "dataset": "CIFAR10",
+      "method": "OH",
+      "base_mAP_at_R": 0.8737443929014014,
+      "bit_mAP_at_R": 0.8747366510009128,
+      "dir": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_oh_cifar10_36b_seed42/attempt_001/260722/oh_cifar10_36b_P0refit_seed42_p501e6f960656_e164_dnaeval"
+    },
+    {
+      "dataset": "CIFAR10",
+      "method": "SDC",
+      "base_mAP_at_R": 0.8442105328398406,
+      "bit_mAP_at_R": 0.8543328425392244,
+      "dir": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_sdc-paper_cifar10_36b_seed42/attempt_001/260722/sdc_paper_cifar10_36b_P0refit_seed42_p1e233b3caed9_e4_dnaeval"
+    },
+    {
+      "dataset": "CIFAR10",
+      "method": "Bi-half",
+      "base_mAP_at_R": 0.7581000300042069,
+      "bit_mAP_at_R": 0.7600901300694759,
+      "dir": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_bihalf_cifar10_36b_seed42/attempt_001/260722/bihalf_cifar10_36b_P0refit_seed42_p34498715a411_e299_dnaeval"
+    },
+    {
+      "dataset": "CIFAR10",
+      "method": "GreedyHash",
+      "base_mAP_at_R": 0.18506115159015363,
+      "bit_mAP_at_R": 0.18486715981954716,
+      "dir": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_greedyhash_cifar10_36b_seed42/attempt_001/260722/greedyhash_cifar10_36b_P0refit_seed42_p531314f0f2df_e4_dnaeval"
+    },
+    {
+      "dataset": "CIFAR10",
+      "method": "HHCH",
+      "base_mAP_at_R": 0.2991940109314049,
+      "bit_mAP_at_R": 0.2993052821764901,
+      "dir": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_hhch_cifar10_36b_seed42/attempt_001/260722/hhch_cifar10_36b_P0refit_seed42_pd3f2316b8216_e79_dnaeval"
+    },
+    {
+      "dataset": "CIFAR10",
+      "method": "MLS3RDUH",
+      "base_mAP_at_R": 0.6408748301003849,
+      "bit_mAP_at_R": 0.6412199652465793,
+      "dir": "result_baseline/p0_matrix_seeds42_mls3rduh_paper_cache/u0_mls3rduh_cifar10_36b_seed42/attempt_001/260722/mls3rduh_cifar10_36b_P0refit_seed42_pf926c0d25b5c_e149_dnaeval"
+    },
+    {
+      "dataset": "CIFAR10",
+      "method": "CroVCA",
+      "base_mAP_at_R": 0.8818686069233463,
+      "bit_mAP_at_R": 0.8862746951837551,
+      "dir": "result_baseline/260722/crovca_cifar10_36b_P0refit_seed42_p4c4dd437e788_e4_dnaeval"
+    }
+  ]
+}
