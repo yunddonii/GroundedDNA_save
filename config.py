@@ -897,6 +897,15 @@ class Config():
             help='v69a: per-codon-position separate Linear(chunk, 4). 3 fc '
                  'layers replace the shared one. Allows codon positions 0/1/2 '
                  'to specialize.')
+        siglip2_arg.add_argument('--codon_chunk_interleave',
+            dest='codon_chunk_interleave', action='store_true', default=False,
+            help="Split the d_model codeword into codon-position chunks by "
+                 "INTERLEAVING (position l takes dims l, l+L, l+2L, ...) instead "
+                 "of contiguous slicing. Zero parameters. Motivation "
+                 "(2026-07-30): slot0's codon collapse is a JOINT 3-way "
+                 "dependence that survives giving each position its own Linear, "
+                 "so the dependence is carried by the codeword representation; "
+                 "the partition is the last head-side degree of freedom.")
         siglip2_arg.add_argument('--codon_position_specific_head_slots',
             dest='codon_position_specific_head_slots', type=str, default='',
             help="Restrict --codon_position_specific_head to specific slots, "
@@ -1968,6 +1977,18 @@ class Config():
             help="Relative weight of the GC term inside the bio penalty.")
         loss_arg.add_argument('--bio_constraint_hp_weight', type=float, default=1.0,
             help="Relative weight of the homopolymer term inside the penalty.")
+        loss_arg.add_argument('--lambda_codon_joint', type=float, default=0.0,
+            help="Joint codon-diversity regulariser (2026-07-30). "
+                 "loss_base_balance is a PER-POSITION forward KL and is "
+                 "structurally blind to a slot whose three positions have good "
+                 "marginals but a collapsed joint (MSCOCO slot0: 21/64 codons "
+                 "where its own marginals allow 48.6). This term applies the "
+                 "same forward KL to the per-slot batch-mean distribution over "
+                 "the 4**L codons. 0 = off, champion bit-identical.")
+        loss_arg.add_argument('--codon_joint_floor', type=float, default=1e-6,
+            help="Probability floor inside the joint-diversity KL. Bounds the "
+                 "per-codon penalty at log((1/4**L)/floor) so an unused codon "
+                 "cannot produce an unbounded gradient.")
         loss_arg.add_argument('--lambda_swav_assign', type=float, default=0.0,
             help='v121: weight for SwAV-style swapped balanced codeword-'
                  'assignment loss (additive). 0 disables.')

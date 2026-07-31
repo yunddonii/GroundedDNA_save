@@ -487,6 +487,124 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-07-31 — 🟢 `--lambda_codon_joint` FIXES the slot-0 collapse on **4/4** datasets and is a clean **Pareto win on MS-COCO** (mAP +0.0057, DNA-uniq +0.0068, codon decoding +0.0311); cross-dataset retrieval is a scope problem, not a validity problem
+
+🎯 **Continuation of the 2026-07-30 entry.** The joint codon-diversity regulariser was the one surviving
+candidate after the head-side axes were exhausted. This entry sweeps it, ports it to all four datasets,
+verifies interpretability, and **corrects a claim from yesterday's entry**.
+
+### Block 1 — 🟢 λ sweep on MS-COCO: λ ∈ {0.02, 0.05} Pareto-dominate the champion
+
+📊 MSCOCO, A+V5b, 18-base, P0 2-stage, seed 42. Mechanism columns from
+`scripts/diagnose_slot0_codon_collapse.py` (exact 128-codeword enumeration).
+
+| cell | E\* | mAP@R | Δ | DNA-uniq | Δ | slot0 codons | slot0 gap | slot0 MI | all slots |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| λ=0.00 (A) | 39 | 0.8170 | — | 0.1899 | — | **21** | **−27.6** | **1.722** | [21, 57, 58, 59, 53, 54] |
+| **λ=0.02** | 24 | **0.8222** | **+0.0052** | **0.1958** | **+0.0058** | **63** | +7.7 | 0.124 | [63, 61, 59, 62, 53, 60] |
+| **λ=0.05** | 24 | **0.8227** | **+0.0057** | **0.1967** | **+0.0068** | **63** | +8.3 | 0.159 | [63, 60, 61, 59, 62, 62] |
+| λ=0.10 | **9** | 0.8078 | −0.0091 | 0.2025 | +0.0126 | 57 | +1.9 | 0.310 | [57, 59, 55, 54, 50, 54] |
+
+🔑 **Findings.**
+1. **🟢 λ = 0.02 / 0.05 improve retrieval AND diversity AND remove the collapse** — no trade-off. slot0
+   goes 21 → 63/64, the gap flips from −27.6 to +8.3 (it now uses *more* than its marginals predict,
+   like every healthy slot), and multi-information falls 1.722 → 0.159, below the 0.25–0.41 band of
+   slots 1–5. All six slots end at ≥ 59 codons.
+2. **E\* isolates the λ=0.10 cost.** λ=0.10 peaked at **epoch 9** and never improved over the remaining
+   50 epochs; its −0.0091 is under-training from over-regularisation, not the cost of the constraint.
+   Lowering λ restores E\* = 24 and the mAP goes *above* baseline. Confirms the pre-registered reading.
+3. **Side effect — pre-projection validity recovers.** MSCOCO 32.6 % → 42.8 % (λ=0.05) / 45.6 %
+   (λ=0.02), i.e. back to the uniform-4^L chance rate of 45.2 % that it was *below*. Spreading the codon
+   distribution moves GC toward the window centre. This is an **independent path to the same axis**
+   `--lambda_bio_constraint` targets.
+4. ⚠️ **The gain is top-heavy.** mAP@R (top-5000) rises but **full mAP falls 0.6158 → 0.5976**. The
+   benefit is concentrated in the head of the ranking and paid for in the tail. Must be stated.
+
+🔴 **`--codon_chunk_interleave` (the other candidate) is REFUTED.** Splitting the 768-d codeword by
+stride-3 interleaving instead of contiguous slicing: slot0 21 → **22** codons, gap −24.7, and both axes
+worse (mAP −0.0093, DNA-uniq −0.0106). **All head-side degrees of freedom are now exhausted** — weight
+sharing (psAll/psSlot0), scale (chunk-LayerNorm), and partition (interleave) are each refuted. The
+dependence originates in codebook formation; `lambda_codon_joint` works by regularising the **symptom**,
+without the cause being known.
+
+### Block 2 — 🔴 CORRECTION: the collapse is on **4/4 datasets and in every slot**, not MS-COCO's slot0 alone
+
+The 2026-07-30 entry stated "slots 1–5 behave as if their three codon positions were independent".
+**That holds only for MS-COCO.** Running the same diagnosis on all four A-champions:
+
+| dataset | K | random-map ceiling | slot codons | slot0 gap | slot0 MI |
+|---|---:|---:|---|---:|---:|
+| Flickr25k | 128 | 55.5 | [**26**, 34, 35, 33, 36, 30] | −16.1 | 1.136 |
+| MS-COCO | 128 | 55.5 | [**21**, 57, 58, 59, 53, 54] | −27.6 | 1.722 |
+| NUS-WIDE | 128 | 55.5 | [**21**, 40, 47, 47, 44, 41] | −27.1 | 1.874 |
+| CIFAR-10 | 64 | 40.6 | [**26**, 33, 30, 33, 30, 38] | −11.7 | 1.598 |
+
+**slot0 is the worst slot on 4/4** (gap −11.7 … −27.6), but on Flickr / NUS / CIFAR **slots 1–5 are also
+well below their budget** (30–47). MS-COCO is the *exception* whose local slots are healthy — and it is
+the only dataset the 2026-07-30 diagnosis looked at. The corrected statement: *the joint codon collapse
+is universal, most severe in the global slot, and MS-COCO is the one benchmark where it is confined
+there.*
+
+### Block 3 — 🟡 Cross-dataset port at λ=0.05: diversity 4/4, retrieval 1/4, and the two are anti-correlated
+
+| dataset | mAP@R (A → λ) | Δ | DNA-uniq (A → λ) | Δ | slot codons (A → λ) | Σ codon gain |
+|---|---|---:|---|---:|---|---:|
+| **MS-COCO** | 0.8170 → **0.8227** | **+0.0057** | 0.1899 → 0.1967 | +0.0068 | [21,57,58,59,53,54] → [63,60,61,59,62,62] | **+65** |
+| NUS-WIDE | 0.8262 → 0.8242 | −0.0019 | 0.1617 → **0.2105** | **+0.0488** | [21,40,47,47,44,41] → [60,51,53,56,56,53] | +100 |
+| CIFAR-10 | 0.9058 → 0.8932 | −0.0126 | 0.1204 → 0.1594 | +0.0390 | [26,33,30,33,30,38] → [56,45,39,45,39,30] | +104 |
+| Flickr25k | 0.8675 → 0.8449 | −0.0226 | 0.3978 → **0.5190** | **+0.1211** | [26,34,35,33,36,30] → [57,53,50,48,46,50] | +110 |
+
+🔑 **Findings.**
+1. **🟢 The intervention succeeds on its own target 4/4**: slot0 goes 21/26 → 56–63 everywhere, and
+   DNA-unique rises on every dataset (+0.007 … +0.121).
+2. **🎯 Retrieval loss scales monotonically with how much the codon assignment is rewritten**
+   (Σ codon gain +65 / +100 / +104 / +110 → ΔmAP +0.0057 / −0.0019 / −0.0126 / −0.0226). MS-COCO wins
+   because it is the only dataset where the rewrite is *local* — slot0 absorbs +42 of its +65 while
+   slots 1–5 move 0…+9. Everywhere else all six slots are rewritten. **The failure mode is regularisation
+   SCOPE, not regulariser validity** — which is exactly what Block 2 predicts.
+3. **🔵 Flickr is a trade-off worth reporting, not a failure.** DNA-unique 0.3978 → **0.5190 (+30 %)** is
+   the highest code diversity this model has ever produced, and mAP@R 0.8449 still leads the best
+   baseline (OH 0.8362) by +0.0087.
+4. 🔴 **The K-ceiling hypothesis is REFUTED.** CIFAR (K=64) was predicted to be capped near the
+   random-map ceiling 40.6; its slot0 reaches **56**, well past it. (40.6 is the expected coverage of a
+   *random* map; a learned map can assign 64 codewords to 64 distinct codons.) CIFAR's −0.0126 has the
+   same cause as the others — rewrite scope — so there is no case for making the loss K-aware.
+
+### Block 4 — 🟢 Interpretability VERIFIED on MS-COCO: codon decoding **improves**
+
+The codon map changed drastically (slot0 21 → 63 codons), so "diversity up, semantics down" was the live
+risk. Measured against the same raw-base-E\* controls built on 2026-07-29:
+
+| unit | A baseline | **λ=0.05** | Δ |
+|---|---:|---:|---:|
+| **ours_codon** | 0.6144 | **0.6455** | **+0.0311** |
+| ours_codeword | 0.7175 | 0.7255 | +0.0080 |
+| best control (CroVCA_chunk) | 0.5727 | 0.5727 | — |
+| **margin over best control** | **+0.0417** | **+0.0728** | **+0.0311** |
+| majority / shuffled | 0.3160 | 0.3160 / 0.3117 ± 0.0035 | probe healthy |
+
+🟢 **Diversity and semantics moved together**: the margin over the strongest protocol-matched control
+grows by 74 %. Consistent with the reading that the collapsed slot0 was *merging* distinctions the
+labels actually separate. ⚠️ Measured on **MS-COCO only** — Flickr / NUS / CIFAR rewrite far more of the
+map and are unverified.
+
+🧭 **Verdict.** **Universal λ=0.05 is rejected** (retrieval improves on 1/4). **MS-COCO-specific adoption
+is supported** on four axes simultaneously, and it narrows the documented MS-COCO deficit: we now pass
+SDC (0.8227 > 0.8185) and the CroVCA gap closes from −0.0087 to **−0.0030**. The indicated next step is
+a **slot-selective variant** (`--codon_joint_slots 0`), which the monotone scope↔loss relation across
+four datasets points at directly.
+
+⚠️ **Caveats.** Single seed (42) on every cell. Interpretability verified on MS-COCO only. The four
+cross-dataset cells reuse each dataset's A-champion recipe and prompt, changing only λ. Codon-map
+enumeration is valid only while `codon_input_source=quantized` and `codon_residual_gamma=0`.
+
+🧰 **New.** `--lambda_codon_joint` / `--codon_joint_floor` (config.py, loss_siglip2.py, train logging),
+`--codon_chunk_interleave` (config.py, model_siglip2.py) — all default OFF, champion bit-identical.
+Outputs `docs/heldout_decoding_mscoco_jointDiv005.json`; result dirs
+`result/260730+*_jointDiv{002,005,010}_P0refit_*` and `*_chunkIntlv_P0refit_*`.
+
+---
+
 ## 2026-07-30 — 🔬 slot-0 codon collapse ROOT-CAUSED to **joint (3-way) dependence, not per-position collapse**; the shared-head hypothesis is REFUTED by two position-specific-head cells. Plus dual-arena CIFAR/MSCOCO and NUS A4.
 
 🎯 **Why.** slot0 emits only 21/64 codons while slots 1–5 emit 53–59. Two prior interventions failed

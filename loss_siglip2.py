@@ -387,6 +387,17 @@ class DNACodonHashLoss(nn.Module):
         self.bio_constraint_max_run   = int(getattr(cfg, "bio_constraint_max_run", 3))
         self.bio_constraint_gc_weight = float(getattr(cfg, "bio_constraint_gc_weight", 1.0))
         self.bio_constraint_hp_weight = float(getattr(cfg, "bio_constraint_hp_weight", 1.0))
+        # ---- joint codon-diversity regulariser (2026-07-30), default OFF ----
+        # `loss_base_balance` is KL(uniform || mean_b u) computed PER POSITION,
+        # so it is structurally blind to a slot whose three positions have fine
+        # marginals but a collapsed JOINT. Measured on the MSCOCO champion:
+        # slot0 reaches 21/64 codons where its own marginals allow 48.6, while
+        # slots 1-5 sit at their marginal budget. This term regularises the
+        # per-slot batch-mean distribution over the 4**L codons directly.
+        self.lambda_codon_joint = float(getattr(cfg, "lambda_codon_joint", 0.0))
+        self.codon_joint_floor  = float(getattr(cfg, "codon_joint_floor", 1e-6))
+        self.num_codons_per_codebook = int(
+            getattr(cfg, "num_codons_per_codebook", 3) or 3)
         self.proto_cluster_cos_tau    = float(getattr(cfg, "proto_cluster_cos_tau",    0.1))
         # v112 (Hierarchical Codon Decomposition): force first base of each
         # codon to encode text-similarity cluster identity of the assigned
@@ -3483,8 +3494,34 @@ class DNACodonHashLoss(nn.Module):
         else:
             loss_bio_constraint = u.new_zeros(())
 
+        # ---- (d) joint codon diversity per slot, default OFF -----------------
+        # u : [B, R, 4] with R = M*L. Each sample's per-slot joint over the L
+        # positions is the outer product of its L position posteriors (the
+        # positions are independent GIVEN the sample -- each is its own softmax).
+        # Averaging over the batch gives Q_m in the 4**L simplex; we push Q_m to
+        # uniform with the SAME forward-KL form `loss_base_balance` uses, so the
+        # mode-covering penalty falls on codons the slot never emits.
+        if self.lambda_codon_joint > 0.0 and u is not None:
+            _R = int(u.shape[1])
+            _L = int(getattr(self, "num_codons_per_codebook", 0)) or (
+                _R // 6 if _R % 6 == 0 else 3)
+            _M = _R // _L
+            _p = u.float().view(B, _M, _L, 4)
+            _j = _p[:, :, 0, :]                                   # [B, M, 4]
+            for _l in range(1, _L):
+                _j = (_j.unsqueeze(-1) * _p[:, :, _l, :].unsqueeze(-2)).flatten(-2)
+            _Q = _j.mean(dim=0)                                   # [M, 4**L]
+            _Q = _Q / _Q.sum(-1, keepdim=True).clamp_min(1e-12)
+            _logQ = _Q.clamp_min(self.codon_joint_floor).log()
+            _unif = torch.full_like(_Q, 1.0 / _Q.shape[-1])
+            loss_codon_joint = F.kl_div(_logQ, _unif, reduction="batchmean")
+            total = total + self.lambda_codon_joint * loss_codon_joint
+        else:
+            loss_codon_joint = u.new_zeros(())
+
         return {
             "loss":              total,
+            "loss_codon_joint":  loss_codon_joint,
             "loss_sim_spread":   loss_sim_spread,
             "loss_bio_constraint": loss_bio_constraint,
             "loss_hash":         loss_hash,

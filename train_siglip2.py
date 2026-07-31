@@ -246,6 +246,7 @@ def _build_active_loss_types(args) -> list:
     if _on('lambda_xmodal_commit'):     keys.append('loss_xmodal_commit')
     if _on('lambda_sim_spread'):        keys.append('loss_sim_spread')
     if _on('lambda_bio_constraint'):    keys.append('loss_bio_constraint')
+    if _on('lambda_codon_joint'):       keys.append('loss_codon_joint')
 
     # ---- routing-side alignment
     if _on('lambda_wasserstein'): keys.append('loss_wasserstein')

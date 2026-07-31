@@ -1005,6 +1005,7 @@ class CodonHead(nn.Module):
         use_full_linear: bool = False,
         num_codons: int = 3,
         chunk_layernorm: bool = False,                 # v122: L = codon-positions per codebook
+        chunk_interleave: bool = False,
     ) -> None:
         super().__init__()
         self.num_codons: int = int(num_codons)
@@ -1032,6 +1033,13 @@ class CodonHead(nn.Module):
             )
         self.d_model: int = int(d_model)
         self.chunk:   int = self.d_model // self.num_codons
+        # 2026-07-30: how the d_model vector is split into `num_codons` chunks.
+        # Contiguous slicing (legacy) gives position l dims [l*chunk,(l+1)*chunk);
+        # interleaved gives position l dims [l, l+L, l+2L, ...]. Motivation: the
+        # slot-0 collapse is a JOINT (3-way) dependence that survives removing
+        # the shared head, so the remaining head-side freedom is the partition
+        # itself. Zero parameters either way.
+        self.chunk_interleave: bool = bool(chunk_interleave)
         # v62 (Option A): residual-conditioned codon head.
         self.use_residual: bool = bool(use_residual)
         # v69b (Exp 2): residual-split — codon position 0,1 from codeword,
@@ -1154,12 +1162,20 @@ class CodonHead(nn.Module):
             gate_mean = gate.mean().detach()
             residual = gate.unsqueeze(-1) * residual                       # [B, D]
         L = self.num_codons
+
+        def _split(t: torch.Tensor) -> torch.Tensor:
+            """[B, d_model] -> [B, L, chunk]. Contiguous unless interleaving."""
+            if self.chunk_interleave:
+                # position l gets dims l, l+L, l+2L, ...
+                return t.view(t.shape[0], self.chunk, L).transpose(1, 2)
+            return t.view(t.shape[0], L, self.chunk)
+
         # v69b (Exp 2): residual-split path (3-position only; guarded at __init__).
         if residual_active and self.residual_split:
-            q_chunks = x.view(B, L, self.chunk)                            # [B, L, chunk]
+            q_chunks = _split(x)                                           # [B, L, chunk]
             if self.chunk_norm is not None:
                 q_chunks = self.chunk_norm(q_chunks)
-            r_chunks = (gamma * residual).view(B, L, self.chunk)
+            r_chunks = _split(gamma * residual)
             l0 = self.semantic_fc_pos0(q_chunks[:, 0, :])                  # [B, 4]
             l1 = self.semantic_fc_pos1(q_chunks[:, 1, :])                  # [B, 4]
             l2 = self.residual_fc(r_chunks[:, 2, :])                       # [B, 4]
@@ -1174,7 +1190,7 @@ class CodonHead(nn.Module):
                 )
                 combined = torch.cat([x, gamma * residual], dim=-1)      # [B, 2D]
                 x = self.input_proj(combined)                             # [B, D]
-            h = x.view(B, L, self.chunk)                                  # [B, L, D/L]
+            h = _split(x)                                                 # [B, L, D/L]
             if self.chunk_norm is not None:
                 h = self.chunk_norm(h)
             # v66 text-anchored prototype head
@@ -1184,7 +1200,7 @@ class CodonHead(nn.Module):
                 logits  = torch.einsum('bpc,pkc->bpk', h_n, proto_n) / self.anchor_temperature
                 loss_text_anchor = torch.zeros((), device=x.device, dtype=x.dtype)
                 if text_chunks is not None and self.training:
-                    t        = text_chunks.view(B, L, self.chunk)
+                    t        = _split(text_chunks)
                     t_n      = F.normalize(t, dim=-1)
                     text_logits = torch.einsum('bpc,pkc->bpk', t_n, proto_n) / self.anchor_temperature
                     target   = text_logits.argmax(dim=-1).detach()
@@ -2236,6 +2252,7 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.codon_anchor_temperature: float = float(getattr(args, "codon_anchor_temperature", 0.1))
         # v69a / v69b / v71a (Exp 1, 2, 5)
         self.codon_position_specific_head: bool = bool(getattr(args, "codon_position_specific_head", False))
+        self.codon_chunk_interleave: bool = bool(getattr(args, "codon_chunk_interleave", False))
         self.codon_position_residual_adapter: bool = bool(getattr(args, "codon_position_residual_adapter", False))
         self.codon_residual_split: bool        = bool(getattr(args, "codon_residual_split", False))
         self.codon_residual_gate: bool         = bool(getattr(args, "codon_residual_gate", False))
@@ -2283,6 +2300,7 @@ class SigLIP2SemanticOTModel(nn.Module):
                     use_full_linear=self.codon_full_linear,
                     num_codons=self.num_codons_per_codebook,
                     chunk_layernorm=self.codon_chunk_layernorm,
+                    chunk_interleave=self.codon_chunk_interleave,
                 )
                 for _m in range(self.num_codebooks)
             ]
