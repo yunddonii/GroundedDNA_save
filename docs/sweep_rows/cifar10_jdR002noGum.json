@@ -1,0 +1,49 @@
+{
+  "tag": "jdR002noGum",
+  "dir": "result/260731+cifar10_setting1_promptAblA_cifar_A_v4_jdR002noGum_P0refit_e9+bs+64+e+60+proj_lr+0.001",
+  "dataset": "CIFAR10",
+  "K": 64,
+  "mAP_at_R_bioproj": 0.896027964764831,
+  "full_mAP_bioproj": 0.8076895714677212,
+  "full_mAP_pre_projection": 0.8359390033627414,
+  "DNA_unique_DB": 0.1314406779661017,
+  "lambda_codon_joint": "0.02",
+  "codon_joint_slots": "-",
+  "codon_input_source": "quantized",
+  "use_gumbel_softmax": "False",
+  "codon_chunk_interleave": "False",
+  "codon_map_enumerable": true,
+  "slot_codons": [
+    54,
+    37,
+    35,
+    34,
+    40,
+    39
+  ],
+  "slot_gaps": [
+    14.11,
+    1.06,
+    -1.4,
+    -3.22,
+    0.8,
+    2.24
+  ],
+  "slot_multi_information": [
+    0.2663,
+    0.711,
+    0.9228,
+    0.9397,
+    0.8086,
+    0.8627
+  ],
+  "slot0_codons": 54,
+  "slot0_gap": 14.11,
+  "slot0_MI": 0.2663,
+  "decode_ours_codon": 0.8909537037037037,
+  "decode_ours_codeword": 0.9325632936507936,
+  "decode_best_control": "CroVCA_chunk",
+  "decode_best_control_mAP": 0.8262825396825396,
+  "decode_margin": 0.0647,
+  "decode_majority": 0.29289682539682543
+}

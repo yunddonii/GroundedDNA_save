@@ -1,0 +1,22 @@
+{
+  "tag": "jdR005noGumRout",
+  "dir": "result/260731+mscoco_setting1_promptAblA_mscoco_A_v5b_jdR005noGumRout_P0refit_e14+bs+64+e+60+proj_lr+0.001",
+  "dataset": "MSCOCO",
+  "K": 128,
+  "mAP_at_R_bioproj": 0.8026536572487228,
+  "full_mAP_bioproj": 0.5813855650301316,
+  "full_mAP_pre_projection": 0.5930267063581427,
+  "DNA_unique_DB": 0.4639146411983063,
+  "lambda_codon_joint": "0.05",
+  "codon_joint_slots": "-",
+  "codon_input_source": "routed",
+  "use_gumbel_softmax": "False",
+  "codon_chunk_interleave": "False",
+  "codon_map_enumerable": false,
+  "decode_ours_codon": 0.6002247484564252,
+  "decode_ours_codeword": 0.7195035005067457,
+  "decode_best_control": "CroVCA_chunk",
+  "decode_best_control_mAP": 0.5726931634807514,
+  "decode_margin": 0.0275,
+  "decode_majority": 0.31603083203559895
+}

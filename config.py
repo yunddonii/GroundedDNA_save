@@ -1985,6 +1985,15 @@ class Config():
                  "where its own marginals allow 48.6). This term applies the "
                  "same forward KL to the per-slot batch-mean distribution over "
                  "the 4**L codons. 0 = off, champion bit-identical.")
+        loss_arg.add_argument('--codon_joint_slots', type=str, default='',
+            help="Restrict --lambda_codon_joint to specific slots, e.g. '0' for "
+                 "the global slot only. Empty (default) applies it to all slots. "
+                 "Motivation (2026-07-31): across four datasets the retrieval "
+                 "loss scales monotonically with how much of the codon "
+                 "assignment gets rewritten (codon gain +65/+100/+104/+110 -> "
+                 "mAP +0.0057/-0.0019/-0.0126/-0.0226). MS-COCO wins because its "
+                 "rewrite is LOCAL to slot0; restricting the pressure should "
+                 "reproduce that local surgery on the other datasets.")
         loss_arg.add_argument('--codon_joint_floor', type=float, default=1e-6,
             help="Probability floor inside the joint-diversity KL. Bounds the "
                  "per-codon penalty at log((1/4**L)/floor) so an unused codon "

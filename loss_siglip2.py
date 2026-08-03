@@ -396,6 +396,9 @@ class DNACodonHashLoss(nn.Module):
         # per-slot batch-mean distribution over the 4**L codons directly.
         self.lambda_codon_joint = float(getattr(cfg, "lambda_codon_joint", 0.0))
         self.codon_joint_floor  = float(getattr(cfg, "codon_joint_floor", 1e-6))
+        _cjs = str(getattr(cfg, "codon_joint_slots", "") or "").strip()
+        self.codon_joint_slots = (
+            sorted({int(x) for x in _cjs.split(",") if x.strip() != ""}) if _cjs else None)
         self.num_codons_per_codebook = int(
             getattr(cfg, "num_codons_per_codebook", 3) or 3)
         self.proto_cluster_cos_tau    = float(getattr(cfg, "proto_cluster_cos_tau",    0.1))
@@ -3511,6 +3514,12 @@ class DNACodonHashLoss(nn.Module):
             for _l in range(1, _L):
                 _j = (_j.unsqueeze(-1) * _p[:, :, _l, :].unsqueeze(-2)).flatten(-2)
             _Q = _j.mean(dim=0)                                   # [M, 4**L]
+            if self.codon_joint_slots is not None:
+                _sel = [m for m in self.codon_joint_slots if 0 <= m < _M]
+                if not _sel:
+                    raise ValueError(
+                        f"--codon_joint_slots selects no valid slot for M={_M}")
+                _Q = _Q[_sel]                                     # [|sel|, 4**L]
             _Q = _Q / _Q.sum(-1, keepdim=True).clamp_min(1e-12)
             _logQ = _Q.clamp_min(self.codon_joint_floor).log()
             _unif = torch.full_like(_Q, 1.0 / _Q.shape[-1])

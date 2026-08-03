@@ -1,0 +1,49 @@
+{
+  "tag": "jdR005noGumS0",
+  "dir": "result/260731+mscoco_setting1_promptAblA_mscoco_A_v5b_jdR005noGumS0_P0refit_e29+bs+64+e+60+proj_lr+0.001",
+  "dataset": "MSCOCO",
+  "K": 128,
+  "mAP_at_R_bioproj": 0.8168190586913019,
+  "full_mAP_bioproj": 0.5920991614475575,
+  "full_mAP_pre_projection": 0.5990629632073993,
+  "DNA_unique_DB": 0.1946221716502826,
+  "lambda_codon_joint": "0.05",
+  "codon_joint_slots": "0",
+  "codon_input_source": "quantized",
+  "use_gumbel_softmax": "False",
+  "codon_chunk_interleave": "False",
+  "codon_map_enumerable": true,
+  "slot_codons": [
+    54,
+    51,
+    55,
+    60,
+    56,
+    55
+  ],
+  "slot_gaps": [
+    -0.47,
+    -1.96,
+    -0.05,
+    4.85,
+    1.68,
+    0.8
+  ],
+  "slot_multi_information": [
+    0.377,
+    0.3671,
+    0.3199,
+    0.2274,
+    0.2608,
+    0.3806
+  ],
+  "slot0_codons": 54,
+  "slot0_gap": -0.47,
+  "slot0_MI": 0.377,
+  "decode_ours_codon": 0.6347611790040808,
+  "decode_ours_codeword": 0.7233652353252276,
+  "decode_best_control": "CroVCA_chunk",
+  "decode_best_control_mAP": 0.5726931634807514,
+  "decode_margin": 0.0621,
+  "decode_majority": 0.31603083203559895
+}
