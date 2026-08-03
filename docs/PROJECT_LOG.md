@@ -487,6 +487,94 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-08-04 — 🔴 **CORRECTION: the "4/4 baseline win" does NOT survive 3 seeds** (2 win / 2 loss); interpretability holds 4/4; full re-evaluation of the draft's ablations on the new model
+
+🎯 **Why.** The 2026-08-03 entry reported the unified recipe leading every `U0` baseline on all four
+datasets, on **seed 42 only**. Seeds {43, 44} were then run for all four datasets, and the draft's
+ablation/analysis suite was re-measured on the new model.
+
+### Block 1 — 🔴 3-seed retrieval: 2 win / 2 loss, not 4/4
+
+seeds {42,43,44}, mean ± sample std. Baseline column is still **single-seed** (its {43,44} rerun is
+in flight), so these are diagnostic comparisons, not a ranking.
+
+| dataset | mAP@R 3-seed | best `U0` (seed 42) | Δ | A-champion Δ | verdict |
+|---|---|---|---:|---:|---|
+| Flickr25k | .8668 ± .0017 | OH .8362 | **+.0306** | +.0313 | win → win |
+| NUS-WIDE | .8283 ± .0008 | OH .8023 | **+.0260** | +.0239 | win → win |
+| MS-COCO | .8232 ± **.0098** | CroVCA .8257 | **−.0025** | −.0087 | loss → loss |
+| CIFAR-10 | .8940 ± .0033 | CIBHash .8968 | **−.0028** | **+.0090** | 🔴 **win → loss** |
+
+🔑 **Findings.**
+1. **The MS-COCO "win" was seed noise.** seed 42 gave .8287 (+.0030); seeds 43/44 gave .8120/.8291.
+   **std .0098 exceeds the .0087 gap to CroVCA**, so ours and CroVCA are statistically indistinguishable
+   on MS-COCO. The honest claim is "the A-champion's −.0087 deficit is reduced to −.0025", not "closed".
+2. **🔴 CIFAR-10 regresses from a win to a loss** (+.0090 → −.0028). This is the largest cost of the new
+   recipe and must be stated in the main text.
+3. **Methodological lesson.** MS-COCO's seed spread (.017, from .8120 to .8291) is **larger than the
+   entire λ range we had been comparing** (.0071, from .8216 to .8287). Every single-seed λ verdict in
+   the 2026-08-03 entry is therefore inside the noise band for that dataset; NUS (.0008) and Flickr
+   (.0017) are tight enough for their λ choices to stand.
+
+🟢 **Interpretability and diversity survive 3 seeds cleanly.** codon decoding
++.0322 / +.0239 / +.0227 / +.0101 versus the A-champion, with std .0017–.0104 — the gain is 2–19× the
+spread. DNA-unique improves 4/4. **The compositional axes are the robust result; retrieval is not.**
+
+### Block 2 — 🟢 Draft §4.6 bio-projection recomputed from the runs' own extractions
+
+The draft's 4.6 table was flagged unusable (legacy JSON, no provenance). Recomputed
+(`scripts/bioproj_effect_newmodel.py`):
+
+| dataset | pre mAP@R | post | Δ | mean DB edits | valid pre | valid post | uniq pre→post |
+|---|---:|---:|---:|---:|---:|---:|---|
+| MS-COCO | .8317 | .8287 | −.0031 | .793 | 46.4 % | 100 % | .2033 → .1954 |
+| NUS-WIDE | .8297 | .8274 | −.0024 | .631 | 56.5 % | 100 % | .2272 → .2158 |
+| Flickr25k | .8756 | .8673 | −.0084 | 1.108 | 40.5 % | 100 % | .4907 → .4703 |
+
+Feasibility still costs only −.0024…−.0084, matching the legacy range. ⚠️ **Pre-projection validity is
+40–57 %, i.e. at or below the uniform-4^L chance rate of 45.2 %** — the new recipe does not learn the
+biological constraints either (`--lambda_bio_constraint` is not part of it).
+
+### Block 3 — 🟢 Draft §4.10 analyses re-measured; one conclusion is unchanged and that matters
+
+**Inter-codebook NMI** (lower = less redundancy): Flickr **.5606** (A-era ~.604, improved),
+NUS-WIDE .6079, MS-COCO .6719 (A-era ~.658, slightly worse). Not a consistent direction — do **not**
+claim the recipe reduces inter-codebook redundancy.
+
+**Codebook-drop**: Σdrop −.0558 / −.0476 / −.0418 (MSCOCO / NUS / Flickr) with **0–1 anti-codebooks**,
+and the single positive is +.0002. Every slot contributes; none is dead weight.
+
+🔴 **Slot intervention is unchanged from the A-champion.** Flickr 1.54× random with selectivity .0010;
+NUS-WIDE 1.69× with selectivity −.0059 — versus the A-era ~1.6× and ≈0. **Fixing the codon collapse and
+raising held-out decoding on 4/4 did NOT buy independent slot controllability.** The §4.10/§5.2
+limitation stands exactly as written, and this is now verified on the new model rather than inherited.
+
+**New structural metric** (codon-collapse gap, exact enumeration of the codeword→codon map):
+slot0 goes 21/21/26/26 → **64/63/43/50** and the gap flips −27.6/−27.1/−16.1/−11.7 → **+8.9/+6.7/+5.9/+6.2**
+on MS-COCO / NUS / Flickr / CIFAR.
+
+### Block 4 — 🟡 In flight
+
+A2 (`--disable_text_supervision`) and A4 (`--share_codebook` K=768) × 4 datasets are running on the new
+model under the current protocol — the draft's existing A2/A4 rows are all pre-P0/pre-bio and unusable.
+The baseline multi-seed matrix (9 `U0` variants × 3 datasets × seeds {43,44}, 60 cells) is at 20/60.
+MS-COCO λ=.05 3-seed is running to re-check the λ choice now that the noise band is known.
+
+🧭 **Consequence for the paper.** The unified recipe is **not** a strict improvement. It buys the three
+contribution axes (compositional structure, diversity, interpretability) on 4/4 and pays with CIFAR-10
+retrieval. Two honest framings remain: (i) A-champion as main + unified as a "compositional variant"
+row, or (ii) unified as main with the CIFAR/MS-COCO retrieval losses stated. This is the user's call.
+
+🧰 **New.** `scripts/bioproj_effect_newmodel.py`, `scripts/queue_ours_multiseed.sh`,
+`scripts/queue_ablations_newmodel.sh`; `docs/newmodel_analysis/` (bioproj, NMI, slot-intervention,
+summary); `docs/DRAFT_GROUNDEDNDA_PAPER_KO_MODIFY.md` — the draft with §0/§3.8.4/§3.9/§4.5–4.10/§5
+replaced by the new numbers.
+
+⚠️ **Caveats.** Baseline rows are still single-seed, so no ranking is claimed. A2/A4 pending. Legacy
+cache provenance keeps every baseline row strict-main ineligible under invariant #6 regardless of seeds.
+
+---
+
 ## 2026-08-03 — 🟢 **UNIFIED RECIPE**: `λ_codon_joint` (all slots) + `--no_gumbel_softmax` beats the best `U0` baseline on **4/4** datasets while improving codon decoding **4/4**; MS-COCO turns from a −0.0087 loss into a **+0.0030 win**
 
 🎯 **Mandate (user, 2026-07-31/08-01).** Sweep MS-COCO and CIFAR-10 for a configuration maximising

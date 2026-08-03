@@ -1,0 +1,564 @@
+{
+  "dataset": "NUSWIDE",
+  "config": {
+    "ours_dir": "result/260803+nuswide_setting1_promptAblA_nuswide_A_v4_uni005_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+    "baseline_dirs": [],
+    "baseline_names": [],
+    "train_manifest": "dataset/NUSWIDE/setting1/train_10500.txt",
+    "dataset": "NUSWIDE",
+    "out": "docs/newmodel_analysis/slot_intervention_nuswide.json",
+    "k": 100,
+    "n_query": 500,
+    "db_subsample": 0,
+    "alpha": 1.0,
+    "n_boot": 1000,
+    "seed": 42,
+    "bio_project": true,
+    "gc_min_frac": 0.4444,
+    "gc_max_frac": 0.5556,
+    "max_run": 3
+  },
+  "n_db_used": 193734,
+  "results": {
+    "global": {
+      "coverage": 1.0,
+      "arms": {
+        "ours_slot": {
+          "target_gain": {
+            "mean": 0.017380000000000003,
+            "ci95_low": 0.0110185,
+            "ci95_high": 0.023521,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "off_target_drift": 0.024081,
+          "selectivity": -0.006700999999999999,
+          "selectivity_ci": {
+            "mean": -0.006700999999999999,
+            "ci95_low": -0.012504324999999998,
+            "ci95_high": -0.0004527999999999996,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "retrieval_jaccard": 0.28982095761844057,
+          "symbols_changed_mean": 1.998,
+          "symbols_per_slot": 3,
+          "fraction_changed": 0.666,
+          "gain_per_fraction_changed": 0.0260960960960961
+        },
+        "random_slot": {
+          "target_gain": {
+            "mean": 0.011300000000000001,
+            "ci95_low": 0.0061795,
+            "ci95_high": 0.016479999999999998,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "off_target_drift": 0.019136000000000004,
+          "selectivity": -0.007836000000000001,
+          "selectivity_ci": {
+            "mean": -0.007836000000000001,
+            "ci95_low": -0.01321325,
+            "ci95_high": -0.0022969500000000016,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "retrieval_jaccard": 0.38984301707530117,
+          "symbols_changed_mean": 1.794,
+          "symbols_per_slot": 3,
+          "fraction_changed": 0.598,
+          "gain_per_fraction_changed": 0.018896321070234118
+        },
+        "random_donor": {
+          "target_gain": {
+            "mean": 0.0036600000000000005,
+            "ci95_low": -0.001960499999999999,
+            "ci95_high": 0.010120499999999998,
+            "excludes_zero": false,
+            "n": 500
+          },
+          "off_target_drift": 0.024373000000000006,
+          "selectivity": -0.020713000000000002,
+          "selectivity_ci": {
+            "mean": -0.020713000000000002,
+            "ci95_low": -0.026425025,
+            "ci95_high": -0.014814800000000003,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "retrieval_jaccard": 0.30562907838138687,
+          "symbols_changed_mean": 2.282,
+          "symbols_per_slot": 3,
+          "fraction_changed": 0.7606666666666666,
+          "gain_per_fraction_changed": 0.004811568799298862
+        }
+      },
+      "selectivity_vs_controls": {
+        "ours_minus_random_slot": {
+          "mean": 0.0011350000000000006,
+          "ci95_low": -0.005362924999999998,
+          "ci95_high": 0.0074744250000000016,
+          "excludes_zero": false,
+          "n": 500
+        },
+        "ours_minus_random_donor": {
+          "mean": 0.014012,
+          "ci95_low": 0.009174900000000001,
+          "ci95_high": 0.0186805,
+          "excludes_zero": true,
+          "n": 500
+        }
+      }
+    },
+    "primary_object": {
+      "coverage": 1.0,
+      "arms": {
+        "ours_slot": {
+          "target_gain": {
+            "mean": 0.014780000000000001,
+            "ci95_low": 0.010359,
+            "ci95_high": 0.019661,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "off_target_drift": 0.021389000000000002,
+          "selectivity": -0.006609000000000001,
+          "selectivity_ci": {
+            "mean": -0.006609000000000001,
+            "ci95_low": -0.0111923,
+            "ci95_high": -0.001846975,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "retrieval_jaccard": 0.31657252264547514,
+          "symbols_changed_mean": 2.16,
+          "symbols_per_slot": 3,
+          "fraction_changed": 0.72,
+          "gain_per_fraction_changed": 0.02052777777777778
+        },
+        "random_slot": {
+          "target_gain": {
+            "mean": 0.0086,
+            "ci95_low": 0.003739500000000001,
+            "ci95_high": 0.0132205,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "off_target_drift": 0.020663000000000004,
+          "selectivity": -0.012063,
+          "selectivity_ci": {
+            "mean": -0.012063,
+            "ci95_low": -0.016863375,
+            "ci95_high": -0.007491700000000003,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "retrieval_jaccard": 0.360506610606459,
+          "symbols_changed_mean": 1.862,
+          "symbols_per_slot": 3,
+          "fraction_changed": 0.6206666666666667,
+          "gain_per_fraction_changed": 0.013856068743286787
+        },
+        "random_donor": {
+          "target_gain": {
+            "mean": 0.0003200000000000003,
+            "ci95_low": -0.0033009999999999992,
+            "ci95_high": 0.004081,
+            "excludes_zero": false,
+            "n": 500
+          },
+          "off_target_drift": 0.021513,
+          "selectivity": -0.021192999999999997,
+          "selectivity_ci": {
+            "mean": -0.021192999999999997,
+            "ci95_low": -0.02501205,
+            "ci95_high": -0.017366549999999998,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "retrieval_jaccard": 0.31549785182688916,
+          "symbols_changed_mean": 2.3,
+          "symbols_per_slot": 3,
+          "fraction_changed": 0.7666666666666666,
+          "gain_per_fraction_changed": 0.0004173913043478265
+        }
+      },
+      "selectivity_vs_controls": {
+        "ours_minus_random_slot": {
+          "mean": 0.005454000000000001,
+          "ci95_low": -0.00022309999999999903,
+          "ci95_high": 0.0114807,
+          "excludes_zero": false,
+          "n": 500
+        },
+        "ours_minus_random_donor": {
+          "mean": 0.014584000000000001,
+          "ci95_low": 0.0103904,
+          "ci95_high": 0.019506424999999997,
+          "excludes_zero": true,
+          "n": 500
+        }
+      }
+    },
+    "secondary_object": {
+      "coverage": 1.0,
+      "arms": {
+        "ours_slot": {
+          "target_gain": {
+            "mean": 0.01968,
+            "ci95_low": 0.015439000000000001,
+            "ci95_high": 0.024481000000000003,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "off_target_drift": 0.021063000000000002,
+          "selectivity": -0.0013829999999999992,
+          "selectivity_ci": {
+            "mean": -0.0013829999999999992,
+            "ci95_low": -0.005478075,
+            "ci95_high": 0.003029025,
+            "excludes_zero": false,
+            "n": 500
+          },
+          "retrieval_jaccard": 0.3431907800878257,
+          "symbols_changed_mean": 2.038,
+          "symbols_per_slot": 3,
+          "fraction_changed": 0.6793333333333332,
+          "gain_per_fraction_changed": 0.02896957801766438
+        },
+        "random_slot": {
+          "target_gain": {
+            "mean": 0.01068,
+            "ci95_low": 0.006039500000000001,
+            "ci95_high": 0.01508,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "off_target_drift": 0.019703000000000002,
+          "selectivity": -0.009023000000000002,
+          "selectivity_ci": {
+            "mean": -0.009023000000000002,
+            "ci95_low": -0.013331350000000002,
+            "ci95_high": -0.004254175000000002,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "retrieval_jaccard": 0.3716708417924517,
+          "symbols_changed_mean": 1.832,
+          "symbols_per_slot": 3,
+          "fraction_changed": 0.6106666666666666,
+          "gain_per_fraction_changed": 0.01748908296943232
+        },
+        "random_donor": {
+          "target_gain": {
+            "mean": 0.006420000000000002,
+            "ci95_low": 0.0022595000000000024,
+            "ci95_high": 0.010521000000000003,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "off_target_drift": 0.021644,
+          "selectivity": -0.015223999999999998,
+          "selectivity_ci": {
+            "mean": -0.015223999999999998,
+            "ci95_low": -0.02002587499999999,
+            "ci95_high": -0.010905125,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "retrieval_jaccard": 0.3582487353827246,
+          "symbols_changed_mean": 2.242,
+          "symbols_per_slot": 3,
+          "fraction_changed": 0.7473333333333333,
+          "gain_per_fraction_changed": 0.00859054415700268
+        }
+      },
+      "selectivity_vs_controls": {
+        "ours_minus_random_slot": {
+          "mean": 0.007640000000000002,
+          "ci95_low": 0.002804100000000001,
+          "ci95_high": 0.012661300000000002,
+          "excludes_zero": true,
+          "n": 500
+        },
+        "ours_minus_random_donor": {
+          "mean": 0.013841000000000001,
+          "ci95_low": 0.009464624999999999,
+          "ci95_high": 0.01827905,
+          "excludes_zero": true,
+          "n": 500
+        }
+      }
+    },
+    "activity_relation": {
+      "coverage": 1.0,
+      "arms": {
+        "ours_slot": {
+          "target_gain": {
+            "mean": 0.019280000000000002,
+            "ci95_low": 0.0138995,
+            "ci95_high": 0.024903500000000002,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "off_target_drift": 0.021518000000000006,
+          "selectivity": -0.0022380000000000013,
+          "selectivity_ci": {
+            "mean": -0.0022380000000000013,
+            "ci95_low": -0.007324825,
+            "ci95_high": 0.0031562499999999985,
+            "excludes_zero": false,
+            "n": 500
+          },
+          "retrieval_jaccard": 0.3371664392644309,
+          "symbols_changed_mean": 2.058,
+          "symbols_per_slot": 3,
+          "fraction_changed": 0.686,
+          "gain_per_fraction_changed": 0.028104956268221574
+        },
+        "random_slot": {
+          "target_gain": {
+            "mean": 0.01086,
+            "ci95_low": 0.0063975,
+            "ci95_high": 0.015860999999999997,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "off_target_drift": 0.019884,
+          "selectivity": -0.009024,
+          "selectivity_ci": {
+            "mean": -0.009024,
+            "ci95_low": -0.013698175000000003,
+            "ci95_high": -0.004851350000000002,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "retrieval_jaccard": 0.3676178099507794,
+          "symbols_changed_mean": 1.824,
+          "symbols_per_slot": 3,
+          "fraction_changed": 0.608,
+          "gain_per_fraction_changed": 0.01786184210526316
+        },
+        "random_donor": {
+          "target_gain": {
+            "mean": 0.0005799999999999998,
+            "ci95_low": -0.003301000000000001,
+            "ci95_high": 0.0044210000000000005,
+            "excludes_zero": false,
+            "n": 500
+          },
+          "off_target_drift": 0.021272000000000006,
+          "selectivity": -0.020692,
+          "selectivity_ci": {
+            "mean": -0.020692,
+            "ci95_low": -0.025220225000000002,
+            "ci95_high": -0.016505925,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "retrieval_jaccard": 0.357931525332058,
+          "symbols_changed_mean": 2.266,
+          "symbols_per_slot": 3,
+          "fraction_changed": 0.7553333333333333,
+          "gain_per_fraction_changed": 0.0007678729037952336
+        }
+      },
+      "selectivity_vs_controls": {
+        "ours_minus_random_slot": {
+          "mean": 0.0067859999999999995,
+          "ci95_low": 0.0007203250000000001,
+          "ci95_high": 0.013164200000000003,
+          "excludes_zero": true,
+          "n": 500
+        },
+        "ours_minus_random_donor": {
+          "mean": 0.018454,
+          "ci95_low": 0.013563175,
+          "ci95_high": 0.0233031,
+          "excludes_zero": true,
+          "n": 500
+        }
+      }
+    },
+    "color_texture": {
+      "coverage": 1.0,
+      "arms": {
+        "ours_slot": {
+          "target_gain": {
+            "mean": 0.01552,
+            "ci95_low": 0.011059499999999998,
+            "ci95_high": 0.0202805,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "off_target_drift": 0.021804,
+          "selectivity": -0.0062840000000000005,
+          "selectivity_ci": {
+            "mean": -0.0062840000000000005,
+            "ci95_low": -0.010884900000000003,
+            "ci95_high": -0.0015109000000000027,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "retrieval_jaccard": 0.3145247319376651,
+          "symbols_changed_mean": 2.066,
+          "symbols_per_slot": 3,
+          "fraction_changed": 0.6886666666666666,
+          "gain_per_fraction_changed": 0.022536302032913846
+        },
+        "random_slot": {
+          "target_gain": {
+            "mean": 0.006240000000000001,
+            "ci95_low": 0.0025394999999999992,
+            "ci95_high": 0.009925999999999994,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "off_target_drift": 0.019646,
+          "selectivity": -0.013406000000000001,
+          "selectivity_ci": {
+            "mean": -0.013406000000000001,
+            "ci95_low": -0.0172626,
+            "ci95_high": -0.009623275000000002,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "retrieval_jaccard": 0.3705292450844297,
+          "symbols_changed_mean": 1.778,
+          "symbols_per_slot": 3,
+          "fraction_changed": 0.5926666666666668,
+          "gain_per_fraction_changed": 0.010528683914510685
+        },
+        "random_donor": {
+          "target_gain": {
+            "mean": 0.0033599999999999993,
+            "ci95_low": -0.000901,
+            "ci95_high": 0.007219999999999999,
+            "excludes_zero": false,
+            "n": 500
+          },
+          "off_target_drift": 0.022206000000000004,
+          "selectivity": -0.018846,
+          "selectivity_ci": {
+            "mean": -0.018846,
+            "ci95_low": -0.022928500000000004,
+            "ci95_high": -0.014715975000000004,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "retrieval_jaccard": 0.3361166626969263,
+          "symbols_changed_mean": 2.256,
+          "symbols_per_slot": 3,
+          "fraction_changed": 0.752,
+          "gain_per_fraction_changed": 0.004468085106382978
+        }
+      },
+      "selectivity_vs_controls": {
+        "ours_minus_random_slot": {
+          "mean": 0.007122,
+          "ci95_low": 0.0013259249999999993,
+          "ci95_high": 0.012913575,
+          "excludes_zero": true,
+          "n": 500
+        },
+        "ours_minus_random_donor": {
+          "mean": 0.012562000000000002,
+          "ci95_low": 0.007915675,
+          "ci95_high": 0.017308425,
+          "excludes_zero": true,
+          "n": 500
+        }
+      }
+    },
+    "scene_type": {
+      "coverage": 1.0,
+      "arms": {
+        "ours_slot": {
+          "target_gain": {
+            "mean": 0.009179999999999999,
+            "ci95_low": 0.004598000000000001,
+            "ci95_high": 0.014140499999999999,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "off_target_drift": 0.021176999999999998,
+          "selectivity": -0.011997,
+          "selectivity_ci": {
+            "mean": -0.011997,
+            "ci95_low": -0.016930225,
+            "ci95_high": -0.007012325000000002,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "retrieval_jaccard": 0.3099225185680587,
+          "symbols_changed_mean": 2.032,
+          "symbols_per_slot": 3,
+          "fraction_changed": 0.6773333333333332,
+          "gain_per_fraction_changed": 0.013553149606299213
+        },
+        "random_slot": {
+          "target_gain": {
+            "mean": 0.009,
+            "ci95_low": 0.0037379999999999996,
+            "ci95_high": 0.013740500000000001,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "off_target_drift": 0.020474000000000003,
+          "selectivity": -0.011474,
+          "selectivity_ci": {
+            "mean": -0.011474,
+            "ci95_low": -0.016266725000000003,
+            "ci95_high": -0.006467800000000002,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "retrieval_jaccard": 0.382425286526091,
+          "symbols_changed_mean": 1.792,
+          "symbols_per_slot": 3,
+          "fraction_changed": 0.5973333333333333,
+          "gain_per_fraction_changed": 0.015066964285714286
+        },
+        "random_donor": {
+          "target_gain": {
+            "mean": -0.0006999999999999996,
+            "ci95_low": -0.004920499999999998,
+            "ci95_high": 0.0035605000000000007,
+            "excludes_zero": false,
+            "n": 500
+          },
+          "off_target_drift": 0.020421,
+          "selectivity": -0.021121,
+          "selectivity_ci": {
+            "mean": -0.021121,
+            "ci95_low": -0.025839449999999996,
+            "ci95_high": -0.016508625,
+            "excludes_zero": true,
+            "n": 500
+          },
+          "retrieval_jaccard": 0.342173087753026,
+          "symbols_changed_mean": 2.26,
+          "symbols_per_slot": 3,
+          "fraction_changed": 0.7533333333333334,
+          "gain_per_fraction_changed": -0.0009292035398230082
+        }
+      },
+      "selectivity_vs_controls": {
+        "ours_minus_random_slot": {
+          "mean": -0.0005229999999999999,
+          "ci95_low": -0.006481850000000001,
+          "ci95_high": 0.005820100000000001,
+          "excludes_zero": false,
+          "n": 500
+        },
+        "ours_minus_random_donor": {
+          "mean": 0.009123999999999998,
+          "ci95_low": 0.0048585999999999985,
+          "ci95_high": 0.013712275,
+          "excludes_zero": true,
+          "n": 500
+        }
+      }
+    }
+  }
+}

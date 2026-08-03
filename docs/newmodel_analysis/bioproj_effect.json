@@ -1,0 +1,44 @@
+{
+  "note": "recomputed from each run's own extraction; supersedes the legacy bio_projection_18base.json rows",
+  "cells": [
+    {
+      "dataset": "MSCOCO",
+      "dir": "result/260803+mscoco_setting1_promptAblA_mscoco_A_v5b_uni003_P0refit_e39+bs+64+e+60+proj_lr+0.001",
+      "L": 18,
+      "pre_mAP_at_R": 0.8317221839396035,
+      "post_mAP_at_R": 0.8286561357125268,
+      "delta": -0.0030660482270766787,
+      "mean_db_edits": 0.7931877110186722,
+      "valid_frac_pre": 0.4638680072375907,
+      "valid_frac_post": 1.0,
+      "dna_unique_pre": 0.20333339551194762,
+      "dna_unique_post": 0.19540562219030386
+    },
+    {
+      "dataset": "NUSWIDE",
+      "dir": "result/260803+nuswide_setting1_promptAblA_nuswide_A_v4_uni005_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+      "L": 18,
+      "pre_mAP_at_R": 0.8297264912193651,
+      "post_mAP_at_R": 0.8273517520134877,
+      "delta": -0.0023747392058774963,
+      "mean_db_edits": 0.6305656209028875,
+      "valid_frac_pre": 0.5648466454003943,
+      "valid_frac_post": 1.0,
+      "dna_unique_pre": 0.22722392558869378,
+      "dna_unique_post": 0.2157545913468983
+    },
+    {
+      "dataset": "Flickr25k",
+      "dir": "result/260803+flickr25k_setting1_promptAblA_flickr_A_v4_uni002_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+      "L": 18,
+      "pre_mAP_at_R": 0.8756373624144992,
+      "post_mAP_at_R": 0.8672644537032711,
+      "delta": -0.008372908711228089,
+      "mean_db_edits": 1.108,
+      "valid_frac_pre": 0.4047826086956522,
+      "valid_frac_post": 1.0,
+      "dna_unique_pre": 0.4906521739130435,
+      "dna_unique_post": 0.4703478260869565
+    }
+  ]
+}
