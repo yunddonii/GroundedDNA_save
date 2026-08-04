@@ -487,6 +487,57 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-08-04 (PM) — 🟢 **Baseline 3-seed complete (60/60, 0 failures)**: MS-COCO deficit disappears at 3-vs-3 — because CroVCA drops, not because we rise. Draft ablations A2/A4 filled 4/4.
+
+📊 **3-seed vs 3-seed** (ours seeds {42,43,44}; baselines now also {42,43,44} on Flickr/MS-COCO/NUS).
+
+| Dataset | ours | best `U0` 3-seed | Δ | best `U0` seed-42 only | A-champion Δ |
+|---|---|---|---:|---|---:|
+| Flickr25k | .8668 ± .0017 | OH **.8327** | **+.0341** | OH .8362 | +.0313 |
+| NUS-WIDE | .8283 ± .0008 | OH **.8028** | **+.0255** | OH .8023 | +.0239 |
+| MS-COCO | .8232 ± .0098 | CroVCA **.8216** | **+.0016** | CroVCA .8257 | −.0087 |
+| CIFAR-10 | .8940 ± .0033 | CIBHash .8968 *(1 seed)* | −.0028 | — | +.0090 |
+
+🔑 **The MS-COCO deficit was partly the baseline's seed luck.** CroVCA's mean falls .8257 → **.8216**
+once seeds 43/44 are included. Ours moves from −.0025 (vs seed-42 CroVCA) to **+.0016**. ⚠️ That margin
+is one sixth of our own std (.0098), so the correct wording is **"on par with CroVCA"**, never "beats".
+This also retro-justifies the 2026-08-04 AM caution: single-seed margins of ~.003 are uninterpretable on
+MS-COCO for *either* side.
+
+**CIFAR-10 is now the only remaining loss**, and its baselines are still single-seed — the 60-cell batch
+covered Flickr/MS-COCO/NUS only. Running CIFAR {43,44} is the last gap in Panel A.
+
+📊 **Draft §4.8 causal ablations — filled 4/4 under the current protocol** (the draft's existing rows
+were all pre-P0/pre-bio and self-marked unusable).
+
+| ablation | Δ mAP@R (COCO / CIFAR / NUS / Flickr) | Δ codon decode |
+|---|---|---|
+| **A2** no text supervision | −.0605 / −.0197 / −.0184 / −.0126 | **−.0860** / −.0124 / **−.0427** / −.0203 |
+| **A4** shared codebook K=768 | −.0092 / −.0146 / −.0031 / −.0147 | **−.0312** / −.0053 / −.0128 / −.0188 |
+
+- 🟢 **Text supervision is necessary on 4/4, and it buys interpretability more than retrieval** on
+  MS-COCO (−.086 vs −.061) and NUS-WIDE (−.043 vs −.018, a 2.3× ratio). This is the direct causal
+  evidence for "text organises the codon semantics".
+- 🟢 **Per-slot codebooks are necessary on 4/4.** ⚠️ Note the reversal: under the A-champion, NUS-WIDE
+  *preferred* the shared bank (.8262 → .8301); under the unified recipe that advantage is gone
+  (−.0031). `L_joint` appears to supply the slot-space separation the shared bank used to borrow.
+- **A1 (text pooling) is not re-run** — the legacy bidirectional-pruning flag degenerates to a constant
+  and the item was already removed from the contribution list.
+
+📊 **MS-COCO λ re-checked at 3 seeds**: λ=.03 → .8232 ± .0098, λ=.05 → .8194 ± .0056. The means favour
+.03 but the spreads overlap, so the choice is **not statistically resolved**; .03 is kept.
+
+🧰 **Artifacts.** `docs/baseline_p0_matrix_seeds43-44_legacy_cache.{json,md}` (60/60, failures=0,
+DUH-EG `blocked_not_aggregated` as expected); `docs/newmodel_analysis/`;
+`docs/DRAFT_GROUNDEDNDA_PAPER_KO_MODIFY.md` with Panel A now 3-seed on both sides.
+
+⚠️ **Caveats.** Baselines remain **strict-main ineligible** under invariant #6: filling seeds satisfies
+#3 and #9 but legacy-cache provenance is a separate condition. CIFAR-10 baselines are single-seed.
+K×L grid is 4/16 on the new model. `--lambda_bio_constraint` is still not in the recipe, and
+pre-projection validity stays at 40–57 % (chance ≈ 45.2 %).
+
+---
+
 ## 2026-08-04 — 🔴 **CORRECTION: the "4/4 baseline win" does NOT survive 3 seeds** (2 win / 2 loss); interpretability holds 4/4; full re-evaluation of the draft's ablations on the new model
 
 🎯 **Why.** The 2026-08-03 entry reported the unified recipe leading every `U0` baseline on all four

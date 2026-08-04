@@ -1,0 +1,619 @@
+{
+  "dataset": "CIFAR10",
+  "config": {
+    "alpha": 1.0,
+    "min_support": 10,
+    "n_shuffle": 5,
+    "n_boot": 1000,
+    "seed": 42,
+    "n_train": 5000,
+    "n_test": 1000,
+    "n_labels": 10,
+    "K": 690,
+    "n_bases_per_slot": 3,
+    "ours_dir": "result/260804+cifar10_setting1_promptAblA_cifar_A_v4_abA4_P0refit_e4+bs+64+e+60+proj_lr+0.001/withids",
+    "baselines": {
+      "CIBHash": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_cibhash_cifar10_36b_seed42/attempt_001/260722/cibhash_cifar10_36b_P0refit_seed42_p1a85fe43b576_e4_dnaeval",
+      "CIMON": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_cimon_cifar10_36b_seed42/attempt_001/260722/cimon_cifar10_36b_P0refit_seed42_p8312f1415dd7_e149_dnaeval",
+      "SDC": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_sdc-paper_cifar10_36b_seed42/attempt_001/260722/sdc_paper_cifar10_36b_P0refit_seed42_p1e233b3caed9_e4_dnaeval",
+      "OH": "result_baseline/p0_matrix_seeds42_legacy_cache/u0_oh_cifar10_36b_seed42/attempt_001/260722/oh_cifar10_36b_P0refit_seed42_p501e6f960656_e164_dnaeval",
+      "CroVCA": "result_baseline/260722/crovca_cifar10_36b_P0refit_seed42_p4c4dd437e788_e4_dnaeval"
+    }
+  },
+  "slot_names": [
+    "global",
+    "primary_object",
+    "secondary_object",
+    "activity_relation",
+    "color_texture",
+    "scene_type"
+  ],
+  "results": {
+    "ours_codeword": {
+      "per_slot": [
+        {
+          "concept_mAP": 0.8882845238095237,
+          "concept_mAP_covered_only": 0.9383689107827039,
+          "top1_acc": 0.839,
+          "coverage": 0.928,
+          "n_active_units": 128,
+          "n_units": 690,
+          "H_cond": 0.1422838764929344,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.8981003968253969,
+          "concept_mAP_covered_only": 0.9251843584656085,
+          "top1_acc": 0.842,
+          "coverage": 0.96,
+          "n_active_units": 61,
+          "n_units": 690,
+          "H_cond": 0.10611811028572835,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.9017214285714286,
+          "concept_mAP_covered_only": 0.9389624220295147,
+          "top1_acc": 0.851,
+          "coverage": 0.939,
+          "n_active_units": 66,
+          "n_units": 690,
+          "H_cond": 0.10081250561486177,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.9077380952380952,
+          "concept_mAP_covered_only": 0.938600816895796,
+          "top1_acc": 0.857,
+          "coverage": 0.956,
+          "n_active_units": 62,
+          "n_units": 690,
+          "H_cond": 0.09637649435696367,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.888343253968254,
+          "concept_mAP_covered_only": 0.9248459580738061,
+          "top1_acc": 0.835,
+          "coverage": 0.948,
+          "n_active_units": 62,
+          "n_units": 690,
+          "H_cond": 0.10939633983611212,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.8977630952380953,
+          "concept_mAP_covered_only": 0.9362789334149078,
+          "top1_acc": 0.841,
+          "coverage": 0.934,
+          "n_active_units": 71,
+          "n_units": 690,
+          "H_cond": 0.103310752822998,
+          "H_marg": 0.3254342467164514
+        }
+      ],
+      "slot_mean": {
+        "concept_mAP": 0.8969917989417989,
+        "top1_acc": 0.8441666666666667,
+        "coverage": 0.9441666666666667,
+        "H_cond": 0.10971634656826638
+      }
+    },
+    "ours_codon": {
+      "per_slot": [
+        {
+          "concept_mAP": 0.909011507936508,
+          "concept_mAP_covered_only": 0.9131698923700935,
+          "top1_acc": 0.852,
+          "coverage": 0.994,
+          "n_active_units": 45,
+          "n_units": 64,
+          "H_cond": 0.10790227013962934,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.8990503968253968,
+          "concept_mAP_covered_only": 0.9097214156665377,
+          "top1_acc": 0.832,
+          "coverage": 0.984,
+          "n_active_units": 31,
+          "n_units": 64,
+          "H_cond": 0.09783303959706034,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.8900309523809524,
+          "concept_mAP_covered_only": 0.8969088545428283,
+          "top1_acc": 0.814,
+          "coverage": 0.989,
+          "n_active_units": 26,
+          "n_units": 64,
+          "H_cond": 0.09997621089896253,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.9158805555555555,
+          "concept_mAP_covered_only": 0.9234299516908212,
+          "top1_acc": 0.86,
+          "coverage": 0.989,
+          "n_active_units": 32,
+          "n_units": 64,
+          "H_cond": 0.09509819917479294,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.8620059523809525,
+          "concept_mAP_covered_only": 0.8675120250120248,
+          "top1_acc": 0.772,
+          "coverage": 0.99,
+          "n_active_units": 43,
+          "n_units": 64,
+          "H_cond": 0.14034264396186555,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.833777380952381,
+          "concept_mAP_covered_only": 0.8416015342307136,
+          "top1_acc": 0.72,
+          "coverage": 0.987,
+          "n_active_units": 37,
+          "n_units": 64,
+          "H_cond": 0.15026154415830256,
+          "H_marg": 0.3254342467164514
+        }
+      ],
+      "slot_mean": {
+        "concept_mAP": 0.8849594576719577,
+        "top1_acc": 0.8083333333333332,
+        "coverage": 0.9888333333333333,
+        "H_cond": 0.11523565132176887
+      }
+    },
+    "CIBHash_chunk": {
+      "per_slot": [
+        {
+          "concept_mAP": 0.8838158730158729,
+          "concept_mAP_covered_only": 0.8950936847725839,
+          "top1_acc": 0.8,
+          "coverage": 0.981,
+          "n_active_units": 46,
+          "n_units": 64,
+          "H_cond": 0.12091983399289583,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.851197619047619,
+          "concept_mAP_covered_only": 0.8576385885669437,
+          "top1_acc": 0.746,
+          "coverage": 0.991,
+          "n_active_units": 51,
+          "n_units": 64,
+          "H_cond": 0.15432899395803873,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.8004611111111111,
+          "concept_mAP_covered_only": 0.804148447135329,
+          "top1_acc": 0.678,
+          "coverage": 0.991,
+          "n_active_units": 57,
+          "n_units": 64,
+          "H_cond": 0.18296309490035473,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.8159226190476191,
+          "concept_mAP_covered_only": 0.8249484328418338,
+          "top1_acc": 0.686,
+          "coverage": 0.985,
+          "n_active_units": 44,
+          "n_units": 64,
+          "H_cond": 0.1644423275527267,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.7891301587301588,
+          "concept_mAP_covered_only": 0.8002758765755706,
+          "top1_acc": 0.67,
+          "coverage": 0.981,
+          "n_active_units": 53,
+          "n_units": 64,
+          "H_cond": 0.17990147234906334,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.7693920634920635,
+          "concept_mAP_covered_only": 0.7745711079044413,
+          "top1_acc": 0.629,
+          "coverage": 0.99,
+          "n_active_units": 55,
+          "n_units": 64,
+          "H_cond": 0.1954247247684411,
+          "H_marg": 0.3254342467164514
+        }
+      ],
+      "slot_mean": {
+        "concept_mAP": 0.8183199074074075,
+        "top1_acc": 0.7014999999999999,
+        "coverage": 0.9865,
+        "H_cond": 0.16633007458692006
+      }
+    },
+    "CIMON_chunk": {
+      "per_slot": [
+        {
+          "concept_mAP": 0.8240289682539683,
+          "concept_mAP_covered_only": 0.8319486745628878,
+          "top1_acc": 0.677,
+          "coverage": 0.985,
+          "n_active_units": 26,
+          "n_units": 64,
+          "H_cond": 0.13590662709298718,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.8151464285714285,
+          "concept_mAP_covered_only": 0.8268879637744668,
+          "top1_acc": 0.674,
+          "coverage": 0.978,
+          "n_active_units": 24,
+          "n_units": 64,
+          "H_cond": 0.14289615482539128,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.8592845238095238,
+          "concept_mAP_covered_only": 0.8705010274582139,
+          "top1_acc": 0.758,
+          "coverage": 0.981,
+          "n_active_units": 37,
+          "n_units": 64,
+          "H_cond": 0.1341887711756988,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.7564853174603174,
+          "concept_mAP_covered_only": 0.759147344383763,
+          "top1_acc": 0.578,
+          "coverage": 0.994,
+          "n_active_units": 27,
+          "n_units": 64,
+          "H_cond": 0.1864573903924921,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.832088492063492,
+          "concept_mAP_covered_only": 0.8415955452106165,
+          "top1_acc": 0.708,
+          "coverage": 0.982,
+          "n_active_units": 32,
+          "n_units": 64,
+          "H_cond": 0.15302749663152815,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.801477380952381,
+          "concept_mAP_covered_only": 0.8088349881113038,
+          "top1_acc": 0.664,
+          "coverage": 0.988,
+          "n_active_units": 40,
+          "n_units": 64,
+          "H_cond": 0.17096509221447206,
+          "H_marg": 0.3254342467164514
+        }
+      ],
+      "slot_mean": {
+        "concept_mAP": 0.8147518518518518,
+        "top1_acc": 0.6764999999999999,
+        "coverage": 0.9846666666666666,
+        "H_cond": 0.15390692205542827
+      }
+    },
+    "SDC_chunk": {
+      "per_slot": [
+        {
+          "concept_mAP": 0.7882960317460318,
+          "concept_mAP_covered_only": 0.7902278751876338,
+          "top1_acc": 0.642,
+          "coverage": 0.994,
+          "n_active_units": 59,
+          "n_units": 64,
+          "H_cond": 0.18944353225156738,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.7220452380952381,
+          "concept_mAP_covered_only": 0.7220452380952381,
+          "top1_acc": 0.555,
+          "coverage": 1.0,
+          "n_active_units": 61,
+          "n_units": 64,
+          "H_cond": 0.22179415832462718,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.7202876984126985,
+          "concept_mAP_covered_only": 0.7215293714540703,
+          "top1_acc": 0.562,
+          "coverage": 0.996,
+          "n_active_units": 61,
+          "n_units": 64,
+          "H_cond": 0.21467366374398628,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.7252984126984127,
+          "concept_mAP_covered_only": 0.7255239366350478,
+          "top1_acc": 0.572,
+          "coverage": 0.999,
+          "n_active_units": 63,
+          "n_units": 64,
+          "H_cond": 0.22511857067605043,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.657529761904762,
+          "concept_mAP_covered_only": 0.6601770758554678,
+          "top1_acc": 0.482,
+          "coverage": 0.995,
+          "n_active_units": 59,
+          "n_units": 64,
+          "H_cond": 0.24283785857956053,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.7248904761904762,
+          "concept_mAP_covered_only": 0.7272160068846816,
+          "top1_acc": 0.56,
+          "coverage": 0.996,
+          "n_active_units": 57,
+          "n_units": 64,
+          "H_cond": 0.20915467011738526,
+          "H_marg": 0.3254342467164514
+        }
+      ],
+      "slot_mean": {
+        "concept_mAP": 0.7230579365079365,
+        "top1_acc": 0.5621666666666666,
+        "coverage": 0.9966666666666667,
+        "H_cond": 0.21717040894886283
+      }
+    },
+    "OH_chunk": {
+      "per_slot": [
+        {
+          "concept_mAP": 0.685506746031746,
+          "concept_mAP_covered_only": 0.6858592719703831,
+          "top1_acc": 0.49,
+          "coverage": 0.999,
+          "n_active_units": 12,
+          "n_units": 64,
+          "H_cond": 0.19191157523932506,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.8725023809523809,
+          "concept_mAP_covered_only": 0.8824453155245838,
+          "top1_acc": 0.78,
+          "coverage": 0.984,
+          "n_active_units": 26,
+          "n_units": 64,
+          "H_cond": 0.12192476574948212,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.8252539682539682,
+          "concept_mAP_covered_only": 0.8296811809651689,
+          "top1_acc": 0.696,
+          "coverage": 0.993,
+          "n_active_units": 25,
+          "n_units": 64,
+          "H_cond": 0.14638511005308422,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.8206119047619047,
+          "concept_mAP_covered_only": 0.8275723433964081,
+          "top1_acc": 0.697,
+          "coverage": 0.989,
+          "n_active_units": 19,
+          "n_units": 64,
+          "H_cond": 0.14867233453792156,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.8105011904761905,
+          "concept_mAP_covered_only": 0.8136695381670256,
+          "top1_acc": 0.665,
+          "coverage": 0.995,
+          "n_active_units": 28,
+          "n_units": 64,
+          "H_cond": 0.15306893776480784,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.8045535714285715,
+          "concept_mAP_covered_only": 0.8092656920924398,
+          "top1_acc": 0.671,
+          "coverage": 0.987,
+          "n_active_units": 39,
+          "n_units": 64,
+          "H_cond": 0.1674639800022213,
+          "H_marg": 0.3254342467164514
+        }
+      ],
+      "slot_mean": {
+        "concept_mAP": 0.8031549603174604,
+        "top1_acc": 0.6665,
+        "coverage": 0.9911666666666666,
+        "H_cond": 0.154904450557807
+      }
+    },
+    "CroVCA_chunk": {
+      "per_slot": [
+        {
+          "concept_mAP": 0.8711047619047619,
+          "concept_mAP_covered_only": 0.8896097201767305,
+          "top1_acc": 0.804,
+          "coverage": 0.97,
+          "n_active_units": 33,
+          "n_units": 64,
+          "H_cond": 0.11275011911533024,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.8062531746031746,
+          "concept_mAP_covered_only": 0.817995522995523,
+          "top1_acc": 0.671,
+          "coverage": 0.975,
+          "n_active_units": 47,
+          "n_units": 64,
+          "H_cond": 0.16413099180247576,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.804876984126984,
+          "concept_mAP_covered_only": 0.8147133138969874,
+          "top1_acc": 0.674,
+          "coverage": 0.98,
+          "n_active_units": 52,
+          "n_units": 64,
+          "H_cond": 0.17030451408124853,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.7820369047619048,
+          "concept_mAP_covered_only": 0.7883035613157938,
+          "top1_acc": 0.638,
+          "coverage": 0.981,
+          "n_active_units": 36,
+          "n_units": 64,
+          "H_cond": 0.16660197634456003,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.8722722222222221,
+          "concept_mAP_covered_only": 0.8856042143913178,
+          "top1_acc": 0.803,
+          "coverage": 0.977,
+          "n_active_units": 46,
+          "n_units": 64,
+          "H_cond": 0.12586515184680616,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.8211511904761906,
+          "concept_mAP_covered_only": 0.8268713833123202,
+          "top1_acc": 0.711,
+          "coverage": 0.982,
+          "n_active_units": 46,
+          "n_units": 64,
+          "H_cond": 0.1606832170542829,
+          "H_marg": 0.3254342467164514
+        }
+      ],
+      "slot_mean": {
+        "concept_mAP": 0.8262825396825396,
+        "top1_acc": 0.7168333333333333,
+        "coverage": 0.9775,
+        "H_cond": 0.15005599504078393
+      }
+    },
+    "majority": {
+      "concept_mAP": 0.29289682539682543,
+      "top1_acc": 0.1,
+      "H_marg": 0.3254342467164514
+    },
+    "shuffled": {
+      "concept_mAP": 0.2833369312169312,
+      "concept_mAP_std": 0.03786942946980964,
+      "n_rep": 5
+    },
+    "collision": {
+      "decoding_loss_codeword_minus_codon": 0.012032341269841207,
+      "entropy_increase_codon_minus_codeword": 0.005519304753502485,
+      "per_slot_jsd": [
+        {
+          "mean_jsd": 0.013944623632978574,
+          "max_jsd": 0.11765488487043178,
+          "n_merged_pairs": 282
+        },
+        {
+          "mean_jsd": 0.04393187548281742,
+          "max_jsd": 0.12086597063922652,
+          "n_merged_pairs": 689
+        },
+        {
+          "mean_jsd": 0.04313488512482116,
+          "max_jsd": 0.12450312280020685,
+          "n_merged_pairs": 577
+        },
+        {
+          "mean_jsd": 0.0488590019820976,
+          "max_jsd": 0.12512560440806353,
+          "n_merged_pairs": 755
+        },
+        {
+          "mean_jsd": 0.05776739389367923,
+          "max_jsd": 0.1322728029569338,
+          "n_merged_pairs": 953
+        },
+        {
+          "mean_jsd": 0.055195585475754254,
+          "max_jsd": 0.12676685719844077,
+          "n_merged_pairs": 1396
+        }
+      ]
+    },
+    "bootstrap_vs_ours_codon": {
+      "ours_codeword": {
+        "delta": -0.012032341269841207,
+        "ci95_low": -0.019506481481481507,
+        "ci95_high": -0.005000601851851874,
+        "excludes_zero": true
+      },
+      "CIBHash_chunk": {
+        "delta": 0.06663955026455026,
+        "ci95_low": 0.05767025462962958,
+        "ci95_high": 0.07539579199735448,
+        "excludes_zero": true
+      },
+      "CIMON_chunk": {
+        "delta": 0.07020760582010588,
+        "ci95_low": 0.060676235119047676,
+        "ci95_high": 0.07903790674603163,
+        "excludes_zero": true
+      },
+      "SDC_chunk": {
+        "delta": 0.16190152116402123,
+        "ci95_low": 0.15173079695767197,
+        "ci95_high": 0.17178186507936508,
+        "excludes_zero": true
+      },
+      "OH_chunk": {
+        "delta": 0.08180449735449735,
+        "ci95_low": 0.07204550099206339,
+        "ci95_high": 0.09093592592592584,
+        "excludes_zero": true
+      },
+      "CroVCA_chunk": {
+        "delta": 0.0586769179894181,
+        "ci95_low": 0.04844780092592574,
+        "ci95_high": 0.06789903439153437,
+        "excludes_zero": true
+      },
+      "majority": {
+        "delta": 0.5920626322751323,
+        "ci95_low": 0.5724981117724867,
+        "ci95_high": 0.6106840013227512,
+        "excludes_zero": true
+      },
+      "shuffled": {
+        "delta": 0.6016225264550265,
+        "ci95_low": 0.5889003736772487,
+        "ci95_high": 0.6135701025132274,
+        "excludes_zero": true
+      }
+    }
+  }
+}

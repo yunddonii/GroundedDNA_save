@@ -1281,49 +1281,56 @@ champion에서 물려받은 loss weight뿐이다.
 - **deterministic straight-through** codon 이산화 (`--no_gumbel_softmax`)
 - **codeword–codon Sinkhorn bijection 비활성** (4개 데이터셋 공통)
 - 데이터셋별 λ: MS-COCO `.03`, NUS-WIDE `.05`, Flickr25K `.02`, CIFAR-10 `.03`
+  - MS-COCO의 λ는 3-seed로 재확인했다: `.03` → `.8232 ± .0098`, `.05` → `.8194 ± .0056`.
+    평균은 `.03`이 높지만 두 분산이 겹치므로 **통계적으로 구분되지 않는다**
 - 그 외 구조·프롬프트·P0 프로토콜은 §3과 동일
 
 이전 draft의 champion(이하 `A-champion`)과의 유일한 차이는 위 세 항목이다.
 
 #### 4.5.1 Panel A — 18-base headline, seeds `{42,43,44}` mean ± sample std
 
-| Method | Training information | Code formation | Flickr25K @5K | MS-COCO @5K | NUS-WIDE @5K | CIFAR-10 @1K |
+**모든 행이 3-seed다.** baseline은 9개 `U0` variant × 3 dataset × seeds `{43,44}` 60셀을
+실패 0건으로 완료하여 seed 42와 합산했다.
+
+| Method | Info | Code formation | Flickr25K @5K | MS-COCO @5K | NUS-WIDE @5K | CIFAR-10 @1K |
 |---|---|---|---:|---:|---:|---:|
-| CIBHash | `U0` | 36-bit → 18-base | - | - | - | - |
-| CIMON | `U0` | 36-bit → 18-base | - | - | - | - |
-| MLS³RDUH | `U0` | 36-bit → 18-base | - | - | - | - |
-| GreedyHash-UGH | `U0` | 36-bit → 18-base | - | - | - | - |
-| Bi-half | `U0` | 36-bit → 18-base | - | - | - | - |
-| SDC-paper | `U0` | 36-bit → 18-base | - | - | - | - |
-| OH | `U0` | 36-bit → 18-base | - | - | - | - |
-| HHCH | `U0` | 36-bit → 18-base | - | - | - | - |
-| CroVCA | `U0` | 36-bit → 18-base | - | - | - | - |
-| DNA24-18 analytic-transfer | `U0-FD` | learned 18×4 DNA head | - | - | - | - |
-| PRIMO-18 length-transfer | `U0-FD` | learned 18×4 DNA head | - | - | - | - |
+| CIBHash | `U0` | 36-bit → 18-base | .7826 | .7700 | .7871 | - |
+| CIMON | `U0` | 36-bit → 18-base | .8140 | .6708 | .7946 | - |
+| MLS³RDUH | `U0` | 36-bit → 18-base | .7561 | .6332 | .7561 | - |
+| GreedyHash-UGH | `U0` | 36-bit → 18-base | .6493 | .5563 | .6447 | - |
+| Bi-half | `U0` | 36-bit → 18-base | .8180 | .7062 | .7547 | - |
+| SDC-paper | `U0` | 36-bit → 18-base | .7263 | **.8092** | .7529 | - |
+| OH | `U0` | 36-bit → 18-base | **.8327** | .7656 | **.8028** | - |
+| HHCH | `U0` | 36-bit → 18-base | .6119 | .4724 | .4026 | - |
+| CroVCA | `U0` | 36-bit → 18-base | .7698 | **.8216** | .7984 | - |
+| DNA24-18 analytic-transfer | `U0-FD` | learned 18×4 DNA head | .7808 ± .0071 | .6330 ± .0127 | .7427 ± .0055 | .7786 ± .0101 |
+| PRIMO-18 length-transfer | `U0-FD` | learned 18×4 DNA head | .7882 ± .0209 | .6251 ± .0129 | .7320 ± .0109 | .7344 ± .0123 |
 | **GroundedDNA (unified)** | **`VLM-T`** | **six grounded codons → 18-base** | **.8668 ± .0017** | **.8232 ± .0098** | **.8283 ± .0008** | **.8940 ± .0033** |
 
-- baseline 행은 seeds `{43,44}` 재실행이 진행 중이므로 `-`다. 완료 전까지 순위를 주장하지 않는다.
-- 우리 행만 3-seed가 완료되었으므로, 아래 4.5.2의 비교는 **baseline single-seed diagnostic 대비**임을
-  명시한다.
+- CIFAR-10의 `U0` 열은 seeds `{43,44}`를 아직 돌리지 않아 `-`다(해당 60셀 배치는
+  Flickr/MS-COCO/NUS-WIDE만 포함했다). CIFAR 비교는 §4.5.2의 single-seed diagnostic만 유효하다.
+- baseline은 legacy cache provenance 때문에 invariant #6상 여전히 **strict-main ineligible**이다.
+  seed 수를 채운 것은 invariant #3·#9를 만족시킬 뿐, #6은 별개 조건이다.
 
-#### 4.5.2 Diagnostic 비교 — 최강 `U0` baseline(seed 42) 대비
+#### 4.5.2 최강 `U0` baseline 대비 (3-seed 대 3-seed)
 
-| Dataset | ours 3-seed | best `U0` (seed 42) | Δ | A-champion Δ |
+| Dataset | ours 3-seed | best `U0` 3-seed | **Δ** | A-champion Δ (seed 42) |
 |---|---:|---|---:|---:|
-| Flickr25K | .8668 ± .0017 | OH .8362 | **+.0306** | +.0313 |
-| NUS-WIDE | .8283 ± .0008 | OH .8023 | **+.0260** | +.0239 |
-| MS-COCO | .8232 ± .0098 | CroVCA .8257 | **−.0025** | −.0087 |
-| CIFAR-10 | .8940 ± .0033 | CIBHash .8968 | **−.0028** | +.0090 |
+| Flickr25K | .8668 ± .0017 | OH .8327 | **+.0341** | +.0313 |
+| NUS-WIDE | .8283 ± .0008 | OH .8028 | **+.0255** | +.0239 |
+| MS-COCO | .8232 ± .0098 | CroVCA .8216 | **+.0016** | −.0087 |
+| CIFAR-10 | .8940 ± .0033 | CIBHash .8968 *(1 seed)* | −.0028 | +.0090 |
 
-핵심 서술은 다음과 같다.
+🟢 **3-seed 대 3-seed 비교에서 MS-COCO가 `+.0016`으로 뒤집힌다.** 이는 우리 값이 올라서가 아니라
+**CroVCA의 3-seed 평균이 `.8257`(seed 42) → `.8216`으로 내려갔기 때문**이다. 즉 이전에 관측된
+MS-COCO 열세의 상당 부분은 **baseline 쪽의 seed 운**이었다.
 
-- **검색에서 2승 2패다.** 단일 seed(42)에서는 4/4 우위로 보였으나 3-seed 평균에서는 성립하지 않는다.
-  단일 seed로 `.003` 수준의 우열을 판정해서는 안 된다는 것이 이번 재평가의 방법론적 결론이다.
-- **MS-COCO 열세는 완화되었으나 해소되지 않았다**: A-champion `−.0087` → `−.0025`.
-  다만 seed 분산이 `.0098`로 CroVCA와의 격차보다 크므로 **통계적으로 구분되지 않는다**고 써야 한다.
-- **CIFAR-10은 승 → 패로 후퇴했다**(A-champion `+.0090` → `−.0028`). 신규 레시피의 가장 큰 비용이며
-  숨기지 않고 본문에 적는다.
-- **full mAP는 하락한다**. mAP@R(상위 절단) 개선이 꼬리에서 상쇄되는 비대칭이 있으며 §4.6에 수치를 둔다.
+⚠️ 그러나 `+.0016`은 우리 std `.0098`의 6분의 1에 불과하므로 **통계적으로는 동률**로 서술해야 한다.
+"MS-COCO에서 CroVCA와 대등하다"가 정확하고, "이겼다"는 쓰지 않는다.
+
+- Flickr25K·NUS-WIDE는 3-seed 대 3-seed에서도 `+.034` / `+.026`으로 확고하다.
+- CIFAR-10만 열세이며 baseline이 아직 single seed다. **CIFAR `{43,44}` 실행이 남은 유일한 빈칸이다.**
+- full mAP는 mAP@R 개선 대비 하락한다(상위 절단 이득, 꼬리 손실). §4.6에 수치를 둔다.
 
 ### 4.6 Bio projection 효과 — 신규 모델에서 재측정
 
@@ -1368,27 +1375,31 @@ control은 `U0` baseline을 **동일 raw-base-Hamming E\* 규약**으로 선택�
 
 #### A2. Text supervision 제거 (`--disable_text_supervision`)
 
-| Dataset | full | no text | Δ mAP@R | Δ codon decode |
-|---|---:|---:|---:|---:|
-| Flickr25K | .8668 | *(진행 중)* | - | - |
-| MS-COCO | .8232 | *(진행 중)* | - | - |
-| NUS-WIDE | .8283 | *(진행 중)* | - | - |
-| CIFAR-10 | .8940 | *(진행 중)* | - | - |
+| Dataset | full mAP@R | no text | **Δ mAP@R** | full decode | no text | **Δ decode** |
+|---|---:|---:|---:|---:|---:|---:|
+| MS-COCO | .8232 | .7627 | **−.0605** | .6466 | .5606 | **−.0860** |
+| CIFAR-10 | .8940 | .8743 | −.0197 | .8903 | .8779 | −.0124 |
+| NUS-WIDE | .8283 | .8099 | −.0184 | .7368 | .6941 | **−.0427** |
+| Flickr25K | .8668 | .8542 | −.0126 | .7694 | .7491 | −.0203 |
+
+🟢 **텍스트 감독은 4/4에서 필수적이며, 검색보다 해석성에 더 크게 기여한다.**
+MS-COCO `−.086` / NUS-WIDE `−.043`처럼 decode 손실이 mAP 손실을 크게 웃도는 데이터셋이 있다
+(NUS는 2.3배). 이는 **"text가 codon의 의미 조직을 만든다"는 인과 주장의 직접 근거**다.
+구 draft의 A2 행은 pre-P0/pre-bio 진단값이었고, 여기서 처음으로 동일 프로토콜 수치가 된다.
 
 #### A4. Shared codebook (6 slots × K=128 → 단일 K=768)
 
-| Dataset | separate | shared | Δ mAP@R | Δ codon decode |
-|---|---:|---:|---:|---:|
-| Flickr25K | .8668 | *(진행 중)* | - | - |
-| MS-COCO | .8232 | *(진행 중)* | - | - |
-| NUS-WIDE | .8283 | *(진행 중)* | - | - |
-| CIFAR-10 | .8940 | *(진행 중)* | - | - |
+| Dataset | separate | shared | **Δ mAP@R** | separate decode | shared | **Δ decode** |
+|---|---:|---:|---:|---:|---:|---:|
+| Flickr25K | .8668 | .8521 | −.0147 | .7694 | .7506 | −.0188 |
+| CIFAR-10 | .8940 | .8794 | −.0146 | .8903 | .8850 | −.0053 |
+| MS-COCO | .8232 | .8140 | −.0092 | .6466 | .6154 | **−.0312** |
+| NUS-WIDE | .8283 | .8252 | −.0031 | .7368 | .7240 | −.0128 |
 
-- **A1(text pooling/pruning)은 재실행하지 않는다.** legacy bidirectional-pruning flag가 상수로
-  퇴화하여 semantic pruning으로 주장할 수 없음이 이미 확정되었고, 해당 항목은 contribution에서
-  제외하기로 했다(§0).
-- ⚠️ 참고로 NUS-WIDE에서는 **A-champion 시절 shared codebook이 오히려 검색에서 앞섰다**
-  (separate .8262 → shared .8301). 신규 모델에서 이 역전이 유지되는지가 A4의 관전 포인트다.
+🟢 **슬롯별 독립 codebook이 4/4에서 필요하다.** 검색 `−.003 … −.015`, 해석성 `−.005 … −.031`.
+⚠️ 구 draft 시점에는 **NUS-WIDE에서 shared가 검색을 앞섰으나**(A-champion `.8262 → .8301`),
+신규 레시피에서는 역전이 사라지고 separate가 우세하다(`−.0031`). `L_joint`가 슬롯별 codon 공간을
+정리하면서 공유 bank의 이점이 없어진 것으로 해석된다.
 
 #### A5. 신규 손실 항의 기여 (본 논문에서 새로 추가한 ablation)
 
