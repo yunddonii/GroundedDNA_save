@@ -1,8 +1,15 @@
-"""Fast variant of codebook_drop_ablation using vectorised Hamming over the
-whole query set. The original script Python-loops one query at a time, which
-is ~5000x slower on MSCOCO. Same outputs."""
+"""Vectorised slot-axis drop diagnostic.
+
+Dropping a slot means removing those coordinates from Hamming distance (the
+implementation sets the same constant on query and DB).  The transformed rows
+are therefore *not* emitted DNA strands.  With ``--bio_project``, the input
+metric space is first projected to valid deployed DNA, which is mandatory for
+paper-facing attribution; without it, output is an explicitly raw diagnostic.
+"""
 import argparse, json, os, sys, time
 import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 def _ap_from_sorted_relevance(rel_sorted: np.ndarray) -> np.ndarray:
@@ -42,6 +49,33 @@ def codebook_slices(num_bases: int, num_codebooks: int):
     ]
 
 
+def project_base_indices(
+    codes: np.ndarray,
+    gc_min_frac: float,
+    gc_max_frac: float,
+    max_run: int,
+) -> np.ndarray:
+    """Memoized, fail-closed projection of a base-index matrix."""
+    from dna_utils.bio_constraints import is_valid_batch, project_to_valid
+
+    arr = np.ascontiguousarray(codes).astype(np.int8)
+    unique, inverse = np.unique(arr, axis=0, return_inverse=True)
+    valid = is_valid_batch(unique, gc_min_frac, gc_max_frac, max_run)
+    projected = unique.copy()
+    for index in np.where(~valid)[0]:
+        projected[index], cost = project_to_valid(
+            unique[index], gc_min_frac, gc_max_frac, max_run,
+        )
+        if cost < 0:
+            raise RuntimeError("no bio-valid projection exists for an input code")
+    out = projected[inverse].astype(np.int64)
+    if not bool(is_valid_batch(
+        out, gc_min_frac, gc_max_frac, max_run,
+    ).all()):
+        raise RuntimeError("refusing to evaluate non-compliant projected DNA")
+    return out
+
+
 def compute_mAP_pk(q_bi, db_bi, q_lbl, db_lbl, p_at_k=(1, 10, 100, 1000), batch=200):
     Nq = q_bi.shape[0]
     aps = np.zeros(Nq, dtype=np.float32)
@@ -75,6 +109,10 @@ def main():
         default=6,
         help="Number of semantic codebooks. Each codebook drops R/M bases.",
     )
+    ap.add_argument("--bio_project", action="store_true")
+    ap.add_argument("--gc_min_frac", type=float, default=None)
+    ap.add_argument("--gc_max_frac", type=float, default=None)
+    ap.add_argument("--max_run", type=int, default=3)
     args = ap.parse_args()
     rd = args.result_dir
 
@@ -82,6 +120,26 @@ def main():
     db = np.load(os.path.join(rd, "extract_db.npz"), allow_pickle=True)
     q_bi = np.asarray(q["base_indices"]).copy()
     db_bi = np.asarray(db["base_indices"]).copy()
+    gc_min_frac = args.gc_min_frac
+    gc_max_frac = args.gc_max_frac
+    if args.bio_project:
+        if (gc_min_frac is None) != (gc_max_frac is None):
+            raise ValueError(
+                "--gc_min_frac and --gc_max_frac must be supplied together"
+            )
+        if gc_min_frac is None:
+            if q_bi.shape[1] != 18:
+                raise ValueError(
+                    "non-18-base projection requires explicit --gc_min_frac "
+                    "and --gc_max_frac"
+                )
+            gc_min_frac, gc_max_frac = 0.4444, 0.5556
+        q_bi = project_base_indices(
+            q_bi, gc_min_frac, gc_max_frac, args.max_run,
+        )
+        db_bi = project_base_indices(
+            db_bi, gc_min_frac, gc_max_frac, args.max_run,
+        )
     q_lbl = np.asarray(q["multi_hot_labels"]).astype(np.int32)
     db_lbl = np.asarray(db["multi_hot_labels"]).astype(np.int32)
     if args.subset_queries > 0 and args.subset_queries < q_bi.shape[0]:
@@ -109,6 +167,25 @@ def main():
         "subset_queries": int(args.subset_queries),
         "num_codebooks": M,
         "codons_per_codebook": L,
+        "input_code_space": (
+            "bio_projected" if args.bio_project else "raw_unprojected"
+        ),
+        "drop_operator": "hamming_distance_axis_mask",
+        "transformed_rows_are_emittable_dna": False,
+        "bio_projection_applied": bool(args.bio_project),
+        "paper_projection_compliant": False,
+        "paper_result_eligible": False,
+        "paper_eligibility_blockers": [
+            "projection_protocol_manifest_not_bound"
+        ],
+        "bio_constraints": (
+            {
+                "gc_min_frac": gc_min_frac,
+                "gc_max_frac": gc_max_frac,
+                "max_run": args.max_run,
+            }
+            if args.bio_project else None
+        ),
     }
     for m, codebook_slice in enumerate(slices):
         t1 = time.time()
@@ -122,6 +199,8 @@ def main():
               f"P@1={r['P@1']:.4f}  ({time.time()-t1:.1f}s)", flush=True)
 
     suffix = f"_subset{args.subset_queries}" if args.subset_queries > 0 else ""
+    if args.bio_project:
+        suffix += "_bioproj"
     out_p = os.path.join(rd, f"codebook_drop_ablation{suffix}.json")
     with open(out_p, "w") as f:
         json.dump(results, f, indent=2)

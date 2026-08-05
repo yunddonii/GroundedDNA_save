@@ -32,7 +32,7 @@ replaced):
     visual_global_aug1.f16.npy     [N, D_proj]
     text_part.f16.npy              symlink from donor
     has_text.bool.npy              symlink from donor
-    text_whiten.npz                symlink from donor (recomputed if missing)
+    text_whiten.npz                symlink from donor (when present)
     image_ids.json                 symlink from donor
     meta.json                      (new, records L/K/scale/seed)
 
@@ -52,6 +52,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from typing import List, Tuple
 
@@ -68,6 +69,138 @@ from models.pretrained_backbone import coerce_pooled_to_tensor
 
 CLIP_PIXEL_MEAN = [0.48145466, 0.4578275, 0.40821073]
 CLIP_PIXEL_STD  = [0.26862954, 0.26130258, 0.27577711]
+
+
+def _validated_donor_global_sources(
+    donor_dir: str,
+    *,
+    num_examples: int,
+    projection_dim: int,
+    num_aug_views: int,
+) -> list[tuple[str, str]]:
+    """Validate the full-image globals required by the token-only cache delta."""
+    names = ["visual_global.f16.npy"] + [
+        f"visual_global_aug{view}.f16.npy"
+        for view in range(int(num_aug_views))
+    ]
+    sources: list[tuple[str, str]] = []
+    expected_shape = (int(num_examples), int(projection_dim))
+    for name in names:
+        source = os.path.join(donor_dir, name)
+        if not os.path.isfile(source):
+            raise FileNotFoundError(
+                f"local-crop token cache must preserve donor full-image "
+                f"globals, but {source} is missing"
+            )
+        array = np.load(source, mmap_mode="r")
+        if array.shape != expected_shape or array.dtype != np.float16:
+            raise ValueError(
+                f"donor {name} must be float16 {expected_shape}, got "
+                f"{array.dtype} {array.shape}"
+            )
+        sources.append((name, os.path.abspath(source)))
+    return sources
+
+
+def _install_donor_global_links(
+    sources: list[tuple[str, str]], out_dir: str,
+) -> None:
+    """Atomically replace any stale crop globals with donor full-image links."""
+    for name, source in sources:
+        destination = os.path.join(out_dir, name)
+        temporary = f"{destination}.tmp-link-{os.getpid()}"
+        try:
+            if os.path.lexists(temporary):
+                os.unlink(temporary)
+            os.symlink(source, temporary)
+            os.replace(temporary, destination)
+        finally:
+            if os.path.lexists(temporary):
+                os.unlink(temporary)
+
+
+def _sync_donor_text_links(
+    donor_dir: str, out_dir: str,
+) -> tuple[list[str], list[str]]:
+    """Bind text/row sidecars to the current donor and remove stale optionals.
+
+    A local-crop cache changes visual tokens only.  Reusing an output directory
+    with a different donor must therefore replace the old text and row-order
+    links, not retain whichever links happened to exist from the first run.
+    """
+    required = (
+        "text_part.f16.npy",
+        "has_text.bool.npy",
+        "image_ids.json",
+    )
+    optional = (
+        "text_whiten.npz",
+        "text_whiten.npz.meta.json",
+    )
+    donor_root = os.path.realpath(donor_dir)
+    linked: list[str] = []
+    removed: list[str] = []
+
+    for name in required:
+        source = os.path.join(donor_root, name)
+        if not os.path.isfile(source):
+            raise FileNotFoundError(
+                f"local-crop cache requires donor text sidecar: {source}"
+            )
+
+    for name in required + optional:
+        source = os.path.join(donor_root, name)
+        destination = os.path.join(out_dir, name)
+        if os.path.isfile(source):
+            temporary = f"{destination}.tmp-link-{os.getpid()}"
+            try:
+                if os.path.lexists(temporary):
+                    os.unlink(temporary)
+                os.symlink(source, temporary)
+                os.replace(temporary, destination)
+            finally:
+                if os.path.lexists(temporary):
+                    os.unlink(temporary)
+            linked.append(name)
+            continue
+
+        # Optional sidecars must mirror the current donor.  In particular,
+        # remove a whitening bundle inherited from an earlier donor run.
+        if os.path.lexists(destination):
+            if os.path.isdir(destination) and not os.path.islink(destination):
+                raise IsADirectoryError(
+                    f"refusing to remove stale text-side directory: "
+                    f"{destination}"
+                )
+            os.unlink(destination)
+            removed.append(name)
+
+    return linked, removed
+
+
+def _remove_stale_augmented_visual_files(
+    out_dir: str, num_aug_views: int,
+) -> list[str]:
+    """Remove only exact out-of-contract visual aug files from ``out_dir``."""
+    keep = set(range(int(num_aug_views)))
+    pattern = re.compile(
+        r"^visual_(?:tokens|global)_aug([0-9]+)\.f16\.npy$"
+    )
+    removed: list[str] = []
+    for name in os.listdir(out_dir):
+        match = pattern.fullmatch(name)
+        if match is None or int(match.group(1)) in keep:
+            continue
+        path = os.path.join(out_dir, name)
+        # ``name`` comes from os.listdir(out_dir) and the regex forbids path
+        # separators.  Refuse directory targets even if one has the same name.
+        if os.path.isdir(path) and not os.path.islink(path):
+            raise IsADirectoryError(
+                f"refusing to remove stale augmented-view directory: {path}"
+            )
+        os.unlink(path)
+        removed.append(name)
+    return sorted(removed)
 
 
 def _read_split_paths(split_txt: str) -> List[str]:
@@ -157,8 +290,9 @@ def _gen_grid_crops(pil_img: Image.Image, grid_n: int, crop_frac: float):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--donor_dir",  required=True,
-                    help="Source cache dir (must contain text_part.f16.npy + "
-                         "has_text.bool.npy + image_ids.json + meta.json).")
+                    help="Complete source cache dir: text_part/has_text/IDs/"
+                         "meta plus full-image visual_global.f16.npy and one "
+                         "visual_global_aug*.f16.npy per requested aug view.")
     ap.add_argument("--out_dir",    required=True,
                     help="Output cache dir (will be created).")
     ap.add_argument("--pathlist_root",    required=True)
@@ -205,6 +339,10 @@ def main() -> int:
                          "averaged text anchor collapses to one dominant object.")
     args = ap.parse_args()
 
+    if args.num_aug_views < 0:
+        raise ValueError("--num_aug_views must be non-negative")
+    if os.path.realpath(args.out_dir) == os.path.realpath(args.donor_dir):
+        raise ValueError("--out_dir must differ from --donor_dir")
     os.makedirs(args.out_dir, exist_ok=True)
     if args.crop_mode == "grid":
         L = int(args.crop_grid_n) ** 2
@@ -222,6 +360,24 @@ def main() -> int:
     M = int(text_part.shape[1])
     D_proj = int(text_part.shape[2])
     print(f"[local-crops] donor cache: N={N}, M={M}, D_proj={D_proj}")
+    donor_global_sources = _validated_donor_global_sources(
+        args.donor_dir,
+        num_examples=N,
+        projection_dim=D_proj,
+        num_aug_views=args.num_aug_views,
+    )
+    stale_aug_files = _remove_stale_augmented_visual_files(
+        args.out_dir, args.num_aug_views,
+    )
+    for name in stale_aug_files:
+        print(f"[local-crops] removed stale augmented view {name}")
+    linked_text, removed_text = _sync_donor_text_links(
+        args.donor_dir, args.out_dir,
+    )
+    for name in linked_text:
+        print(f"[local-crops] bind donor {name}")
+    for name in removed_text:
+        print(f"[local-crops] removed stale optional sidecar {name}")
 
     # ---- anchor: text-derived (default) OR image-self-similarity (FAIR) --
     slots = [int(x) for x in args.text_anchor_slots.split(",") if x.strip()]
@@ -269,7 +425,6 @@ def main() -> int:
 
     # ---- allocate output memmaps -----------------------------------------
     tok_out_shape = (N, K * patch, H_v)
-    glob_out_shape = (N, D_proj)
 
     def _alloc(name, shape):
         p = os.path.join(args.out_dir, name)
@@ -278,13 +433,8 @@ def main() -> int:
         return np.lib.format.open_memmap(p, mode="w+", dtype=np.float16, shape=shape)
 
     tok_main = _alloc("visual_tokens.f16.npy", tok_out_shape)
-    glob_main = _alloc("visual_global.f16.npy", glob_out_shape)
     aug_tok = [
         _alloc(f"visual_tokens_aug{i}.f16.npy", tok_out_shape)
-        for i in range(args.num_aug_views)
-    ]
-    aug_glob = [
-        _alloc(f"visual_global_aug{i}.f16.npy", glob_out_shape)
         for i in range(args.num_aug_views)
     ]
 
@@ -302,7 +452,6 @@ def main() -> int:
         per_image_seeds = rng_global.integers(0, 2**31 - 1, size=N)
         desc = ("main" if view_idx == 0 else f"aug{view_idx-1}")
         out_tok = tok_main if view_idx == 0 else aug_tok[view_idx - 1]
-        out_glob = glob_main if view_idx == 0 else aug_glob[view_idx - 1]
         for i_start in tqdm(range(0, N, bs), total=(N + bs - 1) // bs, desc=desc):
             i_end = min(i_start + bs, N)
             B_eff = i_end - i_start
@@ -348,25 +497,17 @@ def main() -> int:
                 index=topk_idx.view(B_eff, K, 1, 1).expand(B_eff, K, patch, H_v),
             )                                                          # [B, K, 196, H_v]
             sel_tok = sel_tok.reshape(B_eff, K * patch, H_v)           # [B, K*196, H_v]
-            sel_g = torch.gather(
-                g_BL, dim=1,
-                index=topk_idx.view(B_eff, K, 1).expand(B_eff, K, D_proj),
-            ).mean(dim=1)                                             # [B, D_proj] (mean of selected K globals)
 
             out_tok[i_start:i_end] = sel_tok.detach().cpu().numpy().astype(np.float16)
-            out_glob[i_start:i_end] = sel_g.detach().cpu().numpy().astype(np.float16)
-        out_tok.flush(); out_glob.flush()
-    del tok_main, glob_main, aug_tok, aug_glob
+        out_tok.flush()
+    del tok_main, aug_tok
 
-    # ---- symlink text-side files from donor ------------------------------
-    for f in ("text_part.f16.npy", "has_text.bool.npy",
-              "text_whiten.npz", "text_whiten.npz.meta.json",
-              "image_ids.json"):
-        src = os.path.join(args.donor_dir, f)
-        dst = os.path.join(args.out_dir, f)
-        if os.path.exists(src) and not os.path.exists(dst):
-            os.symlink(os.path.abspath(src), dst)
-            print(f"[local-crops] symlink {f}")
+    # This experiment is defined as a token-only cache intervention.  The
+    # global slot must receive the donor's full-image pooled features (including
+    # paired augmented views), never an average of selected crop globals.
+    _install_donor_global_links(donor_global_sources, args.out_dir)
+    for name, _ in donor_global_sources:
+        print(f"[local-crops] preserve donor full-image {name}")
 
     # ---- write new meta --------------------------------------------------
     meta = dict(donor_meta)
@@ -376,8 +517,11 @@ def main() -> int:
         "local_crops_K": K,
         "local_crops_scale": [args.crop_scale_min, args.crop_scale_max],
         "local_crops_seed": int(args.seed),
+        "save_aug_views": int(args.num_aug_views),
         "text_anchor_slots": slots,
-        "donor_cache": args.donor_dir,
+        "donor_cache": os.path.realpath(args.donor_dir),
+        "visual_global_source": "donor_full_image",
+        "visual_global_files": [name for name, _ in donor_global_sources],
     })
     json.dump(meta, open(os.path.join(args.out_dir, "meta.json"), "w"), indent=2)
     print(f"[local-crops] DONE -> {args.out_dir}")

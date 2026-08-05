@@ -668,6 +668,83 @@ Artefacts: `docs/newmodel_analysis/slot_routing_mass_SUMMARY.json`,
 
 ---
 
+## 2026-08-05 — auditfix-20260804 (8 result-invalidating Python defects corrected)
+
+🟢 active — repository-wide Python audit, implementation fixes, regression
+coverage, invalid-artifact catalog, and rerun admission rules are complete.
+Existing result files are preserved, but the affected artifacts below are no
+longer admitted as canonical evidence.
+
+The audit targeted defects capable of changing learned checkpoints, baseline
+comparability, or the meaning of post-hoc intervention results. Cosmetic and
+low-impact issues were deliberately excluded.
+
+| ID | Result-impacting defect | Corrected behavior | Existing artifact status |
+|---|---|---|---|
+| F1 | A2 `--disable_text_supervision` retained cached/live caption tensors and nonzero text losses | all factual/foil text is cleared at the model boundary and text-derived initialization is rejected | A2 selection/refit checkpoints require retraining |
+| F2 | A4 looked up bank 0 but updated separate slot banks | bank 0 is canonical across lookup, gradient/EMA updates, revival, repulsion, initialization, losses, and serialization | A4 selection/refit checkpoints require retraining |
+| F3 | cached-feature CIBHash used a single linear head, scheduler, and 100 epochs | official-style D→1024→ReLU→bit head, fixed Adam, and 60-epoch horizon | every old canonical CIBHash checkpoint/extraction is excluded |
+| F4 | periodic OrthoHash evaluation left the model in eval mode | every epoch re-enters train mode | affected BatchNorm MSCOCO legacy runs require retraining |
+| F5 | slot intervention used unstable ties, invalid splices, and unmatched doses/subsets | deterministic ranking plus valid, non-noop, exact-dose paired interventions | all old slot-intervention JSON is stale; checkpoint retraining is not required |
+| F6 | codebook-drop operated in raw DNA coordinates and assumed three bases per slot | general slot geometry, stable ranking, bio projection, and validity checks | raw drop JSON cannot support deployed-DNA contribution claims |
+| F7 | local-crop cache replaced full-image globals with crop means and could retain stale sidecars | local tokens change while donor main/aug globals and row/text identity remain exact | token-only FAIR/local claims require cache regeneration and retraining |
+| F8 | source-SHA exceptions were path-wide rather than variant-scoped | resume/aggregate admission is keyed by source path, recorded digest, and variant | old-horizon CIBHash and pre-dispatch CRH cannot be falsely admitted |
+
+Code anchors:
+
+- `model_siglip2.py`: strict A2 input boundary and canonical A4 shared-bank
+  state; `train_siglip2.py`: no-text initialization guard and shared-bank
+  refresh.
+- `baseline/CIBHash.py`, `scripts/run_modern_baseline_p0.py`: corrected
+  CIBHash head and horizon; `baseline/OrthoHash.py`: epoch-level train mode.
+- `scripts/run_baseline_p0_matrix.py` and
+  `scripts/aggregate_baseline_p0_matrix.py`: variant-scoped source admission.
+- `scripts/slot_intervention_eval.py`, `scripts/codebook_drop_ablation.py`,
+  and `scripts/codebook_drop_ablation_fast.py`: corrected evaluation
+  protocols.
+- `extract_clip_local_crops.py` and `dataloaders.py`: token-only cache
+  generation and fail-closed cache validation.
+- Six focused regression modules were added and three existing baseline matrix
+  test modules were extended. Unaffected default paths remain bit-exact.
+
+Validation at landing:
+
+- **358 tests and 29 subtests passed**.
+- **203 runnable Python files in the current tree compiled**; the pre-existing
+  unfinished `baseline/SPQ.py` stub remains deliberately excluded.
+- CIBHash matrix dry-run schedules exactly **24 cells**: four datasets ×
+  {36,48} bits × seeds {42,43,44}.
+- Stored A2/A4 args identify exactly **24 stale result directories**, including
+  six archive symlinks.
+- `git diff --check` passes.
+
+Required recomputation is separated by dependency and artifact type:
+
+| Action | Scope |
+|---|---|
+| Retrain | CIBHash 24-cell corrected matrix; A2/A4 eight-cell P0 selection+refit; retained FAIR/local comparisons after cache regeneration; cited legacy OrthoHash MSCOCO condition |
+| Reevaluate | four current-champion codebook-drop cells; Flickr/MSCOCO/NUS-WIDE slot intervention; downstream A2/A4 decoding, NMI, alignment, drop, and intervention artifacts |
+| No rerun from these fixes | normal text-supervised/non-shared GroundedDNA path, unaffected baseline methods, common-P0 `baseline/OH.py` results |
+
+The matrix launcher still opts into legacy caches, so its corrected CIBHash
+outputs remain diagnostic-only until immutable transform/model provenance is
+available. Outputs carrying `paper_result_eligible=false` must not be promoted
+by manual metadata edits.
+
+Canonical defect evidence, exact commands, stale-path inventory, completion
+criteria, and paper-update rules are recorded in
+`docs/CRITICAL_PYTHON_AUDIT_AND_RERUN_PLAN_2026-08-04.md`.
+
+Suggested follow-ups:
+
+- Execute retraining before reevaluation in the documented dependency order.
+- Bind strict cache, checkpoint, extraction, and projection manifests before
+  admitting corrected numbers to paper tables.
+- Preserve historical outputs with explicit superseded/diagnostic labels;
+  never overwrite them with auditfix reruns.
+
+---
+
 ## 2026-08-04 (PM) — 🟢 **Baseline 3-seed complete (60/60, 0 failures)**: MS-COCO deficit disappears at 3-vs-3 — because CroVCA drops, not because we rise. Draft ablations A2/A4 filled 4/4.
 
 📊 **3-seed vs 3-seed** (ours seeds {42,43,44}; baselines now also {42,43,44} on Flickr/MS-COCO/NUS).

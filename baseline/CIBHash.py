@@ -11,6 +11,39 @@ from torch.nn import Module
 from .base_model import DeepHashBase
 
 
+CIBHASH_ENCODER_SPEC = "cibhash_d_to_1024_relu_to_bit"
+CIBHASH_SOURCE_HORIZON = 60
+
+
+class CIBHashCachedEncoder(nn.Module):
+    """Cached-feature adaptation of the authors' exact hashing head.
+
+    The official CIBHash model applies ``Linear(D,1024) -> ReLU ->
+    Linear(1024,bit)``.  The generic repository encoder inserts GELU and
+    dropout, so this method needs its own builder rather than the shared
+    ``encoder_layers`` mini-language.
+    """
+
+    def __init__(self, d_in: int, bit: int) -> None:
+        super().__init__()
+        self.backbone = nn.Identity()
+        self.encoder_layers = nn.Sequential(
+            nn.Linear(int(d_in), 1024),
+            nn.ReLU(),
+            nn.Linear(1024, int(bit)),
+        )
+        self.bit = int(bit)
+
+    def forward(self, img: torch.Tensor) -> dict[str, torch.Tensor]:
+        feat = self.backbone(img.float())
+        continuous = self.encoder_layers(feat)
+        return {
+            "continuous_code": continuous,
+            "cnn_feat": feat,
+            "backbone_last_output": feat,
+        }
+
+
 class hash(Function):
     @staticmethod
     def forward(ctx, input):
@@ -81,10 +114,10 @@ class CIBHash(DeepHashBase):
     def _get_default_config_dict(self) -> dict:
         config = {
                     "batch_size"    : 64,
-                    "max_epoch"     : 100,         
+                    "max_epoch"     : CIBHASH_SOURCE_HORIZON,
                     "learning_rate" : 1e-3,
                     "optimizer_name": "adam",
-                    "lr_scheduler"  : "explr",
+                    "lr_scheduler"  : "none",
                     "temperature"   : 0.3,
                     "weight"        : 0.001,
                     }
@@ -101,9 +134,24 @@ class CIBHash(DeepHashBase):
                     "finetune": False,
                     "dataset_return_index" : False,
                     "dataset_return_paired_aug_img" : True,
-                    "transform"                     : "CIB"
+                    "transform"                     : "CIB",
+                    # Source-fidelity invariants.  Historical checkpoints with
+                    # encoder_layers='none' remain loadable through the legacy
+                    # branch in _build_model_from_config, but no new run may be
+                    # mislabeled CIBHash while using that one-layer head.
+                    "encoder_layers"                : CIBHASH_ENCODER_SPEC,
+                    "batch_norm"                    : False,
+                    "lr_scheduler"                  : "none",
                 }
         return fixed_config
+
+    def _build_model_from_config(self, d_in: int, config: dict) -> Module:
+        spec = str(config.get("encoder_layers", "none"))
+        if spec == CIBHASH_ENCODER_SPEC:
+            return CIBHashCachedEncoder(d_in=d_in, bit=int(config["bit"]))
+        # Load historical repository checkpoints as what they actually were;
+        # they are diagnostics, not source-faithful CIBHash results.
+        return super()._build_model_from_config(d_in, config)
     
     
     def _add_model_specific_args_into_parser(self, parser: ArgumentParser) -> ArgumentParser:
@@ -115,6 +163,24 @@ class CIBHash(DeepHashBase):
     
     
     def _train_model(self, backbone_with_encoder: Module, optimizer: Optimizer, scheduler: _LRScheduler, trainset: Dataset, testset: Dataset, dbset: Dataset, model_dir: str, result_dir: str, device: str, batch_size: int, eval_period: int, config: dict) -> None:
+        del scheduler  # Official CIBHash uses a fixed Adam learning rate.
+        schedule_horizon = int(
+            config.get("schedule_horizon") or CIBHASH_SOURCE_HORIZON
+        )
+        max_epoch = int(config["max_epoch"])
+        is_stage1 = float(config.get("val_split_ratio", 0.0) or 0.0) > 0.0
+        if schedule_horizon != CIBHASH_SOURCE_HORIZON:
+            raise ValueError(
+                "CIBHash nominal schedule horizon must match the official "
+                f"{CIBHASH_SOURCE_HORIZON} epochs, got {schedule_horizon}"
+            )
+        if max_epoch > CIBHASH_SOURCE_HORIZON or (
+            is_stage1 and max_epoch != CIBHASH_SOURCE_HORIZON
+        ):
+            raise ValueError(
+                "CIBHash P0 stage 1 must run the full official 60 epochs; "
+                "stage 2 may stop only at the validation-selected E*"
+            )
         
         # Data Loader
         train_loader = torch.utils.data.DataLoader( dataset=trainset, batch_size=config["batch_size"], shuffle=True, num_workers=4)
@@ -128,6 +194,7 @@ class CIBHash(DeepHashBase):
         
         
         for epoch in range(config["max_epoch"]):
+            model.train()
             
             for batch in train_loader:
             
@@ -153,8 +220,6 @@ class CIBHash(DeepHashBase):
                 loss.backward()
                 optimizer.step()
             
-            scheduler.step()
-                
             self._compute_loss_per_epoch()
             
             model_name = f"{epoch:03d}"

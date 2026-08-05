@@ -1,12 +1,12 @@
-"""Codebook drop ablation: mask one codebook at a time and measure mAP drop.
+"""Codebook/slot distance-axis drop diagnostic.
 
 Each codebook contributes 3 base positions (m*3, m*3+1, m*3+2) to the
 final 18-position DNA code. "Dropping" codebook m replaces its 3 bases
 with a fixed constant (0) across ALL images on both query and DB sides.
 
-This neutralizes codebook m's discriminative contribution while keeping
-the hash format / Hamming distance machinery intact. The resulting mAP
-drop quantifies how much codebook m was contributing to retrieval.
+This neutralizes codebook m's discriminative contribution in Hamming distance.
+The constant-masked rows are not treated as emitted DNA. Use ``--bio_project``
+for paper-facing attribution in the deployed, valid-DNA metric space.
 
 Usage:
     python codebook_drop_ablation.py --result_dir result/<tag>/
@@ -22,6 +22,7 @@ import torch
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dna_utils.dna_code_utils import base_hamming_distance
+from scripts.codebook_drop_ablation_fast import codebook_slices, project_base_indices
 
 
 def _ap_from_sorted_relevance(rel_sorted: np.ndarray) -> float:
@@ -66,6 +67,11 @@ def compute_mAP_pk(query_bi: np.ndarray, db_bi: np.ndarray,
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--result_dir", required=True)
+    ap.add_argument("--num_codebooks", type=int, default=6)
+    ap.add_argument("--bio_project", action="store_true")
+    ap.add_argument("--gc_min_frac", type=float, default=None)
+    ap.add_argument("--gc_max_frac", type=float, default=None)
+    ap.add_argument("--max_run", type=int, default=3)
     args = ap.parse_args()
     rd = args.result_dir
 
@@ -73,10 +79,31 @@ def main() -> int:
     db = np.load(os.path.join(rd, "extract_db.npz"), allow_pickle=True)
     q_bi  = np.asarray(q["base_indices"]).copy()
     db_bi = np.asarray(db["base_indices"]).copy()
+    gc_min_frac = args.gc_min_frac
+    gc_max_frac = args.gc_max_frac
+    if args.bio_project:
+        if (gc_min_frac is None) != (gc_max_frac is None):
+            raise ValueError(
+                "--gc_min_frac and --gc_max_frac must be supplied together"
+            )
+        if gc_min_frac is None:
+            if q_bi.shape[1] != 18:
+                raise ValueError(
+                    "non-18-base projection requires explicit --gc_min_frac "
+                    "and --gc_max_frac"
+                )
+            gc_min_frac, gc_max_frac = 0.4444, 0.5556
+        q_bi = project_base_indices(
+            q_bi, gc_min_frac, gc_max_frac, args.max_run,
+        )
+        db_bi = project_base_indices(
+            db_bi, gc_min_frac, gc_max_frac, args.max_run,
+        )
     q_lbl = np.asarray(q["multi_hot_labels"])
     db_lbl = np.asarray(db["multi_hot_labels"])
     Nq, R = q_bi.shape
-    M = R // 3
+    M = int(args.num_codebooks)
+    slices = codebook_slices(R, M)
     print(f"[drop_abl] R={R}, M={M}, Nq={Nq}, Ndb={db_bi.shape[0]}")
 
     # Baseline (no drop)
@@ -86,20 +113,46 @@ def main() -> int:
           " ".join(f"P@{k}={base[f'P@{k}']:.4f}" for k in (1, 10, 100, 1000)))
 
     # Drop each codebook
-    results = {"baseline": base, "drops": {}}
-    for m in range(M):
+    results = {
+        "baseline": base,
+        "drops": {},
+        "input_code_space": (
+            "bio_projected" if args.bio_project else "raw_unprojected"
+        ),
+        "drop_operator": "hamming_distance_axis_mask",
+        "transformed_rows_are_emittable_dna": False,
+        "bio_projection_applied": bool(args.bio_project),
+        "paper_projection_compliant": False,
+        "paper_result_eligible": False,
+        "paper_eligibility_blockers": [
+            "projection_protocol_manifest_not_bound"
+        ],
+        "bio_constraints": (
+            {
+                "gc_min_frac": gc_min_frac,
+                "gc_max_frac": gc_max_frac,
+                "max_run": args.max_run,
+            }
+            if args.bio_project else None
+        ),
+    }
+    for m, codebook_slice in enumerate(slices):
         q_dr = q_bi.copy()
         db_dr = db_bi.copy()
         # Zero out positions m*3, m*3+1, m*3+2 on both query and db
-        q_dr[:, m*3:m*3+3]  = 0
-        db_dr[:, m*3:m*3+3] = 0
+        q_dr[:, codebook_slice] = 0
+        db_dr[:, codebook_slice] = 0
         r = compute_mAP_pk(q_dr, db_dr, q_lbl, db_lbl)
         delta_mAP = r["mAP"] - base["mAP"]
         results["drops"][m] = {**r, "delta_mAP": delta_mAP}
         print(f"  drop cb{m}: mAP={r['mAP']:.4f} ΔmAP={delta_mAP:+.4f}  " +
               " ".join(f"P@{k}={r[f'P@{k}']:.4f}" for k in (1, 10, 100, 1000)))
 
-    out_p = os.path.join(rd, "codebook_drop_ablation.json")
+    filename = (
+        "codebook_drop_ablation_bioproj.json"
+        if args.bio_project else "codebook_drop_ablation.json"
+    )
+    out_p = os.path.join(rd, filename)
     with open(out_p, "w") as f:
         json.dump(results, f, indent=2)
     print(f"[drop_abl] saved -> {out_p}")

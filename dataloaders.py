@@ -6,6 +6,7 @@ import torch
 import numpy as np
 import os
 import json
+import re
 from PIL import Image
 import pandas as pd
 
@@ -45,6 +46,205 @@ class _SigLIP2FeatureCache:
         self.visual_global = np.load(vg_p, mmap_mode="r")
         self.text_part     = np.load(tp_p, mmap_mode="r")
         self.has_text      = np.load(ht_p, mmap_mode="r")
+        # Cache metadata is part of the experiment definition.  In particular,
+        # historical FAIR/local-crop caches claimed a token-only intervention
+        # while their generator silently replaced the full-image global with a
+        # selected-crop mean.  Reject those caches rather than continuing to
+        # report a confounded single-delta experiment.
+        declared_geometry = {
+            "N": len(self.image_ids),
+            "num_tokens": int(self.visual_tokens.shape[1]),
+            "H_v": int(self.visual_tokens.shape[2]),
+            "D_proj": int(self.visual_global.shape[1]),
+        }
+        geometry_mismatches = {
+            key: (self.meta.get(key), actual)
+            for key, actual in declared_geometry.items()
+            if key in self.meta and int(self.meta[key]) != actual
+        }
+        if geometry_mismatches:
+            raise ValueError(
+                "[siglip2-cache] tensor geometry differs from meta.json: "
+                f"{geometry_mismatches}"
+            )
+        first_dims = {
+            "visual_tokens": int(self.visual_tokens.shape[0]),
+            "visual_global": int(self.visual_global.shape[0]),
+            "text_part": int(self.text_part.shape[0]),
+            "has_text": int(self.has_text.shape[0]),
+        }
+        bad_first_dims = {
+            name: size for name, size in first_dims.items()
+            if size != len(self.image_ids)
+        }
+        if bad_first_dims:
+            raise ValueError(
+                "[siglip2-cache] feature rows differ from image_ids.json: "
+                f"{bad_first_dims} vs {len(self.image_ids)}"
+            )
+        declared_local_aug_views = None
+        if (
+            "local_crops_L" in self.meta or "local_crops_K" in self.meta
+        ):
+            if self.meta.get("visual_global_source") != "donor_full_image":
+                raise ValueError(
+                    "[siglip2-cache] refusing legacy local-crop cache whose "
+                    "global feature is not provenance-bound to the donor "
+                    "full image; rebuild it with extract_clip_local_crops.py"
+                )
+            try:
+                declared_local_aug_views = int(
+                    self.meta.get("save_aug_views", 0)
+                )
+            except (TypeError, ValueError) as exc:
+                raise ValueError(
+                    "[siglip2-cache] local-crop save_aug_views must be an "
+                    "integer"
+                ) from exc
+            if declared_local_aug_views < 0:
+                raise ValueError(
+                    "[siglip2-cache] local-crop save_aug_views must be "
+                    "non-negative"
+                )
+            expected_global_files = ["visual_global.f16.npy"] + [
+                f"visual_global_aug{view}.f16.npy"
+                for view in range(declared_local_aug_views)
+            ]
+            if self.meta.get("visual_global_files") != expected_global_files:
+                raise ValueError(
+                    "[siglip2-cache] local-crop global-file provenance is "
+                    "missing or inconsistent; rebuild the cache"
+                )
+            donor_ref = self.meta.get("donor_cache")
+            if not isinstance(donor_ref, str) or not donor_ref.strip():
+                raise ValueError(
+                    "[siglip2-cache] local-crop donor_cache provenance is "
+                    "missing"
+                )
+            donor_dir = os.path.realpath(donor_ref)
+            cache_real = os.path.realpath(cache_dir)
+            if donor_dir == cache_real or not os.path.isdir(donor_dir):
+                raise ValueError(
+                    "[siglip2-cache] local-crop donor_cache does not resolve "
+                    f"to a distinct cache directory: {donor_ref!r}"
+                )
+            donor_ids_p = os.path.join(donor_dir, "image_ids.json")
+            if not os.path.isfile(donor_ids_p):
+                raise FileNotFoundError(
+                    "[siglip2-cache] local-crop donor image_ids.json is missing: "
+                    f"{donor_ids_p}"
+                )
+            with open(donor_ids_p, "r") as f:
+                donor_ids = json.load(f)
+            if list(donor_ids) != self.image_ids:
+                raise ValueError(
+                    "[siglip2-cache] local-crop image_ids do not match the "
+                    "declared donor cache"
+                )
+
+            # Local crops are a visual-token-only intervention.  Content
+            # equality is insufficient here: a copied or stale text tensor can
+            # silently preserve rows from a previous donor while spoofing the
+            # same metadata.  Require the cache's row/text sidecars to resolve
+            # to the actual declared donor files.
+            for name in (
+                "image_ids.json",
+                "text_part.f16.npy",
+                "has_text.bool.npy",
+            ):
+                cache_sidecar = os.path.join(cache_dir, name)
+                donor_sidecar = os.path.join(donor_dir, name)
+                if not os.path.isfile(donor_sidecar):
+                    raise FileNotFoundError(
+                        "[siglip2-cache] declared donor text sidecar is "
+                        f"missing: {donor_sidecar}"
+                    )
+                try:
+                    bound_to_donor = os.path.samefile(
+                        cache_sidecar, donor_sidecar,
+                    )
+                except FileNotFoundError as exc:
+                    raise FileNotFoundError(
+                        "[siglip2-cache] local-crop text provenance file is "
+                        f"missing: {name}"
+                    ) from exc
+                if not bound_to_donor:
+                    raise ValueError(
+                        "[siglip2-cache] local-crop text/row sidecar is not "
+                        f"bound to the declared donor: {name}"
+                    )
+
+            aug_pattern = re.compile(
+                r"^visual_(tokens|global)_aug([0-9]+)\.f16\.npy$"
+            )
+            actual_aug = {"tokens": set(), "global": set()}
+            for name in os.listdir(cache_dir):
+                match = aug_pattern.fullmatch(name)
+                if match is not None:
+                    actual_aug[match.group(1)].add(int(match.group(2)))
+            expected_aug = set(range(declared_local_aug_views))
+            if (
+                actual_aug["tokens"] != expected_aug
+                or actual_aug["global"] != expected_aug
+            ):
+                raise ValueError(
+                    "[siglip2-cache] local-crop augmented visual files do not "
+                    "exactly match save_aug_views: "
+                    f"expected={sorted(expected_aug)}, actual={actual_aug}"
+                )
+
+            expected_token_shape = tuple(self.visual_tokens.shape)
+            expected_global_shape = tuple(self.visual_global.shape)
+            for view in range(declared_local_aug_views):
+                token_path = os.path.join(
+                    cache_dir, f"visual_tokens_aug{view}.f16.npy"
+                )
+                global_path = os.path.join(
+                    cache_dir, f"visual_global_aug{view}.f16.npy"
+                )
+                token_array = np.load(token_path, mmap_mode="r")
+                global_array = np.load(global_path, mmap_mode="r")
+                if (
+                    tuple(token_array.shape) != expected_token_shape
+                    or token_array.dtype != np.float16
+                ):
+                    raise ValueError(
+                        f"[siglip2-cache] visual_tokens_aug{view} must be "
+                        f"float16 {expected_token_shape}, got "
+                        f"{token_array.dtype} {token_array.shape}"
+                    )
+                if (
+                    tuple(global_array.shape) != expected_global_shape
+                    or global_array.dtype != np.float16
+                ):
+                    raise ValueError(
+                        f"[siglip2-cache] visual_global_aug{view} must be "
+                        f"float16 {expected_global_shape}, got "
+                        f"{global_array.dtype} {global_array.shape}"
+                    )
+
+            for name in expected_global_files:
+                cache_global = os.path.join(cache_dir, name)
+                donor_global = os.path.join(donor_dir, name)
+                if not os.path.isfile(donor_global):
+                    raise FileNotFoundError(
+                        "[siglip2-cache] declared donor full-image global is "
+                        f"missing: {donor_global}"
+                    )
+                try:
+                    bound_to_donor = os.path.samefile(
+                        cache_global, donor_global,
+                    )
+                except FileNotFoundError as exc:
+                    raise FileNotFoundError(
+                        "[siglip2-cache] local-crop global provenance file is "
+                        f"missing: {name}"
+                    ) from exc
+                if not bound_to_donor:
+                    raise ValueError(
+                        "[siglip2-cache] local-crop global is not bound to "
+                        f"the declared donor full-image tensor: {name}"
+                    )
         # Optional token-level text cache (Option B / v22b cross-attention path).
         # Files are produced by `extract_siglip2_features.py --save_text_tokens`.
         tt_p  = os.path.join(cache_dir, "text_tokens.f16.npy")
@@ -181,7 +381,11 @@ class _SigLIP2FeatureCache:
         # the SigLIP2 backbone live on each augmented view at train time.
         self.visual_tokens_aug = []   # list of memmaps [N, num_patches, H_v]
         self.visual_global_aug = []   # list of memmaps [N, D_proj]
-        for i in range(8):  # arbitrary upper bound; stop at first missing pair
+        aug_indices = (
+            range(declared_local_aug_views)
+            if declared_local_aug_views is not None else range(8)
+        )
+        for i in aug_indices:  # legacy caches stop at the first missing pair
             t_p = os.path.join(cache_dir, f"visual_tokens_aug{i}.f16.npy")
             g_p = os.path.join(cache_dir, f"visual_global_aug{i}.f16.npy")
             if not (os.path.exists(t_p) and os.path.exists(g_p)):

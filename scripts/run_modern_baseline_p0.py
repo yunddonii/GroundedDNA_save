@@ -86,7 +86,7 @@ DEFAULT_CACHE = {
 }
 VARIANTS = {
     "cibhash": {
-        "method": "cibhash", "horizon": 100, "source_batch_size": 64,
+        "method": "cibhash", "horizon": 60, "source_batch_size": 64,
         "eval_period": 5, "extra": (),
         "needs_aug": True, "needs_tokens": False, "tier": "U0",
     },

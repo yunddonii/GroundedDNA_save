@@ -100,7 +100,7 @@ def _minimal_resume_fixture(root: Path) -> tuple[Path, dict[str, object]]:
         "val_seed": 42,
         "val_ratio": 0.1,
         "eval_period": 5,
-        "horizon": 100,
+        "horizon": 60,
         "batch_size_override": None,
         "implementation_sha256": implementation,
         "semantic_information_condition": semantic,
@@ -191,7 +191,7 @@ def _minimal_resume_fixture(root: Path) -> tuple[Path, dict[str, object]]:
         "selection_metric": "raw_18base_base_hamming_mAP_at_R",
         "test_used_for_selection": False,
         "final_checkpoint_count": 1,
-        "nominal_schedule_horizon": 100,
+        "nominal_schedule_horizon": 60,
         "run_manifest_phase": "bio_projection_completed",
         "protocol_deviations": [],
         "main_eligibility_blockers": ["cache_test_provenance_missing"],
@@ -380,7 +380,7 @@ class BaselineMatrixImplementationAuditTest(unittest.TestCase):
                     "val_seed": 42,
                     "val_ratio": 0.1,
                     "eval_period": 5,
-                    "horizon": 100,
+                    "horizon": 60,
                     "batch_size_override": None,
                     "implementation_sha256": {
                         path: _current_source_sha256(path)

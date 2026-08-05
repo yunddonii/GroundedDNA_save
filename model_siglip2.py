@@ -469,6 +469,13 @@ class SemanticCodebookQuantizer(nn.Module):
                 f"[SemanticCodebookQuantizer] K_max ({self.K_max}) must be "
                 f">= codebook_size ({self.codebook_size})"
             )
+        if self.share_codebook and self.K_max != self.codebook_size:
+            raise ValueError(
+                "[SemanticCodebookQuantizer] share_codebook cannot be combined "
+                "with adaptive-K capacity (K_max != codebook_size). The shared "
+                "bank has one active-mask/split state, while the adaptive-K "
+                "implementation is per-slot."
+            )
         # active_mask [M, K_max]: True = codeword participates in lookup.
         # Initial state: first `codebook_size` entries active.
         am = torch.zeros(self.num_codebooks, self.K_max, dtype=torch.bool)
@@ -493,10 +500,66 @@ class SemanticCodebookQuantizer(nn.Module):
             self.register_buffer("embed_avg",    cb_init.clone())
             self.register_buffer("embed_sqavg",  cb_init.clone() ** 2)
 
+        # Keep serialized/diagnostic rows coherent too.  Bank 0 is the sole
+        # canonical state in the A4 shared-codebook ablation; rows 1..M-1 are
+        # compatibility mirrors because historical checkpoints use [M,K,D].
+        if self.share_codebook:
+            self._sync_shared_state_from_bank0()
+
     # -------------------------------------------------------- helpers
+
+    def get_effective_codebooks(self) -> torch.Tensor:
+        """Codebooks actually used by lookup, losses, and diagnostics.
+
+        A4 keeps the historical ``[M,K,D]`` state-dict shape, but only bank 0
+        is a real parameter/buffer.  Returning an expanded view makes every
+        consumer observe that same bank and, in gradient mode, accumulates all
+        slot gradients into bank 0.
+        """
+        if self.share_codebook:
+            return self.codebooks[0:1].expand(self.num_codebooks, -1, -1)
+        return self.codebooks
+
+    def get_effective_active_mask(self) -> torch.Tensor:
+        """Active-code mask corresponding to :meth:`get_effective_codebooks`."""
+        if self.share_codebook:
+            return self.active_mask[0:1].expand(self.num_codebooks, -1)
+        return self.active_mask
+
+    @torch.no_grad()
+    def _sync_shared_state_from_bank0(self) -> None:
+        """Mirror the canonical shared bank into compatibility state rows."""
+        if not self.share_codebook or self.num_codebooks <= 1:
+            return
+        self.codebooks[1:].copy_(
+            self.codebooks[0:1].expand(self.num_codebooks - 1, -1, -1)
+        )
+        self.active_mask[1:].copy_(
+            self.active_mask[0:1].expand(self.num_codebooks - 1, -1)
+        )
+        if self.update_mode == "ema":
+            self.cluster_size[1:].copy_(
+                self.cluster_size[0:1].expand(self.num_codebooks - 1, -1)
+            )
+            self.embed_avg[1:].copy_(
+                self.embed_avg[0:1].expand(self.num_codebooks - 1, -1, -1)
+            )
+            self.embed_sqavg[1:].copy_(
+                self.embed_sqavg[0:1].expand(self.num_codebooks - 1, -1, -1)
+            )
+
+    def _save_to_state_dict(self, destination, prefix, keep_vars) -> None:
+        # Gradient-mode optimizers update only canonical bank 0.  Mirror it
+        # immediately before serialization so offline checkpoint diagnostics
+        # cannot mistake unused compatibility rows for independent banks.
+        if self.share_codebook:
+            self._sync_shared_state_from_bank0()
+        super()._save_to_state_dict(destination, prefix, keep_vars)
 
     @torch.no_grad()
     def num_trainable_codewords(self) -> int:
+        if self.share_codebook:
+            return self.codebooks[0].numel()
         return self.codebooks.numel()
 
     @torch.no_grad()
@@ -526,12 +589,24 @@ class SemanticCodebookQuantizer(nn.Module):
                 f"[M={M_cb}, K={K}, D={D}]"
             )
         target_std = 1.0 / math.sqrt(self.d_model)
-        diag = {"mode": mode, "N": int(N), "K": int(K), "M": int(M_cb)}
+        diag = {
+            "mode": mode,
+            "N": int(N),
+            "K": int(K),
+            "M": 1 if self.share_codebook else int(M_cb),
+        }
         t0 = time.time()
         text_np = text_anchors.detach().cpu().float().numpy()  # [N, M, D]
 
-        for m in range(M_cb):
-            feats = text_np[:, m, :]  # [N, D]
+        # A shared bank must be initialized from all semantic slots, not just
+        # the global slot.  Otherwise initialization reproduces the same
+        # global-only contamination as the former EMA update bug.
+        init_banks = range(1) if self.share_codebook else range(M_cb)
+        for m in init_banks:
+            feats = (
+                text_np.reshape(N * M_in, D)
+                if self.share_codebook else text_np[:, m, :]
+            )
             if mode == "mean":
                 rng = np.random.default_rng(seed + m)
                 replace = feats.shape[0] < K
@@ -568,12 +643,17 @@ class SemanticCodebookQuantizer(nn.Module):
                 # cluster_size set to N/K so revival doesn't immediately
                 # mark these as dead (revival threshold is relative to
                 # max(cluster_size_in_codebook)).
-                init_cs = max(1.0, float(N) / float(K))
+                init_cs = max(1.0, float(feats.shape[0]) / float(K))
                 self.cluster_size[m].fill_(init_cs)
                 self.embed_avg[m].copy_(centers_t * init_cs)
+                if self.share_codebook:
+                    self.embed_sqavg[m].copy_((centers_t ** 2) * init_cs)
             else:
                 # gradient mode: codebook is nn.Parameter
                 self.codebooks.data[m].copy_(centers_t)
+
+        if self.share_codebook:
+            self._sync_shared_state_from_bank0()
 
         diag["elapsed_sec"] = float(time.time() - t0)
         return diag
@@ -588,12 +668,14 @@ class SemanticCodebookQuantizer(nn.Module):
         codewords from dominating the mean. With v78a active_mask, only
         currently-active codewords contribute to the mean.
         """
+        cb_all = self.get_effective_codebooks()
+        mask_all = self.get_effective_active_mask()
         if exclude_global:
-            cb       = self.codebooks[1:]                               # [M', K_max, D]
-            mask     = self.active_mask[1:]                             # [M', K_max]
+            cb       = cb_all[1:]                                       # [M', K_max, D]
+            mask     = mask_all[1:]                                     # [M', K_max]
         else:
-            cb       = self.codebooks
-            mask     = self.active_mask
+            cb       = cb_all
+            mask     = mask_all
         cb_n   = F.normalize(cb, dim=-1)                                # [M', K_max, D]
         # Mask inactive codewords with zero before averaging; divide by active count.
         mask_f = mask.unsqueeze(-1).to(cb_n.dtype)                      # [M', K_max, 1]
@@ -624,8 +706,40 @@ class SemanticCodebookQuantizer(nn.Module):
         """
         B, M, D = z.shape
         assert M == self.num_codebooks, (M, self.num_codebooks)
+        if self.share_codebook:
+            cs = self.cluster_size[0]
+            active = self.active_mask[0]
+            cs_active = cs[active]
+            if cs_active.numel() == 0:
+                return 0
+            dead_mask = active & (
+                cs < cs_active.max() * self.revive_threshold
+            )
+            n_dead = int(dead_mask.sum().item())
+            if n_dead == 0:
+                return 0
+            z_pool = z.reshape(B * M, D)
+            idx_pool = torch.randint(
+                0, z_pool.shape[0], (n_dead,), device=z.device,
+            )
+            new_codes = z_pool[idx_pool]
+            active_alive_cs = cs[active & ~dead_mask]
+            if active_alive_cs.numel() > 0:
+                init_cs = active_alive_cs.median().clamp_min(1.0)
+            else:
+                init_cs = torch.tensor(
+                    1.0, device=cs.device, dtype=cs.dtype,
+                )
+            self.codebooks[0, dead_mask] = new_codes
+            self.cluster_size[0, dead_mask] = init_cs
+            self.embed_avg[0, dead_mask] = new_codes * init_cs
+            self.embed_sqavg[0, dead_mask] = (new_codes ** 2) * init_cs
+            self._sync_shared_state_from_bank0()
+            return n_dead
+
         n_revived = 0
-        for m in range(M):
+        n_banks = 1 if self.share_codebook else M
+        for m in range(n_banks):
             cs   = self.cluster_size[m]                                       # [K_max]
             active_m = self.active_mask[m]                                    # [K_max] bool
             # only consider active codewords for "dead" detection; inactive
@@ -667,7 +781,7 @@ class SemanticCodebookQuantizer(nn.Module):
         """
         M, K, D = self.codebooks.shape
         eye = torch.eye(K, device=self.codebooks.device, dtype=torch.bool)  # [K, K]
-        for m in range(M):
+        for m in range(1 if self.share_codebook else M):
             e = self.codebooks[m]                                          # [K, D]
             diff = e.unsqueeze(0) - e.unsqueeze(1)                         # [K, K, D]: diff[i,j] = e[i]-e[j]... wait
             # NOTE: convention -- diff[i, j, :] should be the vector pointing
@@ -689,10 +803,21 @@ class SemanticCodebookQuantizer(nn.Module):
             # apply repulsion
             self.codebooks[m].add_(force, alpha=self.repel_strength)
         # sync embed_avg so EMA doesn't snap back next step
-        n_total = self.cluster_size.sum(dim=-1, keepdim=True)
-        K_ = self.codebook_size
-        cs = (self.cluster_size + self.ema_eps) / (n_total + K_ * self.ema_eps) * n_total
-        self.embed_avg.copy_(self.codebooks * cs.unsqueeze(-1))
+        if self.share_codebook:
+            n_total = self.cluster_size[0].sum(dim=-1, keepdim=True)
+            K_ = self.codebook_size
+            cs = (
+                (self.cluster_size[0] + self.ema_eps)
+                / (n_total + K_ * self.ema_eps)
+                * n_total
+            )
+            self.embed_avg[0].copy_(self.codebooks[0] * cs.unsqueeze(-1))
+            self._sync_shared_state_from_bank0()
+        else:
+            n_total = self.cluster_size.sum(dim=-1, keepdim=True)
+            K_ = self.codebook_size
+            cs = (self.cluster_size + self.ema_eps) / (n_total + K_ * self.ema_eps) * n_total
+            self.embed_avg.copy_(self.codebooks * cs.unsqueeze(-1))
 
     @torch.no_grad()
     def _ema_update(self, z: torch.Tensor, indices: torch.Tensor) -> None:
@@ -708,6 +833,43 @@ class SemanticCodebookQuantizer(nn.Module):
         B, M, D = z.shape
         K_eff = self.K_max     # tensor dim = K_max; inactive entries just decay
         assert M == self.num_codebooks, (M, self.num_codebooks)
+        if self.share_codebook:
+            # All B*M assignments update the one bank used by every slot.
+            # The former per-slot update wrote local-slot observations into
+            # banks 1..M-1 even though lookup only read bank 0, so the shared
+            # bank learned from the global slot alone.
+            indices_flat = indices.reshape(B * M)
+            z_flat = z.reshape(B * M, D)
+            onehot = F.one_hot(
+                indices_flat, num_classes=K_eff,
+            ).to(z.dtype)                                                   # [B*M, K]
+            cluster_size_b = onehot.sum(dim=0)                              # [K]
+            embed_sum = onehot.transpose(0, 1) @ z_flat                     # [K, D]
+            embed_sq_sum = onehot.transpose(0, 1) @ (z_flat * z_flat)       # [K, D]
+            alpha = 1.0 - self.ema_decay
+            self.cluster_size[0].mul_(self.ema_decay).add_(
+                cluster_size_b, alpha=alpha,
+            )
+            self.embed_avg[0].mul_(self.ema_decay).add_(
+                embed_sum, alpha=alpha,
+            )
+            self.embed_sqavg[0].mul_(self.ema_decay).add_(
+                embed_sq_sum, alpha=alpha,
+            )
+            n_total = self.cluster_size[0].sum(dim=-1, keepdim=True)
+            cs = (
+                (self.cluster_size[0] + self.ema_eps)
+                / (n_total + K_eff * self.ema_eps)
+                * n_total
+            )
+            self.codebooks[0].copy_(self.embed_avg[0] / cs.unsqueeze(-1))
+            self._sync_shared_state_from_bank0()
+            if self.repel_strength > 0.0:
+                self._ema_step.add_(1)
+                if int(self._ema_step.item()) % self.repel_every == 0:
+                    self._codeword_repulsion()
+            return
+
         # one-hot per codebook -- [M, B, K_max]
         onehot = F.one_hot(indices.transpose(0, 1), num_classes=K_eff).to(z.dtype)
         cluster_size_b = onehot.sum(dim=1)                                       # [M, K_max]
@@ -747,6 +909,11 @@ class SemanticCodebookQuantizer(nn.Module):
         second moment) so variance computation starts from a reasonable
         prior.
         """
+        if self.share_codebook:
+            raise ValueError(
+                "warm_start_from_state is not defined for share_codebook; "
+                "initialize the canonical shared bank directly instead"
+            )
         assert cb.shape[0] == self.num_codebooks
         assert K_init <= self.K_max
         device, dtype = self.codebooks.device, self.codebooks.dtype
@@ -800,6 +967,11 @@ class SemanticCodebookQuantizer(nn.Module):
 
         Returns dict with {"n_split_total", "split_count_per_codebook"}.
         """
+        if self.share_codebook:
+            raise ValueError(
+                "adaptive codeword splitting is not supported with "
+                "share_codebook"
+            )
         device = self.codebooks.device
         M, K_max = self.active_mask.shape
 
@@ -906,10 +1078,8 @@ class SemanticCodebookQuantizer(nn.Module):
         # A4 ablation: when share_codebook, all M slots quantize against the
         # SAME codebook (slot 0). Expand is a view -> gradient accumulates into
         # codebooks[0]; slots 1..M-1 params are unused (report effective count).
-        codebooks = (
-            self.codebooks[0:1].expand(self.num_codebooks, -1, -1)
-            if self.share_codebook else self.codebooks
-        )
+        codebooks = self.get_effective_codebooks()
+        active_mask = self.get_effective_active_mask()
 
         # nearest-neighbour distance to codewords. Distance tensor is sized
         # K_max; inactive codewords are masked with +inf so argmin can never
@@ -923,8 +1093,8 @@ class SemanticCodebookQuantizer(nn.Module):
             diff = semantic_visual_tokens.unsqueeze(2) - codebooks.unsqueeze(0)
             distances = (diff ** 2).sum(dim=-1)                                # [B, M, K_max]
         # v78a: mask inactive codewords from lookup
-        if self.K_max != self.codebook_size or (~self.active_mask).any():
-            inactive = (~self.active_mask).unsqueeze(0)                        # [1, M, K_max]
+        if self.K_max != self.codebook_size or (~active_mask).any():
+            inactive = (~active_mask).unsqueeze(0)                             # [1, M, K_max]
             distances = distances.masked_fill(inactive, float("inf"))
         indices   = distances.argmin(dim=-1)                                   # [B, M]
 
@@ -3332,6 +3502,22 @@ class SigLIP2SemanticOTModel(nn.Module):
             text_global_feat               [B, 6, D_proj] | None
             routing_mode                   "text" or "codebook_mean"
         """
+        # A2 is a strict causal ablation: no tensor derived from captions may
+        # influence routing, auxiliary losses, or gradients.  Clear every
+        # live/cached factual and foil text input at the boundary so later
+        # fallback paths cannot accidentally reconstruct text supervision.
+        if bool(getattr(self, "disable_text_supervision", False)):
+            part_input_ids = None
+            part_attention_mask = None
+            cached_text_part_raw = None
+            cached_text_tokens = None
+            cached_text_token_mask = None
+            cached_text_foil_raw = None
+            cached_text_foil_valid = None
+            cached_text_foil_tokens = None
+            cached_text_foil_token_mask = None
+            compute_text_foil = False
+
         # Cached-features path: when the dataloader supplies precomputed
         # SigLIP2 outputs we skip the encoder pass entirely. The text-routing
         # rule then becomes "use text if (training AND any-row-has-real-text)";
@@ -4788,8 +4974,8 @@ class SigLIP2SemanticOTModel(nn.Module):
         # consistent across batches if downstream Workspaces care.
         if self.training and getattr(self, "_compute_codeword_codon_logits", False):
             cb_logits_list = []
-            cb_full = self.quantizer.codebooks                        # [M, K_max, D]
-            cb_mask = self.quantizer.active_mask                      # [M, K_max] bool
+            cb_full = self.quantizer.get_effective_codebooks()        # [M, K_max, D]
+            cb_mask = self.quantizer.get_effective_active_mask()      # [M, K_max] bool
             for m, head in enumerate(self.codon_heads):
                 # Only consider currently-active codewords (handles K_max > K_active)
                 idx_active = cb_mask[m].nonzero(as_tuple=True)[0]
@@ -5101,13 +5287,13 @@ class SigLIP2SemanticOTModel(nn.Module):
             # affects routing indirectly via z (the anchor loss family
             # routes via local_codebook_mean_anchors -> z via Sinkhorn
             # cost). For gradient codebook mode this term is fully active.
-            "codebooks_buffer":                  self.quantizer.codebooks,
-            "codebook_active_mask":              self.quantizer.active_mask,
+            "codebooks_buffer":                  self.quantizer.get_effective_codebooks(),
+            "codebook_active_mask":              self.quantizer.get_effective_active_mask(),
             # v144: full codebook tensor exposed for text_code_kl loss.
             # In EMA mode this is a buffer (no autograd); in gradient mode
             # it is a Parameter. Either way the loss can compute logits =
             # z @ C.T without per-codeword indexing.
-            "codebooks":                         self.quantizer.codebooks,
+            "codebooks":                         self.quantizer.get_effective_codebooks(),
             # v106: codeword-level codon decoder outputs for bijection loss.
             # Shape [M, K_max, 3, 4] logits; None when bijection loss inactive.
             # Companion `codeword_K_active` [M] gives per-codebook active K

@@ -598,6 +598,15 @@ def main(args: Config):
     # (still runs every forward) -- this is purely additive supervision for
     # the codebook starting point. See docs/ANALYSIS_2026-05-19.md sec 5-G.
     _text_init_mode = str(getattr(args, "text_init_codebook", "none"))
+    if (
+        bool(getattr(args, "disable_text_supervision", False))
+        and _text_init_mode != "none"
+    ):
+        raise ValueError(
+            "--disable_text_supervision is incompatible with text-derived "
+            "codebook initialization; use --text_init_codebook none for a "
+            "strict no-text ablation"
+        )
     if _text_init_mode != "none":
         _N_target = int(getattr(args, "text_init_subset", 4096))
         _seed     = int(getattr(args, "text_init_seed",   42))
@@ -1037,8 +1046,8 @@ def main(args: Config):
                 and (_not_init or ((e - _warmup) % _refresh_every == 0))
             )
             if _refresh_now:
-                cb_buf = model.quantizer.codebooks                 # [M, K_max, D]
-                cb_mask = model.quantizer.active_mask              # [M, K_max] bool
+                cb_buf = model.quantizer.get_effective_codebooks()   # [M, K_max, D]
+                cb_mask = model.quantizer.get_effective_active_mask() # [M, K_max] bool
                 _method = str(getattr(args, "hierarchical_cluster_method", "kmeans"))
                 _diag = criterion.refresh_clusters(
                     cb_buf, cb_mask, method=_method,

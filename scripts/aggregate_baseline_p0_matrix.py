@@ -80,7 +80,7 @@ METHOD = {
     "crh-supervised": "crh",
 }
 HORIZON = {
-    "cibhash": {dataset: 100 for dataset in DATASETS},
+    "cibhash": {dataset: 60 for dataset in DATASETS},
     "cimon": {dataset: 150 for dataset in DATASETS},
     "mls3rduh": {dataset: 150 for dataset in DATASETS},
     "greedyhash": {dataset: 60 for dataset in DATASETS},
@@ -143,6 +143,13 @@ KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
         "after_sha256": (
             "b9d7e1a0cfab613fd72ce3dc38fafeca82ca99f6121d20138bf22239ef34f3be"
         ),
+        "non_scientific_variants_by_sha256": {
+            # The old dispatcher remains scientifically equivalent for every
+            # method that existed then, but it cannot have launched CRH.
+            "c9f39c05a27cca24ab0084bdd00462b634953499021a67c1cdc18dfc33837a47": (
+                U0_VARIANTS + U2_VARIANTS
+            ),
+        },
         "classification": "non_scientific_dispatch_extension_only",
         "evidence": (
             "reviewed exact-hash transition adds only CRH lazy dispatch aliases "
@@ -154,19 +161,41 @@ KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
             "9809a70fde66d473540fa11d10752a83453d60ac6bfc9b80d0490a1e7ce7eca5"
         ),
         "after_sha256": (
-            "2d7234a2a8f959f32a1f0fa5199cf00556289084f351359f7cb3cbcbdd4f5b16"
+            "1dec886eaed08b4f01cc04c8ebaec81b01952d1bc6913696cdcc7a75830461e0"
         ),
-        "classification": "non_scientific_dispatch_extension_only",
+        "reviewed_sha256": (
+            "9809a70fde66d473540fa11d10752a83453d60ac6bfc9b80d0490a1e7ce7eca5",
+            "2d7234a2a8f959f32a1f0fa5199cf00556289084f351359f7cb3cbcbdd4f5b16",
+            "1dec886eaed08b4f01cc04c8ebaec81b01952d1bc6913696cdcc7a75830461e0",
+        ),
+        "non_scientific_variants_by_sha256": {
+            # This snapshot predates CRH dispatch and has the stale CIBHash
+            # horizon, so neither variant may inherit it.
+            "9809a70fde66d473540fa11d10752a83453d60ac6bfc9b80d0490a1e7ce7eca5": tuple(
+                variant for variant in U0_VARIANTS + U2_VARIANTS
+                if variant != "cibhash"
+            ),
+            # CRH exists here.  The next edit changes only CIBHash's horizon,
+            # making it non-scientific for every other existing variant.
+            "2d7234a2a8f959f32a1f0fa5199cf00556289084f351359f7cb3cbcbdd4f5b16": tuple(
+                variant
+                for variant in U0_VARIANTS + U2_VARIANTS + SUPERVISED_VARIANTS
+                if variant != "cibhash"
+            ),
+        },
+        "classification": "non_scientific_for_reviewed_variants_only",
         "evidence": (
-            "reviewed exact-hash transition adds the isolated supervised CRH "
-            "variant, semantic branch, and comparison-panel metadata without "
-            "changing existing U0/U2 training, selection, metric, or projection"
+            "reviewed exact hashes cover the isolated CRH dispatch addition "
+            "and the later CIBHash-only horizon correction; the latter is "
+            "scientific for CIBHash and non-scientific only for the explicitly "
+            "listed unaffected variants"
         ),
     },
 }
 NON_SCIENTIFIC_TRANSITION_CLASSIFICATIONS = frozenset({
     "non_scientific_performance_memo_only",
     "non_scientific_dispatch_extension_only",
+    "non_scientific_for_reviewed_variants_only",
 })
 
 # Method-defining source profiles are filtered by exact content digest before
@@ -180,9 +209,9 @@ CANONICAL_VARIANT_SOURCE_PROFILES = {
     "cibhash": {
         "path": "baseline/CIBHash.py",
         "sha256": (
-            "1277bb94376e513f99aeb6f9d0c912c59502d035a4ba4626de9d8ca02ca696fc"
+            "ce1a1e3fde2c87eb9fe34644e11f63ca4c84fb757ac0eb17c126ccf0cabc3c8e"
         ),
-        "profile": "cibhash-cache-adaptation-v1",
+        "profile": "cibhash-official-head-cache-adaptation-v2",
     },
     "cimon": {
         "path": "baseline/CIMON.py",
@@ -1020,17 +1049,21 @@ def _audit_implementation_fingerprints(
     ]
     paths: dict[str, dict[str, list[str]]] = {}
     variants: dict[str, list[dict[str, object]]] = {}
+    cell_variant: dict[str, str] = {}
     for record in complete:
         snapshot = record.get("implementation_sha256")
         if not isinstance(snapshot, Mapping):
             # This is normally caught during manifest validation.  Retain an
             # explicit audit result for hand-constructed/older record objects.
             continue
-        variants.setdefault(str(record["variant"]), []).append(record)
+        record_key = str(record["key"])
+        record_variant = str(record["variant"])
+        cell_variant[record_key] = record_variant
+        variants.setdefault(record_variant, []).append(record)
         for source_path, digest in snapshot.items():
             if isinstance(source_path, str) and isinstance(digest, str):
                 paths.setdefault(source_path, {}).setdefault(digest, []).append(
-                    str(record["key"]))
+                    record_key)
 
     path_audit: list[dict[str, object]] = []
     blocking_by_cell: dict[str, set[str]] = {}
@@ -1061,15 +1094,33 @@ def _audit_implementation_fingerprints(
             source_path)
         known_transition = False
         if transition is not None and current_digest == transition["after_sha256"]:
-            reviewed = {
-                str(transition["before_sha256"]),
-                str(transition["after_sha256"]),
-            }
+            raw_reviewed = transition.get("reviewed_sha256")
+            if isinstance(raw_reviewed, (tuple, list, set, frozenset)):
+                reviewed = {str(digest) for digest in raw_reviewed}
+            else:
+                reviewed = {
+                    str(transition["before_sha256"]),
+                    str(transition["after_sha256"]),
+                }
             observed = recorded_digests | {current_digest}
-            known_transition = (
-                str(transition["before_sha256"]) in observed
-                and observed.issubset(reviewed)
-            )
+            scope_ok = True
+            raw_scopes = transition.get(
+                "non_scientific_variants_by_sha256")
+            if raw_scopes is not None:
+                if not isinstance(raw_scopes, Mapping):
+                    scope_ok = False
+                else:
+                    for digest in current_mismatches:
+                        allowed = raw_scopes.get(digest)
+                        if not isinstance(
+                            allowed, (tuple, list, set, frozenset)
+                        ) or any(
+                            cell_variant.get(cell) not in allowed
+                            for cell in versions[digest]
+                        ):
+                            scope_ok = False
+                            break
+            known_transition = observed.issubset(reviewed) and scope_ok
 
         if known_transition and (cross_cell or current_mismatches):
             classification = str(transition["classification"])

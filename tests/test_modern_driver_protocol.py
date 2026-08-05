@@ -51,7 +51,7 @@ class ModernDriverProtocolTest(unittest.TestCase):
 
     def test_canonical_variants_retain_source_horizons_and_batches(self) -> None:
         expected = {
-            'cibhash': (100, 64, True),
+            'cibhash': (60, 64, True),
             'cimon': (150, 24, True),
             'mls3rduh': (150, 128, False),
         }

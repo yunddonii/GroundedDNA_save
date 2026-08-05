@@ -298,6 +298,10 @@ class OrthoHash(DeepHashBase):
         criterion = OrthoHashLoss(scale, config['margin'], m_type, is_multi_label, mc_loss, is_one_hot_emb)
         
         for epoch in range(config['max_epoch']):
+            # Periodic extraction switches the module to eval mode.  Restore
+            # training every epoch so BatchNorm statistics and train-time
+            # behaviour do not freeze after the first evaluation checkpoint.
+            model.train()
             for batch in train_loader:
                 data, labels = batch['img'].to(device), batch['label'].to(device)
                 logits, codes = model(data)
@@ -323,4 +327,3 @@ class OrthoHash(DeepHashBase):
             if (epoch + 1) % eval_period == 0:
                 self.start_eval_process(model_name, "epoch")
                 self._save_train_model_params(model_name, "epoch", {'codebook': codebook})
-

@@ -107,7 +107,7 @@ UMRCH_ASSETS: Mapping[str, tuple[str, str, str]] = {
 # Scheduling weights affect only launch order.  They never become runner
 # arguments, so the runner remains the sole source of method defaults.
 ROUGH_HORIZON = {
-    "cibhash": 100,
+    "cibhash": 60,
     "cimon": 150,
     "mls3rduh": 150,
     "greedyhash": 60,
@@ -139,7 +139,7 @@ LEGACY_LABEL = "legacy_cache_diagnostic_only_not_main_table_eligible"
 CANONICAL_VARIANT_SOURCE_PROFILES: Mapping[str, tuple[str, str]] = {
     "cibhash": (
         "baseline/CIBHash.py",
-        "1277bb94376e513f99aeb6f9d0c912c59502d035a4ba4626de9d8ca02ca696fc",
+        "ce1a1e3fde2c87eb9fe34644e11f63ca4c84fb757ac0eb17c126ccf0cabc3c8e",
     ),
     "cimon": (
         "baseline/CIMON.py",
@@ -211,7 +211,38 @@ KNOWN_NON_SCIENTIFIC_SOURCE_SHA_ALIASES: Mapping[str, frozenset[str]] = {
     "scripts/run_modern_baseline_p0.py": frozenset({
         "9809a70fde66d473540fa11d10752a83453d60ac6bfc9b80d0490a1e7ce7eca5",
         "2d7234a2a8f959f32a1f0fa5199cf00556289084f351359f7cb3cbcbdd4f5b16",
+        "1dec886eaed08b4f01cc04c8ebaec81b01952d1bc6913696cdcc7a75830461e0",
     }),
+}
+# Some shared-source edits are scientific only for one method, and an older
+# source may predate a newly added variant entirely.  Scope those reviewed
+# aliases by both the *recorded* digest and variant; a path-wide exemption
+# would incorrectly admit old-horizon CIBHash or pre-dispatch CRH manifests.
+KNOWN_NON_SCIENTIFIC_SOURCE_SHA_ALIAS_VARIANTS: Mapping[
+    str, Mapping[str, frozenset[str]]
+] = {
+    "baseline/base_model.py": {
+        # This snapshot predates the CRH lazy-dispatch branch.  The edit is
+        # non-scientific for every pre-existing U0/U2 method, but a CRH result
+        # cannot have been produced through this version of the dispatcher.
+        "c9f39c05a27cca24ab0084bdd00462b634953499021a67c1cdc18dfc33837a47": (
+            frozenset(CANONICAL_VARIANT_SOURCE_PROFILES)
+            - frozenset(SUPERVISED_VARIANTS)
+        ),
+    },
+    "scripts/run_modern_baseline_p0.py": {
+        # Before CRH dispatch existed.  The CIBHash horizon was also stale.
+        "9809a70fde66d473540fa11d10752a83453d60ac6bfc9b80d0490a1e7ce7eca5": (
+            frozenset(CANONICAL_VARIANT_SOURCE_PROFILES)
+            - {"cibhash"}
+            - frozenset(SUPERVISED_VARIANTS)
+        ),
+        # CRH dispatch exists; only the later CIBHash horizon correction is
+        # scientific, and only for CIBHash itself.
+        "2d7234a2a8f959f32a1f0fa5199cf00556289084f351359f7cb3cbcbdd4f5b16": (
+            frozenset(CANONICAL_VARIANT_SOURCE_PROFILES) - {"cibhash"}
+        ),
+    },
 }
 DUHEG_BLOCK = {
     "variant": "duheg",
@@ -379,6 +410,11 @@ def _matches_canonical_source_profile(
         aliases = KNOWN_NON_SCIENTIFIC_SOURCE_SHA_ALIASES.get(path)
         if aliases is None or current not in aliases or raw_digest not in aliases:
             return False
+        scoped_aliases = KNOWN_NON_SCIENTIFIC_SOURCE_SHA_ALIAS_VARIANTS.get(path)
+        if scoped_aliases is not None:
+            allowed_variants = scoped_aliases.get(raw_digest)
+            if allowed_variants is None or variant not in allowed_variants:
+                return False
     return True
 
 

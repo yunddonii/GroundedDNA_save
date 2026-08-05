@@ -19,18 +19,22 @@ HAS the target concept and whose remaining labels are as close as possible to
 the query's, so non-target semantics are held roughly fixed.
 
 Controls (§3.5)
-    ours_slot     : intended slot codon replaced           (6 bits changed)
-    <base>_chunk  : same-position contiguous 6-bit chunk   (6 bits changed)
+    ours_slot     : intended 3-base slot codon replaced
+    <base>_chunk  : same-position 3-base / contiguous 6-bit chunk
     random_donor  : donor drawn at random, no label matching
     random_slot   : a different slot replaced with the donor's codon there
-Every arm changes exactly 6 bits, so the intervention budget is matched.
+
+With ``--bio_project``, input codes are projected first and donor selection is
+restricted to exact slot swaps that remain valid DNA.  Invalid splices are
+excluded on one paired common-valid query subset; the donor slot is never
+silently repaired and all other slots stay bit-for-bit unchanged.
 """
 from __future__ import annotations
 
 import argparse
 import json
 import os
-from typing import Sequence
+from typing import Callable, Optional, Sequence
 
 import numpy as np
 
@@ -48,16 +52,26 @@ def _basenames(paths: Sequence) -> np.ndarray:
 
 def topk_by_hamming(query_codes: np.ndarray, db_codes: np.ndarray, k: int,
                     chunk: int = 256) -> np.ndarray:
-    """Symbol-wise mismatch count (base Hamming for ours, bit Hamming for flat)."""
+    """Symbol-wise mismatch count with a canonical database-order tie break."""
+    if query_codes.ndim != 2 or db_codes.ndim != 2:
+        raise ValueError("query_codes and db_codes must both be rank-2")
+    if query_codes.shape[1] != db_codes.shape[1]:
+        raise ValueError(
+            f"code widths differ: {query_codes.shape[1]} vs {db_codes.shape[1]}"
+        )
+    if not 0 < int(k) <= len(db_codes):
+        raise ValueError(f"k must be in [1, {len(db_codes)}], got {k}")
     out = np.zeros((len(query_codes), k), dtype=np.int64)
     for s in range(0, len(query_codes), chunk):
         q = query_codes[s:s + chunk]
         d = (q[:, None, :] != db_codes[None, :, :]).sum(axis=2)
-        out[s:s + chunk] = np.argpartition(d, k, axis=1)[:, :k]
-        # order the k so Jaccard/prevalence are computed on the true top-k
-        rows = np.arange(len(q))[:, None]
-        sel = out[s:s + chunk]
-        out[s:s + chunk] = sel[rows, np.argsort(d[rows, sel], axis=1)]
+        # Hamming codes have very large boundary ties.  argpartition chooses
+        # an arbitrary subset of those ties, so identical artifacts could
+        # produce materially different neighbours.  Stable sort implements
+        # the repository-wide canonical policy: distance, then DB row index.
+        out[s:s + chunk] = np.argsort(
+            d, axis=1, kind="stable",
+        )[:, :k]
     return out
 
 
@@ -99,16 +113,65 @@ def paired_bootstrap(x: np.ndarray, n_boot: int, rng) -> dict:
             "excludes_zero": bool(lo > 0 or hi < 0), "n": int(len(x))}
 
 
+def swap_segments(
+    q_codes: np.ndarray,
+    db_codes: np.ndarray,
+    q_idx: np.ndarray,
+    donor_idx: np.ndarray,
+    slot_of: np.ndarray,
+    seg_slices: Sequence[slice],
+) -> np.ndarray:
+    """Return exact one-segment swaps; all non-target positions are unchanged."""
+    inter = q_codes[q_idx].copy()
+    for row, (slot, donor) in enumerate(zip(slot_of, donor_idx)):
+        segment = seg_slices[int(slot)]
+        inter[row, segment] = db_codes[int(donor), segment]
+    return inter
+
+
+def valid_swap_candidates(
+    query_code: np.ndarray,
+    donor_codes: np.ndarray,
+    slot: int,
+    seg_slices: Sequence[slice],
+    validity_fn: Callable[[np.ndarray], np.ndarray],
+) -> np.ndarray:
+    """Which donor segments preserve whole-strand validity after exact swap."""
+    if len(donor_codes) == 0:
+        return np.zeros(0, dtype=bool)
+    candidates = np.repeat(query_code[None, :], len(donor_codes), axis=0)
+    segment = seg_slices[int(slot)]
+    candidates[:, segment] = donor_codes[:, segment]
+    valid = np.asarray(validity_fn(candidates), dtype=bool)
+    if valid.shape != (len(donor_codes),):
+        raise ValueError(
+            "validity_fn must return one boolean per candidate, got "
+            f"{valid.shape}"
+        )
+    return valid
+
+
 # --------------------------------------------------------------------------
 def run_arm(q_codes: np.ndarray, db_codes: np.ndarray, db_labels: np.ndarray,
             q_idx: np.ndarray, donor_idx: np.ndarray, target: np.ndarray,
             slot_of: np.ndarray, seg_slices, base_topk: np.ndarray,
-            base_prev: np.ndarray, k: int, n_boot: int, seed: int) -> dict:
+            base_prev: np.ndarray, k: int, n_boot: int, seed: int,
+            validity_fn: Optional[Callable[[np.ndarray], np.ndarray]] = None) -> dict:
     """Apply one intervention arm and score it."""
-    inter = q_codes[q_idx].copy()
-    for r, (m, j) in enumerate(zip(slot_of, donor_idx)):
-        sl = seg_slices[m]
-        inter[r, sl] = db_codes[j, sl]
+    inter = swap_segments(
+        q_codes, db_codes, q_idx, donor_idx, slot_of, seg_slices,
+    )
+    if validity_fn is not None:
+        post_valid = np.asarray(validity_fn(inter), dtype=bool)
+        if post_valid.shape != (len(inter),):
+            raise ValueError("validity_fn returned an invalid shape")
+        if not post_valid.all():
+            raise RuntimeError(
+                "exact slot intervention produced invalid DNA; donor/control "
+                "selection must filter to the paired common-valid subset"
+            )
+    else:
+        post_valid = None
 
     topk = topk_by_hamming(inter, db_codes, k)
     prev = prevalence(topk, db_labels)
@@ -156,8 +219,16 @@ def run_arm(q_codes: np.ndarray, db_codes: np.ndarray, db_labels: np.ndarray,
         "fraction_changed": float(frac_changed.mean()),
         "gain_per_fraction_changed": float(
             tgt_gain.mean() / frac_changed.mean()) if frac_changed.mean() > 0 else float("nan"),
+        "n_requested": int(len(q_idx)),
+        "n_evaluated": int(len(q_idx)),
+        "invalid_after_swap": 0 if post_valid is not None else None,
+        "post_swap_valid_fraction": (
+            float(post_valid.mean()) if post_valid is not None else None
+        ),
+        "non_target_symbols_changed": 0,
         "_gain": tgt_gain,
         "_selectivity": selectivity,
+        "_fraction_changed": frac_changed,
     }
 
 
@@ -184,24 +255,50 @@ def main() -> None:
     ap.add_argument("--max_run", type=int, default=3)
     args = ap.parse_args()
 
+    if len(args.baseline_dirs) != len(args.baseline_names):
+        raise ValueError(
+            "--baseline_dirs and --baseline_names must have identical lengths"
+        )
+    normalized_baseline_names = [
+        str(name).strip().casefold() for name in args.baseline_names
+    ]
+    if any(not name for name in normalized_baseline_names):
+        raise ValueError("baseline names must be non-empty")
+    if len(set(normalized_baseline_names)) != len(normalized_baseline_names):
+        raise ValueError("baseline names must be unique")
+
     rng = np.random.default_rng(args.seed)
     db = dict(np.load(os.path.join(args.ours_dir, "extract_db.npz"), allow_pickle=True))
     qy = dict(np.load(os.path.join(args.ours_dir, "extract_query.npz"), allow_pickle=True))
     tr_path = os.path.join(args.ours_dir, "extract_train.npz")
     tr = dict(np.load(tr_path, allow_pickle=True)) if os.path.exists(tr_path) else None
 
+    bio_validity_fn: Optional[Callable[[np.ndarray], np.ndarray]] = None
     if args.bio_project:
         import sys as _sys
         _sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         from dna_utils.bio_constraints import project_to_valid, is_valid_batch
+
+        def _is_bio_valid(arr):
+            return is_valid_batch(
+                arr, args.gc_min_frac, args.gc_max_frac, args.max_run,
+            )
+
+        bio_validity_fn = _is_bio_valid
+
         def _bp(arr):
             a = np.ascontiguousarray(arr).astype(np.int8)
             uu, iv = np.unique(a, axis=0, return_inverse=True)
-            vv = is_valid_batch(uu, args.gc_min_frac, args.gc_max_frac, args.max_run)
+            vv = _is_bio_valid(uu)
             oo = uu.copy()
             for i in np.where(~vv)[0]:
                 oo[i], _ = project_to_valid(uu[i], args.gc_min_frac, args.gc_max_frac, args.max_run)
-            return oo[iv].astype(np.int64)
+            projected = oo[iv].astype(np.int64)
+            if not bool(_is_bio_valid(projected).all()):
+                raise RuntimeError(
+                    "bio projection failed to produce 100% valid input codes"
+                )
+            return projected
         for _d in (db, qy, tr):
             if _d is not None and "base_indices" in _d:
                 _d["base_indices"] = _bp(_d["base_indices"])
@@ -248,6 +345,7 @@ def main() -> None:
     q_sel = rng.choice(len(q_lab), min(args.n_query, len(q_lab)), replace=False)
     q_codes = qy["base_indices"]
     db_codon = codon_ids(db_codes, n_bases)
+    q_codon = codon_ids(q_codes, n_bases)
 
     base_topk = topk_by_hamming(q_codes[q_sel], db_codes, args.k)
     base_prev = prevalence(base_topk, db_lab)
@@ -261,13 +359,104 @@ def main() -> None:
         bqy = np.load(os.path.join(bdir, "extract_query.npz"), allow_pickle=True)
         dpos = {b: i for i, b in enumerate(_basenames(bdb["image_paths"]))}
         qpos = {b: i for i, b in enumerate(_basenames(bqy["image_paths"]))}
-        bdb_codes = (bdb["hash_2bit"][[dpos[b] for b in our_db_b]] > 0).astype(np.int64)
-        bq_codes = (bqy["hash_2bit"][[qpos[b] for b in our_q_b]] > 0).astype(np.int64)
+        bdb_bits = (
+            bdb["hash_2bit"][[dpos[b] for b in our_db_b]] > 0
+        ).astype(np.int64)
+        bq_bits = (
+            bqy["hash_2bit"][[qpos[b] for b in our_q_b]] > 0
+        ).astype(np.int64)
+        if args.bio_project:
+            if bdb_bits.shape[1] % 2 or bq_bits.shape[1] % 2:
+                raise ValueError(
+                    f"baseline {bname} has an odd bit width and cannot be "
+                    "converted to DNA bases"
+                )
+            bdb_pairs = bdb_bits.reshape(len(bdb_bits), -1, 2)
+            bq_pairs = bq_bits.reshape(len(bq_bits), -1, 2)
+            bdb_codes = _bp(2 * bdb_pairs[..., 0] + bdb_pairs[..., 1])
+            bq_codes = _bp(2 * bq_pairs[..., 0] + bq_pairs[..., 1])
+        else:
+            bdb_codes = bdb_bits
+            bq_codes = bq_bits
         w = bdb_codes.shape[1] // N_SLOTS
+        if w * N_SLOTS != bdb_codes.shape[1]:
+            raise ValueError(
+                f"baseline {bname} width {bdb_codes.shape[1]} is not "
+                f"divisible into {N_SLOTS} slots"
+            )
         flat_arms.append((bname, bq_codes, bdb_codes,
                           [slice(m * w, (m + 1) * w) for m in range(N_SLOTS)]))
-        print(f"  [flat control] {bname}: {bdb_codes.shape[1]} bits, "
-              f"{w} bits/slot")
+        unit = "bases" if args.bio_project else "bits"
+        print(f"  [flat control] {bname}: {bdb_codes.shape[1]} {unit}, "
+              f"{w} {unit}/slot")
+
+    def candidates_valid_across_methods(
+        query_index: int,
+        donor_candidates: np.ndarray,
+        slot: int,
+    ) -> np.ndarray:
+        """Common non-noop/valid mask for ours and flat baseline controls."""
+        donor_candidates = np.asarray(donor_candidates, dtype=np.int64)
+        segment = seg_slices[int(slot)]
+        ours_changed = np.sum(
+            db_codes[donor_candidates, segment]
+            != q_codes[int(query_index), segment],
+            axis=1,
+        )
+        ours_width = int(segment.stop - segment.start)
+        valid = ours_changed > 0
+        if bio_validity_fn is not None:
+            valid &= valid_swap_candidates(
+                q_codes[query_index], db_codes[donor_candidates], slot,
+                seg_slices, bio_validity_fn,
+            )
+        for _, baseline_q, baseline_db, baseline_slices in flat_arms:
+            baseline_segment = baseline_slices[int(slot)]
+            baseline_changed = np.sum(
+                baseline_db[donor_candidates, baseline_segment]
+                != baseline_q[int(query_index), baseline_segment],
+                axis=1,
+            )
+            baseline_width = int(
+                baseline_segment.stop - baseline_segment.start
+            )
+            # Exact per-query dose matching in each method's own Hamming
+            # metric: changed/slot_width must be identical across arms.
+            valid &= baseline_changed > 0
+            valid &= (
+                baseline_changed * ours_width
+                == ours_changed * baseline_width
+            )
+            if bio_validity_fn is not None:
+                valid &= valid_swap_candidates(
+                    baseline_q[query_index], baseline_db[donor_candidates], slot,
+                    baseline_slices, bio_validity_fn,
+                )
+        return valid
+
+    def ours_candidates_valid(
+        query_index: int,
+        donor_candidates: np.ndarray,
+        slot: int,
+        required_changed_symbols: Optional[int] = None,
+    ) -> np.ndarray:
+        """Non-noop/valid mask for an ours-only random-control arm."""
+        donor_candidates = np.asarray(donor_candidates, dtype=np.int64)
+        segment = seg_slices[int(slot)]
+        changed = np.sum(
+            db_codes[donor_candidates, segment]
+            != q_codes[int(query_index), segment],
+            axis=1,
+        )
+        valid = changed > 0
+        if required_changed_symbols is not None:
+            valid &= changed == int(required_changed_symbols)
+        if bio_validity_fn is not None:
+            valid &= valid_swap_candidates(
+                q_codes[query_index], db_codes[donor_candidates], slot,
+                seg_slices, bio_validity_fn,
+            )
+        return valid
 
     print(f"[{args.dataset}] queries={len(q_sel)} db={len(db_all)} K={args.k} "
           f"labels={db_lab.shape[1]}")
@@ -286,6 +475,13 @@ def main() -> None:
             best = None
             for c in rng.permutation(cand)[:8]:          # sample targets for speed
                 pool = np.where(db_lab[:, c] == 1)[0]
+                # Pick the semantic donor from OUR representation only so a
+                # baseline control cannot influence which counterfactual is
+                # selected.  Cross-method validity/dose matching is applied
+                # afterward as a query-level paired-subset filter.
+                pool = pool[db_codon[pool, m] != q_codon[i, m]]
+                if len(pool):
+                    pool = pool[ours_candidates_valid(i, pool, m)]
                 if len(pool) == 0:
                     continue
                 other = np.ones(db_lab.shape[1], dtype=bool); other[c] = False
@@ -293,9 +489,6 @@ def main() -> None:
                 union_ = (db_lab[pool][:, other] | has[other]).sum(axis=1)
                 sim = inter_ / np.maximum(union_, 1)
                 b = pool[np.argmax(sim)]
-                # the donor codon must actually differ, else it is a no-op
-                if db_codon[b, m] == codon_ids(q_codes[i:i + 1], n_bases)[0, m]:
-                    continue
                 score = sim.max() + dict_p[m, db_codon[b, m], c]
                 if best is None or score > best[0]:
                     best = (score, b, c)
@@ -306,7 +499,80 @@ def main() -> None:
         if not qi:
             results[SLOT_NAMES[m]] = {"coverage": 0.0}
             continue
-        qi, dj, tg = np.array(qi), np.array(dj), np.array(tg)
+        qi = np.asarray(qi, dtype=np.int64)
+        dj = np.asarray(dj, dtype=np.int64)
+        tg = np.asarray(tg, dtype=np.int64)
+        n_target_eligible = len(qi)
+
+        # Every arm must use the same query subset for paired bootstrap.  For
+        # bio-projected evaluation, choose only controls whose exact one-slot
+        # splice is valid; never repair globally after the swap because that
+        # would alter non-target slots and invalidate the causal intervention.
+        keep_rows = []
+        random_slots = []
+        random_donors = []
+        for row, (query_index, donor_index) in enumerate(zip(qi, dj)):
+            if not candidates_valid_across_methods(
+                int(query_index), np.asarray([donor_index]), m,
+            )[0]:
+                continue
+            target_segment = seg_slices[m]
+            target_changed_symbols = int(np.sum(
+                db_codes[int(donor_index), target_segment]
+                != q_codes[int(query_index), target_segment]
+            ))
+            if target_changed_symbols <= 0:
+                raise RuntimeError("target donor unexpectedly produced a no-op")
+            valid_other_slots = []
+            for candidate_slot in rng.permutation([
+                slot for slot in range(N_SLOTS) if slot != m
+            ]):
+                if ours_candidates_valid(
+                    int(query_index),
+                    np.asarray([donor_index]),
+                    int(candidate_slot),
+                    required_changed_symbols=target_changed_symbols,
+                )[0]:
+                    valid_other_slots.append(int(candidate_slot))
+            if not valid_other_slots:
+                continue
+
+            chosen_random_donor = None
+            donor_order = rng.permutation(len(db_codes))
+            # A random permutation followed by the first eligible candidate is
+            # uniform over non-noop donors (and, in deployment mode, those
+            # whose exact splice remains bio-valid).  Chunking avoids
+            # materializing every candidate strand at once.
+            for start in range(0, len(donor_order), 256):
+                donor_chunk = donor_order[start:start + 256]
+                valid = ours_candidates_valid(
+                    int(query_index), donor_chunk, m,
+                    required_changed_symbols=target_changed_symbols,
+                )
+                eligible = donor_chunk[valid]
+                if len(eligible):
+                    chosen_random_donor = int(eligible[0])
+                    break
+            if chosen_random_donor is None:
+                continue
+            keep_rows.append(row)
+            random_slots.append(valid_other_slots[0])
+            random_donors.append(chosen_random_donor)
+
+        if not keep_rows:
+            results[SLOT_NAMES[m]] = {
+                "coverage": 0.0,
+                "target_donor_coverage": float(
+                    n_target_eligible / len(q_sel)
+                ),
+                "paired_common_subset_n": 0,
+            }
+            continue
+        keep_rows = np.asarray(keep_rows, dtype=np.int64)
+        qi, dj, tg = qi[keep_rows], dj[keep_rows], tg[keep_rows]
+        rand_slot = np.asarray(random_slots, dtype=np.int64)
+        rand_donor = np.asarray(random_donors, dtype=np.int64)
+
         pos = {v: r for r, v in enumerate(q_sel)}
         rows = np.array([pos[v] for v in qi])
         slot_of = np.full(len(qi), m)
@@ -314,18 +580,18 @@ def main() -> None:
         arms = {}
         arms["ours_slot"] = run_arm(
             q_codes, db_codes, db_lab, qi, dj, tg, slot_of, seg_slices,
-            base_topk[rows], base_prev[rows], args.k, args.n_boot, args.seed)
+            base_topk[rows], base_prev[rows], args.k, args.n_boot, args.seed,
+            validity_fn=bio_validity_fn)
 
-        rand_slot = np.array([rng.choice([x for x in range(N_SLOTS) if x != m])
-                              for _ in qi])
         arms["random_slot"] = run_arm(
             q_codes, db_codes, db_lab, qi, dj, tg, rand_slot, seg_slices,
-            base_topk[rows], base_prev[rows], args.k, args.n_boot, args.seed)
+            base_topk[rows], base_prev[rows], args.k, args.n_boot, args.seed,
+            validity_fn=bio_validity_fn)
 
-        rand_donor = rng.choice(len(db_all), len(qi))
         arms["random_donor"] = run_arm(
             q_codes, db_codes, db_lab, qi, rand_donor, tg, slot_of, seg_slices,
-            base_topk[rows], base_prev[rows], args.k, args.n_boot, args.seed)
+            base_topk[rows], base_prev[rows], args.k, args.n_boot, args.seed,
+            validity_fn=bio_validity_fn)
 
         # flat-hash chunk arm: same 6-bit budget, same donors, same targets (§3.5)
         for bname, bq, bdb_codes, b_seg in flat_arms:
@@ -333,7 +599,19 @@ def main() -> None:
             b_base_prev = prevalence(b_base_topk, db_lab)
             arms[f"{bname}_chunk"] = run_arm(
                 bq, bdb_codes, db_lab, qi, dj, tg, slot_of, b_seg,
-                b_base_topk, b_base_prev, args.k, args.n_boot, args.seed)
+                b_base_topk, b_base_prev, args.k, args.n_boot, args.seed,
+                validity_fn=bio_validity_fn)
+
+        reference_dose = np.asarray(
+            arms["ours_slot"]["_fraction_changed"], dtype=np.float64,
+        )
+        for arm_name, arm in arms.items():
+            arm_dose = np.asarray(arm["_fraction_changed"], dtype=np.float64)
+            if not np.array_equal(reference_dose, arm_dose):
+                raise RuntimeError(
+                    f"intervention dose mismatch for {arm_name}; every arm "
+                    "must change the same per-query fraction of one slot"
+                )
 
         # Pre-registered condition 2 asks whether OURS beats each control on
         # selectivity. Comparing two point estimates cannot answer that, so test
@@ -346,6 +624,8 @@ def main() -> None:
 
         results[SLOT_NAMES[m]] = {
             "coverage": float(len(qi) / len(q_sel)),
+            "target_donor_coverage": float(n_target_eligible / len(q_sel)),
+            "paired_common_subset_n": int(len(qi)),
             "arms": {k: {kk: vv for kk, vv in v.items() if not kk.startswith("_")}
                      for k, v in arms.items()},
             "selectivity_vs_controls": vs,
@@ -358,9 +638,37 @@ def main() -> None:
               f"jac={a['retrieval_jaccard']:.3f} | randslot gain="
               f"{arms['random_slot']['target_gain']['mean']:+.4f}")
 
+    required_cibhash_control = "cibhash" in normalized_baseline_names
+    complete_slot_coverage = all(
+        bool(slot_result.get("paired_common_subset_n", 0) > 0)
+        for slot_result in results.values()
+    )
+    deployment_valid = bool(args.bio_project and complete_slot_coverage)
     payload = {
         "dataset": args.dataset,
         "config": vars(args),
+        "intervention_protocol_version": 2,
+        "validity_policy": (
+            "exact_slot_common_valid_only"
+            if args.bio_project else "unconstrained_diagnostic"
+        ),
+        "paired_subset_policy": "all_configured_arms_common_valid",
+        "intervention_dose_policy": (
+            "exact_per_query_changed_slot_fraction_matched"
+        ),
+        "ranking_tie_policy": "hamming_then_database_index_stable",
+        "deployment_valid_intervention": deployment_valid,
+        "preregistered_cibhash_control_present": required_cibhash_control,
+        # This script binds extraction rows but not a canonical baseline run
+        # manifest/checkpoint digest.  Never promote an output solely because
+        # a directory was labelled "cibhash"; a paper table builder must bind
+        # and validate that provenance separately.
+        "paper_result_eligible": False,
+        "paper_eligibility_blockers": [
+            "baseline_control_manifest_provenance_not_bound"
+        ] if deployment_valid and required_cibhash_control else [
+            "incomplete_deployment_valid_or_preregistered_controls"
+        ],
         "n_db_used": int(len(db_all)),
         "results": results,
     }
