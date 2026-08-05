@@ -1,0 +1,47 @@
+{
+  "dataset": "NUSWIDE",
+  "dir": "result/260803+nuswide_setting1_promptAblA_nuswide_A_v4_uni005_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+  "n": 384,
+  "ntxent_alpha": 0.3,
+  "cibhash_alpha": 0.3,
+  "ntxent_skip_global": false,
+  "cibhash_skip_global": true,
+  "slots": {
+    "global": {
+      "mean_cos_tt": 0.35389,
+      "p90_cos_tt": 0.51239,
+      "tau_mult_ntxent": 1.10617,
+      "tau_mult_cibhash": 1.0
+    },
+    "primary_object": {
+      "mean_cos_tt": 0.43288,
+      "p90_cos_tt": 0.58537,
+      "tau_mult_ntxent": 1.12986,
+      "tau_mult_cibhash": 1.12986
+    },
+    "secondary_object": {
+      "mean_cos_tt": 0.48771,
+      "p90_cos_tt": 0.63102,
+      "tau_mult_ntxent": 1.14631,
+      "tau_mult_cibhash": 1.14631
+    },
+    "activity_relation": {
+      "mean_cos_tt": 0.58003,
+      "p90_cos_tt": 0.70067,
+      "tau_mult_ntxent": 1.17401,
+      "tau_mult_cibhash": 1.17401
+    },
+    "color_texture": {
+      "mean_cos_tt": 0.54038,
+      "p90_cos_tt": 0.6973,
+      "tau_mult_ntxent": 1.16211,
+      "tau_mult_cibhash": 1.16211
+    },
+    "scene_type": {
+      "mean_cos_tt": 0.62917,
+      "p90_cos_tt": 0.77281,
+      "tau_mult_ntxent": 1.18875,
+      "tau_mult_cibhash": 1.18875
+    }
+  }
+}

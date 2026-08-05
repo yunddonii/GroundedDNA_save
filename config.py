@@ -423,6 +423,16 @@ class Config():
             dest='routing_ambiguity_k', type=int, default=2,
             help='Number of parts retained for ambiguous patches in '
                  '--routing_ambiguity_topk.')
+        # `--routing_adaptive_topp` is hardcoded in the per-dataset recipe
+        # scripts and store_true cannot be undone by a later flag, so an
+        # explicit kill switch is needed to ablate the nucleus mask.
+        siglip2_arg.add_argument('--no_routing_adaptive_topp',
+            dest='no_routing_adaptive_topp', action='store_true', default=False,
+            help='Force the per-patch adaptive top-p nucleus mask OFF even if '
+                 '--routing_adaptive_topp was passed earlier. The mask zeroes '
+                 'every slot outside the nucleus and renormalises the row, so a '
+                 'slot that is never any patch\'s argmax receives exactly zero '
+                 'transported mass; this switch isolates that effect.')
         siglip2_arg.add_argument('--routing_adaptive_topp',
             dest='routing_adaptive_topp', action='store_true', default=False,
             help='If set, use patch-specific top-p threshold based on '

@@ -487,6 +487,187 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-08-05 — 🔬 Dead semantic slots ROOT-CAUSED to the **adaptive top-p nucleus mask**, not to the OT entropic schedule; the Sinkhorn plan itself has no dead slots
+
+Triggered by a user observation on the regenerated `viz_routing_heatmap.png`:
+some slot columns show no active tokens. The heatmap draws only the five LOCAL
+slots (`dna_utils/visualization.py:183`) — slot 0 bypasses the router by
+construction (`c_global_source=siglip2_global`) — so an empty column is a real
+defect, not a plotting artefact.
+
+### Measurement 1 — the dead slots are real, seed-dependent, and split-independent
+
+`scripts/diagnose_slot_routing_mass.py` (new) reports per-slot transported mass
+`col_mass[m] = Σ_n P[b,n,m]`, share, and top-1 fraction directly from the
+routing matrix. Matrix = 4 datasets × 3 seeds × {train, test} = 24 cells, 512
+random images per cell (fixed `--sample_seed 1234`; an earlier sequential head
+was replaced because several splits are class-ordered — the conclusion did not
+change). Aggregated by `scripts/aggregate_slot_mass.py`.
+
+Uniform share = 16.67 %; "underused" = below 1/4 of that (4.17 %).
+
+| dataset | E* (s42/43/44) | mean local-slot share | verdict |
+|---|---|---|---|
+| Flickr25k | 4 / 4 / 4 | 15.7 – 19.2 % | 6/6 cells healthy |
+| MS-COCO | 39 / 9 / 24 | 17.0 – 18.7 % | 6/6 cells healthy |
+| NUS-WIDE | 4 / 4 / 4 | 13.9 – 21.3 % | 5/6; s44/train `color_texture` 0.47 % |
+| CIFAR-10 | 19 / 4 / 14 | `secondary_object` **4.81 %**, `scene_type` **4.57 %** | 4/6 cells dead |
+
+CIFAR-10 collapse tracks E* monotonically: s43 (E*=4) is healthy, s44 (E*=14)
+and s42 (E*=19) both collapse, and they always lose the SAME two slots.
+MS-COCO trains 39 epochs and never collapses, so training length alone is not
+the cause. slot 0 always shows mass exactly 1.0 with ~0 % top-1 — the expected
+signature of the routing-free global path, not a defect.
+
+### Measurement 2 — the cause is the nucleus mask, not the entropic schedule
+
+Two candidate regularisers were tested on the SAME checkpoint.
+
+**(a) Unbalanced-OT slot-marginal relaxation.** `models/semantic_router.py:78`
+sets `tau_b = lambda_b / (lambda_b + eps)`; `tau_b = 1` is a hard balanced
+column constraint, `tau_b → 0` frees the slot marginal. All four champions run
+`sinkhorn_lambda_b = 1.0` with eps cosine-annealed 1.0 → 0.1, so the entropic
+schedule silently sets the marginal enforcement:
+
+| epoch | 0 | 19 | 39 | 59 |
+|---|---:|---:|---:|---:|
+| eps | 1.00 | 0.79 | 0.33 | 0.10 |
+| tau_b | 0.500 | 0.559 | 0.751 | 0.909 |
+
+**(b) Per-patch adaptive top-p nucleus mask** (`semantic_router.py:388-425`),
+`routing_adaptive_topp=True`, min 0.3 / max 0.7 on all four champions:
+`tau = 0.3 + 0.4·(1 − p_max)`, keep while `prev_cum < tau`, `keep_sorted[...,0]
+= True`, then `P = (P·keep)/row_sum · target_row_sum`. A confident patch
+(`p_max = 0.9`) gets `tau = 0.34` and keeps exactly ONE slot; everything else is
+zeroed and its mass redistributed to the survivors.
+
+Disabling only the mask at inference (`--disable_adaptive_topp`,
+`scripts/run_topp_ablation_matrix.sh`, evaluated at each run's training E*):
+
+| run | slot | top-p ON | top-p OFF | OFF/ON | top-1 % |
+|---|---|---:|---:|---:|---:|
+| CIFAR s42 | `secondary_object` | 0.90 % | 13.23 % | 14.7× | 0.5 |
+| CIFAR s42 | `scene_type` | 1.12 % | 13.46 % | 12.0× | 1.0 |
+| CIFAR s44 | `secondary_object` | 0.87 % | 13.69 % | 15.8× | 0.4 |
+| CIFAR s44 | `scene_type` | 0.49 % | 13.26 % | 27.1× | 0.3 |
+| NUS s44 | `color_texture` | 0.39 % | 13.67 % | 35.5× | 0.1 |
+| NUS s42 | `primary_object` | 5.36 % | 15.46 % | 2.9× | 2.0 |
+| CIFAR s43 (healthy) | `secondary_object` | 10.66 % | 17.13 % | 1.6× | 7.7 |
+| MS-COCO s42 (healthy) | all local | 12.7 – 14.5 % | 13.3 – 13.8 % | 0.95 – 1.05× | 2.2 – 6.8 |
+
+With the mask off, every local slot in every dataset/seed lands at 13.2 – 20.4 %.
+**The Sinkhorn plan contains no dead slots at all.**
+
+### Key findings
+
+- **`top1 %` predicts death exactly.** `keep_sorted[...,0] = True` guarantees
+  rank-1 survival, so a slot that is never any patch's argmax depends entirely
+  on the cumulative nucleus. Dead slots sit at 0.1 – 1.0 % top-1; the surviving
+  CIFAR s43 pair sits at 7.6 – 7.7 %.
+- **The mask is an amplifier, not the origin.** The learned weights are only
+  ~1.5× biased (13 % vs 20 % without the mask); top-p converts that into a 27×
+  gap, then renormalisation hands the mass to the winners, then the erased slot
+  receives ~0 gradient and can never become rank-1. Self-reinforcing.
+- **A previous claim in this investigation was wrong and is retracted:** the
+  collapse is NOT baked into the weights. That reading came from re-measuring at
+  the training epoch with the mask still ON.
+- **Data alone does not explain it.** CIFAR-10 at 32×32 genuinely lacks a
+  "secondary object" and a "scene", but MS-COCO's `scene_type` has a comparable
+  text-anchor profile and never dies.
+- **adaptive-tau is NOT involved.** `ntxent/cibhash_dynamic_tau`
+  (`loss_siglip2.py:1429`, `tau_ij = T·(1 + α·cos_tt)`) is a loss temperature
+  applied AFTER routing, and every slot enters the loss with equal weight
+  (`torch.stack(ntxent_per_cb).mean()`). Measured per-slot `cos_tt` (α = 0.3,
+  384 train images) puts CIFAR's two dying slots at OPPOSITE ends of the
+  spectrum (`secondary_object` 0.5687 = coolest of all local slots,
+  `scene_type` 0.7374 = hottest), healthy MS-COCO/Flickr sit at nearly the same
+  values, and the whole tau multiplier range is 1.12 – 1.22 (9 %) against a 30×
+  mass difference. Amplification path measured and refuted.
+
+### OT slot-marginal cells (CIFAR-10, `scripts/queue_ot_marginal_test.sh`)
+
+Raising `tau_b` by two independent routes does eliminate the dead slots, but it
+is not free.
+
+| Tag | Modification | tau_b @ eps=1.0 | E* |
+|---|---|---:|---:|
+| baseline `uniB003` | `sinkhorn_lambda_b 1.0`, eps 1.0→0.1 | 0.500 | 19 |
+| `otLB05` | `--sinkhorn_lambda_b 5.0` | 0.833 | 24 |
+| `otLB20` | `--sinkhorn_lambda_b 20.0` | 0.952 | 29 |
+| `otNOANN` | `--sinkhorn_epsilon_init 0.1` (anneal removed) | 0.909 | 4 |
+
+| Run | mAP@R | Δ | DNA-uniq | Δ | decode | Δ | slot0 codons | dead slots | verdict |
+|---|---:|---:|---:|---:|---:|---:|---:|---|---|
+| baseline | **0.8970** | — | 0.1307 | — | **0.8989** | — | 50 | 2 | ★ |
+| `otLB05` | 0.8710 | −0.0260 | 0.1771 | +0.0464 | 0.8649 | −0.0340 | **56** | 0 | trade-off |
+| `otLB20` | 0.8647 | −0.0323 | **0.2154** | +0.0847 | 0.8614 | −0.0375 | 55 | 0 | trade-off |
+| `otNOANN` | 0.8499 | −0.0471 | 0.1806 | +0.0499 | 0.8352 | −0.0637 | 31 | 0 | DISCARDED |
+
+- Raising `lambda_b` pushes E* later (19 → 24 → 29): a stronger slot constraint
+  delays the optimal stopping point.
+- `otNOANN` is DISCARDED — a flat small eps sharpens the plan, raises `p_max`,
+  narrows the nucleus, and collapses slot 0 from 50 to 31 codons (gap −7.39).
+  Removing the entropic anneal is actively harmful.
+- New side effect at high `tau_b`: slot 0 takes 97 – 99.6 % of top-1 and the
+  local slots flatten to ~0.1 % top-1 each. The slots are alive but may be
+  uniformly uninformative; this needs checking before adopting `otLB05/20`.
+
+### Pipeline defect found during this investigation (NOT yet fixed)
+
+`model._current_epoch` is a plain int defaulting to 0 (`model_siglip2.py:2331`)
+and is NOT in the state dict; only the trainer sets it
+(`train_siglip2.py:1034`). `extraction_siglip2.extract_code:184` builds a FRESH
+`SigLIP2SemanticOTModel(args)` and calls `load_state_dict`, so **every
+checkpoint-reload extraction runs at epoch 0, i.e. eps = 1.0**, while training
+annealed eps downward. Measured routing gap on MS-COCO s42 (E*=39, trained at
+eps 0.332):
+
+| | eps | tau_b | global top-1 | `primary_object` top-1 |
+|---|---:|---:|---:|---:|
+| training operating point (epoch 39) | 0.332 | 0.751 | 78.2 % | 5.8 % |
+| extraction operating point (epoch 0) | 1.000 | 0.500 | 0.0 % | 26.2 % |
+
+Whether this changes the extracted CODES is still being measured
+(`scripts/diagnose_extraction_epoch.py`, re-extract at epoch 0 vs E* and compare
+mAP@R + fraction of DB codes changed). Per-slot pooled features are renormalised
+downstream, so the gap may be cosmetic — **do not treat reported numbers as
+invalid until that measurement lands.**
+
+### Adds
+
+- `scripts/diagnose_slot_routing_mass.py` — per-slot transported mass; flags
+  `--split {train,test}`, `--epoch` (reproduce the training operating point),
+  `--disable_adaptive_topp`, `--sample_seed`.
+- `scripts/aggregate_slot_mass.py`, `scripts/run_slot_mass_matrix.sh` — the 24-cell matrix.
+- `scripts/run_topp_ablation_matrix.sh`, `scripts/aggregate_topp_ablation.py` — mask ON/OFF.
+- `scripts/diagnose_dynamic_tau_per_slot.py` — per-slot `cos_tt` and tau multiplier.
+- `scripts/diagnose_extraction_epoch.py` — extraction operating-point comparison.
+- `scripts/queue_ot_marginal_test.sh`, `scripts/queue_topp_ablation_train.sh`.
+- `--no_routing_adaptive_topp` (`config.py`, `model_siglip2.py:2244`) — kill
+  switch for the nucleus mask. `--routing_adaptive_topp` is hardcoded in the
+  per-dataset recipe scripts and `store_true` cannot be undone by a later flag.
+  Default off, bit-exact for every existing run.
+
+### Follow-ups
+
+- `cifar_noTOPP`, `cifar_topp69` (nucleus 0.6–0.95), `nuswide_noTOPP` are
+  running — do the slots stay alive through TRAINING, and what does removing
+  the mask cost in retrieval? top-p exists to sharpen routing, so a loss is
+  expected; that trade-off is the actual result.
+- Check whether high-`tau_b` slots are alive-but-uninformative (slot 0 taking
+  99.6 % of top-1 is suspicious) before adopting `otLB05/20`.
+- Finish the extraction operating-point measurement and decide whether
+  `extract_code` must call `set_current_epoch(E*)`.
+- Draft §5 limitation: CIFAR-10 effectively uses 4 of 6 slots under the current
+  recipe. Whichever fix is adopted, the "six semantic slots" claim needs the
+  measured per-slot mass table as evidence.
+
+Artefacts: `docs/newmodel_analysis/slot_routing_mass_SUMMARY.json`,
+`docs/newmodel_analysis/slotmass/`, `docs/newmodel_analysis/toppabl/`,
+`docs/newmodel_analysis/otcells/`, `docs/newmodel_analysis/dynamic_tau_*.json`.
+
+---
+
 ## 2026-08-04 (PM) — 🟢 **Baseline 3-seed complete (60/60, 0 failures)**: MS-COCO deficit disappears at 3-vs-3 — because CroVCA drops, not because we rise. Draft ablations A2/A4 filled 4/4.
 
 📊 **3-seed vs 3-seed** (ours seeds {42,43,44}; baselines now also {42,43,44} on Flickr/MS-COCO/NUS).

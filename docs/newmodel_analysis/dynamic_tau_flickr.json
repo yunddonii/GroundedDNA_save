@@ -1,0 +1,47 @@
+{
+  "dataset": "Flickr25k",
+  "dir": "result/260803+flickr25k_setting1_promptAblA_flickr_A_v4_uni002_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+  "n": 384,
+  "ntxent_alpha": 0.3,
+  "cibhash_alpha": 0.3,
+  "ntxent_skip_global": false,
+  "cibhash_skip_global": true,
+  "slots": {
+    "global": {
+      "mean_cos_tt": 0.31718,
+      "p90_cos_tt": 0.45149,
+      "tau_mult_ntxent": 1.09515,
+      "tau_mult_cibhash": 1.0
+    },
+    "primary_object": {
+      "mean_cos_tt": 0.40146,
+      "p90_cos_tt": 0.54808,
+      "tau_mult_ntxent": 1.12044,
+      "tau_mult_cibhash": 1.12044
+    },
+    "secondary_object": {
+      "mean_cos_tt": 0.44714,
+      "p90_cos_tt": 0.5857,
+      "tau_mult_ntxent": 1.13414,
+      "tau_mult_cibhash": 1.13414
+    },
+    "activity_relation": {
+      "mean_cos_tt": 0.577,
+      "p90_cos_tt": 0.69822,
+      "tau_mult_ntxent": 1.1731,
+      "tau_mult_cibhash": 1.1731
+    },
+    "color_texture": {
+      "mean_cos_tt": 0.51882,
+      "p90_cos_tt": 0.68482,
+      "tau_mult_ntxent": 1.15565,
+      "tau_mult_cibhash": 1.15565
+    },
+    "scene_type": {
+      "mean_cos_tt": 0.61013,
+      "p90_cos_tt": 0.75866,
+      "tau_mult_ntxent": 1.18304,
+      "tau_mult_cibhash": 1.18304
+    }
+  }
+}

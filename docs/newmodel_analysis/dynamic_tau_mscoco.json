@@ -1,0 +1,47 @@
+{
+  "dataset": "MSCOCO",
+  "dir": "result/260803+mscoco_setting1_promptAblA_mscoco_A_v5b_uni003_P0refit_e39+bs+64+e+60+proj_lr+0.001",
+  "n": 384,
+  "ntxent_alpha": 0.3,
+  "cibhash_alpha": 0.3,
+  "ntxent_skip_global": false,
+  "cibhash_skip_global": true,
+  "slots": {
+    "global": {
+      "mean_cos_tt": 0.37311,
+      "p90_cos_tt": 0.51197,
+      "tau_mult_ntxent": 1.11193,
+      "tau_mult_cibhash": 1.0
+    },
+    "primary_object": {
+      "mean_cos_tt": 0.46232,
+      "p90_cos_tt": 0.61725,
+      "tau_mult_ntxent": 1.1387,
+      "tau_mult_cibhash": 1.1387
+    },
+    "secondary_object": {
+      "mean_cos_tt": 0.47199,
+      "p90_cos_tt": 0.59793,
+      "tau_mult_ntxent": 1.1416,
+      "tau_mult_cibhash": 1.1416
+    },
+    "activity_relation": {
+      "mean_cos_tt": 0.63075,
+      "p90_cos_tt": 0.74552,
+      "tau_mult_ntxent": 1.18922,
+      "tau_mult_cibhash": 1.18922
+    },
+    "color_texture": {
+      "mean_cos_tt": 0.55402,
+      "p90_cos_tt": 0.71255,
+      "tau_mult_ntxent": 1.16621,
+      "tau_mult_cibhash": 1.16621
+    },
+    "scene_type": {
+      "mean_cos_tt": 0.6274,
+      "p90_cos_tt": 0.77472,
+      "tau_mult_ntxent": 1.18822,
+      "tau_mult_cibhash": 1.18822
+    }
+  }
+}

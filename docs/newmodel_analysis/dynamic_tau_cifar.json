@@ -1,0 +1,47 @@
+{
+  "dataset": "CIFAR10",
+  "dir": "result/260803+cifar10_setting1_promptAblA_cifar_A_v4_uniB003_P0refit_e19+bs+64+e+60+proj_lr+0.001",
+  "n": 384,
+  "ntxent_alpha": 0.3,
+  "cibhash_alpha": 0.3,
+  "ntxent_skip_global": false,
+  "cibhash_skip_global": true,
+  "slots": {
+    "global": {
+      "mean_cos_tt": 0.44123,
+      "p90_cos_tt": 0.60015,
+      "tau_mult_ntxent": 1.13237,
+      "tau_mult_cibhash": 1.0
+    },
+    "primary_object": {
+      "mean_cos_tt": 0.58438,
+      "p90_cos_tt": 0.75005,
+      "tau_mult_ntxent": 1.17531,
+      "tau_mult_cibhash": 1.17531
+    },
+    "secondary_object": {
+      "mean_cos_tt": 0.56875,
+      "p90_cos_tt": 0.71136,
+      "tau_mult_ntxent": 1.17062,
+      "tau_mult_cibhash": 1.17062
+    },
+    "activity_relation": {
+      "mean_cos_tt": 0.72422,
+      "p90_cos_tt": 0.82171,
+      "tau_mult_ntxent": 1.21727,
+      "tau_mult_cibhash": 1.21727
+    },
+    "color_texture": {
+      "mean_cos_tt": 0.63069,
+      "p90_cos_tt": 0.77899,
+      "tau_mult_ntxent": 1.18921,
+      "tau_mult_cibhash": 1.18921
+    },
+    "scene_type": {
+      "mean_cos_tt": 0.73737,
+      "p90_cos_tt": 0.87155,
+      "tau_mult_ntxent": 1.22121,
+      "tau_mult_cibhash": 1.22121
+    }
+  }
+}

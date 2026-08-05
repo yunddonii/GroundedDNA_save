@@ -2070,7 +2070,8 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.routing_ambiguity_topk      = bool(getattr(args, "routing_ambiguity_topk", False))
         self.routing_ambiguity_threshold = float(getattr(args, "routing_ambiguity_threshold", 0.6))
         self.routing_ambiguity_k         = int(getattr(args, "routing_ambiguity_k", 2))
-        self.routing_adaptive_topp       = bool(getattr(args, "routing_adaptive_topp", False))
+        self.routing_adaptive_topp       = bool(getattr(args, "routing_adaptive_topp", False)) \
+            and not bool(getattr(args, "no_routing_adaptive_topp", False))
         self.routing_adaptive_topp_min   = float(getattr(args, "routing_adaptive_topp_min", 0.5))
         self.routing_adaptive_topp_max   = float(getattr(args, "routing_adaptive_topp_max", 0.9))
         self.routing_adaptive_topp_entropy = bool(getattr(args, "routing_adaptive_topp_entropy", False))

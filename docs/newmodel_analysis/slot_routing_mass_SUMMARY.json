@@ -1,0 +1,379 @@
+{
+  "uniform_share": 0.16666666666666666,
+  "underused_threshold": 0.041666666666666664,
+  "per_dataset": {
+    "Flickr25k": {
+      "cells": [
+        "s42/train",
+        "s42/test",
+        "s43/train",
+        "s43/test",
+        "s44/train",
+        "s44/test"
+      ],
+      "slots": {
+        "global": {
+          "mean_share_pct": 11.411,
+          "per_cell_pct": [
+            10.263,
+            12.501,
+            10.251,
+            12.62,
+            10.271,
+            12.56
+          ],
+          "n_underused": 0,
+          "n_cells": 6
+        },
+        "primary_object": {
+          "mean_share_pct": 17.171,
+          "per_cell_pct": [
+            20.977,
+            17.765,
+            9.735,
+            15.548,
+            21.413,
+            17.585
+          ],
+          "n_underused": 0,
+          "n_cells": 6
+        },
+        "secondary_object": {
+          "mean_share_pct": 19.171,
+          "per_cell_pct": [
+            20.248,
+            17.793,
+            20.498,
+            17.516,
+            21.695,
+            17.275
+          ],
+          "n_underused": 0,
+          "n_cells": 6
+        },
+        "activity_relation": {
+          "mean_share_pct": 17.433,
+          "per_cell_pct": [
+            11.76,
+            17.829,
+            23.36,
+            17.964,
+            16.074,
+            17.611
+          ],
+          "n_underused": 0,
+          "n_cells": 6
+        },
+        "color_texture": {
+          "mean_share_pct": 15.744,
+          "per_cell_pct": [
+            16.43,
+            16.812,
+            16.785,
+            17.212,
+            11.069,
+            16.156
+          ],
+          "n_underused": 0,
+          "n_cells": 6
+        },
+        "scene_type": {
+          "mean_share_pct": 19.071,
+          "per_cell_pct": [
+            20.323,
+            17.3,
+            19.371,
+            19.14,
+            19.478,
+            18.814
+          ],
+          "n_underused": 0,
+          "n_cells": 6
+        }
+      },
+      "dead_all_cells": [],
+      "dead_some_cells": []
+    },
+    "MSCOCO": {
+      "cells": [
+        "s42/train",
+        "s42/test",
+        "s43/train",
+        "s43/test",
+        "s44/train",
+        "s44/test"
+      ],
+      "slots": {
+        "global": {
+          "mean_share_pct": 11.581,
+          "per_cell_pct": [
+            10.939,
+            12.352,
+            10.764,
+            12.334,
+            10.787,
+            12.308
+          ],
+          "n_underused": 0,
+          "n_cells": 6
+        },
+        "primary_object": {
+          "mean_share_pct": 17.526,
+          "per_cell_pct": [
+            17.999,
+            15.919,
+            17.785,
+            17.349,
+            17.525,
+            18.577
+          ],
+          "n_underused": 0,
+          "n_cells": 6
+        },
+        "secondary_object": {
+          "mean_share_pct": 17.948,
+          "per_cell_pct": [
+            18.147,
+            18.43,
+            17.782,
+            17.732,
+            18.794,
+            16.806
+          ],
+          "n_underused": 0,
+          "n_cells": 6
+        },
+        "activity_relation": {
+          "mean_share_pct": 17.018,
+          "per_cell_pct": [
+            17.57,
+            16.578,
+            16.618,
+            16.434,
+            17.791,
+            17.117
+          ],
+          "n_underused": 0,
+          "n_cells": 6
+        },
+        "color_texture": {
+          "mean_share_pct": 17.263,
+          "per_cell_pct": [
+            17.139,
+            19.575,
+            15.98,
+            17.95,
+            15.11,
+            17.828
+          ],
+          "n_underused": 0,
+          "n_cells": 6
+        },
+        "scene_type": {
+          "mean_share_pct": 18.664,
+          "per_cell_pct": [
+            18.207,
+            17.146,
+            21.072,
+            18.201,
+            19.993,
+            17.364
+          ],
+          "n_underused": 0,
+          "n_cells": 6
+        }
+      },
+      "dead_all_cells": [],
+      "dead_some_cells": []
+    },
+    "NUSWIDE": {
+      "cells": [
+        "s42/train",
+        "s42/test",
+        "s43/train",
+        "s43/test",
+        "s44/train",
+        "s44/test"
+      ],
+      "slots": {
+        "global": {
+          "mean_share_pct": 11.288,
+          "per_cell_pct": [
+            10.267,
+            12.23,
+            10.164,
+            12.404,
+            10.349,
+            12.313
+          ],
+          "n_underused": 0,
+          "n_cells": 6
+        },
+        "primary_object": {
+          "mean_share_pct": 15.844,
+          "per_cell_pct": [
+            5.331,
+            15.812,
+            19.489,
+            15.686,
+            23.168,
+            15.576
+          ],
+          "n_underused": 0,
+          "n_cells": 6
+        },
+        "secondary_object": {
+          "mean_share_pct": 18.688,
+          "per_cell_pct": [
+            21.351,
+            18.034,
+            18.575,
+            17.095,
+            18.801,
+            18.269
+          ],
+          "n_underused": 0,
+          "n_cells": 6
+        },
+        "activity_relation": {
+          "mean_share_pct": 21.305,
+          "per_cell_pct": [
+            24.341,
+            17.8,
+            23.286,
+            18.755,
+            25.155,
+            18.49
+          ],
+          "n_underused": 0,
+          "n_cells": 6
+        },
+        "color_texture": {
+          "mean_share_pct": 13.91,
+          "per_cell_pct": [
+            19.788,
+            17.053,
+            13.005,
+            16.64,
+            0.465,
+            16.508
+          ],
+          "n_underused": 1,
+          "n_cells": 6
+        },
+        "scene_type": {
+          "mean_share_pct": 18.966,
+          "per_cell_pct": [
+            18.922,
+            19.07,
+            15.481,
+            19.42,
+            22.062,
+            18.844
+          ],
+          "n_underused": 0,
+          "n_cells": 6
+        }
+      },
+      "dead_all_cells": [],
+      "dead_some_cells": [
+        "color_texture"
+      ]
+    },
+    "CIFAR10": {
+      "cells": [
+        "s42/train",
+        "s42/test",
+        "s43/train",
+        "s43/test",
+        "s44/train",
+        "s44/test"
+      ],
+      "slots": {
+        "global": {
+          "mean_share_pct": 10.345,
+          "per_cell_pct": [
+            10.41,
+            10.626,
+            9.99,
+            10.123,
+            10.365,
+            10.553
+          ],
+          "n_underused": 0,
+          "n_cells": 6
+        },
+        "primary_object": {
+          "mean_share_pct": 28.48,
+          "per_cell_pct": [
+            29.313,
+            28.565,
+            27.165,
+            26.538,
+            29.937,
+            29.36
+          ],
+          "n_underused": 0,
+          "n_cells": 6
+        },
+        "secondary_object": {
+          "mean_share_pct": 4.805,
+          "per_cell_pct": [
+            0.791,
+            2.463,
+            11.075,
+            11.386,
+            0.893,
+            2.223
+          ],
+          "n_underused": 4,
+          "n_cells": 6
+        },
+        "activity_relation": {
+          "mean_share_pct": 25.482,
+          "per_cell_pct": [
+            29.092,
+            27.472,
+            19.132,
+            19.513,
+            29.283,
+            28.4
+          ],
+          "n_underused": 0,
+          "n_cells": 6
+        },
+        "color_texture": {
+          "mean_share_pct": 26.316,
+          "per_cell_pct": [
+            29.439,
+            27.574,
+            22.652,
+            21.296,
+            29.097,
+            27.837
+          ],
+          "n_underused": 0,
+          "n_cells": 6
+        },
+        "scene_type": {
+          "mean_share_pct": 4.573,
+          "per_cell_pct": [
+            0.955,
+            3.299,
+            9.987,
+            11.144,
+            0.425,
+            1.628
+          ],
+          "n_underused": 4,
+          "n_cells": 6
+        }
+      },
+      "dead_all_cells": [],
+      "dead_some_cells": [
+        "secondary_object",
+        "scene_type"
+      ]
+    }
+  }
+}
