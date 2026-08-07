@@ -1,0 +1,63 @@
+{
+  "dataset": "MSCOCO",
+  "dir": "result/260803+mscoco_setting1_promptAblA_mscoco_A_v5b_uni003_P0refit_e39+bs+64+e+60+proj_lr+0.001",
+  "epoch": 39,
+  "n_patches": 50176,
+  "M": 6,
+  "pmax": {
+    "p10": 0.29752835631370544,
+    "median": 0.3264187276363373,
+    "p90": 0.35628175735473633
+  },
+  "settings": {
+    "baseline": {
+      "mean_k": 2.8213,
+      "std_k": 0.3916,
+      "cv_k": 0.1388,
+      "pct_k1": 0.012,
+      "pct_kM": 0.0,
+      "hist_pct": [
+        0.012,
+        18.16,
+        81.509,
+        0.319,
+        0.0,
+        0.0
+      ],
+      "drop_frac_mean_abs_dev": 0.2366,
+      "drop_frac_ambiguous_pct": 69.336
+    },
+    "topp69": {
+      "mean_k": 4.7291,
+      "std_k": 0.4719,
+      "cv_k": 0.0998,
+      "pct_k1": 0.0,
+      "pct_kM": 0.0,
+      "hist_pct": [
+        0.0,
+        0.054,
+        1.096,
+        24.739,
+        74.111,
+        0.0
+      ],
+      "drop_frac_mean_abs_dev": 0.3091,
+      "drop_frac_ambiguous_pct": 45.052
+    },
+    "noTOPP": {
+      "mean_k": 6.0,
+      "std_k": 0.0,
+      "cv_k": 0.0,
+      "pct_k1": 0.0,
+      "pct_kM": 100.0,
+      "hist_pct": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        100.0
+      ]
+    }
+  }
+}

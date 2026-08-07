@@ -1,0 +1,55 @@
+{
+  "dataset": "MSCOCO",
+  "dir": "result/260803+mscoco_setting1_promptAblA_mscoco_A_v5b_uni003_P0refit_e39+bs+64+e+60+proj_lr+0.001",
+  "images": 384,
+  "global_gate": [
+    0.9982043504714966,
+    0.9989820122718811,
+    0.9989633560180664,
+    0.9990147352218628,
+    0.9984006285667419
+  ],
+  "global_gate_disabled": false,
+  "slots": {
+    "primary_object": {
+      "flip_pct_if_global_swapped": 12.76,
+      "flip_pct_if_local_swapped": 97.656,
+      "norm_gated_global": 10.6726,
+      "norm_local": 24.9302,
+      "n_codons": 64,
+      "n_codons_global_fixed": 64
+    },
+    "secondary_object": {
+      "flip_pct_if_global_swapped": 20.052,
+      "flip_pct_if_local_swapped": 97.135,
+      "norm_gated_global": 10.6809,
+      "norm_local": 23.4484,
+      "n_codons": 63,
+      "n_codons_global_fixed": 62
+    },
+    "activity_relation": {
+      "flip_pct_if_global_swapped": 16.927,
+      "flip_pct_if_local_swapped": 98.177,
+      "norm_gated_global": 10.6807,
+      "norm_local": 23.8925,
+      "n_codons": 60,
+      "n_codons_global_fixed": 61
+    },
+    "color_texture": {
+      "flip_pct_if_global_swapped": 18.229,
+      "flip_pct_if_local_swapped": 97.656,
+      "norm_gated_global": 10.6812,
+      "norm_local": 22.8415,
+      "n_codons": 64,
+      "n_codons_global_fixed": 63
+    },
+    "scene_type": {
+      "flip_pct_if_global_swapped": 11.719,
+      "flip_pct_if_local_swapped": 97.917,
+      "norm_gated_global": 10.6747,
+      "norm_local": 24.1235,
+      "n_codons": 62,
+      "n_codons_global_fixed": 61
+    }
+  }
+}

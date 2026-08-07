@@ -1,0 +1,63 @@
+{
+  "dataset": "NUSWIDE",
+  "dir": "result/260803+nuswide_setting1_promptAblA_nuswide_A_v4_uni005_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+  "epoch": 24,
+  "n_patches": 37632,
+  "M": 6,
+  "pmax": {
+    "p10": 0.18248634040355682,
+    "median": 0.19451189041137695,
+    "p90": 0.21356868743896484
+  },
+  "settings": {
+    "baseline": {
+      "mean_k": 3.9767,
+      "std_k": 0.1615,
+      "cv_k": 0.0406,
+      "pct_k1": 0.056,
+      "pct_kM": 0.0,
+      "hist_pct": [
+        0.056,
+        0.0,
+        2.16,
+        97.784,
+        0.0,
+        0.0
+      ],
+      "drop_frac_mean_abs_dev": 0.3535,
+      "drop_frac_ambiguous_pct": 32.899
+    },
+    "topp69": {
+      "mean_k": 5.6653,
+      "std_k": 0.4836,
+      "cv_k": 0.0854,
+      "pct_k1": 0.056,
+      "pct_kM": 66.757,
+      "hist_pct": [
+        0.056,
+        0.0,
+        0.0,
+        0.0,
+        33.187,
+        66.757
+      ],
+      "drop_frac_mean_abs_dev": 0.4589,
+      "drop_frac_ambiguous_pct": 7.986
+    },
+    "noTOPP": {
+      "mean_k": 6.0,
+      "std_k": 0.0,
+      "cv_k": 0.0,
+      "pct_k1": 0.0,
+      "pct_kM": 100.0,
+      "hist_pct": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        100.0
+      ]
+    }
+  }
+}

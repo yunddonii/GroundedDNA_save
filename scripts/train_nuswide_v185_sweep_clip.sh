@@ -7,6 +7,23 @@
 #
 # Usage:
 #   WASS=0.05 CELL=A bash scripts/train_nuswide_v185_sweep_clip.sh <GPU>
+#
+# 2026-08-06 ADOPTED: --sinkhorn_epsilon_init 1.0 -> 0.5.
+#   NUS-WIDE stops at E*=4, where the cosine anneal has barely left eps_init, so
+#   the router ran at eps=0.99 and its transport plan was near-uniform (p_max
+#   median 0.2024 against 0.1667 for a uniform plan). With a near-uniform plan
+#   the cumulative sum is ~k/6, so the adaptive top-p nucleus cut lands on a
+#   FIXED rank and always starves the same slot: `primary_object` received zero
+#   visual tokens on 33.20 % of images, and `denom.clamp_min(1e-12)` then makes
+#   its pooled feature the zero vector.
+#     eps_init 0.5:  empty-image rate 33.20 % -> 0.00 % on every slot
+#                    DNA-unique      0.2158  -> 0.2393  (+0.0235)
+#                    mAP@R           0.8274  -> 0.8209  (-0.0064)
+#                    decode          0.7347  -> 0.7240  (-0.0107)
+#   eps is the remedy, NOT the cause: MS-COCO evaluated at eps=0.99 still has
+#   0 % empty slots. The cause is low text-anchor axis separation. Do not copy
+#   this override to Flickr25k, where it cost -0.0138 mAP / -0.0125 DNA-unique
+#   and there were no empty slots to fix. See PROJECT_LOG 2026-08-06.
 set -eu
 
 GPU="${1:-0}"
@@ -49,7 +66,7 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --per_slot_text_adapter \
     --global_gate_init_logit "$GATE" \
     --router_type sinkhorn \
-    --sinkhorn_epsilon_init 1.0 --sinkhorn_epsilon_final 0.1 \
+    --sinkhorn_epsilon_init 0.5 --sinkhorn_epsilon_final 0.1 \
     --sinkhorn_lambda_a 1.0 \
     --sinkhorn_lambda_b 1.0 \
     --routing_adaptive_topp \

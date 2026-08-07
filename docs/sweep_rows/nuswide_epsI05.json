@@ -1,0 +1,49 @@
+{
+  "tag": "epsI05",
+  "dir": "result/260806+nuswide_setting1_promptAblA_nuswide_A_v4_epsI05_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+  "dataset": "NUSWIDE",
+  "K": 128,
+  "mAP_at_R_bioproj": 0.820940476597919,
+  "full_mAP_bioproj": 0.5812024103874319,
+  "full_mAP_pre_projection": 0.5867836618632056,
+  "DNA_unique_DB": 0.23928169552066236,
+  "lambda_codon_joint": "0.05",
+  "codon_joint_slots": "-",
+  "codon_input_source": "quantized",
+  "use_gumbel_softmax": "False",
+  "codon_chunk_interleave": "False",
+  "codon_map_enumerable": true,
+  "slot_codons": [
+    62,
+    48,
+    50,
+    55,
+    53,
+    48
+  ],
+  "slot_gaps": [
+    6.94,
+    -6.46,
+    -4.63,
+    0.67,
+    -1.44,
+    -6.03
+  ],
+  "slot_multi_information": [
+    0.1319,
+    0.5472,
+    0.5819,
+    0.3508,
+    0.4518,
+    0.6083
+  ],
+  "slot0_codons": 62,
+  "slot0_gap": 6.94,
+  "slot0_MI": 0.1319,
+  "decode_ours_codon": 0.7239521282146868,
+  "decode_ours_codeword": 0.778394971444344,
+  "decode_best_control": "OH_chunk",
+  "decode_best_control_mAP": 0.6772247321039593,
+  "decode_margin": 0.0467,
+  "decode_majority": 0.4822489762943776
+}

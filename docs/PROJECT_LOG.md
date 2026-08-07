@@ -487,6 +487,368 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-08-06 — 🟢 **NUS-WIDE ADOPTS `--sinkhorn_epsilon_init 0.5`** (3 seeds: empty-slot 33.2 %→0 %, DNA-uniq +0.0237, mAP −0.0037). Dead slots re-diagnosed PER IMAGE: the codon of a starved slot is a re-encoding of the CLIP global embedding, not a constant
+
+Supersedes the interpretability verdict of the 2026-08-05 (PM) entry. That entry
+concluded "keep top-p, the dead slots still ground their own axis" from
+BATCH-AVERAGED slot mass. Measuring per image overturns it.
+
+### The measurement that changed the verdict
+
+`scripts/diagnose_per_image_empty_slots.py` (new) counts, per (image, slot), how
+many patches carry strictly positive routing weight. A mean share of 0.90 % can
+mean "a thin slice on every image" or "exactly zero on most images"; only the
+second is a defect, because `denom.clamp_min(1e-12)`
+(`semantic_router.py:498`) then makes the pooled feature the ZERO VECTOR.
+
+| dataset | slot | images with ZERO tokens | n_tok median |
+|---|---|---:|---:|
+| CIFAR-10 | `secondary_object` | **51.76 %** | 0 |
+| CIFAR-10 | `scene_type` | **45.12 %** | 1 |
+| NUS-WIDE | `primary_object` | **33.20 %** | 10 |
+| NUS-WIDE | `scene_type` | 8.40 % | 150.5 |
+| MS-COCO | all slots | **0.00 %** | 105–114 |
+| Flickr25k | all slots | 0.00 % | — |
+
+So on over half of CIFAR images `secondary_object` sees nothing at all.
+
+### Where the codon of a starved slot comes from: the global gate
+
+A zero pooled feature quantises to one fixed codeword, so the codon should be
+constant. It is not — 22 distinct codons among the 265 empty images
+(`scene_type`: 18). The source is `model_siglip2.py:4919`:
+
+```
+q_conditioned_local[m] = q_local_cw[m] + sigmoid(gate_m) * q_global_cw
+```
+
+Measured gates are saturated on all four champions (0.9940–0.9990), and
+`c_global_source = siglip2_global` feeds slot 0 the raw CLIP global embedding.
+When a slot is starved its codon is therefore a deterministic function of the
+WHOLE IMAGE, wearing that slot's label.
+
+Restricting held-out decoding to the images a slot actually saw
+(`scripts/decode_split_by_slot_emptiness.py`, CIFAR test = 1000):
+
+| slot | empty % | mAP all | mAP SEEN | mAP EMPTY |
+|---|---:|---:|---:|---:|
+| `secondary_object` | 37.20 | 0.9027 | **0.8536** | **0.9856** |
+| `scene_type` | 32.40 | 0.8433 | **0.8161** | 0.9000 |
+| `primary_object` | 0.00 | 0.9129 | 0.9129 | — |
+| `activity_relation` | 0.10 | 0.8951 | 0.8950 | — |
+
+**Images the slot cannot see score HIGHER (0.9856) than images it can see
+(0.8536).** The metric rewards a slot for closing its eyes, because CLIP's
+global embedding predicts CIFAR-10 classes better than a single 32×32 region
+does. Part of the reported per-slot decoding score is earned by that leak.
+
+### The leak is LOCAL, not systemic
+
+Counterfactual on the same batch: swap `q_global` with another image's, or swap
+`q_local[m]`, and count codon flips (`scripts/diagnose_global_gate_dominance.py`,
+reconstruction verified against the model's own `base_indices`).
+
+| dataset / slot | flip if GLOBAL swapped | flip if LOCAL swapped | ‖gate·q_glob‖ | ‖q_loc‖ |
+|---|---:|---:|---:|---:|
+| Flickr25k, all | 16–34 % | **92–98 %** | 5.20 | 22.6–28.7 |
+| MS-COCO, all | 12–20 % | **97–98 %** | 10.67 | 22.8–24.9 |
+| CIFAR live slots | 12–22 % | 93–96 % | 6.15 | 44.5–44.8 |
+| **CIFAR dead slots** | **68–72 %** | 60–64 % | 6.16 | **11.0–14.1** |
+| NUS `primary_object` (33 % empty) | 55.5 % | 83.9 % | 6.95 | 20.9 |
+
+The gate is saturated everywhere but the vector it passes is small in norm, so
+it acts as a mild bias — EXCEPT where the local codeword has collapsed to the
+fixed zero-vector codeword (norm 11–14 vs 44 for live slots). **Retracted from
+this session's earlier reading: the claim that a saturated gate implies a
+systemic leak on every dataset is wrong.** Flickr25k and MS-COCO are unaffected.
+
+### Root cause: text-anchor axis separation, not epsilon
+
+`scripts/diagnose_prompt_slot_fit.py` measures how similar the six text anchors
+are to each other WITHIN an image (mean pairwise cosine over the 5 local axes):
+
+| dataset | axis redundancy | most redundant pair | slot health |
+|---|---:|---|---|
+| MS-COCO | **0.5742** | secondary↔activity 0.6492 | 0 % empty |
+| Flickr25k | 0.5829 | activity↔scene 0.6375 | 0 % empty |
+| NUS-WIDE | 0.6020 | primary↔activity 0.6698 | primary 33 % empty |
+| CIFAR-10 | **0.6693** | primary↔activity **0.7477** | 52 % / 45 % empty |
+
+Perfectly monotone with slot health. Reading actual CIFAR V4 captions shows why:
+at 32×32 Qwen must hallucinate ("Two bright yellow landing gear wheels are
+visible beneath the plane") or borrow another axis ("Distant mountainous
+landscape … form the background" in the `secondary_object` slot). The prompt
+text is well-formed; the images cannot support six distinct axes.
+
+Caveat: axis redundancy predicts the DATASET, not the SLOT. On CIFAR the most
+redundant slot (`activity_relation`, 0.7087) survives with 27.67 % mass and the
+least redundant (`scene_type`, 0.6473) dies. Which slot dies is set by the
+top-p rank cut, not by redundancy.
+
+**Decisive counterfactual: MS-COCO evaluated at eps = 0.990 (epoch 4), the exact
+operating point where CIFAR and NUS starve, still has 0.00 % empty slots on
+every slot (n_tok p10 = 48.5).** Epsilon is therefore NOT the cause. It is,
+however, an effective remedy where the anchors are weak.
+
+### Why the mask starves a slot: rigidity, not noise
+
+`scripts/diagnose_nucleus_threshold_sim.py` replays every candidate threshold on
+one unmasked plan. Two earlier hypotheses die here.
+
+`p_max` median vs the 1/6 = 0.1667 uniform value: NUS 0.2024, Flickr 0.2011,
+CIFAR 0.2065, MS-COCO 0.3264. With a near-uniform plan `cum ≈ k/6`, so the cut
+lands at a FIXED rank: baseline tau ≈ 0.62 → k = 4 (91 % of patches), topp69
+tau ≈ 0.88 → k = 5 (99.6 %). Only 0.1 % of patches ever keep a single slot, so
+the earlier "a confident patch keeps one slot" reading was wrong.
+
+Per-(image, slot) drop fraction (0 = always kept, 1 = always dropped):
+
+| dataset | setting | ambiguous (0.2–0.8) | always dropped |
+|---|---|---:|---:|
+| MS-COCO | baseline | **69.3 %** | 0.7 % |
+| Flickr25k | baseline | 24.7 % | 19.4 % |
+| CIFAR-10 | baseline | 16.5 % | 17.4 % |
+| NUS-WIDE | baseline | 13.3 % | 23.4 % |
+| NUS-WIDE | topp69 | **0.0 %** | 16.3 % |
+
+The exclusion is highly consistent within an image, so **"the mask selects on
+noise" is refuted**. The opposite holds: the most flexible mask (MS-COCO, 69.3 %
+ambiguous) is the healthiest and the most rigid (NUS topp69, 0.0 %) is the
+worst. Dropping TWO slots (baseline) includes a fluctuating rank-5, so every
+slot still gets some patches; dropping ONE (topp69) removes only the
+consistently-worst rank-6 slot and starves it completely. That is why topp69 is
+non-monotone on NUS — it is not "a milder mask", it is a different regime.
+
+Epsilon controls this causally: on the SAME NUS weights, p_max median goes
+0.2026 (eps 0.990) → 0.3041 (0.332) → 0.4602 (0.100).
+
+### ADOPTED — NUS-WIDE `--sinkhorn_epsilon_init 0.5` (3 seeds)
+
+| metric | baseline | `epsI05` | Δ |
+|---|---|---|---|
+| mAP@R | 0.8283 ± .0008 | 0.8246 ± .0033 | −0.0037 |
+| DNA-unique | 0.2116 ± .0079 | **0.2353 ± .0039** | **+0.0237** |
+| decode (codon) | 0.7368 ± .0026 | 0.7318 ± .0071 | −0.0050 |
+| slot0 codons | 61.7 ± 1.15 | 62.0 ± 0.00 | +0.33 |
+| empty-image rate | primary 33.20 % | **0.00 % on every slot** | — |
+
+Per-seed mAP@R: base .8274/.8286/.8289, eps .8209/.8254/.8274. Still beats the
+best NUS baseline (OH .8028) by +0.0218. `scripts/train_nuswide_v185_sweep_clip.sh`
+updated; the rationale and a "do not copy to Flickr" warning are in its header.
+
+### REJECTED — CIFAR-10 epsilon sharpening, and every other single-axis fix
+
+`cifar_epsI03` does remove the dead slots (51.76 %/45.12 % → 0.00 %) but is
+dominated:
+
+| cell | mAP Δ | DNA-uniq Δ | decode Δ | slot0 codons | E* | verdict |
+|---|---:|---:|---:|---:|---:|---|
+| baseline | — | — | — | 50 | 19 | ★ 2 dead slots |
+| `t69jd006` | **−0.0085** | −0.0277 | −0.0111 | 49 | 14 | best retrieval |
+| `topp69` | −0.0130 | −0.0337 | −0.0087 | 51 | 9 | trade-off |
+| `t69K128` | −0.0216 | **+0.0172** | −0.0270 | **61** | 14 | best DNA |
+| `noGateTopp69` | −0.0220 | −0.0254 | **−0.0060** | 55 | 19 | best decode |
+| `epsI03` | −0.0232 | +0.0193 | −0.0424 | **33** | **4** | DISCARDED |
+| `noTOPP` | −0.0262 | −0.0175 | −0.0436 | 53 | 14 | DISCARDED |
+
+`epsI03` collapses slot 0 from 50 to 33 codons — the same pathology as the
+discarded `otNOANN` (31) — and E* falls 19 → 4, i.e. training destabilises
+early. NUS was already at E*=4 so it has no such trajectory to lose; that is the
+whole difference between the two datasets' response to the same knob.
+`t69K128` dominates `epsI03` on every axis.
+
+Also settled this session:
+- **K=64 is the codon-vocabulary bottleneck on CIFAR, not the retrieval
+  bottleneck.** CIFAR baseline already uses 64/64 codewords in every slot (zero
+  headroom); NUS at K=128 keeps 128/128 with codons pinned at the 4³=64 ceiling
+  (ratio exactly 2.00), which is why the same manipulation costs it far less.
+  `t69K128` restores the codon vocabulary (local codon sum 223 → 250, above the
+  baseline's 244) and flips DNA-unique from −0.0337 to +0.0172, yet mAP gets
+  WORSE (−0.0130 → −0.0216) because codeword usage falls to 72–91 %.
+- **λ_codon_joint was mistuned for the wide nucleus, but only slightly.**
+  0.03 → 0.06 recovers a third of the mAP loss (−0.0130 → −0.0085); 0.10
+  overshoots (−0.0232). Non-monotone.
+- **`--no_routing_adaptive_topp`** and the whole loss inventory were audited:
+  of the 14 active loss terms NONE constrains slot occupancy. `lambda_bu` is
+  codeword balance WITHIN a slot (`loss_siglip2.py:2459`), `lambda_codon_joint`
+  is the codon distribution, `lambda_wasserstein` is a scalar OT cost.
+  `lambda_routing_text` (v172, `loss_siglip2.py:1130`) is the only term that
+  supervises the routing matrix directly and it is OFF (λ=0) — untested.
+
+### Adds
+
+- `scripts/diagnose_per_image_empty_slots.py`, `decode_split_by_slot_emptiness.py`,
+  `diagnose_global_gate_dominance.py`, `diagnose_prompt_slot_fit.py`,
+  `diagnose_nucleus_threshold_sim.py`.
+- `scripts/train_nuswide_v185_sweep_clip.sh`: eps_init 1.0 → 0.5 with rationale.
+
+### Follow-ups
+
+- Regenerate the NUS row of `docs/maintable_18base.tex`,
+  `docs/table_codon_decoding.tex` and the draft §4.5 panel from `epsI05`
+  (mAP .8283 → .8246, decode .7368 → .7318, DNA-uniq .2116 → .2353).
+- Test `lambda_routing_text` — the only unused lever that touches routing.
+- CIFAR: report the dead slots as a limitation with the axis-redundancy table
+  rather than paying −0.009…−0.026 mAP to hide them.
+- Draft: the six-slot claim should be defended with per-slot decoding restricted
+  to images the slot actually saw, not with routing mass.
+
+---
+
+## 2026-08-05 (PM) — 🔴 **top-p REVERSAL: the nucleus mask is a per-slot SPECIALISATION device, not a defect.** Reviving the dead slots equalises routing mass but degrades per-slot grounding on 2/2 datasets. Extraction-epsilon mismatch measured HARMLESS.
+
+> ⚠️ **The interpretability verdict below is SUPERSEDED by the 2026-08-06 entry.**
+> It reads slot health from BATCH-AVERAGED mass; measuring per image shows
+> `secondary_object` sees zero tokens on 51.76 % of CIFAR images, so the
+> "dead slots still ground their own axis" reading does not hold. The
+> routing-mass and 4-axis numbers here remain valid.
+
+Follow-up to the morning entry, which root-caused the dead slots to the adaptive
+top-p nucleus mask and queued three training cells to remove or widen it. The
+cells landed and **reversed the recommendation**.
+
+### Training cells
+
+| Tag | Modification | E* |
+|---|---|---:|
+| `cifar_topp69` | `--routing_adaptive_topp_min 0.6 --routing_adaptive_topp_max 0.95` | 9 |
+| `cifar_noTOPP` | `--no_routing_adaptive_topp` | 14 |
+| `nuswide_noTOPP` | `--no_routing_adaptive_topp` | 4 |
+
+### Both fixes DO revive the slots (CIFAR-10, train share at E*, uniform = 16.67 %)
+
+| slot | baseline | `topp69` | `noTOPP` |
+|---|---:|---:|---:|
+| `primary_object` | 28.01 | 17.67 | 17.96 |
+| `secondary_object` | **0.90** | **17.89** | **17.52** |
+| `activity_relation` | 27.67 | 18.08 | 17.47 |
+| `color_texture` | 28.05 | 18.22 | 17.20 |
+| `scene_type` | **1.12** | **16.97** | **17.60** |
+
+NUS-WIDE `noTOPP` likewise flattens to 17.72 – 18.15 % and lifts the shrunken
+`primary_object` from 5.36 % to 17.99 %. Neither cell shows the "slot 0 takes
+97 – 99.6 % of top-1" pathology that the `otLB05/otLB20` cells produced.
+
+### But every interpretability axis gets WORSE
+
+| Run | mAP@R | Δ | DNA-uniq | Δ | decode | Δ | slot0 codons | slots |
+|---|---:|---:|---:|---:|---:|---:|---:|---|
+| CIFAR baseline `uniB003` | **0.8970** | — | 0.1307 | — | **0.8989** | — | 50 | 2 dead |
+| CIFAR `topp69` | 0.8840 | −0.0130 | 0.0970 | −0.0337 | 0.8902 | −0.0087 | 51 | alive |
+| CIFAR `noTOPP` | 0.8708 | −0.0262 | 0.1132 | −0.0175 | 0.8553 | −0.0436 | 53 | alive |
+| CIFAR `otLB05` | 0.8710 | −0.0260 | 0.1771 | +0.0464 | 0.8649 | −0.0340 | 56 | alive |
+| CIFAR `otLB20` | 0.8647 | −0.0323 | **0.2154** | +0.0847 | 0.8614 | −0.0375 | 55 | alive |
+| NUS baseline `uni005` | **0.8274** | — | **0.2158** | — | **0.7347** | — | 63 | 1 shrunk |
+| NUS `noTOPP` | 0.8207 | −0.0066 | 0.1816 | −0.0342 | 0.7263 | −0.0084 | 62 | alive |
+| MS-COCO baseline `uni003` | **0.8287** | — | 0.1954 | — | **0.6413** | — | 64 | none |
+| MS-COCO `otLB20` | 0.8118 | −0.0169 | 0.2434 | +0.0480 | 0.6333 | −0.0080 | 64 | none |
+
+### The decisive measurement — per-slot held-out codon decoding
+
+`ours_codon.per_slot[m].concept_mAP` answers the question the aggregate number
+does not: **does slot m's codon ground in slot m's own language axis?**
+
+CIFAR-10:
+
+| slot | baseline mass / decode | `topp69` | `noTOPP` |
+|---|---:|---:|---:|
+| `primary_object` | 28.01 % / 0.9129 | 17.67 % / 0.9051 | 17.96 % / 0.9200 |
+| `secondary_object` | **0.90 % / 0.9027** | 17.89 % / 0.8985 | 17.52 % / **0.8067** |
+| `activity_relation` | 27.67 % / 0.8951 | 18.08 % / 0.9245 | 17.47 % / 0.8905 |
+| `color_texture` | 28.05 % / 0.9110 | 18.22 % / 0.8659 | 17.20 % / 0.8670 |
+| `scene_type` | **1.12 % / 0.8433** | 16.97 % / 0.8200 | 17.60 % / **0.7199** |
+| local spread | 0.0696 | 0.1045 | 0.2001 |
+
+NUS-WIDE `noTOPP` vs baseline: every local slot loses (−0.0072 … −0.0207),
+slot-mean 0.7347 → 0.7263. Its local spread NARROWS (0.0624 → 0.0521), so the
+"spread widens" effect is CIFAR-specific and must not be stated generally.
+
+### Key findings
+
+- **The dead slots were never uninterpretable.** At 0.90 % routing mass,
+  CIFAR `secondary_object` decodes its own axis at 0.9027 concept mAP — among
+  the best local slots. Reviving it to 17.52 % DROPS it to 0.8067 (−0.096);
+  `scene_type` drops 0.8433 → 0.7199 (−0.123).
+- **Mechanism: the nucleus mask enforces specialisation.** Restricting each
+  patch to 1–3 slots means each slot pools from a small confident patch set.
+  Widening the nucleus lets every slot pool from nearly all patches, the six
+  pooled features converge toward the same global average, and the codons
+  become near-copies of each other — which also explains the DNA-unique drop
+  (`topp69` −0.0337, NUS `noTOPP` −0.0342). A dead slot is the extreme end of a
+  specialisation spectrum, not a failure.
+- **Retracted from the morning entry:** the framing of dead slots as a defect
+  that undermines the six-slot claim is wrong. The per-slot decoding numbers
+  are evidence FOR the claim, not against it.
+- **Also retracted:** "CIFAR effectively uses 4 of 6 slots / 6 of 18 bases are
+  near-constant" was overstated. Measured per-slot codon diversity on the
+  CIFAR champion: `secondary_object` (0.90 % mass) uses **53 of 64** codons at
+  entropy 4.406 bits and `scene_type` (1.12 %) uses **46** at 4.285, versus
+  45–53 codons / 4.73–5.00 bits for the live slots. Dead routing costs ~0.5 bit
+  of entropy, not code capacity. `pooled = Σ_n P[n,m]·x_n / denom` is
+  denominator-normalised, so a small mass still yields a well-defined,
+  image-varying direction. Artefact:
+  `docs/newmodel_analysis/slot_codon_diversity_vs_routing.json`.
+- **`tau_b` path REJECTED.** The MS-COCO control has no dead slots at all and
+  still pays mAP −0.0169 for `lambda_b 1→20`, so the retrieval cost is
+  unconditional, not the price of reviving a slot. DNA-unique rises
+  consistently (+0.048 MS-COCO, +0.085 CIFAR) but decode falls everywhere.
+- **Slot-intervention paradox (CIFAR, `slot_intervention_cifar_v2_auditfix_20260804.json`).**
+  The two dead slots have the LARGEST intervention gains (`secondary_object`
+  +0.0097, `scene_type` +0.0072, both CIs excluding 0) while the 29 %-mass
+  `activity_relation` is the only slot whose CI crosses zero (+0.0028,
+  CI[−0.0011, +0.0073]). Routing mass does not predict causal usefulness.
+- **Open limitation, not resolvable by these probes.** Whether a 0.90 %-mass
+  slot's codon is genuinely grounded in that slot's region, or is exploiting a
+  whole-image correlation, cannot be distinguished by the decoding probe. The
+  paper claim to defend is "slot m's codon is grounded in slot m's region", not
+  "slot m is alive". The empty heatmap columns still need an explanation in the
+  text; they are not a bug to fix.
+
+### Extraction operating-point mismatch — measured, HARMLESS, no re-runs needed
+
+`extraction_siglip2.extract_code` rebuilds the model before `load_state_dict`,
+so `_current_epoch` is 0 and every extraction runs at `eps = eps_init = 1.0`
+while training annealed eps downward. `scripts/diagnose_extraction_epoch.py`
+re-extracts the same checkpoint at epoch 0 and at the training E*:
+
+| run | eps 0 → E* | tau_b 0 → E* | mAP@R Δ | DB codes changed |
+|---|---|---|---:|---:|
+| CIFAR s42 (E*=19) | 1.000 → 0.789 | 0.500 → 0.559 | 0.8986 → 0.8992 (**+0.0006**) | 10.78 % |
+| MS-COCO s42 (E*=39) | 1.000 → 0.332 | 0.500 → 0.751 | 0.8317 → 0.8335 (**+0.0018**) | 22.03 % |
+
+Even at the largest gap — MS-COCO's training operating point puts 78.2 % of
+top-1 on slot 0 against 0.0 % at extraction — 22 % of DB codes change and mAP
+moves +0.0018. Downstream renormalisation of the per-slot pooled features
+absorbs the routing-regime change. **All reported numbers stand; no re-runs.**
+`extract_code` still ought to call `set_current_epoch(E*)` for correctness, but
+it is not paper-blocking.
+
+### Verdict
+
+**Keep adaptive top-p at its current 0.3 – 0.7 setting.** No variant improves a
+single reported metric. If a reviewer demands visible six-slot occupancy,
+`topp69` is the only defensible trade (mAP −0.0130, decode −0.0087, slots
+equalised); `noTOPP` is dominated on every axis and is DISCARDED, as is the
+whole `tau_b` family.
+
+### Follow-ups
+
+- Draft: explain the empty heatmap columns as specialisation, and report the
+  per-slot decoding table as the six-slot evidence instead of routing mass.
+- Build a probe that separates region-grounded codons from whole-image
+  correlation, since neither decoding nor intervention can do it.
+- Optional: `extract_code` → `set_current_epoch(E*)` (correctness only).
+
+Artefacts: `docs/sweep_rows/cifar10_{noTOPP,topp69}.json`,
+`docs/sweep_rows/nuswide_noTOPP.json`,
+`docs/heldout_decoding_{cifar10,nuswide}_*.json`,
+`docs/newmodel_analysis/otcells/`,
+`docs/newmodel_analysis/extraction_epoch_{cifar,mscoco}_s42.json`,
+`docs/newmodel_analysis/slot_codon_diversity_vs_routing.json`,
+`docs/newmodel_analysis/slot_intervention_cifar_v2_auditfix_20260804.json`.
+
+---
+
 ## 2026-08-05 — 🔬 Dead semantic slots ROOT-CAUSED to the **adaptive top-p nucleus mask**, not to the OT entropic schedule; the Sinkhorn plan itself has no dead slots
 
 Triggered by a user observation on the regenerated `viz_routing_heatmap.png`:

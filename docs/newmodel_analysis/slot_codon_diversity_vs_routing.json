@@ -1,0 +1,154 @@
+{
+  "Flickr25k": {
+    "global": {
+      "routing_share_pct": 10.424,
+      "n_codons": 43,
+      "entropy_bits": 4.7225,
+      "top1_codon_pct": 19.683
+    },
+    "primary_object": {
+      "routing_share_pct": 20.564,
+      "n_codons": 61,
+      "entropy_bits": 5.3331,
+      "top1_codon_pct": 8.178
+    },
+    "secondary_object": {
+      "routing_share_pct": 20.165,
+      "n_codons": 54,
+      "entropy_bits": 5.1655,
+      "top1_codon_pct": 8.139
+    },
+    "activity_relation": {
+      "routing_share_pct": 11.556,
+      "n_codons": 59,
+      "entropy_bits": 5.3076,
+      "top1_codon_pct": 6.543
+    },
+    "color_texture": {
+      "routing_share_pct": 16.72,
+      "n_codons": 55,
+      "entropy_bits": 5.0629,
+      "top1_codon_pct": 7.478
+    },
+    "scene_type": {
+      "routing_share_pct": 20.571,
+      "n_codons": 55,
+      "entropy_bits": 5.1945,
+      "top1_codon_pct": 7.357
+    }
+  },
+  "MSCOCO": {
+    "global": {
+      "routing_share_pct": 32.458,
+      "n_codons": 64,
+      "entropy_bits": 5.9435,
+      "top1_codon_pct": 2.768
+    },
+    "primary_object": {
+      "routing_share_pct": 13.909,
+      "n_codons": 64,
+      "entropy_bits": 5.7541,
+      "top1_codon_pct": 4.343
+    },
+    "secondary_object": {
+      "routing_share_pct": 13.289,
+      "n_codons": 64,
+      "entropy_bits": 5.8444,
+      "top1_codon_pct": 4.337
+    },
+    "activity_relation": {
+      "routing_share_pct": 13.213,
+      "n_codons": 64,
+      "entropy_bits": 5.7793,
+      "top1_codon_pct": 3.658
+    },
+    "color_texture": {
+      "routing_share_pct": 12.67,
+      "n_codons": 64,
+      "entropy_bits": 5.8013,
+      "top1_codon_pct": 4.38
+    },
+    "scene_type": {
+      "routing_share_pct": 14.461,
+      "n_codons": 63,
+      "entropy_bits": 5.6127,
+      "top1_codon_pct": 5.736
+    }
+  },
+  "NUSWIDE": {
+    "global": {
+      "routing_share_pct": 10.393,
+      "n_codons": 63,
+      "entropy_bits": 5.5796,
+      "top1_codon_pct": 6.546
+    },
+    "primary_object": {
+      "routing_share_pct": 5.364,
+      "n_codons": 63,
+      "entropy_bits": 5.2008,
+      "top1_codon_pct": 9.251
+    },
+    "secondary_object": {
+      "routing_share_pct": 21.317,
+      "n_codons": 64,
+      "entropy_bits": 5.2825,
+      "top1_codon_pct": 12.363
+    },
+    "activity_relation": {
+      "routing_share_pct": 24.39,
+      "n_codons": 64,
+      "entropy_bits": 5.1393,
+      "top1_codon_pct": 15.144
+    },
+    "color_texture": {
+      "routing_share_pct": 19.673,
+      "n_codons": 64,
+      "entropy_bits": 5.2138,
+      "top1_codon_pct": 15.248
+    },
+    "scene_type": {
+      "routing_share_pct": 18.863,
+      "n_codons": 64,
+      "entropy_bits": 5.1328,
+      "top1_codon_pct": 13.482
+    }
+  },
+  "CIFAR10": {
+    "global": {
+      "routing_share_pct": 14.248,
+      "n_codons": 50,
+      "entropy_bits": 5.5112,
+      "top1_codon_pct": 4.712
+    },
+    "primary_object": {
+      "routing_share_pct": 28.011,
+      "n_codons": 53,
+      "entropy_bits": 5.0026,
+      "top1_codon_pct": 8.761
+    },
+    "secondary_object": {
+      "routing_share_pct": 0.9,
+      "n_codons": 53,
+      "entropy_bits": 4.4061,
+      "top1_codon_pct": 11.383
+    },
+    "activity_relation": {
+      "routing_share_pct": 27.669,
+      "n_codons": 47,
+      "entropy_bits": 4.8345,
+      "top1_codon_pct": 8.659
+    },
+    "color_texture": {
+      "routing_share_pct": 28.047,
+      "n_codons": 45,
+      "entropy_bits": 4.7308,
+      "top1_codon_pct": 8.524
+    },
+    "scene_type": {
+      "routing_share_pct": 1.124,
+      "n_codons": 46,
+      "entropy_bits": 4.2854,
+      "top1_codon_pct": 10.18
+    }
+  }
+}

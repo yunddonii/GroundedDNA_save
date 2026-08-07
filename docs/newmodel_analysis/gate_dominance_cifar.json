@@ -1,0 +1,55 @@
+{
+  "dataset": "CIFAR10",
+  "dir": "result/260803+cifar10_setting1_promptAblA_cifar_A_v4_uniB003_P0refit_e19+bs+64+e+60+proj_lr+0.001",
+  "images": 384,
+  "global_gate": [
+    0.9961018562316895,
+    0.9977548718452454,
+    0.9950764775276184,
+    0.99482262134552,
+    0.9974357485771179
+  ],
+  "global_gate_disabled": false,
+  "slots": {
+    "primary_object": {
+      "flip_pct_if_global_swapped": 21.615,
+      "flip_pct_if_local_swapped": 95.833,
+      "norm_gated_global": 6.1578,
+      "norm_local": 44.7607,
+      "n_codons": 44,
+      "n_codons_global_fixed": 36
+    },
+    "secondary_object": {
+      "flip_pct_if_global_swapped": 72.135,
+      "flip_pct_if_local_swapped": 59.896,
+      "norm_gated_global": 6.168,
+      "norm_local": 11.0443,
+      "n_codons": 36,
+      "n_codons_global_fixed": 37
+    },
+    "activity_relation": {
+      "flip_pct_if_global_swapped": 12.24,
+      "flip_pct_if_local_swapped": 95.052,
+      "norm_gated_global": 6.1514,
+      "norm_local": 44.5359,
+      "n_codons": 38,
+      "n_codons_global_fixed": 34
+    },
+    "color_texture": {
+      "flip_pct_if_global_swapped": 11.458,
+      "flip_pct_if_local_swapped": 92.969,
+      "norm_gated_global": 6.1499,
+      "norm_local": 44.5679,
+      "n_codons": 35,
+      "n_codons_global_fixed": 35
+    },
+    "scene_type": {
+      "flip_pct_if_global_swapped": 67.969,
+      "flip_pct_if_local_swapped": 64.323,
+      "norm_gated_global": 6.166,
+      "norm_local": 14.0575,
+      "n_codons": 32,
+      "n_codons_global_fixed": 35
+    }
+  }
+}

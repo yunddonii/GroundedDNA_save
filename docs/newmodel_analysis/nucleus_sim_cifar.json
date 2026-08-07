@@ -1,0 +1,63 @@
+{
+  "dataset": "CIFAR10",
+  "dir": "result/260803+cifar10_setting1_promptAblA_cifar_A_v4_uniB003_P0refit_e19+bs+64+e+60+proj_lr+0.001",
+  "epoch": 19,
+  "n_patches": 50176,
+  "M": 6,
+  "pmax": {
+    "p10": 0.19739018380641937,
+    "median": 0.2065316140651703,
+    "p90": 0.21503996849060059
+  },
+  "settings": {
+    "baseline": {
+      "mean_k": 3.9238,
+      "std_k": 0.2727,
+      "cv_k": 0.0695,
+      "pct_k1": 0.066,
+      "pct_kM": 0.0,
+      "hist_pct": [
+        0.066,
+        0.0,
+        7.426,
+        92.508,
+        0.0,
+        0.0
+      ],
+      "drop_frac_mean_abs_dev": 0.4193,
+      "drop_frac_ambiguous_pct": 16.536
+    },
+    "topp69": {
+      "mean_k": 5.714,
+      "std_k": 0.4662,
+      "cv_k": 0.0816,
+      "pct_k1": 0.066,
+      "pct_kM": 71.662,
+      "hist_pct": [
+        0.066,
+        0.0,
+        0.0,
+        0.0,
+        28.272,
+        71.662
+      ],
+      "drop_frac_mean_abs_dev": 0.4578,
+      "drop_frac_ambiguous_pct": 8.333
+    },
+    "noTOPP": {
+      "mean_k": 6.0,
+      "std_k": 0.0,
+      "cv_k": 0.0,
+      "pct_k1": 0.0,
+      "pct_kM": 100.0,
+      "hist_pct": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        100.0
+      ]
+    }
+  }
+}

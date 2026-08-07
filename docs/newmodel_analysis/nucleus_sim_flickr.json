@@ -1,0 +1,63 @@
+{
+  "dataset": "Flickr25k",
+  "dir": "result/260803+flickr25k_setting1_promptAblA_flickr_A_v4_uni002_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+  "epoch": 4,
+  "n_patches": 50176,
+  "M": 6,
+  "pmax": {
+    "p10": 0.19022440910339355,
+    "median": 0.20106452703475952,
+    "p90": 0.22478100657463074
+  },
+  "settings": {
+    "baseline": {
+      "mean_k": 3.9044,
+      "std_k": 0.2988,
+      "cv_k": 0.0765,
+      "pct_k1": 0.046,
+      "pct_kM": 0.0,
+      "hist_pct": [
+        0.046,
+        0.004,
+        9.413,
+        90.537,
+        0.0,
+        0.0
+      ],
+      "drop_frac_mean_abs_dev": 0.3878,
+      "drop_frac_ambiguous_pct": 24.674
+    },
+    "topp69": {
+      "mean_k": 5.0046,
+      "std_k": 0.1184,
+      "cv_k": 0.0237,
+      "pct_k1": 0.046,
+      "pct_kM": 0.66,
+      "hist_pct": [
+        0.046,
+        0.0,
+        0.0,
+        0.012,
+        99.283,
+        0.66
+      ],
+      "drop_frac_mean_abs_dev": 0.4943,
+      "drop_frac_ambiguous_pct": 0.521
+    },
+    "noTOPP": {
+      "mean_k": 6.0,
+      "std_k": 0.0,
+      "cv_k": 0.0,
+      "pct_k1": 0.0,
+      "pct_kM": 100.0,
+      "hist_pct": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        100.0
+      ]
+    }
+  }
+}
