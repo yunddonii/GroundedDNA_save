@@ -1,0 +1,127 @@
+{
+  "dataset": "MSCOCO",
+  "dir": "result/260803+mscoco_setting1_promptAblA_mscoco_A_v5b_uni003_P0refit_e39+bs+64+e+60+proj_lr+0.001",
+  "split": "train",
+  "epoch": 39,
+  "images": 256,
+  "discrimination_acc": [
+    0.0039,
+    0.6289,
+    0.293,
+    0.3711,
+    0.3242,
+    0.6406
+  ],
+  "confusion_row_normalised": [
+    [
+      0.0039,
+      0.1875,
+      0.207,
+      0.2852,
+      0.2539,
+      0.0625
+    ],
+    [
+      0.0,
+      0.6289,
+      0.0742,
+      0.1133,
+      0.0547,
+      0.1289
+    ],
+    [
+      0.0,
+      0.2227,
+      0.293,
+      0.1445,
+      0.1094,
+      0.2305
+    ],
+    [
+      0.0,
+      0.3164,
+      0.082,
+      0.3711,
+      0.0625,
+      0.168
+    ],
+    [
+      0.0,
+      0.25,
+      0.0859,
+      0.0703,
+      0.3242,
+      0.2695
+    ],
+    [
+      0.0,
+      0.1445,
+      0.0781,
+      0.0977,
+      0.0391,
+      0.6406
+    ]
+  ],
+  "swap": {
+    "primary_object": {
+      "random": {
+        "own": 0.64378,
+        "others": 0.08277,
+        "specificity": 0.561
+      },
+      "sibling": {
+        "own": 0.48761,
+        "others": 0.07538,
+        "specificity": 0.41223
+      }
+    },
+    "secondary_object": {
+      "random": {
+        "own": 0.54305,
+        "others": 0.06533,
+        "specificity": 0.47772
+      },
+      "sibling": {
+        "own": 0.3876,
+        "others": 0.0576,
+        "specificity": 0.33
+      }
+    },
+    "activity_relation": {
+      "random": {
+        "own": 0.57895,
+        "others": 0.07082,
+        "specificity": 0.50813
+      },
+      "sibling": {
+        "own": 0.52832,
+        "others": 0.06957,
+        "specificity": 0.45875
+      }
+    },
+    "color_texture": {
+      "random": {
+        "own": 0.54535,
+        "others": 0.065,
+        "specificity": 0.48034
+      },
+      "sibling": {
+        "own": 0.43336,
+        "others": 0.06048,
+        "specificity": 0.37288
+      }
+    },
+    "scene_type": {
+      "random": {
+        "own": 0.53594,
+        "others": 0.076,
+        "specificity": 0.45994
+      },
+      "sibling": {
+        "own": 0.51604,
+        "others": 0.07417,
+        "specificity": 0.44187
+      }
+    }
+  }
+}

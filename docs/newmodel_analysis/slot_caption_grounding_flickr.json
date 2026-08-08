@@ -1,0 +1,127 @@
+{
+  "dataset": "Flickr25k",
+  "dir": "result/260803+flickr25k_setting1_promptAblA_flickr_A_v4_uni002_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+  "split": "train",
+  "epoch": 4,
+  "images": 256,
+  "discrimination_acc": [
+    0.0156,
+    0.4844,
+    0.293,
+    0.1562,
+    0.1484,
+    0.4727
+  ],
+  "confusion_row_normalised": [
+    [
+      0.0156,
+      0.1758,
+      0.2031,
+      0.2734,
+      0.2344,
+      0.0977
+    ],
+    [
+      0.0,
+      0.4844,
+      0.1758,
+      0.0898,
+      0.0547,
+      0.1953
+    ],
+    [
+      0.0078,
+      0.2422,
+      0.293,
+      0.0664,
+      0.0469,
+      0.3438
+    ],
+    [
+      0.1406,
+      0.3555,
+      0.1641,
+      0.1562,
+      0.0508,
+      0.1328
+    ],
+    [
+      0.0078,
+      0.2969,
+      0.1953,
+      0.0625,
+      0.1484,
+      0.2891
+    ],
+    [
+      0.0078,
+      0.1875,
+      0.2148,
+      0.0469,
+      0.0703,
+      0.4727
+    ]
+  ],
+  "swap": {
+    "primary_object": {
+      "random": {
+        "own": 0.76696,
+        "others": 0.15454,
+        "specificity": 0.61242
+      },
+      "sibling": {
+        "own": 0.49336,
+        "others": 0.15179,
+        "specificity": 0.34157
+      }
+    },
+    "secondary_object": {
+      "random": {
+        "own": 0.75833,
+        "others": 0.16185,
+        "specificity": 0.59648
+      },
+      "sibling": {
+        "own": 0.33201,
+        "others": 0.13747,
+        "specificity": 0.19453
+      }
+    },
+    "activity_relation": {
+      "random": {
+        "own": 0.77076,
+        "others": 0.0657,
+        "specificity": 0.70506
+      },
+      "sibling": {
+        "own": 0.67765,
+        "others": 0.0604,
+        "specificity": 0.61725
+      }
+    },
+    "color_texture": {
+      "random": {
+        "own": 0.76654,
+        "others": 0.13399,
+        "specificity": 0.63255
+      },
+      "sibling": {
+        "own": 0.54294,
+        "others": 0.12658,
+        "specificity": 0.41636
+      }
+    },
+    "scene_type": {
+      "random": {
+        "own": 0.74985,
+        "others": 0.15326,
+        "specificity": 0.5966
+      },
+      "sibling": {
+        "own": 0.5897,
+        "others": 0.15019,
+        "specificity": 0.43951
+      }
+    }
+  }
+}

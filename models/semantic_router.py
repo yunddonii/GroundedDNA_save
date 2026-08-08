@@ -385,6 +385,13 @@ class SemanticSinkhornRouter(nn.Module):
                 row_sum = P_masked.sum(dim=-1, keepdim=True).clamp_min(1e-12)
                 P = P_masked / row_sum * target_row_sum
 
+        # Snapshot the plan BEFORE any sparsification. The slot-diversity loss
+        # (ConceptHash's L_csd, Eq. 8) has to see it: once a slot is masked out
+        # its column is exactly zero, so a cosine between slot columns would
+        # read a starved slot as perfectly "diverse" and give it no gradient —
+        # the opposite of what the term is for.
+        P_premask = P
+
         # ---- 4e) optional confidence-adaptive top-p mask per patch --------
         # Patch-specific threshold is driven either by max-probability
         # confidence or normalized entropy over the local parts. Confident /
@@ -517,6 +524,7 @@ class SemanticSinkhornRouter(nn.Module):
 
         return {
             "routing_matrix":         P,            # [B, N, M]
+            "routing_matrix_premask": P_premask,    # [B, N, M] before 4e/4f
             "semantic_visual_tokens": semantic_v,   # [B, M, D]
             "ot_cost":                ot_cost,      # [B]   per-sample W_e value
             "visual_specificity_mean": visual_specificity_mean,

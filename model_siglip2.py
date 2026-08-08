@@ -4529,6 +4529,15 @@ class SigLIP2SemanticOTModel(nn.Module):
         else:
             r_out = self.router(**router_kwargs)
         full_routing_matrix = r_out["routing_matrix"]              # [B, N, 5/6 (+ null)]
+        # Pre-sparsification plan for the slot-diversity loss; only the
+        # sinkhorn router publishes it, so keep this None-safe.
+        _premask = r_out.get("routing_matrix_premask", None)
+        routing_matrix_premask = (
+            _premask[..., :-1]
+            if (_premask is not None and self.use_null_centroid
+                and self.null_centroid is not None)
+            else _premask
+        )
         if self.use_null_centroid and self.null_centroid is not None:
             routed_matrix = full_routing_matrix[..., :-1]           # [B, N, 5/6]
         else:
@@ -5201,6 +5210,7 @@ class SigLIP2SemanticOTModel(nn.Module):
         out.update({
             "local_routing_matrix":         local_routing_matrix,
             "routing_matrix":               routing_matrix,
+            "routing_matrix_premask":       routing_matrix_premask,
             "routing_mean_effective_k":      routing_mean_effective_k.detach(),
             "routing_fraction_top1":         routing_fraction_top1.detach(),
             "routing_visual_specificity_mean": r_out.get(

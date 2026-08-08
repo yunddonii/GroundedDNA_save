@@ -79,7 +79,10 @@ class Config():
         train_arg.add_argument('--beta', dest='beta', nargs='?', type=float, default=0.3)
         # train_arg.add_argument('--max_lr', dest='max_lr', nargs='?', type=float, default=0.001, help='maximum learning rate in cosine lr scheduler')  # legacy pl_train.py cosine scheduler only
         train_arg.add_argument('--scheduler', dest='scheduler', nargs='?', type=str, choices=['step', 'lambda', 'exponential', 'cosine', 'reduce'], default='reduce', help='scheduler (default: %(default)s)')
-        train_arg.add_argument('--weight_decay', dest='weight_decay', nargs='?', type=int, default=6e-2)
+        # type was `int` while the default is 6e-2, so the default worked but any
+        # CLI value had to be an integer: `--weight_decay 0.01` died with
+        # "invalid int value". Default unchanged, so every past run is unaffected.
+        train_arg.add_argument('--weight_decay', dest='weight_decay', nargs='?', type=float, default=6e-2)
         train_arg.add_argument('--num_workers', dest='num_workers', nargs='?', type=int, default=16)
         train_arg.add_argument(
             '--random_seed',
@@ -426,6 +429,29 @@ class Config():
         # `--routing_adaptive_topp` is hardcoded in the per-dataset recipe
         # scripts and store_true cannot be undone by a later flag, so an
         # explicit kill switch is needed to ablate the nucleus mask.
+        # ConceptHash (CVPRW'24) Eq. 8, `L_csd`, ported to the routing matrix.
+        # None of the 14 currently-active loss terms constrains how the slots
+        # divide the image: `lambda_bu` balances codewords WITHIN a slot,
+        # `lambda_codon_joint` shapes the codon distribution, and
+        # `lambda_wasserstein` is a scalar OT cost. Measured text-anchor axis
+        # redundancy tracks slot health exactly (MS-COCO .5742 -> CIFAR .6693),
+        # so the missing term is the one that pushes slots apart.
+        siglip2_arg.add_argument('--lambda_slot_diversity',
+            dest='lambda_slot_diversity', type=float, default=0.0,
+            help='Weight for the slot spatial-diversity loss: mean cosine '
+                 'similarity between the per-patch routing distributions of '
+                 'different slots, averaged over ordered pairs i != j. Computed '
+                 'on the PRE-top-p plan, because a masked-out slot has an '
+                 'exactly-zero column and would otherwise read as perfectly '
+                 'diverse. 0.0 disables (bit-exact with every earlier run).')
+        siglip2_arg.add_argument('--slot_diversity_skip_global',
+            dest='slot_diversity_skip_global', action='store_true', default=True,
+            help='Exclude slot 0 from the diversity loss. Default True because '
+                 '--c_global_source siglip2_global bypasses the router, so its '
+                 'routing column is not a spatial attention map.')
+        siglip2_arg.add_argument('--no_slot_diversity_skip_global',
+            dest='slot_diversity_skip_global', action='store_false',
+            help='Include slot 0 in the slot diversity loss.')
         siglip2_arg.add_argument('--no_routing_adaptive_topp',
             dest='no_routing_adaptive_topp', action='store_true', default=False,
             help='Force the per-patch adaptive top-p nucleus mask OFF even if '

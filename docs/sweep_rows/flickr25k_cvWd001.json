@@ -1,0 +1,49 @@
+{
+  "tag": "cvWd001",
+  "dir": "result/260808+flickr25k_setting1_promptAblA_flickr_A_v4_cvWd001_P0refit_e3+bs+64+e+60+proj_lr+0.001",
+  "dataset": "Flickr25k",
+  "K": 128,
+  "mAP_at_R_bioproj": 0.8662897455476759,
+  "full_mAP_bioproj": 0.751247878001159,
+  "full_mAP_pre_projection": 0.7624424992687234,
+  "DNA_unique_DB": 0.4161739130434783,
+  "lambda_codon_joint": "0.02",
+  "codon_joint_slots": "-",
+  "codon_input_source": "quantized",
+  "use_gumbel_softmax": "False",
+  "codon_chunk_interleave": "False",
+  "codon_map_enumerable": true,
+  "slot_codons": [
+    36,
+    44,
+    46,
+    44,
+    46,
+    42
+  ],
+  "slot_gaps": [
+    -13.81,
+    -3.03,
+    -4.45,
+    -6.68,
+    -5.24,
+    -11.34
+  ],
+  "slot_multi_information": [
+    1.1049,
+    0.4811,
+    0.567,
+    0.6127,
+    0.663,
+    0.8568
+  ],
+  "slot0_codons": 36,
+  "slot0_gap": -13.81,
+  "slot0_MI": 1.1049,
+  "decode_ours_codon": 0.7711604134715629,
+  "decode_ours_codeword": 0.8120801848686834,
+  "decode_best_control": "OH_chunk",
+  "decode_best_control_mAP": 0.7260965644213403,
+  "decode_margin": 0.0451,
+  "decode_majority": 0.47298387088659133
+}

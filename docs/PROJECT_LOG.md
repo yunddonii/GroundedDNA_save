@@ -487,6 +487,244 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-08-08 — 🔬 Flickr25k does not converge because the objective is MISALIGNED, not overfitted (val_loss falls while eval_mAP falls). E* selected on retrieval alone costs the headline contribution. ConceptHash `L_csd` ported; `--proj_lr 3e-4` improves three val axes at once
+
+Follow-up to the NUS-WIDE epsilon adoption. Re-running the NUS ablations under
+the adopted recipe exposed a prior question — why every dataset stops at the
+FIRST mid-eval point — and answering it turned into the main finding.
+
+### NUS-WIDE ablations re-run under `--sinkhorn_epsilon_init 0.5`
+
+The old rows were trained at eps_init 1.0 and were no longer paired with the
+.8246 headline. All three re-run (seed 42), and `sweep_joint_cell.sh` inherits
+the new default automatically:
+
+| cell | mAP@R | DNA-uniq | decode | slot0 codons |
+|---|---:|---:|---:|---:|
+| `epsI05` (new reference) | .8209 | .2393 | .7240 | 62 |
+| `abA2_eps05` no text | .8001 (−.0209) | .2253 | .6951 (−.0288) | 63 |
+| `abA4_eps05` shared cb | .8184 (−.0025) | .0618 | .7176 (−.0064) | 64 |
+| `bioON_eps05` + L_bio | **.8260 (+.0050)** | **.2401** | **.7316 (+.0076)** | 49 |
+
+Two changes of sign against the old recipe worth noting: `+L_bio` now IMPROVES
+both retrieval and decoding (it was .8288/.7339 against a .8274/.7347 reference,
+i.e. a wash), and `abA4`'s DNA-unique collapses to .0618 from .1906 — a shared
+codebook is far more damaging once the router is sharpened.
+
+### Why training stops at the first eval point: MISALIGNMENT, not overfitting
+
+`--eval_every 5` means mid-eval only fires at epochs 4, 9, 14, ... Every E* ever
+observed (4, 9, 14, 19, 24, 29, 39) is ≡ 4 mod 5, and NUS/Flickr always take the
+FIRST one. Re-running with `--eval_every 1` measured epochs 0-3 for the first
+time.
+
+| dataset | train_loss | val_loss | eval_mAP |
+|---|---|---|---|
+| Flickr25k | 4.242 → 2.788 | 1.375 → **0.585** | .7761 → **.7275** |
+| NUS-WIDE | 5.485 → 4.052 | 1.383 → **0.621** | .6793 → **.6611** |
+| MS-COCO | 5.735 → 4.023 | 0.891 → 0.817 | .5861 → **.6066** |
+
+**val_loss improves monotonically while retrieval degrades**, so this is not
+overfitting and no amount of regularisation or early stopping addresses it: the
+composite objective generalises perfectly well and simply stops agreeing with
+retrieval past ~3 epochs.
+
+The fine-grained curve also shows the protocol was losing a free .0108: the true
+Flickr val peak is **e3 (.7805)**, not the e4 (.7697) the 5-epoch grid picks.
+
+### Retrieval and interpretability peak in DIFFERENT places
+
+Per-epoch val metrics on Flickr (all already logged, never used for selection):
+
+| metric | peak epoch | value at e3 | value at peak |
+|---|---:|---:|---:|
+| eval_mAP | **3** | .7805 | .7805 |
+| unique code ratio | **6** | .5904 | .6529 |
+| base normalised entropy | **37** | .9588 | .9952 |
+| per-codebook unique ratio | **47** | .01115 | .01419 |
+
+E* is chosen on `eval_mAP_at_R` alone (train_siglip2.py:1185), so **the protocol
+buys retrieval with the paper's headline contribution.**
+
+### E* sweep on the reported metrics (`scripts/*_fixedE.sh`, stage-1 skipped)
+
+| E* | mAP@R | DNA-uniq | decode | slot0 codons | slot0 gap |
+|---:|---:|---:|---:|---:|---:|
+| 4 (current) | **.8673** | .4703 | .7675 | 43 | −9.28 |
+| 3 | .8663 | .4162 | .7712 | 36 | −13.81 |
+| 6 | .8611 | **.4920** | .7681 | 52 | −2.47 |
+| 15 | .8435 | .4795 | **.7740** | 62 | **+6.99** |
+| 40 | .8264 | .4446 | .7675 | 63 | +7.78 |
+
+Interpretability keeps improving to E*=15 and only then turns over; retrieval
+falls monotonically. **The val peak e3 is the WORST cell on test** (DNA-unique
+−.0542, slot0 codons 36, gap −13.81), so the "free .0108" above is a val-only
+gain and does not transfer — retracted.
+
+### ConceptHash comparison and the `L_csd` port
+
+ConceptHash (arXiv 2406.08457) reports no such trade-off. Four structural
+reasons, checked against the paper: it applies **no sparsification** to concept
+attention; it has an explicit **concept spatial diversity** loss `L_csd` (Eq. 8,
+minimising cosine between concept attention maps) which raises mAP as well
+(CUB 16-bit 81.12 → 81.63); it trains a **fixed 100 epochs** with cosine decay
+and 10-epoch warm-up rather than early-stopping on val; and its `L_clf` class
+supervision keeps both axes aligned. It also peaks at **M = 3-4 concepts** and
+warns that more concepts scatter the attention maps — we use 6.
+
+Ported as `--lambda_slot_diversity` on the routing matrix. The router now also
+publishes `routing_matrix_premask`: after masking a starved slot's column is
+exactly zero, whose cosine to everything is zero, so on the post-mask plan the
+very slots the term exists to fix would look maximally diverse and get no
+gradient.
+
+**Measured before training anything: the pre-mask cosine between the five local
+slots is 0.987.** The Sinkhorn plan barely distinguishes the slots at all — the
+top-p mask is doing essentially all of the slot differentiation (post-mask 0.45).
+
+| cell | mAP@R | DNA-uniq | decode | slot0 codons |
+|---|---:|---:|---:|---:|
+| `uni002` reference | .8673 | .4703 | .7675 | 43 |
+| **`csd005`** (λ=.05) | **.8688 (+.0016)** | **.4785 (+.0082)** | **.7739 (+.0064)** | **46** |
+| `csd001` (λ=.01) | .8627 | .4817 | .7630 | 47 |
+| `csd001noTOPP` | .8454 | .3521 (**−.1183**) | .7520 | 48 |
+| `csd005noTOPP` | .8536 | .3693 | .7626 | 47 |
+
+`csd005` is the **first cell out of ~22 to improve all four axes**, and it
+reaches `fxE15`'s decoding (.7739 vs .7740) without paying its −.0237 mAP.
+
+Two caveats that must not be glossed over:
+- **The mechanism did NOT fire.** Pre-mask cosine went 0.9870 → 0.9862, i.e.
+  −0.0008. The gain is an incidental regularisation effect, NOT slot separation,
+  and the paper's mechanism claim cannot be reused as written.
+- **+.0016 mAP is inside the 3-seed noise (±.0017).** Single seed.
+- Removing the mask still fails even WITH the diversity term, so the earlier
+  reading that "`noTOPP` failed only for lack of a separation loss" is refuted.
+
+### Slot-caption grounding: two new probes
+
+`scripts/diagnose_slot_caption_grounding.py`. None of the three reported metrics
+says whether slot m looks at what caption m describes — codon decoding measures
+code-vs-label, routing mass measures how much, intervention measures causal
+effect on retrieval.
+
+**(1) Sibling-caption discrimination** (chance 1/6 = .167): pool patches with
+slot m's routing column, ask whether the result matches caption m better than
+the five other captions of the SAME image. Partially circular (`xmodal_commit`,
+`text_code_kl`, `text_hash_ntxent` train exactly this), so it is used for the
+confusion structure, not as proof.
+
+| dataset | axis redundancy | local mean acc |
+|---|---:|---:|
+| MS-COCO | .5742 | **.452** |
+| Flickr25k | .5829 | .311 |
+| NUS-WIDE | .6020 | .251 |
+| CIFAR-10 | .6693 | **.209** |
+
+Perfectly monotone with the text-anchor axis redundancy measured on 2026-08-06.
+On CIFAR the two starved slots are mistaken for the GLOBAL caption
+(`secondary_object` self .00 vs global .55; `scene_type` self .01 vs global .48),
+which independently re-confirms the global-gate leak from a third direction.
+
+**(2) Caption-swap counterfactual** (NOT circular): replace only slot m's
+caption and re-measure its routing column. The alignment losses teach "match the
+right caption", never "look elsewhere given a wrong one". Specificity = delta on
+the swapped slot minus mean delta on the untouched slots, which is required
+because Sinkhorn couples the columns.
+
+| dataset | random-swap specificity | sibling-swap specificity |
+|---|---:|---:|
+| Flickr25k | **.629** | .402 |
+| NUS-WIDE | .625 | .381 |
+| MS-COCO | .497 | .403 |
+| CIFAR-10 | .456 | **.220** |
+
+**Positive on 4/4**: slots demonstrably follow their own caption, and sibling
+swaps still move them, so they distinguish AXES and not merely "this image's
+text". CIFAR has three slots with NEGATIVE sibling specificity (−.091, −.025,
+−.044) — perturbing their caption moves other slots more than themselves.
+
+This is the defensible grounding evidence. Probe (1)'s absolute accuracy is not.
+
+### Optimiser / schedule grid (Flickr, `--eval_every 1`)
+
+A cosine LR scheduler already exists (`CosineAnnealingLR`, `T_max=args.epoch`,
+`eta_min=1e-5`, Adam, wd 0.06, no warm-up) but at E*=3 of 60 the LR is still
+99.4 % of base — the same structural problem the eps anneal has.
+
+| cell | setup | mAP peak | unique peak | drop by e9 |
+|---|---|---|---|---:|
+| `cvBaseEv1` | e60 lr1e-3 wd.06 | e3 = .7805 | e6 = .6529 | −.0218 |
+| `cvE10lr1e3` | e10 lr1e-3 | e3 = .7822 | e9 = .6553 | −.0289 |
+| `cvE10lr3e4` | e10 lr3e-4 | e3 = .7840 | e9 = .6471 | −.0270 |
+| **`cvE60lr3e4`** | **e60 lr3e-4** | **e3 = .7857** | **e10 = .6829** | **−.0172** |
+| `cvWd001` | wd 0.01 | e3 = .7805 | e6 = .6529 | −.0218 |
+
+- **`--proj_lr 3e-4` improves three val axes at once**: peak +.0052, unique peak
+  +.0300, and the smallest post-peak drop.
+- **Compressing `-e` is REJECTED.** Both `-e 10` cells drop faster, so aligning
+  the schedule to the used horizon — proposed earlier in this session — is
+  wrong. Retracted.
+- **`weight_decay` is inert**: 0.06 → 0.01 leaves the curve identical to four
+  decimals. `torch.optim.Adam` applies it as an L2 term, not decoupled.
+- **The peak stays at e3 in every cell.** Lowering the LR does not lengthen the
+  useful window, so e3 is a property of the objective, not of the optimiser. An
+  earlier three-cell reading called the LR hypothesis "close to rejected"; the
+  missing `-e 60` + lr 3e-4 combination overturns that. Retracted.
+- Warm-up NOT tried: ConceptHash warms up for 10 of 100 epochs, but our useful
+  window is 3-6 epochs, so a warm-up would consume most of training, and the
+  curve rises steeply from e0 with no instability to damp.
+
+### Fixed-epoch rule (proposed, val-only, no test contact)
+
+A weighted sum needs arbitrary weights. A constrained rule needs one:
+
+    E* = argmax_e interp_val(e)   subject to   mAP_val(e) >= max_e mAP_val(e) - delta
+
+Sensitivity (Flickr, unique-code-ratio as the interpretability term):
+
+| cell | δ=.005 | δ=.01 | δ=.02 | δ=.03 |
+|---|---|---|---|---|
+| `cvBaseEv1` | e3 (.590) | e3 (.590) | e6 (.653) | e6 (.653) |
+| `cvE60lr3e4` | e4 (.613) | **e5 (.654)** | **e10 (.683)** | e10 (.683) |
+
+`cvE60lr3e4` reaches at δ=.01 the unique ratio the baseline needs δ=.02 to
+reach, and δ=.02-.03 is a flat region, so the rule is insensitive to δ there.
+
+**Not yet validated on test.** The val peak e3 was the worst test cell in the E*
+sweep, so val→test transfer cannot be assumed. `lr3e4_fxE{4,6,10}` plus
+MS-COCO / NUS-WIDE `lr3e4ev1` probes are running.
+
+### Code changes
+
+- `models/semantic_router.py`: publish `routing_matrix_premask`.
+- `model_siglip2.py`: propagate it, None-safe (only the sinkhorn router emits it).
+- `loss_siglip2.py`: `L_csd` term. Guards against dropping a real local slot —
+  the pre-mask snapshot has 5 columns (global is concatenated later) while the
+  post-mask matrix has 6, verified [8,196,5] vs [8,196,6].
+- `config.py`: `--lambda_slot_diversity`, `--slot_diversity_skip_global`.
+  Default 0.0 keeps every existing run bit-exact.
+- `config.py`: **`--weight_decay` was `type=int` with a 6e-2 default**, so the
+  default worked but `--weight_decay 0.01` died with "invalid int value". Now
+  `type=float`; default unchanged.
+- `scripts/prompt_ablation_A_cell_fixedE.sh`, `sweep_joint_cell_fixedE.sh`:
+  take E* from `$ESTAR_FIXED` and skip stage-1. Copies rather than flags,
+  because bash reads scripts incrementally and both originals were being read by
+  running cells.
+- `scripts/diagnose_slot_caption_grounding.py`.
+
+### Follow-ups
+
+- Validate the δ rule on test (`lr3e4_fxE{4,6,10}`), then 3 seeds.
+- Check whether `--proj_lr 3e-4` generalises: MS-COCO peaks at e39, the opposite
+  curve shape, so a lower LR may simply fail to reach its peak within 60 epochs.
+- Raise `lambda_slot_diversity` to 0.2/0.5/1.0 and find where the pre-mask
+  cosine actually moves; without that the mechanism claim is unsupported.
+- The 0.987 pre-mask slot cosine deserves its own paper sentence: the router
+  does not separate the slots, the mask does.
+
+---
+
 ## 2026-08-06 — 🟢 **NUS-WIDE ADOPTS `--sinkhorn_epsilon_init 0.5`** (3 seeds: empty-slot 33.2 %→0 %, DNA-uniq +0.0237, mAP −0.0037). Dead slots re-diagnosed PER IMAGE: the codon of a starved slot is a re-encoding of the CLIP global embedding, not a constant
 
 Supersedes the interpretability verdict of the 2026-08-05 (PM) entry. That entry

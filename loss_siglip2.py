@@ -395,6 +395,9 @@ class DNACodonHashLoss(nn.Module):
         # slots 1-5 sit at their marginal budget. This term regularises the
         # per-slot batch-mean distribution over the 4**L codons directly.
         self.lambda_codon_joint = float(getattr(cfg, "lambda_codon_joint", 0.0))
+        # ConceptHash Eq. 8 (`L_csd`) ported onto the routing matrix.
+        self.lambda_slot_diversity      = float(getattr(cfg, "lambda_slot_diversity", 0.0))
+        self.slot_diversity_skip_global = bool(getattr(cfg, "slot_diversity_skip_global", True))
         self.codon_joint_floor  = float(getattr(cfg, "codon_joint_floor", 1e-6))
         _cjs = str(getattr(cfg, "codon_joint_slots", "") or "").strip()
         self.codon_joint_slots = (
@@ -3504,6 +3507,45 @@ class DNACodonHashLoss(nn.Module):
         # Averaging over the batch gives Q_m in the 4**L simplex; we push Q_m to
         # uniform with the SAME forward-KL form `loss_base_balance` uses, so the
         # mode-covering penalty falls on codons the slot never emits.
+        # ---- slot spatial diversity (ConceptHash Eq. 8, `L_csd`) ----------
+        #   L = 1/(N*M*(M-1)) * sum_{i != j} cos(A_i, A_j)
+        # A_m is the slot's distribution over patches -- for us a column of the
+        # routing matrix rather than a ViT attention map -- taken BEFORE the
+        # adaptive top-p mask. A masked-out slot has an exactly-zero column,
+        # whose cosine to everything is zero, so on the post-mask plan a starved
+        # slot would look maximally diverse and get no gradient at all.
+        # Neither squared nor absolute-valued, matching the paper: negative
+        # correlation is rewarded, so slots are pushed apart rather than merely
+        # kept from overlapping.
+        loss_slot_diversity = None
+        if self.lambda_slot_diversity > 0.0:
+            _Pp = outputs.get("routing_matrix_premask")
+            if _Pp is not None and _Pp.dim() == 3:
+                _P = _Pp.float()
+                if _P.shape[1] < _P.shape[2]:      # tolerate a [B, M, N] layout
+                    _P = _P.transpose(1, 2)
+                _A = _P.transpose(1, 2)            # [B, M, N_patch]
+                # The router publishes its OWN columns. With
+                # --c_global_source siglip2_global slot 0 bypasses the router
+                # and is concatenated afterwards, so the pre-mask snapshot has
+                # 5 columns (all local) while the post-mask matrix has 6.
+                # Verified on Flickr: premask [8,196,5] vs postmask [8,196,6].
+                # Dropping column 0 unconditionally would delete a real local
+                # slot, so only drop it when global is actually present.
+                _full = outputs.get("routing_matrix")
+                _full_M = (min(_full.shape[1], _full.shape[2])
+                           if (_full is not None and _full.dim() == 3) else None)
+                _has_global = (_full_M is not None and _A.shape[1] == _full_M)
+                if self.slot_diversity_skip_global and _has_global and _A.shape[1] > 1:
+                    _A = _A[:, 1:, :]
+                _Msd = _A.shape[1]
+                if _Msd > 1:
+                    _An = F.normalize(_A, dim=-1, eps=1e-8)
+                    _G = torch.bmm(_An, _An.transpose(1, 2))          # [B, M, M]
+                    _off = ~torch.eye(_Msd, dtype=torch.bool, device=_G.device)
+                    loss_slot_diversity = _G[:, _off].mean()
+                    total = total + self.lambda_slot_diversity * loss_slot_diversity
+
         if self.lambda_codon_joint > 0.0 and u is not None:
             _R = int(u.shape[1])
             _L = int(getattr(self, "num_codons_per_codebook", 0)) or (
@@ -3531,6 +3573,9 @@ class DNACodonHashLoss(nn.Module):
         return {
             "loss":              total,
             "loss_codon_joint":  loss_codon_joint,
+            "loss_slot_diversity": (loss_slot_diversity
+                                    if loss_slot_diversity is not None
+                                    else u.new_zeros(())),
             "loss_sim_spread":   loss_sim_spread,
             "loss_bio_constraint": loss_bio_constraint,
             "loss_hash":         loss_hash,
