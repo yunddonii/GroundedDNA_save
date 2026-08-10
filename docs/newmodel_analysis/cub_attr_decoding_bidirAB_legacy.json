@@ -1,0 +1,45 @@
+{
+  "dataset": "CUB_200",
+  "target": "attributes",
+  "dir": "result/260721+cub_200_setting1_cub200_bidirAB_legacy+bs+64+e+60+proj_lr+0.001",
+  "slots": 6,
+  "bases_per_slot": 3,
+  "n_attributes": 201,
+  "min_certainty": 3,
+  "positives_per_image_test": 28.0734,
+  "slot_mean_concept_mAP": 0.4805,
+  "majority": 0.41702,
+  "shuffled_mean": 0.41248,
+  "per_slot": {
+    "global": {
+      "concept_mAP": 0.51347,
+      "coverage": 1.0,
+      "n_active_units": 42
+    },
+    "primary_object": {
+      "concept_mAP": 0.46809,
+      "coverage": 0.99741,
+      "n_active_units": 24
+    },
+    "secondary_object": {
+      "concept_mAP": 0.47943,
+      "coverage": 0.99707,
+      "n_active_units": 29
+    },
+    "activity_relation": {
+      "concept_mAP": 0.4713,
+      "coverage": 0.99965,
+      "n_active_units": 28
+    },
+    "color_texture": {
+      "concept_mAP": 0.46845,
+      "coverage": 1.0,
+      "n_active_units": 33
+    },
+    "scene_type": {
+      "concept_mAP": 0.48222,
+      "coverage": 0.99603,
+      "n_active_units": 32
+    }
+  }
+}

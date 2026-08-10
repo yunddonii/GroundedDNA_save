@@ -3,8 +3,8 @@
 > 논문 뼈대 초안 · **2026-08-04 재평가판** · 본문 문장화 전 개조식 문서
 >
 > 이 문서는 `DRAFT_GROUNDEDDNA_PAPER_KO.md`(2026-07-25 스냅샷)의 실험 절을 **신규 통일
-> 레시피 모델의 재실험 결과로 교체**한 버전이다. 교체된 절: §0 결론, §3.8.4(신규 손실),
-> §3.9(레시피), §4.5–§4.10, §5. 구 수치는 대부분 pre-P0/pre-bio 또는 구 레시피 기반이라
+> 레시피 모델의 재실험 결과로 교체**한 버전이다. 교체된 절: §0 결론, **§3 전체(아키텍처 서술로
+> 재작성; 데이터셋별 레시피는 §4.2b로 이동)**, §4.5–§4.10, §5. 구 수치는 대부분 pre-P0/pre-bio 또는 구 레시피 기반이라
 > 원본 draft가 스스로 "main table 사용 금지"로 표시해 둔 것들이다.
 > 재평가 요약: [`newmodel_analysis/SUMMARY_newmodel_reevaluation.md`](./newmodel_analysis/SUMMARY_newmodel_reevaluation.md)
 
@@ -438,661 +438,204 @@
 
 ## 3. Methodology
 
-### 3.1 문제 정의
+### 3.1 문제 정의와 설계 원리
 
-- label-free parameter optimization set
-  - \(\mathcal D_{\rm tr}=\{x_i\}_{i=1}^{N}\)
-  - ground-truth class/multi-label은 parameter optimization, caption 생성, codebook 초기화에 사용하지 않음
-  - 단, 표준 hashing protocol의 held-out validation relevance로 \(E^*\)를 선택하고 test label로 공식 metric/probe를 계산
-  - frozen VLM으로 train image별 six-axis description \(T_i=\{t_i^m\}_{m=0}^{5}\) 사전 생성
-- 학습 목표
-  - \(h_\theta:\mathcal X\rightarrow\mathcal A^{18}\), \(\mathcal A=\{A,C,G,T\}\)
-  - \(h_\theta(x)=[c^0;c^1;\ldots;c^5]\), \(c^m\in\mathcal A^3\)
-- 검색 거리
-  - base-wise Hamming distance
-  - \(d_{\rm DNA}(y,y')=\sum_{\ell=1}^{18}\mathbf1[y_\ell\ne y'_\ell]\)
-  - raw alphabet capacity: \(4^{18}=2^{36}\)
-- 평가 relevance
-  - single-label: 같은 class
-  - multi-label: 하나 이상의 label 공유
-  - label은 held-out validation의 \(E^*\) 선택, official retrieval metric, interpretability probe에 사용
-- 용량 구분
-  - pre-codon tuple capacity: \(K^6\)
-  - 3-base codon capacity/slot: \(4^3=64\)
-  - \(K=128\)에서는 서로 다른 codeword의 codon collision이 구조적으로 불가피
+**과제.** 라벨 없이 이미지 집합 \(\mathcal D=\{x_i\}\)만 주어졌을 때, 각 이미지를
+길이 \(L\)의 DNA 서열로 사상하는 인코더 \(h_\theta:\mathcal X\rightarrow\mathcal A^{L}\),
+\(\mathcal A=\{A,C,G,T\}\)를 학습한다. 검색은 염기 단위 Hamming 거리
+\(d(y,y')=\sum_{\ell}\mathbf 1[y_\ell\ne y'_\ell]\)로 수행한다.
 
-### 3.2 전체 학습 프레임워크
+**왜 이진 해시의 확장이 아닌가.** 4-문자 알파벳은 비트당 용량이 2배라는 점에서만 다른 것이
+아니다. DNA 저장·합성이 요구하는 제약 — GC 함량 구간, homopolymer 길이 상한, 서열 간 최소
+Hamming 거리 — 은 **염기 위치 사이의 결합 조건**이다. 비트별로 독립인 목적함수로는 표현할
+수 없으며, 사후에 강제하면 코드가 손상된다. 따라서 제약은 표현 설계 단계에서 함께 다뤄야 한다.
+
+**설계 원리.** 코드가 해석 가능하려면 *"코드 전체가 무엇을 뜻하는가"*가 아니라
+**각 심볼이 고정된 의미 축에 묶여 있어야** 한다. 이를 위해 코드를 \(M\)개의 **슬롯**으로
+분해하고, 각 슬롯에 **언어로 정의된 의미 축**을 부여한다:
+
+\[
+h_\theta(x)=[\,c^{1};c^{2};\ldots;c^{M}\,],\qquad c^{m}\in\mathcal A^{\ell},\quad L=M\ell .
+\]
+
+슬롯 \(m\)의 코돈 \(c^m\)은 그 축에 관한 진술이고, 전체 코드는 그 진술들의 **조합**이다.
+이것이 본 논문이 주장하는 조합적 해석가능성이며, 이후 모든 설계 결정은 이 한 문장에서 나온다.
+
+세 가지가 따라온다.
+
+1. 의미 축은 **모델 밖에서 언어로 고정**되어야 한다 — 학습으로 발견된 클러스터는 사후
+   해석이 필요하지만, 미리 문장으로 정의된 축은 그렇지 않다.
+2. 각 슬롯은 이미지의 **자기 축에 해당하는 영역**만 봐야 한다.
+3. 슬롯들의 코드북은 **서로 독립**이어야 한다 — 공유하면 심볼의 의미가 슬롯에 따라 달라진다.
+
+---
+
+### 3.2 프레임워크 개요
 
 ```text
-offline caches
-train image ──Qwen3-VL──> 6 axis captions ──CLIP text──> pooled/token text features
-split-union images ──frozen CLIP vision──> 196 patch tokens + global image feature
+ [offline]  image ──frozen VLM──> M axis captions ──frozen text encoder──> axis anchors
+            image ──frozen vision encoder──> patch tokens + global feature
 
-training
-global feature ───────────────> global slot
-patches + 5 local text anchors ─UOT + adaptive top-p─> 5 local slots
-6 slots ─6 independent EMA VQ codebooks─> 6 codewords
-6 codewords ─global-conditioned codon heads─> 6×3 bases
+ [encode]   global feature ─────────────────────────────> slot 1 (global)
+            patches × axis anchors ──text-guided UOT──> slots 2..M (local)
+            each slot ──its own VQ codebook──> codeword
+            codewords ──codon heads──> M × ℓ bases
 
-inference
-image ─frozen CLIP─> global + patches
-patches + 5 codebook-mean anchors ─UOT/top-p─> local slots
-fixed VQ + argmax codon ─> raw 18-base code ─DP bio projection─> valid code
-query/database ─base Hamming─> ranked retrieval
+ [deploy]   raw code ──DP projection onto the biologically valid set──> emitted code
+            query vs database ──base-wise Hamming──> ranking
 ```
 
-### 3.3 Offline caption 및 feature cache
+시각·언어 인코더는 **동결**한다. 학습되는 것은 어댑터, 라우팅, 코드북, 코돈 헤드뿐이다.
+이는 계산 비용 때문이 아니라, **의미 축의 정의를 학습에서 분리**하기 위해서다. 축이 학습과
+함께 움직이면 "슬롯 \(m\)이 축 \(m\)을 뜻한다"는 주장이 순환한다.
 
-#### 3.3.1 Six-axis caption 생성
+추론 시에는 캡션이 필요 없다. 텍스트는 **학습 시 슬롯의 의미를 고정하는 교사**로만 쓰이고,
+배포된 인코더는 이미지만 받는다.
 
-- offline annotator
-  - [`Qwen/Qwen3-VL-8B-Instruct`](https://github.com/QwenLM/Qwen3-VL)
-  - bfloat16, `do_sample=False`, `max_new_tokens=384`, batch size 4
-  - 학습 가능한 모듈 아님; retrieval inference에 포함되지 않음
-- six axes
-  - \(m=0\): global summary
-  - \(m=1\): primary object
-  - \(m=2\): secondary object/cue
-  - \(m=3\): activity/relation
-  - \(m=4\): color/texture
-  - \(m=5\): scene/background
-- 데이터셋별 cache provenance
+---
 
-| Dataset | Caption rows | Prompt/cache | 논문에 적을 상태 |
-|---|---:|---|---|
-| Flickr25K | 5,000 | Qwen3-VL-8B, V4 | model/prompt/generation config 확인됨 |
-| MS-COCO | 10,000 | Qwen3-VL-8B, vocabulary-constrained V5b | 16 decode failure와 fallback 처리 공개 필요 |
-| NUS-WIDE | 10,500 | Qwen3-VL-8B, V4 | model/prompt/generation config 확인됨 |
-| CIFAR-10 | 6,097 | legacy V1, old head/body/limb schema remap | 생성 script/model revision metadata 미확인; 재생성 또는 artifact 보완 필요 |
+### 3.3 언어로 정의된 의미 축
 
-- leakage 규칙
-  - visual feature cache: train/query/database split union을 path 기준 deduplicate하여 구축; 이는 frozen feature의 계산 cache이며 supervision leakage가 아님
-  - structured caption supervision 대상: designated train rows
-  - stage-1 whitening: optimization-train rows만 사용
-  - stage-2 refit whitening: full designated train rows만 사용
-  - query/database caption을 inference input으로 사용하지 않음
-- missing-caption 구현 위험
-  - `cached_has_text`가 sample-wise criterion mask까지 전달되지 않음
-  - mixed batch의 fallback row가 text routing/loss에 들어갈 수 있음
-  - 최종 제출 전 mask 수정 + 영향 ablation 필요
+동결된 VLM에 이미지를 주고, 미리 정한 \(M\)개 질문에 답하게 하여 축별 서술
+\(T=\{t^{m}\}_{m=1}^{M}\)를 얻는다. 축은 **전역 요약** 하나와, 서로 다른 시각적 측면을 묻는
+**국소 축** \(M-1\)개로 구성한다 — 주 객체, 부차 객체, 행위·관계, 색·질감 등.
 
-#### 3.3.2 Frozen CLIP encoder의 입력과 출력
+두 가지가 본질적이다.
 
-- 실제 champion checkpoint: `openai/clip-vit-base-patch16`; result/script 이름의 `siglip2`와 구분
+- **축은 데이터가 아니라 질문으로 정의된다.** 라벨을 쓰지 않으므로 비지도 설정이 유지되고,
+  축의 의미는 데이터셋이 바뀌어도 동일하다.
+- **캡션은 오프라인에서 한 번만 생성한다.** VLM은 학습 그래프에 들어가지 않으며 추론에도
+  관여하지 않는다.
 
-| 경로 | 입력 | frozen encoder 출력 | 학습 모듈 입력/출력 |
-|---|---|---|---|
-| Image global | 224×224 normalized RGB | projected image \(g_i\in\mathbb R^{512}\) | Linear \(512\to768\), global slot \(z_i^0\) |
-| Image local | 같은 image/augmentation | final hidden \([197,768]\), CLS 제외 \(V_i\in\mathbb R^{196\times768}\) | visual MLP \(768\to1536\to768\) |
-| Text pooled | six captions, tokenizer max length 64 | cached \([6,512]\) | P0 global slot의 pooled CLIP feature |
-| Text token | six captions | cached \([6,32,512]\) + token mask | P0 local 5 slots의 legacy selected-token mean |
+축별 서술을 동결 텍스트 인코더로 임베딩해 **축 앵커** \(a^{m}\)를 얻는다. 앵커는 다음 절의
+수송 비용을 정의하는 유일한 언어 신호다.
 
-- 실제 P0 text assembly
-  - global slot: caption 0의 pooled CLIP feature \([B,1,512]\)
-  - local slots: caption 1–5의 token feature에서 legacy mask로 선택된 token mean \([B,5,512]\)
-  - 두 경로를 \([B,6,512]\)로 결합한 뒤 train-only partial whitening과 slot별 독립 MLP \(512\to1536\to768\) 적용
+> **축 설계가 방법의 유효 범위를 결정한다.** 이미지가 어떤 축을 지지하지 못하면 — 예컨대
+> 저해상도 단일 객체 이미지에서 "부차 객체" — 그 축의 앵커는 다른 축과 구별되지 않는다.
+> 축 간 앵커 유사도는 본 프레임워크가 언제 작동하는지를 예측하는 진단량이며 §4에서 정량화한다.
 
-- paired-view training cache
-  - random resized crop, horizontal flip, color jitter, grayscale augmentation의 두 visual views
-  - 두 view feature는 offline 한 번 생성·저장되어 epoch마다 새로 sampling되지 않음
-  - visual patch/global과 text cache는 fp16 저장 후 row loading 시 fp32 계산
-- backbone 동결
-  - vision tower와 text tower 모두 gradient 없음
-  - cache training에서는 backbone forward 자체를 생략
-- partial whitening
-  - train-only text covariance \(\Sigma=U\operatorname{diag}(s)U^\top\)
-  - \(W_\gamma=U\operatorname{diag}((s+10^{-5})^{-\gamma})U^\top\), \(\gamma=.25\)
-  - \(\tilde t=(t-\mu)W_\gamma\)
-- P0 legacy pooling 사실
-  - Flickr/NUS/CIFAR visual/text keep ratio `.5/.5`; MS-COCO `1/1`
-  - legacy score가 `softmax(...).sum(same axis)`로 상수화
-  - tied score에 `>= kth`를 적용하므로 `.5` 요청이 정확히 50% 유지됨을 보장하지 않으며 모든 token이 남을 수도 있음
-  - 따라서 selected subset은 semantic importance가 아니라 tie/index behavior일 가능성
-  - 논문 canonical clean EOS/full-token 경로의 P0 재실험 전까지 “semantic mutual pruning”을 방법 기여에서 제외
+---
 
-### 3.4 Text-guided UOT Router
+### 3.4 텍스트 유도 수송: 패치를 슬롯에 배분
 
-#### 3.4.1 입력과 cost
+전역 슬롯은 전역 이미지 특징에서 직접 만들고, 국소 슬롯은 **패치를 축 앵커로 수송**하여 만든다.
 
-- global slot \(m=0\)
-  - CLIP projected global image feature에서 직접 생성
-  - local OT 경쟁에 참여하지 않음
-- local slots \(m=1,\ldots,5\)
-  - visual token \(v_n\in\mathbb R^{768}\), \(n=1,\ldots,196\)
-  - text centroid \(c_m\in\mathbb R^{768}\)
-  - cosine cost
+패치 \(v_n\)과 앵커 \(a^m\) 사이의 비용을 코사인 거리로 두고,
 
 \[
-C_{nm}=1-\frac{v_n^\top c_m}{\lVert v_n\rVert_2\lVert c_m\rVert_2}.
+C_{nm}=1-\frac{v_n^\top a^{m}}{\lVert v_n\rVert\,\lVert a^{m}\rVert},
 \]
 
-- 주의
-  - UOT에서는 총질량이 고정되지 않으므로 \(1-\cos\)와 \(-\cos\)의 상수차가 일반적으로 동치가 아님
-  - 논문과 실험은 실제 P0의 `one_minus_cos`만 정의
-
-#### 3.4.2 KL-relaxed entropic UOT
-
-- prior mass
-  - patch/slot validity mask를 각각 \(\mu_{in},\nu_{im}\in\{0,1\}\)라 두면
+엔트로피 정규화된 **불균형 최적수송**으로 수송 계획 \(P\in\mathbb R_{\ge0}^{N\times(M-1)}\)를 푼다:
 
 \[
-a_{in}=\frac{\mu_{in}}{\sum_j\mu_{ij}},\qquad
-b_{im}=\frac{\nu_{im}}{\sum_j\nu_{ij}}.
+\min_{P}\;\langle P,C\rangle+\varepsilon H(P)
++\lambda_a\,\mathrm{KL}(P\mathbf 1\,\Vert\,\mathbf a)
++\lambda_b\,\mathrm{KL}(P^{\!\top}\mathbf 1\,\Vert\,\mathbf b).
 \]
 
-  - champion의 일반적인 no-mask case에서만 \(a_n=1/196\), \(b_m=1/5\)로 환원
-- objective
+**균형 OT가 아니라 불균형 OT를 쓰는 이유**는 모든 패치가 어떤 축엔가 속해야 할 이유가 없기
+때문이다. 배경·흐림처럼 어느 축과도 잘 맞지 않는 패치는 행 주변부 제약을 완화하여 **부분적으로
+기각**될 수 있어야 한다.
+
+수송 계획에 이어 **패치별 nucleus 마스크**를 적용한다. 각 패치에 대해 정렬된 배분 확률의
+누적합이 임계에 이를 때까지의 슬롯만 남기고 나머지를 0으로 만든 뒤 행을 재정규화한다.
+임계는 그 패치의 배분 확신도에 따라 조절되어, 확신 있는 패치는 소수 슬롯에, 모호한 패치는
+여러 슬롯에 기여한다. 이는 각 슬롯이 **자기 축과 관련된 영역만 모으도록** 강제하는 장치다.
+
+슬롯 표현은 남은 계획으로 가중 평균한 값이다:
 
 \[
-\min_{P\ge0}
-\langle P,C\rangle
-+\varepsilon\sum_{n,m}P_{nm}(\log P_{nm}-1)
-+\lambda_a\,\mathrm{KL}(P\mathbf1\Vert a)
-+\lambda_b\,\mathrm{KL}(P^\top\mathbf1\Vert b).
+s^{m}=\frac{\sum_n P_{nm}\,v_n}{\sum_n P_{nm}} .
 \]
 
+라우팅이 텍스트에 의존하는 것은 학습 시뿐이다. 추론에서는 캡션 대신 학습된 코드북의 축별
+평균을 앵커로 사용하므로, 배포 인코더는 이미지만으로 동작한다.
+
+---
+
+### 3.5 슬롯별 독립 양자화
+
+각 슬롯 표현을 **그 슬롯 전용 코드북** \(\mathcal C^{m}=\{e^{m}_k\}_{k=1}^{K}\)로 양자화한다:
+
 \[
-\mathrm{KL}(p\Vert q)=\sum_j\left[p_j\log\frac{p_j}{q_j}-p_j+q_j\right]
-\quad\text{(generalized KL for non-normalized masses)}.
+k^{m}=\arg\min_k\lVert s^{m}-e^{m}_k\rVert_2,\qquad q^{m}=e^{m}_{k^{m}} .
 \]
 
-- champion 설정
-  - \(\lambda_a=\lambda_b=1\)
-  - log-domain generalized Sinkhorn 20 iterations
-  - 60-epoch nominal cosine schedule \(\varepsilon:1.0\rightarrow0.1\)
-  - objective의 exact minimizer \(P^*\)와 실제 20-step 근사 plan \(\widehat P^{(20)}\)을 논문에서 구분
-- scaling
+코드북은 슬롯마다 **분리**되어 있다. 공유하면 같은 인덱스가 슬롯에 따라 다른 것을 뜻하게 되어
+§3.1의 원리가 무너진다. 코드북은 EMA로 갱신하고, 사용률 균등화 항으로 붕괴를 방지한다.
+
+---
+
+### 3.6 코돈 합성
+
+각 슬롯의 코드워드를 \(\ell\)개 위치의 4-way 분포로 사상하고 argmax로 염기를 얻는다:
 
 \[
-K=\exp(-C/\varepsilon),\qquad
-\tau_a=\frac{\lambda_a}{\lambda_a+\varepsilon},\qquad
-\tau_b=\frac{\lambda_b}{\lambda_b+\varepsilon},
+u^{m}=\mathrm{CodonHead}_m(q^{m})\in[0,1]^{\ell\times4},\qquad
+c^{m}_j=\arg\max_{\alpha\in\mathcal A}u^{m}_{j\alpha}.
 \]
 
+코돈 헤드는 슬롯마다 독립이며, 전역 슬롯의 코드워드를 게이트를 통해 국소 헤드에 함께 넣어
+전역 문맥을 조건으로 준다. 이는 같은 국소 코드워드라도 장면 전체가 다르면 다른 코돈을 낼 수
+있게 한다.
+
+> 이 게이트는 국소 슬롯이 시각 증거를 충분히 받지 못할 때 **전역 정보가 그 슬롯의 코돈을
+> 대신 결정할 수 있는 경로**이기도 하다. §4에서 이 경로가 실제로 열리는 조건을 측정한다.
+
+---
+
+### 3.7 생물학적 유효성
+
+배포되는 코드는 생물학적 제약 집합
+\(\mathcal V=\{y:\text{GC}(y)\in[g_{\lo},g_{\hi}],\ \text{run}(y)\le r\}\)
+안에 있어야 한다. 원시 코드 \(y\)를 동적 계획법으로 \(\mathcal V\) 안의 최근접 서열로 투영한다:
+
 \[
-u\leftarrow\left(\frac{a}{Kv}\right)^{\tau_a},\qquad
-v\leftarrow\left(\frac{b}{K^\top u}\right)^{\tau_b},\qquad
-P=\operatorname{diag}(u)K\operatorname{diag}(v).
+\hat y=\arg\min_{y'\in\mathcal V} d(y,y').
 \]
 
-- reviewer용 proof sketch
-  - entropy 항이 양의 영역에서 strict convex이므로 양의 prior와 \(\varepsilon>0\) 아래 minimizer의 유일성 설명
-  - first-order optimality로 \(P_{nm}=u_nK_{nm}v_m\) factorization 도출
-  - KL marginal penalty의 convex conjugate/coordinate minimization으로 exponent \(\tau_a,\tau_b\) 도출
-  - Chizat et al.의 generalized Sinkhorn scaling을 직접 인용
-- “selective”의 정확한 해석
-  - generalized Sinkhorn이 수렴한 fixed point에서 \(q_n=(Kv)_n\), row mass \(r_n=(P^*\mathbf1)_n=a_n^{\tau_a}q_n^{1-\tau_a}\)
-  - 따라서 fixed point에서 \(r_n/a_n=(q_n/a_n)^{1-\tau_a}\)
-  - 실제 20-step \(\widehat P^{(20)}\)에서는 이 항등식이 근사적으로만 성립할 수 있음
-  - prior 대비 semantic affinity가 낮은 patch는 mass가 줄고 높은 patch는 커질 수 있음
-  - 모든 \(r_n\le a_n\)이라고 주장하지 않음
-  - 양 marginal이 relaxed되어 total transported mass도 1로 강제되지 않음
+투영은 **모든 보고 지표에 적용**된다. 유효성을 만족한 상태에서의 성능만이 배포 가능한 성능이기
+때문이다. 학습 중에는 GC 힌지와 homopolymer 항으로 원시 코드를 미리 유효 영역 쪽으로 밀어
+투영이 코드를 크게 바꾸지 않도록 할 수 있으며, 이 항의 유무는 §4에서 별도 행으로 보고한다.
 
-#### 3.4.3 Adaptive top-p sparsification
+---
 
-- 20-step UOT plan \(\widehat P\)의 row를 조건부 slot distribution으로 변환
+### 3.8 학습 목적
 
-\[
-r_n=\sum_m\widehat P_{nm},\qquad
-p_{nm}=\frac{\widehat P_{nm}}{r_n},\qquad q_n=\max_m p_{nm}.
-\]
+목적함수는 세 갈래이며, 각각 §3.1의 원리 중 하나에 대응한다.
 
-- patch별 threshold
+**(a) 축 정렬 — 슬롯이 자기 축을 뜻하게 한다.**
+슬롯 표현과 그 축의 텍스트 앵커를 맞추고(교차 모달 커밋), 슬롯별 대조 학습으로 이미지 간
+구별력을 준다. 코드 수준에서도 이미지 코드와 텍스트에서 유도한 코드를 정렬한다.
+
+**(b) 양자화 — 코드가 이산 심볼이 되게 한다.**
+VQ 커밋먼트와 코드북 사용률 균등화. 수송 비용 자체도 목적에 포함되어 라우팅이 앵커에 가까운
+패치를 모으도록 유도한다.
+
+**(c) 코드 다양성 — 심볼이 실제로 구별되게 한다.**
+슬롯별 코돈의 **결합 분포**를 균등 쪽으로 미는 규제를 둔다. 위치별 주변 분포만 균등해도
+결합 분포는 소수 조합에 몰릴 수 있으므로, 규제는 \(4^{\ell}\)개 조합 위에서 정의한다.
 
 \[
-\rho_n=\rho_{\min}+(1-q_n)(\rho_{\max}-\rho_{\min}),
-\qquad(\rho_{\min},\rho_{\max})=(.3,.7).
-\]
-
-- selection
-  - \(p_{n,:}\)를 내림차순 정렬
-  - cumulative mass가 \(\rho_n\)에 도달하는 최소 prefix 유지
-  - top-1은 항상 유지
-  - 선택 후 원래 UOT row mass \(r_n\)으로 재정규화
-  - exact column marginal은 이 단계에서 깨질 수 있음
-
-\[
-\widetilde P_{nm}=
-r_n\frac{p_{nm}\mathbf1[m\in S_n]}
-{\sum_{j\in S_n}p_{nj}}.
-\]
-- KL projection lemma
-  - 고정 support \(S\)에서 \(\min_{q\in\Delta,\operatorname{supp}(q)\subseteq S}\mathrm{KL}(q\Vert p)\)의 해는 \(q_j=p_j/\sum_{s\in S}p_s\)
-  - proof: Lagrange multiplier로 conditional normalization 도출
-  - \(|S|=k\)일 때 objective는 \(-\log\sum_{s\in S}p_s\); retained mass가 가장 큰 top-k support가 최적
-  - 본 adaptive rule은 \(k\)를 cumulative threshold로 선택한 뒤 그 support 위 KL projection을 수행
-  - 전체 heuristic이 cardinality-constrained UOT의 전역해라는 주장은 하지 않음
-- barycentric pooling
-
-\[
-z_m=\frac{\sum_n\widetilde P_{nm}v_n}
-{\max(\sum_n\widetilde P_{nm},10^{-12})}.
-\]
-
-- 해석상 주의
-  - column-normalized pooling이 absolute column mass를 상쇄
-  - UOT 효과는 주로 slot 내부 patch 상대 가중치와 \(\langle \widetilde P,C\rangle\)에 남음
-  - “background를 이론적으로 버린다”보다 “low-affinity patch를 transport plan에서 downweight”로 표현
-
-#### 3.4.4 Training–inference 차이
-
-| 요소 | Training | Inference |
-|---|---|---|
-| Local centroid | image별 Qwen caption→CLIP text→whitening→slot adapter | local codebook의 normalized active-codeword mean |
-| Text/Qwen | offline cache로 사용 | 완전 제거 |
-| UOT/top-p | 현재 image의 196 patches와 5 instance anchors | 196 patches와 5 dataset-level learned anchors |
-| Codebook | EMA update + dead-code revival | 고정 |
-| Codon output | soft distribution·deterministic argmax target와 별도로 Gumbel-hard ST sample 생성 | deterministic argmax |
-| Bio projection | training objective에는 미포함 | query/database code 모두 retrieval 직전 적용 |
-
-- inference anchor
-
-\[
-\bar e_m=\operatorname{norm}\!\left(\frac1{|\mathcal K_m|}
-\sum_{k\in\mathcal K_m}\operatorname{norm}(e_{mk})\right),\qquad m=1,\ldots,5.
-\]
-
-- 논문에 명시할 deployment gap
-  - training은 instance-conditioned text anchors
-  - inference는 dataset-level codebook anchors
-  - `text_prototype` inference가 실패하고 `codebook_mean`을 채택한 실험 근거를 appendix에 기록
-  - anchor swap에 대한 localization/accuracy 민감도 분석 추가
-  - 현재 champion의 gradient-effective loss는 생성된 Gumbel-ST sample을 소비하지 않으므로 temperature schedule의 실효 기여를 주장하지 않음
-
-### 3.5 Independent Multi-Codebook Quantization
-
-- 여섯 독립 codebooks
-
-\[
-\mathcal E_m=\{e_{mk}\in\mathbb R^{768}\}_{k=1}^{K_m},\qquad m=0,\ldots,5.
-\]
-
-- nearest Euclidean assignment
-
-\[
-k^*_{im}=\arg\min_k\lVert z_{im}-e_{mk}\rVert_2^2,qquad
-q_{im}=e_{m,k^*_{im}}.
-\]
-
-- straight-through token
-
-\[
-q^{\rm ST}_{im}=z_{im}+\operatorname{sg}(q_{im}-z_{im}).
-\]
-
-- EMA statistics
-
-\[
-n_{mk}^{(t)}=\sum_i\mathbf1[k^*_{im}=k],\qquad
-s_{mk}^{(t)}=\sum_i\mathbf1[k^*_{im}=k]z_{im},
-\]
-
-\[
-N_{mk}^{(t)}=\gamma N_{mk}^{(t-1)}+(1-\gamma)n_{mk}^{(t)},
-\]
-
-\[
-A_{mk}^{(t)}=\gamma A_{mk}^{(t-1)}+(1-\gamma)s_{mk}^{(t)},
-\]
-
-\[
-\widetilde N_{mk}=\frac{N_{mk}+\epsilon_{\rm ema}}
-{\sum_jN_{mj}+K\epsilon_{\rm ema}}\sum_jN_{mj},\qquad
-e_{mk}\leftarrow\frac{A_{mk}}{\widetilde N_{mk}}.
-\]
-
-- hyperparameters
-  - \(\gamma=.99\), \(\epsilon_{\rm ema}=10^{-5}\)
-  - 50 forward마다 count가 slot 최대 count의 1% 미만인 entry를 현재 batch vector로 revive
-  - codebook은 trainable parameter가 아니라 EMA buffer
-- 의미
-  - 여섯 slot index tuple \((k_i^0,\ldots,k_i^5)\)이 Cartesian compositional representation
-  - 동일 index \(k\)라도 slot이 다르면 별도 vector와 의미
-  - independent codebook이 independent semantic factor를 보장하지는 않음
-
-### 3.6 Global-conditioned codon composition
-
-- global conditioning
-
-\[
-\widetilde q_{i0}=q^{\rm ST}_{i0},\qquad
-\widetilde q_{im}=q^{\rm ST}_{im}+\sigma(\alpha_m)\operatorname{sg}(q^{\rm ST}_{i0}),\quad m=1,\ldots,5.
-\]
-
-- gate
-  - \(\alpha_m\) 초기값 `4.595`, \(\sigma(\alpha_m)\approx.99\)
-  - local code에 image-global context 주입
-  - local head에 복사해 넣는 global token만 stop-gradient
-  - global codon branch 자체는 \(q^{\rm ST}_{i0}\)를 직접 받아 upstream gradient가 흐름
-- slot별 독립 CodonHead
-  - \(\widetilde q_{im}\in\mathbb R^{768}\)을 세 256-D chunk로 분할
-  - 같은 slot 안의 세 위치는 동일 `Linear(256,4)` 공유
-  - slot 간 head parameter는 공유하지 않음
-
-\[
-\widetilde q_{im}=[\widetilde q_{im}^{(1)};\widetilde q_{im}^{(2)};\widetilde q_{im}^{(3)}],
+\mathcal L_{\rm joint}=\frac1{|S|}\sum_{m\in S}\mathrm{KL}\!\left(\mathcal U_{4^\ell}\,\Vert\,\bar J^{m}\right),
 \qquad
-u_{imr}=\operatorname{softmax}(W_m\widetilde q_{im}^{(r)}+b_m).
+\bar J^{m}=\mathbb E_{x}\Big[\textstyle\bigotimes_{j=1}^{\ell}u^{m}_{j}\Big].
 \]
 
-- training/inference
-  - training forward: soft \(u\), deterministic argmax one-hot \(h\), hard Gumbel-softmax ST sample을 모두 생성
-  - nominal Gumbel temperature schedule \(2.0\rightarrow.3\)
-  - 그러나 champion의 활성 loss는 soft \(u\)와 deterministic \(h\) target을 사용하고, `lambda_hash_hard=lambda_ntxent=0`이므로 Gumbel-ST sample에는 실효 gradient가 없음
-  - inference: \(b_{imr}=\arg\max_c u_{imr,c}\), \(c\in\{A,C,G,T\}\)
-- 전체 DNA code
-  - \(6\) slots \(\times3\) bases = 18 bases = raw 36 bits
-- codon collision
-  - Flickr/MS-COCO/NUS: \(K=128>64\), one-to-one codeword→codon 불가능
-  - CIFAR: \(K=64\), balanced codeword–codon OT를 사용할 수 있는 용량 조건
-  - codon collision rate와 codeword/codon mutual information을 별도 보고
-- text-side auxiliary path의 비대칭
-  - visual과 같은 codebook/CodonHead를 사용하지만 text quantization 동안 quantizer를 eval mode로 두어 EMA를 갱신하지 않음
-  - text codon에는 global residual gate를 적용하지 않음
-  - XM/TDNA 해석에서 image-conditioned local codon과 ungated text codon의 비대칭을 명시
+(a)와 (b)는 데이터 적합 항이고 (c)는 사전(prior)이다. 둘은 본질적으로 상충하며 — 코드가
+데이터 구조를 담으면 결합 분포는 균등에서 멀어진다 — 이 상충의 균형점이 검색 성능과
+해석가능성의 교환을 결정한다. §4에서 그 교환을 정량화한다.
 
-### 3.7 Bio-constrained post-processing
+---
 
-#### 3.7.1 제약 정의
+### 3.9 추론
 
-- alphabet: \(\Sigma=\{A,C,G,T\}\)
-- GC count
+이미지를 동결 인코더에 넣어 전역 특징과 패치를 얻고, 학습된 코드북의 축별 평균을 앵커로
+수송·마스킹을 수행하여 슬롯 표현을 만든다. 각 슬롯을 자기 코드북으로 양자화하고 코돈 헤드의
+argmax로 원시 코드를 얻은 뒤, DP 투영으로 유효 코드를 방출한다. 질의와 데이터베이스 코드
+사이의 염기 Hamming 거리로 순위를 매긴다. **텍스트도, VLM도 추론 경로에 없다.**
 
-\[
-g_{\min}=\lceil.4L\rceil,\qquad g_{\max}=\lfloor.6L\rfloor.
-\]
-
-- homopolymer
-  - 동일 base의 최대 연속 길이 \(R_{\max}=3\)
-- 실제 window
-  - \(L=18\): GC count `[8,10]`, 즉 44.4–55.6%
-  - \(L=24\): GC count `[10,14]`, 즉 41.67–58.33%
-- 해석
-  - 40–60%/run≤3은 보편 법칙이 아니라 흔한 platform-dependent design rule
-  - 두 제약만 만족하며 synthesis-ready를 의미하지 않음
-
-#### 3.7.2 Algorithm: minimum-Hamming valid projection
-
-```text
-Algorithm 1  Bio-constrained projection Πbio(x)
-Input: raw strand x1:L, alphabet Σ, GC interval [gmin,gmax], Rmax=3
-Output: projected strand y1:L and edit count d minimizing dH(x,y)
-
-1: if x already satisfies both constraints: return (x, 0)
-2: define DP state D[i,g,b,r]
-      i = processed length, g = cumulative GC count,
-      b = last base, r = current homopolymer run length
-3: initialize for every b in Σ:
-      D[1, 1GC(b), b, 1] = 1[b ≠ x1]
-4: for i = 1,...,L-1:
-5:   for every reachable (g,b,r) and next base b' in Σ:
-6:      r' = r+1 if b'=b else 1
-7:      if r' > Rmax: continue
-8:      g' = g + 1GC(b')
-9:      relax
-          D[i+1,g',b',r'] = min(
-             D[i+1,g',b',r'],
-             D[i,g,b,r] + 1[b' ≠ xi+1])
-10: choose the minimum terminal state with g in [gmin,gmax]
-11: if no feasible terminal exists: return (x, -1)
-12: otherwise recover y by backpointers and return (y, dH(x,y))
-```
-
-- optimality 설명
-  - state가 prefix의 미래 feasibility에 필요한 정보 `(GC count, last base, run length)`를 모두 보존
-  - optimal substructure에 의해 Bellman recurrence가 최소 base-Hamming edit 보장
-- 복잡도
-  - 시간 \(O(L^2|\Sigma|^2R_{\max})\)
-  - backpointer 포함 메모리 \(O(L^2|\Sigma|R_{\max})\)
-- 평가 적용
-  - query와 database 양쪽의 모든 row에 동일 projection
-  - 동일 code의 projection은 순수함수이므로 unique code마다 정확히 한 번 계산하고 inverse index로 복원하는 exact memoization 사용
-  - equal-cost DP 해는 versioned traversal tie policy(이전 base A→C→G→T, run/GC 오름차순; terminal도 동일 순서)로 결정하며 manifest에 기록
-  - projected base Hamming으로 ranking
-  - baseline에도 완전히 동일한 projection
-- 한계
-  - 18-base 전체에서 편집하여 3-base codon boundary/slot semantics를 보존하지 않음
-  - pre/post mAP, edit count, codon decoding 변화를 함께 보고
-
-### 3.8 Training Objectives
-
-#### 3.8.1 실제 gradient가 있는 champion loss
-
-- notation
-  - \(z\): pre-VQ semantic token
-  - \(q\): selected codeword
-  - \(u\in[0,1]^{18\times4}\): soft base distribution
-  - \(h\): argmax one-hot base code
-  - \(\operatorname{MSE}(A,B)=|A|^{-1}\sum_j(A_j-B_j)^2\): PyTorch default mean reduction
-- VQ commitment
-
-\[
-\mathcal L_{\rm VQ}=
-\operatorname{MSE}(q,\operatorname{sg}(z))
-+\beta_{\rm VQ}\operatorname{MSE}(z,\operatorname{sg}(q)),
-\qquad\beta_{\rm VQ}=.25.
-\]
-
-  - EMA buffer이므로 첫 codebook-side 항은 실제 parameter gradient 없음
-  - encoder commitment 항이 실효 학습 신호
-- hard codon commitment
-
-\[
-\mathcal L_{\rm quant}=\operatorname{MSE}(u,\operatorname{sg}(h)).
-\]
-
-  - \(h\)는 Gumbel sample이 아니라 soft \(u\)의 deterministic argmax one-hot
-
-- DNA discreteness와 base balance
-
-\[
-\mathcal L_{\rm DNA}
-=-\frac1{BL}\sum_{i,\ell,c}u_{i\ell c}\log u_{i\ell c}
-+\eta\frac1L\sum_\ell
-\mathrm{KL}\!\left(U_4\middle\Vert\bar u_\ell\right),
-\quad \bar u_\ell=\frac1B\sum_i u_{i\ell},\quad\eta=.3.
-\]
-
-- codebook balance/uncorrelation
-
-\[
-p_{imk}=\operatorname{softmax}_k(-d_{imk}/.1),\qquad
-\bar p_{mk}=B^{-1}\sum_ip_{imk},
-\]
-
-\[
-\mathcal L_{\rm bal}=\frac1{MK}\sum_{m,k}(\bar p_{mk}-1/K)^2,
-\quad
-G_m=\frac KBP_m^\top P_m,
-\quad
-\mathcal L_{\rm uncorr}=\frac1{MK^2}\sum_{m,k,j}
-[\operatorname{offdiag}(G_m)_{kj}]^2,
-\]
-
-\[
-\mathcal L_{\rm BU}=\mathcal L_{\rm bal}+.1\mathcal L_{\rm uncorr}.
-\]
-
-- routed transport cost
-
-\[
-\mathcal L_{\rm OT}=B^{-1}\sum_i\langle \widetilde P_i,C_i\rangle.
-\]
-
-  - 이름은 `loss_wasserstein`
-  - 전체 UOT objective가 아니라 sparsification 이후 transport term만 사용
-- paired-view per-codebook contrastive loss
-  - 두 augmentation의 같은 image/slot을 positive, 다른 image를 negative로 하는 symmetric InfoNCE
-  - visual pre-VQ routed token 기준
-  - pairwise text-conditioned temperature
-
-\[
-\tau_{ij}^{m}=.3\left[1+.3\cos(t_i^{m,{\rm raw}},t_j^{m,{\rm raw}})\right].
-\]
-
-  - \(t^{m,{\rm raw}}\)는 whitening/adapter 전 512-D feature; local P0에서는 legacy token-mean feature
-  - \(\zeta_r^m\)를 두 view의 normalized pre-VQ token을 이어 붙인 \(2B\)개 vector, \(\pi(r)\)를 같은 image의 반대 view index, \(\iota(r)\)를 원 image index라 두면
-
-\[
-s_{rj}^m=
-\frac{(\zeta_r^m)^\top\zeta_j^m}
-{\tau_{\iota(r)\iota(j)}^m},\qquad
-\mathcal L_{\rm CIB}=
--\frac1{6(2B)}\sum_{m=0}^{5}\sum_{r=1}^{2B}
-\log\frac{\exp s_{r,\pi(r)}^m}
-{\sum_{j\ne r}\exp s_{rj}^m}.
-\]
-
-  - 현재 `source=visual_token`에서는 별도 Bernoulli CIB-KL이 exact zero이고 위 InfoNCE만 실효
-- cross-modal commitment
-
-\[
-\mathcal L_{\rm XM}=\frac12\left[
-\operatorname{MSE}(z^v,\operatorname{sg}(q^t))
-+\operatorname{MSE}(t,\operatorname{sg}(q^v))
-\right].
-\]
-
-  - champion은 global 포함
-- confidence-weighted text-code KL
-
-\[
-p^v_{imk}\propto\exp(\cos(z^v_{im},e_{mk})/.1),\qquad
-p^t_{imk}\propto\exp(\cos(t_{im},e_{mk})/.07),
-\]
-
-\[
-w_{im}=1-\frac{H(p^t_{im})}{\log K},\qquad
-\mathcal L_{\rm TCKL}=\mathbb E_{m=1:5,w>.2}
-\left[w_{im}\mathrm{KL}(\operatorname{sg}(p^t_{im})\Vert p^v_{im})\right].
-\]
-
-- local text–DNA InfoNCE
-  - visual/text soft DNA의 slot별 12-D block
-  - local slots 1–5에 symmetric InfoNCE, temperature `.07`
-  - global slot skip
-
-\[
-d_{im}^{v}=\operatorname{vec}(u_{im}^{v})\in\mathbb R^{12},\qquad
-d_{im}^{t}=\operatorname{vec}(u_{im}^{t})\in\mathbb R^{12},
-\]
-
-\[
-S_{ij}^{m}=\frac{\cos(d_{im}^{v},d_{jm}^{t})}{.07},\qquad
-\mathcal L_{\rm TDNA}=\frac1{10}\sum_{m=1}^{5}
-\left[\operatorname{CE}(S^m,I)+\operatorname{CE}((S^m)^\top,I)\right].
-\]
-- CIFAR 전용 codeword–codon Sinkhorn
-
-\[
-p_{mk}(c_1c_2c_3)=\prod_{r=1}^{3}p_{mk}^{(r)}(c_r),\qquad
-C_{mk,c}=-\log p_{mk}(c),
-\]
-
-\[
-T_m^*=\operatorname{Sinkhorn}(C_m;U_K,U_{64},\epsilon=.1,30\text{ iters}),
-\qquad
-\mathcal L_{\rm CCS}=\frac1M\sum_m\langle T_m^*,C_m\rangle.
-\]
-
-  - \(K=64\)일 때 soft balanced assignment가 bijection을 장려
-  - 여기서 \(p_{mk}\)는 raw EMA codeword를 gate/residual 없이 \(H_m(e_{mk})\)로 decode하여 구성
-  - 실제 local sample은 \(H_m(q^{\rm ST}_{im}+\sigma(\alpha_m)\operatorname{sg}(q^{\rm ST}_{i0}))\)에서 방출되므로 CCS가 emitted local codon의 bijection을 직접 강제하지는 않음
-  - codebook은 EMA buffer이므로 CCS gradient는 주로 CodonHead parameter로 전달
-  - deterministic argmax codon의 완전한 일대일성을 수학적으로 보장한다고 쓰지 않음
-
-#### 3.8.2 Gradient-effective champion objective
-
-- 아래 식은 parameter update에 실효 gradient를 주는 항만 모은 objective
-- 실제 `loss_total` scalar에는 no-gradient anchor와 exact-zero CIB-KL 등도 config weight와 함께 더해짐
-
-\[
-\begin{aligned}
-\mathcal L={}&
-\lambda_{\rm VQ}\mathcal L_{\rm VQ}
-+\lambda_{\rm quant}\mathcal L_{\rm quant}
-+\lambda_{\rm DNA}\mathcal L_{\rm DNA}
-+\lambda_{\rm BU}\mathcal L_{\rm BU}\\
-&+\lambda_{\rm OT}\mathcal L_{\rm OT}
-+\lambda_{\rm CIB}\mathcal L_{\rm CIB}
-+\lambda_{\rm XM}\mathcal L_{\rm XM}
-+\lambda_{\rm TCKL}\mathcal L_{\rm TCKL}\\
-&+\lambda_{\rm TDNA}\mathcal L_{\rm TDNA}
-+\lambda_{\rm CCS}\mathcal L_{\rm CCS}.
-\end{aligned}
-\]
-
-#### 3.8.3 양수 config지만 실질적으로 비활성인 항
-
-| 항 | Config | 실제 상태 | 논문 처리 |
-|---|---:|---|---|
-| Anchor alignment | `.05` | EMA codebook mean과 detached text EMA만 사용하여 trainable gradient 없음 | gradient-effective objective에서 제외; implementation audit로 명시 |
-| CIBHash KL | `.001` | `source=visual_token` branch가 exact zero 반환 | gradient-effective objective에서 제외 |
-| Reconstruction | `1.0` | `use_decoder=False` | 비활성 |
-| Codon text anchor | `.1` | `codon_text_anchor=False` | 비활성 |
-| Pairwise hash / hard hash | `0/0` | similarity target은 구성되더라도 loss weight 0 | label-free gradient objective 확인 |
-| Generic DNA NtXent | `0` | 비활성 | per-codebook CIB와 혼동 금지 |
-
-- 그 밖의 weight 0 champion 경로
-  - codebook orthogonality
-  - codeword-codon aggregated entropy/pairwise
-  - text-cluster codon OT, text-codon relation, hierarchical codon
-  - hash reconstruction, dual semantic/instance heads
-  - text-hash MSE, codeword xmodal, routing-text
-  - text-codeword/pre-quant/visual-hash contrastive
-  - codeword-text prototype, global DNA NtXent, text orthogonality
-  - prototype clustering, SwAV assignment
-
-#### 3.8.4 Joint codon-diversity 규제 `L_joint` (본 논문 신규)
-
-기존 `L_base-balance`는 위치별 주변분포에만 걸리므로, **위치별로는 균등한데 세 위치의 결합만
-붕괴한** 슬롯을 구조적으로 볼 수 없다. 실제로 A-champion의 global 슬롯은 A/C/G/T를 모두 쓰고
-정규화 엔트로피 `.932`(정상 슬롯 `.951–.985`)인데도 64칸 중 **21칸**만 사용했다. 자기 marginal이
-허용하는 기대 커버리지는 48.6칸이므로 **27.6칸이 3-way 종속으로 사라진 것**이다.
-
-슬롯 `m`, 위치 `l`의 4-way 사후분포를 `p[b][m][l]`이라 하면, 한 샘플 안에서 L개 위치는 각자
-독립 softmax이므로 그 샘플의 codon 분포는 외적이다.
-
-```
-J[b][m][c] = Π_l  p[b][m][l][ c_l ]                    c = (c_0 … c_{L-1})
-Q[m]       = (1/B) Σ_b J[b][m]                          ∈ Δ^(4^L − 1)
-L_joint    = (1/|S|) Σ_{m∈S} KL( U_{4^L} ‖ max(Q[m], ε) )
-```
-
-- `L_base-balance`와 **동일한 forward-KL 형태**를 쓴다. mode-covering이므로 `Q[m][c] → 0`인,
-  즉 한 번도 방출되지 않는 codon에 페널티가 집중된다 — 정확히 관측된 병리다.
-- `ε = 1e-6` floor가 codon당 페널티를 `log((1/4^L)/ε) ≈ 9.7`로 유계화한다.
-- 배치 평균 후에 KL을 취하므로 샘플별 분포가 뾰족해도 무방하다. `L_entropy`·`L_quant`와 충돌하지 않는다.
-- 단위 검증: 64칸 균등 `0.008`, 21칸 붕괴 `6.12`, 1칸 `9.44`.
-- 이 항이 줄이는 양은 다중정보 `TC(m) = Σ_l H(Q_marg[m][l]) − H(Q[m])` 이다. MS-COCO global 슬롯
-  기준 `1.722 → .159`로, 정상 슬롯 범위(`.25–.41`) 안으로 들어간다.
-
-⚠️ **원인이 아니라 증상을 규제한다.** 왜 global 슬롯에서만 세 위치가 종속되는지는 규명하지
-못했다. head 측 자유도(위치 간 가중치 공유·chunk 스케일 정규화·chunk 분할 방식)는 모두 반증되었고,
-종속은 codebook 형성 단계에 존재한다. 논문에는 "원인 미규명 상태의 효과적 규제"로 정직하게 적는다.
-
-### 3.9 데이터셋별 P0 recipe — 신규 통일 레시피 (2026-08-04)
-
-네 데이터셋이 **동일 아키텍처**를 쓴다. 데이터셋별로 다른 것은 λ, K, 프롬프트, 그리고 기존
-champion에서 물려받은 loss weight뿐이다.
-
-| Dataset | prompt | K | **λ_joint** | noGumbel | bijection | OT | XM | TDNA | TCKL | CIB | CCS |
-|---|---|---:|---:|:---:|:---:|---:|---:|---:|---:|---:|---:|
-| Flickr25K | v4 | 128 | **.02** | ✔ | off | `.15` | `.05` | `.05` | `.05` | `1.0` | `0` |
-| MS-COCO | **v5b** | 128 | **.03** | ✔ | off | `.05` | `.10` | `.10` | `.10` | `1.5` | `0` |
-| NUS-WIDE | v4 | 128 | **.05** | ✔ | off | `.15` | `.05` | `.05` | `.05` | `1.5` | `0` |
-| CIFAR-10 | v4 | 64 | **.03** | ✔ | **off (변경)** | `.15` | `.05` | `.05` | `.05` | `1.0` | `.10` |
-
-- **A-champion과의 차이는 정확히 세 가지**다: `λ_joint > 0`, `--no_gumbel_softmax`,
-  그리고 CIFAR의 bijection을 `.1 → 0`으로 끈 것.
-- bijection은 원래 **CIFAR에만** 켜져 있었다. `L_joint`와 codeword→codon 사상을 두고 상반된
-  압력을 걸어 충돌하며, 끄면 검색·해석성 모두 개선된다(val `+.0227`). 이로써 아키텍처가 통일된다.
-- 프롬프트는 4개 중 3개가 v4이고 MS-COCO만 v5b다. **“데이터셋마다 다른 프롬프트”라는 일반 주장은
-  하지 않는다**; v5b의 우위는 global-caption-free 레시피에서만 나타나는 조건부 결과다.
-- 공통 설정(batch 64, Adam, LR `.001`, frozen backbone, λ_VQ `.25`, λ_quant `.05`, λ_DNA `.05`,
-  λ_BU `.02`, UOT `λ_a=λ_b=1`, EMA `.99`, partial whitening `γ=.25`, nominal 60-epoch cosine)은
-  A-champion과 동일하다.
-- E\*는 seed마다 stage-1에서 독립적으로 선택한다. seed 42의 E\*를 재사용하지 않는다.
 
 ## 4. Experiments
 
@@ -1130,6 +673,32 @@ champion에서 물려받은 loss weight뿐이다.
 - main table의 baseline 의미
   - 논문 원문 수치가 아니라 repository에서 동일 split/artifact와 동일 post-processing으로 재평가한 결과
   - split manifest, seed, file hash를 supplementary에 공개
+
+### 4.2b 구현 세부 — 데이터셋별 레시피
+
+> Methodology(§3)는 아키텍처만 기술한다. 아래 하이퍼파라미터는 실험 설정이므로
+> 여기에 둔다.
+
+네 데이터셋이 **동일 아키텍처**를 쓴다. 데이터셋별로 다른 것은 λ, K, 프롬프트, 그리고 기존
+champion에서 물려받은 loss weight뿐이다.
+
+| Dataset | prompt | K | **λ_joint** | noGumbel | bijection | OT | XM | TDNA | TCKL | CIB | CCS |
+|---|---|---:|---:|:---:|:---:|---:|---:|---:|---:|---:|---:|
+| Flickr25K | v4 | 128 | **.02** | ✔ | off | `.15` | `.05` | `.05` | `.05` | `1.0` | `0` |
+| MS-COCO | **v5b** | 128 | **.03** | ✔ | off | `.05` | `.10` | `.10` | `.10` | `1.5` | `0` |
+| NUS-WIDE | v4 | 128 | **.05** | ✔ | off | `.15` | `.05` | `.05` | `.05` | `1.5` | `0` |
+| CIFAR-10 | v4 | 64 | **.03** | ✔ | **off (변경)** | `.15` | `.05` | `.05` | `.05` | `1.0` | `.10` |
+
+- **A-champion과의 차이는 정확히 세 가지**다: `λ_joint > 0`, `--no_gumbel_softmax`,
+  그리고 CIFAR의 bijection을 `.1 → 0`으로 끈 것.
+- bijection은 원래 **CIFAR에만** 켜져 있었다. `L_joint`와 codeword→codon 사상을 두고 상반된
+  압력을 걸어 충돌하며, 끄면 검색·해석성 모두 개선된다(val `+.0227`). 이로써 아키텍처가 통일된다.
+- 프롬프트는 4개 중 3개가 v4이고 MS-COCO만 v5b다. **“데이터셋마다 다른 프롬프트”라는 일반 주장은
+  하지 않는다**; v5b의 우위는 global-caption-free 레시피에서만 나타나는 조건부 결과다.
+- 공통 설정(batch 64, Adam, LR `.001`, frozen backbone, λ_VQ `.25`, λ_quant `.05`, λ_DNA `.05`,
+  λ_BU `.02`, UOT `λ_a=λ_b=1`, EMA `.99`, partial whitening `γ=.25`, nominal 60-epoch cosine)은
+  A-champion과 동일하다.
+- E\*는 seed마다 stage-1에서 독립적으로 선택한다. seed 42의 E\*를 재사용하지 않는다.
 
 ### 4.3 Validation-based P0 selection/refit 및 test-use audit
 
@@ -1277,7 +846,7 @@ champion에서 물려받은 loss weight뿐이다.
 
 본 절의 모든 수치는 다음 **통일 레시피**로 재학습한 모델이다.
 
-- 전 슬롯 **joint codon-diversity 규제** `L_joint` (§3.8.4)
+- 전 슬롯 **joint codon-diversity 규제** `L_joint` (§3.8c)
 - **deterministic straight-through** codon 이산화 (`--no_gumbel_softmax`)
 - **codeword–codon Sinkhorn bijection 비활성** (4개 데이터셋 공통)
 - 데이터셋별 λ: MS-COCO `.03`, NUS-WIDE `.05`, Flickr25K `.02`, CIFAR-10 `.03`
@@ -1286,6 +855,25 @@ champion에서 물려받은 loss weight뿐이다.
 - 그 외 구조·프롬프트·P0 프로토콜은 §3과 동일
 
 이전 draft의 champion(이하 `A-champion`)과의 유일한 차이는 위 세 항목이다.
+
+> **2026-08-10 갱신 — 슬롯 수 6 → 5, 코드 18-base → 15-base (36 → 30 bit).**
+>
+> 슬롯 제거 대상은 추측이 아니라 측정으로 정했다. 기존 체크포인트에서 슬롯 하나를
+> 무력화하고 held-out codon decoding을 재계산하면(`scripts/slot_drop_decoding_ablation.py`),
+> **`scene_type`만이 4/4에서 제거가 이득**이다(Flickr `+.0059`, MS-COCO `+.0144`,
+> NUS `+.0117`, CIFAR `+.0111`). 단독 decoding도 전 데이터셋 최하위이며
+> (`.7378 / .5693 / .6655 / .8433`), 검색 기여도 역시 CIFAR 최소(`−.0089`)다.
+> 텍스트 앵커 중복도는 `activity_relation`을 지목했으나, 중복도는 *누가 겹치는가*를
+> 말할 뿐 *누가 없어도 되는가*를 답하지 않는다.
+>
+> `scene_type`은 캐시상 인덱스 5이므로 앞 5슬롯만 취하면 정확히 그것만 빠지고
+> 캡션 재생성이 필요 없다. 3-seed 결과(§4.5.1)는 **비트를 17 % 줄이면서
+> 해석성 4/4 개선, 검색 2/4 개선**이다.
+>
+> 미해결 사항: nucleus 마스크 파라미터는 `M=6` 기준으로 튜닝된 채 남아 있어,
+> `M=5`에서는 컷이 `k=3/5`에 고정되어 CIFAR `color_texture`가 이미지의 23.44 %에서
+> 굶는다. `--routing_adaptive_topp_min 0.6 --routing_adaptive_topp_max 0.95`가
+> 이를 0.00 %로 해소한다(§4.10). 나머지 3개 데이터셋의 재튜닝은 미완이다.
 
 #### 4.5.1 Panel A — 18-base headline, seeds `{42,43,44}` mean ± sample std
 
@@ -1305,32 +893,118 @@ champion에서 물려받은 loss weight뿐이다.
 | CroVCA | `U0` | 36-bit → 18-base | .7698 | **.8216** | .7984 | - |
 | DNA24-18 analytic-transfer | `U0-FD` | learned 18×4 DNA head | .7808 ± .0071 | .6330 ± .0127 | .7427 ± .0055 | .7786 ± .0101 |
 | PRIMO-18 length-transfer | `U0-FD` | learned 18×4 DNA head | .7882 ± .0209 | .6251 ± .0129 | .7320 ± .0109 | .7344 ± .0123 |
-| **GroundedDNA (unified)** | **`VLM-T`** | **six grounded codons → 18-base** | **.8668 ± .0017** | **.8232 ± .0098** | **.8283 ± .0008** | **.8940 ± .0033** |
+| **GroundedDNA (unified)** | **`VLM-T`** | **six grounded codons → 18-base** | **.8668 ± .0017** | **.8232 ± .0098** | **.8246 ± .0033**† | **.8940 ± .0033** |
 
 - CIFAR-10의 `U0` 열은 seeds `{43,44}`를 아직 돌리지 않아 `-`다(해당 60셀 배치는
   Flickr/MS-COCO/NUS-WIDE만 포함했다). CIFAR 비교는 §4.5.2의 single-seed diagnostic만 유효하다.
 - baseline은 legacy cache provenance 때문에 invariant #6상 여전히 **strict-main ineligible**이다.
   seed 수를 채운 것은 invariant #3·#9를 만족시킬 뿐, #6은 별개 조건이다.
 
+> † **NUS-WIDE는 `--sinkhorn_epsilon_init 0.5`로 학습한다** (2026-08-06 채택).
+> 기존 `1.0`에서는 NUS가 `E*=4`에서 멈추므로 라우터가 ε≈0.99로 동작해 전송 계획이
+> 거의 균등해지고(p_max 중앙값 0.2024 대 균등 0.1667), adaptive top-p의 컷이 고정
+> 순위에 걸려 `primary_object`가 **이미지의 33.20 %에서 시각 토큰을 하나도 받지
+> 못했다**. 그 경우 `denom.clamp_min(1e-12)` 때문에 pooled feature가 영벡터가 되고,
+> 해당 슬롯의 codon은 global gate를 통해 들어온 CLIP 전역 임베딩의 재인코딩이 된다.
+> ε=0.5는 이를 전 슬롯 **0.00 %**로 없앤다.
+>
+> | | eps 1.0 | eps 0.5 (채택) | Δ |
+> |---|---:|---:|---:|
+> | mAP@R | .8283 ± .0008 | .8246 ± .0033 | −.0037 |
+> | codon decoding | .7368 ± .0026 | .7318 ± .0071 | −.0050 |
+> | DNA-unique | .2116 ± .0079 | **.2353 ± .0039** | **+.0237** |
+> | 빈 이미지 비율 | primary 33.20 % | **0.00 %** | — |
+>
+> 검색·해석성 지표가 소폭 내려가지만, 내려간 부분은 **슬롯이 아무것도 보지 않은
+> 이미지에서 얻던 점수**다. ε은 원인이 아니라 처방이다 — MS-COCO를 ε=0.99에서
+> 평가해도 빈 슬롯은 0 %이며, 근본 원인은 텍스트 앵커의 축 분리도(MS-COCO .5742,
+> NUS .6020, CIFAR .6693)다. Flickr25k·MS-COCO는 빈 슬롯이 없어 적용하지 않는다
+> (Flickr에 적용 시 mAP −.0138).
+>
+> §4.8의 A2/A4 ablation 표는 아직 ε=1.0 기준이며, full/ablated 양쪽이 같은 조건이라
+> Δ는 유효하다. 제출 전 재실행 필요.
+
+#### 4.5.1b Panel B — 15-base / 30-bit 동일 예산 비교
+
+5-slot 모델은 30 bit를 쓰므로 36-bit 표와 직접 비교할 수 없다. baseline 6종을
+**동일한 30 bit**로 재학습해(같은 러너·같은 캐시 경로, seed 42) 맞춘 결과다.
+우리 값은 seeds `{42,43,44}` 평균이다.
+
+| Dataset | CIBHash | CIMON | Bi-half | SDC | OH | CroVCA | 최강 BL | **ours** | **Δ** |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Flickr25K | .7939 | .8121 | .8116 | .7252 | **.8328** | .7716 | .8328 | **.8529** | **+.0201** |
+| MS-COCO | .7922 | .6681 | .7137 | .8076 | .7662 | **.8304** | .8304 | **.8313** | **+.0009** |
+| NUS-WIDE | .7992 | .7890 | .7464 | .7689 | **.8025** | .8015 | .8025 | **.8221** | **+.0196** |
+| CIFAR-10 | .8701 | .8524 | .7594 | .8398 | .8607 | **.8860** | .8860 | **.8998** | **+.0138** |
+
+**동일 비트 예산에서 4/4 우위**다. 36-bit에서의 우위(`+.0341 / +.0016 / +.0218 / +.0156`)와
+비교하면 Flickr에서 줄고 나머지는 유지된다.
+
+> ⚠️ **집계 게이트 미통과.** 이 값들은 `map_at_R_post`에서 직접 읽었다. 집계기는
+> baseline 구현 파일의 SHA-256을 고정해 baseline 수치가 코드 변경으로 조용히 바뀌는
+> 것을 막는데, 30-bit 지원을 위해 수정한 3개 파일 중 2개는 검토된 비과학적 전환으로
+> 등록했으나(diff가 비트 예산 튜플과 주석뿐이고 36/48 경로는 바이트 동일) 나머지
+> 하나는 등록할 수 없었다 — **기존 36-bit 셀이 기록한 `baseline_val_select_p0.py`
+> 해시가 git 이력에 없다. 즉 기존 baseline은 커밋되지 않은 워킹트리에서 실행됐고
+> 그 내용은 복원 불가능하다.** 따라서 이 표는 초안에 이미 실린 36-bit 표와
+> **동일한 증거 수준**이며(양쪽 모두 `legacy_cache_diagnostic_only_not_main_table_eligible`),
+> 제출 전 전 비트를 커밋된 상태에서 재실행해야 한다.
+
 #### 4.5.2 최강 `U0` baseline 대비 (3-seed 대 3-seed)
 
 | Dataset | ours 3-seed | best `U0` 3-seed | **Δ** | A-champion Δ (seed 42) |
 |---|---:|---|---:|---:|
 | Flickr25K | .8668 ± .0017 | OH .8327 | **+.0341** | +.0313 |
-| NUS-WIDE | .8283 ± .0008 | OH .8028 | **+.0255** | +.0239 |
+| NUS-WIDE | .8246 ± .0033† | OH .8028 | **+.0218** | +.0239 |
 | MS-COCO | .8232 ± .0098 | CroVCA .8216 | **+.0016** | −.0087 |
-| CIFAR-10 | .8940 ± .0033 | CIBHash .8968 *(1 seed)* | −.0028 | +.0090 |
+| CIFAR-10 | .8940 ± .0033 | *(CIBHash 재실행 중)* | *withheld* | +.0090 |
 
-🟢 **3-seed 대 3-seed 비교에서 MS-COCO가 `+.0016`으로 뒤집힌다.** 이는 우리 값이 올라서가 아니라
-**CroVCA의 3-seed 평균이 `.8257`(seed 42) → `.8216`으로 내려갔기 때문**이다. 즉 이전에 관측된
-MS-COCO 열세의 상당 부분은 **baseline 쪽의 seed 운**이었다.
+- **MS-COCO는 3-seed 대 3-seed에서 `+.0016`으로 뒤집힌다.** 우리 값이 올라서가 아니라 CroVCA의
+  3-seed 평균이 `.8257`(seed 42) → `.8216`으로 내려갔기 때문이다. ⚠️ 그러나 `+.0016`은 우리 std
+  `.0098`의 6분의 1이므로 **통계적으로는 동률**이다. "대등하다"가 정확하고 "이겼다"는 쓰지 않는다.
+- ⚠️ **CIFAR-10 열은 보류**한다. 그 데이터셋의 최강 `U0`였던 CIBHash가 2026-08-04 source-fidelity
+  감사(F3)로 무효화되어 재실행 중이다. 참고로 차순위 CroVCA는 `.8819`이므로, corrected CIBHash가
+  우리 `.8940` 아래로 내려오면 이 열도 우세로 바뀐다.
 
-⚠️ 그러나 `+.0016`은 우리 std `.0098`의 6분의 1에 불과하므로 **통계적으로는 동률**로 서술해야 한다.
-"MS-COCO에서 CroVCA와 대등하다"가 정확하고, "이겼다"는 쓰지 않는다.
+#### 4.5.3 변형 행 — `+ L_bio` (생물 제약을 학습하는 조건)
 
-- Flickr25K·NUS-WIDE는 3-seed 대 3-seed에서도 `+.034` / `+.026`으로 확고하다.
-- CIFAR-10만 열세이며 baseline이 아직 single seed다. **CIFAR `{43,44}` 실행이 남은 유일한 빈칸이다.**
-- full mAP는 mAP@R 개선 대비 하락한다(상위 절단 이득, 꼬리 손실). §4.6에 수치를 둔다.
+main row는 제약을 **사후 투영으로만** 만족시킨다. 아래 변형은 학습 중 GC/homopolymer 항(§3.7)을
+추가해 제약을 **학습**한다. 두 행 모두 배포 코드는 동일한 DP 투영을 거쳐 validity 100 %다.
+
+| Dataset | mAP@R | Δ vs main | codon decode | Δ | DNA-unique | Δ | **사전 유효율** | Δ |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| MS-COCO | .8167 | −.0120 | .6429 | +.0016 | .2021 | +.0067 | 46.4 % → **87.0 %** | **+40.6** |
+| NUS-WIDE | .8288 | **+.0014** | .7339 | −.0008 | .1948 | −.0210 | 56.5 % → **77.5 %** | **+21.1** |
+| Flickr25K | .8662 | −.0011 | .7565 | −.0110 | .3978 | −.0725 | 40.5 % → **84.0 %** | **+43.5** |
+| CIFAR-10 | .8917 | −.0053 | .8942 | −.0047 | .0896 | −.0411 | 39.0 % → **85.8 %** | **+46.8** |
+
+🟢 **이 행이 있어야 “모델이 생물 제약을 학습한다”를 쓸 수 있다.** 참조점 두 개와 함께 읽는다.
+
+| 기준 | 사전 유효율 |
+|---|---:|
+| 균등 4^L 무작위 (DP 정확계산) | **45.2 %** |
+| binary `U0` baseline 실측 (CIBHash/SDC/OH/CroVCA) | 43–46 % |
+| ours, main row | 39–57 % |
+| **ours, `+ L_bio`** | **77–87 %** |
+
+binary baseline이 chance에 붙어 있는 것은 우연이 아니다. `base ∈ {C,G}`는 두 bit의 XOR이 1인 경우와
+동치이므로 **GC 함량은 bit-pair parity 술어**이고, 독립적인 per-bit 목적함수로는 표현되지 않는다.
+실측 GC 분포가 Binomial(18, ½)(평균 9.00, 표준편차 2.12)에 정확히 앉는 것이 그 서명이다
+(CIBHash 9.04±2.14, SDC 8.84±2.15, OH 9.56±2.19, CroVCA 8.74±2.22). 반면 위치별 4-way 사후분포에
+직접 hinge를 거는 우리 모델은 77–87 %에 도달한다. **알파벳 크기가 아니라 제약을 표현할 수 있는
+좌표계가 다르다는 것이 요점**이며(36 bit ↔ 18 base는 전단사이므로 용량 이점은 없다), 이 행이 그
+주장의 유일한 실증이다.
+
+⚠️ **대가는 다양성이다.** 4개 중 3개에서 DNA-unique가 떨어지며 Flickr `−.0725`가 최대다
+(MS-COCO만 `+.0067`로 예외). 검색은 `−.0120 … +.0014`로 대체로 미미하고, 해석성은
+`−.0110 … +.0016`으로 **사실상 중립**이다 — 제약 학습이 codon의 의미 보존을 훼손하지는 않는다.
+
+⚠️ **λ_bio는 아직 튜닝되지 않았다.** 위 수치는 전부 `λ_bio = 10` 단일값이며, 이 값은 2026-07-29에
+**Flickr 한 데이터셋에서, 그것도 A-champion 레시피 위에서** 손실 크기를 보고 고른 것이다. 통일
+레시피에서도, 다른 세 데이터셋에서도 스윕한 적이 없다. 유효율 상승폭이 `+21.1`(NUS)에서 `+46.8`
+(CIFAR)까지 벌어지고 다양성 비용도 `+.0067`에서 `−.0725`까지 벌어지는 것은 **데이터셋별 최적 λ가
+서로 다르다는 신호**다. 따라서 이 표는 *“제약 학습이 가능하다”*의 증거로만 쓰고, *“이것이 최적
+절충이다”* 로는 쓰지 않는다.
 
 ### 4.6 Bio projection 효과 — 신규 모델에서 재측정
 
@@ -1346,8 +1020,9 @@ legacy `bio_projection_18base.json`은 protocol/checkpoint provenance가 없어 
 - **feasibility 100 %를 mAP `−.0024 … −.0084`에 얻는다.** legacy 범위(`−.0037 … −.0088`)와 동일한
   수준이며, 신규 레시피가 projection 비용을 늘리지 않았다.
 - unique ratio는 전 데이터셋에서 감소한다. projection이 다양성을 개선한다고 주장하지 않는다.
-- ⚠️ **사전 유효율이 40–57 %로, 균등 4^L 기대치 45.2 %와 같은 수준이다.** 즉 학습이 생물 제약을
-  전혀 학습하지 않으며, 제약은 순수한 사후 투영으로 남는다. constraint-aware 학습은 §6 향후 연구다.
+- ⚠️ **main row의 사전 유효율은 39–57 %로 균등 4^L 기대치 45.2 %와 같은 수준이다.** 즉 main
+  recipe는 생물 제약을 학습하지 않으며 제약은 순수한 사후 투영으로 남는다. `+ L_bio` 변형 행(§4.5.3)이
+  이를 77–87 %로 끌어올리며, 그것이 "제약을 학습한다"고 쓸 수 있는 유일한 근거다.
 - projection은 `base_indices`만 바꾸고 `codebook_indices`는 바꾸지 않는다. NMI/drop/codeword decoding은
   구조적으로 불변이다.
 
@@ -1360,13 +1035,73 @@ control은 `U0` baseline을 **동일 raw-base-Hamming E\* 규약**으로 선택�
 |---|---|---|---:|---:|---|
 | Flickr25K | **.7694 ± .0017** | OH .7261 | **+.0433** | .4730 | .4783 ± .0118 |
 | MS-COCO | **.6466 ± .0048** | CroVCA .5727 | **+.0739** | .3160 | .3117 ± .0035 |
-| NUS-WIDE | **.7368 ± .0026** | OH .6772 | **+.0596** | .4822 | .4784 ± .0027 |
+| NUS-WIDE | **.7318 ± .0071**† | OH .6772 | **+.0546** | .4822 | .4784 ± .0027 |
 | CIFAR-10 | **.8903 ± .0104** | CroVCA .8263 | **+.0640** | .2929 | .2847 ± .0236 |
 
 - A-champion 대비 이득: `+.0101 / +.0322 / +.0239 / +.0227`. **4/4 개선이며 seed 분산의 2–19배**다.
 - `shuffled ≈ majority`가 전 데이터셋에서 성립하므로 probe 자체는 정상 동작한다.
 - 이 표가 논문의 해석성 주 근거다. 단, decoder accuracy가 human understanding이나 인과적 제어와
   같지 않다는 §5.3의 범위 제한을 유지한다.
+
+#### 4.7b 5-slot / 15-base (30 bit) 재측정 — 3-seed
+
+| Dataset | 6-slot / 36 bit | **5-slot / 30 bit** | Δ |
+|---|---:|---:|---:|
+| MS-COCO | .6466 | **.6737** | **+.0270** |
+| CIFAR-10 | .8903 | **.9144** | **+.0240** |
+| Flickr25K | .7694 | **.7821** | **+.0127** |
+| NUS-WIDE | .7318 | **.7350** | +.0031 |
+
+**코드 길이를 17 % 줄이면서 4/4에서 해석성이 오른다.** 실현 이득이 drop-ablation
+예측치를 상회하므로, 슬롯을 제거하면 남은 슬롯이 재분할하는 효과가 추가로 있다.
+NUS는 seed 분산(±.0026) 안이라 개선을 주장하지 않는다.
+
+#### 4.7c **이 probe는 single-label 데이터셋에서 무효다**
+
+라벨 다중도가 결과의 부호를 뒤집는다.
+
+| Dataset | 라벨 수 | 이미지당 positive | multi-label |
+|---|---:|---:|---|
+| CIFAR-10 | 10 | **1.00** (min = max = 1) | **아니오** |
+| Flickr25K | 24 | 3.74 | 예 |
+| NUS-WIDE | 21 | 3.33 | 예 |
+| MS-COCO | 80 | 2.92 | 예 |
+
+positive가 하나뿐이면 label-ranking AP는 역수 순위로 축약되고, **모든 슬롯이 동일한
+하나의 타깃을 두고 경쟁**한다. 슬롯별 특화가 기여할 여지가 구조적으로 없으므로,
+포화된 global gate를 통해 codon head에 도달하는 CLIP 전역 임베딩이 이긴다.
+
+테스트 집합을 *슬롯이 실제로 본 이미지 / 보지 못한 이미지*로 나누면 확인된다.
+
+| Dataset | slot | 본 것만 | 못 본 것만 |
+|---|---|---:|---:|
+| CIFAR-10 | `secondary_object` | .8536 | **.9856** |
+| CIFAR-10 | `scene_type` | .8161 | **.9000** |
+| NUS-WIDE | `primary_object` | .7376 | **.7147** |
+| NUS-WIDE | `secondary_object` | .7642 | **.6086** |
+| NUS-WIDE | `color_texture` | .7227 | **.6237** |
+
+**CIFAR에서는 눈을 감은 슬롯이 더 높고, multi-label NUS에서는 5개 중 4개에서 더 낮다.**
+따라서 이 표의 CIFAR 열은 해석성 근거로 인용하지 않으며, 해석성 주장은
+Flickr25K · NUS-WIDE · MS-COCO에 둔다. ImageNet100은 대안이 되지 못한다
+(`MULTI_LABEL['ImageNet100'] = False`, 이미지당 positive 1개로 동일한 붕괴).
+
+#### 4.7d CUB-200 속성 기반 재검증 (single-label 우회)
+
+CUB-200은 클래스 기준으로는 single-label(200종)이지만 이미지별 **312개 이진 속성**
+주석을 제공하므로, 같은 데이터셋을 진짜 multi-label 타깃으로 쓸 수 있다
+(`scripts/cub_attribute_codon_decoding.py`). certainty ≥ 3, positive 비율
+`[.02, .98]` 필터 후 **201개 속성**이 남고 **이미지당 positive 28.07개**다.
+
+| | concept mAP |
+|---|---:|
+| majority (코드 무시) | .4170 |
+| shuffled (구조 파괴) | .4125 ± .0012 |
+| **GroundedDNA (6-slot)** | **.4805** |
+| margin | **+.0635** |
+
+`shuffled ≈ majority`가 성립하므로 probe는 정상 동작하며, 이 조건에서는 슬롯별 특화가
+보상된다. 5-slot 및 landmark localization 비교는 진행 중이다.
 
 ### 4.8 Causal ablation — P0 + bio-projected 동일 프로토콜
 
@@ -1379,7 +1114,7 @@ control은 `U0` baseline을 **동일 raw-base-Hamming E\* 규약**으로 선택�
 |---|---:|---:|---:|---:|---:|---:|
 | MS-COCO | .8232 | .7627 | **−.0605** | .6466 | .5606 | **−.0860** |
 | CIFAR-10 | .8940 | .8743 | −.0197 | .8903 | .8779 | −.0124 |
-| NUS-WIDE | .8283 | .8099 | −.0184 | .7368 | .6941 | **−.0427** |
+| NUS-WIDE | .8209 | .8001 | −.0209 | .7240 | .6951 | **−.0288** |
 | Flickr25K | .8668 | .8542 | −.0126 | .7694 | .7491 | −.0203 |
 
 🟢 **텍스트 감독은 4/4에서 필수적이며, 검색보다 해석성에 더 크게 기여한다.**
@@ -1394,7 +1129,7 @@ MS-COCO `−.086` / NUS-WIDE `−.043`처럼 decode 손실이 mAP 손실을 크�
 | Flickr25K | .8668 | .8521 | −.0147 | .7694 | .7506 | −.0188 |
 | CIFAR-10 | .8940 | .8794 | −.0146 | .8903 | .8850 | −.0053 |
 | MS-COCO | .8232 | .8140 | −.0092 | .6466 | .6154 | **−.0312** |
-| NUS-WIDE | .8283 | .8252 | −.0031 | .7368 | .7240 | −.0128 |
+| NUS-WIDE | .8209 | .8184 | −.0025 | .7240 | .7176 | −.0064 |
 
 🟢 **슬롯별 독립 codebook이 4/4에서 필요하다.** 검색 `−.003 … −.015`, 해석성 `−.005 … −.031`.
 ⚠️ 구 draft 시점에는 **NUS-WIDE에서 shared가 검색을 앞섰으나**(A-champion `.8262 → .8301`),
@@ -1422,7 +1157,7 @@ MS-COCO `−.086` / NUS-WIDE `−.043`처럼 decode 손실이 mAP 손실을 크�
 |---|---:|---:|---:|---:|
 | Flickr25K | - | - | **.8668** | - |
 | MS-COCO | - | - | **.8232** | - |
-| NUS-WIDE | - | - | **.8283** | - |
+| NUS-WIDE | - | - | **.8246**† | - |
 | CIFAR-10 | **.8940** | - | - | - |
 
 - 16 cell 중 4 cell만 신규 모델로 완료. global optimum·length scaling은 grid 완료 후 서술한다.
@@ -1487,6 +1222,39 @@ global 슬롯만 자기 marginal 예산을 크게 밑돌았고(3-way 종속), �
 - query별 retrieval gain과 caption 품질의 상관
 - DP edit 위치의 슬롯별 분포
 - latency / memory
+
+#### 4.10b 슬롯 점유 진단 — 이미지 단위 빈 슬롯
+
+배치 평균 질량은 "모든 이미지에서 얇게 받음"과 "대부분 이미지에서 정확히 0"을
+구분하지 못한다. 후자는 `denom.clamp_min(1e-12)` 때문에 pooled feature가 영벡터가
+되어 그 슬롯의 3염기가 이미지와 무관해지는 결함이다. 이미지 단위 측정 결과다.
+
+| Dataset | slot | 6-slot | **5-slot** |
+|---|---|---:|---:|
+| CIFAR-10 | `secondary_object` | **51.76 %** | 2.15 % |
+| CIFAR-10 | `scene_type` | 45.12 % | *(제거)* |
+| CIFAR-10 | **`color_texture`** | 0.00 % | **23.44 %** |
+| MS-COCO | 전 슬롯 | 0 % | **0.00 %** |
+| Flickr25K | 전 슬롯 | 0 % | ≤ 1.56 % |
+
+**결함이 사라지지 않고 이동한다.** nucleus 임계값이 `M=6` 기준이라, `p_max` 중앙값
+`.2406`(균등 `.2000`)에서 `cum ≈ k/5`이고 `tau ≈ .60`이 `k=3/5`를 99.7 %로 고정한다.
+패치당 슬롯의 40 %를 버리므로(`M=6`에서는 33 %) **누군가는 반드시 최하위가 된다.**
+
+CIFAR 교정 3셀:
+
+| cell | 조작 | mAP@R | decoding | `color_texture` 빈 이미지 |
+|---|---|---:|---:|---:|
+| `slot5` | nucleus .3–.7 | **.9019** | .9158 | 23.44 % |
+| **`s5topp69`** | nucleus **.6–.95** | .8875 | .9033 | **0.00 %** |
+| `s5topp45` | nucleus .4–.8 | .8974 | .9053 | 9.77 % |
+| `s5csd005` | `L_csd` 0.05 | .8991 | **.9175** | **43.36 %** |
+
+`L_csd`(ConceptHash Eq. 8 이식)는 **역효과**다 — 슬롯을 밀어내는 힘이 이미 최하위인
+슬롯을 더 굶긴다. 그리고 **decoding이 빈 이미지 비율에 완전히 단조**다
+(`.9033 < .9053 < .9158 < .9175`). §4.7c에서 보인 대로 CIFAR은 single-label이라
+지표가 굶주림을 보상하므로, **CIFAR 구성은 decoding이 아니라 빈 이미지 비율로
+선택해야 하며 그 기준으로는 `s5topp69`가 유일하게 정합한다.**
 
 ### 4.11 필수 추가 ablation 우선순위
 
