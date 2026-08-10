@@ -487,6 +487,184 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-08-10 — 🟢 **5 slots / 15 bases (30 bit) beats the 6-slot / 36-bit code on interpretability 4/4 and on retrieval 2/4, and still beats every 30-bit baseline 4/4.** Codon decoding is shown to be INVALID as an interpretability probe on single-label datasets
+
+Started from the drop-ablation question "which slot can we afford to delete?" and
+ended with a measurement that changes how the decoding metric may be read.
+
+### Which slot to delete: measured, not guessed
+
+Two ablations on the existing checkpoints, no retraining. `codebook_drop_ablation.py`
+neutralises a slot's three bases and reports mAP@R; the new
+`scripts/slot_drop_decoding_ablation.py` does the same on the reported held-out
+codon decoding, reporting `delta = (decoding without slot m) - (full 6-slot)`.
+
+| slot | Flickr | MS-COCO | NUS | CIFAR |
+|---|---:|---:|---:|---:|
+| `scene_type` | **+.0059** | **+.0144** | **+.0117** | **+.0111** |
+| `color_texture` | +.0051 | +.0020 | −.0010 | −.0024 |
+| `activity_relation` | +.0011 | −.0007 | −.0017 | +.0008 |
+| `primary_object` | −.0049 | −.0021 | −.0020 | −.0028 |
+| `global` | −.0052 | −.0087 | −.0040 | −.0059 |
+
+`scene_type` is the ONLY slot whose deletion improves decoding on 4/4, and its
+own single-slot decoding is last on every dataset (.7378 / .5693 / .6655 /
+.8433). On retrieval it is CIFAR's smallest contributor (−.0089) and low on
+Flickr. Earlier text-anchor redundancy had pointed at `activity_relation`
+instead (top redundant pair on 4/4) — redundancy says who OVERLAPS, not who is
+DISPENSABLE, and the direct measurement wins.
+
+### 5 slots / 15 bases, 3 seeds
+
+`scene_type` is index 5 in the cache, so truncating to the first 5 slots drops
+exactly it and needs no caption regeneration.
+
+| dataset | mAP@R 6/36 → 5/30 | codon decoding 6/36 → 5/30 |
+|---|---|---|
+| MS-COCO | .8232 → **.8313 (+.0081)** | .6466 → **.6737 (+.0270)** |
+| CIFAR-10 | .8940 → **.8998 (+.0058)** | .8903 → **.9144 (+.0240)** |
+| Flickr25K | .8668 → .8529 (**−.0139**) | .7694 → **.7821 (+.0127)** |
+| NUS-WIDE | .8246 → .8221 (−.0025) | .7318 → **.7350 (+.0031)** |
+
+**Decoding improves 4/4 and retrieval improves 2/4 while the code shrinks 17 %.**
+The realised gains exceed what the drop ablation predicted, so removing a slot
+also lets the survivors re-partition. NUS is the weakest case (+.0031, inside
+its ±.0026 seed noise).
+
+### Matched-budget baselines: 30-bit, 4/4 wins
+
+Six baselines re-run at 30 bits (`--bits 30`), seed 42, same runner and cache
+path as the existing 36-bit matrix:
+
+| dataset | CIBHash | CIMON | Bi-half | SDC | OH | CroVCA | best | **ours (3 seeds)** | Δ |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Flickr25K | .7939 | .8121 | .8116 | .7252 | **.8328** | .7716 | .8328 | **.8529** | **+.0201** |
+| MS-COCO | .7922 | .6681 | .7137 | .8076 | .7662 | **.8304** | .8304 | **.8313** | **+.0009** |
+| NUS-WIDE | .7992 | .7890 | .7464 | .7689 | **.8025** | .8015 | .8025 | **.8221** | **+.0196** |
+| CIFAR-10 | .8701 | .8524 | .7594 | .8398 | .8607 | **.8860** | .8860 | **.8998** | **+.0138** |
+
+Enabling 30 bits required lifting a hard-coded `(36, 48)` in FIVE files
+(`run_baseline_p0_matrix`, `run_modern_baseline_p0`, `baseline_val_select_p0`,
+`extract_flat_baseline`, `aggregate_baseline_p0_matrix`). Everything downstream
+is length-generic — `bit // 2` bases, `bit // 6` codebooks (15 bases = 5×3,
+matching the 5-slot code exactly), GC as a fraction.
+
+**These numbers did NOT pass the formal aggregator gate**, and the reason is
+worth recording. The aggregator pins the SHA-256 of baseline implementation
+files so baseline numbers cannot silently change. Two of the three files I
+touched were registered as reviewed non-scientific transitions (exact
+before/after hashes, diff is the tuple plus comments; the 36/48 code paths are
+byte-identical). The third could not be:
+**the existing 36-bit cells recorded `cd273738…` for `baseline_val_select_p0.py`,
+a version that is not in git history — those baselines were run from an
+uncommitted working tree and the content is unrecoverable.** Registering an
+unreviewable digest would defeat the check, and aggregating the 30-bit cells in
+isolation fails too because the manifests pin absolute paths. So the 30-bit
+numbers were read from `map_at_R_post` in the records. They sit at exactly the
+same evidentiary level as the 36-bit numbers already in the draft, which carry
+`legacy_cache_diagnostic_only_not_main_table_eligible`.
+
+### The dead slot MOVES rather than disappearing
+
+Per-image empty rates, 5-slot models:
+
+| dataset | slot | 6-slot | 5-slot |
+|---|---|---:|---:|
+| CIFAR-10 | `secondary_object` | **51.76 %** | 2.15 % |
+| CIFAR-10 | `scene_type` | 45.12 % | *(removed)* |
+| CIFAR-10 | **`color_texture`** | 0.00 % | **23.44 %** |
+| MS-COCO | all | 0 % | **0.00 %** |
+| Flickr25K | all | 0 % | ≤1.56 % |
+
+The nucleus threshold was tuned for M=6 and never re-tuned. With p_max median
+.2406 against a .2000 uniform, `cum ≈ k/5` and `tau ≈ .60` pins **k=3 of 5
+(99.7 %)** — the mask now discards 40 % of slots per patch, up from 33 % at M=6.
+Someone must be last, so the starvation simply relocated to `color_texture`.
+
+### Three CIFAR fixes, and a trade-off that turns out to be an artifact
+
+| cell | change | mAP@R | decoding | `color_texture` empty |
+|---|---|---:|---:|---:|
+| `slot5` | nucleus .3–.7 | **.9019** | .9158 | 23.44 % |
+| `s5topp69` | nucleus **.6–.95** | .8875 | .9033 | **0.00 %** |
+| `s5topp45` | nucleus .4–.8 | .8974 | .9053 | 9.77 % |
+| `s5csd005` | `L_csd` 0.05 | .8991 | **.9175** | **43.36 %** |
+
+`s5topp69` does exactly what the simulation predicted (k=3→4, every slot sees
+all 196 patches, 0 % empty). `L_csd` BACKFIRES: pushing slots apart starves the
+already-last slot harder, 23.44 → 43.36 %.
+
+Decoding is **perfectly monotone in the empty rate** (.9033 < .9053 < .9158 <
+.9175 as empties go 0 → 43 %), i.e. the metric rewards starvation.
+
+### Why: codon decoding is invalid on single-label data
+
+| dataset | labels | positives/image | multi-label |
+|---|---:|---:|---|
+| CIFAR-10 | 10 | **1.00** (min=max=1) | **no** |
+| Flickr25K | 24 | 3.74 | yes |
+| NUS-WIDE | 21 | 3.33 | yes |
+| MS-COCO | 80 | 2.92 | yes |
+
+With one positive, label-ranking AP collapses to reciprocal rank and every slot
+competes to predict the SAME target; per-slot specialisation cannot help, and
+the best class predictor — the CLIP global embedding reaching the codon head
+through the saturated global gate — wins. Splitting the test set by whether the
+slot saw anything confirms the sign flips with label multiplicity:
+
+| dataset | slot | seen-only | empty-only |
+|---|---|---:|---:|
+| CIFAR-10 | `secondary_object` | .8536 | **.9856** |
+| CIFAR-10 | `scene_type` | .8161 | **.9000** |
+| NUS-WIDE | `primary_object` | .7376 | **.7147** |
+| NUS-WIDE | `secondary_object` | .7642 | **.6086** |
+| NUS-WIDE | `activity_relation` | .7474 | **.6954** |
+| NUS-WIDE | `color_texture` | .7227 | **.6237** |
+
+On CIFAR a blind slot scores HIGHER; on multi-label NUS it scores LOWER on 4 of
+5 slots. **The probe is sound where the paper's interpretability claim lives
+(Flickr, NUS, MS-COCO) and unsound on CIFAR-10.**
+
+Consequences:
+- CIFAR-10 codon decoding must not be cited as interpretability evidence.
+- `s5csd005`'s "best decoding" is an artifact; `s5topp69` (0 % empty) is the
+  configuration consistent with the paper's claim.
+- The earlier global-gate leak finding stands, but its INFLATION of decoding is
+  a single-label phenomenon, not a general one.
+- ImageNet100 does NOT fix this — `MULTI_LABEL['ImageNet100'] = False`, one
+  positive per image, same collapse. Only the 32×32 caption-hallucination
+  problem would improve.
+
+### Adds
+
+- `scripts/slot_drop_decoding_ablation.py`
+- `GDNA_NUM_SEMANTIC_PARTS` env var: slot count is read at import because 99
+  module-scope call sites in `model_siglip2.py` reference it and argparse has
+  not run at import time. `--num_semantic_parts` mirrors it into args.txt and
+  the model raises on a mismatch, so a run cannot silently disagree with its
+  own config. Dataloader truncates the cached text slots to match.
+- `heldout_codon_decoding.py` infers the slot count from
+  `codebook_indices.shape[1]`; a 15-base code is otherwise mis-parsed as 6×2
+  and dies with "expected 12 bases, got 15", which the summariser recorded as
+  `decode = 0.0000` rather than as a failure.
+- 30-bit support across the five baseline scripts; two reviewed SHA transitions
+  registered in the aggregator allow-list.
+- `--weight_decay` was `type=int` with a 6e-2 default (fixed earlier today).
+
+### Follow-ups
+
+- Decide the CIFAR configuration on empty-rate, not decoding: `s5topp69`.
+- Re-tune the nucleus for M=5 on the other three datasets.
+- 36-bit baselines were run from an uncommitted tree and are not reproducible;
+  re-running all budgets from a committed state is the only way to satisfy the
+  aggregator gate.
+- CUB-200 is the one dataset here with part locations (`parts/part_locs.txt`,
+  176,820 rows, 15 parts) and 312 per-image attributes, so it can supply both a
+  ConceptHash-style landmark error and a MULTI-LABEL decoding target that
+  sidesteps the single-label collapse. CLIP caches already exist.
+
+---
+
 ## 2026-08-08 — 🔬 Flickr25k does not converge because the objective is MISALIGNED, not overfitted (val_loss falls while eval_mAP falls). E* selected on retrieval alone costs the headline contribution. ConceptHash `L_csd` ported; `--proj_lr 3e-4` improves three val axes at once
 
 Follow-up to the NUS-WIDE epsilon adoption. Re-running the NUS ablations under

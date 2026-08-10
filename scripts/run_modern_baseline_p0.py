@@ -77,7 +77,10 @@ from baseline.cache_provenance import (
 
 
 DATASETS = ("Flickr25k", "MSCOCO", "NUSWIDE", "CIFAR10")
-SUPPORTED_BITS = (36, 48)
+# 30 added 2026-08-10 to match the 5-slot GroundedDNA variant (15 bases).
+# Everything downstream is length-generic: `_base_length` is bit // 2 and
+# apply_bio_projection takes GC as a FRACTION, so the window scales.
+SUPPORTED_BITS = (30, 36, 48)
 DEFAULT_CACHE = {
     "Flickr25k": "cache/flickr25k_clip_v4plus_qwen3_tokens",
     "MSCOCO": "cache/mscoco_clip_v5b",
@@ -760,7 +763,7 @@ def main() -> int:
     parser.add_argument("--dataset", required=True, choices=DATASETS)
     parser.add_argument(
         "--bit", type=int, choices=SUPPORTED_BITS, default=36,
-        help="Hash budget: 36 bits/18 bases or 48 bits/24 bases.",
+        help="Hash budget: 30/36/48 bits = 15/18/24 bases.",
     )
     parser.add_argument("--setting", default="setting1")
     parser.add_argument("--cache-dir", default=None)

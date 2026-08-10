@@ -1,0 +1,58 @@
+{
+  "dataset": "NUSWIDE",
+  "result_dir": "result/260803+nuswide_setting1_promptAblA_nuswide_A_v4_uni005_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+  "ours_dir": "result/260803+nuswide_setting1_promptAblA_nuswide_A_v4_uni005_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+  "epoch": 4,
+  "bio_project": true,
+  "n_test": 2100,
+  "slots": {
+    "global": {
+      "empty_pct": 0.0,
+      "n_empty": 0,
+      "concept_mAP_all": 0.7406,
+      "concept_mAP_seen_only": 0.7406,
+      "concept_mAP_empty_only": NaN,
+      "delta_seen_minus_all": 0.0
+    },
+    "primary_object": {
+      "empty_pct": 8.143,
+      "n_empty": 171,
+      "concept_mAP_all": 0.73578,
+      "concept_mAP_seen_only": 0.73764,
+      "concept_mAP_empty_only": 0.71469,
+      "delta_seen_minus_all": 0.00187
+    },
+    "secondary_object": {
+      "empty_pct": 0.714,
+      "n_empty": 15,
+      "concept_mAP_all": 0.76309,
+      "concept_mAP_seen_only": 0.7642,
+      "concept_mAP_empty_only": 0.60863,
+      "delta_seen_minus_all": 0.00111
+    },
+    "activity_relation": {
+      "empty_pct": 1.048,
+      "n_empty": 22,
+      "concept_mAP_all": 0.74681,
+      "concept_mAP_seen_only": 0.74735,
+      "concept_mAP_empty_only": 0.69542,
+      "delta_seen_minus_all": 0.00054
+    },
+    "color_texture": {
+      "empty_pct": 1.714,
+      "n_empty": 36,
+      "concept_mAP_all": 0.72103,
+      "concept_mAP_seen_only": 0.72273,
+      "concept_mAP_empty_only": 0.62371,
+      "delta_seen_minus_all": 0.0017
+    },
+    "scene_type": {
+      "empty_pct": 6.19,
+      "n_empty": 130,
+      "concept_mAP_all": 0.70066,
+      "concept_mAP_seen_only": 0.69036,
+      "concept_mAP_empty_only": 0.85669,
+      "delta_seen_minus_all": -0.0103
+    }
+  }
+}

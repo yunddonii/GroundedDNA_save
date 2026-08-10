@@ -1,0 +1,51 @@
+{
+  "dataset": "MSCOCO",
+  "dir": "result/260803+mscoco_setting1_promptAblA_mscoco_A_v5b_uni003_P0refit_e39+bs+64+e+60+proj_lr+0.001",
+  "bases_per_slot": 3,
+  "bio_project": true,
+  "full_concept_mAP": 0.64128,
+  "slots": {
+    "global": {
+      "own_concept_mAP": 0.68494,
+      "concept_mAP_without_this_slot": 0.63255,
+      "delta_vs_full": -0.00873,
+      "coverage": 1.0,
+      "n_active_units": 63
+    },
+    "primary_object": {
+      "own_concept_mAP": 0.6518,
+      "concept_mAP_without_this_slot": 0.63918,
+      "delta_vs_full": -0.0021,
+      "coverage": 0.9998,
+      "n_active_units": 63
+    },
+    "secondary_object": {
+      "own_concept_mAP": 0.66552,
+      "concept_mAP_without_this_slot": 0.63643,
+      "delta_vs_full": -0.00485,
+      "coverage": 0.9996,
+      "n_active_units": 62
+    },
+    "activity_relation": {
+      "own_concept_mAP": 0.64483,
+      "concept_mAP_without_this_slot": 0.64057,
+      "delta_vs_full": -0.00071,
+      "coverage": 0.9984,
+      "n_active_units": 62
+    },
+    "color_texture": {
+      "own_concept_mAP": 0.63129,
+      "concept_mAP_without_this_slot": 0.64328,
+      "delta_vs_full": 0.002,
+      "coverage": 0.9986,
+      "n_active_units": 61
+    },
+    "scene_type": {
+      "own_concept_mAP": 0.5693,
+      "concept_mAP_without_this_slot": 0.65568,
+      "delta_vs_full": 0.0144,
+      "coverage": 1.0,
+      "n_active_units": 63
+    }
+  }
+}

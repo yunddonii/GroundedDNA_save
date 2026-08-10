@@ -1,0 +1,40 @@
+{
+  "tag": "slot5",
+  "dir": "result/260810+nuswide_setting1_promptAblA_nuswide_A_v4_slot5_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+  "dataset": "NUSWIDE",
+  "K": 128,
+  "mAP_at_R_bioproj": 0.8221948900309042,
+  "full_mAP_bioproj": 0.5860226147891103,
+  "full_mAP_pre_projection": 0.5955326927427885,
+  "DNA_unique_DB": 0.18653927550146077,
+  "lambda_codon_joint": "0.05",
+  "codon_joint_slots": "-",
+  "codon_input_source": "quantized",
+  "use_gumbel_softmax": "False",
+  "codon_chunk_interleave": "False",
+  "codon_map_enumerable": true,
+  "slot_codons": [
+    58,
+    53,
+    52,
+    52,
+    50
+  ],
+  "slot_gaps": [
+    3.19,
+    -0.33,
+    -2.53,
+    -0.92,
+    -3.57
+  ],
+  "slot_multi_information": [
+    0.259,
+    0.3649,
+    0.5163,
+    0.411,
+    0.4468
+  ],
+  "slot0_codons": 58,
+  "slot0_gap": 3.19,
+  "slot0_MI": 0.259
+}

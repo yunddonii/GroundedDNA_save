@@ -44,7 +44,22 @@ SLOT_NAMES = [
     "global", "primary_object", "secondary_object",
     "activity_relation", "color_texture", "scene_type",
 ]
+# Slot count is INFERRED from the extraction at run time (see main), because a
+# run may carry fewer than six: dropping `scene_type` -- the only slot whose
+# removal IMPROVES decoding on 4/4 datasets -- leaves 5 slots / 15 bases.
+# Left as a module global so the helpers below keep their current signatures;
+# `_set_n_slots` is the single place that changes it.
 N_SLOTS = 6
+
+
+def _set_n_slots(n: int) -> None:
+    """Point the module at an n-slot code. Must be called before decoding."""
+    global N_SLOTS, SLOT_NAMES
+    n = int(n)
+    if not (2 <= n <= 6):
+        raise ValueError(f"n_slots must be in [2, 6], got {n}")
+    N_SLOTS = n
+    SLOT_NAMES = SLOT_NAMES[:n]
 
 # Pre-registered, never tuned on test.
 DEFAULT_ALPHA = 1.0        # Beta(alpha, alpha) smoothing per label
@@ -71,8 +86,12 @@ def codon_ids(base_indices: np.ndarray, n_bases: int = 3) -> np.ndarray:
     return out
 
 
-def bit_chunk_ids(hash_2bit: np.ndarray, n_chunks: int = N_SLOTS) -> np.ndarray:
-    """36-bit flat hash -> 6 contiguous 6-bit chunk ids (§2.9)."""
+def bit_chunk_ids(hash_2bit: np.ndarray, n_chunks: int | None = None) -> np.ndarray:
+    # Default resolved at CALL time, not def time: `_set_n_slots` may have
+    # lowered N_SLOTS after this function object was created.
+    """36-bit flat hash -> `n_chunks` contiguous chunk ids (§2.9)."""
+    if n_chunks is None:
+        n_chunks = N_SLOTS
     n, nbits = hash_2bit.shape
     width = nbits // n_chunks
     bits = (hash_2bit > 0).astype(np.int64)
@@ -338,6 +357,15 @@ def main() -> None:
     ap.add_argument("--gc_max_frac", type=float, default=0.5556)
     ap.add_argument("--max_run", type=int, default=3)
     args = ap.parse_args()
+
+    # Infer the slot count BEFORE anything reads N_SLOTS. `codebook_indices` is
+    # [N, M] with one entry per slot, so it is the authoritative source; the
+    # base count alone is ambiguous (15 bases could be 5x3 or 3x5).
+    import numpy as _np
+    _probe = _np.load(os.path.join(args.ours_dir, "extract_query.npz"), allow_pickle=True)
+    if "codebook_indices" in _probe:
+        _set_n_slots(int(_probe["codebook_indices"].shape[1]))
+        print(f"[{args.dataset}] slots inferred from extraction: {N_SLOTS}")
 
     d = load_split(args.ours_dir, args.train_manifest)
     tr_lab, te_lab = d["train_labels"], d["test_labels"]

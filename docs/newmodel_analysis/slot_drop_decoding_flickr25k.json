@@ -1,0 +1,51 @@
+{
+  "dataset": "Flickr25k",
+  "dir": "result/260803+flickr25k_setting1_promptAblA_flickr_A_v4_uni002_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+  "bases_per_slot": 3,
+  "bio_project": true,
+  "full_concept_mAP": 0.76752,
+  "slots": {
+    "global": {
+      "own_concept_mAP": 0.79359,
+      "concept_mAP_without_this_slot": 0.7623,
+      "delta_vs_full": -0.00522,
+      "coverage": 0.9985,
+      "n_active_units": 39
+    },
+    "primary_object": {
+      "own_concept_mAP": 0.792,
+      "concept_mAP_without_this_slot": 0.76262,
+      "delta_vs_full": -0.0049,
+      "coverage": 0.996,
+      "n_active_units": 53
+    },
+    "secondary_object": {
+      "own_concept_mAP": 0.77727,
+      "concept_mAP_without_this_slot": 0.76557,
+      "delta_vs_full": -0.00195,
+      "coverage": 0.992,
+      "n_active_units": 46
+    },
+    "activity_relation": {
+      "own_concept_mAP": 0.7622,
+      "concept_mAP_without_this_slot": 0.76858,
+      "delta_vs_full": 0.00106,
+      "coverage": 0.9885,
+      "n_active_units": 53
+    },
+    "color_texture": {
+      "own_concept_mAP": 0.74226,
+      "concept_mAP_without_this_slot": 0.77257,
+      "delta_vs_full": 0.00505,
+      "coverage": 0.9915,
+      "n_active_units": 52
+    },
+    "scene_type": {
+      "own_concept_mAP": 0.73777,
+      "concept_mAP_without_this_slot": 0.77347,
+      "delta_vs_full": 0.00595,
+      "coverage": 0.9915,
+      "n_active_units": 49
+    }
+  }
+}

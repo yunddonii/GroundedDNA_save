@@ -12,6 +12,10 @@ import pandas as pd
 
 import cv2
 
+# Mirrors model_siglip2's structural slot count so the cached text tensors are
+# truncated to the same set of slots the model was built for.
+_GDNA_N_PARTS = int(os.environ.get("GDNA_NUM_SEMANTIC_PARTS", "6"))
+
 
 # ---------------------------------------------------------------- siglip2 feature cache
 
@@ -404,12 +408,15 @@ class _SigLIP2FeatureCache:
         out = {
             "cached_visual_tokens_raw": torch.from_numpy(np.asarray(self.visual_tokens[row_idx], dtype=np.float32)),
             "cached_visual_global":     torch.from_numpy(np.asarray(self.visual_global[row_idx], dtype=np.float32)),
-            "cached_text_part_raw":     torch.from_numpy(np.asarray(self.text_part[row_idx],     dtype=np.float32)),
+            # Slot-dimension truncation: the cache always stores all 6 slots, but a
+            # run with GDNA_NUM_SEMANTIC_PARTS<6 must not see the dropped ones.
+            # Truncation keeps the FIRST n, and scene_type is index 5.
+            "cached_text_part_raw":     torch.from_numpy(np.asarray(self.text_part[row_idx],     dtype=np.float32))[:_GDNA_N_PARTS],
             "has_text":                 bool(self.has_text[row_idx]),
         }
         if self.text_tokens is not None:
-            out["cached_text_tokens"]     = torch.from_numpy(np.asarray(self.text_tokens    [row_idx], dtype=np.float32))
-            out["cached_text_token_mask"] = torch.from_numpy(np.asarray(self.text_token_mask[row_idx], dtype=np.bool_))
+            out["cached_text_tokens"]     = torch.from_numpy(np.asarray(self.text_tokens    [row_idx], dtype=np.float32))[:_GDNA_N_PARTS]
+            out["cached_text_token_mask"] = torch.from_numpy(np.asarray(self.text_token_mask[row_idx], dtype=np.bool_))[:_GDNA_N_PARTS]
         if self.text_foil_part is not None:
             out["cached_text_foil_raw"] = torch.from_numpy(
                 np.asarray(self.text_foil_part[row_idx], dtype=np.float32)

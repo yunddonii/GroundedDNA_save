@@ -1,0 +1,55 @@
+{
+  "dataset": "CIFAR10",
+  "dir": "result/260810+cifar10_setting1_promptAblA_cifar_A_v4_s5topp69_P0refit_e14+bs+64+e+60+proj_lr+0.001",
+  "split": "train",
+  "epoch": 14,
+  "images": 512,
+  "adaptive_topp_disabled": false,
+  "slots": {
+    "global": {
+      "empty_image_pct": 0.0,
+      "mass_below_1e-6_pct": 0.0,
+      "n_tokens_median": 196.0,
+      "n_tokens_p10": 196.0,
+      "n_tokens_min": 196,
+      "mass_median": 0.9999997019767761,
+      "mass_min": 0.9999997019767761
+    },
+    "primary_object": {
+      "empty_image_pct": 0.0,
+      "mass_below_1e-6_pct": 0.0,
+      "n_tokens_median": 196.0,
+      "n_tokens_p10": 196.0,
+      "n_tokens_min": 183,
+      "mass_median": 1.7085249423980713,
+      "mass_min": 1.265006422996521
+    },
+    "secondary_object": {
+      "empty_image_pct": 0.0,
+      "mass_below_1e-6_pct": 0.0,
+      "n_tokens_median": 196.0,
+      "n_tokens_p10": 196.0,
+      "n_tokens_min": 182,
+      "mass_median": 1.6698991060256958,
+      "mass_min": 1.3036255836486816
+    },
+    "activity_relation": {
+      "empty_image_pct": 0.0,
+      "mass_below_1e-6_pct": 0.0,
+      "n_tokens_median": 196.0,
+      "n_tokens_p10": 196.0,
+      "n_tokens_min": 183,
+      "mass_median": 1.688117265701294,
+      "mass_min": 1.1629326343536377
+    },
+    "color_texture": {
+      "empty_image_pct": 0.0,
+      "mass_below_1e-6_pct": 0.0,
+      "n_tokens_median": 196.0,
+      "n_tokens_p10": 196.0,
+      "n_tokens_min": 150,
+      "mass_median": 1.6816742420196533,
+      "mass_min": 0.9452669024467468
+    }
+  }
+}

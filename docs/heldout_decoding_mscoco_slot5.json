@@ -1,0 +1,207 @@
+{
+  "dataset": "MSCOCO",
+  "config": {
+    "alpha": 1.0,
+    "min_support": 10,
+    "n_shuffle": 5,
+    "n_boot": 1000,
+    "seed": 42,
+    "n_train": 10000,
+    "n_test": 5000,
+    "n_labels": 80,
+    "K": 128,
+    "n_bases_per_slot": 3,
+    "ours_dir": "result/260810+mscoco_setting1_promptAblA_mscoco_A_v5b_slot5_P0refit_e19+bs+64+e+60+proj_lr+0.001",
+    "baselines": {}
+  },
+  "slot_names": [
+    "global",
+    "primary_object",
+    "secondary_object",
+    "activity_relation",
+    "color_texture"
+  ],
+  "results": {
+    "ours_codeword": {
+      "per_slot": [
+        {
+          "concept_mAP": 0.7665748040978367,
+          "concept_mAP_covered_only": 0.7665748040978367,
+          "top1_acc": 0.8788,
+          "coverage": 1.0,
+          "n_active_units": 128,
+          "n_units": 128,
+          "H_cond": 0.12153504893383786,
+          "H_marg": 0.13640132330640425
+        },
+        {
+          "concept_mAP": 0.7301220091681584,
+          "concept_mAP_covered_only": 0.7308017503124102,
+          "top1_acc": 0.8558,
+          "coverage": 0.999,
+          "n_active_units": 126,
+          "n_units": 128,
+          "H_cond": 0.12355545073171167,
+          "H_marg": 0.13640132330640425
+        },
+        {
+          "concept_mAP": 0.7301605954534424,
+          "concept_mAP_covered_only": 0.7303995841548363,
+          "top1_acc": 0.8382,
+          "coverage": 0.9992,
+          "n_active_units": 125,
+          "n_units": 128,
+          "H_cond": 0.12279765469852237,
+          "H_marg": 0.13640132330640425
+        },
+        {
+          "concept_mAP": 0.7258253075965847,
+          "concept_mAP_covered_only": 0.7272098951961583,
+          "top1_acc": 0.8428,
+          "coverage": 0.9978,
+          "n_active_units": 120,
+          "n_units": 128,
+          "H_cond": 0.12187549240555243,
+          "H_marg": 0.13640132330640425
+        },
+        {
+          "concept_mAP": 0.7258061436707136,
+          "concept_mAP_covered_only": 0.7259383093256884,
+          "top1_acc": 0.8438,
+          "coverage": 0.9996,
+          "n_active_units": 122,
+          "n_units": 128,
+          "H_cond": 0.1227490276203389,
+          "H_marg": 0.13640132330640425
+        }
+      ],
+      "slot_mean": {
+        "concept_mAP": 0.7356977719973471,
+        "top1_acc": 0.8518800000000001,
+        "coverage": 0.9991200000000001,
+        "H_cond": 0.12250253487799265
+      }
+    },
+    "ours_codon": {
+      "per_slot": [
+        {
+          "concept_mAP": 0.7047119105297704,
+          "concept_mAP_covered_only": 0.7047119105297704,
+          "top1_acc": 0.7858,
+          "coverage": 1.0,
+          "n_active_units": 64,
+          "n_units": 64,
+          "H_cond": 0.10696895596641628,
+          "H_marg": 0.13640132330640425
+        },
+        {
+          "concept_mAP": 0.6912322382479948,
+          "concept_mAP_covered_only": 0.6923798641343323,
+          "top1_acc": 0.803,
+          "coverage": 0.9976,
+          "n_active_units": 56,
+          "n_units": 64,
+          "H_cond": 0.10466743970052912,
+          "H_marg": 0.13640132330640425
+        },
+        {
+          "concept_mAP": 0.6575794079617963,
+          "concept_mAP_covered_only": 0.658020397781288,
+          "top1_acc": 0.7288,
+          "coverage": 0.998,
+          "n_active_units": 60,
+          "n_units": 64,
+          "H_cond": 0.10857105006261877,
+          "H_marg": 0.13640132330640425
+        },
+        {
+          "concept_mAP": 0.6635708436737641,
+          "concept_mAP_covered_only": 0.6641497994772028,
+          "top1_acc": 0.757,
+          "coverage": 0.9986,
+          "n_active_units": 59,
+          "n_units": 64,
+          "H_cond": 0.10821908221271812,
+          "H_marg": 0.13640132330640425
+        },
+        {
+          "concept_mAP": 0.6287702874326273,
+          "concept_mAP_covered_only": 0.6289046352151206,
+          "top1_acc": 0.6974,
+          "coverage": 0.999,
+          "n_active_units": 59,
+          "n_units": 64,
+          "H_cond": 0.11359854192906585,
+          "H_marg": 0.13640132330640425
+        }
+      ],
+      "slot_mean": {
+        "concept_mAP": 0.6691729375691905,
+        "top1_acc": 0.7544000000000001,
+        "coverage": 0.99864,
+        "H_cond": 0.10840501397426963
+      }
+    },
+    "majority": {
+      "concept_mAP": 0.31603083203559895,
+      "top1_acc": 0.5528,
+      "H_marg": 0.13640132330640425
+    },
+    "shuffled": {
+      "concept_mAP": 0.3130965023248524,
+      "concept_mAP_std": 0.003431442062291985,
+      "n_rep": 5
+    },
+    "collision": {
+      "decoding_loss_codeword_minus_codon": 0.0665248344281566,
+      "entropy_increase_codon_minus_codeword": -0.014097520903723015,
+      "per_slot_jsd": [
+        {
+          "mean_jsd": 0.011131040943982722,
+          "max_jsd": 0.024536321655546346,
+          "n_merged_pairs": 94
+        },
+        {
+          "mean_jsd": 0.010040083789441564,
+          "max_jsd": 0.02897633893438902,
+          "n_merged_pairs": 268
+        },
+        {
+          "mean_jsd": 0.011113123678495773,
+          "max_jsd": 0.04343157978637037,
+          "n_merged_pairs": 411
+        },
+        {
+          "mean_jsd": 0.013539816515538013,
+          "max_jsd": 0.03980701302365759,
+          "n_merged_pairs": 548
+        },
+        {
+          "mean_jsd": 0.014677586829292618,
+          "max_jsd": 0.04174000337257148,
+          "n_merged_pairs": 1231
+        }
+      ]
+    },
+    "bootstrap_vs_ours_codon": {
+      "ours_codeword": {
+        "delta": -0.0665248344281566,
+        "ci95_low": -0.0693090582835269,
+        "ci95_high": -0.0638678568755038,
+        "excludes_zero": true
+      },
+      "majority": {
+        "delta": 0.35314210553359154,
+        "ci95_low": 0.3456870845140617,
+        "ci95_high": 0.36155890228484866,
+        "excludes_zero": true
+      },
+      "shuffled": {
+        "delta": 0.3560764352443381,
+        "ci95_low": 0.3487803285616612,
+        "ci95_high": 0.36415094645393703,
+        "excludes_zero": true
+      }
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "tag": "s5topp45",
+  "dir": "result/260810+cifar10_setting1_promptAblA_cifar_A_v4_s5topp45_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+  "dataset": "CIFAR10",
+  "K": 64,
+  "mAP_at_R_bioproj": 0.8973715024396839,
+  "full_mAP_bioproj": 0.8447148258824106,
+  "full_mAP_pre_projection": 0.8511342619848655,
+  "DNA_unique_DB": 0.07316949152542374,
+  "lambda_codon_joint": "0.03",
+  "codon_joint_slots": "-",
+  "codon_input_source": "quantized",
+  "use_gumbel_softmax": "False",
+  "codon_chunk_interleave": "False",
+  "codon_map_enumerable": true,
+  "slot_codons": [
+    35,
+    33,
+    28,
+    27,
+    33
+  ],
+  "slot_gaps": [
+    -4.81,
+    -5.78,
+    -8.27,
+    -9.18,
+    -3.85
+  ],
+  "slot_multi_information": [
+    1.0581,
+    1.0432,
+    1.1535,
+    1.2865,
+    0.9633
+  ],
+  "slot0_codons": 35,
+  "slot0_gap": -4.81,
+  "slot0_MI": 1.0581
+}

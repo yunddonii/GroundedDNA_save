@@ -34,7 +34,10 @@ from typing import Mapping, Sequence
 
 REPO = Path(__file__).resolve().parents[1]
 DATASETS = ("Flickr25k", "MSCOCO", "NUSWIDE", "CIFAR10")
-BITS = (36, 48)
+# 30 added 2026-08-10 for the 5-slot / 15-base GroundedDNA variant.
+# Length-generic downstream: bit//2 bases and bit//6 codebooks give
+# 15 bases as 5 codebooks x 3 codons, matching the 5-slot code exactly.
+BITS = (30, 36, 48)
 DEFAULT_SEEDS = (42,)
 U0_VARIANTS = (
     "cibhash",
@@ -156,17 +159,65 @@ KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
             "and CLI help; existing U0/U2 model construction is unchanged"
         ),
     },
+    # 2026-08-10 bit-budget extension, reviewed together with the
+    # run_modern_baseline_p0.py entry below. Both files gained ONLY the 30-bit
+    # input-validation branch; `_base_length` stays bit // 2, `n_codebooks`
+    # stays bit // 6, and apply_bio_projection takes GC as a fraction, so the
+    # 36/48 execution paths are unchanged byte-for-byte.
+    "scripts/extract_flat_baseline.py": {
+        "before_sha256": (
+            "02c805b0ce914daf8d54469f9a9369cf1cd96cacba55367ad8da1adff8284c4f"
+        ),
+        "after_sha256": (
+            "433be227bf28131a3266e298e37b7a7fcab5e11d41005b75629d6904f81d990e"
+        ),
+        "reviewed_sha256": (
+            "02c805b0ce914daf8d54469f9a9369cf1cd96cacba55367ad8da1adff8284c4f",
+            "433be227bf28131a3266e298e37b7a7fcab5e11d41005b75629d6904f81d990e",
+        ),
+        "classification": "non_scientific_bit_budget_extension",
+        "evidence": (
+            "reviewed exact-hash transition widens the accepted checkpoint bit "
+            "budget from (36, 48) to (30, 36, 48) and updates the error string; "
+            "no change to packing, extraction, or evaluation"
+        ),
+    },
+    "scripts/baseline_val_select_p0.py": {
+        "before_sha256": (
+            "88a811f65c0334a459d1f91555258641f3272ef6f17dae4dad4fda5af4500895"
+        ),
+        "after_sha256": (
+            "770156da4e0dea34e01144acf68d4256e14ce3263c464e53e095e727b60d48cd"
+        ),
+        "reviewed_sha256": (
+            "88a811f65c0334a459d1f91555258641f3272ef6f17dae4dad4fda5af4500895",
+            "770156da4e0dea34e01144acf68d4256e14ce3263c464e53e095e727b60d48cd",
+        ),
+        "classification": "non_scientific_bit_budget_extension",
+        "evidence": (
+            "reviewed exact-hash transition widens SUPPORTED_BITS to include 30; "
+            "selection metric is still raw_{base}base_base_hamming_mAP_at_R with "
+            "base = bit // 2, so 36/48 selection is unchanged"
+        ),
+    },
     "scripts/run_modern_baseline_p0.py": {
         "before_sha256": (
             "9809a70fde66d473540fa11d10752a83453d60ac6bfc9b80d0490a1e7ce7eca5"
         ),
         "after_sha256": (
-            "1dec886eaed08b4f01cc04c8ebaec81b01952d1bc6913696cdcc7a75830461e0"
+            "4e9959b28fd7118ecdbd794555e22ede53064df6fe447c2ab85d30c1c8541a6c"
         ),
         "reviewed_sha256": (
             "9809a70fde66d473540fa11d10752a83453d60ac6bfc9b80d0490a1e7ce7eca5",
             "2d7234a2a8f959f32a1f0fa5199cf00556289084f351359f7cb3cbcbdd4f5b16",
             "1dec886eaed08b4f01cc04c8ebaec81b01952d1bc6913696cdcc7a75830461e0",
+            # 2026-08-10: SUPPORTED_BITS (36, 48) -> (30, 36, 48) plus the
+            # matching --bit help string, to admit the 30-bit / 15-base budget
+            # that matches the 5-slot GroundedDNA variant. Full diff is the
+            # tuple and two comment lines; the 36- and 48-bit code paths are
+            # byte-identical, so previously-run cells at those budgets remain
+            # valid and comparable. Non-scientific for EVERY variant.
+            "4e9959b28fd7118ecdbd794555e22ede53064df6fe447c2ab85d30c1c8541a6c",
         ),
         "non_scientific_variants_by_sha256": {
             # This snapshot predates CRH dispatch and has the stale CIBHash

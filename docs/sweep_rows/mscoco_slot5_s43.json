@@ -1,0 +1,40 @@
+{
+  "tag": "slot5_s43",
+  "dir": "result/260810+mscoco_setting1_promptAblA_mscoco_A_v5b_slot5_s43_P0refit_e14+bs+64+e+60+proj_lr+0.001",
+  "dataset": "MSCOCO",
+  "K": 128,
+  "mAP_at_R_bioproj": 0.8308464702277032,
+  "full_mAP_bioproj": 0.5996399719646942,
+  "full_mAP_pre_projection": 0.6073786934345277,
+  "DNA_unique_DB": 0.14347404353746573,
+  "lambda_codon_joint": "0.03",
+  "codon_joint_slots": "-",
+  "codon_input_source": "quantized",
+  "use_gumbel_softmax": "False",
+  "codon_chunk_interleave": "False",
+  "codon_map_enumerable": true,
+  "slot_codons": [
+    64,
+    59,
+    58,
+    55,
+    56
+  ],
+  "slot_gaps": [
+    8.97,
+    4.03,
+    2.9,
+    0.1,
+    0.76
+  ],
+  "slot_multi_information": [
+    0.0742,
+    0.189,
+    0.2907,
+    0.3321,
+    0.3161
+  ],
+  "slot0_codons": 64,
+  "slot0_gap": 8.97,
+  "slot0_MI": 0.0742
+}

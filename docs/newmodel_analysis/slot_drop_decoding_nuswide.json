@@ -1,0 +1,51 @@
+{
+  "dataset": "NUSWIDE",
+  "dir": "result/260806+nuswide_setting1_promptAblA_nuswide_A_v4_epsI05_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+  "bases_per_slot": 3,
+  "bio_project": true,
+  "full_concept_mAP": 0.72395,
+  "slots": {
+    "global": {
+      "own_concept_mAP": 0.74401,
+      "concept_mAP_without_this_slot": 0.71994,
+      "delta_vs_full": -0.00401,
+      "coverage": 1.0,
+      "n_active_units": 62
+    },
+    "primary_object": {
+      "own_concept_mAP": 0.73389,
+      "concept_mAP_without_this_slot": 0.72196,
+      "delta_vs_full": -0.00199,
+      "coverage": 0.9981,
+      "n_active_units": 58
+    },
+    "secondary_object": {
+      "own_concept_mAP": 0.73917,
+      "concept_mAP_without_this_slot": 0.72091,
+      "delta_vs_full": -0.00304,
+      "coverage": 0.99524,
+      "n_active_units": 54
+    },
+    "activity_relation": {
+      "own_concept_mAP": 0.73232,
+      "concept_mAP_without_this_slot": 0.72228,
+      "delta_vs_full": -0.00167,
+      "coverage": 0.99619,
+      "n_active_units": 60
+    },
+    "color_texture": {
+      "own_concept_mAP": 0.72882,
+      "concept_mAP_without_this_slot": 0.72298,
+      "delta_vs_full": -0.00097,
+      "coverage": 0.99762,
+      "n_active_units": 59
+    },
+    "scene_type": {
+      "own_concept_mAP": 0.66551,
+      "concept_mAP_without_this_slot": 0.73564,
+      "delta_vs_full": 0.01169,
+      "coverage": 0.99667,
+      "n_active_units": 56
+    }
+  }
+}

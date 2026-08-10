@@ -1,0 +1,40 @@
+{
+  "tag": "slot5_s43",
+  "dir": "result/260810+flickr25k_setting1_promptAblA_flickr_A_v4_slot5_s43_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+  "dataset": "Flickr25k",
+  "K": 128,
+  "mAP_at_R_bioproj": 0.8569549765824181,
+  "full_mAP_bioproj": 0.7316686969045114,
+  "full_mAP_pre_projection": 0.7419252463636508,
+  "DNA_unique_DB": 0.3521739130434783,
+  "lambda_codon_joint": "0.02",
+  "codon_joint_slots": "-",
+  "codon_input_source": "quantized",
+  "use_gumbel_softmax": "False",
+  "codon_chunk_interleave": "False",
+  "codon_map_enumerable": true,
+  "slot_codons": [
+    51,
+    46,
+    53,
+    43,
+    46
+  ],
+  "slot_gaps": [
+    -2.74,
+    -7.58,
+    -0.26,
+    -11.88,
+    -5.39
+  ],
+  "slot_multi_information": [
+    0.6476,
+    0.7065,
+    0.4814,
+    0.7347,
+    0.6334
+  ],
+  "slot0_codons": 51,
+  "slot0_gap": -2.74,
+  "slot0_MI": 0.6476
+}

@@ -1,0 +1,40 @@
+{
+  "tag": "slot5",
+  "dir": "result/260809+cifar10_setting1_promptAblA_cifar_A_v4_slot5_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+  "dataset": "CIFAR10",
+  "K": 64,
+  "mAP_at_R_bioproj": 0.9018768603295712,
+  "full_mAP_bioproj": 0.854607607385014,
+  "full_mAP_pre_projection": 0.8631556159725249,
+  "DNA_unique_DB": 0.07567796610169492,
+  "lambda_codon_joint": "0.03",
+  "codon_joint_slots": "-",
+  "codon_input_source": "quantized",
+  "use_gumbel_softmax": "False",
+  "codon_chunk_interleave": "False",
+  "codon_map_enumerable": true,
+  "slot_codons": [
+    37,
+    34,
+    30,
+    27,
+    31
+  ],
+  "slot_gaps": [
+    -0.53,
+    -4.96,
+    -8.5,
+    -11.47,
+    -5.81
+  ],
+  "slot_multi_information": [
+    0.9556,
+    1.0294,
+    1.2478,
+    1.443,
+    1.116
+  ],
+  "slot0_codons": 37,
+  "slot0_gap": -0.53,
+  "slot0_MI": 0.9556
+}

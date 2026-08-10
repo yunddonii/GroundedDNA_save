@@ -67,17 +67,44 @@ from models.semantic_router import (
 
 # Order is fixed by the project spec — DO NOT reorder.
 # Must match `vlm_qwen25_descriptions.CODEBOOK_KEYS`.
-PART_ORDER: Tuple[str, ...] = (
+# NB: these names are LEGACY labels from the part-based schema. The pipeline is
+# positional -- the v4 caption cache stores [N, 6, D] in the order
+#   C_global, C_primary_object, C_secondary_object, C_activity_or_relation,
+#   C_color_texture, C_scene_type
+# and only the INDEX matters. (This mismatch is also why the routing heatmaps
+# are labelled C_head/C_body/C_limb.)
+_FULL_PART_ORDER: Tuple[str, ...] = (
     "C_global",                  # index 0  -- global average pooling
     "C_head_or_main_part",       # index 1  ┐
     "C_body_or_secondary_part",  # index 2  │
     "C_limb_or_detail_part",     # index 3  ├─ Sinkhorn OT routing (local)
     "C_color_texture",           # index 4  │
-    "C_background_null",         # index 5  ┘
+    "C_background_null",         # index 5  ┘  = scene_type in the v4 cache
 )
-NUM_SEMANTIC_PARTS = len(PART_ORDER)        # 6
+
+# Slot count is a STRUCTURAL constant read at import time, because 99 call sites
+# in this file reference it at module scope and argparse has not run yet when
+# this module is imported (train_siglip2.py imports config at line 40 and this
+# module at line 42, but Config.get_config() runs later inside main()).
+# An env var is therefore the only mechanism that can reach them all.
+#
+# Truncation keeps the FIRST n slots, and `scene_type` is index 5, so
+# GDNA_NUM_SEMANTIC_PARTS=5 drops exactly the slot the drop-ablation identified
+# as free: deleting it IMPROVES held-out codon decoding on 4/4 datasets
+# (Flickr +.0059, MS-COCO +.0144, NUS +.0117, CIFAR +.0111) and it is the
+# smallest retrieval contributor on CIFAR (-.0089).
+#
+# `--num_semantic_parts` mirrors this into args.txt and is cross-checked at
+# model construction, so a mismatch between the env var and the recorded config
+# fails loudly instead of silently producing an unreproducible run.
+_N_PARTS = int(os.environ.get("GDNA_NUM_SEMANTIC_PARTS", str(len(_FULL_PART_ORDER))))
+if not (2 <= _N_PARTS <= len(_FULL_PART_ORDER)):
+    raise ValueError(
+        f"GDNA_NUM_SEMANTIC_PARTS must be in [2, {len(_FULL_PART_ORDER)}], got {_N_PARTS}")
+PART_ORDER: Tuple[str, ...] = _FULL_PART_ORDER[:_N_PARTS]
+NUM_SEMANTIC_PARTS = len(PART_ORDER)        # 6 by default
 LOCAL_PART_ORDER: Tuple[str, ...] = PART_ORDER[1:]
-NUM_LOCAL_PARTS = len(LOCAL_PART_ORDER)     # 5
+NUM_LOCAL_PARTS = len(LOCAL_PART_ORDER)     # 5 by default
 
 
 def _cls_verified_consensus_mask(
@@ -1899,7 +1926,7 @@ class SigLIP2SemanticOTModel(nn.Module):
         # Register EMA text prototype buffer (5 local slots x d_model).
         # Initialized as zeros. Updated during training when text_part_tokens
         # available. Used at inference when eval_routing_mode == text_prototype.
-        _NUM_LOCAL_PARTS = 5
+        _NUM_LOCAL_PARTS = NUM_LOCAL_PARTS
         _d_model_arg = getattr(args, "d_model", None)
         _dm = int(_d_model_arg) if _d_model_arg is not None else 768
         self.register_buffer(
@@ -2332,6 +2359,13 @@ class SigLIP2SemanticOTModel(nn.Module):
         self._current_epoch: int = 0
 
         # ---------- codebook quantizer -----------------------------------
+        _cfg_parts = int(getattr(args, "num_semantic_parts", NUM_SEMANTIC_PARTS))
+        if _cfg_parts != NUM_SEMANTIC_PARTS:
+            raise ValueError(
+                f"--num_semantic_parts={_cfg_parts} but the module was imported with "
+                f"GDNA_NUM_SEMANTIC_PARTS -> {NUM_SEMANTIC_PARTS}. Set the env var "
+                f"BEFORE launching python; args.txt would otherwise not describe "
+                f"the model that actually ran.")
         self.num_codebooks: int = int(getattr(args, "num_codebooks", NUM_SEMANTIC_PARTS))
         self.codebook_size: int = int(getattr(args, "codebook_size", 64))
         if self.num_codebooks != NUM_SEMANTIC_PARTS:

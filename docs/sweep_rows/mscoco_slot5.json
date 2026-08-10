@@ -1,0 +1,40 @@
+{
+  "tag": "slot5",
+  "dir": "result/260810+mscoco_setting1_promptAblA_mscoco_A_v5b_slot5_P0refit_e19+bs+64+e+60+proj_lr+0.001",
+  "dataset": "MSCOCO",
+  "K": 128,
+  "mAP_at_R_bioproj": 0.8283248886317212,
+  "full_mAP_bioproj": 0.5841875689932026,
+  "full_mAP_pre_projection": 0.5921913297074252,
+  "DNA_unique_DB": 0.14311962543602752,
+  "lambda_codon_joint": "0.03",
+  "codon_joint_slots": "-",
+  "codon_input_source": "quantized",
+  "use_gumbel_softmax": "False",
+  "codon_chunk_interleave": "False",
+  "codon_map_enumerable": true,
+  "slot_codons": [
+    64,
+    57,
+    63,
+    58,
+    56
+  ],
+  "slot_gaps": [
+    9.12,
+    1.78,
+    7.96,
+    3.03,
+    1.19
+  ],
+  "slot_multi_information": [
+    0.0912,
+    0.3465,
+    0.133,
+    0.2901,
+    0.3143
+  ],
+  "slot0_codons": 64,
+  "slot0_gap": 9.12,
+  "slot0_MI": 0.0912
+}

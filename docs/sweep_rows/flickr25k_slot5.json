@@ -1,0 +1,40 @@
+{
+  "tag": "slot5",
+  "dir": "result/260809+flickr25k_setting1_promptAblA_flickr_A_v4_slot5_P0refit_e4+bs+64+e+60+proj_lr+0.001",
+  "dataset": "Flickr25k",
+  "K": 128,
+  "mAP_at_R_bioproj": 0.8608987829695445,
+  "full_mAP_bioproj": 0.7295570179235547,
+  "full_mAP_pre_projection": 0.7359794427953612,
+  "DNA_unique_DB": 0.3443478260869565,
+  "lambda_codon_joint": "0.02",
+  "codon_joint_slots": "-",
+  "codon_input_source": "quantized",
+  "use_gumbel_softmax": "False",
+  "codon_chunk_interleave": "False",
+  "codon_map_enumerable": true,
+  "slot_codons": [
+    46,
+    47,
+    46,
+    48,
+    49
+  ],
+  "slot_gaps": [
+    -8.4,
+    -6.0,
+    -7.17,
+    -3.97,
+    -1.46
+  ],
+  "slot_multi_information": [
+    0.8343,
+    0.6138,
+    0.6086,
+    0.526,
+    0.4431
+  ],
+  "slot0_codons": 46,
+  "slot0_gap": -8.4,
+  "slot0_MI": 0.8343
+}

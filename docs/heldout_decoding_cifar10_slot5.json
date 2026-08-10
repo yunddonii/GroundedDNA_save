@@ -1,0 +1,207 @@
+{
+  "dataset": "CIFAR10",
+  "config": {
+    "alpha": 1.0,
+    "min_support": 10,
+    "n_shuffle": 5,
+    "n_boot": 1000,
+    "seed": 42,
+    "n_train": 5000,
+    "n_test": 1000,
+    "n_labels": 10,
+    "K": 64,
+    "n_bases_per_slot": 3,
+    "ours_dir": "result/260809+cifar10_setting1_promptAblA_cifar_A_v4_slot5_P0refit_e4+bs+64+e+60+proj_lr+0.001/withids",
+    "baselines": {}
+  },
+  "slot_names": [
+    "global",
+    "primary_object",
+    "secondary_object",
+    "activity_relation",
+    "color_texture"
+  ],
+  "results": {
+    "ours_codeword": {
+      "per_slot": [
+        {
+          "concept_mAP": 0.9227734126984127,
+          "concept_mAP_covered_only": 0.9237112130040916,
+          "top1_acc": 0.879,
+          "coverage": 0.997,
+          "n_active_units": 60,
+          "n_units": 64,
+          "H_cond": 0.09722985907505323,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.9391575396825397,
+          "concept_mAP_covered_only": 0.9391575396825397,
+          "top1_acc": 0.902,
+          "coverage": 1.0,
+          "n_active_units": 64,
+          "n_units": 64,
+          "H_cond": 0.09409146794716258,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.9369015873015872,
+          "concept_mAP_covered_only": 0.9369015873015872,
+          "top1_acc": 0.9,
+          "coverage": 1.0,
+          "n_active_units": 63,
+          "n_units": 64,
+          "H_cond": 0.09743433841281443,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.9398178571428571,
+          "concept_mAP_covered_only": 0.9443811766213381,
+          "top1_acc": 0.903,
+          "coverage": 0.991,
+          "n_active_units": 61,
+          "n_units": 64,
+          "H_cond": 0.08865660415585186,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.922706746031746,
+          "concept_mAP_covered_only": 0.9280667789001121,
+          "top1_acc": 0.874,
+          "coverage": 0.99,
+          "n_active_units": 58,
+          "n_units": 64,
+          "H_cond": 0.08815790670065748,
+          "H_marg": 0.3254342467164514
+        }
+      ],
+      "slot_mean": {
+        "concept_mAP": 0.9322714285714285,
+        "top1_acc": 0.8916000000000001,
+        "coverage": 0.9955999999999999,
+        "H_cond": 0.09311403525830793
+      }
+    },
+    "ours_codon": {
+      "per_slot": [
+        {
+          "concept_mAP": 0.9073428571428571,
+          "concept_mAP_covered_only": 0.9077506077506078,
+          "top1_acc": 0.847,
+          "coverage": 0.999,
+          "n_active_units": 36,
+          "n_units": 64,
+          "H_cond": 0.09389542659841582,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.9243702380952381,
+          "concept_mAP_covered_only": 0.9281418999760708,
+          "top1_acc": 0.878,
+          "coverage": 0.995,
+          "n_active_units": 40,
+          "n_units": 64,
+          "H_cond": 0.09005341819465576,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.9278888888888889,
+          "concept_mAP_covered_only": 0.9370367687304808,
+          "top1_acc": 0.891,
+          "coverage": 0.986,
+          "n_active_units": 33,
+          "n_units": 64,
+          "H_cond": 0.08404644428959446,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.9340912698412699,
+          "concept_mAP_covered_only": 0.9382964509728622,
+          "top1_acc": 0.894,
+          "coverage": 0.992,
+          "n_active_units": 33,
+          "n_units": 64,
+          "H_cond": 0.07562440887652463,
+          "H_marg": 0.3254342467164514
+        },
+        {
+          "concept_mAP": 0.8852650793650794,
+          "concept_mAP_covered_only": 0.8985517291697067,
+          "top1_acc": 0.809,
+          "coverage": 0.979,
+          "n_active_units": 31,
+          "n_units": 64,
+          "H_cond": 0.10219694684525951,
+          "H_marg": 0.3254342467164514
+        }
+      ],
+      "slot_mean": {
+        "concept_mAP": 0.9157916666666668,
+        "top1_acc": 0.8638,
+        "coverage": 0.9902,
+        "H_cond": 0.08916332896089003
+      }
+    },
+    "majority": {
+      "concept_mAP": 0.29289682539682543,
+      "top1_acc": 0.1,
+      "H_marg": 0.3254342467164514
+    },
+    "shuffled": {
+      "concept_mAP": 0.28908220634920634,
+      "concept_mAP_std": 0.05368545949500873,
+      "n_rep": 5
+    },
+    "collision": {
+      "decoding_loss_codeword_minus_codon": 0.016479761904761747,
+      "entropy_increase_codon_minus_codeword": -0.003950706297417894,
+      "per_slot_jsd": [
+        {
+          "mean_jsd": 0.027971271263612426,
+          "max_jsd": 0.11602764912935352,
+          "n_merged_pairs": 58
+        },
+        {
+          "mean_jsd": 0.041153808413537704,
+          "max_jsd": 0.13038558358597507,
+          "n_merged_pairs": 191
+        },
+        {
+          "mean_jsd": 0.03376994135454526,
+          "max_jsd": 0.12888661909297466,
+          "n_merged_pairs": 236
+        },
+        {
+          "mean_jsd": 0.02598039237208458,
+          "max_jsd": 0.11683468148821459,
+          "n_merged_pairs": 170
+        },
+        {
+          "mean_jsd": 0.049667718158010306,
+          "max_jsd": 0.13085682588154574,
+          "n_merged_pairs": 457
+        }
+      ]
+    },
+    "bootstrap_vs_ours_codon": {
+      "ours_codeword": {
+        "delta": -0.016479761904761747,
+        "ci95_low": -0.020254069444444345,
+        "ci95_high": -0.012747815476190569,
+        "excludes_zero": true
+      },
+      "majority": {
+        "delta": 0.6228948412698414,
+        "ci95_low": 0.603987382936508,
+        "ci95_high": 0.6404116607142857,
+        "excludes_zero": true
+      },
+      "shuffled": {
+        "delta": 0.6267094603174604,
+        "ci95_low": 0.6155311535714284,
+        "ci95_high": 0.638047086904762,
+        "excludes_zero": true
+      }
+    }
+  }
+}

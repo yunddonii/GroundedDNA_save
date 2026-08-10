@@ -436,6 +436,17 @@ class Config():
         # `lambda_wasserstein` is a scalar OT cost. Measured text-anchor axis
         # redundancy tracks slot health exactly (MS-COCO .5742 -> CIFAR .6693),
         # so the missing term is the one that pushes slots apart.
+        # Structural slot count. The MODEL reads this from the
+        # GDNA_NUM_SEMANTIC_PARTS env var at import time (argparse has not run
+        # when model_siglip2 is imported), so this flag exists to record the
+        # value in args.txt; the model cross-checks the two and fails on a
+        # mismatch. Set BOTH, e.g.
+        #   GDNA_NUM_SEMANTIC_PARTS=5 python train_siglip2.py --num_semantic_parts 5
+        siglip2_arg.add_argument('--num_semantic_parts',
+            dest='num_semantic_parts', type=int, default=6,
+            help='Total slots = 1 global + (n-1) local, each contributing '
+                 'num_codons_per_codebook bases. 5 drops the last slot '
+                 '(scene_type), giving 15 bases / 30 bits.')
         siglip2_arg.add_argument('--lambda_slot_diversity',
             dest='lambda_slot_diversity', type=float, default=0.0,
             help='Weight for the slot spatial-diversity loss: mean cosine '

@@ -1,0 +1,51 @@
+{
+  "dataset": "CIFAR10",
+  "dir": "result/260803+cifar10_setting1_promptAblA_cifar_A_v4_uniB003_P0refit_e19+bs+64+e+60+proj_lr+0.001/withids",
+  "bases_per_slot": 3,
+  "bio_project": true,
+  "full_concept_mAP": 0.89891,
+  "slots": {
+    "global": {
+      "own_concept_mAP": 0.92845,
+      "concept_mAP_without_this_slot": 0.893,
+      "delta_vs_full": -0.00591,
+      "coverage": 1.0,
+      "n_active_units": 50
+    },
+    "primary_object": {
+      "own_concept_mAP": 0.91289,
+      "concept_mAP_without_this_slot": 0.89611,
+      "delta_vs_full": -0.0028,
+      "coverage": 0.997,
+      "n_active_units": 48
+    },
+    "secondary_object": {
+      "own_concept_mAP": 0.90268,
+      "concept_mAP_without_this_slot": 0.89815,
+      "delta_vs_full": -0.00076,
+      "coverage": 0.992,
+      "n_active_units": 36
+    },
+    "activity_relation": {
+      "own_concept_mAP": 0.89511,
+      "concept_mAP_without_this_slot": 0.89967,
+      "delta_vs_full": 0.00076,
+      "coverage": 0.994,
+      "n_active_units": 40
+    },
+    "color_texture": {
+      "own_concept_mAP": 0.911,
+      "concept_mAP_without_this_slot": 0.89649,
+      "delta_vs_full": -0.00242,
+      "coverage": 0.997,
+      "n_active_units": 46
+    },
+    "scene_type": {
+      "own_concept_mAP": 0.8433,
+      "concept_mAP_without_this_slot": 0.91003,
+      "delta_vs_full": 0.01112,
+      "coverage": 0.984,
+      "n_active_units": 32
+    }
+  }
+}
