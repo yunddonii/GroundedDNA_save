@@ -12,9 +12,9 @@
 
 - 한 문장 문제 정의
   - ground-truth label을 gradient objective에 넣지 않고 VLM이 만든 구조화 caption을 학습 시 semantic teacher로 사용
-  - 이미지 한 장을 여섯 의미 슬롯의 조합으로 분해
+  - 이미지 한 장을 다섯 의미 슬롯의 조합으로 분해
   - 각 슬롯을 독립 EMA codebook에서 양자화하고 3-base codon으로 변환
-  - 추론 시 text 없이 18-base DNA-valued code를 생성하고 생물학적 제약으로 투영하여 검색
+  - 추론 시 text 없이 15-base DNA-valued code를 생성하고 생물학적 제약으로 투영하여 검색
 - `PROJECT_LOG.md`에서 확인한 설계 의도
   - flat retrieval code를 global/object/relation/appearance/scene 단위의 typed composition으로 바꾸어 “가까운 이유”를 분석 가능하게 만들기
   - 강한 VLM text를 privileged training signal로만 쓰고 deployment에서는 image-only 검색을 유지하기
@@ -83,12 +83,12 @@
   - 기존 molecular image retrieval: hybridization·triplet distance·물리 제약 중심
   - 기존 interpretable hashing: binary concept sub-code 중심, DNA/codon·bio-feasibility 미통합
 - 제안
-  - Qwen이 생성한 여섯 semantic-axis caption을 privileged supervision으로 사용
+  - Qwen이 생성한 여섯 semantic-axis caption 중 다섯(`scene_type` 제외)을 privileged supervision으로 사용
   - frozen CLIP patch와 local caption anchor 사이 KL-relaxed UOT routing
-  - 여섯 독립 EMA codebook과 slot-conditioned 3-base codon head
+  - 다섯 독립 EMA codebook과 slot-conditioned 3-base codon head
   - image-only inference와 최소 base-Hamming bio projection
 - 결과
-  - 동일 18-base 공간과 동일 bio projection 아래 mAP@R
+  - 동일 15-base 공간과 동일 bio projection 아래 mAP@R
   - Flickr25K `.8723`, MS-COCO `.8063`, NUS-WIDE `.8274`, CIFAR-10 `.9009`
   - native-DNA matched adaptation은 동일 5-epoch candidate grid에서 raw 18-base validation mAP@R로 E*를 선택한 sealed 3-seed scratch refit 결과를 별도 diagnostic 표에 보고
   - 최신/legacy binary hashing baseline의 strict 3-seed 결과는 provenance-complete 재실행 전까지 `-`
@@ -136,7 +136,7 @@
 - 문단 6 — codon motivation
   - 자연 codon: 세 nucleotide로 구성된 번역 단위, 64 triplets, genetic-code degeneracy
   - 본 연구: amino acid 번역을 모사하지 않고 “짧은 기호 묶음이 위치별 기능 단위가 된다”는 구조적 비유만 사용
-  - 선택된 slot codeword를 slot-conditioned head로 3-base 단위에 decode하고 여섯 단위를 연결; codeword–codon 일대일 대응은 보장하지 않음
+  - 선택된 slot codeword를 slot-conditioned head로 3-base 단위에 decode하고 다섯 단위를 연결; codeword–codon 일대일 대응은 보장하지 않음
   - Pradhan 계열은 pixel/MSB-derived DNA plane에서 codon·amino-acid feature를 구성하지만, 본 연구는 genetic translation table 없이 language-defined slot을 학습된 codon에 기록
 - 문단 7 — GroundedDNA 개요
   - Qwen caption → CLIP text anchor → patch-to-slot UOT → EMA VQ → codon head → bio projection
@@ -144,13 +144,13 @@
   - representation-learning gradient에는 relevance label을 사용하지 않으며, held-out validation/test label은 \(E^*\) 선택과 공식 평가에만 사용
 - 문단 8 — 핵심 실험 메시지
   - 네 표준 image hashing benchmark
-  - 모든 방법을 동일 18-base·base Hamming·동일 bio projection으로 평가
+  - 모든 방법을 동일 15-base·base Hamming·동일 bio projection으로 평가
   - 검색 성능, bio feasibility, held-out decoding, code semantics를 함께 보고
 
 ### 1.2 Main Contributions 초안
 
 - **Text-grounded compositional DNA hashing**
-  - 여섯 language-defined slots와 독립 codebook/codon head로 구성된 18-base retrieval representation
+  - 다섯 language-defined slots와 독립 codebook/codon head로 구성된 15-base retrieval representation
 - **Train–deployment decoupled UOT routing**
   - 학습 시 instance caption anchor, 추론 시 codebook-mean anchor를 사용하는 text-free image hashing
   - adaptive top-p로 UOT plan의 patch-to-slot 상대 가중치를 희소화
@@ -238,9 +238,9 @@
   - protocol-boundary suffix `M`: method core를 공통 frozen-cache에 이식한 matched adapter; published-table reproduction 아님
   - external-boundary suffix `E`: method core는 구현했으나 공개되지 않거나 모순된 외부 artifact 때문에 exact paper row는 blocked
 - 공통 적용 조건
-  - 논문의 32/64-bit 수치를 36-bit와 직접 비교하거나 보간하지 않음
-  - 모든 후보를 정확히 36-bit로 재학습한 뒤 `2 bits↔1 base` 변환과 동일 DP projection을 적용
-  - 동일 split·frozen CLIP backbone·36-bit capacity·18-base evaluator를 사용하되, 방법 정의에 필요한 global/local/two-view/text 입력은 숨기지 않고 열로 표시
+  - 논문의 32/64-bit 수치를 30-bit와 직접 비교하거나 보간하지 않음
+  - 모든 후보를 정확히 30-bit로 재학습한 뒤 `2 bits↔1 base` 변환과 동일 DP projection을 적용
+  - 동일 split·frozen CLIP backbone·30-bit capacity·15-base evaluator를 사용하되, 방법 정의에 필요한 global/local/two-view/text 입력은 숨기지 않고 열로 표시
   - released-backbone official reproduction과 frozen-CLIP matched adaptation을 혼합하지 않음
   - checkpoint·cache metadata·split·implementation·semantic asset를 SHA-256 run fingerprint로 고정하고, 기존 trial directory 재사용을 거부
 
@@ -426,7 +426,7 @@
 | [DOT-CBM, CVPR 2025](https://openaccess.thecvf.com/content/CVPR2025/html/Xie_Discovering_Fine-Grained_Visual-Concept_Relations_by_Disentangled_Optimal_Transport_Concept_Bottleneck_CVPR_2025_paper.html) | patch↔text concept OT와 localization | 가장 가까운 concept-grounding 선행; classification CBM과 retrieval codon 차이 |
 | [Selective Sinkhorn Routing, ICML 2026 AdaptFM Workshop; arXiv first posted 2025](https://arxiv.org/abs/2511.08972) | top-k Sinkhorn MoE routing, KL projection 정리 | top-k renormalization 증명 참고; task/solver 동일성 주장 금지 |
 | [OMIT, 2026 preprint](https://arxiv.org/abs/2603.14349) | dustbin을 둔 optimal partial image–text matching | partial/dustbin OT와 본 UOT 구분 |
-| [ConceptOT, CVPRW 2026](https://openreview.net/pdf?id=EU0tuTbrKn) | CLIP patch–concept low-rank UOT | concurrent closest work; DNA hashing·fixed six slots·bio projection 차이 |
+| [ConceptOT, CVPRW 2026](https://openreview.net/pdf?id=EU0tuTbrKn) | CLIP patch–concept low-rank UOT | concurrent closest work; DNA hashing·fixed five slots·bio projection 차이 |
 
 - 용어 선택
   - 본문: **KL-relaxed entropic unbalanced optimal transport**
@@ -641,7 +641,7 @@ argmax로 원시 코드를 얻은 뒤, DP 투영으로 유효 코드를 방출�
 
 ### 4.1 Research Questions
 
-- RQ1: 동일 bio-valid 18-base space에서 GroundedDNA가 binary hashing baseline보다 높은 retrieval accuracy를 보이는가?
+- RQ1: 동일 bio-valid 15-base space에서 GroundedDNA가 binary hashing baseline보다 높은 retrieval accuracy를 보이는가?
 - RQ2: text/UOT/multi-codebook 중 무엇이 성능과 codon semantics에 기여하는가?
 - RQ3: DP projection이 feasibility를 얻는 대가로 retrieval·uniqueness·semantic decoding을 얼마나 바꾸는가?
 - RQ4: 각 slot/codon은 held-out data에서 어떤 의미 구조를 보존하는가?
@@ -742,15 +742,15 @@ champion에서 물려받은 loss weight뿐이다.
   - CUB/fine-grained 별도 track: A²-SSL, FAPI, CS3H
   - supervised upper-bound 별도 표: FTH, MambaHash, DSCH-2026, DGrH
 - baseline conversion
-  - 36-bit sign code \([N,36]\)을 \([N,18,2]\)로 reshape
+  - 30-bit sign code \([N,30]\)을 \([N,15,2]\)로 reshape
   - `00→A`, `01→C`, `10→G`, `11→T`
   - query/database 양쪽 DP projection
   - projected base-Hamming으로 재평가
 - 공정성 범위
-  - 동일 raw capacity 36 bits ↔ 18 bases
+  - 동일 raw capacity 30 bits ↔ 15 bases
   - 동일 frozen CLIP backbone, split, relevance, cutoff, bio constraints, distance
   - 단, method-defining 정보는 허용: global-only(GreedyHash/Bi-half/SDC/OH/DUH-EG/HHCH/CroVCA), global+local(UMRCH), fixed cached two-view/three-view, external noun/taxonomy bank 여부를 information-condition 열에 명시
-  - `stage 1`: test split을 로드하지 않고 val-query vs opt-train DB의 **raw 2-bit→18-base base-Hamming mAP@R**로 (E^*) 선택
+  - `stage 1`: test split을 로드하지 않고 val-query vs opt-train DB의 **raw 2-bit→15-base base-Hamming mAP@R**로 (E^*) 선택
   - E* candidate grid: GroundedDNA/legacy P0와 동일한 5-epoch cadence, 즉 0-indexed epoch `4,9,...`; 방법별 candidate 수를 임의로 늘리지 않음
   - `stage 2`: full designated train에서 scratch refit 후 test와 무관하게 final checkpoint 1개 고정; binary-Hamming val 선택과 혼용 금지; nominal schedule horizon은 stage 1과 동일하게 유지
   - 공통 cache의 fixed augmentation은 각 논문의 online augmentation을 그대로 재현하지 않으므로 결과를 published-table reproduction이 아닌 matched-cache adapter로 명시
@@ -786,14 +786,14 @@ champion에서 물려받은 loss weight뿐이다.
 - 구현 provenance
   - GreedyHash·Bi-half·SDC·OH·HHCH·FSCH·CroVCA·DUH-EG·UMRCH 공개 repo에서 명시적 software license를 확인하지 못했으므로 source copy 대신 논문 수식 기반 clean-room 재구현
   - 공개 repo는 equation/config audit에만 사용; paper/release discrepancy를 variant 이름·checkpoint config에 저장
-  - 공식 논문의 16/32/64-bit 숫자는 가져오지 않고 36-bit matched run만 main comparison에 기입
+  - 공식 논문의 16/32/64-bit 숫자는 가져오지 않고 30-bit matched run만 main comparison에 기입
   - external CLIP asset는 immutable Hugging Face commit, model/tokenizer SHA, ordered term SHA, cache-meta SHA까지 manifest로 검증
 
 #### 4.4.1 직접 선행 native-DNA baseline의 구현 및 보고 단위
 
 - 결과를 두 층으로 분리
   - `original reproduction`: 원 feature, 30/80 nt, 원 query와 NUPACK/DDH 또는 wet-lab 지표
-  - `matched adaptation`: 동일 cached CLIP feature, 동일 split, 18 bases, per-image query, 공통 DP, base-Hamming mAP@R
+  - `matched adaptation`: 동일 cached CLIP feature, 동일 split, 15 bases, per-image query, 공통 DP, base-Hamming mAP@R
   - 원 논문의 classification accuracy·molecular recall을 matched mAP 표에 복사하지 않음
 - `DNA24-18-matched`
   - train feature에만 PCA-10 fitting
@@ -830,15 +830,32 @@ champion에서 물려받은 loss weight뿐이다.
   - multi-label에서는 $y_i^\top y_j>0$을 positive, `=0`을 negative로 정의한 명시적 adaptation
   - 결과표의 `†`는 supervision이 아니라 strict-main 승격이 금지된 diagnostic-only cell만 뜻함
 - P0 실행
-  - stage 1: `val_split.carve_val_indices(...,.1,42)`, **neural-raw 18-base Hamming** val mAP@R로 E* 선택, test 미로딩; projected-E* 선택은 별도 protocol ablation으로만 허용
+  - stage 1: `val_split.carve_val_indices(...,.1,42)`, **neural-raw 15-base Hamming** val mAP@R로 E* 선택, test 미로딩; projected-E* 선택은 별도 protocol ablation으로만 허용
   - stage 2: 전체 designated train에서 E*+1 epochs refit 후 test와 무관하게 checkpoint 1개를 고정; raw·post-projection terminal metric은 같은 checkpoint에서 계산하며 test-dependent 선택은 없음
   - artifact: `extract_{query,db}_neural_raw.npz`, standard pre-DP deployment `extract_{query,db}.npz`, projected files; train file은 `neural_raw_base_indices`를 함께 저장
   - metric key도 `neural_raw`, `paper_hp_postprocessed`(TCBB), `projected`로 분리; DP edit/compliance/unique ratio의 기준 stage를 필드명에 표시
 - 구현 검증
   - hard one-hot에서 Koike soft distance = normalized base-Hamming 확인
   - `A,T,C,G→A,C,G,T` remap과 2-bit serialization 확인
-  - query/DB 양쪽 exact DP 후 18-base GC count `[8,10]`·run≤3 확인
+  - query/DB 양쪽 exact DP 후 15-base GC count `[7,8]`·run≤3 확인
+    (GC 분율 `[0.444, 0.556]`은 불변; 15-base에서 정수 창이 `[8,10]`에서 바뀐다)
   - 실제 Flickr25K cache로 TCBB variant의 1-step P0 stage-1 smoke test 완료
+
+#### 4.4z 15-base 미이관 자산 (제출 전 필수)
+
+슬롯 축소로 headline 예산이 30-bit / 15-base가 되었으나, 아래는 아직 36-bit /
+18-base 적응 상태다. 본문·표에서 해당 수치를 인용할 때는 예산을 명시해야 하며,
+제출 전 재적응이 필요하다.
+
+| 자산 | 현재 상태 | 필요 작업 |
+|---|---|---|
+| native-DNA baselines (DNA24, PRIMO, Koike-TN, Koike-BC) | 18-base sealed diagnostic 48/48 완료 | **15-base 재적응 48셀** |
+| `U0` binary baselines (9종) Panel A | 36-bit → 18-base | 30-bit 6종은 §4.5.1b에 완료, 나머지 3종(MLS³RDUH·GreedyHash·HHCH) 미실행 |
+| OH / GreedyHash clean-room adapter 서술 | "36-bit에 이식" | 30-bit 이식 여부 명시 |
+| §4.6 bio-projection 유효성 | 18-base GC `[8,10]` 기준 | **15-base GC `[7,8]`로 재측정** |
+| §4.8 A2/A4/A5 ablation | 6-slot 기준 | 5-slot 재실행 |
+| §4.9 K × bases-per-slot grid | 6-slot 기준 | 5-slot 재확인 |
+| §4.10 slot intervention | 6 슬롯 | 5 슬롯 재측정 |
 
 ### 4.5 Main Results — 신규 통일 레시피, 3-seed
 
@@ -875,7 +892,11 @@ champion에서 물려받은 loss weight뿐이다.
 > 굶는다. `--routing_adaptive_topp_min 0.6 --routing_adaptive_topp_max 0.95`가
 > 이를 0.00 %로 해소한다(§4.10). 나머지 3개 데이터셋의 재튜닝은 미완이다.
 
-#### 4.5.1 Panel A — 18-base headline, seeds `{42,43,44}` mean ± sample std
+#### 4.5.1 Panel A — 18-base / 36-bit **legacy** 패널, seeds `{42,43,44}` mean ± sample std
+
+> 이 패널은 슬롯 축소 이전의 36-bit 예산에서 측정한 값이다. **현행 headline은
+> 15-base / 30-bit인 §4.5.1b**이며, 이 표는 (a) 이전 예산에서의 비교와
+> (b) 예산 축소가 상대 우위에 미친 영향을 보이기 위해 유지한다.
 
 **모든 행이 3-seed다.** baseline은 9개 `U0` variant × 3 dataset × seeds `{43,44}` 60셀을
 실패 0건으로 완료하여 seed 42와 합산했다.
