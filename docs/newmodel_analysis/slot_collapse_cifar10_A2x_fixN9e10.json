@@ -1,0 +1,43 @@
+{
+  "dataset": "CIFAR10",
+  "dir": "result/260811+cifar10_setting1_promptAblA_cifar_A_v4_P0refit_e9+bs+64+e+10+proj_lr+0.001",
+  "split": "train",
+  "images": 256,
+  "slots": 4,
+  "pipeline": {
+    "t_raw": 0.684,
+    "t_adapt": 0.43982,
+    "sim": 0.90397,
+    "sim_c": -0.26981,
+    "P_pre": 0.69308,
+    "P_pre_c": -0.30142,
+    "P_post": 0.50955,
+    "P_post_c": -0.303
+  },
+  "epsilon_replay": {
+    "1.0": {
+      "raw": 0.99193,
+      "centered": -0.2839
+    },
+    "0.5": {
+      "raw": 0.96883,
+      "centered": -0.27954
+    },
+    "0.3": {
+      "raw": 0.92328,
+      "centered": -0.27777
+    },
+    "0.1": {
+      "raw": 0.68082,
+      "centered": -0.29444
+    },
+    "0.05": {
+      "raw": 0.45105,
+      "centered": -0.31157
+    },
+    "0.02": {
+      "raw": 0.20104,
+      "centered": -0.32646
+    }
+  }
+}

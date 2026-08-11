@@ -47,7 +47,12 @@ from baseline.cache_provenance import memoized_sha256_file  # noqa: E402
 DATASETS = ("Flickr25k", "MSCOCO", "NUSWIDE", "CIFAR10")
 METHODS = ("bee2018", "bee2021", "koike2024", "koike2026")
 PAPER_SEEDS = (42, 43, 44)
-MATCHED_LENGTH = 18
+# Matched code length in bases. 18 was the 6-slot / 36-bit budget; the paper
+# is 5 slots x 3 bases = 15 (30 bit) since 2026-08-11. Overridden by the env
+# var rather than a flag because the constant is read at module scope by both
+# this file and the matrix launcher, before argparse runs, and the two MUST
+# agree or the matrix gate rejects every cell for base_length mismatch.
+MATCHED_LENGTH = int(os.environ.get("GDNA_NATIVE_DNA_BASES", "15"))
 VAL_RATIO = 0.1
 VAL_SEED = 42
 EVAL_PERIOD = 5

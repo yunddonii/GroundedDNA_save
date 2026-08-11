@@ -616,45 +616,75 @@ c^{m}_j=\arg\max_{\alpha\in\mathcal A}u^{m}_{j\alpha}.
 
 ### 3.8 학습 목적
 
-목적함수는 세 갈래이며, 각각 §3.1의 원리 중 하나에 대응한다.
-
-**(a) 축 정렬 — 슬롯이 자기 축을 뜻하게 한다.**
-네 항이 서로 다른 표현 수준에서 작동한다.
-
-- **교차 모달 커밋**은 슬롯 표현 \(s^m\)과 축 앵커 \(a^m\)을 **양방향**으로 맞춘다.
-  각 방향의 표적은 상대 모달리티의 **양자화된** 토큰이며 stop-gradient가 걸린다:
-  \(\lVert s^m-\mathrm{sg}[q_t^m]\rVert^2\) 와 \(\lVert a^m-\mathrm{sg}[q_v^m]\rVert^2\)
-  의 평균. 두 번째 항은 앵커를 시각 쪽으로 이동시키므로, 앵커는 학습 중 고정된 상수가 아니다.
-  축의 **정의**(캡션 문장과 그 동결 임베딩)는 고정된 채, 그 임베딩을 시각 공간으로 옮기는
-  어댑터만 움직인다는 점에서 §3.2의 분리는 유지되지만, 이 경로의 존재는 명시해 둔다.
-- **텍스트→코드 KL 증류**는 슬롯별로 코드북 \(\mathcal C^m\) 위의 \(K\)-way 분포를
-  시각·텍스트 양쪽에서 만들고(각각 온도 \(\tau_v,\tau_t\)), \(\mathrm{KL}(p_t\Vert p_v)\)를
-  최소화한다. \(p_t\)는 detach하며, 표본별 텍스트 확신도
-  \(1-H(p_t)/\log K\)로 가중하고 임계 미만은 버린다 — 캡션이 모호한 표본이 코드를
-  끌고 가지 못하게 하기 위해서다.
-- **코돈 텍스트 앵커**는 텍스트 토큰과 코돈 프로토타입의 유사도 argmax를 의사 라벨로 삼아
-  코돈 로짓에 교차 엔트로피를 건다. 즉 정렬을 **염기 수준**까지 내린다.
-- **슬롯별 대조 학습**(이미지 간 InfoNCE)이 같은 축 안에서 이미지를 구별하게 한다.
-
-수송 비용 \(\langle P,C\rangle\) 자체도 목적에 포함되어, 라우팅이 앵커에 가까운 패치를
-모으도록 유도한다.
-
-**(b) 양자화 — 코드가 이산 심볼이 되게 한다.**
-VQ 커밋먼트, 코드북 사용률 균등화, 그리고 염기 위치별 사용 균형 항.
-
-**(c) 코드 다양성 — 심볼이 실제로 구별되게 한다.**
-슬롯별 코돈의 **결합 분포**를 균등 쪽으로 미는 규제를 둔다. 위치별 주변 분포만 균등해도
-결합 분포는 소수 조합에 몰릴 수 있으므로, 규제는 \(4^{\ell}\)개 조합 위에서 정의한다.
+목적함수는 **열 개 항**으로 이루어지며 각각 §3.1의 원리 중 하나에 대응한다.
+항목별 수식·구현·측정된 기여도는 `docs/loss_function_summary.md`에 정리했고,
+논문 이름과 코드 식별자의 대응표는 부록에 싣는다.
 
 \[
-\mathcal L_{\rm joint}=\frac1{|S|}\sum_{m\in S}\mathrm{KL}\!\left(\mathcal U_{4^\ell}\,\Vert\,\bar J^{m}\right),
+\mathcal L=\lambda_{1}\mathcal L_{\rm contrastive}
++\lambda_{2}\mathcal L_{\rm text\text{-}code\text{-}contrastive}
++\lambda_{3}\mathcal L_{\rm xmodal}
++\lambda_{4}\mathcal L_{\rm text\text{-}code\text{-}KL}
++\lambda_{5}\mathcal L_{\rm transport}
++\lambda_{6}\mathcal L_{\rm VQ}
++\lambda_{7}\mathcal L_{\rm commit}
++\lambda_{8}\mathcal L_{\rm codebook\text{-}balance}
++\lambda_{9}\mathcal L_{\rm base\text{-}prior}
++\lambda_{10}\mathcal L_{\rm codon\text{-}joint}
+\]
+
+**(a) 이미지 판별 — 라벨 없이 인스턴스를 구별한다.**
+\(\mathcal L_{\rm contrastive}\)는 두 증강 뷰 사이의 **슬롯별 InfoNCE**이며, 축
+앵커의 상호 유사도로 조절되는 per-slot 온도를 쓴다. 라벨 없는 유일한 판별 신호이고
+검색 성능의 주된 원천이다.
+
+**(b) 축 정렬 — 슬롯이 자기 축을 뜻하게 한다.**
+
+- \(\mathcal L_{\rm xmodal}\)은 슬롯 표현 \(s^m\)과 축 앵커 \(a^m\)을 **양방향**으로
+  맞춘다. 각 방향의 표적은 상대 모달리티의 **양자화된** 토큰이며 stop-gradient가
+  걸린다: \(\tfrac12(\lVert s^m-\mathrm{sg}[q_t^m]\rVert^2+\lVert a^m-\mathrm{sg}[q_v^m]\rVert^2)\).
+  두 번째 항은 앵커를 시각 쪽으로 이동시키므로 **앵커는 학습 중 고정 상수가 아니다.**
+  축의 *정의*(캡션 문장과 그 동결 임베딩)는 고정된 채 그것을 시각 공간으로 옮기는
+  어댑터만 움직인다는 점에서 §3.2의 분리는 유지되지만, 이 경로의 존재는 명시해 둔다.
+- \(\mathcal L_{\rm text\text{-}code\text{-}KL}\)은 슬롯별로 코드북 위 \(K\)-way 분포를
+  시각·텍스트 양쪽에서 만들고(각각 온도 \(\tau_v,\tau_t\)) \(\mathrm{KL}(p_t\Vert p_v)\)를
+  최소화한다. \(p_t\)는 detach하며, 표본별 텍스트 확신도 \(1-H(p_t)/\log K\)로
+  가중하고 임계 미만은 버린다 — 모호한 캡션이 코드를 끌고 가지 못하게 하기 위해서다.
+- \(\mathcal L_{\rm text\text{-}code\text{-}contrastive}\)는 정렬을 **코드 수준**으로
+  내려, 텍스트에서 유도한 코드와 이미지 코드를 배치 안에서 대응시킨다.
+- \(\mathcal L_{\rm transport}=\mathbb E_x[\langle P,C\rangle]\)는 수송 비용 자체를
+  목적에 넣어 라우팅이 앵커에 가까운 패치를 모으게 한다. 라우터에 직접 걸리는
+  유일한 항이다.
+
+**(c) 양자화 — 코드가 이산 심볼이 되게 한다.**
+\(\mathcal L_{\rm VQ}\)는 코드워드 공간의 VQ-VAE 코드북+커밋먼트,
+\(\mathcal L_{\rm commit}\)은 같은 커밋먼트를 **염기 확률 공간**에서 건 것이고,
+\(\mathcal L_{\rm codebook\text{-}balance}\)는 코드워드 사용률을 균등화하고 배정 간
+상관을 억제해 코드북 붕괴를 막는다.
+
+**(d) 코드 다양성 — 심볼이 실제로 구별되게 한다.**
+\(\mathcal L_{\rm base\text{-}prior}\)는 염기 분포에 두 방향의 사전을 건다:
+위치별로는 뾰족하게(하나의 염기로 확정), 데이터셋 전체로는 균등하게.
+\(\mathcal L_{\rm codon\text{-}joint}\)는 슬롯별 코돈의 **결합 분포**를 균등 쪽으로
+민다 — 위치별 주변 분포만 균등해도 결합 분포는 소수 조합에 몰릴 수 있으므로,
+규제를 \(4^{\ell}\)개 조합 위에서 정의한다.
+
+\[
+\mathcal L_{\rm codon\text{-}joint}=\frac1{|S|}\sum_{m\in S}\mathrm{KL}\!\left(\mathcal U_{4^\ell}\,\Vert\,\bar J^{m}\right),
 \qquad
 \bar J^{m}=\mathbb E_{x}\Big[\textstyle\bigotimes_{j=1}^{\ell}u^{m}_{j}\Big].
 \]
 
-(a)와 (b)는 데이터 적합 항이고 (c)는 사전(prior)이다. 둘은 본질적으로 상충하며 — 코드가
-데이터 구조를 담으면 결합 분포는 균등에서 멀어진다 — 이 상충의 균형점이 검색 성능과
-해석가능성의 교환을 결정한다. §4에서 그 교환을 정량화한다.
+(a)–(c)는 데이터 적합 항이고 (d)는 사전이다. 둘은 본질적으로 상충하며 — 코드가
+데이터 구조를 담으면 결합 분포는 균등에서 멀어진다 — 이 상충의 균형점이 검색
+성능과 해석가능성의 교환을 결정한다. §4에서 그 교환을 정량화한다.
+
+> **항의 선정은 측정으로 했다.** 손실 모듈은 진단용을 포함해 56개 스칼라를
+> 반환하지만, 총합에 자기 \(\lambda\)로 들어가면서 gradient가 0이 아닌 항은 위
+> 열 개뿐이다. \(\lambda>0\)이면서 기여가 정확히 0인 항이 넷 있었고(그중 하나는
+> \(\lambda=1.0\)), 값이 로그에 찍혀 살아 있는 것처럼 보이는 항도 있었다. 판정은
+> 실제 배치에서 항마다 \(\lVert\nabla_\theta\mathcal L_{\rm term}\rVert\)를 계산해
+> 내렸다(`scripts/audit_loss_gradients.py`).
 
 ---
 

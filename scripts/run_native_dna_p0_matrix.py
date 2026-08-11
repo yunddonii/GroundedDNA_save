@@ -50,7 +50,12 @@ from scripts.aggregate_native_dna_p0 import (  # noqa: E402
 DEFAULT_METHODS = ("bee2018", "bee2021", "koike2024", "koike2026")
 DEFAULT_DATASETS = ("Flickr25k", "MSCOCO", "NUSWIDE", "CIFAR10")
 DEFAULT_SEEDS = (42, 43, 44)
-MATCHED_LENGTH = 18
+# Matched code length in bases. 18 was the 6-slot / 36-bit budget; the paper
+# is 5 slots x 3 bases = 15 (30 bit) since 2026-08-11. Overridden by the env
+# var rather than a flag because the constant is read at module scope by both
+# this file and the matrix launcher, before argparse runs, and the two MUST
+# agree or the matrix gate rejects every cell for base_length mismatch.
+MATCHED_LENGTH = int(os.environ.get("GDNA_NATIVE_DNA_BASES", "15"))
 SETTING = "setting1"
 MANIFEST_NAME = "native_p0_run_manifest.json"
 RUNNER = REPO / "scripts/run_native_dna_p0.py"

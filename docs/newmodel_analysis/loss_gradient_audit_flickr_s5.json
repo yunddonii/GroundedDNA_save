@@ -1,0 +1,330 @@
+{
+  "dataset": "Flickr25k",
+  "dir": "result/260811+flickr25k_setting1_promptAblA_flickr_A_v4_P0refit_e9+bs+64+e+10+proj_lr+0.001",
+  "epoch": 5,
+  "batch": 8,
+  "terms": {
+    "counterfactual_codeword_flip": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "counterfactual_foil_sim": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "counterfactual_margin_violation": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "counterfactual_pos_sim": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "counterfactual_valid_ratio": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "eff_lambda_codeword_codon_sinkhorn": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_anchor": {
+      "value": 1.017569,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_base_balance": {
+      "value": 0.095659,
+      "grad_norm": 0.8666831254959106,
+      "active": true
+    },
+    "loss_bio_constraint": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_bu": {
+      "value": 0.000942,
+      "grad_norm": 0.07751253247261047,
+      "active": true
+    },
+    "loss_cb_balance": {
+      "value": 0.000903,
+      "grad_norm": 0.014429096132516861,
+      "active": true
+    },
+    "loss_cb_uncorr": {
+      "value": 0.000387,
+      "grad_norm": 0.9194164276123047,
+      "active": true
+    },
+    "loss_cibhash_kl": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_cibhash_ntxent": {
+      "value": 0.786797,
+      "grad_norm": 0.7263361215591431,
+      "active": true
+    },
+    "loss_codebook_ortho": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_codeword_codon_agg_ent": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_codeword_codon_pairwise": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_codeword_codon_sinkhorn": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_codeword_text_proto": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_codon_joint": {
+      "value": 0.944526,
+      "grad_norm": 3.87559175491333,
+      "active": true
+    },
+    "loss_codon_text_anchor": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_cw_xmodal": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_dna": {
+      "value": 0.711717,
+      "grad_norm": 0.7315868735313416,
+      "active": true
+    },
+    "loss_dual_instance": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_dual_semantic": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_entropy": {
+      "value": 0.683019,
+      "grad_norm": 0.7704789042472839,
+      "active": true
+    },
+    "loss_hash": {
+      "value": 0.307532,
+      "grad_norm": 0.26377758383750916,
+      "active": true
+    },
+    "loss_hash_hard": {
+      "value": 0.32868,
+      "grad_norm": 0.33921322226524353,
+      "active": true
+    },
+    "loss_hash_recon": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_hierarchical_cluster_codon": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_ntxent": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_ortho_text": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_proto_cluster": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_proto_cluster_cos": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_quant": {
+      "value": 0.043933,
+      "grad_norm": 0.1530807763338089,
+      "active": true
+    },
+    "loss_recon": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_routing_text": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_sim_spread": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_slot_diversity": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_swav_assign": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_text_cluster_codon_ot": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_text_code_kl": {
+      "value": 0.936046,
+      "grad_norm": 1.062490463256836,
+      "active": true
+    },
+    "loss_text_codeword_contrastive": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_text_codon_rel": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_text_hash": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_text_hash_counterfactual": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_text_hash_ntxent_add": {
+      "value": 0.273546,
+      "grad_norm": 4.8843183517456055,
+      "active": true
+    },
+    "loss_text_preq_contrastive": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_text_visual_hash_contrastive": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "loss_vq": {
+      "value": 0.25585,
+      "grad_norm": 0.09319114685058594,
+      "active": true
+    },
+    "loss_wasserstein": {
+      "value": 1.766002,
+      "grad_norm": 0.48474839329719543,
+      "active": true
+    },
+    "loss_xmodal_commit": {
+      "value": 2.519804,
+      "grad_norm": 2.022630214691162,
+      "active": true
+    },
+    "text_cluster_conf_mean": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "text_cluster_usage_entropy": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "text_codon_rel_neg_sim": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    },
+    "text_codon_rel_pos_sim": {
+      "value": 0.0,
+      "grad_norm": 0.0,
+      "active": false
+    }
+  },
+  "inert": [
+    "counterfactual_codeword_flip",
+    "counterfactual_foil_sim",
+    "counterfactual_margin_violation",
+    "counterfactual_pos_sim",
+    "counterfactual_valid_ratio",
+    "eff_lambda_codeword_codon_sinkhorn",
+    "loss_anchor",
+    "loss_bio_constraint",
+    "loss_cibhash_kl",
+    "loss_codebook_ortho",
+    "loss_codeword_codon_agg_ent",
+    "loss_codeword_codon_pairwise",
+    "loss_codeword_codon_sinkhorn",
+    "loss_codeword_text_proto",
+    "loss_codon_text_anchor",
+    "loss_cw_xmodal",
+    "loss_dual_instance",
+    "loss_dual_semantic",
+    "loss_hash_recon",
+    "loss_hierarchical_cluster_codon",
+    "loss_ntxent",
+    "loss_ortho_text",
+    "loss_proto_cluster",
+    "loss_proto_cluster_cos",
+    "loss_recon",
+    "loss_routing_text",
+    "loss_sim_spread",
+    "loss_slot_diversity",
+    "loss_swav_assign",
+    "loss_text_cluster_codon_ot",
+    "loss_text_codeword_contrastive",
+    "loss_text_codon_rel",
+    "loss_text_hash",
+    "loss_text_hash_counterfactual",
+    "loss_text_preq_contrastive",
+    "loss_text_visual_hash_contrastive",
+    "text_cluster_conf_mean",
+    "text_cluster_usage_entropy",
+    "text_codon_rel_neg_sim",
+    "text_codon_rel_pos_sim"
+  ]
+}

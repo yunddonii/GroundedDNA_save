@@ -1,0 +1,43 @@
+{
+  "dataset": "NUSWIDE",
+  "dir": "result/260811+nuswide_setting1_promptAblA_nuswide_A_v4_P0refit_e9+bs+64+e+10+proj_lr+0.001",
+  "split": "train",
+  "images": 256,
+  "slots": 4,
+  "pipeline": {
+    "t_raw": 0.60433,
+    "t_adapt": 0.2261,
+    "sim": 0.84793,
+    "sim_c": -0.29335,
+    "P_pre": 0.65597,
+    "P_pre_c": -0.3042,
+    "P_post": 0.47113,
+    "P_post_c": -0.30585
+  },
+  "epsilon_replay": {
+    "1.0": {
+      "raw": 0.99163,
+      "centered": -0.2991
+    },
+    "0.5": {
+      "raw": 0.96811,
+      "centered": -0.29757
+    },
+    "0.3": {
+      "raw": 0.92054,
+      "centered": -0.29627
+    },
+    "0.1": {
+      "raw": 0.65621,
+      "centered": -0.30258
+    },
+    "0.05": {
+      "raw": 0.42291,
+      "centered": -0.31501
+    },
+    "0.02": {
+      "raw": 0.1851,
+      "centered": -0.32774
+    }
+  }
+}

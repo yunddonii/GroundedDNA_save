@@ -1,0 +1,43 @@
+{
+  "dataset": "MSCOCO",
+  "dir": "result/260811+mscoco_setting1_promptAblA_mscoco_A_v5b_P0refit_e4+bs+64+e+5+proj_lr+0.001",
+  "split": "train",
+  "images": 256,
+  "slots": 4,
+  "pipeline": {
+    "t_raw": 0.58062,
+    "t_adapt": 0.09745,
+    "sim": 0.79863,
+    "sim_c": -0.29708,
+    "P_pre": 0.73936,
+    "P_pre_c": -0.31081,
+    "P_post": 0.55334,
+    "P_post_c": -0.31132
+  },
+  "epsilon_replay": {
+    "1.0": {
+      "raw": 0.99529,
+      "centered": -0.30805
+    },
+    "0.5": {
+      "raw": 0.98173,
+      "centered": -0.30824
+    },
+    "0.3": {
+      "raw": 0.9525,
+      "centered": -0.30837
+    },
+    "0.1": {
+      "raw": 0.74152,
+      "centered": -0.31117
+    },
+    "0.05": {
+      "raw": 0.49701,
+      "centered": -0.31857
+    },
+    "0.02": {
+      "raw": 0.2168,
+      "centered": -0.3287
+    }
+  }
+}
