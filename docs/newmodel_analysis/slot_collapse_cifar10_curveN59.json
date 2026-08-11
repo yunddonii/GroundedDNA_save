@@ -1,0 +1,43 @@
+{
+  "dataset": "CIFAR10",
+  "dir": "result/260809+cifar10_setting1_promptAblA_cifar_A_v4_curveN59_P0refit_e59+bs+64+e+60+proj_lr+0.001",
+  "split": "train",
+  "images": 256,
+  "slots": 5,
+  "pipeline": {
+    "t_raw": 0.66933,
+    "t_adapt": 0.51663,
+    "sim": 0.83711,
+    "sim_c": -0.15524,
+    "P_pre": 0.82801,
+    "P_pre_c": -0.20523,
+    "P_post": 0.32638,
+    "P_post_c": -0.23615
+  },
+  "epsilon_replay": {
+    "1.0": {
+      "raw": 0.99626,
+      "centered": -0.19746
+    },
+    "0.5": {
+      "raw": 0.98579,
+      "centered": -0.19565
+    },
+    "0.3": {
+      "raw": 0.96468,
+      "centered": -0.19345
+    },
+    "0.1": {
+      "raw": 0.83541,
+      "centered": -0.19023
+    },
+    "0.05": {
+      "raw": 0.68239,
+      "centered": -0.19556
+    },
+    "0.02": {
+      "raw": 0.43448,
+      "centered": -0.21227
+    }
+  }
+}

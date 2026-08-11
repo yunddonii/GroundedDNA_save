@@ -1,0 +1,43 @@
+{
+  "dataset": "Flickr25k",
+  "dir": "result/260811+flickr25k_setting1_promptAblA_flickr_A_v4_P0refit_e59+bs+64+e+60+proj_lr+0.001",
+  "split": "train",
+  "images": 256,
+  "slots": 4,
+  "pipeline": {
+    "t_raw": 0.59015,
+    "t_adapt": 0.41187,
+    "sim": 0.95592,
+    "sim_c": -0.28742,
+    "P_pre": 0.72805,
+    "P_pre_c": -0.31438,
+    "P_post": 0.54039,
+    "P_post_c": -0.3135
+  },
+  "epsilon_replay": {
+    "1.0": {
+      "raw": 0.99473,
+      "centered": -0.30877
+    },
+    "0.5": {
+      "raw": 0.97958,
+      "centered": -0.30786
+    },
+    "0.3": {
+      "raw": 0.94726,
+      "centered": -0.30707
+    },
+    "0.1": {
+      "raw": 0.72276,
+      "centered": -0.31046
+    },
+    "0.05": {
+      "raw": 0.47615,
+      "centered": -0.31899
+    },
+    "0.02": {
+      "raw": 0.20882,
+      "centered": -0.32858
+    }
+  }
+}

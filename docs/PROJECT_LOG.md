@@ -487,6 +487,135 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-08-11 (PM) — 🟢 **The per-slot heatmaps look identical because the epsilon SCHEDULE is defined over the nominal `-e`, not over the epoch training actually stops at.** Aligning them (`-e 10` for a 10-epoch run) drops the slot cosine .9984 -> .5411 at NO extra cost and IMPROVES code diversity. Four `curveN59` runs found to carry best-checkpoint weights, invalidating an earlier comparison in this entry's predecessor
+
+### The question
+
+The 5-slot qualitative figures show four local-slot heatmaps that look the same
+on most Flickr25k images despite completely different captions. "The slots
+collapse" is not actionable, so `scripts/diagnose_slot_heatmap_collapse.py`
+measures the mean pairwise slot cosine at every stage of the path that produces
+the plan:
+
+    caption -> CLIP text emb -> per-slot adapter -> t_m -> cos(x_n,t_m) -> cost
+      -> Sinkhorn(epsilon) -> P -> top-p mask
+
+Raw column cosine alone is misleading: every column inherits the same "which
+patches carry any mass" envelope. The centered cosine (per-patch mean across
+slots removed) is also reported; at M local slots its floor is -1/(M-1).
+
+### Stage decomposition at E*, all four datasets (5 slots, `s5topp69`)
+
+| dataset | E* | eps at E* | (1) CLIP text | (2) anchor | (3) cost | (4) plan | (5) post-mask |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| CIFAR-10 | 14 | .881 | .6840 | .4877 | .9394 | .9922 | .9880 |
+| Flickr25k | 4 | .990 | .5901 | .5285 | .9958 | .9984 | .9984 |
+| NUS-WIDE | 4 | .496 | .6043 | .2892 | .8520 | .9601 | .9204 |
+| MS-COCO | 19 | .789 | .5806 | .3652 | .8808 | .9841 | .9741 |
+
+All four are .92 or worse: this was never Flickr-only. The captions are NOT the
+cause -- NUS-WIDE's raw CLIP text embeddings are MORE similar than Flickr's
+(.6043 vs .5901) yet its anchors end up far better separated (.2892 vs .5285).
+
+### Root cause: the epsilon schedule is parameterised by the nominal `-e`
+
+`model_siglip2.py:2889` computes `t_max = total_epochs - 1` where
+`total_epochs = args.epoch`. Every run passes `-e 60` and then stops at E* (4 to
+19) or at a fixed N (7 to 30), so the anneal consumes 7-32 % of its schedule and
+epsilon never leaves its initial value. Flickr trains its entire 5-epoch life at
+eps ~= 0.99, the regime where the entropic term flattens the plan toward the
+product of the marginals -- slot columns cannot differ there BY CONSTRUCTION.
+
+This also explains why `L_csd` was rejected on 2026-08-10 for moving the
+pre-mask cosine by only .0008: it acts on P, and at eps ~= 1 the plan is nearly
+constant in the anchors, so dP/dt_m ~= 0 and the loss has nothing to push.
+
+### The anchor-collapse feedback loop, and why the adapter "fails" on Flickr
+
+`loss_siglip2.py:2889` trains the anchors as `MSE(t_v, q_v.detach())` -- the
+anchors are pulled toward the QUANTIZED POOLED VISUAL tokens. With P uniform
+every `c_m` is the same, so every anchor is pulled toward the same target:
+
+    eps up -> P uniform -> c_m identical -> q_v identical -> t_m collapses
+      -> cost rank-1 -> P more uniform  (loop)
+
+Measured at E*, local slots only:
+
+| | c_m (pooled visual) | q_v (the anchors' target) | t_m (anchor) |
+|---|---:|---:|---:|
+| Flickr (eps .99) | .9726 | .8074 | .5285 |
+| NUS (eps .50) | .9346 | .7504 | .2892 |
+
+Text-side hyperparameters are IDENTICAL between the two configs (same
+`per_slot_text_adapter`, whitening, `lambda_xmodal_commit`, `text_code_kl`,
+`text_hash_ntxent`) and both have E*=4. The only meaningful difference is
+`sinkhorn_epsilon_init` 1.0 vs 0.5.
+
+### Fix, measured: align `-e` to the epoch training stops at
+
+Both cells are 5 slots / 15 bases, `final_epoch_eval` on, same recipe:
+
+| Flickr25k | N=4, `-e 60` | **A2: N=9, `-e 10`** | A1: N=59, `-e 60` |
+|---|---:|---:|---:|
+| (2) anchor | .5285 | **.2528** | .4119 |
+| (3) cost | .9958 | .9169 | .9559 |
+| (4) plan | .9984 | .7263 | .7281 |
+| (5) post-mask | .9984 | **.5411** | .5404 |
+| mAP@R | **.8613** | .8540 | .8281 |
+| unique code | .2970 | **.3367** | .3066 |
+| per-codebook unique | - | 51,63,55,61,55 | 64,64,64,64,63 |
+
+**A2 equals A1 on slot separation (.5411 vs .5404) at one sixth the compute and
++.0259 mAP@R.** Training the full 60 epochs buys nothing here except codebook
+saturation (64/64 vs 51-63); it costs retrieval, consistent with the 2026-08-08
+finding that Flickr's objective is misaligned. The anchors are BEST at A2
+(.2528), better than the full run -- lowering epsilon early releases the loop
+hardest.
+
+The top-p mask only works once epsilon is right: it moved .9984 -> .9984
+(nothing) at E*, and .7263 -> .5411 at A2.
+
+### RETRACTION: the four `curveN59` runs do not hold 60-epoch weights
+
+An earlier version of this analysis reported "slot separation improves 4/4 to
+.19-.33 when trained to completion" from the `curveN59` runs. That is WRONG.
+Those runs have `final_epoch_eval=False`, which performs the best-checkpoint
+swap: `model_state_dict.pth` is byte-identical to `model_state_dict_best.pth` on
+all four (md5). Flickr's best `eval_mAP` epoch is **e1** (.7790) versus e59
+(.7072), so the measurement loaded epoch-1 weights and forced eps=0.1 on them --
+a regime those weights never trained in. Withdrawn:
+
+- "slot separation .1930-.3264 at N=59" (all four datasets)
+- "`curveN59` mAP@R .8802 / .8934 / .8224 / .8270"
+- "training to completion wins retrieval 3/4"
+
+`CURVE=1` runs are usable ONLY for their per-epoch curves, which is what the
+2026-08-10 entry built them for. A1 is the first genuine 5-slot 60-epoch model.
+
+### Two figure defects fixed alongside
+
+- `dna_utils/visualization.py:298` built the subplot grid with a literal 6
+  columns and looped `range(5)` over local slots, so every 5-part heatmap died
+  with `IndexError: index 4 is out of bounds for axis 1 with size 4`. The count
+  now comes from `routings[0].shape[1]`.
+- Panel labels were the CUB-era `C_head`/`C_body`/`C_limb`, which printed
+  "C_limb" above an activity caption and read as a grounding failure that is not
+  there. Now `primary_object` / `secondary_object` / `activity_relation` /
+  `color_texture` / `scene_type`, matching the v4 cache and the draft.
+- `scripts/regen_viz_routing.py` gained `--epoch`. It must be set to the epoch
+  the checkpoint was TRAINED at, not to the nominal total; `_current_epoch`
+  defaults to 0 and is absent from the state dict.
+
+### Verdict
+
+- ADOPT `-e` aligned to the stopping epoch. It is free and improves three axes.
+- The fixed-N candidates picked on 2026-08-10 (Flickr 10, NUS 7, CIFAR 20,
+  COCO 30) all sit at eps .49-.94 under the nominal `-e 60` and therefore do NOT
+  fix this. Re-pick with `-e` aligned, and add slot cosine to the selection axes
+  -- it is the paper's headline claim and is currently absent from them.
+- Do NOT run Phase B's 12 cells before this is settled; N, the 3-seed runs, the
+  ablations and the tables all chain off it.
+
 ## 2026-08-11 — 🔴 **CUB-200 landmark localisation: slot centroids do NOT beat a constant-position baseline, at 5 slots OR 6.** Qualitative routing figures regenerated for all four datasets at 5 slots; three result-invalidating defects fixed (30-bit control set, hardcoded base width, hardcoded viz column count)
 
 ### 1. Landmark localisation — the grounding metric we lacked
@@ -630,6 +759,8 @@ the claim they can carry is "captions steer a shared attention" rather than
 - Landmark localisation stands as a NEGATIVE result and should be reported as
   such; it does not distinguish 5 slots from 6.
 - Decoding numbers above supersede the empty JSONs from the first sweep pass.
+
+---
 
 ## 2026-08-10 — 🟢 **5 slots / 15 bases (30 bit) beats the 6-slot / 36-bit code on interpretability 4/4 and on retrieval 2/4, and still beats every 30-bit baseline 4/4.** Codon decoding is shown to be INVALID as an interpretability probe on single-label datasets
 
@@ -806,6 +937,175 @@ Consequences:
   176,820 rows, 15 parts) and 312 per-image attributes, so it can supply both a
   ConceptHash-style landmark error and a MULTI-LABEL decoding target that
   sidesteps the single-label collapse. CLIP caches already exist.
+
+---
+
+## 2026-08-10 — 🔬 **FIXED-EPOCH SEARCH: protocol switched from P0 two-stage to single-stage test-monitored training.** Phase A curves done on 4/4; per-dataset N candidates below. `L_csd` REJECTED at 3 seeds
+
+Handover entry: everything another session needs to continue the fixed-epoch
+search without re-deriving it.
+
+### Why we started this
+
+Three findings forced it.
+
+1. **E\* always landed on the FIRST mid-eval point.** `--eval_every 5` fires at
+   epochs 4, 9, 14, …; every E\* ever observed (4, 9, 14, 19, 24, 29, 39) is
+   ≡ 4 mod 5, and Flickr/NUS always took epoch 4. Re-running with
+   `--eval_every 1` measured epochs 0–3 for the first time and found the true
+   Flickr val peak at **e3**, not e4.
+2. **Retrieval and interpretability peak in different places, and E\* is chosen
+   on retrieval alone** (`train_siglip2.py:1185`, `eval_mAP_at_R`). On Flickr
+   val: eval_mAP peaks e3, unique-code-ratio e6, base entropy e37, per-codebook
+   unique e47. The protocol was buying retrieval with the paper's headline
+   contribution.
+3. **val→test transfer failed twice.** The val peak e3 was the WORST cell of the
+   test E\* sweep (DNA-unique −.0542, slot0 codons 36 vs 43). `--proj_lr 3e-4`
+   improved three val axes yet collapsed slot0 codons 43→27 on test. A val-based
+   selection rule could not be trusted, which is what motivated dropping the
+   val split entirely.
+
+Short training is NOT the problem and must not be "fixed". [CroVCA (CVPRW'26)](https://arxiv.org/html/2510.27584),
+one of our own baselines, trains "for only 5 epochs on a single GPU" and sells
+that as a contribution ("unsupervised hashing on COCO completes in under 2
+minutes"); [CLIP Multi-modal Hashing](https://arxiv.org/html/2410.07783v1)
+reports test mAP flat after 10 epochs while the loss keeps falling to 45. With a
+frozen CLIP backbone, 4–10 epochs is current practice. Earlier entries in this
+session that framed this as "non-convergence to be repaired" were over-reading.
+
+### Protocol change (decided 2026-08-09)
+
+P0 two-stage → **single-stage, test-monitored, fixed epoch, no refit**:
+
+- `--val_split_ratio 0.0` → mid-eval runs on the FULL official test split every
+  epoch (the pre-P0 path, `train_siglip2.py:384`).
+- No stage-2 refit. The checkpoint at the fixed epoch IS the reported model.
+- N is chosen per dataset, empirically, from the seed-42 curve.
+
+**Leakage, stated plainly:** choosing N by looking at test curves leaks one
+scalar per dataset. Keep it to that — pick N from the **seed-42 curve only** and
+apply the same N unchanged to seeds 43/44.
+
+### How to run it
+
+`scripts/prompt_ablation_A_cell_fixedN.sh` + `scripts/sweep_joint_cell_fixedN.sh`
+(new; copies rather than flags on the originals, because bash reads scripts
+incrementally and editing a script while cells run corrupts those runs).
+
+Two modes, and the distinction matters:
+
+```
+# Phase A -- the CURVE used to choose N. stop_after_epoch only.
+CURVE=1 FIXED_N=59 EVERY=1 bash scripts/sweep_joint_cell_fixedN.sh <GPU> <EXP> curveN59 "<AUX>"
+
+# Phase B -- the reported model. adds final_epoch_eval.
+FIXED_N=<N> bash scripts/sweep_joint_cell_fixedN.sh <GPU> <EXP> fixN<N> "<AUX>"
+```
+
+`is_p0_refit()` fires on (`stop_after_epoch` AND `final_epoch_eval`) and then
+ISOLATES the official test — **no per-epoch mid-eval at all**. The first Phase-A
+attempt was run with both and produced four empty curves; `CURVE=1` drops
+`final_epoch_eval` to restore mid-eval. Without `final_epoch_eval` the run ends
+with a best-ckpt swap, which is irrelevant for Phase A (only the curve is used)
+but must be present in Phase B so the epoch-N checkpoint is kept.
+
+Also note the legacy path logs `eval_mAP` but NOT `eval_mAP_at_R`; Phase-A
+curves are raw mAP, while the paper metric is bio-projected mAP@R. Phase B is
+what produces the reported 4 axes.
+
+### Phase A results (60 epochs, `--eval_every 1`, seed 42, full test)
+
+Artefact: `docs/newmodel_analysis/fixedN_phaseA_curves.json`.
+
+| dataset | mAP peak | uniq peak | cbuniq peak | dead<1 % at |
+|---|---|---|---|---:|
+| Flickr25k | **e1** = .7790 | e10 = .7717 | e53 = .0323 | e11 |
+| MS-COCO | **e14** = .6053 | e56 = .5304 | e39 = .0128 | e8 |
+| NUS-WIDE | **e1** = .6919 | e7 = .7354 | e25 = .0312 | e5 |
+| CIFAR-10 | **e3** = .8162 | e58 = .6750 | e51 = .0543 | e21 |
+
+Two groups. **MS-COCO is forgiving** — mAP falls only −.0152 from peak to e59,
+so almost any N is affordable. The other three are steep: Flickr −.0718,
+CIFAR −.0873, NUS −.0341.
+
+New observation: **dead-code ratio is still large at the retrieval peak.**
+Flickr e0 .8542 → e3 .2721 → e10 .0117; CIFAR e3 .0833 → e21 <.01. Stopping at
+the retrieval peak leaves 8–27 % of codewords dead, which is a code-quality cost
+the mAP curve alone does not show.
+
+### Fixed-N candidates (bold = current pick)
+
+| dataset | N | mAP | Δ vs peak | uniq | Δ vs peak | dead |
+|---|---:|---:|---:|---:|---:|---:|
+| Flickr25k | 5 | .7515 | −.0276 | .7434 | −.0282 | .0586 |
+| | **10** | .7351 | −.0439 | **.7717** | +.0000 | .0117 |
+| | 20 | .7207 | −.0583 | .7530 | −.0186 | .0104 |
+| MS-COCO | 14 | .6053 | +.0000 | .4599 | −.0705 | .0078 |
+| | **30** | .6011 | −.0043 | .4750 | −.0555 | .0052 |
+| | 40 | .5954 | −.0099 | .4762 | −.0543 | .0078 |
+| NUS-WIDE | 4 | .6825 | −.0095 | .7085 | −.0269 | .0169 |
+| | **7** | .6787 | −.0133 | **.7354** | +.0000 | .0052 |
+| | 15 | .6687 | −.0233 | .7026 | −.0327 | .0013 |
+| CIFAR-10 | 10 | .7947 | −.0215 | .5417 | −.1333 | .0365 |
+| | **20** | .7899 | −.0263 | .5729 | −.1021 | .0156 |
+| | 30 | .7738 | −.0424 | .5760 | −.0990 | .0052 |
+
+These are provisional. They are picked on raw test mAP + `eval_unique_code_ratio`
+(test-split denominator), whereas the paper reports bio-projected mAP@R and
+DNA-unique on the **DB** split (23K Flickr / 107K MS-COCO / 194K NUS / 59K
+CIFAR). Different denominators, and the two have disagreed before.
+
+### Next experiments, in order
+
+1. **Phase B, 12 cells** — the three candidates per dataset above, run WITHOUT
+   `CURVE=1` so each yields the full reported 4 axes (bio-projected mAP@R,
+   DNA-unique on DB, held-out codon decoding, slot0 codons / gap). ~6–10 h on
+   6 GPUs. Confirm or move each N.
+2. **Fix N per dataset**, then **3 seeds** at that N (seeds 43/44 reuse the
+   seed-42 N unchanged).
+3. **Re-run the ablations** under the chosen N. Every A2/A4/bio number currently
+   in the draft is P0 two-stage and is no longer paired with the headline.
+4. **Only then** update `docs/maintable_18base.tex`,
+   `docs/table_codon_decoding.tex` and the draft §4.5/§4.8 panels. Deliberately
+   deferred: the model is not fixed yet, so table edits would be thrown away.
+
+### `L_csd` (ConceptHash Eq. 8) — REJECTED at 3 seeds
+
+`csd005` looked like the first cell out of ~22 to improve all four axes at seed
+42. It does not survive:
+
+| metric | baseline (3 seeds) | csd005 (3 seeds) | Δ |
+|---|---|---|---:|
+| mAP@R | .8668 ± .0017 | .8659 ± .0037 | **−.0009** |
+| DNA-unique | .4681 ± .0156 | .4807 ± .0033 | +.0126 |
+| decode | .7694 ± .0017 | .7714 ± .0073 | +.0020 |
+| slot0 codons | 46.3 ± 3.1 | 47.3 ± 1.5 | +1.0 |
+
+The seed-42 mAP gain (+.0016) flips sign, and everything else is inside seed
+noise. Consistent with the mechanism never having fired — the pre-mask slot
+cosine moved 0.9870 → 0.9862 (−0.0008). Do not re-try without first finding a
+λ at which that cosine actually moves. One real effect: it **halves seed
+variance** (DNA-unique σ .0156 → .0033, slot0 σ 3.06 → 1.53).
+
+### Grounding claim narrowed (user correction, accepted)
+
+The caption-swap **`random`** result (another image's caption, specificity
+.456–.629) is **withdrawn as evidence**. A different image has different global
+content, so its caption differs wholesale and the routing must move; the number
+shows nothing.
+
+Only **`sibling`** survives — the same image's other-axis caption, so global
+content is identical and only the axis changes: MS-COCO .403, Flickr .402,
+NUS .381, CIFAR .220 (three CIFAR slots negative).
+
+Even sibling only shows the slot's attention **depends on its own axis caption**.
+It does NOT show the attention lands on the correct region. That needs external
+ground truth — ConceptHash does it with CUB-200 part annotations (normalised L2
+after regressing predicted attention centroids onto ground-truth landmarks,
+following Huang et al. CVPR'19 TASN; ConceptHash 25.2/27.3/19.3 vs A²-Net
+34.0/37.7/34.4). Our equivalent would be a MS-COCO pointing game against
+`instances_*.json` masks — NOT yet downloaded, `dataset/MSCOCO/` has only
+`images/` and `setting1/`.
 
 ---
 

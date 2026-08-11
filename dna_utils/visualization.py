@@ -162,8 +162,16 @@ def _forward_text_routed(model, batch: Dict[str, Any], device) -> Dict[str, Any]
 
 # ----------------------------------------------------------------- routing viz
 
+# Panel labels for the LOCAL slots, i.e. `_FULL_PART_ORDER[1:]` in
+# model_siglip2. The structural names there ("C_head_or_main_part", ...) are
+# CUB-era; the v4 caption cache and the paper call the same axes
+# primary_object / secondary_object / activity_relation / color_texture /
+# scene_type, and the caption printed under each panel comes from that cache.
+# Using the CUB names put "C_limb" above an activity caption, which reads as a
+# grounding failure that is not there.
 LOCAL_PART_LABELS: Tuple[str, ...] = (
-    "C_head", "C_body", "C_limb", "C_color/tex", "C_background",
+    "primary_object", "secondary_object", "activity_relation",
+    "color_texture", "scene_type",
 )
 
 

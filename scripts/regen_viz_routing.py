@@ -94,6 +94,16 @@ def main() -> int:
                     help="Regenerate ONLY the t-SNE, skip the routing heatmap.")
     ap.add_argument("--tsne_samples", type=int, default=2000)
     ap.add_argument("--tsne_save_name", default="viz_codebook_tsne.png")
+    ap.add_argument("--epoch", type=int, default=None,
+                    help="Epoch to place the model at before drawing. This is "
+                         "NOT cosmetic: `_current_epoch` defaults to 0 and is "
+                         "not stored in the state dict, so a freshly loaded "
+                         "checkpoint runs the Sinkhorn epsilon at its INITIAL "
+                         "value. On Flickr25k that is eps=1.0 instead of the "
+                         "annealed 0.1, which raises the slot-to-slot routing "
+                         "cosine from 0.77 to 1.00 and makes every per-slot "
+                         "heatmap look identical. Pass the run's total epochs "
+                         "to draw what the trained model actually does.")
     ap.add_argument("--save_name", default="viz_routing_heatmap.png",
                     help="Output filename inside result_dir.")
     cli = ap.parse_args()
@@ -128,6 +138,11 @@ def main() -> int:
     miss, unexp = model.load_state_dict(sd, strict=False)
     print(f"[regen] state_dict loaded: missing={len(miss)} unexpected={len(unexp)}")
     model.eval()
+    if cli.epoch is not None:
+        model.set_current_epoch(cli.epoch)
+        _eps = getattr(model, "_current_sinkhorn_epsilon", lambda: None)()
+        print(f"[regen] epoch set to {cli.epoch}"
+              + (f"  -> sinkhorn epsilon {_eps:.4f}" if _eps is not None else ""))
 
     # build trainset (we want trainset because v6b Qwen captions live in
     # the trainset cache; visualize_routing reads qwen_jsonl by image_id).
