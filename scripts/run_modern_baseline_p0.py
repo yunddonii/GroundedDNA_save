@@ -80,7 +80,7 @@ DATASETS = ("Flickr25k", "MSCOCO", "NUSWIDE", "CIFAR10")
 # 30 added 2026-08-10 to match the 5-slot GroundedDNA variant (15 bases).
 # Everything downstream is length-generic: `_base_length` is bit // 2 and
 # apply_bio_projection takes GC as a FRACTION, so the window scales.
-SUPPORTED_BITS = (30, 36, 48)
+SUPPORTED_BITS = (30, 36, 40, 48)
 DEFAULT_CACHE = {
     "Flickr25k": "cache/flickr25k_clip_v4plus_qwen3_tokens",
     "MSCOCO": "cache/mscoco_clip_v5b",

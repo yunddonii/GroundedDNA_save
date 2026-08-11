@@ -64,7 +64,7 @@ DATASETS = ('Flickr25k', 'MSCOCO', 'NUSWIDE', 'CIFAR10')
 # 30 added 2026-08-10 for the 5-slot / 15-base GroundedDNA variant.
 # Length-generic downstream: bit//2 bases and bit//6 codebooks give
 # 15 bases as 5 codebooks x 3 codons, matching the 5-slot code exactly.
-SUPPORTED_BITS = (30, 36, 48)
+SUPPORTED_BITS = (30, 36, 40, 48)
 SHORT = {'CIFAR10': 'cifar10', 'Flickr25k': 'flickr25k',
          'MSCOCO': 'mscoco', 'NUSWIDE': 'nuswide'}
 

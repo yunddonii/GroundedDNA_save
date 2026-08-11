@@ -68,7 +68,7 @@ SUPERVISED_DATASETS = DATASETS
 # 30 added 2026-08-10: the 5-slot GroundedDNA variant emits 15 bases = 30
 # bits, so the unsupervised baselines need a matched budget. `base_length`
 # is already derived as bit // 2, so nothing else assumes 36/48.
-BITS = (30, 36, 48)
+BITS = (30, 36, 40, 48)
 DEFAULT_SEEDS = (42,)
 METHOD_GROUPS: Mapping[str, tuple[str, tuple[str, ...]]] = {
     "all": ("all", U0_VARIANTS),

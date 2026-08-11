@@ -79,7 +79,7 @@ def main() -> int:
     # ---- Load checkpoint ------------------------------------------------
     ckpt = torch.load(args.weights, map_location="cpu", weights_only=False)
     bit = int(ckpt["config"]["bit"])
-    if bit not in (30, 36, 48):
+    if bit not in (30, 36, 40, 48):
         raise ValueError(
             f"bit={bit} is outside the registered comparison budgets; "
             "use a 30-, 36- or 48-bit checkpoint."
