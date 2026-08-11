@@ -1277,6 +1277,76 @@ CIFAR 교정 3셀:
 지표가 굶주림을 보상하므로, **CIFAR 구성은 decoding이 아니라 빈 이미지 비율로
 선택해야 하며 그 기준으로는 `s5topp69`가 유일하게 정합한다.**
 
+#### 4.10c 정성적 평가 figure — 5 슬롯, 4개 데이터셋 (2026-08-11)
+
+`scripts/regen_viz_routing.py`를 `s5topp69` 셀에 적용해 재생성했다. 각 heatmap은
+train 이미지 8장 x (원본 + 로컬 슬롯 4개)이며 패널 제목에 해당 축의 Qwen caption을
+싣는다. t-SNE는 codebook별로 test 3000장에 대해 그린다. 소스 run은
+`docs/figures/qualitative_s5/README.md`에 기록했다.
+
+| 데이터셋 | routing heatmap | codebook t-SNE |
+|---|---|---|
+| CIFAR-10 | `docs/figures/qualitative_s5/cifar10_routing_s5.png` | `docs/figures/qualitative_s5/cifar10_codebook_tsne_s5.png` |
+| Flickr25k | `docs/figures/qualitative_s5/flickr25k_routing_s5.png` | `docs/figures/qualitative_s5/flickr25k_codebook_tsne_s5.png` |
+| NUS-WIDE | `docs/figures/qualitative_s5/nuswide_routing_s5.png` | `docs/figures/qualitative_s5/nuswide_codebook_tsne_s5.png` |
+| MS-COCO | `docs/figures/qualitative_s5/mscoco_routing_s5.png` | `docs/figures/qualitative_s5/mscoco_codebook_tsne_s5.png` |
+
+> **주의 — 이 figure는 현재 상태로는 슬롯 특화 주장을 뒷받침하지 못한다.**
+> Flickr25k에서 로컬 슬롯 4개의 heatmap은 caption이 크게 다름에도 대부분의
+> 이미지에서 거의 동일하다. 이는 마스크 전 슬롯 간 라우팅 코사인 0.987과
+> §4.10d의 landmark 결과가 시각적으로 드러난 것이다. figure가 지탱할 수 있는
+> 주장은 "각 슬롯이 서로 다른 영역을 소유한다"가 아니라 "caption이 공유된
+> attention을 조종한다"이다.
+
+#### 4.10d Landmark localisation error (CUB-200) — 🔴 음성 결과
+
+codon decoding은 코드가 개념 정보를 담는지, caption 교체 반사실은 슬롯의 attention이
+자기 caption에 인과적으로 의존하는지를 말한다. **어느 쪽도 그 attention이 올바른
+위치에 있는지는 말하지 않는다.** CUB-200은 사람이 표기한 부위 좌표를 가진 유일한
+데이터셋이고, ConceptHash(CVPRW'24)가 보고하는 지표이기도 하다.
+
+프로토콜(TASN / ConceptHash): 슬롯별 라우팅 열을 14x14 격자 위 분포로 보고 질량
+무게중심을 정규화 좌표에서 구한 뒤, 발견된 슬롯과 사람 부위 사이에 사전 대응이
+없으므로 **train에서만** 2M개 슬롯 좌표 → 각 landmark 좌표의 선형 회귀를 적합하고,
+held-out L2 거리를 이미지 크기 대비 %로 보고한다. test transform이 crop 없는
+`Resize((224,224))`라 원본 픽셀을 W·H로 나누면 격자와 동일한 좌표계가 된다.
+`scripts/cub_landmark_localization.py`, 전수 split (train 5994 / test 5794).
+
+| 모델 | 슬롯 | beak | left wing | tail |
+|---|---:|---:|---:|---:|
+| 상수 위치 baseline | - | 19.94 | 12.05 | 28.58 |
+| `cub200_bidirAB_legacy` | 6 | **19.93** | **11.66** | **28.23** |
+| `cub200_bidirAB_s5` | 5 | 20.00 | 11.86 | 28.71 |
+| `cub200_bidirAB_s5_topp69` | 5 | 20.31 | 12.50 | 28.99 |
+
+상수 baseline은 모든 이미지에 **train 평균 위치**를 찍는 예측, 즉 사진을 보지 않는다.
+최선의 모델조차 이를 0.01 / 0.39 / 0.35 %p 앞서는 데 그치고, 5슬롯 모델은 beak과
+tail에서 **진다**. 슬롯 무게중심은 새의 부위 위치 정보를 사실상 담지 않으며, 이는
+슬롯 축소의 결과가 아니다 — 6슬롯도 거의 나아지지 않는다.
+
+지표 자체의 한계도 함께 적어야 한다: 선형 적합은 슬롯 **앙상블**을 평가하지
+"슬롯 m = 부리"를 검증하지 않는다. 선행 연구가 지닌 것과 동일한 한계다.
+
+#### 4.10e CUB-200 5슬롯 nucleus — CIFAR와 반대 방향
+
+| cell | topp | mAP | unique code | codebook별 unique |
+|---|---|---:|---:|---|
+| `cub200_bidirAB_s5` | (0.3, 0.7) | **.0781** | **.3842** | 34, 23, 32, 21, 32 |
+| `cub200_bidirAB_s5_topp69` | (0.6, 0.95) | .0755 | .2636 | 39, 19, 16, 23, 25 |
+
+CIFAR-10에서는 nucleus를 (0.6, 0.95)로 넓히는 것이 굶주린 슬롯을 제거했으나, CUB에서는
+mAP와 코드 다양성을 **모두** 떨어뜨린다. nucleus는 전역 상수가 아니라 데이터셋별
+하이퍼파라미터로 보고해야 한다.
+
+#### 4.10f MS-COCO baseline decoding 부재 — 사전 존재 한계
+
+MS-COCO baseline 비교는 모든 train basename에서 KeyError로 실패한다. 우리 최적화용
+train pool(10 000장)이 baseline DB 추출(107 218장)과 **100 % 서로소**이며, 30-bit와
+36-bit 양쪽 모두 그렇다. 과거의 모든 `docs/heldout_decoding_mscoco*.json`도 baseline
+키가 비어 있어, 슬롯 축소로 생긴 회귀가 아니다. 해결하려면 baseline runner가
+`extract_train.npz`를 내보내거나 우리 train pool을 DB에서 뽑아야 한다. 표에는
+`-`로 두고 원인을 명시한다.
+
 ### 4.11 필수 추가 ablation 우선순위
 
 - P0 + bio projection + 3 seeds

@@ -487,6 +487,150 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-08-11 — 🔴 **CUB-200 landmark localisation: slot centroids do NOT beat a constant-position baseline, at 5 slots OR 6.** Qualitative routing figures regenerated for all four datasets at 5 slots; three result-invalidating defects fixed (30-bit control set, hardcoded base width, hardcoded viz column count)
+
+### 1. Landmark localisation — the grounding metric we lacked
+
+Codon decoding says the code carries concept information; the caption-swap
+counterfactual says a slot's attention depends causally on its own caption.
+Neither says the attention lands in the RIGHT PLACE. CUB-200 is the only dataset
+here with human part annotations, and it is what ConceptHash (CVPRW'24) reports.
+
+Protocol (TASN / ConceptHash): reduce each slot's routing column over the 14x14
+grid to its mass-weighted centroid in normalised coordinates; fit a linear map
+from the 2M slot coordinates to each landmark on TRAIN only (discovered slots
+have no a-priori correspondence to human parts); report held-out L2 error as a
+percentage of image size. The test transform is a plain `Resize((224,224))` with
+no crop, so annotated pixels divided by original width/height land in exactly the
+same frame as the patch grid.
+
+`scripts/cub_landmark_localization.py`, full split (train 5994 / test 5794).
+
+| model | slots | beak | left wing | tail |
+|---|---:|---:|---:|---:|
+| constant-position baseline | - | 19.94 | 12.05 | 28.58 |
+| `cub200_bidirAB_legacy` | 6 | **19.93** | **11.66** | **28.23** |
+| `cub200_bidirAB_s5` | 5 | 20.00 | 11.86 | 28.71 |
+| `cub200_bidirAB_s5_topp69` | 5 | 20.31 | 12.50 | 28.99 |
+
+The baseline predicts the TRAIN-MEAN location for every image, i.e. it never
+looks at the picture. The best model beats it by 0.01 / 0.39 / 0.35 points; the
+5-slot models lose to it on beak and tail. **The slot centroids carry
+essentially no spatial information about bird parts, and this is not a
+consequence of the slot reduction — the 6-slot model is barely better.**
+
+Consistent with the pre-mask slot-to-slot routing cosine of 0.987 measured on
+2026-08-08: the slots look in nearly the same place, so their centroids coincide
+and the regression has nothing to use.
+
+Caveat carried by the metric itself: the linear fit scores the slot ENSEMBLE,
+not "slot m is the beak". A model whose slots collectively span the bird scores
+well even if no single slot is a nameable part. Same caveat as the prior work.
+
+### 2. CUB-200 at 5 slots — nucleus moves the WRONG way, opposite to CIFAR
+
+| cell | topp | mAP | unique code ratio | per-codebook unique |
+|---|---|---:|---:|---|
+| `cub200_bidirAB_s5` | (0.3, 0.7) | **.0781** | **.3842** | 34, 23, 32, 21, 32 |
+| `cub200_bidirAB_s5_topp69` | (0.6, 0.95) | .0755 | .2636 | 39, 19, 16, 23, 25 |
+
+Widening the nucleus COSTS mAP and code diversity on CUB, the opposite of the
+CIFAR-10 finding where (0.6, 0.95) was what removed the starved slot. The
+nucleus is therefore per-dataset, not a global constant. `scripts/train_cub200_bidirAB_s5_clip.sh`.
+
+### 3. 5-slot nucleus retune — all four paper datasets
+
+| dataset | mAP@R (bioproj) | full mAP | DNA-unique (DB) |
+|---|---:|---:|---:|
+| CIFAR10 seed 42 | .8875 | - | .0674 |
+| CIFAR10 seed 43 | .8890 | - | .0607 |
+| CIFAR10 seed 44 | .8754 | - | .0670 |
+| Flickr25k | .8613 | .7350 | .2970 |
+| NUS-WIDE | .8138 | .5780 | .1425 |
+| MS-COCO | .8285 | .5817 | .1218 |
+
+### 4. Held-out codon decoding vs 30-bit controls (bio-projected)
+
+| dataset | ours codon | ours codeword | best baseline | majority |
+|---|---:|---:|---:|---:|
+| CIFAR10 seed 43 | **.8996** | .9307 | CroVCA .8230 | .2929 |
+| CIFAR10 seed 44 | **.8563** | .8998 | CroVCA .8230 | .2929 |
+| Flickr25k | **.7662** | .8095 | OH .7242 | .4730 |
+| NUS-WIDE | **.7125** | .7817 | OH .6793 | .4822 |
+| MS-COCO | **.6487** | .7412 | *unavailable, see below* | - |
+
+The 5-slot / 15-base code beats all five 30-bit baselines on every dataset where
+the control could be computed.
+
+### 5. Three defects fixed
+
+**(a) Baseline control set was pinned to 36-bit.** `sweep_joint_cell.sh` hardcodes
+`*_36b_seed42` control dirs. With N_SLOTS inferred as 5 from our extraction,
+`codon_ids` raised `expected 15 bases, got 18` and **the decoding JSON was never
+written at all** — the flickr and both cifar cells reported DONE with no decoding
+numbers. Fixed in `scripts/sweep_joint_cell_s5.sh` (a copy: the original was
+running, and bash reads a script incrementally, so editing it mid-run corrupts
+the run).
+
+**(b) Base width hardcoded to 18.** `heldout_codon_decoding.py:437` reshaped a
+baseline's sign code to `(N, 18, 2)`. That is the 36-bit width; at 30 bits it
+raised `cannot reshape 150000 into (5000,18,2)`. The width now comes from the
+baseline's own `hash_2bit.shape[1]`, and a budget mismatch fails with a message
+naming both sides instead of a bare reshape error.
+
+**(c) Viz column count hardcoded.** `dna_utils/visualization.py:298` built the
+subplot grid with a literal 6 columns and looped `range(5)` over local slots,
+raising `IndexError: index 4 is out of bounds for axis 1 with size 4` at 5 parts.
+`local_routing_matrix` carries one column per LOCAL slot, so the count now comes
+from `routings[0].shape[1]`; caption indexing and label lookup follow it.
+
+**(d) Landmark sampling bias, found and fixed before any number was reported.**
+`centroids()` took a row PREFIX. CUB's `images.txt` is sorted by species, so
+1500 rows covered only ~50 of 200 classes and fitted the regression on a
+different bird population from the test one. Now a seeded permutation over the
+full split.
+
+### 6. MS-COCO baseline decoding is structurally unavailable — pre-existing
+
+The MS-COCO baseline comparison fails with a KeyError on every train basename.
+Diagnosis: our optimisation-train pool (10 000 images) is **100 % disjoint** from
+the baseline DB extraction (107 218), at BOTH 30 and 36 bits. Every past
+`docs/heldout_decoding_mscoco*.json` has an empty baseline key list, so this
+never worked — it is not a regression from the slot reduction. Making it work
+requires the baseline runners to emit `extract_train.npz`, or drawing our train
+pool from the DB. Not fabricated around.
+
+### 7. Qualitative figures — 5 slots, all four datasets
+
+`docs/figures/qualitative_s5/` (README in the same directory records the source
+run per dataset).
+
+| dataset | routing heatmap | codebook t-SNE |
+|---|---|---|
+| CIFAR-10 | `docs/figures/qualitative_s5/cifar10_routing_s5.png` | `docs/figures/qualitative_s5/cifar10_codebook_tsne_s5.png` |
+| Flickr25k | `docs/figures/qualitative_s5/flickr25k_routing_s5.png` | `docs/figures/qualitative_s5/flickr25k_codebook_tsne_s5.png` |
+| NUS-WIDE | `docs/figures/qualitative_s5/nuswide_routing_s5.png` | `docs/figures/qualitative_s5/nuswide_codebook_tsne_s5.png` |
+| MS-COCO | `docs/figures/qualitative_s5/mscoco_routing_s5.png` | `docs/figures/qualitative_s5/mscoco_codebook_tsne_s5.png` |
+
+Each heatmap is 8 train images x (source image + 4 local slots), the Qwen caption
+for that axis in the panel title; t-SNE over 3000 test images per codebook.
+
+**Read honestly, these figures do not yet support the specialisation claim.** On
+Flickr25k the four local-slot heatmaps are near-identical for most images — the
+same bright spots appear under `C_head`, `C_body`, `C_limb` and `C_color/tex`
+despite very different captions. That is the visual form of the 0.987 pre-mask
+slot cosine and of the landmark result above. They belong in the paper as
+evidence of WHERE the routing looks, but a reviewer will see the redundancy, so
+the claim they can carry is "captions steer a shared attention" rather than
+"each slot owns a distinct region".
+
+### Verdict
+
+- ADOPT `cub200_bidirAB_s5` topp (0.3, 0.7); DISCARD topp69 for CUB.
+- Landmark localisation stands as a NEGATIVE result and should be reported as
+  such; it does not distinguish 5 slots from 6.
+- Decoding numbers above supersede the empty JSONs from the first sweep pass.
+
 ## 2026-08-10 — 🟢 **5 slots / 15 bases (30 bit) beats the 6-slot / 36-bit code on interpretability 4/4 and on retrieval 2/4, and still beats every 30-bit baseline 4/4.** Codon decoding is shown to be INVALID as an interpretability probe on single-label datasets
 
 Started from the drop-ablation question "which slot can we afford to delete?" and

@@ -1,0 +1,29 @@
+{
+  "dataset": "CUB_200",
+  "dir": "result/260811+cub_200_setting1_cub200_bidirAB_s5+bs+64+e+60+proj_lr+0.001",
+  "slots": 5,
+  "n_train": 5994,
+  "n_test": 5794,
+  "parts": [
+    2,
+    9,
+    14
+  ],
+  "per_part": {
+    "beak": {
+      "n_test_visible": 5776,
+      "localisation_error_pct": 19.9974,
+      "constant_mean_baseline_pct": 19.9397
+    },
+    "left wing": {
+      "n_test_visible": 3255,
+      "localisation_error_pct": 11.8638,
+      "constant_mean_baseline_pct": 12.0547
+    },
+    "tail": {
+      "n_test_visible": 5397,
+      "localisation_error_pct": 28.7089,
+      "constant_mean_baseline_pct": 28.5808
+    }
+  }
+}

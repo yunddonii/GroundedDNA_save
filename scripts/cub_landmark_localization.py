@@ -49,10 +49,6 @@ _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _REPO)
 sys.path.insert(0, os.path.join(_REPO, "scripts"))
 
-SLOTS = ["global", "primary_object", "secondary_object",
-         "activity_relation", "color_texture", "scene_type"]
-
-
 def _load_parts(root: str):
     idx_to_rel, sizes = {}, {}
     with open(os.path.join(root, "images.txt")) as fh:
@@ -81,9 +77,11 @@ def main() -> int:
     ap.add_argument("--parts", type=int, nargs="*", default=[2, 9, 14],
                     help="part ids to report; default beak/left-wing/tail, the "
                          "three-landmark style ConceptHash reports")
-    ap.add_argument("--n_train", type=int, default=2000)
-    ap.add_argument("--n_test", type=int, default=2000)
+    ap.add_argument("--n_train", type=int, default=100000,
+                help="default covers the whole split; CUB is small enough")
+    ap.add_argument("--n_test", type=int, default=100000)
     ap.add_argument("--epoch", type=int, default=None)
+    ap.add_argument("--sample_seed", type=int, default=1234)
     ap.add_argument("--device", default="cuda:0")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
@@ -113,12 +111,21 @@ def main() -> int:
         qwen_text_cache_path=getattr(args, "qwen_text_cache_path", None),
         siglip2_feature_cache_dir=getattr(args, "siglip2_feature_cache_dir", None))
 
+    rng = np.random.default_rng(a.sample_seed)
+
     def centroids(ds, n_take):
-        """-> [N, M, 2] slot centroids and the dataset row order used."""
+        """-> [N, M, 2] slot centroids and the dataset row order used.
+
+        The order is a seeded PERMUTATION, not a prefix: CUB's images.txt is
+        sorted by species, so taking the first n rows would cover only the first
+        ~n/30 of the 200 classes and fit the regression on a different bird
+        population from the one it is tested on.
+        """
+        order = rng.permutation(len(ds))[:min(n_take, len(ds))].tolist()
         out, rows = [], []
         with torch.no_grad():
-            for i0 in range(0, min(n_take, len(ds)), 32):
-                sel = list(range(i0, min(i0 + 32, min(n_take, len(ds)))))
+            for i0 in range(0, len(order), 32):
+                sel = order[i0:i0 + 32]
                 samples = [ds[i] for i in sel]
                 batch = {}
                 for k in samples[0]:

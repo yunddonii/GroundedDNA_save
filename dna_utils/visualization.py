@@ -295,13 +295,18 @@ def visualize_routing(
             return None
 
     rows_per_sample = K
+    # Column count follows the model, not a constant: `local_routing_matrix`
+    # carries one column per LOCAL slot, so it is 5 wide at 6 semantic parts and
+    # 4 wide at 5. One extra column holds the source image.
+    n_local = routings[0].shape[1]
+    n_cols = n_local + 1
     fig, axes = plt.subplots(
-        n * rows_per_sample, 6,
-        figsize=(2.4 * 6, 2.6 * n * rows_per_sample),
+        n * rows_per_sample, n_cols,
+        figsize=(2.4 * n_cols, 2.6 * n * rows_per_sample),
         squeeze=False,
     )
     for i in range(n):
-        rout = routings[i]                           # [K × side², 5]
+        rout = routings[i]                           # [K × side², n_local]
         for k in range(K):
             row = i * K + k
             # original image (first column)
@@ -312,9 +317,9 @@ def visualize_routing(
             else:
                 ax.set_title(f"crop {k+1}/{K}", fontsize=7)
             ax.set_xticks([]); ax.set_yticks([])
-            crop_rout = rout[k * per_crop:(k + 1) * per_crop, :]   # [side², 5]
-            # routing heatmaps (parts 1..5; index 0 is C_global, drawn from uniform)
-            for m in range(5):
+            crop_rout = rout[k * per_crop:(k + 1) * per_crop, :]   # [side², n_local]
+            # routing heatmaps, one per local part (C_global bypasses the router)
+            for m in range(n_local):
                 heat = crop_rout[:, m].reshape(side, side)
                 ax = axes[row, m + 1]
                 ax.imshow(img_arrs[i])
@@ -323,8 +328,10 @@ def visualize_routing(
                     interpolation="bilinear",
                     extent=(0, img_arrs[i].shape[1], img_arrs[i].shape[0], 0),
                 )
-                txt = qwen_texts[i][m + 1] if len(qwen_texts[i]) >= 6 else ""
-                label = LOCAL_PART_LABELS[m]
+                _qt = qwen_texts[i]
+                txt = _qt[m + 1] if len(_qt) > m + 1 else ""
+                label = (LOCAL_PART_LABELS[m]
+                         if m < len(LOCAL_PART_LABELS) else f'C_{m}')
                 if txt:
                     txt = txt if len(txt) <= 36 else txt[:33] + "..."
                     ax.set_title(f"{label}\n{txt}", fontsize=6)

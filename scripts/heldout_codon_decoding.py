@@ -430,11 +430,25 @@ def main() -> None:
         te_b = np.array([qpos[b] for b in _basenames(qy["image_paths"])])
         key = f"{bname}_chunk"
         if args.bio_project:
-            # DNA-space-consistent control: baseline's own 36-bit hash -> 18
-            # bases -> project to bio-valid -> per-slot 3-base codon, decoded
-            # exactly like ours. (Same 64 values/slot as the bit chunk.)
-            def _hash_to_base(h2):
-                b = (h2 > 0).astype(np.int64).reshape(len(h2), 18, 2)
+            # DNA-space-consistent control: the baseline's own sign code -> one
+            # base per 2 bits -> project to bio-valid -> per-slot 3-base codon,
+            # decoded exactly like ours. (Same 64 values/slot as the bit chunk.)
+            #
+            # The base count comes from the baseline's own width, NOT a constant:
+            # it was 18 while the budget was 36 bits, and is 15 at 30 bits. A
+            # baseline at a different budget from ours cannot be chunked into
+            # N_SLOTS codons at all, so say which pair mismatched rather than
+            # letting reshape fail with a bare size error.
+            _n_base = bdb["hash_2bit"].shape[1] // 2
+            if _n_base != N_SLOTS * n_bases:
+                raise SystemExit(
+                    f"baseline '{bname}' is {bdb['hash_2bit'].shape[1]}-bit "
+                    f"({_n_base} bases) but ours is {N_SLOTS} slots x {n_bases} "
+                    f"bases = {N_SLOTS * n_bases}; pass control dirs at the "
+                    f"matching budget")
+
+            def _hash_to_base(h2, _nb=_n_base):
+                b = (h2 > 0).astype(np.int64).reshape(len(h2), _nb, 2)
                 return b[:, :, 0] * 2 + b[:, :, 1]
             btr_codon = codon_ids(_bioproj(_hash_to_base(bdb["hash_2bit"][tr_b])), n_bases)
             bte_codon = codon_ids(_bioproj(_hash_to_base(bqy["hash_2bit"][te_b])), n_bases)
