@@ -1,0 +1,57 @@
+{
+  "dataset": "NUSWIDE",
+  "dir": "result/260811+nuswide_setting1_promptAblA_nuswide_A_v4_P0refit_e4+bs+64+e+5+proj_lr+0.001",
+  "R": 4000,
+  "n_queries": 600,
+  "n_db": 4000,
+  "n_random": 200,
+  "baseline_map_at_R": 0.5786,
+  "significant_slots": 5,
+  "slots": {
+    "global": {
+      "best_concept": "animal",
+      "specificity": 0.019968,
+      "p_two_sided": 0.0,
+      "significant_at_05": true,
+      "drop_with_concept": 0.02507,
+      "drop_without_concept": 0.005102,
+      "mean_drop_all_queries": 0.007065
+    },
+    "primary_object": {
+      "best_concept": "person",
+      "specificity": 0.021081,
+      "p_two_sided": 0.0,
+      "significant_at_05": true,
+      "drop_with_concept": 0.029934,
+      "drop_without_concept": 0.008854,
+      "mean_drop_all_queries": 0.011384
+    },
+    "secondary_object": {
+      "best_concept": "beach",
+      "specificity": 0.025579,
+      "p_two_sided": 0.0,
+      "significant_at_05": true,
+      "drop_with_concept": 0.031516,
+      "drop_without_concept": 0.005937,
+      "mean_drop_all_queries": 0.008666
+    },
+    "activity_relation": {
+      "best_concept": "person",
+      "specificity": 0.008579,
+      "p_two_sided": 0.015,
+      "significant_at_05": true,
+      "drop_with_concept": 0.016601,
+      "drop_without_concept": 0.008023,
+      "mean_drop_all_queries": 0.009052
+    },
+    "color_texture": {
+      "best_concept": "sunset",
+      "specificity": 0.019302,
+      "p_two_sided": 0.0,
+      "significant_at_05": true,
+      "drop_with_concept": 0.031924,
+      "drop_without_concept": 0.012622,
+      "mean_drop_all_queries": 0.014681
+    }
+  }
+}

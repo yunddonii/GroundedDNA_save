@@ -757,42 +757,10 @@ champion에서 물려받은 loss weight뿐이다.
 - 공통 설정(batch 64, Adam, LR `.001`, frozen backbone, λ_VQ `.25`, λ_quant `.05`, λ_DNA `.05`,
   λ_BU `.02`, UOT `λ_a=λ_b=1`, EMA `.99`, partial whitening `γ=.25`, nominal 60-epoch cosine)은
   A-champion과 동일하다.
-- E\*는 seed마다 stage-1에서 독립적으로 선택한다. seed 42의 E\*를 재사용하지 않는다.
-
-### 4.2c Sinkhorn 엔트로피 계수 \(\varepsilon\)의 스케줄 — **학습 지평과 정렬**
-
-\(\varepsilon\)은 학습 중 \(\varepsilon_{\rm init}\to\varepsilon_{\rm final}\)로 코사인
-스케줄에 따라 어닐링된다. **스케줄의 지평은 실제로 학습하는 epoch 수 \(N\)과 일치시킨다**
-(`-e` \(=N+1\)). 이는 재현에 필수적인 설정이며, 하이퍼파라미터 나열이 아니라 결과를 지배하는
-요인이다.
-
-이전 실험들은 명목상 `-e 60`으로 스케줄을 정의한 뒤 \(N=4\sim19\)에서 학습을 멈췄고, 그 결과
-스케줄의 7–32 %만 소화되어 \(\varepsilon\)이 초기값 근처(0.49–0.99)에 머물렀다. 이 영역에서는
-엔트로피 항이 수송 계획을 주변분포의 곱 쪽으로 평탄화하므로 **슬롯 열이 서로 달라질 수 없다.**
-지평을 정렬하면 동일 계산량에서 다음이 얻어진다(5 슬롯, `final_epoch_eval` on):
-
-| dataset | 슬롯 간 코사인 (마스크 후) | 텍스트 앵커 코사인 |
-|---|---|---|
-| | `-e 60`, 조기 정지 → **정렬** | `-e 60`, 조기 정지 → **정렬** |
-| CIFAR-10 | .9880 → **.5095** | .4877 → **.4398** |
-| Flickr25k | .9984 → **.5411** | .5285 → **.2528** |
-| NUS-WIDE | .9204 → **.4711** | .2892 → **.2261** |
-| MS-COCO | .9741 → **.4686** | .3652 → **.1878** |
-
-mAP@R 변화는 −.022 이내이고 NUS-WIDE는 오히려 개선된다. \(\varepsilon_{\rm init}\)은
-NUS-WIDE만 0.5, 나머지는 1.0이며 \(\varepsilon_{\rm final}=0.1\)로 공통이다.
-
-**§3.4의 confidence-adaptive top-p mask도 이 조건에서만 작동한다.** 마스크 직전·직후의 슬롯
-코사인 차이로 그 순수 기여를 재면, \(\varepsilon\)이 초기값 근처일 때는 −.0000 ~ −.0397에
-그치고, 정렬 후에는 네 데이터셋 모두 −.1835 ~ −.1909로 거의 동일하다. 즉 마스크는 데이터셋이
-아니라 \(\varepsilon\)에만 좌우되는 안정적 연산자이며, 평탄한 계획에는 잘라낼 구조가 없다.
-
-**보고 시 주의.** \(N\)이나 \(E^*\)를 `-e` 없이 인용하면 해석할 수 없다. 두 값과 그때 도달한
-\(\varepsilon\)을 함께 기재한다. 시각화·사후 분석에서도 체크포인트가 **학습된** epoch에
-모델을 두어야 한다 — `_current_epoch`는 0으로 초기화되고 state dict에 저장되지 않으므로,
-새로 로드한 체크포인트는 초기 \(\varepsilon\)에서 동작한다.
-
----
+- **Sinkhorn 엔트로피 계수 \(\varepsilon\)는 \(\varepsilon_{\rm init}\to\varepsilon_{\rm final}=0.1\)로
+  코사인 어닐링하며, 스케줄 지평을 학습 epoch 수 \(N\)과 일치시킨다(`-e` \(=N+1\)).
+  \(\varepsilon_{\rm init}\)은 NUS-WIDE 0.5, 나머지 1.0. 이 정렬을 빠뜨리면 스케줄이 일부만
+  소화되어 다른 모델이 나오므로 재현에 필수인 설정이다.
 
 ### 4.3 학습 프로토콜 — 고정 epoch 단일 단계 (P0 2단계에서 전환)
 
@@ -1028,84 +996,76 @@ Hashing은 loss가 45까지 계속 내려가는 동안 test mAP는 10 epoch 이�
 > 굶는다. `--routing_adaptive_topp_min 0.6 --routing_adaptive_topp_max 0.95`가
 > 이를 0.00 %로 해소한다(§4.10). 나머지 3개 데이터셋의 재튜닝은 미완이다.
 
-#### 4.5.1 Panel A — 18-base / 36-bit **legacy** 패널, seeds `{42,43,44}` mean ± sample std
+#### 4.5.1 Conventional Deep Hashing Model comparison
 
-> 이 패널은 슬롯 축소 이전의 36-bit 예산에서 측정한 값이다. **현행 headline은
-> 15-base / 30-bit인 §4.5.1b**이며, 이 표는 (a) 이전 예산에서의 비교와
-> (b) 예산 축소가 상대 우위에 미친 영향을 보이기 위해 유지한다.
+이진 해시를 학습하는 기존 비지도 심층 해싱 9종을 **동일 비트 예산**으로 재학습하고,
+`2 bits → 1 base` 변환과 공통 DP 투영을 거쳐 base-Hamming mAP@R로 평가한다. 원 논문의
+16/32/64-bit 수치는 가져오지 않는다.
 
-**모든 행이 3-seed다.** baseline은 9개 `U0` variant × 3 dataset × seeds `{43,44}` 60셀을
-실패 0건으로 완료하여 seed 42와 합산했다.
+**(a) 15-base / 30-bit** — 슬롯당 3-base codon (주축)
 
-| Method | Info | Code formation | Flickr25K @5K | MS-COCO @5K | NUS-WIDE @5K | CIFAR-10 @1K |
-|---|---|---|---:|---:|---:|---:|
-| CIBHash | `U0` | 36-bit → 18-base | .7826 | .7700 | .7871 | - |
-| CIMON | `U0` | 36-bit → 18-base | .8140 | .6708 | .7946 | - |
-| MLS³RDUH | `U0` | 36-bit → 18-base | .7561 | .6332 | .7561 | - |
-| GreedyHash-UGH | `U0` | 36-bit → 18-base | .6493 | .5563 | .6447 | - |
-| Bi-half | `U0` | 36-bit → 18-base | .8180 | .7062 | .7547 | - |
-| SDC-paper | `U0` | 36-bit → 18-base | .7263 | **.8092** | .7529 | - |
-| OH | `U0` | 36-bit → 18-base | **.8327** | .7656 | **.8028** | - |
-| HHCH | `U0` | 36-bit → 18-base | .6119 | .4724 | .4026 | - |
-| CroVCA | `U0` | 36-bit → 18-base | .7698 | **.8216** | .7984 | - |
-| DNA24-18 analytic-transfer | `U0-FD` | learned 18×4 DNA head | .7808 ± .0071 | .6330 ± .0127 | .7427 ± .0055 | .7786 ± .0101 |
-| PRIMO-18 length-transfer | `U0-FD` | learned 18×4 DNA head | .7882 ± .0209 | .6251 ± .0129 | .7320 ± .0109 | .7344 ± .0123 |
-| **GroundedDNA (unified)** | **`VLM-T`** | **six grounded codons → 18-base** | **.8668 ± .0017** | **.8232 ± .0098** | **.8246 ± .0033**† | **.8940 ± .0033** |
+| Method | CIFAR-10 | Flickr25K | NUS-WIDE | MS-COCO |
+|---|---:|---:|---:|---:|
+| CIBHash | .8701 | .7939 | .7992 | .7922 |
+| CIMON | .8524 | .8121 | .7890 | .6681 |
+| Bi-half | .7594 | .8116 | .7464 | .7137 |
+| SDC | .8398 | .7252 | .7689 | .8076 |
+| OH | .8607 | **.8328** | **.8025** | .7662 |
+| CroVCA | **.8860** | .7716 | .8015 | **.8304** |
+| MLS³RDUH | .6652 | .7582 | .7601 | .6371 |
+| GreedyHash-UGH | .1586 | .6415 | .6379 | .5609 |
+| HHCH | .2179 | .5496 | .3754 | .3825 |
+| **GroundedDNA** | **.8823** | **.8565** | **.8150** | **.8287** |
+| Δ vs 최강 BL | −.0037 | **+.0237** | **+.0125** | −.0017 |
 
-- CIFAR-10의 `U0` 열은 seeds `{43,44}`를 아직 돌리지 않아 `-`다(해당 60셀 배치는
-  Flickr/MS-COCO/NUS-WIDE만 포함했다). CIFAR 비교는 §4.5.2의 single-seed diagnostic만 유효하다.
-- baseline은 legacy cache provenance 때문에 invariant #6상 여전히 **strict-main ineligible**이다.
-  seed 수를 채운 것은 invariant #3·#9를 만족시킬 뿐, #6은 별개 조건이다.
+⚠️ **seed 42 단일**(양쪽 모두), 3-seed 완료 시 교체한다. 고정 epoch \(N\)은
+CIFAR/Flickr/NUS 4, MS-COCO 39이며 MS-COCO의 39는 시험한 최댓값이지 측정된 정점이 아니다.
 
-> † **NUS-WIDE는 `--sinkhorn_epsilon_init 0.5`로 학습한다** (2026-08-06 채택).
-> 기존 `1.0`에서는 NUS가 `E*=4`에서 멈추므로 라우터가 ε≈0.99로 동작해 전송 계획이
-> 거의 균등해지고(p_max 중앙값 0.2024 대 균등 0.1667), adaptive top-p의 컷이 고정
-> 순위에 걸려 `primary_object`가 **이미지의 33.20 %에서 시각 토큰을 하나도 받지
-> 못했다**. 그 경우 `denom.clamp_min(1e-12)` 때문에 pooled feature가 영벡터가 되고,
-> 해당 슬롯의 codon은 global gate를 통해 들어온 CLIP 전역 임베딩의 재인코딩이 된다.
-> ε=0.5는 이를 전 슬롯 **0.00 %**로 없앤다.
->
-> | | eps 1.0 | eps 0.5 (채택) | Δ |
-> |---|---:|---:|---:|
-> | mAP@R | .8283 ± .0008 | .8246 ± .0033 | −.0037 |
-> | codon decoding | .7368 ± .0026 | .7318 ± .0071 | −.0050 |
-> | DNA-unique | .2116 ± .0079 | **.2353 ± .0039** | **+.0237** |
-> | 빈 이미지 비율 | primary 33.20 % | **0.00 %** | — |
->
-> 검색·해석성 지표가 소폭 내려가지만, 내려간 부분은 **슬롯이 아무것도 보지 않은
-> 이미지에서 얻던 점수**다. ε은 원인이 아니라 처방이다 — MS-COCO를 ε=0.99에서
-> 평가해도 빈 슬롯은 0 %이며, 근본 원인은 텍스트 앵커의 축 분리도(MS-COCO .5742,
-> NUS .6020, CIFAR .6693)다. Flickr25k·MS-COCO는 빈 슬롯이 없어 적용하지 않는다
-> (Flickr에 적용 시 mAP −.0138).
->
-> §4.8의 A2/A4 ablation 표는 아직 ε=1.0 기준이며, full/ablated 양쪽이 같은 조건이라
-> Δ는 유효하다. 제출 전 재실행 필요.
+**(b) 20-base / 40-bit** — 슬롯당 4-base codon
 
-#### 4.5.1b Panel B — 15-base / 30-bit 동일 예산 비교
+| Method | CIFAR-10 | Flickr25K | NUS-WIDE | MS-COCO |
+|---|---:|---:|---:|---:|
+| CIBHash | - | - | - | - |
+| CIMON | - | - | - | - |
+| Bi-half | - | - | - | - |
+| SDC | - | - | - | - |
+| OH | - | - | - | - |
+| CroVCA | - | - | - | - |
+| MLS³RDUH | - | - | - | - |
+| GreedyHash-UGH | - | - | - | - |
+| HHCH | - | - | - | - |
+| **GroundedDNA** | - | - | - | - |
+| Δ vs 최강 BL | - | - | - | - |
 
-5-slot 모델은 30 bit를 쓰므로 36-bit 표와 직접 비교할 수 없다. baseline 6종을
-**동일한 30 bit**로 재학습해(같은 러너·같은 캐시 경로, seed 42) 맞춘 결과다.
-우리 값은 seeds `{42,43,44}` 평균이다.
+#### 4.5.1b DNA Hashing Model comparison
 
-| Dataset | CIBHash | CIMON | Bi-half | SDC | OH | CroVCA | 최강 BL | **ours** | **Δ** |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Flickr25K | .7939 | .8121 | .8116 | .7252 | **.8328** | .7716 | .8328 | **.8529** | **+.0201** |
-| MS-COCO | .7922 | .6681 | .7137 | .8076 | .7662 | **.8304** | .8304 | **.8313** | **+.0009** |
-| NUS-WIDE | .7992 | .7890 | .7464 | .7689 | **.8025** | .8015 | .8025 | **.8221** | **+.0196** |
-| CIFAR-10 | .8701 | .8524 | .7594 | .8398 | .8607 | **.8860** | .8860 | **.8998** | **+.0138** |
+DNA 서열을 직접 출력하도록 설계된 native-DNA 방법 4종과 비교한다. 이들은 원 논문에서
+자기 길이로만 평가되므로, 동일 염기 길이로 **matched adaptation**한 뒤 같은 DP 투영과
+base-Hamming mAP@R로 평가한다.
 
-**동일 비트 예산에서 4/4 우위**다. 36-bit에서의 우위(`+.0341 / +.0016 / +.0218 / +.0156`)와
-비교하면 Flickr에서 줄고 나머지는 유지된다.
+> ⚠️ **증거 지위.** 공유 시각 캐시에 strict provenance 메타데이터가 없어 매트릭스 전체가
+> `complete_diagnostic_only`로 게이팅된다. 18-base 판본도 같은 지위였다. 이 표는
+> **진단 표이며 main-comparison 행으로 쓰지 않는다.**
 
-> ⚠️ **집계 게이트 미통과.** 이 값들은 `map_at_R_post`에서 직접 읽었다. 집계기는
-> baseline 구현 파일의 SHA-256을 고정해 baseline 수치가 코드 변경으로 조용히 바뀌는
-> 것을 막는데, 30-bit 지원을 위해 수정한 3개 파일 중 2개는 검토된 비과학적 전환으로
-> 등록했으나(diff가 비트 예산 튜플과 주석뿐이고 36/48 경로는 바이트 동일) 나머지
-> 하나는 등록할 수 없었다 — **기존 36-bit 셀이 기록한 `baseline_val_select_p0.py`
-> 해시가 git 이력에 없다. 즉 기존 baseline은 커밋되지 않은 워킹트리에서 실행됐고
-> 그 내용은 복원 불가능하다.** 따라서 이 표는 초안에 이미 실린 36-bit 표와
-> **동일한 증거 수준**이며(양쪽 모두 `legacy_cache_diagnostic_only_not_main_table_eligible`),
-> 제출 전 전 비트를 커밋된 상태에서 재실행해야 한다.
+**(a) 15-base**
+
+| Method | CIFAR-10 | Flickr25K | NUS-WIDE | MS-COCO |
+|---|---:|---:|---:|---:|
+| DNA24 (Bee et al. 2018) | - | - | - | - |
+| PRIMO (Bee et al. 2021) | - | - | - | - |
+| Koike-TN (DATE/DAC 2024) | - | - | - | - |
+| Koike-BC (TCBB 2026) | - | - | - | - |
+| **GroundedDNA** | **.8823** | **.8565** | **.8150** | **.8287** |
+
+**(b) 20-base**
+
+| Method | CIFAR-10 | Flickr25K | NUS-WIDE | MS-COCO |
+|---|---:|---:|---:|---:|
+| DNA24 (Bee et al. 2018) | - | - | - | - |
+| PRIMO (Bee et al. 2021) | - | - | - | - |
+| Koike-TN (DATE/DAC 2024) | - | - | - | - |
+| Koike-BC (TCBB 2026) | - | - | - | - |
+| **GroundedDNA** | - | - | - | - |
 
 #### 4.5.2 최강 `U0` baseline 대비 (3-seed 대 3-seed)
 
@@ -1400,17 +1360,6 @@ MS-COCO `−.086` / NUS-WIDE `−.043`처럼 decode 손실이 mAP 손실을 크�
 Flickr는 개선(`.604 → .561`), MS-COCO는 소폭 악화(`.658 → .672`). 일관된 방향이 아니므로
 "중복을 줄인다"는 일반 주장은 하지 않는다.
 
-#### 4.10.2 Codebook-drop (informative budget)
-
-| Dataset | baseline full mAP | Σ drop | anti-codebook | 슬롯별 Δ |
-|---|---:|---:|---:|---|
-| MS-COCO | .6086 | −.0558 | 0 | −.014 / −.011 / −.009 / −.009 / −.011 / −.003 |
-| NUS-WIDE | .5952 | −.0476 | 1 | −.005 / −.012 / −.011 / −.011 / −.010 / +.000 |
-| Flickr25K | .7626 | −.0418 | 0 | −.011 / −.006 / −.005 / −.006 / −.002 / −.012 |
-
-**모든 슬롯이 기여한다.** 제거가 이득인 슬롯(anti-codebook)은 0–1개이며, 그 1개도 `+.0002`로
-사실상 0이다. 여섯 슬롯 구성이 낭비가 아님을 보이는 직접 근거다.
-
 #### 4.10.3 Slot intervention — 🔴 결론 불변
 
 | Dataset | ours target gain | random slot | 비율 | selectivity |
@@ -1500,46 +1449,6 @@ train 이미지 8장 x (원본 + 로컬 슬롯 4개)이며 패널 제목에 해�
 > §4.10d의 landmark 결과가 시각적으로 드러난 것이다. figure가 지탱할 수 있는
 > 주장은 "각 슬롯이 서로 다른 영역을 소유한다"가 아니라 "caption이 공유된
 > attention을 조종한다"이다.
-
-#### 4.10d Landmark localisation error (CUB-200) — 🔴 음성 결과
-
-codon decoding은 코드가 개념 정보를 담는지, caption 교체 반사실은 슬롯의 attention이
-자기 caption에 인과적으로 의존하는지를 말한다. **어느 쪽도 그 attention이 올바른
-위치에 있는지는 말하지 않는다.** CUB-200은 사람이 표기한 부위 좌표를 가진 유일한
-데이터셋이고, ConceptHash(CVPRW'24)가 보고하는 지표이기도 하다.
-
-프로토콜(TASN / ConceptHash): 슬롯별 라우팅 열을 14x14 격자 위 분포로 보고 질량
-무게중심을 정규화 좌표에서 구한 뒤, 발견된 슬롯과 사람 부위 사이에 사전 대응이
-없으므로 **train에서만** 2M개 슬롯 좌표 → 각 landmark 좌표의 선형 회귀를 적합하고,
-held-out L2 거리를 이미지 크기 대비 %로 보고한다. test transform이 crop 없는
-`Resize((224,224))`라 원본 픽셀을 W·H로 나누면 격자와 동일한 좌표계가 된다.
-`scripts/cub_landmark_localization.py`, 전수 split (train 5994 / test 5794).
-
-| 모델 | 슬롯 | beak | left wing | tail |
-|---|---:|---:|---:|---:|
-| 상수 위치 baseline | - | 19.94 | 12.05 | 28.58 |
-| `cub200_bidirAB_legacy` | 6 | **19.93** | **11.66** | **28.23** |
-| `cub200_bidirAB_s5` | 5 | 20.00 | 11.86 | 28.71 |
-| `cub200_bidirAB_s5_topp69` | 5 | 20.31 | 12.50 | 28.99 |
-
-상수 baseline은 모든 이미지에 **train 평균 위치**를 찍는 예측, 즉 사진을 보지 않는다.
-최선의 모델조차 이를 0.01 / 0.39 / 0.35 %p 앞서는 데 그치고, 5슬롯 모델은 beak과
-tail에서 **진다**. 슬롯 무게중심은 새의 부위 위치 정보를 사실상 담지 않으며, 이는
-슬롯 축소의 결과가 아니다 — 6슬롯도 거의 나아지지 않는다.
-
-지표 자체의 한계도 함께 적어야 한다: 선형 적합은 슬롯 **앙상블**을 평가하지
-"슬롯 m = 부리"를 검증하지 않는다. 선행 연구가 지닌 것과 동일한 한계다.
-
-#### 4.10e CUB-200 5슬롯 top-p — CIFAR와 반대 방향
-
-| cell | topp | mAP | unique code | codebook별 unique |
-|---|---|---:|---:|---|
-| `cub200_bidirAB_s5` | (0.3, 0.7) | **.0781** | **.3842** | 34, 23, 32, 21, 32 |
-| `cub200_bidirAB_s5_topp69` | (0.6, 0.95) | .0755 | .2636 | 39, 19, 16, 23, 25 |
-
-CIFAR-10에서는 top-p를 (0.6, 0.95)로 넓히는 것이 굶주린 슬롯을 제거했으나, CUB에서는
-mAP와 코드 다양성을 **모두** 떨어뜨린다. top-p는 전역 상수가 아니라 데이터셋별
-하이퍼파라미터로 보고해야 한다.
 
 #### 4.10f MS-COCO baseline decoding 부재 — 사전 존재 한계
 

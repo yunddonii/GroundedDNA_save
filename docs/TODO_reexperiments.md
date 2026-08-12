@@ -94,3 +94,45 @@
 
 > ⚠️ 사용자 지시로 **하이퍼파라미터 스윕은 별도 지시가 있을 때까지 수행하지 않는다.**
 > 위는 계획이며 실행 대기 상태다.
+
+---
+
+## 사용자 결정 반영 (2026-08-12)
+
+### 확정된 지시
+
+| 항목 | 결정 |
+|---|---|
+| `L_codebook_balance` | λ 0.02 → **0.05**로 올려 확인 (기여가 0이었던 항) |
+| 자동 실행 순서 | 대기 실험 종료 즉시 **§4.7 → §4.8 → §4.10.3 → §4.10c** (지시 불요) |
+| §4.10c | **4개 데이터셋 전부 재생성 후 cherry picking** |
+| §4.9 | 별도 절이 아니라 **main table에 3-base / 4-base로 편입** |
+| §4.5 구성 | Conventional Deep Hashing (15/20-base) + DNA Hashing (15/20-base) |
+| 삭제 | §4.10.2, §4.10d, §4.10e, §4.2c |
+
+**§4.2c 삭제 시 유의.** ε 스케줄을 학습 epoch에 정렬한다는 **설정**이 논문 어디에도
+남지 않으면 재현이 불가능하다. 분석 절은 지시대로 제거하되, `-e = N+1`과
+\(\varepsilon_{\rm init}\) 값은 구현 세부(§4.2b) 공통 설정에 한 줄로 남겼다.
+
+### 새로 착수한 검증 실험 (선행연구 근거 확인 완료)
+
+| # | 실험 | 근거 논문 | 상태 |
+|---|---|---|---|
+| 16 | **Network Dissection** — 슬롯 라우팅 vs COCO 인스턴스 마스크 IoU | Bau, Zhou, Khosla, Oliva, Torralba, **CVPR 2017** | 실행 중 |
+| 17 | **개념 특정성 개입** — 슬롯 중화가 그 개념 질의만 해치는가 | Kim, Wattenberg, Gilmer, Cai, Wexler, Viegas, Sayres, **ICML 2018** (TCAV) | **NUS-WIDE 완료** |
+
+두 논문 모두 원문을 확인했다. Network Dissection의 임계는 P(A > T) = 0.005(상위
+0.5 %)이고 detector 판정은 IoU > 0.04이며 dense label은 Broden이다. 우리는 Broden 대신
+COCO 인스턴스 마스크를 쓴다 — **우리 파이프라인이 만들지 않은 외부 ground truth**라는
+점이 핵심이고, 그것이 codon decoding의 순환성 비판에 답하는 유일한 경로다.
+TCAV는 선형 탐침으로 개념 방향을 얻어 방향 미분을 재고 **무작위 개념 집합 대비 유의성
+검정**을 붙인다. 우리는 로짓이 없으므로 개념=라벨 보유 질의 부분집합, 방향 미분=슬롯
+중화 시 그 부분집합의 mAP@R 손실로 옮기고, 같은 크기의 무작위 질의 부분집합으로 null을
+만들었다.
+
+**아직 수행하지 않은 두 가지** (제안만 한 상태):
+
+| # | 실험 | 근거 논문 |
+|---|---|---|
+| 18 | 가중치 랜덤화 sanity check | Adebayo, Gilmer, Muelly, Goodfellow, Hardt, Kim, **NeurIPS 2018** |
+| 19 | 강제선택 인간 평가 | Hoffmann, Fanconi, Rade, Kohler, **ICML 2021 XAI workshop** |
