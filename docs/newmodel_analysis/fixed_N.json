@@ -1,0 +1,53 @@
+{
+  "_rule": "N maximises seed-42 mAP@R, the headline metric. The two interpretability axes point in OPPOSITE directions across the sweep (inter-codebook NMI prefers small N on 4/4, slot routing cosine prefers large N on 4/4), so neither can break the tie and both trade-offs are reported instead. -e is always N+1 so the Sinkhorn epsilon schedule completes inside the run.",
+  "_leakage": "N chosen on the seed-42 curve ONLY; seeds 43/44 reuse it unchanged.",
+  "cifar_A_v4": {
+    "dataset": "CIFAR10",
+    "N": 4,
+    "e": 5,
+    "lambda_codon_joint": 0.03,
+    "seed42": {
+      "mAP_at_R": 0.8843,
+      "unique": 0.073,
+      "slot_cos": 0.5002,
+      "nmi": 0.6766
+    }
+  },
+  "flickr_A_v4": {
+    "dataset": "Flickr25k",
+    "N": 4,
+    "e": 5,
+    "lambda_codon_joint": 0.02,
+    "seed42": {
+      "mAP_at_R": 0.8593,
+      "unique": 0.29,
+      "slot_cos": 0.5802,
+      "nmi": 0.617
+    }
+  },
+  "nuswide_A_v4": {
+    "dataset": "NUSWIDE",
+    "N": 4,
+    "e": 5,
+    "lambda_codon_joint": 0.05,
+    "seed42": {
+      "mAP_at_R": 0.821,
+      "unique": 0.148,
+      "slot_cos": 0.5496,
+      "nmi": 0.6182
+    }
+  },
+  "mscoco_A_v5b": {
+    "dataset": "MSCOCO",
+    "N": 39,
+    "e": 40,
+    "lambda_codon_joint": 0.03,
+    "seed42": {
+      "mAP_at_R": 0.8354,
+      "unique": 0.125,
+      "slot_cos": 0.41,
+      "nmi": 0.7172
+    },
+    "_note": "39 is the LARGEST N tested, not a measured peak: mAP@R rises monotonically .7939 -> .8062 -> .8151 -> .8354."
+  }
+}
