@@ -1,0 +1,57 @@
+% ---------------------------------------------------------------------------
+% Table 1 -- 15 bases / 30 bit.  Base-Hamming mAP@R after the shared DP
+% projection onto the biologically valid set.  R is dataset specific:
+% CIFAR-10 @1000, Flickr25K / NUS-WIDE / MS-COCO @5000.
+% Baselines: nine U0 unsupervised binary-hashing methods retrained at exactly
+% 30 bit and converted 2 bits -> 1 base, then projected with the same DP.
+% Ours: 5 slots x 3 bases, seed 42, single-stage fixed-epoch training with the
+% Sinkhorn schedule aligned to the stopping epoch (N per dataset in the last
+% column).  INTERIM: seed 42 only; N is the best of {4, 9, 19, 39} on the
+% seed-42 curve.
+% ---------------------------------------------------------------------------
+\begin{tabular}{lccccc}
+\toprule
+Method & Budget & CIFAR-10 & Flickr25K & NUS-WIDE & MS-COCO \\
+\midrule
+CIBHash        & 30-bit $\rightarrow$ 15-base & 0.8701 & 0.7939 & 0.7992 & 0.7922 \\
+CIMON          & 30-bit $\rightarrow$ 15-base & 0.8524 & 0.8121 & 0.7890 & 0.6681 \\
+Bi-half        & 30-bit $\rightarrow$ 15-base & 0.7594 & 0.8116 & 0.7464 & 0.7137 \\
+SDC            & 30-bit $\rightarrow$ 15-base & 0.8398 & 0.7252 & 0.7689 & 0.8076 \\
+OH             & 30-bit $\rightarrow$ 15-base & 0.8607 & \underline{0.8328} & \underline{0.8025} & 0.7662 \\
+CroVCA         & 30-bit $\rightarrow$ 15-base & \underline{0.8860} & 0.7716 & 0.8015 & \underline{0.8304} \\
+MLS$^3$RDUH    & 30-bit $\rightarrow$ 15-base & 0.6652 & 0.7582 & 0.7601 & 0.6371 \\
+GreedyHash-UGH & 30-bit $\rightarrow$ 15-base & 0.1586 & 0.6415 & 0.6379 & 0.5609 \\
+HHCH           & 30-bit $\rightarrow$ 15-base & 0.2179 & 0.5496 & 0.3754 & 0.3825 \\
+\midrule
+\textbf{GroundedDNA} & \textbf{15-base} & \textbf{0.8823} & \textbf{0.8565} & \textbf{0.8150} & \textbf{0.8287} \\
+$\Delta$ vs.\ best baseline & & $-0.0037$ & $+0.0237$ & $+0.0125$ & $-0.0017$ \\
+\midrule
+\multicolumn{2}{l}{\emph{fixed epoch $N$ (ours)}} & 4 & 4 & 4 & 39 \\
+\bottomrule
+\end{tabular}
+
+% ---------------------------------------------------------------------------
+% Table 2 -- 20 bases / 40 bit (4-base codon).  NOT RUN.  Neither our model nor
+% any baseline has been trained at this budget; the launcher
+% scripts/auto_launch_codon4_20base.sh is queued behind the 15-base native-DNA
+% matrix.  Every cell is left as "-" so the table cannot be mistaken for a
+% measured result.
+% ---------------------------------------------------------------------------
+\begin{tabular}{lccccc}
+\toprule
+Method & Budget & CIFAR-10 & Flickr25K & NUS-WIDE & MS-COCO \\
+\midrule
+CIBHash        & 40-bit $\rightarrow$ 20-base & - & - & - & - \\
+CIMON          & 40-bit $\rightarrow$ 20-base & - & - & - & - \\
+Bi-half        & 40-bit $\rightarrow$ 20-base & - & - & - & - \\
+SDC            & 40-bit $\rightarrow$ 20-base & - & - & - & - \\
+OH             & 40-bit $\rightarrow$ 20-base & - & - & - & - \\
+CroVCA         & 40-bit $\rightarrow$ 20-base & - & - & - & - \\
+MLS$^3$RDUH    & 40-bit $\rightarrow$ 20-base & - & - & - & - \\
+GreedyHash-UGH & 40-bit $\rightarrow$ 20-base & - & - & - & - \\
+HHCH           & 40-bit $\rightarrow$ 20-base & - & - & - & - \\
+\midrule
+\textbf{GroundedDNA} & \textbf{20-base} & - & - & - & - \\
+$\Delta$ vs.\ best baseline & & - & - & - & - \\
+\bottomrule
+\end{tabular}

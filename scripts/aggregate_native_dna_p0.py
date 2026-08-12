@@ -49,6 +49,9 @@ import re
 import statistics
 from typing import Iterable, Mapping, Sequence
 
+_PROTOCOL_LABEL = f"matched_{int(os.environ.get('GDNA_NATIVE_DNA_BASES', '15'))}nt_adaptation"
+
+
 
 REPO = Path(__file__).resolve().parents[1]
 MANIFEST_NAME = "native_p0_run_manifest.json"
@@ -488,9 +491,9 @@ def _validate_evaluation(
         errors.append(
             f"evaluation.length: expected {LENGTH}, found {evaluation.get('length')!r}"
         )
-    if evaluation.get("protocol") != "matched_18nt_adaptation":
+    if evaluation.get("protocol") != _PROTOCOL_LABEL:
         errors.append(
-            "evaluation.protocol: expected 'matched_18nt_adaptation', "
+            f"evaluation.protocol: expected {_PROTOCOL_LABEL!r}, "
             f"found {evaluation.get('protocol')!r}"
         )
     if evaluation.get("supervision") != SUPERVISION[key.method]:

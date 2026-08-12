@@ -72,6 +72,9 @@ from baseline.native_dna import (  # noqa: E402
 from val_split import carve_val_indices  # noqa: E402
 from dna_utils.bio_constraints import is_valid_batch  # noqa: E402
 
+_MATCHED_LENGTH = int(os.environ.get('GDNA_NATIVE_DNA_BASES', '15'))
+
+
 
 DEFAULTS = {
     "bee2018": {"batch_size": 500, "epochs": 65, "steps_per_epoch": 1000,
@@ -723,9 +726,14 @@ def main() -> int:
             "dataset": args.dataset,
             "length": args.length,
             "parameter_count": n_params,
+            # The label follows the CONFIGURED matched length, not a literal 18.
+            # 18 was the 6-slot / 36-bit budget; the paper is 15 bases since
+            # 2026-08-11. GDNA_NATIVE_DNA_BASES must hold the same value here as
+            # in run_native_dna_p0{,_matrix}.py or the aggregator rejects the
+            # cell for a protocol mismatch.
             "protocol": (
-                "matched_18nt_adaptation"
-                if args.length == 18
+                f"matched_{_MATCHED_LENGTH}nt_adaptation"
+                if args.length == _MATCHED_LENGTH
                 else "original_length_only_adaptation"
             ),
             "supervision": "ground-truth labels" if args.method.startswith("koike") else "feature-distance pairs",
