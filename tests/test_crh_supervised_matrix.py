@@ -56,10 +56,18 @@ def _complete_record(key: Key, value: float = 0.5) -> dict[str, object]:
     }
 
 
+#: The counts below (8 supervised cells, 78 U0+U2 cells at one seed) describe a
+#: TWO-budget slice. They broke when `BITS` grew from (36, 48) to
+#: (30, 36, 40, 48) and observed exactly double. Doubling the fixtures would
+#: have hidden the cause; F15 makes the requested slice decide the job plan and
+#: the aggregate expected set, so the fixture states the slice it means.
+LEGACY_SLICE = (36, 48)
+
+
 class CRHSupervisedMatrixTest(unittest.TestCase):
     def test_supervised_job_plan_has_eight_or_twenty_four_cells(self) -> None:
         single_seed = _jobs(
-            "supervised", U0_VARIANTS, DATASETS, BITS, (42,))
+            "supervised", U0_VARIANTS, DATASETS, LEGACY_SLICE, (42,))
         self.assertEqual(len(single_seed), 8)
         self.assertEqual(
             {
@@ -68,28 +76,28 @@ class CRHSupervisedMatrixTest(unittest.TestCase):
             },
             {
                 ("supervised", CRH_VARIANT, dataset, bit, 42)
-                for dataset in DATASETS for bit in BITS
+                for dataset in DATASETS for bit in LEGACY_SLICE
             },
         )
 
         three_seed = _jobs(
-            "supervised", U0_VARIANTS, DATASETS, BITS, (1, 2, 3))
+            "supervised", U0_VARIANTS, DATASETS, LEGACY_SLICE, (1, 2, 3))
         self.assertEqual(len(three_seed), 24)
         self.assertTrue(
             all(job.panel == "supervised" for job in three_seed))
 
     def test_historical_all_panel_stays_u0_plus_u2_only(self) -> None:
-        jobs = _jobs("all", U0_VARIANTS, DATASETS, BITS, (42,))
+        jobs = _jobs("all", U0_VARIANTS, DATASETS, LEGACY_SLICE, (42,))
         self.assertEqual(len(jobs), 78)
         self.assertFalse(any(job.variant == CRH_VARIANT for job in jobs))
         self.assertEqual({job.panel for job in jobs}, {"u0", "u2"})
 
     def test_aggregator_expected_key_counts_are_panel_scoped(self) -> None:
-        self.assertEqual(len(_expected_keys((42,), ("supervised",))), 8)
+        self.assertEqual(len(_expected_keys((42,), ("supervised",), LEGACY_SLICE)), 8)
         self.assertEqual(
-            len(_expected_keys((1, 2, 3), ("supervised",))), 24)
+            len(_expected_keys((1, 2, 3), ("supervised",), LEGACY_SLICE)), 24)
         # Backward-compatible default: 72 U0 + 6 U2 cells.
-        default = _expected_keys((42,))
+        default = _expected_keys((42,), bits=LEGACY_SLICE)
         self.assertEqual(len(default), 78)
         self.assertFalse(any(key.panel == "supervised" for key in default))
 
@@ -218,10 +226,15 @@ class CRHSupervisedMatrixTest(unittest.TestCase):
             _matches_canonical_source_profile(crh_payload, CRH_VARIANT))
 
         # Runner A predates CRH; runner A/B both carry the stale CIBHash
-        # horizon.  Neither may be admitted for those scientific variants.
+        # horizon (100, corrected to 60 by the 2026-08-05 auditfix).  Neither
+        # may be admitted for those scientific variants.  Name them explicitly:
+        # `runner_history[:-1]` meant "the stale ones" only while the history
+        # ended at the auditfix, and it silently started rejecting the two
+        # later SUPPORTED_BITS widenings, which are valid for CIBHash.
+        stale_cibhash_horizon = runner_history[:2]
         for variant, accepted_digest, rejected_digests in (
             ("crh-supervised", runner_history[1], (runner_history[0],)),
-            ("cibhash", runner_history[-1], runner_history[:-1]),
+            ("cibhash", runner_history[-1], stale_cibhash_horizon),
         ):
             scoped_snapshot = {
                 path: _current_source_sha256(path)
@@ -351,7 +364,10 @@ class CRHSupervisedMatrixTest(unittest.TestCase):
         key = Key("supervised", CRH_VARIANT, "MSCOCO", 36, 42)
         payload = {
             "summary": {"expected": 8, "complete": 1, "missing": 7},
-            "protocol": {"comparison_panels": ["supervised"]},
+            # F15: the payload now states the slice it was aggregated over,
+            # and the markdown sections follow it instead of a constant.
+            "protocol": {"comparison_panels": ["supervised"],
+                         "requested_bit_slice": [36, 48]},
             "paper_table_admission": {
                 "eligible": False,
                 "reason_codes": ["matrix_incomplete_or_invalid"],

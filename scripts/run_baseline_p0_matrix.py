@@ -215,6 +215,11 @@ KNOWN_NON_SCIENTIFIC_SOURCE_SHA_ALIASES: Mapping[str, frozenset[str]] = {
         "9809a70fde66d473540fa11d10752a83453d60ac6bfc9b80d0490a1e7ce7eca5",
         "2d7234a2a8f959f32a1f0fa5199cf00556289084f351359f7cb3cbcbdd4f5b16",
         "1dec886eaed08b4f01cc04c8ebaec81b01952d1bc6913696cdcc7a75830461e0",
+        # The two SUPPORTED_BITS widenings, 30 (52d315b8) and then 40
+        # (21fbb21a). Without the current digest in this set, every manifest
+        # recorded before them fails the profile check outright.
+        "4e9959b28fd7118ecdbd794555e22ede53064df6fe447c2ab85d30c1c8541a6c",
+        "c333bf1aafcf809b57f5e3e46eb977b1666936c4ec962e927972a2804798ad4a",
     }),
 }
 # Some shared-source edits are scientific only for one method, and an older
@@ -244,6 +249,17 @@ KNOWN_NON_SCIENTIFIC_SOURCE_SHA_ALIAS_VARIANTS: Mapping[
         # scientific, and only for CIBHash itself.
         "2d7234a2a8f959f32a1f0fa5199cf00556289084f351359f7cb3cbcbdd4f5b16": (
             frozenset(CANONICAL_VARIANT_SOURCE_PROFILES) - {"cibhash"}
+        ),
+        # Neither of these had a scope entry, and a recorded digest with no
+        # entry fails closed -- so a manifest from either revision was rejected
+        # for every variant. Both carry the corrected CIBHash horizon and differ
+        # from current only by a SUPPORTED_BITS line, so both are comparable
+        # everywhere, CIBHash included.
+        "1dec886eaed08b4f01cc04c8ebaec81b01952d1bc6913696cdcc7a75830461e0": (
+            frozenset(CANONICAL_VARIANT_SOURCE_PROFILES)
+        ),
+        "4e9959b28fd7118ecdbd794555e22ede53064df6fe447c2ab85d30c1c8541a6c": (
+            frozenset(CANONICAL_VARIANT_SOURCE_PROFILES)
         ),
     },
 }

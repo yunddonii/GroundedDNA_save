@@ -776,13 +776,94 @@ audit also notes its `dir` field points at a collided run that no longer exists.
 
 10 cases in `tests/test_slot_dissection_coco.py`. **364 tests pass.**
 
+### Phase 1-7 — F15, the aggregator completes on the slice you asked for
+
+`BITS = (30, 36, 40, 48)` was a module constant and there was no `--bits`, so
+the expected matrix always spanned **four** budgets. A finished 30-bit panel
+could therefore never be strict-complete: `--require-paper-eligible` reported
+0 eligible out of an expected **432**, a number that describes four budgets
+rather than anything that was run. The same constant is why
+`tests/test_crh_supervised_matrix.py` observed 16 and 156 where it expected 8
+and 78 — exactly double, because the budget count had doubled.
+
+`dna_utils/bit_slice.py` makes the **requested slice** decide. Default is the
+paper's main panel `(30,)`, not everything ever run. `--bits 30 40` scopes the
+expected matrix, strict completion, the markdown sections and the protocol
+metadata together.
+
+Three defects surfaced only once a real slice could be aggregated:
+
+1. **`selection_metric_by_bit` had entries for 36 and 48 only** — so every
+   30-bit aggregation ever emitted declared *no selection metric at all*.
+   Confirmed in `docs/baseline_p0_matrix_30bit_seed42.json`, whose protocol
+   block lists 36 and 48 while the matrix is 30-bit. Now emitted from the slice:
+   30 → `raw_15base_base_hamming_mAP_at_R`, 40 → `raw_20base_...`.
+2. **Four source revisions were never registered.** All are one-line
+   `SUPPORTED_BITS` widenings (30 in `52d315b8`, 40 in `21fbb21a`) plus the F06
+   geometry change, verified by reading each diff:
+   `extract_flat_baseline.py` `4574ea77`+`bb05c68c`,
+   `baseline_val_select_p0.py` `6c66b838`,
+   `run_modern_baseline_p0.py` `4e9959b2`+`c333bf1a`. Two more,
+   `1dec886e` and `4e9959b2`, were in the reviewed list but had **no scope
+   entry**, and a recorded digest with no entry fails closed — so any manifest
+   from either revision was rejected for every variant.
+3. **`NON_SCIENTIFIC_TRANSITION_CLASSIFICATIONS` omitted
+   `non_scientific_bit_budget_extension`**, the classification both bit-budget
+   entries use. The path audit cleared those paths and the per-variant
+   heterogeneity gate then blocked their variants as unknown drift — the two
+   lists disagreed. Measured: the 3-seed 30-bit matrix reported **72 of 108
+   cells implementation-blocked while every audited path came back clean**.
+
+An exemption can be a no-op at one budget and a real change at another, so the
+scope mechanism gained `non_scientific_bits_by_sha256`. The F06 geometry change
+is byte-identical at 30 and 36 (both 6 bits per group) and **changes behaviour
+at 48**, where the declared panel is 6 slots of 4 bases rather than the 8 groups
+of 6 the old constant produced. The **51 historical 48-bit cells are scoped out
+and stay blocked**; only 30- and 36-bit cells are exempt. The module header's
+claim that `bit//6` codebooks is "length-generic" is corrected in place — it is
+6.67 at 40 bits.
+
+Measured before → after, `--bits 30 --panels u0 --no-verify-artifact-hashes`:
+
+| matrix | before | after |
+|---|---|---|
+| seed 42, 30-bit | 36 / **117** expected, 36 implementation-blocked | **36 / 36**, 0 blocked |
+| seeds 42-43-44, 30-bit | — | **108 / 108**, 0 blocked, 3-seed mean±std available |
+| Budgets line | hard-coded `` `36 bit → 18 bases`, `48 bit → 24 bases` `` | `` `30 bit → 15 bases (5x3)` `` from the declared panel |
+
+The remaining ineligibility is the honest one: `not_all_records_paper_table_-`
+`eligible` (legacy-cache provenance), which Phase 4's strict re-run clears.
+
+**`scripts/build_maintable_from_aggregate.py`** closes the hand-assembly path.
+Its only input is an aggregate JSON, so every cell carries its manifest path,
+implementation fingerprint and eligibility flag. `--require-paper-eligible` is
+**on by default**: on the real 3-seed matrix it exits 3, prints the reason code
+and **writes no file**. It reads `mean_map_at_R_post`, which the aggregator
+leaves null for a diagnostic-only cell, and never substitutes
+`diagnostic_mean_map_at_R_post` unless `--allow-diagnostic` is passed — which
+stamps the header and every row with a dagger so the diff shows it.
+
+Per-seed manifest paths, SHAs and per-cell eligibility were already preserved in
+the aggregate's `records` block; verified, no change needed.
+
+The CRH fixtures now name the slice they mean (`LEGACY_SLICE = (36, 48)`) rather
+than having their counts doubled by hand, per the audit. One fixture used
+`runner_history[:-1]` to mean "the snapshots with the stale CIBHash horizon";
+that slice silently started rejecting the two later `SUPPORTED_BITS` widenings,
+which are valid for CIBHash. It now names the stale digests explicitly.
+
+28 cases in `tests/test_aggregator_bit_slice.py` and 11 in
+`tests/test_maintable_from_aggregate.py`. **460 pass** with the native suites
+deselected, up from 437, and **all 5 pre-existing CRH failures are fixed with
+no new regressions** (before/after failure sets diffed).
+
 ### Verdict
 
 - 15-base main table: **historical diagnostic only** until the audit's
   acceptance checklist passes.
-- Tests written before implementation, as the audit asks: 11 new cases in
-  `tests/test_siglip2_extraction_runtime_state.py`; **282 pass** overall with
-  the native and CRH suites deselected (their failures are F18 and F15, next).
+- Tests written before implementation, as the audit asks. **460 pass** with
+  the native suites deselected; the 18 remaining failures are all F18
+  (length-specific native protocol separation), the last open Phase 1 item.
 - Decisions recorded in `docs/PROTOCOL_DECISIONS_2026-08-13.md` (D1-D5).
 
 ---
@@ -915,6 +996,8 @@ a regime those weights never trained in. Withdrawn:
   -- it is the paper's headline claim and is currently absent from them.
 - Do NOT run Phase B's 12 cells before this is settled; N, the 3-seed runs, the
   ablations and the tables all chain off it.
+
+---
 
 ## 2026-08-11 — 🔴 **CUB-200 landmark localisation: slot centroids do NOT beat a constant-position baseline, at 5 slots OR 6.** Qualitative routing figures regenerated for all four datasets at 5 slots; three result-invalidating defects fixed (30-bit control set, hardcoded base width, hardcoded viz column count)
 

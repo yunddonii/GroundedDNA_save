@@ -29,14 +29,23 @@ import os
 from pathlib import Path
 import re
 import statistics
-from typing import Mapping, Sequence
+import sys
+from typing import Mapping, Optional, Sequence
+
+# Run directly as `python scripts/aggregate_baseline_p0_matrix.py`, which puts
+# scripts/ on the path rather than the repo root.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from dna_utils.bit_slice import resolve_bit_slice, selection_metric_by_bit  # noqa: E402
+from dna_utils.flat_geometry import resolve_flat_geometry  # noqa: E402
 
 
 REPO = Path(__file__).resolve().parents[1]
 DATASETS = ("Flickr25k", "MSCOCO", "NUSWIDE", "CIFAR10")
 # 30 added 2026-08-10 for the 5-slot / 15-base GroundedDNA variant.
-# Length-generic downstream: bit//2 bases and bit//6 codebooks give
-# 15 bases as 5 codebooks x 3 codons, matching the 5-slot code exactly.
+# NOT length-generic: `bit//6` is 6.67 at 40 bits, and F06 established that 48
+# bits is 6 slots of 4 bases rather than 8 of 3. Geometry comes from the declared
+# panel in dna_utils.flat_geometry; this tuple only lists which budgets exist.
 BITS = (30, 36, 40, 48)
 DEFAULT_SEEDS = (42,)
 U0_VARIANTS = (
@@ -159,27 +168,52 @@ KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
             "and CLI help; existing U0/U2 model construction is unchanged"
         ),
     },
-    # 2026-08-10 bit-budget extension, reviewed together with the
-    # run_modern_baseline_p0.py entry below. Both files gained ONLY the 30-bit
-    # input-validation branch; `_base_length` stays bit // 2, `n_codebooks`
-    # stays bit // 6, and apply_bio_projection takes GC as a fraction, so the
-    # 36/48 execution paths are unchanged byte-for-byte.
+    # 2026-08-10 bit-budget extension (30-bit input-validation branch only),
+    # then the 2026-08-13 F06 geometry correction. The second edit replaced the
+    # hard-coded `group_size = 6` with the declared panel, which is a NO-OP at
+    # 30 and 36 bits (both panels are 6 bits per group: 5x3 and 6x3 codons) and
+    # a genuine behaviour change at 48, where the declared panel is 6 slots of 4
+    # bases (8 bits per group) rather than the 8 groups of 6 the old constant
+    # produced. The 51 historical 48-bit cells were therefore extracted under a
+    # geometry the current source no longer produces, so they are scoped OUT of
+    # this exemption and stay blocked; only 30- and 36-bit cells are exempt.
     "scripts/extract_flat_baseline.py": {
         "before_sha256": (
-            "02c805b0ce914daf8d54469f9a9369cf1cd96cacba55367ad8da1adff8284c4f"
+            "433be227bf28131a3266e298e37b7a7fcab5e11d41005b75629d6904f81d990e"
         ),
         "after_sha256": (
-            "433be227bf28131a3266e298e37b7a7fcab5e11d41005b75629d6904f81d990e"
+            "bb05c68c7e613095d941a5b9131a01c52ddbd713d128b09de3d0977329bb6203"
         ),
         "reviewed_sha256": (
             "02c805b0ce914daf8d54469f9a9369cf1cd96cacba55367ad8da1adff8284c4f",
             "433be227bf28131a3266e298e37b7a7fcab5e11d41005b75629d6904f81d990e",
+            # 2026-08-12 (21fbb21a): accepted bit budgets gain 40. One line.
+            "4574ea770532635b251c802656c089223a8d40a416e74e7ab8b26fc7fbfbea68",
+            "bb05c68c7e613095d941a5b9131a01c52ddbd713d128b09de3d0977329bb6203",
         ),
+        # Which budgets each historical snapshot is still comparable at. A cell
+        # is exempt only where the old code packed it identically to the current
+        # code, so 48 never appears (the group size changed there) and neither
+        # does a budget the snapshot could not accept at all.
+        "non_scientific_bits_by_sha256": {
+            # Predates the 30-bit acceptance branch, so it cannot have produced
+            # a 30-bit cell; 6 bits per group at 36 matches current.
+            "02c805b0ce914daf8d54469f9a9369cf1cd96cacba55367ad8da1adff8284c4f":
+                (36,),
+            "433be227bf28131a3266e298e37b7a7fcab5e11d41005b75629d6904f81d990e":
+                (30, 36),
+            # Accepts 40, but packs it as the constant 6 bits per group, which
+            # does not divide 40; only its 30- and 36-bit cells are comparable.
+            "4574ea770532635b251c802656c089223a8d40a416e74e7ab8b26fc7fbfbea68":
+                (30, 36),
+        },
         "classification": "non_scientific_bit_budget_extension",
         "evidence": (
-            "reviewed exact-hash transition widens the accepted checkpoint bit "
-            "budget from (36, 48) to (30, 36, 48) and updates the error string; "
-            "no change to packing, extraction, or evaluation"
+            "reviewed exact-hash transitions: (1) widen the accepted checkpoint "
+            "bit budget from (36, 48) to (30, 36, 48); (2) F06, take the group "
+            "size from the declared panel instead of the constant 6. Identical "
+            "packing at 30 and 36 bits; 48-bit cells are excluded by scope "
+            "because their geometry did change"
         ),
     },
     "scripts/baseline_val_select_p0.py": {
@@ -187,17 +221,21 @@ KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
             "88a811f65c0334a459d1f91555258641f3272ef6f17dae4dad4fda5af4500895"
         ),
         "after_sha256": (
-            "770156da4e0dea34e01144acf68d4256e14ce3263c464e53e095e727b60d48cd"
+            "6c66b838740a86c10451d97f3fe9c56de4e37acde889fdf552ecc51edb8311d2"
         ),
         "reviewed_sha256": (
             "88a811f65c0334a459d1f91555258641f3272ef6f17dae4dad4fda5af4500895",
             "770156da4e0dea34e01144acf68d4256e14ce3263c464e53e095e727b60d48cd",
+            # 2026-08-12 (21fbb21a): SUPPORTED_BITS gains 40. One line; the
+            # selection metric is unchanged at every other budget.
+            "6c66b838740a86c10451d97f3fe9c56de4e37acde889fdf552ecc51edb8311d2",
         ),
         "classification": "non_scientific_bit_budget_extension",
         "evidence": (
-            "reviewed exact-hash transition widens SUPPORTED_BITS to include 30; "
-            "selection metric is still raw_{base}base_base_hamming_mAP_at_R with "
-            "base = bit // 2, so 36/48 selection is unchanged"
+            "reviewed exact-hash transitions widen SUPPORTED_BITS to include 30 "
+            "and then 40, one tuple line each; selection metric is still "
+            "raw_{base}base_base_hamming_mAP_at_R with base = bit // 2, so "
+            "selection at every other budget is unchanged"
         ),
     },
     "scripts/run_modern_baseline_p0.py": {
@@ -205,7 +243,7 @@ KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
             "9809a70fde66d473540fa11d10752a83453d60ac6bfc9b80d0490a1e7ce7eca5"
         ),
         "after_sha256": (
-            "4e9959b28fd7118ecdbd794555e22ede53064df6fe447c2ab85d30c1c8541a6c"
+            "c333bf1aafcf809b57f5e3e46eb977b1666936c4ec962e927972a2804798ad4a"
         ),
         "reviewed_sha256": (
             "9809a70fde66d473540fa11d10752a83453d60ac6bfc9b80d0490a1e7ce7eca5",
@@ -218,6 +256,10 @@ KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
             # byte-identical, so previously-run cells at those budgets remain
             # valid and comparable. Non-scientific for EVERY variant.
             "4e9959b28fd7118ecdbd794555e22ede53064df6fe447c2ab85d30c1c8541a6c",
+            # 2026-08-12 (21fbb21a): SUPPORTED_BITS (30, 36, 48) -> adds 40 for
+            # the 4-base codon panel. One tuple line; every other budget's code
+            # path is byte-identical. Non-scientific for EVERY variant.
+            "c333bf1aafcf809b57f5e3e46eb977b1666936c4ec962e927972a2804798ad4a",
         ),
         "non_scientific_variants_by_sha256": {
             # This snapshot predates CRH dispatch and has the stale CIBHash
@@ -233,20 +275,42 @@ KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
                 for variant in U0_VARIANTS + U2_VARIANTS + SUPERVISED_VARIANTS
                 if variant != "cibhash"
             ),
+            # F15: these two had no scope entry at all, so any cell recorded at
+            # either one blocked the whole aggregation as unknown drift -- even
+            # though both differ from current only by a SUPPORTED_BITS line.
+            # 2026-08-05 auditfix (2747352d) already carries the CIBHash horizon
+            # correction, so this snapshot is comparable for every variant,
+            # CIBHash included.
+            "1dec886eaed08b4f01cc04c8ebaec81b01952d1bc6913696cdcc7a75830461e0":
+                U0_VARIANTS + U2_VARIANTS + SUPERVISED_VARIANTS,
+            # 2026-08-10 30-bit widening; differs from current only by adding 40
+            # to SUPPORTED_BITS for the 4-base codon panel.
+            "4e9959b28fd7118ecdbd794555e22ede53064df6fe447c2ab85d30c1c8541a6c":
+                U0_VARIANTS + U2_VARIANTS + SUPERVISED_VARIANTS,
         },
         "classification": "non_scientific_for_reviewed_variants_only",
         "evidence": (
             "reviewed exact hashes cover the isolated CRH dispatch addition "
             "and the later CIBHash-only horizon correction; the latter is "
             "scientific for CIBHash and non-scientific only for the explicitly "
-            "listed unaffected variants"
+            "listed unaffected variants; the two later hashes widen "
+            "SUPPORTED_BITS to 30 and then 40 by one tuple line each and are "
+            "non-scientific for every variant"
         ),
     },
 }
+# The per-variant heterogeneity gate consults this set. It must list every
+# classification the path audit can hand out for a REVIEWED transition,
+# otherwise the two disagree: the path is cleared as non-scientific and the same
+# path then blocks its variant as unknown drift. `non_scientific_bit_budget_
+# extension` was missing, which is why a 30-bit matrix spanning the seed-42 and
+# seed-43/44 roots reported 72 of 108 cells implementation-blocked while every
+# path audited clean (F15).
 NON_SCIENTIFIC_TRANSITION_CLASSIFICATIONS = frozenset({
     "non_scientific_performance_memo_only",
     "non_scientific_dispatch_extension_only",
     "non_scientific_for_reviewed_variants_only",
+    "non_scientific_bit_budget_extension",
 })
 
 # Method-defining source profiles are filtered by exact content digest before
@@ -608,7 +672,15 @@ def _source_profile_exclusion(
 
 def _expected_keys(
         seeds: Sequence[int],
-        panels: Sequence[str] = DEFAULT_PANELS) -> list[Key]:
+        panels: Sequence[str] = DEFAULT_PANELS,
+        bits: Optional[Sequence[int]] = None) -> list[Key]:
+    """F15: the expected matrix spans the REQUESTED budgets.
+
+    With the module constant it always spanned all four, so a finished 30-bit
+    panel could never be complete and the CRH fixtures observed exactly double
+    their expected counts once the constant grew from two budgets to four.
+    """
+    bits = resolve_bit_slice(bits)
     selected = frozenset(panels)
     unknown = selected - frozenset({"u0", "u2", "supervised"})
     if unknown:
@@ -619,7 +691,7 @@ def _expected_keys(
             Key("u0", variant, dataset, bit, seed)
             for variant in U0_VARIANTS
             for dataset in DATASETS
-            for bit in BITS
+            for bit in bits
             for seed in seeds
         )
     if "u2" in selected:
@@ -627,7 +699,7 @@ def _expected_keys(
             Key("u2", variant, dataset, bit, seed)
             for variant in U2_VARIANTS
             for dataset in U2_DATASETS
-            for bit in BITS
+            for bit in bits
             for seed in seeds
         )
     if "supervised" in selected:
@@ -635,7 +707,7 @@ def _expected_keys(
             Key("supervised", variant, dataset, bit, seed)
             for variant in SUPERVISED_VARIANTS
             for dataset in SUPERVISED_DATASETS
-            for bit in BITS
+            for bit in bits
             for seed in seeds
         )
     return keys
@@ -1101,6 +1173,7 @@ def _audit_implementation_fingerprints(
     paths: dict[str, dict[str, list[str]]] = {}
     variants: dict[str, list[dict[str, object]]] = {}
     cell_variant: dict[str, str] = {}
+    cell_bit: dict[str, int] = {}
     for record in complete:
         snapshot = record.get("implementation_sha256")
         if not isinstance(snapshot, Mapping):
@@ -1110,6 +1183,10 @@ def _audit_implementation_fingerprints(
         record_key = str(record["key"])
         record_variant = str(record["variant"])
         cell_variant[record_key] = record_variant
+        try:
+            cell_bit[record_key] = int(record["bit"])
+        except (KeyError, TypeError, ValueError):
+            cell_bit[record_key] = -1
         variants.setdefault(record_variant, []).append(record)
         for source_path, digest in snapshot.items():
             if isinstance(source_path, str) and isinstance(digest, str):
@@ -1167,6 +1244,25 @@ def _audit_implementation_fingerprints(
                             allowed, (tuple, list, set, frozenset)
                         ) or any(
                             cell_variant.get(cell) not in allowed
+                            for cell in versions[digest]
+                        ):
+                            scope_ok = False
+                            break
+            # F15/F06: an edit can be a no-op at one bit budget and a real
+            # behaviour change at another. Without this, the 48-bit cells --
+            # extracted as 8 groups of 6 rather than the declared 6 slots of 4
+            # -- would ride in on an exemption written for 30/36.
+            raw_bit_scopes = transition.get("non_scientific_bits_by_sha256")
+            if scope_ok and raw_bit_scopes is not None:
+                if not isinstance(raw_bit_scopes, Mapping):
+                    scope_ok = False
+                else:
+                    for digest in current_mismatches:
+                        allowed_bits = raw_bit_scopes.get(digest)
+                        if not isinstance(
+                            allowed_bits, (tuple, list, set, frozenset)
+                        ) or any(
+                            cell_bit.get(cell) not in allowed_bits
                             for cell in versions[digest]
                         ):
                             scope_ok = False
@@ -1431,6 +1527,13 @@ def _markdown(payload: Mapping[str, object],
               records: Mapping[Key, dict[str, object]],
               seeds: Sequence[int]) -> str:
     summary = _mapping(payload["summary"]) or {}
+    # F15: sections follow the slice this payload was aggregated over. Reading
+    # it back off the payload keeps the prose and the numbers in agreement even
+    # when an old JSON predates the field.
+    _proto = _mapping(payload.get("protocol")) or {}
+    _raw_slice = _proto.get("requested_bit_slice")
+    report_bits = resolve_bit_slice(
+        _raw_slice if isinstance(_raw_slice, (list, tuple)) else None)
     paper_admission = _mapping(payload.get("paper_table_admission")) or {}
     implementation = _mapping(payload.get("implementation_audit")) or {}
     protocol = _mapping(payload.get("protocol")) or {}
@@ -1451,7 +1554,12 @@ def _markdown(payload: Mapping[str, object],
         "",
         f"- Train seed(s): `{', '.join(map(str, seeds))}`",
         "- Validation split: ratio `0.1`, seed `42`; E* chosen by raw base-Hamming mAP@R",
-        "- Budgets: `36 bit → 18 bases`, `48 bit → 24 bases`",
+        # F15: was a hard-coded 36/48 string, which described the wrong panel
+        # for every 30-bit aggregation ever emitted.
+        "- Budgets: " + ", ".join(
+            f"`{b} bit \u2192 {resolve_flat_geometry(b).total_bases} bases "
+            f"({resolve_flat_geometry(b).num_codebooks}x{resolve_flat_geometry(b).bases_per_codebook})`"
+            for b in report_bits),
         "- Post-processing: exact common DNA projection on both query and database",
         f"- Complete: {summary.get('complete', 0)} / {summary.get('expected', 0)}; "
         f"missing: {summary.get('missing', 0)}; invalid: {summary.get('invalid', 0)}; "
@@ -1468,7 +1576,7 @@ def _markdown(payload: Mapping[str, object],
         "",
     ]
     if "u0" in selected_panels:
-        for bit in BITS:
+        for bit in report_bits:
             lines.extend([
                 f"## U0 visual-only — {bit} bits / {bit // 2} bases",
                 "",
@@ -1487,7 +1595,7 @@ def _markdown(payload: Mapping[str, object],
             lines.append("")
 
     if "u2" in selected_panels:
-        for bit in BITS:
+        for bit in report_bits:
             lines.extend([
                 f"## U2 taxonomy-assisted — {bit} bits / {bit // 2} bases",
                 "",
@@ -1507,7 +1615,7 @@ def _markdown(payload: Mapping[str, object],
             lines.append("")
 
     if "supervised" in selected_panels:
-        for bit in BITS:
+        for bit in report_bits:
             lines.extend([
                 f"## Supervised baseline — {bit} bits / {bit // 2} bases",
                 "",
@@ -1657,6 +1765,16 @@ def main() -> int:
             "request `supervised` explicitly for CRH."
         ),
     )
+    # F15: without this the expected matrix always spans every declared budget,
+    # so a finished 30-bit panel can never be strict-complete and
+    # --require-paper-eligible reports 0 of an expected 432 -- a number that
+    # describes four budgets rather than anything that was run.
+    parser.add_argument(
+        "--bits", nargs="+", type=int, default=None,
+        help=("Bit budgets to aggregate. Defaults to the paper's main panel "
+              "(30). Pass e.g. `--bits 30 40` for the 15- and 20-base panels; "
+              "the expected matrix, strict completion and the protocol "
+              "metadata are all scoped to what is requested."))
     parser.add_argument("--out-json", default=None)
     parser.add_argument("--out-markdown", default=None)
     parser.add_argument(
@@ -1671,6 +1789,8 @@ def main() -> int:
         help=("Exit nonzero unless every requested cell is paper-table eligible "
               "and at least three unique train seeds were aggregated."))
     args = parser.parse_args()
+
+    requested_bits = resolve_bit_slice(args.bits)
 
     if not args.seeds or len(set(args.seeds)) != len(args.seeds):
         parser.error("--seeds must contain at least one unique integer")
@@ -1690,7 +1810,7 @@ def main() -> int:
         if args.result_root
         else [_absolute(f"result_baseline/{default_matrix_name}")]
     )
-    expected = _expected_keys(seeds, panels)
+    expected = _expected_keys(seeds, panels, requested_bits)
     expected_set = set(expected)
 
     discovered: dict[Key, list[Path]] = {}
@@ -1779,7 +1899,7 @@ def main() -> int:
                 bit=bit, seeds=seeds)
             for variant in U0_VARIANTS
             for dataset in DATASETS
-            for bit in BITS
+            for bit in requested_bits
         )
     if "u2" in panels:
         aggregates.extend(
@@ -1787,7 +1907,7 @@ def main() -> int:
                 records, panel="u2", variant="umrch", dataset=dataset,
                 bit=bit, seeds=seeds)
             for dataset in U2_DATASETS
-            for bit in BITS
+            for bit in requested_bits
         )
     if "supervised" in panels:
         aggregates.extend(
@@ -1796,7 +1916,7 @@ def main() -> int:
                 dataset=dataset, bit=bit, seeds=seeds)
             for variant in SUPERVISED_VARIANTS
             for dataset in SUPERVISED_DATASETS
-            for bit in BITS
+            for bit in requested_bits
         )
     complete = sum(
         1 for record in records.values()
@@ -1832,10 +1952,10 @@ def main() -> int:
             "comparison_panels": list(panels),
             "validation_seed": 42,
             "validation_ratio": 0.1,
-            "selection_metric_by_bit": {
-                "36": "raw_18base_base_hamming_mAP_at_R",
-                "48": "raw_24base_base_hamming_mAP_at_R",
-            },
+            # F15: scoped to the requested slice, and 30/40 were missing
+            # entirely -- a 30-bit run had no declared selection metric.
+            "selection_metric_by_bit": selection_metric_by_bit(requested_bits),
+            "requested_bit_slice": list(requested_bits),
             "mandatory_bio_projection": True,
             "three_seed_mean_std_status": (
                 "pending" if len(seeds) < 3 else "candidate_aggregate"
