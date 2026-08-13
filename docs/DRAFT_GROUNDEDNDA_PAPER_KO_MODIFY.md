@@ -854,9 +854,38 @@ Hashing은 loss가 45까지 계속 내려가는 동안 test mAP는 10 epoch 이�
   - 동일 raw capacity 30 bits ↔ 15 bases
   - 동일 frozen CLIP backbone, split, relevance, cutoff, bio constraints, distance
   - 단, method-defining 정보는 허용: global-only(GreedyHash/Bi-half/SDC/OH/DUH-EG/HHCH/CroVCA), global+local(UMRCH), fixed cached two-view/three-view, external noun/taxonomy bank 여부를 information-condition 열에 명시
-  - `stage 1`: test split을 로드하지 않고 val-query vs opt-train DB의 **raw 2-bit→15-base base-Hamming mAP@R**로 (E^*) 선택
-  - E* candidate grid: GroundedDNA/legacy P0와 동일한 5-epoch cadence, 즉 0-indexed epoch `4,9,...`; 방법별 candidate 수를 임의로 늘리지 않음
-  - `stage 2`: full designated train에서 scratch refit 후 test와 무관하게 final checkpoint 1개 고정; binary-Hamming val 선택과 혼용 금지; nominal schedule horizon은 stage 1과 동일하게 유지
+  - **[2026-08-14 개정 · D6] baseline은 validation selection을 하지 않는다.** 각
+    baseline은 **원논문/공식 release가 지정한 epoch 수**까지 full designated
+    train으로 학습하고 **마지막 epoch checkpoint**만 사용하며, test는 최종 평가에
+    한 번만 접근한다. 이로써 baseline 쪽 checkpoint-selection leakage가 원천적으로
+    사라진다. 아래 horizon은 모두 상류 소스에서 직접 확인한 값이다.
+
+    | method | horizon | 출처 | 비고 |
+    |---|---|---|---|
+    | CIBHash | 60 | 공식 설정 | scheduler 없음 |
+    | CIMON | 150 | `luoxiao12/CIMON` `run.py:110-146` | lr 1e-3, batch 24, SGD(0.9, 1e-5), scheduler 없음 |
+    | MLS3RDUH | 150 | `rongchengtu1/MLS3RDUH` `MLS3RDUH.py:68-127` | batch 128, lr 0.04; 상류의 LR decay는 호출되지 않거나(`AdjustLearningRate`) 150 epoch 내에 발동하지 않음(`StepLR(step_size=500)`) → 실질 decay 없음. momentum은 **paper 값 0.9**(release는 생략하여 0.0) |
+    | GreedyHash-UGH | 60 | `ssppp/GreedyHash` `unsupervised_vgg.py:15-23` | `adjust_learning_rate` 호출이 주석 처리되어 decay 없음. `encode_length==16`일 때만 300이므로 30-bit는 60 분기 |
+    | Bi-half | CIFAR-10 300 / Flickr25k 100 / MS-COCO 150 / NUS-WIDE 100 | `liyunqianggyn/…` `ImageHashing/{Cifar10_I,Flickr25k,Mscoco}.py` | LR decay 주기도 데이터셋별(**CIFAR-10 120**, 나머지 60). NUS-WIDE는 상류 trainer 부재 → Flickr profile 적용, adaptation으로 명시 |
+    | SDC | 100 | `kamwoh/sdc` `configs/{train,optim,scheduler}.yaml` | step 주기는 상수가 아니라 `int(0.8 × epochs)` |
+    | OH | 200 | CIFAR-10 공개 구현 | **epoch 정의가 다름**(아래) |
+    | HHCH | 80 | release 기본값(논문 미명시) | `1.0 if epoch<30 else 0.9^(epoch//20)` |
+    | CroVCA | 5 | 공개 probing 설정 | cosine이 schedule horizon에서 유도 |
+
+  - **OH의 epoch 정의 차이**: 공개 구현은 한 epoch에 CIFAR-10 행 50,000개를
+    반복 소비하지만 본 연구의 공통 cache runner는 지정 train split을 1회 순회한다.
+    같은 "200 epoch"라도 optimizer update 수가 다르므로 표에 update 수를 병기한다.
+  - **ours와의 비대칭을 명시한다.** baseline은 원래 backbone·데이터 조건에서 정해진
+    epoch를 그대로 쓰고, GroundedDNA는 현재 frozen-CLIP adaptation에 맞춰
+    **train-only validation**으로 (N)을 고른다. 이는 test leakage가 아니지만
+    대칭도 아니므로, 주장은 다음으로 제한한다 — *All baselines were trained to
+    their pre-specified author-recommended horizons under the shared frozen-cache
+    adaptation.* 방어를 위해 **baseline validation-selected 민감도 분석**(9종 × 4
+    datasets × seed 42)을 부표로 병기한다.
+  - GroundedDNA의 (N) 선택은 test split을 로드하지 않고 designated train의 10 %
+    held-out validation에서 **raw 2-bit→15-base base-Hamming mAP@R** 하나로 하며,
+    후보 grid는 `{4, 9, 19, 39}`(0-indexed 정지 epoch), 동률은 가장 작은 (N).
+    선택된 (N)에서 full designated train scratch refit을 seeds 42/43/44로 수행한다.
   - 공통 cache의 fixed augmentation은 각 논문의 online augmentation을 그대로 재현하지 않으므로 결과를 published-table reproduction이 아닌 matched-cache adapter로 명시
   - 현재 repository의 default legacy cache metadata에는 exact transform/augmentation seed/immutable HF revision·weight provenance 중 일부가 없으므로 modern binary runner는 기본적으로 학습 전 중단하고 `--allow-main-ineligible-smoke`를 명시한 smoke만 허용
   - native-DNA driver는 `--allow-main-ineligible-diagnostic`을 명시한 full sealed 실행을 허용하되 main 승격은 금지; 현재 extractor로 cache를 재생성한 뒤 consumed NPY SHA까지 protocol/checkpoint에 고정해야 strict main row 가능
@@ -941,8 +970,12 @@ Hashing은 loss가 45까지 계속 내려가는 동안 test mAP는 10 epoch 이�
 - 구현 검증
   - hard one-hot에서 Koike soft distance = normalized base-Hamming 확인
   - `A,T,C,G→A,C,G,T` remap과 2-bit serialization 확인
-  - query/DB 양쪽 exact DP 후 15-base GC count `[7,8]`·run≤3 확인
-    (GC 분율 `[0.444, 0.556]`은 불변; 15-base에서 정수 창이 `[8,10]`에서 바뀐다)
+  - query/DB 양쪽 exact DP 후 15-base GC count `[6,9]`·run≤3 확인
+    (**중앙 GC 정책 `gc-40-60-inclusive-v1`**: 분율 40–60 % 포함, 길이별 정수 창은
+    15→`[6,9]`, 18→`[8,10]`, 20→`[8,12]`, 24→`[10,14]`. 이전 초안의 15-base
+    `[7,8]`은 24-base 패널에서 넘어온 분율 `[0.416, 0.584]`에서 유도된 값으로,
+    **중앙 정책과 다른 더 좁은 실행가능 집합**이었다. 두 창에서 투영한 결과는
+    서로 비교할 수 없으므로 `[6,9]`로 통일한다)
   - 실제 Flickr25K cache로 TCBB variant의 1-step P0 stage-1 smoke test 완료
 
 #### 4.4z 15-base 미이관 자산 (제출 전 필수)
@@ -956,12 +989,34 @@ Hashing은 loss가 45까지 계속 내려가는 동안 test mAP는 10 epoch 이�
 | native-DNA baselines (DNA24, PRIMO, Koike-TN, Koike-BC) | 18-base sealed diagnostic 48/48 완료 | **15-base 재적응 48셀** |
 | `U0` binary baselines (9종) Panel A | 36-bit → 18-base | 30-bit 6종은 §4.5.1b에 완료, 나머지 3종(MLS³RDUH·GreedyHash·HHCH) 미실행 |
 | OH / GreedyHash clean-room adapter 서술 | "36-bit에 이식" | 30-bit 이식 여부 명시 |
-| §4.6 bio-projection 유효성 | 18-base GC `[8,10]` 기준 | **15-base GC `[7,8]`로 재측정** |
+| §4.6 bio-projection 유효성 | 18-base GC `[8,10]` 기준 | **15-base GC `[6,9]`로 재측정** (중앙 정책) |
 | §4.8 A2/A4/A5 ablation | 6-slot 기준 | 5-slot 재실행 |
 | §4.9 K × bases-per-slot grid | 6-slot 기준 | 5-slot 재확인 |
 | §4.10 slot intervention | 6 슬롯 | 5 슬롯 재측정 |
 
 ### 4.5 Main Results — 신규 통일 레시피, 3-seed
+
+> **[2026-08-14 상태] 이 절의 수치는 아직 paper-valid가 아니다.**
+> `docs/EXPERIMENT_PROTOCOL_AUDIT_2026-08-13.md`가 제기한 18개 결함 중 Phase 1
+> (F01·D2·F07·F08·F06·F09·F12·F15·F18·F05)은 모두 수정되었고 테스트 548개가
+> 통과하지만, 아래 두 가지 때문에 표의 모든 셀은 **diagnostic-only**다.
+>
+> 1. **cache provenance.** 사용 중인 4개 CLIP cache에 `canonical_transform`과
+>    `hf_provenance`가 없고, HF hub에 `openai/clip-vit-base-patch16` 스냅샷이
+>    둘(`57c21647…`, `5ef227a7…`) 있어 어느 것이 cache를 만들었는지 증명할 수
+>    없다. `paper_table_eligible=True`의 전제조건이므로 **cache를 재생성하고
+>    전 학습을 재실행**하기로 결정했다(2026-08-14). 재생성본은
+>    `/data/yschoi/groundeddna_cache_v6prov/`에 만들며 기존 artifact는 보존한다.
+> 2. **baseline source fidelity.** CIMON은 objective가 공식 구현과 달랐고(F05),
+>    Bi-half는 CIFAR-10에서 LR decay 주기가 저자 스크립트와 달랐다(D6). 두
+>    구현의 source digest를 올렸으므로 이전 checkpoint로 만든 셀은 aggregator가
+>    자동으로 **제외**한다. CIMON 12셀은 확정 재학습 대상이다.
+>
+> 최종 표는 Phase 3(ours)·Phase 4(baseline) 재실행 후
+> `scripts/build_maintable_from_aggregate.py`가 `--require-paper-eligible`
+> 통과 상태에서 생성한 수치로 대체된다. 이 생성기는 aggregate JSON만 입력으로
+>받고, eligible이 아니면 **파일을 쓰지 않는다.**
+
 
 #### 4.5.0 보고 대상 모델
 
@@ -1307,9 +1362,10 @@ MS-COCO `−.086` / NUS-WIDE `−.043`처럼 decode 손실이 mAP 손실을 크�
 **설정 차이는 정확히 세 가지다.**
 
 - \(\ell=4\) (`--num_codons_per_codebook 4`), 슬롯 수·프롬프트·나머지 λ는 불변.
-- **GC 창**: 분율 기준이 \([0.416, 0.584]\)로 바뀌어 20 base에서 정수 창
-  \([9, 11]\)이 된다(15 base의 \([6,9]\)와 다르다). DP 투영은 분율을 받으므로
-  코드 변경은 없다.
+- **GC 창**: 중앙 정책 `gc-40-60-inclusive-v1`을 그대로 적용하여 20 base에서
+  정수 창은 \([8, 12]\)가 된다(15 base는 \([6,9]\)). 이전 초안의 분율
+  \([0.416, 0.584]\) → \([9,11]\)은 별도 관행이었으며 폐기한다. DP 투영은
+  분율을 받으므로 코드 변경은 없다.
 - **\(\mathcal L_{\rm codon\text{-}joint}\)의 격자가 64 → 256으로 커진다.** 같은
   \(\lambda\)에서도 균등 목표까지의 거리가 달라지므로, 이 항의 \(\lambda\)가 3-base에서
   튜닝된 값 그대로 최적이라고 가정하지 않는다.

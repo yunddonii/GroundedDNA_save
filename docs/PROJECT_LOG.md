@@ -487,6 +487,105 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-08-14 — 🟢 **D6: baseline은 원저자 고정 epoch. 캐시 provenance 부재로 전 학습 재실행 확정. Bi-half CIFAR-10 LR decay 100× 오차 발견**
+
+### D6 — baseline 프로토콜 전환
+
+baseline 9종은 더 이상 validation selection + scratch refit을 하지 않는다. 각
+원논문/공식 release가 지정한 epoch까지 full designated train으로 학습하고
+**마지막 checkpoint만** 쓴다. baseline 쪽 checkpoint-selection leakage가 원천
+소멸하고 2단계 대비 계산량도 준다. ours는 train-only validation으로 N을 고르며,
+이 비대칭은 본문에 명시하고 **baseline validation-selected 민감도 분석(9종 × 4
+datasets × seed 42 = 36셀)**을 부표로 병기한다.
+
+주장 범위: *All baselines were trained to their pre-specified author-recommended
+horizons under the shared frozen-cache adaptation.*
+
+### 원전 대조 — 9종 전부, 소스에서 직접 확인
+
+| method | horizon | 대조 결과 |
+|---|---|---|
+| CIBHash | 60 | 기존 source-fidelity 테스트로 고정 |
+| CIMON | 150 | **정확**. `run.py:110-146` max-iter 150, lr 1e-3, batch 24, SGD(0.9, 1e-5), scheduler 없음 |
+| MLS3RDUH | 150 | **정확**. batch 128, lr 0.04, wd 1e-5. 상류 `AdjustLearningRate`는 정의만 되고 호출되지 않으며 `StepLR(step_size=500)`은 150 epoch 안에 발동하지 않음 → 실질 decay 없음, 로컬 `none`과 등가. momentum은 paper 0.9(release는 생략=0.0), 이미 선언됨 |
+| GreedyHash-UGH | 60 | **정확**. `unsupervised_vgg.py:15-23`, `adjust_learning_rate` 호출 주석 처리로 decay 없음. `encode_length==16`에서만 300이므로 30-bit는 60 분기 |
+| Bi-half | 300/100/150/100 | horizon **정확**, **decay 주기 불일치**(아래) |
+| SDC | 100 | batch 64, adam lr 1e-4 wd 1e-5, gamma 0.1 **정확**. step 주기는 상수가 아니라 `int(0.8 × epochs)` |
+| OH | 200 | epoch 정의 차이가 이미 선언됨 |
+| HHCH | 80 | `1.0 if epoch<30 else 0.9^(epoch//20)`, 절대 경계라 horizon 80에서 release 재현 |
+| CroVCA | 5 | cosine이 `schedule_horizon × len(loader)`에서 유도되어 자기정합 |
+
+### 결함 — Bi-half CIFAR-10의 LR decay 주기
+
+`_get_config_dict_for_dataset`가 `del dataset`으로 데이터셋을 버리고 단일 config를
+반환해 `step_size`가 어디서나 60이었다. `base_model._init_scheduler`의 `StepLR`은
+`schedule_horizon`을 참조하지 않는다.
+
+| | 공식 `Cifar10_I.py` | 수정 전 | 수정 후 |
+|---|---|---|---|
+| epochs | 300 | 300 | 300 |
+| decay 주기 | 120 | 60 | 120 |
+| decay 시점 | 120, 240 | 60, 120, 180, 240 | 120, 240 |
+| 최종 LR | 1e-6 | **1e-8** | 1e-6 |
+
+**최종 LR 100배 차이.** 이전 프로토콜에서는 E\*가 앞쪽이라 뒤쪽 decay가 보고 수치에
+닿지 않는 경우가 많았지만, 고정 epoch + 마지막 checkpoint 규약에서는 이것이 곧
+보고되는 값이다. `SOURCE_SCRIPT_PROFILE`이 데이터셋별 horizon·주기·상류 파일을
+함께 들고 있다. CIFAR-10 결과가 바뀌므로 `baseline/BiHalf.py` digest를
+`4593e5c0…` → `b41d9dc7…`로 올리고 **non-scientific transition으로 등록하지
+않았다** — 옛 digest로 만든 셀은 제외되고 재실행 대상이다.
+
+SDC는 상류 표현식대로 `int(0.8 × epochs)`로 유도하게 바꿨다. horizon 100에서 둘 다
+80이므로 **기존 수치는 변하지 않는다**. 죽은 `_get_config_dict_for_dataset`
+pass-through가 새 구현을 가리고 있어 제거했다.
+
+### 캐시 provenance — 전 학습 재실행 확정
+
+4개 cache 모두 `canonical_transform`·`hf_provenance`가 없고, HF hub에
+`openai/clip-vit-base-patch16` 스냅샷이 `57c21647…`, `5ef227a7…` **둘** 있어 어느
+것이 cache를 만들었는지 증명할 수 없다. 감사 권고는 "원본 artifact에서 증명할 수
+없으면 새 cache를 만든다"이므로 **재생성 + 전 학습 재실행**으로 결정했다.
+
+빌더는 이미 두 필드를 기록하며 immutable commit hash가 없으면 fail-closed다.
+코드 수정은 불필요했고, 기존 cache가 그 기능보다 먼저 만들어졌을 뿐이다.
+
+**디스크 제약과 해법**: 홈 파티션은 862 GB 중 **61 GB만 여유**인데 재생성 대상은
+CIFAR 62 GB + NUS-WIDE 203 GB + Flickr 4.8 GB + MSCOCO ≈ **271 GB**다. 기존 cache를
+지우면 모든 기존 결과의 provenance가 사라지므로 지우지 않는다. `/data`에 **909 GB**
+여유가 있어 `/data/yschoi/groundeddna_cache_v6prov/`에 재생성한다 — 삭제 없음,
+기존 artifact 전량 보존.
+
+### 사용자 결정 (2026-08-14)
+
+| 항목 | 결정 |
+|---|---|
+| cache provenance | **재생성 후 전수 재실행** |
+| 주표 패널 | **U0 9종만** (9 × 4 × 3 = 108셀) |
+| 20-base 패널 | **3-seed 완전판 120셀** |
+| baseline 민감도 분석 | **9종 × 4 datasets × seed 42 = 36셀** |
+| Bi-half 수정 시점 | SDC·MLS3RDUH·CIMON 검증과 **일괄 반영** (완료) |
+
+### 상태
+
+- 테스트 **548 passed, 0 failed**
+- Phase 2: 5/15 셀 완료, NUS-WIDE가 셀당 ~3시간으로 병목
+- cache 재생성: Flickr25k 진행 중, 나머지 3종은 GPU가 비는 대로 자동 착수
+- native-DNA 15-base 48셀: **보류**. cache 재생성이 확정되어 지금 실행하면 그
+  결과도 재실행 대상이 되고, 재생성이 GPU 우선순위이기 때문
+
+---
+
+### Verdict
+
+- 15-base main table: **historical diagnostic only** until the audit's
+  acceptance checklist passes.
+- Tests written before implementation, as the audit asks. **517 pass, 0 fail**
+  across the whole suite, native included. Phase 1 (F01, D2, F07, F08, F06,
+  F09, F12, F15, F18, F05) is complete. Phase 2 is next.
+- Decisions recorded in `docs/PROTOCOL_DECISIONS_2026-08-13.md` (D1-D5).
+
+---
+
 ## 2026-08-13 — 🔴 **PROTOCOL AUDIT: the 15-base main table is NOT a paper-valid main result.** 18 defects; Phase 0 (stop/quarantine/mark) and Phase 1-1 (F01 extraction epoch + D2 horizon separation) done
 
 An independent audit (`docs/EXPERIMENT_PROTOCOL_AUDIT_2026-08-13.md`) reviewed
@@ -998,14 +1097,66 @@ every variant and invalidate every existing manifest — a full re-run of all ni
 methods to record a string that `implementation_sha256` already pins. Recorded
 in the source instead; revisit at Phase 4, when everything is re-run anyway.
 
-### Verdict
+### Phase 2 (진행 중) — F01의 실제 비용: NMI는 부풀었고 DNA 고유성은 저평가됐다
 
-- 15-base main table: **historical diagnostic only** until the audit's
-  acceptance checklist passes.
-- Tests written before implementation, as the audit asks. **517 pass, 0 fail**
-  across the whole suite, native included. Phase 1 (F01, D2, F07, F08, F06,
-  F09, F12, F15, F18, F05) is complete. Phase 2 is next.
-- Decisions recorded in `docs/PROTOCOL_DECISIONS_2026-08-13.md` (D1-D5).
+15개 seed-42 N 후보 checkpoint를 **F01만 교정하여** 별도 diagnostic root에서
+재추론한다. 레거시 artifact는 건드리지 않고 checkpoint와 config만 복사해 나간다.
+착수 전 15셀을 전수 감사했다 — seed 42, 5 slots × 5 codebooks × 3 codons = 15
+bases, `hash_target_mode=siglip_cos`, `stop_after_epoch == N`,
+`final_epoch_eval=True`, **위반 0건**.
+
+**SMOKE 테스트가 GPU 시간을 쓰기 전에 결함 두 개를 잡았다.**
+
+1. `GDNA_NUM_SEMANTIC_PARTS`는 import 시점에 고정되므로 python 실행 **전에**
+   export해야 한다. 각 셀의 `args.txt`에서 읽어 export하도록 고쳤다.
+2. **`extraction_siglip2`의 standalone 경로가 CLI 플래그를 전부 버리고 있었다.**
+   `args = Config()`는 argv를 파싱하지 않고(파싱된 값은 `Config.get_config()`에
+   있다) 저장된 `config.pt`가 `args`를 통째로 덮어써서, `--config_path`를 제외한
+   모든 플래그가 유실됐다. 여기에는 F01이 도입한 `--inference_epoch`가 포함된다.
+   레거시 checkpoint에는 metadata sidecar가 없으므로 이 플래그가 **유일한 해결
+   경로**였는데, `--inference_epoch 4`를 주어도 resolver가 "no --inference_epoch
+   and no metadata sidecar"로 중단했다. fail-closed였으므로 틀린 수치가 나온 적은
+   없지만, **Phase 2 자체가 실행 불가능한 상태였다.** `_reapply_explicit_cli`가
+   config 복원 후 inference-time 플래그를 다시 적용한다(`device`는 복원 과정에서
+   `num_devices`로부터 유도되므로 제외).
+
+교정 후 확인: `inference epoch=4 (source=explicit_flag)
+effective_sinkhorn_epsilon=0.1` — 버그 상태의 ε=1.0과 대비되는, F01이 측정하려던
+바로 그 값이다.
+
+또한 `scripts/eval_cell_bioproj.py`가 GC 창을 자유 분율로 받고 있었고 P0 셀
+러너는 24-base 패널에서 넘어온 `--gc_min 0.416 --gc_max 0.584`를 넘긴다. 15
+bases에서 이는 count `[7,8]`이고 **중앙 F07 정책은 `[6,9]`**다. 두 창에서 투영한
+결과는 비교 불가이므로, 이제 창을 `dna_utils.gc_policy`에서 유도하고 넘어온 값은
+검증하며 counts와 `gc_policy_version`을 `cell_result.json`에 기록한다.
+
+**중간 결과 (5/15셀, 양쪽 모두 GC `[6,9]` 동일 창)**
+
+| cell | mAP@R legacy | mAP@R fixed | Δ | DNA-uniq legacy | DNA-uniq fixed | Δ | NMI legacy | NMI fixed | Δ |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| cifar10/N4 | 0.8823 | 0.8839 | +0.0016 | 0.0704 | 0.0868 | +0.0164 | 0.6766 | 0.6090 | −0.0676 |
+| cifar10/N9 | 0.8789 | 0.8736 | −0.0053 | 0.0791 | 0.0994 | +0.0203 | 0.6870 | 0.5775 | −0.1095 |
+| flickr25k/N4 | 0.8565 | 0.8558 | −0.0007 | 0.2824 | 0.3560 | +0.0736 | 0.6170 | 0.5396 | −0.0775 |
+| flickr25k/N9 | 0.8507 | 0.8420 | −0.0088 | 0.3298 | 0.3753 | +0.0455 | 0.6358 | 0.4814 | −0.1544 |
+| flickr25k/N19 | 0.8496 | 0.8360 | −0.0136 | 0.3217 | 0.3927 | +0.0710 | 0.6603 | 0.5580 | −0.1023 |
+
+평균 Δ: mAP@R **−0.0054**, DNA-uniq **+0.0454**, NMI **−0.1023**.
+
+세 가지가 읽힌다.
+
+- **검색 성능은 거의 안 움직인다.** 부호도 섞인다.
+- **DNA 고유성은 5/5에서 증가한다.** Flickr는 +0.07 수준으로 크다. 기존 보고치는
+  고유성을 **저평가**하고 있었다.
+- **NMI는 5/5에서 감소한다.** 평균 −0.10, 최대 −0.15. 기존에 보고된 NMI는 가중치가
+  한 번도 학습된 적 없는 작동점(초기 ε)에서 측정된 값이므로 **부풀려져 있었다.**
+
+**N 후보 순위는 보존된다.** cifar10은 legacy·fixed 모두 N4 > N9, flickr25k는 양쪽
+모두 N4 > N9 > N19다. 따라서 F01 교정이 현행 규칙의 N 선택 자체를 뒤집지는 않으며,
+selection metric을 raw로 유지하는 근거가 된다(baseline 원저자 프로토콜과 동일).
+
+레거시 2셀에 산출물 결측이 있어(cifar10/N19 bio-projection JSON, mscoco/N39 NMI)
+집계기는 이를 조용히 빼지 않고 **레거시 추출물에서 재계산**한 값을 별도 루트에서
+읽으며 `legacy_recomputed`로 표시한다. 레거시 디렉토리에는 쓰지 않는다.
 
 ---
 
