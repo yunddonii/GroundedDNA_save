@@ -249,6 +249,32 @@ def extract_code(args: Config) -> None:
     print(f"[extraction] saved to {out_dir}")
 
 
+#: Flags that describe THIS inference run, not the training run the config.pt
+#: came from. Restoring the saved config must not silently overwrite them.
+_INFERENCE_TIME_OVERRIDES = ("inference_epoch", "selection_mode", "device")
+
+
+def _reapply_explicit_cli(args: Config, cli: Config) -> None:
+    """Re-apply inference-time flags after a saved config is restored.
+
+    `main` builds `args = Config()`, which is the raw object with NO argv
+    parsing -- the parsed values live on `Config.get_config()`. Every CLI flag
+    except `--config_path` was therefore dropped on this path, including
+    `--inference_epoch`, which F01 introduced as the PRIMARY way to resolve the
+    extraction epoch. The failure was not silent (the resolver fails closed),
+    but the documented escape hatch could not be used at all.
+    """
+    for name in _INFERENCE_TIME_OVERRIDES:
+        value = getattr(cli, name, None)
+        if value is None:
+            continue
+        if name == "device":
+            continue          # set from num_devices just above; do not clobber
+        setattr(args, name, value)
+        print(f"[extraction] CLI override kept after config restore: "
+              f"{name}={value}")
+
+
 def _resume_args_flat_or_legacy(args: Config) -> None:
     """Populate ``args`` from a saved ``config.pt``, supporting both layouts.
 
@@ -279,10 +305,12 @@ def _resume_args_flat_or_legacy(args: Config) -> None:
             f"cuda:{nd}" if torch.cuda.is_available() else "cpu"
         )
         print(f"[extraction] loaded flat config.pt from {flat_pt}")
+        _reapply_explicit_cli(args, cli)
     elif os.path.exists(nested_pt):
         # legacy nested layout
         args.load_args()
         print(f"[extraction] loaded legacy nested config.pt from {nested_pt}")
+        _reapply_explicit_cli(args, cli)
     else:
         raise FileNotFoundError(
             f"[extraction] no config.pt found at\n  {flat_pt}\nor\n  {nested_pt}"
