@@ -38,16 +38,29 @@ echo "  captions: $QWEN ($(sha256sum "$QWEN" | cut -c1-12)...)"
 echo "  pooled  : $POOLED"
 echo "  tokens  : $TOKENS"
 
+# CIFAR-10 is stored as torchvision batches, not as a setting1 path list, so it
+# has its own extractor. Both emit the same meta contract, including
+# `hf_provenance` and `canonical_transform`; only the enumeration differs.
 if [[ ! -f "$POOLED/text_part.f16.npy" ]]; then
-    CUDA_VISIBLE_DEVICES="$GPU" "$PY" extract_clip_features.py \
-        --mode pathlist \
-        --pathlist_root "$REPO/dataset/$DS" \
-        --pathlist_setting setting1 \
-        --qwen_cache_path "$QWEN" \
-        --cache_dir "$POOLED" \
-        --save_aug_views 2 \
-        --batch_size 128 \
-        --image_size 224
+    if [[ "$DS" == "CIFAR10" ]]; then
+        CUDA_VISIBLE_DEVICES="$GPU" "$PY" extract_clip_features_cifar10.py \
+            --cifar10_root "$REPO/dataset/CIFAR10" \
+            --qwen_cache_path "$QWEN" \
+            --cache_dir "$POOLED" \
+            --save_aug_views 2 \
+            --batch_size 128 \
+            --image_size 224
+    else
+        CUDA_VISIBLE_DEVICES="$GPU" "$PY" extract_clip_features.py \
+            --mode pathlist \
+            --pathlist_root "$REPO/dataset/$DS" \
+            --pathlist_setting setting1 \
+            --qwen_cache_path "$QWEN" \
+            --cache_dir "$POOLED" \
+            --save_aug_views 2 \
+            --batch_size 128 \
+            --image_size 224
+    fi
 fi
 
 if [[ ! -f "$TOKENS/text_tokens.f16.npy" ]]; then
