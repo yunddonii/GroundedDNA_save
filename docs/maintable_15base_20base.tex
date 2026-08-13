@@ -1,30 +1,29 @@
 % ---------------------------------------------------------------------------
 % Table 1 -- 15 bases / 30 bit.  Base-Hamming mAP@R after the shared DP
-% projection onto the biologically valid set.  R is dataset specific:
-% CIFAR-10 @1000, Flickr25K / NUS-WIDE / MS-COCO @5000.
-% Baselines: nine U0 unsupervised binary-hashing methods retrained at exactly
-% 30 bit and converted 2 bits -> 1 base, then projected with the same DP.
-% Ours: 5 slots x 3 bases, seed 42, single-stage fixed-epoch training with the
-% Sinkhorn schedule aligned to the stopping epoch (N per dataset in the last
-% column).  INTERIM: seed 42 only; N is the best of {4, 9, 19, 39} on the
-% seed-42 curve.
+% projection onto the biologically valid set (the paper metric).  R is
+% dataset specific: CIFAR-10 @1000, Flickr25K / NUS-WIDE / MS-COCO @5000.
+% All rows are mean +/- sample std over seeds {42, 43, 44}; the nine U0
+% baselines are retrained at exactly 30 bit and converted 2 bits -> 1 base,
+% then projected with the same DP.  Ours: 5 slots x 3 bases, single-stage
+% fixed-epoch training with the Sinkhorn schedule aligned to the stopping
+% epoch; N is chosen on the seed-42 curve only and reused for 43/44.
 % ---------------------------------------------------------------------------
 \begin{tabular}{lccccc}
 \toprule
 Method & Budget & CIFAR-10 & Flickr25K & NUS-WIDE & MS-COCO \\
 \midrule
-CIBHash        & 30-bit $\rightarrow$ 15-base & 0.8701 & 0.7939 & 0.7992 & 0.7922 \\
-CIMON          & 30-bit $\rightarrow$ 15-base & 0.8524 & 0.8121 & 0.7890 & 0.6681 \\
-Bi-half        & 30-bit $\rightarrow$ 15-base & 0.7594 & 0.8116 & 0.7464 & 0.7137 \\
-SDC            & 30-bit $\rightarrow$ 15-base & 0.8398 & 0.7252 & 0.7689 & 0.8076 \\
-OH             & 30-bit $\rightarrow$ 15-base & 0.8607 & \underline{0.8328} & \underline{0.8025} & 0.7662 \\
-CroVCA         & 30-bit $\rightarrow$ 15-base & \underline{0.8860} & 0.7716 & 0.8015 & \underline{0.8304} \\
-MLS$^3$RDUH    & 30-bit $\rightarrow$ 15-base & 0.6652 & 0.7582 & 0.7601 & 0.6371 \\
-GreedyHash-UGH & 30-bit $\rightarrow$ 15-base & 0.1586 & 0.6415 & 0.6379 & 0.5609 \\
-HHCH           & 30-bit $\rightarrow$ 15-base & 0.2179 & 0.5496 & 0.3754 & 0.3825 \\
+CIBHash        & 30-bit $\rightarrow$ 15-base & 0.8677 {\scriptsize$\pm$0.0028} & 0.7915 {\scriptsize$\pm$0.0021} & 0.7977 {\scriptsize$\pm$0.0016} & 0.7949 {\scriptsize$\pm$0.0025} \\
+CIMON          & 30-bit $\rightarrow$ 15-base & 0.8471 {\scriptsize$\pm$0.0157} & 0.8137 {\scriptsize$\pm$0.0014} & 0.7923 {\scriptsize$\pm$0.0032} & 0.6708 {\scriptsize$\pm$0.0033} \\
+Bi-half        & 30-bit $\rightarrow$ 15-base & 0.7595 {\scriptsize$\pm$0.0016} & 0.8158 {\scriptsize$\pm$0.0119} & 0.7532 {\scriptsize$\pm$0.0086} & 0.7181 {\scriptsize$\pm$0.0041} \\
+SDC            & 30-bit $\rightarrow$ 15-base & 0.8459 {\scriptsize$\pm$0.0097} & 0.7286 {\scriptsize$\pm$0.0053} & 0.7575 {\scriptsize$\pm$0.0178} & 0.8042 {\scriptsize$\pm$0.0056} \\
+OH             & 30-bit $\rightarrow$ 15-base & 0.8685 {\scriptsize$\pm$0.0075} & \underline{0.8340 {\scriptsize$\pm$0.0073}} & \underline{0.8011 {\scriptsize$\pm$0.0018}} & 0.7560 {\scriptsize$\pm$0.0099} \\
+CroVCA         & 30-bit $\rightarrow$ 15-base & \underline{0.8866 {\scriptsize$\pm$0.0040}} & 0.7745 {\scriptsize$\pm$0.0039} & 0.7995 {\scriptsize$\pm$0.0022} & \underline{0.8164 {\scriptsize$\pm$0.0136}} \\
+MLS$^3$RDUH    & 30-bit $\rightarrow$ 15-base & 0.6221 {\scriptsize$\pm$0.0398} & 0.7510 {\scriptsize$\pm$0.0082} & 0.7586 {\scriptsize$\pm$0.0022} & 0.6288 {\scriptsize$\pm$0.0074} \\
+GreedyHash-UGH & 30-bit $\rightarrow$ 15-base & 0.1546 {\scriptsize$\pm$0.0283} & 0.6484 {\scriptsize$\pm$0.0062} & 0.6504 {\scriptsize$\pm$0.0146} & 0.5621 {\scriptsize$\pm$0.0060} \\
+HHCH           & 30-bit $\rightarrow$ 15-base & 0.2474 {\scriptsize$\pm$0.0318} & 0.5847 {\scriptsize$\pm$0.0340} & 0.3746 {\scriptsize$\pm$0.0049} & 0.3959 {\scriptsize$\pm$0.0157} \\
 \midrule
-\textbf{GroundedDNA} & \textbf{15-base} & \textbf{0.8823} & \textbf{0.8565} & \textbf{0.8150} & \textbf{0.8287} \\
-$\Delta$ vs.\ best baseline & & $-0.0037$ & $+0.0237$ & $+0.0125$ & $-0.0017$ \\
+\textbf{GroundedDNA} & \textbf{15-base} & \textbf{0.8824} {\scriptsize$\pm$0.0052} & \textbf{0.8576} {\scriptsize$\pm$0.0014} & \textbf{0.8174} {\scriptsize$\pm$0.0021} & \textbf{0.8294} {\scriptsize$\pm$0.0023} \\
+$\Delta$ vs.\ best baseline & & $-0.0042$ & $+0.0236$ & $+0.0163$ & $+0.0130$ \\
 \midrule
 \multicolumn{2}{l}{\emph{fixed epoch $N$ (ours)}} & 4 & 4 & 4 & 39 \\
 \bottomrule

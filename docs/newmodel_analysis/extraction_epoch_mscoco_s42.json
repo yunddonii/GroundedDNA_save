@@ -1,0 +1,24 @@
+{
+  "dir": "result/260803+mscoco_setting1_promptAblA_mscoco_A_v5b_uni003_P0refit_e39+bs+64+e+60+proj_lr+0.001",
+  "dataset": "MSCOCO",
+  "e_star": 39,
+  "rows": [
+    {
+      "epoch": 0,
+      "sinkhorn_eps": 1.0,
+      "tau_b": 0.5,
+      "map_at_R": 0.8317221839396035,
+      "R": 5000,
+      "unique_code_ratio_DB": 0.20333339551194762
+    },
+    {
+      "epoch": 39,
+      "sinkhorn_eps": 0.3319521083503075,
+      "tau_b": 0.7507777447332941,
+      "map_at_R": 0.8334737388931822,
+      "R": 5000,
+      "unique_code_ratio_DB": 0.21025387528213546
+    }
+  ],
+  "frac_db_codes_changed": 0.22029883042026524
+}

@@ -1,0 +1,146 @@
+{
+  "cifar10|cibhash": {
+    "mean": 0.8677,
+    "std": 0.0028
+  },
+  "cifar10|cimon": {
+    "mean": 0.8471,
+    "std": 0.0157
+  },
+  "cifar10|bihalf": {
+    "mean": 0.7595,
+    "std": 0.0016
+  },
+  "cifar10|sdc-paper": {
+    "mean": 0.8459,
+    "std": 0.0097
+  },
+  "cifar10|oh": {
+    "mean": 0.8685,
+    "std": 0.0075
+  },
+  "cifar10|crovca": {
+    "mean": 0.8866,
+    "std": 0.004
+  },
+  "cifar10|mls3rduh": {
+    "mean": 0.6221,
+    "std": 0.0398
+  },
+  "cifar10|greedyhash": {
+    "mean": 0.1546,
+    "std": 0.0283
+  },
+  "cifar10|hhch": {
+    "mean": 0.2474,
+    "std": 0.0318
+  },
+  "flickr25k|cibhash": {
+    "mean": 0.7915,
+    "std": 0.0021
+  },
+  "flickr25k|cimon": {
+    "mean": 0.8137,
+    "std": 0.0014
+  },
+  "flickr25k|bihalf": {
+    "mean": 0.8158,
+    "std": 0.0119
+  },
+  "flickr25k|sdc-paper": {
+    "mean": 0.7286,
+    "std": 0.0053
+  },
+  "flickr25k|oh": {
+    "mean": 0.834,
+    "std": 0.0073
+  },
+  "flickr25k|crovca": {
+    "mean": 0.7745,
+    "std": 0.0039
+  },
+  "flickr25k|mls3rduh": {
+    "mean": 0.751,
+    "std": 0.0082
+  },
+  "flickr25k|greedyhash": {
+    "mean": 0.6484,
+    "std": 0.0062
+  },
+  "flickr25k|hhch": {
+    "mean": 0.5847,
+    "std": 0.034
+  },
+  "nuswide|cibhash": {
+    "mean": 0.7977,
+    "std": 0.0016
+  },
+  "nuswide|cimon": {
+    "mean": 0.7923,
+    "std": 0.0032
+  },
+  "nuswide|bihalf": {
+    "mean": 0.7532,
+    "std": 0.0086
+  },
+  "nuswide|sdc-paper": {
+    "mean": 0.7575,
+    "std": 0.0178
+  },
+  "nuswide|oh": {
+    "mean": 0.8011,
+    "std": 0.0018
+  },
+  "nuswide|crovca": {
+    "mean": 0.7995,
+    "std": 0.0022
+  },
+  "nuswide|mls3rduh": {
+    "mean": 0.7586,
+    "std": 0.0022
+  },
+  "nuswide|greedyhash": {
+    "mean": 0.6504,
+    "std": 0.0146
+  },
+  "nuswide|hhch": {
+    "mean": 0.3746,
+    "std": 0.0049
+  },
+  "mscoco|cibhash": {
+    "mean": 0.7949,
+    "std": 0.0025
+  },
+  "mscoco|cimon": {
+    "mean": 0.6708,
+    "std": 0.0033
+  },
+  "mscoco|bihalf": {
+    "mean": 0.7181,
+    "std": 0.0041
+  },
+  "mscoco|sdc-paper": {
+    "mean": 0.8042,
+    "std": 0.0056
+  },
+  "mscoco|oh": {
+    "mean": 0.756,
+    "std": 0.0099
+  },
+  "mscoco|crovca": {
+    "mean": 0.8164,
+    "std": 0.0136
+  },
+  "mscoco|mls3rduh": {
+    "mean": 0.6288,
+    "std": 0.0074
+  },
+  "mscoco|greedyhash": {
+    "mean": 0.5621,
+    "std": 0.006
+  },
+  "mscoco|hhch": {
+    "mean": 0.3959,
+    "std": 0.0157
+  }
+}

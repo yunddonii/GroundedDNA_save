@@ -1,0 +1,57 @@
+{
+  "dataset": "CIFAR10",
+  "dir": "result/260811+cifar10_setting1_promptAblA_cifar_A_v4_P0refit_e4+bs+64+e+5+proj_lr+0.001",
+  "R": 1000,
+  "n_queries": 600,
+  "n_db": 4000,
+  "n_random": 200,
+  "baseline_map_at_R": 0.84338,
+  "significant_slots": 4,
+  "slots": {
+    "global": {
+      "best_concept": "label2",
+      "specificity": 0.013372,
+      "p_two_sided": 0.11,
+      "significant_at_05": false,
+      "drop_with_concept": 0.029153,
+      "drop_without_concept": 0.015781,
+      "mean_drop_all_queries": 0.01723
+    },
+    "primary_object": {
+      "best_concept": "label4",
+      "specificity": 0.02929,
+      "p_two_sided": 0.0,
+      "significant_at_05": true,
+      "drop_with_concept": 0.028368,
+      "drop_without_concept": -0.000922,
+      "mean_drop_all_queries": 0.001763
+    },
+    "secondary_object": {
+      "best_concept": "label5",
+      "specificity": 0.039111,
+      "p_two_sided": 0.0,
+      "significant_at_05": true,
+      "drop_with_concept": 0.04986,
+      "drop_without_concept": 0.010748,
+      "mean_drop_all_queries": 0.014073
+    },
+    "activity_relation": {
+      "best_concept": "label6",
+      "specificity": 0.045155,
+      "p_two_sided": 0.0,
+      "significant_at_05": true,
+      "drop_with_concept": 0.047711,
+      "drop_without_concept": 0.002556,
+      "mean_drop_all_queries": 0.006319
+    },
+    "color_texture": {
+      "best_concept": "label3",
+      "specificity": 0.031494,
+      "p_two_sided": 0.0,
+      "significant_at_05": true,
+      "drop_with_concept": 0.036827,
+      "drop_without_concept": 0.005333,
+      "mean_drop_all_queries": 0.008587
+    }
+  }
+}

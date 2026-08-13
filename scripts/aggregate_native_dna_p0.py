@@ -57,7 +57,9 @@ REPO = Path(__file__).resolve().parents[1]
 MANIFEST_NAME = "native_p0_run_manifest.json"
 DATASETS = ("Flickr25k", "MSCOCO", "NUSWIDE", "CIFAR10")
 DEFAULT_SEEDS = (42, 43, 44)
-LENGTH = 18
+# 18 was the 6-slot / 36-bit budget; the paper is 15 bases since 2026-08-11.
+# Must agree with run_native_dna_p0{,_matrix}.py or every cell is rejected.
+LENGTH = int(os.environ.get('GDNA_NATIVE_DNA_BASES', '15'))
 MAP_AT_R = {
     "Flickr25k": 5000,
     "MSCOCO": 5000,
@@ -114,12 +116,49 @@ COMMON_BIO_PROJECTION = {
 # The implicit variant name is used only while normalizing the historical
 # 18-base schema, whose manifests predate an explicit ``pipeline_variant``.
 IMPLICIT_PIPELINE_VARIANT = "legacy_implicit_18_v1"
-METHOD_PROTOCOL_LOCK_SHA256 = {
-    "bee2018": "533c7fe2fe7c2da593fc2b061ada18ea1e55feccf3f73a024ca6cbcda28935a4",
-    "bee2021": "d5033a4f7e45d01395aa0aec0760845a2fd6f18f0984d940d2ca2de4ad8d2d66",
-    "koike2024": "c8ebf0e6fe60ad2c159e41325dc57883de8126ccc7d316d1436a7a716d97effc",
-    "koike2026": "830ce044c5b36d8be0863c1303c599eab0c6266d3e1684c4d9fa1ec1836e158b",
+# Keyed by matched length, because the lock covers `matched_length_bases` and
+# the implementation SHAs, both of which change with the budget. Registering the
+# 15-base values here is a REVIEWED transition, not a silencing of the guard:
+#
+#   * A real 15-base cell was run (bee2018 x CIFAR10 x seed 42) and its manifest
+#     read back. Its protocol_identity differs from the sealed 18-base manifest
+#     in exactly two of 23 fields: `matched_length_bases` (18 -> 15) and
+#     `implementation_artifacts`, where four files moved -- run_native_dna_p0.py
+#     and train_native_dna_baseline.py (this budget migration), dataloaders.py
+#     (the 6 -> 5 slot caption truncation) and baseline/base_model.py.
+#   * All eight artifacts the 15-base manifest records match the working tree
+#     AND are committed and clean, so these runs are reproducible from git.
+#     The 18-base manifest's base_model.py SHA matches NO commit in history,
+#     i.e. that matrix was executed from an uncommitted tree -- the same
+#     provenance defect already recorded for baseline_val_select_p0.py.
+#   * The values below were recomputed analytically from _protocol_identity and
+#     verified against the measured digest of the real run: bee2018 computes to
+#     bc3c5eb8... and the executed cell produced bc3c5eb8..., byte-identical.
+#
+# Recompute with docs/newmodel_analysis/native_dna_lock_sha256_15base.json;
+# execution contract is num_workers=4, extract_batch_size=512, query_chunk=64.
+_METHOD_PROTOCOL_LOCK_BY_LENGTH = {
+    18: {
+        "bee2018": "533c7fe2fe7c2da593fc2b061ada18ea1e55feccf3f73a024ca6cbcda28935a4",
+        "bee2021": "d5033a4f7e45d01395aa0aec0760845a2fd6f18f0984d940d2ca2de4ad8d2d66",
+        "koike2024": "c8ebf0e6fe60ad2c159e41325dc57883de8126ccc7d316d1436a7a716d97effc",
+        "koike2026": "830ce044c5b36d8be0863c1303c599eab0c6266d3e1684c4d9fa1ec1836e158b",
+    },
+    15: {
+        "bee2018": "bc3c5eb824adcce1adbc62809e18cc4ecc4971390263cad29c658360f28ac8a2",
+        "bee2021": "3c3476e3293b87ab90c8e1012c5064c910e5cb4afd27f9a9716915138e8c3d6e",
+        "koike2024": "6eac8ca3171ee0b6578db0ff306495019414b979ac2e501af19519d0d3a57831",
+        "koike2026": "2f2d00441c141d320ee59980be3679043a566657d3d4214a24046710ae1241f6",
+    },
 }
+if LENGTH not in _METHOD_PROTOCOL_LOCK_BY_LENGTH:
+    raise SystemExit(
+        f"no reviewed method-protocol lock registered for LENGTH={LENGTH}; "
+        f"known: {sorted(_METHOD_PROTOCOL_LOCK_BY_LENGTH)}. Run one cell, read "
+        f"its manifest, diff the identity against a known budget, and register "
+        f"the digest rather than disabling the check."
+    )
+METHOD_PROTOCOL_LOCK_SHA256 = _METHOD_PROTOCOL_LOCK_BY_LENGTH[LENGTH]
 
 
 @dataclass(frozen=True, order=True)

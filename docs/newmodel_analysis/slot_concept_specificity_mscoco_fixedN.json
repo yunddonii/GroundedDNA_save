@@ -1,0 +1,57 @@
+{
+  "dataset": "MSCOCO",
+  "dir": "result/260812+mscoco_setting1_promptAblA_mscoco_A_v5b_P0refit_e39+bs+64+e+40+proj_lr+0.001",
+  "R": 4000,
+  "n_queries": 600,
+  "n_db": 4000,
+  "n_random": 200,
+  "baseline_map_at_R": 0.60795,
+  "significant_slots": 1,
+  "slots": {
+    "global": {
+      "best_concept": "label18",
+      "specificity": -0.000536,
+      "p_two_sided": 0.905,
+      "significant_at_05": false,
+      "drop_with_concept": 0.007663,
+      "drop_without_concept": 0.008198,
+      "mean_drop_all_queries": 0.008152
+    },
+    "primary_object": {
+      "best_concept": "label18",
+      "specificity": 0.004527,
+      "p_two_sided": 0.345,
+      "significant_at_05": false,
+      "drop_with_concept": 0.010341,
+      "drop_without_concept": 0.005814,
+      "mean_drop_all_queries": 0.006206
+    },
+    "secondary_object": {
+      "best_concept": "label27",
+      "specificity": 0.000857,
+      "p_two_sided": 0.845,
+      "significant_at_05": false,
+      "drop_with_concept": 0.014733,
+      "drop_without_concept": 0.013876,
+      "mean_drop_all_queries": 0.013955
+    },
+    "activity_relation": {
+      "best_concept": "label27",
+      "specificity": 0.003981,
+      "p_two_sided": 0.27,
+      "significant_at_05": false,
+      "drop_with_concept": 0.011736,
+      "drop_without_concept": 0.007756,
+      "mean_drop_all_queries": 0.00812
+    },
+    "color_texture": {
+      "best_concept": "label22",
+      "specificity": 0.011045,
+      "p_two_sided": 0.01,
+      "significant_at_05": true,
+      "drop_with_concept": 0.019494,
+      "drop_without_concept": 0.008449,
+      "mean_drop_all_queries": 0.009664
+    }
+  }
+}

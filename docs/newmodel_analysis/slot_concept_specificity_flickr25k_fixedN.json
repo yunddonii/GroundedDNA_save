@@ -1,0 +1,57 @@
+{
+  "dataset": "Flickr25k",
+  "dir": "result/260811+flickr25k_setting1_promptAblA_flickr_A_v4_P0refit_e4+bs+64+e+5+proj_lr+0.001",
+  "R": 4000,
+  "n_queries": 600,
+  "n_db": 4000,
+  "n_random": 200,
+  "baseline_map_at_R": 0.75285,
+  "significant_slots": 3,
+  "slots": {
+    "global": {
+      "best_concept": "label3",
+      "specificity": 0.012484,
+      "p_two_sided": 0.0,
+      "significant_at_05": true,
+      "drop_with_concept": 0.017011,
+      "drop_without_concept": 0.004527,
+      "mean_drop_all_queries": 0.006421
+    },
+    "primary_object": {
+      "best_concept": "label10",
+      "specificity": 0.003343,
+      "p_two_sided": 0.085,
+      "significant_at_05": false,
+      "drop_with_concept": 0.003052,
+      "drop_without_concept": -0.000291,
+      "mean_drop_all_queries": 0.000417
+    },
+    "secondary_object": {
+      "best_concept": "label6",
+      "specificity": 0.003861,
+      "p_two_sided": 0.22,
+      "significant_at_05": false,
+      "drop_with_concept": 0.015219,
+      "drop_without_concept": 0.011358,
+      "mean_drop_all_queries": 0.011757
+    },
+    "activity_relation": {
+      "best_concept": "label22",
+      "specificity": 0.009326,
+      "p_two_sided": 0.0,
+      "significant_at_05": true,
+      "drop_with_concept": 0.013599,
+      "drop_without_concept": 0.004273,
+      "mean_drop_all_queries": 0.007552
+    },
+    "color_texture": {
+      "best_concept": "label14",
+      "specificity": 0.005619,
+      "p_two_sided": 0.005,
+      "significant_at_05": true,
+      "drop_with_concept": 0.010838,
+      "drop_without_concept": 0.005219,
+      "mean_drop_all_queries": 0.00593
+    }
+  }
+}

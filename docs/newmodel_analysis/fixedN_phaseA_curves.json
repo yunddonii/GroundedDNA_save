@@ -1,0 +1,118 @@
+{
+  "Flickr25k": {
+    "map_peak": [
+      1,
+      0.779
+    ],
+    "uniq_peak": [
+      10,
+      0.7717
+    ],
+    "dead_below_1pct_epoch": 11,
+    "candidates": {
+      "5": {
+        "mAP": 0.7515,
+        "uniq": 0.7434,
+        "dead": 0.0586
+      },
+      "10": {
+        "mAP": 0.7351,
+        "uniq": 0.7717,
+        "dead": 0.0117
+      },
+      "20": {
+        "mAP": 0.7207,
+        "uniq": 0.753,
+        "dead": 0.0104
+      }
+    },
+    "curve_dir": "260809+flickr25k_setting1_promptAblA_flickr_A_v4_curveN59_P0refit_e59+bs+64+e+60+proj_lr+0.001"
+  },
+  "MSCOCO": {
+    "map_peak": [
+      14,
+      0.6053
+    ],
+    "uniq_peak": [
+      56,
+      0.5304
+    ],
+    "dead_below_1pct_epoch": 8,
+    "candidates": {
+      "14": {
+        "mAP": 0.6053,
+        "uniq": 0.4599,
+        "dead": 0.0078
+      },
+      "30": {
+        "mAP": 0.6011,
+        "uniq": 0.475,
+        "dead": 0.0052
+      },
+      "40": {
+        "mAP": 0.5954,
+        "uniq": 0.4762,
+        "dead": 0.0078
+      }
+    },
+    "curve_dir": "260809+mscoco_setting1_promptAblA_mscoco_A_v5b_curveN59_P0refit_e59+bs+64+e+60+proj_lr+0.001"
+  },
+  "NUSWIDE": {
+    "map_peak": [
+      1,
+      0.6919
+    ],
+    "uniq_peak": [
+      7,
+      0.7354
+    ],
+    "dead_below_1pct_epoch": 5,
+    "candidates": {
+      "4": {
+        "mAP": 0.6825,
+        "uniq": 0.7085,
+        "dead": 0.0169
+      },
+      "7": {
+        "mAP": 0.6787,
+        "uniq": 0.7354,
+        "dead": 0.0052
+      },
+      "15": {
+        "mAP": 0.6687,
+        "uniq": 0.7026,
+        "dead": 0.0013
+      }
+    },
+    "curve_dir": "260809+nuswide_setting1_promptAblA_nuswide_A_v4_curveN59_P0refit_e59+bs+64+e+60+proj_lr+0.001"
+  },
+  "CIFAR10": {
+    "map_peak": [
+      3,
+      0.8162
+    ],
+    "uniq_peak": [
+      58,
+      0.675
+    ],
+    "dead_below_1pct_epoch": 21,
+    "candidates": {
+      "10": {
+        "mAP": 0.7947,
+        "uniq": 0.5417,
+        "dead": 0.0365
+      },
+      "20": {
+        "mAP": 0.7899,
+        "uniq": 0.5729,
+        "dead": 0.0156
+      },
+      "30": {
+        "mAP": 0.7738,
+        "uniq": 0.576,
+        "dead": 0.0052
+      }
+    },
+    "curve_dir": "260809+cifar10_setting1_promptAblA_cifar_A_v4_curveN59_P0refit_e59+bs+64+e+60+proj_lr+0.001"
+  }
+}

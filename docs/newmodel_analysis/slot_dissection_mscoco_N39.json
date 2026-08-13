@@ -1,0 +1,125 @@
+{
+  "dataset": "MSCOCO",
+  "dir": "result/260812+mscoco_setting1_promptAblA_mscoco_A_v5b_P0refit_e39+bs+64+e+40+proj_lr+0.001",
+  "epoch": 39,
+  "probe_images": 600,
+  "side": 112,
+  "quantile": 0.005,
+  "iou_threshold": 0.04,
+  "polygon_masks": false,
+  "distinct_best_categories": 4,
+  "slots": {
+    "primary_object": {
+      "best_category": "fire hydrant",
+      "best_iou": 0.40059,
+      "shuffled_iou_same_category": 0.14295,
+      "n_categories_above_threshold": 6,
+      "top5": [
+        [
+          "fire hydrant",
+          0.40059
+        ],
+        [
+          "bird",
+          0.17219
+        ],
+        [
+          "parking meter",
+          0.12543
+        ],
+        [
+          "kite",
+          0.10785
+        ],
+        [
+          "dog",
+          0.07506
+        ]
+      ]
+    },
+    "secondary_object": {
+      "best_category": "microwave",
+      "best_iou": 0.16833,
+      "shuffled_iou_same_category": 0.0,
+      "n_categories_above_threshold": 2,
+      "top5": [
+        [
+          "microwave",
+          0.16833
+        ],
+        [
+          "pizza",
+          0.06955
+        ],
+        [
+          "laptop",
+          0.03392
+        ],
+        [
+          "wine glass",
+          0.03126
+        ],
+        [
+          "giraffe",
+          0.02941
+        ]
+      ]
+    },
+    "activity_relation": {
+      "best_category": "bicycle",
+      "best_iou": 0.06919,
+      "shuffled_iou_same_category": 0.0,
+      "n_categories_above_threshold": 1,
+      "top5": [
+        [
+          "bicycle",
+          0.06919
+        ],
+        [
+          "zebra",
+          0.0256
+        ],
+        [
+          "toothbrush",
+          0.02527
+        ],
+        [
+          "umbrella",
+          0.02503
+        ],
+        [
+          "horse",
+          0.01899
+        ]
+      ]
+    },
+    "color_texture": {
+      "best_category": "tennis racket",
+      "best_iou": 0.04943,
+      "shuffled_iou_same_category": 0.00042,
+      "n_categories_above_threshold": 1,
+      "top5": [
+        [
+          "tennis racket",
+          0.04943
+        ],
+        [
+          "spoon",
+          0.03605
+        ],
+        [
+          "tie",
+          0.03484
+        ],
+        [
+          "potted plant",
+          0.03428
+        ],
+        [
+          "apple",
+          0.02305
+        ]
+      ]
+    }
+  }
+}
