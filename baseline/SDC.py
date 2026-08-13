@@ -21,6 +21,20 @@ from .modern_unsupervised import SDCFeatureHash, sdc_loss, simclr_nt_xent
 
 
 class SDC(DeepHashBase):
+    #: `configs/scheduler/step.yaml` defines the period as `int(0.8 * epochs)`,
+    #: not as a constant. Deriving it keeps the schedule correct if the horizon
+    #: ever moves; at the author horizon of 100 this is 80, so today it is a
+    #: no-op and no existing result changes.
+    SOURCE_STEP_FRACTION = 0.8
+
+    def _get_config_dict_for_dataset(self, default_config: dict,
+                                     dataset: str) -> dict:
+        del dataset
+        config = dict(default_config)
+        config["step_size"] = int(
+            self.SOURCE_STEP_FRACTION * int(config["max_epoch"]))
+        return config
+
     def _get_default_config_dict(self) -> dict:
         return {
             'batch_size': 64,
@@ -40,9 +54,6 @@ class SDC(DeepHashBase):
             'sdc_contrastive_temperature': 0.3,
             'sdc_contrastive_weight': 1.0,
         }
-
-    def _get_config_dict_for_dataset(self, default_config: dict, dataset: str) -> dict:
-        return default_config
 
     def _get_fixed_config_dict(self) -> dict:
         return {

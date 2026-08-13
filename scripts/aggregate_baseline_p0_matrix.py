@@ -356,17 +356,25 @@ CANONICAL_VARIANT_SOURCE_PROFILES = {
     },
     "bihalf": {
         "path": "baseline/BiHalf.py",
+        # D6: the LR decay period is now per dataset, matching the upstream
+        # per-dataset scripts. This CHANGES CIFAR-10 results (4 decays -> 2), so
+        # it is not registered as a non-scientific transition: cells trained
+        # under 4593e5c0... are excluded and must be re-run.
         "sha256": (
-            "4593e5c08e81aeb10c23a1883700e0a79ef05634f14ae6cd2c1575aab09cd7f7"
+            "b41d9dc79ae55501dabca0a10790fb699702eff5bb0b0e89198543190516a2c2"
         ),
-        "profile": "bihalf-cache-adaptation-v1",
+        "profile": "bihalf-author-schedule-v2",
     },
     "sdc-paper": {
         "path": "baseline/SDC.py",
+        # D6: step_size is derived as int(0.8 * epochs), the upstream config's
+        # own expression, instead of the constant 80. Numerically identical at
+        # the author horizon of 100, so no stored result changes; the digest
+        # moves because the file did.
         "sha256": (
-            "7f875f5ff83cf52b1cbec8863672187135266f52580dd6a37246f70d0c0df706"
+            "bf2e13936866ffc80c163510321d69a5ba67bdc7bef6b5885eaf75edc166b1e6"
         ),
-        "profile": "sdc-paper-cache-v1",
+        "profile": "sdc-paper-horizon-derived-step-v2",
     },
     "oh": {
         "path": "baseline/OH.py",

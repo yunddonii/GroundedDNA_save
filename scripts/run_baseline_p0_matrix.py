@@ -161,11 +161,11 @@ CANONICAL_VARIANT_SOURCE_PROFILES: Mapping[str, tuple[str, str]] = {
     ),
     "bihalf": (
         "baseline/BiHalf.py",
-        "4593e5c08e81aeb10c23a1883700e0a79ef05634f14ae6cd2c1575aab09cd7f7",
+        "b41d9dc79ae55501dabca0a10790fb699702eff5bb0b0e89198543190516a2c2",
     ),
     "sdc-paper": (
         "baseline/SDC.py",
-        "7f875f5ff83cf52b1cbec8863672187135266f52580dd6a37246f70d0c0df706",
+        "bf2e13936866ffc80c163510321d69a5ba67bdc7bef6b5885eaf75edc166b1e6",
     ),
     "oh": (
         "baseline/OH.py",

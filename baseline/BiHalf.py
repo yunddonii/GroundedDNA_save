@@ -175,10 +175,35 @@ class BiHalf(DeepHashBase):
             "bihalf_odd_batch_policy": "trim_last",
         }
 
+    #: The public release ships one script per dataset, and they differ in BOTH
+    #: the horizon and the LR decay period. D6 trains to the author horizon and
+    #: keeps the last checkpoint, so the decay period is now load-bearing:
+    #: discarding it ran CIFAR-10 300 epochs with a 60-epoch period, decaying
+    #: four times to 1e-8 instead of the author's twice to 1e-6.
+    #: NUS-WIDE has no upstream trainer; it keeps the Flickr profile and is
+    #: declared as an adaptation in the manifest.
+    SOURCE_SCRIPT_PROFILE = {
+        "CIFAR10":   {"max_epoch": 300, "step_size": 120,
+                      "source": "ImageHashing/Cifar10_I.py:14-16"},
+        "Flickr25k": {"max_epoch": 100, "step_size": 60,
+                      "source": "ImageHashing/Flickr25k.py:11-13"},
+        "MSCOCO":    {"max_epoch": 150, "step_size": 60,
+                      "source": "ImageHashing/Mscoco.py:16-18"},
+        "NUSWIDE":   {"max_epoch": 100, "step_size": 60,
+                      "source": "adaptation: no upstream NUS-WIDE trainer; "
+                                "Flickr25k profile"},
+    }
+
     def _get_config_dict_for_dataset(self, default_config: dict,
                                      dataset: str) -> dict:
-        del dataset
-        return default_config
+        profile = self.SOURCE_SCRIPT_PROFILE.get(str(dataset))
+        if profile is None:
+            return default_config
+        config = dict(default_config)
+        config["max_epoch"] = int(profile["max_epoch"])
+        config["step_size"] = int(profile["step_size"])
+        config["bihalf_source_script"] = str(profile["source"])
+        return config
 
     def _get_fixed_config_dict(self) -> dict:
         return {
