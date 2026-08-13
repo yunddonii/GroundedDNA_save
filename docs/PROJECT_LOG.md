@@ -632,6 +632,45 @@ L=18 and disagree at 15 and 20. One test also checks the policy's counts match
 what the DP backend actually enforces, so a manifest cannot describe a feasible
 set the codes were never projected onto. **294 tests pass.**
 
+### Phase 1-3 — F08, run identity and fail-closed lookup
+
+`_resolve_save_path` builds the directory from date, tag, batch, epoch and LR,
+then `os.makedirs(..., exist_ok=True)`. The **seed, the slot count, the bases per
+slot and the selection/refit mode never reach the path**, so runs differing only
+in those share a directory and the second overwrites the first.
+
+This is the 2026-08-12 loss, and what survived was worse than nothing: `args.txt`
+came from whichever process started last and the evaluation JSON from whichever
+finished last, so a directory labelled seed 44 held seed 43's numbers. It was
+caught only because two seeds agreed to **full float precision**.
+
+Lookup has the mirror defect: `ls -dt <glob> | head -1` returns the newest match,
+so an ablation sharing the prefix can be selected as the reference run.
+
+`dna_utils/run_identity.py` provides:
+
+- **identity** — a digest over dataset, setting, seed, M, bases/slot, total
+  bases/bits, stop epoch, epoch budget, both horizons (D2 search vs final differ
+  only there), and selection mode
+- **claim** — re-claiming the SAME identity is a resume; a different identity
+  raises and names the differing fields; a non-empty directory with no manifest
+  raises rather than being merged into
+- **resolve** — matches on the manifest, never mtime; absence and ambiguity both
+  raise instead of guessing. `result_quarantine_collided_20260812/` and smoke
+  dirs are excluded, since reading from the quarantine is what it exists to
+  prevent
+
+`--selection_mode` is new (`select` / `refit` / `A2`…), because without it a
+selection run, a refit and an ablation with the same dataset/seed/geometry still
+collide. `train_siglip2._resolve_save_path` now claims before returning.
+
+21 cases in `tests/test_result_identity.py`, parameterised so that **every**
+distinguishing field is asserted to move the digest — the 2026-08-12 loss was
+exactly one field (seed) failing to. Others pin the reclaim-is-resume rule, the
+named-fields collision message, refusal of unmanifested artefacts, that a newer
+ablation does not win resolution, and that the quarantine is never resolved.
+**315 tests pass.**
+
 ### Verdict
 
 - 15-base main table: **historical diagnostic only** until the audit's

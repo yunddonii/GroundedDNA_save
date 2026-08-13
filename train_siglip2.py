@@ -107,6 +107,14 @@ def _resolve_save_path(args: Config) -> str:
         tag,
     )
     os.makedirs(base, exist_ok=True)
+    # F08: the path above carries neither the seed, the geometry nor the
+    # selection mode, so two runs differing only in those would land here
+    # together and the second would overwrite the first -- which is what
+    # happened on 2026-08-12, leaving directories whose args.txt and metrics
+    # came from different processes. Claiming refuses that merge instead of
+    # discovering it later from two seeds agreeing to full float precision.
+    from dna_utils.run_identity import RunIdentity, claim_run_dir
+    claim_run_dir(base, RunIdentity.from_args(args))
     return os.path.join(base, "")
 
 

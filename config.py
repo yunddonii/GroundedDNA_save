@@ -702,6 +702,14 @@ class Config():
         # cosine horizon and the Sinkhorn epsilon horizon at once, so choosing N
         # silently retuned the learning-rate schedule too. These decouple it.
         # Unset means "fall back to --epoch", i.e. the historical behaviour.
+        # F08: part of the run identity. Without it a selection run, a refit
+        # and an ablation that share dataset/seed/geometry resolve to the same
+        # result directory and overwrite each other.
+        siglip2_arg.add_argument('--selection_mode', type=str, default='refit',
+            help='What this run is: "select" (N search on held-out validation), '
+                 '"refit" (final scratch refit at the chosen N), or an ablation '
+                 'tag such as A2/A4/A5. Recorded in the run identity so these '
+                 'cannot share a result directory.')
         siglip2_arg.add_argument('--lr_schedule_horizon', type=int, default=None,
             help='CosineAnnealingLR T_max. Fixed at 60 under the decided '
                  'protocol so every N candidate shares one LR prefix. '
