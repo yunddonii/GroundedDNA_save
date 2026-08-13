@@ -671,6 +671,41 @@ named-fields collision message, refusal of unmanifested artefacts, that a newer
 ablation does not win resolution, and that the quarantine is never resolved.
 **315 tests pass.**
 
+### Phase 1-4 — F06, declared code geometry for flat baselines
+
+`extract_flat_baseline` packed `codebook_indices` with `group_size=6` as a
+literal. The 6 is a leftover from the 36-bit / 6-slot panel, where `36 // 6`
+coincided with the slot count. At 40 bits `40 % 6 != 0`, so extraction dies —
+**the 108 cells launched at 40 bit on 2026-08-13 were all going to fail there.**
+
+`bits // 6` would be the same mistake in another form: it reads 48 bits as 8
+slots when the 48-bit panel is 6 slots of 4 bases, and invents a grouping nobody
+declared. `dna_utils/flat_geometry.py` declares the panel per budget and then
+**checks `bits == 2·M·L`**:
+
+| panel | bits | slots | bases/slot | bits/group |
+|---|---:|---:|---:|---:|
+| main | 30 | 5 | 3 | 6 |
+| 20-base | 40 | 5 | 4 | **8** |
+| legacy | 36 | 6 | 3 | 6 |
+| legacy | 48 | 6 | 4 | 8 |
+
+An explicit non-default grouping is allowed when declared and consistent; what
+is refused is guessing. Unknown budgets raise.
+
+**Honest caveat now in the manifest**: a flat hashing baseline has no semantic
+codebook. Its `codebook_indices` are an artificial grouping we impose so
+slot-wise analyses can run on both sides; `base_indices` is authoritative. The
+record carries `codebook_indices_are_artificial_grouping: true` so a reader does
+not take them for learned codewords.
+
+23 cases in `tests/test_flat_baseline_geometry.py`. Two matter most: one asserts
+the slot count is **not** inferable from width (48 bits → 6 slots, not 8), and
+one checks a codebook index equals exactly the bases of its own slot, so the two
+views of a code cannot disagree. Verified directly that the audit's reproduction
+command now succeeds at 40 bits (group 8 → [N,5]) while the old constant still
+raises `AssertionError(40, 6)`. **338 tests pass.**
+
 ### Verdict
 
 - 15-base main table: **historical diagnostic only** until the audit's

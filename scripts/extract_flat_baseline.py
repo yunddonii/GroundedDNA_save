@@ -1,4 +1,4 @@
-"""Extract 36/48-bit codes from a registered flat hashing baseline and reshape
+"""Extract 30/36/40/48-bit codes from a registered flat hashing baseline and reshape
 them as fixed 6-bit codebooks and 2-bit DNA bases. The checkpoint
 is reconstructed through its method class, so both legacy linear encoders and
 modern custom heads are supported. Saves `extract_db.npz` /
@@ -41,6 +41,7 @@ from baseline.base_model import (  # noqa: E402
     load_dataset,
     verify_checkpoint_data_context,
 )
+from dna_utils.flat_geometry import resolve_flat_geometry  # noqa: E402
 
 
 def pack_bits_to_indices(bits01: np.ndarray, group_size: int) -> np.ndarray:
@@ -117,7 +118,14 @@ def main() -> int:
                             num_workers=args.num_workers)
         cont, bin_pm, lbls = _extract_codes(model, loader, device)
         bits01 = ((bin_pm + 1) // 2).astype(np.uint8)                       # {0,1}
-        codebook_indices = pack_bits_to_indices(bits01, group_size=6)       # [N, M]
+        # F06: the group size comes from the DECLARED geometry, not a literal 6.
+        # The 6 was inherited from the 36-bit / 6-slot panel, where 36 // 6 also
+        # happened to be the slot count; at 40 bits `40 % 6 != 0` and extraction
+        # dies. `bits // 6` would not fix it -- that reads 48 bits as 8 slots
+        # when the 48-bit panel is 6 slots of 4 bases. 2*M*L is checked instead.
+        _geom = resolve_flat_geometry(int(bits01.shape[1]))
+        codebook_indices = pack_bits_to_indices(
+            bits01, group_size=_geom.bits_per_group)                        # [N, M]
         base_indices     = pack_bits_to_indices(bits01, group_size=2)       # [N, R]
         # Image paths: dataset stores .paths attribute; CachedFeatureDataset
         # returns absolute-rooted relative paths like 'images/im00001.jpg'.
