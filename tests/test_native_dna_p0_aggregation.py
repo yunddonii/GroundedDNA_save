@@ -13,6 +13,7 @@ from scripts.aggregate_native_dna_p0 import (
     DISPLAY,
     Key,
     METHOD_PROTOCOL_LOCK_SHA256,
+    method_protocol_lock_for,
     TEST_ACCESS_CONTRACT,
     _aggregate_cell,
     _canonical_digest,
@@ -21,10 +22,18 @@ from scripts.aggregate_native_dna_p0 import (
     _validate_manifest,
     aggregate,
 )
+from dna_utils.native_protocol import resolve_native_protocol
 from scripts.run_native_dna_p0 import (
     SOURCE_PROFILES,
     SOURCE_REPRODUCTION_AUDIT,
 )
+
+# F18: these fixtures encode the 18-base contract, which is what the historical
+# native cells were run under. They used to say so only by hard-coding 18 while
+# the validator read its length from the environment, so they failed outright
+# once the paper moved to 15 bases. Naming the protocol keeps the fixture
+# meaningful and lets the 15-base contract be exercised beside it.
+PROTOCOL = resolve_native_protocol(18)
 
 
 HISTORICAL_IMPLEMENTATION_SHA256 = {
@@ -115,7 +124,7 @@ def _protocol_identity(
         "dataset": dataset,
         "setting": "setting1",
         "seed": seed,
-        "matched_length_bases": 18,
+        "matched_length_bases": PROTOCOL.length_bases,
         "val_split_ratio": 0.1,
         "val_split_seed": 42,
         "selection_metric": "val_neural_raw_mAP_at_R",
@@ -175,8 +184,8 @@ def _fixture(
     evaluation = {
         "method": method,
         "dataset": dataset,
-        "length": 18,
-        "protocol": "matched_18nt_adaptation",
+        "length": PROTOCOL.length_bases,
+        "protocol": PROTOCOL.protocol_label,
         "supervision": supervision,
         "neural_raw": {
             "mAP_at_R": raw,
@@ -210,8 +219,8 @@ def _fixture(
         "dataset": dataset,
         "setting": "setting1",
         "seed": seed,
-        "length": 18,
-        "base_length": 18,
+        "length": PROTOCOL.length_bases,
+        "base_length": PROTOCOL.length_bases,
         "test_used_for_selection": False,
         "test_access_contract": dict(TEST_ACCESS_CONTRACT),
         "best_epoch_zero_based": 9,
@@ -240,7 +249,7 @@ class NativeDNAP0ManifestValidationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path, _ = _fixture(Path(directory))
             key = Key("bee2018", "Flickr25k", 42)
-            record = _validate_manifest(path, key)
+            record = _validate_manifest(path, key, protocol=PROTOCOL)
             self.assertEqual(record["status"], "complete_main_eligible")
             self.assertEqual(record["post_dp_map_at_R"], 0.7)
             self.assertEqual(record["raw_map_at_R"], 0.72)
@@ -248,7 +257,7 @@ class NativeDNAP0ManifestValidationTest(unittest.TestCase):
             self.assertEqual(record["best_epoch_zero_based"], 9)
             self.assertEqual(
                 record["method_protocol_lock_sha256"],
-                METHOD_PROTOCOL_LOCK_SHA256["bee2018"],
+                method_protocol_lock_for(PROTOCOL)["bee2018"],
             )
             self.assertEqual(record["validation_errors"], [])
 
@@ -263,7 +272,7 @@ class NativeDNAP0ManifestValidationTest(unittest.TestCase):
                 HISTORICAL_IMPLEMENTATION_SHA256["baseline/base_model.py"],
             )
             record = _validate_manifest(
-                path, Key("bee2018", "Flickr25k", 42)
+                path, Key("bee2018", "Flickr25k", 42), protocol=PROTOCOL
             )
             self.assertEqual(record["status"], "complete_main_eligible")
 
@@ -310,7 +319,7 @@ class NativeDNAP0ManifestValidationTest(unittest.TestCase):
                 manifest["protocol_digest_sha256"] = _canonical_digest(identity)
                 _json(path, manifest)
                 record = _validate_manifest(
-                    path, Key("bee2018", "Flickr25k", 42)
+                    path, Key("bee2018", "Flickr25k", 42), protocol=PROTOCOL
                 )
                 self.assertEqual(record["status"], "invalid", name)
                 self.assertTrue(
@@ -334,7 +343,7 @@ class NativeDNAP0ManifestValidationTest(unittest.TestCase):
             manifest["protocol_digest_sha256"] = _canonical_digest(identity)
             _json(path, manifest)
             record = _validate_manifest(
-                path, Key("bee2021", "Flickr25k", 42)
+                path, Key("bee2021", "Flickr25k", 42), protocol=PROTOCOL
             )
             self.assertEqual(record["status"], "invalid")
             self.assertTrue(any(
@@ -351,7 +360,7 @@ class NativeDNAP0ManifestValidationTest(unittest.TestCase):
                 blockers=["primo_frozen_predictor_length_transfer"],
             )
             record = _validate_manifest(
-                path, Key("bee2021", "Flickr25k", 42)
+                path, Key("bee2021", "Flickr25k", 42), protocol=PROTOCOL
             )
             self.assertEqual(record["status"], "complete_diagnostic_only")
             self.assertFalse(record["main_protocol_eligible"])
@@ -366,7 +375,7 @@ class NativeDNAP0ManifestValidationTest(unittest.TestCase):
             manifest["evaluation_native_dna"]["sha256"] = "0" * 64
             _json(path, manifest)
             record = _validate_manifest(
-                path, Key("bee2018", "Flickr25k", 42)
+                path, Key("bee2018", "Flickr25k", 42), protocol=PROTOCOL
             )
             self.assertEqual(record["status"], "invalid")
             self.assertTrue(any(
@@ -379,7 +388,7 @@ class NativeDNAP0ManifestValidationTest(unittest.TestCase):
                 Path(directory), query_compliance=0.999
             )
             record = _validate_manifest(
-                path, Key("bee2018", "Flickr25k", 42)
+                path, Key("bee2018", "Flickr25k", 42), protocol=PROTOCOL
             )
             self.assertEqual(record["status"], "invalid")
             self.assertTrue(any(
@@ -393,7 +402,7 @@ class NativeDNAP0ManifestValidationTest(unittest.TestCase):
             manifest["protocol_digest_sha256"] = "0" * 64
             _json(path, manifest)
             record = _validate_manifest(
-                path, Key("bee2018", "Flickr25k", 42)
+                path, Key("bee2018", "Flickr25k", 42), protocol=PROTOCOL
             )
             self.assertEqual(record["status"], "invalid")
             self.assertTrue(any(
@@ -407,7 +416,7 @@ class NativeDNAP0ManifestValidationTest(unittest.TestCase):
                 Path(directory), main_eligible=False, blockers=[]
             )
             record = _validate_manifest(
-                path, Key("bee2018", "Flickr25k", 42)
+                path, Key("bee2018", "Flickr25k", 42), protocol=PROTOCOL
             )
             self.assertEqual(record["status"], "invalid")
             self.assertTrue(any(
@@ -447,7 +456,7 @@ class NativeDNAP0ResolutionAndAggregationTest(unittest.TestCase):
                     main_eligible=False,
                     blockers=["primo_frozen_predictor_length_transfer"],
                 )
-            payload, records = aggregate([root])
+            payload, records = aggregate([root], protocol=PROTOCOL)
             diagnostic = _aggregate_cell(
                 records,
                 method="bee2021",
@@ -509,7 +518,7 @@ class NativeDNAP0ResolutionAndAggregationTest(unittest.TestCase):
             root = Path(directory)
             _fixture(root, seed=42)
             _fixture(root, seed=43)
-            _, records = aggregate([root])
+            _, records = aggregate([root], protocol=PROTOCOL)
             item = _aggregate_cell(
                 records,
                 method="bee2018",
@@ -528,7 +537,7 @@ class NativeDNAP0ResolutionAndAggregationTest(unittest.TestCase):
             _fixture(root, seed=42)
             _fixture(root, seed=43)
             _fixture(root, seed=44, cache_token="different-cache")
-            payload, records = aggregate([root])
+            payload, records = aggregate([root], protocol=PROTOCOL)
             for seed in DEFAULT_SEEDS:
                 record = records[Key("bee2018", "Flickr25k", seed)]
                 self.assertEqual(record["status"], "invalid")
@@ -549,7 +558,7 @@ class NativeDNAP0ResolutionAndAggregationTest(unittest.TestCase):
             root = Path(directory)
             for seed, device in zip(DEFAULT_SEEDS, ("cuda:0", "cuda:1", "cpu")):
                 _fixture(root, seed=seed, device=device)
-            _, records = aggregate([root])
+            _, records = aggregate([root], protocol=PROTOCOL)
             item = _aggregate_cell(
                 records,
                 method="bee2018",

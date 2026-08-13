@@ -857,13 +857,95 @@ which are valid for CIBHash. It now names the stale digests explicitly.
 deselected, up from 437, and **all 5 pre-existing CRH failures are fixed with
 no new regressions** (before/after failure sets diffed).
 
+### Phase 1-8 — F18, the matched length belongs to the artefact
+
+Three modules each read `GDNA_NATIVE_DNA_BASES` into a module-level constant at
+import time and a fourth hard-coded 24:
+
+```
+run_native_dna_p0.py         MATCHED_LENGTH = int(os.environ.get(..., "15"))
+run_native_dna_p0_matrix.py  MATCHED_LENGTH = int(os.environ.get(..., "15"))
+aggregate_native_dna_p0.py   LENGTH        = int(os.environ.get(..., "15"))
+run_native_dna_p0_24.py      MATCHED_LENGTH = 24
+```
+
+A length was therefore a property of the **process**. Once the environment said
+15, an 18-base manifest could not be judged at all — it came back as
+
+```
+length: expected 15, found 18;
+protocol_identity.matched_length_bases: expected 15, found 18;
+evaluation.protocol: expected 'matched_15nt_adaptation',
+                     found 'matched_18nt_adaptation'
+```
+
+which is the whole of the audit's `57 passed, 18 failed`. `test_native_dna_p0_24`
+even imported the shared driver as `driver18` and asserted
+`MATCHED_LENGTH == 18` — a seal that never existed.
+
+`dna_utils/native_protocol.py` makes the length an **argument**. GC bounds come
+from `dna_utils.gc_policy` (F07), so this is not a fifth convention:
+
+| bases | label | GC window | max run |
+|---|---|---|---|
+| 15 | `matched_15nt_adaptation` | [6, 9] | 3 |
+| 18 | `matched_18nt_adaptation` | [8, 10] | 3 |
+| 20 | `matched_20nt_adaptation` | [8, 12] | 3 |
+| 24 | `matched_24nt_adaptation` | [10, 14] | 3 |
+
+Every validator now takes `protocol=`: `_base_codes_from_npz`,
+`_valid_bio_codes`, `_verify_aligned_extractions`, `_verify_common_config`,
+`_verify_selection`, `_verify_refit`, `_validate_manifest`,
+`_validate_evaluation`, `_validate_protocol_identity`,
+`_validate_method_protocol_lock`, `_resolve_records`, `aggregate`,
+`_manifest_contract_errors`, `_completed_cells`. Module constants stay as the
+CLI default, so no existing invocation changes.
+
+Two real defects fell out of it:
+
+1. **The 24-base aggregator was relabelling its own artefacts.**
+   `_validate_evaluation_24` did `normalized["protocol"] =
+   "matched_18nt_adaptation"` before delegating, purely to get a 24-base
+   evaluation past a length check fixed at import. It now passes the 24-base
+   protocol and judges the artefact as what it is.
+2. **The 24-base method-protocol locks lived in a second table** reachable only
+   by monkey-patching the canonical module's globals. They are now registered in
+   `_METHOD_PROTOCOL_LOCK_BY_LENGTH[24]` — same digests — and the 24 module
+   reads that table, so the two cannot drift.
+
+`--length` added to `aggregate_native_dna_p0.py`, so an 18-base result root can
+be aggregated without exporting an environment variable that silently
+reconfigures every other native script in the same shell.
+
+Verified on the real 15-base run root
+`/data/yschoi/groundeddna_native_p0_15base/runs`, both lengths in sequence:
+
+| requested | length_bases | label | outcome |
+|---|---|---|---|
+| `--length 15` | 15 | `matched_15nt_adaptation` | **3 complete_diagnostic_only**, 45 missing |
+| `--length 18` | 18 | `matched_18nt_adaptation` | **3 invalid**, 45 missing |
+
+The same three cells are complete under their own contract and rejected under
+the other — which is exactly the discrimination that was impossible before.
+
+Tests: 17 cases in `tests/test_native_protocol.py`, plus the driver contracts
+re-run at **all four lengths in one process** and a case pinning that an 18-base
+extraction is rejected by a 15-base contract, accepted by an 18-base one, and
+still rejected by the 15-base one afterwards — no shared state moved. The
+`driver18` aliases are renamed `shared_driver` / `shared_aggregate` /
+`shared_matrix`, and the 24-base bio-validation case passes `protocol=24`
+directly instead of patching a global the 15- and 18-base paths also read.
+
+**517 tests pass, 0 fail** — the native suites are green and Phase 1 is closed.
+
 ### Verdict
 
 - 15-base main table: **historical diagnostic only** until the audit's
   acceptance checklist passes.
-- Tests written before implementation, as the audit asks. **460 pass** with
-  the native suites deselected; the 18 remaining failures are all F18
-  (length-specific native protocol separation), the last open Phase 1 item.
+- Tests written before implementation, as the audit asks. **517 pass, 0 fail**
+  across the whole suite, native included. Phase 1 (F01, D2, F07, F08, F06,
+  F09, F12, F15, F18) is complete; F05 (CIMON source fidelity) remains open and
+  Phase 2 is next.
 - Decisions recorded in `docs/PROTOCOL_DECISIONS_2026-08-13.md` (D1-D5).
 
 ---

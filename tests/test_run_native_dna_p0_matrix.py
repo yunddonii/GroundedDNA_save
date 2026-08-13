@@ -11,6 +11,7 @@ import unittest
 from unittest import mock
 import uuid
 
+from dna_utils.native_protocol import resolve_native_protocol
 from scripts.run_native_dna_p0 import (
     SOURCE_PROFILES,
     SOURCE_REPRODUCTION_AUDIT,
@@ -126,7 +127,7 @@ def _completed_fixture(
         "dataset": job.dataset,
         "setting": "setting1",
         "seed": job.seed,
-        "matched_length_bases": 18,
+        "matched_length_bases": PROTOCOL.length_bases,
         "val_split_ratio": 0.1,
         "val_split_seed": 42,
         "selection_metric": "val_neural_raw_mAP_at_R",
@@ -170,8 +171,8 @@ def _completed_fixture(
     evaluation = {
         "method": job.method,
         "dataset": job.dataset,
-        "length": 18,
-        "protocol": "matched_18nt_adaptation",
+        "length": PROTOCOL.length_bases,
+        "protocol": PROTOCOL.protocol_label,
         "supervision": (
             "ground-truth labels"
             if job.method.startswith("koike")
@@ -202,8 +203,8 @@ def _completed_fixture(
         "dataset": job.dataset,
         "setting": "setting1",
         "seed": job.seed,
-        "length": 18,
-        "base_length": 18,
+        "length": PROTOCOL.length_bases,
+        "base_length": PROTOCOL.length_bases,
         "best_epoch_zero_based": 9,
         "refit_epochs": 10,
         "run_manifest_phase": "completed",
@@ -332,6 +333,12 @@ class NativeDNAMatrixStaticContractTest(unittest.TestCase):
                 )
 
 
+# F18: these fixtures are 18-base cells, which is what the historical native
+# matrix ran. Saying so explicitly is what lets them be validated in a process
+# configured for the paper's 15 bases.
+PROTOCOL = resolve_native_protocol(18)
+
+
 class NativeDNAMatrixResumeTest(unittest.TestCase):
     def test_valid_completed_manifest_is_skipped(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -343,6 +350,7 @@ class NativeDNAMatrixResumeTest(unittest.TestCase):
                 [job],
                 allow_diagnostic=False,
                 expected_protocols=_expected_protocols(manifest),
+                protocol=PROTOCOL,
             )
             self.assertEqual(completed, {job.key: manifest.resolve()})
 
@@ -354,7 +362,7 @@ class NativeDNAMatrixResumeTest(unittest.TestCase):
             with self.assertRaisesRegex(
                 MatrixStateError, "incomplete existing cell"
             ):
-                _completed_cells(root, [job], allow_diagnostic=False)
+                _completed_cells(root, [job], allow_diagnostic=False, protocol=PROTOCOL)
 
     def test_diagnostic_completion_requires_explicit_opt_in(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -372,12 +380,14 @@ class NativeDNAMatrixResumeTest(unittest.TestCase):
                     [job],
                     allow_diagnostic=False,
                     expected_protocols=_expected_protocols(manifest),
+                    protocol=PROTOCOL,
                 )
             completed = _completed_cells(
                 root,
                 [job],
                 allow_diagnostic=True,
                 expected_protocols=_expected_protocols(manifest),
+                protocol=PROTOCOL,
             )
             self.assertEqual(completed[job.key], manifest.resolve())
 

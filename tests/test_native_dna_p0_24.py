@@ -6,9 +6,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from scripts import aggregate_native_dna_p0 as aggregate18
-from scripts import run_native_dna_p0 as driver18
-from scripts import run_native_dna_p0_matrix as matrix18
+# F18: these are the LENGTH-PARAMETERISED shared modules, not 18-base ones.
+# The old aliases (`aggregate18`, `driver18`, `matrix18`) asserted a seal at
+# 18 that never existed -- the length came from the environment, so the
+# assertion broke the moment the paper moved to 15 bases.
+from scripts import aggregate_native_dna_p0 as shared_aggregate
+from scripts import run_native_dna_p0 as shared_driver
+from scripts import run_native_dna_p0_matrix as shared_matrix
 from scripts.aggregate_native_dna_p0_24 import (
     COMMON_BIO_PROJECTION,
     Key,
@@ -83,7 +87,7 @@ def _stage_contract() -> dict[str, object]:
 
 
 def _source_audit(method: str) -> dict[str, object]:
-    audit = copy.deepcopy(driver18.SOURCE_REPRODUCTION_AUDIT[method])
+    audit = copy.deepcopy(shared_driver.SOURCE_REPRODUCTION_AUDIT[method])
     if method == "bee2021":
         audit["declared_adaptation"] = (
             "The official 80-nt yield predictor is frozen and transferred to "
@@ -141,8 +145,10 @@ def test_24_command_is_isolated_from_the_sealed_18_base_driver(tmp_path):
     assert command[command.index("--length") + 1] == "24"
     assert command[command.index("--gc_min") + 1] == "0.4"
     assert command[command.index("--gc_max") + 1] == "0.6"
-    assert driver18.MATCHED_LENGTH == 18
-    assert driver18._training_command is not _training_command
+    # The sealed 24-base driver must be a DIFFERENT object from the shared one,
+    # and the shared one must not have been dragged to 24 by importing this.
+    assert shared_driver._training_command is not _training_command
+    assert shared_driver.MATCHED_LENGTH != MATCHED_LENGTH == 24
 
 
 def test_protocol_identity_binds_exact_gc_counts_and_primo_transfer(tmp_path):
@@ -182,7 +188,7 @@ def test_protocol_identity_binds_exact_gc_counts_and_primo_transfer(tmp_path):
         identity, sort_keys=True, separators=(",", ":"), ensure_ascii=True
     ).encode("ascii")
     assert digest == hashlib.sha256(canonical).hexdigest()
-    assert driver18.MATCHED_LENGTH == 18
+    assert shared_driver.MATCHED_LENGTH != MATCHED_LENGTH == 24
 
 
 def test_terminal_metadata_relabel_is_exact_and_refuses_unexpected_input():
@@ -220,12 +226,17 @@ def test_24_base_bio_validation_means_gc_10_to_14_and_run_at_most_three():
     invalid_15[0, 1] = 1
     invalid_run = valid_10.copy()
     invalid_run[0, :4] = 0
-    with configured_canonical_driver():
-        assert driver18._valid_bio_codes(valid_10).tolist() == [True]
-        assert driver18._valid_bio_codes(invalid_9).tolist() == [False]
-        assert driver18._valid_bio_codes(valid_14).tolist() == [True]
-        assert driver18._valid_bio_codes(invalid_15).tolist() == [False]
-        assert driver18._valid_bio_codes(invalid_run).tolist() == [False]
+    # F18: the 24-base window is passed in, not patched into a global that the
+    # 15- and 18-base paths also read.
+    check = shared_driver._valid_bio_codes
+    assert check(valid_10, protocol=24).tolist() == [True]
+    assert check(invalid_9, protocol=24).tolist() == [False]
+    assert check(valid_14, protocol=24).tolist() == [True]
+    assert check(invalid_15, protocol=24).tolist() == [False]
+    assert check(invalid_run, protocol=24).tolist() == [False]
+    # ...and the same codes are NOT valid under the paper's 15-base window,
+    # which is the contamination this replaces.
+    assert check(valid_10, protocol=15).tolist() == [False]
     projected = project_codes_memoized(
         np.zeros((1, 24), dtype=np.int8), 0.4, 0.6, 3
     )
@@ -265,7 +276,7 @@ def _manifest_fixture(root: Path, method: str = "bee2018") -> Path:
         evaluation["method_variant"] = "frozen_predictor_length_transfer"
     evaluation_path = root / "evaluation_native_dna.json"
     evaluation_sha = _json(evaluation_path, evaluation)
-    horizon = int(driver18.SOURCE_PROFILES[method]["horizon"])
+    horizon = int(shared_driver.SOURCE_PROFILES[method]["horizon"])
     implementation = {
         relative: {
             "path": f"/sealed/{relative}",
@@ -301,7 +312,7 @@ def _manifest_fixture(root: Path, method: str = "bee2018") -> Path:
         "val_split_seed": 42,
         "selection_metric": "val_neural_raw_mAP_at_R",
         "selection_distance": "base_hamming",
-        "source_profile": copy.deepcopy(driver18.SOURCE_PROFILES[method]),
+        "source_profile": copy.deepcopy(shared_driver.SOURCE_PROFILES[method]),
         "source_reproduction_audit": _source_audit(method),
         "candidate_eval_period": 5,
         "candidate_epochs_zero_based": list(range(4, horizon, 5)),
@@ -344,7 +355,7 @@ def _manifest_fixture(root: Path, method: str = "bee2018") -> Path:
         "pipeline_variant": PIPELINE_VARIANT,
         "common_dp_gc_count_range": [10, 14],
         "test_used_for_selection": False,
-        "test_access_contract": dict(aggregate18.TEST_ACCESS_CONTRACT),
+        "test_access_contract": dict(shared_aggregate.TEST_ACCESS_CONTRACT),
         "best_epoch_zero_based": 9,
         "refit_epochs": 10,
         "run_manifest_phase": "completed",
@@ -458,7 +469,7 @@ def test_24_stable_protocol_mutations_fail_after_digest_recompute(
         identity["execution"]["extract_batch_size"] = 256
     elif mutation == "pipeline_variant":
         identity["pipeline_variant"] = "forged-24-v1"
-    manifest["protocol_digest_sha256"] = aggregate18._canonical_digest(identity)
+    manifest["protocol_digest_sha256"] = shared_aggregate._canonical_digest(identity)
     _json(manifest_path, manifest)
     record = _validate_manifest(
         manifest_path, Key("bee2018", "Flickr25k", 42)
@@ -490,7 +501,7 @@ def test_24_primo_lock_pins_predictor_and_transfer(tmp_path, mutation):
         identity["primo_frozen_predictor_length_transfer"][
             "target_length_bases"
         ] = 23
-    manifest["protocol_digest_sha256"] = aggregate18._canonical_digest(identity)
+    manifest["protocol_digest_sha256"] = shared_aggregate._canonical_digest(identity)
     _json(manifest_path, manifest)
     record = _validate_manifest(
         manifest_path, Key("bee2021", "Flickr25k", 42)
@@ -506,7 +517,7 @@ def test_24_matrix_has_48_cells_and_rejects_a_mixed_18_base_root(
     tmp_path, monkeypatch
 ):
     with configured_canonical_driver(), configured_canonical_matrix():
-        jobs = matrix18._jobs(
+        jobs = shared_matrix._jobs(
             DEFAULT_METHODS, DEFAULT_DATASETS, DEFAULT_SEEDS
         )
         assert len(jobs) == 48

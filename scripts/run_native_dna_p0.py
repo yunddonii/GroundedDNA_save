@@ -52,7 +52,15 @@ PAPER_SEEDS = (42, 43, 44)
 # var rather than a flag because the constant is read at module scope by both
 # this file and the matrix launcher, before argparse runs, and the two MUST
 # agree or the matrix gate rejects every cell for base_length mismatch.
-MATCHED_LENGTH = int(os.environ.get("GDNA_NATIVE_DNA_BASES", "15"))
+# F18: the length is a property of the ARTEFACT, not of this process. The
+# module constant stays as the CLI default, but every validator takes a
+# protocol argument so an 18-base manifest can be checked in a process
+# configured for 15 -- which is what 18 native cases were failing on.
+from dna_utils.native_protocol import (  # noqa: E402
+    NativeProtocol, coerce_protocol, resolve_native_protocol)
+
+DEFAULT_PROTOCOL = resolve_native_protocol()
+MATCHED_LENGTH = DEFAULT_PROTOCOL.length_bases
 VAL_RATIO = 0.1
 VAL_SEED = 42
 EVAL_PERIOD = 5
@@ -579,12 +587,14 @@ def _verify_common_config(
     predictor: Path | None,
     save_train_extract: bool,
     save_soft_probs: bool,
+    protocol: "NativeProtocol | int | None" = None,
 ) -> None:
+    protocol = coerce_protocol(protocol)
     expected = {
         "method": method,
         "dataset": dataset,
         "setting": setting,
-        "length": MATCHED_LENGTH,
+        "length": protocol.length_bases,
         "seed": seed,
         "epochs": epochs,
         "eval_period": eval_period,
@@ -593,7 +603,7 @@ def _verify_common_config(
         "selection_metric": "neural_raw",
         "gc_min": GC_MIN,
         "gc_max": GC_MAX,
-        "max_run": MAX_RUN,
+        "max_run": protocol.max_homopolymer_run,
         "map_at_r": MAP_AT_R[dataset],
         "weights": None,
         "allow_nonempty_out": False,
@@ -676,7 +686,9 @@ def _verify_selection(
     cache_dir: Path,
     dataset_root: Path,
     predictor: Path | None,
+    protocol: "NativeProtocol | int | None" = None,
 ) -> dict[str, Any]:
+    protocol = coerce_protocol(protocol)
     """Verify trainer-produced E* and bind every candidate checkpoint."""
     horizon = int(SOURCE_PROFILES[method]["horizon"])
     config_path = stage1_dir / "config.json"
@@ -699,6 +711,7 @@ def _verify_selection(
         predictor=predictor,
         save_train_extract=False,
         save_soft_probs=False,
+        protocol=protocol,
     )
     split = _load_json(split_path, "stage1 validation split")
     _verify_split(split)
@@ -782,7 +795,10 @@ def _verify_selection(
     }
 
 
-def _base_codes_from_npz(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def _base_codes_from_npz(
+    path: Path, *, protocol: "NativeProtocol | int | None" = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    protocol = coerce_protocol(protocol)
     _require_file(path, "extraction artifact")
     with np.load(path, allow_pickle=False) as payload:
         required = ("base_indices", "multi_hot_labels", "image_paths")
@@ -792,8 +808,10 @@ def _base_codes_from_npz(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray
         codes = np.asarray(payload["base_indices"])
         labels = np.asarray(payload["multi_hot_labels"])
         paths = np.asarray(payload["image_paths"])
-    if codes.ndim != 2 or codes.shape[1] != MATCHED_LENGTH:
-        raise ValueError(f"{path} has invalid base-code shape {codes.shape}")
+    if codes.ndim != 2 or codes.shape[1] != protocol.length_bases:
+        raise ValueError(
+            f"{path} has invalid base-code shape {codes.shape}; expected "
+            f"{protocol.length_bases} bases ({protocol.protocol_label})")
     if codes.shape[0] == 0:
         raise ValueError(f"{path} contains no extracted rows")
     if (
@@ -809,17 +827,23 @@ def _base_codes_from_npz(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray
     return codes.astype(np.int8, copy=False), labels, paths
 
 
-def _valid_bio_codes(codes: np.ndarray) -> np.ndarray:
+def _valid_bio_codes(
+    codes: np.ndarray, *, protocol: "NativeProtocol | int | None" = None,
+) -> np.ndarray:
+    # F07/F18: counts come from the one central policy, keyed by the protocol's
+    # own length rather than by whatever this process was configured for.
+    protocol = coerce_protocol(protocol)
     gc_count = ((codes == 1) | (codes == 2)).sum(axis=1)
-    lower = math.ceil(GC_MIN * MATCHED_LENGTH)
-    upper = math.floor(GC_MAX * MATCHED_LENGTH)
+    lower = protocol.gc_min_count
+    upper = protocol.gc_max_count
+    max_run = protocol.max_homopolymer_run
     valid = (gc_count >= lower) & (gc_count <= upper)
     for row_index, row in enumerate(codes):
         run = longest = 1
         for position in range(1, len(row)):
             run = run + 1 if row[position] == row[position - 1] else 1
             longest = max(longest, run)
-        if longest > MAX_RUN:
+        if longest > max_run:
             valid[row_index] = False
     return valid
 
@@ -871,7 +895,9 @@ def _verify_aligned_extractions(
     expected_counts: Mapping[str, int] | None = None,
     evaluation_counts: Mapping[str, int] | None = None,
     cache_cardinality: int | None = None,
+    protocol: "NativeProtocol | int | None" = None,
 ) -> dict[str, dict[str, Any]]:
+    protocol = coerce_protocol(protocol)
     from baseline.native_dna import project_codes_memoized
 
     paths_by_split: dict[str, np.ndarray] = {}
@@ -880,12 +906,12 @@ def _verify_aligned_extractions(
         raw_path = refit_dir / f"extract_{split}_neural_raw.npz"
         deployment_path = refit_dir / f"extract_{split}.npz"
         projected_path = refit_dir / f"extract_{split}_bioproj.npz"
-        raw_codes, raw_labels, raw_paths = _base_codes_from_npz(raw_path)
+        raw_codes, raw_labels, raw_paths = _base_codes_from_npz(raw_path, protocol=protocol)
         deployment_codes, deployment_labels, deployment_paths = _base_codes_from_npz(
-            deployment_path
+            deployment_path, protocol=protocol
         )
         projected_codes, projected_labels, projected_paths = _base_codes_from_npz(
-            projected_path
+            projected_path, protocol=protocol
         )
         if not (
             np.array_equal(raw_labels, deployment_labels)
@@ -918,7 +944,7 @@ def _verify_aligned_extractions(
             raise ValueError(
                 f"{split} deployment differs from neural raw outside TCBB"
             )
-        if not _valid_bio_codes(projected_codes).all():
+        if not _valid_bio_codes(projected_codes, protocol=protocol).all():
             raise ValueError(f"{split} projected extraction is not 100% compliant")
         recomputed = project_codes_memoized(
             deployment_codes,
@@ -951,7 +977,7 @@ def _verify_aligned_extractions(
                 )
 
     train_path = refit_dir / "extract_train.npz"
-    train_codes, _, train_paths = _base_codes_from_npz(train_path)
+    train_codes, _, train_paths = _base_codes_from_npz(train_path, protocol=protocol)
     with np.load(train_path, allow_pickle=False) as payload:
         if "neural_raw_base_indices" not in payload:
             raise ValueError(
@@ -1052,7 +1078,9 @@ def _verify_refit(
     dataset_root: Path,
     predictor: Path | None,
     best_epoch: int,
+    protocol: "NativeProtocol | int | None" = None,
 ) -> dict[str, Any]:
+    protocol = coerce_protocol(protocol)
     refit_epochs = best_epoch + 1
     config_path = refit_dir / "config.json"
     config = _load_json(config_path, "refit config")
@@ -1072,6 +1100,7 @@ def _verify_refit(
         predictor=predictor,
         save_train_extract=True,
         save_soft_probs=True,
+        protocol=protocol,
     )
     if (refit_dir / "selection.json").exists() or (
         refit_dir / "val_split.json"
@@ -1092,7 +1121,7 @@ def _verify_refit(
     for key, expected in (
         ("method", method),
         ("dataset", dataset),
-        ("length", MATCHED_LENGTH),
+        ("length", protocol.length_bases),
     ):
         if evaluation.get(key) != expected:
             raise ValueError(

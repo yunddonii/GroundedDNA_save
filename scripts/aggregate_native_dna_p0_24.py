@@ -32,6 +32,13 @@ from scripts.run_native_dna_p0_24 import (  # noqa: E402
 )
 
 
+from dna_utils.native_protocol import (  # noqa: E402
+    NativeProtocol, coerce_protocol, resolve_native_protocol)
+
+# F18: the sealed 24-base contract, as a value. The canonical validators now
+# take it as an argument, so this module no longer has to relabel a 24-base
+# evaluation as 18 to get past a length check that was pinned at import time.
+PROTOCOL = resolve_native_protocol(MATCHED_LENGTH)
 LENGTH = MATCHED_LENGTH
 DEFAULT_SEEDS = canonical.DEFAULT_SEEDS
 DATASETS = canonical.DATASETS
@@ -53,12 +60,9 @@ COMMON_BIO_PROJECTION = {
 }
 DISPLAY = dict(canonical.DISPLAY)
 DISPLAY["bee2021"] = "PRIMO-24 frozen-predictor length-transfer"
-METHOD_PROTOCOL_LOCK_SHA256 = {
-    "bee2018": "f368fe4f366e61d1bea8dce1117cf9a191abb2312bd19bd7359e6a8e6e30186d",
-    "bee2021": "79d5fb8afe255f71c730799eae946501a51f214b70be7beaf6739ca8d4318e7b",
-    "koike2024": "4196f4dfdb287bb2ad95d2b83755f66bdb1254a486cdf2a71aacc976809fac58",
-    "koike2026": "30403cd4b4ed4e4895f3a9db94f3a1ed05f0123d2ea32c34467c9cf6b49b569a",
-}
+# F18: one table, keyed by length, so this module and the canonical one cannot
+# drift. The digests are unchanged; they now live beside 15 and 18.
+METHOD_PROTOCOL_LOCK_SHA256 = canonical.method_protocol_lock_for(PROTOCOL)
 
 _ORIGINAL_VALIDATE_EVALUATION = canonical._validate_evaluation
 _ORIGINAL_VALIDATE_PROTOCOL = canonical._validate_protocol_identity
@@ -74,7 +78,9 @@ def _validate_evaluation_24(
     evaluation: Mapping[str, object],
     key: Key,
     errors: list[str],
+    protocol: "NativeProtocol | int | None" = None,
 ):
+    protocol = PROTOCOL if protocol is None else coerce_protocol(protocol)
     if evaluation.get("protocol") != PROTOCOL_LABEL:
         errors.append(
             f"evaluation.protocol: expected {PROTOCOL_LABEL!r}, "
@@ -93,17 +99,21 @@ def _validate_evaluation_24(
             "evaluation.common_dp_gc_count_range: expected "
             f"[{GC_COUNT_MIN}, {GC_COUNT_MAX}]"
         )
-    normalized = dict(evaluation)
-    normalized["protocol"] = "matched_18nt_adaptation"
-    return _ORIGINAL_VALIDATE_EVALUATION(normalized, key, errors)
+    # Previously this rewrote `protocol` to `matched_18nt_adaptation` so the
+    # canonical validator -- whose label was fixed at import -- would accept a
+    # 24-base evaluation. It now judges the artefact as what it is.
+    return _ORIGINAL_VALIDATE_EVALUATION(evaluation, key, errors, protocol)
 
 
 def _validate_protocol_identity_24(
     manifest: Mapping[str, object],
     key: Key,
     errors: list[str],
+    protocol: "NativeProtocol | int | None" = None,
 ):
-    declared, family = _ORIGINAL_VALIDATE_PROTOCOL(manifest, key, errors)
+    protocol = PROTOCOL if protocol is None else coerce_protocol(protocol)
+    declared, family = _ORIGINAL_VALIDATE_PROTOCOL(
+        manifest, key, errors, protocol)
     identity = _mapping(manifest.get("protocol_identity"))
     if identity is None:
         return declared, family
@@ -138,9 +148,11 @@ def _validate_manifest_24_impl(
     key: Key,
     *,
     verify_hashes: bool = True,
+    protocol: "NativeProtocol | int | None" = None,
 ) -> dict[str, object]:
+    protocol = PROTOCOL if protocol is None else coerce_protocol(protocol)
     record = _ORIGINAL_VALIDATE_MANIFEST(
-        path, key, verify_hashes=verify_hashes
+        path, key, verify_hashes=verify_hashes, protocol=protocol
     )
     errors = record.get("validation_errors")
     if not isinstance(errors, list):

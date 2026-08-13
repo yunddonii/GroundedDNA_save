@@ -4,7 +4,9 @@ import unittest
 from pathlib import Path
 
 import numpy as np
+import pytest
 
+from dna_utils.native_protocol import resolve_native_protocol
 from scripts.run_native_dna_p0 import (
     DEFAULT_CACHE,
     EVAL_PERIOD,
@@ -14,13 +16,24 @@ from scripts.run_native_dna_p0 import (
     SOURCE_REPRODUCTION_AUDIT,
     STRICT_CACHE_BLOCKER,
     _audit_cache,
+    _base_codes_from_npz,
     _expected_split_cardinalities,
     _manifest,
+    _valid_bio_codes,
     _require_complete_post_compliance,
     _training_command,
     _verify_aligned_extractions,
     _verify_selection,
 )
+
+
+# F18: fixtures state the length they mean. These used to hard-code 18 while the
+# driver read its length from the environment, so they broke the moment the
+# paper moved to 15 -- and could not be run at both lengths at all.
+def _alternating(pair, protocol):
+    """A code of `protocol.length_bases` bases, GC-balanced and run-free."""
+    length = protocol.length_bases
+    return (list(pair) * ((length + 1) // 2))[:length]
 
 
 def _option(command, name):
@@ -168,13 +181,14 @@ def test_cache_audit_hashes_only_three_consumed_inputs_and_blocks_legacy(tmp_pat
     assert audit["strict_provenance_complete"] is False
 
 
-def _stage1_fixture(root: Path):
+def _stage1_fixture(root: Path, protocol=None):
+    protocol = protocol or resolve_native_protocol()
     root.mkdir()
     config = {
         "method": "koike2024",
         "dataset": "Flickr25k",
         "setting": "setting1",
-        "length": 18,
+        "length": protocol.length_bases,
         "seed": 42,
         "epochs": 150,
         "eval_period": 5,
@@ -183,7 +197,7 @@ def _stage1_fixture(root: Path):
         "selection_metric": "neural_raw",
         "gc_min": 0.4,
         "gc_max": 0.6,
-        "max_run": 3,
+        "max_run": protocol.max_homopolymer_run,
         "map_at_r": 5000,
         "weights": None,
         "allow_nonempty_out": False,
@@ -243,11 +257,14 @@ def _stage1_fixture(root: Path):
     )
 
 
-def test_selection_verification_recomputes_earliest_raw_argmax_and_binds_set():
+def test_selection_verification_recomputes_earliest_raw_argmax_and_binds_set(
+    length=None,
+):
+    protocol = resolve_native_protocol(length)
     with tempfile.TemporaryDirectory() as directory:
         root = Path(directory)
         stage1 = root / "stage1"
-        _stage1_fixture(stage1)
+        _stage1_fixture(stage1, protocol)
         audit = _verify_selection(
             stage1,
             method="koike2024",
@@ -257,6 +274,7 @@ def test_selection_verification_recomputes_earliest_raw_argmax_and_binds_set():
             cache_dir=root / "cache",
             dataset_root=root / "dataset",
             predictor=None,
+            protocol=protocol,
         )
         assert audit["best_epoch_zero_based"] == 9
         assert audit["refit_epochs"] == 10
@@ -275,6 +293,7 @@ def test_selection_verification_recomputes_earliest_raw_argmax_and_binds_set():
                 cache_dir=root / "cache",
                 dataset_root=root / "dataset",
                 predictor=None,
+                protocol=protocol,
             )
 
 
@@ -297,13 +316,16 @@ def test_post_compliance_is_fail_closed():
         _require_complete_post_compliance(invalid)
 
 
-def test_saved_terminal_extractions_are_aligned_and_bio_valid(tmp_path):
+def test_saved_terminal_extractions_are_aligned_and_bio_valid(
+    tmp_path, length=None,
+):
+    protocol = resolve_native_protocol(length)
     labels = np.array([[1, 0], [0, 1]], dtype=np.int64)
     paths = np.array(["first", "second"])
     valid = np.array(
         [
-            [0, 1] * 9,
-            [3, 2] * 9,
+            _alternating((0, 1), protocol),
+            _alternating((3, 2), protocol),
         ],
         dtype=np.int64,
     )
@@ -347,6 +369,7 @@ def test_saved_terminal_extractions_are_aligned_and_bio_valid(tmp_path):
         expected_counts={"query": 1, "database": 2, "train": 2},
         evaluation_counts={"query": 1, "database": 2},
         cache_cardinality=2,
+        protocol=protocol,
     )
     assert len(artifacts) == 7
     assert all(len(record["sha256"]) == 64 for record in artifacts.values())
@@ -356,6 +379,7 @@ def test_saved_terminal_extractions_are_aligned_and_bio_valid(tmp_path):
     ):
         _verify_aligned_extractions(
             tmp_path,
+            protocol=protocol,
             method="koike2024",
             expected_counts={"query": 1, "database": 2, "train": 2},
             evaluation_counts={"query": 2, "database": 2},
@@ -366,13 +390,15 @@ def test_saved_terminal_extractions_are_aligned_and_bio_valid(tmp_path):
     ):
         _verify_aligned_extractions(
             tmp_path,
+            protocol=protocol,
             method="koike2024",
             expected_counts={"query": 1, "database": 2, "train": 2},
             evaluation_counts={"query": 1, "database": 2},
             cache_cardinality=3,
         )
 
-    alternative_valid = np.array([[0, 2] * 9], dtype=np.int64)
+    alternative_valid = np.array(
+        [_alternating((0, 2), protocol)], dtype=np.int64)
     np.savez(
         tmp_path / "extract_query_bioproj.npz",
         base_indices=alternative_valid,
@@ -380,16 +406,18 @@ def test_saved_terminal_extractions_are_aligned_and_bio_valid(tmp_path):
         image_paths=paths[:1],
     )
     with unittest.TestCase().assertRaisesRegex(ValueError, "exact common-DP"):
-        _verify_aligned_extractions(tmp_path, method="koike2024")
+        _verify_aligned_extractions(
+            tmp_path, method="koike2024", protocol=protocol)
 
     np.savez(
         tmp_path / "extract_query_bioproj.npz",
-        base_indices=np.zeros((1, 18), dtype=np.int64),
+        base_indices=np.zeros((1, protocol.length_bases), dtype=np.int64),
         multi_hot_labels=labels[:1],
         image_paths=paths[:1],
     )
     with unittest.TestCase().assertRaisesRegex(ValueError, "100% compliant"):
-        _verify_aligned_extractions(tmp_path, method="koike2024")
+        _verify_aligned_extractions(
+            tmp_path, method="koike2024", protocol=protocol)
 
 
 def test_expected_split_cardinalities_are_derived_without_loading_test_data(
@@ -522,3 +550,54 @@ class NativeP0DriverTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# F18: the same two contracts, exercised at every declared length in ONE
+# process. Before the protocol object these could only run at whatever
+# `GDNA_NATIVE_DNA_BASES` said, so an 18-base fixture failed outright with
+# `length: expected 15, found 18` once the paper moved to 15 bases.
+@pytest.mark.parametrize("length", (15, 18, 20, 24))
+def test_extraction_contract_holds_at_every_declared_length(tmp_path, length):
+    test_saved_terminal_extractions_are_aligned_and_bio_valid(
+        tmp_path, length=length)
+
+
+@pytest.mark.parametrize("length", (15, 18, 20, 24))
+def test_selection_contract_holds_at_every_declared_length(length):
+    test_selection_verification_recomputes_earliest_raw_argmax_and_binds_set(
+        length=length)
+
+
+def test_lengths_do_not_contaminate_each_other(tmp_path):
+    """An 18-base extraction is rejected by a 15-base contract and accepted by
+    an 18-base one, in the same process and in either order. Before F18 the
+    length came from the environment, so only one of the two could ever run."""
+    fifteen = resolve_native_protocol(15)
+    eighteen = resolve_native_protocol(18)
+    path = tmp_path / "extract_query_neural_raw.npz"
+    np.savez(
+        path,
+        base_indices=np.array(
+            [_alternating((0, 1), eighteen)], dtype=np.int64),
+        multi_hot_labels=np.array([[1, 0]], dtype=np.int64),
+        image_paths=np.array(["first"]),
+    )
+    with pytest.raises(ValueError, match="invalid base-code shape"):
+        _base_codes_from_npz(path, protocol=fifteen)
+    codes, _, _ = _base_codes_from_npz(path, protocol=eighteen)
+    assert codes.shape == (1, 18)
+    # ...and the 15-base contract still rejects it afterwards: neither call
+    # mutated shared state.
+    with pytest.raises(ValueError, match="invalid base-code shape"):
+        _base_codes_from_npz(path, protocol=fifteen)
+
+
+def test_gc_window_follows_the_protocol_not_the_process(tmp_path):
+    """A code with 9 GC bases is compliant at 18 (window [8, 10]) and NOT at 15
+    (window [6, 9] applied to a 15-base code). The validator must read the
+    window from the protocol it was handed."""
+    eighteen = resolve_native_protocol(18)
+    codes = np.array([_alternating((0, 1), eighteen)], dtype=np.int64)
+    assert _valid_bio_codes(codes, protocol=eighteen).all()
+    all_a = np.zeros((1, eighteen.length_bases), dtype=np.int64)
+    assert not _valid_bio_codes(all_a, protocol=eighteen).any()

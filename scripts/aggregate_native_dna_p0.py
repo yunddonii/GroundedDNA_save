@@ -47,9 +47,22 @@ import os
 from pathlib import Path
 import re
 import statistics
+import sys
 from typing import Iterable, Mapping, Sequence
 
-_PROTOCOL_LABEL = f"matched_{int(os.environ.get('GDNA_NATIVE_DNA_BASES', '15'))}nt_adaptation"
+# Run directly as `python scripts/aggregate_native_dna_p0.py`, which puts
+# scripts/ on the path rather than the repo root.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+# F18: the length belongs to the MANIFEST being validated, not to this
+# process. These module constants remain the CLI default; every validator below
+# takes a protocol argument so an 18-base cell can be judged in a process
+# configured for 15 instead of failing with "expected 15, found 18".
+from dna_utils.native_protocol import (  # noqa: E402
+    NativeProtocol, coerce_protocol, resolve_native_protocol)
+
+DEFAULT_PROTOCOL = resolve_native_protocol()
+_PROTOCOL_LABEL = DEFAULT_PROTOCOL.protocol_label
 
 
 
@@ -59,7 +72,7 @@ DATASETS = ("Flickr25k", "MSCOCO", "NUSWIDE", "CIFAR10")
 DEFAULT_SEEDS = (42, 43, 44)
 # 18 was the 6-slot / 36-bit budget; the paper is 15 bases since 2026-08-11.
 # Must agree with run_native_dna_p0{,_matrix}.py or every cell is rejected.
-LENGTH = int(os.environ.get('GDNA_NATIVE_DNA_BASES', '15'))
+LENGTH = DEFAULT_PROTOCOL.length_bases
 MAP_AT_R = {
     "Flickr25k": 5000,
     "MSCOCO": 5000,
@@ -150,6 +163,16 @@ _METHOD_PROTOCOL_LOCK_BY_LENGTH = {
         "koike2024": "6eac8ca3171ee0b6578db0ff306495019414b979ac2e501af19519d0d3a57831",
         "koike2026": "2f2d00441c141d320ee59980be3679043a566657d3d4214a24046710ae1241f6",
     },
+    # F18: the sealed 24-base locks, previously reachable only by patching this
+    # module's globals from `aggregate_native_dna_p0_24`. Registering them by
+    # length is what lets a 24-base manifest be judged without mutating state
+    # the 15- and 18-base paths read.
+    24: {
+        "bee2018": "f368fe4f366e61d1bea8dce1117cf9a191abb2312bd19bd7359e6a8e6e30186d",
+        "bee2021": "79d5fb8afe255f71c730799eae946501a51f214b70be7beaf6739ca8d4318e7b",
+        "koike2024": "4196f4dfdb287bb2ad95d2b83755f66bdb1254a486cdf2a71aacc976809fac58",
+        "koike2026": "30403cd4b4ed4e4895f3a9db94f3a1ed05f0123d2ea32c34467c9cf6b49b569a",
+    },
 }
 if LENGTH not in _METHOD_PROTOCOL_LOCK_BY_LENGTH:
     raise SystemExit(
@@ -159,6 +182,20 @@ if LENGTH not in _METHOD_PROTOCOL_LOCK_BY_LENGTH:
         f"the digest rather than disabling the check."
     )
 METHOD_PROTOCOL_LOCK_SHA256 = _METHOD_PROTOCOL_LOCK_BY_LENGTH[LENGTH]
+
+
+def method_protocol_lock_for(protocol: "NativeProtocol | int | None") -> dict:
+    """The reviewed lock table for a length, without touching the module one."""
+    protocol = coerce_protocol(protocol)
+    try:
+        return _METHOD_PROTOCOL_LOCK_BY_LENGTH[protocol.length_bases]
+    except KeyError:
+        raise SystemExit(
+            f"no reviewed method-protocol lock registered for "
+            f"{protocol.length_bases} bases; known: "
+            f"{sorted(_METHOD_PROTOCOL_LOCK_BY_LENGTH)}. Run one cell, read its "
+            f"manifest, diff the identity against a known budget, and register "
+            f"the digest rather than disabling the check.") from None
 
 
 @dataclass(frozen=True, order=True)
@@ -302,9 +339,10 @@ def _validate_method_protocol_lock(
     identity: Mapping[str, object],
     key: "Key",
     errors: list[str],
+    protocol: "NativeProtocol | int | None" = None,
 ) -> str:
     actual = _method_protocol_lock_digest(identity)
-    expected = METHOD_PROTOCOL_LOCK_SHA256[key.method]
+    expected = method_protocol_lock_for(protocol)[key.method]
     if actual != expected:
         errors.append(
             "protocol_identity.method_protocol_lock_sha256: stable source/"
@@ -318,7 +356,9 @@ def _validate_protocol_identity(
     manifest: Mapping[str, object],
     key: "Key",
     errors: list[str],
+    protocol: "NativeProtocol | int | None" = None,
 ) -> tuple[str | None, str | None]:
+    protocol = coerce_protocol(protocol)
     identity = _mapping(manifest.get("protocol_identity"))
     declared_digest = manifest.get("protocol_digest_sha256")
     if identity is None:
@@ -345,7 +385,7 @@ def _validate_protocol_identity(
         "dataset": key.dataset,
         "setting": "setting1",
         "seed": key.seed,
-        "matched_length_bases": LENGTH,
+        "matched_length_bases": protocol.length_bases,
         "val_split_ratio": 0.1,
         "val_split_seed": 42,
         "selection_metric": "val_neural_raw_mAP_at_R",
@@ -400,7 +440,7 @@ def _validate_protocol_identity(
         errors.append(
             "protocol_identity.primo_predictor: must be null outside PRIMO"
         )
-    _validate_method_protocol_lock(identity, key, errors)
+    _validate_method_protocol_lock(identity, key, errors, protocol)
     return declared_digest, _protocol_family_digest(identity)
 
 
@@ -515,7 +555,9 @@ def _validate_evaluation(
     evaluation: Mapping[str, object],
     key: Key,
     errors: list[str],
+    protocol: "NativeProtocol | int | None" = None,
 ) -> dict[str, float | int | str | None]:
+    protocol = coerce_protocol(protocol)
     if evaluation.get("method") != key.method:
         errors.append(
             f"evaluation.method: expected {key.method!r}, "
@@ -526,13 +568,14 @@ def _validate_evaluation(
             f"evaluation.dataset: expected {key.dataset!r}, "
             f"found {evaluation.get('dataset')!r}"
         )
-    if evaluation.get("length") != LENGTH:
+    if evaluation.get("length") != protocol.length_bases:
         errors.append(
-            f"evaluation.length: expected {LENGTH}, found {evaluation.get('length')!r}"
+            f"evaluation.length: expected {protocol.length_bases}, "
+            f"found {evaluation.get('length')!r}"
         )
-    if evaluation.get("protocol") != _PROTOCOL_LABEL:
+    if evaluation.get("protocol") != protocol.protocol_label:
         errors.append(
-            f"evaluation.protocol: expected {_PROTOCOL_LABEL!r}, "
+            f"evaluation.protocol: expected {protocol.protocol_label!r}, "
             f"found {evaluation.get('protocol')!r}"
         )
     if evaluation.get("supervision") != SUPERVISION[key.method]:
@@ -618,7 +661,9 @@ def _validate_manifest(
     key: Key,
     *,
     verify_hashes: bool = True,
+    protocol: "NativeProtocol | int | None" = None,
 ) -> dict[str, object]:
+    protocol = coerce_protocol(protocol)
     errors: list[str] = []
     try:
         loaded = _load_json(path)
@@ -669,13 +714,15 @@ def _validate_manifest(
             "run_manifest_phase: expected 'completed', "
             f"found {manifest.get('run_manifest_phase')!r}"
         )
-    if manifest.get("length") != LENGTH:
+    if manifest.get("length") != protocol.length_bases:
         errors.append(
-            f"length: expected {LENGTH}, found {manifest.get('length')!r}"
+            f"length: expected {protocol.length_bases}, "
+            f"found {manifest.get('length')!r}"
         )
-    if manifest.get("base_length") != LENGTH:
+    if manifest.get("base_length") != protocol.length_bases:
         errors.append(
-            f"base_length: expected {LENGTH}, found {manifest.get('base_length')!r}"
+            f"base_length: expected {protocol.length_bases}, "
+            f"found {manifest.get('base_length')!r}"
         )
     if manifest.get("test_used_for_selection") is not False:
         errors.append("test_used_for_selection: expected false")
@@ -684,7 +731,7 @@ def _validate_manifest(
             "test_access_contract: does not match the sealed exact-once contract"
         )
     protocol_digest, protocol_family = _validate_protocol_identity(
-        manifest, key, errors
+        manifest, key, errors, protocol
     )
     protocol_identity = _mapping(manifest.get("protocol_identity"))
     method_protocol_lock = (
@@ -759,7 +806,7 @@ def _validate_manifest(
             if evaluation is None:
                 errors.append("evaluation_native_dna: root must be an object")
             else:
-                metrics = _validate_evaluation(evaluation, key, errors)
+                metrics = _validate_evaluation(evaluation, key, errors, protocol)
 
     if errors:
         status = "invalid"
@@ -921,7 +968,9 @@ def _resolve_records(
     seeds: Sequence[int],
     blocked_methods: Mapping[str, str],
     verify_hashes: bool,
+    protocol: "NativeProtocol | int | None" = None,
 ) -> dict[Key, dict[str, object]]:
+    protocol = coerce_protocol(protocol)
     records: dict[Key, dict[str, object]] = {}
     for key in _expected_keys(seeds):
         paths = list(candidates.get(key, ()))
@@ -937,7 +986,7 @@ def _resolve_records(
             )
         elif len(paths) == 1:
             records[key] = _validate_manifest(
-                paths[0], key, verify_hashes=verify_hashes
+                paths[0], key, verify_hashes=verify_hashes, protocol=protocol
             )
         elif key.method in blocked_methods:
             reason = blocked_methods[key.method]
@@ -1069,7 +1118,9 @@ def aggregate(
     seeds: Sequence[int] = DEFAULT_SEEDS,
     blocked_methods: Mapping[str, str] | None = None,
     verify_hashes: bool = True,
+    protocol: "NativeProtocol | int | None" = None,
 ) -> tuple[dict[str, object], dict[Key, dict[str, object]]]:
+    protocol = coerce_protocol(protocol)
     normalized_seeds = tuple(int(seed) for seed in seeds)
     if not normalized_seeds or len(set(normalized_seeds)) != len(normalized_seeds):
         raise ValueError("seeds must be a non-empty sequence of unique integers")
@@ -1083,6 +1134,7 @@ def aggregate(
         seeds=normalized_seeds,
         blocked_methods=blocked,
         verify_hashes=verify_hashes,
+        protocol=protocol,
     )
     strict = _all_aggregates(records, normalized_seeds, "strict_main")
     diagnostic = _all_aggregates(records, normalized_seeds, "diagnostic")
@@ -1103,12 +1155,13 @@ def aggregate(
         "manifest_name": MANIFEST_NAME,
         "roots": [str(path.expanduser().resolve()) for path in roots],
         "verify_hashes": bool(verify_hashes),
-        "length_bases": LENGTH,
+        "length_bases": protocol.length_bases,
+        "protocol_label": protocol.protocol_label,
         "datasets": list(DATASETS),
         "seeds": list(normalized_seeds),
         "panels": {panel: list(methods) for panel, methods in PANELS.items()},
         "display_names": DISPLAY,
-        "method_protocol_lock_sha256": dict(METHOD_PROTOCOL_LOCK_SHA256),
+        "method_protocol_lock_sha256": dict(method_protocol_lock_for(protocol)),
         "blocked_methods": blocked,
         "summary": {
             "expected_records": len(records),
@@ -1316,6 +1369,13 @@ def main() -> int:
     )
     parser.add_argument("--seeds", type=_parse_seeds, default=DEFAULT_SEEDS)
     parser.add_argument(
+        "--length", type=int, default=None,
+        help=(
+            "Matched DNA length in bases. Defaults to $GDNA_NATIVE_DNA_BASES, "
+            "then 15. Naming it here is how an 18-base result root is "
+            "aggregated without exporting an environment variable that also "
+            "reconfigures every other native script in the shell."))
+    parser.add_argument(
         "--blocked-method",
         action="append",
         default=[],
@@ -1346,6 +1406,7 @@ def main() -> int:
             seeds=args.seeds,
             blocked_methods=blocked,
             verify_hashes=True,
+            protocol=args.length,
         )
     except ValueError as error:
         parser.error(str(error))

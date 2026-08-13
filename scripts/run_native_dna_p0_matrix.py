@@ -55,7 +55,14 @@ DEFAULT_SEEDS = (42, 43, 44)
 # var rather than a flag because the constant is read at module scope by both
 # this file and the matrix launcher, before argparse runs, and the two MUST
 # agree or the matrix gate rejects every cell for base_length mismatch.
-MATCHED_LENGTH = int(os.environ.get("GDNA_NATIVE_DNA_BASES", "15"))
+# F18: the module constant is the launcher's own configured length, but the
+# manifest checker takes the protocol as an argument so a cell written at a
+# different length can be judged as such rather than reported as a mismatch.
+from dna_utils.native_protocol import (  # noqa: E402
+    NativeProtocol, coerce_protocol, resolve_native_protocol)
+
+DEFAULT_PROTOCOL = resolve_native_protocol()
+MATCHED_LENGTH = DEFAULT_PROTOCOL.length_bases
 SETTING = "setting1"
 MANIFEST_NAME = "native_p0_run_manifest.json"
 RUNNER = REPO / "scripts/run_native_dna_p0.py"
@@ -240,9 +247,12 @@ def _manifest_contract_errors(
     *,
     expected_identity: Mapping[str, object],
     expected_digest: str,
+    protocol: "NativeProtocol | int | None" = None,
 ) -> tuple[str, list[str]]:
     """Return aggregator status and launcher-specific contract errors."""
-    record = _validate_manifest(path, job.aggregate_key, verify_hashes=True)
+    protocol = coerce_protocol(protocol)
+    record = _validate_manifest(
+        path, job.aggregate_key, verify_hashes=True, protocol=protocol)
     status = str(record.get("status", "invalid"))
     errors = [
         str(item) for item in record.get("validation_errors", [])
@@ -262,8 +272,8 @@ def _manifest_contract_errors(
         errors.append("schema_version must equal 1")
     if payload.get("setting") != SETTING:
         errors.append(f"setting must equal {SETTING!r}")
-    if payload.get("base_length") != MATCHED_LENGTH:
-        errors.append(f"base_length must equal {MATCHED_LENGTH}")
+    if payload.get("base_length") != protocol.length_bases:
+        errors.append(f"base_length must equal {protocol.length_bases}")
 
     identity = payload.get("protocol_identity")
     digest = payload.get("protocol_digest_sha256")
@@ -275,7 +285,7 @@ def _manifest_contract_errors(
             "dataset": job.dataset,
             "setting": SETTING,
             "seed": job.seed,
-            "matched_length_bases": MATCHED_LENGTH,
+            "matched_length_bases": protocol.length_bases,
         }
         for key, expected in expected_core.items():
             if identity.get(key) != expected:
@@ -366,8 +376,10 @@ def _completed_cells(
     expected_protocols: Mapping[
         tuple[str, str, int], tuple[Mapping[str, object], str]
     ] | None = None,
+    protocol: "NativeProtocol | int | None" = None,
 ) -> dict[tuple[str, str, int], Path]:
     """Validate resumable cells and fail on every ambiguous partial state."""
+    protocol = coerce_protocol(protocol)
     completed: dict[tuple[str, str, int], Path] = {}
     problems: list[str] = []
     suffix_re = re.compile(r"[0-9a-f]{12}")
@@ -412,6 +424,7 @@ def _completed_cells(
                 job,
                 expected_identity=expected_identity,
                 expected_digest=expected_digest,
+                protocol=protocol,
             )
             accepted = status == "complete_main_eligible" or (
                 allow_diagnostic and status == "complete_diagnostic_only"
