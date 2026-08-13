@@ -595,6 +595,43 @@ useful for Phase 2 — re-inferring these checkpoints at the correct epoch
 answers "did the epoch-0 bug change the N ranking" and can narrow the grid the
 validation search has to cover.
 
+### Phase 1-2 — F07, one GC feasible set
+
+Four conventions were live at once:
+
+| fractions | used by | L=15 | L=18 | L=20 |
+|---|---|---|---|---|
+| `.40/.60` | ours main, baseline projection, aggregator | **[6,9]** | [8,10] | **[8,12]** |
+| `.4444/.5556` | held-out decoding, codebook-drop ablations | [7,8] | [8,10] | [9,11] |
+| `.416/.584` | 20-base launcher, 24-base evaluator | [7,8] | [8,10] | [9,11] |
+| `L==18 ? .40/.60 : .416/.584` | `bioproj_effect_newmodel` | [7,8] | [8,10] | [9,11] |
+
+**Why it survived: at L=18 all four collapse to the same window [8,10].** The
+legacy budget hid the disagreement completely; it only separates at L=15 and
+L=20, the two budgets the paper now uses. So held-out decoding was scored on
+[7,8] while the retrieval numbers it was compared against used [6,9], and
+§4.6's projection cost was measured on the wrong window for 15 bases.
+
+`dna_utils/gc_policy.py` is now the only place a window is produced. D3 fixes it
+at true 40-60 % inclusive, derived from ONE fraction pair so adding a budget
+cannot introduce a fifth convention. Callers consume the **integer counts**;
+re-deriving `ceil(frac*L)` per script is exactly how one nominal policy became
+four. An unreviewed budget raises rather than receiving an interpolated window,
+and `assert_manifest_policy` fails loudly when a stored result was projected
+onto a different feasible set instead of silently aggregating across the two.
+
+Rewired: `heldout_codon_decoding` (defaults now `None`, resolved from the actual
+code length), `codebook_drop_ablation{,_fast}`, `bioproj_effect_newmodel`. The
+literals left in `bioproj_dna_unique` are 18/24-base legacy tasks and were
+checked to produce the identical windows [8,10] and [10,14], so they are
+consistent rather than overlooked.
+
+12 new cases in `tests/test_gc_policy.py`, including a regression guard that
+pins *why* this was invisible: it asserts the three historical pairs agree at
+L=18 and disagree at 15 and 20. One test also checks the policy's counts match
+what the DP backend actually enforces, so a manifest cannot describe a feasible
+set the codes were never projected onto. **294 tests pass.**
+
 ### Verdict
 
 - 15-base main table: **historical diagnostic only** until the audit's

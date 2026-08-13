@@ -353,8 +353,11 @@ def main() -> None:
                          "extraction, matching the deployed valid-DNA codes. "
                          "Baseline chunk control becomes the projected per-slot "
                          "codon of the baseline's own DNA code.")
-    ap.add_argument("--gc_min_frac", type=float, default=0.4444)
-    ap.add_argument("--gc_max_frac", type=float, default=0.5556)
+    # F07: default None -> resolved from the actual code length by the
+    # central policy. The old 0.4444/0.5556 gave L=15 the window [7,8]
+    # while the main path projected onto [6,9].
+    ap.add_argument("--gc_min_frac", type=float, default=None)
+    ap.add_argument("--gc_max_frac", type=float, default=None)
     ap.add_argument("--max_run", type=int, default=3)
     args = ap.parse_args()
 
@@ -383,13 +386,21 @@ def main() -> None:
         if not args.bio_project:
             return base_arr
         from dna_utils.bio_constraints import project_to_valid, is_valid_batch
+        from dna_utils.gc_policy import resolve_gc_policy
         arr = np.ascontiguousarray(base_arr).astype(np.int8)
+        # F07: resolve the window from the ACTUAL code length. The old default
+        # 0.4444/0.5556 projected a 15-base code onto [7,8] while the main path
+        # used [6,9], so decoding was scored on a different feasible set than
+        # the retrieval numbers it was compared against.
+        _pol = resolve_gc_policy(int(arr.shape[1]))
+        _gmin = args.gc_min_frac if args.gc_min_frac is not None else _pol.gc_min_frac
+        _gmax = args.gc_max_frac if args.gc_max_frac is not None else _pol.gc_max_frac
+        _mrun = args.max_run if args.max_run is not None else _pol.max_run
         uniq, inv = np.unique(arr, axis=0, return_inverse=True)
-        valid = is_valid_batch(uniq, args.gc_min_frac, args.gc_max_frac, args.max_run)
+        valid = is_valid_batch(uniq, _gmin, _gmax, _mrun)
         out = uniq.copy()
         for i in np.where(~valid)[0]:
-            out[i], _ = project_to_valid(uniq[i], args.gc_min_frac,
-                                         args.gc_max_frac, args.max_run)
+            out[i], _ = project_to_valid(uniq[i], _gmin, _gmax, _mrun)
         return out[inv].astype(np.int64)
 
     tag_bp = " [bio-projected]" if args.bio_project else ""

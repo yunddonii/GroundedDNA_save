@@ -133,7 +133,9 @@ def main():
                     "non-18-base projection requires explicit --gc_min_frac "
                     "and --gc_max_frac"
                 )
-            gc_min_frac, gc_max_frac = 0.4444, 0.5556
+            from dna_utils.gc_policy import resolve_gc_policy
+            _pol = resolve_gc_policy(int(base_indices.shape[1]))
+            gc_min_frac, gc_max_frac = _pol.gc_min_frac, _pol.gc_max_frac
         q_bi = project_base_indices(
             q_bi, gc_min_frac, gc_max_frac, args.max_run,
         )

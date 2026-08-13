@@ -74,7 +74,13 @@ def main() -> int:
         qb = np.asarray(q["base_indices"]).astype(np.int8)
         bb = np.asarray(db["base_indices"]).astype(np.int8)
         L = bb.shape[1]
-        gmin, gmax = (0.40, 0.60) if L == 18 else (0.416, 0.584)
+        # F07: the GC window comes from the central policy, not a literal. Four
+        # conventions were live at once and they only disagree at L=15/20 -- the
+        # two budgets the paper uses -- so hard-coded fractions silently compared
+        # ours and baselines under different feasible sets.
+        from dna_utils.gc_policy import resolve_gc_policy
+        _pol = resolve_gc_policy(int(L))
+        gmin, gmax = _pol.gc_min_frac, _pol.gc_max_frac
         gc_lo, gc_hi = bc._resolve_gc_count_range(L, gmin, gmax)
 
         pr_q = bc.batch_project_to_valid(qb, gc_min_frac=gmin, gc_max_frac=gmax,
