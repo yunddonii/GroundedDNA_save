@@ -146,7 +146,10 @@ CANONICAL_VARIANT_SOURCE_PROFILES: Mapping[str, tuple[str, str]] = {
     ),
     "cimon": (
         "baseline/CIMON.py",
-        "afd4696e2b3633d6117c6eb955ec08e32ab6be65374df046103671f504e0aaf5",
+        # F05: bumped from afd4696e2b36... after matching the objective to the
+        # official implementation. Cells trained under the old digest are
+        # excluded by the profile check rather than exempted.
+        "6f7a4864d3c245afe095a2d2c6dc3c155197a17e10ebd743f1466b3c1ff1136a",
     ),
     "mls3rduh": (
         "baseline/MLS3RDUH.py",

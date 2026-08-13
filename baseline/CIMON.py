@@ -1,3 +1,19 @@
+"""CIMON (Luo et al., IJCAI 2021), matched to the official implementation.
+
+Upstream: https://github.com/luoxiao12/CIMON at commit
+4107234f87dc832819d03f5eba922e82b73d714b (`cimon.py`).
+
+F05 corrected two divergences in `generate_similarity_weight_matrix`; both
+changed the objective, so results produced before this patch are not comparable:
+
+  * the histogram searched 200 bins over [0, 2) instead of the official 100
+    over [0, 1), letting a mode above 1.0 become `max_cos` -- which defines the
+    left/right split and both mirrored Gaussians, hence all of `weight_1`;
+  * `weight_2` dropped the official trailing `/ 2`, giving {0, 2} instead of
+    {0, 1}. All four SEM-CON terms doubled while `eta * nce_loss` did not.
+
+Everything else in this file matches the official source line for line.
+"""
 from argparse import ArgumentParser, BooleanOptionalAction
 import torch
 from torch.nn import Module
@@ -33,6 +49,39 @@ import time
 from tqdm import tqdm
 
 from copy import deepcopy
+
+#: Recorded so a future reader can re-diff against upstream rather than
+#: re-derive the contract from the code.
+CIMON_OFFICIAL_REPO = "https://github.com/luoxiao12/CIMON"
+CIMON_OFFICIAL_COMMIT = "4107234f87dc832819d03f5eba922e82b73d714b"
+
+#: cimon.py:167-176 -- 100 bins of width 0.01, i.e. the range [0, 1).
+CIMON_HISTOGRAM_BINS = 100
+CIMON_HISTOGRAM_INTERVAL = 1.0 / 100
+
+
+def _max_density_cosine(cos_dist, bins: int = CIMON_HISTOGRAM_BINS) -> float:
+    """The densest cosine-distance bin, over the official [0, 1) range.
+
+    `bins` is a parameter only so a test can reproduce the 200-bin behaviour
+    and pin how far the selected mode moved; production never passes it.
+    """
+    max_cnt, max_cos = 0, 0
+    interval = CIMON_HISTOGRAM_INTERVAL
+    cur = 0
+    for _ in range(bins):
+        cur_cnt = np.sum((cos_dist > cur) & (cos_dist < cur + interval))
+        if max_cnt < cur_cnt:
+            max_cnt = cur_cnt
+            max_cos = cur
+        cur += interval
+    return max_cos
+
+
+def _cluster_agreement_weight(A, S):
+    """cimon.py:201-202. Values in {0, 1}; the missing `/ 2` made them {0, 2}."""
+    return ((((A - A.T) == 0) - 1 / 2) * 2 * S + 1) / 2
+
 
 def extract_features(model, dataset, batch_size, device):
     """
@@ -86,20 +135,10 @@ def generate_similarity_weight_matrix(features, threshold, num_clusters):
     
     # weight according to similarity
 
-    # find the up and down extreme
-    # Find maximum count of cosine distance
-    # 가장 많은 개수의 cosine distance 크기를 찾는 과정 
-    # cosine distance는 0과 2사이의 값을 갖지만 효율적으로 0과 1사이만 check한 것으로 보임
-    # 따라서 cosine은 0.01 간격으로 샘플링된다고 가정
-    max_cnt, max_cos = 0, 0
-    interval = 1. / 100
-    cur = 0
-    for i in range(200):
-        cur_cnt = np.sum((cos_dist > cur) & (cos_dist < cur + interval))
-        if max_cnt < cur_cnt:
-            max_cnt = cur_cnt
-            max_cos = cur
-        cur += interval
+    # Find the densest cosine-distance bin. Cosine distance spans [0, 2], but
+    # the official search deliberately stops at 1.0 -- this is the contract,
+    # not an approximation of it, and widening it moves `max_cos`.
+    max_cos = _max_density_cosine(cos_dist)
 
 
 
@@ -134,7 +173,7 @@ def generate_similarity_weight_matrix(features, threshold, num_clusters):
     A = sp_cluster.labels_[np.newaxis, :] # label vector
     # kmeans = KMeans(n_clusters=Classes, random_state=0, init='k-means++').fit(features_norm)
     # A = kmeans.labels_[np.newaxis, :] #label vector
-    weight_2 =  ((((A - A.T) == 0)-1/2)*2* S +1)
+    weight_2 = _cluster_agreement_weight(A, S)
     W = weight_1 * weight_2
     return torch.FloatTensor(S), torch.FloatTensor(W)
 

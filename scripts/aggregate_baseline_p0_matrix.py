@@ -330,10 +330,15 @@ CANONICAL_VARIANT_SOURCE_PROFILES = {
     },
     "cimon": {
         "path": "baseline/CIMON.py",
+        # F05: the pre-fix digest was afd4696e2b36..., whose objective differs
+        # from the official implementation (200-bin [0, 2) histogram, and
+        # `weight_2` in {0, 2} rather than {0, 1}). It is NOT registered as a
+        # non-scientific transition -- cells trained under it must be excluded
+        # and retrained, which is what this digest bump enforces.
         "sha256": (
-            "afd4696e2b3633d6117c6eb955ec08e32ab6be65374df046103671f504e0aaf5"
+            "6f7a4864d3c245afe095a2d2c6dc3c155197a17e10ebd743f1466b3c1ff1136a"
         ),
-        "profile": "cimon-cache-adaptation-v1",
+        "profile": "cimon-official-objective-v2",
     },
     "mls3rduh": {
         "path": "baseline/MLS3RDUH.py",

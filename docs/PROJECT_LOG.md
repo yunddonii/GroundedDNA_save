@@ -938,14 +938,73 @@ directly instead of patching a global the 15- and 18-base paths also read.
 
 **517 tests pass, 0 fail** — the native suites are green and Phase 1 is closed.
 
+### Phase 1-9 — F05, CIMON matched to the official implementation
+
+Verified line by line against the upstream source at the exact commit the audit
+names: <https://github.com/luoxiao12/CIMON>, commit
+`4107234f87dc832819d03f5eba922e82b73d714b`, `cimon.py` (fetched and read, not
+inferred). Two divergences, both inside `generate_similarity_weight_matrix`:
+
+| | official | local (pre-fix) | consequence |
+|---|---|---|---|
+| histogram | `interval = 1./100`, `for i in range(100)` → 100 bins over [0, 1) | `range(200)` → [0, 2) | a mode above 1.0 could become `max_cos` |
+| `weight_2` | `((((A - A.T) == 0) - 1/2) * 2 * S + 1) / 2` → {0, 1} | trailing `/ 2` missing → {0, 2} | all four SEM-CON terms doubled against an unchanged `eta * nce_loss` |
+
+`max_cos` defines the left/right split and both mirrored Gaussians, so it
+determines the whole of `weight_1`; the bin defect is not confined to one
+statistic. On a fixture with dominant mass at 1.305 and the true mode at 0.205,
+the official search returns **0.20** and the 200-bin search returns **1.30** —
+pinned in a test, so the size of the defect is on record.
+
+Everything else matches the official source line for line and is left alone:
+cosine distance, `S`, the mirrored left/right reconstruction, `norm.fit`,
+`weight_norm`, the clipped `weight_1`, `SpectralClustering(random_state=0,
+assign_labels="discretize")`, `SEM_CON_Loss.forward`, the per-batch loss
+assembly, and the fact that `S_1/W_1` and `S_2/W_2` are built once before
+training rather than per epoch. All confirmed against the fetched upstream file.
+
+The two expressions are now named helpers (`_max_density_cosine`,
+`_cluster_agreement_weight`) so they can be compared against the official
+formula directly instead of through a 60-line function that needs spectral
+clustering to run. `CIMON_OFFICIAL_REPO` and `CIMON_OFFICIAL_COMMIT` are
+recorded in the module, which `implementation_sha256` pins cryptographically in
+every manifest.
+
+**The 12 pre-fix cells are excluded, not exempted.** The canonical source
+profile digest moves `afd4696e…` → `6f7a4864…` and is deliberately NOT
+registered as a non-scientific transition. Measured on the real 3-seed 30-bit
+matrix:
+
+| | before | after |
+|---|---|---|
+| complete | 108 / 108 | **96 / 108** |
+| source_profile_excluded | 0 | **12 (all cimon)** |
+| missing | 0 | 12 |
+
+That is 4 datasets × 3 seeds of CIMON marked `RETRAIN`, exactly as the audit
+requires, with `actual_sha256 afd4696e… ≠ expected_sha256 6f7a4864…` recorded
+per excluded manifest.
+
+13 cases in `tests/test_cimon_source_fidelity.py`: a golden `weight_2` tensor
+compared against the official expression transcribed verbatim, the full
+agreement×similarity truth table, the {0,1} vs {0,2} range, the bin count and
+range, the magnitude of the 200-bin defect, `W ∈ [0, 1]` end to end, and the
+recorded upstream commit. **530 tests pass, 0 fail.**
+
+**One audit item deliberately not done:** the audit also asks for the upstream
+commit inside the run manifest. `_protocol_identity` is hashed into
+`protocol_digest_sha256`, so adding a field there would change the digest for
+every variant and invalidate every existing manifest — a full re-run of all nine
+methods to record a string that `implementation_sha256` already pins. Recorded
+in the source instead; revisit at Phase 4, when everything is re-run anyway.
+
 ### Verdict
 
 - 15-base main table: **historical diagnostic only** until the audit's
   acceptance checklist passes.
 - Tests written before implementation, as the audit asks. **517 pass, 0 fail**
   across the whole suite, native included. Phase 1 (F01, D2, F07, F08, F06,
-  F09, F12, F15, F18) is complete; F05 (CIMON source fidelity) remains open and
-  Phase 2 is next.
+  F09, F12, F15, F18, F05) is complete. Phase 2 is next.
 - Decisions recorded in `docs/PROTOCOL_DECISIONS_2026-08-13.md` (D1-D5).
 
 ---
