@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# DISABLED 2026-08-13 by the protocol audit.
+# docs/EXPERIMENT_PROTOCOL_AUDIT_2026-08-13.md operational decisions 2/5: do not
+# enter the post-BU05 stages or launch any 20-base work before F01/F05-F09 are
+# fixed. The launcher is kept for reference; it must be rewritten against the
+# decisions in docs/PROTOCOL_DECISIONS_2026-08-13.md, not re-enabled as is.
+echo "[disabled] see docs/EXPERIMENT_PROTOCOL_AUDIT_2026-08-13.md" >&2
+exit 91
 # Wait for the running N-sweep cells, then start the two baseline backlogs on
 # whatever GPUs are genuinely idle.
 #

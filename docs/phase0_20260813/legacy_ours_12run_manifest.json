@@ -1,0 +1,103 @@
+{
+  "status": "LEGACY_DIAGNOSTIC_ONLY",
+  "reason": "F01 epoch-0 extraction, F02 test-selected N, F03 coupled LR/epsilon horizon, F04 baseline paper-ineligible, F05 CIMON objective. Arithmetic matches the raw artifacts but these are NOT paper-valid main results.",
+  "audit": "docs/EXPERIMENT_PROTOCOL_AUDIT_2026-08-13.md",
+  "runs": [
+    {
+      "dataset": "CIFAR-10",
+      "seed": 42,
+      "dir": "result/260811+cifar10_setting1_promptAblA_cifar_A_v4_P0refit_e4+bs+64+e+5+proj_lr+0.001",
+      "exists": true,
+      "checkpoint_sha256": "ebf6a1c3ad3cceb71a7feff5cb7e6baae6af7c90a1c7921c38e236387fb31228",
+      "map_at_R_bioproj_epoch0_extraction": 0.8822763084031652
+    },
+    {
+      "dataset": "CIFAR-10",
+      "seed": 43,
+      "dir": "result/260812+cifar10_setting1_promptAblA_cifar_A_v4_s43_P0refit_e4+bs+64+e+5+proj_lr+0.001",
+      "exists": true,
+      "checkpoint_sha256": "48932ff6552d7a69dca41457a0bcc4fa45c9359ba4b3815ec92c7a58a0a34ca6",
+      "map_at_R_bioproj_epoch0_extraction": 0.877208244020677
+    },
+    {
+      "dataset": "CIFAR-10",
+      "seed": 44,
+      "dir": "result/260812+cifar10_setting1_promptAblA_cifar_A_v4_s44_P0refit_e4+bs+64+e+5+proj_lr+0.001",
+      "exists": true,
+      "checkpoint_sha256": "cbe0545bd243b48b44dfed56ec14d78ed9414703e7267a5dccae57893992f301",
+      "map_at_R_bioproj_epoch0_extraction": 0.8876869322689834
+    },
+    {
+      "dataset": "Flickr25K",
+      "seed": 42,
+      "dir": "result/260811+flickr25k_setting1_promptAblA_flickr_A_v4_P0refit_e4+bs+64+e+5+proj_lr+0.001",
+      "exists": true,
+      "checkpoint_sha256": "afcc8e17ccf61b00cb3291ce94d79abc49dfcc2ccd20207c2e36ce36b694515d",
+      "map_at_R_bioproj_epoch0_extraction": 0.8564850140878828
+    },
+    {
+      "dataset": "Flickr25K",
+      "seed": 43,
+      "dir": "result/260812+flickr25k_setting1_promptAblA_flickr_A_v4_s43_P0refit_e4+bs+64+e+5+proj_lr+0.001",
+      "exists": true,
+      "checkpoint_sha256": "fbcc096a277b2c7fd5fd76b28a22b4dfe57d92a014fb7acbfbd50d34489895df",
+      "map_at_R_bioproj_epoch0_extraction": 0.8573154339507973
+    },
+    {
+      "dataset": "Flickr25K",
+      "seed": 44,
+      "dir": "result/260813+flickr25k_setting1_promptAblA_flickr_A_v4_s44_P0refit_e4+bs+64+e+5+proj_lr+0.001",
+      "exists": true,
+      "checkpoint_sha256": "b17442a6b838f2d0ee085afed14ebbae9b8bdd1f3094a2801558426273c03c71",
+      "map_at_R_bioproj_epoch0_extraction": 0.8591269172274756
+    },
+    {
+      "dataset": "NUS-WIDE",
+      "seed": 42,
+      "dir": "result/260811+nuswide_setting1_promptAblA_nuswide_A_v4_P0refit_e4+bs+64+e+5+proj_lr+0.001",
+      "exists": true,
+      "checkpoint_sha256": "c39c68e2629e7c70b823f9769fb26564bf5c95a804f95b1b6fba902d6762d15a",
+      "map_at_R_bioproj_epoch0_extraction": 0.8150237470291969
+    },
+    {
+      "dataset": "NUS-WIDE",
+      "seed": 43,
+      "dir": "result/260812+nuswide_setting1_promptAblA_nuswide_A_v4_s43_P0refit_e4+bs+64+e+5+proj_lr+0.001",
+      "exists": true,
+      "checkpoint_sha256": "61731fc01b9e4b8685cbf51a9f51fc142e425283974c86b04045584187f1c27f",
+      "map_at_R_bioproj_epoch0_extraction": 0.81810756799992
+    },
+    {
+      "dataset": "NUS-WIDE",
+      "seed": 44,
+      "dir": "result/260813+nuswide_setting1_promptAblA_nuswide_A_v4_s44_P0refit_e4+bs+64+e+5+proj_lr+0.001",
+      "exists": true,
+      "checkpoint_sha256": "97a95f02a0efb013c7297e57a2a60ef27f5345068961cec7d6796972b459be0c",
+      "map_at_R_bioproj_epoch0_extraction": 0.8190036600821881
+    },
+    {
+      "dataset": "MS-COCO",
+      "seed": 42,
+      "dir": "result/260812+mscoco_setting1_promptAblA_mscoco_A_v5b_s42_P0refit_e39+bs+64+e+40+proj_lr+0.001",
+      "exists": true,
+      "checkpoint_sha256": "8c8541babb94e0d592ac81ffa9802a5fdbfa875c31bc53ff27f73690e42cc2e8",
+      "map_at_R_bioproj_epoch0_extraction": 0.8287046057524009
+    },
+    {
+      "dataset": "MS-COCO",
+      "seed": 43,
+      "dir": "result/260812+mscoco_setting1_promptAblA_mscoco_A_v5b_s43_P0refit_e39+bs+64+e+40+proj_lr+0.001",
+      "exists": true,
+      "checkpoint_sha256": "ffbb5bf910a8ab75ea870f94f939a19e82e022e285184bd15c2d9d75bc3434d8",
+      "map_at_R_bioproj_epoch0_extraction": 0.8320179439149626
+    },
+    {
+      "dataset": "MS-COCO",
+      "seed": 44,
+      "dir": "result/260813+mscoco_setting1_promptAblA_mscoco_A_v5b_s44_P0refit_e39+bs+64+e+40+proj_lr+0.001",
+      "exists": true,
+      "checkpoint_sha256": "043d5da8fe7bbaee86cbf95e86da507b7d3baecd6b64bad39f7cb0016ccb6895",
+      "map_at_R_bioproj_epoch0_extraction": 0.8275372186471798
+    }
+  ]
+}

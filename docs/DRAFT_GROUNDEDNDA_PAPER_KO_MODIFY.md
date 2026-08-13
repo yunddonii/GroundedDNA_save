@@ -1004,6 +1004,15 @@ Hashing은 loss가 45까지 계속 내려가는 동안 test mAP는 10 epoch 이�
 
 **(a) 15-base / 30-bit** — 슬롯당 3-base codon (주축)
 
+> 🔴 **BLOCKED — 제출용 주결과 아님 (2026-08-13 프로토콜 감사).**
+> 아래 수치는 raw artifact와 산술적으로 일치하지만 paper-valid main result가 아니다.
+> F01 extraction이 epoch 0(ε=1.0, NUS 0.5)에서 실행됐고, N이 공식 test 곡선으로
+> 선택됐으며(F02), baseline 108셀은 `main_protocol_eligible=False`이고(F04) CIMON
+> 12셀은 objective 결함으로 무효다(F05). 근거와 복구 절차는
+> `docs/EXPERIMENT_PROTOCOL_AUDIT_2026-08-13.md`,
+> 결정 사항은 `docs/PROTOCOL_DECISIONS_2026-08-13.md`.
+
+
 모든 행이 seeds `{42,43,44}` **평균<sub>±표본표준편차</sub>**다. 지표는 공통 DP 투영 후의
 base-Hamming mAP@R(bio-projected)이며 baseline도 동일 지표다.
 
@@ -1021,8 +1030,10 @@ base-Hamming mAP@R(bio-projected)이며 baseline도 동일 지표다.
 | **GroundedDNA** | **0.8824**<sub>±0.0052</sub> | **0.8576**<sub>±0.0014</sub> | **0.8174**<sub>±0.0021</sub> | **0.8294**<sub>±0.0023</sub> |
 | Δ vs 최강 BL | **-0.0042** | **+0.0236** | **+0.0163** | **+0.0130** |
 
-**4개 중 3개에서 우위**다. CIFAR-10만 CroVCA에 −.0042 뒤지는데, 두 표준편차
-(ours ±.0052, CroVCA ±.0040)를 감안하면 **통계적으로 구분되지 않는다**.
+점추정으로는 4개 중 3개에서 앞선다. CIFAR-10은 −.0042 뒤진다. **n=3 seed의
+mean±SD 중첩은 유의성·동등성·비열등성 검정이 아니므로**, 이 차이를 "통계적으로
+구분되지 않는다"고 쓰지 않는다(F14). 정식 검정 전까지는 "점추정 차이가 작고
+n=3 seed 불확실성이 크다"로만 서술한다.
 
 고정 epoch \(N\)은 CIFAR/Flickr/NUS 4, MS-COCO 39이며 seed 42 곡선에서만 골라
 seed 43/44에 그대로 적용했다(누수를 데이터셋당 스칼라 하나로 제한).
