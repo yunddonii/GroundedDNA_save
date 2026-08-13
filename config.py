@@ -698,6 +698,22 @@ class Config():
             help='Stop training after this 0-indexed epoch, keeping the LR '
                  'schedule defined by --epoch. Use with --final_epoch_eval to '
                  'evaluate exactly this epoch (P0 stage-2 refit).')
+        # D2 (2026-08-13): a single `-e` used to set the training length, the LR
+        # cosine horizon and the Sinkhorn epsilon horizon at once, so choosing N
+        # silently retuned the learning-rate schedule too. These decouple it.
+        # Unset means "fall back to --epoch", i.e. the historical behaviour.
+        siglip2_arg.add_argument('--lr_schedule_horizon', type=int, default=None,
+            help='CosineAnnealingLR T_max. Fixed at 60 under the decided '
+                 'protocol so every N candidate shares one LR prefix. '
+                 'Defaults to --epoch.')
+        siglip2_arg.add_argument('--sinkhorn_schedule_horizon', type=int, default=None,
+            help='Horizon the Sinkhorn epsilon anneal spans, i.e. N+1 so it '
+                 'completes at the stopping epoch. Defaults to --epoch.')
+        siglip2_arg.add_argument('--inference_epoch', type=int, default=None,
+            help='Epoch to place a reloaded checkpoint at before extraction. '
+                 'Normally resolved from the checkpoint metadata sidecar; pass '
+                 'this only for legacy checkpoints whose epoch is known from '
+                 'the run log. Must agree with metadata when both exist.')
         siglip2_arg.add_argument('--val_select_metric', type=str,
             default='mAP_at_R', choices=['mAP_at_R', 'mAP'],
             help='Which validation metric selects the checkpoint under the P0 '

@@ -703,7 +703,9 @@ def main(args: Config):
     if sched_kind == 'cosine':
         scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
             optimizer,
-            T_max=int(args.epoch),
+            # D2: fixed LR horizon so every N candidate shares one cosine
+            # prefix; --stop_after_epoch shortens training, not the schedule.
+            T_max=int(getattr(args, 'lr_schedule_horizon', None) or args.epoch),
             eta_min=float(getattr(args, 'lr_eta_min', 1e-5)),
         )
     elif sched_kind == 'step':
@@ -1203,6 +1205,27 @@ def main(args: Config):
             torch.save(model.state_dict(),     model_path)
             # Persist the criterion too so its EMA buffer survives a resume.
             torch.save(criterion.state_dict(), crit_path)
+            # F01: `_current_epoch` is a plain int, so it does NOT travel in the
+            # state dict. Without this sidecar a reload infers at epoch 0, i.e.
+            # at the INITIAL Sinkhorn epsilon rather than the annealed one the
+            # weights were trained with.
+            from dna_utils.runtime_state import (
+                resolve_horizons as _rh, write_checkpoint_metadata as _wcm)
+            _h = _rh(args)
+            _wcm(model_path,
+                 checkpoint_epoch_zero_based=int(e),
+                 training_epoch_budget=int(args.epoch),
+                 stop_after_epoch=_stop_ep,
+                 lr_schedule_horizon=_h.lr_schedule_horizon,
+                 sinkhorn_schedule_horizon=_h.sinkhorn_schedule_horizon,
+                 sinkhorn_epsilon_init=getattr(args, "sinkhorn_epsilon_init", None),
+                 sinkhorn_epsilon_final=getattr(args, "sinkhorn_epsilon_final", None),
+                 lr_scheduler=str(getattr(args, "lr_scheduler", "cosine")),
+                 extra={"tag": str(getattr(args, "tag", "")),
+                        "dataset": str(getattr(args, "dataset", "")),
+                        "random_seed": int(getattr(args, "random_seed", 42)),
+                        "num_semantic_parts": int(getattr(args, "num_semantic_parts", 0) or 0),
+                        "num_codons_per_codebook": int(getattr(args, "num_codons_per_codebook", 3))})
             print(f"Final checkpoint saved to `{args.save_model_state_path}`")
             # If best-checkpoint differs from final, replace final with best
             # for the downstream evaluation / extraction. Best is preserved
@@ -1313,7 +1336,12 @@ def main(args: Config):
             print("[final-eval] running extraction ...")
             _extract_code(args)
         except Exception as ex:
-            print(f"[final-eval] extraction failed: {ex} -- continuing to viz.")
+            # A paper run whose final extraction failed has no codes to report.
+            # Swallowing this produced tables traced to a stale extraction.
+            raise RuntimeError(
+                f"[final-eval] extraction failed: {ex}. This is fatal for a "
+                f"paper run; the reported codes would come from a previous "
+                f"extraction in the same directory.") from ex
         finally:
             # The explicit override is scoped to extraction. Post-eval
             # diagnostics and the in-memory training model retain the

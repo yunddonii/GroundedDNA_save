@@ -1,0 +1,278 @@
+"""Checkpoint runtime state: the epoch a checkpoint must be inferred at (F01),
+and the three training horizons a single `-e` used to conflate (D2).
+
+WHY THIS EXISTS. `SigLIP2SemanticOTModel._current_epoch` is a plain Python int,
+not a buffer, so it is not in the state dict. `extraction_siglip2.extract_code`
+constructs a fresh model and loads raw weights, which leaves the epoch at 0 and
+runs the Sinkhorn router at its INITIAL epsilon rather than the annealed value
+the weights were trained with. Nothing raises; the codes are simply produced by
+a router the training never used. Measured on the CIFAR final checkpoint, 24 of
+the first 32 rows change `base_indices` between epoch 0 and epoch 4.
+
+So resolution is fail-closed. When epsilon annealing is configured and the epoch
+cannot be established, extraction ABORTS. Defaulting to 0 is exactly the bug.
+
+D2 separates three things a single `-e` used to set at once:
+
+    training_stop_epoch      when optimisation stops
+    lr_schedule_horizon      the CosineAnnealingLR T_max (fixed at 60)
+    sinkhorn_schedule_horizon the epsilon anneal horizon (N + 1)
+
+Keeping the LR horizon fixed means every N candidate shares one learning-rate
+prefix, so comparing N compares training length rather than three coupled knobs.
+Unset values fall back to `args.epoch`, reproducing the historical behaviour
+exactly so an old config does not silently change model.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import math
+import os
+from dataclasses import dataclass, asdict
+from typing import Any, Mapping, Optional
+
+_SIDECAR_SUFFIX = ".runtime.json"
+_SCHEMA_VERSION = 1
+
+
+class InferenceEpochUnresolved(RuntimeError):
+    """Raised instead of silently inferring at epoch 0."""
+
+
+# ------------------------------------------------------------------ horizons
+
+@dataclass(frozen=True)
+class Horizons:
+    training_stop_epoch: int          # zero-based epoch training stops AT
+    lr_schedule_horizon: int          # CosineAnnealingLR T_max
+    sinkhorn_schedule_horizon: int    # epsilon anneal spans this many epochs
+
+
+def resolve_horizons(args: Any) -> Horizons:
+    budget = int(getattr(args, "epoch", 60) or 60)
+    stop = getattr(args, "stop_after_epoch", None)
+    stop = budget - 1 if stop is None else int(stop)
+    lr_h = getattr(args, "lr_schedule_horizon", None)
+    sk_h = getattr(args, "sinkhorn_schedule_horizon", None)
+    return Horizons(
+        training_stop_epoch=stop,
+        lr_schedule_horizon=int(lr_h) if lr_h else budget,
+        sinkhorn_schedule_horizon=int(sk_h) if sk_h else budget,
+    )
+
+
+def annealed_epsilon(epoch: int, horizon: int,
+                     eps_init: Optional[float],
+                     eps_final: Optional[float]) -> Optional[float]:
+    """The cosine schedule used by the router, evaluated outside the model so
+    manifests and tests do not have to instantiate one."""
+    if eps_init is None or eps_final is None:
+        return None
+    t_max = max(int(horizon) - 1, 1)
+    t = min(max(int(epoch), 0), t_max) / t_max
+    cos_t = 0.5 * (1.0 + math.cos(math.pi * t))
+    return float(eps_final) + (float(eps_init) - float(eps_final)) * cos_t
+
+
+# ------------------------------------------------------------------ metadata
+
+def _sha256(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for block in iter(lambda: fh.read(1 << 20), b""):
+            h.update(block)
+    return h.hexdigest()
+
+
+@dataclass(frozen=True)
+class CheckpointMetadata:
+    schema_version: int
+    checkpoint_path: str
+    checkpoint_sha256: str
+    checkpoint_epoch_zero_based: int
+    training_epoch_budget: int
+    stop_after_epoch: Optional[int]
+    lr_schedule_horizon: int
+    sinkhorn_schedule_horizon: int
+    sinkhorn_epsilon_init: Optional[float]
+    sinkhorn_epsilon_final: Optional[float]
+    effective_sinkhorn_epsilon: Optional[float]
+    lr_scheduler: Optional[str]
+    extra: Mapping[str, Any]
+
+    @staticmethod
+    def sidecar_path(checkpoint_path: str) -> str:
+        return str(checkpoint_path) + _SIDECAR_SUFFIX
+
+    @classmethod
+    def load(cls, checkpoint_path: str) -> Optional["CheckpointMetadata"]:
+        p = cls.sidecar_path(checkpoint_path)
+        if not os.path.exists(p):
+            return None
+        try:
+            d = json.load(open(p))
+        except (OSError, json.JSONDecodeError):
+            return None
+        if d.get("schema_version") != _SCHEMA_VERSION:
+            return None
+        try:
+            return cls(**d)
+        except TypeError:
+            return None
+
+
+def write_checkpoint_metadata(
+    checkpoint_path: str, *,
+    checkpoint_epoch_zero_based: int,
+    training_epoch_budget: int,
+    stop_after_epoch: Optional[int],
+    lr_schedule_horizon: int,
+    sinkhorn_schedule_horizon: int,
+    sinkhorn_epsilon_init: Optional[float],
+    sinkhorn_epsilon_final: Optional[float],
+    lr_scheduler: Optional[str] = None,
+    extra: Optional[Mapping[str, Any]] = None,
+) -> str:
+    """Write the sidecar next to the checkpoint, hashing the checkpoint so a
+    later reload can tell whether the two still belong together."""
+    md = CheckpointMetadata(
+        schema_version=_SCHEMA_VERSION,
+        checkpoint_path=os.path.abspath(checkpoint_path),
+        checkpoint_sha256=_sha256(checkpoint_path),
+        checkpoint_epoch_zero_based=int(checkpoint_epoch_zero_based),
+        training_epoch_budget=int(training_epoch_budget),
+        stop_after_epoch=None if stop_after_epoch is None else int(stop_after_epoch),
+        lr_schedule_horizon=int(lr_schedule_horizon),
+        sinkhorn_schedule_horizon=int(sinkhorn_schedule_horizon),
+        sinkhorn_epsilon_init=sinkhorn_epsilon_init,
+        sinkhorn_epsilon_final=sinkhorn_epsilon_final,
+        effective_sinkhorn_epsilon=annealed_epsilon(
+            checkpoint_epoch_zero_based, sinkhorn_schedule_horizon,
+            sinkhorn_epsilon_init, sinkhorn_epsilon_final),
+        lr_scheduler=lr_scheduler,
+        extra=dict(extra or {}),
+    )
+    out = CheckpointMetadata.sidecar_path(checkpoint_path)
+    tmp = out + f".{os.getpid()}.tmp"
+    with open(tmp, "w") as fh:
+        json.dump(asdict(md), fh, indent=2, sort_keys=True)
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp, out)
+    return out
+
+
+# ---------------------------------------------------------------- resolution
+
+@dataclass(frozen=True)
+class ResolvedEpoch:
+    epoch: int
+    source: str                       # explicit_flag | checkpoint_metadata | no_annealing
+    effective_sinkhorn_epsilon: Optional[float]
+    sinkhorn_schedule_horizon: Optional[int]
+    checkpoint_sha256: Optional[str]
+
+
+def resolve_inference_epoch(checkpoint_path: str, args: Any) -> ResolvedEpoch:
+    """Priority: explicit flag -> checkpoint metadata -> fail.
+
+    An explicit flag still has to agree with metadata when metadata exists; a
+    disagreement means one of the two is describing a different run and guessing
+    which would defeat the purpose.
+    """
+    eps_i = getattr(args, "sinkhorn_epsilon_init", None)
+    eps_f = getattr(args, "sinkhorn_epsilon_final", None)
+    md = CheckpointMetadata.load(checkpoint_path)
+
+    if md is not None and os.path.exists(checkpoint_path):
+        if _sha256(checkpoint_path) != md.checkpoint_sha256:
+            raise InferenceEpochUnresolved(
+                f"the sidecar at {CheckpointMetadata.sidecar_path(checkpoint_path)} "
+                f"describes a different checkpoint (sha mismatch). It is stale -- "
+                f"most likely a previous run wrote into this directory. Re-save "
+                f"the checkpoint with metadata rather than trusting it.")
+
+    explicit = getattr(args, "inference_epoch", None)
+    if explicit is not None:
+        if md is not None and int(explicit) != md.checkpoint_epoch_zero_based:
+            raise InferenceEpochUnresolved(
+                f"--inference_epoch={int(explicit)} disagrees with the checkpoint "
+                f"metadata epoch {md.checkpoint_epoch_zero_based}. Resolve which "
+                f"run this checkpoint belongs to instead of overriding.")
+        h = resolve_horizons(args)
+        return ResolvedEpoch(
+            epoch=int(explicit), source="explicit_flag",
+            effective_sinkhorn_epsilon=annealed_epsilon(
+                int(explicit),
+                md.sinkhorn_schedule_horizon if md else h.sinkhorn_schedule_horizon,
+                eps_i, eps_f),
+            sinkhorn_schedule_horizon=(
+                md.sinkhorn_schedule_horizon if md else h.sinkhorn_schedule_horizon),
+            checkpoint_sha256=md.checkpoint_sha256 if md else None)
+
+    if md is not None:
+        return ResolvedEpoch(
+            epoch=md.checkpoint_epoch_zero_based, source="checkpoint_metadata",
+            effective_sinkhorn_epsilon=md.effective_sinkhorn_epsilon,
+            sinkhorn_schedule_horizon=md.sinkhorn_schedule_horizon,
+            checkpoint_sha256=md.checkpoint_sha256)
+
+    if eps_i is None or eps_f is None:
+        # No annealing: the router uses its static epsilon and the epoch is
+        # irrelevant, so an unknown epoch must not block extraction.
+        return ResolvedEpoch(epoch=0, source="no_annealing",
+                             effective_sinkhorn_epsilon=None,
+                             sinkhorn_schedule_horizon=None,
+                             checkpoint_sha256=None)
+
+    raise InferenceEpochUnresolved(
+        f"Sinkhorn epsilon annealing is active ({eps_i} -> {eps_f}) but the "
+        f"inference epoch for {checkpoint_path} cannot be established: no "
+        f"--inference_epoch and no metadata sidecar. Proceeding would run the "
+        f"router at the INITIAL epsilon, which is defect F01. Re-save the "
+        f"checkpoint with write_checkpoint_metadata, or pass --inference_epoch "
+        f"if the training epoch is known from the run log.")
+
+
+def apply_inference_epoch(model: Any, checkpoint_path: str, args: Any) -> ResolvedEpoch:
+    """Resolve and push the epoch into the model. Call after load_state_dict and
+    BEFORE the first forward."""
+    resolved = resolve_inference_epoch(checkpoint_path, args)
+    setter = getattr(model, "set_current_epoch", None)
+    if callable(setter):
+        setter(resolved.epoch)
+    return resolved
+
+
+def write_extraction_manifest(
+    out_path: str, *, checkpoint_path: str, resolved: ResolvedEpoch,
+    num_slots: int, bases_per_slot: int, split: str, n_rows: int,
+    extra: Optional[Mapping[str, Any]] = None,
+) -> str:
+    """Record the runtime state an extraction actually ran under, so a table
+    cannot be traced back to an unknown operating point."""
+    d = {
+        "schema_version": _SCHEMA_VERSION,
+        "split": split,
+        "n_rows": int(n_rows),
+        "checkpoint_path": os.path.abspath(checkpoint_path),
+        "checkpoint_sha256": resolved.checkpoint_sha256,
+        "inference_epoch": resolved.epoch,
+        "inference_epoch_source": resolved.source,
+        "effective_sinkhorn_epsilon": resolved.effective_sinkhorn_epsilon,
+        "sinkhorn_schedule_horizon": resolved.sinkhorn_schedule_horizon,
+        "num_slots": int(num_slots),
+        "bases_per_slot": int(bases_per_slot),
+        "total_bases": int(num_slots) * int(bases_per_slot),
+        "total_bits": 2 * int(num_slots) * int(bases_per_slot),
+    }
+    d.update(dict(extra or {}))
+    os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
+    tmp = out_path + f".{os.getpid()}.tmp"
+    with open(tmp, "w") as fh:
+        json.dump(d, fh, indent=2, sort_keys=True)
+        fh.flush()
+        os.fsync(fh.fileno())
+    os.replace(tmp, out_path)
+    return out_path

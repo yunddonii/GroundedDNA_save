@@ -2355,6 +2355,11 @@ class SigLIP2SemanticOTModel(nn.Module):
         # v56: optional learnable null/background centroid
         self.use_null_centroid      = bool(getattr(args, "use_null_centroid", False))
         self.total_epochs           = int(getattr(args, "epoch", 60))
+        # D2: the epsilon anneal has its own horizon. Using total_epochs
+        # meant `-e N+1` compressed the LR cosine as well, so choosing N
+        # retuned three things at once. Unset falls back to total_epochs.
+        _sk_h = getattr(args, "sinkhorn_schedule_horizon", None)
+        self.sinkhorn_schedule_horizon = int(_sk_h) if _sk_h else self.total_epochs
         # mutable per-step state set by trainer via set_current_epoch()
         self._current_epoch: int = 0
 
@@ -2886,7 +2891,7 @@ class SigLIP2SemanticOTModel(nn.Module):
         eps_f = self.sinkhorn_epsilon_final
         if eps_i is None or eps_f is None:
             return None
-        t_max = max(self.total_epochs - 1, 1)
+        t_max = max(self.sinkhorn_schedule_horizon - 1, 1)
         t = min(max(self._current_epoch, 0), t_max) / t_max
         # cosine schedule (smooth, no plateau)
         cos_t = 0.5 * (1.0 + math.cos(math.pi * t))      # 1.0 -> 0.0

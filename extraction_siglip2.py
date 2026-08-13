@@ -192,9 +192,21 @@ def extract_code(args: Config) -> None:
             print(f"[extraction] load_state_dict: "
                   f"missing={len(missing)} unexpected={len(unexpected)}")
         print(f"[extraction] loaded checkpoint from {ckpt_path}")
+        # F01: restore the epoch BEFORE the first forward. `_current_epoch` is
+        # a plain int and is absent from the state dict, so a fresh model sits
+        # at 0 and the router runs at the INITIAL Sinkhorn epsilon instead of
+        # the annealed value these weights were trained with. Fail-closed: if
+        # annealing is on and the epoch cannot be established, abort rather
+        # than silently produce codes from an operating point never trained.
+        from dna_utils.runtime_state import apply_inference_epoch
+        _resolved = apply_inference_epoch(model, ckpt_path, args)
+        print(f"[extraction] inference epoch={_resolved.epoch} "
+              f"(source={_resolved.source}) "
+              f"effective_sinkhorn_epsilon={_resolved.effective_sinkhorn_epsilon}")
     else:
         print(f"[extraction] WARNING: no checkpoint at {ckpt_path}; "
               f"using fresh model.")
+        _resolved = None
 
     transform = get_transform("test")
     qwen_text_cache_path = getattr(args, "qwen_text_cache_path", None)

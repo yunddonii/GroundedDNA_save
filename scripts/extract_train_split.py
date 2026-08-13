@@ -46,6 +46,15 @@ def main() -> None:
         torch.load(ckpt, map_location=args.device), strict=False)
     print(f"[extract-train] loaded {ckpt} "
           f"(missing={len(missing)} unexpected={len(unexpected)})")
+    # F01: same fail-closed epoch restore as extraction_siglip2, via the SAME
+    # helper. Duplicating the resolution logic is how the two paths drifted into
+    # producing train and query/DB codes at different operating points.
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from dna_utils.runtime_state import apply_inference_epoch
+    _resolved = apply_inference_epoch(model, ckpt, args)
+    print(f"[extract-train] inference epoch={_resolved.epoch} "
+          f"(source={_resolved.source}) "
+          f"effective_sinkhorn_epsilon={_resolved.effective_sinkhorn_epsilon}")
 
     transform = get_transform("test")           # no augmentation for extraction
     trainset, _, _ = load_dataset(
