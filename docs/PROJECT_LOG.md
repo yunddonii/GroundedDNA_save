@@ -706,6 +706,40 @@ views of a code cannot disagree. Verified directly that the audit's reproduction
 command now succeeds at 40 bits (group 8 → [N,5]) while the old constant still
 raises `AssertionError(40, 6)`. **338 tests pass.**
 
+### Phase 1-5 — F09, ablation cells validated before they cost GPU
+
+The chain's three ablations were each wrong in a **different** way, and the shell
+would have logged all three as "step done":
+
+| cell | what the chain passed | failure mode |
+|---|---|---|
+| **A2** | three text lambdas zeroed, **no `--disable_text_supervision`** | **silent and wrong** — the caption-derived routing path has its own gate (`model_siglip2.py:3539`), so a "no text" number would have been produced *with* text |
+| **A4** | `--num_codebooks 1` against M=5 | **late crash** inside the quantizer |
+| **A5** | `--router_type mean` | **does not exist** (choices: sinkhorn/attention/slot/cluster_attn/cross_attn) — and A5 is not a router ablation at all |
+
+`dna_utils/ablation_spec.py` declares the cells and preflights them against
+**`config.py`'s own argparse parser**, not a copied list of names — a copy drifts
+from config exactly as the chain drifted from the model. `Config.build_parser()`
+exposes it without parsing `sys.argv` (366 options reachable).
+
+Corrections beyond the flags themselves:
+
+- **A4 restores matched capacity.** `--share_codebook` across 5 slots cuts total
+  capacity fivefold, so `--codebook_size` becomes 5×64=320 (CIFAR) or 5×128=640.
+  Without this the ablation confounds *shared* with *smaller* and the drop
+  cannot be attributed. The preflight refuses `--share_codebook` without it.
+- **A5 is the paper's factorial**, four cells over `L_joint × noGumbel`. This
+  matters because **noGumbel alone is harmful** (Flickr −.0042, CIFAR −.0101)
+  and only helps in combination; a single-factor cell would mislead.
+- **A2 is flagged `removes_input=True`.** It removes an INPUT, so its delta is
+  not comparable with A5's, which changes only the objective at identical
+  inputs. The paper must not tabulate them as one column.
+- Every cell carries a distinct `--selection_mode`, so F08's identity keeps
+  ablations out of the reference run's directory.
+
+16 cases in `tests/test_ablation_spec.py`, including one asserting the preflight
+really asks argparse rather than a hand-maintained list. **354 tests pass.**
+
 ### Verdict
 
 - 15-base main table: **historical diagnostic only** until the audit's

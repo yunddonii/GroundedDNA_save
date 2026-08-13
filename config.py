@@ -2112,9 +2112,31 @@ class Config():
         viz_arg.add_argument('--viz_tsne_samples',    dest='viz_tsne_samples',
             type=int, default=2000)
 
+        # F09: expose the parser so a preflight can validate launcher flags
+        # against the REAL accepted options instead of a copied list of names.
+        # A copy drifts -- that is how `--router_type mean` and
+        # `--num_codebooks 1` reached a launcher and were only caught at run
+        # time, one silently and one as a late crash.
+        Config._LAST_PARSER = parser
+
         config = parser.parse_args()
 
         return config
+
+    @staticmethod
+    def build_parser():
+        """The argparse parser, without parsing sys.argv. For preflight only."""
+        import sys as _sys
+        _saved = _sys.argv
+        try:
+            _sys.argv = [_saved[0] if _saved else "config.py"]
+            try:
+                Config.get_config()
+            except SystemExit:
+                pass
+        finally:
+            _sys.argv = _saved
+        return getattr(Config, "_LAST_PARSER", None)
     
     def load_args(self):
         
