@@ -121,5 +121,7 @@
         ]
       ]
     }
-  }
+  },
+  "INVALID": "F12: computed with the absent-category bug; IoU systematically inflated. Superseded.",
+  "audit": "docs/EXPERIMENT_PROTOCOL_AUDIT_2026-08-13.md"
 }

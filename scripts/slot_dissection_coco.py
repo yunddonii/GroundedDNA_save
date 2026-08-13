@@ -210,14 +210,13 @@ def main() -> int:
                     1.0 - a.quantile, axis=1)              # [M]
     Mk = A >= T[None, :, None, None]                       # [P, M, S, S]
 
-    inter = defaultdict(lambda: np.zeros(M, dtype=np.int64))
-    union = defaultdict(lambda: np.zeros(M, dtype=np.int64))
-    for i, per_cat in enumerate(masks):
-        for cid, cm in per_cat.items():
-            inter[cid] += (Mk[i] & cm[None]).sum(axis=(1, 2))
-            union[cid] += (Mk[i] | cm[None]).sum(axis=(1, 2))
-
-    iou = {cid: inter[cid] / np.maximum(union[cid], 1) for cid in inter}
+    # F12: fix the category universe BEFORE accumulating, and charge every
+    # probe image. Iterating `per_cat.items()` skipped images where a category
+    # is absent, so their activation area -- pure false positive -- never
+    # entered that category's union and the IoU was systematically inflated.
+    from dna_utils.dissection_iou import accumulate_iou, category_universe
+    universe = category_universe(masks)
+    iou = accumulate_iou(Mk, masks, universe)
 
     # control -- the same threshold applied to a shuffled routing assignment,
     # which keeps each map's shape but destroys which slot it belongs to.
@@ -226,13 +225,10 @@ def main() -> int:
     Tr = np.quantile(Ar.reshape(Pn, M, -1).transpose(1, 0, 2).reshape(M, -1),
                      1.0 - a.quantile, axis=1)
     Mr = Ar >= Tr[None, :, None, None]
-    i_r = defaultdict(lambda: np.zeros(M, dtype=np.int64))
-    u_r = defaultdict(lambda: np.zeros(M, dtype=np.int64))
-    for i, per_cat in enumerate(masks):
-        for cid, cm in per_cat.items():
-            i_r[cid] += (Mr[i] & cm[None]).sum(axis=(1, 2))
-            u_r[cid] += (Mr[i] | cm[None]).sum(axis=(1, 2))
-    iou_r = {cid: i_r[cid] / np.maximum(u_r[cid], 1) for cid in i_r}
+    # Same universe and same accumulation as the real branch, or the control
+    # cannot bound the real score: the old code inflated both in the same
+    # direction, which is why the control never exposed the defect.
+    iou_r = accumulate_iou(Mr, masks, universe)
 
     print(f"top-quantile = {a.quantile}  (paper: 0.005)   "
           f"detector threshold IoU > {a.iou_threshold} (paper: 0.04)\n")

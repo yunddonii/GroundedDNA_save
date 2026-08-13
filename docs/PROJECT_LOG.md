@@ -740,6 +740,42 @@ Corrections beyond the flags themselves:
 16 cases in `tests/test_ablation_spec.py`, including one asserting the preflight
 really asks argparse rather than a hand-maintained list. **354 tests pass.**
 
+### Phase 1-6 — F12, Network Dissection IoU accumulated over every probe image
+
+Bau et al. define the score as one dataset-level ratio,
+`sum_i |M AND L| / sum_i |M OR L|`. `slot_dissection_coco` iterated
+`per_cat.items()` — only the categories annotated in image *i* — so an image
+where a category is **absent** contributed to neither sum. Its activation area,
+which is pure false positive for that category, never entered the union. A slot
+firing everywhere scored as if it only ever fired on images containing the
+category.
+
+**The shuffled control had the identical bug**, so it was inflated in the same
+direction and could not expose the problem — which is why the numbers looked
+clean.
+
+The audit's fixture makes the size plain: two images, category present only in
+the first, activation on in both. Old code sees image 0 alone and reports
+**IoU = 1.0**; correct is **0.5**. Both are asserted, so a regression is
+unmistakable.
+
+`dna_utils/dissection_iou.py` fixes the category universe **before**
+accumulating and charges every image: absent category → intersection 0, and the
+activation area lands in the union, which is exactly the penalty the metric
+exists to apply. A category absent from every probe image scores 0 rather than
+disappearing from the ranking. Real and shuffled now call the same helper with
+the same universe, so the control genuinely bounds the score.
+
+One further test pins that the result is a **ratio of sums**, not a mean of
+per-image ratios — the latter weights a one-pixel image like a full one.
+
+`docs/newmodel_analysis/slot_dissection_mscoco_N39_polygon.json` is marked
+`INVALID`. The values reported on 2026-08-12 (`primary_object` → fire hydrant
+IoU .4654 etc.) are **not valid Network Dissection IoU** and are withdrawn; the
+audit also notes its `dir` field points at a collided run that no longer exists.
+
+10 cases in `tests/test_slot_dissection_coco.py`. **364 tests pass.**
+
 ### Verdict
 
 - 15-base main table: **historical diagnostic only** until the audit's
