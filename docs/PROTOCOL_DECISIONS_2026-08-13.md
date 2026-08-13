@@ -23,11 +23,22 @@ selection을 소급 적용할 수 없다. **ours main은 재학습해야 한다.
 이것만으로 해결되지 않는 것: baseline 108셀의 eligibility(F04)와 CIMON 구현
 결함(F05)은 **별도 blocker로 남는다.**
 
-## D2 (F03) — horizon 세 개를 분리. 근거는 공정성이 아니라 **명료성**
+## D2 (F03) — horizon을 **탐색 단계에서만** 분리. 최종은 셋을 함께 움직인다
 
-압축 cosine 자체가 부당한 것은 아니다. 문제는 현재 N 하나가 학습 길이 · LR
-horizon · ε horizon을 동시에 바꾸고, 논문 서술이 실제 코드와 다르다는 점이다.
-D1로 어차피 재학습하므로 분리 비용은 사실상 흡수된다.
+압축 cosine 자체가 부당한 것은 아니다. 문제는 N 하나가 학습 길이 · LR horizon ·
+ε horizon을 동시에 바꾸고 논문 서술이 실제 코드와 달랐다는 점이다. 다만 세 값을
+독립 축으로 두면 탐색 그리드가 감당할 수 없이 커지므로 **두 단계로 나눈다.**
+
+### 용어 — off-by-one
+
+`N`은 **0-based 정지 epoch**이다. `--stop_after_epoch N`은 epoch `0..N`을 돌므로
+학습 길이는 **N+1 epoch**이다. horizon은 길이 단위이므로 `N+1`을 쓴다.
+
+### 탐색 단계 — LR을 고정해 그리드를 단순화
+
+```
+-e 60  --stop_after_epoch N  --lr_schedule_horizon 60  --sinkhorn_schedule_horizon N+1
+```
 
 | 항목 | 값 |
 |---|---|
@@ -36,8 +47,29 @@ D1로 어차피 재학습하므로 분리 비용은 사실상 흡수된다.
 | `sinkhorn_schedule_horizon` | **N + 1** |
 | final extraction의 inference epoch | **N** |
 
-이러면 모든 N 후보가 **동일한 LR schedule prefix**를 쓰고, ε만 정해진 stop
-point에서 완주한다. 세 값을 manifest에 각각 기록한다.
+모든 N 후보가 **동일한 LR schedule prefix**를 공유하므로, N 비교가 학습 길이
+비교가 된다. 세 값은 manifest에 각각 기록한다.
+
+### 최종 단계 — 확정된 N에 세 값을 모두 맞춘다
+
+```
+-e N+1  --stop_after_epoch N
+```
+
+`--lr_schedule_horizon`과 `--sinkhorn_schedule_horizon`을 지정하지 않으면 둘 다
+`--epoch`로 fallback하므로, 위 한 줄이 **세 값을 전부 N+1로 묶는다.** 이것이
+사용자가 의도한 최종 구성이며, 별도 플래그가 필요 없다.
+
+### ⚠️ 명시해야 할 한계
+
+**탐색 config와 최종 config는 서로 다른 모델을 만든다.** 탐색에서 N이 최적이었다는
+것은 "60-epoch cosine의 앞 N+1 epoch"에서의 최적이고, 최종 모델은 "N+1 epoch에
+압축된 cosine"이다. LR 궤적이 다르므로 **탐색 최적 N이 최종 config에서도 최적이라는
+보장은 없다.**
+
+논문에는 이 절차를 그대로 쓴다: *"N은 고정 LR prefix 하에서 선택했고, 최종 모델은
+그 N에 맞춘 schedule로 재학습했다."* 선택 절차와 최종 모델이 다르다는 사실을
+숨기지 않는다.
 
 ## D3 (F07) — GC는 **실제 40–60 % inclusive**를 중앙 policy로
 

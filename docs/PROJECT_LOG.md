@@ -487,6 +487,125 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-08-13 — 🔴 **PROTOCOL AUDIT: the 15-base main table is NOT a paper-valid main result.** 18 defects; Phase 0 (stop/quarantine/mark) and Phase 1-1 (F01 extraction epoch + D2 horizon separation) done
+
+An independent audit (`docs/EXPERIMENT_PROTOCOL_AUDIT_2026-08-13.md`) reviewed
+`§4 Experiments`, the TeX table, the TODO and every generator behind them, and
+concluded that the numbers reported on 2026-08-12 are arithmetically correct
+against their raw artifacts but are **not paper-valid**. Checking the twelve
+source SHA-256 it recorded against the working tree: **all twelve unchanged**,
+i.e. none of F01-F18 had been fixed at the time.
+
+### What was withdrawn
+
+The "3 wins, 1 loss" main-table claim, and the sentence calling the CIFAR gap
+"statistically indistinguishable". Both now carry a BLOCKED banner in the draft
+and the TeX. The reasons are stacked, not singular:
+
+| ID | Defect |
+|---|---|
+| F01 | reloaded checkpoints infer at **epoch 0**, i.e. the INITIAL Sinkhorn epsilon |
+| F02 | ours N selected on the **official test curve**; baselines use train-val |
+| F03 | one `-e` set training length, LR horizon and epsilon horizon at once |
+| F04 | all 108 baseline cells are `main_protocol_eligible=False` |
+| F05 | local CIMON objective differs from the official implementation |
+| F14 | n=3 mean±SD overlap is not a significance test |
+
+### Phase 0 — stopped, quarantined, marked
+
+- auto chain killed before the post-BU05 stages. Its A2/A4/A5 commands were
+  wrong anyway (F09): A2 omitted `--disable_text_supervision` so caption-derived
+  routing stayed live; A4 passed `--num_codebooks 1`, which fails against M=5,
+  instead of `--share_codebook`; A5 used a `--router_type` value argparse does
+  not accept and that is not the factorial the paper means.
+- 40-bit matrix killed, three output roots moved to
+  `*_QUARANTINE_pre_F05F06F07_20260813`. **F06 confirmed directly**:
+  `extract_flat_baseline` asserts `total % group_size == 0` with `group_size=6`
+  fixed, and `40 % 6 != 0`, so all 108 cells were going to die at flat
+  extraction. Launching them was an error on my part.
+- Three auto launchers now `exit 91` with a pointer to the audit.
+- 20-base ours queue never released (`c4 runs = 0`).
+- **New finding**: the 48-cell native-DNA queue "drained" but only **3 cells
+  completed**. One matrix invocation per cell against a shared `--data-root`
+  makes the preflight see the other cells' partial state and reject them. That
+  queue design was wrong and is a concrete instance of F08.
+- `docs/phase0_20260813/` preserves HEAD, worktree status/diff, 15 source SHAs
+  and a manifest of the twelve ours runs with checkpoint SHAs and their epoch-0
+  metrics, labelled `LEGACY_DIAGNOSTIC_ONLY`. Nothing deleted.
+
+### Phase 1-1 — F01
+
+`_current_epoch` is a plain int, not a buffer, so it never travels in the state
+dict; `extract_code` builds a fresh model and loads raw weights, leaving it at 0.
+Measured by the audit on the CIFAR final checkpoint: **24 of the first 32 rows
+change `base_indices`** between epoch 0 and epoch 4, 28/32 change
+`codebook_indices`.
+
+`dna_utils/runtime_state.py` is now the single resolver and **both** extraction
+paths call it — each having its own copy is how query/DB and train codes could
+drift apart. Order: explicit flag → metadata sidecar → **fail**. Fail-closed is
+the point: defaulting to 0 IS the defect. It also rejects a sidecar whose
+recorded SHA does not match the checkpoint (stale, e.g. from the 2026-08-12
+collision) and a `--inference_epoch` that disagrees with metadata.
+
+The trainer writes that sidecar beside every checkpoint, and **a failed final
+extraction is now fatal** — previously it printed and continued, so a run could
+report codes left by a previous extraction in the same directory.
+
+### Phase 1-1 — D2, revised to two stages (user directive)
+
+`config.py` already warned that `-e 5` differs from epoch 4 of a 60-epoch
+schedule, but the fixed-N launcher passed `-e N+1` and defeated that warning.
+`--lr_schedule_horizon` and `--sinkhorn_schedule_horizon` now separate the three;
+both default to `--epoch`, so an old config reproduces the old model bit for bit.
+
+**Convention.** `N` is the 0-based stopping epoch, so training length is `N+1`
+and horizons are in length units.
+
+| stage | command | stop | LR | epsilon |
+|---|---|---:|---:|---:|
+| search | `-e 60 --stop_after_epoch N --lr_schedule_horizon 60 --sinkhorn_schedule_horizon N+1` | N | 60 | N+1 |
+| final | `-e N+1 --stop_after_epoch N` | N | N+1 | N+1 |
+
+Verified both resolve as intended and reach epsilon 0.1 at epoch N. The final
+stage needs no extra flags: unset horizons fall back to `--epoch`.
+
+**Stated limitation.** The search and final configs are different models — the
+search optimum is "the first N+1 epochs of a 60-epoch cosine", the final model is
+"a cosine compressed into N+1". The paper must say so rather than imply one
+selection produced the reported model.
+
+### N evidence — checked, and NOT sufficient under D1
+
+Restricting to seed-42 cells that actually satisfy `-e = N+1` (an earlier table
+was contaminated by the old `s5topp69` `-e 60` runs):
+
+| dataset | N=4 | N=9 | N=19 | N=39 |
+|---|---:|---:|---:|---:|
+| CIFAR-10 | **.8843** | .8823 | .8817 | .8752 |
+| Flickr25K | **.8593** | .8540 | .8550 | — |
+| NUS-WIDE | **.8210** | .8180 | .8192 | .8137 |
+| MS-COCO | .7939 | .8062 | .8151 | **.8354** |
+
+The grid is nearly complete, but it **cannot** determine N for the paper:
+selection came from the **official test** curve, which is F02 itself, and the
+metrics were produced by **epoch-0 extraction** (F01), so rank order is not
+guaranteed to survive correction. Flickr N=39 is also missing. It is still
+useful for Phase 2 — re-inferring these checkpoints at the correct epoch
+answers "did the epoch-0 bug change the N ranking" and can narrow the grid the
+validation search has to cover.
+
+### Verdict
+
+- 15-base main table: **historical diagnostic only** until the audit's
+  acceptance checklist passes.
+- Tests written before implementation, as the audit asks: 11 new cases in
+  `tests/test_siglip2_extraction_runtime_state.py`; **282 pass** overall with
+  the native and CRH suites deselected (their failures are F18 and F15, next).
+- Decisions recorded in `docs/PROTOCOL_DECISIONS_2026-08-13.md` (D1-D5).
+
+---
+
 ## 2026-08-11 (PM) — 🟢 **The per-slot heatmaps look identical because the epsilon SCHEDULE is defined over the nominal `-e`, not over the epoch training actually stops at.** Aligning them (`-e 10` for a 10-epoch run) drops the slot cosine .9984 -> .5411 at NO extra cost and IMPROVES code diversity. Four `curveN59` runs found to carry best-checkpoint weights, invalidating an earlier comparison in this entry's predecessor
 
 ### The question
