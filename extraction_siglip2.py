@@ -241,6 +241,15 @@ def _write_split_manifest(out_dir: str, split: str, npz_name: str,
         if "base_indices" not in stored:
             raise ManifestBindingError(f"{npz_path} has no base_indices")
         stored_codes = np.asarray(stored["base_indices"])
+        stored_hash = (np.asarray(stored["hash_2bit"])
+                       if "hash_2bit" in stored else None)
+        stored_cb = (np.asarray(stored["codebook_indices"])
+                     if "codebook_indices" in stored else None)
+    # A scalar or 1-D array used to raise IndexError on `.shape[1]`; that is a
+    # domain error about the artefact, not a crash.
+    if stored_codes.ndim != 2:
+        raise ManifestBindingError(
+            f"{npz_path} base_indices has rank {stored_codes.ndim}, expected 2")
     n_rows = int(stored_codes.shape[0])
     payload_codes = payload.get("base_indices")
     if payload_codes is not None:
@@ -250,6 +259,14 @@ def _write_split_manifest(out_dir: str, split: str, npz_name: str,
                 f"{split}: payload declares {declared_rows} rows but "
                 f"{npz_name} holds {n_rows}")
 
+    _flat = os.path.join(out_dir, "config.pt")
+    _nested = os.path.join(out_dir, "model_state", "config.pt")
+    _config_path = _flat if os.path.isfile(_flat) else _nested
+    if not os.path.isfile(_config_path):
+        raise ManifestBindingError(
+            f"no config.pt at {_flat} or {_nested}; the manifest cannot record "
+            f"which configuration produced this extraction")
+
     slots = int(getattr(args, "num_semantic_parts", 0) or 0)
     per_slot = int(getattr(args, "num_codons_per_codebook", 0) or 0)
     expected_bases = slots * per_slot
@@ -258,6 +275,26 @@ def _write_split_manifest(out_dir: str, split: str, npz_name: str,
         raise ManifestBindingError(
             f"{split}: config declares {slots}x{per_slot} = {expected_bases} "
             f"bases but {npz_name} holds base_indices of width {actual_bases}")
+
+    if stored_codes.size and (stored_codes.min() < 0 or stored_codes.max() > 3):
+        raise ManifestBindingError(
+            f"{split}: base_indices holds values outside 0..3 "
+            f"[{stored_codes.min()}, {stored_codes.max()}]")
+
+    # The companion arrays are what downstream retrieval and codebook analyses
+    # read, so their geometry is part of the same contract.
+    if stored_hash is None:
+        raise ManifestBindingError(f"{npz_path} has no hash_2bit")
+    if stored_hash.shape != (n_rows, 2 * expected_bases):
+        raise ManifestBindingError(
+            f"{split}: hash_2bit is {stored_hash.shape}, expected "
+            f"{(n_rows, 2 * expected_bases)}")
+    if stored_cb is None:
+        raise ManifestBindingError(f"{npz_path} has no codebook_indices")
+    if stored_cb.shape != (n_rows, slots):
+        raise ManifestBindingError(
+            f"{split}: codebook_indices is {stored_cb.shape}, expected "
+            f"{(n_rows, slots)}")
 
     codes = stored_codes
     return write_extraction_manifest(
@@ -271,16 +308,38 @@ def _write_split_manifest(out_dir: str, split: str, npz_name: str,
         extra={
             "npz_path": os.path.abspath(npz_path),
             "npz_sha256": sha256_file(npz_path),
-            "config_path": os.path.abspath(
-                os.path.join(out_dir, "config.pt")),
-            "config_sha256": (
-                sha256_file(os.path.join(out_dir, "config.pt"))
-                if os.path.isfile(os.path.join(out_dir, "config.pt")) else None),
+            # Resume supports a flat `<out>/config.pt` and a legacy nested
+            # `<out>/model_state/config.pt`; recording only the flat one left a
+            # nested run with a wrong path and a null SHA.
+            "config_path": os.path.abspath(_config_path),
+            "config_sha256": sha256_file(_config_path),
             "dataset": getattr(args, "dataset", None),
             "random_seed": getattr(args, "random_seed", None),
             "codebook_size": getattr(args, "codebook_size", None),
         },
     )
+
+
+def _write_completion_marker(out_dir: str, manifests: dict) -> str:
+    """Mark the run complete only after every split has validated."""
+    import json as _json
+    from dna_utils.runtime_state import sha256_file
+
+    path = os.path.join(out_dir, "extraction_complete.json")
+    payload = {
+        "schema_version": 1,
+        "splits": sorted(manifests),
+        "manifest_sha256": {
+            split: sha256_file(p) for split, p in sorted(manifests.items())
+        },
+    }
+    tmp = f"{path}.{os.getpid()}.tmp"
+    with open(tmp, "w") as handle:
+        _json.dump(payload, handle, indent=2, sort_keys=True)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(tmp, path)
+    return path
 
 
 def extract_code(args: Config) -> None:
@@ -350,10 +409,27 @@ def extract_code(args: Config) -> None:
     # F01: without these a table cannot be traced back to the operating point
     # that produced it. Written after the NPZs so the recorded digest is the
     # digest of the file on disk.
+    # A stale manifest from a previous run would otherwise survive alongside a
+    # new NPZ if this crashed between the two writes.
+    for split in ("db", "query"):
+        stale = os.path.join(out_dir, f"extraction_manifest_{split}.json")
+        if os.path.exists(stale):
+            os.remove(stale)
+    completion = os.path.join(out_dir, "extraction_complete.json")
+    if os.path.exists(completion):
+        os.remove(completion)
+
+    manifests = {}
     for split, name, payload in (("db", "extract_db.npz", db_out),
                                  ("query", "extract_query.npz", qy_out)):
-        _write_split_manifest(out_dir, split, name, payload, args=args,
-                              checkpoint_path=ckpt_path, resolved=_resolved)
+        manifests[split] = _write_split_manifest(
+            out_dir, split, name, payload, args=args,
+            checkpoint_path=ckpt_path, resolved=_resolved)
+
+    # Written last and atomically: a consumer that sees this knows both splits
+    # validated. Without it, an interrupted run leaves one manifest and one
+    # NPZ and looks partially complete to everything downstream.
+    _write_completion_marker(out_dir, manifests)
     print(f"[extraction] saved to {out_dir}")
 
 

@@ -233,10 +233,15 @@ def resolve_inference_epoch(checkpoint_path: str, args: Any) -> ResolvedEpoch:
     if eps_i is None or eps_f is None:
         # No annealing: the router uses its static epsilon and the epoch is
         # irrelevant, so an unknown epoch must not block extraction.
+        # The epoch is irrelevant here, but the checkpoint identity never is:
+        # returning None made static-epsilon extraction unable to name its own
+        # weights, and the fail-closed manifest writer then refused it outright.
         return ResolvedEpoch(epoch=0, source="no_annealing",
                              effective_sinkhorn_epsilon=None,
                              sinkhorn_schedule_horizon=None,
-                             checkpoint_sha256=None)
+                             checkpoint_sha256=(
+                                 _sha256(checkpoint_path)
+                                 if os.path.isfile(checkpoint_path) else None))
 
     raise InferenceEpochUnresolved(
         f"Sinkhorn epsilon annealing is active ({eps_i} -> {eps_f}) but the "

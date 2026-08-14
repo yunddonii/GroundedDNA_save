@@ -44,10 +44,14 @@ def _resolved(sha):
                             checkpoint_sha256=sha)
 
 
-def _cell(tmp_path, rows=2, width=15):
+def _cell(tmp_path, rows=2, width=15, slots=5, companions=True):
     ck = tmp_path / "ck.pth"
     ck.write_bytes(b"real-weights")
+    (tmp_path / "config.pt").write_bytes(b"cfg")
     payload = {"base_indices": np.zeros((rows, width), dtype=np.int8)}
+    if companions:
+        payload["hash_2bit"] = np.zeros((rows, 2 * width), dtype=np.int8)
+        payload["codebook_indices"] = np.zeros((rows, slots), dtype=np.int64)
     np.savez(tmp_path / "extract_db.npz", **payload)
     return ck, payload
 
@@ -87,7 +91,6 @@ def test_geometry_must_match_the_code_width(tmp_path):
 
 def test_a_consistent_manifest_is_written(tmp_path):
     ck, payload = _cell(tmp_path, rows=2, width=15)
-    (tmp_path / "config.pt").write_bytes(b"cfg")
     out = E._write_split_manifest(
         str(tmp_path), "db", "extract_db.npz", payload, args=_Args(),
         checkpoint_path=str(ck), resolved=_resolved(rs.sha256_file(str(ck))))
@@ -100,13 +103,94 @@ def test_a_consistent_manifest_is_written(tmp_path):
 
 
 def test_missing_checkpoint_sha_is_refused(tmp_path):
-    """The no-annealing resolver returns `checkpoint_sha256=None` even with the
-    file present; a manifest that cannot name its weights is worthless."""
+    """A manifest that cannot name its weights is worthless."""
     ck, payload = _cell(tmp_path)
     with pytest.raises(Exception):
         E._write_split_manifest(
             str(tmp_path), "db", "extract_db.npz", payload, args=_Args(),
             checkpoint_path=str(ck), resolved=_resolved(None))
+
+
+def test_no_annealing_resolver_still_names_the_checkpoint(tmp_path):
+    """The earlier fix pinned a workaround: the resolver returned None and the
+    writer refused, which made static-epsilon extraction impossible rather than
+    fixing the resolver. The resolver hashes the file it loaded."""
+    ck = tmp_path / "m.pth"
+    ck.write_bytes(b"weights")
+
+    class _NoAnneal:
+        inference_epoch = None
+        epoch = 5
+        stop_after_epoch = 4
+        sinkhorn_epsilon_init = None
+        sinkhorn_epsilon_final = None
+        lr_schedule_horizon = None
+        sinkhorn_schedule_horizon = None
+
+    resolved = rs.resolve_inference_epoch(str(ck), _NoAnneal())
+    assert resolved.source == "no_annealing"
+    assert resolved.checkpoint_sha256 == rs.sha256_file(str(ck))
+
+
+def test_companion_arrays_must_match_the_geometry(tmp_path):
+    """`hash_2bit` and `codebook_indices` are what retrieval and the codebook
+    analyses read; a manifest that ignores them binds only a third of the NPZ."""
+    ck, payload = _cell(tmp_path, rows=2, width=15, companions=False)
+    with pytest.raises(Exception) as excinfo:
+        E._write_split_manifest(
+            str(tmp_path), "db", "extract_db.npz", payload, args=_Args(),
+            checkpoint_path=str(ck),
+            resolved=_resolved(rs.sha256_file(str(ck))))
+    assert "hash_2bit" in str(excinfo.value)
+
+
+def test_wrong_codebook_width_is_refused(tmp_path):
+    ck = tmp_path / "ck.pth"
+    ck.write_bytes(b"w")
+    (tmp_path / "config.pt").write_bytes(b"cfg")
+    payload = {
+        "base_indices": np.zeros((2, 15), dtype=np.int8),
+        "hash_2bit": np.zeros((2, 30), dtype=np.int8),
+        "codebook_indices": np.zeros((2, 6), dtype=np.int64),   # 6 != 5 slots
+    }
+    np.savez(tmp_path / "extract_db.npz", **payload)
+    with pytest.raises(Exception) as excinfo:
+        E._write_split_manifest(
+            str(tmp_path), "db", "extract_db.npz", payload, args=_Args(),
+            checkpoint_path=str(ck),
+            resolved=_resolved(rs.sha256_file(str(ck))))
+    assert "codebook_indices" in str(excinfo.value)
+
+
+def test_rank_error_is_a_domain_error_not_an_indexerror(tmp_path):
+    ck = tmp_path / "ck.pth"
+    ck.write_bytes(b"w")
+    (tmp_path / "config.pt").write_bytes(b"cfg")
+    np.savez(tmp_path / "extract_db.npz",
+             base_indices=np.zeros(15, dtype=np.int8))
+    with pytest.raises(E.ManifestBindingError) as excinfo:
+        E._write_split_manifest(
+            str(tmp_path), "db", "extract_db.npz",
+            {"base_indices": np.zeros(15, dtype=np.int8)}, args=_Args(),
+            checkpoint_path=str(ck),
+            resolved=_resolved(rs.sha256_file(str(ck))))
+    assert "rank" in str(excinfo.value)
+
+
+def test_nested_legacy_config_is_recorded(tmp_path):
+    """Resume supports `<out>/model_state/config.pt`; recording only the flat
+    path left a nested run with a wrong path and a null SHA."""
+    ck, payload = _cell(tmp_path)
+    (tmp_path / "config.pt").unlink()
+    nested = tmp_path / "model_state"
+    nested.mkdir()
+    (nested / "config.pt").write_bytes(b"nested-cfg")
+    out = E._write_split_manifest(
+        str(tmp_path), "db", "extract_db.npz", payload, args=_Args(),
+        checkpoint_path=str(ck), resolved=_resolved(rs.sha256_file(str(ck))))
+    d = json.loads(open(out).read())
+    assert d["config_path"].endswith("model_state/config.pt")
+    assert d["config_sha256"] == rs.sha256_file(str(nested / "config.pt"))
 
 
 # ------------------------------------------------------- best sidecar fields
@@ -132,3 +216,50 @@ def test_config_declares_the_epsilon_flags_this_code_reads():
     assert "sinkhorn_epsilon_init" in names
     assert "sinkhorn_epsilon_final" in names
     assert "sinkhorn_eps" not in names
+
+
+# ------------------------------------------ completion marker and isolation
+
+def test_completion_marker_binds_both_manifests(tmp_path):
+    """Written last, so a consumer that sees it knows both splits validated.
+    Without it an interrupted run leaves one manifest and one NPZ and looks
+    partially complete to everything downstream."""
+    manifests = {}
+    for split, name in (("db", "extract_db.npz"), ("query", "extract_query.npz")):
+        ck, payload = _cell(tmp_path)
+        (tmp_path / name).write_bytes((tmp_path / "extract_db.npz").read_bytes())
+        manifests[split] = E._write_split_manifest(
+            str(tmp_path), split, name, payload, args=_Args(),
+            checkpoint_path=str(ck), resolved=_resolved(rs.sha256_file(str(ck))))
+
+    marker = E._write_completion_marker(str(tmp_path), manifests)
+    d = json.loads(open(marker).read())
+    assert sorted(d["splits"]) == ["db", "query"]
+    for split, path in manifests.items():
+        assert d["manifest_sha256"][split] == rs.sha256_file(path)
+
+
+def test_wrapper_dispatch_is_restored_after_the_context():
+    """§15.6: `WRAPPER_DISPATCH` is a shared module global. Sequential CLI use
+    is fine because the context restores it, but a nested or concurrent library
+    caller would otherwise observe the wrapper's value."""
+    import scripts.run_native_dna_p0 as driver
+    from scripts.run_native_dna_p0_24 import configured_canonical_driver
+
+    before = driver.WRAPPER_DISPATCH
+    with configured_canonical_driver():
+        assert driver.WRAPPER_DISPATCH is True
+    assert driver.WRAPPER_DISPATCH == before
+
+
+def test_nested_wrapper_contexts_restore_correctly():
+    import scripts.run_native_dna_p0 as driver
+    from scripts.run_native_dna_p0_24 import configured_canonical_driver
+
+    before = driver.MATCHED_LENGTH
+    with configured_canonical_driver():
+        with configured_canonical_driver():
+            assert driver.MATCHED_LENGTH == 24
+        assert driver.MATCHED_LENGTH == 24, (
+            "the inner context must not restore the outer one's patch early")
+    assert driver.MATCHED_LENGTH == before

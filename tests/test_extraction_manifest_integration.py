@@ -46,10 +46,17 @@ def test_extractor_writes_a_manifest_per_split(tmp_path):
     """
     out = tmp_path / "run"
     out.mkdir()
-    payload = {"base_indices": np.zeros((7, 15), dtype=np.int8)}
+    # A realistic extraction: the writer binds base_indices, hash_2bit and
+    # codebook_indices together, so a fixture missing them is not a valid cell.
+    payload = {
+        "base_indices": np.zeros((7, 15), dtype=np.int8),
+        "hash_2bit": np.zeros((7, 30), dtype=np.int8),
+        "codebook_indices": np.zeros((7, 5), dtype=np.int64),
+    }
     np.savez(out / "extract_db.npz", **payload)
     ck = out / "model_state_dict.pth"
     ck.write_bytes(b"weights")
+    (out / "config.pt").write_bytes(b"cfg")
 
     class _Args:
         num_semantic_parts = 5
@@ -94,6 +101,7 @@ def test_extract_code_writes_one_manifest_per_split(tmp_path):
 
     ck = out / "model_state_dict.pth"
     ck.write_bytes(b"w")
+    (out / "config.pt").write_bytes(b"cfg")
     # A real digest: the writer is fail-closed and rejects a declared SHA that
     # matches no file, which is the whole point of the binding check.
     resolved = runtime_state.ResolvedEpoch(
@@ -102,7 +110,11 @@ def test_extract_code_writes_one_manifest_per_split(tmp_path):
         checkpoint_sha256=runtime_state.sha256_file(str(ck)))
     for split, name, rows in (("db", "extract_db.npz", 23000),
                               ("query", "extract_query.npz", 2000)):
-        payload = {"base_indices": np.zeros((rows, 15), dtype=np.int8)}
+        payload = {
+            "base_indices": np.zeros((rows, 15), dtype=np.int8),
+            "hash_2bit": np.zeros((rows, 30), dtype=np.int8),
+            "codebook_indices": np.zeros((rows, 5), dtype=np.int64),
+        }
         np.savez(out / name, **payload)
         extraction_siglip2._write_split_manifest(
             str(out), split, name, payload, args=_Args(),

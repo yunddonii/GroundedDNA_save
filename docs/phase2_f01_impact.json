@@ -44,6 +44,13 @@
         "gc_max_frac": 0.6
       },
       "legacy_recomputed": [],
+      "provenance": {
+        "checkpoint_sha256": "ebf6a1c3ad3cceb71a7feff5cb7e6baae6af7c90a1c7921c38e236387fb31228",
+        "inference_epoch": 4,
+        "inference_epoch_source": "explicit_flag",
+        "effective_sinkhorn_epsilon": 0.1,
+        "backfilled": true
+      },
       "delta": {
         "map_at_R_bioproj": 0.0015950880532626943,
         "full_map_bioproj": -0.006919251680559624,
@@ -76,6 +83,13 @@
         "gc_max_frac": 0.6
       },
       "legacy_recomputed": [],
+      "provenance": {
+        "checkpoint_sha256": "bc5f4502e0412f9a5a1ef72c6f69fcbe1695abf9a525a8307463752d5f378786",
+        "inference_epoch": 9,
+        "inference_epoch_source": "explicit_flag",
+        "effective_sinkhorn_epsilon": 0.1,
+        "backfilled": true
+      },
       "delta": {
         "map_at_R_bioproj": -0.005345705969694525,
         "full_map_bioproj": -0.03989018392823529,
@@ -112,6 +126,13 @@
       "legacy_recomputed": [
         "bio_projection"
       ],
+      "provenance": {
+        "checkpoint_sha256": "1b1b2fa297956b2c99d7b1eaa6d6492e8cc9f3b37caa7bf0865210e0a4d616f3",
+        "inference_epoch": 19,
+        "inference_epoch_source": "explicit_flag",
+        "effective_sinkhorn_epsilon": 0.1,
+        "backfilled": true
+      },
       "delta": {
         "map_at_R_bioproj": -0.010152843851570004,
         "full_map_bioproj": -0.03468838474737845,
@@ -144,6 +165,13 @@
         "gc_max_frac": 0.6
       },
       "legacy_recomputed": [],
+      "provenance": {
+        "checkpoint_sha256": "7e3fc4fddc0128bc9de4436d55de2f5d73ed6a62de06935248f0ee4ea6b34444",
+        "inference_epoch": 39,
+        "inference_epoch_source": "explicit_flag",
+        "effective_sinkhorn_epsilon": 0.1,
+        "backfilled": true
+      },
       "delta": {
         "map_at_R_bioproj": -0.007681323201268575,
         "full_map_bioproj": -0.019217556078863662,
@@ -176,6 +204,13 @@
         "gc_max_frac": 0.6
       },
       "legacy_recomputed": [],
+      "provenance": {
+        "checkpoint_sha256": "afcc8e17ccf61b00cb3291ce94d79abc49dfcc2ccd20207c2e36ce36b694515d",
+        "inference_epoch": 4,
+        "inference_epoch_source": "explicit_flag",
+        "effective_sinkhorn_epsilon": 0.1,
+        "backfilled": true
+      },
       "delta": {
         "map_at_R_bioproj": -0.000691908586036849,
         "full_map_bioproj": 0.0034313894714946835,
@@ -208,6 +243,13 @@
         "gc_max_frac": 0.6
       },
       "legacy_recomputed": [],
+      "provenance": {
+        "checkpoint_sha256": "a6bfe42ced56253d79e31e07db596a0c56885c80052e0c846156cf93c3147320",
+        "inference_epoch": 9,
+        "inference_epoch_source": "explicit_flag",
+        "effective_sinkhorn_epsilon": 0.1,
+        "backfilled": true
+      },
       "delta": {
         "map_at_R_bioproj": -0.008755645749859986,
         "full_map_bioproj": -0.008390333637595893,
@@ -240,6 +282,13 @@
         "gc_max_frac": 0.6
       },
       "legacy_recomputed": [],
+      "provenance": {
+        "checkpoint_sha256": "232cfa5fb02dd28d4c6fdd6238bdba296e1581f192da054908fadc06dbadae9d",
+        "inference_epoch": 19,
+        "inference_epoch_source": "explicit_flag",
+        "effective_sinkhorn_epsilon": 0.1,
+        "backfilled": true
+      },
       "delta": {
         "map_at_R_bioproj": -0.01362323938395027,
         "full_map_bioproj": -0.014919194949160275,
@@ -272,6 +321,13 @@
         "gc_max_frac": 0.6
       },
       "legacy_recomputed": [],
+      "provenance": {
+        "checkpoint_sha256": "c39c68e2629e7c70b823f9769fb26564bf5c95a804f95b1b6fba902d6762d15a",
+        "inference_epoch": 4,
+        "inference_epoch_source": "explicit_flag",
+        "effective_sinkhorn_epsilon": 0.1,
+        "backfilled": true
+      },
       "delta": {
         "map_at_R_bioproj": 0.0011094280459071904,
         "full_map_bioproj": -0.0024115323808706624,
@@ -304,6 +360,13 @@
         "gc_max_frac": 0.6
       },
       "legacy_recomputed": [],
+      "provenance": {
+        "checkpoint_sha256": "f94d990b396569893b3af37cadeca96d439974d315af579267d3ce6a73f40307",
+        "inference_epoch": 9,
+        "inference_epoch_source": "explicit_flag",
+        "effective_sinkhorn_epsilon": 0.1,
+        "backfilled": true
+      },
       "delta": {
         "map_at_R_bioproj": 5.300891438220212e-05,
         "full_map_bioproj": 0.0016576461294671718,
@@ -336,6 +399,13 @@
         "gc_max_frac": 0.6
       },
       "legacy_recomputed": [],
+      "provenance": {
+        "checkpoint_sha256": "5dc5fa633bf189d033841cdf62e829407951f7d4ce90e74eea9703cca838caa5",
+        "inference_epoch": 19,
+        "inference_epoch_source": "explicit_flag",
+        "effective_sinkhorn_epsilon": 0.1,
+        "backfilled": true
+      },
       "delta": {
         "map_at_R_bioproj": -0.0016463790929780453,
         "full_map_bioproj": 0.004224448515141699,
@@ -368,6 +438,13 @@
         "gc_max_frac": 0.6
       },
       "legacy_recomputed": [],
+      "provenance": {
+        "checkpoint_sha256": "41ddb7467af78bb683f2da3983c7a2de6b53e09beb56fd9f9d0a9629c81a9e9a",
+        "inference_epoch": 39,
+        "inference_epoch_source": "explicit_flag",
+        "effective_sinkhorn_epsilon": 0.1,
+        "backfilled": true
+      },
       "delta": {
         "map_at_R_bioproj": 0.0022967547776926445,
         "full_map_bioproj": 0.0034060788552451315,
@@ -400,6 +477,13 @@
         "gc_max_frac": 0.6
       },
       "legacy_recomputed": [],
+      "provenance": {
+        "checkpoint_sha256": "81c1eb5b2fe1f1137eae2b94d4f5b74bf29843969baabd70f2f61c52b3eefd32",
+        "inference_epoch": 4,
+        "inference_epoch_source": "explicit_flag",
+        "effective_sinkhorn_epsilon": 0.1,
+        "backfilled": true
+      },
       "delta": {
         "map_at_R_bioproj": -0.008233854678017627,
         "full_map_bioproj": -0.004015512806710642,
@@ -432,6 +516,13 @@
         "gc_max_frac": 0.6
       },
       "legacy_recomputed": [],
+      "provenance": {
+        "checkpoint_sha256": "1577644f026e6adcf7fd40ee87b9f333ec1c4b2aa79d4817f04130de20585a89",
+        "inference_epoch": 9,
+        "inference_epoch_source": "explicit_flag",
+        "effective_sinkhorn_epsilon": 0.1,
+        "backfilled": true
+      },
       "delta": {
         "map_at_R_bioproj": -0.0053820720557162804,
         "full_map_bioproj": -0.004653336054946,
@@ -464,6 +555,13 @@
         "gc_max_frac": 0.6
       },
       "legacy_recomputed": [],
+      "provenance": {
+        "checkpoint_sha256": "fa09a5d2ad7e876234c3e7fb956398f4766618b69e44fa2d722d457bac8e984f",
+        "inference_epoch": 19,
+        "inference_epoch_source": "explicit_flag",
+        "effective_sinkhorn_epsilon": 0.1,
+        "backfilled": true
+      },
       "delta": {
         "map_at_R_bioproj": 0.0022809253527409368,
         "full_map_bioproj": 0.004589997465135887,
@@ -500,6 +598,13 @@
       "legacy_recomputed": [
         "pairwise_nmi"
       ],
+      "provenance": {
+        "checkpoint_sha256": "8c8541babb94e0d592ac81ffa9802a5fdbfa875c31bc53ff27f73690e42cc2e8",
+        "inference_epoch": 39,
+        "inference_epoch_source": "explicit_flag",
+        "effective_sinkhorn_epsilon": 0.1,
+        "backfilled": true
+      },
       "delta": {
         "map_at_R_bioproj": -0.005416110632813997,
         "full_map_bioproj": -0.004498531012682272,

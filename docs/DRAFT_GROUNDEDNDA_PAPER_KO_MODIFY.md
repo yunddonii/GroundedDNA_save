@@ -1052,6 +1052,14 @@ Hashing은 loss가 45까지 계속 내려가는 동안 test mAP는 10 epoch 이�
 
 이 절은 결함 영향 진단이며 F02의 paper-valid (N) 선택을 대체하지 않는다.
 
+> **산출물 provenance**: 이 15셀은 extraction manifest 기능이 생기기 전에 만들어졌으므로
+> manifest를 **사후 backfill**했다(`scripts/backfill_phase2_manifests.py`). backfill은 셀마다
+> (i) 복사된 checkpoint·config가 canonical legacy source와 **바이트 단위 일치**하는지,
+> (ii) 추출 로그의 resolved epoch가 그 셀의 (N)이고 source가 `explicit_flag`인지,
+> (iii) NPZ geometry가 설정과 일치하는지를 검증한 뒤에만 기록하며, 모든 manifest에
+> `backfilled: true`가 표시된다. 즉 이 수치는 **입력에 결속되어 있으나 추출 시점에 직접
+> 기록된 것은 아니다.** 진단 목적에는 충분하고 논문 main으로 승격되지 않는다.
+
 
 #### 4.5.0 보고 대상 모델
 

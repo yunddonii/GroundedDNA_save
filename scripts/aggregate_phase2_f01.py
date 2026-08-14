@@ -69,6 +69,37 @@ def _nmi(run_dir: Path):
     return None
 
 
+def _require_manifests(run_dir: Path) -> dict:
+    """Both split manifests, or the cell is not admissible.
+
+    The aggregator read metric JSONs only, so it happily reported
+    `15 paired, 0 unpaired` for a root holding no provenance whatsoever. A
+    number whose extraction cannot be bound to a checkpoint is not a result.
+    """
+    found = {}
+    for split in ("db", "query"):
+        path = run_dir / f"extraction_manifest_{split}.json"
+        if not path.is_file():
+            raise ManifestMissing(
+                f"{run_dir.name}: no extraction_manifest_{split}.json. Run "
+                f"scripts/backfill_phase2_manifests.py or re-infer the cell.")
+        found[split] = json.loads(path.read_text(encoding="utf-8"))
+
+    db, query = found["db"], found["query"]
+    for key in ("checkpoint_sha256", "inference_epoch",
+                "effective_sinkhorn_epsilon", "total_bases"):
+        if db.get(key) != query.get(key):
+            raise ManifestMissing(
+                f"{run_dir.name}: db and query disagree on {key} "
+                f"({db.get(key)!r} vs {query.get(key)!r}); the two splits were "
+                f"not extracted under the same runtime state")
+    return found
+
+
+class ManifestMissing(RuntimeError):
+    """A cell has metrics but no provenance."""
+
+
 def _side(run_dir: Path, fallback: Path | None = None):
     """Metrics plus the GC window they were projected under.
 
@@ -133,7 +164,13 @@ def main() -> int:
         for (ds, n), legacy_rel in sorted(LEGACY.items()):
             if ds != dataset:
                 continue
-            new = _side(root / f"{ds}_N{n}")
+            cell_dir = root / f"{ds}_N{n}"
+            try:
+                manifests = _require_manifests(cell_dir)
+            except ManifestMissing as error:
+                unpaired.append({"cell": f"{ds}/N{n}", "reason": str(error)})
+                continue
+            new = _side(cell_dir)
             old = _side(REPO / legacy_rel,
                         fallback=Path(args.legacy_recomputed) / f"{ds}_N{n}")
             if new is None or old is None:
@@ -157,6 +194,15 @@ def main() -> int:
                 "cell": f"{ds}/N{n}", "dataset": ds, "N": n,
                 "legacy": old, "phase2": new,
                 "legacy_recomputed": old["recomputed_from_legacy_extraction"],
+                "provenance": {
+                    "checkpoint_sha256": manifests["db"]["checkpoint_sha256"],
+                    "inference_epoch": manifests["db"]["inference_epoch"],
+                    "inference_epoch_source":
+                        manifests["db"]["inference_epoch_source"],
+                    "effective_sinkhorn_epsilon":
+                        manifests["db"]["effective_sinkhorn_epsilon"],
+                    "backfilled": bool(manifests["db"].get("backfilled", False)),
+                },
                 "delta": {
                     key: _delta(new[key], old[key])
                     for key in ("map_at_R_bioproj", "full_map_bioproj",

@@ -140,6 +140,30 @@ COMMON_BIO_PROJECTION = {
     "max_run": 3,
 }
 
+
+def common_bio_projection_for(protocol) -> dict:
+    """The sealed common-DP contract at a given length.
+
+    The 15/18-base panels record the fractional form above; the 24-base panel
+    also records the integer window and the sequence length. Comparing every
+    manifest against the module-level dict meant a canonical
+    `aggregate(sealed24, protocol=24)` marked all 48 cells invalid on
+    `common_bio_projection` -- the length-aware schema only existed inside the
+    24 wrapper's monkey patch.
+    """
+    from dna_utils.gc_policy import resolve_gc_policy
+
+    protocol = coerce_protocol(protocol)
+    contract = dict(COMMON_BIO_PROJECTION)
+    if protocol.length_bases == 24:
+        policy = resolve_gc_policy(protocol.length_bases)
+        contract.update({
+            "gc_count_min_inclusive": policy.gc_min_count,
+            "gc_count_max_inclusive": policy.gc_max_count,
+            "sequence_length_bases": protocol.length_bases,
+        })
+    return contract
+
 # A protocol digest proves only that a manifest is internally self-consistent:
 # a caller could otherwise change a source profile and recompute that outer
 # digest.  These versioned locks additionally bind the stable, method-specific
@@ -210,33 +234,41 @@ _METHOD_PROTOCOL_LOCK_BY_LENGTH = {
 # changed. Regenerate with scripts/recompute_native_method_locks.py after
 # READING the source diff -- never by pasting numbers to make a check pass.
 _POST_F18_METHOD_PROTOCOL_LOCK_BY_LENGTH = {
-    # 15 bases, computed in the canonical driver.
+    # 15 bases, computed in the canonical driver AFTER the final guard and
+    # entrypoint edits. Regenerate with
+    # scripts/recompute_native_method_locks.py --length 15.
     15: {
-        "bee2018": "910bca1a0502cdb0d910cb96b3d094d6789f6602dd9cb2e46440144a6621d3c5",
-        "bee2021": "f1d89477ef45f42b569c1e2ed1e406900de387064c0bab91fb02e6d13f01cdde",
-        "koike2024": "11fd78f0fb5af1737c965e43f7e0aa8acf791f6865e0ae4a3c6e782ff0be8892",
-        "koike2026": "e0bce2ae177473a56c344ab9892e8c6d60e13f54904f2fab2b2bb217773c4435",
+        "bee2018": "1809366fd49075916b27fef765740ce3bf6e8c280554ba8185f6ddd72ee515ed",
+        "bee2021": "bc88ecf9c6549ddcd7312ce7f2d446d4f0930435f0dcd8c679de9e9cfac44fc6",
+        "koike2024": "f132126d1f67103584f0a6eadcbdf3f38281167fcdbd4aed10c666287b525c0f",
+        "koike2026": "ad7d2d2d7daceebf6e883c83a5050b22e435d35aab5f608507b3845bf4b0972f",
     },
-    # 18 bases, computed in the canonical driver.
+    # 18 bases, computed in the canonical driver AFTER the final guard and
+    # entrypoint edits. Regenerate with
+    # scripts/recompute_native_method_locks.py --length 18.
     18: {
-        "bee2018": "a2e2c7f847c90185dea9b0289f91dc10b1ba577a4d8f4d8f3b742a0a4e86ee2d",
-        "bee2021": "d5b9e6427d04d2c07a14c7beb4c6adc3ca18b15448b9834bb7e827ea5ac75fbb",
-        "koike2024": "86b1b78ea94a2537f7f8333ce42786cd274a687feb838f5e6d15aedbac311684",
-        "koike2026": "a0fcfa31cfae880f63f8f8ff1f0ede540a0e98a9c3e7945b1bd24d3a142e3f0b",
+        "bee2018": "dc9f9b9064c690b38c1ea3a6781480a2cf66f22c0c845111b2fde601f9c41390",
+        "bee2021": "116880d8de8a237b16f06b5f65bcf727a67f321bb14eb5925be927291651bf88",
+        "koike2024": "2343f3923be6e4e007a24ee97315af52c6f937e68d7cf7d4b33ee2ad7b680f18",
+        "koike2026": "1289256f16dc0b4adc754f6c26e06e65b09231b273216a2253519bd99ccf1116",
     },
-    # 20 bases, computed in the canonical driver.
+    # 20 bases, computed in the canonical driver AFTER the final guard and
+    # entrypoint edits. Regenerate with
+    # scripts/recompute_native_method_locks.py --length 20.
     20: {
-        "bee2018": "6589a9de51d80a6045f403196edd8d6c5acbc82874f3014770d0ce23cad38f2e",
-        "bee2021": "85e7b80d56ad6124037425850868022507c5b51a392e95e36e0e96ca51425730",
-        "koike2024": "0db773ef99b6838bd8ffd69b2855fd39de9019bd9f543a7e43e636ea7986bf9c",
-        "koike2026": "d2ffeb29dcbef0e2b0cfa1298f0cbbc2757a12a2d16992487c026cc8e52ba4d2",
+        "bee2018": "43ad8e27cb76b6f0ed6289fca16345b969841de34ed56e84977da17af5acc451",
+        "bee2021": "063a6fd0edde6ee124314079dfe5b24e72edeeeb9e84b70acff559bdbaa566aa",
+        "koike2024": "d34ebe7012ae12fa870082f0ad6f12aaa7d4d20e40ee162f50ea686bcd265d7e",
+        "koike2026": "00a294490c6c9bfc5c10d9de410c7cc0f0ef34f9a8b47e9ec913c87d0ffde934",
     },
-    # 24 bases, computed in the run_native_dna_p0_24 wrapper.
+    # 24 bases, computed in the run_native_dna_p0_24 wrapper AFTER the final guard and
+    # entrypoint edits. Regenerate with
+    # scripts/recompute_native_method_locks.py --length 24.
     24: {
-        "bee2018": "9c42f0505ffce8aa70a3555c76dcee06be280d5dbee0b0e0835fa9f1091524d8",
-        "bee2021": "0d8ae86a843f9c5c974caafdc6c317ff21a4fde04939c8a90093c83019008908",
-        "koike2024": "11db675b574cac54c597d990422f31174fd497113ddfbbc257879b14d9b322f5",
-        "koike2026": "b511c3f7edd90272b7d309f42cbaa693314d93dfd57f310ee0588e0554b4df0b",
+        "bee2018": "ab3d7a416e35f0ca9b7329acd161cbe8380401e0a0b9e48e6225011e9089441a",
+        "bee2021": "c2fa6fd4802837780a65693fb38b6dc7c0d45ff8fac575dc8c9b1d1b6b3280c6",
+        "koike2024": "1729d38c682fa0c33d9627868b9c5d24ae747cb471d101b8e42ff6bcaf812150",
+        "koike2026": "de1179ef80bb94965f4868c19bb7de8e008a09cf78dcff78732c9130007511f6",
     },
 }
 
@@ -507,10 +539,11 @@ def _validate_protocol_identity(
                 f"protocol_identity.{field}: expected {expected!r}, "
                 f"found {identity.get(field)!r}"
             )
-    if identity.get("common_bio_projection") != COMMON_BIO_PROJECTION:
+    expected_bio = common_bio_projection_for(protocol)
+    if identity.get("common_bio_projection") != expected_bio:
         errors.append(
             "protocol_identity.common_bio_projection: does not match the "
-            "sealed common-DP contract"
+            f"sealed common-DP contract for {protocol.length_bases} bases"
         )
     for field in ("source_profile", "stage_contract", "cache", "execution"):
         if _mapping(identity.get(field)) is None:

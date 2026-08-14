@@ -70,7 +70,10 @@ MATCHED_LENGTH = DEFAULT_PROTOCOL.length_bases
 #: method lock can never be in the reviewed 24 set: the child trains and
 #: extracts, and only then does the gate flip its return code. Refuse before
 #: anything is launched.
-_WRAPPER_ONLY_LENGTHS = {24: "scripts/run_native_dna_p0_24.py"}
+_WRAPPER_ONLY_LENGTHS = {
+    24: ("scripts/run_native_dna_p0_24.py",
+         "scripts/run_native_dna_p0_matrix_24.py"),
+}
 
 
 def _refuse_wrapper_only_length() -> None:
@@ -81,15 +84,17 @@ def _refuse_wrapper_only_length() -> None:
     """
     if WRAPPER_DISPATCH:
         return
-    wrapper = _WRAPPER_ONLY_LENGTHS.get(MATCHED_LENGTH)
-    if wrapper is None:
+    wrappers = _WRAPPER_ONLY_LENGTHS.get(MATCHED_LENGTH)
+    if wrappers is None:
         return
+    single, matrix = wrappers
     raise SystemExit(
-        f"{MATCHED_LENGTH} bases must run through {wrapper}, not this "
-        f"entrypoint. The canonical identity carries no pipeline variant, so a "
-        f"canonical {MATCHED_LENGTH}-base run would finish training and "
-        f"extraction and then be rejected by the method-protocol lock. Use "
-        f"{wrapper} (or {wrapper.replace('.py', '_matrix.py')} for a matrix).")
+        f"{MATCHED_LENGTH} bases must run through the {MATCHED_LENGTH}-base "
+        f"wrapper, not this entrypoint. The canonical identity carries no "
+        f"pipeline variant, so a canonical {MATCHED_LENGTH}-base run would "
+        f"finish training and extraction and then be rejected by the "
+        f"method-protocol lock. Use {single} for one cell or {matrix} for a "
+        f"matrix.")
 
 
 #: Set by `run_native_dna_p0_24` / `run_native_dna_p0_matrix_24` on the module
