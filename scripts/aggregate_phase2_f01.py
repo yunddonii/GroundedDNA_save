@@ -49,26 +49,6 @@ ORDER = ("cifar10", "flickr25k", "nuswide", "mscoco")
 TOTAL_BASES = 15
 
 
-def _json(path: Path):
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-
-
-def _nmi(run_dir: Path):
-    payload = _json(run_dir / "pairwise_nmi.json")
-    if not isinstance(payload, dict):
-        return None
-    if "mean_off_diag_nmi" in payload:
-        return float(payload["mean_off_diag_nmi"])
-    # The combined layout keys by result directory.
-    for value in payload.values():
-        if isinstance(value, dict) and "mean_off_diag_nmi" in value:
-            return float(value["mean_off_diag_nmi"])
-    return None
-
-
 def _require_manifests(run_dir: Path) -> dict:
     """Admit a cell only if the shared strict validator admits it.
 
@@ -109,61 +89,29 @@ class ManifestMissing(RuntimeError):
     """A cell has metrics but no admissible provenance."""
 
 
-def _side(run_dir: Path, fallback: Path | None = None,
-          sealed: dict | None = None):
+def _side(run_dir: Path, sealed: dict):
     """Metrics plus the GC window they were projected under.
 
-    Two legacy cells never had every artefact written (cifar10/N19 has no
-    bio-projection JSON, mscoco/N39 no NMI). `fallback` points at a directory
-    holding those quantities RECOMPUTED FROM THE LEGACY EXTRACTION -- the same
-    epoch-0 codes the other legacy cells were scored from, so the comparison
-    stays like-for-like. Nothing is written back into the legacy run.
+    BOTH sides come from a sealed marker now. The legacy side used to be read
+    unsigned, from whatever `evaluation_siglip2_base_bioproj.json` happened to
+    sit in the August run directory -- computed by an older bio-projection and
+    an older NMI. A difference between two evaluators is not a measurement of
+    F01 (§19.4), so the legacy extraction is re-scored by today's evaluator via
+    `scripts/bind_legacy_phase2.py`, which binds the legacy NPZs in a separate
+    root and never writes into the legacy run.
     """
-    if sealed is not None:
-        # The marker payload handed in by the validator that admitted it -- the
-        # only admissible source for the fixed side. Reading an unsigned JSON
-        # is exactly how a planted mAP@R=999 reached the report, and re-opening
-        # the marker after validating it reintroduces the same gap.
-        metrics = sealed["metrics"]
-        protocol = sealed.get("protocol") or {}
-        return {
-            "dir": str(run_dir),
-            "recomputed_from_legacy_extraction": [],
-            "sealed": True,
-            "map_at_R_bioproj": metrics.get("map_at_R_bioproj"),
-            "full_map_bioproj": metrics.get("full_map_bioproj"),
-            "dna_unique_db": metrics.get("dna_unique_db"),
-            "nmi": metrics.get("mean_off_diag_nmi"),
-            "gc_min_frac": protocol.get("gc_min_frac"),
-            "gc_max_frac": protocol.get("gc_max_frac"),
-        }
-
-    # The LEGACY side has no sealed marker and never will: those runs predate
-    # the contract. It is read unsigned and labelled as such, so the delta's
-    # two halves are not silently presented as equally evidenced.
-    bioproj = _json(run_dir / "evaluation_siglip2_base_bioproj.json")
-    recomputed = []
-    if not isinstance(bioproj, dict) and fallback is not None:
-        bioproj = _json(fallback / "evaluation_siglip2_base_bioproj.json")
-        if isinstance(bioproj, dict):
-            recomputed.append("bio_projection")
-    if not isinstance(bioproj, dict):
-        return None
-    nmi = _nmi(run_dir)
-    if nmi is None and fallback is not None:
-        nmi = _nmi(fallback)
-        if nmi is not None:
-            recomputed.append("pairwise_nmi")
+    metrics = sealed["metrics"]
+    protocol = sealed["protocol"]
     return {
         "dir": str(run_dir),
-        "recomputed_from_legacy_extraction": recomputed,
-        "sealed": False,
-        "map_at_R_bioproj": bioproj.get("mAP_at_R"),
-        "full_map_bioproj": bioproj.get("mAP"),
-        "dna_unique_db": bioproj.get("unique_code_ratio"),
-        "nmi": nmi,
-        "gc_min_frac": bioproj.get("bio_gc_min_frac"),
-        "gc_max_frac": bioproj.get("bio_gc_max_frac"),
+        "sealed": True,
+        "map_at_R_bioproj": metrics["map_at_R_bioproj"],
+        "full_map_bioproj": metrics["full_map_bioproj"],
+        "dna_unique_db": metrics["dna_unique_db"],
+        "nmi": metrics["mean_off_diag_nmi"],
+        "gc_min_frac": protocol["gc_min_frac"],
+        "gc_max_frac": protocol["gc_max_frac"],
+        "analysis_sources": sealed["analysis_sources"],
     }
 
 
@@ -179,11 +127,11 @@ def main() -> int:
         "--phase2-root",
         default=str(REPO / "result_diagnostic" / "phase2_F01_only"))
     parser.add_argument(
-        "--legacy-recomputed",
-        default=str(REPO / "result_diagnostic" / "phase2_legacy_recomputed"),
-        help=("Quantities recomputed from the LEGACY extraction for cells whose "
-              "original run never wrote them. Never written back into the "
-              "legacy run directory."))
+        "--legacy-root",
+        default=str(REPO / "result_diagnostic" / "phase2_legacy_bound"),
+        help=("The LEGACY extraction re-scored by the same evaluator as the "
+              "fixed side, bound by scripts/bind_legacy_phase2.py. Never "
+              "written back into the legacy run directory."))
     parser.add_argument("--out-json", default=str(
         REPO / "docs" / "phase2_f01_impact.json"))
     parser.add_argument("--out-md", default=str(
@@ -199,23 +147,28 @@ def main() -> int:
     root = Path(args.phase2_root)
     cells, unpaired = [], []
     for dataset in ORDER:
-        for (ds, n), legacy_rel in sorted(LEGACY.items()):
+        for (ds, n), _legacy_rel in sorted(LEGACY.items()):
             if ds != dataset:
                 continue
             cell_dir = root / f"{ds}_N{n}"
+            legacy_dir = Path(args.legacy_root) / f"{ds}_N{n}"
             try:
                 manifests, marker = _require_manifests(cell_dir)
+                _, legacy_marker = _require_manifests(legacy_dir)
             except ManifestMissing as error:
                 unpaired.append({"cell": f"{ds}/N{n}", "reason": str(error)})
                 continue
-            new = _side(cell_dir, sealed=marker)
-            old = _side(REPO / legacy_rel,
-                        fallback=Path(args.legacy_recomputed) / f"{ds}_N{n}")
-            if new is None or old is None:
+            new = _side(cell_dir, marker)
+            old = _side(legacy_dir, legacy_marker)
+
+            # Both sides must have been scored by the SAME evaluator, or the
+            # difference measures the evaluator change as much as F01.
+            if new["analysis_sources"] != old["analysis_sources"]:
                 unpaired.append({
                     "cell": f"{ds}/N{n}",
-                    "reason": ("phase2 side missing" if new is None
-                               else "legacy side missing"),
+                    "reason": ("the two sides were scored by different "
+                               "analysis sources; the delta would measure the "
+                               "evaluator change, not F01"),
                 })
                 continue
             if (new["gc_min_frac"], new["gc_max_frac"]) != (
@@ -231,9 +184,9 @@ def main() -> int:
             cells.append({
                 "cell": f"{ds}/N{n}", "dataset": ds, "N": n,
                 "legacy": old, "phase2": new,
-                "legacy_recomputed": old["recomputed_from_legacy_extraction"],
-                "fixed_side_sealed": bool(new.get("sealed")),
-                "legacy_side_sealed": bool(old.get("sealed")),
+                "fixed_side_sealed": bool(new["sealed"]),
+                "legacy_side_sealed": bool(old["sealed"]),
+                "same_evaluator_both_sides": True,
                 "provenance": {
                     "checkpoint_sha256": manifests["db"]["checkpoint_sha256"],
                     "inference_epoch": manifests["db"]["inference_epoch"],
@@ -308,6 +261,8 @@ def main() -> int:
         "- Ranking below is **post-bio diagnostic**. D1's selection metric is "
         "raw base-Hamming mAP@R, which these artefacts do not store, so this "
         "does not show what the train-only selection would have chosen.",
+        "- Both sides are scored by the SAME committed evaluator, and the "
+        "aggregation refuses any pair whose recorded analysis sources differ.",
         "- Extraction manifests were **backfilled** after the fact and carry "
         "`backfilled: true`; the cells' inputs were verified byte-identical to "
         "their canonical legacy sources, but the manifests are not evidence "
