@@ -70,34 +70,30 @@ def _nmi(run_dir: Path):
 
 
 def _require_manifests(run_dir: Path) -> dict:
-    """Both split manifests, or the cell is not admissible.
+    """Admit a cell only if the shared strict validator admits it.
 
-    The aggregator read metric JSONs only, so it happily reported
-    `15 paired, 0 unpaired` for a root holding no provenance whatsoever. A
-    number whose extraction cannot be bound to a checkpoint is not a result.
+    The first version checked that two JSON files existed and that four fields
+    agreed. A probe with no NPZ, no checkpoint, no config, `schema_version=999`
+    and `dataset=WRONG` was accepted, so `15 paired / 0 unpaired` said nothing
+    about provenance. The validator opens every file the manifests name,
+    recomputes every digest, and checks the code arrays themselves.
+
+    `allow_backfilled=True` because Phase 2 IS the retrospectively bound
+    diagnostic; a paper path must not pass it.
     """
-    found = {}
-    for split in ("db", "query"):
-        path = run_dir / f"extraction_manifest_{split}.json"
-        if not path.is_file():
-            raise ManifestMissing(
-                f"{run_dir.name}: no extraction_manifest_{split}.json. Run "
-                f"scripts/backfill_phase2_manifests.py or re-infer the cell.")
-        found[split] = json.loads(path.read_text(encoding="utf-8"))
-
-    db, query = found["db"], found["query"]
-    for key in ("checkpoint_sha256", "inference_epoch",
-                "effective_sinkhorn_epsilon", "total_bases"):
-        if db.get(key) != query.get(key):
-            raise ManifestMissing(
-                f"{run_dir.name}: db and query disagree on {key} "
-                f"({db.get(key)!r} vs {query.get(key)!r}); the two splits were "
-                f"not extracted under the same runtime state")
-    return found
+    from dna_utils.extraction_validation import (
+        ExtractionInvalid, validate_extraction_run)
+    try:
+        validated = validate_extraction_run(
+            str(run_dir), required_splits=("db", "query"),
+            allow_backfilled=True)
+    except ExtractionInvalid as error:
+        raise ManifestMissing(str(error)) from None
+    return validated.splits
 
 
 class ManifestMissing(RuntimeError):
-    """A cell has metrics but no provenance."""
+    """A cell has metrics but no admissible provenance."""
 
 
 def _side(run_dir: Path, fallback: Path | None = None):

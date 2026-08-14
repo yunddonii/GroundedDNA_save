@@ -39,6 +39,11 @@ sys.path.insert(0, str(REPO))
 
 import numpy as np  # noqa: E402
 
+import os  # noqa: E402
+
+from dna_utils.extraction_validation import (  # noqa: E402
+    base_indices_to_2bit,
+)
 from dna_utils.runtime_state import (  # noqa: E402
     ResolvedEpoch,
     sha256_file,
@@ -122,25 +127,64 @@ def backfill_cell(cell: Path, *, dry_run: bool = False) -> list[str]:
         sinkhorn_schedule_horizon=int(_arg(args_txt, "epoch")),
         checkpoint_sha256=sha256_file(str(cell / "model_state_dict.pth")))
 
-    written = []
+    # 3. validate EVERY split before writing ANY of them. The first version
+    #    wrote the db manifest and then opened query, so a query failure left a
+    #    half-bound cell behind -- and the commit message claimed otherwise.
+    checked = {}
     for split, npz_name in _SPLITS:
         npz = cell / npz_name
         if not npz.is_file():
             raise BackfillRefused(f"{cell.name}: missing {npz_name}")
         with np.load(npz, allow_pickle=False) as stored:
+            for name in ("base_indices", "hash_2bit", "codebook_indices"):
+                if name not in stored:
+                    raise BackfillRefused(f"{cell.name}/{split}: no {name}")
             codes = np.asarray(stored["base_indices"])
+            hashed = np.asarray(stored["hash_2bit"])
+            codebook = np.asarray(stored["codebook_indices"])
         if codes.ndim != 2 or codes.shape[1] != slots * per_slot:
             raise BackfillRefused(
                 f"{cell.name}/{split}: base_indices {codes.shape} does not "
                 f"match {slots}x{per_slot}")
+        rows = int(codes.shape[0])
+        if hashed.shape != (rows, 2 * slots * per_slot):
+            raise BackfillRefused(
+                f"{cell.name}/{split}: hash_2bit {hashed.shape} does not match "
+                f"{(rows, 2 * slots * per_slot)}")
+        if codebook.shape != (rows, slots):
+            raise BackfillRefused(
+                f"{cell.name}/{split}: codebook_indices {codebook.shape} does "
+                f"not match {(rows, slots)}")
+        for name, arr in (("base_indices", codes), ("hash_2bit", hashed),
+                          ("codebook_indices", codebook)):
+            if not np.issubdtype(arr.dtype, np.integer):
+                raise BackfillRefused(
+                    f"{cell.name}/{split}: {name} dtype {arr.dtype} is not "
+                    f"integral")
+        if codes.size and (codes.min() < 0 or codes.max() > 3):
+            raise BackfillRefused(
+                f"{cell.name}/{split}: base_indices outside 0..3")
+        if not np.array_equal(base_indices_to_2bit(codes),
+                              hashed.astype(np.uint8)):
+            raise BackfillRefused(
+                f"{cell.name}/{split}: hash_2bit is not the 2-bit encoding of "
+                f"base_indices")
+        checked[split] = (npz, rows)
+
+    if dry_run:
+        return [f"would write {cell / f'extraction_manifest_{s}.json'}"
+                for s in checked]
+
+    written = []
+    for split, (npz, rows) in checked.items():
         out = cell / f"extraction_manifest_{split}.json"
-        if dry_run:
-            written.append(f"would write {out}")
-            continue
-        write_extraction_manifest(
+        written.append(write_extraction_manifest(
             str(out), checkpoint_path=str(cell / "model_state_dict.pth"),
             resolved=resolved, num_slots=slots, bases_per_slot=per_slot,
-            split=split, n_rows=int(codes.shape[0]),
+            split=split, n_rows=rows,
+            lr_schedule_horizon=int(_arg(args_txt, "epoch")),
+            training_epoch_budget=int(_arg(args_txt, "epoch")),
+            training_stop_epoch=int(_arg(args_txt, "stop_after_epoch")),
             extra={
                 "npz_path": str(npz.resolve()),
                 "npz_sha256": sha256_file(str(npz)),
@@ -157,8 +201,30 @@ def backfill_cell(cell: Path, *, dry_run: bool = False) -> list[str]:
                     "config, args and extraction log; the cell's inputs were "
                     "verified byte-identical to its canonical legacy source"),
                 "legacy_source_dir": str(legacy),
-            })
-        written.append(str(out))
+                "args_sha256": sha256_file(str(args_txt)),
+                "extract_log_sha256": (
+                    sha256_file(str(cell / "extract.log"))
+                    if (cell / "extract.log").is_file() else None),
+                "backfill_tool_sha256": sha256_file(__file__),
+            }))
+
+    # The marker is the last thing written and names exactly the splits that
+    # validated, so a consumer can tell a finished cell from a partial one.
+    marker = cell / "extraction_complete.json"
+    payload = {
+        "schema_version": 1,
+        "splits": sorted(checked),
+        "manifest_sha256": {
+            split: sha256_file(str(cell / f"extraction_manifest_{split}.json"))
+            for split in sorted(checked)
+        },
+        "backfilled": True,
+    }
+    tmp = marker.with_suffix(f".{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(payload, indent=2, sort_keys=True),
+                   encoding="utf-8")
+    os.replace(tmp, marker)
+    written.append(str(marker))
     return written
 
 

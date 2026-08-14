@@ -65,19 +65,26 @@ for CELL in "$@"; do
     # A distinct output dir per cell. The 3-seed directory collision of
     # 2026-08-12 came from every cell resolving to one path, so this is
     # asserted rather than assumed.
-    # A DB NPZ alone is not completion: the 15 original cells had exactly that
-    # and no manifests at all, so re-running this script backfilled nothing.
-    # Both manifests must exist for a cell to count as done.
-    if [[ -e "$OUT/extraction_manifest_db.json" \
-       && -e "$OUT/extraction_manifest_query.json" ]]; then
-        echo "[phase2] $CELL already complete at $OUT; skipping" >&2
-        continue
-    fi
-    if [[ -e "$OUT/extract_db.npz" ]]; then
-        echo "[phase2] $CELL has extractions but no manifests at $OUT." >&2
-        echo "         Run scripts/backfill_phase2_manifests.py, or delete the" >&2
-        echo "         directory to re-infer from scratch." >&2
-        exit 4
+    # Completion is what the shared validator says, not which filenames exist:
+    # two files containing `not-json` previously counted as a finished cell.
+    if [[ -d "$OUT" ]]; then
+        REASON=$("$PY" - "$OUT" <<'PYEOF'
+import sys
+from dna_utils.extraction_validation import describe_failure
+print(describe_failure(sys.argv[1], allow_backfilled=True) or "")
+PYEOF
+)
+        if [[ -z "$REASON" ]]; then
+            echo "[phase2] $CELL already complete at $OUT; skipping" >&2
+            continue
+        fi
+        if [[ -e "$OUT/extract_db.npz" ]]; then
+            echo "[phase2] $CELL has extractions that do not validate:" >&2
+            echo "         $REASON" >&2
+            echo "         Run scripts/backfill_phase2_manifests.py, or delete" >&2
+            echo "         the directory to re-infer from scratch." >&2
+            exit 4
+        fi
     fi
     mkdir -p "$OUT"
     cp "$SRC/config.pt" "$SRC/model_state_dict.pth" "$OUT/"

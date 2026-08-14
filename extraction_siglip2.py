@@ -305,6 +305,10 @@ def _write_split_manifest(out_dir: str, split: str, npz_name: str,
         bases_per_slot=int(getattr(args, "num_codons_per_codebook", 0) or 0),
         split=split,
         n_rows=n_rows,
+        lr_schedule_horizon=getattr(args, "lr_schedule_horizon", None)
+        or getattr(args, "epoch", None),
+        training_epoch_budget=getattr(args, "epoch", None),
+        training_stop_epoch=getattr(args, "stop_after_epoch", None),
         extra={
             "npz_path": os.path.abspath(npz_path),
             "npz_sha256": sha256_file(npz_path),
@@ -320,10 +324,37 @@ def _write_split_manifest(out_dir: str, split: str, npz_name: str,
     )
 
 
-def _write_completion_marker(out_dir: str, manifests: dict) -> str:
-    """Mark the run complete only after every split has validated."""
+def _atomic_savez(path: str, payload: dict) -> str:
+    """Write to a temp file on the same filesystem, then rename.
+
+    `np.savez` straight onto the final path leaves a truncated NPZ if the
+    process dies mid-write, and the marker cannot help because the file it
+    names already looks present.
+    """
+    tmp = f"{path}.{os.getpid()}.tmp.npz"
+    np.savez(tmp, **payload)
+    with open(tmp, "rb") as handle:
+        os.fsync(handle.fileno())
+    os.replace(tmp, path)
+    return path
+
+
+def _write_completion_marker(out_dir: str, manifests: dict, *,
+                             required_splits=("db", "query")) -> str:
+    """Mark the run complete only after every required split has validated.
+
+    The first version wrote whatever split set it was handed, so a marker naming
+    only `db` was produced and looked authoritative to every consumer.
+    """
     import json as _json
     from dna_utils.runtime_state import sha256_file
+
+    missing = sorted(set(required_splits) - set(manifests))
+    extra = sorted(set(manifests) - set(required_splits))
+    if missing or extra:
+        raise ManifestBindingError(
+            f"completion marker needs exactly {sorted(required_splits)}; "
+            f"missing={missing} unexpected={extra}")
 
     path = os.path.join(out_dir, "extraction_complete.json")
     payload = {
@@ -404,21 +435,22 @@ def extract_code(args: Config) -> None:
 
     out_dir = args.save_result_path
     os.makedirs(out_dir, exist_ok=True)
-    np.savez(os.path.join(out_dir, "extract_db.npz"),    **db_out)
-    np.savez(os.path.join(out_dir, "extract_query.npz"), **qy_out)
+    # Invalidate FIRST: the previous order overwrote the NPZs and only then
+    # removed the old marker, so a crash in between left an old marker and old
+    # manifests sitting beside new or partial data, and every consumer read that
+    # as a complete run.
+    for _stale in ("extraction_complete.json",
+                   "extraction_manifest_db.json",
+                   "extraction_manifest_query.json"):
+        _path = os.path.join(out_dir, _stale)
+        if os.path.exists(_path):
+            os.remove(_path)
+
+    _atomic_savez(os.path.join(out_dir, "extract_db.npz"), db_out)
+    _atomic_savez(os.path.join(out_dir, "extract_query.npz"), qy_out)
     # F01: without these a table cannot be traced back to the operating point
     # that produced it. Written after the NPZs so the recorded digest is the
     # digest of the file on disk.
-    # A stale manifest from a previous run would otherwise survive alongside a
-    # new NPZ if this crashed between the two writes.
-    for split in ("db", "query"):
-        stale = os.path.join(out_dir, f"extraction_manifest_{split}.json")
-        if os.path.exists(stale):
-            os.remove(stale)
-    completion = os.path.join(out_dir, "extraction_complete.json")
-    if os.path.exists(completion):
-        os.remove(completion)
-
     manifests = {}
     for split, name, payload in (("db", "extract_db.npz", db_out),
                                  ("query", "extract_query.npz", qy_out)):

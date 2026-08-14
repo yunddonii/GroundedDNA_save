@@ -265,6 +265,9 @@ def apply_inference_epoch(model: Any, checkpoint_path: str, args: Any) -> Resolv
 def write_extraction_manifest(
     out_path: str, *, checkpoint_path: str, resolved: ResolvedEpoch,
     num_slots: int, bases_per_slot: int, split: str, n_rows: int,
+    lr_schedule_horizon: Optional[int] = None,
+    training_epoch_budget: Optional[int] = None,
+    training_stop_epoch: Optional[int] = None,
     extra: Optional[Mapping[str, Any]] = None,
 ) -> str:
     """Record the runtime state an extraction actually ran under, so a table
@@ -279,6 +282,13 @@ def write_extraction_manifest(
         "inference_epoch_source": resolved.source,
         "effective_sinkhorn_epsilon": resolved.effective_sinkhorn_epsilon,
         "sinkhorn_schedule_horizon": resolved.sinkhorn_schedule_horizon,
+        # D2 asked for the whole schedule to be checkable from the artefact.
+        # With only the Sinkhorn horizon recorded, the LR horizon and the stop
+        # epoch could be recovered only by re-opening the config, so the
+        # `-e`-coupling this decision separated was not verifiable downstream.
+        "lr_schedule_horizon": lr_schedule_horizon,
+        "training_epoch_budget": training_epoch_budget,
+        "training_stop_epoch": training_stop_epoch,
         "num_slots": int(num_slots),
         "bases_per_slot": int(bases_per_slot),
         "total_bases": int(num_slots) * int(bases_per_slot),

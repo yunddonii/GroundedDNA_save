@@ -2,10 +2,6 @@
 
 F01 only: the same checkpoint re-inferred with the training epoch restored, so the router runs at the annealed Sinkhorn epsilon instead of the initial one. Not an N selection.
 
-- Ranking below is **post-bio diagnostic**; D1's selection metric is raw
-  base-Hamming mAP@R, which these artefacts do not store.
-- Extraction manifests were **backfilled** after the fact and are marked
-  `backfilled: true`; inputs were verified byte-identical to the legacy source.
 - Paired cells: **15 / 15**
 - GC window (both sides): count [6, 9] at 15 bases (`gc-40-60-inclusive-v1`)
 
