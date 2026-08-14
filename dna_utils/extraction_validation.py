@@ -222,6 +222,20 @@ def _check_schema(manifest: Mapping, *, split: str) -> None:
             f"{split}: sinkhorn_schedule_horizon is {horizon!r} but annealing "
             f"is disabled; there is no schedule to record")
 
+    # Each source token carries an invariant. Without them a token is only a
+    # self-assertion: `f01_unrestored` with epoch 4, and `no_annealing` with
+    # annealing switched on, were both admitted (§23.4).
+    if source == "f01_unrestored" and manifest["inference_epoch"] != 0:
+        raise ExtractionInvalid(
+            f"{split}: inference_epoch_source is f01_unrestored but the epoch "
+            f"is {manifest['inference_epoch']}; the defect IS that nothing "
+            f"restored the epoch, so it can only be 0")
+    if source == "no_annealing" and manifest["sinkhorn_annealing_enabled"]:
+        raise ExtractionInvalid(
+            f"{split}: inference_epoch_source is no_annealing but annealing is "
+            f"enabled; the epoch was skipped precisely because there was no "
+            f"schedule to place it on")
+
     slots, per_slot = manifest["num_slots"], manifest["bases_per_slot"]
     if slots <= 0 or per_slot <= 0:
         raise ExtractionInvalid(

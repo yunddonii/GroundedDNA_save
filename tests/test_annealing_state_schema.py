@@ -198,3 +198,55 @@ def test_a_manifest_without_the_field_is_refused(tmp_path):
     with pytest.raises(ExtractionInvalid) as excinfo:
         validate_extraction_run(str(cell))
     assert "sinkhorn_annealing_enabled" in str(excinfo.value)
+
+
+# ------------------------------- source tokens carry invariants (§23.4)
+
+def test_f01_unrestored_can_only_mean_epoch_zero(tmp_path):
+    """The defect IS that nothing restored the epoch, so it cannot be 4."""
+    cell = _cell(tmp_path)
+    _rewrite(cell, inference_epoch_source="f01_unrestored", inference_epoch=4)
+    with pytest.raises(ExtractionInvalid) as excinfo:
+        validate_extraction_run(str(cell))
+    assert "f01_unrestored" in str(excinfo.value)
+
+
+def test_f01_unrestored_at_epoch_zero_is_admitted(tmp_path):
+    cell = _cell(tmp_path)
+    _rewrite(cell, inference_epoch_source="f01_unrestored", inference_epoch=0)
+    run = validate_extraction_run(str(cell))
+    assert run.common["inference_epoch"] == 0
+
+
+def test_no_annealing_with_annealing_enabled_is_refused(tmp_path):
+    """The epoch was skipped because there was no schedule to place it on."""
+    cell = _cell(tmp_path)
+    _rewrite(cell, inference_epoch_source="no_annealing",
+             sinkhorn_annealing_enabled=True)
+    with pytest.raises(ExtractionInvalid) as excinfo:
+        validate_extraction_run(str(cell))
+    assert "no_annealing" in str(excinfo.value)
+
+
+def test_the_sidecar_endpoints_win_over_the_loaders(tmp_path):
+    """A checkpoint annealed 1.0 -> 0.1, loaded by a process set to 0.5 -> 0.2.
+
+    The horizon was read from the sidecar and the endpoints from `args`, so the
+    manifest recorded 0.2 -- the value of a schedule that never ran.
+    """
+    checkpoint = _checkpoint(tmp_path)
+    _sidecar(checkpoint, annealed=True)          # 1.0 -> 0.1 over 5 epochs
+    resolved = resolve_inference_epoch(
+        str(checkpoint),
+        _args(inference_epoch=4, sinkhorn_epsilon_init=0.5,
+              sinkhorn_epsilon_final=0.2))
+    assert resolved.effective_sinkhorn_epsilon == pytest.approx(0.1)
+
+
+def test_the_sidecar_endpoints_win_without_an_explicit_flag(tmp_path):
+    checkpoint = _checkpoint(tmp_path)
+    _sidecar(checkpoint, annealed=True)
+    resolved = resolve_inference_epoch(
+        str(checkpoint),
+        _args(sinkhorn_epsilon_init=0.5, sinkhorn_epsilon_final=0.2))
+    assert resolved.effective_sinkhorn_epsilon == pytest.approx(0.1)

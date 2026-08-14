@@ -229,6 +229,12 @@ def resolve_inference_epoch(checkpoint_path: str, args: Any) -> ResolvedEpoch:
     if md is not None:
         annealing = (md.sinkhorn_epsilon_init is not None
                      and md.sinkhorn_epsilon_final is not None)
+        # The ENDPOINTS come from the sidecar too, not from the loader's args.
+        # Reading the horizon from the sidecar and the endpoints from `args`
+        # recorded an epsilon belonging to neither: a checkpoint annealed
+        # 1.0 -> 0.1 loaded by a process configured 0.5 -> 0.2 was recorded at
+        # 0.2, the value of a schedule that never ran (§23.4).
+        eps_i, eps_f = md.sinkhorn_epsilon_init, md.sinkhorn_epsilon_final
     else:
         annealing = eps_i is not None and eps_f is not None
     static_epsilon = static_sinkhorn_epsilon(args)

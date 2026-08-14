@@ -49,7 +49,44 @@ ORDER = ("cifar10", "flickr25k", "nuswide", "mscoco")
 TOTAL_BASES = 15
 
 
-def _require_manifests(run_dir: Path) -> dict:
+#: What each dataset's cells must declare. The aggregator knows these from the
+#: protocol, so it says so rather than accepting whatever the artefact claims:
+#: fifteen copies of one CIFAR cell under fifteen names previously produced a
+#: `complete: true` report of 15/15 (§22.4).
+_DATASET_TOKEN = {"cifar10": "CIFAR10", "flickr25k": "Flickr25k",
+                  "nuswide": "NUSWIDE", "mscoco": "MSCOCO"}
+_CODEBOOK_SIZE = {"cifar10": 64, "flickr25k": 128, "nuswide": 128,
+                  "mscoco": 128}
+_MAP_R_CUTOFF = {"cifar10": 1000, "flickr25k": 5000, "nuswide": 5000,
+                 "mscoco": 5000}
+SEED = 42
+SLOTS, BASES_PER_SLOT = 5, 3
+
+
+def expected_identity(dataset: str, n: int, *, epoch: int,
+                      epoch_source: str) -> "ExpectedIdentity":
+    from dna_utils.extraction_validation import ExpectedIdentity
+    return ExpectedIdentity(
+        dataset=dataset, random_seed=SEED, inference_epoch=epoch,
+        inference_epoch_source=epoch_source, num_slots=SLOTS,
+        bases_per_slot=BASES_PER_SLOT,
+        codebook_size=_CODEBOOK_SIZE[dataset])
+
+
+def expected_protocol(dataset: str, policy) -> dict:
+    return {
+        "dataset": _DATASET_TOKEN[dataset],
+        "codebook_size": _CODEBOOK_SIZE[dataset],
+        "total_bases": TOTAL_BASES,
+        "map_r_cutoff": _MAP_R_CUTOFF[dataset],
+        "gc_policy_version": policy.policy_version,
+        "gc_count_min_inclusive": policy.gc_min_count,
+        "gc_count_max_inclusive": policy.gc_max_count,
+    }
+
+
+def _require_manifests(run_dir: Path, *, identity=None,
+                       protocol: dict | None = None) -> dict:
     """Admit a cell only if the shared strict validator admits it.
 
     The first version checked that two JSON files existed and that four fields
@@ -66,7 +103,7 @@ def _require_manifests(run_dir: Path) -> dict:
     try:
         validated = validate_extraction_run(
             str(run_dir), required_splits=("db", "query"),
-            allow_backfilled=True)
+            allow_backfilled=True, expected=identity)
     except ExtractionInvalid as error:
         raise ManifestMissing(str(error)) from None
 
@@ -76,7 +113,8 @@ def _require_manifests(run_dir: Path) -> dict:
     # binding. Each metric file must now name the inputs it was computed from.
     from dna_utils.extraction_validation import read_analysis_marker
     try:
-        marker = read_analysis_marker(str(run_dir), allow_backfilled=True)
+        marker = read_analysis_marker(str(run_dir), allow_backfilled=True,
+                                      expected_protocol=protocol)
     except ExtractionInvalid as error:
         raise ManifestMissing(str(error)) from None
     # Return the payload the validator just admitted. Re-opening the file
@@ -152,9 +190,18 @@ def main() -> int:
                 continue
             cell_dir = root / f"{ds}_N{n}"
             legacy_dir = Path(args.legacy_root) / f"{ds}_N{n}"
+            protocol = expected_protocol(ds, policy)
             try:
-                manifests, marker = _require_manifests(cell_dir)
-                _, legacy_marker = _require_manifests(legacy_dir)
+                # The fixed side was re-inferred AT this cell's own N; the
+                # legacy side is the F01 defect, which never restored the epoch.
+                manifests, marker = _require_manifests(
+                    cell_dir, protocol=protocol,
+                    identity=expected_identity(
+                        ds, n, epoch=n, epoch_source="explicit_flag"))
+                _, legacy_marker = _require_manifests(
+                    legacy_dir, protocol=protocol,
+                    identity=expected_identity(
+                        ds, n, epoch=0, epoch_source="f01_unrestored"))
             except ManifestMissing as error:
                 unpaired.append({"cell": f"{ds}/N{n}", "reason": str(error)})
                 continue
