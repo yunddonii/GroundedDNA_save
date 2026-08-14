@@ -14,6 +14,8 @@ from scripts.aggregate_native_dna_p0 import (
     Key,
     METHOD_PROTOCOL_LOCK_SHA256,
     method_protocol_lock_for,
+    reviewed_method_locks,
+    display_names_for,
     TEST_ACCESS_CONTRACT,
     _aggregate_cell,
     _canonical_digest,
@@ -278,9 +280,9 @@ class NativeDNAP0ManifestValidationTest(unittest.TestCase):
             self.assertEqual(record["raw_map_at_R"], 0.72)
             self.assertEqual(record["db_unique_post"], 0.8)
             self.assertEqual(record["best_epoch_zero_based"], 9)
-            self.assertEqual(
+            self.assertIn(
                 record["method_protocol_lock_sha256"],
-                method_protocol_lock_for(PROTOCOL)["bee2018"],
+                reviewed_method_locks(PROTOCOL)["bee2018"],
             )
             self.assertEqual(record["validation_errors"], [])
 
@@ -511,7 +513,10 @@ class NativeDNAP0ResolutionAndAggregationTest(unittest.TestCase):
             self.assertEqual(strict["aggregate_status"], "missing")
             self.assertIsNone(strict["mean_post_dp_map_at_R"])
             rendered = _markdown(payload)
-            self.assertIn(DISPLAY["bee2021"], rendered)
+            # The rendered name follows the aggregated length, not the
+            # process default: this fixture is an 18-base root.
+            self.assertIn(display_names_for(PROTOCOL)["bee2021"], rendered)
+            self.assertIn("PRIMO-18", rendered)
             self.assertIn("0.7200 ± 0.0200†", rendered)
             self.assertIn(
                 "`U0-FD` = unsupervised with respect to the target benchmark",

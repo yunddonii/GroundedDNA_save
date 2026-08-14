@@ -101,3 +101,78 @@ def test_aggregate_reports_the_accepted_lock_set(tmp_path):
     reported = payload["method_protocol_lock_sha256"]
     for method, digests in agg.reviewed_method_locks(15).items():
         assert set(reported[method]) == set(digests)
+
+
+# ---------------------------------------------- re-audit §12 regressions
+
+@pytest.mark.parametrize("length", (15, 18, 20, 24))
+def test_aggregator_imports_in_a_fresh_process_at_every_length(length):
+    """§12.3: the 20-base lock went into the post-F18 table only, while the
+    import guard still keyed off the pre-F18 one, so
+    `GDNA_NATIVE_DNA_BASES=20 python -c "import ..."` exited 1 and the env20
+    aggregator could not print `--help`. A same-process function call cannot see
+    this -- the module is already imported."""
+    import subprocess
+    env = {**os.environ, "GDNA_NATIVE_DNA_BASES": str(length)}
+    proc = subprocess.run(
+        [sys.executable, "-c", "import scripts.aggregate_native_dna_p0"],
+        cwd=_REPO, env=env, capture_output=True, text=True, timeout=180)
+    assert proc.returncode == 0, proc.stderr[-400:]
+
+
+@pytest.mark.parametrize("length", (15, 18, 20, 24))
+def test_matrix_imports_in_a_fresh_process_at_every_length(length):
+    import subprocess
+    env = {**os.environ, "GDNA_NATIVE_DNA_BASES": str(length)}
+    proc = subprocess.run(
+        [sys.executable, "-c", "import scripts.run_native_dna_p0_matrix"],
+        cwd=_REPO, env=env, capture_output=True, text=True, timeout=180)
+    assert proc.returncode == 0, proc.stderr[-400:]
+
+
+def test_matrix_completion_gate_receives_the_wrapper_protocol():
+    """§12.2: both `_completed_cells()` calls omitted the protocol, so
+    `coerce_protocol(None)` read the process default. A fresh 24-base child
+    could finish training and still be failed by the post-child gate."""
+    import inspect
+    import re
+    import scripts.run_native_dna_p0_matrix as matrix
+    source = inspect.getsource(matrix)
+    # Actual invocations only -- the module docstring names the function too.
+    calls = [m.end() for m in re.finditer(r"=\s*_completed_cells\(", source)]
+    assert len(calls) >= 2, "expected a preflight and a post-child gate"
+    for pos in calls:
+        block = source[pos:pos + 400]
+        assert "protocol=" in block, (
+            "every completion gate must be told which length it is judging")
+
+
+def test_launch_options_snapshots_the_protocol():
+    import scripts.run_native_dna_p0_matrix as matrix
+    from scripts.run_native_dna_p0_matrix_24 import configured_canonical_matrix
+    assert "protocol" in matrix.LaunchOptions.__dataclass_fields__
+    outside = matrix.LaunchOptions.__dataclass_fields__[
+        "protocol"].default_factory().length_bases
+    with configured_canonical_matrix():
+        inside = matrix.LaunchOptions.__dataclass_fields__[
+            "protocol"].default_factory().length_bases
+    assert (outside, inside) == (15, 24)
+
+
+@pytest.mark.parametrize("length", (15, 18, 20, 24))
+def test_explicit_length_aggregate_is_internally_consistent(tmp_path, length):
+    """§12.4: `aggregate(protocol=18)` in a default-15 process reported
+    `length_bases=18` while every record said 15, the display said PRIMO-15 and
+    the Markdown header said 15 -- the payload contradicted itself."""
+    import re
+    payload, _ = agg.aggregate([tmp_path], seeds=(42,), verify_hashes=False,
+                               protocol=length)
+    assert payload["length_bases"] == length
+    assert payload["display_names"]["bee2021"] == (
+        f"PRIMO-{length} frozen-predictor length-transfer")
+    for record in payload["records"]:
+        assert record["length"] == length, record["key"]
+        assert record["display_name"] == payload["display_names"][record["method"]]
+    markdown = agg._markdown(payload)
+    capacity = re.search(r"Capacity: .(\d+)", markdown)
+    assert capacity and int(capacity.group(1)) == length

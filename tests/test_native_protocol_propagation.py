@@ -68,40 +68,64 @@ def test_driver_verifiers_take_a_protocol(fn):
     assert "protocol" in inspect.signature(getattr(driver, fn)).parameters
 
 
-def _captured_protocol(monkeypatch, target: str):
-    """Record the protocol VALUE a driver function receives."""
+def test_refit_verifier_forwards_the_protocol_value(monkeypatch, tmp_path):
+    """Assert the VALUE that arrives, and require the spy to be reached.
+
+    The previous version wrapped the call in `pytest.raises(Exception)` with a
+    conditional assertion, so a `ValueError` raised before the spy was ever
+    called counted as a pass -- measured `seen == {}`.
+    """
+    from pathlib import Path
+
     seen = {}
+
+    class _Stop(Exception):
+        pass
 
     def spy(*args, **kwargs):
         seen["protocol"] = kwargs.get("protocol")
         raise _Stop()
 
-    monkeypatch.setattr(driver, target, spy)
-    return seen
+    # A terminal evaluation for a 24-BASE run. `_verify_refit` compares
+    # `evaluation["length"]` against `protocol.length_bases`, so this fixture
+    # only gets past that check if the 24-base protocol actually arrived --
+    # the propagation is proved twice over, here and at the spy.
+    evaluation = {
+        "method": "bee2018", "dataset": "CIFAR10", "length": 24,
+        "neural_raw": {"mAP_at_R": 0.5},
+        "projected": {"mAP_at_R": 0.5},
+        "query": {"n": 1000}, "database": {"n": 59000},
+    }
 
+    def _json(path, purpose="", *a, **k):
+        # the cache meta lookup shares this helper
+        return {"N": 60000} if "meta.json" in str(path) else evaluation
 
-class _Stop(Exception):
-    """Ends the call once the argument under test has been observed."""
-
-
-def test_refit_verifier_forwards_the_protocol_value(monkeypatch):
-    """Grepping the source for `protocol=` cannot tell 15 from 24; this asserts
-    the value that actually arrives."""
-    from pathlib import Path
-    seen = _captured_protocol(monkeypatch, "_verify_aligned_extractions")
-    monkeypatch.setattr(driver, "_load_json", lambda *a, **k: {})
+    monkeypatch.setattr(driver, "_verify_aligned_extractions", spy)
+    monkeypatch.setattr(driver, "_load_json", _json)
     monkeypatch.setattr(driver, "_verify_common_config", lambda *a, **k: None)
     monkeypatch.setattr(driver, "_expected_split_cardinalities",
                         lambda *a, **k: {})
-    with pytest.raises(Exception):
+    monkeypatch.setattr(driver, "_verify_split", lambda *a, **k: None)
+    monkeypatch.setattr(driver, "_checkpoint_set_digest", lambda *a, **k: "d")
+
+    # A real refit directory shape, so the checks before the extraction
+    # validator pass and the spy is actually reached.
+    refit = tmp_path / "refit"
+    refit.mkdir()
+    (refit / "epoch_009.pth").write_bytes(b"ck")
+    monkeypatch.setattr(driver, "_require_complete_post_compliance",
+                        lambda *a, **k: {"query": 1.0, "database": 1.0})
+
+    with pytest.raises(_Stop):          # only the spy may end this call
         driver._verify_refit(
-            Path("/nonexistent"), method="bee2018", dataset="CIFAR10",
+            refit, method="bee2018", dataset="CIFAR10",
             setting="setting1", seed=42, cache_dir=Path("/c"),
             dataset_root=Path("/d"), predictor=None, best_epoch=9,
             protocol=24)
-    if "protocol" in seen:
-        assert seen["protocol"] is not None
-        assert seen["protocol"].length_bases == 24
+
+    assert "protocol" in seen, "the extraction validator was never reached"
+    assert seen["protocol"].length_bases == 24
 
 
 def test_main_uses_the_effective_protocol_not_the_import_time_one():

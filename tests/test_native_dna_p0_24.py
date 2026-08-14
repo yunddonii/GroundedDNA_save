@@ -11,6 +11,7 @@ import pytest
 # 18 that never existed -- the length came from the environment, so the
 # assertion broke the moment the paper moved to 15 bases.
 from scripts import aggregate_native_dna_p0 as shared_aggregate
+from scripts.aggregate_native_dna_p0 import reviewed_method_locks
 from scripts import run_native_dna_p0 as shared_driver
 from scripts import run_native_dna_p0_matrix as shared_matrix
 from scripts.aggregate_native_dna_p0_24 import (
@@ -392,10 +393,11 @@ def test_24_aggregator_accepts_only_explicit_24_base_contract(tmp_path):
     key = Key("bee2018", "Flickr25k", 42)
     record = _validate_manifest(manifest_path, key)
     assert record["status"] == "complete_main_eligible"
-    assert (
-        record["method_protocol_lock_sha256"]
-        == METHOD_PROTOCOL_LOCK_SHA256["bee2018"]
-    )
+    # A reviewed lock, not one particular table entry: the registry accepts
+    # the sealed historical digest this fixture carries and the current-source
+    # one alike.
+    assert (record["method_protocol_lock_sha256"]
+            in reviewed_method_locks(24)["bee2018"])
     assert record["validation_errors"] == []
 
     evaluation_path = tmp_path / "evaluation_native_dna.json"
@@ -490,7 +492,7 @@ def test_24_primo_lock_pins_predictor_and_transfer(tmp_path, mutation):
     assert initial["status"] == "complete_diagnostic_only"
     assert (
         initial["method_protocol_lock_sha256"]
-        == METHOD_PROTOCOL_LOCK_SHA256["bee2021"]
+        in reviewed_method_locks(24)["bee2021"]
     )
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))

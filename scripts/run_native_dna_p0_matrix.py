@@ -20,7 +20,7 @@ to ``<data-root>/logs``.
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import fcntl
 import hashlib
@@ -63,6 +63,18 @@ from dna_utils.native_protocol import (  # noqa: E402
 
 DEFAULT_PROTOCOL = resolve_native_protocol()
 MATCHED_LENGTH = DEFAULT_PROTOCOL.length_bases
+
+
+def effective_protocol() -> "NativeProtocol":
+    """The protocol THIS matrix run is for.
+
+    `run_native_dna_p0_matrix_24` patches `MATCHED_LENGTH` to 24, but the
+    completion gate called `_completed_cells()` without a protocol and
+    `coerce_protocol(None)` then read the process default of 15. A fresh 24-base
+    child could finish training and extraction and still be failed by the
+    post-child gate, and the next resume would reject the same cell again.
+    """
+    return coerce_protocol(MATCHED_LENGTH)
 SETTING = "setting1"
 MANIFEST_NAME = "native_p0_run_manifest.json"
 RUNNER = REPO / "scripts/run_native_dna_p0.py"
@@ -136,6 +148,11 @@ class LaunchOptions:
     extract_batch_size: int
     query_chunk: int
     allow_diagnostic: bool
+    #: Snapshotted once at launch. The 24-base wrapper patches MATCHED_LENGTH,
+    #: so a gate that resolves the protocol itself would read the process
+    #: default instead and fail a correct 24-base cell after the child had
+    #: already paid for training and extraction.
+    protocol: "NativeProtocol" = field(default_factory=effective_protocol)
 
 
 @dataclass(frozen=True)
@@ -611,6 +628,7 @@ def _run_cell(
                     [job],
                     allow_diagnostic=options.allow_diagnostic,
                     options=options,
+                    protocol=options.protocol,
                 )
                 if job.key not in completed:
                     returncode = 3
@@ -803,6 +821,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         jobs,
         allow_diagnostic=options.allow_diagnostic,
         options=options,
+        protocol=options.protocol,
     )
     pending = [job for job in jobs if job.key not in completed]
 

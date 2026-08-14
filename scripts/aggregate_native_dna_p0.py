@@ -87,15 +87,34 @@ METHODS = tuple(method for methods in PANELS.values() for method in methods)
 PANEL_BY_METHOD = {
     method: panel for panel, methods in PANELS.items() for method in methods
 }
-DISPLAY = {
+def display_names_for(protocol) -> dict:
+    """Method display names for a length.
+
+    `DISPLAY` is built at import from the process default, so aggregating an
+    18-base root inside a 15-base process labelled every row `PRIMO-15` while
+    the payload said `length_bases=18`. The length is a property of the
+    artefact, so the label has to follow the protocol that was requested.
+    """
+    length = coerce_protocol(protocol).length_bases
+    names = dict(_DISPLAY_BASE)
+    names["bee2021"] = (
+        f"PRIMO-{length} frozen-predictor length-transfer")
+    return names
+
+
+_DISPLAY_BASE = {
     "bee2018": "DNA24 (Stewart et al., 2018)",
-    # H6: display name follows the configured length rather than asserting 18
-    # next to a manifest that says 15.
-    "bee2021": f"PRIMO-{DEFAULT_PROTOCOL.length_bases} "
-               f"frozen-predictor length-transfer",
+    "bee2021": "PRIMO frozen-predictor length-transfer",
     "koike2024": "Koike et al. (DATE/DAC 2024)",
     "koike2026": "Koike et al. (TCBB 2026)",
 }
+
+#: The process-default view, kept so existing readers keep working. Anything
+#: that knows its protocol should call `display_names_for()` instead.
+DISPLAY = {**_DISPLAY_BASE,
+           "bee2021": (f"PRIMO-{DEFAULT_PROTOCOL.length_bases} "
+                       f"frozen-predictor length-transfer")}
+
 SUPERVISION = {
     "bee2018": "feature-distance pairs",
     "bee2021": "feature-distance pairs",
@@ -177,13 +196,6 @@ _METHOD_PROTOCOL_LOCK_BY_LENGTH = {
         "koike2026": "30403cd4b4ed4e4895f3a9db94f3a1ed05f0123d2ea32c34467c9cf6b49b569a",
     },
 }
-if LENGTH not in _METHOD_PROTOCOL_LOCK_BY_LENGTH:
-    raise SystemExit(
-        f"no reviewed method-protocol lock registered for LENGTH={LENGTH}; "
-        f"known: {sorted(_METHOD_PROTOCOL_LOCK_BY_LENGTH)}. Run one cell, read "
-        f"its manifest, diff the identity against a known budget, and register "
-        f"the digest rather than disabling the check."
-    )
 # F18 follow-up: `scripts/run_native_dna_p0.py` is itself in
 # IMPLEMENTATION_PATHS, so threading NativeProtocol through the validators moved
 # its SHA (7b354a21... -> eb394591...) and with it EVERY method-protocol lock.
@@ -252,21 +264,46 @@ def reviewed_method_locks(protocol) -> dict:
     }
 
 
-METHOD_PROTOCOL_LOCK_SHA256 = _METHOD_PROTOCOL_LOCK_BY_LENGTH[LENGTH]
+#: Every length that has ANY reviewed lock. The import guard and the
+#: compatibility accessor below both key off this union rather than the pre-F18
+#: table: registering 20 bases only in the post-F18 table left
+#: `GDNA_NATIVE_DNA_BASES=20 python -c "import ..."` exiting 1, so the env20
+#: aggregator and matrix could not even print `--help`.
+_REGISTERED_LOCK_LENGTHS = sorted(
+    set(_METHOD_PROTOCOL_LOCK_BY_LENGTH)
+    | set(_POST_F18_METHOD_PROTOCOL_LOCK_BY_LENGTH))
+
+if LENGTH not in _REGISTERED_LOCK_LENGTHS:
+    raise SystemExit(
+        f"no reviewed method-protocol lock registered for LENGTH={LENGTH}; "
+        f"known: {_REGISTERED_LOCK_LENGTHS}. Run one cell, read its manifest, "
+        f"diff the identity against a known budget, and register the digest "
+        f"rather than disabling the check."
+    )
 
 
 def method_protocol_lock_for(protocol: "NativeProtocol | int | None") -> dict:
-    """The reviewed lock table for a length, without touching the module one."""
+    """One reviewed digest per method, for compatibility with older callers.
+
+    Prefer `reviewed_method_locks()`, which returns the full accepted set. This
+    keeps returning a single value per method so existing readers do not change
+    shape, and prefers the current-source digest.
+    """
     protocol = coerce_protocol(protocol)
-    try:
-        return _METHOD_PROTOCOL_LOCK_BY_LENGTH[protocol.length_bases]
-    except KeyError:
+    length = protocol.length_bases
+    if length not in _REGISTERED_LOCK_LENGTHS:
         raise SystemExit(
-            f"no reviewed method-protocol lock registered for "
-            f"{protocol.length_bases} bases; known: "
-            f"{sorted(_METHOD_PROTOCOL_LOCK_BY_LENGTH)}. Run one cell, read its "
-            f"manifest, diff the identity against a known budget, and register "
-            f"the digest rather than disabling the check.") from None
+            f"no reviewed method-protocol lock registered for {length} bases; "
+            f"known: {_REGISTERED_LOCK_LENGTHS}. Run "
+            f"scripts/recompute_native_method_locks.py, read the source diff, "
+            f"and register the digest rather than disabling the check.")
+    post = _POST_F18_METHOD_PROTOCOL_LOCK_BY_LENGTH.get(length, {})
+    pre = _METHOD_PROTOCOL_LOCK_BY_LENGTH.get(length, {})
+    return {method: post.get(method, pre.get(method))
+            for method in sorted(set(pre) | set(post))}
+
+
+METHOD_PROTOCOL_LOCK_SHA256 = method_protocol_lock_for(LENGTH)
 
 
 @dataclass(frozen=True, order=True)
@@ -889,10 +926,10 @@ def _validate_manifest(
         "key": key.text,
         "panel": key.panel,
         "method": key.method,
-        "display_name": DISPLAY[key.method],
+        "display_name": display_names_for(protocol)[key.method],
         "dataset": key.dataset,
         "seed": key.seed,
-        "length": LENGTH,
+        "length": protocol.length_bases,
         "manifest": str(path.resolve()),
         "manifest_sha256": _sha256(path) if verify_hashes else None,
         "status": status,
@@ -961,15 +998,18 @@ def _discover(
     return candidates, unkeyed
 
 
-def _placeholder(key: Key, status: str, **extra: object) -> dict[str, object]:
+def _placeholder(key: Key, status: str, *,
+                 protocol: "NativeProtocol | int | None" = None,
+                 **extra: object) -> dict[str, object]:
+    protocol = coerce_protocol(protocol)
     return {
         "key": key.text,
         "panel": key.panel,
         "method": key.method,
-        "display_name": DISPLAY[key.method],
+        "display_name": display_names_for(protocol)[key.method],
         "dataset": key.dataset,
         "seed": key.seed,
-        "length": LENGTH,
+        "length": protocol.length_bases,
         "status": status,
         "main_protocol_eligible": False,
         "main_eligibility_blockers": [],
@@ -1049,6 +1089,7 @@ def _resolve_records(
             records[key] = _placeholder(
                 key,
                 "duplicate",
+                protocol=protocol,
                 duplicate_manifests=[str(path.resolve()) for path in paths],
                 validation_errors=[
                     "multiple manifests declare the same method/dataset/seed; "
@@ -1064,11 +1105,12 @@ def _resolve_records(
             records[key] = _placeholder(
                 key,
                 "blocked",
+                protocol=protocol,
                 block_reason=reason,
                 main_eligibility_blockers=[reason],
             )
         else:
-            records[key] = _placeholder(key, "missing")
+            records[key] = _placeholder(key, "missing", protocol=protocol)
     _invalidate_mixed_protocol_families(records, seeds)
     return records
 
@@ -1091,6 +1133,7 @@ def _aggregate_cell(
     dataset: str,
     seeds: Sequence[int],
     mode: str,
+    protocol: "NativeProtocol | int | None" = None,
 ) -> dict[str, object]:
     selected = [records[Key(method, dataset, seed)] for seed in seeds]
     admitted = [record for record in selected if _admitted(record, mode)]
@@ -1128,6 +1171,7 @@ def _aggregate_cell(
         for blocker in record.get("main_eligibility_blockers", [])
         if isinstance(blocker, str)
     })
+    protocol = coerce_protocol(protocol)
     epochs = {
         str(record["seed"]): int(record["best_epoch_zero_based"])
         for record in admitted
@@ -1137,7 +1181,7 @@ def _aggregate_cell(
         "mode": mode,
         "panel": PANEL_BY_METHOD[method],
         "method": method,
-        "display_name": DISPLAY[method],
+        "display_name": display_names_for(protocol)[method],
         "dataset": dataset,
         "seeds_expected": list(seeds),
         "seeds_admitted": [int(record["seed"]) for record in admitted],
@@ -1169,6 +1213,7 @@ def _all_aggregates(
     records: Mapping[Key, Mapping[str, object]],
     seeds: Sequence[int],
     mode: str,
+    protocol: "NativeProtocol | int | None" = None,
 ) -> list[dict[str, object]]:
     return [
         _aggregate_cell(
@@ -1177,6 +1222,7 @@ def _all_aggregates(
             dataset=dataset,
             seeds=seeds,
             mode=mode,
+            protocol=protocol,
         )
         for method in METHODS
         for dataset in DATASETS
@@ -1207,8 +1253,8 @@ def aggregate(
         verify_hashes=verify_hashes,
         protocol=protocol,
     )
-    strict = _all_aggregates(records, normalized_seeds, "strict_main")
-    diagnostic = _all_aggregates(records, normalized_seeds, "diagnostic")
+    strict = _all_aggregates(records, normalized_seeds, "strict_main", protocol)
+    diagnostic = _all_aggregates(records, normalized_seeds, "diagnostic", protocol)
     counts = {
         status: sum(record["status"] == status for record in records.values())
         for status in (
@@ -1231,7 +1277,7 @@ def aggregate(
         "datasets": list(DATASETS),
         "seeds": list(normalized_seeds),
         "panels": {panel: list(methods) for panel, methods in PANELS.items()},
-        "display_names": DISPLAY,
+        "display_names": display_names_for(protocol),
         # Report the set the validator accepts, not the pre-F18 table:
         # advertising a narrower allow-list than the gate enforces makes the
         # provenance describe a check that is not the one being run.
@@ -1315,6 +1361,10 @@ def _cell_text(item: Mapping[str, object], *, strict: bool) -> str:
 
 
 def _markdown(payload: Mapping[str, object]) -> str:
+    # Names come from the payload being rendered, not from the process default:
+    # rendering an 18-base aggregate inside a 15-base process labelled every row
+    # PRIMO-15 while the header said 18 bases.
+    _display = _mapping(payload.get("display_names")) or DISPLAY
     seeds = payload.get("seeds", [])
     summary = _mapping(payload.get("summary")) or {}
     strict = _aggregate_lookup(payload, "strict_main_aggregate")
@@ -1323,7 +1373,7 @@ def _markdown(payload: Mapping[str, object]) -> str:
         "# Native-DNA common-P0 aggregation",
         "",
         f"- Expected train seeds: `{', '.join(map(str, seeds))}`",
-        f"- Capacity: `{LENGTH}` DNA bases",
+        f"- Capacity: `{payload.get('length_bases', LENGTH)}` DNA bases",
         "- `U0-FD` and `S` are repository-local information-condition tags, "
         "not names claimed verbatim by every source paper.",
         "- Supervision regimes: `U0-FD` = unsupervised with respect to the "
@@ -1368,7 +1418,7 @@ def _markdown(payload: Mapping[str, object]) -> str:
                 _cell_text(strict[(method, dataset)], strict=True)
                 for dataset in DATASETS
             ]
-            lines.append(f"| {DISPLAY[method]} | " + " | ".join(values) + " |")
+            lines.append(f"| {_display[method]} | " + " | ".join(values) + " |")
         lines.extend([
             "",
             f"## {panel_titles[panel]} — diagnostic",
@@ -1381,7 +1431,7 @@ def _markdown(payload: Mapping[str, object]) -> str:
                 _cell_text(diagnostic[(method, dataset)], strict=False)
                 for dataset in DATASETS
             ]
-            lines.append(f"| {DISPLAY[method]} | " + " | ".join(values) + " |")
+            lines.append(f"| {_display[method]} | " + " | ".join(values) + " |")
         lines.append("")
 
     records = payload.get("records")
