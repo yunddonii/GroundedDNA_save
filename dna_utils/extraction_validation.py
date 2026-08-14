@@ -47,6 +47,7 @@ _COMMON_IDENTITY = (
     "inference_epoch_source",
     "effective_sinkhorn_epsilon",
     "sinkhorn_schedule_horizon",
+    "sinkhorn_annealing_enabled",
     "lr_schedule_horizon",
     "training_epoch_budget",
     "training_stop_epoch",
@@ -119,20 +120,22 @@ _MANIFEST_SCHEMA = {
     "npz_path": str,
     "npz_sha256": str,
     "backfilled": bool,
+    # Whether an epsilon SCHEDULE was in force during the forward pass. Stated
+    # outright because it cannot be inferred from `inference_epoch_source`.
+    "sinkhorn_annealing_enabled": bool,
 }
 
-#: Fields whose contract DEPENDS on how the epoch was resolved. Requiring an int
-#: horizon unconditionally rejected the legitimate `no_annealing` path, where
-#: the router uses a static epsilon and there is no schedule to record -- the
-#: strict schema was written without checking it against its own producers.
-_ANNEALED_SCHEMA = {
-    "sinkhorn_schedule_horizon": int,
-    "effective_sinkhorn_epsilon": float,
-}
+MANIFEST_SCHEMA_VERSION = 2
 
-#: Sources the resolver can legitimately report. `bogus` is not one of them.
+#: Sources the resolver can legitimately report -- where the EPOCH came from,
+#: which is a different question from whether epsilon was annealed. `bogus` is
+#: not one of them.
 _EPOCH_SOURCES = frozenset(
-    {"explicit_flag", "checkpoint_metadata", "no_annealing"})
+    {"explicit_flag", "checkpoint_metadata", "no_annealing",
+     # The F01 defect itself: the epoch was never restored, so the router ran
+     # at the initial epsilon. Used only when binding preserved legacy runs,
+     # where the epoch is a property of the code path and not of any artefact.
+     "f01_unrestored"})
 
 
 @dataclass(frozen=True)
@@ -171,7 +174,7 @@ def _check_schema(manifest: Mapping, *, split: str) -> None:
                 f"{split}: manifest {field_name} is {type(value).__name__}, "
                 f"expected {field_type.__name__}")
 
-    if manifest["schema_version"] != 1:
+    if manifest["schema_version"] != MANIFEST_SCHEMA_VERSION:
         raise ExtractionInvalid(
             f"{split}: unknown manifest schema_version "
             f"{manifest['schema_version']!r}")
@@ -181,37 +184,43 @@ def _check_schema(manifest: Mapping, *, split: str) -> None:
             f"{split}: inference_epoch_source {source!r} is not one of "
             f"{sorted(_EPOCH_SOURCES)}")
 
-    if source == "no_annealing":
-        # No schedule to record; both fields must be explicitly null so the
-        # absence is a statement rather than an omission.
-        for field_name in _ANNEALED_SCHEMA:
-            if manifest.get(field_name, "missing") not in (None,):
-                raise ExtractionInvalid(
-                    f"{split}: {field_name} must be null when the epoch source "
-                    f"is no_annealing, got {manifest.get(field_name)!r}")
-    else:
-        for field_name, field_type in _ANNEALED_SCHEMA.items():
-            if field_name not in manifest:
-                raise ExtractionInvalid(
-                    f"{split}: manifest is missing {field_name!r}")
-            value = manifest[field_name]
-            if value is None:
-                raise ExtractionInvalid(
-                    f"{split}: {field_name} is null but the epoch source is "
-                    f"{source!r}, which anneals")
-            if isinstance(value, bool) or not isinstance(
-                    value, (int, float) if field_type is float else field_type):
-                raise ExtractionInvalid(
-                    f"{split}: {field_name} is {type(value).__name__}, "
-                    f"expected {field_type.__name__}")
-        if manifest["sinkhorn_schedule_horizon"] <= 0:
+    # The forward pass ran at SOME epsilon whether or not a schedule was in
+    # force, so this is required either way. The previous schema branched on
+    # `source == "no_annealing"` -- but `source` says only where the epoch was
+    # recovered from, and a fresh no-anneal run writes a sidecar and so resolves
+    # as `checkpoint_metadata`. Its null epsilon was then rejected as an
+    # annealed run with a missing field, and the whole producer-to-consumer path
+    # was incompatible for a configuration the trainer supports (§20.9).
+    epsilon = manifest.get("effective_sinkhorn_epsilon")
+    if epsilon is None:
+        raise ExtractionInvalid(
+            f"{split}: effective_sinkhorn_epsilon is null; the router ran at "
+            f"some epsilon, and a static one is a value, not an absence")
+    if isinstance(epsilon, bool) or not isinstance(epsilon, (int, float)):
+        raise ExtractionInvalid(
+            f"{split}: effective_sinkhorn_epsilon is "
+            f"{type(epsilon).__name__}, expected a number")
+    if not 0.0 < float(epsilon) <= 10.0:
+        raise ExtractionInvalid(
+            f"{split}: effective_sinkhorn_epsilon {epsilon} is outside (0, 10]")
+
+    horizon = manifest.get("sinkhorn_schedule_horizon")
+    if manifest["sinkhorn_annealing_enabled"]:
+        if horizon is None:
             raise ExtractionInvalid(
-                f"{split}: sinkhorn_schedule_horizon "
-                f"{manifest['sinkhorn_schedule_horizon']} is not positive")
-        if not 0.0 < float(manifest["effective_sinkhorn_epsilon"]) <= 10.0:
+                f"{split}: sinkhorn_schedule_horizon is null but annealing is "
+                f"enabled; the epsilon cannot be reproduced without it")
+        if isinstance(horizon, bool) or not isinstance(horizon, int):
             raise ExtractionInvalid(
-                f"{split}: effective_sinkhorn_epsilon "
-                f"{manifest['effective_sinkhorn_epsilon']} is outside (0, 10]")
+                f"{split}: sinkhorn_schedule_horizon is "
+                f"{type(horizon).__name__}, expected int")
+        if horizon <= 0:
+            raise ExtractionInvalid(
+                f"{split}: sinkhorn_schedule_horizon {horizon} is not positive")
+    elif horizon is not None:
+        raise ExtractionInvalid(
+            f"{split}: sinkhorn_schedule_horizon is {horizon!r} but annealing "
+            f"is disabled; there is no schedule to record")
 
     slots, per_slot = manifest["num_slots"], manifest["bases_per_slot"]
     if slots <= 0 or per_slot <= 0:

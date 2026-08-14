@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 import sys
 
 import numpy as np
@@ -31,7 +32,11 @@ from dna_utils.extraction_validation import (  # noqa: E402
     describe_failure,
     validate_extraction_run,
 )
-from dna_utils.runtime_state import sha256_file  # noqa: E402
+from dna_utils.runtime_state import (  # noqa: E402
+    ResolvedEpoch,
+    sha256_file,
+    write_extraction_manifest,
+)
 
 SLOTS, PER_SLOT = 5, 3
 BASES = SLOTS * PER_SLOT
@@ -59,26 +64,31 @@ def _cell(tmp_path, rows=4, *, splits=("db", "query"), corrupt=None):
         npz = tmp_path / f"extract_{split}.npz"
         np.savez(npz, base_indices=base, hash_2bit=hashed,
                  codebook_indices=codebook)
-        manifest = {
-            "schema_version": 1, "split": split, "n_rows": rows,
-            "checkpoint_path": str(ck), "checkpoint_sha256": sha256_file(str(ck)),
-            "config_path": str(cfg), "config_sha256": sha256_file(str(cfg)),
-            "inference_epoch": 4, "inference_epoch_source": "explicit_flag",
-            "effective_sinkhorn_epsilon": 0.1,
-            "sinkhorn_schedule_horizon": 5, "lr_schedule_horizon": 5,
-            "training_epoch_budget": 5, "training_stop_epoch": 4,
-            "num_slots": SLOTS, "bases_per_slot": PER_SLOT,
-            "total_bases": BASES, "total_bits": 2 * BASES,
-            "dataset": "CIFAR10", "random_seed": 42, "codebook_size": 64,
-            # `backfilled` is a required bool now: a missing field used to read
-            # as false, so deleting it promoted a backfilled cell to native.
-            "backfilled": False,
-            "effective_sinkhorn_epsilon": 0.1,
-            "npz_path": str(npz), "npz_sha256": sha256_file(str(npz)),
-        }
-        path = tmp_path / f"extraction_manifest_{split}.json"
-        path.write_text(json.dumps(manifest, indent=2, sort_keys=True))
-        manifests[split] = path
+        # Built by the PRODUCTION writer, not hand-rolled. A hand-written
+        # fixture drifts from the schema silently -- and a fixture that is
+        # already invalid proves nothing about the counterexample under test.
+        path = write_extraction_manifest(
+            str(tmp_path / f"extraction_manifest_{split}.json"),
+            checkpoint_path=str(ck),
+            resolved=ResolvedEpoch(
+                epoch=4, source="explicit_flag",
+                effective_sinkhorn_epsilon=0.1,
+                sinkhorn_schedule_horizon=5,
+                checkpoint_sha256=sha256_file(str(ck)),
+                sinkhorn_annealing_enabled=True),
+            num_slots=SLOTS, bases_per_slot=PER_SLOT, split=split,
+            n_rows=rows, lr_schedule_horizon=5, training_epoch_budget=5,
+            training_stop_epoch=4,
+            extra={
+                "config_path": str(cfg),
+                "config_sha256": sha256_file(str(cfg)),
+                "dataset": "CIFAR10", "random_seed": 42, "codebook_size": 64,
+                # `backfilled` is a required bool: a missing field used to read
+                # as false, so deleting it promoted a backfilled cell to native.
+                "backfilled": False,
+                "npz_path": str(npz), "npz_sha256": sha256_file(str(npz)),
+            })
+        manifests[split] = Path(path)
     marker = {
         "schema_version": 1, "splits": sorted(manifests),
         "manifest_sha256": {s: sha256_file(str(p))

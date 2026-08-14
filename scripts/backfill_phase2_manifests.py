@@ -72,6 +72,13 @@ def _arg(args_txt: Path, field: str) -> str:
     raise BackfillRefused(f"{args_txt} has no field {field!r}")
 
 
+def _optional_arg(args_txt: Path, field: str) -> str | None:
+    try:
+        return _arg(args_txt, field)
+    except BackfillRefused:
+        return None
+
+
 def _runtime_from_log(cell: Path) -> tuple[int, str, float]:
     log = cell / "extract.log"
     if not log.is_file():
@@ -124,11 +131,23 @@ def backfill_cell(cell: Path, *, dry_run: bool = False) -> list[str]:
     slots = int(_arg(args_txt, "num_semantic_parts"))
     per_slot = int(_arg(args_txt, "num_codons_per_codebook"))
 
+    # Whether a schedule was in force is a property of the run, not of how its
+    # epoch was recovered, so it is read from the run's own configuration.
+    annealing = all(
+        _optional_arg(args_txt, name) not in (None, "", "None")
+        for name in ("sinkhorn_epsilon_init", "sinkhorn_epsilon_final"))
+    if not annealing:
+        raise BackfillRefused(
+            f"{cell.name}: no epsilon schedule in args.txt, but the recorded "
+            f"effective epsilon is {epsilon}; the operating point cannot be "
+            f"reconstructed")
+
     resolved = ResolvedEpoch(
         epoch=int(epoch), source=source,
         effective_sinkhorn_epsilon=epsilon,
         sinkhorn_schedule_horizon=int(_arg(args_txt, "epoch")),
-        checkpoint_sha256=sha256_file(str(cell / "model_state_dict.pth")))
+        checkpoint_sha256=sha256_file(str(cell / "model_state_dict.pth")),
+        sinkhorn_annealing_enabled=annealing)
 
     # 3. validate EVERY split before writing ANY of them. The first version
     #    wrote the db manifest and then opened query, so a query failure left a

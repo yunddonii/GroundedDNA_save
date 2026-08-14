@@ -35,6 +35,12 @@ from typing import Any, Mapping, Optional
 _SIDECAR_SUFFIX = ".runtime.json"
 _SCHEMA_VERSION = 1
 
+#: Extraction manifests only. Bumped to 2 when `sinkhorn_annealing_enabled`
+#: became required: a manifest without it cannot say whether its null horizon
+#: means "static epsilon" or "field forgotten" (§20.9). The checkpoint sidecar
+#: keeps version 1 -- its layout did not change.
+_MANIFEST_SCHEMA_VERSION = 2
+
 
 class InferenceEpochUnresolved(RuntimeError):
     """Raised instead of silently inferring at epoch 0."""
@@ -171,6 +177,18 @@ def write_checkpoint_metadata(
 
 # ---------------------------------------------------------------- resolution
 
+#: The router's epsilon when no schedule is in force. It is a real operating
+#: point, not an absence: `SemanticSinkhornRouter(epsilon=args.sinkhorn_
+#: temperature)`. Recording null for it confuses the internal
+#: `epsilon_override=None` sentinel with the epsilon the forward pass used.
+DEFAULT_STATIC_SINKHORN_EPSILON = 0.05
+
+
+def static_sinkhorn_epsilon(args: Any) -> float:
+    return float(getattr(args, "sinkhorn_temperature",
+                         DEFAULT_STATIC_SINKHORN_EPSILON))
+
+
 @dataclass(frozen=True)
 class ResolvedEpoch:
     epoch: int
@@ -178,6 +196,12 @@ class ResolvedEpoch:
     effective_sinkhorn_epsilon: Optional[float]
     sinkhorn_schedule_horizon: Optional[int]
     checkpoint_sha256: Optional[str]
+    #: Whether an epsilon SCHEDULE was in force. This is a different question
+    #: from `source`, which says only where the epoch was recovered from. A
+    #: fresh no-anneal run writes a sidecar, so it resolves as
+    #: `checkpoint_metadata` with no schedule at all -- and a schema that
+    #: branched on `source == "no_annealing"` rejected it (§20.9).
+    sinkhorn_annealing_enabled: bool = True
 
 
 def resolve_inference_epoch(checkpoint_path: str, args: Any) -> ResolvedEpoch:
@@ -199,6 +223,16 @@ def resolve_inference_epoch(checkpoint_path: str, args: Any) -> ResolvedEpoch:
                 f"most likely a previous run wrote into this directory. Re-save "
                 f"the checkpoint with metadata rather than trusting it.")
 
+    # Whether a SCHEDULE is in force. The sidecar wins when it exists, because
+    # it describes the run that produced these weights; `args` describes the
+    # process about to load them.
+    if md is not None:
+        annealing = (md.sinkhorn_epsilon_init is not None
+                     and md.sinkhorn_epsilon_final is not None)
+    else:
+        annealing = eps_i is not None and eps_f is not None
+    static_epsilon = static_sinkhorn_epsilon(args)
+
     explicit = getattr(args, "inference_epoch", None)
     if explicit is not None:
         if md is not None and int(explicit) != md.checkpoint_epoch_zero_based:
@@ -207,28 +241,32 @@ def resolve_inference_epoch(checkpoint_path: str, args: Any) -> ResolvedEpoch:
                 f"metadata epoch {md.checkpoint_epoch_zero_based}. Resolve which "
                 f"run this checkpoint belongs to instead of overriding.")
         h = resolve_horizons(args)
+        horizon = (md.sinkhorn_schedule_horizon if md
+                   else h.sinkhorn_schedule_horizon)
         return ResolvedEpoch(
             epoch=int(explicit), source="explicit_flag",
-            effective_sinkhorn_epsilon=annealed_epsilon(
-                int(explicit),
-                md.sinkhorn_schedule_horizon if md else h.sinkhorn_schedule_horizon,
-                eps_i, eps_f),
-            sinkhorn_schedule_horizon=(
-                md.sinkhorn_schedule_horizon if md else h.sinkhorn_schedule_horizon),
+            effective_sinkhorn_epsilon=(
+                annealed_epsilon(int(explicit), horizon, eps_i, eps_f)
+                if annealing else static_epsilon),
+            sinkhorn_schedule_horizon=horizon if annealing else None,
             # A legacy checkpoint has no sidecar, but the file is present and
             # hashable: returning None here left the extraction manifest unable
             # to name what it loaded.
             checkpoint_sha256=(
                 md.checkpoint_sha256 if md
                 else (_sha256(checkpoint_path)
-                      if os.path.isfile(checkpoint_path) else None)))
+                      if os.path.isfile(checkpoint_path) else None)),
+            sinkhorn_annealing_enabled=annealing)
 
     if md is not None:
         return ResolvedEpoch(
             epoch=md.checkpoint_epoch_zero_based, source="checkpoint_metadata",
-            effective_sinkhorn_epsilon=md.effective_sinkhorn_epsilon,
-            sinkhorn_schedule_horizon=md.sinkhorn_schedule_horizon,
-            checkpoint_sha256=md.checkpoint_sha256)
+            effective_sinkhorn_epsilon=(
+                md.effective_sinkhorn_epsilon if annealing else static_epsilon),
+            sinkhorn_schedule_horizon=(
+                md.sinkhorn_schedule_horizon if annealing else None),
+            checkpoint_sha256=md.checkpoint_sha256,
+            sinkhorn_annealing_enabled=annealing)
 
     if eps_i is None or eps_f is None:
         # No annealing: the router uses its static epsilon and the epoch is
@@ -237,11 +275,15 @@ def resolve_inference_epoch(checkpoint_path: str, args: Any) -> ResolvedEpoch:
         # returning None made static-epsilon extraction unable to name its own
         # weights, and the fail-closed manifest writer then refused it outright.
         return ResolvedEpoch(epoch=0, source="no_annealing",
-                             effective_sinkhorn_epsilon=None,
+                             # The static epsilon the router actually runs at.
+                             # Recording null here made the operating point
+                             # unrecoverable from the manifest.
+                             effective_sinkhorn_epsilon=static_epsilon,
                              sinkhorn_schedule_horizon=None,
                              checkpoint_sha256=(
                                  _sha256(checkpoint_path)
-                                 if os.path.isfile(checkpoint_path) else None))
+                                 if os.path.isfile(checkpoint_path) else None),
+                             sinkhorn_annealing_enabled=False)
 
     raise InferenceEpochUnresolved(
         f"Sinkhorn epsilon annealing is active ({eps_i} -> {eps_f}) but the "
@@ -273,7 +315,7 @@ def write_extraction_manifest(
     """Record the runtime state an extraction actually ran under, so a table
     cannot be traced back to an unknown operating point."""
     d = {
-        "schema_version": _SCHEMA_VERSION,
+        "schema_version": _MANIFEST_SCHEMA_VERSION,
         "split": split,
         "n_rows": int(n_rows),
         "checkpoint_path": os.path.abspath(checkpoint_path),
@@ -282,6 +324,8 @@ def write_extraction_manifest(
         "inference_epoch_source": resolved.source,
         "effective_sinkhorn_epsilon": resolved.effective_sinkhorn_epsilon,
         "sinkhorn_schedule_horizon": resolved.sinkhorn_schedule_horizon,
+        # Stated, not inferred from which other field happens to be null.
+        "sinkhorn_annealing_enabled": bool(resolved.sinkhorn_annealing_enabled),
         # D2 asked for the whole schedule to be checkable from the artefact.
         # With only the Sinkhorn horizon recorded, the LR horizon and the stop
         # epoch could be recovered only by re-opening the config, so the
