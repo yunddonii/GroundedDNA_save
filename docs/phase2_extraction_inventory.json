@@ -1,0 +1,1698 @@
+{
+  "cells": [
+    {
+      "analysis": {
+        "admitted": true,
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d22bb01d1cca99c4347f8492f3ef7109b126ef05e044f6b66e46c3772e27a7bd",
+          "evaluation_siglip2_sha256": "97496f62e3b3349745af1d1c84cc48feb142ee32ecd61a8cc58b50c1b76b03c7",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "7ece8d4045ae96eda17c356b95d82ede8079687db4b3f6d2c59c30ac084282a9"
+        },
+        "input_binding": {
+          "backfilled_inputs": true,
+          "checkpoint_sha256": "1b1b2fa297956b2c99d7b1eaa6d6492e8cc9f3b37caa7bf0865210e0a4d616f3",
+          "codebook_size": 64,
+          "config_sha256": "b4162a12742ff636aeb7ef223ca21a7ff7d4f96752c204c562bb7fe4253a8d89",
+          "dataset": "cifar10",
+          "inference_epoch": 19,
+          "inference_epoch_source": "explicit_flag",
+          "manifest_sha256": {
+            "db": "1e2e3b82be950257588562e6133dcd3d7801c0b8837644e9ad1d3a8275fe1bf3",
+            "query": "3f675df9127ce4ae7cf823f464022dc6bdc3de101e906fc25cee562fcbc80864"
+          },
+          "npz_sha256": {
+            "db": "bc96d6f80cc71bdb46faf939cf78fdeb73351ad10d6432bb6e962a323d0d8136",
+            "query": "29d93bf4bce13ba74467d55a8004150173f88564e6ca48acbcc346da63ec7b80"
+          },
+          "random_seed": 42,
+          "run_dir": "/home/yschoi/GroundedDNA/result_diagnostic/phase2_F01_only/cifar10_N19",
+          "schema_version": 1,
+          "validator_sha256": "07985a6e4e7f222b1a0ed5d0d5c7ea91c485cfc6761988cdab2a3f8869688107"
+        },
+        "marker_present": true,
+        "marker_sha256": "dbc868c5465919f7a86be5bf013ce3c94b90ae0cef1d58809a94fe6f3873b495",
+        "metric_files": {
+          "cell_result.json": "0ddf1215ad246fe828a176def7564f8654b4fbc4d331ee74d47846d383949abb",
+          "evaluation_siglip2_base_bioproj.json": "700463c99ebb08c58656c99b4d0f4b47a8aa7f9f7968293abae3afe64fcd3a29",
+          "pairwise_nmi.json": "cc908ddda6135a6cd4bf505f4f4c9af276f301c60229a540eed6eaf2cc97055e"
+        },
+        "metrics": {
+          "dna_unique_db": 0.11286440677966102,
+          "full_map_bioproj": 0.7323198506288144,
+          "full_map_pre_projection": 0.7579968819347438,
+          "map_at_R_bioproj": 0.8673521595434218,
+          "mean_off_diag_nmi": 0.6176326151387312
+        },
+        "protocol": {
+          "codebook_size": 64,
+          "dataset": "CIFAR10",
+          "gc_count_max_inclusive": 9,
+          "gc_count_min_inclusive": 6,
+          "gc_max_frac": 0.6,
+          "gc_min_frac": 0.4,
+          "gc_policy_version": "gc-40-60-inclusive-v1",
+          "map_r_cutoff": 1000,
+          "nmi_average_method": "arithmetic",
+          "sklearn_version": "1.7.2",
+          "total_bases": 15
+        },
+        "refusal": null
+      },
+      "args_txt_sha256": "a32d36071e4f8394ac23ac900f8f0427995b939b280aed3d0f8ab40303442cee",
+      "backfilled": true,
+      "canonical_legacy_source": {
+        "config_sha256": "b4162a12742ff636aeb7ef223ca21a7ff7d4f96752c204c562bb7fe4253a8d89",
+        "dir": "result/260811+cifar10_setting1_promptAblA_cifar_A_v4_P0refit_e19+bs+64+e+20+proj_lr+0.001",
+        "model_state_dict_sha256": "1b1b2fa297956b2c99d7b1eaa6d6492e8cc9f3b37caa7bf0865210e0a4d616f3"
+      },
+      "cell": "cifar10_N19",
+      "checkpoint_sha256": "1b1b2fa297956b2c99d7b1eaa6d6492e8cc9f3b37caa7bf0865210e0a4d616f3",
+      "completion_marker_sha256": "3733324bc2a74732d2ba3aa9a95b6da8c707e4636846fb53da6fa8bcb5932993",
+      "config_sha256": "b4162a12742ff636aeb7ef223ca21a7ff7d4f96752c204c562bb7fe4253a8d89",
+      "dataset": "cifar10",
+      "eligibility": "diagnostic_only",
+      "extract_log_sha256": "ab0c23458ed2b3823e90ef1d904de7062e79793e2671ed1e85b83746127aba2c",
+      "runtime_identity": {
+        "backfilled": true,
+        "bases_per_slot": 3,
+        "checkpoint_sha256": "1b1b2fa297956b2c99d7b1eaa6d6492e8cc9f3b37caa7bf0865210e0a4d616f3",
+        "codebook_size": 64,
+        "config_sha256": "b4162a12742ff636aeb7ef223ca21a7ff7d4f96752c204c562bb7fe4253a8d89",
+        "dataset": "cifar10",
+        "effective_sinkhorn_epsilon": 0.1,
+        "inference_epoch": 19,
+        "inference_epoch_source": "explicit_flag",
+        "lr_schedule_horizon": 20,
+        "num_slots": 5,
+        "random_seed": 42,
+        "sinkhorn_annealing_enabled": true,
+        "sinkhorn_schedule_horizon": 20,
+        "total_bases": 15,
+        "total_bits": 30,
+        "training_epoch_budget": 20,
+        "training_stop_epoch": 19
+      },
+      "splits": {
+        "db": {
+          "manifest_sha256": "1e2e3b82be950257588562e6133dcd3d7801c0b8837644e9ad1d3a8275fe1bf3",
+          "n_rows": 59000,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/cifar10_N19/extract_db.npz",
+          "npz_sha256": "bc96d6f80cc71bdb46faf939cf78fdeb73351ad10d6432bb6e962a323d0d8136"
+        },
+        "query": {
+          "manifest_sha256": "3f675df9127ce4ae7cf823f464022dc6bdc3de101e906fc25cee562fcbc80864",
+          "n_rows": 1000,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/cifar10_N19/extract_query.npz",
+          "npz_sha256": "29d93bf4bce13ba74467d55a8004150173f88564e6ca48acbcc346da63ec7b80"
+        }
+      },
+      "stop_epoch_zero_based": 19
+    },
+    {
+      "analysis": {
+        "admitted": true,
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d22bb01d1cca99c4347f8492f3ef7109b126ef05e044f6b66e46c3772e27a7bd",
+          "evaluation_siglip2_sha256": "97496f62e3b3349745af1d1c84cc48feb142ee32ecd61a8cc58b50c1b76b03c7",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "7ece8d4045ae96eda17c356b95d82ede8079687db4b3f6d2c59c30ac084282a9"
+        },
+        "input_binding": {
+          "backfilled_inputs": true,
+          "checkpoint_sha256": "7e3fc4fddc0128bc9de4436d55de2f5d73ed6a62de06935248f0ee4ea6b34444",
+          "codebook_size": 64,
+          "config_sha256": "f20cc57bee2ab27ac81e850eb451dbead11acd84743abf4e613aa20046728f33",
+          "dataset": "cifar10",
+          "inference_epoch": 39,
+          "inference_epoch_source": "explicit_flag",
+          "manifest_sha256": {
+            "db": "d7d01c941e5b64c1f5b15212ade28ad98b4347519324aea9e60cc28b71825f1d",
+            "query": "14e2e67c931c1a8c7f5eabaa1bff88ea71a9ccacea046db37eb8b8cc70892024"
+          },
+          "npz_sha256": {
+            "db": "a801a9e7c01c06b3ec2c9090f3b5d13da9db603b2bae683cc042ba0260e8d1ed",
+            "query": "567dd89857f17bc952f9e48114a31a1265efa9bac525c0ed926cd753feba8fa9"
+          },
+          "random_seed": 42,
+          "run_dir": "/home/yschoi/GroundedDNA/result_diagnostic/phase2_F01_only/cifar10_N39",
+          "schema_version": 1,
+          "validator_sha256": "07985a6e4e7f222b1a0ed5d0d5c7ea91c485cfc6761988cdab2a3f8869688107"
+        },
+        "marker_present": true,
+        "marker_sha256": "1bfc8528979b26567143235ef125e74a58a941cfaa9911517b8a172aa375842e",
+        "metric_files": {
+          "cell_result.json": "45cbb96a4d88e3b4117be29c7f8730a1964f798a1efaf01f4e80f98b6bac8719",
+          "evaluation_siglip2_base_bioproj.json": "8b97f82f9107469a1444669bf43eec1a51122e3180378409d6ab5a60fa9e6f8a",
+          "pairwise_nmi.json": "aa2026c9748d73969a756030f6d6a65a208e374d37b2d1075a51de7999e5c0ff"
+        },
+        "metrics": {
+          "dna_unique_db": 0.10188135593220339,
+          "full_map_bioproj": 0.7286435864445414,
+          "full_map_pre_projection": 0.7434579438945446,
+          "map_at_R_bioproj": 0.86746766243941,
+          "mean_off_diag_nmi": 0.6524435702667524
+        },
+        "protocol": {
+          "codebook_size": 64,
+          "dataset": "CIFAR10",
+          "gc_count_max_inclusive": 9,
+          "gc_count_min_inclusive": 6,
+          "gc_max_frac": 0.6,
+          "gc_min_frac": 0.4,
+          "gc_policy_version": "gc-40-60-inclusive-v1",
+          "map_r_cutoff": 1000,
+          "nmi_average_method": "arithmetic",
+          "sklearn_version": "1.7.2",
+          "total_bases": 15
+        },
+        "refusal": null
+      },
+      "args_txt_sha256": "90635a3bf9da28a2b287fd5f5f4cfb502af4d5b8ae02d22ffdab80a09c610ee2",
+      "backfilled": true,
+      "canonical_legacy_source": {
+        "config_sha256": "f20cc57bee2ab27ac81e850eb451dbead11acd84743abf4e613aa20046728f33",
+        "dir": "result/260812+cifar10_setting1_promptAblA_cifar_A_v4_P0refit_e39+bs+64+e+40+proj_lr+0.001",
+        "model_state_dict_sha256": "7e3fc4fddc0128bc9de4436d55de2f5d73ed6a62de06935248f0ee4ea6b34444"
+      },
+      "cell": "cifar10_N39",
+      "checkpoint_sha256": "7e3fc4fddc0128bc9de4436d55de2f5d73ed6a62de06935248f0ee4ea6b34444",
+      "completion_marker_sha256": "1b525b976e100cd7e13732f8692166c06e95ec060e778faf69636814a84f6692",
+      "config_sha256": "f20cc57bee2ab27ac81e850eb451dbead11acd84743abf4e613aa20046728f33",
+      "dataset": "cifar10",
+      "eligibility": "diagnostic_only",
+      "extract_log_sha256": "e51e339f7333332fa071ecd33991f91c5ddabd37ceb183e56e690a40e239a599",
+      "runtime_identity": {
+        "backfilled": true,
+        "bases_per_slot": 3,
+        "checkpoint_sha256": "7e3fc4fddc0128bc9de4436d55de2f5d73ed6a62de06935248f0ee4ea6b34444",
+        "codebook_size": 64,
+        "config_sha256": "f20cc57bee2ab27ac81e850eb451dbead11acd84743abf4e613aa20046728f33",
+        "dataset": "cifar10",
+        "effective_sinkhorn_epsilon": 0.1,
+        "inference_epoch": 39,
+        "inference_epoch_source": "explicit_flag",
+        "lr_schedule_horizon": 40,
+        "num_slots": 5,
+        "random_seed": 42,
+        "sinkhorn_annealing_enabled": true,
+        "sinkhorn_schedule_horizon": 40,
+        "total_bases": 15,
+        "total_bits": 30,
+        "training_epoch_budget": 40,
+        "training_stop_epoch": 39
+      },
+      "splits": {
+        "db": {
+          "manifest_sha256": "d7d01c941e5b64c1f5b15212ade28ad98b4347519324aea9e60cc28b71825f1d",
+          "n_rows": 59000,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/cifar10_N39/extract_db.npz",
+          "npz_sha256": "a801a9e7c01c06b3ec2c9090f3b5d13da9db603b2bae683cc042ba0260e8d1ed"
+        },
+        "query": {
+          "manifest_sha256": "14e2e67c931c1a8c7f5eabaa1bff88ea71a9ccacea046db37eb8b8cc70892024",
+          "n_rows": 1000,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/cifar10_N39/extract_query.npz",
+          "npz_sha256": "567dd89857f17bc952f9e48114a31a1265efa9bac525c0ed926cd753feba8fa9"
+        }
+      },
+      "stop_epoch_zero_based": 39
+    },
+    {
+      "analysis": {
+        "admitted": true,
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d22bb01d1cca99c4347f8492f3ef7109b126ef05e044f6b66e46c3772e27a7bd",
+          "evaluation_siglip2_sha256": "97496f62e3b3349745af1d1c84cc48feb142ee32ecd61a8cc58b50c1b76b03c7",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "7ece8d4045ae96eda17c356b95d82ede8079687db4b3f6d2c59c30ac084282a9"
+        },
+        "input_binding": {
+          "backfilled_inputs": true,
+          "checkpoint_sha256": "ebf6a1c3ad3cceb71a7feff5cb7e6baae6af7c90a1c7921c38e236387fb31228",
+          "codebook_size": 64,
+          "config_sha256": "c5ee9c455f3253d328d6741ed570c94dd5ef973d6ce95bab0439ec98676ed022",
+          "dataset": "cifar10",
+          "inference_epoch": 4,
+          "inference_epoch_source": "explicit_flag",
+          "manifest_sha256": {
+            "db": "81468ff90f35ab51ba205e0742e6576f7a442a6f7c9779b9d4131eb7487c1235",
+            "query": "f0ac063026f44c047a5ac44563ec403b931e134e2d9ecb711033b6153b693c04"
+          },
+          "npz_sha256": {
+            "db": "24003a599611168768edaa5c43bdebaa3adbed74de54b237f9623c9fcf1781f8",
+            "query": "1acaaa77c3a3e056d04666c792e927412faf2cb944af1900c99c5de2bbf812a2"
+          },
+          "random_seed": 42,
+          "run_dir": "/home/yschoi/GroundedDNA/result_diagnostic/phase2_F01_only/cifar10_N4",
+          "schema_version": 1,
+          "validator_sha256": "07985a6e4e7f222b1a0ed5d0d5c7ea91c485cfc6761988cdab2a3f8869688107"
+        },
+        "marker_present": true,
+        "marker_sha256": "ec0cefeb93da008d570b73f6d8f4729fd1e9129400096ff2c5a472429b569287",
+        "metric_files": {
+          "cell_result.json": "34ec35aeae305fb1c4d9e61c0ec5b64257f912e80d84e1b7ca9eca85a291dbb7",
+          "evaluation_siglip2_base_bioproj.json": "ac07ca1f8660b937fc7ef2aa82ee9f44a2e7b3faaac2b41178c1ec941d89925f",
+          "pairwise_nmi.json": "230f5edf2f1b5e3f5e2c0a95765eb41266d2bd7ee731ae8a6b91ff1c4c2a8314"
+        },
+        "metrics": {
+          "dna_unique_db": 0.0868135593220339,
+          "full_map_bioproj": 0.8248264128920642,
+          "full_map_pre_projection": 0.8299447854427717,
+          "map_at_R_bioproj": 0.8838713964564279,
+          "mean_off_diag_nmi": 0.6090119356022619
+        },
+        "protocol": {
+          "codebook_size": 64,
+          "dataset": "CIFAR10",
+          "gc_count_max_inclusive": 9,
+          "gc_count_min_inclusive": 6,
+          "gc_max_frac": 0.6,
+          "gc_min_frac": 0.4,
+          "gc_policy_version": "gc-40-60-inclusive-v1",
+          "map_r_cutoff": 1000,
+          "nmi_average_method": "arithmetic",
+          "sklearn_version": "1.7.2",
+          "total_bases": 15
+        },
+        "refusal": null
+      },
+      "args_txt_sha256": "718f3499c669732d56cabe0d5f43dc4449713c6a3239ba0239bd31953e94a065",
+      "backfilled": true,
+      "canonical_legacy_source": {
+        "config_sha256": "c5ee9c455f3253d328d6741ed570c94dd5ef973d6ce95bab0439ec98676ed022",
+        "dir": "result/260811+cifar10_setting1_promptAblA_cifar_A_v4_P0refit_e4+bs+64+e+5+proj_lr+0.001",
+        "model_state_dict_sha256": "ebf6a1c3ad3cceb71a7feff5cb7e6baae6af7c90a1c7921c38e236387fb31228"
+      },
+      "cell": "cifar10_N4",
+      "checkpoint_sha256": "ebf6a1c3ad3cceb71a7feff5cb7e6baae6af7c90a1c7921c38e236387fb31228",
+      "completion_marker_sha256": "f06d88b8a8ac7eb80ca5c1b8f29e8a9d5eb4faa2fde441616b5dd8e8fb8b2eb9",
+      "config_sha256": "c5ee9c455f3253d328d6741ed570c94dd5ef973d6ce95bab0439ec98676ed022",
+      "dataset": "cifar10",
+      "eligibility": "diagnostic_only",
+      "extract_log_sha256": "e6cb228cd2067c9ee29195a991e0e219cdeecbd9cbaf36a069551016ec2817db",
+      "runtime_identity": {
+        "backfilled": true,
+        "bases_per_slot": 3,
+        "checkpoint_sha256": "ebf6a1c3ad3cceb71a7feff5cb7e6baae6af7c90a1c7921c38e236387fb31228",
+        "codebook_size": 64,
+        "config_sha256": "c5ee9c455f3253d328d6741ed570c94dd5ef973d6ce95bab0439ec98676ed022",
+        "dataset": "cifar10",
+        "effective_sinkhorn_epsilon": 0.1,
+        "inference_epoch": 4,
+        "inference_epoch_source": "explicit_flag",
+        "lr_schedule_horizon": 5,
+        "num_slots": 5,
+        "random_seed": 42,
+        "sinkhorn_annealing_enabled": true,
+        "sinkhorn_schedule_horizon": 5,
+        "total_bases": 15,
+        "total_bits": 30,
+        "training_epoch_budget": 5,
+        "training_stop_epoch": 4
+      },
+      "splits": {
+        "db": {
+          "manifest_sha256": "81468ff90f35ab51ba205e0742e6576f7a442a6f7c9779b9d4131eb7487c1235",
+          "n_rows": 59000,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/cifar10_N4/extract_db.npz",
+          "npz_sha256": "24003a599611168768edaa5c43bdebaa3adbed74de54b237f9623c9fcf1781f8"
+        },
+        "query": {
+          "manifest_sha256": "f0ac063026f44c047a5ac44563ec403b931e134e2d9ecb711033b6153b693c04",
+          "n_rows": 1000,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/cifar10_N4/extract_query.npz",
+          "npz_sha256": "1acaaa77c3a3e056d04666c792e927412faf2cb944af1900c99c5de2bbf812a2"
+        }
+      },
+      "stop_epoch_zero_based": 4
+    },
+    {
+      "analysis": {
+        "admitted": true,
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d22bb01d1cca99c4347f8492f3ef7109b126ef05e044f6b66e46c3772e27a7bd",
+          "evaluation_siglip2_sha256": "97496f62e3b3349745af1d1c84cc48feb142ee32ecd61a8cc58b50c1b76b03c7",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "7ece8d4045ae96eda17c356b95d82ede8079687db4b3f6d2c59c30ac084282a9"
+        },
+        "input_binding": {
+          "backfilled_inputs": true,
+          "checkpoint_sha256": "bc5f4502e0412f9a5a1ef72c6f69fcbe1695abf9a525a8307463752d5f378786",
+          "codebook_size": 64,
+          "config_sha256": "a4d562a0a109a29f497c00a008d294554faf3535dd34279b7e67ad674f8b886b",
+          "dataset": "cifar10",
+          "inference_epoch": 9,
+          "inference_epoch_source": "explicit_flag",
+          "manifest_sha256": {
+            "db": "b42ddfdef8b2d2fbee0c3bee9d9a11d1152234f2d4fc36c8b766f5a1c5d3d241",
+            "query": "2c6bf4645ba919ea8c0a689fb83adfc8fcd6c2c2aabec1627bb83b77274526a0"
+          },
+          "npz_sha256": {
+            "db": "4d7e7f6b5500fd16936a61eee719b137ee6679f507e0c04b31d026f1dd360abb",
+            "query": "3ae0ccdc46569f6335000f8734e745e895ab76d1c101d166c2733ac48fcee44a"
+          },
+          "random_seed": 42,
+          "run_dir": "/home/yschoi/GroundedDNA/result_diagnostic/phase2_F01_only/cifar10_N9",
+          "schema_version": 1,
+          "validator_sha256": "07985a6e4e7f222b1a0ed5d0d5c7ea91c485cfc6761988cdab2a3f8869688107"
+        },
+        "marker_present": true,
+        "marker_sha256": "29636d64eaa3ba23bb7362b64426cacfe88b2676cd4ad83cb9ed70e46e66d7d3",
+        "metric_files": {
+          "cell_result.json": "a93391f02f10f70587474f142edb2fd1bc38c11a2662dd54153790a71e25da64",
+          "evaluation_siglip2_base_bioproj.json": "4dffa0ddf45758aa45d2cce4902ba9d9502c8d9b0f8d085dd5f302ec332c6051",
+          "pairwise_nmi.json": "1d5a7bebbfcd533bc4e2c7f0e18ad0f9a97f85ad00d00bf5ef989f7b3f4f9dea"
+        },
+        "metrics": {
+          "dna_unique_db": 0.09940677966101695,
+          "full_map_bioproj": 0.7708544906723177,
+          "full_map_pre_projection": 0.7918368483616256,
+          "map_at_R_bioproj": 0.8735933866346358,
+          "mean_off_diag_nmi": 0.5774900048140417
+        },
+        "protocol": {
+          "codebook_size": 64,
+          "dataset": "CIFAR10",
+          "gc_count_max_inclusive": 9,
+          "gc_count_min_inclusive": 6,
+          "gc_max_frac": 0.6,
+          "gc_min_frac": 0.4,
+          "gc_policy_version": "gc-40-60-inclusive-v1",
+          "map_r_cutoff": 1000,
+          "nmi_average_method": "arithmetic",
+          "sklearn_version": "1.7.2",
+          "total_bases": 15
+        },
+        "refusal": null
+      },
+      "args_txt_sha256": "ab89a72ab5687708f89ac030c0c5350c912d0fef1861e4196c642631b846919d",
+      "backfilled": true,
+      "canonical_legacy_source": {
+        "config_sha256": "a4d562a0a109a29f497c00a008d294554faf3535dd34279b7e67ad674f8b886b",
+        "dir": "result/260811+cifar10_setting1_promptAblA_cifar_A_v4_P0refit_e9+bs+64+e+10+proj_lr+0.001",
+        "model_state_dict_sha256": "bc5f4502e0412f9a5a1ef72c6f69fcbe1695abf9a525a8307463752d5f378786"
+      },
+      "cell": "cifar10_N9",
+      "checkpoint_sha256": "bc5f4502e0412f9a5a1ef72c6f69fcbe1695abf9a525a8307463752d5f378786",
+      "completion_marker_sha256": "9c0d32fde6d9331734e5a132c96525171b07cabb430437a1e5b9be890c5be292",
+      "config_sha256": "a4d562a0a109a29f497c00a008d294554faf3535dd34279b7e67ad674f8b886b",
+      "dataset": "cifar10",
+      "eligibility": "diagnostic_only",
+      "extract_log_sha256": "f3be96b10987989c84cf1856138a511e385b9130a049bea07309109bf2d32c49",
+      "runtime_identity": {
+        "backfilled": true,
+        "bases_per_slot": 3,
+        "checkpoint_sha256": "bc5f4502e0412f9a5a1ef72c6f69fcbe1695abf9a525a8307463752d5f378786",
+        "codebook_size": 64,
+        "config_sha256": "a4d562a0a109a29f497c00a008d294554faf3535dd34279b7e67ad674f8b886b",
+        "dataset": "cifar10",
+        "effective_sinkhorn_epsilon": 0.1,
+        "inference_epoch": 9,
+        "inference_epoch_source": "explicit_flag",
+        "lr_schedule_horizon": 10,
+        "num_slots": 5,
+        "random_seed": 42,
+        "sinkhorn_annealing_enabled": true,
+        "sinkhorn_schedule_horizon": 10,
+        "total_bases": 15,
+        "total_bits": 30,
+        "training_epoch_budget": 10,
+        "training_stop_epoch": 9
+      },
+      "splits": {
+        "db": {
+          "manifest_sha256": "b42ddfdef8b2d2fbee0c3bee9d9a11d1152234f2d4fc36c8b766f5a1c5d3d241",
+          "n_rows": 59000,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/cifar10_N9/extract_db.npz",
+          "npz_sha256": "4d7e7f6b5500fd16936a61eee719b137ee6679f507e0c04b31d026f1dd360abb"
+        },
+        "query": {
+          "manifest_sha256": "2c6bf4645ba919ea8c0a689fb83adfc8fcd6c2c2aabec1627bb83b77274526a0",
+          "n_rows": 1000,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/cifar10_N9/extract_query.npz",
+          "npz_sha256": "3ae0ccdc46569f6335000f8734e745e895ab76d1c101d166c2733ac48fcee44a"
+        }
+      },
+      "stop_epoch_zero_based": 9
+    },
+    {
+      "analysis": {
+        "admitted": true,
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d22bb01d1cca99c4347f8492f3ef7109b126ef05e044f6b66e46c3772e27a7bd",
+          "evaluation_siglip2_sha256": "97496f62e3b3349745af1d1c84cc48feb142ee32ecd61a8cc58b50c1b76b03c7",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "7ece8d4045ae96eda17c356b95d82ede8079687db4b3f6d2c59c30ac084282a9"
+        },
+        "input_binding": {
+          "backfilled_inputs": true,
+          "checkpoint_sha256": "232cfa5fb02dd28d4c6fdd6238bdba296e1581f192da054908fadc06dbadae9d",
+          "codebook_size": 128,
+          "config_sha256": "66b63bd8bc4184d5da35410af847df5604fada5636067e5db3ac337f9d6c7cb9",
+          "dataset": "flickr25k",
+          "inference_epoch": 19,
+          "inference_epoch_source": "explicit_flag",
+          "manifest_sha256": {
+            "db": "f4ad81de77f2cf2d65744db11a147d7f1bc19155232e365f70811713eab89773",
+            "query": "3fb2e2ccee9061983b06a14165593edda62a407e70bcc4c26ca1e1499cec8d7c"
+          },
+          "npz_sha256": {
+            "db": "08ee4084108ea230db2667c74ba77b6e551a81b45b1144dd2c41a45a19a8ec63",
+            "query": "a1efdbbccba58feb1e571ae6cffa973a7b378ea4ad8117f1df87659cf939d461"
+          },
+          "random_seed": 42,
+          "run_dir": "/home/yschoi/GroundedDNA/result_diagnostic/phase2_F01_only/flickr25k_N19",
+          "schema_version": 1,
+          "validator_sha256": "07985a6e4e7f222b1a0ed5d0d5c7ea91c485cfc6761988cdab2a3f8869688107"
+        },
+        "marker_present": true,
+        "marker_sha256": "bb873204ab95468878f442326ba90365e3b9fd9231f63e07a43961c9a123211c",
+        "metric_files": {
+          "cell_result.json": "d599b548f5df7e497c95dae7ffa05b4fbcb79f27646894f166b3142a1724d933",
+          "evaluation_siglip2_base_bioproj.json": "f8a9648e9ae5bd64f929e316d540aef6677e7c6a0d0364842d53e824f3edde19",
+          "pairwise_nmi.json": "3044546cd39995250df227432d6bb2b0bb27e1b2fc47e7e3924c5f333ddae34f"
+        },
+        "metrics": {
+          "dna_unique_db": 0.3927391304347826,
+          "full_map_bioproj": 0.7078576867520772,
+          "full_map_pre_projection": 0.716616136971576,
+          "map_at_R_bioproj": 0.8360008914779808,
+          "mean_off_diag_nmi": 0.5580132127424031
+        },
+        "protocol": {
+          "codebook_size": 128,
+          "dataset": "Flickr25k",
+          "gc_count_max_inclusive": 9,
+          "gc_count_min_inclusive": 6,
+          "gc_max_frac": 0.6,
+          "gc_min_frac": 0.4,
+          "gc_policy_version": "gc-40-60-inclusive-v1",
+          "map_r_cutoff": 5000,
+          "nmi_average_method": "arithmetic",
+          "sklearn_version": "1.7.2",
+          "total_bases": 15
+        },
+        "refusal": null
+      },
+      "args_txt_sha256": "05aa92c8d521f0ee1846d91250c570be59619b1ecf25fbb60c1cb464b3f5176f",
+      "backfilled": true,
+      "canonical_legacy_source": {
+        "config_sha256": "66b63bd8bc4184d5da35410af847df5604fada5636067e5db3ac337f9d6c7cb9",
+        "dir": "result/260812+flickr25k_setting1_promptAblA_flickr_A_v4_P0refit_e19+bs+64+e+20+proj_lr+0.001",
+        "model_state_dict_sha256": "232cfa5fb02dd28d4c6fdd6238bdba296e1581f192da054908fadc06dbadae9d"
+      },
+      "cell": "flickr25k_N19",
+      "checkpoint_sha256": "232cfa5fb02dd28d4c6fdd6238bdba296e1581f192da054908fadc06dbadae9d",
+      "completion_marker_sha256": "c7c8501a1a1f8cb8eb9246f4dea279a12f6ba699d9437fcc083440861fba6907",
+      "config_sha256": "66b63bd8bc4184d5da35410af847df5604fada5636067e5db3ac337f9d6c7cb9",
+      "dataset": "flickr25k",
+      "eligibility": "diagnostic_only",
+      "extract_log_sha256": "0a3953397acb7bce1d0523f06100030c558dcbeca8c938d926a4f56ef753128a",
+      "runtime_identity": {
+        "backfilled": true,
+        "bases_per_slot": 3,
+        "checkpoint_sha256": "232cfa5fb02dd28d4c6fdd6238bdba296e1581f192da054908fadc06dbadae9d",
+        "codebook_size": 128,
+        "config_sha256": "66b63bd8bc4184d5da35410af847df5604fada5636067e5db3ac337f9d6c7cb9",
+        "dataset": "flickr25k",
+        "effective_sinkhorn_epsilon": 0.1,
+        "inference_epoch": 19,
+        "inference_epoch_source": "explicit_flag",
+        "lr_schedule_horizon": 20,
+        "num_slots": 5,
+        "random_seed": 42,
+        "sinkhorn_annealing_enabled": true,
+        "sinkhorn_schedule_horizon": 20,
+        "total_bases": 15,
+        "total_bits": 30,
+        "training_epoch_budget": 20,
+        "training_stop_epoch": 19
+      },
+      "splits": {
+        "db": {
+          "manifest_sha256": "f4ad81de77f2cf2d65744db11a147d7f1bc19155232e365f70811713eab89773",
+          "n_rows": 23000,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/flickr25k_N19/extract_db.npz",
+          "npz_sha256": "08ee4084108ea230db2667c74ba77b6e551a81b45b1144dd2c41a45a19a8ec63"
+        },
+        "query": {
+          "manifest_sha256": "3fb2e2ccee9061983b06a14165593edda62a407e70bcc4c26ca1e1499cec8d7c",
+          "n_rows": 2000,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/flickr25k_N19/extract_query.npz",
+          "npz_sha256": "a1efdbbccba58feb1e571ae6cffa973a7b378ea4ad8117f1df87659cf939d461"
+        }
+      },
+      "stop_epoch_zero_based": 19
+    },
+    {
+      "analysis": {
+        "admitted": true,
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d22bb01d1cca99c4347f8492f3ef7109b126ef05e044f6b66e46c3772e27a7bd",
+          "evaluation_siglip2_sha256": "97496f62e3b3349745af1d1c84cc48feb142ee32ecd61a8cc58b50c1b76b03c7",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "7ece8d4045ae96eda17c356b95d82ede8079687db4b3f6d2c59c30ac084282a9"
+        },
+        "input_binding": {
+          "backfilled_inputs": true,
+          "checkpoint_sha256": "afcc8e17ccf61b00cb3291ce94d79abc49dfcc2ccd20207c2e36ce36b694515d",
+          "codebook_size": 128,
+          "config_sha256": "f3956e20bfd4cf577d561319992c2c29b1431f6f120433c7acd61fd48ba74f60",
+          "dataset": "flickr25k",
+          "inference_epoch": 4,
+          "inference_epoch_source": "explicit_flag",
+          "manifest_sha256": {
+            "db": "2a282b3b6acd7e6bce65813c01be005e2cbc92ccc3e635493faec4fa0586cc59",
+            "query": "3fe8f35ac794f7cb7b8cf52007105624b642853c3acb4ab7b70d7f978351769f"
+          },
+          "npz_sha256": {
+            "db": "869e1c2f50ce6ab56e958606cf588cd99ea2ad1bcb17050338f6c89f546c3ffa",
+            "query": "d38de51b7fc318cec323b22a0ef8c91f4dd2912d0b76b7875bfd5d5523ae5e40"
+          },
+          "random_seed": 42,
+          "run_dir": "/home/yschoi/GroundedDNA/result_diagnostic/phase2_F01_only/flickr25k_N4",
+          "schema_version": 1,
+          "validator_sha256": "07985a6e4e7f222b1a0ed5d0d5c7ea91c485cfc6761988cdab2a3f8869688107"
+        },
+        "marker_present": true,
+        "marker_sha256": "b85e41a72cb75f14a52debcfad5e6edf63dbb7bf237e3e5a7ef4e8cfee11c8a9",
+        "metric_files": {
+          "cell_result.json": "6ac1ffdaeb6505d9c29671837e2086f3d1d3846479b987e179179caa6d685959",
+          "evaluation_siglip2_base_bioproj.json": "f1ad2174d63d75665ca598f2400b90f3a7bc0ab8e60892df0382b289d9c07c60",
+          "pairwise_nmi.json": "801b07a5a05b5e0659f8c006221621614a9da7d2bb272f13a812a8ebec56e8f8"
+        },
+        "metrics": {
+          "dna_unique_db": 0.35595652173913045,
+          "full_map_bioproj": 0.7386290291547272,
+          "full_map_pre_projection": 0.7446896174727957,
+          "map_at_R_bioproj": 0.855793105501846,
+          "mean_off_diag_nmi": 0.5395646960510605
+        },
+        "protocol": {
+          "codebook_size": 128,
+          "dataset": "Flickr25k",
+          "gc_count_max_inclusive": 9,
+          "gc_count_min_inclusive": 6,
+          "gc_max_frac": 0.6,
+          "gc_min_frac": 0.4,
+          "gc_policy_version": "gc-40-60-inclusive-v1",
+          "map_r_cutoff": 5000,
+          "nmi_average_method": "arithmetic",
+          "sklearn_version": "1.7.2",
+          "total_bases": 15
+        },
+        "refusal": null
+      },
+      "args_txt_sha256": "dee0016dd7be3e285ae52f7ead377f22df35e61067d3095e328cbb006573d693",
+      "backfilled": true,
+      "canonical_legacy_source": {
+        "config_sha256": "f3956e20bfd4cf577d561319992c2c29b1431f6f120433c7acd61fd48ba74f60",
+        "dir": "result/260811+flickr25k_setting1_promptAblA_flickr_A_v4_P0refit_e4+bs+64+e+5+proj_lr+0.001",
+        "model_state_dict_sha256": "afcc8e17ccf61b00cb3291ce94d79abc49dfcc2ccd20207c2e36ce36b694515d"
+      },
+      "cell": "flickr25k_N4",
+      "checkpoint_sha256": "afcc8e17ccf61b00cb3291ce94d79abc49dfcc2ccd20207c2e36ce36b694515d",
+      "completion_marker_sha256": "6a10cc0532c5118969697ff5663ac1669418e277670f4dca04e5f17596dcc6b6",
+      "config_sha256": "f3956e20bfd4cf577d561319992c2c29b1431f6f120433c7acd61fd48ba74f60",
+      "dataset": "flickr25k",
+      "eligibility": "diagnostic_only",
+      "extract_log_sha256": "4ff4a146b216a3588cb265554bd190cad914a59bdfeba1550eb8f83e4091c26e",
+      "runtime_identity": {
+        "backfilled": true,
+        "bases_per_slot": 3,
+        "checkpoint_sha256": "afcc8e17ccf61b00cb3291ce94d79abc49dfcc2ccd20207c2e36ce36b694515d",
+        "codebook_size": 128,
+        "config_sha256": "f3956e20bfd4cf577d561319992c2c29b1431f6f120433c7acd61fd48ba74f60",
+        "dataset": "flickr25k",
+        "effective_sinkhorn_epsilon": 0.1,
+        "inference_epoch": 4,
+        "inference_epoch_source": "explicit_flag",
+        "lr_schedule_horizon": 5,
+        "num_slots": 5,
+        "random_seed": 42,
+        "sinkhorn_annealing_enabled": true,
+        "sinkhorn_schedule_horizon": 5,
+        "total_bases": 15,
+        "total_bits": 30,
+        "training_epoch_budget": 5,
+        "training_stop_epoch": 4
+      },
+      "splits": {
+        "db": {
+          "manifest_sha256": "2a282b3b6acd7e6bce65813c01be005e2cbc92ccc3e635493faec4fa0586cc59",
+          "n_rows": 23000,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/flickr25k_N4/extract_db.npz",
+          "npz_sha256": "869e1c2f50ce6ab56e958606cf588cd99ea2ad1bcb17050338f6c89f546c3ffa"
+        },
+        "query": {
+          "manifest_sha256": "3fe8f35ac794f7cb7b8cf52007105624b642853c3acb4ab7b70d7f978351769f",
+          "n_rows": 2000,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/flickr25k_N4/extract_query.npz",
+          "npz_sha256": "d38de51b7fc318cec323b22a0ef8c91f4dd2912d0b76b7875bfd5d5523ae5e40"
+        }
+      },
+      "stop_epoch_zero_based": 4
+    },
+    {
+      "analysis": {
+        "admitted": true,
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d22bb01d1cca99c4347f8492f3ef7109b126ef05e044f6b66e46c3772e27a7bd",
+          "evaluation_siglip2_sha256": "97496f62e3b3349745af1d1c84cc48feb142ee32ecd61a8cc58b50c1b76b03c7",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "7ece8d4045ae96eda17c356b95d82ede8079687db4b3f6d2c59c30ac084282a9"
+        },
+        "input_binding": {
+          "backfilled_inputs": true,
+          "checkpoint_sha256": "a6bfe42ced56253d79e31e07db596a0c56885c80052e0c846156cf93c3147320",
+          "codebook_size": 128,
+          "config_sha256": "8b660939ef9da0df845f7cf46302e4b9f0145021ad9e6083e13e501a12222ac0",
+          "dataset": "flickr25k",
+          "inference_epoch": 9,
+          "inference_epoch_source": "explicit_flag",
+          "manifest_sha256": {
+            "db": "d3017e24276b048673ae6d748000e901fc4e889930aa7a4d607659fff0e68ed9",
+            "query": "0f728ac7188a5ed844c9dd6a135728e92f2f3a5d2475095d48f9db400827a2bf"
+          },
+          "npz_sha256": {
+            "db": "4b7f7df195bf71d059638f95facdf6c1a6e6dc0050a11bc8831e286dcda7c60c",
+            "query": "f4b9ec1b5f55f2eb72ab43d46dcc7c71d33cc205bde2cd18d9bb9b6e12544c58"
+          },
+          "random_seed": 42,
+          "run_dir": "/home/yschoi/GroundedDNA/result_diagnostic/phase2_F01_only/flickr25k_N9",
+          "schema_version": 1,
+          "validator_sha256": "07985a6e4e7f222b1a0ed5d0d5c7ea91c485cfc6761988cdab2a3f8869688107"
+        },
+        "marker_present": true,
+        "marker_sha256": "6899b39129f923222d68b05496efd861885527fba03f5d4f871b7549a9a5088b",
+        "metric_files": {
+          "cell_result.json": "45f4d9989bfec39bfc354033e7b8f551febb9701976998aa3847206011d36d06",
+          "evaluation_siglip2_base_bioproj.json": "cfb0c56ac16bac61ea8a36a59e118bc5f45e812aa42a71aaab2122db306f0f6c",
+          "pairwise_nmi.json": "75cbab9614a2c85cc280490a0db853f025baddfe8900007b1571de43902359aa"
+        },
+        "metrics": {
+          "dna_unique_db": 0.37534782608695655,
+          "full_map_bioproj": 0.721540629939133,
+          "full_map_pre_projection": 0.727682208288108,
+          "map_at_R_bioproj": 0.8419535121866016,
+          "mean_off_diag_nmi": 0.48139264505409074
+        },
+        "protocol": {
+          "codebook_size": 128,
+          "dataset": "Flickr25k",
+          "gc_count_max_inclusive": 9,
+          "gc_count_min_inclusive": 6,
+          "gc_max_frac": 0.6,
+          "gc_min_frac": 0.4,
+          "gc_policy_version": "gc-40-60-inclusive-v1",
+          "map_r_cutoff": 5000,
+          "nmi_average_method": "arithmetic",
+          "sklearn_version": "1.7.2",
+          "total_bases": 15
+        },
+        "refusal": null
+      },
+      "args_txt_sha256": "da55ede09629e3f2630d3790d5fc36411e08725f605788824283d0c89fa220ed",
+      "backfilled": true,
+      "canonical_legacy_source": {
+        "config_sha256": "8b660939ef9da0df845f7cf46302e4b9f0145021ad9e6083e13e501a12222ac0",
+        "dir": "result/260811+flickr25k_setting1_promptAblA_flickr_A_v4_P0refit_e9+bs+64+e+10+proj_lr+0.001",
+        "model_state_dict_sha256": "a6bfe42ced56253d79e31e07db596a0c56885c80052e0c846156cf93c3147320"
+      },
+      "cell": "flickr25k_N9",
+      "checkpoint_sha256": "a6bfe42ced56253d79e31e07db596a0c56885c80052e0c846156cf93c3147320",
+      "completion_marker_sha256": "895088f8996659f09cba2c840ba9fbef1021e9ff19d16fbcd1fee195ee944791",
+      "config_sha256": "8b660939ef9da0df845f7cf46302e4b9f0145021ad9e6083e13e501a12222ac0",
+      "dataset": "flickr25k",
+      "eligibility": "diagnostic_only",
+      "extract_log_sha256": "cad176e31aadabb5b2eeb7643b81fe0a643cfc2e9ac7ba0645d8bdecb64bdfc8",
+      "runtime_identity": {
+        "backfilled": true,
+        "bases_per_slot": 3,
+        "checkpoint_sha256": "a6bfe42ced56253d79e31e07db596a0c56885c80052e0c846156cf93c3147320",
+        "codebook_size": 128,
+        "config_sha256": "8b660939ef9da0df845f7cf46302e4b9f0145021ad9e6083e13e501a12222ac0",
+        "dataset": "flickr25k",
+        "effective_sinkhorn_epsilon": 0.1,
+        "inference_epoch": 9,
+        "inference_epoch_source": "explicit_flag",
+        "lr_schedule_horizon": 10,
+        "num_slots": 5,
+        "random_seed": 42,
+        "sinkhorn_annealing_enabled": true,
+        "sinkhorn_schedule_horizon": 10,
+        "total_bases": 15,
+        "total_bits": 30,
+        "training_epoch_budget": 10,
+        "training_stop_epoch": 9
+      },
+      "splits": {
+        "db": {
+          "manifest_sha256": "d3017e24276b048673ae6d748000e901fc4e889930aa7a4d607659fff0e68ed9",
+          "n_rows": 23000,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/flickr25k_N9/extract_db.npz",
+          "npz_sha256": "4b7f7df195bf71d059638f95facdf6c1a6e6dc0050a11bc8831e286dcda7c60c"
+        },
+        "query": {
+          "manifest_sha256": "0f728ac7188a5ed844c9dd6a135728e92f2f3a5d2475095d48f9db400827a2bf",
+          "n_rows": 2000,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/flickr25k_N9/extract_query.npz",
+          "npz_sha256": "f4b9ec1b5f55f2eb72ab43d46dcc7c71d33cc205bde2cd18d9bb9b6e12544c58"
+        }
+      },
+      "stop_epoch_zero_based": 9
+    },
+    {
+      "analysis": {
+        "admitted": true,
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d22bb01d1cca99c4347f8492f3ef7109b126ef05e044f6b66e46c3772e27a7bd",
+          "evaluation_siglip2_sha256": "97496f62e3b3349745af1d1c84cc48feb142ee32ecd61a8cc58b50c1b76b03c7",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "7ece8d4045ae96eda17c356b95d82ede8079687db4b3f6d2c59c30ac084282a9"
+        },
+        "input_binding": {
+          "backfilled_inputs": true,
+          "checkpoint_sha256": "fa09a5d2ad7e876234c3e7fb956398f4766618b69e44fa2d722d457bac8e984f",
+          "codebook_size": 128,
+          "config_sha256": "b7dad59785f2a49eb5029b699e270adc15151e829e90f75ee7d0960318a39766",
+          "dataset": "mscoco",
+          "inference_epoch": 19,
+          "inference_epoch_source": "explicit_flag",
+          "manifest_sha256": {
+            "db": "be62271bb547da662a3269b5c500b97fee0552f423ad7cdf0dcdfb3b21d3f452",
+            "query": "08bc5e022e400ad63f313b8372ed62fe225f7afc2d27df65d500e9f9b8c17330"
+          },
+          "npz_sha256": {
+            "db": "cbba54ce210a450d9fb2beb51842b3f2a5260a30643a000d085488a0e182b169",
+            "query": "85eef54a4ce7aa8b7ffca474ef58ec41bdb6f59b2d59cd24a7e9cbeb8fda838f"
+          },
+          "random_seed": 42,
+          "run_dir": "/home/yschoi/GroundedDNA/result_diagnostic/phase2_F01_only/mscoco_N19",
+          "schema_version": 1,
+          "validator_sha256": "07985a6e4e7f222b1a0ed5d0d5c7ea91c485cfc6761988cdab2a3f8869688107"
+        },
+        "marker_present": true,
+        "marker_sha256": "265e7285c2c8632c4af13a7fbe8f2d4947953413bf6967a3fb8d8e3be676330f",
+        "metric_files": {
+          "cell_result.json": "a07efb2e0fe40f8b4c00d0f3b384897edcbdfafc448d650338c472fe59841aa5",
+          "evaluation_siglip2_base_bioproj.json": "bfc695616b43a2de67617ef93c328a8d43fe514f925cffb65cad51284f7e647e",
+          "pairwise_nmi.json": "9a4c4376c56deb32dbb880cd48e3fc7f93440e66b44df81295498e7b45361b75"
+        },
+        "metrics": {
+          "dna_unique_db": 0.19454755731313772,
+          "full_map_bioproj": 0.5756361655760059,
+          "full_map_pre_projection": 0.5870871611922723,
+          "map_at_R_bioproj": 0.8099086198784324,
+          "mean_off_diag_nmi": 0.632618501753263
+        },
+        "protocol": {
+          "codebook_size": 128,
+          "dataset": "MSCOCO",
+          "gc_count_max_inclusive": 9,
+          "gc_count_min_inclusive": 6,
+          "gc_max_frac": 0.6,
+          "gc_min_frac": 0.4,
+          "gc_policy_version": "gc-40-60-inclusive-v1",
+          "map_r_cutoff": 5000,
+          "nmi_average_method": "arithmetic",
+          "sklearn_version": "1.7.2",
+          "total_bases": 15
+        },
+        "refusal": null
+      },
+      "args_txt_sha256": "26f0668499c68ff894094cd8e1a0d3d1daa8d52b7edd1687727a9da8445011f2",
+      "backfilled": true,
+      "canonical_legacy_source": {
+        "config_sha256": "b7dad59785f2a49eb5029b699e270adc15151e829e90f75ee7d0960318a39766",
+        "dir": "result/260811+mscoco_setting1_promptAblA_mscoco_A_v5b_P0refit_e19+bs+64+e+20+proj_lr+0.001",
+        "model_state_dict_sha256": "fa09a5d2ad7e876234c3e7fb956398f4766618b69e44fa2d722d457bac8e984f"
+      },
+      "cell": "mscoco_N19",
+      "checkpoint_sha256": "fa09a5d2ad7e876234c3e7fb956398f4766618b69e44fa2d722d457bac8e984f",
+      "completion_marker_sha256": "a154eaf1e96b16dc7e7667d1ea947092cb3022d6b3391f413fac39e81b66127c",
+      "config_sha256": "b7dad59785f2a49eb5029b699e270adc15151e829e90f75ee7d0960318a39766",
+      "dataset": "mscoco",
+      "eligibility": "diagnostic_only",
+      "extract_log_sha256": "193f6edebd12d8bf00af23d16150e97ae278232de7044fc4a62c2d983cd550cb",
+      "runtime_identity": {
+        "backfilled": true,
+        "bases_per_slot": 3,
+        "checkpoint_sha256": "fa09a5d2ad7e876234c3e7fb956398f4766618b69e44fa2d722d457bac8e984f",
+        "codebook_size": 128,
+        "config_sha256": "b7dad59785f2a49eb5029b699e270adc15151e829e90f75ee7d0960318a39766",
+        "dataset": "mscoco",
+        "effective_sinkhorn_epsilon": 0.1,
+        "inference_epoch": 19,
+        "inference_epoch_source": "explicit_flag",
+        "lr_schedule_horizon": 20,
+        "num_slots": 5,
+        "random_seed": 42,
+        "sinkhorn_annealing_enabled": true,
+        "sinkhorn_schedule_horizon": 20,
+        "total_bases": 15,
+        "total_bits": 30,
+        "training_epoch_budget": 20,
+        "training_stop_epoch": 19
+      },
+      "splits": {
+        "db": {
+          "manifest_sha256": "be62271bb547da662a3269b5c500b97fee0552f423ad7cdf0dcdfb3b21d3f452",
+          "n_rows": 107218,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/mscoco_N19/extract_db.npz",
+          "npz_sha256": "cbba54ce210a450d9fb2beb51842b3f2a5260a30643a000d085488a0e182b169"
+        },
+        "query": {
+          "manifest_sha256": "08bc5e022e400ad63f313b8372ed62fe225f7afc2d27df65d500e9f9b8c17330",
+          "n_rows": 5000,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/mscoco_N19/extract_query.npz",
+          "npz_sha256": "85eef54a4ce7aa8b7ffca474ef58ec41bdb6f59b2d59cd24a7e9cbeb8fda838f"
+        }
+      },
+      "stop_epoch_zero_based": 19
+    },
+    {
+      "analysis": {
+        "admitted": true,
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d22bb01d1cca99c4347f8492f3ef7109b126ef05e044f6b66e46c3772e27a7bd",
+          "evaluation_siglip2_sha256": "97496f62e3b3349745af1d1c84cc48feb142ee32ecd61a8cc58b50c1b76b03c7",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "7ece8d4045ae96eda17c356b95d82ede8079687db4b3f6d2c59c30ac084282a9"
+        },
+        "input_binding": {
+          "backfilled_inputs": true,
+          "checkpoint_sha256": "8c8541babb94e0d592ac81ffa9802a5fdbfa875c31bc53ff27f73690e42cc2e8",
+          "codebook_size": 128,
+          "config_sha256": "be0ba783abdd3b5ec4a23b33aadf937b6f8e83321de94633ebc0b393783bf6f8",
+          "dataset": "mscoco",
+          "inference_epoch": 39,
+          "inference_epoch_source": "explicit_flag",
+          "manifest_sha256": {
+            "db": "5147934bc8f77ebca56f8741304b7accc71636d917b5ee9db0e9cabb48563e13",
+            "query": "c0d9473a52864673544081aad8e7569ca6a4a529763aab3559799d07d406f18f"
+          },
+          "npz_sha256": {
+            "db": "e59a917f93347f56ce6279f41ad0d2926f3e8507808c78d8b58863f8c6fc49e2",
+            "query": "655e2127dd1274df866beebdbd931edef7c298246b36b42d66c55156a73b893b"
+          },
+          "random_seed": 42,
+          "run_dir": "/home/yschoi/GroundedDNA/result_diagnostic/phase2_F01_only/mscoco_N39",
+          "schema_version": 1,
+          "validator_sha256": "07985a6e4e7f222b1a0ed5d0d5c7ea91c485cfc6761988cdab2a3f8869688107"
+        },
+        "marker_present": true,
+        "marker_sha256": "eb46089c2d6e0258bf3ddd5b5f5ece9e6116867fc55adb490cab47139f80f3b6",
+        "metric_files": {
+          "cell_result.json": "c0f52eaa837319424f3f4f13578e2e7cda375bfddc5e39d6edb725a153e3d657",
+          "evaluation_siglip2_base_bioproj.json": "6dfe6fec6def7906bb34ee76a56ec6ad36352ebbc913c62aefce86717fe5782c",
+          "pairwise_nmi.json": "bb2ca18b4e6c5662b13434bcd7efe480ee58fa31d10ddf6035f0508e5e9eabae"
+        },
+        "metrics": {
+          "dna_unique_db": 0.17185547202895035,
+          "full_map_bioproj": 0.5769313837200353,
+          "full_map_pre_projection": 0.5917731492341666,
+          "map_at_R_bioproj": 0.8232884951195869,
+          "mean_off_diag_nmi": 0.6612996347058627
+        },
+        "protocol": {
+          "codebook_size": 128,
+          "dataset": "MSCOCO",
+          "gc_count_max_inclusive": 9,
+          "gc_count_min_inclusive": 6,
+          "gc_max_frac": 0.6,
+          "gc_min_frac": 0.4,
+          "gc_policy_version": "gc-40-60-inclusive-v1",
+          "map_r_cutoff": 5000,
+          "nmi_average_method": "arithmetic",
+          "sklearn_version": "1.7.2",
+          "total_bases": 15
+        },
+        "refusal": null
+      },
+      "args_txt_sha256": "64a2dd3e29508acba304d359ad1418562e5508b87bf32e3ad5f99b21af77da51",
+      "backfilled": true,
+      "canonical_legacy_source": {
+        "config_sha256": "be0ba783abdd3b5ec4a23b33aadf937b6f8e83321de94633ebc0b393783bf6f8",
+        "dir": "result/260812+mscoco_setting1_promptAblA_mscoco_A_v5b_s42_P0refit_e39+bs+64+e+40+proj_lr+0.001",
+        "model_state_dict_sha256": "8c8541babb94e0d592ac81ffa9802a5fdbfa875c31bc53ff27f73690e42cc2e8"
+      },
+      "cell": "mscoco_N39",
+      "checkpoint_sha256": "8c8541babb94e0d592ac81ffa9802a5fdbfa875c31bc53ff27f73690e42cc2e8",
+      "completion_marker_sha256": "fa229a2ff51d6fd11a1b8c57297d896e1d698c15fa1545e252cd94d3e0f31a50",
+      "config_sha256": "be0ba783abdd3b5ec4a23b33aadf937b6f8e83321de94633ebc0b393783bf6f8",
+      "dataset": "mscoco",
+      "eligibility": "diagnostic_only",
+      "extract_log_sha256": "5ff38282d612c0ee45897128fdf1c1a3269e8f5185486ac67a3249f94111615a",
+      "runtime_identity": {
+        "backfilled": true,
+        "bases_per_slot": 3,
+        "checkpoint_sha256": "8c8541babb94e0d592ac81ffa9802a5fdbfa875c31bc53ff27f73690e42cc2e8",
+        "codebook_size": 128,
+        "config_sha256": "be0ba783abdd3b5ec4a23b33aadf937b6f8e83321de94633ebc0b393783bf6f8",
+        "dataset": "mscoco",
+        "effective_sinkhorn_epsilon": 0.1,
+        "inference_epoch": 39,
+        "inference_epoch_source": "explicit_flag",
+        "lr_schedule_horizon": 40,
+        "num_slots": 5,
+        "random_seed": 42,
+        "sinkhorn_annealing_enabled": true,
+        "sinkhorn_schedule_horizon": 40,
+        "total_bases": 15,
+        "total_bits": 30,
+        "training_epoch_budget": 40,
+        "training_stop_epoch": 39
+      },
+      "splits": {
+        "db": {
+          "manifest_sha256": "5147934bc8f77ebca56f8741304b7accc71636d917b5ee9db0e9cabb48563e13",
+          "n_rows": 107218,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/mscoco_N39/extract_db.npz",
+          "npz_sha256": "e59a917f93347f56ce6279f41ad0d2926f3e8507808c78d8b58863f8c6fc49e2"
+        },
+        "query": {
+          "manifest_sha256": "c0d9473a52864673544081aad8e7569ca6a4a529763aab3559799d07d406f18f",
+          "n_rows": 5000,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/mscoco_N39/extract_query.npz",
+          "npz_sha256": "655e2127dd1274df866beebdbd931edef7c298246b36b42d66c55156a73b893b"
+        }
+      },
+      "stop_epoch_zero_based": 39
+    },
+    {
+      "analysis": {
+        "admitted": true,
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d22bb01d1cca99c4347f8492f3ef7109b126ef05e044f6b66e46c3772e27a7bd",
+          "evaluation_siglip2_sha256": "97496f62e3b3349745af1d1c84cc48feb142ee32ecd61a8cc58b50c1b76b03c7",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "7ece8d4045ae96eda17c356b95d82ede8079687db4b3f6d2c59c30ac084282a9"
+        },
+        "input_binding": {
+          "backfilled_inputs": true,
+          "checkpoint_sha256": "81c1eb5b2fe1f1137eae2b94d4f5b74bf29843969baabd70f2f61c52b3eefd32",
+          "codebook_size": 128,
+          "config_sha256": "1f514f38b9621a51118f06ddfdf852a3949b040b9d17efabd0272eeb7f235b95",
+          "dataset": "mscoco",
+          "inference_epoch": 4,
+          "inference_epoch_source": "explicit_flag",
+          "manifest_sha256": {
+            "db": "797af8efcfe8ccb17b102a54a5a7c7303f312657fb5005af0f569e5b28890804",
+            "query": "78a7a78eb33b46c01c92f821f86889b35aa3f9fc2cd8d89232b2881b1a0ecf45"
+          },
+          "npz_sha256": {
+            "db": "89dd0fa22003e35831c1fb103a38c95224e7122b98899f1ea7acde4a12aac6ff",
+            "query": "463d99bd20c20b2b28af054f49b1c8e8b342672a79e0bef40e3e22216dd0faaa"
+          },
+          "random_seed": 42,
+          "run_dir": "/home/yschoi/GroundedDNA/result_diagnostic/phase2_F01_only/mscoco_N4",
+          "schema_version": 1,
+          "validator_sha256": "07985a6e4e7f222b1a0ed5d0d5c7ea91c485cfc6761988cdab2a3f8869688107"
+        },
+        "marker_present": true,
+        "marker_sha256": "90ef9ca39b2792cae33990e322d92c8648058d58aa6950b60c7efb6b73b29151",
+        "metric_files": {
+          "cell_result.json": "b63fcf671213e87843f1aa44603298fd35c220ee2df41f62d7cef7f92b4e6650",
+          "evaluation_siglip2_base_bioproj.json": "ca9cd6d47c77317032468da2a14e02d36a9d261bb25485bfe3bc226bacfcf649",
+          "pairwise_nmi.json": "e7a7eaa381b4ea117c71bab2b3244fa310c56ca2baf17368b39ee74d98a6df32"
+        },
+        "metrics": {
+          "dna_unique_db": 0.18436270029286128,
+          "full_map_bioproj": 0.5737085279788077,
+          "full_map_pre_projection": 0.5880656523084029,
+          "map_at_R_bioproj": 0.7801235283704302,
+          "mean_off_diag_nmi": 0.611424167269637
+        },
+        "protocol": {
+          "codebook_size": 128,
+          "dataset": "MSCOCO",
+          "gc_count_max_inclusive": 9,
+          "gc_count_min_inclusive": 6,
+          "gc_max_frac": 0.6,
+          "gc_min_frac": 0.4,
+          "gc_policy_version": "gc-40-60-inclusive-v1",
+          "map_r_cutoff": 5000,
+          "nmi_average_method": "arithmetic",
+          "sklearn_version": "1.7.2",
+          "total_bases": 15
+        },
+        "refusal": null
+      },
+      "args_txt_sha256": "140b4fa6d6a415af3ad6eb9db770b7ce4ae3aadd45d9b0649decd28e533d3178",
+      "backfilled": true,
+      "canonical_legacy_source": {
+        "config_sha256": "1f514f38b9621a51118f06ddfdf852a3949b040b9d17efabd0272eeb7f235b95",
+        "dir": "result/260811+mscoco_setting1_promptAblA_mscoco_A_v5b_P0refit_e4+bs+64+e+5+proj_lr+0.001",
+        "model_state_dict_sha256": "81c1eb5b2fe1f1137eae2b94d4f5b74bf29843969baabd70f2f61c52b3eefd32"
+      },
+      "cell": "mscoco_N4",
+      "checkpoint_sha256": "81c1eb5b2fe1f1137eae2b94d4f5b74bf29843969baabd70f2f61c52b3eefd32",
+      "completion_marker_sha256": "fd98aee1bc594770d46808a4f73a424fe0b757cb4450a8246cffcbea24fbca7e",
+      "config_sha256": "1f514f38b9621a51118f06ddfdf852a3949b040b9d17efabd0272eeb7f235b95",
+      "dataset": "mscoco",
+      "eligibility": "diagnostic_only",
+      "extract_log_sha256": "27e58b9d15ff960ba56954c021502320c399a00a0ff5cd5c7abf3a93922f6cff",
+      "runtime_identity": {
+        "backfilled": true,
+        "bases_per_slot": 3,
+        "checkpoint_sha256": "81c1eb5b2fe1f1137eae2b94d4f5b74bf29843969baabd70f2f61c52b3eefd32",
+        "codebook_size": 128,
+        "config_sha256": "1f514f38b9621a51118f06ddfdf852a3949b040b9d17efabd0272eeb7f235b95",
+        "dataset": "mscoco",
+        "effective_sinkhorn_epsilon": 0.1,
+        "inference_epoch": 4,
+        "inference_epoch_source": "explicit_flag",
+        "lr_schedule_horizon": 5,
+        "num_slots": 5,
+        "random_seed": 42,
+        "sinkhorn_annealing_enabled": true,
+        "sinkhorn_schedule_horizon": 5,
+        "total_bases": 15,
+        "total_bits": 30,
+        "training_epoch_budget": 5,
+        "training_stop_epoch": 4
+      },
+      "splits": {
+        "db": {
+          "manifest_sha256": "797af8efcfe8ccb17b102a54a5a7c7303f312657fb5005af0f569e5b28890804",
+          "n_rows": 107218,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/mscoco_N4/extract_db.npz",
+          "npz_sha256": "89dd0fa22003e35831c1fb103a38c95224e7122b98899f1ea7acde4a12aac6ff"
+        },
+        "query": {
+          "manifest_sha256": "78a7a78eb33b46c01c92f821f86889b35aa3f9fc2cd8d89232b2881b1a0ecf45",
+          "n_rows": 5000,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/mscoco_N4/extract_query.npz",
+          "npz_sha256": "463d99bd20c20b2b28af054f49b1c8e8b342672a79e0bef40e3e22216dd0faaa"
+        }
+      },
+      "stop_epoch_zero_based": 4
+    },
+    {
+      "analysis": {
+        "admitted": true,
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d22bb01d1cca99c4347f8492f3ef7109b126ef05e044f6b66e46c3772e27a7bd",
+          "evaluation_siglip2_sha256": "97496f62e3b3349745af1d1c84cc48feb142ee32ecd61a8cc58b50c1b76b03c7",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "7ece8d4045ae96eda17c356b95d82ede8079687db4b3f6d2c59c30ac084282a9"
+        },
+        "input_binding": {
+          "backfilled_inputs": true,
+          "checkpoint_sha256": "1577644f026e6adcf7fd40ee87b9f333ec1c4b2aa79d4817f04130de20585a89",
+          "codebook_size": 128,
+          "config_sha256": "6d7d54fcc80e40febf6cb3de0224c606b9b81697947b78ba964753af61054f52",
+          "dataset": "mscoco",
+          "inference_epoch": 9,
+          "inference_epoch_source": "explicit_flag",
+          "manifest_sha256": {
+            "db": "b52aaccfaa8093fe5ccefd14eb4e3fc84e3a8c339c18fc412d909b935b3c4f87",
+            "query": "0ad2e61131b76c09afb4165041dbe7357e5f684e7a6e57f4bbb95c5ca3a95c87"
+          },
+          "npz_sha256": {
+            "db": "43ec0b40b7c1fabdefcc3d48c3b9f4cdecfe9fb82a2d9ea170ebf4ee4349c5f3",
+            "query": "1566dfa3bf8d8eb955c55b54e8397ec2856c3e9568e8ba5065c90595d27b924e"
+          },
+          "random_seed": 42,
+          "run_dir": "/home/yschoi/GroundedDNA/result_diagnostic/phase2_F01_only/mscoco_N9",
+          "schema_version": 1,
+          "validator_sha256": "07985a6e4e7f222b1a0ed5d0d5c7ea91c485cfc6761988cdab2a3f8869688107"
+        },
+        "marker_present": true,
+        "marker_sha256": "131cbfd043825dc667da3c6d676cbd156c4dc8a0aa586ca224ec94d857b0ea01",
+        "metric_files": {
+          "cell_result.json": "1a57e8a5616703bcd5d4febd40a74c307580d4c4bae9cc415fe978634884a780",
+          "evaluation_siglip2_base_bioproj.json": "431d21161b67675e20f2740d2b8bb42ec7e870198371301da9c239ebdaff6249",
+          "pairwise_nmi.json": "dfa09c4aefd1499bca66e143ccf98ed7ba49d0d065a0a9374c6e0cdb22b13438"
+        },
+        "metrics": {
+          "dna_unique_db": 0.1741312093118693,
+          "full_map_bioproj": 0.5748289185905788,
+          "full_map_pre_projection": 0.5846012187648946,
+          "map_at_R_bioproj": 0.7976568598332466,
+          "mean_off_diag_nmi": 0.5832853300057566
+        },
+        "protocol": {
+          "codebook_size": 128,
+          "dataset": "MSCOCO",
+          "gc_count_max_inclusive": 9,
+          "gc_count_min_inclusive": 6,
+          "gc_max_frac": 0.6,
+          "gc_min_frac": 0.4,
+          "gc_policy_version": "gc-40-60-inclusive-v1",
+          "map_r_cutoff": 5000,
+          "nmi_average_method": "arithmetic",
+          "sklearn_version": "1.7.2",
+          "total_bases": 15
+        },
+        "refusal": null
+      },
+      "args_txt_sha256": "e023575594207e67a0b687d8b70567ff59ad4627ddb738fb17c26d918ffaf9bf",
+      "backfilled": true,
+      "canonical_legacy_source": {
+        "config_sha256": "6d7d54fcc80e40febf6cb3de0224c606b9b81697947b78ba964753af61054f52",
+        "dir": "result/260811+mscoco_setting1_promptAblA_mscoco_A_v5b_P0refit_e9+bs+64+e+10+proj_lr+0.001",
+        "model_state_dict_sha256": "1577644f026e6adcf7fd40ee87b9f333ec1c4b2aa79d4817f04130de20585a89"
+      },
+      "cell": "mscoco_N9",
+      "checkpoint_sha256": "1577644f026e6adcf7fd40ee87b9f333ec1c4b2aa79d4817f04130de20585a89",
+      "completion_marker_sha256": "4868fd703e48a22f0a2564955325ac1f3cecf8ed7aae441c5005d9d37be71f1f",
+      "config_sha256": "6d7d54fcc80e40febf6cb3de0224c606b9b81697947b78ba964753af61054f52",
+      "dataset": "mscoco",
+      "eligibility": "diagnostic_only",
+      "extract_log_sha256": "b6a1c797ff6de2353b30987322257535643f2d4d577252b0c28edf9dfd9a7403",
+      "runtime_identity": {
+        "backfilled": true,
+        "bases_per_slot": 3,
+        "checkpoint_sha256": "1577644f026e6adcf7fd40ee87b9f333ec1c4b2aa79d4817f04130de20585a89",
+        "codebook_size": 128,
+        "config_sha256": "6d7d54fcc80e40febf6cb3de0224c606b9b81697947b78ba964753af61054f52",
+        "dataset": "mscoco",
+        "effective_sinkhorn_epsilon": 0.1,
+        "inference_epoch": 9,
+        "inference_epoch_source": "explicit_flag",
+        "lr_schedule_horizon": 10,
+        "num_slots": 5,
+        "random_seed": 42,
+        "sinkhorn_annealing_enabled": true,
+        "sinkhorn_schedule_horizon": 10,
+        "total_bases": 15,
+        "total_bits": 30,
+        "training_epoch_budget": 10,
+        "training_stop_epoch": 9
+      },
+      "splits": {
+        "db": {
+          "manifest_sha256": "b52aaccfaa8093fe5ccefd14eb4e3fc84e3a8c339c18fc412d909b935b3c4f87",
+          "n_rows": 107218,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/mscoco_N9/extract_db.npz",
+          "npz_sha256": "43ec0b40b7c1fabdefcc3d48c3b9f4cdecfe9fb82a2d9ea170ebf4ee4349c5f3"
+        },
+        "query": {
+          "manifest_sha256": "0ad2e61131b76c09afb4165041dbe7357e5f684e7a6e57f4bbb95c5ca3a95c87",
+          "n_rows": 5000,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/mscoco_N9/extract_query.npz",
+          "npz_sha256": "1566dfa3bf8d8eb955c55b54e8397ec2856c3e9568e8ba5065c90595d27b924e"
+        }
+      },
+      "stop_epoch_zero_based": 9
+    },
+    {
+      "analysis": {
+        "admitted": true,
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d22bb01d1cca99c4347f8492f3ef7109b126ef05e044f6b66e46c3772e27a7bd",
+          "evaluation_siglip2_sha256": "97496f62e3b3349745af1d1c84cc48feb142ee32ecd61a8cc58b50c1b76b03c7",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "7ece8d4045ae96eda17c356b95d82ede8079687db4b3f6d2c59c30ac084282a9"
+        },
+        "input_binding": {
+          "backfilled_inputs": true,
+          "checkpoint_sha256": "5dc5fa633bf189d033841cdf62e829407951f7d4ce90e74eea9703cca838caa5",
+          "codebook_size": 128,
+          "config_sha256": "747c42e2ac76fb5ac7fbe3454052ab79ec7e6b61ed446d8b165c3bc0d9fcd02d",
+          "dataset": "nuswide",
+          "inference_epoch": 19,
+          "inference_epoch_source": "explicit_flag",
+          "manifest_sha256": {
+            "db": "20ec88e5898b3a4173c4d1cf46d3cfebac4c3421be8ef2e4baf4979a946690c1",
+            "query": "ae811875ce5162007a742b8b3839cc361099b8ccc805815dceda08adfab9db5e"
+          },
+          "npz_sha256": {
+            "db": "376a1a47cd6b86971753858f24d5d005531e79cef6883f52a685da94ac1fb8ac",
+            "query": "abf57245933aaeffbb8d4e4a331edd7f5a04581a2c2e4600828b31411d5465b9"
+          },
+          "random_seed": 42,
+          "run_dir": "/home/yschoi/GroundedDNA/result_diagnostic/phase2_F01_only/nuswide_N19",
+          "schema_version": 1,
+          "validator_sha256": "07985a6e4e7f222b1a0ed5d0d5c7ea91c485cfc6761988cdab2a3f8869688107"
+        },
+        "marker_present": true,
+        "marker_sha256": "fb90e4f00623b1dd2b67061dddc10d9e580a87f05802cf95a4ccc585fe1dab6e",
+        "metric_files": {
+          "cell_result.json": "30724fb2005c855966791fd363f206692394e9429f87b7ee6872617d697a981b",
+          "evaluation_siglip2_base_bioproj.json": "f52f4b3330b8ccb168130f7d05de9ccf48fbb375e5c19540a43609cab84197c8",
+          "pairwise_nmi.json": "b9a97443e57686a46dd282d9646206aa7d1344aaab9b52ad9831ead4861b78a5"
+        },
+        "metrics": {
+          "dna_unique_db": 0.16926817182322154,
+          "full_map_bioproj": 0.5602974401455405,
+          "full_map_pre_projection": 0.5716229192067293,
+          "map_at_R_bioproj": 0.8090028473605914,
+          "mean_off_diag_nmi": 0.6129152072949958
+        },
+        "protocol": {
+          "codebook_size": 128,
+          "dataset": "NUSWIDE",
+          "gc_count_max_inclusive": 9,
+          "gc_count_min_inclusive": 6,
+          "gc_max_frac": 0.6,
+          "gc_min_frac": 0.4,
+          "gc_policy_version": "gc-40-60-inclusive-v1",
+          "map_r_cutoff": 5000,
+          "nmi_average_method": "arithmetic",
+          "sklearn_version": "1.7.2",
+          "total_bases": 15
+        },
+        "refusal": null
+      },
+      "args_txt_sha256": "e50f346f5cc9799c189a8382ee0b6419634145a506ff69e781136ded1d3d953b",
+      "backfilled": true,
+      "canonical_legacy_source": {
+        "config_sha256": "747c42e2ac76fb5ac7fbe3454052ab79ec7e6b61ed446d8b165c3bc0d9fcd02d",
+        "dir": "result/260811+nuswide_setting1_promptAblA_nuswide_A_v4_P0refit_e19+bs+64+e+20+proj_lr+0.001",
+        "model_state_dict_sha256": "5dc5fa633bf189d033841cdf62e829407951f7d4ce90e74eea9703cca838caa5"
+      },
+      "cell": "nuswide_N19",
+      "checkpoint_sha256": "5dc5fa633bf189d033841cdf62e829407951f7d4ce90e74eea9703cca838caa5",
+      "completion_marker_sha256": "7edf9e9c9ead4cb86b90616d4f3515c177e7d51ccf9cfe5dc8240a2d3c9f0055",
+      "config_sha256": "747c42e2ac76fb5ac7fbe3454052ab79ec7e6b61ed446d8b165c3bc0d9fcd02d",
+      "dataset": "nuswide",
+      "eligibility": "diagnostic_only",
+      "extract_log_sha256": "236a7f823e7958578063caf848ada4581391d820ed3022d1088e328c996ccb1f",
+      "runtime_identity": {
+        "backfilled": true,
+        "bases_per_slot": 3,
+        "checkpoint_sha256": "5dc5fa633bf189d033841cdf62e829407951f7d4ce90e74eea9703cca838caa5",
+        "codebook_size": 128,
+        "config_sha256": "747c42e2ac76fb5ac7fbe3454052ab79ec7e6b61ed446d8b165c3bc0d9fcd02d",
+        "dataset": "nuswide",
+        "effective_sinkhorn_epsilon": 0.1,
+        "inference_epoch": 19,
+        "inference_epoch_source": "explicit_flag",
+        "lr_schedule_horizon": 20,
+        "num_slots": 5,
+        "random_seed": 42,
+        "sinkhorn_annealing_enabled": true,
+        "sinkhorn_schedule_horizon": 20,
+        "total_bases": 15,
+        "total_bits": 30,
+        "training_epoch_budget": 20,
+        "training_stop_epoch": 19
+      },
+      "splits": {
+        "db": {
+          "manifest_sha256": "20ec88e5898b3a4173c4d1cf46d3cfebac4c3421be8ef2e4baf4979a946690c1",
+          "n_rows": 193734,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/nuswide_N19/extract_db.npz",
+          "npz_sha256": "376a1a47cd6b86971753858f24d5d005531e79cef6883f52a685da94ac1fb8ac"
+        },
+        "query": {
+          "manifest_sha256": "ae811875ce5162007a742b8b3839cc361099b8ccc805815dceda08adfab9db5e",
+          "n_rows": 2100,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/nuswide_N19/extract_query.npz",
+          "npz_sha256": "abf57245933aaeffbb8d4e4a331edd7f5a04581a2c2e4600828b31411d5465b9"
+        }
+      },
+      "stop_epoch_zero_based": 19
+    },
+    {
+      "analysis": {
+        "admitted": true,
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d22bb01d1cca99c4347f8492f3ef7109b126ef05e044f6b66e46c3772e27a7bd",
+          "evaluation_siglip2_sha256": "97496f62e3b3349745af1d1c84cc48feb142ee32ecd61a8cc58b50c1b76b03c7",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "7ece8d4045ae96eda17c356b95d82ede8079687db4b3f6d2c59c30ac084282a9"
+        },
+        "input_binding": {
+          "backfilled_inputs": true,
+          "checkpoint_sha256": "41ddb7467af78bb683f2da3983c7a2de6b53e09beb56fd9f9d0a9629c81a9e9a",
+          "codebook_size": 128,
+          "config_sha256": "8c6a0ac4ff0ba98efca19200d455cc12720198d6dbaa7abe595132fdf0518e31",
+          "dataset": "nuswide",
+          "inference_epoch": 39,
+          "inference_epoch_source": "explicit_flag",
+          "manifest_sha256": {
+            "db": "c59378b4680781563551340109cd82888ffa6953713243a4e01b9098d6a89000",
+            "query": "263634a83c9199f8d1909e08fedfa250baf19d2f75fdb36ea01602cf23676053"
+          },
+          "npz_sha256": {
+            "db": "7724ff47a940ea13ea04983a80724fc8d6985bd0aff5370af62d01eba2d15b09",
+            "query": "8100554a24b41eceb3cec4a6bb61cf24895ce048ab92ced70b71f1e9f1dac79d"
+          },
+          "random_seed": 42,
+          "run_dir": "/home/yschoi/GroundedDNA/result_diagnostic/phase2_F01_only/nuswide_N39",
+          "schema_version": 1,
+          "validator_sha256": "07985a6e4e7f222b1a0ed5d0d5c7ea91c485cfc6761988cdab2a3f8869688107"
+        },
+        "marker_present": true,
+        "marker_sha256": "80a7bd93d165df343e526c87aa8b477ac15e9ed2ca4d21af7b583c0f9167c497",
+        "metric_files": {
+          "cell_result.json": "62a74bd16582dfe8cbf06c79421a99944780730f57994b379b25dcbee620db34",
+          "evaluation_siglip2_base_bioproj.json": "46ea77443b3333d3fc4c969fa3e653de3e1d505fd11a376366544add2b3f7547",
+          "pairwise_nmi.json": "48ee4c4c708fcdbaba34ad6090cb4353f49b65770e3ba381e44ee702fdbfc3fb"
+        },
+        "metrics": {
+          "dna_unique_db": 0.14851290945316775,
+          "full_map_bioproj": 0.5530928559574754,
+          "full_map_pre_projection": 0.5657924503796561,
+          "map_at_R_bioproj": 0.8061821310752989,
+          "mean_off_diag_nmi": 0.6445028141352771
+        },
+        "protocol": {
+          "codebook_size": 128,
+          "dataset": "NUSWIDE",
+          "gc_count_max_inclusive": 9,
+          "gc_count_min_inclusive": 6,
+          "gc_max_frac": 0.6,
+          "gc_min_frac": 0.4,
+          "gc_policy_version": "gc-40-60-inclusive-v1",
+          "map_r_cutoff": 5000,
+          "nmi_average_method": "arithmetic",
+          "sklearn_version": "1.7.2",
+          "total_bases": 15
+        },
+        "refusal": null
+      },
+      "args_txt_sha256": "31c5ec5386bc1640d2fcdd777f680e0b140246fa962eadb5bc5b3856169e6d77",
+      "backfilled": true,
+      "canonical_legacy_source": {
+        "config_sha256": "8c6a0ac4ff0ba98efca19200d455cc12720198d6dbaa7abe595132fdf0518e31",
+        "dir": "result/260812+nuswide_setting1_promptAblA_nuswide_A_v4_P0refit_e39+bs+64+e+40+proj_lr+0.001",
+        "model_state_dict_sha256": "41ddb7467af78bb683f2da3983c7a2de6b53e09beb56fd9f9d0a9629c81a9e9a"
+      },
+      "cell": "nuswide_N39",
+      "checkpoint_sha256": "41ddb7467af78bb683f2da3983c7a2de6b53e09beb56fd9f9d0a9629c81a9e9a",
+      "completion_marker_sha256": "a899695580e984a3006557db49b352f07fb2ec0ddfeca0bb2665227be42b2445",
+      "config_sha256": "8c6a0ac4ff0ba98efca19200d455cc12720198d6dbaa7abe595132fdf0518e31",
+      "dataset": "nuswide",
+      "eligibility": "diagnostic_only",
+      "extract_log_sha256": "bbfcb0661d80a992acb6544e1d73678e69b7181c63a8b630b732d94d49cfb00c",
+      "runtime_identity": {
+        "backfilled": true,
+        "bases_per_slot": 3,
+        "checkpoint_sha256": "41ddb7467af78bb683f2da3983c7a2de6b53e09beb56fd9f9d0a9629c81a9e9a",
+        "codebook_size": 128,
+        "config_sha256": "8c6a0ac4ff0ba98efca19200d455cc12720198d6dbaa7abe595132fdf0518e31",
+        "dataset": "nuswide",
+        "effective_sinkhorn_epsilon": 0.1,
+        "inference_epoch": 39,
+        "inference_epoch_source": "explicit_flag",
+        "lr_schedule_horizon": 40,
+        "num_slots": 5,
+        "random_seed": 42,
+        "sinkhorn_annealing_enabled": true,
+        "sinkhorn_schedule_horizon": 40,
+        "total_bases": 15,
+        "total_bits": 30,
+        "training_epoch_budget": 40,
+        "training_stop_epoch": 39
+      },
+      "splits": {
+        "db": {
+          "manifest_sha256": "c59378b4680781563551340109cd82888ffa6953713243a4e01b9098d6a89000",
+          "n_rows": 193734,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/nuswide_N39/extract_db.npz",
+          "npz_sha256": "7724ff47a940ea13ea04983a80724fc8d6985bd0aff5370af62d01eba2d15b09"
+        },
+        "query": {
+          "manifest_sha256": "263634a83c9199f8d1909e08fedfa250baf19d2f75fdb36ea01602cf23676053",
+          "n_rows": 2100,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/nuswide_N39/extract_query.npz",
+          "npz_sha256": "8100554a24b41eceb3cec4a6bb61cf24895ce048ab92ced70b71f1e9f1dac79d"
+        }
+      },
+      "stop_epoch_zero_based": 39
+    },
+    {
+      "analysis": {
+        "admitted": true,
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d22bb01d1cca99c4347f8492f3ef7109b126ef05e044f6b66e46c3772e27a7bd",
+          "evaluation_siglip2_sha256": "97496f62e3b3349745af1d1c84cc48feb142ee32ecd61a8cc58b50c1b76b03c7",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "7ece8d4045ae96eda17c356b95d82ede8079687db4b3f6d2c59c30ac084282a9"
+        },
+        "input_binding": {
+          "backfilled_inputs": true,
+          "checkpoint_sha256": "c39c68e2629e7c70b823f9769fb26564bf5c95a804f95b1b6fba902d6762d15a",
+          "codebook_size": 128,
+          "config_sha256": "7845fc04077fced36a13fc25e7b5ab3a2912bcde7a251dd5d09305741d8c49a3",
+          "dataset": "nuswide",
+          "inference_epoch": 4,
+          "inference_epoch_source": "explicit_flag",
+          "manifest_sha256": {
+            "db": "874121edda76aa78122812270aeb7bb15cf3d7564507d2fc08895a83f2c25e6f",
+            "query": "f41140e8c676ec609002cac310109797f7b81db22404be9145c137f6a74b664b"
+          },
+          "npz_sha256": {
+            "db": "daed36bead48c4e7d2056abd1f08ac324b1907806a56c507afe6e1238525cc2e",
+            "query": "457b6550f6e517894e713ebd4fb6b108f2a14611cc21f6ce12df0f478d54fd19"
+          },
+          "random_seed": 42,
+          "run_dir": "/home/yschoi/GroundedDNA/result_diagnostic/phase2_F01_only/nuswide_N4",
+          "schema_version": 1,
+          "validator_sha256": "07985a6e4e7f222b1a0ed5d0d5c7ea91c485cfc6761988cdab2a3f8869688107"
+        },
+        "marker_present": true,
+        "marker_sha256": "0d8dc8b6d904e52c387d45f403b2a670cdfda49b5d0f96c7cce0214158c09230",
+        "metric_files": {
+          "cell_result.json": "edadb9c9d8e2a513e3982063e693b4c913702ee0c7e7ca18c8550a697142e998",
+          "evaluation_siglip2_base_bioproj.json": "11fbe92fa7aaf56342bcc4028cd62871aa47548dadfc3139a31428aade32a42e",
+          "pairwise_nmi.json": "15f45acd1db781bbee5d31f70ceb5a4f32cd12775c6f93772825c6681c963939"
+        },
+        "metrics": {
+          "dna_unique_db": 0.1904673418191954,
+          "full_map_bioproj": 0.5764228779596334,
+          "full_map_pre_projection": 0.5906118463028369,
+          "map_at_R_bioproj": 0.8161331750751041,
+          "mean_off_diag_nmi": 0.5448181734449491
+        },
+        "protocol": {
+          "codebook_size": 128,
+          "dataset": "NUSWIDE",
+          "gc_count_max_inclusive": 9,
+          "gc_count_min_inclusive": 6,
+          "gc_max_frac": 0.6,
+          "gc_min_frac": 0.4,
+          "gc_policy_version": "gc-40-60-inclusive-v1",
+          "map_r_cutoff": 5000,
+          "nmi_average_method": "arithmetic",
+          "sklearn_version": "1.7.2",
+          "total_bases": 15
+        },
+        "refusal": null
+      },
+      "args_txt_sha256": "0ce7a48531759f4aa14b1e78b257f0448fe080143f346142a7d397554fef8d97",
+      "backfilled": true,
+      "canonical_legacy_source": {
+        "config_sha256": "7845fc04077fced36a13fc25e7b5ab3a2912bcde7a251dd5d09305741d8c49a3",
+        "dir": "result/260811+nuswide_setting1_promptAblA_nuswide_A_v4_P0refit_e4+bs+64+e+5+proj_lr+0.001",
+        "model_state_dict_sha256": "c39c68e2629e7c70b823f9769fb26564bf5c95a804f95b1b6fba902d6762d15a"
+      },
+      "cell": "nuswide_N4",
+      "checkpoint_sha256": "c39c68e2629e7c70b823f9769fb26564bf5c95a804f95b1b6fba902d6762d15a",
+      "completion_marker_sha256": "f2e056a4b8d5de1f1f9c07ed99bd20ffd89a3fb63dc7c6fd12dce4297def7c59",
+      "config_sha256": "7845fc04077fced36a13fc25e7b5ab3a2912bcde7a251dd5d09305741d8c49a3",
+      "dataset": "nuswide",
+      "eligibility": "diagnostic_only",
+      "extract_log_sha256": "1372c1bc9ce909f7951dd138f52770e0823430856b12a51eb18045f567a53bd1",
+      "runtime_identity": {
+        "backfilled": true,
+        "bases_per_slot": 3,
+        "checkpoint_sha256": "c39c68e2629e7c70b823f9769fb26564bf5c95a804f95b1b6fba902d6762d15a",
+        "codebook_size": 128,
+        "config_sha256": "7845fc04077fced36a13fc25e7b5ab3a2912bcde7a251dd5d09305741d8c49a3",
+        "dataset": "nuswide",
+        "effective_sinkhorn_epsilon": 0.1,
+        "inference_epoch": 4,
+        "inference_epoch_source": "explicit_flag",
+        "lr_schedule_horizon": 5,
+        "num_slots": 5,
+        "random_seed": 42,
+        "sinkhorn_annealing_enabled": true,
+        "sinkhorn_schedule_horizon": 5,
+        "total_bases": 15,
+        "total_bits": 30,
+        "training_epoch_budget": 5,
+        "training_stop_epoch": 4
+      },
+      "splits": {
+        "db": {
+          "manifest_sha256": "874121edda76aa78122812270aeb7bb15cf3d7564507d2fc08895a83f2c25e6f",
+          "n_rows": 193734,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/nuswide_N4/extract_db.npz",
+          "npz_sha256": "daed36bead48c4e7d2056abd1f08ac324b1907806a56c507afe6e1238525cc2e"
+        },
+        "query": {
+          "manifest_sha256": "f41140e8c676ec609002cac310109797f7b81db22404be9145c137f6a74b664b",
+          "n_rows": 2100,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/nuswide_N4/extract_query.npz",
+          "npz_sha256": "457b6550f6e517894e713ebd4fb6b108f2a14611cc21f6ce12df0f478d54fd19"
+        }
+      },
+      "stop_epoch_zero_based": 4
+    },
+    {
+      "analysis": {
+        "admitted": true,
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d22bb01d1cca99c4347f8492f3ef7109b126ef05e044f6b66e46c3772e27a7bd",
+          "evaluation_siglip2_sha256": "97496f62e3b3349745af1d1c84cc48feb142ee32ecd61a8cc58b50c1b76b03c7",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "7ece8d4045ae96eda17c356b95d82ede8079687db4b3f6d2c59c30ac084282a9"
+        },
+        "input_binding": {
+          "backfilled_inputs": true,
+          "checkpoint_sha256": "f94d990b396569893b3af37cadeca96d439974d315af579267d3ce6a73f40307",
+          "codebook_size": 128,
+          "config_sha256": "1ee1a3a06f2c02c4cae775eef815feabe6ee0af54935deb40ba20a4ec0307be3",
+          "dataset": "nuswide",
+          "inference_epoch": 9,
+          "inference_epoch_source": "explicit_flag",
+          "manifest_sha256": {
+            "db": "b7f43b4caf5b3e4d30daeea79f00a767e0fcc130d3fffd3c34ca6f32da726b2d",
+            "query": "850372edff192d4556ceda40f09db089f9360fefb199c7b6bd3ef5fc39c998cd"
+          },
+          "npz_sha256": {
+            "db": "f5cc53dac85421c99f5b271ae12ffd62bb3675cb58fb0a4ce3c8baef38f8ece8",
+            "query": "ab49aef897b1d7363b580a7e6ddead76b934d82bc8b64778794d77bead580298"
+          },
+          "random_seed": 42,
+          "run_dir": "/home/yschoi/GroundedDNA/result_diagnostic/phase2_F01_only/nuswide_N9",
+          "schema_version": 1,
+          "validator_sha256": "07985a6e4e7f222b1a0ed5d0d5c7ea91c485cfc6761988cdab2a3f8869688107"
+        },
+        "marker_present": true,
+        "marker_sha256": "d2dd8ee1d63fdaf1aff2b294a80739e9fc9ba691af71decc12825f488b850c02",
+        "metric_files": {
+          "cell_result.json": "42ab675445de2d8fffc32ad69ae3332ca9d60de12dd7c82425801cc5510c0430",
+          "evaluation_siglip2_base_bioproj.json": "3b011a1bfb93232d20a9da733b7a9fdd832637476882373c30d47acfcc9bb32c",
+          "pairwise_nmi.json": "31aa0284d97250cc192584650359b2a207c885bb5a36291de4b13c4f75df0b61"
+        },
+        "metrics": {
+          "dna_unique_db": 0.18408229840915896,
+          "full_map_bioproj": 0.566191598700005,
+          "full_map_pre_projection": 0.576929709439045,
+          "map_at_R_bioproj": 0.8115356919286504,
+          "mean_off_diag_nmi": 0.5830893812121083
+        },
+        "protocol": {
+          "codebook_size": 128,
+          "dataset": "NUSWIDE",
+          "gc_count_max_inclusive": 9,
+          "gc_count_min_inclusive": 6,
+          "gc_max_frac": 0.6,
+          "gc_min_frac": 0.4,
+          "gc_policy_version": "gc-40-60-inclusive-v1",
+          "map_r_cutoff": 5000,
+          "nmi_average_method": "arithmetic",
+          "sklearn_version": "1.7.2",
+          "total_bases": 15
+        },
+        "refusal": null
+      },
+      "args_txt_sha256": "d871de5017b089a4c5d7e6e56a3bb5cc1d4805bf59a8db23c8af433cafcb9a07",
+      "backfilled": true,
+      "canonical_legacy_source": {
+        "config_sha256": "1ee1a3a06f2c02c4cae775eef815feabe6ee0af54935deb40ba20a4ec0307be3",
+        "dir": "result/260811+nuswide_setting1_promptAblA_nuswide_A_v4_P0refit_e9+bs+64+e+10+proj_lr+0.001",
+        "model_state_dict_sha256": "f94d990b396569893b3af37cadeca96d439974d315af579267d3ce6a73f40307"
+      },
+      "cell": "nuswide_N9",
+      "checkpoint_sha256": "f94d990b396569893b3af37cadeca96d439974d315af579267d3ce6a73f40307",
+      "completion_marker_sha256": "7deda625d0e8be70a9dcd41c965d008bbe98bb8d6d16cb54bc3b6e00452053c6",
+      "config_sha256": "1ee1a3a06f2c02c4cae775eef815feabe6ee0af54935deb40ba20a4ec0307be3",
+      "dataset": "nuswide",
+      "eligibility": "diagnostic_only",
+      "extract_log_sha256": "77aeeb37bb245d209d2636e37ba8046968ee427bf7c7cb479d1772ff107824f2",
+      "runtime_identity": {
+        "backfilled": true,
+        "bases_per_slot": 3,
+        "checkpoint_sha256": "f94d990b396569893b3af37cadeca96d439974d315af579267d3ce6a73f40307",
+        "codebook_size": 128,
+        "config_sha256": "1ee1a3a06f2c02c4cae775eef815feabe6ee0af54935deb40ba20a4ec0307be3",
+        "dataset": "nuswide",
+        "effective_sinkhorn_epsilon": 0.1,
+        "inference_epoch": 9,
+        "inference_epoch_source": "explicit_flag",
+        "lr_schedule_horizon": 10,
+        "num_slots": 5,
+        "random_seed": 42,
+        "sinkhorn_annealing_enabled": true,
+        "sinkhorn_schedule_horizon": 10,
+        "total_bases": 15,
+        "total_bits": 30,
+        "training_epoch_budget": 10,
+        "training_stop_epoch": 9
+      },
+      "splits": {
+        "db": {
+          "manifest_sha256": "b7f43b4caf5b3e4d30daeea79f00a767e0fcc130d3fffd3c34ca6f32da726b2d",
+          "n_rows": 193734,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/nuswide_N9/extract_db.npz",
+          "npz_sha256": "f5cc53dac85421c99f5b271ae12ffd62bb3675cb58fb0a4ce3c8baef38f8ece8"
+        },
+        "query": {
+          "manifest_sha256": "850372edff192d4556ceda40f09db089f9360fefb199c7b6bd3ef5fc39c998cd",
+          "n_rows": 2100,
+          "npz_path_relative": "result_diagnostic/phase2_F01_only/nuswide_N9/extract_query.npz",
+          "npz_sha256": "ab49aef897b1d7363b580a7e6ddead76b934d82bc8b64778794d77bead580298"
+        }
+      },
+      "stop_epoch_zero_based": 9
+    }
+  ],
+  "cells_refused": [],
+  "cells_validated": 15,
+  "cells_with_admissible_metrics": 15,
+  "eligibility": "diagnostic_only_never_promoted_to_paper_main",
+  "execution": {
+    "command": "scripts/write_phase2_inventory.py",
+    "generated_at_utc": "2026-08-14T15:47:59+00:00",
+    "git_head": "006f6f0a6b2233ac1813c7a1cdca18d3d42e8a86",
+    "git_tree_dirty": true,
+    "host_repo": "/home/yschoi/GroundedDNA",
+    "reproducible_from_git_head": false
+  },
+  "external_root": "/home/yschoi/GroundedDNA/result_diagnostic/phase2_F01_only",
+  "generator": {
+    "git_head": "006f6f0a6b2233ac1813c7a1cdca18d3d42e8a86",
+    "script": "scripts/write_phase2_inventory.py",
+    "sha256": "88a729d85906d24c2dbd6210ff56f02f6b417c94dc433b15ce93f22566b47c54"
+  },
+  "schema_version": 2,
+  "validator": {
+    "allow_backfilled": true,
+    "module": "dna_utils/extraction_validation.py",
+    "required_splits": [
+      "db",
+      "query"
+    ],
+    "sha256": "07985a6e4e7f222b1a0ed5d0d5c7ea91c485cfc6761988cdab2a3f8869688107"
+  },
+  "what_this_is": "Digest-level inventory of the Phase 2 F01 diagnostic snapshot, covering both the extraction and the metric half of every cell. The arrays and metric JSONs themselves are untracked; this records exactly which bytes were validated, under which contract and which evaluator, so the claim can be re-checked rather than taken on trust."
+}

@@ -2,6 +2,9 @@
 
 F01 only: the same checkpoint re-inferred with the training epoch restored, so the router runs at the annealed Sinkhorn epsilon instead of the initial one. Not an N selection.
 
+- Ranking below is **post-bio diagnostic**. D1's selection metric is raw base-Hamming mAP@R, which these artefacts do not store, so this does not show what the train-only selection would have chosen.
+- Both sides are scored by the SAME committed evaluator, and the aggregation refuses any pair whose recorded analysis sources differ.
+- Extraction manifests were **backfilled** after the fact and carry `backfilled: true`; the cells' inputs were verified byte-identical to their canonical legacy sources, but the manifests are not evidence that the extraction recorded itself.
 - Paired cells: **15 / 15**
 - GC window (both sides): count [6, 9] at 15 bases (`gc-40-60-inclusive-v1`)
 

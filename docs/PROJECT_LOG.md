@@ -487,6 +487,104 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-08-15 — 🟢 **Phase 2 완료: F01(추출 epoch 미복원)의 실제 비용을 30면 동일-evaluator로 측정. mAP@R은 사실상 무비용(−0.0040), DNA-unique는 +0.0442·NMI는 −0.0839로 수정본이 우월. N 선택은 4/4 불변**
+
+### 무엇을 측정했나
+
+F01은 `SigLIP2SemanticOTModel._current_epoch`가 state dict에 없는 평범한 int라서, 추출 시
+새 모델이 raw weight만 로드하면 epoch이 0에 머물고 Sinkhorn router가 **학습 때 쓰인 annealed
+epsilon이 아니라 초기 epsilon**으로 도는 결함이다. Phase 2는 *같은 체크포인트*를 epoch만
+복원해 재추론한 뒤, 두 결과를 **동일한 커밋의 동일 evaluator**로 채점해 차이를 낸다.
+
+N 선택 실험이 아니다. D1의 선택 지표는 raw base-Hamming mAP@R이고 이 산출물에는 없다.
+
+### 결과 (seed 42, 15 base / 30 bit, GC count [6,9] `gc-40-60-inclusive-v1`, 양면 sealed)
+
+| cell | mAP@R legacy | mAP@R fixed | Δ | DNA-uniq legacy | DNA-uniq fixed | Δ | NMI legacy | NMI fixed | Δ |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| cifar10/N4 | 0.8823 | 0.8839 | +0.0016 | 0.0704 | 0.0868 | +0.0164 | 0.6766 | 0.6090 | −0.0676 |
+| cifar10/N9 | 0.8789 | 0.8736 | −0.0053 | 0.0791 | 0.0994 | +0.0203 | 0.6870 | 0.5775 | −0.1095 |
+| cifar10/N19 | 0.8775 | 0.8674 | −0.0102 | 0.0815 | 0.1129 | +0.0313 | 0.7037 | 0.6176 | −0.0860 |
+| cifar10/N39 | 0.8751 | 0.8675 | −0.0077 | 0.0855 | 0.1019 | +0.0164 | 0.7195 | 0.6524 | −0.0670 |
+| flickr25k/N4 | 0.8565 | 0.8558 | −0.0007 | 0.2824 | 0.3560 | +0.0736 | 0.6170 | 0.5396 | −0.0775 |
+| flickr25k/N9 | 0.8507 | 0.8420 | −0.0088 | 0.3298 | 0.3753 | +0.0455 | 0.6358 | 0.4814 | −0.1544 |
+| flickr25k/N19 | 0.8496 | 0.8360 | −0.0136 | 0.3217 | 0.3927 | +0.0710 | 0.6603 | 0.5580 | −0.1023 |
+| nuswide/N4 | 0.8150 | 0.8161 | +0.0011 | 0.1416 | 0.1905 | +0.0488 | 0.6182 | 0.5448 | −0.0734 |
+| nuswide/N9 | 0.8115 | 0.8115 | +0.0001 | 0.1327 | 0.1841 | +0.0514 | 0.6484 | 0.5831 | −0.0654 |
+| nuswide/N19 | 0.8106 | 0.8090 | −0.0016 | 0.1299 | 0.1693 | +0.0393 | 0.6623 | 0.6129 | −0.0494 |
+| nuswide/N39 | 0.8039 | 0.8062 | +0.0023 | 0.1168 | 0.1485 | +0.0317 | 0.6804 | 0.6445 | −0.0359 |
+| mscoco/N4 | 0.7884 | 0.7801 | −0.0082 | 0.1281 | 0.1844 | +0.0563 | 0.7055 | 0.6114 | −0.0941 |
+| mscoco/N9 | 0.8030 | 0.7977 | −0.0054 | 0.1252 | 0.1741 | +0.0490 | 0.7181 | 0.5833 | −0.1349 |
+| mscoco/N19 | 0.8076 | 0.8099 | +0.0023 | 0.1342 | 0.1945 | +0.0603 | 0.7174 | 0.6326 | −0.0848 |
+| mscoco/N39 | 0.8287 | 0.8233 | −0.0054 | 0.1204 | 0.1719 | +0.0515 | 0.7172 | 0.6613 | −0.0559 |
+
+**평균 Δ (fixed − legacy): mAP@R −0.0040, DNA-unique +0.0442, NMI −0.0839.**
+
+| dataset | legacy argmax N | fixed argmax N | 변경 |
+|---|---:|---:|---|
+| CIFAR10 | 4 | 4 | 없음 |
+| Flickr25k | 4 | 4 | 없음 |
+| NUS-WIDE | 4 | 4 | 없음 |
+| MSCOCO | 39 | 39 | 없음 |
+
+### 해석
+
+- **검색 성능은 F01의 영향을 거의 받지 않는다** (평균 −0.0040, 셀별 |Δ| ≤ 0.0136). 즉 기존
+  mAP@R 표의 숫자 자체는 이 결함으로 무너지지 않는다.
+- **코드 다양성과 슬롯 독립성은 F01 때문에 체계적으로 왜곡돼 있었다.** epoch을 복원하면
+  DNA-unique가 15/15 셀 전부에서 오르고(+0.0442 평균), 슬롯 간 NMI는 15/15 전부에서
+  내려간다(−0.0839 평균). 초기 epsilon은 router를 더 균등(=더 뭉개진)하게 만들어, 슬롯들이
+  서로 비슷한 정보를 담고 중복 코드가 늘어나는 방향으로 작동했다.
+- 따라서 **초안에 적힌 NMI는 과대, DNA-unique는 과소**였다. 두 수치는 해석가능성 주장에
+  직접 쓰이므로 §4 본문 숫자를 이 방향으로 정정해야 한다.
+- **N 선택은 4/4에서 바뀌지 않는다.** 다만 이는 post-bio 진단 지표 기준이며, D1의
+  train-only raw base-Hamming 선택을 대신하지 않는다(Phase 3).
+
+### 어떻게 신뢰할 수 있게 만들었나
+
+이 delta가 나오기까지 재계산을 세 번 중단하고 네 번째에 완주했다. 중단 사유는 전부
+"숫자가 틀려서"가 아니라 "그 숫자가 무엇으로 계산됐는지 산출물이 증명하지 못해서"였다.
+
+| 결함 | 증상 | 조치 |
+|---|---|---|
+| §20.4 | bio-eval이 NMI 전에 `analysis_complete.json`을 봉인 → `mean_off_diag_nmi` 부재인데 집계기는 paired로 계수 | eval/NMI는 각자 결속된 partial만 쓰고, `scripts/seal_cell_analysis.py`가 양쪽이 다 있고 입력이 일치할 때만 봉인 |
+| §20.2 | marker 내용 무검증 → `map_at_R_bioproj: 999`, `dataset: "WRONG"`, `analysis_sources: {"sha":"garbage"}` 승인 | metric 정확 집합·유한 비율, protocol 정확 스키마 + caller 기대값 대조, source digest 재계산 |
+| §20.3 | `allow_backfilled`를 산출물이 스스로 선언 → 자기 인가 | caller 필수 키워드로 승격 |
+| §20.5 | `pairwise_nmi.py`가 어느 cwd에서도 `dna_utils` import 실패 (루프 안이라 rc0으로 은폐) | 모듈 스코프 import + repo 루트 sys.path |
+| §20.9 | 스키마가 annealing 여부를 `inference_epoch_source`로 추론 → no-anneal 신규 학습이 producer↔consumer 비호환 | `sinkhorn_annealing_enabled` 필드 신설(manifest schema v2), static run도 실제 operating epsilon 기록 |
+| §23.4 | sidecar가 authoritative라면서 endpoint는 loader args에서 읽음 → 1.0→0.1 체크포인트가 0.2로 기록 | endpoint도 sidecar에서 |
+| §19.4 | legacy 면은 8월의 옛 evaluator 산출물 → delta가 evaluator 차이를 섞어 잼 | `scripts/bind_legacy_phase2.py`로 legacy NPZ를 별도 루트에 결속(원본 무수정, symlink) 후 **동일 evaluator로 재채점** |
+| §22.2 | 드라이버가 legacy 루트 부재를 15셀 덮어쓴 뒤에야 발견 | 양쪽 루트 exact 15셀 preflight, 실패 시 무기록 종료 |
+| §20.8 | 1/15만 승인돼도 공식 리포트를 rc0으로 덮어씀 | 완주하지 않으면 공식 경로에 쓰지 않고 nonzero |
+
+가장 비쌌던 자충수는 `validator_sha256`을 결속 **동등성 비교** 대상에 넣은 것이다. 검증기를
+개선할 때마다 과거의 모든 측정이 무효가 되어 GPU 재계산을 세 번 강요했다. 검증기는 산출물을
+*검사*할 뿐 *생산*하지 않으므로, 이제 기록은 하되 비교하지 않는다. 대신 숫자를 실제로 결정하는
+`dna_utils/dna_code_utils.py`(Hamming 거리·유효성 투영)를 `analysis_sources`에 추가했다.
+
+### 산출물
+
+```text
+docs/phase2_f01_impact.{json,md}                 15/15 paired, complete=true
+docs/phase2_extraction_inventory.json            fixed 15셀 digest+metric 인벤토리
+docs/phase2_legacy_bound_inventory.json          legacy 15셀 동일
+result_diagnostic/phase2_F01_only/               fixed 15 × sealed
+result_diagnostic/phase2_legacy_bound/           legacy 15 × sealed (symlink 결속)
+result_diagnostic/QUARANTINE_notes/eval_only_markers_20260814/   폐기된 eval-only marker 9개
+source commit                                    006f6f0
+```
+
+### 남은 제약 (논문에 그대로 적을 것)
+
+- 15셀의 extraction manifest는 **사후 backfill**이며 `backfilled: true`를 단다. 입력이 정본
+  legacy 원본과 byte 동일함은 검증했으나, 추출이 스스로를 기록했다는 증거는 아니다.
+- legacy 면의 `inference_epoch: 0`은 산출물이 아니라 **코드 경로에서 유도**한 값이다
+  (legacy run에는 `extract.log`가 없다). manifest는 source `f01_unrestored`로 이를 명시한다.
+- Phase 2는 진단이며 main table로 승격하지 않는다. 논문 유효 N 선택은 Phase 3의 F02/F03
+  train-only 프로토콜이다.
+
+---
+
 ## 2026-08-14 — 🟢 **D6: baseline은 원저자 고정 epoch. 캐시 provenance 부재로 전 학습 재실행 확정. Bi-half CIFAR-10 LR decay 100× 오차 발견**
 
 ### D6 — baseline 프로토콜 전환

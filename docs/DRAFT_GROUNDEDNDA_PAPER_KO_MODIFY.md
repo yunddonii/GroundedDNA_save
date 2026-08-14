@@ -1004,6 +1004,9 @@ Hashing은 loss가 45까지 계속 내려가는 동안 test mAP는 10 epoch 이�
 > 않았다. 재현 확인된 치명적 항목은 F18(현행 source에서 15-base method lock 불일치,
 > 24-base aggregate/resume 실패), F09(A5 4-cell이 2개 조건으로 붕괴),
 > F01(production extraction manifest 0개), D6(문서만 있고 runner는 여전히 2단계)이다.
+> 이 가운데 **F01은 2026-08-15에 해소됐다**: 30면(fixed 15 + legacy 15)이 모두 입력에
+> 결속·봉인됐고 동일 evaluator로 재채점됐으며, 영향은 §4.5.-1에 정량화돼 있다. 나머지
+> 항목은 그대로 열려 있다.
 > 따라서 표의 모든 셀은 **diagnostic-only**이며, 아래 두 가지가 추가로 남아 있다.
 >
 > 1. **cache provenance.** 사용 중인 4개 CLIP cache에 `canonical_transform`과
@@ -1059,6 +1062,17 @@ Hashing은 loss가 45까지 계속 내려가는 동안 test mAP는 10 epoch 이�
 > (iii) NPZ geometry가 설정과 일치하는지를 검증한 뒤에만 기록하며, 모든 manifest에
 > `backfilled: true`가 표시된다. 즉 이 수치는 **입력에 결속되어 있으나 추출 시점에 직접
 > 기록된 것은 아니다.** 진단 목적에는 충분하고 논문 main으로 승격되지 않는다.
+>
+> **양면 동일 evaluator (2026-08-15 갱신).** 위 Δ의 legacy 면은 원래 2026-08월 실행 당시의
+> bio-projection·NMI 산출물을 그대로 읽고 있었다. 그 경우 차이에는 F01뿐 아니라 **evaluator
+> 변경분이 섞인다.** 이를 없애기 위해 legacy extraction을 별도 루트에 결속하고
+> (`scripts/bind_legacy_phase2.py`; 원본 run 디렉터리에는 아무것도 쓰지 않고 NPZ·checkpoint·
+> config를 symlink로 참조) **fixed 면과 동일한 커밋의 동일 evaluator로 15셀 전부 재채점**했다.
+> 위 표의 30면은 모두 이 재채점 결과이며, 집계기는 두 면의 `analysis_sources` digest가
+> 다르면 해당 쌍을 unpaired로 거절한다(15/15 paired, `complete: true`, source commit
+> `006f6f0`). legacy manifest의 `inference_epoch: 0`은 산출물에서 읽은 값이 아니라 **코드
+> 경로에서 유도**한 값이다(legacy run에는 `extract.log`가 없다). 이 점은 manifest에
+> `inference_epoch_source: f01_unrestored`로 명시된다.
 
 
 #### 4.5.0 보고 대상 모델
