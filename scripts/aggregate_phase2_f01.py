@@ -89,6 +89,16 @@ def _require_manifests(run_dir: Path) -> dict:
             allow_backfilled=True)
     except ExtractionInvalid as error:
         raise ManifestMissing(str(error)) from None
+
+    # §17.3, second half: the aggregator reads metric JSONs that live beside the
+    # NPZs but were never tied to them. A stale metric next to a valid
+    # extraction was admitted, so the reported numbers had no end-to-end
+    # binding. Each metric file must now name the inputs it was computed from.
+    from dna_utils.extraction_validation import read_analysis_marker
+    try:
+        read_analysis_marker(str(run_dir), allow_backfilled=True)
+    except ExtractionInvalid as error:
+        raise ManifestMissing(str(error)) from None
     return validated.splits
 
 
@@ -105,6 +115,28 @@ def _side(run_dir: Path, fallback: Path | None = None):
     epoch-0 codes the other legacy cells were scored from, so the comparison
     stays like-for-like. Nothing is written back into the legacy run.
     """
+    sealed = _json(run_dir / "analysis_complete.json")
+    if isinstance(sealed, dict) and isinstance(sealed.get("metrics"), dict):
+        # The sealed marker is the only admissible source for the fixed side:
+        # reading an unsigned JSON is exactly how a planted mAP@R=999 reached
+        # the report.
+        metrics = sealed["metrics"]
+        protocol = sealed.get("protocol") or {}
+        return {
+            "dir": str(run_dir),
+            "recomputed_from_legacy_extraction": [],
+            "sealed": True,
+            "map_at_R_bioproj": metrics.get("map_at_R_bioproj"),
+            "full_map_bioproj": metrics.get("full_map_bioproj"),
+            "dna_unique_db": metrics.get("dna_unique_db"),
+            "nmi": metrics.get("mean_off_diag_nmi"),
+            "gc_min_frac": protocol.get("gc_min_frac"),
+            "gc_max_frac": protocol.get("gc_max_frac"),
+        }
+
+    # The LEGACY side has no sealed marker and never will: those runs predate
+    # the contract. It is read unsigned and labelled as such, so the delta's
+    # two halves are not silently presented as equally evidenced.
     bioproj = _json(run_dir / "evaluation_siglip2_base_bioproj.json")
     recomputed = []
     if not isinstance(bioproj, dict) and fallback is not None:
@@ -121,6 +153,7 @@ def _side(run_dir: Path, fallback: Path | None = None):
     return {
         "dir": str(run_dir),
         "recomputed_from_legacy_extraction": recomputed,
+        "sealed": False,
         "map_at_R_bioproj": bioproj.get("mAP_at_R"),
         "full_map_bioproj": bioproj.get("mAP"),
         "dna_unique_db": bioproj.get("unique_code_ratio"),
@@ -190,6 +223,8 @@ def main() -> int:
                 "cell": f"{ds}/N{n}", "dataset": ds, "N": n,
                 "legacy": old, "phase2": new,
                 "legacy_recomputed": old["recomputed_from_legacy_extraction"],
+                "fixed_side_sealed": bool(new.get("sealed")),
+                "legacy_side_sealed": bool(old.get("sealed")),
                 "provenance": {
                     "checkpoint_sha256": manifests["db"]["checkpoint_sha256"],
                     "inference_epoch": manifests["db"]["inference_epoch"],
@@ -240,6 +275,13 @@ def main() -> int:
         "",
         payload["what_this_measures"],
         "",
+        "- Ranking below is **post-bio diagnostic**. D1's selection metric is "
+        "raw base-Hamming mAP@R, which these artefacts do not store, so this "
+        "does not show what the train-only selection would have chosen.",
+        "- Extraction manifests were **backfilled** after the fact and carry "
+        "`backfilled: true`; the cells' inputs were verified byte-identical to "
+        "their canonical legacy sources, but the manifests are not evidence "
+        "that the extraction recorded itself.",
         f"- Paired cells: **{len(cells)} / {len(LEGACY)}**",
         f"- GC window (both sides): count "
         f"[{policy.gc_min_count}, {policy.gc_max_count}] at {TOTAL_BASES} bases "

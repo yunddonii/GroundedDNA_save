@@ -70,6 +70,10 @@ def _cell(tmp_path, rows=4, *, splits=("db", "query"), corrupt=None):
             "num_slots": SLOTS, "bases_per_slot": PER_SLOT,
             "total_bases": BASES, "total_bits": 2 * BASES,
             "dataset": "CIFAR10", "random_seed": 42, "codebook_size": 64,
+            # `backfilled` is a required bool now: a missing field used to read
+            # as false, so deleting it promoted a backfilled cell to native.
+            "backfilled": False,
+            "effective_sinkhorn_epsilon": 0.1,
             "npz_path": str(npz), "npz_sha256": sha256_file(str(npz)),
         }
         path = tmp_path / f"extraction_manifest_{split}.json"
@@ -177,7 +181,9 @@ def test_splits_from_different_runtimes_are_refused(tmp_path):
     cell = _cell(tmp_path)
     path = cell / "extraction_manifest_query.json"
     manifest = json.loads(path.read_text())
-    manifest["inference_epoch"] = 9
+    # A value that is schema-valid on its own, so this test exercises the
+    # cross-split check rather than being caught earlier by the schema.
+    manifest["random_seed"] = 43
     path.write_text(json.dumps(manifest, indent=2, sort_keys=True))
     marker = cell / "extraction_complete.json"
     payload = json.loads(marker.read_text())
@@ -185,7 +191,7 @@ def test_splits_from_different_runtimes_are_refused(tmp_path):
     marker.write_text(json.dumps(payload))
     with pytest.raises(ExtractionInvalid) as excinfo:
         validate_extraction_run(str(cell))
-    assert "disagree on inference_epoch" in str(excinfo.value)
+    assert "disagree on random_seed" in str(excinfo.value)
 
 
 # ---------------------------------------------------- backfill opt-in
@@ -226,3 +232,176 @@ def test_the_preserved_phase2_cells_pass_the_strict_validator():
         assert run.backfilled is True
         assert run.common["total_bases"] == 15
         assert run.common["inference_epoch_source"] == "explicit_flag"
+
+
+# ------------------------------------------- metric binding (§17.3 part two)
+
+def test_metric_without_a_binding_is_refused(tmp_path):
+    """A metric file that names no inputs can describe a different extraction
+    entirely while sitting beside a valid one."""
+    from dna_utils.extraction_validation import check_metric_input_binding
+    cell = _cell(tmp_path)
+    with pytest.raises(ExtractionInvalid) as excinfo:
+        check_metric_input_binding(str(cell), {"mAP_at_R": 0.9},
+                                   what="cell_result.json")
+    assert "input_binding" in str(excinfo.value)
+
+
+def test_metric_bound_to_other_files_is_refused(tmp_path):
+    from dna_utils.extraction_validation import (
+        check_metric_input_binding, metric_input_binding)
+    cell = _cell(tmp_path)
+    binding = metric_input_binding(str(cell))
+    binding["npz_sha256"]["db"] = "0" * 64        # a different extraction
+    with pytest.raises(ExtractionInvalid) as excinfo:
+        check_metric_input_binding(str(cell), {"input_binding": binding},
+                                   what="cell_result.json")
+    assert "npz_sha256" in str(excinfo.value)
+
+
+def test_matching_binding_is_accepted(tmp_path):
+    from dna_utils.extraction_validation import (
+        check_metric_input_binding, metric_input_binding)
+    cell = _cell(tmp_path)
+    check_metric_input_binding(
+        str(cell), {"input_binding": metric_input_binding(str(cell))},
+        what="cell_result.json")
+
+
+def test_binding_follows_the_npz_not_the_filename(tmp_path):
+    """Rewriting the NPZ must invalidate a metric computed from the old one."""
+    from dna_utils.extraction_validation import (
+        check_metric_input_binding, metric_input_binding)
+    cell = _cell(tmp_path)
+    stale = {"input_binding": metric_input_binding(str(cell))}
+    npz = cell / "extract_db.npz"
+    npz.write_bytes(npz.read_bytes() + b"\x00")
+    with pytest.raises(ExtractionInvalid):
+        check_metric_input_binding(str(cell), stale, what="cell_result.json")
+
+
+# ------------------------------------------------- train split (§17.7)
+
+def test_marker_can_cover_three_splits(tmp_path):
+    """Adding train re-commits the marker over all three splits, so a DB/query
+    marker cannot stay valid while train is stale or from another runtime."""
+    cell = _cell(tmp_path, splits=("db", "query", "train"))
+    run = validate_extraction_run(
+        str(cell), required_splits=("db", "query", "train"))
+    assert sorted(run.splits) == ["db", "query", "train"]
+
+
+def test_a_three_split_run_is_not_admitted_as_two(tmp_path):
+    cell = _cell(tmp_path, splits=("db", "query", "train"))
+    with pytest.raises(ExtractionInvalid):
+        validate_extraction_run(str(cell), required_splits=("db", "query"))
+
+
+# ------------------------------------------ §18.3 adversarial identities
+
+def _mutate(tmp_path, manifest_fn=None, marker_fn=None, **kw):
+    cell = _cell(tmp_path, **kw)
+    for split in ("db", "query"):
+        path = cell / f"extraction_manifest_{split}.json"
+        manifest = json.loads(path.read_text())
+        if manifest_fn:
+            manifest_fn(manifest)
+        path.write_text(json.dumps(manifest, indent=2, sort_keys=True))
+    marker_path = cell / "extraction_complete.json"
+    marker = json.loads(marker_path.read_text())
+    marker["manifest_sha256"] = {
+        s: sha256_file(str(cell / f"extraction_manifest_{s}.json"))
+        for s in ("db", "query")}
+    if marker_fn:
+        marker_fn(marker)
+    marker_path.write_text(json.dumps(marker))
+    return cell
+
+
+@pytest.mark.parametrize("name,manifest_fn,marker_fn", [
+    ("bogus epoch source",
+     lambda m: m.update(inference_epoch_source="bogus"), None),
+    ("marker schema 999", None, lambda k: k.update(schema_version=999)),
+    ("duplicate split in marker", None,
+     lambda k: k.update(splits=["db", "query", "db"])),
+    ("fields deleted from both manifests",
+     lambda m: [m.pop(f, None) for f in ("dataset", "random_seed",
+                                         "total_bases")], None),
+    ("codebook_size is a string",
+     lambda m: m.update(codebook_size="not-an-int"), None),
+    ("total_bits inconsistent with geometry",
+     lambda m: m.update(total_bits=1), None),
+    ("null field", lambda m: m.update(dataset=None), None),
+    ("bool where int expected", lambda m: m.update(random_seed=True), None),
+    ("stop epoch outside the budget",
+     lambda m: m.update(training_stop_epoch=99), None),
+])
+def test_consistently_wrong_identities_are_refused(tmp_path, name,
+                                                   manifest_fn, marker_fn):
+    """§18.3: split-vs-split equality cannot catch a cell that is wrong the
+    same way on both sides. Deleting a field from both manifests passed as
+    `None == None`, and nothing said what the cell was supposed to be."""
+    cell = _mutate(tmp_path, manifest_fn, marker_fn)
+    with pytest.raises(ExtractionInvalid):
+        validate_extraction_run(str(cell))
+
+
+def test_expected_identity_catches_a_self_consistent_wrong_cell(tmp_path):
+    from dna_utils.extraction_validation import ExpectedIdentity
+    cell = _cell(tmp_path)
+    validate_extraction_run(str(cell))                      # internally fine
+    with pytest.raises(ExtractionInvalid) as excinfo:
+        validate_extraction_run(
+            str(cell), expected=ExpectedIdentity(dataset="MSCOCO"))
+    assert "expects 'MSCOCO'" in str(excinfo.value)
+
+
+def test_mixed_backfill_state_is_refused(tmp_path):
+    """One split recorded by its extraction and the other bound afterwards is
+    not one run's provenance."""
+    def only_db(manifest):
+        manifest["backfilled"] = manifest["split"] == "db"
+    cell = _mutate(tmp_path, only_db)
+    with pytest.raises(ExtractionInvalid) as excinfo:
+        validate_extraction_run(str(cell), allow_backfilled=True)
+    assert "mixed provenance" in str(excinfo.value)
+
+
+def test_describe_failure_never_leaks_a_raw_exception(tmp_path):
+    """The shell reads this string; a KeyError traceback is not a refusal."""
+    cell = _cell(tmp_path)
+    path = cell / "extraction_manifest_db.json"
+    path.write_text(json.dumps({"split": "db"}))
+    marker = cell / "extraction_complete.json"
+    payload = json.loads(marker.read_text())
+    payload["manifest_sha256"]["db"] = sha256_file(str(path))
+    marker.write_text(json.dumps(payload))
+    reason = describe_failure(str(cell))
+    assert reason and "missing" in reason
+
+
+# ---------------------------------------------- §18.6 shared array contract
+
+def test_hash_wraparound_cannot_pass_as_valid(tmp_path):
+    """`astype(uint8)` folds 256 to 0, so a cast-then-compare check passed
+    arrays that are not the encoding at all."""
+    from dna_utils.extraction_validation import validate_code_arrays
+    base = np.zeros((2, 15), dtype=np.int64)
+    hashed = base_indices_to_2bit(base).astype(np.int64)
+    hashed[0, 0] = 256
+    with pytest.raises(ExtractionInvalid) as excinfo:
+        validate_code_arrays(base, hashed, np.zeros((2, 5), dtype=np.int64),
+                             rows=2, slots=5, per_slot=3, codebook_size=64,
+                             split="db")
+    assert "outside 0..1" in str(excinfo.value)
+
+
+def test_missing_codebook_size_is_refused_not_skipped(tmp_path):
+    from dna_utils.extraction_validation import validate_code_arrays
+    base = np.zeros((2, 15), dtype=np.int64)
+    with pytest.raises(ExtractionInvalid) as excinfo:
+        validate_code_arrays(base, base_indices_to_2bit(base),
+                             np.full((2, 5), 999, dtype=np.int64),
+                             rows=2, slots=5, per_slot=3, codebook_size=None,
+                             split="db")
+    assert "codebook_size" in str(excinfo.value)

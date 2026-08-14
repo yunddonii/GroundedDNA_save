@@ -42,7 +42,8 @@ import numpy as np  # noqa: E402
 import os  # noqa: E402
 
 from dna_utils.extraction_validation import (  # noqa: E402
-    base_indices_to_2bit,
+    ExtractionInvalid,
+    validate_code_arrays,
 )
 from dna_utils.runtime_state import (  # noqa: E402
     ResolvedEpoch,
@@ -81,12 +82,14 @@ def _runtime_from_log(cell: Path) -> tuple[int, str, float]:
     if not matches:
         raise BackfillRefused(
             f"{cell.name}: extract.log records no resolved inference epoch")
-    epochs = {(int(e), src) for e, src, _ in matches}
-    if len(epochs) != 1:
+    states = {(int(e), src, float(eps)) for e, src, eps in matches}
+    if len(states) != 1:
         raise BackfillRefused(
-            f"{cell.name}: extract.log records several runtime states {epochs}")
-    epoch, source = next(iter(epochs))
-    return epoch, source, float(matches[0][2])
+            f"{cell.name}: extract.log records several runtime states "
+            f"{states}; the same epoch under a different epsilon is still a "
+            f"different operating point")
+    epoch, source, epsilon = next(iter(states))
+    return epoch, source, epsilon
 
 
 def backfill_cell(cell: Path, *, dry_run: bool = False) -> list[str]:
@@ -142,38 +145,32 @@ def backfill_cell(cell: Path, *, dry_run: bool = False) -> list[str]:
             codes = np.asarray(stored["base_indices"])
             hashed = np.asarray(stored["hash_2bit"])
             codebook = np.asarray(stored["codebook_indices"])
-        if codes.ndim != 2 or codes.shape[1] != slots * per_slot:
+        if codes.ndim != 2:
             raise BackfillRefused(
-                f"{cell.name}/{split}: base_indices {codes.shape} does not "
-                f"match {slots}x{per_slot}")
+                f"{cell.name}/{split}: base_indices has rank {codes.ndim}")
         rows = int(codes.shape[0])
-        if hashed.shape != (rows, 2 * slots * per_slot):
-            raise BackfillRefused(
-                f"{cell.name}/{split}: hash_2bit {hashed.shape} does not match "
-                f"{(rows, 2 * slots * per_slot)}")
-        if codebook.shape != (rows, slots):
-            raise BackfillRefused(
-                f"{cell.name}/{split}: codebook_indices {codebook.shape} does "
-                f"not match {(rows, slots)}")
-        for name, arr in (("base_indices", codes), ("hash_2bit", hashed),
-                          ("codebook_indices", codebook)):
-            if not np.issubdtype(arr.dtype, np.integer):
-                raise BackfillRefused(
-                    f"{cell.name}/{split}: {name} dtype {arr.dtype} is not "
-                    f"integral")
-        if codes.size and (codes.min() < 0 or codes.max() > 3):
-            raise BackfillRefused(
-                f"{cell.name}/{split}: base_indices outside 0..3")
-        if not np.array_equal(base_indices_to_2bit(codes),
-                              hashed.astype(np.uint8)):
-            raise BackfillRefused(
-                f"{cell.name}/{split}: hash_2bit is not the 2-bit encoding of "
-                f"base_indices")
+        # The SAME contract the producer and every consumer use. The previous
+        # copy compared `hash_2bit.astype(uint8)`, so 256 and 257 passed as 0
+        # and 1, and it checked neither the hash range nor the codebook range.
+        try:
+            validate_code_arrays(
+                codes, hashed, codebook, rows=rows, slots=slots,
+                per_slot=per_slot,
+                codebook_size=int(_arg(args_txt, "codebook_size")),
+                split=f"{cell.name}/{split}")
+        except ExtractionInvalid as error:
+            raise BackfillRefused(str(error)) from None
         checked[split] = (npz, rows)
 
     if dry_run:
         return [f"would write {cell / f'extraction_manifest_{s}.json'}"
                 for s in checked]
+
+    # Invalidate first: a stale marker beside half-written manifests reads as a
+    # complete cell to every consumer.
+    marker_path = cell / "extraction_complete.json"
+    if marker_path.exists():
+        marker_path.unlink()
 
     written = []
     for split, (npz, rows) in checked.items():
@@ -221,8 +218,10 @@ def backfill_cell(cell: Path, *, dry_run: bool = False) -> list[str]:
         "backfilled": True,
     }
     tmp = marker.with_suffix(f".{os.getpid()}.tmp")
-    tmp.write_text(json.dumps(payload, indent=2, sort_keys=True),
-                   encoding="utf-8")
+    with open(tmp, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+        handle.flush()
+        os.fsync(handle.fileno())
     os.replace(tmp, marker)
     written.append(str(marker))
     return written

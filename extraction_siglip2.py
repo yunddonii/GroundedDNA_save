@@ -308,7 +308,10 @@ def _write_split_manifest(out_dir: str, split: str, npz_name: str,
         lr_schedule_horizon=getattr(args, "lr_schedule_horizon", None)
         or getattr(args, "epoch", None),
         training_epoch_budget=getattr(args, "epoch", None),
-        training_stop_epoch=getattr(args, "stop_after_epoch", None),
+        # `stop_after_epoch` is unset on a normal full run, where the effective
+        # stop is `epoch - 1`; recording the raw flag wrote null into the
+        # manifest for exactly the runs that matter most.
+        training_stop_epoch=_effective_stop_epoch(args),
         extra={
             "npz_path": os.path.abspath(npz_path),
             "npz_sha256": sha256_file(npz_path),
@@ -317,11 +320,23 @@ def _write_split_manifest(out_dir: str, split: str, npz_name: str,
             # nested run with a wrong path and a null SHA.
             "config_path": os.path.abspath(_config_path),
             "config_sha256": sha256_file(_config_path),
+            # Stated, not omitted: a missing field used to default to false,
+            # so deleting it promoted a backfilled cell to a native one.
+            "backfilled": False,
             "dataset": getattr(args, "dataset", None),
             "random_seed": getattr(args, "random_seed", None),
             "codebook_size": getattr(args, "codebook_size", None),
         },
     )
+
+
+def _effective_stop_epoch(args: Config):
+    """The last epoch that actually ran, however it was specified."""
+    explicit = getattr(args, "stop_after_epoch", None)
+    if explicit is not None:
+        return int(explicit)
+    budget = getattr(args, "epoch", None)
+    return None if budget is None else int(budget) - 1
 
 
 def _atomic_savez(path: str, payload: dict) -> str:
@@ -439,9 +454,13 @@ def extract_code(args: Config) -> None:
     # removed the old marker, so a crash in between left an old marker and old
     # manifests sitting beside new or partial data, and every consumer read that
     # as a complete run.
+    # The train manifest goes too: a db/query rerun leaves the old train NPZ
+    # describing a different forward pass, and the held-out decoder would
+    # happily mix the two.
     for _stale in ("extraction_complete.json",
                    "extraction_manifest_db.json",
-                   "extraction_manifest_query.json"):
+                   "extraction_manifest_query.json",
+                   "extraction_manifest_train.json"):
         _path = os.path.join(out_dir, _stale)
         if os.path.exists(_path):
             os.remove(_path)

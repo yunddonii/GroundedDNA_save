@@ -27,9 +27,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--results", nargs="+", required=True,
                     help="result directories each containing extract_db.npz")
+    ap.add_argument("--allow-backfilled", action="store_true",
+                    help=("Admit retrospectively bound inputs. Off by default "
+                          "so a paper path cannot pick them up silently."))
     ap.add_argument("--out", default=None,
                     help="optional combined JSON output path")
     args = ap.parse_args()
+    allow_backfilled = args.allow_backfilled
 
     combined = {}
     for d in args.results:
@@ -43,9 +47,14 @@ def main():
             continue
         ci = z["codebook_indices"]
         nmi = pairwise_nmi(ci)
+        # A broad `except` turned `No module named 'dna_utils'` into a data
+        # field and still exited 0, so every failure was logged as `nmi ok`.
+        from dna_utils.extraction_validation import metric_input_binding
+        _binding = metric_input_binding(d, allow_backfilled=allow_backfilled)
         off_diag = nmi[~np.eye(nmi.shape[0], dtype=bool)]
         tag = os.path.basename(d.rstrip("/"))
         combined[tag] = {
+            "input_binding": _binding,
             "mean_off_diag_nmi": float(off_diag.mean()),
             "max_off_diag_nmi": float(off_diag.max()),
             "min_off_diag_nmi": float(off_diag.min()),
@@ -67,6 +76,14 @@ def main():
         for r in range(nmi.shape[0]):
             print("   " + "  ".join(f"{v:.3f}" for v in nmi[r]))
 
+    # `--out` pointing at the per-result filename used to overwrite the direct
+    # record with the combined layout, hiding the binding one level down.
+    if args.out and os.path.basename(args.out) == "pairwise_nmi.json" and \
+            os.path.dirname(os.path.abspath(args.out)) in {
+                os.path.abspath(d) for d in args.results}:
+        raise SystemExit(
+            "--out must not be the per-result pairwise_nmi.json; that file is "
+            "written per directory in the direct layout")
     if args.out:
         with open(args.out, "w") as f:
             json.dump(combined, f, indent=2)

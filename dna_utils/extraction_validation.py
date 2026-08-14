@@ -56,6 +56,8 @@ _COMMON_IDENTITY = (
     "total_bits",
     "dataset",
     "random_seed",
+    "codebook_size",
+    "backfilled",
 )
 
 
@@ -89,30 +91,210 @@ def _load_json(path: str, what: str) -> dict:
     return payload
 
 
-def _validate_npz(manifest: Mapping, *, split: str) -> None:
-    """Open the NPZ the manifest names and hold it to every declared field."""
-    npz_path = str(manifest.get("npz_path") or "")
-    if not os.path.isfile(npz_path):
-        raise ExtractionInvalid(
-            f"{split}: manifest names {npz_path!r}, which does not exist")
-    digest = sha256_file(npz_path)
-    if digest != manifest.get("npz_sha256"):
-        raise ExtractionInvalid(
-            f"{split}: {npz_path} hashes to {digest[:12]}... but the manifest "
-            f"declares {str(manifest.get('npz_sha256'))[:12]}...")
+#: Every manifest field that must be present, non-null and of this type. The
+#: first version only compared splits against each other, so DELETING a field
+#: from both manifests passed as `None == None`, and `dataset=WRONG` with
+#: `inference_epoch=999` was admitted because nothing said what the cell should
+#: be.
+_MANIFEST_SCHEMA = {
+    "schema_version": int,
+    "split": str,
+    "n_rows": int,
+    "checkpoint_path": str,
+    "checkpoint_sha256": str,
+    "config_path": str,
+    "config_sha256": str,
+    "inference_epoch": int,
+    "inference_epoch_source": str,
+    "lr_schedule_horizon": int,
+    "training_epoch_budget": int,
+    "training_stop_epoch": int,
+    "num_slots": int,
+    "bases_per_slot": int,
+    "total_bases": int,
+    "total_bits": int,
+    "dataset": str,
+    "random_seed": int,
+    "codebook_size": int,
+    "npz_path": str,
+    "npz_sha256": str,
+    "backfilled": bool,
+}
 
-    slots = int(manifest["num_slots"])
-    per_slot = int(manifest["bases_per_slot"])
+#: Fields whose contract DEPENDS on how the epoch was resolved. Requiring an int
+#: horizon unconditionally rejected the legitimate `no_annealing` path, where
+#: the router uses a static epsilon and there is no schedule to record -- the
+#: strict schema was written without checking it against its own producers.
+_ANNEALED_SCHEMA = {
+    "sinkhorn_schedule_horizon": int,
+    "effective_sinkhorn_epsilon": float,
+}
+
+#: Sources the resolver can legitimately report. `bogus` is not one of them.
+_EPOCH_SOURCES = frozenset(
+    {"explicit_flag", "checkpoint_metadata", "no_annealing"})
+
+
+@dataclass(frozen=True)
+class ExpectedIdentity:
+    """What the caller already knows the cell must be.
+
+    Split-vs-split equality cannot catch a cell that is consistently wrong; the
+    launcher and the aggregator both know the dataset, seed and geometry from
+    the directory name and the protocol, so they must say so.
+    """
+    dataset: str | None = None
+    random_seed: int | None = None
+    inference_epoch: int | None = None
+    inference_epoch_source: str | None = None
+    num_slots: int | None = None
+    bases_per_slot: int | None = None
+    codebook_size: int | None = None
+    checkpoint_sha256: str | None = None
+    config_sha256: str | None = None
+    n_rows: "Mapping[str, int] | None" = None
+
+
+def _check_schema(manifest: Mapping, *, split: str) -> None:
+    for field_name, field_type in _MANIFEST_SCHEMA.items():
+        if field_name not in manifest:
+            raise ExtractionInvalid(
+                f"{split}: manifest is missing {field_name!r}")
+        value = manifest[field_name]
+        if value is None:
+            raise ExtractionInvalid(f"{split}: manifest {field_name} is null")
+        if field_type is int and isinstance(value, bool):
+            raise ExtractionInvalid(
+                f"{split}: manifest {field_name} is a bool, expected int")
+        if not isinstance(value, field_type):
+            raise ExtractionInvalid(
+                f"{split}: manifest {field_name} is {type(value).__name__}, "
+                f"expected {field_type.__name__}")
+
+    if manifest["schema_version"] != 1:
+        raise ExtractionInvalid(
+            f"{split}: unknown manifest schema_version "
+            f"{manifest['schema_version']!r}")
+    source = manifest["inference_epoch_source"]
+    if source not in _EPOCH_SOURCES:
+        raise ExtractionInvalid(
+            f"{split}: inference_epoch_source {source!r} is not one of "
+            f"{sorted(_EPOCH_SOURCES)}")
+
+    if source == "no_annealing":
+        # No schedule to record; both fields must be explicitly null so the
+        # absence is a statement rather than an omission.
+        for field_name in _ANNEALED_SCHEMA:
+            if manifest.get(field_name, "missing") not in (None,):
+                raise ExtractionInvalid(
+                    f"{split}: {field_name} must be null when the epoch source "
+                    f"is no_annealing, got {manifest.get(field_name)!r}")
+    else:
+        for field_name, field_type in _ANNEALED_SCHEMA.items():
+            if field_name not in manifest:
+                raise ExtractionInvalid(
+                    f"{split}: manifest is missing {field_name!r}")
+            value = manifest[field_name]
+            if value is None:
+                raise ExtractionInvalid(
+                    f"{split}: {field_name} is null but the epoch source is "
+                    f"{source!r}, which anneals")
+            if isinstance(value, bool) or not isinstance(
+                    value, (int, float) if field_type is float else field_type):
+                raise ExtractionInvalid(
+                    f"{split}: {field_name} is {type(value).__name__}, "
+                    f"expected {field_type.__name__}")
+        if manifest["sinkhorn_schedule_horizon"] <= 0:
+            raise ExtractionInvalid(
+                f"{split}: sinkhorn_schedule_horizon "
+                f"{manifest['sinkhorn_schedule_horizon']} is not positive")
+        if not 0.0 < float(manifest["effective_sinkhorn_epsilon"]) <= 10.0:
+            raise ExtractionInvalid(
+                f"{split}: effective_sinkhorn_epsilon "
+                f"{manifest['effective_sinkhorn_epsilon']} is outside (0, 10]")
+
+    slots, per_slot = manifest["num_slots"], manifest["bases_per_slot"]
+    if slots <= 0 or per_slot <= 0:
+        raise ExtractionInvalid(
+            f"{split}: geometry {slots}x{per_slot} is not positive")
+    if manifest["total_bases"] != slots * per_slot:
+        raise ExtractionInvalid(
+            f"{split}: total_bases {manifest['total_bases']} != "
+            f"{slots}x{per_slot}")
+    if manifest["total_bits"] != 2 * slots * per_slot:
+        raise ExtractionInvalid(
+            f"{split}: total_bits {manifest['total_bits']} != "
+            f"2x{slots}x{per_slot}")
+    if manifest["lr_schedule_horizon"] <= 0:
+        raise ExtractionInvalid(
+            f"{split}: lr_schedule_horizon "
+            f"{manifest['lr_schedule_horizon']} is not positive")
+    if manifest["training_epoch_budget"] <= 0:
+        raise ExtractionInvalid(
+            f"{split}: training_epoch_budget "
+            f"{manifest['training_epoch_budget']} is not positive")
+    if manifest["inference_epoch"] < 0:
+        raise ExtractionInvalid(
+            f"{split}: inference_epoch {manifest['inference_epoch']} is negative")
+    if manifest["random_seed"] < 0:
+        raise ExtractionInvalid(
+            f"{split}: random_seed {manifest['random_seed']} is negative")
+    if manifest["n_rows"] <= 0:
+        raise ExtractionInvalid(f"{split}: n_rows {manifest['n_rows']} <= 0")
+    if manifest["codebook_size"] <= 0:
+        raise ExtractionInvalid(
+            f"{split}: codebook_size {manifest['codebook_size']} <= 0")
+
+    budget = manifest["training_epoch_budget"]
+    stop = manifest["training_stop_epoch"]
+    if not 0 <= stop < budget:
+        raise ExtractionInvalid(
+            f"{split}: training_stop_epoch {stop} is not inside "
+            f"[0, {budget})")
+    if manifest["inference_epoch"] > stop:
+        raise ExtractionInvalid(
+            f"{split}: inference_epoch {manifest['inference_epoch']} is after "
+            f"the training stop {stop}")
+
+
+def _check_expected(manifest: Mapping, expected: "ExpectedIdentity", *,
+                    split: str) -> None:
+    for field_name in ("dataset", "random_seed", "inference_epoch",
+                       "inference_epoch_source", "num_slots",
+                       "bases_per_slot", "codebook_size", "checkpoint_sha256",
+                       "config_sha256"):
+        want = getattr(expected, field_name)
+        if want is None:
+            continue
+        got = manifest.get(field_name)
+        if got != want:
+            raise ExtractionInvalid(
+                f"{split}: manifest {field_name}={got!r} but the caller "
+                f"expects {want!r}")
+    if expected.n_rows is not None:
+        want_rows = expected.n_rows.get(split)
+        if want_rows is not None and manifest.get("n_rows") != want_rows:
+            raise ExtractionInvalid(
+                f"{split}: manifest n_rows={manifest.get('n_rows')!r} but the "
+                f"caller expects {want_rows!r}")
+
+
+def validate_code_arrays(base, hashed, codebook, *, rows: int, slots: int,
+                         per_slot: int, codebook_size, split: str) -> None:
+    """The array contract, callable before anything is published.
+
+    Extracted so the producer and the backfill tool run the SAME checks instead
+    of each carrying a partial copy: the backfill compared
+    `hash_2bit.astype(uint8)`, which lets 256 and 257 pass as 0 and 1, and
+    checked neither the hash range nor the codebook range, while the producer
+    checked shapes but not dtypes or the encoding itself. A producer could
+    therefore exit 0 with a marker over semantically invalid arrays and be
+    refused only later, by a consumer.
+    """
+    base = np.asarray(base)
+    hashed = np.asarray(hashed)
+    codebook = np.asarray(codebook)
     bases = slots * per_slot
-    rows = int(manifest["n_rows"])
-
-    with np.load(npz_path, allow_pickle=False) as stored:
-        for name in ("base_indices", "hash_2bit", "codebook_indices"):
-            if name not in stored:
-                raise ExtractionInvalid(f"{split}: {npz_path} has no {name}")
-        base = np.asarray(stored["base_indices"])
-        hashed = np.asarray(stored["hash_2bit"])
-        codebook = np.asarray(stored["codebook_indices"])
 
     for name, arr in (("base_indices", base), ("hash_2bit", hashed),
                       ("codebook_indices", codebook)):
@@ -134,20 +316,52 @@ def _validate_npz(manifest: Mapping, *, split: str) -> None:
     if base.size and (base.min() < 0 or base.max() > 3):
         raise ExtractionInvalid(
             f"{split}: base_indices outside 0..3 [{base.min()}, {base.max()}]")
+    # Checked BEFORE any cast: `astype(uint8)` silently folds 256 to 0.
     if hashed.size and (hashed.min() < 0 or hashed.max() > 1):
         raise ExtractionInvalid(
             f"{split}: hash_2bit outside 0..1 [{hashed.min()}, {hashed.max()}]")
-    if base.size and not np.array_equal(
-            base_indices_to_2bit(base), hashed.astype(np.uint8)):
+    if base.size and not np.array_equal(base_indices_to_2bit(base), hashed):
         raise ExtractionInvalid(
             f"{split}: hash_2bit is not the 2-bit encoding of base_indices; "
             f"the two arrays describe different codes")
-    codebook_size = manifest.get("codebook_size")
-    if isinstance(codebook_size, int) and codebook.size:
-        if codebook.min() < 0 or codebook.max() >= codebook_size:
-            raise ExtractionInvalid(
-                f"{split}: codebook_indices outside 0..{codebook_size - 1} "
-                f"[{codebook.min()}, {codebook.max()}]")
+    if not isinstance(codebook_size, int) or isinstance(codebook_size, bool):
+        raise ExtractionInvalid(
+            f"{split}: codebook_size {codebook_size!r} is not an int, so the "
+            f"codebook range cannot be checked")
+    if codebook.size and (codebook.min() < 0 or codebook.max() >= codebook_size):
+        raise ExtractionInvalid(
+            f"{split}: codebook_indices outside 0..{codebook_size - 1} "
+            f"[{codebook.min()}, {codebook.max()}]")
+
+
+def _validate_npz(manifest: Mapping, *, split: str) -> None:
+    """Open the NPZ the manifest names and hold it to every declared field."""
+    npz_path = str(manifest.get("npz_path") or "")
+    if not os.path.isfile(npz_path):
+        raise ExtractionInvalid(
+            f"{split}: manifest names {npz_path!r}, which does not exist")
+    digest = sha256_file(npz_path)
+    if digest != manifest.get("npz_sha256"):
+        raise ExtractionInvalid(
+            f"{split}: {npz_path} hashes to {digest[:12]}... but the manifest "
+            f"declares {str(manifest.get('npz_sha256'))[:12]}...")
+
+    slots = int(manifest["num_slots"])
+    per_slot = int(manifest["bases_per_slot"])
+    rows = int(manifest["n_rows"])
+
+    with np.load(npz_path, allow_pickle=False) as stored:
+        for name in ("base_indices", "hash_2bit", "codebook_indices"):
+            if name not in stored:
+                raise ExtractionInvalid(f"{split}: {npz_path} has no {name}")
+        base = np.asarray(stored["base_indices"])
+        hashed = np.asarray(stored["hash_2bit"])
+        codebook = np.asarray(stored["codebook_indices"])
+
+    validate_code_arrays(base, hashed, codebook, rows=rows, slots=slots,
+                         per_slot=per_slot,
+                         codebook_size=manifest.get("codebook_size"),
+                         split=split)
 
 
 def validate_extraction_run(
@@ -156,6 +370,7 @@ def validate_extraction_run(
     required_splits: Sequence[str] = DEFAULT_SPLITS,
     allow_backfilled: bool = False,
     verify_npz: bool = True,
+    expected: "ExpectedIdentity | None" = None,
 ) -> ValidatedRun:
     """Admit a run only if every artefact it names exists and agrees.
 
@@ -166,11 +381,24 @@ def validate_extraction_run(
     required = tuple(required_splits)
     marker_path = os.path.join(run_dir, MARKER_NAME)
     marker = _load_json(marker_path, "completion marker")
+    if marker.get("schema_version") != 1:
+        raise ExtractionInvalid(
+            f"{run_dir}: unknown completion marker schema_version "
+            f"{marker.get('schema_version')!r}")
     declared = tuple(marker.get("splits") or ())
+    if len(set(declared)) != len(declared):
+        raise ExtractionInvalid(
+            f"{run_dir}: completion marker repeats a split: {list(declared)}")
     if set(declared) != set(required):
         raise ExtractionInvalid(
             f"{run_dir}: completion marker declares splits {list(declared)}, "
             f"expected exactly {list(required)}")
+    digests = marker.get("manifest_sha256")
+    if not isinstance(digests, Mapping) or set(digests) != set(required):
+        raise ExtractionInvalid(
+            f"{run_dir}: marker manifest_sha256 keys "
+            f"{sorted(digests) if isinstance(digests, Mapping) else digests} "
+            f"do not match {sorted(required)}")
 
     manifests, backfilled = {}, False
     for split in required:
@@ -183,13 +411,12 @@ def validate_extraction_run(
                 f"{split}: the marker records manifest digest "
                 f"{str(recorded)[:12]}... but the file hashes to "
                 f"{actual[:12]}...")
-        if manifest.get("split") != split:
+        _check_schema(manifest, split=split)
+        if manifest["split"] != split:
             raise ExtractionInvalid(
-                f"{split}: manifest declares split {manifest.get('split')!r}")
-        if manifest.get("schema_version") != 1:
-            raise ExtractionInvalid(
-                f"{split}: unknown manifest schema_version "
-                f"{manifest.get('schema_version')!r}")
+                f"{split}: manifest declares split {manifest['split']!r}")
+        if expected is not None:
+            _check_expected(manifest, expected, split=split)
         for name, key in (("checkpoint", "checkpoint_path"),
                           ("config", "config_path")):
             file_path = str(manifest.get(key) or "")
@@ -205,8 +432,15 @@ def validate_extraction_run(
                     f"{str(manifest.get(f'{name}_sha256'))[:12]}...")
         if verify_npz:
             _validate_npz(manifest, split=split)
-        backfilled = backfilled or bool(manifest.get("backfilled", False))
         manifests[split] = manifest
+
+    states = {split: bool(m.get("backfilled", False))
+              for split, m in manifests.items()}
+    if len(set(states.values())) != 1:
+        raise ExtractionInvalid(
+            f"{run_dir}: mixed provenance across splits {states}; one split was "
+            f"recorded by its extraction and another was bound after the fact")
+    backfilled = next(iter(states.values()))
 
     first = manifests[required[0]]
     common = {}
@@ -235,4 +469,127 @@ def describe_failure(run_dir: str, **kwargs) -> str | None:
         validate_extraction_run(run_dir, **kwargs)
     except ExtractionInvalid as error:
         return str(error)
+    except (KeyError, TypeError, ValueError) as error:
+        # A malformed manifest must read as a refusal, not as a crash the shell
+        # cannot interpret.
+        return f"{run_dir}: malformed extraction metadata ({error!r})"
     return None
+
+
+def metric_input_binding(run_dir: str, *,
+                         required_splits: Sequence[str] = DEFAULT_SPLITS,
+                         allow_backfilled: bool = False,
+                         expected: "ExpectedIdentity | None" = None) -> dict:
+    """The block every metric JSON must carry to be traceable to its input.
+
+    A metric file that names no inputs can sit beside a valid extraction while
+    describing a different one entirely, and nothing downstream can tell. This
+    records the digests of the NPZs the numbers were computed from and of the
+    manifests that vouch for them, so a later reader can re-check the binding
+    instead of trusting file adjacency.
+    """
+    run = validate_extraction_run(run_dir, required_splits=required_splits,
+                                  allow_backfilled=allow_backfilled,
+                                  expected=expected)
+    return {
+        "schema_version": 1,
+        "run_dir": os.path.abspath(run_dir),
+        "npz_sha256": {
+            split: manifest["npz_sha256"]
+            for split, manifest in sorted(run.splits.items())
+        },
+        "manifest_sha256": {
+            split: sha256_file(
+                os.path.join(run_dir, f"extraction_manifest_{split}.json"))
+            for split in sorted(run.splits)
+        },
+        "checkpoint_sha256": run.common["checkpoint_sha256"],
+        "config_sha256": run.common["config_sha256"],
+        "inference_epoch": run.common["inference_epoch"],
+        "inference_epoch_source": run.common["inference_epoch_source"],
+        "dataset": run.common["dataset"],
+        "random_seed": run.common["random_seed"],
+        "codebook_size": run.common["codebook_size"],
+        "backfilled_inputs": run.backfilled,
+        "validator_sha256": sha256_file(__file__),
+    }
+
+
+def check_metric_input_binding(run_dir: str, metric: Mapping, *,
+                               what: str) -> None:
+    """Refuse a metric whose declared inputs are not this run's."""
+    declared = metric.get("input_binding")
+    if not isinstance(declared, Mapping):
+        raise ExtractionInvalid(
+            f"{what} records no input_binding; it cannot be tied to the "
+            f"extraction it claims to describe")
+    if declared.get("schema_version") != 1:
+        raise ExtractionInvalid(
+            f"{what}: unknown input_binding schema_version "
+            f"{declared.get('schema_version')!r}")
+    if os.path.abspath(str(declared.get("run_dir") or "")) != os.path.abspath(
+            run_dir):
+        raise ExtractionInvalid(
+            f"{what}: input_binding names run_dir "
+            f"{declared.get('run_dir')!r}, not {run_dir}")
+    current = metric_input_binding(
+        run_dir, allow_backfilled=bool(declared.get("backfilled_inputs")))
+    for key in ("npz_sha256", "manifest_sha256", "checkpoint_sha256",
+                "config_sha256", "inference_epoch", "inference_epoch_source",
+                "dataset", "random_seed", "codebook_size",
+                "backfilled_inputs", "validator_sha256"):
+        if declared.get(key) != current[key]:
+            raise ExtractionInvalid(
+                f"{what}: input_binding.{key} does not match the extraction "
+                f"in {run_dir}; the metric was computed from different files")
+
+
+ANALYSIS_MARKER_NAME = "analysis_complete.json"
+
+
+def write_analysis_marker(run_dir: str, *, metrics: Mapping,
+                          binding: Mapping, protocol: Mapping,
+                          sources: Mapping) -> str:
+    """Seal one canonical analysis result, atomically, at the very end.
+
+    The aggregator used to VALIDATE `cell_result.json` and `pairwise_nmi.json`
+    and then READ its numbers from an unsigned
+    `evaluation_siglip2_base_bioproj.json`. A probe with `mAP@R=999` in that
+    third file was reported as 999, so the binding gate proved nothing. There is
+    exactly one file to read now, it carries the numbers and their binding
+    together, and it is written last.
+    """
+    payload = {
+        "schema_version": 1,
+        "metrics": dict(metrics),
+        "input_binding": dict(binding),
+        "protocol": dict(protocol),
+        "analysis_sources": dict(sources),
+    }
+    path = os.path.join(run_dir, ANALYSIS_MARKER_NAME)
+    tmp = f"{path}.{os.getpid()}.tmp"
+    with open(tmp, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(tmp, path)
+    return path
+
+
+def read_analysis_marker(run_dir: str, *, allow_backfilled: bool = False,
+                         expected: "ExpectedIdentity | None" = None) -> dict:
+    """The only admissible source of a cell's numbers."""
+    path = os.path.join(run_dir, ANALYSIS_MARKER_NAME)
+    payload = _load_json(path, "analysis marker")
+    if payload.get("schema_version") != 1:
+        raise ExtractionInvalid(
+            f"{run_dir}: unknown analysis marker schema_version "
+            f"{payload.get('schema_version')!r}")
+    for key in ("metrics", "input_binding", "protocol", "analysis_sources"):
+        if not isinstance(payload.get(key), Mapping):
+            raise ExtractionInvalid(f"{run_dir}: analysis marker has no {key}")
+    check_metric_input_binding(run_dir, payload, what=f"{run_dir}/analysis")
+    if expected is not None:
+        validate_extraction_run(run_dir, allow_backfilled=allow_backfilled,
+                                expected=expected)
+    return payload

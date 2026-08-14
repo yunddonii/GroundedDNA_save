@@ -77,10 +77,25 @@ def main() -> None:
     # F01: the train split shares the resolver, so it must share the manifest --
     # otherwise the train NPZ has no recorded operating point and the three
     # splits cannot be shown to have run under the same runtime state.
-    from extraction_siglip2 import _write_split_manifest
-    _write_split_manifest(
+    from extraction_siglip2 import (
+        _write_completion_marker, _write_split_manifest)
+    from dna_utils.runtime_state import sha256_file
+
+    # §17.7: the train split used to be written outside the run marker, so a
+    # DB/query marker could be valid while train was partial, stale, or from a
+    # different runtime. Adding train re-commits the marker as a new
+    # transaction over all three splits.
+    train_manifest = _write_split_manifest(
         args.save_result_path, "train", "extract_train.npz", out,
         args=args, checkpoint_path=ckpt, resolved=_resolved)
+    manifests = {"train": train_manifest}
+    for split in ("db", "query"):
+        path = os.path.join(args.save_result_path,
+                            f"extraction_manifest_{split}.json")
+        if os.path.isfile(path):
+            manifests[split] = path
+    _write_completion_marker(args.save_result_path, manifests,
+                             required_splits=tuple(sorted(manifests)))
     print(f"[extract-train] {out['base_indices'].shape[0]} rows -> {dest}")
 
 

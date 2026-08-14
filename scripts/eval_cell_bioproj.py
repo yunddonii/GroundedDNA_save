@@ -58,6 +58,9 @@ def main() -> None:
                     help="Optional; checked against the central GC policy.")
     ap.add_argument("--gc_max", type=float, default=None,
                     help="Optional; checked against the central GC policy.")
+    ap.add_argument("--allow-backfilled", action="store_true",
+                    help=("Admit retrospectively bound inputs. Off by default "
+                          "so a paper path cannot pick them up silently."))
     ap.add_argument("--bases", type=int, default=None,
                     help="Code length; read from extract_db.npz when omitted.")
     args = ap.parse_args()
@@ -98,9 +101,18 @@ def main() -> None:
         f"DNAunique_DB={round(float(res.get('unique_code_ratio', -1)), 4)} "
         f"gc=[{args.gc_min},{args.gc_max}]"
     )
+    # Validate the extraction BEFORE trusting anything computed from it, then
+    # seal the numbers and their binding into one file the aggregator reads.
+    from dna_utils.extraction_validation import (
+        metric_input_binding, write_analysis_marker)
+    from dna_utils.runtime_state import sha256_file as _sha
+    binding = metric_input_binding(
+        args.dir, allow_backfilled=args.allow_backfilled)
+
     # also drop a tiny standalone marker file for easy aggregation later
     with open(os.path.join(args.dir, "cell_result.json"), "w") as f:
         json.dump({
+            "input_binding": binding,
             "dataset": args.dataset, "K": args.K,
             "mAP_at_R_bioproj": map_r,
             "full_mAP_bioproj": res["mAP"],
@@ -113,6 +125,36 @@ def main() -> None:
             "gc_policy_version": policy.policy_version,
             "map_r_cutoff": res.get("mAP_R_cutoff"),
         }, f, indent=2)
+
+    # One canonical, sealed result. The aggregator reads THIS -- previously it
+    # validated cell_result.json and then took its numbers from an unsigned
+    # third file, so a planted mAP@R=999 was reported verbatim.
+    write_analysis_marker(
+        args.dir,
+        metrics={
+            "map_at_R_bioproj": map_r,
+            "full_map_bioproj": res["mAP"],
+            "full_map_pre_projection": pre,
+            "dna_unique_db": res.get("unique_code_ratio"),
+        },
+        binding=binding,
+        protocol={
+            "dataset": args.dataset,
+            "codebook_size": args.K,
+            "map_r_cutoff": res.get("mAP_R_cutoff"),
+            "total_bases": total_bases,
+            "gc_policy_version": policy.policy_version,
+            "gc_count_min_inclusive": policy.gc_min_count,
+            "gc_count_max_inclusive": policy.gc_max_count,
+            "gc_min_frac": args.gc_min,
+            "gc_max_frac": args.gc_max,
+        },
+        sources={
+            "eval_cell_bioproj_sha256": _sha(os.path.abspath(__file__)),
+            "evaluation_siglip2_sha256": _sha(
+                os.path.join(os.path.dirname(os.path.dirname(
+                    os.path.abspath(__file__))), "evaluation_siglip2.py")),
+        })
 
 
 if __name__ == "__main__":
