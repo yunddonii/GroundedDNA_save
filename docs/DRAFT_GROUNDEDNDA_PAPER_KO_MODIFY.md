@@ -997,9 +997,14 @@ Hashing은 loss가 45까지 계속 내려가는 동안 test mAP는 10 epoch 이�
 ### 4.5 Main Results — 신규 통일 레시피, 3-seed
 
 > **[2026-08-14 상태] 이 절의 수치는 아직 paper-valid가 아니다.**
-> `docs/EXPERIMENT_PROTOCOL_AUDIT_2026-08-13.md`가 제기한 18개 결함 중 Phase 1
-> (F01·D2·F07·F08·F06·F09·F12·F15·F18·F05)은 모두 수정되었고 테스트 548개가
-> 통과하지만, 아래 두 가지 때문에 표의 모든 셀은 **diagnostic-only**다.
+> `docs/EXPERIMENT_PROTOCOL_AUDIT_2026-08-13.md`가 제기한 18개 결함에 대해 Phase 1
+> 수정을 진행했고 테스트 548개가 통과하지만, **Phase 1은 완료되지 않았다.**
+> 재감사(`docs/PHASE1_PHASE2_REAUDIT_2026-08-14.md`)가 확인한 바와 같이 다수의
+> helper가 단위 테스트만 통과했을 뿐 실제 launcher/extractor/aggregator에 연결되지
+> 않았다. 재현 확인된 치명적 항목은 F18(현행 source에서 15-base method lock 불일치,
+> 24-base aggregate/resume 실패), F09(A5 4-cell이 2개 조건으로 붕괴),
+> F01(production extraction manifest 0개), D6(문서만 있고 runner는 여전히 2단계)이다.
+> 따라서 표의 모든 셀은 **diagnostic-only**이며, 아래 두 가지가 추가로 남아 있다.
 >
 > 1. **cache provenance.** 사용 중인 4개 CLIP cache에 `canonical_transform`과
 >    `hf_provenance`가 없고, HF hub에 `openai/clip-vit-base-patch16` 스냅샷이
@@ -1032,13 +1037,18 @@ Hashing은 loss가 45까지 계속 내려가는 동안 test mAP는 10 epoch 이�
 
 평균 Δ: mAP@R **−0.0040**, DNA-uniq **+0.0442**, NMI **−0.0839**.
 
-- **검색 지표는 실질적으로 영향받지 않았다** (15셀 중 5셀은 상승, 최대 변화 0.014).
+- **post-bio mAP@R 평균 Δ는 −0.0040이고 범위는 −0.0136 … +0.0023이다** (15셀 중
+  5셀 상승). 관찰값만 적으며 "영향 없음"으로 단정하지 않는다.
 - **DNA 고유성은 15/15에서 상승** — 기존 서술은 코드 다양성을 저평가했다.
 - **NMI는 15/15에서 하락** (평균 −0.084) — 기존에 인용한 NMI는 가중치가 학습된 적
   없는 작동점에서 측정된 값이므로 **부풀려져 있었다.** §4.10의 해석성 수치를
   인용할 때 이 보정을 반영해야 한다.
-- **선택될 (N)은 4/4 데이터셋에서 불변**(CIFAR-10·Flickr25k·NUS-WIDE는 N=4,
-  MS-COCO는 N=39). 따라서 F01은 결함이지만 (N) 선택을 오염시키지 않았다.
+- **post-bio mAP@R 기준 argmax는 4/4 데이터셋에서 불변**(CIFAR-10·Flickr25k·
+  NUS-WIDE N=4, MS-COCO N=39). 단, D1이 정한 selection metric은 **raw**
+  base-Hamming mAP@R이고 Phase 2 산출물에는 raw 지표가 저장되지 않았다(15셀 모두
+  `evaluation_siglip2_base.json` 없음). 따라서 이 결과는 **post-bio diagnostic
+  ranking이 동일했다**는 뜻이며, "F01이 (N) 선택을 오염시키지 않았다"는 더 강한
+  주장은 **현재 artifact로 입증되지 않는다.**
 
 이 절은 결함 영향 진단이며 F02의 paper-valid (N) 선택을 대체하지 않는다.
 
