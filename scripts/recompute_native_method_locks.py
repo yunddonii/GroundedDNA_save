@@ -43,64 +43,98 @@ EXECUTION = {"num_workers": 4, "extract_batch_size": 512, "query_chunk": 64}
 #: These are the values the original registration used.
 PROBE = {"dataset": "CIFAR10", "setting": "setting1", "seed": 42}
 
+DEFAULT_PREDICTOR = ("/data/yschoi/groundeddna_native_p0/artifacts/"
+                     "primo_yield_predictor.npz")
+
+
+def locks_for(length: int, *, dataset_root: Path | None = None,
+              predictor: Path | None = None) -> dict:
+    """The method locks a real run at `length` produces.
+
+    Computed in the SAME context the runner uses. 24 bases execute through
+    `run_native_dna_p0_24`, which patches implementation paths and a pipeline
+    variant into the identity, so computing 24 with the canonical driver under
+    an environment override yields digests no real run ever emits -- which is
+    how four wrong 24-base digests were registered. Everything else runs the
+    canonical driver at that length.
+    """
+    root = dataset_root or (REPO / "dataset")
+    pred = predictor or Path(DEFAULT_PREDICTOR)
+
+    def _compute() -> dict:
+        out = {}
+        for method in driver.METHODS:
+            identity, _ = driver._protocol_identity(
+                method=method,
+                dataset=PROBE["dataset"],
+                setting=PROBE["setting"],
+                seed=PROBE["seed"],
+                cache_audit={"cache_dir": "<lock-independent>", "blockers": []},
+                dataset_root=root,
+                predictor=pred if method == "bee2021" else None,
+                device="cuda:0",
+                **EXECUTION,
+            )
+            out[method] = agg._method_protocol_lock_digest(identity)
+        return out
+
+    if int(length) == 24:
+        from scripts.run_native_dna_p0_24 import configured_canonical_driver
+        with configured_canonical_driver():
+            return _compute()
+
+    # The canonical driver reads its length from the module constant, so the
+    # length has to be in force while the identity is built.
+    previous_length = driver.MATCHED_LENGTH
+    previous_protocol = driver.DEFAULT_PROTOCOL
+    protocol = resolve_native_protocol(int(length))
+    driver.MATCHED_LENGTH = protocol.length_bases
+    driver.DEFAULT_PROTOCOL = protocol
+    try:
+        return _compute()
+    finally:
+        driver.MATCHED_LENGTH = previous_length
+        driver.DEFAULT_PROTOCOL = previous_protocol
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--length", type=int, default=15)
+    parser.add_argument("--length", type=int, default=15,
+                        choices=(15, 18, 20, 24))
     parser.add_argument("--dataset-root", default=str(REPO / "dataset"))
-    parser.add_argument(
-        "--primo-predictor-npz",
-        default="/data/yschoi/groundeddna_native_p0/artifacts/"
-                "primo_yield_predictor.npz")
+    parser.add_argument("--primo-predictor-npz", default=DEFAULT_PREDICTOR)
     parser.add_argument("--json", action="store_true",
                         help="Emit only the digest map, for diffing.")
     args = parser.parse_args()
 
     protocol = resolve_native_protocol(args.length)
-    predictor = Path(args.primo_predictor_npz)
-    registered = agg._METHOD_PROTOCOL_LOCK_BY_LENGTH.get(protocol.length_bases,
-                                                         {})
-
-    # The cache audit enters the FULL protocol digest but not the method lock,
-    # so a placeholder keeps this offline. Verified by comparing an unchanged
-    # method's digest against its registered value.
-    cache_audit = {"cache_dir": "<lock-independent>", "blockers": []}
-
-    digests, report = {}, []
-    for method in driver.METHODS:
-        identity, _ = driver._protocol_identity(
-            method=method,
-            dataset=PROBE["dataset"],
-            setting=PROBE["setting"],
-            seed=PROBE["seed"],
-            cache_audit=cache_audit,
-            dataset_root=Path(args.dataset_root),
-            predictor=predictor if method == "bee2021" else None,
-            device="cuda:0",
-            **EXECUTION,
-        )
-        digest = agg._method_protocol_lock_digest(identity)
-        digests[method] = digest
-        was = registered.get(method)
-        report.append((method, digest, was,
-                       "UNCHANGED" if digest == was else "MOVED"))
-
+    digests = locks_for(args.length,
+                        dataset_root=Path(args.dataset_root),
+                        predictor=Path(args.primo_predictor_npz))
     if args.json:
         print(json.dumps(digests, indent=2, sort_keys=True))
         return 0
 
+    try:
+        registered = agg.reviewed_method_locks(protocol)
+    except SystemExit:
+        registered = {}
     print(f"method-protocol locks at {protocol.length_bases} bases "
           f"({protocol.protocol_label})")
+    print(f"context: {'run_native_dna_p0_24 wrapper' if args.length == 24 else 'canonical driver'}")
     print(f"execution contract: {EXECUTION}")
     print()
-    for method, digest, was, state in report:
-        print(f"  {method:<11} {state}")
-        print(f"    current    {digest}")
-        print(f"    registered {was}")
-    moved = [m for m, _, _, s in report if s == "MOVED"]
+    moved = []
+    for method, digest in digests.items():
+        known = digest in registered.get(method, frozenset())
+        print(f"  {method:<11} {'REGISTERED' if known else 'UNREGISTERED'}")
+        print(f"    current  {digest}")
+        print(f"    reviewed {sorted(registered.get(method, []))}")
+        if not known:
+            moved.append(method)
     print()
-    print(f"{len(moved)} of {len(report)} moved: {moved}" if moved
-          else "all locks already match the current source")
+    print(f"{len(moved)} unregistered: {moved}" if moved
+          else "every lock is already reviewed")
     return 0
 
 

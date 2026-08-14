@@ -26,6 +26,10 @@ from scripts import run_native_dna_p0 as canonical  # noqa: E402
 
 
 MATCHED_LENGTH = 24
+
+from dna_utils.native_protocol import resolve_native_protocol as _resolve_24  # noqa: E402
+
+_PROTOCOL_24 = _resolve_24(MATCHED_LENGTH)
 GC_MIN = 0.4
 GC_MAX = 0.6
 GC_COUNT_MIN = 10
@@ -116,6 +120,9 @@ def _manifest_24(*args: Any, **kwargs: Any) -> dict[str, Any]:
 
 _PATCHED_FIELDS = {
     "MATCHED_LENGTH": MATCHED_LENGTH,
+    # Patched alongside MATCHED_LENGTH: leaving it at the import-time 15 made
+    # the driver report length 24 and validate against 15 simultaneously.
+    "DEFAULT_PROTOCOL": _PROTOCOL_24,
     "GC_MIN": GC_MIN,
     "GC_MAX": GC_MAX,
     "MAX_RUN": MAX_RUN,

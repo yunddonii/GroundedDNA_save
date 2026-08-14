@@ -61,6 +61,19 @@ from dna_utils.native_protocol import (  # noqa: E402
 
 DEFAULT_PROTOCOL = resolve_native_protocol()
 MATCHED_LENGTH = DEFAULT_PROTOCOL.length_bases
+
+
+def effective_protocol() -> "NativeProtocol":
+    """The protocol THIS call runs under.
+
+    `run_native_dna_p0_24` executes the canonical driver inside a context that
+    patches `MATCHED_LENGTH` to 24. Binding to the import-time
+    `DEFAULT_PROTOCOL` therefore reported length 24 and validated against 15 at
+    the same time, so a fresh 24-base run checked its artefacts against the
+    wrong contract. Reading the module attribute at call time is what makes the
+    wrapper's patch visible.
+    """
+    return coerce_protocol(MATCHED_LENGTH)
 VAL_RATIO = 0.1
 VAL_SEED = 42
 EVAL_PERIOD = 5
@@ -1453,7 +1466,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         cache_dir=cache_dir,
         dataset_root=dataset_root,
         predictor=predictor,
-        protocol=DEFAULT_PROTOCOL,
+        protocol=effective_protocol(),
     )
     best_epoch = int(selection_audit["best_epoch_zero_based"])
     refit_epochs = best_epoch + 1
@@ -1493,7 +1506,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         dataset_root=dataset_root,
         predictor=predictor,
         best_epoch=best_epoch,
-        protocol=DEFAULT_PROTOCOL,
+        protocol=effective_protocol(),
     )
     selection_reaudit = _verify_selection(
         stage1_dir,
@@ -1504,7 +1517,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         cache_dir=cache_dir,
         dataset_root=dataset_root,
         predictor=predictor,
-        protocol=DEFAULT_PROTOCOL,
+        protocol=effective_protocol(),
     )
     if selection_reaudit != selection_audit:
         raise ValueError(

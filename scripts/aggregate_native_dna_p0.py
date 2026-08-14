@@ -198,23 +198,33 @@ if LENGTH not in _METHOD_PROTOCOL_LOCK_BY_LENGTH:
 # changed. Regenerate with scripts/recompute_native_method_locks.py after
 # READING the source diff -- never by pasting numbers to make a check pass.
 _POST_F18_METHOD_PROTOCOL_LOCK_BY_LENGTH = {
+    # 15 bases, computed in the canonical driver.
     15: {
-        "bee2018": "aa74a4de34180c8e0ea2c25adb2f645b4836a5af81ba3ff3631f4c35f78ce49f",
-        "bee2021": "f2cb02d4a4c0b35011b4ad2baa91601100857fcad3900c34f82a333af6654c7a",
-        "koike2024": "609fa24fae22467f057ccb4f15d186a6ee024e9c1b6a1e68f242b9f87362589f",
-        "koike2026": "a9460c29569d44989b8072cec7a954e75f8076b0e3fa37681339c9147a5dfd9b",
+        "bee2018": "ddfe29b964b2b94d8d74cacda99f0ce385ecebaa15c7f88004913a0e02e1b8e1",
+        "bee2021": "529ad1b5c8d824f78c85fd5a253ce2b689c978e15aeaf457acf9a25c02bb62bc",
+        "koike2024": "867e06b95a3c342774477502af644ef7703dcfcc45ffd367fa1354bea0b1dc66",
+        "koike2026": "39bcb088710cbb78bd896d0e61b4dd81f6361bcb7c8488eff10c5958b41f3f79",
     },
+    # 18 bases, computed in the canonical driver.
     18: {
-        "bee2018": "c0af7116b93d9e3d101040326ad429caaec17fcaf6a2e7cfe054223980f68abe",
-        "bee2021": "dad64f4c43ac346b7ef8675ba74ce4718297afa6b9a47c1962a1bafefbf42a0d",
-        "koike2024": "c6bf2fee967af16ec36163cf333e00532e82f00f279aeabc45b88acb98cf2ae2",
-        "koike2026": "817c39ea0b4c445330f7adbdf540dfaafd0b169a1c6b3db287be0119592292b5",
+        "bee2018": "186eb9fafff5da53f2747f675d0b26c847b60116223a0e32698fdd65b34d7dcb",
+        "bee2021": "c7ea152cb38b53aecb002d26c3f16b074bcac17f5a6ab6da927baeb3d56e656e",
+        "koike2024": "1ef70f13a69c17c7858623c7e9743cf9314b2c96f0f0aafda821093c7d8c05a2",
+        "koike2026": "ab0beaa02c1d05c25ac7df999c59d40ed988b356e2df1cf9cfaf46ba076f1444",
     },
+    # 20 bases, computed in the canonical driver.
+    20: {
+        "bee2018": "b60bbb5e46cc493cb64f454581760eddfa75fbf8d050b7b6723b837a106c9040",
+        "bee2021": "0a2c25a5496785c1dc23777ba91da6aa4265bc054a2509056413b3fcbff0e95b",
+        "koike2024": "11574d633404c8754460b375729a1f59cbf52f0b1d1acb188623e8147f621cf3",
+        "koike2026": "a993ac3bfae7361862e2383f5ac8b52b7ec918acea8caa8ef44d4baa8dff3517",
+    },
+    # 24 bases, computed in the run_native_dna_p0_24 wrapper.
     24: {
-        "bee2018": "5a7560e731e92b8a2b2d600bfaeecc13c058c9f2be03852fce7048399b036d5a",
-        "bee2021": "a7e36054bc9ff1e520760f5d6479087e44bbd8acfb9995a08a9135b7ab440258",
-        "koike2024": "39602186ea74cc4bf542ee84a5cff2e09d70bac00b803edaa1c0e3a0b72ead7d",
-        "koike2026": "81f2eed794d879021e541d9055fc8da1e181f24729aa9235e486f50e123f0cf6",
+        "bee2018": "96494bf690e2b7e77f3c867f1a07b5ad6b412d85738538199ca2171b56881b2f",
+        "bee2021": "dcee329e5325d2c73e797d8ce5506fd69b8c9a975ca4bbc997bc27274b74e743",
+        "koike2024": "a73704cb2fb3ad61bbe0437a8f7779277e5ebca0ed269d2b8cca7ad7883661a7",
+        "koike2026": "f7dc9a7c198a6fd3cac5e763fa3ba54c3c2d1a47175b3c6c4ba71e6e24b83431",
     },
 }
 
@@ -1222,7 +1232,13 @@ def aggregate(
         "seeds": list(normalized_seeds),
         "panels": {panel: list(methods) for panel, methods in PANELS.items()},
         "display_names": DISPLAY,
-        "method_protocol_lock_sha256": dict(method_protocol_lock_for(protocol)),
+        # Report the set the validator accepts, not the pre-F18 table:
+        # advertising a narrower allow-list than the gate enforces makes the
+        # provenance describe a check that is not the one being run.
+        "method_protocol_lock_sha256": {
+            method: sorted(digests)
+            for method, digests in reviewed_method_locks(protocol).items()
+        },
         "blocked_methods": blocked,
         "summary": {
             "expected_records": len(records),

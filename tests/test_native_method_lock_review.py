@@ -41,7 +41,7 @@ def _reviewed(length, method):
     return agg.reviewed_method_locks(length)[method]
 
 
-@pytest.mark.parametrize("length", (15, 18, 24))
+@pytest.mark.parametrize("length", (15, 18, 20, 24))
 @pytest.mark.parametrize("method", ("bee2018", "bee2021", "koike2024",
                                     "koike2026"))
 def test_every_method_has_a_reviewed_set(length, method):

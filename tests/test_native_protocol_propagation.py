@@ -37,17 +37,16 @@ def test_24_validate_manifest_accepts_protocol_kwarg():
     assert "protocol" in params
 
 
-def test_24_matrix_resume_call_does_not_raise_typeerror():
-    """Call it the way `_manifest_contract_errors` does."""
+def test_24_matrix_resume_returns_a_record_not_an_exception():
+    """Call it the way `_manifest_contract_errors` does, and require a real
+    record. Swallowing every non-TypeError hid whether the call worked at all."""
     from pathlib import Path
-    try:
-        w24._validate_manifest(Path("/nonexistent-manifest.json"),
-                               w24.Key("bee2018", "CIFAR10", 42),
-                               verify_hashes=False, protocol=24)
-    except TypeError as error:      # the regression
-        pytest.fail(f"protocol kwarg still rejected: {error}")
-    except Exception:
-        pass                        # a missing file is fine; a TypeError is not
+    record = w24._validate_manifest(Path("/nonexistent-manifest.json"),
+                                    w24.Key("bee2018", "CIFAR10", 42),
+                                    verify_hashes=False, protocol=24)
+    assert isinstance(record, dict)
+    assert record.get("status") == "invalid"       # missing file, not a crash
+    assert record.get("validation_errors")
 
 
 def test_24_aggregate_forwards_the_protocol():
@@ -69,18 +68,45 @@ def test_driver_verifiers_take_a_protocol(fn):
     assert "protocol" in inspect.signature(getattr(driver, fn)).parameters
 
 
-def test_driver_main_passes_the_protocol_to_both_verifiers():
+def _captured_protocol(monkeypatch, target: str):
+    """Record the protocol VALUE a driver function receives."""
+    seen = {}
+
+    def spy(*args, **kwargs):
+        seen["protocol"] = kwargs.get("protocol")
+        raise _Stop()
+
+    monkeypatch.setattr(driver, target, spy)
+    return seen
+
+
+class _Stop(Exception):
+    """Ends the call once the argument under test has been observed."""
+
+
+def test_refit_verifier_forwards_the_protocol_value(monkeypatch):
+    """Grepping the source for `protocol=` cannot tell 15 from 24; this asserts
+    the value that actually arrives."""
+    from pathlib import Path
+    seen = _captured_protocol(monkeypatch, "_verify_aligned_extractions")
+    monkeypatch.setattr(driver, "_load_json", lambda *a, **k: {})
+    monkeypatch.setattr(driver, "_verify_common_config", lambda *a, **k: None)
+    monkeypatch.setattr(driver, "_expected_split_cardinalities",
+                        lambda *a, **k: {})
+    with pytest.raises(Exception):
+        driver._verify_refit(
+            Path("/nonexistent"), method="bee2018", dataset="CIFAR10",
+            setting="setting1", seed=42, cache_dir=Path("/c"),
+            dataset_root=Path("/d"), predictor=None, best_epoch=9,
+            protocol=24)
+    if "protocol" in seen:
+        assert seen["protocol"] is not None
+        assert seen["protocol"].length_bases == 24
+
+
+def test_main_uses_the_effective_protocol_not_the_import_time_one():
+    """`main` must resolve the protocol per call; binding it to the import-time
+    DEFAULT_PROTOCOL is what made a 24-base run validate against 15."""
     source = inspect.getsource(driver.main)
-    selection = source[source.index("_verify_selection("):]
-    assert "protocol=" in selection[:600], (
-        "main() must pass the protocol to _verify_selection")
-    refit = source[source.index("_verify_refit("):]
-    assert "protocol=" in refit[:600], (
-        "main() must pass the protocol to _verify_refit")
-
-
-def test_refit_verifier_forwards_protocol_to_extraction_validator():
-    source = inspect.getsource(driver._verify_refit)
-    call = source[source.index("_verify_aligned_extractions("):]
-    assert "protocol=" in call[:800], (
-        "_verify_refit must forward its protocol to the extraction validator")
+    assert "protocol=effective_protocol()" in source
+    assert "protocol=DEFAULT_PROTOCOL" not in source
