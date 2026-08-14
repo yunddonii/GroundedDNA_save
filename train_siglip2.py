@@ -1200,6 +1200,25 @@ def main(args: Config):
             best_crit_path  = os.path.join(args.save_model_state_path, "criterion_state_dict_best.pth")
             torch.save(model.state_dict(),     best_model_path)
             torch.save(criterion.state_dict(), best_crit_path)
+            # F01: the best weights carry a DIFFERENT epoch from the final ones,
+            # and the extraction epoch resolver reads the sidecar. Saving the
+            # weights without one left the best checkpoint unusable by the
+            # fail-closed resolver.
+            from dna_utils.runtime_state import (
+                resolve_horizons as _rh, write_checkpoint_metadata as _wcm)
+            _h = _rh(args)
+            _wcm(best_model_path,
+                 checkpoint_epoch_zero_based=int(e),
+                 training_epoch_budget=int(args.epoch),
+                 stop_after_epoch=getattr(args, "stop_after_epoch", None),
+                 lr_schedule_horizon=_h.lr_schedule_horizon,
+                 sinkhorn_schedule_horizon=_h.sinkhorn_schedule_horizon,
+                 sinkhorn_epsilon_init=getattr(args, "sinkhorn_eps", None),
+                 sinkhorn_epsilon_final=getattr(args, "sinkhorn_eps_final", None),
+                 lr_scheduler=getattr(args, "lr_scheduler", None),
+                 extra={"checkpoint_role": "best_mid_eval",
+                        "selection_metric": _sel_key,
+                        "selection_value": float(_eval_mAP)})
             print(f"[best-ckpt] new best mid-eval mAP={_eval_mAP:.4f} at epoch {e} — saved to model_state_dict_best.pth")
 
         # Save ONLY the final-epoch checkpoint. Per-epoch intermediates were
@@ -1250,7 +1269,14 @@ def main(args: Config):
                           f"(epoch {args._best_mid_epoch}, "
                           f"{getattr(args, '_best_mid_metric', 'eval_mAP')}={args._best_mid_mAP:.4f} "
                           f"on {_sel_src}) for final eval")
-                    shutil.copy2(best_model_path, model_path)
+                    # F01: copying the weights alone left the final sidecar
+                    # describing the file that was just overwritten -- a SHA that
+                    # matched nothing and an epoch belonging to another
+                    # checkpoint, which is exactly what the resolver trusts.
+                    from dna_utils.runtime_state import swap_best_into_final
+                    swap_best_into_final(
+                        best_model_path, model_path,
+                        best_epoch_zero_based=int(args._best_mid_epoch))
                     best_crit_path = os.path.join(args.save_model_state_path, "criterion_state_dict_best.pth")
                     if os.path.exists(best_crit_path):
                         shutil.copy2(best_crit_path, crit_path)

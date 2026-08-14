@@ -74,6 +74,13 @@ def main() -> None:
 
     dest = os.path.join(args.save_result_path, "extract_train.npz")
     np.savez(dest, **out)
+    # F01: the train split shares the resolver, so it must share the manifest --
+    # otherwise the train NPZ has no recorded operating point and the three
+    # splits cannot be shown to have run under the same runtime state.
+    from extraction_siglip2 import _write_split_manifest
+    _write_split_manifest(
+        args.save_result_path, "train", "extract_train.npz", out,
+        args=args, checkpoint_path=ckpt, resolved=_resolved)
     print(f"[extract-train] {out['base_indices'].shape[0]} rows -> {dest}")
 
 

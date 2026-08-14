@@ -77,6 +77,12 @@ def annealed_epsilon(epoch: int, horizon: int,
 
 # ------------------------------------------------------------------ metadata
 
+def sha256_file(path: str) -> str:
+    """Public digest helper. Callers record artefact SHAs with this so the
+    manifest describes files that exist rather than a remembered value."""
+    return _sha256(path)
+
+
 def _sha256(path: str) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as fh:
@@ -209,7 +215,13 @@ def resolve_inference_epoch(checkpoint_path: str, args: Any) -> ResolvedEpoch:
                 eps_i, eps_f),
             sinkhorn_schedule_horizon=(
                 md.sinkhorn_schedule_horizon if md else h.sinkhorn_schedule_horizon),
-            checkpoint_sha256=md.checkpoint_sha256 if md else None)
+            # A legacy checkpoint has no sidecar, but the file is present and
+            # hashable: returning None here left the extraction manifest unable
+            # to name what it loaded.
+            checkpoint_sha256=(
+                md.checkpoint_sha256 if md
+                else (_sha256(checkpoint_path)
+                      if os.path.isfile(checkpoint_path) else None)))
 
     if md is not None:
         return ResolvedEpoch(
@@ -276,3 +288,38 @@ def write_extraction_manifest(
         os.fsync(fh.fileno())
     os.replace(tmp, out_path)
     return out_path
+
+
+def swap_best_into_final(best_path: str, final_path: str, *,
+                         best_epoch_zero_based: int) -> str:
+    """Promote the best checkpoint and re-stamp the sidecar together.
+
+    Training wrote the sidecar for the FINAL weights, then overwrote those
+    weights with the best ones without touching the sidecar. The recorded SHA
+    then matched no file on disk, and the recorded epoch belonged to a different
+    checkpoint -- which is exactly the input F01's epoch resolver trusts.
+    """
+    import shutil
+
+    if not os.path.isfile(best_path):
+        raise FileNotFoundError(f"no best checkpoint at {best_path}")
+    side = final_path + _SIDECAR_SUFFIX
+    previous: dict = {}
+    if os.path.exists(side):
+        with open(side) as fh:
+            previous = json.load(fh)
+    shutil.copyfile(best_path, final_path)
+    write_checkpoint_metadata(
+        final_path,
+        checkpoint_epoch_zero_based=int(best_epoch_zero_based),
+        training_epoch_budget=previous.get("training_epoch_budget"),
+        stop_after_epoch=previous.get("stop_after_epoch"),
+        lr_schedule_horizon=previous.get("lr_schedule_horizon"),
+        sinkhorn_schedule_horizon=previous.get("sinkhorn_schedule_horizon"),
+        sinkhorn_epsilon_init=previous.get("sinkhorn_epsilon_init"),
+        sinkhorn_epsilon_final=previous.get("sinkhorn_epsilon_final"),
+        lr_scheduler=previous.get("lr_scheduler"),
+        extra={"promoted_from": os.path.abspath(best_path),
+               "promoted_reason": "best_val_checkpoint_swapped_into_final"},
+    )
+    return final_path

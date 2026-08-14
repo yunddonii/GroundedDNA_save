@@ -180,6 +180,56 @@ def _find_model_checkpoint(save_model_state_path: str) -> str:
     return candidates[0]  # return preferred path even if missing (for warn msg)
 
 
+class MissingCheckpoint(RuntimeError):
+    """Extraction was asked to run without weights."""
+
+
+def _require_checkpoint(path: str) -> None:
+    """Abort rather than extract from a freshly initialised model.
+
+    The previous behaviour printed a warning and continued, so a run with no
+    checkpoint produced complete-looking NPZs from random weights -- and nothing
+    downstream could tell them apart from a real extraction.
+    """
+    if not os.path.isfile(path):
+        raise MissingCheckpoint(
+            f"no checkpoint at {path}. Extraction from an untrained model "
+            f"would emit artefacts indistinguishable from a real run; fix the "
+            f"path or the run rather than proceeding.")
+
+
+def _write_split_manifest(out_dir: str, split: str, npz_name: str,
+                          payload: dict, *, args: Config,
+                          checkpoint_path: str, resolved) -> None:
+    """Record what this split was extracted from, next to the NPZ itself."""
+    from dna_utils.runtime_state import sha256_file, write_extraction_manifest
+
+    npz_path = os.path.join(out_dir, npz_name)
+    codes = payload.get("base_indices")
+    n_rows = 0 if codes is None else int(np.asarray(codes).shape[0])
+    write_extraction_manifest(
+        os.path.join(out_dir, f"extraction_manifest_{split}.json"),
+        checkpoint_path=checkpoint_path,
+        resolved=resolved,
+        num_slots=int(getattr(args, "num_semantic_parts", 0) or 0),
+        bases_per_slot=int(getattr(args, "num_codons_per_codebook", 0) or 0),
+        split=split,
+        n_rows=n_rows,
+        extra={
+            "npz_path": os.path.abspath(npz_path),
+            "npz_sha256": sha256_file(npz_path),
+            "config_path": os.path.abspath(
+                os.path.join(out_dir, "config.pt")),
+            "config_sha256": (
+                sha256_file(os.path.join(out_dir, "config.pt"))
+                if os.path.isfile(os.path.join(out_dir, "config.pt")) else None),
+            "dataset": getattr(args, "dataset", None),
+            "random_seed": getattr(args, "random_seed", None),
+            "codebook_size": getattr(args, "codebook_size", None),
+        },
+    )
+
+
 def extract_code(args: Config) -> None:
     model = SigLIP2SemanticOTModel(args).to(args.device)
 
@@ -204,9 +254,7 @@ def extract_code(args: Config) -> None:
               f"(source={_resolved.source}) "
               f"effective_sinkhorn_epsilon={_resolved.effective_sinkhorn_epsilon}")
     else:
-        print(f"[extraction] WARNING: no checkpoint at {ckpt_path}; "
-              f"using fresh model.")
-        _resolved = None
+        _require_checkpoint(ckpt_path)
 
     transform = get_transform("test")
     qwen_text_cache_path = getattr(args, "qwen_text_cache_path", None)
@@ -246,6 +294,13 @@ def extract_code(args: Config) -> None:
     os.makedirs(out_dir, exist_ok=True)
     np.savez(os.path.join(out_dir, "extract_db.npz"),    **db_out)
     np.savez(os.path.join(out_dir, "extract_query.npz"), **qy_out)
+    # F01: without these a table cannot be traced back to the operating point
+    # that produced it. Written after the NPZs so the recorded digest is the
+    # digest of the file on disk.
+    for split, name, payload in (("db", "extract_db.npz", db_out),
+                                 ("query", "extract_query.npz", qy_out)):
+        _write_split_manifest(out_dir, split, name, payload, args=args,
+                              checkpoint_path=ckpt_path, resolved=_resolved)
     print(f"[extraction] saved to {out_dir}")
 
 
