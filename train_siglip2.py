@@ -1213,8 +1213,13 @@ def main(args: Config):
                  stop_after_epoch=getattr(args, "stop_after_epoch", None),
                  lr_schedule_horizon=_h.lr_schedule_horizon,
                  sinkhorn_schedule_horizon=_h.sinkhorn_schedule_horizon,
-                 sinkhorn_epsilon_init=getattr(args, "sinkhorn_eps", None),
-                 sinkhorn_epsilon_final=getattr(args, "sinkhorn_eps_final", None),
+                 # The flags are --sinkhorn_epsilon_init/--sinkhorn_epsilon_final;
+                 # reading `sinkhorn_eps` recorded None for every best sidecar,
+                 # so a best checkpoint had no operating point to restore.
+                 sinkhorn_epsilon_init=getattr(
+                     args, "sinkhorn_epsilon_init", None),
+                 sinkhorn_epsilon_final=getattr(
+                     args, "sinkhorn_epsilon_final", None),
                  lr_scheduler=getattr(args, "lr_scheduler", None),
                  extra={"checkpoint_role": "best_mid_eval",
                         "selection_metric": _sel_key,

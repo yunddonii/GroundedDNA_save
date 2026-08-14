@@ -10,6 +10,7 @@ separate ``runs/`` and ``logs/`` directories.
 
 from __future__ import annotations
 
+
 from contextlib import contextmanager
 from pathlib import Path
 import sys
@@ -51,7 +52,11 @@ def _validate_data_root_24(path: str | Path) -> Path:
     return resolved
 
 
+# Declares this process as the 24-base wrapper so the canonical
+# entrypoint guard stands down. A module attribute, not an env var:
+# an env var would also disable the guard in every child process.
 _PATCHED_FIELDS = {
+    "WRAPPER_DISPATCH": True,
     "MATCHED_LENGTH": MATCHED_LENGTH,
     "RUNNER": RUNNER,
     "AggregateKey": AggregateKey,

@@ -125,3 +125,25 @@ def test_f18_diff_is_numerically_a_noop_at_every_length():
         assert p.gc_min_count == math.ceil(driver.GC_MIN * length)
         assert p.gc_max_count == math.floor(driver.GC_MAX * length)
         assert p.max_homopolymer_run == driver.MAX_RUN
+
+
+def test_every_registered_length_matches_the_current_source():
+    """A standing guard against the loop this file keeps hitting.
+
+    `scripts/run_native_dna_p0.py` is one of its own lock inputs, so ANY edit to
+    it -- including edits whose behaviour is a no-op -- moves all four lengths'
+    digests. Three separate commits shipped with stale locks because the
+    regeneration step was done before the last driver edit rather than after.
+    This fails the moment the registry and the source disagree, naming the fix.
+    """
+    from scripts.recompute_native_method_locks import locks_for
+    stale = []
+    for length in (15, 18, 20, 24):
+        for method, digest in locks_for(length).items():
+            if digest not in agg.reviewed_method_locks(length)[method]:
+                stale.append(f"{method}@{length}={digest[:12]}")
+    assert not stale, (
+        "method locks are stale for " + ", ".join(stale) +
+        ". An implementation path changed; re-read the source diff and re-run "
+        "scripts/recompute_native_method_locks.py for EVERY length AFTER the "
+        "last edit to the driver.")

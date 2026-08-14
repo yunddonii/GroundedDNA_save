@@ -198,16 +198,69 @@ def _require_checkpoint(path: str) -> None:
             f"path or the run rather than proceeding.")
 
 
+class ManifestBindingError(RuntimeError):
+    """A manifest disagreed with the artefacts it claims to describe."""
+
+
 def _write_split_manifest(out_dir: str, split: str, npz_name: str,
                           payload: dict, *, args: Config,
-                          checkpoint_path: str, resolved) -> None:
-    """Record what this split was extracted from, next to the NPZ itself."""
+                          checkpoint_path: str, resolved) -> str:
+    """Record what this split was extracted from, next to the NPZ itself.
+
+    Every field is checked against the files before anything is written. The
+    first version recorded whatever it was handed, so a manifest could declare a
+    checkpoint SHA matching no file, 7 rows against a 2-row NPZ and 15 bases
+    against a 12-wide code -- and all of it was accepted. A manifest that can
+    disagree with its own artefacts is not provenance.
+    """
     from dna_utils.runtime_state import sha256_file, write_extraction_manifest
 
     npz_path = os.path.join(out_dir, npz_name)
-    codes = payload.get("base_indices")
-    n_rows = 0 if codes is None else int(np.asarray(codes).shape[0])
-    write_extraction_manifest(
+    if not os.path.isfile(npz_path):
+        raise ManifestBindingError(
+            f"{npz_path} does not exist; the manifest is written after the NPZ "
+            f"so that its digest describes the file on disk")
+    if not os.path.isfile(checkpoint_path):
+        raise ManifestBindingError(
+            f"checkpoint {checkpoint_path} does not exist")
+
+    declared_sha = getattr(resolved, "checkpoint_sha256", None)
+    actual_sha = sha256_file(checkpoint_path)
+    if not declared_sha:
+        raise ManifestBindingError(
+            f"the resolver returned no checkpoint SHA for {checkpoint_path}. A "
+            f"manifest that cannot name the weights it used records nothing.")
+    if declared_sha != actual_sha:
+        raise ManifestBindingError(
+            f"declared checkpoint sha256 {declared_sha[:12]}... does not match "
+            f"{checkpoint_path} ({actual_sha[:12]}...)")
+
+    # Row count and geometry come from the NPZ, not from the in-memory payload:
+    # the file is what downstream reads.
+    with np.load(npz_path, allow_pickle=False) as stored:
+        if "base_indices" not in stored:
+            raise ManifestBindingError(f"{npz_path} has no base_indices")
+        stored_codes = np.asarray(stored["base_indices"])
+    n_rows = int(stored_codes.shape[0])
+    payload_codes = payload.get("base_indices")
+    if payload_codes is not None:
+        declared_rows = int(np.asarray(payload_codes).shape[0])
+        if declared_rows != n_rows:
+            raise ManifestBindingError(
+                f"{split}: payload declares {declared_rows} rows but "
+                f"{npz_name} holds {n_rows}")
+
+    slots = int(getattr(args, "num_semantic_parts", 0) or 0)
+    per_slot = int(getattr(args, "num_codons_per_codebook", 0) or 0)
+    expected_bases = slots * per_slot
+    actual_bases = int(stored_codes.shape[1]) if stored_codes.ndim == 2 else -1
+    if expected_bases != actual_bases:
+        raise ManifestBindingError(
+            f"{split}: config declares {slots}x{per_slot} = {expected_bases} "
+            f"bases but {npz_name} holds base_indices of width {actual_bases}")
+
+    codes = stored_codes
+    return write_extraction_manifest(
         os.path.join(out_dir, f"extraction_manifest_{split}.json"),
         checkpoint_path=checkpoint_path,
         resolved=resolved,

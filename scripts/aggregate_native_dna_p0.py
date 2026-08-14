@@ -212,31 +212,31 @@ _METHOD_PROTOCOL_LOCK_BY_LENGTH = {
 _POST_F18_METHOD_PROTOCOL_LOCK_BY_LENGTH = {
     # 15 bases, computed in the canonical driver.
     15: {
-        "bee2018": "ddfe29b964b2b94d8d74cacda99f0ce385ecebaa15c7f88004913a0e02e1b8e1",
-        "bee2021": "529ad1b5c8d824f78c85fd5a253ce2b689c978e15aeaf457acf9a25c02bb62bc",
-        "koike2024": "867e06b95a3c342774477502af644ef7703dcfcc45ffd367fa1354bea0b1dc66",
-        "koike2026": "39bcb088710cbb78bd896d0e61b4dd81f6361bcb7c8488eff10c5958b41f3f79",
+        "bee2018": "910bca1a0502cdb0d910cb96b3d094d6789f6602dd9cb2e46440144a6621d3c5",
+        "bee2021": "f1d89477ef45f42b569c1e2ed1e406900de387064c0bab91fb02e6d13f01cdde",
+        "koike2024": "11fd78f0fb5af1737c965e43f7e0aa8acf791f6865e0ae4a3c6e782ff0be8892",
+        "koike2026": "e0bce2ae177473a56c344ab9892e8c6d60e13f54904f2fab2b2bb217773c4435",
     },
     # 18 bases, computed in the canonical driver.
     18: {
-        "bee2018": "186eb9fafff5da53f2747f675d0b26c847b60116223a0e32698fdd65b34d7dcb",
-        "bee2021": "c7ea152cb38b53aecb002d26c3f16b074bcac17f5a6ab6da927baeb3d56e656e",
-        "koike2024": "1ef70f13a69c17c7858623c7e9743cf9314b2c96f0f0aafda821093c7d8c05a2",
-        "koike2026": "ab0beaa02c1d05c25ac7df999c59d40ed988b356e2df1cf9cfaf46ba076f1444",
+        "bee2018": "a2e2c7f847c90185dea9b0289f91dc10b1ba577a4d8f4d8f3b742a0a4e86ee2d",
+        "bee2021": "d5b9e6427d04d2c07a14c7beb4c6adc3ca18b15448b9834bb7e827ea5ac75fbb",
+        "koike2024": "86b1b78ea94a2537f7f8333ce42786cd274a687feb838f5e6d15aedbac311684",
+        "koike2026": "a0fcfa31cfae880f63f8f8ff1f0ede540a0e98a9c3e7945b1bd24d3a142e3f0b",
     },
     # 20 bases, computed in the canonical driver.
     20: {
-        "bee2018": "b60bbb5e46cc493cb64f454581760eddfa75fbf8d050b7b6723b837a106c9040",
-        "bee2021": "0a2c25a5496785c1dc23777ba91da6aa4265bc054a2509056413b3fcbff0e95b",
-        "koike2024": "11574d633404c8754460b375729a1f59cbf52f0b1d1acb188623e8147f621cf3",
-        "koike2026": "a993ac3bfae7361862e2383f5ac8b52b7ec918acea8caa8ef44d4baa8dff3517",
+        "bee2018": "6589a9de51d80a6045f403196edd8d6c5acbc82874f3014770d0ce23cad38f2e",
+        "bee2021": "85e7b80d56ad6124037425850868022507c5b51a392e95e36e0e96ca51425730",
+        "koike2024": "0db773ef99b6838bd8ffd69b2855fd39de9019bd9f543a7e43e636ea7986bf9c",
+        "koike2026": "d2ffeb29dcbef0e2b0cfa1298f0cbbc2757a12a2d16992487c026cc8e52ba4d2",
     },
     # 24 bases, computed in the run_native_dna_p0_24 wrapper.
     24: {
-        "bee2018": "96494bf690e2b7e77f3c867f1a07b5ad6b412d85738538199ca2171b56881b2f",
-        "bee2021": "dcee329e5325d2c73e797d8ce5506fd69b8c9a975ca4bbc997bc27274b74e743",
-        "koike2024": "a73704cb2fb3ad61bbe0437a8f7779277e5ebca0ed269d2b8cca7ad7883661a7",
-        "koike2026": "f7dc9a7c198a6fd3cac5e763fa3ba54c3c2d1a47175b3c6c4ba71e6e24b83431",
+        "bee2018": "9c42f0505ffce8aa70a3555c76dcee06be280d5dbee0b0e0835fa9f1091524d8",
+        "bee2021": "0d8ae86a843f9c5c974caafdc6c317ff21a4fde04939c8a90093c83019008908",
+        "koike2024": "11db675b574cac54c597d990422f31174fd497113ddfbbc257879b14d9b322f5",
+        "koike2026": "b511c3f7edd90272b7d309f42cbaa693314d93dfd57f310ee0588e0554b4df0b",
     },
 }
 

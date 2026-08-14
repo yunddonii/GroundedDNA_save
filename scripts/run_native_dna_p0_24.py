@@ -9,6 +9,7 @@ GC-count range, and PRIMO length-transfer declaration for 24-base runs.
 
 from __future__ import annotations
 
+
 from contextlib import contextmanager
 import copy
 import hashlib
@@ -118,7 +119,11 @@ def _manifest_24(*args: Any, **kwargs: Any) -> dict[str, Any]:
     return payload
 
 
+# Declares this process as the 24-base wrapper so the canonical
+# entrypoint guard stands down. A module attribute, not an env var:
+# an env var would also disable the guard in every child process.
 _PATCHED_FIELDS = {
+    "WRAPPER_DISPATCH": True,
     "MATCHED_LENGTH": MATCHED_LENGTH,
     # Patched alongside MATCHED_LENGTH: leaving it at the import-time 15 made
     # the driver report length 24 and validate against 15 simultaneously.

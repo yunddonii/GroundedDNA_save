@@ -94,9 +94,12 @@ def test_extract_code_writes_one_manifest_per_split(tmp_path):
 
     ck = out / "model_state_dict.pth"
     ck.write_bytes(b"w")
+    # A real digest: the writer is fail-closed and rejects a declared SHA that
+    # matches no file, which is the whole point of the binding check.
     resolved = runtime_state.ResolvedEpoch(
         epoch=9, source="metadata_sidecar", effective_sinkhorn_epsilon=0.1,
-        sinkhorn_schedule_horizon=10, checkpoint_sha256="b" * 64)
+        sinkhorn_schedule_horizon=10,
+        checkpoint_sha256=runtime_state.sha256_file(str(ck)))
     for split, name, rows in (("db", "extract_db.npz", 23000),
                               ("query", "extract_query.npz", 2000)):
         payload = {"base_indices": np.zeros((rows, 15), dtype=np.int8)}

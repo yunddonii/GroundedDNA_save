@@ -62,6 +62,41 @@ from dna_utils.native_protocol import (  # noqa: E402
 DEFAULT_PROTOCOL = resolve_native_protocol()
 MATCHED_LENGTH = DEFAULT_PROTOCOL.length_bases
 
+#: 24 bases run through `run_native_dna_p0_24`, which injects a pipeline variant
+#: and extra implementation paths into the protocol identity. The canonical
+#: driver has neither, so a canonical 24-base run produces an identity whose
+#: method lock can never be in the reviewed 24 set: the child trains and
+#: extracts, and only then does the gate flip its return code. Refuse before
+#: anything is launched.
+_WRAPPER_ONLY_LENGTHS = {24: "scripts/run_native_dna_p0_24.py"}
+
+
+def _refuse_wrapper_only_length() -> None:
+    """Called from `main()`, before any child is launched.
+
+    Import must stay cheap and total -- guarding at import is what made the
+    env20 aggregator unable to print `--help`.
+    """
+    if WRAPPER_DISPATCH:
+        return
+    wrapper = _WRAPPER_ONLY_LENGTHS.get(MATCHED_LENGTH)
+    if wrapper is None:
+        return
+    raise SystemExit(
+        f"{MATCHED_LENGTH} bases must run through {wrapper}, not this "
+        f"entrypoint. The canonical identity carries no pipeline variant, so a "
+        f"canonical {MATCHED_LENGTH}-base run would finish training and "
+        f"extraction and then be rejected by the method-protocol lock. Use "
+        f"{wrapper} (or {wrapper.replace('.py', '_matrix.py')} for a matrix).")
+
+
+#: Set by `run_native_dna_p0_24` / `run_native_dna_p0_matrix_24` on the module
+#: object, not through the environment: an env var leaks into every child
+#: process, which would silently disable this guard for anything the wrapper
+#: launches.
+WRAPPER_DISPATCH = False
+
+
 
 def effective_protocol() -> "NativeProtocol":
     """The protocol THIS call runs under.
@@ -1354,6 +1389,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    _refuse_wrapper_only_length()
     args = build_parser().parse_args(argv)
     if args.num_workers < 0:
         raise ValueError("--num-workers must be non-negative")
