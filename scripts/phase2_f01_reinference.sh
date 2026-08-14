@@ -132,4 +132,10 @@ for CELL in "$@"; do
     CUDA_VISIBLE_DEVICES="$GPU" "$PY" "$REPO/scripts/pairwise_nmi.py" \
         --results "$OUT" ${BACKFILL_FLAG:+"$BACKFILL_FLAG"} \
         2>&1 | tee -a "$OUT/extract.log"
+
+    # Only now is the analysis complete. The bio-evaluation used to seal the
+    # marker by itself, so a cell with no NMI at all read as finished.
+    "$PY" "$REPO/scripts/seal_cell_analysis.py" \
+        --dir "$OUT" ${BACKFILL_FLAG:+"$BACKFILL_FLAG"} \
+        2>&1 | tee -a "$OUT/extract.log"
 done

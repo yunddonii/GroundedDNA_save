@@ -96,17 +96,21 @@ def _require_manifests(run_dir: Path) -> dict:
     # binding. Each metric file must now name the inputs it was computed from.
     from dna_utils.extraction_validation import read_analysis_marker
     try:
-        read_analysis_marker(str(run_dir), allow_backfilled=True)
+        marker = read_analysis_marker(str(run_dir), allow_backfilled=True)
     except ExtractionInvalid as error:
         raise ManifestMissing(str(error)) from None
-    return validated.splits
+    # Return the payload the validator just admitted. Re-opening the file
+    # afterwards is the §19.3 defect in miniature: the bytes that were checked
+    # and the bytes that are read should be the same object.
+    return validated.splits, marker
 
 
 class ManifestMissing(RuntimeError):
     """A cell has metrics but no admissible provenance."""
 
 
-def _side(run_dir: Path, fallback: Path | None = None):
+def _side(run_dir: Path, fallback: Path | None = None,
+          sealed: dict | None = None):
     """Metrics plus the GC window they were projected under.
 
     Two legacy cells never had every artefact written (cifar10/N19 has no
@@ -115,11 +119,11 @@ def _side(run_dir: Path, fallback: Path | None = None):
     epoch-0 codes the other legacy cells were scored from, so the comparison
     stays like-for-like. Nothing is written back into the legacy run.
     """
-    sealed = _json(run_dir / "analysis_complete.json")
-    if isinstance(sealed, dict) and isinstance(sealed.get("metrics"), dict):
-        # The sealed marker is the only admissible source for the fixed side:
-        # reading an unsigned JSON is exactly how a planted mAP@R=999 reached
-        # the report.
+    if sealed is not None:
+        # The marker payload handed in by the validator that admitted it -- the
+        # only admissible source for the fixed side. Reading an unsigned JSON
+        # is exactly how a planted mAP@R=999 reached the report, and re-opening
+        # the marker after validating it reintroduces the same gap.
         metrics = sealed["metrics"]
         protocol = sealed.get("protocol") or {}
         return {
@@ -184,6 +188,11 @@ def main() -> int:
         REPO / "docs" / "phase2_f01_impact.json"))
     parser.add_argument("--out-md", default=str(
         REPO / "docs" / "phase2_f01_impact.md"))
+    parser.add_argument(
+        "--allow-incomplete", action="store_true",
+        help=("Write a `.partial` report beside the official paths when not "
+              "every cell is admissible. The official files are never written "
+              "from an incomplete run, and the exit status stays nonzero."))
     args = parser.parse_args()
 
     policy = resolve_gc_policy(TOTAL_BASES)
@@ -195,11 +204,11 @@ def main() -> int:
                 continue
             cell_dir = root / f"{ds}_N{n}"
             try:
-                manifests = _require_manifests(cell_dir)
+                manifests, marker = _require_manifests(cell_dir)
             except ManifestMissing as error:
                 unpaired.append({"cell": f"{ds}/N{n}", "reason": str(error)})
                 continue
-            new = _side(cell_dir)
+            new = _side(cell_dir, sealed=marker)
             old = _side(REPO / legacy_rel,
                         fallback=Path(args.legacy_recomputed) / f"{ds}_N{n}")
             if new is None or old is None:
@@ -260,8 +269,29 @@ def main() -> int:
                         "dna_unique_db", "nmi")
         },
         "cells": cells,
+        "expected_cells": len(LEGACY),
+        "complete": len(cells) == len(LEGACY),
     }
-    Path(args.out_json).write_text(
+
+    # A report covering 1 of 15 cells is not a smaller version of the answer,
+    # it is a different claim -- and it used to be written straight over the
+    # official file with rc0 (§20.8). The official paths are only ever written
+    # by a complete run.
+    complete = len(cells) == len(LEGACY)
+    out_json, out_md = Path(args.out_json), Path(args.out_md)
+    if not complete:
+        if not args.allow_incomplete:
+            print(f"REFUSED: {len(cells)} of {len(LEGACY)} cells admissible; "
+                  f"{len(unpaired)} unpaired. Not writing {out_json} or "
+                  f"{out_md}. Pass --allow-incomplete to write a .partial "
+                  f"report instead.")
+            for entry in unpaired:
+                print(f"  - {entry['cell']}: {entry['reason']}")
+            return 1
+        out_json = out_json.with_suffix(f".partial{out_json.suffix}")
+        out_md = out_md.with_suffix(f".partial{out_md.suffix}")
+
+    out_json.write_text(
         json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
     def fmt(value, places=4):
@@ -312,10 +342,10 @@ def main() -> int:
     if unpaired:
         lines += ["", "## Unpaired", ""]
         lines += [f"- `{u['cell']}`: {u['reason']}" for u in unpaired]
-    Path(args.out_md).write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"wrote {args.out_json} and {args.out_md}: "
+    out_md.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"wrote {out_json} and {out_md}: "
           f"{len(cells)} paired, {len(unpaired)} unpaired")
-    return 0
+    return 0 if complete else 1
 
 
 if __name__ == "__main__":

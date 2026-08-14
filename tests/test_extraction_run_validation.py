@@ -243,7 +243,8 @@ def test_metric_without_a_binding_is_refused(tmp_path):
     cell = _cell(tmp_path)
     with pytest.raises(ExtractionInvalid) as excinfo:
         check_metric_input_binding(str(cell), {"mAP_at_R": 0.9},
-                                   what="cell_result.json")
+                                   what="cell_result.json",
+                                   allow_backfilled=False)
     assert "input_binding" in str(excinfo.value)
 
 
@@ -255,7 +256,8 @@ def test_metric_bound_to_other_files_is_refused(tmp_path):
     binding["npz_sha256"]["db"] = "0" * 64        # a different extraction
     with pytest.raises(ExtractionInvalid) as excinfo:
         check_metric_input_binding(str(cell), {"input_binding": binding},
-                                   what="cell_result.json")
+                                   what="cell_result.json",
+                                   allow_backfilled=False)
     assert "npz_sha256" in str(excinfo.value)
 
 
@@ -265,7 +267,7 @@ def test_matching_binding_is_accepted(tmp_path):
     cell = _cell(tmp_path)
     check_metric_input_binding(
         str(cell), {"input_binding": metric_input_binding(str(cell))},
-        what="cell_result.json")
+        what="cell_result.json", allow_backfilled=False)
 
 
 def test_binding_follows_the_npz_not_the_filename(tmp_path):
@@ -277,7 +279,8 @@ def test_binding_follows_the_npz_not_the_filename(tmp_path):
     npz = cell / "extract_db.npz"
     npz.write_bytes(npz.read_bytes() + b"\x00")
     with pytest.raises(ExtractionInvalid):
-        check_metric_input_binding(str(cell), stale, what="cell_result.json")
+        check_metric_input_binding(str(cell), stale, what="cell_result.json",
+                                   allow_backfilled=False)
 
 
 # ------------------------------------------------- train split (§17.7)

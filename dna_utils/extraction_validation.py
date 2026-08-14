@@ -516,8 +516,16 @@ def metric_input_binding(run_dir: str, *,
 
 
 def check_metric_input_binding(run_dir: str, metric: Mapping, *,
-                               what: str) -> None:
-    """Refuse a metric whose declared inputs are not this run's."""
+                               what: str, allow_backfilled: bool) -> None:
+    """Refuse a metric whose declared inputs are not this run's.
+
+    `allow_backfilled` is the CALLER's trust policy and has no default. It used
+    to be read off the artefact -- `allow_backfilled=bool(declared["backfilled_
+    inputs"])` -- so a marker that declared itself backfilled authorised its own
+    admission, and a reader that had explicitly asked for `allow_backfilled=
+    False` still got it (§20.3). An artefact must never decide how much it is
+    trusted.
+    """
     declared = metric.get("input_binding")
     if not isinstance(declared, Mapping):
         raise ExtractionInvalid(
@@ -532,8 +540,11 @@ def check_metric_input_binding(run_dir: str, metric: Mapping, *,
         raise ExtractionInvalid(
             f"{what}: input_binding names run_dir "
             f"{declared.get('run_dir')!r}, not {run_dir}")
-    current = metric_input_binding(
-        run_dir, allow_backfilled=bool(declared.get("backfilled_inputs")))
+    if declared.get("backfilled_inputs") and not allow_backfilled:
+        raise ExtractionInvalid(
+            f"{what}: the metric declares retrospectively bound inputs, and "
+            f"this reader did not admit backfilled runs")
+    current = metric_input_binding(run_dir, allow_backfilled=allow_backfilled)
     for key in ("npz_sha256", "manifest_sha256", "checkpoint_sha256",
                 "config_sha256", "inference_epoch", "inference_epoch_source",
                 "dataset", "random_seed", "codebook_size",
@@ -545,6 +556,119 @@ def check_metric_input_binding(run_dir: str, metric: Mapping, *,
 
 
 ANALYSIS_MARKER_NAME = "analysis_complete.json"
+
+#: Every number a Phase 2 cell must carry, exactly. The marker used to be
+#: sealed by the bio-evaluation alone, so `mean_off_diag_nmi` was simply absent;
+#: the aggregator read it with `.get()` and still counted the cell as paired, so
+#: "15 paired" with a blank NMI column throughout was reachable (§20.4). A
+#: missing metric is now a refusal, not a `None`.
+REQUIRED_METRICS = (
+    "map_at_R_bioproj",
+    "full_map_bioproj",
+    "full_map_pre_projection",
+    "dna_unique_db",
+    "mean_off_diag_nmi",
+)
+
+#: Constants that decide what the numbers above MEAN. A GC window or an R
+#: cutoff silently changed between two cells makes their delta meaningless, so
+#: the caller states what it expects and the marker is compared against it.
+REQUIRED_PROTOCOL = (
+    "dataset",
+    "codebook_size",
+    "total_bases",
+    "map_r_cutoff",
+    "gc_policy_version",
+    "gc_count_min_inclusive",
+    "gc_count_max_inclusive",
+    "gc_min_frac",
+    "gc_max_frac",
+    "nmi_average_method",
+    "sklearn_version",
+)
+
+#: The code whose bytes decide the numbers, keyed by the field that records it.
+#: Recomputed and compared on read, so a marker cannot outlive the evaluator
+#: that produced it. The validator itself is already covered by the binding.
+ANALYSIS_SOURCES = {
+    "eval_cell_bioproj_sha256": "scripts/eval_cell_bioproj.py",
+    "evaluation_siglip2_sha256": "evaluation_siglip2.py",
+    "pairwise_nmi_sha256": "scripts/pairwise_nmi.py",
+    "bio_constraints_sha256": "dna_utils/bio_constraints.py",
+    "gc_policy_sha256": "dna_utils/gc_policy.py",
+}
+
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def analysis_source_digests() -> dict:
+    """Digest every file that decides an analysis number, right now."""
+    return {field_name: sha256_file(os.path.join(_REPO_ROOT, rel))
+            for field_name, rel in sorted(ANALYSIS_SOURCES.items())}
+
+
+def _check_metrics(metrics: Mapping, *, what: str) -> None:
+    missing = [k for k in REQUIRED_METRICS if k not in metrics]
+    if missing:
+        raise ExtractionInvalid(
+            f"{what}: analysis is not complete, it has no {', '.join(missing)}")
+    extra = sorted(set(metrics) - set(REQUIRED_METRICS))
+    if extra:
+        raise ExtractionInvalid(
+            f"{what}: analysis carries unexpected metric(s) "
+            f"{', '.join(extra)}; the metric set is fixed so two cells are "
+            f"always comparable")
+    for key in REQUIRED_METRICS:
+        value = metrics[key]
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ExtractionInvalid(
+                f"{what}: metric {key} is {value!r}, not a number")
+        value = float(value)
+        if value != value or value in (float("inf"), float("-inf")):
+            raise ExtractionInvalid(f"{what}: metric {key} is not finite")
+        # mAP, a unique-code ratio and an NMI are all proportions. A probe
+        # marker holding 999 was previously accepted and aggregated.
+        if not 0.0 <= value <= 1.0:
+            raise ExtractionInvalid(
+                f"{what}: metric {key}={value} is outside [0, 1]")
+
+
+def _check_protocol(protocol: Mapping, *, what: str,
+                    expected: "Mapping | None") -> None:
+    missing = [k for k in REQUIRED_PROTOCOL if k not in protocol]
+    if missing:
+        raise ExtractionInvalid(
+            f"{what}: analysis protocol has no {', '.join(missing)}")
+    extra = sorted(set(protocol) - set(REQUIRED_PROTOCOL))
+    if extra:
+        raise ExtractionInvalid(
+            f"{what}: analysis protocol carries unexpected key(s) "
+            f"{', '.join(extra)}")
+    if expected is None:
+        return
+    for key, want in sorted(expected.items()):
+        if key not in REQUIRED_PROTOCOL:
+            raise ExtractionInvalid(
+                f"{what}: caller expects unknown protocol key {key!r}")
+        if protocol[key] != want:
+            raise ExtractionInvalid(
+                f"{what}: protocol.{key} is {protocol[key]!r}, but this reader "
+                f"requires {want!r}; the numbers do not mean what it assumes")
+
+
+def _check_sources(sources: Mapping, *, what: str) -> None:
+    current = analysis_source_digests()
+    if set(sources) != set(current):
+        raise ExtractionInvalid(
+            f"{what}: analysis_sources names {sorted(sources)}, expected "
+            f"{sorted(current)}")
+    stale = [k for k, digest in sorted(current.items())
+             if sources[k] != digest]
+    if stale:
+        raise ExtractionInvalid(
+            f"{what}: {', '.join(stale)} has changed since these numbers were "
+            f"computed; recompute them or read them from the commit that "
+            f"produced them")
 
 
 def write_analysis_marker(run_dir: str, *, metrics: Mapping,
@@ -558,7 +682,15 @@ def write_analysis_marker(run_dir: str, *, metrics: Mapping,
     third file was reported as 999, so the binding gate proved nothing. There is
     exactly one file to read now, it carries the numbers and their binding
     together, and it is written last.
+
+    The contract is checked HERE as well as on read, so an incomplete or
+    out-of-range marker cannot be created in the first place. A stage that has
+    only half the numbers -- the bio-evaluation without the NMI -- therefore
+    cannot seal a file named `analysis_complete`.
     """
+    _check_metrics(metrics, what=f"{run_dir}/analysis")
+    _check_protocol(protocol, what=f"{run_dir}/analysis", expected=None)
+    _check_sources(sources, what=f"{run_dir}/analysis")
     payload = {
         "schema_version": 1,
         "metrics": dict(metrics),
@@ -576,9 +708,21 @@ def write_analysis_marker(run_dir: str, *, metrics: Mapping,
     return path
 
 
-def read_analysis_marker(run_dir: str, *, allow_backfilled: bool = False,
-                         expected: "ExpectedIdentity | None" = None) -> dict:
-    """The only admissible source of a cell's numbers."""
+def read_analysis_marker(run_dir: str, *, allow_backfilled: bool,
+                         expected: "ExpectedIdentity | None" = None,
+                         expected_protocol: "Mapping | None" = None) -> dict:
+    """The only admissible source of a cell's numbers.
+
+    It used to check that four keys were mappings and stop there. A probe
+    marker carrying `map_at_R_bioproj: 999`, `dataset: "WRONG"` and
+    `analysis_sources: {"sha": "garbage"}` was admitted and aggregated (§20.2).
+    The contents are now checked as strictly as the binding: an exact metric set
+    of finite proportions, an exact protocol schema compared against what the
+    caller expects, and source digests recomputed from the working tree.
+
+    `allow_backfilled` has no default -- the reader states its trust policy,
+    and the artefact does not get to state it for them.
+    """
     path = os.path.join(run_dir, ANALYSIS_MARKER_NAME)
     payload = _load_json(path, "analysis marker")
     if payload.get("schema_version") != 1:
@@ -588,7 +732,12 @@ def read_analysis_marker(run_dir: str, *, allow_backfilled: bool = False,
     for key in ("metrics", "input_binding", "protocol", "analysis_sources"):
         if not isinstance(payload.get(key), Mapping):
             raise ExtractionInvalid(f"{run_dir}: analysis marker has no {key}")
-    check_metric_input_binding(run_dir, payload, what=f"{run_dir}/analysis")
+    what = f"{run_dir}/analysis"
+    _check_metrics(payload["metrics"], what=what)
+    _check_protocol(payload["protocol"], what=what, expected=expected_protocol)
+    _check_sources(payload["analysis_sources"], what=what)
+    check_metric_input_binding(run_dir, payload, what=what,
+                               allow_backfilled=allow_backfilled)
     if expected is not None:
         validate_extraction_run(run_dir, allow_backfilled=allow_backfilled,
                                 expected=expected)

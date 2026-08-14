@@ -26,7 +26,16 @@ import unittest
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-from dna_utils.extraction_validation import describe_failure  # noqa: E402
+from dna_utils.extraction_validation import (  # noqa: E402
+    analysis_source_digests,
+    describe_failure,
+    metric_input_binding,
+    write_analysis_marker,
+)
+from tests.test_analysis_marker_contract import (  # noqa: E402
+    _METRICS,
+    _PROTOCOL,
+)
 
 PHASE2_ROOT = REPO / "result_diagnostic" / "phase2_F01_only"
 SCRIPT = REPO / "scripts" / "write_phase2_inventory.py"
@@ -49,8 +58,6 @@ class InventoryCoversBothHalves(unittest.TestCase):
         source = _a_validating_cell()
         if source is None:
             self.skipTest("no validating Phase 2 cell to build a fixture from")
-        if not (source / "analysis_complete.json").is_file():
-            self.skipTest(f"{source.name} has no analysis marker yet")
 
         self.tmp = Path(os.environ.get("TMPDIR", "/tmp")) / f"p2inv{os.getpid()}"
         shutil.rmtree(self.tmp, ignore_errors=True)
@@ -63,17 +70,17 @@ class InventoryCoversBothHalves(unittest.TestCase):
             for path in sorted(source.iterdir()):
                 if path.is_file() and path.suffix in _SMALL:
                     shutil.copy(path, dest / path.name)
-            # The marker binds to its own absolute run_dir on purpose, so a
-            # marker dropped into someone else's cell is refused. Relocating
-            # the fixture therefore means restating where it lives; every other
-            # digest in the binding is recomputed from these copied bytes and
-            # so is unchanged.
-            marker = dest / "analysis_complete.json"
-            if marker.is_file():
-                payload = json.loads(marker.read_text())
-                payload["input_binding"]["run_dir"] = str(dest)
-                marker.write_text(
-                    json.dumps(payload, indent=2, sort_keys=True))
+            # Seal the fixture here rather than copying whatever marker the
+            # live cell happens to carry: a marker binds to its own absolute
+            # run_dir on purpose, and a recompute running concurrently would
+            # otherwise decide whether this test has anything to assert.
+            (dest / "analysis_complete.json").unlink(missing_ok=True)
+            write_analysis_marker(
+                str(dest), metrics=dict(_METRICS),
+                binding=metric_input_binding(str(dest),
+                                             allow_backfilled=True),
+                protocol=dict(_PROTOCOL),
+                sources=analysis_source_digests())
             return dest
 
         self.with_metrics = copy_small(source.name)

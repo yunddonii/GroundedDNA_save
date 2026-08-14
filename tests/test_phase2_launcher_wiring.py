@@ -26,6 +26,10 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
 LAUNCHER = REPO / "scripts" / "phase2_f01_reinference.sh"
+#: The stages that write numbers, and so must clear the strict gate unless the
+#: cell being re-analysed is one of the preserved retrospective ones.
+_METRIC_STAGES = {"eval_cell_bioproj.py", "pairwise_nmi.py",
+                  "seal_cell_analysis.py"}
 CELL = "cifar10/4"
 LEGACY_REL = ("result/260811+cifar10_setting1_promptAblA_cifar_A_v4_"
               "P0refit_e4+bs+64+e+5+proj_lr+0.001")
@@ -58,7 +62,8 @@ class LauncherStageSelection(unittest.TestCase):
 
         shutil.copy(LAUNCHER, self.tmp / "scripts" / LAUNCHER.name)
         for name in ("_phase2_cell_state.py", "_phase2_read_arg.py",
-                     "eval_cell_bioproj.py", "pairwise_nmi.py"):
+                     "eval_cell_bioproj.py", "pairwise_nmi.py",
+                     "seal_cell_analysis.py"):
             path = self.tmp / "scripts" / name
             path.write_text(_STUB_PY)
             path.chmod(0o755)
@@ -104,11 +109,12 @@ class LauncherStageSelection(unittest.TestCase):
         self.assertIn("eval_cell_bioproj.py", stages,
                       "a cell without metrics must have its metrics computed")
         self.assertIn("pairwise_nmi.py", stages)
+        self.assertIn("seal_cell_analysis.py", stages,
+                      "the seal is what makes the cell complete")
         # The preserved cells carry retrospective manifests, so the metric
         # stages have to be told that explicitly or they refuse.
         for call in calls:
-            if os.path.basename(call[0]) in {"eval_cell_bioproj.py",
-                                             "pairwise_nmi.py"}:
+            if os.path.basename(call[0]) in _METRIC_STAGES:
                 self.assertIn("--allow-backfilled", call)
 
     def test_absent_state_runs_every_stage_under_the_strict_gate(self) -> None:
@@ -117,13 +123,12 @@ class LauncherStageSelection(unittest.TestCase):
             self._stages(calls),
             {"_phase2_cell_state.py", "_phase2_read_arg.py",
              "extraction_siglip2.py", "eval_cell_bioproj.py",
-             "pairwise_nmi.py"})
+             "pairwise_nmi.py", "seal_cell_analysis.py"})
         # The probe is deliberately permissive -- it has to recognise the
         # preserved retrospective cells in order to classify them at all. The
         # gate that matters is on the stages that WRITE numbers.
         for call in calls:
-            if os.path.basename(call[0]) in {"eval_cell_bioproj.py",
-                                             "pairwise_nmi.py"}:
+            if os.path.basename(call[0]) in _METRIC_STAGES:
                 self.assertNotIn(
                     "--allow-backfilled", call,
                     "a cell this launcher infers itself must clear the "

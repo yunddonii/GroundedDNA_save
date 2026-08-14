@@ -101,60 +101,49 @@ def main() -> None:
         f"DNAunique_DB={round(float(res.get('unique_code_ratio', -1)), 4)} "
         f"gc=[{args.gc_min},{args.gc_max}]"
     )
-    # Validate the extraction BEFORE trusting anything computed from it, then
-    # seal the numbers and their binding into one file the aggregator reads.
-    from dna_utils.extraction_validation import (
-        metric_input_binding, write_analysis_marker)
-    from dna_utils.runtime_state import sha256_file as _sha
+    # Validate the extraction BEFORE trusting anything computed from it.
+    from dna_utils.extraction_validation import metric_input_binding
     binding = metric_input_binding(
         args.dir, allow_backfilled=args.allow_backfilled)
 
-    # also drop a tiny standalone marker file for easy aggregation later
-    with open(os.path.join(args.dir, "cell_result.json"), "w") as f:
-        json.dump({
-            "input_binding": binding,
-            "dataset": args.dataset, "K": args.K,
-            "mAP_at_R_bioproj": map_r,
-            "full_mAP_bioproj": res["mAP"],
-            "full_mAP_pre_projection": pre,
-            "DNA_unique_DB": res.get("unique_code_ratio"),
-            "gc_min_frac": args.gc_min, "gc_max_frac": args.gc_max,
-            "total_bases": total_bases,
-            "gc_count_min_inclusive": policy.gc_min_count,
-            "gc_count_max_inclusive": policy.gc_max_count,
-            "gc_policy_version": policy.policy_version,
-            "map_r_cutoff": res.get("mAP_R_cutoff"),
-        }, f, indent=2)
+    # This stage produces HALF the analysis: the retrieval and DNA numbers, not
+    # the pairwise NMI. It therefore writes its own partial, bound output and
+    # seals nothing. It used to write `analysis_complete.json` right here, so a
+    # marker named complete existed with `mean_off_diag_nmi` simply absent, and
+    # the aggregator read the missing key with `.get()` and still counted the
+    # cell as paired (§20.4). `scripts/seal_cell_analysis.py` publishes the
+    # marker once both halves exist and agree on their inputs.
+    payload = {
+        "input_binding": binding,
+        "dataset": args.dataset, "K": args.K,
+        "mAP_at_R_bioproj": map_r,
+        "full_mAP_bioproj": res["mAP"],
+        "full_mAP_pre_projection": pre,
+        "DNA_unique_DB": res.get("unique_code_ratio"),
+        "gc_min_frac": args.gc_min, "gc_max_frac": args.gc_max,
+        "total_bases": total_bases,
+        "gc_count_min_inclusive": policy.gc_min_count,
+        "gc_count_max_inclusive": policy.gc_max_count,
+        "gc_policy_version": policy.policy_version,
+        "map_r_cutoff": res.get("mAP_R_cutoff"),
+    }
+    # Atomic: a half-written cell_result that still parses is read as a result.
+    out = os.path.join(args.dir, "cell_result.json")
+    tmp = f"{out}.{os.getpid()}.tmp"
+    with open(tmp, "w") as f:
+        json.dump(payload, f, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, out)
 
-    # One canonical, sealed result. The aggregator reads THIS -- previously it
-    # validated cell_result.json and then took its numbers from an unsigned
-    # third file, so a planted mAP@R=999 was reported verbatim.
-    write_analysis_marker(
-        args.dir,
-        metrics={
-            "map_at_R_bioproj": map_r,
-            "full_map_bioproj": res["mAP"],
-            "full_map_pre_projection": pre,
-            "dna_unique_db": res.get("unique_code_ratio"),
-        },
-        binding=binding,
-        protocol={
-            "dataset": args.dataset,
-            "codebook_size": args.K,
-            "map_r_cutoff": res.get("mAP_R_cutoff"),
-            "total_bases": total_bases,
-            "gc_policy_version": policy.policy_version,
-            "gc_count_min_inclusive": policy.gc_min_count,
-            "gc_count_max_inclusive": policy.gc_max_count,
-            "gc_min_frac": args.gc_min,
-            "gc_max_frac": args.gc_max,
-        },
-        sources={
-            "eval_cell_bioproj_sha256": _sha(os.path.abspath(__file__)),
-            "evaluation_siglip2_sha256": _sha(
-                os.path.join(os.path.dirname(os.path.dirname(
-                    os.path.abspath(__file__))), "evaluation_siglip2.py")),
-        })
+    # An existing marker describes numbers that no longer hold. Remove it now
+    # rather than leave a stale seal beside a fresh half-result.
+    from dna_utils.extraction_validation import ANALYSIS_MARKER_NAME
+    stale = os.path.join(args.dir, ANALYSIS_MARKER_NAME)
+    if os.path.exists(stale):
+        os.unlink(stale)
+        print(f"[CELL-RESULT] removed the stale seal at {stale}; re-run "
+              f"scripts/seal_cell_analysis.py once the NMI is done")
 
 
 if __name__ == "__main__":
