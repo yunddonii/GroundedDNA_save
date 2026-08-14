@@ -89,7 +89,10 @@ PANEL_BY_METHOD = {
 }
 DISPLAY = {
     "bee2018": "DNA24 (Stewart et al., 2018)",
-    "bee2021": "PRIMO-18 frozen-predictor length-transfer",
+    # H6: display name follows the configured length rather than asserting 18
+    # next to a manifest that says 15.
+    "bee2021": f"PRIMO-{DEFAULT_PROTOCOL.length_bases} "
+               f"frozen-predictor length-transfer",
     "koike2024": "Koike et al. (DATE/DAC 2024)",
     "koike2026": "Koike et al. (TCBB 2026)",
 }
@@ -181,6 +184,64 @@ if LENGTH not in _METHOD_PROTOCOL_LOCK_BY_LENGTH:
         f"its manifest, diff the identity against a known budget, and register "
         f"the digest rather than disabling the check."
     )
+# F18 follow-up: `scripts/run_native_dna_p0.py` is itself in
+# IMPLEMENTATION_PATHS, so threading NativeProtocol through the validators moved
+# its SHA (7b354a21... -> eb394591...) and with it EVERY method-protocol lock.
+# The pre-F18 digests above stay reviewed because the historical cells carry
+# them and were produced under that source; the post-F18 digests below are the
+# same contract recomputed from the current source. Both are accepted.
+#
+# The transition is numerically a no-op at every declared length: the protocol
+# object reproduces the module constants exactly
+# (gc_min_count == ceil(GC_MIN*L), gc_max_count == floor(GC_MAX*L),
+# max_homopolymer_run == MAX_RUN) and no training, extraction or projection code
+# changed. Regenerate with scripts/recompute_native_method_locks.py after
+# READING the source diff -- never by pasting numbers to make a check pass.
+_POST_F18_METHOD_PROTOCOL_LOCK_BY_LENGTH = {
+    15: {
+        "bee2018": "aa74a4de34180c8e0ea2c25adb2f645b4836a5af81ba3ff3631f4c35f78ce49f",
+        "bee2021": "f2cb02d4a4c0b35011b4ad2baa91601100857fcad3900c34f82a333af6654c7a",
+        "koike2024": "609fa24fae22467f057ccb4f15d186a6ee024e9c1b6a1e68f242b9f87362589f",
+        "koike2026": "a9460c29569d44989b8072cec7a954e75f8076b0e3fa37681339c9147a5dfd9b",
+    },
+    18: {
+        "bee2018": "c0af7116b93d9e3d101040326ad429caaec17fcaf6a2e7cfe054223980f68abe",
+        "bee2021": "dad64f4c43ac346b7ef8675ba74ce4718297afa6b9a47c1962a1bafefbf42a0d",
+        "koike2024": "c6bf2fee967af16ec36163cf333e00532e82f00f279aeabc45b88acb98cf2ae2",
+        "koike2026": "817c39ea0b4c445330f7adbdf540dfaafd0b169a1c6b3db287be0119592292b5",
+    },
+    24: {
+        "bee2018": "5a7560e731e92b8a2b2d600bfaeecc13c058c9f2be03852fce7048399b036d5a",
+        "bee2021": "a7e36054bc9ff1e520760f5d6479087e44bbd8acfb9995a08a9135b7ab440258",
+        "koike2024": "39602186ea74cc4bf542ee84a5cff2e09d70bac00b803edaa1c0e3a0b72ead7d",
+        "koike2026": "81f2eed794d879021e541d9055fc8da1e181f24729aa9235e486f50e123f0cf6",
+    },
+}
+
+
+def reviewed_method_locks(protocol) -> dict:
+    """{method: frozenset(reviewed digests)} for a length.
+
+    A lock is an allow-list, so it holds every digest that has been reviewed for
+    that length -- not just the newest. Registering only the newest would orphan
+    the historical cells; registering without review would defeat the check.
+    """
+    length = coerce_protocol(protocol).length_bases
+    pre = _METHOD_PROTOCOL_LOCK_BY_LENGTH.get(length, {})
+    post = _POST_F18_METHOD_PROTOCOL_LOCK_BY_LENGTH.get(length, {})
+    if not pre and not post:
+        raise SystemExit(
+            f"no reviewed method-protocol lock registered for {length} bases; "
+            f"known: {sorted(set(_METHOD_PROTOCOL_LOCK_BY_LENGTH) | set(post))}. "
+            f"Run scripts/recompute_native_method_locks.py, read the source "
+            f"diff, and register the digest rather than disabling the check.")
+    return {
+        method: frozenset(
+            d for d in (pre.get(method), post.get(method)) if d is not None)
+        for method in sorted(set(pre) | set(post))
+    }
+
+
 METHOD_PROTOCOL_LOCK_SHA256 = _METHOD_PROTOCOL_LOCK_BY_LENGTH[LENGTH]
 
 
@@ -342,12 +403,12 @@ def _validate_method_protocol_lock(
     protocol: "NativeProtocol | int | None" = None,
 ) -> str:
     actual = _method_protocol_lock_digest(identity)
-    expected = method_protocol_lock_for(protocol)[key.method]
-    if actual != expected:
+    reviewed = reviewed_method_locks(protocol).get(key.method, frozenset())
+    if actual not in reviewed:
         errors.append(
             "protocol_identity.method_protocol_lock_sha256: stable source/"
             "stage/bio/implementation/execution contract mismatch "
-            f"(expected {expected}, found {actual})"
+            f"(reviewed {sorted(reviewed)}, found {actual})"
         )
     return actual
 

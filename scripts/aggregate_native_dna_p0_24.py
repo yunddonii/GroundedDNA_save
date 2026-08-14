@@ -243,10 +243,15 @@ def _validate_manifest(
     key: Key,
     *,
     verify_hashes: bool = True,
+    protocol: "NativeProtocol | int | None" = None,
 ) -> dict[str, object]:
+    # The matrix resume path passes `protocol=`; without this parameter it died
+    # with `TypeError: _validate_manifest() got an unexpected keyword argument
+    # 'protocol'` on every real 24-base root.
+    protocol = PROTOCOL if protocol is None else coerce_protocol(protocol)
     with configured_canonical_aggregator():
         return canonical._validate_manifest(
-            path, key, verify_hashes=verify_hashes
+            path, key, verify_hashes=verify_hashes, protocol=protocol
         )
 
 
@@ -256,13 +261,18 @@ def aggregate(
     seeds: Sequence[int] = DEFAULT_SEEDS,
     blocked_methods: Mapping[str, str] | None = None,
     verify_hashes: bool = True,
+    protocol: "NativeProtocol | int | None" = None,
 ):
+    # Without forwarding this, the sealed 24-base cells were judged against the
+    # 15-base contract: length_bases=15, invalid=48.
+    protocol = PROTOCOL if protocol is None else coerce_protocol(protocol)
     with configured_canonical_aggregator():
         return canonical.aggregate(
             roots,
             seeds=seeds,
             blocked_methods=blocked_methods,
             verify_hashes=verify_hashes,
+            protocol=protocol,
         )
 
 

@@ -146,10 +146,17 @@ SOURCE_REPRODUCTION_AUDIT: dict[str, dict[str, Any]] = {
             "official balanced-pool sampling with random truncation; a final "
             "batch is statistically rather than forcibly 50/50 balanced"
         ),
+        # H6: a hard-coded "18 nt" made a 15-base manifest declare length=15
+        # and a transfer to 18 nt at the same time. Deriving it from the process
+        # default would be worse -- this string enters the method-protocol lock,
+        # so the lock would then depend on an environment variable. The length
+        # is already recorded per cell as `length` and
+        # `protocol_identity.matched_length_bases`, so the adaptation is stated
+        # without repeating it.
         "declared_adaptation": (
             "The official 80-nt yield predictor is frozen and transferred to "
-            "18 nt; PRIMO's per-epoch NUPACK relabeling/predictor refit is not "
-            "performed."
+            "the matched code length declared by this run; PRIMO's per-epoch "
+            "NUPACK relabeling/predictor refit is not performed."
         ),
     },
     "koike2024": {
@@ -1164,6 +1171,7 @@ def _verify_refit(
         ),
         evaluation_counts=evaluation_counts,
         cache_cardinality=cache_cardinality,
+        protocol=protocol,
     )
     return {
         "refit_config": _artifact_record(config_path),
@@ -1445,6 +1453,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         cache_dir=cache_dir,
         dataset_root=dataset_root,
         predictor=predictor,
+        protocol=DEFAULT_PROTOCOL,
     )
     best_epoch = int(selection_audit["best_epoch_zero_based"])
     refit_epochs = best_epoch + 1
@@ -1484,6 +1493,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         dataset_root=dataset_root,
         predictor=predictor,
         best_epoch=best_epoch,
+        protocol=DEFAULT_PROTOCOL,
     )
     selection_reaudit = _verify_selection(
         stage1_dir,
@@ -1494,6 +1504,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         cache_dir=cache_dir,
         dataset_root=dataset_root,
         predictor=predictor,
+        protocol=DEFAULT_PROTOCOL,
     )
     if selection_reaudit != selection_audit:
         raise ValueError(

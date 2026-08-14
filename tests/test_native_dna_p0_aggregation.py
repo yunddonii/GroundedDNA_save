@@ -130,7 +130,14 @@ def _protocol_identity(
         "selection_metric": "val_neural_raw_mAP_at_R",
         "selection_distance": "base_hamming",
         "source_profile": copy.deepcopy(SOURCE_PROFILES[method]),
-        "source_reproduction_audit": copy.deepcopy(
+        # This fixture stands for a HISTORICAL cell: it carries the historical
+        # implementation SHAs above, so it must also carry the audit text those
+        # runs recorded. H6 later replaced PRIMO's literal "18 nt" with a
+        # length-agnostic phrase, and mixing the new text with the old SHAs
+        # would produce an identity no real run ever had -- matching neither the
+        # historical nor the current reviewed lock.
+        "source_reproduction_audit": _historical_audit(
+            method) if method == "bee2021" else copy.deepcopy(
             SOURCE_REPRODUCTION_AUDIT[method]
         ),
         "candidate_eval_period": 5,
@@ -156,6 +163,22 @@ def _protocol_identity(
             "runtime_versions": {"python": "test", "numpy": "test", "torch": "test"},
         },
     }
+
+
+#: The PRIMO adaptation text as the historical 18-base cells recorded it, before
+#: H6 made it length-agnostic. Pinned here so this fixture keeps describing a
+#: run that actually existed.
+_HISTORICAL_PRIMO_ADAPTATION = (
+    "The official 80-nt yield predictor is frozen and transferred to "
+    "18 nt; PRIMO's per-epoch NUPACK relabeling/predictor refit is not "
+    "performed."
+)
+
+
+def _historical_audit(method: str) -> dict:
+    audit = copy.deepcopy(SOURCE_REPRODUCTION_AUDIT[method])
+    audit["declared_adaptation"] = _HISTORICAL_PRIMO_ADAPTATION
+    return audit
 
 
 def _fixture(
