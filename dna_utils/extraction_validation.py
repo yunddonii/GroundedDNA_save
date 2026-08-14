@@ -225,11 +225,27 @@ def _check_schema(manifest: Mapping, *, split: str) -> None:
     # Each source token carries an invariant. Without them a token is only a
     # self-assertion: `f01_unrestored` with epoch 4, and `no_annealing` with
     # annealing switched on, were both admitted (§23.4).
-    if source == "f01_unrestored" and manifest["inference_epoch"] != 0:
-        raise ExtractionInvalid(
-            f"{split}: inference_epoch_source is f01_unrestored but the epoch "
-            f"is {manifest['inference_epoch']}; the defect IS that nothing "
-            f"restored the epoch, so it can only be 0")
+    if source == "f01_unrestored":
+        # The token means one specific history: a run whose epoch was never
+        # restored, so the annealed router stayed at its INITIAL epsilon, and
+        # whose manifest was necessarily written after the fact -- those runs
+        # recorded nothing themselves. Checking only the epoch left the rest of
+        # that history free to be anything.
+        if manifest["inference_epoch"] != 0:
+            raise ExtractionInvalid(
+                f"{split}: inference_epoch_source is f01_unrestored but the "
+                f"epoch is {manifest['inference_epoch']}; the defect IS that "
+                f"nothing restored the epoch, so it can only be 0")
+        if not manifest["sinkhorn_annealing_enabled"]:
+            raise ExtractionInvalid(
+                f"{split}: inference_epoch_source is f01_unrestored but "
+                f"annealing is disabled; with no schedule there is no initial "
+                f"epsilon to have been stuck at, and nothing for F01 to cost")
+        if not manifest["backfilled"]:
+            raise ExtractionInvalid(
+                f"{split}: inference_epoch_source is f01_unrestored but the "
+                f"manifest claims the run recorded itself; those runs did not, "
+                f"which is why the epoch has to be inferred at all")
     if source == "no_annealing" and manifest["sinkhorn_annealing_enabled"]:
         raise ExtractionInvalid(
             f"{split}: inference_epoch_source is no_annealing but annealing is "
@@ -568,14 +584,24 @@ def check_metric_input_binding(run_dir: str, metric: Mapping, *,
             f"{what}: the metric declares retrospectively bound inputs, and "
             f"this reader did not admit backfilled runs")
     current = metric_input_binding(run_dir, allow_backfilled=allow_backfilled)
+    # What the numbers were computed FROM. `validator_sha256` is deliberately
+    # not here: this module checks artefacts, it does not produce them, so
+    # requiring equality made every improvement to the checker invalidate every
+    # measurement ever taken -- three full GPU recomputes were spent on exactly
+    # that. It is still recorded, so a reader can see which checker admitted the
+    # numbers; it is simply not a reason to reject them.
     for key in ("npz_sha256", "manifest_sha256", "checkpoint_sha256",
                 "config_sha256", "inference_epoch", "inference_epoch_source",
                 "dataset", "random_seed", "codebook_size",
-                "backfilled_inputs", "validator_sha256"):
+                "backfilled_inputs"):
         if declared.get(key) != current[key]:
             raise ExtractionInvalid(
                 f"{what}: input_binding.{key} does not match the extraction "
                 f"in {run_dir}; the metric was computed from different files")
+    if "validator_sha256" not in declared:
+        raise ExtractionInvalid(
+            f"{what}: input_binding does not name the validator that admitted "
+            f"it")
 
 
 ANALYSIS_MARKER_NAME = "analysis_complete.json"
@@ -619,6 +645,10 @@ ANALYSIS_SOURCES = {
     "pairwise_nmi_sha256": "scripts/pairwise_nmi.py",
     "bio_constraints_sha256": "dna_utils/bio_constraints.py",
     "gc_policy_sha256": "dna_utils/gc_policy.py",
+    # The base/bit Hamming distances and the validity projection the retrieval
+    # numbers are computed with. Omitting it left the distance implementation
+    # free to change under a marker that still read as current.
+    "dna_code_utils_sha256": "dna_utils/dna_code_utils.py",
 }
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

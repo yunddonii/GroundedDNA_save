@@ -212,9 +212,11 @@ def test_f01_unrestored_can_only_mean_epoch_zero(tmp_path):
 
 
 def test_f01_unrestored_at_epoch_zero_is_admitted(tmp_path):
+    """The whole history the token names: epoch 0, annealed, written after."""
     cell = _cell(tmp_path)
-    _rewrite(cell, inference_epoch_source="f01_unrestored", inference_epoch=0)
-    run = validate_extraction_run(str(cell))
+    _rewrite(cell, inference_epoch_source="f01_unrestored", inference_epoch=0,
+             backfilled=True)
+    run = validate_extraction_run(str(cell), allow_backfilled=True)
     assert run.common["inference_epoch"] == 0
 
 
@@ -250,3 +252,18 @@ def test_the_sidecar_endpoints_win_without_an_explicit_flag(tmp_path):
         str(checkpoint),
         _args(sinkhorn_epsilon_init=0.5, sinkhorn_epsilon_final=0.2))
     assert resolved.effective_sinkhorn_epsilon == pytest.approx(0.1)
+
+
+def test_f01_unrestored_requires_the_whole_history_it_names(tmp_path):
+    """Epoch 0 alone is not what the token means."""
+    for label, changes in (
+            ("annealing off", {"sinkhorn_annealing_enabled": False,
+                               "sinkhorn_schedule_horizon": None}),
+            ("self-recorded", {"backfilled": False})):
+        sub = tmp_path / label.replace(" ", "_")
+        sub.mkdir(parents=True, exist_ok=True)
+        cell = _cell(sub)
+        _rewrite(cell, inference_epoch_source="f01_unrestored",
+                 inference_epoch=0, **{"backfilled": True, **changes})
+        with pytest.raises(ExtractionInvalid, match="f01_unrestored"):
+            validate_extraction_run(str(cell), allow_backfilled=True)

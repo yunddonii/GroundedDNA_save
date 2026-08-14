@@ -102,7 +102,7 @@ preflight_root() {
         # An unreadable extraction here means an aborted run later, after the
         # earlier cells have already been overwritten.
         if ! "$PY" scripts/_phase2_cell_state.py "$root/$cell" \
-             --allow-backfilled >/dev/null; then
+             --allow-backfilled --require-valid >/dev/null 2>&1; then
             echo "[preflight] $side: $cell does not validate" >&2; missing=1
         fi
     done

@@ -58,6 +58,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("cell")
     parser.add_argument("--allow-backfilled", action="store_true")
+    parser.add_argument(
+        "--require-valid", action="store_true",
+        help=("Exit nonzero unless the extraction itself validates. Callers "
+              "that branch on the printed state want rc0 for every answer; a "
+              "preflight wants a failure it can stop on."))
     args = parser.parse_args()
 
     state, reason = cell_state(args.cell,
@@ -65,6 +70,11 @@ def main() -> int:
     print(state)
     if reason:
         print(reason, file=sys.stderr)
+    # The exit status used to be 0 for every state, so a preflight written as
+    # `if ! cell_state ...` accepted `absent` and `invalid` alike and checked
+    # nothing but the directory listing (§25.4).
+    if args.require_valid and state in ("absent", "invalid"):
+        return 1
     return 0
 
 

@@ -189,7 +189,7 @@ def test_the_recorded_sources_cover_every_file_that_decides_a_number(tmp_path):
     digests = analysis_source_digests()
     assert {"eval_cell_bioproj_sha256", "evaluation_siglip2_sha256",
             "pairwise_nmi_sha256", "bio_constraints_sha256",
-            "gc_policy_sha256"} == set(digests)
+            "gc_policy_sha256", "dna_code_utils_sha256"} == set(digests)
     assert all(len(v) == 64 for v in digests.values())
 
 
@@ -216,3 +216,39 @@ def test_the_reader_must_state_its_trust_policy(tmp_path):
         read_analysis_marker(str(cell))
     with pytest.raises(TypeError):
         check_metric_input_binding(str(cell), {}, what="probe")
+
+
+# --------------------------------- the checker is not one of the inputs
+
+def test_a_marker_survives_a_change_to_the_validator(tmp_path):
+    """Improving the checker must not invalidate every measurement taken.
+
+    `validator_sha256` was compared for equality, so each fix to this module
+    made every sealed marker unreadable and forced a full GPU recompute. It is
+    recorded -- a reader can see which checker admitted the numbers -- but it
+    does not describe what the numbers were computed from, so it is not a
+    reason to reject them.
+    """
+    cell = _cell(tmp_path)
+    _seal(cell)
+    payload = json.loads((cell / "analysis_complete.json").read_text())
+    binding = dict(payload["input_binding"])
+    binding["validator_sha256"] = "0" * 64          # a different checker
+    check_metric_input_binding(str(cell), {"input_binding": binding},
+                               what="probe", allow_backfilled=False)
+
+
+def test_a_binding_that_names_no_validator_is_refused(tmp_path):
+    cell = _cell(tmp_path)
+    _seal(cell)
+    payload = json.loads((cell / "analysis_complete.json").read_text())
+    binding = {k: v for k, v in payload["input_binding"].items()
+               if k != "validator_sha256"}
+    with pytest.raises(ExtractionInvalid):
+        check_metric_input_binding(str(cell), {"input_binding": binding},
+                                   what="probe", allow_backfilled=False)
+
+
+def test_the_distance_implementation_is_a_recorded_source(tmp_path):
+    """The retrieval numbers are Hamming distances; that code decides them."""
+    assert "dna_code_utils_sha256" in analysis_source_digests()
