@@ -11,11 +11,26 @@ counts and geometry, the runtime identity, the canonical legacy source it was
 bound to, and the version and result of the strict validator that admitted it.
 Someone with the data can then re-run the same checks; someone without it can at
 least see exactly what was claimed and about which bytes.
+
+It covers both halves of a cell (§19.7). Recording only the extraction side left
+the question the audit actually asks -- which numbers came out, under which
+evaluator and which protocol -- unanswerable from a fresh clone, since the
+metric JSONs are as untracked as the NPZs. So each entry also carries the
+analysis marker (its metrics, protocol constants, evaluator digests and the
+input binding it sealed) and the digests of the metric files beside it, plus the
+execution context: when it ran, by which command, at which commit, and whether
+the tree was dirty at the time. A digest taken from a dirty tree is not
+reproducible and has to say so.
+
+The output is written atomically. A half-written inventory that still parses is
+worse than none, because it reads as a complete record of a smaller run.
 """
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -24,7 +39,9 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
 from dna_utils.extraction_validation import (  # noqa: E402
+    ANALYSIS_MARKER_NAME,
     ExtractionInvalid,
+    read_analysis_marker,
     validate_extraction_run,
 )
 from dna_utils.runtime_state import sha256_file  # noqa: E402
@@ -35,13 +52,80 @@ OUT = REPO / "docs" / "phase2_extraction_inventory.json"
 _VALIDATOR = REPO / "dna_utils" / "extraction_validation.py"
 
 
-def _git_head() -> str | None:
+_METRIC_FILES = (
+    "cell_result.json",
+    "evaluation_siglip2_base_bioproj.json",
+    "pairwise_nmi.json",
+)
+
+
+def _git(*args: str) -> str | None:
     try:
         return subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=REPO, capture_output=True,
+            ["git", *args], cwd=REPO, capture_output=True,
             text=True, timeout=30, check=True).stdout.strip()
     except Exception:                       # noqa: BLE001 - inventory is best-effort here
         return None
+
+
+def _git_head() -> str | None:
+    return _git("rev-parse", "HEAD")
+
+
+def _execution_context(argv: list[str]) -> dict:
+    """When, by what, at which commit -- and whether that commit describes it.
+
+    A digest set produced from a dirty tree cannot be reproduced from the
+    recorded commit, so the record says so rather than implying otherwise.
+    """
+    status = _git("status", "--porcelain")
+    return {
+        "generated_at_utc": datetime.now(timezone.utc).isoformat(
+            timespec="seconds"),
+        "command": " ".join(argv),
+        "git_head": _git_head(),
+        "git_tree_dirty": None if status is None else bool(status),
+        "reproducible_from_git_head": (
+            None if status is None else not status),
+        "host_repo": str(REPO),
+    }
+
+
+def _analysis_entry(cell: Path) -> dict:
+    """The metric half of the cell, or the reason there isn't one."""
+    entry = {
+        "marker_present": (cell / ANALYSIS_MARKER_NAME).is_file(),
+        "marker_sha256": None,
+        "admitted": False,
+        "refusal": None,
+        "metrics": None,
+        "protocol": None,
+        "analysis_sources": None,
+        "input_binding": None,
+        "metric_files": {},
+    }
+    for name in _METRIC_FILES:
+        path = cell / name
+        entry["metric_files"][name] = (
+            sha256_file(str(path)) if path.is_file() else None)
+
+    if not entry["marker_present"]:
+        entry["refusal"] = "no analysis marker; this cell carries no admissible numbers"
+        return entry
+    entry["marker_sha256"] = sha256_file(str(cell / ANALYSIS_MARKER_NAME))
+    try:
+        payload = read_analysis_marker(str(cell), allow_backfilled=True)
+    except ExtractionInvalid as error:
+        entry["refusal"] = str(error)
+        return entry
+    entry.update(
+        admitted=True,
+        metrics=dict(payload["metrics"]),
+        protocol=dict(payload["protocol"]),
+        analysis_sources=dict(payload["analysis_sources"]),
+        input_binding=dict(payload["input_binding"]),
+    )
+    return entry
 
 
 def _cell_entry(cell: Path) -> dict:
@@ -78,6 +162,7 @@ def _cell_entry(cell: Path) -> dict:
             str(cell / "extraction_complete.json")),
         "backfilled": run.backfilled,
         "eligibility": "diagnostic_only",
+        "analysis": _analysis_entry(cell),
     }
     for name in ("args.txt", "extract.log"):
         path = cell / name
@@ -100,13 +185,16 @@ def main() -> int:
         except ExtractionInvalid as error:
             refused.append({"cell": cell.name, "reason": str(error)})
 
+    with_metrics = [c for c in cells if c["analysis"]["admitted"]]
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "what_this_is": (
-            "Digest-level inventory of the Phase 2 F01 diagnostic snapshot. The "
-            "arrays themselves are untracked; this records exactly which bytes "
-            "were validated and under which contract, so the claim can be "
-            "re-checked rather than taken on trust."),
+            "Digest-level inventory of the Phase 2 F01 diagnostic snapshot, "
+            "covering both the extraction and the metric half of every cell. "
+            "The arrays and metric JSONs themselves are untracked; this records "
+            "exactly which bytes were validated, under which contract and which "
+            "evaluator, so the claim can be re-checked rather than taken on "
+            "trust."),
         "eligibility": "diagnostic_only_never_promoted_to_paper_main",
         "external_root": str(root),
         "validator": {
@@ -120,13 +208,27 @@ def main() -> int:
             "sha256": sha256_file(__file__),
             "git_head": _git_head(),
         },
+        "execution": _execution_context([sys.argv[0], *sys.argv[1:]]),
         "cells_validated": len(cells),
+        "cells_with_admissible_metrics": len(with_metrics),
         "cells_refused": refused,
         "cells": cells,
     }
-    Path(args.out).write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    print(f"wrote {args.out}: {len(cells)} validated, {len(refused)} refused")
+
+    # Atomic: a truncated inventory that still parses reads as a complete
+    # record of a smaller run.
+    out = Path(args.out)
+    tmp = out.with_suffix(f".{os.getpid()}.tmp")
+    with open(tmp, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+        handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(tmp, out)
+
+    print(f"wrote {args.out}: {len(cells)} validated, "
+          f"{len(with_metrics)} with admissible metrics, "
+          f"{len(refused)} refused")
     return 1 if refused else 0
 
 

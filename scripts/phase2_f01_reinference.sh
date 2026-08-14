@@ -65,29 +65,40 @@ for CELL in "$@"; do
     # A distinct output dir per cell. The 3-seed directory collision of
     # 2026-08-12 came from every cell resolving to one path, so this is
     # asserted rather than assumed.
+    #
     # Completion is what the shared validator says, not which filenames exist:
     # two files containing `not-json` previously counted as a finished cell.
-    if [[ -d "$OUT" ]]; then
-        REASON=$("$PY" - "$OUT" <<'PYEOF'
-import sys
-from dna_utils.extraction_validation import describe_failure
-print(describe_failure(sys.argv[1], allow_backfilled=True) or "")
-PYEOF
-)
-        if [[ -z "$REASON" ]]; then
-            echo "[phase2] $CELL already complete at $OUT; skipping" >&2
-            continue
-        fi
-        if [[ -e "$OUT/extract_db.npz" ]]; then
-            echo "[phase2] $CELL has extractions that do not validate:" >&2
-            echo "         $REASON" >&2
-            echo "         Run scripts/backfill_phase2_manifests.py, or delete" >&2
-            echo "         the directory to re-infer from scratch." >&2
-            exit 4
-        fi
-    fi
+    # And it is BOTH conditions, not just the extraction one -- a cell with
+    # valid NPZs but no analysis marker was skipped here and so never produced
+    # any numbers, which is how all 15 cells ended up metric-less.
+    STATE=$("$PY" "$REPO/scripts/_phase2_cell_state.py" "$OUT" --allow-backfilled)
+    case "$STATE" in
+    complete)
+        echo "[phase2] $CELL already complete at $OUT; skipping" >&2
+        continue ;;
+    analysis)
+        echo "[phase2] $CELL: extraction is valid but its metrics are not;" >&2
+        echo "         re-running the analysis only, keeping the NPZs." >&2
+        RUN_EXTRACTION=0
+        # Only a pre-existing cell may have retrospective manifests. A cell this
+        # launcher infers itself must clear the strict gate.
+        BACKFILL_FLAG=--allow-backfilled ;;
+    invalid)
+        echo "[phase2] $CELL has extractions that do not validate." >&2
+        echo "         Run scripts/backfill_phase2_manifests.py, or delete" >&2
+        echo "         the directory to re-infer from scratch." >&2
+        exit 4 ;;
+    absent)
+        RUN_EXTRACTION=1
+        BACKFILL_FLAG= ;;
+    *)
+        echo "[phase2] $CELL: unknown cell state '$STATE'" >&2; exit 5 ;;
+    esac
+
     mkdir -p "$OUT"
-    cp "$SRC/config.pt" "$SRC/model_state_dict.pth" "$OUT/"
+    if [[ "$RUN_EXTRACTION" == "1" ]]; then
+        cp "$SRC/config.pt" "$SRC/model_state_dict.pth" "$OUT/"
+    fi
 
     STOP=$("$PY" "$REPO/scripts/_phase2_read_arg.py" "$SRC/args.txt" stop_after_epoch)
     [[ "$STOP" == "$N" ]] || {
@@ -102,16 +113,23 @@ PYEOF
         echo "[phase2] $CELL: num_semantic_parts=$M, expected the paper's 5" >&2
         exit 3; }
 
-    echo "[phase2] $CELL -> $OUT (inference_epoch=$N, slots=$M, gpu=$GPU)"
-    CUDA_VISIBLE_DEVICES="$GPU" GDNA_NUM_SEMANTIC_PARTS="$M" \
-        "$PY" "$REPO/extraction_siglip2.py" \
-        --config_path "$OUT" --inference_epoch "$N" 2>&1 | tee "$OUT/extract.log"
+    echo "[phase2] $CELL -> $OUT (inference_epoch=$N, slots=$M, gpu=$GPU," \
+         "extraction=$RUN_EXTRACTION)"
+    if [[ "$RUN_EXTRACTION" == "1" ]]; then
+        CUDA_VISIBLE_DEVICES="$GPU" GDNA_NUM_SEMANTIC_PARTS="$M" \
+            "$PY" "$REPO/extraction_siglip2.py" \
+            --config_path "$OUT" --inference_epoch "$N" 2>&1 | tee "$OUT/extract.log"
+    fi
 
     K=$("$PY" "$REPO/scripts/_phase2_read_arg.py" "$SRC/args.txt" codebook_size)
     CUDA_VISIBLE_DEVICES="$GPU" GDNA_NUM_SEMANTIC_PARTS="$M" \
         "$PY" "$REPO/scripts/eval_cell_bioproj.py" \
-        --dir "$OUT" --dataset "$CANON" --K "$K" 2>&1 | tee -a "$OUT/extract.log"
+        --dir "$OUT" --dataset "$CANON" --K "$K" ${BACKFILL_FLAG:+"$BACKFILL_FLAG"} \
+        2>&1 | tee -a "$OUT/extract.log"
+    # No `--out`: the script already writes the per-directory pairwise_nmi.json
+    # itself, and passing that same path is refused outright, so this step used
+    # to abort the whole launcher under `pipefail`.
     CUDA_VISIBLE_DEVICES="$GPU" "$PY" "$REPO/scripts/pairwise_nmi.py" \
-        --results "$OUT" --out "$OUT/pairwise_nmi.json" \
+        --results "$OUT" ${BACKFILL_FLAG:+"$BACKFILL_FLAG"} \
         2>&1 | tee -a "$OUT/extract.log"
 done
