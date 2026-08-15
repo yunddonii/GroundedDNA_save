@@ -20,6 +20,11 @@
 # directory each landed in, whether they are distinct, and whether args.txt
 # actually carries the flags that were passed. Minutes, not hours.
 set -u
+
+# Exactly one result per tag, or refuse -- `ls | head -1` silently returned a
+# concurrently running cell's directory (F08).
+source "$(dirname "${BASH_SOURCE[0]}")/lib/result_dir.sh"
+
 GPU="$1"; EXP="$2"; shift 2
 cd /home/yschoi/GroundedDNA
 mkdir -p logs
@@ -37,7 +42,7 @@ for CELL in "$@"; do
     AUX_ARGS="$S5 -e 1 $ARGS" \
     bash scripts/prompt_ablation_A_cell_fixedN.sh "$GPU" "$EXP" \
         > "logs/SMOKE_${TAG}.out" 2>&1
-    D=$(ls -dt result/*"${TAG}"* 2>/dev/null | head -1)
+    D=$(resolve_one_result_dir "$TAG")
     DIRS+=("${D:-MISSING}"); SUFFIXES+=("$SUF")
     i=$((i+1))
 done

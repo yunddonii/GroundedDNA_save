@@ -19,6 +19,11 @@
 #   CIFAR   extractions carry no image_paths at all, so ids must be injected
 #           into a `withids/` overlay (scripts/cifar_inject_image_ids.py).
 set -u
+
+# Exactly one result per tag, or refuse -- `ls | head -1` silently returned a
+# concurrently running cell's directory (F08).
+source "$(dirname "${BASH_SOURCE[0]}")/lib/result_dir.sh"
+
 GPU="$1"; EXP="$2"; TAG="$3"; AUX="${4:-}"
 PY=/home/yschoi/.conda/envs/dna_hashing/bin/python
 cd /home/yschoi/GroundedDNA
@@ -29,7 +34,7 @@ echo "[sweep $TAG] GPU=$GPU EXP=$EXP AUX='$AUX' @ $(date '+%F %T')"
 # ---- 1) train -------------------------------------------------------------
 env AUX_ARGS="$AUX" TAG_SUFFIX="_$TAG" bash scripts/prompt_ablation_A_cell.sh "$GPU" "$EXP"
 
-RD=$(ls -dt result/*promptAblA_${EXP}_${TAG}_P0refit_* 2>/dev/null | head -1)
+RD=$(resolve_one_result_dir "promptAblA_${EXP}_${TAG}_P0refit_")
 if [ -z "${RD:-}" ] || [ ! -f "$RD/cell_result.json" ]; then
   echo "[sweep $TAG] ERROR: no finished refit dir (RD='${RD:-}')"; exit 4
 fi

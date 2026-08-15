@@ -1,15 +1,27 @@
 #!/usr/bin/env bash
-# Faithful "A" (strict global-caption-free) recipe × prompt swap, at 18-base (L=3),
-# under P0 2-stage + bio-projected mAP@R. Self-contained: uses the champion
-# launchers with env overrides + the A flags via EXTRA_ARGS + local-only
-# whitening. Does NOT touch the concurrent session's semantic_detail runner.
+# Single-stage, fixed-epoch variant of prompt_ablation_A_cell.sh.
 #
-# "A" = champion recipe + the 4 global-slot skips + local-only whitening:
-#   already in champion launchers: --text_code_kl_skip_global --text_hash_ntxent_skip_global
-#   added here (EXTRA_ARGS):       --xmodal_commit_skip_global --cibhash_dynamic_tau_skip_global
-#   local-only whitening:          text_whiten_*_localOnly.npz
+# Protocol change requested 2026-08-09: drop the P0 two-stage split and train
+# ONCE to a fixed epoch, monitoring the FULL official test split every epoch --
+# the conventional deep-hashing setup, and what this repo did before P0. There
+# is no stage-2 refit; the checkpoint at the fixed epoch IS the reported model.
 #
-#   Usage: bash scripts/prompt_ablation_A_cell.sh <GPU> <mscoco_A_v5b|mscoco_A_v4|cifar_A_v1|cifar_A_v4>
+# Justification for the short horizon: with a frozen CLIP backbone this is now
+# standard. CroVCA (CVPRW'26), one of our own baselines, trains "for only 5
+# epochs on a single GPU" and sells that as a contribution; CLIP Multi-modal
+# Hashing reports test mAP flat after 10 epochs while the loss keeps falling to
+# 45. Our E* has been landing at 4-6 for exactly the same reason.
+#
+# LEAKAGE, stated plainly: picking the fixed epoch by looking at test curves
+# leaks one scalar per dataset. To keep it to that, choose N from the seed-42
+# curve ONLY and apply the same N unchanged to seeds 43/44.
+#
+# Usage:
+#   FIXED_N=<n> bash scripts/prompt_ablation_A_cell_fixedN.sh <GPU> <EXP>
+#   FIXED_N=59 ... EVERY=1   -> the curve run used to CHOOSE N
+#
+# A separate file, not a flag: bash reads scripts incrementally, so editing the
+# original while cells are running it corrupts those runs.
 set -u
 
 # Exactly one result per tag, or refuse -- `ls | head -1` silently returned a
@@ -63,23 +75,28 @@ for f in "$WOPT" "$WTR"; do [ -f "$f" ] || { echo "[promptAblA $EXP] MISSING $f"
 BASE="promptAblA_${EXP}${TAG_SUFFIX:-}"
 echo "[promptAblA $EXP] GPU=$GPU CANON=$CANON K=$K CIBNT=$CIBNT L=3 cache=$CACHE @ $(date '+%F %T')"
 
-# ---- stage 1: P0 val ----
-env LBU="${LBU:-0.02}" CACHE="$CACHE" QWEN="$QWEN" WHITEN_NPZ="$WOPT" K="$K" NUM_CODONS="${NUM_CODONS:-3}" CIBNT="$CIBNT" \
-    VAL_RATIO=0.1 VAL_SEED=42 TAG="${BASE}_P0val" EXTRA_ARGS="$A_FLAGS $SKIP" "${EXTRA[@]}" \
-    bash "$SCRIPT" "$GPU"
-S1LOG="logs/${BASE}_P0val.log"
-ESTAR=$(grep -oE "new best mid-eval mAP=[0-9.]+ at epoch [0-9]+" "$S1LOG" 2>/dev/null \
-        | grep -oE "epoch [0-9]+$" | grep -oE "[0-9]+" | tail -1)
-[ -z "${ESTAR:-}" ] && { echo "[promptAblA $EXP] WARN E* parse fail -> 59"; ESTAR=59; }
-echo "[promptAblA $EXP] E*=$ESTAR"
+# ---- single stage: no val split, mid-eval on the official test split ------
+NEPOCH="${FIXED_N:?FIXED_N must be set}"
+case "$NEPOCH" in ''|*[!0-9]*) echo "[fixN] FIXED_N must be an integer, got '$NEPOCH'"; exit 2 ;; esac
+ESTAR="$NEPOCH"
+echo "[fixN $EXP] fixed epoch = $NEPOCH, val_split_ratio=0 (test-monitored), no refit"
 
-# ---- stage 2: refit ----
+# is_p0_refit() fires on (stop_after_epoch AND final_epoch_eval) and then
+# ISOLATES the official test -- no per-epoch test mid-eval at all. The two
+# modes therefore need different flags:
+#   CURVE=1 : stop_after_epoch only -> legacy path with test mid-eval every
+#             epoch. Used to CHOOSE the fixed N; the end-of-run best-ckpt swap
+#             is irrelevant because only the per-epoch curve is consumed.
+#   default : + final_epoch_eval -> keeps the epoch-N checkpoint (no best-ckpt
+#             swap) and runs the single final extraction. This is the reported
+#             model; mid-eval being off is fine once N is fixed.
+if [ -n "${CURVE:-}" ]; then FE=""; else FE="1"; fi
 env LBU="${LBU:-0.02}" CACHE="$CACHE" QWEN="$QWEN" WHITEN_NPZ="$WTR" K="$K" NUM_CODONS="${NUM_CODONS:-3}" CIBNT="$CIBNT" \
-    FINAL_EPOCH=1 STOP_EP="$ESTAR" TAG="${BASE}_P0refit_e${ESTAR}" EXTRA_ARGS="$A_FLAGS $SKIP" "${EXTRA[@]}" \
+    ${FE:+FINAL_EPOCH=1} STOP_EP="$NEPOCH" TAG="${BASE}_P0refit_e${NEPOCH}" EXTRA_ARGS="$A_FLAGS $SKIP --eval_every ${EVERY:-1}" "${EXTRA[@]}" \
     bash "$SCRIPT" "$GPU"
 
-RD=$(resolve_one_result_dir_with "${BASE}_P0refit_e${ESTAR}" extract_db.npz) \
-    || { echo "[promptAblA $EXP] ERROR refit dir/extract missing"; exit 4; }
+RD=$(resolve_one_result_dir ""${BASE}_P0refit_e${ESTAR}"")
+[ -n "${RD:-}" ] && [ -f "$RD/extract_db.npz" ] || { echo "[promptAblA $EXP] ERROR refit dir/extract missing (RD=$RD)"; exit 4; }
 if [ "${NUM_CODONS:-3}" = "4" ]; then GCMIN=0.416; GCMAX=0.584; else GCMIN=0.40; GCMAX=0.60; fi
 "$PY" scripts/eval_cell_bioproj.py --dir "$RD" --dataset "$CANON" --K "$K" --gc_min "$GCMIN" --gc_max "$GCMAX"
 echo "[promptAblA $EXP] DONE @ $(date '+%F %T')  RD=$RD"

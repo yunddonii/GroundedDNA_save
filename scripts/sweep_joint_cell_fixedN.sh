@@ -4,7 +4,11 @@
 # sweep must produce BOTH a retrieval number and an interpretability number
 # under identical conditions, so the two are collected here rather than by hand.
 #
-#   Usage: bash scripts/sweep_joint_cell.sh <GPU> <mscoco_A_v5b|cifar_A_v4> <TAG> "<AUX_ARGS>"
+#   Usage: FIXED_N=<n> bash scripts/sweep_joint_cell_fixedN.sh <GPU> <EXP> <TAG> "<AUX_ARGS>"
+#
+#   Single-stage twin: delegates to prompt_ablation_A_cell_fixedN.sh, which
+#   trains once to FIXED_N with val_split_ratio=0 and mid-eval on the full
+#   official test split. No stage-2 refit.
 #
 # Post-processing differs per dataset and both cases have bitten us before:
 #   MSCOCO  train is DISJOINT from the DB, so the decoder needs a purpose-built
@@ -25,7 +29,7 @@ mkdir -p logs docs/sweep_rows
 echo "[sweep $TAG] GPU=$GPU EXP=$EXP AUX='$AUX' @ $(date '+%F %T')"
 
 # ---- 1) train -------------------------------------------------------------
-env AUX_ARGS="$AUX" TAG_SUFFIX="_$TAG" bash scripts/prompt_ablation_A_cell.sh "$GPU" "$EXP"
+env AUX_ARGS="$AUX" TAG_SUFFIX="_$TAG" bash scripts/prompt_ablation_A_cell_fixedN.sh "$GPU" "$EXP"
 
 RD=$(resolve_one_result_dir "promptAblA_${EXP}_${TAG}_P0refit_")
 if [ -z "${RD:-}" ] || [ ! -f "$RD/cell_result.json" ]; then

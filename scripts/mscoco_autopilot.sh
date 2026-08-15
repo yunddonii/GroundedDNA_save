@@ -15,6 +15,11 @@
 # Designed to run as: nohup bash scripts/mscoco_autopilot.sh > logs/mscoco_autopilot.log 2>&1 &
 
 set -u
+
+# Exactly one result per tag, or refuse -- `ls | head -1` silently returned a
+# concurrently running cell's directory (F08).
+source "$(dirname "${BASH_SOURCE[0]}")/lib/result_dir.sh"
+
 cd /home/yschoi/GroundedDNA
 PY=/home/yschoi/.conda/envs/dna_hashing/bin/python
 LOG_PREFIX=$(date +%Y%m%d_%H%M%S)
@@ -174,7 +179,7 @@ sleep 60
 # -------- Stage 6: run compositional eval on both --------
 echo "[stage6] running compositional_eval.py on v63a + v63b ..."
 for TAG in v63a_mscoco_v57setup_K64 v63b_mscoco_v57setup_K128; do
-  RESULT=$(ls -d /home/yschoi/GroundedDNA/result/*${TAG}* 2>/dev/null | head -1)
+  RESULT=$(resolve_one_result_dir "$TAG" /home/yschoi/GroundedDNA/result)
   if [ -z "$RESULT" ]; then echo "[stage6] $TAG: result dir not found, skip"; continue; fi
   echo "[stage6] $TAG: running compositional_eval.py ..."
   CUDA_VISIBLE_DEVICES=0 $PY /home/yschoi/GroundedDNA/compositional_eval.py \

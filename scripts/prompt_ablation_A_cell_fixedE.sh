@@ -24,6 +24,11 @@
 #
 # Usage: ESTAR_FIXED=6 bash scripts/prompt_ablation_A_cell_fixedE.sh <GPU> <EXP>
 set -u
+
+# Exactly one result per tag, or refuse -- `ls | head -1` silently returned a
+# concurrently running cell's directory (F08).
+source "$(dirname "${BASH_SOURCE[0]}")/lib/result_dir.sh"
+
 GPU="$1"; EXP="$2"
 PY=/home/yschoi/.conda/envs/dna_hashing/bin/python
 # A_SKIPS: the two A-recipe global-slot skips added here (the other two,
@@ -81,7 +86,7 @@ env LBU="${LBU:-0.02}" CACHE="$CACHE" QWEN="$QWEN" WHITEN_NPZ="$WTR" K="$K" NUM_
     FINAL_EPOCH=1 STOP_EP="$ESTAR" TAG="${BASE}_P0refit_e${ESTAR}" EXTRA_ARGS="$A_FLAGS $SKIP" "${EXTRA[@]}" \
     bash "$SCRIPT" "$GPU"
 
-RD=$(ls -d result/*"${BASE}_P0refit_e${ESTAR}"* 2>/dev/null | head -1)
+RD=$(resolve_one_result_dir ""${BASE}_P0refit_e${ESTAR}"")
 [ -n "${RD:-}" ] && [ -f "$RD/extract_db.npz" ] || { echo "[promptAblA $EXP] ERROR refit dir/extract missing (RD=$RD)"; exit 4; }
 if [ "${NUM_CODONS:-3}" = "4" ]; then GCMIN=0.416; GCMAX=0.584; else GCMIN=0.40; GCMAX=0.60; fi
 "$PY" scripts/eval_cell_bioproj.py --dir "$RD" --dataset "$CANON" --K "$K" --gc_min "$GCMIN" --gc_max "$GCMAX"

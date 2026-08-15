@@ -18,6 +18,11 @@
 # retrieval number + DNA-unique come from the bio-projection scorer.
 set -u
 
+
+# Exactly one result per tag, or refuse -- `ls | head -1` silently returned a
+# concurrently running cell's directory (F08).
+source "$(dirname "${BASH_SOURCE[0]}")/lib/result_dir.sh"
+
 GPU="$1"; DS="$2"; K="$3"; L="$4"
 SUF="${TAG_SUFFIX:-}"
 
@@ -86,9 +91,9 @@ env CACHE="$CACHE" WHITEN_NPZ="$WHITEN_TR" K="$K" NUM_CODONS="$L" CIBNT="$CIBNT"
     bash "$SCRIPT" "$GPU"
 
 # ---------------- Post: bio-projected mAP@R ----------------
-RD=$(ls -d result/*"${S2TAG}"* 2>/dev/null | head -1)
-if [ -z "${RD:-}" ] || [ ! -f "$RD/extract_db.npz" ]; then
-  echo "[cell $BASE] ERROR: refit result dir / extract_db.npz missing (RD=$RD)"; exit 3
+RD=$(resolve_one_result_dir_with "$S2TAG" extract_db.npz) || exit 3
+if [ -z "${RD:-}" ]; then
+  echo "[cell $BASE] ERROR: refit result dir / extract_db.npz missing"; exit 3
 fi
 "$PY" scripts/eval_cell_bioproj.py --dir "$RD" --dataset "$CANON" --K "$K" \
     --gc_min "$GC_MIN" --gc_max "$GC_MAX"

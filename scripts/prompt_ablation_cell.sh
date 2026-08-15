@@ -9,6 +9,11 @@
 # test "dataset-appropriate prompting". Eval cache (visual) stays the champion's,
 # so the ONLY difference from the champion is the training-time text schema.
 set -u
+
+# Exactly one result per tag, or refuse -- `ls | head -1` silently returned a
+# concurrently running cell's directory (F08).
+source "$(dirname "${BASH_SOURCE[0]}")/lib/result_dir.sh"
+
 GPU="$1"; EXP="$2"
 PY=/home/yschoi/.conda/envs/dna_hashing/bin/python
 SKIP="--no-post_eval_compositional${VIZ:+}"
@@ -52,7 +57,7 @@ env CACHE="$CACHE" QWEN="$QWEN" WHITEN_NPZ="$WTR" K="$K" NUM_CODONS="$L" CIBNT="
     FINAL_EPOCH=1 STOP_EP="$ESTAR" TAG="${BASE}_P0refit_e${ESTAR}" EXTRA_ARGS="$SKIP" "${EXTRA[@]}" \
     bash "$SCRIPT" "$GPU"
 
-RD=$(ls -d result/*"${BASE}_P0refit_e${ESTAR}"* 2>/dev/null | head -1)
+RD=$(resolve_one_result_dir ""${BASE}_P0refit_e${ESTAR}"")
 if [ -z "${RD:-}" ] || [ ! -f "$RD/extract_db.npz" ]; then
   echo "[promptAbl $EXP] ERROR: refit dir/extract missing (RD=$RD)"; exit 4
 fi
