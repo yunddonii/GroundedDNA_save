@@ -15,6 +15,7 @@
   "mean_delta": {
     "map_at_R_bioproj": -0.003972925203861366,
     "full_map_bioproj": -0.008152950456034546,
+    "full_map_pre_projection": -0.007168805574163173,
     "dna_unique_db": 0.04419027464950433,
     "nmi": -0.08387994870092061
   },
@@ -28,6 +29,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8822763084031652,
         "full_map_bioproj": 0.8317456645726238,
+        "full_map_pre_projection": 0.8340282830456328,
         "dna_unique_db": 0.07038983050847458,
         "nmi": 0.676638560477927,
         "gc_min_frac": 0.4,
@@ -46,6 +48,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8838713964564279,
         "full_map_bioproj": 0.8248264128920642,
+        "full_map_pre_projection": 0.8299447854427717,
         "dna_unique_db": 0.0868135593220339,
         "nmi": 0.6090119356022619,
         "gc_min_frac": 0.4,
@@ -64,14 +67,27 @@
       "same_evaluator_both_sides": true,
       "provenance": {
         "checkpoint_sha256": "ebf6a1c3ad3cceb71a7feff5cb7e6baae6af7c90a1c7921c38e236387fb31228",
-        "inference_epoch": 4,
-        "inference_epoch_source": "explicit_flag",
-        "effective_sinkhorn_epsilon": 0.1,
-        "backfilled": true
+        "config_sha256": "c5ee9c455f3253d328d6741ed570c94dd5ef973d6ce95bab0439ec98676ed022",
+        "pair_identity_verified": true,
+        "phase2": {
+          "inference_epoch": 4,
+          "inference_epoch_source": "explicit_flag",
+          "effective_sinkhorn_epsilon": 0.1,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        },
+        "legacy": {
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "effective_sinkhorn_epsilon": 1.0,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        }
       },
       "delta": {
         "map_at_R_bioproj": 0.0015950880532626943,
         "full_map_bioproj": -0.006919251680559624,
+        "full_map_pre_projection": -0.004083497602861086,
         "dna_unique_db": 0.016423728813559316,
         "nmi": -0.06762662487566518
       }
@@ -85,6 +101,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8789390926043303,
         "full_map_bioproj": 0.810744674600553,
+        "full_map_pre_projection": 0.8255071619449219,
         "dna_unique_db": 0.07910169491525423,
         "nmi": 0.6870311083325499,
         "gc_min_frac": 0.4,
@@ -103,6 +120,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8735933866346358,
         "full_map_bioproj": 0.7708544906723177,
+        "full_map_pre_projection": 0.7918368483616256,
         "dna_unique_db": 0.09940677966101695,
         "nmi": 0.5774900048140417,
         "gc_min_frac": 0.4,
@@ -121,14 +139,27 @@
       "same_evaluator_both_sides": true,
       "provenance": {
         "checkpoint_sha256": "bc5f4502e0412f9a5a1ef72c6f69fcbe1695abf9a525a8307463752d5f378786",
-        "inference_epoch": 9,
-        "inference_epoch_source": "explicit_flag",
-        "effective_sinkhorn_epsilon": 0.1,
-        "backfilled": true
+        "config_sha256": "a4d562a0a109a29f497c00a008d294554faf3535dd34279b7e67ad674f8b886b",
+        "pair_identity_verified": true,
+        "phase2": {
+          "inference_epoch": 9,
+          "inference_epoch_source": "explicit_flag",
+          "effective_sinkhorn_epsilon": 0.1,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        },
+        "legacy": {
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "effective_sinkhorn_epsilon": 1.0,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        }
       },
       "delta": {
         "map_at_R_bioproj": -0.005345705969694525,
         "full_map_bioproj": -0.03989018392823529,
+        "full_map_pre_projection": -0.03367031358329631,
         "dna_unique_db": 0.020305084745762716,
         "nmi": -0.10954110351850821
       }
@@ -142,6 +173,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8775050033949918,
         "full_map_bioproj": 0.7670082353761929,
+        "full_map_pre_projection": 0.7932161017137699,
         "dna_unique_db": 0.08154237288135593,
         "nmi": 0.703670567985138,
         "gc_min_frac": 0.4,
@@ -160,6 +192,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8673521595434218,
         "full_map_bioproj": 0.7323198506288144,
+        "full_map_pre_projection": 0.7579968819347438,
         "dna_unique_db": 0.11286440677966102,
         "nmi": 0.6176326151387312,
         "gc_min_frac": 0.4,
@@ -178,14 +211,27 @@
       "same_evaluator_both_sides": true,
       "provenance": {
         "checkpoint_sha256": "1b1b2fa297956b2c99d7b1eaa6d6492e8cc9f3b37caa7bf0865210e0a4d616f3",
-        "inference_epoch": 19,
-        "inference_epoch_source": "explicit_flag",
-        "effective_sinkhorn_epsilon": 0.1,
-        "backfilled": true
+        "config_sha256": "b4162a12742ff636aeb7ef223ca21a7ff7d4f96752c204c562bb7fe4253a8d89",
+        "pair_identity_verified": true,
+        "phase2": {
+          "inference_epoch": 19,
+          "inference_epoch_source": "explicit_flag",
+          "effective_sinkhorn_epsilon": 0.1,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        },
+        "legacy": {
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "effective_sinkhorn_epsilon": 1.0,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        }
       },
       "delta": {
         "map_at_R_bioproj": -0.010152843851570004,
         "full_map_bioproj": -0.03468838474737845,
+        "full_map_pre_projection": -0.03521921977902609,
         "dna_unique_db": 0.03132203389830508,
         "nmi": -0.0860379528464068
       }
@@ -199,6 +245,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8751489856406786,
         "full_map_bioproj": 0.7478611425234051,
+        "full_map_pre_projection": 0.759433221335402,
         "dna_unique_db": 0.08547457627118644,
         "nmi": 0.7194769082123691,
         "gc_min_frac": 0.4,
@@ -217,6 +264,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.86746766243941,
         "full_map_bioproj": 0.7286435864445414,
+        "full_map_pre_projection": 0.7434579438945446,
         "dna_unique_db": 0.10188135593220339,
         "nmi": 0.6524435702667524,
         "gc_min_frac": 0.4,
@@ -235,14 +283,27 @@
       "same_evaluator_both_sides": true,
       "provenance": {
         "checkpoint_sha256": "7e3fc4fddc0128bc9de4436d55de2f5d73ed6a62de06935248f0ee4ea6b34444",
-        "inference_epoch": 39,
-        "inference_epoch_source": "explicit_flag",
-        "effective_sinkhorn_epsilon": 0.1,
-        "backfilled": true
+        "config_sha256": "f20cc57bee2ab27ac81e850eb451dbead11acd84743abf4e613aa20046728f33",
+        "pair_identity_verified": true,
+        "phase2": {
+          "inference_epoch": 39,
+          "inference_epoch_source": "explicit_flag",
+          "effective_sinkhorn_epsilon": 0.1,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        },
+        "legacy": {
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "effective_sinkhorn_epsilon": 1.0,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        }
       },
       "delta": {
         "map_at_R_bioproj": -0.007681323201268575,
         "full_map_bioproj": -0.019217556078863662,
+        "full_map_pre_projection": -0.01597527744085747,
         "dna_unique_db": 0.016406779661016946,
         "nmi": -0.06703333794561672
       }
@@ -256,6 +317,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8564850140878828,
         "full_map_bioproj": 0.7351976396832325,
+        "full_map_pre_projection": 0.7416904028827848,
         "dna_unique_db": 0.2823913043478261,
         "nmi": 0.6170285342816574,
         "gc_min_frac": 0.4,
@@ -274,6 +336,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.855793105501846,
         "full_map_bioproj": 0.7386290291547272,
+        "full_map_pre_projection": 0.7446896174727957,
         "dna_unique_db": 0.35595652173913045,
         "nmi": 0.5395646960510605,
         "gc_min_frac": 0.4,
@@ -292,14 +355,27 @@
       "same_evaluator_both_sides": true,
       "provenance": {
         "checkpoint_sha256": "afcc8e17ccf61b00cb3291ce94d79abc49dfcc2ccd20207c2e36ce36b694515d",
-        "inference_epoch": 4,
-        "inference_epoch_source": "explicit_flag",
-        "effective_sinkhorn_epsilon": 0.1,
-        "backfilled": true
+        "config_sha256": "f3956e20bfd4cf577d561319992c2c29b1431f6f120433c7acd61fd48ba74f60",
+        "pair_identity_verified": true,
+        "phase2": {
+          "inference_epoch": 4,
+          "inference_epoch_source": "explicit_flag",
+          "effective_sinkhorn_epsilon": 0.1,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        },
+        "legacy": {
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "effective_sinkhorn_epsilon": 1.0,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        }
       },
       "delta": {
         "map_at_R_bioproj": -0.000691908586036849,
         "full_map_bioproj": 0.0034313894714946835,
+        "full_map_pre_projection": 0.002999214590010957,
         "dna_unique_db": 0.07356521739130434,
         "nmi": -0.07746383823059688
       }
@@ -313,6 +389,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8507091579364616,
         "full_map_bioproj": 0.7299309635767289,
+        "full_map_pre_projection": 0.7334877701444038,
         "dna_unique_db": 0.3298260869565217,
         "nmi": 0.6358384258999509,
         "gc_min_frac": 0.4,
@@ -331,6 +408,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8419535121866016,
         "full_map_bioproj": 0.721540629939133,
+        "full_map_pre_projection": 0.727682208288108,
         "dna_unique_db": 0.37534782608695655,
         "nmi": 0.48139264505409074,
         "gc_min_frac": 0.4,
@@ -349,14 +427,27 @@
       "same_evaluator_both_sides": true,
       "provenance": {
         "checkpoint_sha256": "a6bfe42ced56253d79e31e07db596a0c56885c80052e0c846156cf93c3147320",
-        "inference_epoch": 9,
-        "inference_epoch_source": "explicit_flag",
-        "effective_sinkhorn_epsilon": 0.1,
-        "backfilled": true
+        "config_sha256": "8b660939ef9da0df845f7cf46302e4b9f0145021ad9e6083e13e501a12222ac0",
+        "pair_identity_verified": true,
+        "phase2": {
+          "inference_epoch": 9,
+          "inference_epoch_source": "explicit_flag",
+          "effective_sinkhorn_epsilon": 0.1,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        },
+        "legacy": {
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "effective_sinkhorn_epsilon": 1.0,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        }
       },
       "delta": {
         "map_at_R_bioproj": -0.008755645749859986,
         "full_map_bioproj": -0.008390333637595893,
+        "full_map_pre_projection": -0.005805561856295771,
         "dna_unique_db": 0.045521739130434835,
         "nmi": -0.15444578084586014
       }
@@ -370,6 +461,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8496241308619311,
         "full_map_bioproj": 0.7227768817012374,
+        "full_map_pre_projection": 0.7286716057466627,
         "dna_unique_db": 0.3217391304347826,
         "nmi": 0.6603390692591856,
         "gc_min_frac": 0.4,
@@ -388,6 +480,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8360008914779808,
         "full_map_bioproj": 0.7078576867520772,
+        "full_map_pre_projection": 0.716616136971576,
         "dna_unique_db": 0.3927391304347826,
         "nmi": 0.5580132127424031,
         "gc_min_frac": 0.4,
@@ -406,14 +499,27 @@
       "same_evaluator_both_sides": true,
       "provenance": {
         "checkpoint_sha256": "232cfa5fb02dd28d4c6fdd6238bdba296e1581f192da054908fadc06dbadae9d",
-        "inference_epoch": 19,
-        "inference_epoch_source": "explicit_flag",
-        "effective_sinkhorn_epsilon": 0.1,
-        "backfilled": true
+        "config_sha256": "66b63bd8bc4184d5da35410af847df5604fada5636067e5db3ac337f9d6c7cb9",
+        "pair_identity_verified": true,
+        "phase2": {
+          "inference_epoch": 19,
+          "inference_epoch_source": "explicit_flag",
+          "effective_sinkhorn_epsilon": 0.1,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        },
+        "legacy": {
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "effective_sinkhorn_epsilon": 1.0,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        }
       },
       "delta": {
         "map_at_R_bioproj": -0.01362323938395027,
         "full_map_bioproj": -0.014919194949160275,
+        "full_map_pre_projection": -0.012055468775086675,
         "dna_unique_db": 0.07100000000000001,
         "nmi": -0.1023258565167825
       }
@@ -427,6 +533,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8150237470291969,
         "full_map_bioproj": 0.5788344103405041,
+        "full_map_pre_projection": 0.5901483009265659,
         "dna_unique_db": 0.14163750296798702,
         "nmi": 0.6181866131679273,
         "gc_min_frac": 0.4,
@@ -445,6 +552,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8161331750751041,
         "full_map_bioproj": 0.5764228779596334,
+        "full_map_pre_projection": 0.5906118463028369,
         "dna_unique_db": 0.1904673418191954,
         "nmi": 0.5448181734449491,
         "gc_min_frac": 0.4,
@@ -463,14 +571,27 @@
       "same_evaluator_both_sides": true,
       "provenance": {
         "checkpoint_sha256": "c39c68e2629e7c70b823f9769fb26564bf5c95a804f95b1b6fba902d6762d15a",
-        "inference_epoch": 4,
-        "inference_epoch_source": "explicit_flag",
-        "effective_sinkhorn_epsilon": 0.1,
-        "backfilled": true
+        "config_sha256": "7845fc04077fced36a13fc25e7b5ab3a2912bcde7a251dd5d09305741d8c49a3",
+        "pair_identity_verified": true,
+        "phase2": {
+          "inference_epoch": 4,
+          "inference_epoch_source": "explicit_flag",
+          "effective_sinkhorn_epsilon": 0.1,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        },
+        "legacy": {
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "effective_sinkhorn_epsilon": 0.5,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        }
       },
       "delta": {
         "map_at_R_bioproj": 0.0011094280459071904,
         "full_map_bioproj": -0.0024115323808706624,
+        "full_map_pre_projection": 0.000463545376271024,
         "dna_unique_db": 0.04882983885120837,
         "nmi": -0.07336843972297824
       }
@@ -484,6 +605,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8114826830142682,
         "full_map_bioproj": 0.5645339525705378,
+        "full_map_pre_projection": 0.5750989732299517,
         "dna_unique_db": 0.1326716012677176,
         "nmi": 0.6484434307928345,
         "gc_min_frac": 0.4,
@@ -502,6 +624,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8115356919286504,
         "full_map_bioproj": 0.566191598700005,
+        "full_map_pre_projection": 0.576929709439045,
         "dna_unique_db": 0.18408229840915896,
         "nmi": 0.5830893812121083,
         "gc_min_frac": 0.4,
@@ -520,14 +643,27 @@
       "same_evaluator_both_sides": true,
       "provenance": {
         "checkpoint_sha256": "f94d990b396569893b3af37cadeca96d439974d315af579267d3ce6a73f40307",
-        "inference_epoch": 9,
-        "inference_epoch_source": "explicit_flag",
-        "effective_sinkhorn_epsilon": 0.1,
-        "backfilled": true
+        "config_sha256": "1ee1a3a06f2c02c4cae775eef815feabe6ee0af54935deb40ba20a4ec0307be3",
+        "pair_identity_verified": true,
+        "phase2": {
+          "inference_epoch": 9,
+          "inference_epoch_source": "explicit_flag",
+          "effective_sinkhorn_epsilon": 0.1,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        },
+        "legacy": {
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "effective_sinkhorn_epsilon": 0.5,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        }
       },
       "delta": {
         "map_at_R_bioproj": 5.300891438220212e-05,
         "full_map_bioproj": 0.0016576461294671718,
+        "full_map_pre_projection": 0.0018307362090932422,
         "dna_unique_db": 0.051410697141441364,
         "nmi": -0.06535404958072621
       }
@@ -541,6 +677,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8106492264535694,
         "full_map_bioproj": 0.5560729916303988,
+        "full_map_pre_projection": 0.5639681037060948,
         "dna_unique_db": 0.12994105319665109,
         "nmi": 0.6623407090850897,
         "gc_min_frac": 0.4,
@@ -559,6 +696,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8090028473605914,
         "full_map_bioproj": 0.5602974401455405,
+        "full_map_pre_projection": 0.5716229192067293,
         "dna_unique_db": 0.16926817182322154,
         "nmi": 0.6129152072949958,
         "gc_min_frac": 0.4,
@@ -577,14 +715,27 @@
       "same_evaluator_both_sides": true,
       "provenance": {
         "checkpoint_sha256": "5dc5fa633bf189d033841cdf62e829407951f7d4ce90e74eea9703cca838caa5",
-        "inference_epoch": 19,
-        "inference_epoch_source": "explicit_flag",
-        "effective_sinkhorn_epsilon": 0.1,
-        "backfilled": true
+        "config_sha256": "747c42e2ac76fb5ac7fbe3454052ab79ec7e6b61ed446d8b165c3bc0d9fcd02d",
+        "pair_identity_verified": true,
+        "phase2": {
+          "inference_epoch": 19,
+          "inference_epoch_source": "explicit_flag",
+          "effective_sinkhorn_epsilon": 0.1,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        },
+        "legacy": {
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "effective_sinkhorn_epsilon": 0.5,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        }
       },
       "delta": {
         "map_at_R_bioproj": -0.0016463790929780453,
         "full_map_bioproj": 0.004224448515141699,
+        "full_map_pre_projection": 0.007654815500634404,
         "dna_unique_db": 0.039327118626570456,
         "nmi": -0.04942550179009386
       }
@@ -598,6 +749,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8038853762976063,
         "full_map_bioproj": 0.5496867771022302,
+        "full_map_pre_projection": 0.5626659302825557,
         "dna_unique_db": 0.11681480793252604,
         "nmi": 0.6804184001248081,
         "gc_min_frac": 0.4,
@@ -616,6 +768,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8061821310752989,
         "full_map_bioproj": 0.5530928559574754,
+        "full_map_pre_projection": 0.5657924503796561,
         "dna_unique_db": 0.14851290945316775,
         "nmi": 0.6445028141352771,
         "gc_min_frac": 0.4,
@@ -634,14 +787,27 @@
       "same_evaluator_both_sides": true,
       "provenance": {
         "checkpoint_sha256": "41ddb7467af78bb683f2da3983c7a2de6b53e09beb56fd9f9d0a9629c81a9e9a",
-        "inference_epoch": 39,
-        "inference_epoch_source": "explicit_flag",
-        "effective_sinkhorn_epsilon": 0.1,
-        "backfilled": true
+        "config_sha256": "8c6a0ac4ff0ba98efca19200d455cc12720198d6dbaa7abe595132fdf0518e31",
+        "pair_identity_verified": true,
+        "phase2": {
+          "inference_epoch": 39,
+          "inference_epoch_source": "explicit_flag",
+          "effective_sinkhorn_epsilon": 0.1,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        },
+        "legacy": {
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "effective_sinkhorn_epsilon": 0.5,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        }
       },
       "delta": {
         "map_at_R_bioproj": 0.0022967547776926445,
         "full_map_bioproj": 0.0034060788552451315,
+        "full_map_pre_projection": 0.0031265200971003493,
         "dna_unique_db": 0.03169810152064172,
         "nmi": -0.03591558598953104
       }
@@ -655,6 +821,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.7883573830484478,
         "full_map_bioproj": 0.5777240407855183,
+        "full_map_pre_projection": 0.5935754781253741,
         "dna_unique_db": 0.12808483650133373,
         "nmi": 0.7054925222960309,
         "gc_min_frac": 0.4,
@@ -673,6 +840,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.7801235283704302,
         "full_map_bioproj": 0.5737085279788077,
+        "full_map_pre_projection": 0.5880656523084029,
         "dna_unique_db": 0.18436270029286128,
         "nmi": 0.611424167269637,
         "gc_min_frac": 0.4,
@@ -691,14 +859,27 @@
       "same_evaluator_both_sides": true,
       "provenance": {
         "checkpoint_sha256": "81c1eb5b2fe1f1137eae2b94d4f5b74bf29843969baabd70f2f61c52b3eefd32",
-        "inference_epoch": 4,
-        "inference_epoch_source": "explicit_flag",
-        "effective_sinkhorn_epsilon": 0.1,
-        "backfilled": true
+        "config_sha256": "1f514f38b9621a51118f06ddfdf852a3949b040b9d17efabd0272eeb7f235b95",
+        "pair_identity_verified": true,
+        "phase2": {
+          "inference_epoch": 4,
+          "inference_epoch_source": "explicit_flag",
+          "effective_sinkhorn_epsilon": 0.1,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        },
+        "legacy": {
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "effective_sinkhorn_epsilon": 1.0,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        }
       },
       "delta": {
         "map_at_R_bioproj": -0.008233854678017627,
         "full_map_bioproj": -0.004015512806710642,
+        "full_map_pre_projection": -0.005509825816971237,
         "dna_unique_db": 0.05627786379152755,
         "nmi": -0.09406835502639388
       }
@@ -712,6 +893,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8030389318889629,
         "full_map_bioproj": 0.5794822546455248,
+        "full_map_pre_projection": 0.5915067649441372,
         "dna_unique_db": 0.12517487735268332,
         "nmi": 0.7181456034959381,
         "gc_min_frac": 0.4,
@@ -730,6 +912,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.7976568598332466,
         "full_map_bioproj": 0.5748289185905788,
+        "full_map_pre_projection": 0.5846012187648946,
         "dna_unique_db": 0.1741312093118693,
         "nmi": 0.5832853300057566,
         "gc_min_frac": 0.4,
@@ -748,14 +931,27 @@
       "same_evaluator_both_sides": true,
       "provenance": {
         "checkpoint_sha256": "1577644f026e6adcf7fd40ee87b9f333ec1c4b2aa79d4817f04130de20585a89",
-        "inference_epoch": 9,
-        "inference_epoch_source": "explicit_flag",
-        "effective_sinkhorn_epsilon": 0.1,
-        "backfilled": true
+        "config_sha256": "6d7d54fcc80e40febf6cb3de0224c606b9b81697947b78ba964753af61054f52",
+        "pair_identity_verified": true,
+        "phase2": {
+          "inference_epoch": 9,
+          "inference_epoch_source": "explicit_flag",
+          "effective_sinkhorn_epsilon": 0.1,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        },
+        "legacy": {
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "effective_sinkhorn_epsilon": 1.0,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        }
       },
       "delta": {
         "map_at_R_bioproj": -0.0053820720557162804,
         "full_map_bioproj": -0.004653336054946,
+        "full_map_pre_projection": -0.006905546179242661,
         "dna_unique_db": 0.04895633195918597,
         "nmi": -0.1348602734901816
       }
@@ -769,6 +965,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8076276945256915,
         "full_map_bioproj": 0.5710461681108701,
+        "full_map_pre_projection": 0.5853340031824715,
         "dna_unique_db": 0.1342125389393572,
         "nmi": 0.7174478260837553,
         "gc_min_frac": 0.4,
@@ -787,6 +984,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8099086198784324,
         "full_map_bioproj": 0.5756361655760059,
+        "full_map_pre_projection": 0.5870871611922723,
         "dna_unique_db": 0.19454755731313772,
         "nmi": 0.632618501753263,
         "gc_min_frac": 0.4,
@@ -805,14 +1003,27 @@
       "same_evaluator_both_sides": true,
       "provenance": {
         "checkpoint_sha256": "fa09a5d2ad7e876234c3e7fb956398f4766618b69e44fa2d722d457bac8e984f",
-        "inference_epoch": 19,
-        "inference_epoch_source": "explicit_flag",
-        "effective_sinkhorn_epsilon": 0.1,
-        "backfilled": true
+        "config_sha256": "b7dad59785f2a49eb5029b699e270adc15151e829e90f75ee7d0960318a39766",
+        "pair_identity_verified": true,
+        "phase2": {
+          "inference_epoch": 19,
+          "inference_epoch_source": "explicit_flag",
+          "effective_sinkhorn_epsilon": 0.1,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        },
+        "legacy": {
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "effective_sinkhorn_epsilon": 1.0,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        }
       },
       "delta": {
         "map_at_R_bioproj": 0.0022809253527409368,
         "full_map_bioproj": 0.004589997465135887,
+        "full_map_pre_projection": 0.0017531580098008037,
         "dna_unique_db": 0.060335018373780525,
         "nmi": -0.0848293243304924
       }
@@ -826,6 +1037,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8287046057524009,
         "full_map_bioproj": 0.5814299147327175,
+        "full_map_pre_projection": 0.5979085115958876,
         "dna_unique_db": 0.12038090619112463,
         "nmi": 0.7172028405098383,
         "gc_min_frac": 0.4,
@@ -844,6 +1056,7 @@
         "sealed": true,
         "map_at_R_bioproj": 0.8232884951195869,
         "full_map_bioproj": 0.5769313837200353,
+        "full_map_pre_projection": 0.5917731492341666,
         "dna_unique_db": 0.17185547202895035,
         "nmi": 0.6612996347058627,
         "gc_min_frac": 0.4,
@@ -862,14 +1075,27 @@
       "same_evaluator_both_sides": true,
       "provenance": {
         "checkpoint_sha256": "8c8541babb94e0d592ac81ffa9802a5fdbfa875c31bc53ff27f73690e42cc2e8",
-        "inference_epoch": 39,
-        "inference_epoch_source": "explicit_flag",
-        "effective_sinkhorn_epsilon": 0.1,
-        "backfilled": true
+        "config_sha256": "be0ba783abdd3b5ec4a23b33aadf937b6f8e83321de94633ebc0b393783bf6f8",
+        "pair_identity_verified": true,
+        "phase2": {
+          "inference_epoch": 39,
+          "inference_epoch_source": "explicit_flag",
+          "effective_sinkhorn_epsilon": 0.1,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        },
+        "legacy": {
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "effective_sinkhorn_epsilon": 1.0,
+          "sinkhorn_annealing_enabled": true,
+          "backfilled": true
+        }
       },
       "delta": {
         "map_at_R_bioproj": -0.005416110632813997,
         "full_map_bioproj": -0.004498531012682272,
+        "full_map_pre_projection": -0.006135362361721075,
         "dna_unique_db": 0.051474565837825725,
         "nmi": -0.055903205803975564
       }

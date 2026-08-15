@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import statistics
 import sys
@@ -82,7 +83,24 @@ def expected_protocol(dataset: str, policy) -> dict:
         "gc_policy_version": policy.policy_version,
         "gc_count_min_inclusive": policy.gc_min_count,
         "gc_count_max_inclusive": policy.gc_max_count,
+        # Pinned too: comparing the two sides' GC FRACTIONS to each other only
+        # proves they agree, not that either matches the central policy, and
+        # the NMI is not interpretable without its averaging convention.
+        "gc_min_frac": policy.gc_min_frac,
+        "gc_max_frac": policy.gc_max_frac,
+        "nmi_average_method": "arithmetic",
     }
+
+
+def _atomic_write(path: Path, text: str) -> None:
+    """The official JSON and Markdown were two plain in-place writes, so an
+    interruption between them left a report whose halves disagreed."""
+    tmp = path.with_suffix(f".{os.getpid()}.tmp")
+    with open(tmp, "w", encoding="utf-8") as handle:
+        handle.write(text)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(tmp, path)
 
 
 def _require_manifests(run_dir: Path, *, identity=None,
@@ -145,12 +163,60 @@ def _side(run_dir: Path, sealed: dict):
         "sealed": True,
         "map_at_R_bioproj": metrics["map_at_R_bioproj"],
         "full_map_bioproj": metrics["full_map_bioproj"],
+        # Validated and sealed, then dropped from every delta and mean. A
+        # metric the contract requires and the report omits is a metric nobody
+        # checks.
+        "full_map_pre_projection": metrics["full_map_pre_projection"],
         "dna_unique_db": metrics["dna_unique_db"],
         "nmi": metrics["mean_off_diag_nmi"],
         "gc_min_frac": protocol["gc_min_frac"],
         "gc_max_frac": protocol["gc_max_frac"],
         "analysis_sources": sealed["analysis_sources"],
     }
+
+
+#: Everything the two sides of one pair must share. F01 changes the epoch, the
+#: epoch's source and the epsilon that follows from it -- and nothing else. Any
+#: other disagreement means the pair is not measuring F01.
+_PAIR_INVARIANT = (
+    "checkpoint_sha256", "config_sha256", "dataset", "random_seed",
+    "codebook_size", "num_slots", "bases_per_slot", "total_bases",
+    "total_bits", "lr_schedule_horizon", "training_epoch_budget",
+    "training_stop_epoch", "sinkhorn_schedule_horizon",
+    "sinkhorn_annealing_enabled",
+)
+
+
+def _pair_identity(fixed: dict, legacy: dict) -> tuple[bool, list]:
+    """Prove the two sides really are one run, differing only along F01."""
+    differing = []
+    for split in sorted(set(fixed) & set(legacy)):
+        for key in _PAIR_INVARIANT:
+            if fixed[split].get(key) != legacy[split].get(key):
+                differing.append(
+                    f"{split}.{key} ({fixed[split].get(key)!r} vs "
+                    f"{legacy[split].get(key)!r})")
+        if fixed[split].get("n_rows") != legacy[split].get("n_rows"):
+            differing.append(
+                f"{split}.n_rows ({fixed[split].get('n_rows')} vs "
+                f"{legacy[split].get('n_rows')})")
+    return not differing, differing
+
+
+#: The metrics the report carries. Kept as one list so a metric cannot be
+#: validated, sealed and then quietly dropped from the deltas and the means.
+_REPORTED_METRICS = ("map_at_R_bioproj", "full_map_bioproj",
+                     "full_map_pre_projection", "dna_unique_db", "nmi")
+
+#: The axis F01 IS. Recorded per side so the reader can see it rather than
+#: infer it from the directory names.
+_PROVENANCE_FIELDS = ("inference_epoch", "inference_epoch_source",
+                      "effective_sinkhorn_epsilon",
+                      "sinkhorn_annealing_enabled", "backfilled")
+
+
+def _provenance(manifest: dict) -> dict:
+    return {key: manifest.get(key) for key in _PROVENANCE_FIELDS}
 
 
 def _delta(new, old):
@@ -198,7 +264,7 @@ def main() -> int:
                     cell_dir, protocol=protocol,
                     identity=expected_identity(
                         ds, n, epoch=n, epoch_source="explicit_flag"))
-                _, legacy_marker = _require_manifests(
+                legacy_manifests, legacy_marker = _require_manifests(
                     legacy_dir, protocol=protocol,
                     identity=expected_identity(
                         ds, n, epoch=0, epoch_source="f01_unrestored"))
@@ -207,6 +273,21 @@ def main() -> int:
                 continue
             new = _side(cell_dir, marker)
             old = _side(legacy_dir, legacy_marker)
+
+            # The claim this whole table makes is "the SAME checkpoint, with the
+            # epoch restored". That was assumed, never checked: the legacy
+            # manifests were validated and then discarded, and only the analysis
+            # sources and the GC window were compared. Two different checkpoints
+            # would have been differenced without a word.
+            same, differing = _pair_identity(manifests, legacy_manifests)
+            if not same:
+                unpaired.append({
+                    "cell": f"{ds}/N{n}",
+                    "reason": (f"the two sides are not the same run: "
+                               f"{', '.join(differing)} differ, so the "
+                               f"difference is not F01"),
+                })
+                continue
 
             # Both sides must have been scored by the SAME evaluator, or the
             # difference measures the evaluator change as much as F01.
@@ -234,19 +315,18 @@ def main() -> int:
                 "fixed_side_sealed": bool(new["sealed"]),
                 "legacy_side_sealed": bool(old["sealed"]),
                 "same_evaluator_both_sides": True,
+                # BOTH sides. Recording only the fixed one left the reader
+                # unable to see the axis the pair actually differs along.
                 "provenance": {
                     "checkpoint_sha256": manifests["db"]["checkpoint_sha256"],
-                    "inference_epoch": manifests["db"]["inference_epoch"],
-                    "inference_epoch_source":
-                        manifests["db"]["inference_epoch_source"],
-                    "effective_sinkhorn_epsilon":
-                        manifests["db"]["effective_sinkhorn_epsilon"],
-                    "backfilled": bool(manifests["db"].get("backfilled", False)),
+                    "config_sha256": manifests["db"]["config_sha256"],
+                    "pair_identity_verified": True,
+                    "phase2": _provenance(manifests["db"]),
+                    "legacy": _provenance(legacy_manifests["db"]),
                 },
                 "delta": {
                     key: _delta(new[key], old[key])
-                    for key in ("map_at_R_bioproj", "full_map_bioproj",
-                                "dna_unique_db", "nmi")
+                    for key in _REPORTED_METRICS
                 },
             })
 
@@ -263,11 +343,7 @@ def main() -> int:
         "gc_policy": policy.as_manifest_record(),
         "paired_cells": len(cells),
         "unpaired": unpaired,
-        "mean_delta": {
-            key: _mean(key)
-            for key in ("map_at_R_bioproj", "full_map_bioproj",
-                        "dna_unique_db", "nmi")
-        },
+        "mean_delta": {key: _mean(key) for key in _REPORTED_METRICS},
         "cells": cells,
         "expected_cells": len(LEGACY),
         "complete": len(cells) == len(LEGACY),
@@ -291,8 +367,7 @@ def main() -> int:
         out_json = out_json.with_suffix(f".partial{out_json.suffix}")
         out_md = out_md.with_suffix(f".partial{out_md.suffix}")
 
-    out_json.write_text(
-        json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    _atomic_write(out_json, json.dumps(payload, indent=2) + "\n")
 
     def fmt(value, places=4):
         return "-" if value is None else f"{float(value):+.{places}f}"
@@ -344,7 +419,7 @@ def main() -> int:
     if unpaired:
         lines += ["", "## Unpaired", ""]
         lines += [f"- `{u['cell']}`: {u['reason']}" for u in unpaired]
-    out_md.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    _atomic_write(out_md, "\n".join(lines) + "\n")
     print(f"wrote {out_json} and {out_md}: "
           f"{len(cells)} paired, {len(unpaired)} unpaired")
     return 0 if complete else 1
