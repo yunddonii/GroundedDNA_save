@@ -487,6 +487,76 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-08-15 (PM) — 🟢 **캐시 재생성은 끝나 있었으나 아무도 안 쓰고 있었고, 게다가 whitening 누수를 안고 있었다. 게이트를 로더에 넣고 논문 경로를 전환. F08 `ls | head -1` 11곳 제거**
+
+### 캐시: 만든 것과 쓰는 것은 다른 문제였다
+
+D-A로 재생성한 네 CLIP 캐시는 `/data/yschoi/groundeddna_cache_v6prov`에 이미 존재했고
+8개 디렉터리 전부 `canonical_transform` + `hf_provenance`를 갖고 단일 immutable revision
+`57c21647…`로 고정돼 있었다. 그런데 **모든 러너는 여전히 구 `./cache/…`를 가리키고 있었다.**
+provenance 있는 캐시를 아무도 쓰지 않는 상태였다.
+
+더 나쁜 것은 재생성분 자체의 결함이다. `build_clip_cache_v6prov.sh`가 whitening을
+`--row_index_npy` 없이 적합해 네 캐시 전부 `leakage_free_fit: false`였다. 캐시는 전체
+데이터(예: Flickr 25000행 = train+db+query)를 담으므로, 이 행렬은 **epoch을 고르는 val 행과
+보고 수치인 query/DB 행을 관측**했다. `build_opt_train_rows.py` 독스트링이 금지하는 그 경우다.
+
+| 조치 | 내용 |
+|---|---|
+| split 인덱스 | 네 캐시에 `opt_train_rows.npy`(ratio 0.1, seed 42) + `train_all_rows.npy` 생성 |
+| whitening 재적합 | CIFAR/Flickr 27000, MSCOCO 54000, NUS-WIDE 56700 슬롯벡터 (opt-train 한정) |
+| 빌더 | `leakage_free_fit`이 true가 아니면 재적합하고, 아니면 완료를 거부 |
+| foil overlay | 네 데이터셋 재생성(구 캐시 기반 overlay는 다른 backbone snapshot의 foil을 대조하게 됨) |
+| CIFAR foil JSONL | 논문 CIFAR run의 `args.txt`가 `cifar10_qwen_v4.jsonl`을 기록 → v4 기준 `cifar10_v4.foils.jsonl` 신규 생성 |
+
+### 게이트는 로더에 넣었다
+
+11개 러너를 전부 고치는 대신, 모든 경로가 지나는 **로더**에 fail-closed 게이트를 두었다
+(`dna_utils/cache_provenance.py`). 가장 큰 구멍은 게이트를 지키던 조건문 자체였다.
+
+```text
+if dir is not None and os.path.isdir(dir):   # 없는 캐시 = "캐시 요청 안 함"
+```
+
+오타나 옮겨진 루트가 **조용히 live-image 경로로 전환**시켰고, 캐시를 아예 로드하지 않는 실행은
+"로드한 캐시" 때문에 거부될 수가 없다. 설정됐는데 없는 캐시는 이제 오류다.
+
+내용도 검사한다. 제한 적합은 literal `true`만 인정하고(JSON 문자열 `"false"`도 truthy다),
+`row_index_npy`는 실재 파일이어야 하며, 빈 `canonical_transform`·무명 모델·비-40hex revision은
+거부한다. `main`은 움직이므로 revision이 될 수 없다.
+
+### F08 — 시작한 실행을 평가하라
+
+11개 러너가 `ls -dt result/*TAG* | head -1`로 자식 결과를 찾고 있었다. 이 머신은 세션 두 개가
+`result/`를 공유하므로 **가장 최근 매치가 남의 실행일 수 있고**, 그러면 남의 체크포인트를 채점해
+이 셀 이름으로 보고한다. `head -1`은 "매치 없음"을 빈 문자열로, "여러 개"를 임의 선택으로 바꾼다.
+
+`scripts/lib/result_dir.sh`가 정확히 1개를 요구하고 여러 개면 후보를 나열하며 거부한다. 새 규칙이
+아니라 논문 P0 셀 러너가 원래 쓰던 규칙이고, 그래서 그 경로만 이 문제를 겪지 않았다.
+
+### 부수적으로 닫은 것
+
+- foil launcher의 bare `wait`가 child 실패와 무관하게 rc0 + "all datasets finished"를 출력했다.
+  실제로 CIFAR child가 rc=1로 죽은 뒤에도 그렇게 찍혔고, 그 overlay는 별도 수동 재시도의 산물이다.
+  이제 child별 wait + 데이터셋별 상태표 + 미완 시 nonzero.
+- `prompt_ablation_A_cell.sh`의 `E*` 파싱 실패가 조용히 `ESTAR=59`로 떨어졌다. "선택을 읽지
+  못했다"를 "마지막 epoch을 선택했다"로 바꾸는 것이라 이제 exit 5.
+- `dataloaders.py`가 native-DNA `IMPLEMENTATION_PATHS`에 있어 method lock이 무효화됐다. 검토 결과
+  native 경로는 `carve_val_indices`만 쓰고 `_SigLIP2FeatureCache`를 만들지 않으므로 **엄격한
+  no-op**이며, 세 번째 lock 세대로 등록했다.
+
+### Phase 3 착수 전 남은 것 (다음 세션)
+
+- `prompt_ablation_A_cell.sh`는 v6prov로 전환했으나 **아직 스모크 미실행**. 반드시 1 epoch 셀로
+  먼저 확인할 것.
+- `prompt_ablation_A_cell_fixedN.sh`는 **매 epoch 공식 test를 보며 N을 고르는** 러너다. 스스로
+  leak을 명시한다. Phase 3의 N 선택에 쓰면 안 되고, 2단계 `prompt_ablation_A_cell.sh`
+  (`VAL_RATIO=0.1 VAL_SEED=42`)가 맞는 러너다.
+- D6 러너(baseline 원저자 고정 epoch, 마지막 체크포인트)는 문서·Bi-half/SDC 수정까지 끝났고
+  `scripts/run_modern_baseline_p0.py`가 여전히 2단계다. Phase 3은 ours 전용이라 이에 의존하지 않는다.
+
+---
+
 ## 2026-08-15 — 🟢 **Phase 2 완료: F01(추출 epoch 미복원)의 실제 비용을 30면 동일-evaluator로 측정. mAP@R 평균 Δ −0.0040 (범위 −0.0136 … +0.0023), DNA-unique +0.0442·NMI −0.0839로 수정본이 우월. N 선택은 4/4 불변**
 
 ### 무엇을 측정했나
