@@ -62,15 +62,22 @@ if [[ "$PREFLIGHT_ONLY" != "0" && "$PREFLIGHT_ONLY" != "1" ]]; then
     exit 2
 fi
 
+# The provenance-bearing caches rebuilt under D-A. `GDNA_CACHE_ROOT` overrides
+# the root for diagnostics; the per-dataset defaults below name the directory
+# KIND (pooled vs token) each dataset has always used, and only the root moved.
+# The old `./cache/...` trees are unprovenanced and the loader now refuses them,
+# so pointing here is what makes a run paper-table eligible at all.
+CACHE_ROOT="${GDNA_CACHE_ROOT:-/data/yschoi/groundeddna_cache_v6prov}"
+
 declare -a DATASET_ENV
 case "$DS" in
     flickr)
         CANON="Flickr25k"
         RESULT_SLUG="flickr25k"
         LAUNCHER="scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh"
-        DEFAULT_BASE_CACHE="./cache/flickr25k_clip_v4plus_qwen3_tokens"
+        DEFAULT_BASE_CACHE="$CACHE_ROOT/flickr25k_clip_tokens"
         DEFAULT_QWEN="./cache/flickr25k_qwen3_v4_trainset.jsonl"
-        DEFAULT_EVAL_CACHE="./cache/flickr25k_clip_v4plus_qwen3_tokens"
+        DEFAULT_EVAL_CACHE="$CACHE_ROOT/flickr25k_clip_tokens"
         DATASET_ENV=(
             CIBNT=1.0 LBU=0.02 SLA=1.0
             WHITEN_GAMMA=0.25 BI_V=0.5 BI_T=0.5 BIDIR_MODE=legacy
@@ -80,9 +87,9 @@ case "$DS" in
         CANON="MSCOCO"
         RESULT_SLUG="mscoco"
         LAUNCHER="scripts/train_mscoco_F2_sweep_clip.sh"
-        DEFAULT_BASE_CACHE="./cache/mscoco_clip_v5b_tokens"
+        DEFAULT_BASE_CACHE="$CACHE_ROOT/mscoco_clip_tokens"
         DEFAULT_QWEN="./cache/mscoco_qwen3_v5b_trainset.jsonl"
-        DEFAULT_EVAL_CACHE="./cache/mscoco_clip_v5b"
+        DEFAULT_EVAL_CACHE="$CACHE_ROOT/mscoco_clip"
         DATASET_ENV=(
             WASS=0.05 XMODAL=0.10 THASH=0.10 TCKL=0.10
             CIBNT=1.5 CCS=0.0 SLA=1.0 CELL=semantic_detail_p0
@@ -92,9 +99,9 @@ case "$DS" in
         CANON="NUSWIDE"
         RESULT_SLUG="nuswide"
         LAUNCHER="scripts/train_nuswide_v185_sweep_clip.sh"
-        DEFAULT_BASE_CACHE="./cache/nuswide_clip_tokens"
+        DEFAULT_BASE_CACHE="$CACHE_ROOT/nuswide_clip_tokens"
         DEFAULT_QWEN="./cache/nuswide_qwen3_v4_trainset.jsonl"
-        DEFAULT_EVAL_CACHE="./cache/nuswide_clip_tokens"
+        DEFAULT_EVAL_CACHE="$CACHE_ROOT/nuswide_clip_tokens"
         DATASET_ENV=(
             WASS=0.15 XMODAL=0.05 THASH=0.05 TCKL=0.05
             CIBNT=1.5 CCS=0.0 GATE=4.595
@@ -106,9 +113,9 @@ case "$DS" in
         CANON="CIFAR10"
         RESULT_SLUG="cifar10"
         LAUNCHER="scripts/train_cifar10_v185_bidirTokenPrune05_ccs01_clip.sh"
-        DEFAULT_BASE_CACHE="./cache/cifar10_clip"
-        DEFAULT_QWEN="./cache/cifar10_qwen.jsonl"
-        DEFAULT_EVAL_CACHE="./cache/cifar10_clip"
+        DEFAULT_BASE_CACHE="$CACHE_ROOT/cifar10_clip_tokens"
+        DEFAULT_QWEN="./cache/cifar10_qwen_v4.jsonl"
+        DEFAULT_EVAL_CACHE="$CACHE_ROOT/cifar10_clip_tokens"
         DATASET_ENV=(
             CIBNT=1.0 CCS=0.1
             WHITEN_GAMMA=0.25 BI_V=0.5 BI_T=0.5

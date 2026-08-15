@@ -2052,6 +2052,13 @@ class SigLIP2SemanticOTModel(nn.Module):
                 )
                 # NOTE: `os` not imported at module top in current file;
                 # we import lazily below if needed.
+            # This matrix is fitted before training, so it must have seen the
+            # optimization-train rows only. All four rebuilt v6prov caches were
+            # first written with `leakage_free_fit: false` -- fitted over every
+            # cache row, which includes the validation rows that select the
+            # epoch and the query/DB rows that ARE the reported number.
+            from dna_utils.cache_provenance import require_leakage_free_whitening
+            require_leakage_free_whitening(str(_npz_path))
             import numpy as _np
             _b = _np.load(str(_npz_path))
             _mu_np = _np.asarray(_b["mu"], dtype=_np.float32)               # [D]

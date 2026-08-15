@@ -273,6 +273,47 @@ _POST_F18_METHOD_PROTOCOL_LOCK_BY_LENGTH = {
 }
 
 
+# A THIRD generation, from the cache-provenance gate added to
+# `_SigLIP2FeatureCache.__init__` (2026-08-15). `dataloaders.py` is one of
+# `IMPLEMENTATION_PATHS`, so its file digest enters every method identity even
+# when the change cannot reach the method.
+#
+# Reviewed before registering, per the rule above. The native-DNA baselines
+# operate on raw sequences: `train_native_dna_baseline.py` imports only
+# `carve_val_indices` from `val_split`, and `_SigLIP2FeatureCache` is reached
+# solely through `val_split.cache_rows_for_dataset`, which no native path calls.
+# The new check therefore cannot execute on this path -- a strict no-op, and the
+# digests moved only because the file hash is deliberately a conservative input.
+# Regenerate with scripts/recompute_native_method_locks.py --length <L> after
+# READING the source diff -- never by pasting numbers to make a check pass.
+_POST_CACHE_GATE_METHOD_PROTOCOL_LOCK_BY_LENGTH = {
+    15: {
+        "bee2018": "bdb2f1a04f0358d11072e58366ca2f3e2e3e2c1cfbff2fee202e000eb67e3cee",
+        "bee2021": "52696b7abbb02271d9472653a41b2e487d3178a11231e9977c89b9e2acc522eb",
+        "koike2024": "e66495a18349d817de0aa9cc73958004afedc1b0265c622239ad2855d340ea9e",
+        "koike2026": "2efaf496f405c51aa5532df9d1462b3ddda5ffd94590b990096a14337a557152",
+    },
+    18: {
+        "bee2018": "ae76b57c561ccfa19f0538037fcca282f1da76ec48c6c80929181324615323db",
+        "bee2021": "2f3526172e3d826ccb29a032fba7f601f6a16a7055aca84c64d10984a942444c",
+        "koike2024": "a2fdd8d57bfe49cfbcf7329198d1a490751d13d24d1012109c1ae3505430488d",
+        "koike2026": "a62fd811f3e9295c44c31dff7cae92baad86d28e09285af2ac8652ae6b2f26c4",
+    },
+    20: {
+        "bee2018": "59014f3e0585989ff94e4bb46a1bc3c00a9bbfebc0f3f89b7bd970dd56bf3db8",
+        "bee2021": "58b9195bb41ff8609cc868386ba660205afbb5c9526e570e5099c41174cf6a96",
+        "koike2024": "559e5a9941f26e97ae52c9dd0a66dcd6157a49c81edf1472abfd057624d4d2d4",
+        "koike2026": "3b467fdb54ebfb63aa71a63d065ecc22c3b663dabe34a18fd6ea2512f7b503fa",
+    },
+    24: {
+        "bee2018": "0bc7273388831698ea490f52f3ff88369ca3248b6e5c4950489633cd4c731373",
+        "bee2021": "979144f4127d1dc441725a366caf6be6488fb15c3a9026710d29798f45887ffb",
+        "koike2024": "6ec9de8472e2b5e681705ff64e0a34c01e03d24743fa95ba56df70037cb2fe48",
+        "koike2026": "6f15488bb414932465b6940ff6364f8a01dc9ad114461160749de24c74bc22c8",
+    },
+}
+
+
 def reviewed_method_locks(protocol) -> dict:
     """{method: frozenset(reviewed digests)} for a length.
 
@@ -283,16 +324,18 @@ def reviewed_method_locks(protocol) -> dict:
     length = coerce_protocol(protocol).length_bases
     pre = _METHOD_PROTOCOL_LOCK_BY_LENGTH.get(length, {})
     post = _POST_F18_METHOD_PROTOCOL_LOCK_BY_LENGTH.get(length, {})
-    if not pre and not post:
+    gated = _POST_CACHE_GATE_METHOD_PROTOCOL_LOCK_BY_LENGTH.get(length, {})
+    if not pre and not post and not gated:
         raise SystemExit(
             f"no reviewed method-protocol lock registered for {length} bases; "
-            f"known: {sorted(set(_METHOD_PROTOCOL_LOCK_BY_LENGTH) | set(post))}. "
+            f"known: {sorted(_REGISTERED_LOCK_LENGTHS)}. "
             f"Run scripts/recompute_native_method_locks.py, read the source "
             f"diff, and register the digest rather than disabling the check.")
     return {
         method: frozenset(
-            d for d in (pre.get(method), post.get(method)) if d is not None)
-        for method in sorted(set(pre) | set(post))
+            d for d in (pre.get(method), post.get(method), gated.get(method))
+            if d is not None)
+        for method in sorted(set(pre) | set(post) | set(gated))
     }
 
 
@@ -303,7 +346,8 @@ def reviewed_method_locks(protocol) -> dict:
 #: aggregator and matrix could not even print `--help`.
 _REGISTERED_LOCK_LENGTHS = sorted(
     set(_METHOD_PROTOCOL_LOCK_BY_LENGTH)
-    | set(_POST_F18_METHOD_PROTOCOL_LOCK_BY_LENGTH))
+    | set(_POST_F18_METHOD_PROTOCOL_LOCK_BY_LENGTH)
+    | set(_POST_CACHE_GATE_METHOD_PROTOCOL_LOCK_BY_LENGTH))
 
 if LENGTH not in _REGISTERED_LOCK_LENGTHS:
     raise SystemExit(

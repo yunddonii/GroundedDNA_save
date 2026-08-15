@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -174,6 +175,19 @@ class NoTextSupervisionAblationTest(unittest.TestCase):
                 U=np.eye(4, dtype=np.float32),
                 S=np.asarray([0.01, 0.25, 4.0, 100.0], dtype=np.float32),
             )
+            # The model refuses a whitening matrix that cannot say which rows
+            # it was fitted on; this ablation is about the no-text path, not
+            # about leakage, so the fixtures declare a restricted fit.
+            rows_path = Path(tmp_dir) / "opt_train_rows.npy"
+            np.save(rows_path, np.arange(8))
+            for path in (first_path, second_path):
+                Path(str(path) + ".meta.json").write_text(
+                    json.dumps({
+                        "leakage_free_fit": True, "rows_used": 8,
+                        "row_index_npy": str(rows_path),
+                    }),
+                    encoding="utf-8",
+                )
 
             def build(path: Path):
                 args = _ablation_args(

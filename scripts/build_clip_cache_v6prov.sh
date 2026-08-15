@@ -69,9 +69,38 @@ if [[ ! -f "$TOKENS/text_tokens.f16.npy" ]]; then
         --qwen_cache "$QWEN" --donor_dir "$POOLED" --out_dir "$TOKENS"
 fi
 
-if [[ ! -f "$TOKENS/text_whiten.npz" ]]; then
+# The whitening matrix is fitted BEFORE training, so it must see the
+# optimization-train rows only. Fitting it on every cache row lets it observe
+# the validation rows that pick the epoch and the query/DB rows that are the
+# reported number -- a transductive leak. The first version of this script
+# omitted the restriction entirely, so all four rebuilt caches were written with
+# `leakage_free_fit: false`.
+VAL_RATIO="${VAL_RATIO:-0.1}"
+VAL_SEED="${VAL_SEED:-42}"
+
+if [[ ! -f "$TOKENS/opt_train_rows.npy" ]]; then
+    "$PY" scripts/build_opt_train_rows.py \
+        --dataset "$DS" --dataset_dir "$REPO/dataset" --cache_dir "$TOKENS" \
+        --val_split_ratio "$VAL_RATIO" --val_split_seed "$VAL_SEED" \
+        --out "$TOKENS/opt_train_rows.npy"
+fi
+if [[ ! -f "$TOKENS/train_all_rows.npy" ]]; then
+    "$PY" scripts/build_opt_train_rows.py \
+        --dataset "$DS" --dataset_dir "$REPO/dataset" --cache_dir "$TOKENS" \
+        --all_train --out "$TOKENS/train_all_rows.npy"
+fi
+
+# Rebuild whenever the existing matrix is absent OR was fitted without the
+# restriction -- "the file exists" is not the property that matters.
+WHITEN_OK=0
+if [[ -f "$TOKENS/text_whiten.npz.meta.json" ]]; then
+    WHITEN_OK=$("$PY" -c "import json,sys; print(1 if json.load(open(sys.argv[1])).get('leakage_free_fit') else 0)" \
+        "$TOKENS/text_whiten.npz.meta.json")
+fi
+if [[ ! -f "$TOKENS/text_whiten.npz" || "$WHITEN_OK" != "1" ]]; then
     "$PY" scripts/build_text_whiten_matrix.py \
-        --cache_dir "$TOKENS" --out "$TOKENS/text_whiten.npz"
+        --cache_dir "$TOKENS" --out "$TOKENS/text_whiten.npz" \
+        --row_index_npy "$TOKENS/opt_train_rows.npy"
 fi
 
 # Fail loudly here rather than at training time: the whole point of the rebuild
@@ -86,5 +115,14 @@ for d in sys.argv[1:3]:
         raise SystemExit(f"{d}/meta.json still lacks {missing}")
     rev = meta["hf_provenance"].get("model_revision")
     print(f"  OK {d}: revision={rev}")
+
+# The whitening fit is as much a part of eligibility as the backbone snapshot.
+whiten_meta = f"{sys.argv[2]}/text_whiten.npz.meta.json"
+wm = json.load(open(whiten_meta))
+if not wm.get("leakage_free_fit"):
+    raise SystemExit(f"{whiten_meta}: leakage_free_fit is false; the whitening "
+                     f"matrix saw rows outside the optimization-train split")
+print(f"  OK {sys.argv[2]}/text_whiten.npz: fitted on {wm['rows_used']} "
+      f"optimization-train rows")
 PYEOF
 echo "[cache-v6prov] $DS DONE"

@@ -19,6 +19,18 @@ from extract_clip_local_crops import (
 from dataloaders import _SigLIP2FeatureCache
 
 
+
+#: The loader refuses a cache that cannot name the backbone snapshot that
+#: produced it. These fixtures are about donor identity and aug-view staleness,
+#: so they carry a valid provenance block and exercise the checks they are for.
+PROVENANCE = {
+    "canonical_transform": {"image_size": 224, "interpolation": "bicubic"},
+    "hf_provenance": {
+        "model_name": "openai/clip-vit-base-patch16",
+        "model_revision": "57c216476eefef5ab752ec549e440a49ae4ae5f3",
+    },
+}
+
 class LocalCropGlobalFeatureContractTest(unittest.TestCase):
     @staticmethod
     def _write_reader_fixture(
@@ -29,7 +41,7 @@ class LocalCropGlobalFeatureContractTest(unittest.TestCase):
         aug_views: int = 0,
     ) -> None:
         (root / "meta.json").write_text(
-            __import__("json").dumps(meta), encoding="utf-8",
+            __import__("json").dumps({**PROVENANCE, **meta}), encoding="utf-8",
         )
         np.save(
             root / "visual_tokens.f16.npy",
@@ -188,7 +200,8 @@ class LocalCropGlobalFeatureContractTest(unittest.TestCase):
 
             meta["num_tokens"] = 7
             (cache_root / "meta.json").write_text(
-                __import__("json").dumps(meta), encoding="utf-8",
+                __import__("json").dumps({**PROVENANCE, **meta}),
+                encoding="utf-8",
             )
             with self.assertRaisesRegex(ValueError, "geometry differs"):
                 _SigLIP2FeatureCache(str(cache_root))

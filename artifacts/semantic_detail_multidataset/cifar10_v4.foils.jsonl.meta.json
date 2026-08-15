@@ -1,0 +1,46 @@
+{
+  "contract": {
+    "edits_per_foil_caption": 1,
+    "generation_uses_external_model_or_api": false,
+    "global_slot_valid": false,
+    "replacement_absent_from_all_factual_captions": true
+  },
+  "edit_family_counts": {
+    "action": 1220,
+    "color": 7550,
+    "ground": 564,
+    "lighting": 96,
+    "material": 39,
+    "object": 3729,
+    "relation": 4546,
+    "scene": 5035,
+    "shape": 1419,
+    "size": 1181,
+    "texture": 303,
+    "weather": 34
+  },
+  "max_rows": -1,
+  "output_jsonl": "/home/yschoi/GroundedDNA/artifacts/semantic_detail_multidataset/cifar10_v4.foils.jsonl",
+  "output_sha256": "079c0b79f09a2e8b3f01264e9ce9ba633c2fd95fe4b9b7f41588727fb976c6ac",
+  "rows": 6000,
+  "schema_version": "groundeddna-local-caption-foil-v1",
+  "seed": 0,
+  "slot_keys": [
+    "C_global",
+    "C_primary_object",
+    "C_secondary_object",
+    "C_activity_or_relation",
+    "C_color_texture",
+    "C_scene_type"
+  ],
+  "source_jsonl": "/home/yschoi/GroundedDNA/cache/cifar10_qwen_v4.jsonl",
+  "source_sha256": "b02cc0be0e7aba0e4602a2daf15c7c45b259c86d9fa8fe0b27817714a9f6eefb",
+  "valid_per_slot": {
+    "C_activity_or_relation": 2899,
+    "C_color_texture": 5919,
+    "C_global": 0,
+    "C_primary_object": 5569,
+    "C_scene_type": 5837,
+    "C_secondary_object": 5492
+  }
+}

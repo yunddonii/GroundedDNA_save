@@ -19,6 +19,24 @@ _GDNA_N_PARTS = int(os.environ.get("GDNA_NUM_SEMANTIC_PARTS", "6"))
 
 # ---------------------------------------------------------------- siglip2 feature cache
 
+
+def _require_cache_dir_present(cache_dir) -> None:
+    """Refuse a configured feature cache that does not exist.
+
+    `if dir is not None and os.path.isdir(dir)` treated a missing directory as
+    "no cache requested", so a typo, a moved cache root or an unmounted volume
+    silently switched the run to live images -- and silently bypassed the
+    provenance gate, since nothing that never loads a cache can be refused for
+    the cache it loaded. `None` still means no cache was asked for.
+    """
+    if cache_dir is None:
+        return
+    if not os.path.isdir(cache_dir):
+        raise FileNotFoundError(
+            f"[siglip2-cache] configured feature cache does not exist: "
+            f"{cache_dir}. Pass no cache directory to train from images.")
+
+
 class _SigLIP2FeatureCache:
     """Memmap-backed reader for SigLIP2 visual + text feature caches.
 
@@ -41,6 +59,12 @@ class _SigLIP2FeatureCache:
                 raise FileNotFoundError(f"[siglip2-cache] missing {p}")
         with open(meta_p, "r") as f:
             self.meta = json.load(f)
+        # Which frozen backbone produced these features is part of the
+        # experiment, not an optional annotation. The rebuilt caches carry it;
+        # the legacy ones do not, and every runner still pointed at the legacy
+        # paths, so the gate belongs here where all of them pass through.
+        from dna_utils.cache_provenance import require_cache_provenance
+        self.provenance = require_cache_provenance(cache_dir, self.meta)
         with open(ids_p, "r") as f:
             ids = json.load(f)
         self.image_ids = list(ids)
@@ -831,8 +855,13 @@ class ImgRtvDataset(Dataset):
                 assert self._part_tokens["input_ids"].shape[0] == len(self.img_paths)
 
         # ---- optional SigLIP2 visual+text feature cache (path-keyed) ----
-        if (self._siglip2_feature_cache_dir is not None
-                and os.path.isdir(self._siglip2_feature_cache_dir)):
+        # A configured cache that is not there is a mistake, not a mode. This
+        # used to fall through to the live-image path in silence: the run then
+        # trained on a different pipeline than intended AND skipped the
+        # provenance gate entirely, because a gate is only reached by the path
+        # that loads the cache.
+        _require_cache_dir_present(self._siglip2_feature_cache_dir)
+        if self._siglip2_feature_cache_dir is not None:
             self._feat_cache = _SigLIP2FeatureCache(self._siglip2_feature_cache_dir)
             self._feat_cache_rows = _build_pathkeyed_cache_row_map(
                 list(self.img_paths), self.root, self._feat_cache,
@@ -1044,8 +1073,13 @@ class ImgRtvCIFAR10(CIFAR10):
         # When supplied, __getitem__ returns precomputed encoder outputs and
         # the model can skip the encoder pass entirely. Built once in
         # `extract_siglip2_features.py`.
-        if (self._siglip2_feature_cache_dir is not None
-                and os.path.isdir(self._siglip2_feature_cache_dir)):
+        # A configured cache that is not there is a mistake, not a mode. This
+        # used to fall through to the live-image path in silence: the run then
+        # trained on a different pipeline than intended AND skipped the
+        # provenance gate entirely, because a gate is only reached by the path
+        # that loads the cache.
+        _require_cache_dir_present(self._siglip2_feature_cache_dir)
+        if self._siglip2_feature_cache_dir is not None:
             self._feat_cache = _SigLIP2FeatureCache(self._siglip2_feature_cache_dir)
             self._feat_cache_rows = _build_cifar10_cache_row_map(self.data, self._feat_cache)
             print(f"[ImgRtvCIFAR10] siglip2 feature cache loaded from "
@@ -1225,8 +1259,13 @@ class ImgRtvCUB2011(Dataset):
         # ---- optional SigLIP2 / CLIP visual+text feature cache ----
         self._feat_cache: Optional[_SigLIP2FeatureCache] = None
         self._feat_cache_rows: Optional[np.ndarray] = None
-        if (self._siglip2_feature_cache_dir is not None
-                and os.path.isdir(self._siglip2_feature_cache_dir)):
+        # A configured cache that is not there is a mistake, not a mode. This
+        # used to fall through to the live-image path in silence: the run then
+        # trained on a different pipeline than intended AND skipped the
+        # provenance gate entirely, because a gate is only reached by the path
+        # that loads the cache.
+        _require_cache_dir_present(self._siglip2_feature_cache_dir)
+        if self._siglip2_feature_cache_dir is not None:
             self._feat_cache = _SigLIP2FeatureCache(self._siglip2_feature_cache_dir)
             self._feat_cache_rows = _build_pathkeyed_cache_row_map(
                 list(self.img_paths), self.root, self._feat_cache,
