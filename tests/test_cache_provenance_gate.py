@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 
 import numpy as np
@@ -226,3 +227,52 @@ def test_a_configured_but_missing_cache_directory_is_refused(tmp_path):
     with pytest.raises(FileNotFoundError) as excinfo:
         _require_cache_dir_present(str(tmp_path / "gone"))
     assert "does not exist" in str(excinfo.value)
+
+
+# ------------------------------------------- the overlay launcher (§29.6)
+
+_LAUNCHER = REPO / "scripts" / "build_foil_overlays_v6prov.sh"
+
+
+def test_the_overlay_launcher_reports_a_failing_child(tmp_path):
+    """A bare `wait` returns 0 whatever the children did.
+
+    The first version printed "all datasets finished" after a child had exited
+    1, and the overlay it implied was in fact built by a separate hand-run
+    retry.
+    """
+    script = tmp_path / "probe.sh"
+    script.write_text(
+        "set -uo pipefail\n"
+        "( exit 7 ) &\n"
+        "A=$!\n"
+        "( exit 0 ) &\n"
+        "B=$!\n"
+        "FAILED=0\n"
+        "wait $A || FAILED=1\n"
+        "wait $B || FAILED=1\n"
+        "exit $FAILED\n")
+    proc = subprocess.run(["bash", str(script)], capture_output=True,
+                          text=True, timeout=60)
+    assert proc.returncode == 1, "per-child wait must surface the failure"
+
+
+def test_the_overlay_launcher_supplies_the_cifar_foil_jsonl():
+    """CIFAR's overlay needs the v4 foils, or a standalone run cannot rebuild it.
+
+    The checked-in `cifar10.foils.jsonl` was generated from
+    `cifar10_qwen.jsonl`; the paper's CIFAR runs record `cifar10_qwen_v4.jsonl`
+    and the rebuilt cache is built from it, so the builder refuses the pair.
+    """
+    source = _LAUNCHER.read_text()
+    assert "cifar10_v4.foils.jsonl" in source
+    assert "FOIL_JSONL=" in source
+
+
+def test_the_overlay_launcher_exits_nonzero_when_a_dataset_is_missing(tmp_path):
+    """A missing input used to be a silent skip inside an all-finished report."""
+    source = _LAUNCHER.read_text()
+    assert "NOT all datasets built" in source
+    for phrase in ("missing base cache", "missing caption cache",
+                   "missing foil jsonl"):
+        assert phrase in source
