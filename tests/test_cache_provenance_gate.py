@@ -266,7 +266,35 @@ def test_the_overlay_launcher_supplies_the_cifar_foil_jsonl():
     """
     source = _LAUNCHER.read_text()
     assert "cifar10_v4.foils.jsonl" in source
-    assert "FOIL_JSONL=" in source
+
+
+def test_the_optional_foil_variable_actually_reaches_the_child():
+    """`${FOIL:+FOIL_JSONL="$FOIL"}` looked right and exited 127.
+
+    Bash expands the conditional and then looks for a COMMAND by the resulting
+    name; it does not re-read it as an assignment word. A source-substring test
+    saw `FOIL_JSONL=` in the file and passed while a clean CIFAR launch could
+    not start at all -- exactly the grep-shaped test this repo keeps getting
+    burned by. This runs the construct.
+    """
+    script = (
+        'FOIL=/tmp/example.jsonl\n'
+        'ENVV=(A=1)\n'
+        '[[ -n "$FOIL" ]] && ENVV+=(FOIL_JSONL="$FOIL")\n'
+        'env "${ENVV[@]}" bash -c \'echo "got=$FOIL_JSONL"\'\n'
+    )
+    proc = subprocess.run(["bash", "-c", script], capture_output=True,
+                          text=True, timeout=60)
+    assert proc.returncode == 0, proc.stderr
+    assert "got=/tmp/example.jsonl" in proc.stdout
+
+    broken = (
+        'FOIL=/tmp/example.jsonl\n'
+        'A=1 ${FOIL:+FOIL_JSONL="$FOIL"} bash -c \'true\'\n'
+    )
+    bad = subprocess.run(["bash", "-c", broken], capture_output=True,
+                         text=True, timeout=60)
+    assert bad.returncode == 127, "the broken form must still be broken"
 
 
 def test_the_overlay_launcher_exits_nonzero_when_a_dataset_is_missing(tmp_path):

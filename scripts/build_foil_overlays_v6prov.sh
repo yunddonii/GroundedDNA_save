@@ -74,9 +74,14 @@ for spec in "${SPECS[@]}"; do
     fi
 
     echo "[foil-v6prov] $DS -> $OVERLAY on gpu $GPU (log: $LOG)"
-    BASE_CACHE="$BASE" QWEN="$QWEN" OVERLAY="$OVERLAY" \
-        ${FOIL:+FOIL_JSONL="$FOIL"} \
-        nohup bash scripts/prepare_semantic_detail_cache.sh "$DS" "$GPU" \
+    # `${FOIL:+FOIL_JSONL="$FOIL"}` does NOT work: bash expands it and then
+    # looks for a COMMAND by that name rather than re-reading it as an
+    # assignment word, so a clean CIFAR launch died with rc=127. An explicit
+    # array is passed to `env`, which does re-read it.
+    ENVV=(BASE_CACHE="$BASE" QWEN="$QWEN" OVERLAY="$OVERLAY")
+    [[ -n "$FOIL" ]] && ENVV+=(FOIL_JSONL="$FOIL")
+    nohup env "${ENVV[@]}" \
+        bash scripts/prepare_semantic_detail_cache.sh "$DS" "$GPU" \
         > "$LOG" 2>&1 &
     PIDS[$DS]=$!
 done
