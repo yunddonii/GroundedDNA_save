@@ -145,5 +145,9 @@ CUDA_VISIBLE_DEVICES="$GPU" \
     --bidirectional_token_prune_visual_ratio "$BI_V" \
     --bidirectional_token_prune_text_ratio "$BI_T" \
     --bidirectional_token_prune_mode "$BIDIR_MODE" \
-    --eval_cache_dir ./cache/flickr25k_clip_v4plus_qwen3_tokens \
+    `# Overridable: this was pinned to the old unprovenanced cache, so a` \
+    `# runner that had switched CACHE to the rebuilt root still evaluated` \
+    `# against August's features -- and the loader now refuses those, which` \
+    `# killed stage 1 and let the stale log supply E*.` \
+    --eval_cache_dir "${EVAL_CACHE:-$CACHE}" \
     ${EXTRA_ARGS:-} -ev -s 2>&1 | tee "$LOG"

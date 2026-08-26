@@ -14,9 +14,11 @@
 # The paper's P0 cell runner already required exactly one match and proved the
 # discipline works; this is that rule, shared.
 #
-# When the directory carries a run manifest (F08, `dna_utils/run_identity.py`),
-# it is reported, so a caller can tell an identity-claimed directory from one
-# that merely matched a glob.
+# The manifest is READ, not merely mentioned. An earlier version of this note
+# said a manifest would be "reported" while no code opened one, so a sole
+# substring match carrying a wrong-dataset manifest -- or none at all -- came
+# back rc0. `resolve_one_claimed_result_dir` requires a loadable
+# `run_identity.json`, optionally for a named dataset.
 
 resolve_one_result_dir() {
     local tag="$1"
@@ -44,6 +46,33 @@ resolve_one_result_dir() {
         return 1
     fi
     printf '%s\n' "${matches[0]}"
+}
+
+# Exactly one match, which must also carry a run manifest naming this run.
+# Use this wherever the answer feeds an evaluation: a directory that cannot say
+# which run produced it is not an answer, and the stale August result dirs are
+# precisely unmanifested.
+resolve_one_claimed_result_dir() {
+    local tag="$1"
+    local required="$2"
+    local dataset="${3:-}"
+    local root="${4:-result}"
+    local repo dir py
+    repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+    py="${PY:-/home/yschoi/.conda/envs/dna_hashing/bin/python}"
+
+    if [[ -n "$required" ]]; then
+        dir="$(resolve_one_result_dir_with "$tag" "$required" "$root")" || return 1
+    else
+        dir="$(resolve_one_result_dir "$tag" "$root")" || return 1
+    fi
+    if ! "$py" "$repo/scripts/_run_manifest_check.py" "$dir" --require-manifest \
+            ${dataset:+--expect-dataset "$dataset"} >/dev/null; then
+        printf '[result-dir] %s does not carry a run manifest for this run;\n' "$dir" >&2
+        printf '             refusing to evaluate a directory that cannot name its run.\n' >&2
+        return 1
+    fi
+    printf '%s\n' "$dir"
 }
 
 # Same, plus a required file the directory must actually contain. Existing

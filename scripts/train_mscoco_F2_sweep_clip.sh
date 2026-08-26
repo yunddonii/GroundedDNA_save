@@ -41,4 +41,6 @@ CUDA_VISIBLE_DEVICES="$GPU" /home/yschoi/.conda/envs/dna_hashing/bin/python trai
     --lambda_text_code_kl "$TCKL" --text_code_kl_tau_v 0.1 --text_code_kl_tau_t 0.07 --text_code_kl_conf_threshold 0.2 \
     ${GLOBAL_SKIPS---text_code_kl_skip_global --text_hash_ntxent_skip_global} \
     --bidirectional_token_prune --bidirectional_token_prune_visual_ratio 1.0 --bidirectional_token_prune_text_ratio 1.0 \
-    --eval_cache_dir ./cache/mscoco_clip_v5b ${EXTRA_ARGS:-} -ev -s 2>&1 | tee "$LOG"
+    `# Overridable: see the note in the Flickr trainer -- a pinned old` \
+    `# eval cache is refused by the provenance gate and takes stage 1 down.` \
+    --eval_cache_dir "${EVAL_CACHE:-$CACHE}" ${EXTRA_ARGS:-} -ev -s 2>&1 | tee "$LOG"

@@ -39,10 +39,24 @@ from dataclasses import asdict, dataclass, fields
 from typing import Any, List, Optional
 
 MANIFEST_NAME = "run_identity.json"
-_SCHEMA_VERSION = 1
+#: v2 added the scientific axes below. v1 digests covered only the geometry and
+#: the schedule, so changing the codebook size, the feature/caption/whitening
+#: cache, the Sinkhorn epsilon endpoints, the validation split, the batch size
+#: or the projection learning rate left the digest identical -- ten axes that
+#: define different experiments, all colliding on one directory.
+_SCHEMA_VERSION = 2
+
+#: Claimed by a live process. Created with O_EXCL, so two processes cannot both
+#: believe they own the directory; removed by `release_run_dir` when the run
+#: finishes.
+ACTIVE_CLAIM_NAME = "run_active_claim.json"
 
 #: Directory-name fragments that must never be resolved as a live run.
 _EXCLUDED_FRAGMENTS = ("quarantine", "_QUARANTINE", "smoke")
+
+
+def _opt_float(value: Any) -> Optional[float]:
+    return None if value is None else float(value)
 
 
 class RunCollision(RuntimeError):
@@ -68,6 +82,18 @@ class RunIdentity:
     lr_schedule_horizon: int
     sinkhorn_schedule_horizon: int
     selection_mode: str
+    # ---- the scientific axes (v2) ----
+    codebook_size: int
+    feature_cache: str
+    eval_cache: str
+    qwen_cache: str
+    text_whiten: str
+    sinkhorn_epsilon_init: Optional[float]
+    sinkhorn_epsilon_final: Optional[float]
+    val_split_ratio: float
+    val_split_seed: int
+    batch_size: int
+    proj_lr: float
 
     @property
     def digest(self) -> str:
@@ -75,6 +101,29 @@ class RunIdentity:
                    if f.name != "schema_version"}
         blob = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(blob.encode()).hexdigest()
+
+    @staticmethod
+    def _artifact(path: Any) -> str:
+        """How an input artefact enters the identity.
+
+        A path, canonicalised. Small enough files are additionally digested --
+        the whitening matrix is a few hundred KB and IS the transform, so two
+        runs pointing at the same filename with different contents are two
+        different runs. Feature caches are tens of gigabytes; digesting them per
+        run is not affordable, and their directory names are already versioned
+        (`./cache/...` vs the v6prov root), so the canonical path is what is
+        recorded and the loader's provenance gate carries the content check.
+        """
+        if path in (None, ""):
+            return ""
+        real = os.path.realpath(str(path))
+        if os.path.isfile(real) and os.path.getsize(real) <= (8 << 20):
+            digest = hashlib.sha256()
+            with open(real, "rb") as handle:
+                for block in iter(lambda: handle.read(1 << 20), b""):
+                    digest.update(block)
+            return f"{real}#{digest.hexdigest()[:16]}"
+        return real
 
     @classmethod
     def from_args(cls, args: Any) -> "RunIdentity":
@@ -96,6 +145,21 @@ class RunIdentity:
             lr_schedule_horizon=int(lr_h) if lr_h else budget,
             sinkhorn_schedule_horizon=int(sk_h) if sk_h else budget,
             selection_mode=str(getattr(args, "selection_mode", "refit")),
+            codebook_size=int(getattr(args, "codebook_size", 0) or 0),
+            feature_cache=cls._artifact(
+                getattr(args, "siglip2_feature_cache_dir", None)),
+            eval_cache=cls._artifact(getattr(args, "eval_cache_dir", None)),
+            qwen_cache=cls._artifact(
+                getattr(args, "qwen_text_cache_path", None)),
+            text_whiten=cls._artifact(getattr(args, "text_whiten_npz", None)),
+            sinkhorn_epsilon_init=_opt_float(
+                getattr(args, "sinkhorn_epsilon_init", None)),
+            sinkhorn_epsilon_final=_opt_float(
+                getattr(args, "sinkhorn_epsilon_final", None)),
+            val_split_ratio=float(getattr(args, "val_split_ratio", 0.0) or 0.0),
+            val_split_seed=int(getattr(args, "val_split_seed", 42) or 42),
+            batch_size=int(getattr(args, "batch_size", 0) or 0),
+            proj_lr=float(getattr(args, "proj_lr", 0.0) or 0.0),
         )
 
     def differing_fields(self, other: "RunIdentity") -> List[str]:
@@ -155,28 +219,127 @@ def _looks_occupied(run_dir: str) -> bool:
     return any(os.path.exists(os.path.join(run_dir, m)) for m in markers)
 
 
-def claim_run_dir(run_dir: str, identity: RunIdentity) -> str:
-    """Take ownership of `run_dir`, or refuse.
+def _active_claim_path(run_dir: str) -> str:
+    return os.path.join(run_dir, ACTIVE_CLAIM_NAME)
 
-    Re-claiming with the SAME identity is a resume and is allowed. A different
-    identity, or artefacts with no manifest at all, raise -- merging those is
-    what produced a directory holding one seed's args and another's metrics.
+
+def read_active_claim(run_dir: str) -> Optional[dict]:
+    try:
+        with open(_active_claim_path(run_dir), encoding="utf-8") as handle:
+            return json.load(handle)
+    except (OSError, ValueError):
+        return None
+
+
+def _claim_is_live(claim: Optional[dict]) -> bool:
+    """Is the process that took this claim still running?
+
+    A machine that lost power leaves a claim behind; refusing forever would
+    turn a crash into a permanent block. `os.kill(pid, 0)` distinguishes a live
+    owner from a stale file, and the boot id guards against PID reuse across
+    reboots.
+    """
+    if not isinstance(claim, dict):
+        return False
+    pid = claim.get("pid")
+    if not isinstance(pid, int):
+        return False
+    if claim.get("boot_id") != _boot_id():
+        return False
+    try:
+        os.kill(pid, 0)
+    except (OSError, ProcessLookupError):
+        return False
+    return True
+
+
+def _boot_id() -> str:
+    try:
+        with open("/proc/sys/kernel/random/boot_id", encoding="utf-8") as fh:
+            return fh.read().strip()
+    except OSError:
+        return ""
+
+
+def release_run_dir(run_dir: str) -> None:
+    """Give up the active claim. Safe to call when nothing is claimed."""
+    try:
+        os.unlink(_active_claim_path(run_dir))
+    except FileNotFoundError:
+        pass
+
+
+def claim_run_dir(run_dir: str, identity: RunIdentity, *,
+                  resume: bool = False) -> str:
+    """Take exclusive ownership of `run_dir`, or refuse.
+
+    Three refusals, all of which were reachable before:
+
+    * a DIFFERENT identity already owns the directory -- merging those produced
+      a directory holding one seed's args and another's metrics;
+    * artefacts with no manifest at all, so the run that wrote them cannot be
+      named;
+    * the SAME identity, held by a process that is still running. Same-identity
+      re-claim used to be allowed unconditionally as "a resume", so two
+      concurrent cells both believed they owned the directory and the last
+      manifest simply overwrote the first. Forty concurrent claims were admitted
+      forty times. A genuine resume of a finished run is still possible, but the
+      caller has to say `resume=True` rather than get it by default.
+
+    The active claim is created with O_EXCL, so the check and the take are one
+    operation instead of two racing ones. What it does NOT survive: someone
+    deleting the claim file by hand, and a shared filesystem whose O_EXCL is not
+    atomic. It is a guard against two launchers on this machine, not against an
+    adversary.
     """
     existing = load_run_manifest(run_dir)
-    if existing is not None:
-        if existing.digest != identity.digest:
-            diff = identity.differing_fields(existing)
-            raise RunCollision(
-                f"{run_dir} is already claimed by a different run; they differ "
-                f"in {diff}. Writing here would merge two runs' artefacts -- "
-                f"give this one its own directory instead.")
-        return run_dir
-    if _looks_occupied(run_dir):
+    if existing is not None and existing.digest != identity.digest:
+        diff = identity.differing_fields(existing)
+        raise RunCollision(
+            f"{run_dir} is already claimed by a different run; they differ "
+            f"in {diff}. Writing here would merge two runs\' artefacts -- "
+            f"give this one its own directory instead.")
+    if existing is None and _looks_occupied(run_dir):
         raise RunCollision(
             f"{run_dir} holds run artefacts but no {MANIFEST_NAME}, so the run "
             f"that produced them cannot be identified. Move it aside rather "
             f"than writing into it.")
-    write_run_manifest(run_dir, identity)
+
+    os.makedirs(run_dir, exist_ok=True)
+    payload = json.dumps({
+        "pid": os.getpid(),
+        "boot_id": _boot_id(),
+        "digest": identity.digest,
+    }, sort_keys=True)
+    try:
+        fd = os.open(_active_claim_path(run_dir),
+                     os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+    except FileExistsError:
+        held = read_active_claim(run_dir)
+        # The owner re-claiming its own directory is not a collision; it is the
+        # same run asking twice.
+        if isinstance(held, dict) and held.get("pid") == os.getpid() \
+                and held.get("boot_id") == _boot_id():
+            return run_dir
+        if _claim_is_live(held):
+            raise RunCollision(
+                f"{run_dir} is being written RIGHT NOW by pid "
+                f"{held.get('pid')}. Two processes claiming one directory is "
+                f"how a run labelled one seed came to hold another\'s numbers.")
+        if not resume:
+            raise RunCollision(
+                f"{run_dir} carries a stale claim from pid "
+                f"{(held or {}).get('pid')}, which is no longer running. Pass "
+                f"resume=True to continue that run deliberately, or move the "
+                f"directory aside.")
+        release_run_dir(run_dir)
+        fd = os.open(_active_claim_path(run_dir),
+                     os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(payload)
+
+    if existing is None:
+        write_run_manifest(run_dir, identity)
     return run_dir
 
 

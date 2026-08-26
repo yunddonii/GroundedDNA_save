@@ -113,8 +113,16 @@ def _resolve_save_path(args: Config) -> str:
     # happened on 2026-08-12, leaving directories whose args.txt and metrics
     # came from different processes. Claiming refuses that merge instead of
     # discovering it later from two seeds agreeing to full float precision.
-    from dna_utils.run_identity import RunIdentity, claim_run_dir
-    claim_run_dir(base, RunIdentity.from_args(args))
+    from dna_utils.run_identity import (
+        RunIdentity, claim_run_dir, release_run_dir)
+    # The claim is exclusive and held for the life of the process, so a second
+    # cell cannot start writing here while this one runs. It is released at
+    # exit -- including on a crash -- so a stale claim does not outlive the run
+    # that took it and block a legitimate restart.
+    claim_run_dir(base, RunIdentity.from_args(args),
+                  resume=bool(getattr(args, "resume_run", False)))
+    import atexit
+    atexit.register(release_run_dir, base)
     return os.path.join(base, "")
 
 

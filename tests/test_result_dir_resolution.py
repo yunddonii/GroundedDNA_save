@@ -111,7 +111,11 @@ def test_the_runner_uses_the_shared_resolver(runner):
     """Wired to production, not merely available."""
     source = (REPO / "scripts" / runner).read_text()
     assert "lib/result_dir.sh" in source, f"{runner} does not source the helper"
-    assert "resolve_one_result_dir" in source, f"{runner} does not call it"
+    # `resolve_one_claimed_result_dir` is the stronger variant -- exactly one
+    # match AND a run manifest naming this run -- so it counts.
+    assert ("resolve_one_result_dir" in source
+            or "resolve_one_claimed_result_dir" in source), \
+        f"{runner} does not call the shared resolver"
 
 
 @pytest.mark.parametrize("runner", RUNNERS)

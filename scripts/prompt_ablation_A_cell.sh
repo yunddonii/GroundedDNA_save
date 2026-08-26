@@ -66,13 +66,55 @@ WOPT="$WDIR/text_whiten_optTrain${WV}.npz"
 WTR="$WDIR/text_whiten_trainOnly${WV}.npz"
 for f in "$WOPT" "$WTR"; do [ -f "$f" ] || { echo "[promptAblA $EXP] MISSING $f"; exit 3; }; done
 BASE="promptAblA_${EXP}${TAG_SUFFIX:-}"
+
+# No-overwrite preflight, the same rule the semantic-detail P0 runner has always
+# had. August's runs occupy exactly these deterministic names -- their logs
+# still hold E*=4/39/4/19 and their result dirs are the Phase 2 legacy sources,
+# so they cannot be moved. Starting a new run in that namespace is what lets a
+# stale log or a stale directory be read as this run's. Give the run its own
+# namespace with TAG_SUFFIX instead.
+declare -a COLLISIONS=()
+[ -f "logs/${BASE}_P0val.log" ] && COLLISIONS+=("logs/${BASE}_P0val.log")
+shopt -s nullglob
+for c in "result/"*"${BASE}_P0val"* "result/"*"${BASE}_P0refit"* \
+         "logs/${BASE}_P0refit"*.log; do
+    COLLISIONS+=("$c")
+done
+shopt -u nullglob
+if [ "${#COLLISIONS[@]}" -gt 0 ] && [ "${ALLOW_TAG_REUSE:-0}" != "1" ]; then
+    echo "[promptAblA $EXP] REFUSING: this tag already has artifacts:" >&2
+    printf '    %s\n' "${COLLISIONS[@]}" >&2
+    echo "  Set TAG_SUFFIX to give this run its own namespace (e.g." >&2
+    echo "  TAG_SUFFIX=_v6), or ALLOW_TAG_REUSE=1 if you really mean to" >&2
+    echo "  read and overwrite those." >&2
+    exit 8
+fi
+
 echo "[promptAblA $EXP] GPU=$GPU CANON=$CANON K=$K CIBNT=$CIBNT L=3 cache=$CACHE @ $(date '+%F %T')"
 
 # ---- stage 1: P0 val ----
-env LBU="${LBU:-0.02}" CACHE="$CACHE" QWEN="$QWEN" WHITEN_NPZ="$WOPT" K="$K" NUM_CODONS="${NUM_CODONS:-3}" CIBNT="$CIBNT" \
-    VAL_RATIO=0.1 VAL_SEED=42 TAG="${BASE}_P0val" EXTRA_ARGS="$A_FLAGS $SKIP" "${EXTRA[@]}" \
-    bash "$SCRIPT" "$GPU"
+# The log path is deterministic, and August's logs are still on disk with
+# E*=4/39/4/19 in them. If this child dies before `tee` truncates the file, the
+# OLD log is what the parse below reads -- so the child's exit status is checked
+# BEFORE the log is trusted, and the log has to be newer than this launch.
 S1LOG="logs/${BASE}_P0val.log"
+S1_STARTED_AT="$(date +%s)"
+if ! env LBU="${LBU:-0.02}" CACHE="$CACHE" EVAL_CACHE="${EVAL_CACHE:-$CACHE}" \
+    QWEN="$QWEN" WHITEN_NPZ="$WOPT" K="$K" NUM_CODONS="${NUM_CODONS:-3}" CIBNT="$CIBNT" \
+    VAL_RATIO=0.1 VAL_SEED=42 TAG="${BASE}_P0val" EXTRA_ARGS="$A_FLAGS $SKIP" "${EXTRA[@]}" \
+    bash "$SCRIPT" "$GPU"; then
+    echo "[promptAblA $EXP] ERROR: stage 1 exited nonzero; refusing to read" >&2
+    echo "                 $S1LOG, which may predate this run." >&2
+    exit 6
+fi
+if [ ! -f "$S1LOG" ]; then
+    echo "[promptAblA $EXP] ERROR: stage 1 wrote no $S1LOG" >&2; exit 6
+fi
+if [ "$(stat -c %Y "$S1LOG")" -lt "$S1_STARTED_AT" ]; then
+    echo "[promptAblA $EXP] ERROR: $S1LOG is older than this launch, so it" >&2
+    echo "                 belongs to a previous run. Move it aside." >&2
+    exit 6
+fi
 ESTAR=$(grep -oE "new best mid-eval mAP=[0-9.]+ at epoch [0-9]+" "$S1LOG" 2>/dev/null \
         | grep -oE "epoch [0-9]+$" | grep -oE "[0-9]+" | tail -1)
 # Falling back to 59 turned "the selection could not be read" into "the
@@ -85,12 +127,17 @@ fi
 echo "[promptAblA $EXP] E*=$ESTAR"
 
 # ---- stage 2: refit ----
-env LBU="${LBU:-0.02}" CACHE="$CACHE" QWEN="$QWEN" WHITEN_NPZ="$WTR" K="$K" NUM_CODONS="${NUM_CODONS:-3}" CIBNT="$CIBNT" \
+if ! env LBU="${LBU:-0.02}" CACHE="$CACHE" EVAL_CACHE="${EVAL_CACHE:-$CACHE}" \
+    QWEN="$QWEN" WHITEN_NPZ="$WTR" K="$K" NUM_CODONS="${NUM_CODONS:-3}" CIBNT="$CIBNT" \
     FINAL_EPOCH=1 STOP_EP="$ESTAR" TAG="${BASE}_P0refit_e${ESTAR}" EXTRA_ARGS="$A_FLAGS $SKIP" "${EXTRA[@]}" \
-    bash "$SCRIPT" "$GPU"
+    bash "$SCRIPT" "$GPU"; then
+    echo "[promptAblA $EXP] ERROR: stage 2 exited nonzero; the directory that" >&2
+    echo "                 matches this tag may be August\'s, not this run\'s." >&2
+    exit 7
+fi
 
-RD=$(resolve_one_result_dir_with "${BASE}_P0refit_e${ESTAR}" extract_db.npz) \
-    || { echo "[promptAblA $EXP] ERROR refit dir/extract missing"; exit 4; }
+RD=$(resolve_one_claimed_result_dir "${BASE}_P0refit_e${ESTAR}" extract_db.npz "$CANON") \
+    || { echo "[promptAblA $EXP] ERROR refit dir/extract/manifest missing"; exit 4; }
 if [ "${NUM_CODONS:-3}" = "4" ]; then GCMIN=0.416; GCMAX=0.584; else GCMIN=0.40; GCMAX=0.60; fi
 "$PY" scripts/eval_cell_bioproj.py --dir "$RD" --dataset "$CANON" --K "$K" --gc_min "$GCMIN" --gc_max "$GCMAX"
 echo "[promptAblA $EXP] DONE @ $(date '+%F %T')  RD=$RD"

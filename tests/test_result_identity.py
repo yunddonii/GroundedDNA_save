@@ -110,7 +110,8 @@ def test_claim_writes_a_manifest(tmp_path):
     assert md.seed == 42 and md.total_bases == 15
 
 
-def test_reclaiming_the_same_identity_is_allowed(tmp_path):
+def test_reclaiming_the_same_identity_from_the_same_process_is_allowed(tmp_path):
+    """The owner asking twice is one run, not two."""
     """A resume of the same run must work; only a DIFFERENT run is a collision."""
     d = tmp_path / "run"
     ident = RunIdentity.from_args(_args())
@@ -202,3 +203,137 @@ def test_manifest_round_trip_is_json(tmp_path):
     raw = json.load(open(os.path.join(str(d), "run_identity.json")))
     assert raw["digest"] == ident.digest
     assert raw["total_bits"] == 30
+
+
+# ------------------------------------------------ the scientific axes (v2)
+
+_BASE_ARGS = dict(
+    dataset="CIFAR10", setting="setting1", random_seed=42, epoch=5,
+    stop_after_epoch=4, num_semantic_parts=5, num_codons_per_codebook=3,
+    codebook_size=64, batch_size=64, proj_lr=1e-3,
+    siglip2_feature_cache_dir="/data/v6/cifar10_clip_tokens",
+    eval_cache_dir="/data/v6/cifar10_clip_tokens",
+    qwen_text_cache_path="./cache/cifar10_qwen_v4.jsonl",
+    text_whiten_npz="/data/v6/w.npz",
+    sinkhorn_epsilon_init=1.0, sinkhorn_epsilon_final=0.1,
+    val_split_ratio=0.1, val_split_seed=42,
+    lr_schedule_horizon=60, sinkhorn_schedule_horizon=5,
+)
+
+
+def _identity(**overrides):
+    from types import SimpleNamespace
+    from dna_utils.run_identity import RunIdentity
+    return RunIdentity.from_args(SimpleNamespace(**{**_BASE_ARGS, **overrides}))
+
+
+@pytest.mark.parametrize("field,value", [
+    ("codebook_size", 128),
+    ("siglip2_feature_cache_dir", "/data/v6/OTHER"),
+    ("eval_cache_dir", "/data/v6/OTHER"),
+    ("qwen_text_cache_path", "./cache/cifar10_qwen.jsonl"),
+    ("text_whiten_npz", "/data/v6/OTHER.npz"),
+    ("sinkhorn_epsilon_init", 0.5),
+    ("sinkhorn_epsilon_final", 0.2),
+    ("val_split_ratio", 0.2),
+    ("val_split_seed", 43),
+    ("batch_size", 128),
+    ("proj_lr", 3e-4),
+])
+def test_a_scientific_axis_changes_the_digest(field, value):
+    """All eleven left the v1 digest identical, so they shared a directory."""
+    assert _identity().digest != _identity(**{field: value}).digest, field
+
+
+def test_the_whitening_matrix_enters_by_content_not_only_by_name(tmp_path):
+    """Same filename, different transform, is a different run."""
+    from dna_utils.run_identity import RunIdentity
+
+    path = tmp_path / "text_whiten.npz"
+    path.write_bytes(b"first")
+    before = _identity(text_whiten_npz=str(path)).digest
+    path.write_bytes(b"second")
+    assert _identity(text_whiten_npz=str(path)).digest != before
+
+
+def test_an_unreadable_artifact_path_is_still_recorded():
+    """A cache that is not on this machine must not silently collapse to ''."""
+    assert _identity(siglip2_feature_cache_dir="/nowhere/at/all").digest \
+        != _identity(siglip2_feature_cache_dir=None).digest
+
+
+# ------------------------------------------------ the claim is exclusive
+
+def test_a_live_second_process_cannot_claim_the_same_directory(tmp_path):
+    """Forty concurrent claims were admitted forty times, last write winning."""
+    import subprocess
+    import sys as _sys
+    from dna_utils.run_identity import RunCollision, claim_run_dir
+
+    run = tmp_path / "run"
+    # A real other process, held open while we try to claim.
+    holder = subprocess.Popen(
+        [_sys.executable, "-c",
+         "import sys,time; sys.path.insert(0, sys.argv[1]);"
+         "from types import SimpleNamespace;"
+         "from dna_utils.run_identity import RunIdentity, claim_run_dir;"
+         "import json;"
+         "args=json.loads(sys.argv[3]);"
+         "claim_run_dir(sys.argv[2], RunIdentity.from_args(SimpleNamespace(**args)));"
+         "print('claimed', flush=True); time.sleep(30)",
+         _REPO, str(run), json.dumps(_BASE_ARGS)],
+        stdout=subprocess.PIPE, text=True)
+    try:
+        assert holder.stdout.readline().strip() == "claimed"
+        with pytest.raises(RunCollision) as excinfo:
+            claim_run_dir(str(run), _identity())
+        assert "RIGHT NOW" in str(excinfo.value)
+    finally:
+        holder.kill()
+        holder.wait(timeout=30)
+
+
+def test_a_stale_claim_needs_an_explicit_resume(tmp_path):
+    """A crash must not block the directory forever, nor be resumed by accident."""
+    from dna_utils.run_identity import (
+        ACTIVE_CLAIM_NAME, RunCollision, claim_run_dir, release_run_dir)
+
+    run = tmp_path / "run"
+    claim_run_dir(str(run), _identity())
+    # Rewrite the claim as if a dead process had left it.
+    (run / ACTIVE_CLAIM_NAME).write_text(json.dumps(
+        {"pid": 999_999, "boot_id": "not-this-boot",
+         "digest": _identity().digest}))
+
+    with pytest.raises(RunCollision) as excinfo:
+        claim_run_dir(str(run), _identity())
+    assert "stale claim" in str(excinfo.value)
+
+    claim_run_dir(str(run), _identity(), resume=True)
+    release_run_dir(str(run))
+    assert not (run / ACTIVE_CLAIM_NAME).exists()
+
+
+def test_releasing_an_unclaimed_directory_is_harmless(tmp_path):
+    from dna_utils.run_identity import release_run_dir
+    release_run_dir(str(tmp_path / "never_claimed"))
+
+
+def test_a_previous_generation_manifest_is_not_readable_as_this_one(tmp_path):
+    """v1 covered only geometry and schedule; its digests mean something else.
+
+    Loading one as if it were v2 would let a directory claimed under the old,
+    ten-axis-blind identity pass as claimed under this one. There are no v1
+    manifests anywhere in the tree, so this is the boundary, not a migration.
+    """
+    from dna_utils.run_identity import MANIFEST_NAME, load_run_manifest
+
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / MANIFEST_NAME).write_text(json.dumps({
+        "schema_version": 1, "dataset": "CIFAR10", "setting": "setting1",
+        "seed": 42, "num_slots": 5, "bases_per_slot": 3, "total_bases": 15,
+        "total_bits": 30, "stop_after_epoch": 4, "epoch_budget": 5,
+        "lr_schedule_horizon": 60, "sinkhorn_schedule_horizon": 5,
+        "selection_mode": "refit"}))
+    assert load_run_manifest(str(run)) is None
