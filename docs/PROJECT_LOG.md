@@ -487,6 +487,65 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-08-27 — 🟢 **Phase 3 착수를 막던 세 경로를 닫고 스모크 통과. 8월 실행이 이번 실행으로 읽힐 수 있던 길이 전부 막혔다**
+
+### 재현부터 했다 (감사 §31.2, §32.4)
+
+착수 직전 세 경로가 열려 있었고, 커밋된 소스에서 전부 직접 재현했다.
+
+| 경로 | 재현 결과 |
+|---|---|
+| 구 P0 로그가 E\*를 공급 | Flickr 4 / MSCOCO 39 / NUS 4 / CIFAR 19 — 실제로 파싱됨 |
+| identity가 실험을 기술하지 못함 | 과학적 축 **11개 중 11개**가 digest 불변 |
+| claim이 배타적이지 않음 | 같은 identity 재claim 무조건 승인 |
+| resolver가 manifest를 안 읽음 | 주석은 읽는다고 하는데 여는 코드가 없음 |
+| **(추가 발견)** 학습 스크립트 2종이 구 eval 캐시 고정 | flickr·mscoco가 override 불가 → 게이트 거부 → stage1 사망 → 위 경로 발동 |
+
+마지막 항목이 연쇄의 시작이었다. 감사에는 없던 것으로, 재현 과정에서 나왔다.
+
+### 고친 것
+
+- **identity에 11축 추가** — K, feature/eval/caption/whitening 캐시, ε init/final, val ratio/seed, batch, projection LR. 캐시는 정규화 경로로(수십 GB를 run마다 해시할 수 없고 내용 검사는 로더 게이트가 담당), whitening은 **내용 해시**로(작고, 그 자체가 변환이다). manifest schema v2.
+- **claim을 `O_EXCL`로 배타화** — 프로세스 수명 동안 보유, 종료 시 해제. 크래시가 남긴 stale claim은 pid+boot id로 식별하고 `resume=True`를 명시해야 인수. 소유자가 다시 묻는 것은 여전히 허용.
+- **resolver가 manifest를 실제로 읽음** — `resolve_one_claimed_result_dir`. 구 promptAblA refit **198개 전부 manifest가 없어** 이 선이 8월과 지금을 정확히 가른다.
+- **prompt-A가 자식 rc를 확인**하고, 로그가 launch보다 오래되면 거부하며, 이미 산출물이 있는 태그는 `TAG_SUFFIX`를 쓰라며 거부(exit 8).
+- **네 학습 스크립트 전부 `${EVAL_CACHE:-$CACHE}`**.
+
+**8월 디렉터리는 옮기지 않았다.** Phase 2 legacy 바인딩이 절대경로로 참조하므로 옮기면 Phase 2 재현성이 깨진다. 대신 충돌 자체를 불가능하게 만들었다.
+
+### 적대적 재검토
+
+| 공격 | 결과 |
+|---|---|
+| v1 manifest 심기 | 로드 불가 → unmanifested 취급 ✓ (트리에 v1은 0개) |
+| manifest 위조(K만 변경) | digest 재계산으로 거절 ✓ |
+| dataset 불일치 manifest | 거절 ✓ |
+| claim 파일 수동 삭제 | **우회 가능** — 파일 잠금의 한계로 docstring에 명시 |
+
+전체 테스트 845 passed.
+
+### 스모크 (2026-08-27 04:58 완주, rc0)
+
+`TAG_SUFFIX=_smoke0827 AUX_ARGS="-e 1"`, cifar_A_v4, GPU 0.
+
+```text
+stage1  E*=0  "new best mid-eval mAP=0.5918 at epoch 0"   (fresh log)
+        [p0-stage1] SKIP official-test extraction: E* was selected on
+        held-out train validation                          <- F02가 요구하는 동작
+stage2  refit -> extract -> bio-projection 완료
+feature/eval cache  /data/.../groundeddna_cache_v6prov/cifar10_clip_tokens
+identity  stage1 9163b1197a05 (stop=None val=0.1) != stage2 4a0088456142 (stop=0 val=0.0)
+claim     두 디렉터리 모두 종료 시 해제됨
+```
+
+### 다음: Phase 3 본실행
+
+stage-1 16셀(4 데이터셋 × N∈{4,9,19,39}) → 데이터셋별 N 확정 → 3-seed refit 12셀.
+`/`가 95%(44G 여유)이고 run당 약 700M이므로 28셀이면 20G다. 산출물 루트를 `/data`로
+돌리거나 구 result를 먼저 아카이브할 것.
+
+---
+
 ## 2026-08-15 (PM) — 🟢 **캐시 재생성은 끝나 있었으나 아무도 안 쓰고 있었고, 게다가 whitening 누수를 안고 있었다. 게이트를 로더에 넣고 논문 경로를 전환. F08 `ls | head -1` 11곳 제거**
 
 ### 캐시: 만든 것과 쓰는 것은 다른 문제였다
