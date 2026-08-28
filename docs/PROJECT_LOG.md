@@ -487,7 +487,7 @@ codebook) as a follow-up.
 
 ---
 
-## 2026-08-27 — 🟢 **Phase 3 착수를 막던 세 경로를 닫고 스모크 통과. 8월 실행이 이번 실행으로 읽힐 수 있던 길이 전부 막혔다**
+## 2026-08-27 — 🟡 **Phase 3 착수를 막던 세 경로는 닫았다. 그러나 스모크는 18-base로 돌았고 나는 그것을 "Phase 3 smoke passes"로 기록했다 — 정정**
 
 ### 재현부터 했다 (감사 §31.2, §32.4)
 
@@ -524,25 +524,77 @@ codebook) as a follow-up.
 
 전체 테스트 845 passed.
 
-### 스모크 (2026-08-27 04:58 완주, rc0)
+### 🔴 스모크는 논문 geometry가 아니었다 (정정, 감사 §34)
 
-`TAG_SUFFIX=_smoke0827 AUX_ARGS="-e 1"`, cifar_A_v4, GPU 0.
+`TAG_SUFFIX=_smoke0827 AUX_ARGS="-e 1"`로 돌린 cifar_A_v4는 rc0으로 완주했지만
+**M=6 / 18-base / 36-bit**였다. 논문은 5슬롯 / 15-base / 30-bit다.
 
 ```text
-stage1  E*=0  "new best mid-eval mAP=0.5918 at epoch 0"   (fresh log)
-        [p0-stage1] SKIP official-test extraction: E* was selected on
-        held-out train validation                          <- F02가 요구하는 동작
-stage2  refit -> extract -> bio-projection 완료
-feature/eval cache  /data/.../groundeddna_cache_v6prov/cifar10_clip_tokens
-identity  stage1 9163b1197a05 (stop=None val=0.1) != stage2 4a0088456142 (stop=0 val=0.0)
-claim     두 디렉터리 모두 종료 시 해제됨
+num_semantic_parts = num_codebooks = 6      total_bases=18  total_bits=36
+extract_db.npz  base_indices (59000, 18)
+no_gumbel_softmax  미설정                    (S5 레시피는 설정)
+lambda_codeword_codon_sinkhorn = 0.1        (S5 레시피는 0.0)
 ```
 
-### 다음: Phase 3 본실행
+원인: `prompt_ablation_A_cell.sh`가 `NUM_CODONS=3`만 넘기고
+`GDNA_NUM_SEMANTIC_PARTS=5`, `--num_semantic_parts 5`, `--num_codebooks 5`를 어느 스테이지에도
+넘기지 않는다. M의 기본값은 `config.py`·`model_siglip2.py`·`dataloaders.py` 모두 6이다. wrapper 자신도
+2행에는 "18-base", 20행에는 "four paper 15-base panel"이라고 적혀 있어 모순된다.
 
-stage-1 16셀(4 데이터셋 × N∈{4,9,19,39}) → 데이터셋별 N 확정 → 3-seed refit 12셀.
-`/`가 95%(44G 여유)이고 run당 약 700M이므로 28셀이면 20G다. 산출물 루트를 `/data`로
-돌리거나 구 result를 먼저 아카이브할 것.
+**나는 이것을 `521c5ae`에서 "Phase 3 smoke passes"로 기록했다. 과학적 오분류다.** 실행은
+`result_diagnostic/smoke_18base_20260827/`로 격리했다. expected M5 계약으로 validator를 부르면
+`db: manifest num_slots=6 but caller expects 5`로 거절되며, `extract_train.npz`·pairwise NMI·
+`analysis_complete.json`·완료 marker도 없다.
+
+앞선 기록의 "identity가 stop과 val_split_ratio에서 정확히 달랐다"는 서술도 부정확하다. whitening
+artifact도 `optTrain_localOnly` → `trainOnly_localOnly`로 바뀐다. stage 1 identity는 선택 단계인데도
+config 기본값을 그대로 받아 `selection_mode="refit"`으로 잘못 기록한다.
+
+**이 실행이 실제로 보여준 것**(geometry와 무관하므로 유효): 세 handoff 방어가 작동했다. stage 1이
+held-out train validation에서 E\*를 고르고 공식 test를 건너뛰었고, 두 스테이지가 각자 run manifest를
+가졌고, 캐시가 v6prov로 해석됐고, claim이 종료 시 해제됐다.
+
+### 구 result 아카이브 (2026-08-28)
+
+`/`가 96%(40G)라 Phase 3의 약 20G를 담기 어려웠다. 이미 541개 디렉터리가
+`/data/yschoi/GroundedDNA/result_archive`로 옮겨지고 심볼릭이 남아 있는 방식이 운용 중이었으므로,
+새 위치를 만들지 않고 그 방식을 이어 7월분 135개(136G)를 추가로 옮겼다.
+
+**삭제가 아니라 이동 + 심볼릭**인 이유: `result/` 아래 절대경로가 하중을 받는다. Phase 2 legacy
+바인딩은 `npz_path`를 `/home/yschoi/GroundedDNA/result/.../extract_db.npz`로 기록하고,
+`phase2_legacy_bound/*/extract_db.npz`도 같은 곳을 가리킨다. 원래 경로에 심볼릭을 남기면 전부
+같은 바이트로 계속 해석된다.
+
+스크립트는 **복사 → 파일 수·바이트 수 대조 → 원본 삭제 → 심볼릭**이다. 파일시스템을 건너뛰는 `mv`가
+중단되면 부분 복사본만 남고 원본이 사라질 수 있어서다.
+
+```text
+/       40G 여유 (96%)  ->  175G 여유 (79%)
+/data  417G 여유 (89%)  ->  282G 여유 (92%)
+result  심볼릭 541 -> 642,  실디렉터리 399 -> 298
+8월분(Phase 2 legacy 15개 포함)은 실디렉터리로 보존
+```
+
+검증: Phase 2 30면 strict validation 0 refused, 집계 재실행 결과 `phase2_f01_impact.json`
+**바이트 동일**, 전체 테스트 845 passed.
+
+### 다음 단계 — Phase 3은 아직 BLOCK (감사 §35)
+
+16셀 selection matrix를 만드는 launcher가 **repository에 없다**. 현재 wrapper로는 대체할 수 없다.
+
+- wrapper가 stage 1과 stage 2에 **같은 `AUX_ARGS`**를 넘긴다. D2는 탐색 셀에
+  `-e 60 --stop_after_epoch N --lr_schedule_horizon 60 --sinkhorn_schedule_horizon N+1`,
+  refit에 `-e N+1 --stop_after_epoch N`을 요구하므로 하나의 인자 묶음으로 둘 다 만족할 수 없다.
+- wrapper는 호출마다 stage 2를 무조건 시작하므로, N별로 16번 부르면 의도치 않은 refit 16개가 붙는다.
+- D1의 selection metric은 후보 N에서의 **raw base-Hamming mAP@R**인데 wrapper는 로그의
+  `new best mid-eval ... at epoch E`를 파싱한다.
+- M5 레시피(M5/L3, no-gumbel, codon-Sinkhorn 0.0)를 launch 전에 동결해야 하고,
+  `.6/.95` adaptive top-p는 CIFAR starvation 수정 뒤 나머지 세 데이터셋 재튜닝 근거가 없다.
+
+착수 전 필요한 것: exact 16키만 만들고 stage별 horizon을 분리해 넘기며, launch 전후로
+`num_slots=5 / L=3 / total_bases=15 / total_bits=30`을 effective argv와 manifest 양쪽에서 assert하고,
+raw mAP@R로 N을 고르되 동률이면 최소 N을 택하는 launcher + aggregator.
+
 
 ---
 
