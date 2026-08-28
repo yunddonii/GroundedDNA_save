@@ -759,6 +759,13 @@ def main(args: Config):
             csv_fields.append(f"{phase}_{k}")
     csv_fields += [
         "eval_mAP",
+        # D1 selects N by the raw base-Hamming mAP@R at the candidate's OWN
+        # terminal epoch. It was computed every epoch and then dropped here, so
+        # the only surviving copy was the best-over-prefix value in the best
+        # checkpoint's sidecar -- which lets an N=39 cell report an epoch-4
+        # score and collapses the whole grid onto one candidate.
+        "eval_mAP_at_R",
+        "eval_mAP_R_cutoff",
         "eval_mean_positive_distance",
         "eval_mean_negative_distance",
         "eval_dead_code_ratio_mean",

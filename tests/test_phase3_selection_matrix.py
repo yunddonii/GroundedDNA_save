@@ -185,41 +185,136 @@ def test_args_and_manifest_must_agree(tmp_path):
 
 # ------------------------------------------------ the selection value
 
-def _sidecar(tmp_path: Path, **extra) -> Path:
+def _cell_csv(tmp_path: Path, rows: list, *, header=None) -> Path:
     run = tmp_path / "run"
     run.mkdir(exist_ok=True)
-    (run / "model_state_dict_best.pth.runtime.json").write_text(json.dumps({
-        "checkpoint_epoch_zero_based": 3, "checkpoint_sha256": "a" * 64,
-        "effective_sinkhorn_epsilon": 0.5, "lr_schedule_horizon": 60,
-        "sinkhorn_schedule_horizon": 5,
-        "extra": {"checkpoint_role": "best_mid_eval", **extra}}))
+    cols = header or ["epoch", "eval_mAP", "eval_mAP_at_R", "eval_mAP_R_cutoff"]
+    lines = [",".join(cols)]
+    for row in rows:
+        lines.append(",".join(str(row.get(c, "")) for c in cols))
+    (run / "log.csv").write_text("\n".join(lines) + "\n")
     return run
 
 
-def test_the_value_comes_from_the_checkpoint_that_scored_it(tmp_path):
-    run = _sidecar(tmp_path, selection_metric="eval_mAP_at_R",
-                   selection_value=0.5775)
-    record = read_selection(run)
-    assert record["selection_value"] == pytest.approx(0.5775)
-    assert record["checkpoint_sha256"] == "a" * 64
+def _best_sidecar(run: Path, *, epoch: int, value: float) -> None:
+    (run / "model_state_dict_best.pth.runtime.json").write_text(json.dumps({
+        "checkpoint_epoch_zero_based": epoch, "checkpoint_sha256": "a" * 64,
+        "extra": {"checkpoint_role": "best_mid_eval",
+                  "selection_metric": "eval_mAP_at_R",
+                  "selection_value": value}}))
 
 
-def test_a_cell_with_no_best_checkpoint_is_refused(tmp_path):
+def test_the_value_is_the_candidates_own_terminal_epoch(tmp_path):
+    run = _cell_csv(tmp_path, [
+        {"epoch": 0, "eval_mAP_at_R": 0.90, "eval_mAP_R_cutoff": 1000},
+        {"epoch": 4, "eval_mAP_at_R": 0.61, "eval_mAP_R_cutoff": 1000},
+    ])
+    record = read_selection(run, n=4)
+    assert record["selection_value"] == pytest.approx(0.61)
+    assert record["selection_epoch_zero_based"] == 4
+
+
+def test_the_best_over_prefix_is_recorded_but_never_selected(tmp_path):
+    """The defect: an N=39 cell whose best epoch was 4 reported the N=4 answer.
+
+    Every candidate could then collapse onto the same early epoch, and the grid
+    would compare nothing. The live N=4 smoke reporting its epoch-0 score was
+    that bug in miniature.
+    """
+    run = _cell_csv(tmp_path, [
+        {"epoch": 0, "eval_mAP_at_R": 0.90},
+        {"epoch": 39, "eval_mAP_at_R": 0.55},
+    ])
+    _best_sidecar(run, epoch=0, value=0.90)
+    record = read_selection(run, n=39)
+    assert record["selection_value"] == pytest.approx(0.55), \
+        "selection must not take the best over the prefix"
+    assert record["best_over_prefix"]["value"] == pytest.approx(0.90)
+    assert record["best_over_prefix"]["epoch_zero_based"] == 0
+
+
+def test_a_cell_that_never_reached_its_epoch_is_refused(tmp_path):
+    run = _cell_csv(tmp_path, [{"epoch": 0, "eval_mAP_at_R": 0.9}])
     with pytest.raises(CellRefused) as excinfo:
-        read_selection(tmp_path)
-    assert "selected nothing" in str(excinfo.value)
+        read_selection(run, n=39)
+    assert "did not train to its candidate epoch" in str(excinfo.value)
 
 
-def test_a_different_selection_metric_is_refused(tmp_path):
-    run = _sidecar(tmp_path, selection_metric="eval_mAP", selection_value=0.5)
+def test_a_terminal_epoch_with_no_score_is_refused(tmp_path):
+    """Mid-eval does not run every epoch on every schedule."""
+    run = _cell_csv(tmp_path, [
+        {"epoch": 0, "eval_mAP_at_R": 0.9}, {"epoch": 4, "eval_mAP_at_R": ""}])
     with pytest.raises(CellRefused) as excinfo:
-        read_selection(run)
-    assert "base-Hamming mAP@R" in str(excinfo.value)
+        read_selection(run, n=4)
+    assert "never scored at its own terminal epoch" in str(excinfo.value)
 
 
-@pytest.mark.parametrize("value", [999, -0.1, None, "0.5", True])
-def test_a_value_that_is_not_a_proportion_is_refused(tmp_path, value):
-    run = _sidecar(tmp_path, selection_metric="eval_mAP_at_R",
-                   selection_value=value)
+def test_a_run_predating_the_per_epoch_metric_is_refused(tmp_path):
+    """log.csv used to drop eval_mAP_at_R entirely."""
+    run = _cell_csv(tmp_path, [{"epoch": 4, "eval_mAP": 0.5}],
+                    header=["epoch", "eval_mAP"])
+    with pytest.raises(CellRefused) as excinfo:
+        read_selection(run, n=4)
+    assert "not recoverable" in str(excinfo.value)
+
+
+def test_a_cell_with_no_csv_is_refused(tmp_path):
     with pytest.raises(CellRefused):
-        read_selection(run)
+        read_selection(tmp_path, n=4)
+
+
+@pytest.mark.parametrize("raw", ["999", "-0.1", "nope"])
+def test_a_value_that_is_not_a_proportion_is_refused(tmp_path, raw):
+    run = _cell_csv(tmp_path, [{"epoch": 4, "eval_mAP_at_R": raw}])
+    with pytest.raises(CellRefused):
+        read_selection(run, n=4)
+
+
+def test_the_trainer_persists_the_selection_metric_per_epoch():
+    """It is computed every epoch; it used to be dropped from the CSV."""
+    source = (REPO / "train_siglip2.py").read_text()
+    fields = source[source.index("csv_fields += ["):]
+    fields = fields[:fields.index("]")]
+    assert '"eval_mAP_at_R"' in fields
+
+
+# ------------------------------------------------ what cannot be launched
+
+def test_only_must_name_one_of_the_sixteen_cells():
+    """`--only cifar10:5` used to build an N=5 command."""
+    import subprocess as _sp
+
+    proc = _sp.run(
+        [sys.executable, str(REPO / "scripts" / "phase3_selection_matrix.py"),
+         "--run", "--only", "cifar10:5"],
+        capture_output=True, text=True, cwd=str(REPO), timeout=120)
+    assert proc.returncode == 2
+    assert "not one of the" in proc.stderr
+
+
+def test_the_caller_environment_cannot_redefine_the_recipe(monkeypatch):
+    """The trainers read a dozen recipe variables from the environment."""
+    for name, value in (("WASS", "9.9"), ("DISABLE_TEXT", "1"),
+                        ("SHARE_CB", "1"), ("EXTRA_ARGS", "--nonsense"),
+                        ("FINAL_EPOCH", "1")):
+        monkeypatch.setenv(name, value)
+    _, env, _ = build_command("cifar10", 4, gpu=0)
+    for name in ("WASS", "DISABLE_TEXT", "SHARE_CB", "FINAL_EPOCH"):
+        assert name not in env, f"{name} leaked in from the caller"
+    assert "--nonsense" not in env["EXTRA_ARGS"]
+    # The cell's own recipe still arrives.
+    assert env["CCS"] == "0.1"
+
+
+def test_the_child_runs_under_pipefail():
+    """The trainers end in `| tee` under `set -eu`, so tee's status wins."""
+    source = (REPO / "scripts" / "phase3_selection_matrix.py").read_text()
+    assert '"-o", "pipefail"' in source
+    for trainer in ("train_cifar10_v185_bidirTokenPrune05_ccs01_clip.sh",
+                    "train_flickr25k_v185_bidirTokenPrune05_clip.sh",
+                    "train_nuswide_v185_sweep_clip.sh",
+                    "train_mscoco_F2_sweep_clip.sh"):
+        text = (REPO / "scripts" / trainer).read_text()
+        assert "pipefail" not in text, (
+            f"{trainer} now sets pipefail itself; the launcher's wrapper "
+            f"should be revisited")

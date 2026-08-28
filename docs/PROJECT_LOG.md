@@ -520,18 +520,46 @@ S5 레시피      --no_gumbel_softmax  --lambda_codeword_codon_sinkhorn 0.0
 일치해야 통과. 선택값은 best checkpoint sidecar의 `selection_metric`/`selection_value`에서 읽는다
 (체크포인트 SHA에 결속됨). 로그 파싱 없음.
 
-### 스모크 (1 epoch, cifar10:4)
+### 🔴 첫 런처의 선택 지표가 D1이 아니었다 (감사 §37.2-1, 정정)
+
+D1은 후보의 **terminal epoch N**에서의 raw base-Hamming mAP@R을 비교한다. 첫 런처는
+`model_state_dict_best.pth.runtime.json`, 즉 **prefix 전체의 best**를 읽었다. 그러면 N=39 셀의 best가
+epoch 4에 있을 때 N=39가 N=4의 답을 보고하고 **그리드 전체가 한 후보로 붕괴한다.** 실제로 첫 스모크가
+N=4 셀에서 epoch 0 점수를 보고한 것이 이 버그의 축소판이었다. 더구나 `--final_epoch_eval` 없이는
+best-swap이 일어나 최종 가중치까지 그 이른 epoch의 것이 된다.
+
+원인은 상류에 있었다. `eval_mAP_at_R`은 매 epoch 계산되는데 `log.csv` 필드 목록에서 빠져 있어
+남는 사본이 best sidecar뿐이었다. 필드를 추가하고, 런처는 **epoch N 행**을 읽는다.
+best-over-prefix는 참고용으로 함께 기록하되 선택에는 쓰지 않는다.
+
+### 함께 닫은 런처 결함 (감사 §37.2)
+
+| 결함 | 조치 |
+|---|---|
+| `--only cifar10:5`가 rc0으로 N=5 명령을 만듦 | 16키 멤버십 검사, 아니면 rc2 |
+| 부모 환경 전체 복사 → 호출자의 `WASS`/`DISABLE_TEXT`가 레시피 오염 | allow-list + 레시피 변수 명시 제거. 검증: `WASS=9.9 DISABLE_TEXT=1`을 주고 실행해도 자식 env에서 제거되고 셀 자신의 `CCS=0.1`은 유지 |
+| trainer가 `python … \| tee`를 `set -eu`로만 실행 → tee의 rc가 python을 가림 | `bash -o pipefail -c`로 감싸 실제 상태 복원 |
+| `--smoke`가 budget만 줄이고 stop은 N으로 남김 | stop도 함께 줄여 내부 정합. 기록에 `is_candidate_cell=false` |
+
+### 스모크 (2 epoch, cifar10:4)
+
+가드가 먼저 실동작으로 증명됐다. budget 2인데 stop이 4로 남았던 판에서:
 
 ```text
-args.txt          num_semantic_parts = num_codebooks = 5, codons = 3
-run_identity.json 5 / 3 / 15 / 30,  selection_mode = select
-use_gumbel_softmax False,  lambda_codeword_codon_sinkhorn 0.0
-extract_*.npz     없음  -> stage 1이 공식 test를 건드리지 않음
-selection         eval_mAP_at_R = 0.5775 @epoch 0 (sidecar)
+REFUSED: expected exactly one row for terminal epoch 4, found 0
+         (epochs present: ['0','1']). The cell did not train to its candidate epoch.
 ```
 
-`result_diagnostic/phase3_smoke_20260828/`에 격리. 1 epoch이라 horizon이 1/1이므로 배선과 assertion의
-증거이지 수치의 증거가 아니다. 942 tests 통과.
+정합하게 고친 뒤:
+
+```text
+terminal epoch 1   mAP@R=0.7516  cutoff=1000
+best_over_prefix   0.7516 @epoch 1     (기록만, 선택에 미사용)
+geometry           num_semantic_parts=5  num_codebooks=5  codons=3
+is_candidate_cell  false
+```
+
+`result_diagnostic/phase3_smoke_20260828/`에 격리. 947 tests 통과.
 
 ### 아카이브가 만든 결함 하나를 함께 닫음 (감사 §36.2-5)
 

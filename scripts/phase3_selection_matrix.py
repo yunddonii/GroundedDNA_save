@@ -33,6 +33,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import os
 from pathlib import Path
@@ -111,6 +112,26 @@ DATASETS = {
         K=128, env=dict(CIBNT="1.5", CELL="Aprompt")),
 }
 
+#: Kept from the caller: the things a shell needs to run at all, plus the
+#: cache root override the tests use. Everything else is set by this launcher.
+_ENV_PASSTHROUGH = frozenset({
+    "PATH", "HOME", "USER", "SHELL", "LANG", "LC_ALL", "TERM", "TMPDIR",
+    "PYTHONPATH", "PYTHONUNBUFFERED", "CONDA_PREFIX", "CONDA_DEFAULT_ENV",
+    "LD_LIBRARY_PATH", "HF_HOME", "HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE",
+    "GDNA_CACHE_ROOT", "PHASE3_NAMESPACE", "PY",
+})
+
+#: Recipe variables the trainers read. Cleared explicitly so a leftover export
+#: cannot survive even if it slipped through the allow-list.
+_RECIPE_ENV = (
+    "WASS", "XMODAL", "THASH", "TCKL", "CIBNT", "CCS", "SLA", "GATE", "LBU",
+    "BI_V", "BI_T", "BIDIR_MODE", "WHITEN_GAMMA", "DISABLE_GATE",
+    "DISABLE_TEXT", "SHARE_CB", "SEQRES", "SEQRES_G", "CELL", "K",
+    "NUM_CODONS", "TAG", "TAG_SUFFIX", "EXTRA_ARGS", "AUX_ARGS", "A_SKIPS",
+    "GLOBAL_SKIPS", "FINAL_EPOCH", "STOP_EP", "VAL_RATIO", "VAL_SEED",
+    "CACHE", "EVAL_CACHE", "QWEN", "WHITEN_NPZ", "VIZ", "FIXED_N", "EVERY",
+)
+
 NAMESPACE = os.environ.get("PHASE3_NAMESPACE", "phase3sel")
 RECORD_DIR = REPO / "artifacts" / "phase3_selection"
 
@@ -163,11 +184,24 @@ def build_command(dataset: str, n: int, gpu: int, *,
     spec = DATASETS[dataset]
     tag = tag_for(dataset, n, namespace=namespace)
     flags = _stage1_flags(n) + S5_FLAGS + A_FLAGS + QUIET_FLAGS
-    if epochs is not None:                      # smoke only
-        flags = ["-e", str(epochs), "--sinkhorn_schedule_horizon",
-                 str(epochs), "--lr_schedule_horizon", str(epochs)] + \
-            flags[6:]
-    env = dict(os.environ)
+    stop = n
+    if epochs is not None:
+        # Smoke: shorten everything CONSISTENTLY. The first version shortened
+        # the budget and the horizons but left `--stop_after_epoch N`, so the
+        # cell could never reach the epoch it claimed to be a candidate for and
+        # the terminal-metric check refused it by construction. A smoke has to
+        # be a small run, not an impossible one -- and it is still not a
+        # candidate cell, which the record says.
+        stop = max(epochs - 1, 0)
+        flags = ["-e", str(epochs), "--lr_schedule_horizon", str(epochs),
+                 "--sinkhorn_schedule_horizon", str(stop + 1)] + flags[6:]
+    # A clean environment plus exactly what this protocol sets. The trainers
+    # read a dozen recipe variables -- WASS, XMODAL, DISABLE_TEXT, SHARE_CB,
+    # CCS, GATE and more -- so inheriting the caller's shell would let a stale
+    # export from an unrelated experiment redefine a matrix cell.
+    env = {k: v for k, v in os.environ.items() if k in _ENV_PASSTHROUGH}
+    for name in _RECIPE_ENV:
+        env.pop(name, None)
     env.update(spec["env"])
     env.update(
         # The geometry is baked in at import time, so it has to be in the
@@ -183,7 +217,7 @@ def build_command(dataset: str, n: int, gpu: int, *,
     )
     # Stage 1 never evaluates the official test split: no FINAL_EPOCH, and
     # `--stop_after_epoch N` stops the run at the candidate epoch.
-    env["STOP_EP"] = str(n)
+    env["STOP_EP"] = str(stop)
     env.pop("FINAL_EPOCH", None)
     return ["bash", spec["trainer"], str(gpu)], env, tag
 
@@ -242,39 +276,73 @@ def assert_geometry(run_dir: Path, *, dataset: str, n: int) -> dict:
     return {"identity_digest": identity.digest, **effective}
 
 
-def read_selection(run_dir: Path) -> dict:
-    """The candidate's score, from the checkpoint that scored it.
+def read_selection(run_dir: Path, *, n: int) -> dict:
+    """The candidate's score at ITS OWN terminal epoch N.
 
-    `model_state_dict_best.pth.runtime.json` records `selection_metric` and
-    `selection_value` beside the checkpoint's own SHA, so the number is bound to
-    the weights it describes. The previous runner grepped a log line instead.
+    D1 compares candidates by what training to N produces, so the number has to
+    come from epoch N. The first version read
+    `model_state_dict_best.pth.runtime.json`, which holds the best value over
+    the whole prefix -- so an N=39 cell whose best epoch was 4 would report the
+    N=4 answer, and every candidate could collapse onto the same early epoch.
+    The live N=4 smoke reported its epoch-0 score, which is that bug in
+    miniature.
+
+    `log.csv` carries `eval_mAP_at_R` per epoch, so the terminal row is read
+    directly. The best-checkpoint sidecar is still recorded, for comparison, but
+    it is not the answer.
     """
-    sidecar = run_dir / "model_state_dict_best.pth.runtime.json"
-    if not sidecar.is_file():
+    csv_path = run_dir / "log.csv"
+    if not csv_path.is_file():
+        raise CellRefused(f"{run_dir}: no log.csv, so no per-epoch metric")
+    with open(csv_path, newline="", encoding="utf-8") as handle:
+        rows = list(csv.DictReader(handle))
+    if not rows:
+        raise CellRefused(f"{csv_path} has no rows")
+    if "eval_mAP_at_R" not in rows[0]:
         raise CellRefused(
-            f"{run_dir}: no best-checkpoint sidecar, so the cell selected "
-            f"nothing")
-    payload = json.loads(sidecar.read_text(encoding="utf-8"))
-    extra = payload.get("extra") or {}
-    metric = extra.get("selection_metric")
-    value = extra.get("selection_value")
-    if metric != "eval_mAP_at_R":
+            f"{csv_path} has no eval_mAP_at_R column; this run predates the "
+            f"per-epoch selection metric and its terminal value is not "
+            f"recoverable")
+
+    terminal = [r for r in rows if str(r.get("epoch", "")).strip() == str(n)]
+    if len(terminal) != 1:
+        seen = sorted({str(r.get("epoch", "")).strip() for r in rows})
         raise CellRefused(
-            f"{run_dir}: selection metric is {metric!r}; D1 requires raw "
-            f"base-Hamming mAP@R")
-    if not isinstance(value, (int, float)) or isinstance(value, bool) \
-            or not 0.0 <= float(value) <= 1.0:
-        raise CellRefused(f"{run_dir}: selection value {value!r} is not a "
+            f"{csv_path}: expected exactly one row for terminal epoch {n}, "
+            f"found {len(terminal)} (epochs present: {seen[:8]}). The cell did "
+            f"not train to its candidate epoch.")
+    raw = (terminal[0].get("eval_mAP_at_R") or "").strip()
+    if not raw:
+        raise CellRefused(
+            f"{csv_path}: epoch {n} has no eval_mAP_at_R, so the candidate was "
+            f"never scored at its own terminal epoch")
+    try:
+        value = float(raw)
+    except ValueError:
+        raise CellRefused(f"{csv_path}: eval_mAP_at_R={raw!r} is not a number")
+    if not 0.0 <= value <= 1.0:
+        raise CellRefused(f"{csv_path}: eval_mAP_at_R={value} is not a "
                           f"proportion")
-    return {
-        "selection_metric": metric,
-        "selection_value": float(value),
-        "best_epoch_zero_based": payload.get("checkpoint_epoch_zero_based"),
-        "checkpoint_sha256": payload.get("checkpoint_sha256"),
-        "effective_sinkhorn_epsilon": payload.get("effective_sinkhorn_epsilon"),
-        "lr_schedule_horizon": payload.get("lr_schedule_horizon"),
-        "sinkhorn_schedule_horizon": payload.get("sinkhorn_schedule_horizon"),
+
+    record = {
+        "selection_metric": "eval_mAP_at_R",
+        "selection_value": value,
+        "selection_epoch_zero_based": n,
+        "map_r_cutoff": (terminal[0].get("eval_mAP_R_cutoff") or "").strip(),
+        "epochs_logged": len(rows),
     }
+    # Recorded, never used to select: it is the best over the prefix, and
+    # seeing it differ from the terminal value is exactly what a reader wants.
+    sidecar = run_dir / "model_state_dict_best.pth.runtime.json"
+    if sidecar.is_file():
+        payload = json.loads(sidecar.read_text(encoding="utf-8"))
+        extra = payload.get("extra") or {}
+        record["best_over_prefix"] = {
+            "value": extra.get("selection_value"),
+            "epoch_zero_based": payload.get("checkpoint_epoch_zero_based"),
+            "checkpoint_sha256": payload.get("checkpoint_sha256"),
+        }
+    return record
 
 
 def _resolve(tag: str) -> Path:
@@ -298,7 +366,14 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
     cmd, env, _ = build_command(dataset, n, gpu, epochs=epochs,
                                 namespace=namespace)
     started = time.time()
-    proc = subprocess.run(cmd, cwd=str(REPO), env=env)
+    # The trainers end in `python ... | tee "$LOG"` under `set -eu` with no
+    # `pipefail`, so the script's status is tee's, not python's: a crashed
+    # trainer would look like a finished cell. `bash -o pipefail -c` puts the
+    # pipeline's real status back.
+    proc = subprocess.run(
+        ["bash", "-o", "pipefail", "-c",
+         " ".join(shlex.quote(part) for part in cmd)],
+        cwd=str(REPO), env=env)
     if proc.returncode != 0:
         raise CellRefused(f"{tag}: trainer exited {proc.returncode}")
 
@@ -310,10 +385,15 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
         "lr_schedule_horizon": LR_HORIZON if epochs is None else epochs,
         "sinkhorn_schedule_horizon": (n + 1) if epochs is None else epochs,
         "epoch_budget": EPOCH_BUDGET if epochs is None else epochs,
-        "geometry": assert_geometry(run_dir, dataset=dataset, n=n),
-        "selection": read_selection(run_dir),
+        "geometry": assert_geometry(
+            run_dir, dataset=dataset,
+            n=n if epochs is None else max(epochs - 1, 0)),
+        "selection": read_selection(
+            run_dir, n=n if epochs is None else max(epochs - 1, 0)),
         "wall_seconds": round(time.time() - started, 1),
+        # A smoke is plumbing evidence, never a candidate score.
         "smoke": epochs is not None,
+        "is_candidate_cell": epochs is None,
     }
     RECORD_DIR.mkdir(parents=True, exist_ok=True)
     out = RECORD_DIR / f"{tag}.json"
@@ -330,7 +410,9 @@ def main() -> int:
                         help="print the exact cell set and one command")
     parser.add_argument("--run", action="store_true")
     parser.add_argument("--smoke", action="store_true",
-                        help="one short cell, to prove the geometry asserts")
+                        help=("a short run of the SELECTED cells (use --only "
+                              "for one), to prove the plumbing and the "
+                              "assertions. Never a candidate score."))
     parser.add_argument("--gpu", type=int, default=0)
     parser.add_argument("--epochs", type=int, default=1,
                         help="--smoke only")
@@ -341,8 +423,21 @@ def main() -> int:
 
     keys = cell_keys()
     if args.only:
-        ds, n = args.only.split(":")
-        keys = [(ds, int(n))]
+        try:
+            ds, raw = args.only.split(":")
+            key = (ds, int(raw))
+        except ValueError:
+            print(f"[phase3] --only must be dataset:N, got {args.only!r}",
+                  file=sys.stderr)
+            return 2
+        # "Exactly sixteen cells" has to bind what actually runs, not only what
+        # `--plan` prints: `--only cifar10:5` used to build an N=5 command.
+        if key not in cell_keys():
+            print(f"[phase3] {args.only} is not one of the {len(keys)} cells; "
+                  f"N must be one of {list(CANDIDATE_N)} and the dataset one "
+                  f"of {sorted(DATASETS)}", file=sys.stderr)
+            return 2
+        keys = [key]
 
     if args.plan or not (args.run or args.smoke):
         print(f"{len(cell_keys())} cells: "
