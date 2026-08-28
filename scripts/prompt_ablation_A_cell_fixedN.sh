@@ -29,6 +29,11 @@ set -u
 source "$(dirname "${BASH_SOURCE[0]}")/lib/result_dir.sh"
 
 GPU="$1"; EXP="$2"
+# Only the mscoco_A_v5b case used to honour CACHE_OVERRIDE, so the other three
+# datasets silently fell back to the legacy caches -- which the provenance gate
+# refuses, taking 18 of the 24 A-series cells down before training. All four
+# honour it now; the campaign plan supplies the v6prov paths.
+: "${CACHE_OVERRIDE:=}"
 PY=/home/yschoi/.conda/envs/dna_hashing/bin/python
 # A_SKIPS: the two A-recipe global-slot skips added here (the other two,
 # --text_code_kl_skip_global / --text_hash_ntxent_skip_global, live in the
@@ -45,23 +50,23 @@ case "$EXP" in
     WDIR=./cache/mscoco_clip_v5b_tokens_foils; K="${K:-128}"; CIBNT="${CIBNT:-1.5}"; EXTRA=(CELL=Aprompt) ;;
   mscoco_A_v4)    # A + V4 prompt at L=3
     CANON=MSCOCO; SCRIPT=scripts/train_mscoco_F2_sweep_clip.sh
-    CACHE=./cache/mscoco_clip_v4plus_tokens; QWEN=./cache/mscoco_qwen3_v4_trainset.jsonl
+    CACHE="${CACHE_OVERRIDE:-./cache/mscoco_clip_v4plus_tokens}"; QWEN=./cache/mscoco_qwen3_v4_trainset.jsonl
     WDIR=./cache/mscoco_clip_v4plus_tokens; K="${K:-128}"; CIBNT="${CIBNT:-1.5}"; EXTRA=(CELL=Aprompt) ;;
   cifar_A_v1)     # A + champion prompt (V1) at L=3
     CANON=CIFAR10; SCRIPT=scripts/train_cifar10_v185_bidirTokenPrune05_ccs01_clip.sh
-    CACHE=./cache/cifar10_clip; QWEN=./cache/cifar10_qwen.jsonl
+    CACHE="${CACHE_OVERRIDE:-./cache/cifar10_clip}"; QWEN=./cache/cifar10_qwen.jsonl
     WDIR=./cache/cifar10_clip_foils; K="${K:-64}"; CIBNT="${CIBNT:-1.0}"; EXTRA=(CCS=0.1) ;;
   cifar_A_v4)     # A + V4 prompt at L=3
     CANON=CIFAR10; SCRIPT=scripts/train_cifar10_v185_bidirTokenPrune05_ccs01_clip.sh
-    CACHE=./cache/cifar10_clip_v4_tokens; QWEN=./cache/cifar10_qwen_v4.jsonl
+    CACHE="${CACHE_OVERRIDE:-./cache/cifar10_clip_v4_tokens}"; QWEN=./cache/cifar10_qwen_v4.jsonl
     WDIR=./cache/cifar10_clip_v4_tokens; K="${K:-64}"; CIBNT="${CIBNT:-1.0}"; EXTRA=(CCS=0.1) ;;
   flickr_A_v4)    # A + V4 (Flickr champion prompt) at L=3
     CANON=Flickr25k; SCRIPT=scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh
-    CACHE=./cache/flickr25k_clip_v4plus_qwen3_tokens; QWEN=./cache/flickr25k_qwen3_v4_trainset.jsonl
+    CACHE="${CACHE_OVERRIDE:-./cache/flickr25k_clip_v4plus_qwen3_tokens}"; QWEN=./cache/flickr25k_qwen3_v4_trainset.jsonl
     WDIR=./cache/flickr25k_clip_v4plus_qwen3_tokens_foils; K="${K:-128}"; CIBNT="${CIBNT:-1.0}"; EXTRA=(BIDIR_MODE=legacy) ;;
   nuswide_A_v4)   # A + V4 (NUS champion prompt) at L=3
     CANON=NUSWIDE; SCRIPT=scripts/train_nuswide_v185_sweep_clip.sh
-    CACHE=./cache/nuswide_clip_tokens; QWEN=./cache/nuswide_qwen3_v4_trainset.jsonl
+    CACHE="${CACHE_OVERRIDE:-./cache/nuswide_clip_tokens}"; QWEN=./cache/nuswide_qwen3_v4_trainset.jsonl
     WDIR=./cache/nuswide_clip_tokens_foils; K="${K:-128}"; CIBNT="${CIBNT:-1.5}"; EXTRA=(CELL=Aprompt) ;;
   *) echo "[promptAblA] unknown EXP=$EXP"; exit 2 ;;
 esac

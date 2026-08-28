@@ -179,68 +179,42 @@ declare -a ABL_PIDS=()
 #       noGumbel alone is harmful on some datasets and only helps in
 #       combination. Collapsing that to one cell would have hidden exactly the
 #       interaction it exists to show.
-# The cells come from `dna_utils/ablation_spec.py`, not from strings written
-# here. Hand-writing them hid a collapse the tags could not show: the shared
-# `S5` prefix carries `--no_gumbel_softmax` unconditionally, so A5none composed
-# to the same command as A5nogumbel and A5joint to the same as A5both -- four
-# tags, two configurations. The spec also gives A4 its matched total capacity
-# and every cell a distinct `--selection_mode`, so two cells cannot land in one
-# result directory.
-say "step 2: preflight -- composing every ablation cell against the real parser"
-for E in $DS_LIST; do
-    IFS=: read -r EXP CANON SLUG <<<"$E"
-    # `done < <(cmd)` swallows cmd's failure: the loop simply runs zero times
-    # and the script continues as if the ablation set were empty.
-    mapfile -t CELLS < <("$PY" scripts/_ablation_cells.py --list A2 A4 A5 \
-        --dataset "$CANON") || { say "  cell listing failed for $EXP"; exit 1; }
-    [[ "${#CELLS[@]}" -eq 6 ]] || {
-        say "  expected 6 cells for $EXP, got ${#CELLS[@]}"; exit 1; }
-    for CELL in "${CELLS[@]}"; do
-        "$PY" scripts/_ablation_cells.py --flags "$CELL" --dataset "$CANON" \
-            --base "$S5 $T69" >/dev/null || {
-            say "  PREFLIGHT FAILED: $CELL $EXP"; exit 1; }
-    done
-done
-say "step 2: preflight ok"
+# The campaign is computed once, by scripts/ablation_campaign_plan.py, and
+# this loop executes it. Every cell decision used to be made here in bash, and
+# every one of them was broken in a way nothing could see from outside:
+# `CELL_K=$(... | grep --codebook_size)` returned 1 for A2/A5 and killed the
+# script at the assignment under `pipefail`; `${CELL_K:+K="$CELL_K"} cmd` is
+# not an assignment, so A4 tried to run a command called `K=320` and exited
+# 127; and `mapfile ... < <(producer)` checked mapfile's status rather than the
+# producer's. The shell decides nothing now.
+PLAN=${PLAN:-artifacts/ablation_campaign_plan.json}
+say "step 2: building the campaign plan"
+"$PY" scripts/ablation_campaign_plan.py --out "$PLAN" --require-provenance || {
+    say "  plan refused; not starting any cell"; exit 1; }
 
-say "step 2: 4.8 ablation"
-for E in $DS_LIST; do
-    IFS=: read -r EXP CANON SLUG <<<"$E"
-    N=$(getN "$EXP"); JD=$(getJD "$EXP")
-    mapfile -t CELLS < <("$PY" scripts/_ablation_cells.py --list A2 A4 A5 \
-        --dataset "$CANON") || { say "  cell listing failed for $EXP"; exit 1; }
-    [[ "${#CELLS[@]}" -eq 6 ]] || {
-        say "  expected 6 cells for $EXP, got ${#CELLS[@]}"; exit 1; }
-    for CELL in "${CELLS[@]}"; do
-        # `--lambda_codon_joint` is a cell-owned axis for A5, so the champion
-        # value only joins cells that do not set it themselves.
-        FLAGS=$("$PY" scripts/_ablation_cells.py --flags "$CELL" \
-                    --dataset "$CANON" --base "$S5 $T69") || exit 1
-        case "$FLAGS" in
-            *--lambda_codon_joint*) ;;
-            *) FLAGS="$FLAGS --lambda_codon_joint $JD" ;;
-        esac
-        # A4 trains one shared codebook at matched TOTAL capacity, so the
-        # cell runner has to evaluate at that same K -- its default is the
-        # per-slot size, and the two disagreeing means the evaluation reads a
-        # codebook of a different width than the one trained.
-        CELL_K=$(printf '%s\n' $FLAGS | grep -A1 -x -- --codebook_size | tail -1)
-        [[ -n "$CELL_K" ]] || CELL_K=""
-        wait_idle; g=${G%% *}
-        say "  $CELL $EXP -> GPU $g${CELL_K:+ (K=$CELL_K)}"
-        GDNA_NUM_SEMANTIC_PARTS=5 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
-        ${CELL_K:+K="$CELL_K"} \
-        FIXED_N="$N" EVERY=1 TAG_SUFFIX="_$CELL" \
-        AUX_ARGS="$FLAGS -e $((N+1))" \
-        setsid nohup bash scripts/prompt_ablation_A_cell_fixedN.sh "$g" "$EXP" \
-            > "logs/ABL_${CELL}_${EXP}.out" 2>&1 < /dev/null &
-        ABL_PIDS+=("$!:${CELL}_${EXP}")
-        sleep 150
-    done
+NCELLS=$("$PY" -c "import json,sys;print(len(json.load(open(sys.argv[1]))['cells']))" "$PLAN")
+EXPECTED=$("$PY" -c "import json,sys;print(json.load(open(sys.argv[1]))['expected_cells'])" "$PLAN")
+[[ "$NCELLS" == "$EXPECTED" ]] || {
+    say "  plan has $NCELLS cells, expected $EXPECTED"; exit 1; }
+say "step 2: $NCELLS cells planned"
+
+for i in $(seq 0 $((NCELLS - 1))); do
+    CELL=$("$PY" -c "import json,sys;print(json.load(open(sys.argv[1]))['cells'][int(sys.argv[2])]['cell'])" "$PLAN" "$i")
+    EXP=$("$PY" -c "import json,sys;print(json.load(open(sys.argv[1]))['cells'][int(sys.argv[2])]['exp'])" "$PLAN" "$i")
+    wait_idle; g=${G%% *}
+    say "  $CELL $EXP -> GPU $g"
+    # `env -i` plus the plan's allow-list: the fixedN wrapper reads NUM_CODONS,
+    # CURVE, K, WHITEN_VARIANT and more from the environment, and an inherited
+    # NUM_CODONS=4 turns the paper's 15 bases into 20 while CURVE=1 drops
+    # FINAL_EPOCH and switches to the test-monitored path.
+    "$PY" scripts/_ablation_exec.py --plan "$PLAN" --index "$i" --gpu "$g" \
+        > "logs/ABL_${CELL}_${EXP}.out" 2>&1 &
+    ABL_PIDS+=("$!:${CELL}_${EXP}")
+    sleep 150
 done
 while busy; do sleep 120; done
 # `while busy` watches process names and GPU memory, which is not the same as
-# every child having succeeded. Collect the exit codes.
+# every child having succeeded.
 ABL_FAILED=0
 for entry in "${ABL_PIDS[@]:-}"; do
     [[ -n "$entry" ]] || continue
