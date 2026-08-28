@@ -27,7 +27,11 @@ trap 'rc=$?; printf "[auto-chain] FAILED at line %s (rc %s): %s\n" \
         "$LINENO" "$rc" "$BASH_COMMAND" >&2; exit "$rc"' ERR
 cd /home/yschoi/GroundedDNA
 PY=/home/yschoi/.conda/envs/dna_hashing/bin/python
-NJSON=docs/newmodel_analysis/fixed_N.json
+# The N Phase 3 actually chose. `docs/newmodel_analysis/fixed_N.json` is the
+# pre-audit table and disagrees: it says CIFAR N=4 where the train-only
+# selection says 39. Running the ablations at the old N would ablate a model
+# nobody reports.
+NJSON=${NJSON:-artifacts/phase3_selection/selected_n.json}
 IDLE_MIB="${IDLE_MIB:-200}"
 LOG=logs/AUTO_CHAIN.log
 mkdir -p logs docs/newmodel_analysis
@@ -45,8 +49,19 @@ while busy; do sleep 120; done
 say "pending runs finished"
 
 DS_LIST="cifar_A_v4:CIFAR10:cifar10 flickr_A_v4:Flickr25k:flickr25k nuswide_A_v4:NUSWIDE:nuswide mscoco_A_v5b:MSCOCO:mscoco"
-getN(){ "$PY" -c "import json;print(json.load(open('$NJSON'))['$1']['N'])"; }
-getJD(){ "$PY" -c "import json;print(json.load(open('$NJSON'))['$1']['lambda_codon_joint'])"; }
+# `selected_n.json` is keyed by dataset slug, the legacy table by EXP name.
+_EXP2DS(){ case "$1" in cifar_A_v4) echo cifar10 ;; flickr_A_v4) echo flickr25k ;;
+    nuswide_A_v4) echo nuswide ;; mscoco_A_v5b) echo mscoco ;;
+    *) echo "unknown EXP $1" >&2; return 1 ;; esac; }
+getN(){ "$PY" -c "
+import json,sys
+d=json.load(open('$NJSON'))
+sel=d.get('selected')
+print(sel['$(_EXP2DS "$1")']['selected_N'] if sel else d['$1']['N'])"; }
+getJD(){ "$PY" -c "
+import json
+d=json.load(open('docs/newmodel_analysis/fixed_N.json'))
+print(d['$1']['lambda_codon_joint'])"; }
 # Must match ONLY the reference run. Without the `_v4`/`_v5b` boundary this
 # also matches the _BU05 and _A2/_A4/_A5 variants, which differ from the
 # reference by exactly the thing being ablated.
@@ -59,7 +74,11 @@ rundir(){
     matches=(result/2608*"$1"*_P0refit_e"$2"+bs+64+e+"$3"+*)
     shopt -u nullglob
     for d in "${matches[@]}"; do
-        [[ "$d" =~ _(BU05|A2|A4|A5[a-z]*|s4[34])_P0refit ]] || keep+=("$d")
+        # The cell names come from the spec (A2_no_text, A4_shared_codebook,
+        # A5_none/_joint/_nogumbel/_both), and the old pattern `_A2_P0refit`
+        # matched none of them -- so the reference lookup would have started
+        # finding the ablation directories the moment they existed.
+        [[ "$d" =~ _(BU05|A[245][A-Za-z_]*|s4[34])_P0refit ]] || keep+=("$d")
     done
     if [[ "${#keep[@]}" -ne 1 ]]; then
         printf "[auto-chain] %d reference runs match %s e%s; refusing to guess:\n" \
@@ -170,11 +189,17 @@ declare -a ABL_PIDS=()
 say "step 2: preflight -- composing every ablation cell against the real parser"
 for E in $DS_LIST; do
     IFS=: read -r EXP CANON SLUG <<<"$E"
-    while read -r CELL; do
+    # `done < <(cmd)` swallows cmd's failure: the loop simply runs zero times
+    # and the script continues as if the ablation set were empty.
+    mapfile -t CELLS < <("$PY" scripts/_ablation_cells.py --list A2 A4 A5 \
+        --dataset "$CANON") || { say "  cell listing failed for $EXP"; exit 1; }
+    [[ "${#CELLS[@]}" -eq 6 ]] || {
+        say "  expected 6 cells for $EXP, got ${#CELLS[@]}"; exit 1; }
+    for CELL in "${CELLS[@]}"; do
         "$PY" scripts/_ablation_cells.py --flags "$CELL" --dataset "$CANON" \
             --base "$S5 $T69" >/dev/null || {
             say "  PREFLIGHT FAILED: $CELL $EXP"; exit 1; }
-    done < <("$PY" scripts/_ablation_cells.py --list A2 A4 A5 --dataset "$CANON")
+    done
 done
 say "step 2: preflight ok"
 
@@ -182,7 +207,11 @@ say "step 2: 4.8 ablation"
 for E in $DS_LIST; do
     IFS=: read -r EXP CANON SLUG <<<"$E"
     N=$(getN "$EXP"); JD=$(getJD "$EXP")
-    while read -r CELL; do
+    mapfile -t CELLS < <("$PY" scripts/_ablation_cells.py --list A2 A4 A5 \
+        --dataset "$CANON") || { say "  cell listing failed for $EXP"; exit 1; }
+    [[ "${#CELLS[@]}" -eq 6 ]] || {
+        say "  expected 6 cells for $EXP, got ${#CELLS[@]}"; exit 1; }
+    for CELL in "${CELLS[@]}"; do
         # `--lambda_codon_joint` is a cell-owned axis for A5, so the champion
         # value only joins cells that do not set it themselves.
         FLAGS=$("$PY" scripts/_ablation_cells.py --flags "$CELL" \
@@ -191,16 +220,23 @@ for E in $DS_LIST; do
             *--lambda_codon_joint*) ;;
             *) FLAGS="$FLAGS --lambda_codon_joint $JD" ;;
         esac
+        # A4 trains one shared codebook at matched TOTAL capacity, so the
+        # cell runner has to evaluate at that same K -- its default is the
+        # per-slot size, and the two disagreeing means the evaluation reads a
+        # codebook of a different width than the one trained.
+        CELL_K=$(printf '%s\n' $FLAGS | grep -A1 -x -- --codebook_size | tail -1)
+        [[ -n "$CELL_K" ]] || CELL_K=""
         wait_idle; g=${G%% *}
-        say "  $CELL $EXP -> GPU $g"
+        say "  $CELL $EXP -> GPU $g${CELL_K:+ (K=$CELL_K)}"
         GDNA_NUM_SEMANTIC_PARTS=5 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
+        ${CELL_K:+K="$CELL_K"} \
         FIXED_N="$N" EVERY=1 TAG_SUFFIX="_$CELL" \
         AUX_ARGS="$FLAGS -e $((N+1))" \
         setsid nohup bash scripts/prompt_ablation_A_cell_fixedN.sh "$g" "$EXP" \
             > "logs/ABL_${CELL}_${EXP}.out" 2>&1 < /dev/null &
         ABL_PIDS+=("$!:${CELL}_${EXP}")
         sleep 150
-    done < <("$PY" scripts/_ablation_cells.py --list A2 A4 A5 --dataset "$CANON")
+    done
 done
 while busy; do sleep 120; done
 # `while busy` watches process names and GPU memory, which is not the same as

@@ -214,3 +214,84 @@ def test_rundir_refuses_ambiguity(tmp_path):
     assert proc.returncode != 0
     assert "refusing to guess" in proc.stderr
     assert proc.stdout.strip() == ""
+
+
+# --------- the confounds the narrow A5 fix introduced or left behind
+
+def test_a2_and_a4_keep_the_champion_recipe():
+    """Stripping a fixed set from the base for every cell was its own confound.
+
+    A2 and A4 lost `--no_gumbel_softmax`, which the champion HAS, so each
+    differed from the reference in two ways at once and the delta stopped being
+    about the thing being ablated.
+    """
+    for cell in ("A2_no_text", "A4_shared_codebook"):
+        assert "--no_gumbel_softmax" in _effective(cell), cell
+
+
+def test_only_a5_decides_the_gumbel_axis():
+    owned = {c: ("--no_gumbel_softmax" in _effective(c))
+             for c in _declared_cells()}
+    assert owned["A2_no_text"] is True
+    assert owned["A4_shared_codebook"] is True
+    assert owned["A5_none"] is False and owned["A5_joint"] is False
+    assert owned["A5_nogumbel"] is True and owned["A5_both"] is True
+
+
+@pytest.mark.parametrize("dataset,k", [("CIFAR10", 64), ("MSCOCO", 128)])
+def test_a4_evaluates_at_the_width_it_trained(dataset, k):
+    """Training one shared codebook at 5*K and evaluating at K reads a
+    codebook of a different width than the one trained."""
+    flags = _effective("A4_shared_codebook", dataset)
+    trained = flags[flags.index("--codebook_size") + 1]
+    assert trained == str(5 * k)
+    commands = _commands()
+    assert 'CELL_K=$(printf' in commands, "the runner is not told the cell's K"
+    assert '${CELL_K:+K="$CELL_K"}' in commands
+
+
+def test_the_reference_resolver_excludes_the_new_cell_names():
+    """`_A2_P0refit` matched none of A2_no_text, A5_none, A5_both ..."""
+    import re
+
+    body = CHAIN.read_text()
+    line = next(l for l in body.splitlines() if "keep+=(" in l and "=~" in l)
+    pattern = re.search(r'=~ (\S+) \]\]', line).group(1)
+    regex = re.compile(pattern.replace("_(", "_(").strip())
+    for cell in _declared_cells() + ["BU05", "s43", "s44"]:
+        name = f"260829+cifar10_setting1_promptAblA_cifar_A_v4_{cell}_P0refit_e4"
+        assert regex.search(name), f"{cell} would be taken as the reference run"
+    reference = "260829+cifar10_setting1_promptAblA_cifar_A_v4_P0refit_e39"
+    assert not regex.search(reference), "the reference itself must not be excluded"
+
+
+def test_a_failing_cell_listing_stops_the_chain():
+    """`done < <(cmd)` swallowed cmd's failure: zero iterations, then carry on."""
+    proc = subprocess.run(
+        ["bash", "-c",
+         'set -Eeuo pipefail\n'
+         'mapfile -t CELLS < <(false) || { echo caught; exit 3; }\n'
+         '[[ "${#CELLS[@]}" -eq 6 ]] || { echo "wrong count"; exit 4; }\n'],
+        capture_output=True, text=True, timeout=60)
+    assert proc.returncode == 4, "an empty listing must not pass as success"
+    commands = _commands()
+    assert "mapfile -t CELLS" in commands
+    assert 'done < <("$PY" scripts/_ablation_cells.py' not in commands
+    assert commands.count('"${#CELLS[@]}" -eq 6') == 2
+
+
+def test_the_chain_uses_the_n_phase_three_chose(tmp_path):
+    """The legacy table says CIFAR N=4; the train-only selection says 39."""
+    import json as _json
+
+    legacy = _json.loads(
+        (REPO / "docs" / "newmodel_analysis" / "fixed_N.json").read_text())
+    chosen = _json.loads(
+        (REPO / "artifacts" / "phase3_selection"
+         / "selected_n.json").read_text())["selected"]
+    assert legacy["cifar_A_v4"]["N"] != chosen["cifar10"]["selected_N"], (
+        "the two sources agree, so this test no longer proves anything")
+
+    commands = _commands()
+    assert "artifacts/phase3_selection/selected_n.json" in commands
+    assert "d['$1']['N']" not in commands or "sel[" in commands

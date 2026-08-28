@@ -29,26 +29,36 @@ sys.path.insert(0, REPO)
 from dna_utils.ablation_spec import (  # noqa: E402
     ABLATIONS, AblationInvalid, preflight_ablation)
 
-#: Flags a cell sets for itself and which therefore must NOT arrive from the
-#: shared base recipe. `--no_gumbel_softmax` is the one that collapsed A5.
-_CELL_OWNED = ("--no_gumbel_softmax", "--lambda_codon_joint",
-               "--share_codebook", "--codebook_size", "--selection_mode",
-               "--disable_text_supervision")
+#: Options that take a value, so stripping one removes two tokens.
+_TAKES_VALUE = {"--lambda_codon_joint", "--codebook_size", "--selection_mode"}
+
+#: Axes an A5 cell decides by BEING one of the four, whether or not it names
+#: them: A5_none and A5_joint mean "no noGumbel", which they express by leaving
+#: the flag out. Stripping only what a cell mentions would let the base put it
+#: back and collapse the factorial again.
+_A5_AXES = ("--no_gumbel_softmax", "--lambda_codon_joint")
 
 
-def _strip_owned(base: list) -> list:
-    """Drop from the base anything a cell decides for itself.
+def _owned_by(cell) -> set:
+    """The axes THIS cell controls -- not a global list.
 
-    A base that already says `--no_gumbel_softmax` makes "with" and "without"
-    the same command, whatever the cell adds.
+    Stripping a fixed set from the base for every cell was its own confound:
+    A2 and A4 lost `--no_gumbel_softmax`, which the champion recipe HAS, so
+    each differed from the reference in two ways at once and the delta stopped
+    being about the thing being ablated.
     """
+    owned = {f for f in cell.flags if f.startswith("--")}
+    if cell.name.startswith("A5_"):
+        owned.update(_A5_AXES)
+    return owned
+
+
+def _strip_owned(base: list, owned: set) -> list:
     out, i = [], 0
-    takes_value = {"--lambda_codon_joint", "--codebook_size",
-                   "--selection_mode"}
     while i < len(base):
         token = base[i]
-        if token in _CELL_OWNED:
-            i += 2 if token in takes_value else 1
+        if token in owned:
+            i += 2 if token in _TAKES_VALUE else 1
             continue
         out.append(token)
         i += 1
@@ -72,7 +82,7 @@ def main() -> int:
     parser.add_argument("--base", default="", help="shared recipe flags")
     args = parser.parse_args()
 
-    base = _strip_owned(shlex.split(args.base))
+    raw_base = shlex.split(args.base)
 
     if args.list:
         for cell in cells(args.list, args.dataset):
@@ -84,7 +94,7 @@ def main() -> int:
     for cell in cells(["A2", "A4", "A5"], args.dataset):
         if cell.name != args.flags:
             continue
-        composed = base + list(cell.flags)
+        composed = _strip_owned(raw_base, _owned_by(cell)) + list(cell.flags)
         preflight_ablation(composed, dataset=args.dataset)
         print(" ".join(shlex.quote(f) for f in composed))
         return 0
