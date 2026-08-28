@@ -67,6 +67,15 @@ DATASETS = {
 ORDER = ("A2", "A4", "A5")
 SLOTS, BASES_PER_SLOT = 5, 3
 
+#: The A recipe fits the text transform on the local slots only. It is a
+#: constant here rather than an environment read, because it names the files the
+#: plan has to check for leakage-free provenance.
+WHITEN_VARIANT = "_localOnly"
+
+#: The only program a cell may start. A forged plan naming a different runner
+#: executed it, with the plan's environment, at rc 0.
+RUNNERS = frozenset({"scripts/prompt_ablation_A_cell_fixedN.sh"})
+
 #: The champion recipe every cell starts from.
 BASE_FLAGS = [
     "--num_semantic_parts", str(SLOTS), "--num_codebooks", str(SLOTS),
@@ -99,8 +108,8 @@ ENV_PASSTHROUGH = frozenset({
 #: Set explicitly on every child, so an inherited value cannot decide it.
 _PINNED = ("GDNA_NUM_SEMANTIC_PARTS", "NUM_CODONS", "K", "CIBNT", "VIZ",
            "CURVE", "WHITEN_VARIANT", "A_SKIPS", "LBU", "FIXED_N", "EVERY",
-           "TAG_SUFFIX", "AUX_ARGS", "CACHE_OVERRIDE", "HF_HUB_OFFLINE",
-           "TRANSFORMERS_OFFLINE")
+           "TAG_SUFFIX", "AUX_ARGS", "CACHE_OVERRIDE", "WDIR_OVERRIDE",
+           "QWEN_OVERRIDE", "HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE")
 
 
 class PlanRefused(RuntimeError):
@@ -138,47 +147,209 @@ def _sha(path: Path) -> str:
     return digest.hexdigest()
 
 
-def selected_n() -> dict:
-    """The N Phase 3 chose, per dataset. Not the pre-audit table."""
+#: What a selection artefact has to prove before 24 GPU cells are pinned to it.
+#: The first version read four `selected_N` fields and recorded the file's SHA,
+#: which is a receipt for whatever it was handed: a forged file carrying
+#: `schema_version: 999`, an empty record map and the values -7, 999, true and
+#: 123 was accepted, and the campaign would have run at N=-7.
+_SELECTION_SCHEMA = 1
+_SELECTION_METRIC = "eval_mAP_at_R"
+_SELECTION_DISTANCE = "base_hamming"
+_CANDIDATE_N = (4, 9, 19, 39)
+
+
+def _load_selection() -> tuple:
+    """The N Phase 3 chose, per dataset -- authenticated, not merely present."""
     path = REPO / "artifacts" / "phase3_selection" / "selected_n.json"
     if not path.is_file():
         raise PlanRefused(
             f"{path} does not exist; the ablations run at the N the train-only "
             f"selection chose, so that has to exist first")
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    chosen = payload.get("selected") or {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except ValueError as error:
+        raise PlanRefused(f"{path}: {error}") from None
+    if not isinstance(payload, dict):
+        raise PlanRefused(f"{path} is not an object")
+
+    if payload.get("schema_version") != _SELECTION_SCHEMA:
+        raise PlanRefused(
+            f"{path}: schema_version {payload.get('schema_version')!r}, not "
+            f"{_SELECTION_SCHEMA}")
+    for key, want in (("selection_metric", _SELECTION_METRIC),
+                      ("selection_distance", _SELECTION_DISTANCE)):
+        if payload.get(key) != want:
+            raise PlanRefused(
+                f"{path}: {key} is {payload.get(key)!r}, not {want!r}; this N "
+                f"was not chosen by the protocol the ablations assume")
+    if tuple(payload.get("candidate_n") or ()) != _CANDIDATE_N:
+        raise PlanRefused(
+            f"{path}: candidate_n is {payload.get('candidate_n')!r}, not "
+            f"{list(_CANDIDATE_N)}")
+
+    # The aggregator that wrote it has to be the one in this tree, and it has
+    # to name the sixteen records it reduced. Sixteen is not a style choice:
+    # a partial matrix picks N from whichever cells happened to finish.
+    aggregator = REPO / "scripts" / "phase3_select_n.py"
+    if payload.get("aggregator_sha256") != _sha(aggregator):
+        raise PlanRefused(
+            f"{path} was written by a different {aggregator.name} than the one "
+            f"in this tree; re-run the aggregator or check out the commit that "
+            f"produced the file")
+    records = payload.get("record_sha256")
+    if not isinstance(records, dict) or len(records) != 16:
+        raise PlanRefused(
+            f"{path}: record_sha256 names "
+            f"{len(records) if isinstance(records, dict) else 'no'} records, "
+            f"not the sixteen cells of the matrix")
+    bad = sorted(k for k, v in records.items()
+                 if not isinstance(v, str) or len(v) != 64)
+    if bad:
+        raise PlanRefused(f"{path}: record_sha256 entries are not digests: {bad}")
+
+    # The protocol the records were produced under must still be the protocol
+    # in this tree, and the file must say so about itself.
+    from scripts.phase3_selection_matrix import protocol_digests
+    current = protocol_digests()
+    for key in ("protocol_sources", "current_protocol_sources"):
+        if payload.get(key) != current:
+            differing = sorted(
+                k for k in set(current) | set(payload.get(key) or {})
+                if (payload.get(key) or {}).get(k) != current.get(k))
+            raise PlanRefused(
+                f"{path}: {key} differs from this tree: {differing}. The N was "
+                f"chosen under a different protocol than the one the ablations "
+                f"would run.")
+
+    chosen = payload.get("selected")
+    if not isinstance(chosen, dict):
+        raise PlanRefused(f"{path}: no `selected` map")
+    wanted = {spec["slug"] for spec in DATASETS.values()}
+    if set(chosen) != wanted:
+        raise PlanRefused(
+            f"{path}: `selected` covers {sorted(chosen)}, not exactly "
+            f"{sorted(wanted)}")
+
     out = {}
     for exp, spec in DATASETS.items():
-        entry = chosen.get(spec["slug"])
-        if not entry or "selected_N" not in entry:
-            raise PlanRefused(f"{path} has no chosen N for {spec['slug']}")
-        out[exp] = int(entry["selected_N"])
+        entry = chosen[spec["slug"]]
+        if not isinstance(entry, dict):
+            raise PlanRefused(f"{path}: {spec['slug']} is not an object")
+        n = entry.get("selected_N")
+        # `isinstance(True, int)` is True, and `int("999")` is happy to make a
+        # number out of anything -- so the type is checked before the value.
+        if isinstance(n, bool) or not isinstance(n, int) or n not in _CANDIDATE_N:
+            raise PlanRefused(
+                f"{path}: {spec['slug']} selected_N is {n!r}, not one of "
+                f"{list(_CANDIDATE_N)}")
+        value = entry.get("selection_value")
+        if isinstance(value, bool) or not isinstance(value, (int, float)) \
+                or not 0.0 <= float(value) <= 1.0:
+            raise PlanRefused(
+                f"{path}: {spec['slug']} selection_value is {value!r}, not a "
+                f"proportion")
+        out[exp] = n
     return out, _sha(path)
 
 
 def cache_state(spec: dict) -> dict:
-    """Where the features come from, and whether they can be accounted for."""
+    """Every input a cell consumes, and whether it can be accounted for.
+
+    The first version gated the feature cache's `meta.json` and then recorded a
+    GUESSED `${cache}_foils` and a relative Qwen path that nothing checked. That
+    left the transform out of the plan entirely: the wrapper's whitening
+    directory was hardcoded to `./cache/...`, and the Flickr and MS-COCO
+    trainOnly matrices differ in BYTES between the legacy root and the rebuilt
+    one, so twelve of the twenty-four cells would have trained on a transform
+    the plan never named.
+
+    It also recorded `provenanced: true` for a cache the gate had only warned
+    about: with `GDNA_ALLOW_UNPROVENANCED_CACHE` set, `require_cache_provenance`
+    prints and returns instead of raising, and the returned record's own
+    `unprovenanced_opt_out` field was thrown away. A plan is a paper artefact;
+    the opt-out is refused here rather than merely announced.
+    """
     from dna_utils.cache_provenance import (
-        CacheProvenanceMissing, require_cache_provenance)
+        OPT_OUT_ENV, CacheProvenanceMissing, opted_out,
+        require_cache_provenance, require_leakage_free_whitening)
 
     cache = Path(CACHE_ROOT) / spec["cache"]
-    meta = cache / "meta.json"
-    record = {"cache": str(cache), "foils": f"{cache}_foils",
-              "qwen": spec["qwen"], "provenanced": False, "refusal": None}
-    if not meta.is_file():
-        record["refusal"] = f"{meta} does not exist"
+    foils = Path(f"{cache}_foils")
+    qwen = REPO / spec["qwen"]
+    variant = WHITEN_VARIANT
+    whiten = {
+        "trainOnly": foils / f"text_whiten_trainOnly{variant}.npz",
+        "optTrain": foils / f"text_whiten_optTrain{variant}.npz",
+    }
+    record = {
+        "cache": str(cache), "foils": str(foils), "qwen": str(qwen),
+        "whiten_trainOnly": str(whiten["trainOnly"]),
+        "whiten_optTrain": str(whiten["optTrain"]),
+        "provenanced": False, "refusal": None, "digests": {},
+    }
+
+    if opted_out():
+        # Not a warning. A plan written under the opt-out would carry
+        # `provenanced: true` for caches the gate refused.
+        record["refusal"] = (
+            f"{OPT_OUT_ENV} is set in the planning process; a campaign plan is "
+            f"a paper artefact and cannot be written under the opt-out")
         return record
-    try:
-        require_cache_provenance(str(cache),
-                                 json.loads(meta.read_text(encoding="utf-8")))
+
+    problems = []
+    meta = cache / "meta.json"
+    if not meta.is_file():
+        problems.append(f"{meta} does not exist")
+    else:
+        try:
+            record["provenance"] = require_cache_provenance(
+                str(cache), json.loads(meta.read_text(encoding="utf-8")))
+            record["digests"]["cache_meta"] = _sha(meta)
+        except (CacheProvenanceMissing, ValueError) as error:
+            problems.append(str(error))
+
+    # The foils directory is a real input -- the text-foil arrays are what the
+    # cross-modal terms contrast against -- so it is checked, not guessed.
+    foil_meta = foils / "meta.json"
+    if not foils.is_dir():
+        problems.append(f"{foils} does not exist")
+    elif not foil_meta.is_file():
+        problems.append(f"{foil_meta} does not exist")
+    else:
+        try:
+            require_cache_provenance(
+                str(foils), json.loads(foil_meta.read_text(encoding="utf-8")))
+            record["digests"]["foils_meta"] = _sha(foil_meta)
+        except (CacheProvenanceMissing, ValueError) as error:
+            problems.append(str(error))
+
+    for which, path in whiten.items():
+        if not path.is_file():
+            problems.append(f"{path} does not exist")
+            continue
+        try:
+            require_leakage_free_whitening(str(path))
+        except CacheProvenanceMissing as error:
+            problems.append(str(error))
+            continue
+        record["digests"][f"whiten_{which}"] = _sha(path)
+        record["digests"][f"whiten_{which}_meta"] = _sha(
+            Path(str(path) + ".meta.json"))
+
+    if not qwen.is_file():
+        problems.append(f"{qwen} does not exist")
+    else:
+        record["digests"]["qwen"] = _sha(qwen)
+
+    if problems:
+        record["refusal"] = "; ".join(problems)
+    else:
         record["provenanced"] = True
-    except CacheProvenanceMissing as error:
-        record["refusal"] = str(error)
     return record
 
 
 def build_plan() -> dict:
-    chosen, selection_sha = selected_n()
+    chosen, selection_sha = _load_selection()
     cells = []
     for exp, spec in DATASETS.items():
         cache = cache_state(spec)
@@ -202,7 +373,7 @@ def build_plan() -> dict:
                     "CIBNT": spec["cibnt"],
                     "VIZ": "0",
                     "CURVE": "",
-                    "WHITEN_VARIANT": "_localOnly",
+                    "WHITEN_VARIANT": WHITEN_VARIANT,
                     "A_SKIPS": ("--xmodal_commit_skip_global "
                                 "--cibhash_dynamic_tau_skip_global"),
                     "LBU": "0.02",
@@ -211,6 +382,11 @@ def build_plan() -> dict:
                     "TAG_SUFFIX": f"_{cell.name}",
                     "AUX_ARGS": " ".join(shlex.quote(f) for f in flags),
                     "CACHE_OVERRIDE": cache["cache"],
+                    # Pinned for the same reason CACHE is: the wrapper's
+                    # defaults are the legacy root, whose Flickr and MS-COCO
+                    # whitening matrices differ in bytes from the rebuilt ones.
+                    "WDIR_OVERRIDE": cache["foils"],
+                    "QWEN_OVERRIDE": cache["qwen"],
                     "HF_HUB_OFFLINE": "1",
                     "TRANSFORMERS_OFFLINE": "1",
                 }
@@ -223,8 +399,15 @@ def build_plan() -> dict:
                     "cache": cache,
                     "runner": "scripts/prompt_ablation_A_cell_fixedN.sh",
                 })
-    return {
-        "schema_version": 1,
+    tags = [c["tag"] for c in cells]
+    if len(set(tags)) != len(tags):
+        duplicated = sorted({t for t in tags if tags.count(t) > 1})
+        raise PlanRefused(
+            f"two cells share a tag {duplicated}; they would share a result "
+            f"directory and the second would be read as the first")
+
+    plan = {
+        "schema_version": 2,
         "what_this_is": (
             "Every A-series cell, frozen: the exact child argv, the exact "
             "environment, and the caches. The shell iterates this and decides "
@@ -233,9 +416,24 @@ def build_plan() -> dict:
         "selected_n": chosen,
         "selection_sha256": selection_sha,
         "env_passthrough": sorted(ENV_PASSTHROUGH),
+        # The VALUES, not just the names. The executor used to fill these from
+        # its own live environment, so a plan reviewed on one PATH could run on
+        # another -- including a PATH whose `python` is a different interpreter.
+        "env_passthrough_values": {
+            k: os.environ[k] for k in sorted(ENV_PASSTHROUGH)
+            if k in os.environ},
         "env_pinned": list(_PINNED),
+        "runners": sorted(RUNNERS),
         "cells": cells,
     }
+    # A digest OF the plan, IN the plan: the executor is handed the digest the
+    # chain computed at build time on its command line and re-derives this one,
+    # so a plan edited between `--out` and the twenty-fourth cell is refused
+    # rather than executed. Self-reference is why it is added last.
+    plan["plan_digest"] = hashlib.sha256(
+        json.dumps(plan, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return plan
 
 
 def _joint_for(exp: str) -> str:

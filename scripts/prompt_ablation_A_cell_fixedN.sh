@@ -22,7 +22,16 @@
 #
 # A separate file, not a flag: bash reads scripts incrementally, so editing the
 # original while cells are running it corrupts those runs.
-set -u
+#
+# `set -u` alone was not a failure boundary. The trainer is started as a nested
+# `bash "$SCRIPT"`, and shell options are not exported, so the caller running
+# this file under `bash -o pipefail` bought nothing: the trainer's closing
+# `python ... | tee` still reported tee's status. A trainer that died with rc 23
+# left this script printing DONE and exiting 0, and the campaign recorded the
+# cell as complete. `-E` carries the trap into functions and subshells.
+set -Eeuo pipefail
+trap 'rc=$?; printf "[promptAblA] FAILED at line %s (rc %s): %s\n" \
+        "$LINENO" "$rc" "$BASH_COMMAND" >&2; exit "$rc"' ERR
 
 # Exactly one result per tag, or refuse -- `ls | head -1` silently returned a
 # concurrently running cell's directory (F08).
@@ -34,40 +43,50 @@ GPU="$1"; EXP="$2"
 # refuses, taking 18 of the 24 A-series cells down before training. All four
 # honour it now; the campaign plan supplies the v6prov paths.
 : "${CACHE_OVERRIDE:=}"
-PY=/home/yschoi/.conda/envs/dna_hashing/bin/python
+# WDIR is the whitening directory, and it was NOT overridable at all -- so a
+# cell handed a v6prov feature cache still fitted its text transform from the
+# legacy `./cache/...` matrices. That is not a path cosmetic: the Flickr and
+# MS-COCO trainOnly matrices differ in bytes between the two roots, so twelve
+# of the twenty-four cells would have trained on a transform the plan never
+# named. QWEN was hardcoded for the same reason.
+: "${WDIR_OVERRIDE:=}"
+: "${QWEN_OVERRIDE:=}"
+PY="${PY:-/home/yschoi/.conda/envs/dna_hashing/bin/python}"
 # A_SKIPS: the two A-recipe global-slot skips added here (the other two,
 # --text_code_kl_skip_global / --text_hash_ntxent_skip_global, live in the
 # champion launchers and are toggled there via GLOBAL_SKIPS). Set A_SKIPS=""
 # AND GLOBAL_SKIPS="" to train slot0 exactly like the local slots.
 A_FLAGS="${A_SKIPS-"--xmodal_commit_skip_global --cibhash_dynamic_tau_skip_global"} ${AUX_ARGS:-}"
 SKIP="--no-post_eval_compositional${VIZ:+}"
-[ "${VIZ:-1}" = "0" ] && SKIP="$SKIP --no_visualize"
+# An `a && b` list whose test is false returns 1, and under errexit that ends
+# the script -- so this cannot stay a one-liner now that VIZ=1 is a legal value.
+if [ "${VIZ:-1}" = "0" ]; then SKIP="$SKIP --no_visualize"; fi
 
 case "$EXP" in
   mscoco_A_v5b)   # A + champion prompt (V5b) at L=3
     CANON=MSCOCO; SCRIPT=scripts/train_mscoco_F2_sweep_clip.sh
-    CACHE="${CACHE_OVERRIDE:-./cache/mscoco_clip_v5b_tokens}"; QWEN=./cache/mscoco_qwen3_v5b_trainset.jsonl
-    WDIR=./cache/mscoco_clip_v5b_tokens_foils; K="${K:-128}"; CIBNT="${CIBNT:-1.5}"; EXTRA=(CELL=Aprompt) ;;
+    CACHE="${CACHE_OVERRIDE:-./cache/mscoco_clip_v5b_tokens}"; QWEN="${QWEN_OVERRIDE:-./cache/mscoco_qwen3_v5b_trainset.jsonl}"
+    WDIR="${WDIR_OVERRIDE:-./cache/mscoco_clip_v5b_tokens_foils}"; K="${K:-128}"; CIBNT="${CIBNT:-1.5}"; EXTRA=(CELL=Aprompt) ;;
   mscoco_A_v4)    # A + V4 prompt at L=3
     CANON=MSCOCO; SCRIPT=scripts/train_mscoco_F2_sweep_clip.sh
-    CACHE="${CACHE_OVERRIDE:-./cache/mscoco_clip_v4plus_tokens}"; QWEN=./cache/mscoco_qwen3_v4_trainset.jsonl
-    WDIR=./cache/mscoco_clip_v4plus_tokens; K="${K:-128}"; CIBNT="${CIBNT:-1.5}"; EXTRA=(CELL=Aprompt) ;;
+    CACHE="${CACHE_OVERRIDE:-./cache/mscoco_clip_v4plus_tokens}"; QWEN="${QWEN_OVERRIDE:-./cache/mscoco_qwen3_v4_trainset.jsonl}"
+    WDIR="${WDIR_OVERRIDE:-./cache/mscoco_clip_v4plus_tokens}"; K="${K:-128}"; CIBNT="${CIBNT:-1.5}"; EXTRA=(CELL=Aprompt) ;;
   cifar_A_v1)     # A + champion prompt (V1) at L=3
     CANON=CIFAR10; SCRIPT=scripts/train_cifar10_v185_bidirTokenPrune05_ccs01_clip.sh
-    CACHE="${CACHE_OVERRIDE:-./cache/cifar10_clip}"; QWEN=./cache/cifar10_qwen.jsonl
-    WDIR=./cache/cifar10_clip_foils; K="${K:-64}"; CIBNT="${CIBNT:-1.0}"; EXTRA=(CCS=0.1) ;;
+    CACHE="${CACHE_OVERRIDE:-./cache/cifar10_clip}"; QWEN="${QWEN_OVERRIDE:-./cache/cifar10_qwen.jsonl}"
+    WDIR="${WDIR_OVERRIDE:-./cache/cifar10_clip_foils}"; K="${K:-64}"; CIBNT="${CIBNT:-1.0}"; EXTRA=(CCS=0.1) ;;
   cifar_A_v4)     # A + V4 prompt at L=3
     CANON=CIFAR10; SCRIPT=scripts/train_cifar10_v185_bidirTokenPrune05_ccs01_clip.sh
-    CACHE="${CACHE_OVERRIDE:-./cache/cifar10_clip_v4_tokens}"; QWEN=./cache/cifar10_qwen_v4.jsonl
-    WDIR=./cache/cifar10_clip_v4_tokens; K="${K:-64}"; CIBNT="${CIBNT:-1.0}"; EXTRA=(CCS=0.1) ;;
+    CACHE="${CACHE_OVERRIDE:-./cache/cifar10_clip_v4_tokens}"; QWEN="${QWEN_OVERRIDE:-./cache/cifar10_qwen_v4.jsonl}"
+    WDIR="${WDIR_OVERRIDE:-./cache/cifar10_clip_v4_tokens}"; K="${K:-64}"; CIBNT="${CIBNT:-1.0}"; EXTRA=(CCS=0.1) ;;
   flickr_A_v4)    # A + V4 (Flickr champion prompt) at L=3
     CANON=Flickr25k; SCRIPT=scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh
-    CACHE="${CACHE_OVERRIDE:-./cache/flickr25k_clip_v4plus_qwen3_tokens}"; QWEN=./cache/flickr25k_qwen3_v4_trainset.jsonl
-    WDIR=./cache/flickr25k_clip_v4plus_qwen3_tokens_foils; K="${K:-128}"; CIBNT="${CIBNT:-1.0}"; EXTRA=(BIDIR_MODE=legacy) ;;
+    CACHE="${CACHE_OVERRIDE:-./cache/flickr25k_clip_v4plus_qwen3_tokens}"; QWEN="${QWEN_OVERRIDE:-./cache/flickr25k_qwen3_v4_trainset.jsonl}"
+    WDIR="${WDIR_OVERRIDE:-./cache/flickr25k_clip_v4plus_qwen3_tokens_foils}"; K="${K:-128}"; CIBNT="${CIBNT:-1.0}"; EXTRA=(BIDIR_MODE=legacy) ;;
   nuswide_A_v4)   # A + V4 (NUS champion prompt) at L=3
     CANON=NUSWIDE; SCRIPT=scripts/train_nuswide_v185_sweep_clip.sh
-    CACHE="${CACHE_OVERRIDE:-./cache/nuswide_clip_tokens}"; QWEN=./cache/nuswide_qwen3_v4_trainset.jsonl
-    WDIR=./cache/nuswide_clip_tokens_foils; K="${K:-128}"; CIBNT="${CIBNT:-1.5}"; EXTRA=(CELL=Aprompt) ;;
+    CACHE="${CACHE_OVERRIDE:-./cache/nuswide_clip_tokens}"; QWEN="${QWEN_OVERRIDE:-./cache/nuswide_qwen3_v4_trainset.jsonl}"
+    WDIR="${WDIR_OVERRIDE:-./cache/nuswide_clip_tokens_foils}"; K="${K:-128}"; CIBNT="${CIBNT:-1.5}"; EXTRA=(CELL=Aprompt) ;;
   *) echo "[promptAblA] unknown EXP=$EXP"; exit 2 ;;
 esac
 
@@ -98,9 +117,10 @@ echo "[fixN $EXP] fixed epoch = $NEPOCH, val_split_ratio=0 (test-monitored), no 
 if [ -n "${CURVE:-}" ]; then FE=""; else FE="1"; fi
 env LBU="${LBU:-0.02}" CACHE="$CACHE" QWEN="$QWEN" WHITEN_NPZ="$WTR" K="$K" NUM_CODONS="${NUM_CODONS:-3}" CIBNT="$CIBNT" \
     ${FE:+FINAL_EPOCH=1} STOP_EP="$NEPOCH" TAG="${BASE}_P0refit_e${NEPOCH}" EXTRA_ARGS="$A_FLAGS $SKIP --eval_every ${EVERY:-1}" "${EXTRA[@]}" \
-    bash "$SCRIPT" "$GPU"
+    bash -o pipefail "$SCRIPT" "$GPU"
 
-RD=$(resolve_one_result_dir ""${BASE}_P0refit_e${ESTAR}"")
+# Reached only if the trainer exited 0; errexit above is the boundary.
+RD=$(resolve_one_result_dir "${BASE}_P0refit_e${ESTAR}")
 [ -n "${RD:-}" ] && [ -f "$RD/extract_db.npz" ] || { echo "[promptAblA $EXP] ERROR refit dir/extract missing (RD=$RD)"; exit 4; }
 if [ "${NUM_CODONS:-3}" = "4" ]; then GCMIN=0.416; GCMAX=0.584; else GCMIN=0.40; GCMAX=0.60; fi
 "$PY" scripts/eval_cell_bioproj.py --dir "$RD" --dataset "$CANON" --K "$K" --gc_min "$GCMIN" --gc_max "$GCMAX"

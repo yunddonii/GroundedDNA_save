@@ -192,15 +192,34 @@ say "step 2: building the campaign plan"
 "$PY" scripts/ablation_campaign_plan.py --out "$PLAN" --require-provenance || {
     say "  plan refused; not starting any cell"; exit 1; }
 
-NCELLS=$("$PY" -c "import json,sys;print(len(json.load(open(sys.argv[1]))['cells']))" "$PLAN")
+# The plan is hashed ONCE, here, and every cell is started against that digest.
+# Re-reading the file per cell -- which is what the loop below used to do, three
+# times per iteration -- means the twenty-fourth cell can run a plan the first
+# cell never saw. The executor re-derives this digest and refuses a mismatch.
+PLAN_SHA=$("$PY" -c "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "$PLAN")
+# One read, into two parallel arrays, instead of 3N reads of a mutable file.
+mapfile -t PLAN_ROWS < <("$PY" -c "
+import json, sys
+plan = json.load(open(sys.argv[1]))
+for cell in plan['cells']:
+    print(cell['cell'], cell['exp'], sep='\t')
+" "$PLAN")
+NCELLS=${#PLAN_ROWS[@]}
 EXPECTED=$("$PY" -c "import json,sys;print(json.load(open(sys.argv[1]))['expected_cells'])" "$PLAN")
 [[ "$NCELLS" == "$EXPECTED" ]] || {
     say "  plan has $NCELLS cells, expected $EXPECTED"; exit 1; }
-say "step 2: $NCELLS cells planned"
+say "step 2: $NCELLS cells planned, plan ${PLAN_SHA:0:12}"
+
+# Reserve the whole campaign before starting any of it. `O_EXCL` means a second
+# chain fails HERE rather than 150 seconds later inside a result directory the
+# first one is already writing, and the reservation freezes this plan's digest
+# so a cell recorded against a rebuilt plan cannot be sealed as this campaign's.
+LEDGER=${LEDGER:-artifacts/ablation_campaign}
+"$PY" scripts/campaign_ledger.py open --ledger "$LEDGER" --plan "$PLAN" \
+    | tee -a "$LOG" || { say "  campaign not reserved; starting nothing"; exit 1; }
 
 for i in $(seq 0 $((NCELLS - 1))); do
-    CELL=$("$PY" -c "import json,sys;print(json.load(open(sys.argv[1]))['cells'][int(sys.argv[2])]['cell'])" "$PLAN" "$i")
-    EXP=$("$PY" -c "import json,sys;print(json.load(open(sys.argv[1]))['cells'][int(sys.argv[2])]['exp'])" "$PLAN" "$i")
+    IFS=$'\t' read -r CELL EXP <<<"${PLAN_ROWS[$i]}"
     wait_idle; g=${G%% *}
     say "  $CELL $EXP -> GPU $g"
     # `env -i` plus the plan's allow-list: the fixedN wrapper reads NUM_CODONS,
@@ -208,8 +227,9 @@ for i in $(seq 0 $((NCELLS - 1))); do
     # NUM_CODONS=4 turns the paper's 15 bases into 20 while CURVE=1 drops
     # FINAL_EPOCH and switches to the test-monitored path.
     "$PY" scripts/_ablation_exec.py --plan "$PLAN" --index "$i" --gpu "$g" \
+        --expect-plan-sha256 "$PLAN_SHA" \
         > "logs/ABL_${CELL}_${EXP}.out" 2>&1 &
-    ABL_PIDS+=("$!:${CELL}_${EXP}")
+    ABL_PIDS+=("$!:${CELL}_${EXP}:$i")
     sleep 150
 done
 while busy; do sleep 120; done
@@ -218,14 +238,29 @@ while busy; do sleep 120; done
 ABL_FAILED=0
 for entry in "${ABL_PIDS[@]:-}"; do
     [[ -n "$entry" ]] || continue
-    pid=${entry%%:*}; name=${entry#*:}
-    if wait "$pid" 2>/dev/null; then
+    IFS=: read -r pid name idx <<<"$entry"
+    TAG=$("$PY" -c "import json,sys;print(json.load(open(sys.argv[1]))['cells'][int(sys.argv[2])]['tag'])" "$PLAN" "$idx")
+    # `wait` is the only place the child's status exists; recording it here is
+    # what makes "23 of 24" different from "24 of 24" to every later reader.
+    # `|| true` around wait, because errexit would end the chain before the
+    # ledger learned that this cell failed.
+    rc=0; wait "$pid" 2>/dev/null || rc=$?
+    if [[ "$rc" == "0" ]]; then
         say "  $name ok"
+        "$PY" scripts/campaign_ledger.py record --ledger "$LEDGER" \
+            --tag "$TAG" --status ok >>"$LOG" 2>&1
     else
-        say "  $name FAILED (see logs/ABL_${name}.out)"
+        say "  $name FAILED rc=$rc (see logs/ABL_${name}.out)"
+        "$PY" scripts/campaign_ledger.py record --ledger "$LEDGER" \
+            --tag "$TAG" --status failed --detail "rc=$rc" >>"$LOG" 2>&1
         ABL_FAILED=1
     fi
 done
+# The seal is the gate, not the flag: a campaign missing a cell it never
+# started has ABL_FAILED=0 and still must not become a table.
+"$PY" scripts/campaign_ledger.py seal --ledger "$LEDGER" | tee -a "$LOG" || {
+    say "step 2 INCOMPLETE -- no completion receipt, so nothing downstream may read these cells"
+    exit 1; }
 [[ "$ABL_FAILED" == "0" ]] || { say "step 2 INCOMPLETE"; exit 1; }
 say "step 2 done"
 

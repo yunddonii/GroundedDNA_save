@@ -1,0 +1,111 @@
+{
+  "aggregator_sha256": "7c7b28455533173fee840cdbeeaad6d1748ccc701894ee9f3a9c76847a521142",
+  "candidate_n": [
+    4,
+    9,
+    19,
+    39
+  ],
+  "current_protocol_sources": {
+    "dna_utils/run_identity.py": "f6451f718390a30cbe328aa0ed7925841a039cbedabb5d333b144ecb4503d00d",
+    "model_siglip2.py": "6a2577ee995a2010752fdadf07323d44da913edb345ac1bc3eb3377a75af67f5",
+    "scripts/phase3_selection_matrix.py": "44fb16f129a2e021b76a8120b48c8615d31f4973a2cf6d811e173d0a5b443050",
+    "train_siglip2.py": "429cb05bd2db1b21edce5053d36654e29c75573b3656566f0571f98d3a54843a"
+  },
+  "geometry": {
+    "bases_per_slot": 3,
+    "num_slots": 5,
+    "total_bases": 15,
+    "total_bits": 30
+  },
+  "namespace": "phase3sel",
+  "protocol_sources": {
+    "dna_utils/run_identity.py": "f6451f718390a30cbe328aa0ed7925841a039cbedabb5d333b144ecb4503d00d",
+    "model_siglip2.py": "6a2577ee995a2010752fdadf07323d44da913edb345ac1bc3eb3377a75af67f5",
+    "scripts/phase3_selection_matrix.py": "44fb16f129a2e021b76a8120b48c8615d31f4973a2cf6d811e173d0a5b443050",
+    "train_siglip2.py": "429cb05bd2db1b21edce5053d36654e29c75573b3656566f0571f98d3a54843a"
+  },
+  "record_sha256": {
+    "phase3sel_cifar_A_v4_N19_s42.json": "051ff4fe912af85c0ced22c793d4c4cfdb013d2303ec2161a886287ecf57ed75",
+    "phase3sel_cifar_A_v4_N39_s42.json": "8c84c60b14f8829fe07ceff3ca600cc72ddb75a69ef1ceffecf1f2c586b0c0c7",
+    "phase3sel_cifar_A_v4_N4_s42.json": "61d9ef1523e3a02f552a8a1c3a6e7adb45744652b8b0f4f95679a008a74c811b",
+    "phase3sel_cifar_A_v4_N9_s42.json": "a3c8c01c8669af366a32e14b60d4553f47f266b7edb238280f48f9db97034790",
+    "phase3sel_flickr_A_v4_N19_s42.json": "c8a3efc2af55593969fe325826e093232afc2b3440f7e6bd8d80df64047c9f01",
+    "phase3sel_flickr_A_v4_N39_s42.json": "f7e290b4ba7705769bff2fe99ca997d428b997dac1fc40b1b865dcb93035a510",
+    "phase3sel_flickr_A_v4_N4_s42.json": "af2d6a42dfe71142a65aaa18c1318f4b76d37302fc2f66bcbda5be248e9ea5b6",
+    "phase3sel_flickr_A_v4_N9_s42.json": "8f1b1aded694a3a08c94906012992571d3adcc07e57ae5273dae33cc65f52767",
+    "phase3sel_mscoco_A_v5b_N19_s42.json": "126de6f29c9ca809388105d68eca2b164c0fdf705cb4e9a3c0d76c31fad83f4f",
+    "phase3sel_mscoco_A_v5b_N39_s42.json": "edf5d85f59b2091d11efa30ca0b5e80e45f29ddeeb80dd3b3511265674738133",
+    "phase3sel_mscoco_A_v5b_N4_s42.json": "5b8979cfd0af727d468855421f978151e7f2391ac6b326934588bf69b5312be2",
+    "phase3sel_mscoco_A_v5b_N9_s42.json": "f16be061b7b318809a79a764d12b64dd48b7a70098245cc70058941e7d9a3897",
+    "phase3sel_nuswide_A_v4_N19_s42.json": "d1b42a6227bf3d23af7d7f27850548dcf682599d6adc7521035d969fabc683ce",
+    "phase3sel_nuswide_A_v4_N39_s42.json": "6345c5b40945e1e4238cff810c85c2dab5a8309fc1ef00cc40f0290481a93e92",
+    "phase3sel_nuswide_A_v4_N4_s42.json": "53bded40b18ac6aa79d09df3a48a3fb7f5108aaf52e10a8c3fbac2af7a1056e4",
+    "phase3sel_nuswide_A_v4_N9_s42.json": "d8563e877558d00da9bc8ee1fd830130e04b16fe6d48d607c706c98cd2f697a1"
+  },
+  "schema_version": 1,
+  "seed": 42,
+  "selected": {
+    "cifar10": {
+      "all_candidates": {
+        "19": 0.879769928727351,
+        "39": 0.8850793655348105,
+        "4": 0.8552066959013387,
+        "9": 0.8493927774778586
+      },
+      "selected_N": 39,
+      "selection_value": 0.8850793655348105,
+      "tie_broken_by_smallest_N": false,
+      "tied_with": [
+        39
+      ]
+    },
+    "flickr25k": {
+      "all_candidates": {
+        "19": 0.7526069484256372,
+        "39": 0.7466573610898445,
+        "4": 0.75735885564154,
+        "9": 0.7566128589359578
+      },
+      "selected_N": 4,
+      "selection_value": 0.75735885564154,
+      "tie_broken_by_smallest_N": false,
+      "tied_with": [
+        4
+      ]
+    },
+    "mscoco": {
+      "all_candidates": {
+        "19": 0.6318842151272352,
+        "39": 0.6398092620707269,
+        "4": 0.6186398555728414,
+        "9": 0.6308818099607684
+      },
+      "selected_N": 39,
+      "selection_value": 0.6398092620707269,
+      "tie_broken_by_smallest_N": false,
+      "tied_with": [
+        39
+      ]
+    },
+    "nuswide": {
+      "all_candidates": {
+        "19": 0.7400243315646784,
+        "39": 0.7315908891415196,
+        "4": 0.7448657076185136,
+        "9": 0.7420810029622458
+      },
+      "selected_N": 4,
+      "selection_value": 0.7448657076185136,
+      "tie_broken_by_smallest_N": false,
+      "tied_with": [
+        4
+      ]
+    }
+  },
+  "selection_distance": "base_hamming",
+  "selection_metric": "eval_mAP_at_R",
+  "val_split_ratio": 0.1,
+  "val_split_seed": 42,
+  "what_this_is": "D1's (N) choice per dataset: argmax of the raw base-Hamming mAP@R at each candidate's own terminal epoch, ties to the smallest N. The chosen N is reused unchanged for seeds 42, 43 and 44."
+}

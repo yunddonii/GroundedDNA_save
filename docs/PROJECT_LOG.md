@@ -487,6 +487,107 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-08-29 F09 v5: the wrapper's failure boundary, the pinned transform, and the campaign transaction
+
+Re-audit §48 examined commit `5c835a56` (the plan-driven campaign) and found the
+commit message's central claim false. Three independent gaps, each reproduced
+before it was touched.
+
+**§48.2 -- the nested failure boundary was open.** The executor started the
+wrapper with `bash -o pipefail`, but shell options are not exported, so the
+wrapper's own `bash "$SCRIPT"` ran the trainer without it, and the trainer's
+closing `python ... | tee` reported tee's status. The wrapper carried only
+`set -u` and printed DONE unconditionally. A stub reproducing the real nesting
+returned inner rc 23 -> `WRAPPER_DONE` -> executor rc 0. The commit's "tests
+execute" was wrong: every assertion read the executor's `--dry-run` JSON, which
+was correct the whole time the failure was being swallowed.
+
+  Fixed: the wrapper is `set -Eeuo pipefail` with an ERR trap, starts the
+  trainer as `bash -o pipefail "$SCRIPT"`, and reaches DONE only past the
+  boundary. `tests/test_ablation_nested_failure.py` builds a repo-shaped tree
+  with a stub trainer whose last statement is `python ... | tee`, and runs the
+  REAL wrapper through the REAL executor. Verified both ways: with only the
+  rc boundary reverted, 3 of the 7 fail on `DONE ... rc=0`.
+
+**§48.3 -- the plan named one cache and the child used another.** The wrapper's
+whitening directory (`WDIR`) was not overridable at all, so every cell handed a
+v6prov feature cache still fitted its text transform from the legacy
+`./cache/...` matrices. Not cosmetic: the Flickr and MS-COCO `trainOnly`
+matrices differ in BYTES between the two roots, so 12 of 24 cells would have
+trained on a transform the plan never named. The planner also recorded
+`provenanced: true` for caches the gate had merely warned about, because
+`require_cache_provenance` prints and returns under
+`GDNA_ALLOW_UNPROVENANCED_CACHE` and the returned record's own
+`unprovenanced_opt_out` field was discarded.
+
+  Fixed: `WDIR_OVERRIDE` and `QWEN_OVERRIDE` in all six dataset branches; the
+  plan pins the foils directory and the caption file and gates them --
+  `require_cache_provenance` on both `meta.json`s, `require_leakage_free_whitening`
+  on both whitening matrices, existence and digest on the captions -- recording
+  seven digests per cell. The opt-out is now a REFUSAL at plan time, not a
+  warning: a campaign plan is a paper artefact. Verified: with the opt-out set,
+  `--require-provenance` exits 1 and writes nothing.
+
+**§48.4 -- nothing downstream authenticated anything.** The planner's selection
+consumer read four `selected_N` fields and recorded the file's SHA; a forged
+file with `schema_version: 999`, an empty record map and the values -7/999/true/123
+was accepted. The executor ran whatever JSON it was handed: a negative index
+(Python indexes from the end), a foreign `runner`, and arbitrary live
+environment all executed at rc 0, and a 24-entry plan holding one cell twice
+passed the chain's `len == expected` while covering 23 configurations. The chain
+re-read the mutable plan 3N times.
+
+  Fixed: `_load_selection` checks schema, metric, distance, the exact candidate
+  set, the aggregator's own digest, sixteen record digests, and both protocol
+  source maps against this tree, with per-dataset type and range checks
+  (`isinstance(True, int)` is True, so the type is checked before the value).
+  The executor validates schema, `expected_cells`, tag uniqueness, index bounds
+  and sign, the runner allow-list, and the pinned/passthrough env key sets, and
+  re-derives the plan's self-digest. The chain hashes the plan ONCE and passes
+  `--expect-plan-sha256` to every cell. Passthrough VALUES are frozen into the
+  plan, so a plan reviewed on one PATH cannot run on another.
+
+  Verified with forgeries that recompute the digest correctly, so each check is
+  exercised independently rather than being masked by the seal: duplicate cell,
+  foreign runner, `LD_PRELOAD` in a cell env, `LD_PRELOAD` in the passthrough
+  values -- four distinct refusals.
+
+**The exact-24 transaction (`scripts/campaign_ledger.py`, new).** `open_campaign`
+reserves all 24 tags with `O_EXCL`, so a second chain fails at reservation
+rather than 150 s later inside a result directory the first is writing, and
+freezes the plan digest. `seal_campaign` writes the completion receipt only when
+all 24 are present, successful, and recorded against THAT plan file --
+`require_sealed` is what a table reader must call. 12 tests, including the
+rebuild-mid-run case (same tags, different plan) and the CLI the chain actually
+invokes.
+
+**`artifacts/phase3_selection/` is now tracked** (16 records + `selected_n.json`,
+76 KB). §48.4 showed the committed tree ran `1 failed, 1 passed, 46 skipped`:
+the campaign tests depended on an untracked workspace file, so `1071 passed` was
+evidence about one machine, not about the commit. Two tests now assert the files
+are in `git archive HEAD` and that the committed records re-derive the committed
+choice.
+
+### Not done, and why -- RunIdentity's ablation axes (§47.2 / §48.4)
+
+`selection_mode` is a LABEL; A5_none / A5_joint / A5_nogumbel / A5_both differ in
+the Gumbel relaxation and L_joint, and none of that reaches the digest. The
+change was written and works -- holding `selection_mode` constant, the six cells
+produced six distinct digests where v2 produced one -- but `dna_utils/run_identity.py`
+is one of four `PROTOCOL_SOURCES` bound BY FILE BYTES into all sixteen completed
+Phase-3 selection records, and bumping the schema made `phase3_select_n.py`
+refuse the entire matrix.
+
+This is structural, not incidental: `train_siglip2.py`, `model_siglip2.py`,
+`phase3_selection_matrix.py` and `run_identity.py` are all protocol sources, so
+any core change invalidates a completed selection. It is the same shape as the
+`validator_sha256` churn loop that cost three GPU recomputes. The change is
+parked at `/tmp/run_identity_v3.patch` rather than merged, because closing it
+costs either 16 re-run selection cells or a redesign of the protocol binding,
+and that is a decision about GPU hours, not a code cleanup.
+
+**Status: F09 still OPEN. No ablation cell has been launched; no exact-12 refit.**
+
 ## 2026-08-29 — 🟢 **잔여 항목 4개 + 감사 §39/§40이 지적한 결함 9개를 닫음. 자기검토로 grep식 테스트를 실행형으로 교체**
 
 ### 자기검토 — 반복되는 내 패턴부터

@@ -1,0 +1,75 @@
+{
+  "N": 4,
+  "codebook_size": 128,
+  "completion": {
+    "final_checkpoint_epoch_zero_based": 4,
+    "final_checkpoint_sha256": "25881eb623ec1801a979512a46a9343b451d27f6774d1076843f7faf89cfb0ff",
+    "log_csv_sha256": "9d3bc78e1812e92ccbaaa649d34e56f6689b5536bb4e0aa1099254d151f52d19",
+    "terminal_weights_preserved": true
+  },
+  "dataset": "nuswide",
+  "epoch_budget": 60,
+  "geometry": {
+    "identity_digest": "3ab540c300100a389df4510a3c94e635ef8f7a072ed0ffb6e700b8b49653931f",
+    "num_codebooks": 5,
+    "num_codons_per_codebook": 3,
+    "num_semantic_parts": 5
+  },
+  "identity_digest": "3ab540c300100a389df4510a3c94e635ef8f7a072ed0ffb6e700b8b49653931f",
+  "inputs": {
+    "codebook_size": 128,
+    "eval_cache": "/data/yschoi/groundeddna_cache_v6prov/nuswide_clip_tokens",
+    "feature_cache": "/data/yschoi/groundeddna_cache_v6prov/nuswide_clip_tokens",
+    "qwen": "./cache/nuswide_qwen3_v4_trainset.jsonl",
+    "whitening": "/data/yschoi/groundeddna_cache_v6prov/nuswide_clip_tokens_foils/text_whiten_optTrain_localOnly.npz"
+  },
+  "is_candidate_cell": true,
+  "lr_schedule_horizon": 60,
+  "matrix": {
+    "candidate_n": [
+      4,
+      9,
+      19,
+      39
+    ],
+    "cells": 16,
+    "datasets": [
+      "cifar10",
+      "flickr25k",
+      "mscoco",
+      "nuswide"
+    ]
+  },
+  "namespace": "phase3sel",
+  "protocol_sources": {
+    "dna_utils/run_identity.py": "f6451f718390a30cbe328aa0ed7925841a039cbedabb5d333b144ecb4503d00d",
+    "model_siglip2.py": "6a2577ee995a2010752fdadf07323d44da913edb345ac1bc3eb3377a75af67f5",
+    "scripts/phase3_selection_matrix.py": "44fb16f129a2e021b76a8120b48c8615d31f4973a2cf6d811e173d0a5b443050",
+    "train_siglip2.py": "429cb05bd2db1b21edce5053d36654e29c75573b3656566f0571f98d3a54843a"
+  },
+  "run_dir": "/home/yschoi/GroundedDNA/result/260829+nuswide_setting1_phase3sel_nuswide_A_v4_N4_s42+bs+64+e+60+proj_lr+0.001",
+  "schema_version": 1,
+  "seed": 42,
+  "selection": {
+    "best_over_prefix": {
+      "checkpoint_sha256": "30865d510848bdeec69265d0b6eb30ae03b042ccd59b989fc5bc792bcbf14918",
+      "epoch_zero_based": 4,
+      "value": 0.7448657076185136
+    },
+    "epochs_logged": 5,
+    "log_csv_sha256": "9d3bc78e1812e92ccbaaa649d34e56f6689b5536bb4e0aa1099254d151f52d19",
+    "map_r_cutoff": "5000",
+    "selection_epoch_zero_based": 4,
+    "selection_metric": "eval_mAP_at_R",
+    "selection_value": 0.7448657076185136
+  },
+  "selection_mode": "select",
+  "sinkhorn_schedule_horizon": 5,
+  "smoke": false,
+  "stage": "select",
+  "stop_after_epoch": 4,
+  "tag": "phase3sel_nuswide_A_v4_N4_s42",
+  "val_split_ratio": 0.1,
+  "val_split_seed": 42,
+  "wall_seconds": 435.8
+}

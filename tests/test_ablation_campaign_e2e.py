@@ -206,3 +206,43 @@ def test_the_plan_refuses_when_a_cache_cannot_be_accounted_for(tmp_path):
         env=dict(os.environ, GDNA_CACHE_ROOT=str(tmp_path / "nowhere")))
     assert proc.returncode == 1
     assert "cannot be accounted for" in proc.stderr
+
+
+# ---------------------------------------------------------------------------
+# §48.4: the selection the campaign pins itself to must exist in the TREE.
+# The first version of these tests skipped 46 of 48 when run from a fresh
+# `git archive HEAD`, because `selected_n.json` was an untracked workspace file
+# -- so "1071 passed" was evidence about one machine, not about the commit.
+# ---------------------------------------------------------------------------
+
+def test_the_selection_is_in_the_committed_tree(tmp_path):
+    fresh = tmp_path / "fresh"
+    fresh.mkdir()
+    archive = subprocess.run(["git", "archive", "HEAD"], cwd=str(REPO),
+                             capture_output=True, timeout=180)
+    assert archive.returncode == 0, archive.stderr.decode()
+    subprocess.run(["tar", "-x", "-C", str(fresh)], input=archive.stdout,
+                   check=True, timeout=180)
+    selection = fresh / "artifacts" / "phase3_selection" / "selected_n.json"
+    assert selection.is_file(), (
+        "the campaign pins 24 GPU cells to this file; a clone that does not "
+        "have it cannot reproduce, or even check, which N they ran at")
+    records = sorted((fresh / "artifacts" / "phase3_selection").glob(
+        "phase3sel_*.json"))
+    assert len(records) == 16, (
+        f"{len(records)} of the 16 matrix records are committed; N chosen from "
+        f"a partial matrix is N chosen from whichever cells finished")
+
+
+def test_the_committed_records_re_derive_the_committed_choice(tmp_path):
+    """Not "the file is present" -- "the file is what the records say"."""
+    out = tmp_path / "selected_n.json"
+    proc = subprocess.run(
+        [sys.executable, str(REPO / "scripts" / "phase3_select_n.py"),
+         "--records", str(REPO / "artifacts" / "phase3_selection"),
+         "--out", str(out)],
+        capture_output=True, text=True, timeout=300, cwd=str(REPO))
+    assert proc.returncode == 0, proc.stderr
+    committed = json.loads(
+        (REPO / "artifacts" / "phase3_selection" / "selected_n.json").read_text())
+    assert json.loads(out.read_text())["selected"] == committed["selected"]
