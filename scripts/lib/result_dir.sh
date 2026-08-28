@@ -52,6 +52,9 @@ resolve_one_result_dir() {
 # Use this wherever the answer feeds an evaluation: a directory that cannot say
 # which run produced it is not an answer, and the stale August result dirs are
 # precisely unmanifested.
+# Extra expectations are passed through RESULT_DIR_EXPECT, an array the caller
+# fills with `--expect-...` flags. Naming only the dataset let a same-dataset
+# run with seed 99, M=6 and K=999 resolve as this run's.
 resolve_one_claimed_result_dir() {
     local tag="$1"
     local required="$2"
@@ -67,7 +70,8 @@ resolve_one_claimed_result_dir() {
         dir="$(resolve_one_result_dir "$tag" "$root")" || return 1
     fi
     if ! "$py" "$repo/scripts/_run_manifest_check.py" "$dir" --require-manifest \
-            ${dataset:+--expect-dataset "$dataset"} >/dev/null; then
+            ${dataset:+--expect-dataset "$dataset"} \
+            "${RESULT_DIR_EXPECT[@]:-}" >/dev/null; then
         printf '[result-dir] %s does not carry a run manifest for this run;\n' "$dir" >&2
         printf '             refusing to evaluate a directory that cannot name its run.\n' >&2
         return 1

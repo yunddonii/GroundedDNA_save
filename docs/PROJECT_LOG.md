@@ -487,6 +487,49 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-08-29 — 🟢 **잔여 항목 4개 + 감사 §39/§40이 지적한 결함 9개를 닫음. 자기검토로 grep식 테스트를 실행형으로 교체**
+
+### 자기검토 — 반복되는 내 패턴부터
+
+감사가 매번 잡아낸 것은 두 가지다. **(a) 소스 문자열만 단언하는 테스트**, **(b) 프로덕션 성공 경로를
+실행하지 않는 테스트**. 내 테스트 파일에서 소스 단언 11곳을 찾아 검토하고, 대체 가능한 것을
+실행형으로 바꿨다.
+
+- `tests/test_phase3_launcher_e2e.py` 신설 — stub trainer로 `run_cell()` → `main()`을 **실제로 실행**한다.
+  성공 시 rc0 + 출력 줄 + record, 실패 시 rc1 + record 부재, 재실행 거부까지. §38.3의 KeyError는
+  이 테스트가 있었다면 잡혔다.
+- eval cache 검사도 소스 문자열이 아니라 **argv를 찍는 python으로 4개 trainer를 실행**해 확인한다.
+  CIFAR가 토큰 sidecar 부재로 skip되던 것도 픽스처를 채워 실제로 검증한다.
+
+### 잔여 항목 4개
+
+| 항목 | 내용 |
+|---|---|
+| A | `_artifact()`의 8 MiB 문턱 탓에 **NUS(8.8M)·MSCOCO(8.3M) 캡션이 path-only** identity였다. 문턱을 256 MiB로 올리고, 캐시 **디렉터리는 `meta.json`을 해시**한다(수십 GB를 run마다 해시할 수 없고, 그 파일이 backbone revision을 담는다). 없는 캐시와 캐시 없음도 구분된다 |
+| B | `log.csv`가 선택 지표를 담는데 아무것도 결속하지 않았다 → 행 순서를 **0..N 정확히 한 번씩**으로 요구하고(append-only 파일에 두 run이 쓴 경우 거부), CSV SHA를 기록하며, cutoff 없는 terminal row를 거부 |
+| C | tag substring 재탐색 → **manifest digest로 필터**. 이름만 겹치는 동시 실행 디렉터리를 집지 않는다 |
+| D | manifest 검사가 dataset만 봄 → seed·slots·L·K·stop·mode까지. 재현: seed 99 / M6 / K999 디렉터리가 통과하던 것이 이제 거절 |
+
+### 감사 §39/§40이 지적한 것
+
+| 결함 | 확인 | 조치 |
+|---|---|---|
+| §40.5a smoke가 flags를 **위치로** 잘라 refit smoke가 `--random_seed`·`--dna_distance_mode`를 잃음 | 재현: seed 43 명령에서 두 flag 소실 | 이름 기반 `_override_flags()` |
+| §40.5b cadence guard가 **nominal-final 예외 누락** → `--smoke --epochs 1`이 실행 전 거부 | 재현: rc1 | `(stop+1)%5==0` **또는** `stop+1==budget` |
+| §40.5c 선택 JSON에 **여분 dataset** 허용 | 재현: 5개 map 승인 | exact-4 |
+| §40.6 sidecar가 **자기 자신과만** 정합 | 재현: budget/stop/horizon 999인 sidecar 승인 | manifest와 결속 |
+| §39.2 **날조된 16셀 매트릭스** 승인 (`protocol_sources: null` 16개도 "one protocol") | 재현 | record가 completion·inputs·matrix·digest를 갖춰야 하고, protocol이 **현재 것과 동일**해야 함 |
+| §39.3-1 `--refit` 단독이 plan을 찍고 rc0 | 재현 | rc2 + 안내 |
+| §39.3-2 `--only`가 12셀을 3셀로 축소 | 재현 | `--smoke` 없이는 거부 |
+| §39.3-4 refit record가 **optTrain** whitening을 기록 | 재현 | 실제 stage의 것 |
+
+§39.3-3(refit seed 43/44가 postcheck에서 거부)은 **현재 소스에 해당하지 않는다** — assert_geometry가
+이미 stage의 seed를 받는다. 감사 시점 이후 수정된 것으로, 그대로 받아들이지 않고 확인했다.
+
+1016 tests 통과.
+
+---
+
 ## 2026-08-28 — 🟢 **Phase 3 stage-1 launcher 작성. 18-base를 15-base로 오인할 수 없게 하는 assertion이 핵심**
 
 ### 왜 새로 썼나

@@ -163,21 +163,84 @@ def test_a_stage1_that_selects_nothing_is_refused(sandbox):
 
 # ------------------------------------------------------------- blocker 3
 
-def test_every_trainer_lets_the_caller_choose_the_eval_cache():
-    """Two of the four pinned the old cache, which the loader now refuses."""
-    for name in TRAINERS:
-        source = (REPO / "scripts" / name).read_text()
-        assert '--eval_cache_dir "${EVAL_CACHE:-$CACHE}"' in source, name
-        assert "--eval_cache_dir ./cache/" not in source, name
+@pytest.mark.parametrize("trainer", TRAINERS)
+def test_every_trainer_lets_the_caller_choose_the_eval_cache(trainer, tmp_path):
+    """Executed, not grepped: two of the four pinned the old cache.
+
+    The trainer is run with a python that only echoes its argv, so what the
+    child would actually receive is what is asserted.
+    """
+    echo = tmp_path / "echo_argv.py"
+    echo.write_text(
+        "import sys, os\n"
+        "open(os.environ['ARGV_OUT'], 'w').write(' '.join(sys.argv[1:]))\n")
+    out = tmp_path / "argv.txt"
+    # The CIFAR trainer refuses before it reaches python unless the token
+    # sidecars are present, so the fixture supplies the files each trainer
+    # insists on rather than skipping that trainer's check.
+    cache = tmp_path / "chosen_cache"
+    cache.mkdir()
+    for name in ("text_tokens.f16.npy", "text_token_mask.bool.npy"):
+        (cache / name).write_bytes(b"")
+    whiten = tmp_path / "w.npz"
+    whiten.write_bytes(b"")
+    qwen = tmp_path / "q.jsonl"
+    qwen.write_text("{}\n")
+    env = dict(os.environ, ARGV_OUT=str(out), CACHE=str(cache),
+               EVAL_CACHE="/tmp/chosen_eval", QWEN=str(qwen),
+               WHITEN_NPZ=str(whiten), TAG="probe", K="64")
+    # Substitute the interpreter the trainer invokes.
+    source = (REPO / "scripts" / trainer).read_text()
+    patched = tmp_path / trainer
+    patched.write_text(source.replace(
+        "/home/yschoi/.conda/envs/dna_hashing/bin/python",
+        f"{sys.executable} {echo}"))
+    subprocess.run(["bash", str(patched), "0"], capture_output=True,
+                   text=True, env=env, cwd=str(REPO), timeout=120)
+    assert out.exists(), (
+        f"{trainer} never reached its python invocation, so what the child "
+        f"would receive was not checked")
+    argv = out.read_text().split()
+    assert argv[argv.index("--eval_cache_dir") + 1] == "/tmp/chosen_eval", \
+        f"{trainer} ignored EVAL_CACHE"
 
 
-def test_the_runner_passes_the_eval_cache_through():
+def test_the_runner_refuses_a_result_dir_that_is_not_this_run(tmp_path):
+    """A same-dataset directory with the wrong seed/geometry used to resolve."""
+    from dna_utils.run_identity import RunIdentity, write_run_manifest
+    from types import SimpleNamespace
+
+    root = tmp_path / "result"
+    run = root / "260828+cifar10_setting1_probeTag+bs+64"
+    run.mkdir(parents=True)
+    (run / "extract_db.npz").write_bytes(b"npz")
+    write_run_manifest(str(run), RunIdentity.from_args(SimpleNamespace(
+        dataset="CIFAR10", setting="setting1", random_seed=99, epoch=5,
+        stop_after_epoch=4, num_semantic_parts=6, num_codons_per_codebook=3,
+        codebook_size=999)))
+
+    script = (
+        f'source {REPO}/scripts/lib/result_dir.sh\n'
+        'RESULT_DIR_EXPECT=(--expect-seed 42 --expect-slots 5 '
+        '--expect-codebook-size 64)\n'
+        f'resolve_one_claimed_result_dir probeTag extract_db.npz CIFAR10 '
+        f'{root}\n')
+    proc = subprocess.run(["bash", "-c", script], capture_output=True,
+                          text=True, timeout=120)
+    assert proc.returncode != 0
+    assert "disagrees with what the caller expects" in proc.stderr
+
+    ok = script.replace("--expect-seed 42 --expect-slots 5 "
+                        "--expect-codebook-size 64",
+                        "--expect-seed 99 --expect-slots 6 "
+                        "--expect-codebook-size 999")
+    good = subprocess.run(["bash", "-c", ok], capture_output=True,
+                          text=True, timeout=120)
+    assert good.returncode == 0, good.stderr
+
+
+def test_the_runner_states_what_it_knows_about_the_run():
+    """Wiring: the expectations have to reach the check."""
     source = RUNNER.read_text()
-    assert source.count('EVAL_CACHE="${EVAL_CACHE:-$CACHE}"') == 2, \
-        "both stages must pass the eval cache"
-
-
-def test_the_runner_requires_a_manifested_result_dir():
-    source = RUNNER.read_text()
-    assert "resolve_one_claimed_result_dir" in source
-    assert "resolve_one_result_dir_with " not in source
+    assert "RESULT_DIR_EXPECT=(" in source
+    assert "--expect-seed" in source and "--expect-stop" in source

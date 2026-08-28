@@ -31,6 +31,15 @@ def main() -> int:
     parser.add_argument("run_dir")
     parser.add_argument("--require-manifest", action="store_true")
     parser.add_argument("--expect-dataset", default=None)
+    # Naming the dataset alone lets a same-dataset run with the wrong seed,
+    # geometry or codebook size through -- a probe with seed 99, M=6 and K=999
+    # was admitted. Every axis the caller knows should be stated.
+    parser.add_argument("--expect-seed", type=int, default=None)
+    parser.add_argument("--expect-slots", type=int, default=None)
+    parser.add_argument("--expect-bases-per-slot", type=int, default=None)
+    parser.add_argument("--expect-codebook-size", type=int, default=None)
+    parser.add_argument("--expect-stop", type=int, default=None)
+    parser.add_argument("--expect-mode", default=None)
     args = parser.parse_args()
 
     path = os.path.join(args.run_dir, MANIFEST_NAME)
@@ -46,10 +55,22 @@ def main() -> int:
         print(f"{path} is present but not loadable", file=sys.stderr)
         return 1 if args.require_manifest else 0
 
-    if args.expect_dataset and identity.dataset != args.expect_dataset:
+    wrong = {
+        name: (got, want) for name, got, want in (
+            ("dataset", identity.dataset, args.expect_dataset),
+            ("seed", identity.seed, args.expect_seed),
+            ("num_slots", identity.num_slots, args.expect_slots),
+            ("bases_per_slot", identity.bases_per_slot,
+             args.expect_bases_per_slot),
+            ("codebook_size", identity.codebook_size,
+             args.expect_codebook_size),
+            ("stop_after_epoch", identity.stop_after_epoch, args.expect_stop),
+            ("selection_mode", identity.selection_mode, args.expect_mode),
+        ) if want is not None and got != want}
+    if wrong:
         print("unreadable")
-        print(f"{path} names dataset {identity.dataset!r}, not "
-              f"{args.expect_dataset!r}", file=sys.stderr)
+        print(f"{path} disagrees with what the caller expects: {wrong}",
+              file=sys.stderr)
         return 1 if args.require_manifest else 0
 
     print("manifested")

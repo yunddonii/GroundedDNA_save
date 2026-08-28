@@ -46,6 +46,16 @@ def _record(dataset: str, n: int, value: float, **overrides) -> dict:
         "namespace": "phase3sel",
         "protocol_sources": _PROTOCOL,
         "stage": "select",
+        # A record has to carry the evidence a completed cell produces. Sixteen
+        # JSONs with none of this, and `protocol_sources: null` throughout,
+        # passed the first version of the aggregator.
+        "epoch_budget": 60,
+        "identity_digest": "d" * 64,
+        "matrix": {"cells": 16},
+        "inputs": {"codebook_size": 64},
+        "completion": {"final_checkpoint_sha256": "a" * 64,
+                       "log_csv_sha256": "b" * 64,
+                       "terminal_weights_preserved": True},
         "dataset": dataset, "N": n,
         "tag": f"phase3sel_{dataset}_N{n}_s42",
         "run_dir": f"/result/{dataset}_N{n}",
@@ -56,7 +66,9 @@ def _record(dataset: str, n: int, value: float, **overrides) -> dict:
                      "num_codons_per_codebook": BASES_PER_SLOT},
         "selection": {"selection_metric": "eval_mAP_at_R",
                       "selection_value": value,
-                      "selection_epoch_zero_based": n},
+                      "selection_epoch_zero_based": n,
+                      "map_r_cutoff": "1000",
+                      "log_csv_sha256": "b" * 64},
         "is_candidate_cell": True,
     }
     base.update(overrides)
@@ -138,7 +150,9 @@ def test_a_value_from_the_wrong_epoch_is_refused(tmp_path):
     """An N=39 cell reporting its epoch-4 score is the collapse this catches."""
     bad = {"selection": {"selection_metric": "eval_mAP_at_R",
                          "selection_value": 0.9,
-                         "selection_epoch_zero_based": 4}}
+                         "selection_epoch_zero_based": 4,
+                         "map_r_cutoff": "1000",
+                         "log_csv_sha256": "b" * 64}}
     records = _matrix(tmp_path, None, {("cifar10", 39): bad})
     with pytest.raises(SelectionRefused) as excinfo:
         load_matrix(records)
@@ -242,3 +256,102 @@ def test_the_refit_refuses_an_out_of_grid_selection(tmp_path):
     with pytest.raises(CellRefused) as excinfo:
         _load_selection(path)
     assert "not one of" in str(excinfo.value)
+
+
+# ------------------------------------------------ evidence, not shape (§39.2)
+
+def test_a_fabricated_matrix_with_no_evidence_is_refused(tmp_path):
+    """Sixteen hand-written JSONs used to be accepted as a completed matrix."""
+    records = tmp_path / "records"
+    records.mkdir()
+    for dataset, n in cell_keys():
+        (records / f"{dataset}_N{n}.json").write_text(json.dumps({
+            "schema_version": RECORD_SCHEMA, "namespace": "phase3sel",
+            "protocol_sources": None, "is_candidate_cell": True,
+            "dataset": dataset, "N": n, "seed": SEED,
+            "val_split_ratio": VAL_RATIO, "val_split_seed": VAL_SEED,
+            "lr_schedule_horizon": LR_HORIZON,
+            "sinkhorn_schedule_horizon": n + 1,
+            "geometry": {"num_semantic_parts": SLOTS, "num_codebooks": SLOTS,
+                         "num_codons_per_codebook": BASES_PER_SLOT},
+            "selection": {"selection_metric": "eval_mAP_at_R",
+                          "selection_value": 0.9,
+                          "selection_epoch_zero_based": n}}))
+    with pytest.raises(SelectionRefused) as excinfo:
+        load_matrix(records)
+    assert "not a record a completed cell wrote" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("field", [
+    "completion", "inputs", "matrix", "epoch_budget", "run_dir",
+    "identity_digest", "protocol_sources"])
+def test_a_record_missing_its_evidence_is_refused(tmp_path, field):
+    records = _matrix(tmp_path, None, {("cifar10", 4): {field: None}})
+    with pytest.raises(SelectionRefused) as excinfo:
+        load_matrix(records)
+    assert field in str(excinfo.value)
+
+
+@pytest.mark.parametrize("field", ["final_checkpoint_sha256", "log_csv_sha256"])
+def test_a_completion_without_real_digests_is_refused(tmp_path, field):
+    broken = {"final_checkpoint_sha256": "a" * 64, "log_csv_sha256": "b" * 64}
+    broken[field] = "not-a-digest"
+    records = _matrix(tmp_path, None, {("cifar10", 4): {"completion": broken}})
+    with pytest.raises(SelectionRefused) as excinfo:
+        load_matrix(records)
+    assert field in str(excinfo.value)
+
+
+def test_records_agreeing_on_null_protocol_sources_are_refused(tmp_path):
+    """Sixteen `null`s are also "one protocol"."""
+    records = _matrix(tmp_path)
+    for path in records.glob("*.json"):
+        payload = json.loads(path.read_text())
+        payload["protocol_sources"] = {"scripts/x.py": "0" * 64}
+        path.write_text(json.dumps(payload))
+    with pytest.raises(SelectionRefused) as excinfo:
+        load_matrix(records)
+    assert "different protocol than the one reading them" in str(excinfo.value)
+
+
+def test_a_refit_record_cannot_be_read_as_a_selection(tmp_path):
+    records = _matrix(tmp_path, None, {("cifar10", 4): {"stage": "refit"}})
+    with pytest.raises(SelectionRefused) as excinfo:
+        load_matrix(records)
+    assert "not a selection cell" in str(excinfo.value)
+
+
+# ------------------------------------------------- the refit CLI (§39.3)
+
+def test_refit_alone_does_not_silently_print_a_plan():
+    """`--refit` fell into the default branch and exited 0."""
+    import subprocess as _sp
+
+    proc = _sp.run(
+        [sys.executable, str(REPO / "scripts" / "phase3_selection_matrix.py"),
+         "--refit"],
+        capture_output=True, text=True, cwd=str(REPO), timeout=120)
+    assert proc.returncode == 2
+    assert "pass --run" in proc.stderr
+
+
+def test_only_cannot_narrow_a_production_refit():
+    """Three of twelve reported as success would be a matrix nobody completed."""
+    import subprocess as _sp
+
+    proc = _sp.run(
+        [sys.executable, str(REPO / "scripts" / "phase3_selection_matrix.py"),
+         "--run", "--refit", "--only", "cifar10:4"],
+        capture_output=True, text=True, cwd=str(REPO), timeout=120)
+    assert proc.returncode == 2
+    assert "cannot produce the twelve cells" in proc.stderr
+
+
+def test_the_refit_record_names_the_whitening_it_actually_used():
+    """It recorded the optTrain path while the command used trainOnly."""
+    from scripts.phase3_selection_matrix import DATASETS, _whitening
+
+    assert _whitening(DATASETS["cifar10"], stage="refit").endswith(
+        "text_whiten_trainOnly_localOnly.npz")
+    assert _whitening(DATASETS["cifar10"], stage="select").endswith(
+        "text_whiten_optTrain_localOnly.npz")

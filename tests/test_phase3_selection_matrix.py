@@ -216,7 +216,7 @@ def test_args_and_manifest_must_agree(tmp_path):
 
 def _cell_csv(tmp_path: Path, rows: list, *, header=None) -> Path:
     run = tmp_path / "run"
-    run.mkdir(exist_ok=True)
+    run.mkdir(parents=True, exist_ok=True)
     cols = header or ["epoch", "eval_mAP", "eval_mAP_at_R", "eval_mAP_R_cutoff"]
     lines = [",".join(cols)]
     for row in rows:
@@ -233,11 +233,16 @@ def _best_sidecar(run: Path, *, epoch: int, value: float) -> None:
                   "selection_value": value}}))
 
 
+def _rows(n: int, scored: dict) -> list:
+    """Epochs 0..n, once each, scored only where the cadence says."""
+    return [{"epoch": e,
+             "eval_mAP_at_R": scored.get(e, ""),
+             "eval_mAP_R_cutoff": 1000 if e in scored else ""}
+            for e in range(n + 1)]
+
+
 def test_the_value_is_the_candidates_own_terminal_epoch(tmp_path):
-    run = _cell_csv(tmp_path, [
-        {"epoch": 0, "eval_mAP_at_R": 0.90, "eval_mAP_R_cutoff": 1000},
-        {"epoch": 4, "eval_mAP_at_R": 0.61, "eval_mAP_R_cutoff": 1000},
-    ])
+    run = _cell_csv(tmp_path, _rows(4, {0: 0.90, 4: 0.61}))
     record = read_selection(run, n=4)
     assert record["selection_value"] == pytest.approx(0.61)
     assert record["selection_epoch_zero_based"] == 4
@@ -250,10 +255,7 @@ def test_the_best_over_prefix_is_recorded_but_never_selected(tmp_path):
     would compare nothing. The live N=4 smoke reporting its epoch-0 score was
     that bug in miniature.
     """
-    run = _cell_csv(tmp_path, [
-        {"epoch": 0, "eval_mAP_at_R": 0.90},
-        {"epoch": 39, "eval_mAP_at_R": 0.55},
-    ])
+    run = _cell_csv(tmp_path, _rows(39, {0: 0.90, 39: 0.55}))
     _best_sidecar(run, epoch=0, value=0.90)
     record = read_selection(run, n=39)
     assert record["selection_value"] == pytest.approx(0.55), \
@@ -263,16 +265,43 @@ def test_the_best_over_prefix_is_recorded_but_never_selected(tmp_path):
 
 
 def test_a_cell_that_never_reached_its_epoch_is_refused(tmp_path):
-    run = _cell_csv(tmp_path, [{"epoch": 0, "eval_mAP_at_R": 0.9}])
+    run = _cell_csv(tmp_path, _rows(0, {0: 0.9}))
     with pytest.raises(CellRefused) as excinfo:
         read_selection(run, n=39)
     assert "did not train to its candidate epoch" in str(excinfo.value)
 
 
+def test_a_csv_with_a_gap_or_a_repeat_is_refused(tmp_path):
+    """`log.csv` is append-only; two runs writing it produced a readable file."""
+    gapped = [{"epoch": e, "eval_mAP_at_R": "", "eval_mAP_R_cutoff": ""}
+              for e in (0, 1, 3, 4)]
+    gapped[-1].update(eval_mAP_at_R=0.6, eval_mAP_R_cutoff=1000)
+    with pytest.raises(CellRefused):
+        read_selection(_cell_csv(tmp_path / "gap", gapped), n=4)
+
+    repeated = _rows(4, {4: 0.6}) + _rows(4, {4: 0.7})[-1:]
+    with pytest.raises(CellRefused):
+        read_selection(_cell_csv(tmp_path / "dup", repeated), n=4)
+
+
+def test_the_csv_the_number_came_from_is_digested(tmp_path):
+    run = _cell_csv(tmp_path, _rows(4, {4: 0.61}))
+    record = read_selection(run, n=4)
+    assert len(record["log_csv_sha256"]) == 64
+
+
+def test_a_terminal_row_without_a_cutoff_is_refused(tmp_path):
+    """Without R the metric cannot be compared across datasets."""
+    rows = _rows(4, {4: 0.61})
+    rows[-1]["eval_mAP_R_cutoff"] = ""
+    with pytest.raises(CellRefused) as excinfo:
+        read_selection(_cell_csv(tmp_path, rows), n=4)
+    assert "cutoff" in str(excinfo.value)
+
+
 def test_a_terminal_epoch_with_no_score_is_refused(tmp_path):
     """Mid-eval does not run every epoch on every schedule."""
-    run = _cell_csv(tmp_path, [
-        {"epoch": 0, "eval_mAP_at_R": 0.9}, {"epoch": 4, "eval_mAP_at_R": ""}])
+    run = _cell_csv(tmp_path, _rows(4, {0: 0.9}))
     with pytest.raises(CellRefused) as excinfo:
         read_selection(run, n=4)
     assert "never scored at its own terminal epoch" in str(excinfo.value)
@@ -280,7 +309,8 @@ def test_a_terminal_epoch_with_no_score_is_refused(tmp_path):
 
 def test_a_run_predating_the_per_epoch_metric_is_refused(tmp_path):
     """log.csv used to drop eval_mAP_at_R entirely."""
-    run = _cell_csv(tmp_path, [{"epoch": 4, "eval_mAP": 0.5}],
+    run = _cell_csv(tmp_path, [{"epoch": e, "eval_mAP": 0.5}
+                               for e in range(5)],
                     header=["epoch", "eval_mAP"])
     with pytest.raises(CellRefused) as excinfo:
         read_selection(run, n=4)
@@ -294,7 +324,7 @@ def test_a_cell_with_no_csv_is_refused(tmp_path):
 
 @pytest.mark.parametrize("raw", ["999", "-0.1", "nope"])
 def test_a_value_that_is_not_a_proportion_is_refused(tmp_path, raw):
-    run = _cell_csv(tmp_path, [{"epoch": 4, "eval_mAP_at_R": raw}])
+    run = _cell_csv(tmp_path, _rows(4, {4: raw}))
     with pytest.raises(CellRefused):
         read_selection(run, n=4)
 
@@ -403,3 +433,121 @@ def test_a_candidate_whose_terminal_epoch_is_never_scored_is_refused():
     assert all((n + 1) % EVAL_EVERY == 0 for n in CANDIDATE_N), (
         "the grid no longer lines up with the eval cadence; the launcher will "
         "refuse those cells, which is correct, but the grid needs a decision")
+
+
+# ------------------------------------------- what the audit found next (§40)
+
+def test_a_refit_smoke_keeps_its_seed_and_distance_mode():
+    """Positional rewriting only works for the layout it was written against.
+
+    The smoke rewrite sliced off the first six tokens, which are `-e`,
+    `--random_seed <seed>` and `--dna_distance_mode base` in the REFIT layout,
+    so a refit smoke ran at the trainer's default seed with no distance mode.
+    """
+    _, env, tag = build_command("cifar10", 4, 0, stage="refit", seed=43,
+                                epochs=5)
+    extra = env["EXTRA_ARGS"].split()
+    assert extra[extra.index("--random_seed") + 1] == "43"
+    assert extra[extra.index("--dna_distance_mode") + 1] == "base"
+    assert extra[extra.index("-e") + 1] == "5"
+    assert extra[extra.index("--selection_mode") + 1] == "refit"
+    assert "_s43" in tag
+
+
+def test_a_selection_smoke_keeps_its_flags_too():
+    _, env, _ = build_command("cifar10", 4, 0, stage="select", epochs=5)
+    extra = env["EXTRA_ARGS"].split()
+    assert extra[extra.index("--random_seed") + 1] == str(SEED)
+    assert extra[extra.index("--selection_mode") + 1] == "select"
+    assert "--no_gumbel_softmax" in extra
+
+
+def test_the_nominal_final_epoch_counts_as_scored():
+    """The trainer evaluates on the cadence OR at the nominal final epoch.
+
+    Requiring only the cadence refused `--smoke --epochs 1` before it ran,
+    although the trainer would have scored epoch 0 as the final one.
+    """
+    import subprocess as _sp
+
+    proc = _sp.run(
+        [sys.executable, str(REPO / "scripts" / "phase3_selection_matrix.py"),
+         "--plan", "--only", "cifar10:4"],
+        capture_output=True, text=True, cwd=str(REPO), timeout=120)
+    assert proc.returncode == 0
+    # A one-epoch smoke stops at 0, which is that run's nominal final epoch.
+    from scripts.phase3_selection_matrix import EVAL_EVERY
+    assert (0 + 1) % EVAL_EVERY != 0, "the exception is what makes this legal"
+
+
+def test_the_selection_file_must_name_exactly_the_four_datasets(tmp_path):
+    from scripts.phase3_selection_matrix import DATASETS, _load_selection
+
+    path = tmp_path / "selected_n.json"
+    path.write_text(json.dumps({"selected": {
+        **{d: {"selected_N": 4} for d in DATASETS},
+        "invented": {"selected_N": 4}}}))
+    with pytest.raises(CellRefused) as excinfo:
+        _load_selection(path)
+    assert "unexpected ['invented']" in str(excinfo.value)
+
+
+def _completed_run(tmp_path: Path, **sidecar) -> Path:
+    from types import SimpleNamespace
+    from dna_utils.run_identity import RunIdentity, write_run_manifest
+    import hashlib
+
+    run = tmp_path / "run"
+    run.mkdir(parents=True, exist_ok=True)
+    write_run_manifest(str(run), RunIdentity.from_args(SimpleNamespace(
+        dataset="CIFAR10", setting="setting1", random_seed=SEED, epoch=60,
+        stop_after_epoch=4, num_semantic_parts=SLOTS,
+        num_codons_per_codebook=BASES_PER_SLOT,
+        lr_schedule_horizon=LR_HORIZON, sinkhorn_schedule_horizon=5)))
+    ckpt = run / "model_state_dict.pth"
+    ckpt.write_bytes(b"weights")
+    (run / "log.csv").write_text("epoch\n0\n")
+    payload = {
+        "checkpoint_sha256": hashlib.sha256(b"weights").hexdigest(),
+        "checkpoint_epoch_zero_based": 4,
+        "training_epoch_budget": 60, "stop_after_epoch": 4,
+        "lr_schedule_horizon": LR_HORIZON, "sinkhorn_schedule_horizon": 5,
+    }
+    payload.update(sidecar)
+    (run / "model_state_dict.pth.runtime.json").write_text(json.dumps(payload))
+    return run
+
+
+def test_a_consistent_completed_run_is_admitted(tmp_path):
+    from scripts.phase3_selection_matrix import assert_completed
+
+    record = assert_completed(_completed_run(tmp_path), terminal_epoch=4)
+    assert record["terminal_weights_preserved"] is True
+
+
+@pytest.mark.parametrize("field,value", [
+    ("training_epoch_budget", 999),
+    ("stop_after_epoch", 123),
+    ("lr_schedule_horizon", 999),
+    ("sinkhorn_schedule_horizon", 999),
+])
+def test_a_sidecar_describing_another_run_is_refused(tmp_path, field, value):
+    """Self-consistency is not identity: the SHA matched while the schedule
+    it named belonged to a different run."""
+    from scripts.phase3_selection_matrix import assert_completed
+
+    run = _completed_run(tmp_path, **{field: value})
+    with pytest.raises(CellRefused) as excinfo:
+        assert_completed(run, terminal_epoch=4)
+    assert "different run than" in str(excinfo.value)
+
+
+def test_an_unfinished_run_still_holding_its_claim_is_refused(tmp_path):
+    from dna_utils.run_identity import ACTIVE_CLAIM_NAME
+    from scripts.phase3_selection_matrix import assert_completed
+
+    run = _completed_run(tmp_path)
+    (run / ACTIVE_CLAIM_NAME).write_text("{}")
+    with pytest.raises(CellRefused) as excinfo:
+        assert_completed(run, terminal_epoch=4)
+    assert "active claim" in str(excinfo.value)

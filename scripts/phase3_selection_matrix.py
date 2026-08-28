@@ -45,7 +45,8 @@ import time
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-from dna_utils.run_identity import MANIFEST_NAME, load_run_manifest  # noqa: E402
+from dna_utils.run_identity import (  # noqa: E402
+    MANIFEST_NAME, RunIdentity, load_run_manifest)
 
 PY = os.environ.get("PY", "/home/yschoi/.conda/envs/dna_hashing/bin/python")
 CACHE_ROOT = os.environ.get(
@@ -216,6 +217,21 @@ def _refit_flags(n: int, seed: int) -> list:
     ]
 
 
+def _override_flags(flags: list, replacements: dict) -> list:
+    """Set each named flag to a new value, adding it if it is absent.
+
+    Positional rewriting of an argument list only works for the one layout it
+    was written against.
+    """
+    out = list(flags)
+    for name, value in replacements.items():
+        if name in out:
+            out[out.index(name) + 1] = value
+        else:
+            out += [name, value]
+    return out
+
+
 def _whitening(spec: dict, *, stage: str = "select") -> str:
     """Stage 1 fits on the optimization-train rows only; the refit uses the
     full designated train, because it no longer holds any of it out."""
@@ -241,15 +257,17 @@ def build_command(dataset: str, n: int, gpu: int, *,
         flags = _stage1_flags(n) + S5_FLAGS + A_FLAGS + QUIET_FLAGS
     stop = n
     if epochs is not None:
-        # Smoke: shorten everything CONSISTENTLY. The first version shortened
-        # the budget and the horizons but left `--stop_after_epoch N`, so the
-        # cell could never reach the epoch it claimed to be a candidate for and
-        # the terminal-metric check refused it by construction. A smoke has to
-        # be a small run, not an impossible one -- and it is still not a
-        # candidate cell, which the record says.
+        # Smoke: shorten everything CONSISTENTLY, by NAME. Slicing off the
+        # first six tokens was tuned to the selection layout, so a refit smoke
+        # -- whose first six are `-e`, `--random_seed <seed>` and
+        # `--dna_distance_mode base` -- silently lost its seed and its distance
+        # mode and ran as the trainer's defaults.
         stop = max(epochs - 1, 0)
-        flags = ["-e", str(epochs), "--lr_schedule_horizon", str(epochs),
-                 "--sinkhorn_schedule_horizon", str(stop + 1)] + flags[6:]
+        flags = _override_flags(flags, {
+            "-e": str(epochs),
+            "--lr_schedule_horizon": str(epochs),
+            "--sinkhorn_schedule_horizon": str(stop + 1),
+        })
     # A clean environment plus exactly what this protocol sets. The trainers
     # read a dozen recipe variables -- WASS, XMODAL, DISABLE_TEXT, SHARE_CB,
     # CCS, GATE and more -- so inheriting the caller's shell would let a stale
@@ -348,8 +366,10 @@ def assert_geometry(run_dir: Path, *, dataset: str, n: int,
         "epoch_budget": budget,
         "lr_schedule_horizon": lr_horizon,
         "sinkhorn_schedule_horizon": sinkhorn_horizon,
-        "feature_cache": os.path.realpath(spec["cache"]),
-        "eval_cache": os.path.realpath(spec["cache"]),
+        # Through the SAME normaliser the identity used, or the comparison is
+        # between a raw path and a content-bound one and never matches.
+        "feature_cache": RunIdentity._artifact(spec["cache"]),
+        "eval_cache": RunIdentity._artifact(spec["cache"]),
     }
     manifest_bad = {k: (getattr(identity, k), v) for k, v in expected.items()
                     if getattr(identity, k) != v}
@@ -397,13 +417,33 @@ def assert_completed(run_dir: Path, *, terminal_epoch: int) -> dict:
     sidecar = Path(str(final) + ".runtime.json")
     if not sidecar.is_file():
         raise CellRefused(f"{run_dir}: final checkpoint has no runtime sidecar")
-    claimed = json.loads(sidecar.read_text(encoding="utf-8")).get(
-        "checkpoint_sha256")
+    payload = json.loads(sidecar.read_text(encoding="utf-8"))
+    claimed = payload.get("checkpoint_sha256")
     actual = _sha(final)
     if claimed != actual:
         raise CellRefused(
             f"{run_dir}: final checkpoint hashes to {actual[:12]} but its "
             f"sidecar says {str(claimed)[:12]}")
+
+    # Self-consistency is not identity. A sidecar whose own SHA matched but
+    # which named a different budget, stop epoch or schedule was admitted, so
+    # it is bound to the run manifest it sits beside.
+    identity = load_run_manifest(str(run_dir))
+    if identity is None:
+        raise CellRefused(f"{run_dir}: no readable {MANIFEST_NAME}")
+    disagree = {
+        name: (payload.get(name), expected)
+        for name, expected in (
+            ("training_epoch_budget", identity.epoch_budget),
+            ("stop_after_epoch", identity.stop_after_epoch),
+            ("lr_schedule_horizon", identity.lr_schedule_horizon),
+            ("sinkhorn_schedule_horizon", identity.sinkhorn_schedule_horizon),
+        )
+        if name in payload and payload.get(name) != expected}
+    if disagree:
+        raise CellRefused(
+            f"{run_dir}: the checkpoint sidecar describes a different run than "
+            f"the manifest beside it: {disagree}")
     # Whether the weights on disk are the ones the terminal metric describes.
     # Without `--final_epoch_eval` -- which the selection stage may not use,
     # because it evaluates the official test split -- the trainer overwrites the
@@ -446,13 +486,17 @@ def read_selection(run_dir: Path, *, n: int) -> dict:
             f"per-epoch selection metric and its terminal value is not "
             f"recoverable")
 
-    terminal = [r for r in rows if str(r.get("epoch", "")).strip() == str(n)]
-    if len(terminal) != 1:
-        seen = sorted({str(r.get("epoch", "")).strip() for r in rows})
+    # The epochs must be exactly 0..N, once each, in order. A single matching
+    # row used to be enough, so a file with gaps, repeats or rows beyond the
+    # stop point -- an append-only log two runs had written to -- still yielded
+    # an answer.
+    epochs = [str(r.get("epoch", "")).strip() for r in rows]
+    if epochs != [str(e) for e in range(n + 1)]:
         raise CellRefused(
-            f"{csv_path}: expected exactly one row for terminal epoch {n}, "
-            f"found {len(terminal)} (epochs present: {seen[:8]}). The cell did "
-            f"not train to its candidate epoch.")
+            f"{csv_path}: epochs are {epochs[:8]}{'...' if len(epochs) > 8 else ''}, "
+            f"expected exactly 0..{n} once each. The cell did not train to its "
+            f"candidate epoch, or more than one run wrote this file.")
+    terminal = [rows[n]]
     raw = (terminal[0].get("eval_mAP_at_R") or "").strip()
     if not raw:
         raise CellRefused(
@@ -466,12 +510,20 @@ def read_selection(run_dir: Path, *, n: int) -> dict:
         raise CellRefused(f"{csv_path}: eval_mAP_at_R={value} is not a "
                           f"proportion")
 
+    cutoff = (terminal[0].get("eval_mAP_R_cutoff") or "").strip()
+    if not cutoff:
+        raise CellRefused(
+            f"{csv_path}: epoch {n} records no mAP@R cutoff, so the metric "
+            f"cannot be compared across datasets")
     record = {
         "selection_metric": "eval_mAP_at_R",
         "selection_value": value,
         "selection_epoch_zero_based": n,
-        "map_r_cutoff": (terminal[0].get("eval_mAP_R_cutoff") or "").strip(),
+        "map_r_cutoff": cutoff,
         "epochs_logged": len(rows),
+        # The bytes the number came from. `log.csv` is append-only and nothing
+        # else binds it to the run.
+        "log_csv_sha256": _sha(csv_path),
     }
     # Recorded, never used to select: it is the best over the prefix, and
     # seeing it differ from the terminal value is exactly what a reader wants.
@@ -487,8 +539,31 @@ def read_selection(run_dir: Path, *, n: int) -> dict:
     return record
 
 
-def _resolve(tag: str) -> Path:
+def _resolve(tag: str, *, expected_digest: str | None = None) -> Path:
+    """The directory this cell produced, identified rather than searched for.
+
+    A tag substring re-search races a concurrent writer with a similar tag and
+    compares nothing about what it finds. When the expected identity is known,
+    the candidates are filtered by their manifest digest, so the answer is the
+    directory that carries THIS run's identity -- not merely one whose name
+    happens to contain the tag.
+    """
     hits = sorted(p for p in (REPO / "result").glob(f"*{tag}*") if p.is_dir())
+    if expected_digest is not None:
+        matched = [p for p in hits
+                   if (load_run_manifest(str(p)) or None) is not None
+                   and load_run_manifest(str(p)).digest == expected_digest]
+        if len(matched) == 1:
+            return matched[0]
+        if hits and not matched:
+            raise CellRefused(
+                f"{len(hits)} directories match {tag} and none carries this "
+                f"run's identity {expected_digest[:12]}; the cell did not "
+                f"write where it was expected to")
+        if len(matched) > 1:
+            raise CellRefused(
+                f"{len(matched)} directories carry identity "
+                f"{expected_digest[:12]}: {[p.name for p in matched]}")
     if len(hits) != 1:
         raise CellRefused(
             f"expected exactly one result for {tag}, found {len(hits)}: "
@@ -524,11 +599,17 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
     # only when (stop + 1) is a multiple of the cadence. It happens to hold for
     # every candidate in the current grid, which is exactly the kind of
     # coincidence that stops holding when someone edits the grid.
-    if stage == "select" and (_stop + 1) % EVAL_EVERY != 0:
+    # The trainer evaluates when `(e+1) % eval_every == 0` OR when `e+1` is the
+    # nominal final epoch. The guard used to require only the first, so a smoke
+    # that stops at `budget - 1` -- which IS the nominal final -- was refused
+    # before it ran even though the trainer would have scored it.
+    _scored = ((_stop + 1) % EVAL_EVERY == 0) or (_stop + 1 == _budget)
+    if not _scored:
         raise CellRefused(
             f"{tag}: terminal epoch {_stop} would not be evaluated -- "
-            f"(N+1)={_stop + 1} is not a multiple of --eval_every={EVAL_EVERY}, "
-            f"so log.csv would carry no score for the candidate's own epoch")
+            f"(epoch+1)={_stop + 1} is neither a multiple of "
+            f"--eval_every={EVAL_EVERY} nor the nominal final epoch "
+            f"({_budget}), so log.csv would carry no score for it")
     started = time.time()
     # The trainers end in `python ... | tee "$LOG"` under `set -eu` with no
     # `pipefail`, so the script's status is tee's, not python's: a crashed
@@ -556,7 +637,7 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
             "feature_cache": DATASETS[dataset]["cache"],
             "eval_cache": DATASETS[dataset]["cache"],
             "qwen": DATASETS[dataset]["qwen"],
-            "whitening": _whitening(DATASETS[dataset]),
+            "whitening": _whitening(DATASETS[dataset], stage=stage),
             "codebook_size": DATASETS[dataset]["K"],
         },
         "stage": stage,
@@ -605,9 +686,12 @@ def _load_selection(path: Path) -> dict:
             f"completed matrix first")
     payload = json.loads(path.read_text(encoding="utf-8"))
     selected = payload.get("selected") or {}
-    missing = [d for d in DATASETS if d not in selected]
-    if missing:
-        raise CellRefused(f"{path}: no chosen N for {missing}")
+    missing = sorted(d for d in DATASETS if d not in selected)
+    extra = sorted(d for d in selected if d not in DATASETS)
+    if missing or extra:
+        raise CellRefused(
+            f"{path}: the selection must name exactly {sorted(DATASETS)}; "
+            f"missing {missing}, unexpected {extra}")
     out = {}
     for dataset, entry in selected.items():
         n = entry.get("selected_N")
@@ -660,6 +744,12 @@ def main() -> int:
             return 2
         keys = [key]
 
+    if args.refit and not (args.run or args.smoke):
+        print("[phase3] --refit runs cells, so pass --run (or --smoke) with "
+              "it; on its own it used to print the selection plan and exit 0",
+              file=sys.stderr)
+        return 2
+
     if args.plan or not (args.run or args.smoke):
         print(f"{len(cell_keys())} cells: "
               f"{sorted({d for d, _ in cell_keys()})} x {list(CANDIDATE_N)}")
@@ -680,6 +770,15 @@ def main() -> int:
     epochs = args.epochs if args.smoke else None
 
     if args.refit:
+        # Narrowing is for smoking the plumbing, never for producing the
+        # twelve: a partial run that reported success would be a matrix nobody
+        # completed. Checked before anything is read, so an argument error is
+        # reported as one.
+        if args.only and not args.smoke:
+            print("[phase3] --only narrows the refit to one dataset, which "
+                  "cannot produce the twelve cells; use it with --smoke",
+                  file=sys.stderr)
+            return 2
         chosen = _load_selection(Path(args.selection))
         plan = [(ds, chosen[ds], seed)
                 for ds in sorted(DATASETS) for seed in REFIT_SEEDS]

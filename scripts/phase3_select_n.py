@@ -84,6 +84,30 @@ def _check_record(payload: dict, path: Path) -> tuple:
             f"{path.name}: ({dataset}, {n}) is not one of the "
             f"{len(cell_keys())} cells")
 
+    # A record must carry the evidence a cell produces, not merely the shape a
+    # reader looks for. Sixteen hand-written JSONs with none of this -- and
+    # `protocol_sources: null` throughout -- passed the first version.
+    required = ("completion", "inputs", "matrix", "stage", "epoch_budget",
+                "run_dir", "tag", "identity_digest", "protocol_sources")
+    absent = [k for k in required if payload.get(k) in (None, "", {}, [])]
+    if absent:
+        raise SelectionRefused(
+            f"{path.name}: no {', '.join(absent)} -- this is not a record a "
+            f"completed cell wrote")
+    if payload.get("stage") != "select":
+        raise SelectionRefused(
+            f"{path.name}: stage is {payload.get('stage')!r}, not a selection "
+            f"cell")
+    completion = payload["completion"]
+    for field in ("final_checkpoint_sha256", "log_csv_sha256"):
+        digest = completion.get(field)
+        if not isinstance(digest, str) or len(digest) != 64:
+            raise SelectionRefused(
+                f"{path.name}: completion.{field} is {digest!r}, not a digest")
+    if not (payload.get("selection") or {}).get("map_r_cutoff"):
+        raise SelectionRefused(
+            f"{path.name}: the metric records no mAP@R cutoff")
+
     expected = {
         "seed": SEED, "val_split_ratio": VAL_RATIO, "val_split_seed": VAL_SEED,
         "lr_schedule_horizon": LR_HORIZON,
@@ -156,6 +180,7 @@ def load_matrix(records_dir: Path) -> dict:
     if problems:
         raise SelectionRefused(
             "records refused:\n  " + "\n  ".join(problems))
+    protocols = {p for p in protocols}
     missing = [f"{d}/N{n}" for d, n in cell_keys() if (d, n) not in cells]
     if missing:
         raise SelectionRefused(
@@ -170,6 +195,18 @@ def load_matrix(records_dir: Path) -> dict:
         raise SelectionRefused(
             "records were produced under different protocol sources; the "
             "numbers were not made the same way")
+    # One protocol is not enough -- sixteen records agreeing on `null` are also
+    # "one". It has to be THIS protocol.
+    stored = json.loads(next(iter(protocols))) if protocols else None
+    current = protocol_digests()
+    if stored != current:
+        differing = sorted(
+            k for k in set(current) | set(stored or {})
+            if (stored or {}).get(k) != current.get(k))
+        raise SelectionRefused(
+            f"records were produced under a different protocol than the one "
+            f"reading them: {differing}. Re-run the affected cells or read "
+            f"them from the commit that produced them.")
     return {"cells": cells, "namespace": namespaces.pop(),
             "protocol_sources": json.loads(protocols.pop()),
             "record_sha256": digests}

@@ -136,6 +136,16 @@ if ! env LBU="${LBU:-0.02}" CACHE="$CACHE" EVAL_CACHE="${EVAL_CACHE:-$CACHE}" \
     exit 7
 fi
 
+# Everything this wrapper knows about the run it just started. Naming only the
+# dataset admitted a same-dataset directory with seed 99, M=6 and K=999.
+RESULT_DIR_EXPECT=(
+    --expect-seed 42
+    --expect-slots "${GDNA_NUM_SEMANTIC_PARTS:-6}"
+    --expect-bases-per-slot "${NUM_CODONS:-3}"
+    --expect-codebook-size "$K"
+    --expect-stop "$ESTAR"
+    --expect-mode refit
+)
 RD=$(resolve_one_claimed_result_dir "${BASE}_P0refit_e${ESTAR}" extract_db.npz "$CANON") \
     || { echo "[promptAblA $EXP] ERROR refit dir/extract/manifest missing"; exit 4; }
 if [ "${NUM_CODONS:-3}" = "4" ]; then GCMIN=0.416; GCMAX=0.584; else GCMIN=0.40; GCMAX=0.60; fi

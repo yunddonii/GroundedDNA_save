@@ -102,28 +102,49 @@ class RunIdentity:
         blob = json.dumps(payload, sort_keys=True, separators=(",", ":"))
         return hashlib.sha256(blob.encode()).hexdigest()
 
+    #: Files up to this size enter the identity by content. The caption
+    #: caches are the largest at ~9 MiB, and hashing one takes milliseconds --
+    #: the first cap was 8 MiB, which put NUS-WIDE (8.8 MiB) and MS-COCO
+    #: (8.3 MiB) on the path-only branch, so swapping their contents under the
+    #: same filename left the identity unchanged.
+    _CONTENT_LIMIT = 256 << 20
+
     @staticmethod
-    def _artifact(path: Any) -> str:
+    def _digest_file(path: str) -> str:
+        digest = hashlib.sha256()
+        with open(path, "rb") as handle:
+            for block in iter(lambda: handle.read(1 << 20), b""):
+                digest.update(block)
+        return digest.hexdigest()[:16]
+
+    @classmethod
+    def _artifact(cls, path: Any) -> str:
         """How an input artefact enters the identity.
 
-        A path, canonicalised. Small enough files are additionally digested --
-        the whitening matrix is a few hundred KB and IS the transform, so two
-        runs pointing at the same filename with different contents are two
-        different runs. Feature caches are tens of gigabytes; digesting them per
-        run is not affordable, and their directory names are already versioned
-        (`./cache/...` vs the v6prov root), so the canonical path is what is
-        recorded and the loader's provenance gate carries the content check.
+        A file enters by content. A feature cache is a DIRECTORY of tens of
+        gigabytes, which cannot be digested per run -- but `meta.json` is the
+        file the provenance gate already checks, and it carries the backbone
+        revision, the canonical transform and the row count. Hashing that
+        binds the directory to the snapshot that produced it, which is the
+        property that matters here; the array bytes are the loader's gate to
+        defend.
+
+        A path that exists as neither is still recorded, so a cache that is not
+        on this machine does not collapse to the same identity as no cache.
         """
         if path in (None, ""):
             return ""
         real = os.path.realpath(str(path))
-        if os.path.isfile(real) and os.path.getsize(real) <= (8 << 20):
-            digest = hashlib.sha256()
-            with open(real, "rb") as handle:
-                for block in iter(lambda: handle.read(1 << 20), b""):
-                    digest.update(block)
-            return f"{real}#{digest.hexdigest()[:16]}"
-        return real
+        if os.path.isfile(real):
+            if os.path.getsize(real) <= cls._CONTENT_LIMIT:
+                return f"{real}#{cls._digest_file(real)}"
+            return f"{real}#too-large-to-digest"
+        if os.path.isdir(real):
+            meta = os.path.join(real, "meta.json")
+            if os.path.isfile(meta):
+                return f"{real}#meta:{cls._digest_file(meta)}"
+            return f"{real}#no-meta"
+        return f"{real}#absent"
 
     @classmethod
     def from_args(cls, args: Any) -> "RunIdentity":
