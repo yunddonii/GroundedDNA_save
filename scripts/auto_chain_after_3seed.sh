@@ -18,7 +18,13 @@ exit 91
 # from them and that is easier once the numbers are in.
 #
 # Every step takes only GPUs measured as idle. This machine runs other projects.
-set -u
+# `set -u` alone let a failed python step print "step done" and continue, and a
+# background launch's exit code was never collected at all. `-E` carries the
+# trap into functions and subshells; `pipefail` matters because every step here
+# ends in a pipe.
+set -Eeuo pipefail
+trap 'rc=$?; printf "[auto-chain] FAILED at line %s (rc %s): %s\n" \
+        "$LINENO" "$rc" "$BASH_COMMAND" >&2; exit "$rc"' ERR
 cd /home/yschoi/GroundedDNA
 PY=/home/yschoi/.conda/envs/dna_hashing/bin/python
 NJSON=docs/newmodel_analysis/fixed_N.json
@@ -44,8 +50,25 @@ getJD(){ "$PY" -c "import json;print(json.load(open('$NJSON'))['$1']['lambda_cod
 # Must match ONLY the reference run. Without the `_v4`/`_v5b` boundary this
 # also matches the _BU05 and _A2/_A4/_A5 variants, which differ from the
 # reference by exactly the thing being ablated.
-rundir(){ ls -dt result/2608*"$1"*_P0refit_e"$2"+bs+64+e+"$3"+* 2>/dev/null \
-          | grep -vE "_(BU05|A2|A4|A5|s4[34])_P0refit" | head -1; }
+# `ls -dt ... | head -1` returned the NEWEST match, so a concurrently running
+# ablation could be evaluated as the reference run, and "no match" came back as
+# the empty string. Exactly one, or refuse.
+rundir(){
+    local matches=() keep=() d
+    shopt -s nullglob
+    matches=(result/2608*"$1"*_P0refit_e"$2"+bs+64+e+"$3"+*)
+    shopt -u nullglob
+    for d in "${matches[@]}"; do
+        [[ "$d" =~ _(BU05|A2|A4|A5[a-z]*|s4[34])_P0refit ]] || keep+=("$d")
+    done
+    if [[ "${#keep[@]}" -ne 1 ]]; then
+        printf "[auto-chain] %d reference runs match %s e%s; refusing to guess:\n" \
+            "${#keep[@]}" "$1" "$2" >&2
+        printf "    %s\n" "${keep[@]:-<none>}" >&2
+        return 1
+    fi
+    printf "%s\n" "${keep[0]}"
+}
 
 S5="--num_semantic_parts 5 --num_codebooks 5 --no_gumbel_softmax --lambda_codeword_codon_sinkhorn 0.0"
 T69="--routing_adaptive_topp_min 0.6 --routing_adaptive_topp_max 0.95"
@@ -101,7 +124,14 @@ for E in $DS_LIST; do
     elif [ "$SLUG" = nuswide ];  then MAN=dataset/NUSWIDE/setting1/train_10500.txt
     else MAN=""; fi
     dirs=(); for m in cibhash cimon sdc-paper oh crovca; do
-        dirs+=("$(ls -d $B/*/u0_${m}_${SLUG}_30b_seed42/attempt_*/*/*_dnaeval 2>/dev/null | head -1)"); done
+        # One baseline evaluation per method, or name the ambiguous method
+        # rather than taking whichever sorted first.
+        mapfile -t _cand < <(ls -d $B/*/u0_${m}_${SLUG}_30b_seed42/attempt_*/*/*_dnaeval 2>/dev/null || true)
+        if [[ "${#_cand[@]}" -ne 1 ]]; then
+            say "  baseline $m/$SLUG: ${#_cand[@]} candidate dirs; skipping"
+            continue
+        fi
+        dirs+=("${_cand[0]}"); done
     say "  decode $SLUG"
     "$PY" scripts/heldout_codon_decoding.py --ours_dir "$OURS" --dataset "$CANON" \
         --bio_project ${MAN:+--train_manifest "$MAN"} \
@@ -110,27 +140,91 @@ for E in $DS_LIST; do
 done
 say "step 1 done"
 
+declare -a ABL_PIDS=()
+
 # ---- 2) 4.8 causal ablation (A2 / A4 / A5) ---------------------------------
-# A2 = no text path, A4 = shared codebook, A5 = mean pooling instead of UOT.
+#
+# Each of the three was wrong, and two could not have run at all:
+#
+#   A2  zeroed three text losses and left `--disable_text_supervision` off, so
+#       the caption-derived routing and token pruning stayed active. The cell
+#       claimed "no text path" while text still shaped the codes.
+#   A4  passed `--num_codebooks 1` against M=5 inputs, which raises
+#       "semantic_visual_tokens has M=5 but quantizer was built with
+#       num_codebooks=1" before the first step. `--share_codebook` is the flag
+#       that ties the five slots to one codebook.
+#   A5  passed `--router_type mean`, which argparse rejects outright -- the
+#       choices are sinkhorn/attention/slot/cluster_attn/cross_attn. And the
+#       paper's A5 is not a router ablation at all: it is the 2x2 factorial of
+#       `L_joint` and `noGumbel` (draft 4.8, A5), whose whole point is that
+#       noGumbel alone is harmful on some datasets and only helps in
+#       combination. Collapsing that to one cell would have hidden exactly the
+#       interaction it exists to show.
+# Every ablation's flags are parsed before the first GPU second. Two of the
+# three commands could not have run at all, and would have died at the first
+# cell -- hours into a chain that had already trained the ones before it.
+say "step 2: preflight -- parsing every ablation command"
+for E in $DS_LIST; do
+    IFS=: read -r EXP CANON SLUG <<<"$E"
+    N=$(getN "$EXP"); JD=$(getJD "$EXP")
+    for AB in "A2:--disable_text_supervision --lambda_text_code_kl 0.0 --lambda_text_hash_ntxent 0.0 --lambda_xmodal_commit 0.0" \
+              "A4:--share_codebook" \
+              "A5none:--lambda_codon_joint 0.0" \
+              "A5joint:--lambda_codon_joint $JD" \
+              "A5nogumbel:--lambda_codon_joint 0.0 --no_gumbel_softmax" \
+              "A5both:--lambda_codon_joint $JD --no_gumbel_softmax"; do
+        TAG=${AB%%:*}; FLAGS=${AB#*:}
+        GDNA_NUM_SEMANTIC_PARTS=5 "$PY" scripts/_ablation_preflight.py -- \
+            $S5 $T69 $FLAGS >/dev/null || {
+            say "  PREFLIGHT FAILED: $TAG $EXP"; exit 1; }
+    done
+done
+say "step 2: preflight ok"
+
 say "step 2: 4.8 ablation"
 for E in $DS_LIST; do
     IFS=: read -r EXP CANON SLUG <<<"$E"
     N=$(getN "$EXP"); JD=$(getJD "$EXP")
-    for AB in "A2:--lambda_text_code_kl 0.0 --lambda_text_hash_ntxent 0.0 --lambda_xmodal_commit 0.0" \
-              "A4:--num_codebooks 1" \
-              "A5:--router_type mean"; do
+    # A5 is four cells, not one: neither / joint only / noGumbel only / both.
+    for AB in "A2:--disable_text_supervision --lambda_text_code_kl 0.0 --lambda_text_hash_ntxent 0.0 --lambda_xmodal_commit 0.0" \
+              "A4:--share_codebook" \
+              "A5none:--lambda_codon_joint 0.0" \
+              "A5joint:--lambda_codon_joint $JD" \
+              "A5nogumbel:--lambda_codon_joint 0.0 --no_gumbel_softmax" \
+              "A5both:--lambda_codon_joint $JD --no_gumbel_softmax"; do
         TAG=${AB%%:*}; FLAGS=${AB#*:}
         wait_idle; g=${G%% *}
         say "  $TAG $EXP -> GPU $g"
+        # A5 sets `--lambda_codon_joint` itself, so it must not also come from
+        # the shared prefix; A2/A4 keep the champion value.
+        case "$TAG" in
+            A5*) BASE_FLAGS="$S5 $T69 -e $((N+1))" ;;
+            *)   BASE_FLAGS="$S5 --lambda_codon_joint $JD $T69 -e $((N+1))" ;;
+        esac
         GDNA_NUM_SEMANTIC_PARTS=5 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
         FIXED_N="$N" EVERY=1 TAG_SUFFIX="_$TAG" \
-        AUX_ARGS="$S5 --lambda_codon_joint $JD $T69 -e $((N+1)) $FLAGS" \
+        AUX_ARGS="$BASE_FLAGS $FLAGS" \
         setsid nohup bash scripts/prompt_ablation_A_cell_fixedN.sh "$g" "$EXP" \
             > "logs/ABL_${TAG}_${EXP}.out" 2>&1 < /dev/null &
+        ABL_PIDS+=("$!:${TAG}_${EXP}")
         sleep 150
     done
 done
 while busy; do sleep 120; done
+# `while busy` watches process names and GPU memory, which is not the same as
+# every child having succeeded. Collect the exit codes.
+ABL_FAILED=0
+for entry in "${ABL_PIDS[@]:-}"; do
+    [[ -n "$entry" ]] || continue
+    pid=${entry%%:*}; name=${entry#*:}
+    if wait "$pid" 2>/dev/null; then
+        say "  $name ok"
+    else
+        say "  $name FAILED (see logs/ABL_${name}.out)"
+        ABL_FAILED=1
+    fi
+done
+[[ "$ABL_FAILED" == "0" ]] || { say "step 2 INCOMPLETE"; exit 1; }
 say "step 2 done"
 
 # ---- 3) 4.10.3 slot intervention -------------------------------------------
