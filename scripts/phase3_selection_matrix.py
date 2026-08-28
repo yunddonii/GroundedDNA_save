@@ -134,6 +134,29 @@ _RECIPE_ENV = (
 
 NAMESPACE = os.environ.get("PHASE3_NAMESPACE", "phase3sel")
 RECORD_DIR = REPO / "artifacts" / "phase3_selection"
+RECORD_SCHEMA = 1
+
+#: Files whose bytes decide what a cell is. Recorded per cell so the aggregator
+#: can refuse a matrix assembled from more than one protocol.
+PROTOCOL_SOURCES = (
+    "scripts/phase3_selection_matrix.py",
+    "train_siglip2.py",
+    "model_siglip2.py",
+    "dna_utils/run_identity.py",
+)
+
+
+def _sha(path) -> str:
+    import hashlib
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def protocol_digests() -> dict:
+    return {rel: _sha(REPO / rel) for rel in PROTOCOL_SOURCES}
 
 
 class CellRefused(RuntimeError):
@@ -173,17 +196,45 @@ def _stage1_flags(n: int) -> list:
     ]
 
 
-def _whitening(spec: dict) -> str:
-    """Stage 1 fits on the optimization-train rows only."""
-    return f"{spec['foils']}/text_whiten_optTrain_localOnly.npz"
+#: D2's final stage. `-e N+1 --stop_after_epoch N` and nothing else: with both
+#: horizon flags unset they fall back to `--epoch`, which is what collapses the
+#: three schedules onto N+1 together. Passing them explicitly would be the same
+#: numbers by a longer route, but leaving them out is the decision as written.
+REFIT_SEEDS = (42, 43, 44)
+
+
+def _refit_flags(n: int, seed: int) -> list:
+    return [
+        "-e", str(n + 1),
+        "--random_seed", str(seed),
+        "--dna_distance_mode", "base",
+        "--selection_mode", "refit",
+    ]
+
+
+def _whitening(spec: dict, *, stage: str = "select") -> str:
+    """Stage 1 fits on the optimization-train rows only; the refit uses the
+    full designated train, because it no longer holds any of it out."""
+    variant = "optTrain" if stage == "select" else "trainOnly"
+    return f"{spec['foils']}/text_whiten_{variant}_localOnly.npz"
+
+
+def refit_tag_for(dataset: str, n: int, seed: int, *,
+                  namespace: str = NAMESPACE) -> str:
+    return f"{namespace}_{DATASETS[dataset]['exp']}_refit_N{n}_s{seed}"
 
 
 def build_command(dataset: str, n: int, gpu: int, *,
                   epochs: int | None = None,
-                  namespace: str = NAMESPACE) -> tuple:
+                  namespace: str = NAMESPACE,
+                  stage: str = "select", seed: int = SEED) -> tuple:
     spec = DATASETS[dataset]
-    tag = tag_for(dataset, n, namespace=namespace)
-    flags = _stage1_flags(n) + S5_FLAGS + A_FLAGS + QUIET_FLAGS
+    if stage == "refit":
+        tag = refit_tag_for(dataset, n, seed, namespace=namespace)
+        flags = _refit_flags(n, seed) + S5_FLAGS + A_FLAGS + QUIET_FLAGS
+    else:
+        tag = tag_for(dataset, n, namespace=namespace)
+        flags = _stage1_flags(n) + S5_FLAGS + A_FLAGS + QUIET_FLAGS
     stop = n
     if epochs is not None:
         # Smoke: shorten everything CONSISTENTLY. The first version shortened
@@ -209,16 +260,25 @@ def build_command(dataset: str, n: int, gpu: int, *,
         GDNA_NUM_SEMANTIC_PARTS=str(SLOTS),
         CUDA_VISIBLE_DEVICES=str(gpu),
         CACHE=spec["cache"], EVAL_CACHE=spec["cache"], QWEN=spec["qwen"],
-        WHITEN_NPZ=_whitening(spec), K=str(spec["K"]),
+        WHITEN_NPZ=_whitening(spec, stage=stage), K=str(spec["K"]),
         NUM_CODONS=str(BASES_PER_SLOT),
-        VAL_RATIO=str(VAL_RATIO), VAL_SEED=str(VAL_SEED),
         TAG=tag,
         EXTRA_ARGS=" ".join(shlex.quote(f) for f in flags),
     )
-    # Stage 1 never evaluates the official test split: no FINAL_EPOCH, and
-    # `--stop_after_epoch N` stops the run at the candidate epoch.
     env["STOP_EP"] = str(stop)
-    env.pop("FINAL_EPOCH", None)
+    if stage == "refit":
+        # The refit trains on the FULL designated train -- there is nothing to
+        # hold out once N is chosen -- and it is the run that finally evaluates
+        # the official test split, exactly once.
+        env["VAL_RATIO"] = "0.0"
+        env["VAL_SEED"] = str(VAL_SEED)
+        env["FINAL_EPOCH"] = "1"
+    else:
+        # Stage 1 never evaluates the official test split: no FINAL_EPOCH, and
+        # `--stop_after_epoch N` stops the run at the candidate epoch.
+        env["VAL_RATIO"] = str(VAL_RATIO)
+        env["VAL_SEED"] = str(VAL_SEED)
+        env.pop("FINAL_EPOCH", None)
     return ["bash", spec["trainer"], str(gpu)], env, tag
 
 
@@ -274,6 +334,37 @@ def assert_geometry(run_dir: Path, *, dataset: str, n: int) -> dict:
     if manifest_bad:
         raise CellRefused(f"{run_dir}: manifest disagrees {manifest_bad}")
     return {"identity_digest": identity.digest, **effective}
+
+
+def assert_completed(run_dir: Path) -> dict:
+    """The cell finished and nobody still owns it.
+
+    A partial run leaves args, a manifest and a checkpoint behind, which is
+    enough to pass a files-exist check. The checkpoint is re-hashed against
+    what its own sidecar claims, and an active claim means the writer is still
+    going -- or died holding it.
+    """
+    from dna_utils.run_identity import ACTIVE_CLAIM_NAME
+
+    if (run_dir / ACTIVE_CLAIM_NAME).exists():
+        raise CellRefused(
+            f"{run_dir}: still carries an active claim, so the run either has "
+            f"not finished or died holding it")
+    final = run_dir / "model_state_dict.pth"
+    if not final.is_file():
+        raise CellRefused(f"{run_dir}: no final checkpoint")
+    sidecar = Path(str(final) + ".runtime.json")
+    if not sidecar.is_file():
+        raise CellRefused(f"{run_dir}: final checkpoint has no runtime sidecar")
+    claimed = json.loads(sidecar.read_text(encoding="utf-8")).get(
+        "checkpoint_sha256")
+    actual = _sha(final)
+    if claimed != actual:
+        raise CellRefused(
+            f"{run_dir}: final checkpoint hashes to {actual[:12]} but its "
+            f"sidecar says {str(claimed)[:12]}")
+    return {"final_checkpoint_sha256": actual,
+            "log_csv_sha256": _sha(run_dir / "log.csv")}
 
 
 def read_selection(run_dir: Path, *, n: int) -> dict:
@@ -355,8 +446,10 @@ def _resolve(tag: str) -> Path:
 
 
 def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
-             namespace: str = NAMESPACE) -> dict:
-    tag = tag_for(dataset, n, namespace=namespace)
+             namespace: str = NAMESPACE, stage: str = "select",
+             seed: int = SEED) -> dict:
+    tag = (refit_tag_for(dataset, n, seed, namespace=namespace)
+           if stage == "refit" else tag_for(dataset, n, namespace=namespace))
     existing = _existing_artifacts(tag)
     if existing:
         raise CellRefused(
@@ -364,7 +457,7 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
             f"namespace with PHASE3_NAMESPACE.")
 
     cmd, env, _ = build_command(dataset, n, gpu, epochs=epochs,
-                                namespace=namespace)
+                                namespace=namespace, stage=stage, seed=seed)
     started = time.time()
     # The trainers end in `python ... | tee "$LOG"` under `set -eu` with no
     # `pipefail`, so the script's status is tee's, not python's: a crashed
@@ -379,21 +472,42 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
 
     run_dir = _resolve(tag)
     record = {
+        "schema_version": RECORD_SCHEMA,
+        "namespace": namespace,
+        "matrix": {"candidate_n": list(CANDIDATE_N),
+                   "datasets": sorted(DATASETS),
+                   "cells": len(cell_keys())},
+        "protocol_sources": protocol_digests(),
+        "inputs": {
+            "feature_cache": DATASETS[dataset]["cache"],
+            "eval_cache": DATASETS[dataset]["cache"],
+            "qwen": DATASETS[dataset]["qwen"],
+            "whitening": _whitening(DATASETS[dataset]),
+            "codebook_size": DATASETS[dataset]["K"],
+        },
+        "stage": stage,
         "dataset": dataset, "N": n, "tag": tag,
         "run_dir": str(run_dir),
-        "seed": SEED, "val_split_ratio": VAL_RATIO, "val_split_seed": VAL_SEED,
+        "seed": seed,
+        "val_split_ratio": VAL_RATIO if stage == "select" else 0.0,
+        "val_split_seed": VAL_SEED,
         "lr_schedule_horizon": LR_HORIZON if epochs is None else epochs,
         "sinkhorn_schedule_horizon": (n + 1) if epochs is None else epochs,
         "epoch_budget": EPOCH_BUDGET if epochs is None else epochs,
+        "completion": assert_completed(run_dir),
         "geometry": assert_geometry(
             run_dir, dataset=dataset,
             n=n if epochs is None else max(epochs - 1, 0)),
-        "selection": read_selection(
-            run_dir, n=n if epochs is None else max(epochs - 1, 0)),
+        "selection": (
+            read_selection(run_dir, n=n if epochs is None
+                           else max(epochs - 1, 0))
+            if stage == "select" else
+            {"selection_metric": None,
+             "note": "a refit has no held-out validation to select on"}),
         "wall_seconds": round(time.time() - started, 1),
         # A smoke is plumbing evidence, never a candidate score.
         "smoke": epochs is not None,
-        "is_candidate_cell": epochs is None,
+        "is_candidate_cell": epochs is None and stage == "select",
     }
     RECORD_DIR.mkdir(parents=True, exist_ok=True)
     out = RECORD_DIR / f"{tag}.json"
@@ -402,6 +516,33 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
                    encoding="utf-8")
     os.replace(tmp, out)
     return record
+
+
+def _load_selection(path: Path) -> dict:
+    """The chosen N per dataset, as the aggregator wrote it.
+
+    D1 reuses one N per dataset across all three seeds, so the refit reads the
+    decision rather than re-deriving it -- re-deriving per seed is what
+    `queue_ours_multiseed.sh` did, and it is the opposite of the rule.
+    """
+    if not path.is_file():
+        raise CellRefused(
+            f"{path} does not exist; run scripts/phase3_select_n.py on the "
+            f"completed matrix first")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    selected = payload.get("selected") or {}
+    missing = [d for d in DATASETS if d not in selected]
+    if missing:
+        raise CellRefused(f"{path}: no chosen N for {missing}")
+    out = {}
+    for dataset, entry in selected.items():
+        n = entry.get("selected_N")
+        if n not in CANDIDATE_N:
+            raise CellRefused(
+                f"{path}: {dataset} selects N={n}, not one of "
+                f"{list(CANDIDATE_N)}")
+        out[dataset] = n
+    return out
 
 
 def main() -> int:
@@ -419,6 +560,12 @@ def main() -> int:
     parser.add_argument("--only", default=None,
                         help="dataset:N, e.g. cifar10:4")
     parser.add_argument("--namespace", default=NAMESPACE)
+    parser.add_argument(
+        "--refit", action="store_true",
+        help=("run the 12 scratch refits at the N chosen by "
+              "scripts/phase3_select_n.py, for seeds 42/43/44"))
+    parser.add_argument("--selection", default=str(
+        REPO / "artifacts" / "phase3_selection" / "selected_n.json"))
     args = parser.parse_args()
 
     keys = cell_keys()
@@ -457,6 +604,32 @@ def main() -> int:
         return 0
 
     epochs = args.epochs if args.smoke else None
+
+    if args.refit:
+        chosen = _load_selection(Path(args.selection))
+        plan = [(ds, chosen[ds], seed)
+                for ds in sorted(DATASETS) for seed in REFIT_SEEDS]
+        if args.only:
+            plan = [p for p in plan if p[0] == keys[0][0]]
+        failures = []
+        for ds, n, seed in plan:
+            try:
+                record = run_cell(ds, n, args.gpu, epochs=epochs,
+                                  namespace=args.namespace, stage="refit",
+                                  seed=seed)
+            except CellRefused as error:
+                print(f"[phase3] REFUSED refit {ds}/N{n}/s{seed}: {error}",
+                      file=sys.stderr)
+                failures.append(f"{ds}/N{n}/s{seed}")
+                continue
+            print(f"[phase3] refit {ds}/N{n}/s{seed} ok -> {record['run_dir']}")
+        if failures:
+            print(f"[phase3] {len(failures)} of {len(plan)} refits refused",
+                  file=sys.stderr)
+            return 1
+        print(f"[phase3] {len(plan)} of {len(plan)} refits complete")
+        return 0
+
     failures = []
     for ds, n in keys:
         try:

@@ -561,6 +561,41 @@ is_candidate_cell  false
 
 `result_diagnostic/phase3_smoke_20260828/`에 격리. 947 tests 통과.
 
+### aggregator와 refit 경로 (§35.3 gate 4·5)
+
+**`scripts/phase3_select_n.py`** — D1의 선택 규칙을 구현하고, 그것이 성립하지 않는 판을 거부한다.
+
+```text
+규칙   dataset별 argmax(terminal-epoch raw base-Hamming mAP@R), 동률 -> 최소 N
+거부   16셀 미만/초과, 한 셀 중복, smoke 기록, terminal epoch 불일치,
+       seed·val split·horizon 불일치, M6 geometry, 두 namespace, 두 protocol source
+출력   읽은 모든 record의 SHA + protocol source digest + aggregator SHA 에 결속
+```
+
+특히 **부분 판(部分板) 거부**가 핵심이다. 15셀만 있으면 "완주한 셀들 중에서" N을 고르게 되는데,
+그건 D1이 아니다.
+
+**refit 경로** — `--refit`이 선택 JSON을 읽어 12셀(4 dataset × seeds 42/43/44)을 돌린다.
+D1은 seed 42에서 dataset별로 한 번 고른 N을 세 seed에 **그대로** 재사용한다
+(`queue_ours_multiseed.sh`는 seed마다 다시 고르므로 규칙과 반대다).
+
+| | select | refit |
+|---|---|---|
+| epoch | `-e 60` | `-e N+1` |
+| stop | N | N |
+| LR / Sinkhorn horizon | 60 / N+1 | 미지정 → 둘 다 `--epoch`로 fallback = N+1 |
+| val split | 0.1 | **0.0** (고를 것이 끝났으므로 남길 이유가 없다) |
+| whitening | `optTrain_localOnly` | `trainOnly_localOnly` |
+| 공식 test | 미접근 | `FINAL_EPOCH=1`로 **딱 한 번** |
+
+### per-cell 기록과 완료 검사도 함께
+
+기록에 schema, namespace, matrix 정의, protocol source digest, 입력(캐시·Qwen·whitening·K)을 넣었다.
+`assert_completed()`는 active claim이 남아 있으면 거부하고, 최종 체크포인트를 **재해시해** 자기
+sidecar가 주장하는 SHA와 대조한다 — 부분 실행도 파일 존재 검사만으로는 통과하기 때문이다.
+
+969 tests 통과.
+
 ### 아카이브가 만든 결함 하나를 함께 닫음 (감사 §36.2-5)
 
 `os.walk`의 기본은 `followlinks=False`다. 아카이브된 run은 심볼릭이므로 `resolve_run_dir`이
