@@ -378,6 +378,53 @@ def assert_geometry(run_dir: Path, *, dataset: str, n: int,
     return {"identity_digest": identity.digest, **effective}
 
 
+def assert_refit_outputs(run_dir: Path, *, dataset: str) -> dict:
+    """A refit is complete only when its official evaluation exists and binds.
+
+    The selection stage produces no extraction, so this applies to the refit
+    alone -- and the refit IS the paper number. Checking the checkpoint and the
+    CSV said nothing about whether the official test split was ever extracted
+    or scored: a run whose evaluation raised used to print the failure and exit
+    0, leaving a cell that looked finished and had no metrics.
+
+    The shared strict validator is the same one Phase 2 uses: it opens every
+    file the manifests name, recomputes every digest and checks the code arrays
+    themselves, rather than trusting that a file with the right name is the
+    right file.
+    """
+    from dna_utils.extraction_validation import (
+        ExpectedIdentity, ExtractionInvalid, validate_extraction_run)
+
+    spec = DATASETS[dataset]
+    try:
+        run = validate_extraction_run(
+            str(run_dir), required_splits=("db", "query"),
+            allow_backfilled=False,
+            expected=ExpectedIdentity(
+                dataset=spec["canon"], num_slots=SLOTS,
+                bases_per_slot=BASES_PER_SLOT,
+                codebook_size=spec["K"]))
+    except ExtractionInvalid as error:
+        raise CellRefused(f"{run_dir}: extraction does not validate: {error}")
+
+    metrics = run_dir / "evaluation_siglip2_base.json"
+    if not metrics.is_file():
+        raise CellRefused(
+            f"{run_dir}: no {metrics.name}; the official evaluation did not "
+            f"produce a metric, so this cell has no number to report")
+    payload = json.loads(metrics.read_text(encoding="utf-8"))
+    if "mAP" not in payload:
+        raise CellRefused(f"{metrics}: records no mAP")
+    return {
+        "extraction_validated": True,
+        "npz_sha256": {split: m["npz_sha256"]
+                       for split, m in sorted(run.splits.items())},
+        "evaluation_sha256": _sha(metrics),
+        "map": payload.get("mAP"),
+        "map_at_R": payload.get("mAP_at_R"),
+    }
+
+
 def _manifest_facts(run_dir: Path) -> dict:
     """What the run itself recorded, verbatim."""
     identity = load_run_manifest(str(run_dir))
@@ -648,7 +695,11 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
         # wrong-protocol run as a right-protocol one, which is the opposite of
         # what a record is for.
         **_manifest_facts(run_dir),
-        "completion": assert_completed(run_dir, terminal_epoch=_stop),
+        "completion": {
+            **assert_completed(run_dir, terminal_epoch=_stop),
+            **(assert_refit_outputs(run_dir, dataset=dataset)
+               if stage == "refit" else {}),
+        },
         "geometry": assert_geometry(
             run_dir, dataset=dataset, n=n, stop=_stop, seed=seed,
             mode="refit" if stage == "refit" else "select",

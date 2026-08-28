@@ -551,3 +551,32 @@ def test_an_unfinished_run_still_holding_its_claim_is_refused(tmp_path):
     with pytest.raises(CellRefused) as excinfo:
         assert_completed(run, terminal_epoch=4)
     assert "active claim" in str(excinfo.value)
+
+
+# ------------------------------------- the refit must produce a number (§40.6)
+
+def test_a_refit_without_an_extraction_is_refused(tmp_path):
+    from scripts.phase3_selection_matrix import assert_refit_outputs
+
+    with pytest.raises(CellRefused) as excinfo:
+        assert_refit_outputs(tmp_path, dataset="cifar10")
+    assert "extraction does not validate" in str(excinfo.value)
+
+
+def test_the_final_evaluation_failure_is_fatal():
+    """It printed and continued, so a cell exited 0 with no metrics at all.
+
+    The extraction above it was already fatal for the same reason: a run that
+    reports success without a number cannot be told apart from one that has it.
+    """
+    source = (REPO / "train_siglip2.py").read_text()
+    block = source[source.index("[final-eval] running evaluation"):]
+    block = block[:block.index("# ---------- post-eval")]
+    assert "raise RuntimeError" in block
+    assert "continuing to viz" not in block
+
+
+def test_only_the_refit_is_asked_for_official_outputs():
+    """Stage 1 must never extract, so it cannot be required to have."""
+    source = (REPO / "scripts" / "phase3_selection_matrix.py").read_text()
+    assert 'if stage == "refit" else {}' in source

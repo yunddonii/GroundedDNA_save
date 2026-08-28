@@ -1414,8 +1414,15 @@ def main(args: Config):
                 map_at_r=_map_r,
             )
         except Exception as ex:
-            print(f"[final-eval] evaluation failed: {ex} -- continuing to viz. "
-                  f"Re-run evaluation_siglip2.py externally to recover metrics.")
+            # The extraction above is fatal for exactly this reason, and the
+            # evaluation is what turns those codes into the reported number.
+            # Printing and continuing let a run finish with rc 0 and no metric
+            # JSON at all, which downstream then reads as a completed cell.
+            raise RuntimeError(
+                f"[final-eval] evaluation failed: {ex}. This is fatal for a "
+                f"paper run: the cell would exit successfully with no metrics, "
+                f"and a reader cannot tell that from a cell that has them."
+            ) from ex
         # Restore (post-eval compositional uses _cache below; keep it on eval cache too)
         # so compositional_eval reads correctly on the eval-cache features.
 
