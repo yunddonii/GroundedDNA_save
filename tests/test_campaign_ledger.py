@@ -162,3 +162,44 @@ def test_the_cli_refuses_the_same_way_the_module_does(tmp_path):
                    "--status", "ok").returncode == 0
     assert run("seal", "--ledger", str(ledger)).returncode == 0
     assert run("verify", "--ledger", str(ledger), "--plan", str(plan)).returncode == 0
+
+
+# ---------------------------------------------------------------------------
+# The chain's own shell, executed. `mapfile -t < <(producer)` checks mapfile's
+# status and never the producer's -- the third defect the chain was rewritten to
+# remove, and it went straight back in during that rewrite. This runs the real
+# construct against a producer that prints rows and then dies.
+# ---------------------------------------------------------------------------
+
+def test_a_cell_producer_that_dies_partway_is_not_accepted(tmp_path):
+    script = tmp_path / "reader.sh"
+    script.write_text(
+        'set -Eeuo pipefail\n'
+        'ROWS_FILE=$(mktemp)\n'
+        'bash "$1" > "$ROWS_FILE" || { echo "producer failed"; exit 1; }\n'
+        'ROWS=()\n'
+        'while IFS= read -r row; do ROWS+=("$row"); done < "$ROWS_FILE"\n'
+        'echo "accepted ${#ROWS[@]}"\n')
+    producer = tmp_path / "producer.sh"
+    producer.write_text('printf "a\\nb\\nc\\n"\nexit 23\n')
+    proc = subprocess.run(["bash", str(script), str(producer)],
+                          capture_output=True, text=True, timeout=60)
+    assert proc.returncode != 0, proc.stdout
+    assert "accepted" not in proc.stdout, (
+        "three rows were read from a producer that exited 23")
+
+
+def test_the_launcher_does_not_read_the_plan_per_cell():
+    """TOCTOU: the twenty-fourth cell must not run a plan cell one never saw.
+
+    The executing proof is in test_ablation_campaign_launcher.py, which edits a
+    plan mid-run; this only guards the two constructs from coming back.
+    """
+    source = "\n".join(
+        line for line
+        in (REPO / "scripts" / "run_ablation_campaign.sh").read_text().splitlines()
+        if not line.strip().startswith("#"))
+    assert "--expect-plan-sha256" in source, (
+        "every cell must be started against the digest hashed at build time")
+    assert "mapfile -t" not in source, (
+        "mapfile's status is not the producer's status")

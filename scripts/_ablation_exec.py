@@ -85,6 +85,9 @@ def load_plan(path: Path, *, expect_sha256: str | None) -> dict:
     # Uniqueness is checked over the tag, which is the result directory the cell
     # will claim. `len(cells) == expected` says nothing about coverage: a plan
     # holding one cell twice has the right length and one fewer configuration.
+    for key in ("env_passthrough", "env_pinned", "runners"):
+        if not isinstance(plan.get(key), list):
+            raise PlanRejected(f"{path}: {key} is not a list")
     tags = [c.get("tag") for c in cells if isinstance(c, dict)]
     if len(tags) != len(cells):
         raise PlanRejected(f"{path}: a cell is not an object")

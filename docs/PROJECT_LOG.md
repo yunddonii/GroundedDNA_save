@@ -568,6 +568,35 @@ evidence about one machine, not about the commit. Two tests now assert the files
 are in `git archive HEAD` and that the committed records re-derive the committed
 choice.
 
+**The campaign is now a program, not a comment (`scripts/run_ablation_campaign.sh`).**
+§48.4's last point was that the loop sat below `auto_chain_after_3seed.sh`'s
+`exit 91`, so every line of it was unreachable and the tests around it were
+evidence about a file. Step 2 is a separate launcher now; the chain calls it.
+`tests/test_ablation_campaign_launcher.py` drives the real launcher, the real
+executor and the real ledger over stub cells: a complete campaign seals; one
+dead cell out of twelve leaves NO receipt and exit 1; a second campaign is
+refused before any cell starts; a plan rewritten mid-run makes the later cells
+refuse with "the plan changed after the run began"; and a hostile
+`K=999 NUM_CODONS=4 FIXED_N=77` in the launcher's own environment reaches the
+children as `k=64 n=4`.
+
+Self-review caught one regression before the auditor did: the rewritten chain
+reintroduced `mapfile -t ROWS < <(producer)` -- the exact pattern the file had
+been rewritten to remove, in the same commit that removed it. Replaced with a
+temp file so the producer's status is the only status, and covered by an
+executing test (`producer prints three rows, exits 23` -> not accepted).
+
+Also fixed while retargeting the stale assertions, in the chain's step 1:
+`--baseline_names CIBHash CIMON SDC OH CroVCA` was a FIXED list while `dirs`
+lost an entry for every method that was skipped, so one missing CIMON silently
+relabelled SDC's directory as CIMON and shifted every column after it. Names are
+built alongside the directories now, and an empty set skips the decode instead
+of calling it with no baselines.
+
+**Dry-run of the real campaign, before any GPU:** 24 cells planned, reserved,
+executed and sealed; receipt records plan `c971ed34e187` and
+N = CIFAR 39 / Flickr 4 / NUS 4 / COCO 39.
+
 ### Not done, and why -- RunIdentity's ablation axes (§47.2 / §48.4)
 
 `selection_mode` is a LABEL; A5_none / A5_joint / A5_nogumbel / A5_both differ in

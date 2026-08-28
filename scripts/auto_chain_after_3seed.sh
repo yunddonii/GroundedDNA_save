@@ -142,24 +142,39 @@ for E in $DS_LIST; do
     elif [ "$SLUG" = flickr25k ]; then MAN=dataset/Flickr25k/setting1/train.txt
     elif [ "$SLUG" = nuswide ];  then MAN=dataset/NUSWIDE/setting1/train_10500.txt
     else MAN=""; fi
-    dirs=(); for m in cibhash cimon sdc-paper oh crovca; do
+    # `--baseline_names` used to be the fixed list CIBHash CIMON SDC OH CroVCA
+    # while `dirs` lost an entry for every method that was skipped, so one
+    # missing CIMON silently relabelled SDC's directory as CIMON and shifted
+    # every column after it. The names are built alongside the directories now.
+    dirs=(); names=()
+    _labels=(CIBHash CIMON SDC OH CroVCA)
+    _methods=(cibhash cimon sdc-paper oh crovca)
+    for _j in "${!_methods[@]}"; do
+        m="${_methods[$_j]}"
         # One baseline evaluation per method, or name the ambiguous method
-        # rather than taking whichever sorted first.
-        mapfile -t _cand < <(ls -d $B/*/u0_${m}_${SLUG}_30b_seed42/attempt_*/*/*_dnaeval 2>/dev/null || true)
+        # rather than taking whichever sorted first. `ls` fails only by matching
+        # nothing, which the count below is what handles.
+        _cand=()
+        while IFS= read -r _d; do [ -n "$_d" ] && _cand+=("$_d"); done < <(
+            ls -d $B/*/u0_${m}_${SLUG}_30b_seed42/attempt_*/*/*_dnaeval 2>/dev/null || true)
         if [[ "${#_cand[@]}" -ne 1 ]]; then
             say "  baseline $m/$SLUG: ${#_cand[@]} candidate dirs; skipping"
             continue
         fi
-        dirs+=("${_cand[0]}"); done
-    say "  decode $SLUG"
+        dirs+=("${_cand[0]}"); names+=("${_labels[$_j]}")
+    done
+    say "  decode $SLUG (${#dirs[@]} baselines: ${names[*]:-none})"
+    if [[ "${#dirs[@]}" -eq 0 ]]; then
+        say "  no baseline directory resolved for $SLUG; skipping decode"
+        continue
+    fi
     "$PY" scripts/heldout_codon_decoding.py --ours_dir "$OURS" --dataset "$CANON" \
         --bio_project ${MAN:+--train_manifest "$MAN"} \
-        --baseline_dirs "${dirs[@]}" --baseline_names CIBHash CIMON SDC OH CroVCA \
+        --baseline_dirs "${dirs[@]}" --baseline_names "${names[@]}" \
         --out "docs/heldout_decoding_${SLUG}_fixedN.json" >> "$LOG" 2>&1
 done
 say "step 1 done"
 
-declare -a ABL_PIDS=()
 
 # ---- 2) 4.8 causal ablation (A2 / A4 / A5) ---------------------------------
 #
@@ -188,80 +203,19 @@ declare -a ABL_PIDS=()
 # 127; and `mapfile ... < <(producer)` checked mapfile's status rather than the
 # producer's. The shell decides nothing now.
 PLAN=${PLAN:-artifacts/ablation_campaign_plan.json}
+LEDGER=${LEDGER:-artifacts/ablation_campaign}
 say "step 2: building the campaign plan"
 "$PY" scripts/ablation_campaign_plan.py --out "$PLAN" --require-provenance || {
     say "  plan refused; not starting any cell"; exit 1; }
 
-# The plan is hashed ONCE, here, and every cell is started against that digest.
-# Re-reading the file per cell -- which is what the loop below used to do, three
-# times per iteration -- means the twenty-fourth cell can run a plan the first
-# cell never saw. The executor re-derives this digest and refuses a mismatch.
-PLAN_SHA=$("$PY" -c "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "$PLAN")
-# One read, into two parallel arrays, instead of 3N reads of a mutable file.
-mapfile -t PLAN_ROWS < <("$PY" -c "
-import json, sys
-plan = json.load(open(sys.argv[1]))
-for cell in plan['cells']:
-    print(cell['cell'], cell['exp'], sep='\t')
-" "$PLAN")
-NCELLS=${#PLAN_ROWS[@]}
-EXPECTED=$("$PY" -c "import json,sys;print(json.load(open(sys.argv[1]))['expected_cells'])" "$PLAN")
-[[ "$NCELLS" == "$EXPECTED" ]] || {
-    say "  plan has $NCELLS cells, expected $EXPECTED"; exit 1; }
-say "step 2: $NCELLS cells planned, plan ${PLAN_SHA:0:12}"
-
-# Reserve the whole campaign before starting any of it. `O_EXCL` means a second
-# chain fails HERE rather than 150 seconds later inside a result directory the
-# first one is already writing, and the reservation freezes this plan's digest
-# so a cell recorded against a rebuilt plan cannot be sealed as this campaign's.
-LEDGER=${LEDGER:-artifacts/ablation_campaign}
-"$PY" scripts/campaign_ledger.py open --ledger "$LEDGER" --plan "$PLAN" \
-    | tee -a "$LOG" || { say "  campaign not reserved; starting nothing"; exit 1; }
-
-for i in $(seq 0 $((NCELLS - 1))); do
-    IFS=$'\t' read -r CELL EXP <<<"${PLAN_ROWS[$i]}"
-    wait_idle; g=${G%% *}
-    say "  $CELL $EXP -> GPU $g"
-    # `env -i` plus the plan's allow-list: the fixedN wrapper reads NUM_CODONS,
-    # CURVE, K, WHITEN_VARIANT and more from the environment, and an inherited
-    # NUM_CODONS=4 turns the paper's 15 bases into 20 while CURVE=1 drops
-    # FINAL_EPOCH and switches to the test-monitored path.
-    "$PY" scripts/_ablation_exec.py --plan "$PLAN" --index "$i" --gpu "$g" \
-        --expect-plan-sha256 "$PLAN_SHA" \
-        > "logs/ABL_${CELL}_${EXP}.out" 2>&1 &
-    ABL_PIDS+=("$!:${CELL}_${EXP}:$i")
-    sleep 150
-done
-while busy; do sleep 120; done
-# `while busy` watches process names and GPU memory, which is not the same as
-# every child having succeeded.
-ABL_FAILED=0
-for entry in "${ABL_PIDS[@]:-}"; do
-    [[ -n "$entry" ]] || continue
-    IFS=: read -r pid name idx <<<"$entry"
-    TAG=$("$PY" -c "import json,sys;print(json.load(open(sys.argv[1]))['cells'][int(sys.argv[2])]['tag'])" "$PLAN" "$idx")
-    # `wait` is the only place the child's status exists; recording it here is
-    # what makes "23 of 24" different from "24 of 24" to every later reader.
-    # `|| true` around wait, because errexit would end the chain before the
-    # ledger learned that this cell failed.
-    rc=0; wait "$pid" 2>/dev/null || rc=$?
-    if [[ "$rc" == "0" ]]; then
-        say "  $name ok"
-        "$PY" scripts/campaign_ledger.py record --ledger "$LEDGER" \
-            --tag "$TAG" --status ok >>"$LOG" 2>&1
-    else
-        say "  $name FAILED rc=$rc (see logs/ABL_${name}.out)"
-        "$PY" scripts/campaign_ledger.py record --ledger "$LEDGER" \
-            --tag "$TAG" --status failed --detail "rc=$rc" >>"$LOG" 2>&1
-        ABL_FAILED=1
-    fi
-done
-# The seal is the gate, not the flag: a campaign missing a cell it never
-# started has ABL_FAILED=0 and still must not become a table.
-"$PY" scripts/campaign_ledger.py seal --ledger "$LEDGER" | tee -a "$LOG" || {
-    say "step 2 INCOMPLETE -- no completion receipt, so nothing downstream may read these cells"
-    exit 1; }
-[[ "$ABL_FAILED" == "0" ]] || { say "step 2 INCOMPLETE"; exit 1; }
+# The launch itself lives in scripts/run_ablation_campaign.sh. It used to be
+# inline here, below this file's `exit 91`, which made every line of it
+# unreachable -- so nothing about the loop could be executed, and the tests
+# around it were evidence about a file rather than about a launcher. Splitting
+# it out is what lets tests/test_ablation_campaign_launcher.py drive the real
+# plan -> reserve -> 24 cells -> seal path with stub trainers.
+bash scripts/run_ablation_campaign.sh --plan "$PLAN" --ledger "$LEDGER" \
+    2>&1 | tee -a "$LOG" || { say "step 2 INCOMPLETE"; exit 1; }
 say "step 2 done"
 
 # ---- 3) 4.10.3 slot intervention -------------------------------------------

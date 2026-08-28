@@ -31,6 +31,7 @@ sys.path.insert(0, str(REPO))
 PLANNER = REPO / "scripts" / "ablation_campaign_plan.py"
 EXECUTOR = REPO / "scripts" / "_ablation_exec.py"
 CHAIN = REPO / "scripts" / "auto_chain_after_3seed.sh"
+LAUNCHER = REPO / "scripts" / "run_ablation_campaign.sh"
 PY = os.environ.get("PY", sys.executable)
 
 _DATASETS = ("CIFAR10", "Flickr25k", "NUSWIDE", "MSCOCO")
@@ -187,14 +188,24 @@ def test_every_planned_cell_resolves_without_dying(plan, index):
 
 # ------------------------------------------------- the chain reads the plan
 
-def test_the_chain_no_longer_computes_cells_in_bash():
-    commands = "\n".join(
-        line for line in CHAIN.read_text().splitlines()
-        if not line.strip().startswith("#"))
-    assert "ablation_campaign_plan.py" in commands
-    assert "_ablation_exec.py" in commands
-    for broken in ('CELL_K=$(printf', '${CELL_K:+K=', "mapfile -t CELLS"):
-        assert broken not in commands, f"still decides in bash: {broken}"
+def test_no_shell_in_the_launch_path_computes_a_cell():
+    """The three constructs that made every cell unlaunchable, in BOTH files.
+
+    The chain builds the plan and delegates; the launcher runs it. Checking only
+    the chain stopped meaning anything the moment the loop moved, which is how
+    this assertion passed while its subject was somewhere else.
+    """
+    for path in (CHAIN, LAUNCHER):
+        commands = "\n".join(
+            line for line in path.read_text().splitlines()
+            if not line.strip().startswith("#"))
+        for broken in ('CELL_K=$(printf', '${CELL_K:+K=', "mapfile -t"):
+            assert broken not in commands, \
+                f"{path.name} still decides in bash: {broken}"
+    chain = CHAIN.read_text()
+    assert "ablation_campaign_plan.py" in chain
+    assert "run_ablation_campaign.sh" in chain
+    assert "_ablation_exec.py" in LAUNCHER.read_text()
 
 
 def test_the_plan_refuses_when_a_cache_cannot_be_accounted_for(tmp_path):
