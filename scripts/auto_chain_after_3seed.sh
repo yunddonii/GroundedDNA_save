@@ -160,24 +160,21 @@ declare -a ABL_PIDS=()
 #       noGumbel alone is harmful on some datasets and only helps in
 #       combination. Collapsing that to one cell would have hidden exactly the
 #       interaction it exists to show.
-# Every ablation's flags are parsed before the first GPU second. Two of the
-# three commands could not have run at all, and would have died at the first
-# cell -- hours into a chain that had already trained the ones before it.
-say "step 2: preflight -- parsing every ablation command"
+# The cells come from `dna_utils/ablation_spec.py`, not from strings written
+# here. Hand-writing them hid a collapse the tags could not show: the shared
+# `S5` prefix carries `--no_gumbel_softmax` unconditionally, so A5none composed
+# to the same command as A5nogumbel and A5joint to the same as A5both -- four
+# tags, two configurations. The spec also gives A4 its matched total capacity
+# and every cell a distinct `--selection_mode`, so two cells cannot land in one
+# result directory.
+say "step 2: preflight -- composing every ablation cell against the real parser"
 for E in $DS_LIST; do
     IFS=: read -r EXP CANON SLUG <<<"$E"
-    N=$(getN "$EXP"); JD=$(getJD "$EXP")
-    for AB in "A2:--disable_text_supervision --lambda_text_code_kl 0.0 --lambda_text_hash_ntxent 0.0 --lambda_xmodal_commit 0.0" \
-              "A4:--share_codebook" \
-              "A5none:--lambda_codon_joint 0.0" \
-              "A5joint:--lambda_codon_joint $JD" \
-              "A5nogumbel:--lambda_codon_joint 0.0 --no_gumbel_softmax" \
-              "A5both:--lambda_codon_joint $JD --no_gumbel_softmax"; do
-        TAG=${AB%%:*}; FLAGS=${AB#*:}
-        GDNA_NUM_SEMANTIC_PARTS=5 "$PY" scripts/_ablation_preflight.py -- \
-            $S5 $T69 $FLAGS >/dev/null || {
-            say "  PREFLIGHT FAILED: $TAG $EXP"; exit 1; }
-    done
+    while read -r CELL; do
+        "$PY" scripts/_ablation_cells.py --flags "$CELL" --dataset "$CANON" \
+            --base "$S5 $T69" >/dev/null || {
+            say "  PREFLIGHT FAILED: $CELL $EXP"; exit 1; }
+    done < <("$PY" scripts/_ablation_cells.py --list A2 A4 A5 --dataset "$CANON")
 done
 say "step 2: preflight ok"
 
@@ -185,30 +182,25 @@ say "step 2: 4.8 ablation"
 for E in $DS_LIST; do
     IFS=: read -r EXP CANON SLUG <<<"$E"
     N=$(getN "$EXP"); JD=$(getJD "$EXP")
-    # A5 is four cells, not one: neither / joint only / noGumbel only / both.
-    for AB in "A2:--disable_text_supervision --lambda_text_code_kl 0.0 --lambda_text_hash_ntxent 0.0 --lambda_xmodal_commit 0.0" \
-              "A4:--share_codebook" \
-              "A5none:--lambda_codon_joint 0.0" \
-              "A5joint:--lambda_codon_joint $JD" \
-              "A5nogumbel:--lambda_codon_joint 0.0 --no_gumbel_softmax" \
-              "A5both:--lambda_codon_joint $JD --no_gumbel_softmax"; do
-        TAG=${AB%%:*}; FLAGS=${AB#*:}
-        wait_idle; g=${G%% *}
-        say "  $TAG $EXP -> GPU $g"
-        # A5 sets `--lambda_codon_joint` itself, so it must not also come from
-        # the shared prefix; A2/A4 keep the champion value.
-        case "$TAG" in
-            A5*) BASE_FLAGS="$S5 $T69 -e $((N+1))" ;;
-            *)   BASE_FLAGS="$S5 --lambda_codon_joint $JD $T69 -e $((N+1))" ;;
+    while read -r CELL; do
+        # `--lambda_codon_joint` is a cell-owned axis for A5, so the champion
+        # value only joins cells that do not set it themselves.
+        FLAGS=$("$PY" scripts/_ablation_cells.py --flags "$CELL" \
+                    --dataset "$CANON" --base "$S5 $T69") || exit 1
+        case "$FLAGS" in
+            *--lambda_codon_joint*) ;;
+            *) FLAGS="$FLAGS --lambda_codon_joint $JD" ;;
         esac
+        wait_idle; g=${G%% *}
+        say "  $CELL $EXP -> GPU $g"
         GDNA_NUM_SEMANTIC_PARTS=5 HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 \
-        FIXED_N="$N" EVERY=1 TAG_SUFFIX="_$TAG" \
-        AUX_ARGS="$BASE_FLAGS $FLAGS" \
+        FIXED_N="$N" EVERY=1 TAG_SUFFIX="_$CELL" \
+        AUX_ARGS="$FLAGS -e $((N+1))" \
         setsid nohup bash scripts/prompt_ablation_A_cell_fixedN.sh "$g" "$EXP" \
-            > "logs/ABL_${TAG}_${EXP}.out" 2>&1 < /dev/null &
-        ABL_PIDS+=("$!:${TAG}_${EXP}")
+            > "logs/ABL_${CELL}_${EXP}.out" 2>&1 < /dev/null &
+        ABL_PIDS+=("$!:${CELL}_${EXP}")
         sleep 150
-    done
+    done < <("$PY" scripts/_ablation_cells.py --list A2 A4 A5 --dataset "$CANON")
 done
 while busy; do sleep 120; done
 # `while busy` watches process names and GPU memory, which is not the same as

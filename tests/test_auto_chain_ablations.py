@@ -71,34 +71,105 @@ def test_the_corrected_ablation_flags_parse(flags):
 # ------------------------------------------------- what the chain now runs
 
 def _commands() -> str:
-    """The lines bash executes -- comments explain the old bugs by name, so
-    asserting over the whole file would match its own explanation."""
+    """The lines bash executes -- the comments name the old bugs, so asserting
+    over the whole file would match its own explanation."""
     return "\n".join(line for line in CHAIN.read_text().splitlines()
                       if not line.strip().startswith("#"))
 
 
+_BASE = ("--num_semantic_parts 5 --num_codebooks 5 --no_gumbel_softmax "
+         "--lambda_codeword_codon_sinkhorn 0.0 "
+         "--routing_adaptive_topp_min 0.6 --routing_adaptive_topp_max 0.95")
+_CELLS = REPO / "scripts" / "_ablation_cells.py"
+
+
+def _effective(cell: str, dataset: str = "CIFAR10") -> list:
+    """What the child actually receives, composed base and all."""
+    proc = subprocess.run(
+        [PY, str(_CELLS), "--flags", cell, "--dataset", dataset,
+         "--base", _BASE],
+        capture_output=True, text=True, cwd=str(REPO), timeout=300)
+    assert proc.returncode == 0, proc.stderr
+    return proc.stdout.split()
+
+
+def _declared_cells(dataset: str = "CIFAR10") -> list:
+    proc = subprocess.run(
+        [PY, str(_CELLS), "--list", "A2", "A4", "A5", "--dataset", dataset],
+        capture_output=True, text=True, cwd=str(REPO), timeout=300)
+    assert proc.returncode == 0, proc.stderr
+    return proc.stdout.split()
+
+
+def test_the_a5_factorial_is_four_DISTINCT_commands():
+    """The test that would have caught the collapse.
+
+    The shared base carries `--no_gumbel_softmax` unconditionally, so A5_none
+    composed to the same command as A5_nogumbel and A5_joint to the same as
+    A5_both: four tags, two configurations. Checking that four tag STRINGS
+    existed said the factorial was present. This compares what the child gets.
+    """
+    composed = {c: _effective(c) for c in
+                ("A5_none", "A5_joint", "A5_nogumbel", "A5_both")}
+    # The axis that collapsed.
+    gumbel = {c: ("--no_gumbel_softmax" in f) for c, f in composed.items()}
+    assert gumbel == {"A5_none": False, "A5_joint": False,
+                      "A5_nogumbel": True, "A5_both": True}
+    # And no two cells are the same command.
+    keys = [tuple(sorted(f)) for f in composed.values()]
+    assert len(set(keys)) == 4, "two A5 cells compose to the same command"
+
+
+def test_the_base_recipe_cannot_decide_a_cell_owned_axis():
+    """A base that already says the flag makes "with" and "without" identical."""
+    for cell in ("A5_none", "A5_joint"):
+        assert "--no_gumbel_softmax" not in _effective(cell)
+
+
 def test_a2_actually_disables_the_text_path():
-    a2 = [line for line in _commands().splitlines() if '"A2:' in line]
-    assert len(a2) == 2, "A2 appears in the preflight and in the run loop"
-    for line in a2:
-        assert "--disable_text_supervision" in line, (
-            "zeroing the text losses leaves caption-derived routing active")
+    flags = _effective("A2_no_text")
+    assert "--disable_text_supervision" in flags, (
+        "zeroing the text losses leaves caption-derived routing active")
+    for loss in ("--lambda_text_code_kl", "--lambda_text_hash_ntxent",
+                 "--lambda_xmodal_commit"):
+        assert flags[flags.index(loss) + 1] == "0.0"
 
 
-def test_a4_ties_the_codebooks_rather_than_shrinking_them():
+@pytest.mark.parametrize("dataset,k", [
+    ("CIFAR10", 64), ("Flickr25k", 128), ("NUSWIDE", 128), ("MSCOCO", 128)])
+def test_a4_shares_at_matched_total_capacity(dataset, k):
+    """Sharing at the per-slot size would confound sharing with size."""
+    flags = _effective("A4_shared_codebook", dataset)
+    assert "--share_codebook" in flags
+    assert "--num_codebooks" in flags and \
+        flags[flags.index("--num_codebooks") + 1] == "5"
+    assert flags[flags.index("--codebook_size") + 1] == str(5 * k)
+
+
+def test_every_cell_carries_its_own_selection_mode():
+    """Two cells sharing a mode would compete for one result directory."""
+    modes = {}
+    for cell in _declared_cells():
+        flags = _effective(cell)
+        assert "--selection_mode" in flags, cell
+        modes[cell] = flags[flags.index("--selection_mode") + 1]
+    assert len(set(modes.values())) == len(modes), modes
+
+
+def test_the_chain_reads_the_declared_spec_rather_than_its_own_strings():
     commands = _commands()
-    assert "--num_codebooks 1" not in commands
-    assert commands.count('"A4:--share_codebook"') == 2
-
-
-def test_a5_is_the_two_by_two_factorial_the_paper_reports():
-    """One cell would hide the interaction the ablation exists to show."""
-    commands = _commands()
+    assert "_ablation_cells.py" in commands
+    # The hand-written cell strings are gone, along with the flags that could
+    # not run.
+    assert '"A5nogumbel:' not in commands
     assert "--router_type mean" not in commands
-    for cell in ("A5none", "A5joint", "A5nogumbel", "A5both"):
-        assert f'"{cell}:' in commands, f"{cell} missing from the factorial"
-    # noGumbel alone is one of the four, because alone it is sometimes harmful.
-    assert '"A5nogumbel:--lambda_codon_joint 0.0 --no_gumbel_softmax"' in commands
+    assert "--num_codebooks 1" not in commands
+
+
+def test_the_declared_set_is_a2_a4_and_the_a5_factorial():
+    assert _declared_cells() == [
+        "A2_no_text", "A4_shared_codebook",
+        "A5_none", "A5_joint", "A5_nogumbel", "A5_both"]
 
 
 def test_the_chain_stops_on_a_failed_step():
