@@ -189,13 +189,19 @@ def load_run_manifest(run_dir: str) -> Optional[RunIdentity]:
         d = json.load(open(p))
     except (OSError, json.JSONDecodeError):
         return None
-    d.pop("digest", None)
+    stored = d.pop("digest", None)
     if d.get("schema_version") != _SCHEMA_VERSION:
         return None
     try:
-        return RunIdentity(**d)
+        identity = RunIdentity(**d)
     except TypeError:
         return None
+    # The digest is a property of the fields, so a forged one cannot change
+    # what this run IS -- but a manifest whose two halves disagree has been
+    # edited, and saying so is better than silently preferring one half.
+    if stored is not None and stored != identity.digest:
+        return None
+    return identity
 
 
 def write_run_manifest(run_dir: str, identity: RunIdentity) -> str:

@@ -337,3 +337,22 @@ def test_a_previous_generation_manifest_is_not_readable_as_this_one(tmp_path):
         "lr_schedule_horizon": 60, "sinkhorn_schedule_horizon": 5,
         "selection_mode": "refit"}))
     assert load_run_manifest(str(run)) is None
+
+
+def test_a_manifest_whose_digest_contradicts_its_fields_is_refused(tmp_path):
+    """The stored digest used to be dropped without being compared.
+
+    It cannot change what the run IS -- the digest is recomputed from the
+    fields -- but a manifest whose two halves disagree has been edited, and
+    reporting that is better than silently preferring one half.
+    """
+    from dna_utils.run_identity import MANIFEST_NAME, load_run_manifest
+
+    run = tmp_path / "run"
+    claim_run_dir(str(run), _identity())
+    path = run / MANIFEST_NAME
+    payload = json.loads(path.read_text())
+    assert payload["digest"] == _identity().digest
+    payload["digest"] = "0" * 64
+    path.write_text(json.dumps(payload))
+    assert load_run_manifest(str(run)) is None

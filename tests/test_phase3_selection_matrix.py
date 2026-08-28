@@ -131,21 +131,30 @@ def test_the_selection_metric_is_raw_base_hamming():
 # ------------------------------------------------ the geometry assertion
 
 def _fake_run(tmp_path: Path, *, slots=SLOTS, codons=BASES_PER_SLOT,
-              dataset="CIFAR10", n=4, k=64) -> Path:
+              dataset="CIFAR10", n=4, k=64, **overrides) -> Path:
+    """A cell that satisfies the WHOLE protocol, so a test that breaks one axis
+    breaks only that axis."""
     from types import SimpleNamespace
     from dna_utils.run_identity import RunIdentity, write_run_manifest
+    from scripts.phase3_selection_matrix import DATASETS, VAL_RATIO
 
+    cache = DATASETS["cifar10"]["cache"]
     run = tmp_path / "run"
     run.mkdir(exist_ok=True)
     fields = {"num_semantic_parts": slots, "num_codebooks": slots,
               "num_codons_per_codebook": codons}
     (run / "args.txt").write_text(
         "\n".join(f"{k_}{'-' * 20}{v}" for k_, v in fields.items()) + "\n")
-    write_run_manifest(str(run), RunIdentity.from_args(SimpleNamespace(
+    args = dict(
         dataset=dataset, setting="setting1", random_seed=SEED, epoch=60,
         stop_after_epoch=n, num_semantic_parts=slots,
         num_codons_per_codebook=codons, codebook_size=k,
-        selection_mode="select", val_split_ratio=0.1, val_split_seed=SEED)))
+        selection_mode="select", val_split_ratio=VAL_RATIO,
+        val_split_seed=SEED, lr_schedule_horizon=LR_HORIZON,
+        sinkhorn_schedule_horizon=n + 1,
+        siglip2_feature_cache_dir=cache, eval_cache_dir=cache)
+    args.update(overrides)
+    write_run_manifest(str(run), RunIdentity.from_args(SimpleNamespace(**args)))
     return run
 
 
@@ -170,6 +179,26 @@ def test_a_cell_that_is_not_the_one_asked_for_is_refused(tmp_path, field, value)
     run = _fake_run(tmp_path, **kwargs)
     with pytest.raises(CellRefused):
         assert_geometry(run, dataset="cifar10", n=4)
+
+
+@pytest.mark.parametrize("field,value", [
+    ("selection_mode", "refit"),
+    ("val_split_ratio", 0.9),
+    ("val_split_seed", 999),
+    ("epoch", 7),
+    ("lr_schedule_horizon", 3),
+    ("sinkhorn_schedule_horizon", 999),
+    ("siglip2_feature_cache_dir", "/tmp/not_the_cache"),
+    ("eval_cache_dir", "/tmp/not_the_cache"),
+])
+def test_every_protocol_axis_is_checked_not_just_the_geometry(
+        tmp_path, field, value):
+    """A probe with mode=refit, budget 7, horizons 3/999, val split .9/999 and
+    fake caches passed the subset the first version checked."""
+    run = _fake_run(tmp_path, **{field: value})
+    with pytest.raises(CellRefused) as excinfo:
+        assert_geometry(run, dataset="cifar10", n=4)
+    assert "manifest disagrees" in str(excinfo.value)
 
 
 def test_args_and_manifest_must_agree(tmp_path):
@@ -306,15 +335,71 @@ def test_the_caller_environment_cannot_redefine_the_recipe(monkeypatch):
     assert env["CCS"] == "0.1"
 
 
-def test_the_child_runs_under_pipefail():
-    """The trainers end in `| tee` under `set -eu`, so tee's status wins."""
+def test_the_child_runs_under_pipefail(tmp_path):
+    """Executed, not grepped.
+
+    The first attempt was `bash -o pipefail -c 'bash trainer.sh'`, which sets
+    the option on the OUTER shell while the pipeline runs in the inner one --
+    shell options do not survive the exec, so a failing python still came back
+    as tee's zero. A source-substring test saw the literal `"-o", "pipefail"`
+    and passed anyway.
+    """
+    import subprocess as _sp
+
+    trainer = tmp_path / "trainer.sh"
+    trainer.write_text("#!/usr/bin/env bash\nset -eu\n(exit 3) | cat\n")
+
+    # The form that was committed first: the failure is masked.
+    masked = _sp.run(
+        ["bash", "-o", "pipefail", "-c", f"bash {trainer}"],
+        capture_output=True, text=True, timeout=60)
+    assert masked.returncode == 0, "the broken form must still be broken"
+
+    # The form in use: the option is on the shell that runs the pipeline.
+    surfaced = _sp.run(["bash", "-o", "pipefail", str(trainer)],
+                       capture_output=True, text=True, timeout=60)
+    assert surfaced.returncode == 3
+
+    # And that is what the launcher builds.
     source = (REPO / "scripts" / "phase3_selection_matrix.py").read_text()
-    assert '"-o", "pipefail"' in source
-    for trainer in ("train_cifar10_v185_bidirTokenPrune05_ccs01_clip.sh",
-                    "train_flickr25k_v185_bidirTokenPrune05_clip.sh",
-                    "train_nuswide_v185_sweep_clip.sh",
-                    "train_mscoco_F2_sweep_clip.sh"):
-        text = (REPO / "scripts" / trainer).read_text()
-        assert "pipefail" not in text, (
-            f"{trainer} now sets pipefail itself; the launcher's wrapper "
-            f"should be revisited")
+    assert '["bash", "-o", "pipefail", *cmd[1:]]' in source
+    assert '"-o", "pipefail", "-c"' not in source
+
+
+def test_the_launcher_prints_a_completed_cell_without_crashing(tmp_path):
+    """The success path was never executed by a test, and it raised KeyError.
+
+    `run_cell` published the per-cell record and returned; `main` then read a
+    field that had been renamed out from under it. So a finished cell left an
+    admission-looking record behind while the launcher exited 1 -- "a record
+    exists" and "the launcher succeeded" became different states.
+    """
+    record = {
+        "dataset": "cifar10", "N": 4,
+        "geometry": {"num_semantic_parts": 5},
+        "selection": {"selection_value": 0.5775,
+                      "selection_epoch_zero_based": 4},
+    }
+    # Exactly the interpolation `main` performs on a successful cell.
+    line = (f"[phase3] {record['dataset']}/N{record['N']} ok  "
+            f"bases={record['geometry']}  "
+            f"mAP@R={record['selection']['selection_value']:.4f} "
+            f"@epoch {record['selection']['selection_epoch_zero_based']}")
+    assert "@epoch 4" in line
+
+    source = (REPO / "scripts" / "phase3_selection_matrix.py").read_text()
+    assert "best_epoch_zero_based" not in source, (
+        "main() reads a field read_selection no longer writes")
+
+
+def test_a_candidate_whose_terminal_epoch_is_never_scored_is_refused():
+    """The retrieval eval runs on a cadence, not every epoch.
+
+    Every N in the current grid happens to satisfy (N+1) % 5 == 0. That is a
+    coincidence, and it stops holding the moment someone edits the grid.
+    """
+    from scripts.phase3_selection_matrix import EVAL_EVERY
+
+    assert all((n + 1) % EVAL_EVERY == 0 for n in CANDIDATE_N), (
+        "the grid no longer lines up with the eval cadence; the launcher will "
+        "refuse those cells, which is correct, but the grid needs a decision")

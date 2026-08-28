@@ -60,6 +60,10 @@ VAL_SEED = 42
 #: comparing N compares training length rather than three coupled knobs.
 LR_HORIZON = 60
 EPOCH_BUDGET = 60
+#: `--eval_every`'s default. The retrieval score exists only on this cadence
+#: (or at the nominal final epoch), so it decides whether a candidate's own
+#: terminal epoch is scored at all.
+EVAL_EVERY = 5
 
 #: The paper's geometry, asserted before and after every cell.
 SLOTS, BASES_PER_SLOT = 5, 3
@@ -292,7 +296,12 @@ def _arg_value(args_txt: Path, field: str) -> str:
     raise CellRefused(f"{args_txt} has no field {field!r}")
 
 
-def assert_geometry(run_dir: Path, *, dataset: str, n: int) -> dict:
+def assert_geometry(run_dir: Path, *, dataset: str, n: int,
+                    stop: int | None = None, seed: int = SEED,
+                    mode: str = "select", val_ratio: float = VAL_RATIO,
+                    budget: int | None = None,
+                    lr_horizon: int | None = None,
+                    sinkhorn_horizon: int | None = None) -> dict:
     """The check the 18-base smoke did not have.
 
     Both the effective arguments and the sealed run manifest must say the
@@ -300,6 +309,11 @@ def assert_geometry(run_dir: Path, *, dataset: str, n: int) -> dict:
     flag without the environment variable aborts, and the environment variable
     without the flag would leave `args.txt` describing something else.
     """
+    stop = n if stop is None else stop
+    budget = EPOCH_BUDGET if budget is None else budget
+    lr_horizon = LR_HORIZON if lr_horizon is None else lr_horizon
+    sinkhorn_horizon = (stop + 1) if sinkhorn_horizon is None \
+        else sinkhorn_horizon
     args_txt = run_dir / "args.txt"
     if not args_txt.is_file():
         raise CellRefused(f"{run_dir}: no args.txt")
@@ -320,23 +334,50 @@ def assert_geometry(run_dir: Path, *, dataset: str, n: int) -> dict:
     identity = load_run_manifest(str(run_dir))
     if identity is None:
         raise CellRefused(f"{run_dir}: no readable {MANIFEST_NAME}")
-    manifest_bad = {
-        k: (got, exp) for k, got, exp in (
-            ("num_slots", identity.num_slots, SLOTS),
-            ("bases_per_slot", identity.bases_per_slot, BASES_PER_SLOT),
-            ("total_bases", identity.total_bases, TOTAL_BASES),
-            ("total_bits", identity.total_bits, TOTAL_BITS),
-            ("dataset", identity.dataset, DATASETS[dataset]["canon"]),
-            ("seed", identity.seed, SEED),
-            ("stop_after_epoch", identity.stop_after_epoch, n),
-            ("codebook_size", identity.codebook_size, DATASETS[dataset]["K"]),
-        ) if got != exp}
+    spec = DATASETS[dataset]
+    # EVERY axis the protocol fixes, not the handful that used to be checked.
+    # A `/tmp` probe with mode=refit, budget 7, horizons 3/999, val split
+    # .9/999, fake caches, batch 1 and projection LR 99 passed the old subset.
+    expected = {
+        "num_slots": SLOTS, "bases_per_slot": BASES_PER_SLOT,
+        "total_bases": TOTAL_BASES, "total_bits": TOTAL_BITS,
+        "dataset": spec["canon"], "seed": seed,
+        "stop_after_epoch": stop, "codebook_size": spec["K"],
+        "selection_mode": mode,
+        "val_split_ratio": val_ratio, "val_split_seed": VAL_SEED,
+        "epoch_budget": budget,
+        "lr_schedule_horizon": lr_horizon,
+        "sinkhorn_schedule_horizon": sinkhorn_horizon,
+        "feature_cache": os.path.realpath(spec["cache"]),
+        "eval_cache": os.path.realpath(spec["cache"]),
+    }
+    manifest_bad = {k: (getattr(identity, k), v) for k, v in expected.items()
+                    if getattr(identity, k) != v}
     if manifest_bad:
         raise CellRefused(f"{run_dir}: manifest disagrees {manifest_bad}")
     return {"identity_digest": identity.digest, **effective}
 
 
-def assert_completed(run_dir: Path) -> dict:
+def _manifest_facts(run_dir: Path) -> dict:
+    """What the run itself recorded, verbatim."""
+    identity = load_run_manifest(str(run_dir))
+    if identity is None:
+        raise CellRefused(f"{run_dir}: no readable {MANIFEST_NAME}")
+    return {
+        "seed": identity.seed,
+        "val_split_ratio": identity.val_split_ratio,
+        "val_split_seed": identity.val_split_seed,
+        "lr_schedule_horizon": identity.lr_schedule_horizon,
+        "sinkhorn_schedule_horizon": identity.sinkhorn_schedule_horizon,
+        "epoch_budget": identity.epoch_budget,
+        "stop_after_epoch": identity.stop_after_epoch,
+        "selection_mode": identity.selection_mode,
+        "codebook_size": identity.codebook_size,
+        "identity_digest": identity.digest,
+    }
+
+
+def assert_completed(run_dir: Path, *, terminal_epoch: int) -> dict:
     """The cell finished and nobody still owns it.
 
     A partial run leaves args, a manifest and a checkpoint behind, which is
@@ -363,7 +404,17 @@ def assert_completed(run_dir: Path) -> dict:
         raise CellRefused(
             f"{run_dir}: final checkpoint hashes to {actual[:12]} but its "
             f"sidecar says {str(claimed)[:12]}")
+    # Whether the weights on disk are the ones the terminal metric describes.
+    # Without `--final_epoch_eval` -- which the selection stage may not use,
+    # because it evaluates the official test split -- the trainer overwrites the
+    # final checkpoint with an earlier best. The metric still comes from epoch
+    # N's row in log.csv, and these weights are discarded anyway (the refit is
+    # from scratch), but the record must not imply otherwise.
+    recorded_epoch = json.loads(sidecar.read_text(encoding="utf-8")).get(
+        "checkpoint_epoch_zero_based")
     return {"final_checkpoint_sha256": actual,
+            "final_checkpoint_epoch_zero_based": recorded_epoch,
+            "terminal_weights_preserved": recorded_epoch == terminal_epoch,
             "log_csv_sha256": _sha(run_dir / "log.csv")}
 
 
@@ -458,15 +509,38 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
 
     cmd, env, _ = build_command(dataset, n, gpu, epochs=epochs,
                                 namespace=namespace, stage=stage, seed=seed)
+    # What THIS cell is supposed to end up being, derived once so the
+    # post-checks and the record cannot drift from the command.
+    _stop = int(env["STOP_EP"])
+    _flags = env["EXTRA_ARGS"].split()
+    _budget = int(_flags[_flags.index("-e") + 1])
+    _lr_h = (int(_flags[_flags.index("--lr_schedule_horizon") + 1])
+             if "--lr_schedule_horizon" in _flags else _budget)
+    _sk_h = (int(_flags[_flags.index("--sinkhorn_schedule_horizon") + 1])
+             if "--sinkhorn_schedule_horizon" in _flags else _budget)
+
+    # The retrieval eval runs on the `--eval_every` cadence or at the nominal
+    # final epoch, and the search stage stops early -- so a terminal row exists
+    # only when (stop + 1) is a multiple of the cadence. It happens to hold for
+    # every candidate in the current grid, which is exactly the kind of
+    # coincidence that stops holding when someone edits the grid.
+    if stage == "select" and (_stop + 1) % EVAL_EVERY != 0:
+        raise CellRefused(
+            f"{tag}: terminal epoch {_stop} would not be evaluated -- "
+            f"(N+1)={_stop + 1} is not a multiple of --eval_every={EVAL_EVERY}, "
+            f"so log.csv would carry no score for the candidate's own epoch")
     started = time.time()
     # The trainers end in `python ... | tee "$LOG"` under `set -eu` with no
     # `pipefail`, so the script's status is tee's, not python's: a crashed
-    # trainer would look like a finished cell. `bash -o pipefail -c` puts the
-    # pipeline's real status back.
-    proc = subprocess.run(
-        ["bash", "-o", "pipefail", "-c",
-         " ".join(shlex.quote(part) for part in cmd)],
-        cwd=str(REPO), env=env)
+    # trainer would look like a finished cell.
+    #
+    # `bash -o pipefail -c 'bash trainer.sh'` does NOT fix that -- the option
+    # is set on the outer shell while the pipeline runs in the inner one, and
+    # shell options are not inherited across an exec. The option has to be on
+    # the shell that runs the trainer's own pipeline, so the script is invoked
+    # directly with it.
+    proc = subprocess.run(["bash", "-o", "pipefail", *cmd[1:]],
+                          cwd=str(REPO), env=env)
     if proc.returncode != 0:
         raise CellRefused(f"{tag}: trainer exited {proc.returncode}")
 
@@ -488,19 +562,19 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
         "stage": stage,
         "dataset": dataset, "N": n, "tag": tag,
         "run_dir": str(run_dir),
-        "seed": seed,
-        "val_split_ratio": VAL_RATIO if stage == "select" else 0.0,
-        "val_split_seed": VAL_SEED,
-        "lr_schedule_horizon": LR_HORIZON if epochs is None else epochs,
-        "sinkhorn_schedule_horizon": (n + 1) if epochs is None else epochs,
-        "epoch_budget": EPOCH_BUDGET if epochs is None else epochs,
-        "completion": assert_completed(run_dir),
+        # Copied from the run's OWN manifest, not from this launcher's
+        # constants. Writing the intended values would describe a
+        # wrong-protocol run as a right-protocol one, which is the opposite of
+        # what a record is for.
+        **_manifest_facts(run_dir),
+        "completion": assert_completed(run_dir, terminal_epoch=_stop),
         "geometry": assert_geometry(
-            run_dir, dataset=dataset,
-            n=n if epochs is None else max(epochs - 1, 0)),
+            run_dir, dataset=dataset, n=n, stop=_stop, seed=seed,
+            mode="refit" if stage == "refit" else "select",
+            val_ratio=0.0 if stage == "refit" else VAL_RATIO,
+            budget=_budget, lr_horizon=_lr_h, sinkhorn_horizon=_sk_h),
         "selection": (
-            read_selection(run_dir, n=n if epochs is None
-                           else max(epochs - 1, 0))
+            read_selection(run_dir, n=_stop)
             if stage == "select" else
             {"selection_metric": None,
              "note": "a refit has no held-out validation to select on"}),
@@ -641,7 +715,7 @@ def main() -> int:
             continue
         print(f"[phase3] {ds}/N{n} ok  bases={record['geometry']}  "
               f"mAP@R={record['selection']['selection_value']:.4f} "
-              f"@epoch {record['selection']['best_epoch_zero_based']}")
+              f"@epoch {record['selection']['selection_epoch_zero_based']}")
 
     if failures:
         print(f"[phase3] {len(failures)} of {len(keys)} cells refused: "

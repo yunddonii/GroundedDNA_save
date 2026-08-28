@@ -541,25 +541,57 @@ best-over-prefix는 참고용으로 함께 기록하되 선택에는 쓰지 않�
 | trainer가 `python … \| tee`를 `set -eu`로만 실행 → tee의 rc가 python을 가림 | `bash -o pipefail -c`로 감싸 실제 상태 복원 |
 | `--smoke`가 budget만 줄이고 stop은 N으로 남김 | stop도 함께 줄여 내부 정합. 기록에 `is_candidate_cell=false` |
 
-### 스모크 (2 epoch, cifar10:4)
+### 🔴 pipefail 수정이 무효였고, 성공 경로가 KeyError 였다 (감사 §38.2·38.3, 정정)
 
-가드가 먼저 실동작으로 증명됐다. budget 2인데 stop이 4로 남았던 판에서:
-
-```text
-REFUSED: expected exactly one row for terminal epoch 4, found 0
-         (epochs present: ['0','1']). The cell did not train to its candidate epoch.
-```
-
-정합하게 고친 뒤:
+**pipefail.** `bash -o pipefail -c 'bash trainer.sh'`는 옵션을 **바깥 shell**에 켜는데 pipeline은
+안쪽 shell에서 돈다. shell 옵션은 exec를 넘어 상속되지 않으므로 python 실패가 계속 tee의 0으로
+가려졌다. 직접 재현:
 
 ```text
-terminal epoch 1   mAP@R=0.7516  cutoff=1000
-best_over_prefix   0.7516 @epoch 1     (기록만, 선택에 미사용)
-geometry           num_semantic_parts=5  num_codebooks=5  codons=3
-is_candidate_cell  false
+bash -o pipefail -c 'bash inner.sh'   inner pipefail: off   rc=0   (실패 은폐)
+bash -o pipefail inner.sh             inner pipefail: on    rc=3   (전파)
 ```
 
-`result_diagnostic/phase3_smoke_20260828/`에 격리. 947 tests 통과.
+제 테스트는 소스에 `"-o", "pipefail"` 문자열이 있는지만 봤다 — 이 저장소가 반복해서 당한 grep식
+테스트다. 이제 두 형태를 **실행해** 하나는 여전히 은폐하고 하나는 전파함을 단언한다.
+
+**성공 경로.** `read_selection`의 필드를 `best_epoch_zero_based` → `selection_epoch_zero_based`로
+바꾸면서 `main()`을 안 고쳤다. `run_cell()`이 record를 먼저 발행하고 return한 뒤 `main()`이
+`KeyError`로 rc1. 즉 **"record가 있다"와 "실행이 성공했다"가 서로 다른 상태**가 됐고, 나는 그 실행을
+성공으로 보고했다. 성공 경로를 실행하는 테스트가 하나도 없어서 놓쳤다.
+
+### 함께 닫은 것 (감사 §38.1·38.5)
+
+| 결함 | 조치 |
+|---|---|
+| record가 실제 run이 아니라 **런처가 의도한 상수**를 적음 | run 자신의 manifest에서 복사. wrong-protocol run을 right-protocol로 묘사할 수 없다 |
+| `assert_geometry`가 일부 축만 검사 (mode/budget/horizon/val split/캐시 미검사) | `RunIdentity` 전 축 대조. 8개 축 각각에 대한 반례 테스트 |
+| retrieval eval은 `--eval_every` 주기에만 돎 — terminal row 존재는 `(N+1)%5==0`의 **우연** | launch 전 그 관계를 assert하고 위배 시 거부 |
+| best-swap이 terminal 가중치를 이른 best로 덮어씀 | `terminal_weights_preserved`를 기록. 지표는 CSV의 epoch N 행에서 오고 가중치는 어차피 버려지지만, 기록이 다른 것을 함의하면 안 된다 |
+| `load_run_manifest`가 저장된 digest를 비교 없이 버림 | 필드에서 재계산한 값과 불일치하면 거부 |
+
+### 스모크 5회 — 넷은 폐기, 다섯 번째가 성공 경로
+
+```text
+p3smoke0828   M5 최초        통과, 그러나 identity가 selection_mode=refit
+p3smoke0828b  select 라벨    통과, 그러나 지표를 best-over-prefix 에서 읽음
+p3smoke0828c  terminal 리더  REFUSED (정확): budget2/stop4 -> epoch4 행 없음
+p3smoke0828d  smoke 정합화   지표는 맞게 읽고 record 발행 뒤 KeyError -> rc1
+p3smoke0828e  전부 수정 후   성공 경로 완주, traceback 0
+```
+
+`p3smoke0828e`가 확립한 것:
+
+```text
+identity      M5/L3/15/30, selection_mode=select, val 0.1/42, seed 42, stop 4
+record        manifest에서 복사 (budget/horizon 5/5/5 — 런처 상수 60/N+1 아님)
+completion    최종 체크포인트 재해시 대조, terminal_weights_preserved=true, claim 잔존 없음
+selection     eval_mAP_at_R = 0.8320 @epoch 4  (log.csv)
+extract_*.npz 없음 -> 공식 test 미접근
+launcher      "1 of 1 cells complete", traceback 없음
+```
+
+980 tests 통과.
 
 ### aggregator와 refit 경로 (§35.3 gate 4·5)
 
