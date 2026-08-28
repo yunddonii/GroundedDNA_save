@@ -487,6 +487,67 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-08-28 — 🟢 **Phase 3 stage-1 launcher 작성. 18-base를 15-base로 오인할 수 없게 하는 assertion이 핵심**
+
+### 왜 새로 썼나
+
+기존 wrapper 어느 것도 D1/D2가 아니다.
+
+- `prompt_ablation_A_cell_fixedN.sh`: **매 epoch 공식 test를 보며 N을 고른다.** 헤더가 스스로 명시한다. F02 그 자체.
+- `prompt_ablation_A_cell.sh`: held-out train으로 고르긴 하지만 두 스테이지에 **같은 `AUX_ARGS`**를 준다.
+  D2는 탐색에 `-e 60 --stop N --lr_h 60 --sinkhorn_h N+1`, refit에 `-e N+1 --stop N`을 요구하므로 한 묶음으로
+  둘 다 될 수 없다. 호출마다 refit을 붙이므로 16번 부르면 refit 16개가 딸려 온다. 답도 로그 문자열에서 grep한다.
+- 둘 다 geometry를 안 넘긴다. M의 기본값이 어디서나 6이라 8/27 스모크가 18-base로 돌았다.
+
+`scripts/phase3_selection_matrix.py`가 프로토콜을 소유하고, 데이터셋별 trainer는 레시피를 계속 소유한다.
+trainer를 한 줄도 고치지 않고 env + `EXTRA_ARGS`로만 구동한다(argparse는 마지막 플래그가 이긴다).
+
+### 계약
+
+```text
+16 keys        {cifar10, flickr25k, nuswide, mscoco} x N∈{4,9,19,39}, 그 이상도 이하도 아님
+geometry       GDNA_NUM_SEMANTIC_PARTS=5 + --num_semantic_parts 5 + --num_codebooks 5 + L=3
+               (env 없이 flag만 주면 import 시점에 abort, flag 없이 env만 주면 args.txt가 딴소리)
+D2 탐색        -e 60  --stop_after_epoch N  --lr_schedule_horizon 60  --sinkhorn_schedule_horizon N+1
+선택           held-out train 10%, val_seed 42, --selection_mode select, --dna_distance_mode base
+               FINAL_EPOCH 미전달 -> 공식 test 미접근
+S5 레시피      --no_gumbel_softmax  --lambda_codeword_codon_sinkhorn 0.0
+캐시           v6prov, whitening은 optTrain_localOnly
+```
+
+**실행 전**: 그 태그에 산출물이 하나라도 있으면 거부.
+**실행 후**: `args.txt`와 `run_identity.json`이 **둘 다** M=5/L=3/15/30이고 dataset·seed·stop·K가 요청과
+일치해야 통과. 선택값은 best checkpoint sidecar의 `selection_metric`/`selection_value`에서 읽는다
+(체크포인트 SHA에 결속됨). 로그 파싱 없음.
+
+### 스모크 (1 epoch, cifar10:4)
+
+```text
+args.txt          num_semantic_parts = num_codebooks = 5, codons = 3
+run_identity.json 5 / 3 / 15 / 30,  selection_mode = select
+use_gumbel_softmax False,  lambda_codeword_codon_sinkhorn 0.0
+extract_*.npz     없음  -> stage 1이 공식 test를 건드리지 않음
+selection         eval_mAP_at_R = 0.5775 @epoch 0 (sidecar)
+```
+
+`result_diagnostic/phase3_smoke_20260828/`에 격리. 1 epoch이라 horizon이 1/1이므로 배선과 assertion의
+증거이지 수치의 증거가 아니다. 942 tests 통과.
+
+### 아카이브가 만든 결함 하나를 함께 닫음 (감사 §36.2-5)
+
+`os.walk`의 기본은 `followlinks=False`다. 아카이브된 run은 심볼릭이므로 `resolve_run_dir`이
+**조용히 지나쳐 `RunNotFound`**를 냈다 — 존재하는 run을 "아직 안 돌았다"로 읽어 재실행을 유발한다.
+`followlinks=True` + realpath 기반 순환 방지로 고쳤다.
+
+앞선 로그의 카운트도 정정한다: 심볼릭 **541 → 676**, 실디렉터리 **399 → 264**(중간값을 적었다).
+
+### 다음
+
+16셀 stage-1 실행 → dataset별 N 선택 aggregator(동률 시 최소 N) → 선택 N으로 seeds 42/43/44
+scratch refit 12셀. aggregator는 아직 없다.
+
+---
+
 ## 2026-08-27 — 🟡 **Phase 3 착수를 막던 세 경로는 닫았다. 그러나 스모크는 18-base로 돌았고 나는 그것을 "Phase 3 smoke passes"로 기록했다 — 정정**
 
 ### 재현부터 했다 (감사 §31.2, §32.4)
@@ -571,7 +632,7 @@ held-out train validation에서 E\*를 고르고 공식 test를 건너뛰었고,
 ```text
 /       40G 여유 (96%)  ->  175G 여유 (79%)
 /data  417G 여유 (89%)  ->  282G 여유 (92%)
-result  심볼릭 541 -> 642,  실디렉터리 399 -> 298
+result  심볼릭 541 -> 676,  실디렉터리 399 -> 264
 8월분(Phase 2 legacy 15개 포함)은 실디렉터리로 보존
 ```
 

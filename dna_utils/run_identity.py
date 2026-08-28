@@ -351,7 +351,19 @@ def resolve_run_dir(search_root: str, identity: RunIdentity) -> str:
     back to the newest match is the defect this replaces.
     """
     hits: List[str] = []
-    for dirpath, dirnames, _ in os.walk(search_root):
+    # `followlinks=True`: completed runs are archived to /data with a symlink
+    # left at the original path, so the default would walk straight past every
+    # archived run and report RunNotFound for a run that exists -- which reads
+    # as "not done yet" and invites re-running it. The excluded-fragment filter
+    # below and the manifest digest still bound what can match, and run
+    # directories do not nest, so there are no cycles to follow.
+    seen: set = set()
+    for dirpath, dirnames, _ in os.walk(search_root, followlinks=True):
+        real = os.path.realpath(dirpath)
+        if real in seen:                 # a link back into an already-walked tree
+            dirnames[:] = []
+            continue
+        seen.add(real)
         dirnames[:] = [d for d in dirnames
                        if not any(x in d for x in _EXCLUDED_FRAGMENTS)]
         if any(x in dirpath for x in _EXCLUDED_FRAGMENTS):
