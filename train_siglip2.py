@@ -1277,7 +1277,8 @@ def main(args: Config):
             # If best-checkpoint differs from final, replace final with best
             # for the downstream evaluation / extraction. Best is preserved
             # as model_state_dict_best.pth.
-            if bool(getattr(args, "final_epoch_eval", False)):
+            if bool(getattr(args, "final_epoch_eval", False)) or \
+                    bool(getattr(args, "keep_final_checkpoint", False)):
                 print(f"[final-epoch-eval] keeping FINAL-epoch checkpoint "
                       f"(epoch {e}); best-ckpt swap SKIPPED (leakage-free protocol)")
             elif hasattr(args, "_best_mid_epoch") and args._best_mid_epoch != e:

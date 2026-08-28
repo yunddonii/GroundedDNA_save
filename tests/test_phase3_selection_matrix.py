@@ -511,6 +511,7 @@ def _completed_run(tmp_path: Path, **sidecar) -> Path:
         "checkpoint_sha256": hashlib.sha256(b"weights").hexdigest(),
         "checkpoint_epoch_zero_based": 4,
         "training_epoch_budget": 60, "stop_after_epoch": 4,
+        # overridable below
         "lr_schedule_horizon": LR_HORIZON, "sinkhorn_schedule_horizon": 5,
     }
     payload.update(sidecar)
@@ -580,3 +581,44 @@ def test_only_the_refit_is_asked_for_official_outputs():
     """Stage 1 must never extract, so it cannot be required to have."""
     source = (REPO / "scripts" / "phase3_selection_matrix.py").read_text()
     assert 'if stage == "refit" else {}' in source
+
+
+# ------------------- score and weights must be the same epoch (§42.5)
+
+def test_a_selection_cell_keeps_its_terminal_checkpoint():
+    """Without this the trainer swaps in an earlier best after training."""
+    _, env, _ = build_command("cifar10", 9, 0, stage="select")
+    assert "--keep_final_checkpoint" in env["EXTRA_ARGS"].split()
+
+
+def test_the_trainer_honours_keep_final_checkpoint():
+    source = (REPO / "train_siglip2.py").read_text()
+    block = source[source.index("If best-checkpoint differs from final"):]
+    block = block[:block.index("if _is_stop_point")]
+    assert 'getattr(args, "keep_final_checkpoint", False)' in block
+    assert "--keep_final_checkpoint" in (REPO / "config.py").read_text()
+
+
+def test_a_cell_whose_weights_are_from_another_epoch_is_refused(tmp_path):
+    """CIFAR N9 recorded 0.8494 at epoch 9 with epoch-4 weights, and passed.
+
+    The metric was right -- epoch 9's row, written before the swap -- but a
+    cell whose two halves describe different epochs is not self-consistent
+    evidence, and it was admitted with a boolean rather than refused.
+    """
+    from scripts.phase3_selection_matrix import assert_completed
+
+    run = _completed_run(tmp_path, checkpoint_epoch_zero_based=4)
+    with pytest.raises(CellRefused) as excinfo:
+        assert_completed(run, terminal_epoch=9)
+    assert "different epochs" in str(excinfo.value)
+    assert "--keep_final_checkpoint" in str(excinfo.value)
+
+
+def test_the_matrix_wrapper_counts_the_exact_sixteen_keys():
+    """It counted every JSON, so one stray diagnostic made 16 unreachable."""
+    source = (REPO / "scripts" / "phase3_launch_matrix.sh").read_text()
+    assert "phase3sel_${EXP}_N${N}_s42.json" in source
+    assert "grep -vc selected_n" not in source
+    # And it is one of its own dirty-tree dependencies.
+    assert "DEPS=(scripts/phase3_launch_matrix.sh" in source

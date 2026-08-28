@@ -705,6 +705,15 @@ class Config():
         # F08: part of the run identity. Without it a selection run, a refit
         # and an ablation that share dataset/seed/geometry resolve to the same
         # result directory and overwrite each other.
+        siglip2_arg.add_argument('--keep_final_checkpoint', action='store_true',
+            help=('Never replace the final checkpoint with an earlier best. '
+                  'The swap exists so a leaky test-selected run evaluates its '
+                  'best weights; a train-only SELECTION run reports the metric '
+                  'at its own terminal epoch, so swapping leaves the recorded '
+                  'score and the surviving weights describing different '
+                  'epochs. `--final_epoch_eval` already implies this but also '
+                  'evaluates the official test split, which a selection run '
+                  'may not do.'))
         siglip2_arg.add_argument('--selection_mode', type=str, default='refit',
             help='What this run is: "select" (N search on held-out validation), '
                  '"refit" (final scratch refit at the chosen N), or an ablation '

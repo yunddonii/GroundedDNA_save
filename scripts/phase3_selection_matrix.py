@@ -198,6 +198,11 @@ def _stage1_flags(n: int) -> list:
         # `refit`, so a selection cell and the later refit at the same N
         # describe themselves the same way.
         "--selection_mode", "select",
+        # The recorded score comes from epoch N; without this the trainer
+        # replaces the final checkpoint with an earlier best, so the cell's
+        # weights and its number describe different epochs. CIFAR N9 did
+        # exactly that: terminal 0.8494 at epoch 9, weights from epoch 4.
+        "--keep_final_checkpoint",
     ]
 
 
@@ -499,9 +504,16 @@ def assert_completed(run_dir: Path, *, terminal_epoch: int) -> dict:
     # from scratch), but the record must not imply otherwise.
     recorded_epoch = json.loads(sidecar.read_text(encoding="utf-8")).get(
         "checkpoint_epoch_zero_based")
+    preserved = recorded_epoch == terminal_epoch
+    if not preserved:
+        raise CellRefused(
+            f"{run_dir}: the metric is read from epoch {terminal_epoch} but "
+            f"the surviving checkpoint is from epoch {recorded_epoch}. The "
+            f"score and the weights describe different epochs, so the cell is "
+            f"not self-consistent evidence -- pass --keep_final_checkpoint.")
     return {"final_checkpoint_sha256": actual,
             "final_checkpoint_epoch_zero_based": recorded_epoch,
-            "terminal_weights_preserved": recorded_epoch == terminal_epoch,
+            "terminal_weights_preserved": preserved,
             "log_csv_sha256": _sha(run_dir / "log.csv")}
 
 

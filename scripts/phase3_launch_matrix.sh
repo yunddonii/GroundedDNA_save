@@ -17,9 +17,18 @@ cd /home/yschoi/GroundedDNA
 PY=/home/yschoi/.conda/envs/dna_hashing/bin/python
 mkdir -p logs/phase3_matrix
 
-DEPS=(scripts/phase3_selection_matrix.py scripts/phase3_select_n.py
-      train_siglip2.py model_siglip2.py dna_utils/run_identity.py
-      dna_utils/extraction_validation.py dataloaders.py)
+# This script is one of its own dependencies: a change to which cells run, or
+# in what order, changes the artefacts as surely as a change to the trainer.
+DEPS=(scripts/phase3_launch_matrix.sh scripts/phase3_selection_matrix.py
+      scripts/phase3_select_n.py
+      scripts/train_cifar10_v185_bidirTokenPrune05_ccs01_clip.sh
+      scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh
+      scripts/train_nuswide_v185_sweep_clip.sh
+      scripts/train_mscoco_F2_sweep_clip.sh
+      train_siglip2.py model_siglip2.py config.py evaluation_siglip2.py
+      extraction_siglip2.py dna_utils/run_identity.py
+      dna_utils/extraction_validation.py dna_utils/cache_provenance.py
+      dataloaders.py)
 if [[ -n "$(git status --porcelain "${DEPS[@]}")" ]]; then
     echo "refusing: the matrix source is dirty; commit it first" >&2
     git status --short "${DEPS[@]}" >&2
@@ -55,8 +64,28 @@ for DS in "${!PIDS[@]}"; do
     fi
 done
 
-SEALED=$(ls artifacts/phase3_selection/*.json 2>/dev/null | grep -vc selected_n || true)
-echo "[matrix] $SEALED of 16 cell records present"
-[[ "$FAILED" == "0" && "$SEALED" == "16" ]] || {
-    echo "MATRIX INCOMPLETE $HEAD_SHA" >&2; exit 1; }
+# Count the EXACT sixteen keys, not every JSON in the directory. Counting
+# files meant a leftover diagnostic record made 16 unreachable, and a missing
+# cell could be offset by a smoke that happened to be sitting there.
+MISSING=()
+for DS in "${DATASETS[@]}"; do
+    case "$DS" in
+        cifar10)   EXP=cifar_A_v4 ;;
+        flickr25k) EXP=flickr_A_v4 ;;
+        nuswide)   EXP=nuswide_A_v4 ;;
+        mscoco)    EXP=mscoco_A_v5b ;;
+    esac
+    for N in 4 9 19 39; do
+        F="artifacts/phase3_selection/phase3sel_${EXP}_N${N}_s42.json"
+        [[ -f "$F" ]] || MISSING+=("${DS}/N${N}")
+    done
+done
+if [[ "${#MISSING[@]}" -gt 0 ]]; then
+    echo "[matrix] missing ${#MISSING[@]} of 16: ${MISSING[*]}" >&2
+    FAILED=1
+else
+    echo "[matrix] all 16 cell records present"
+fi
+[[ "$FAILED" == "0" ]] || { echo "MATRIX INCOMPLETE $HEAD_SHA" >&2; exit 1; }
 echo "MATRIX DONE $HEAD_SHA"
+echo "[matrix] next: python scripts/phase3_select_n.py"
