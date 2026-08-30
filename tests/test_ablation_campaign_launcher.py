@@ -185,3 +185,34 @@ def test_the_chain_delegates_to_this_launcher():
     assert "_ablation_exec.py" not in chain, (
         "the chain still launches cells itself; there are two loops to keep "
         "correct instead of one")
+
+
+def test_a_dry_run_cannot_produce_a_completion_receipt(tmp_path):
+    """The false seal I actually created, with the real 24-cell plan.
+
+    `--dry-run` was passed through to the executor, which prints the command and
+    returns 0; the launcher recorded each of those as `status=ok` with a null
+    run directory and sealed. `/tmp/dryledger/campaign_complete.json` came out
+    naming 24 cells after zero trainers ran and zero GPUs were claimed, and I
+    wrote "planned, reserved, executed and sealed" in the project log on the
+    strength of it. A receipt has to mean trainers ran.
+    """
+    runner = _tree(tmp_path)
+    ledger_dry = tmp_path / "ledger_dry"
+    dry = subprocess.run(
+        ["bash", str(LAUNCHER), "--plan", str(_plan(tmp_path, runner)),
+         "--ledger", str(ledger_dry), "--repo", str(tmp_path), "--dry-run"],
+        cwd=str(tmp_path),
+        env={**os.environ, "PY": PY, "GPUS": "0", "STAGGER": "0",
+             "LOGDIR": str(tmp_path / "drylogs")},
+        capture_output=True, text=True, timeout=300)
+    assert dry.returncode == 0, dry.stdout + dry.stderr
+    assert not (ledger_dry / "campaign_complete.json").exists(), (
+        "a dry run sealed a completion receipt")
+    assert not (ledger_dry / "campaign_reservation.json").exists(), (
+        "a dry run reserved the campaign, so the real one cannot open it")
+    assert not list(ledger_dry.glob("cell_*.json")) if ledger_dry.exists() else True
+    printed = sorted((tmp_path / "drylogs").glob("DRY_*.json"))
+    assert len(printed) == len(CELLS)
+    assert json.loads(printed[0].read_text())["cmd"][:3] == ["bash", "-o",
+                                                             "pipefail"]

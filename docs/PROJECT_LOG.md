@@ -593,9 +593,24 @@ relabelled SDC's directory as CIMON and shifted every column after it. Names are
 built alongside the directories now, and an empty set skips the decode instead
 of calling it with no baselines.
 
-**Dry-run of the real campaign, before any GPU:** 24 cells planned, reserved,
-executed and sealed; receipt records plan `c971ed34e187` and
-N = CIFAR 39 / Flickr 4 / NUS 4 / COCO 39.
+**RETRACTED (2026-08-30, re-audit §49.5/§50).** The sentence that stood here --
+"24 cells planned, reserved, executed and sealed" -- was materially false, and
+the defect it rested on was mine. `--dry-run` was passed straight through to the
+executor, which prints the command and returns 0; the launcher recorded each of
+those rc 0s as `status=ok` with a NULL run directory and sealed. So
+`/tmp/dryledger/campaign_complete.json` really was created, naming 24 cells,
+after zero trainers ran and zero GPUs were claimed -- and I read that receipt
+back as evidence the campaign path worked end to end. `executed` meant "the
+executor printed 24 command lines".
+
+Fixed: `--dry-run` now writes `logs/DRY_*.json` and returns before the ledger is
+opened at all -- no reservation, no cell entries, no receipt. Verified against
+the real 24-cell plan: 24 commands written, both ledger files absent. Covered by
+`test_a_dry_run_cannot_produce_a_completion_receipt`.
+
+What the dry run actually established, stated accurately: the planner composes
+24 cells, the executor accepts each of them against the plan digest, and the
+launcher iterates them in order. Nothing about training, results, or completion.
 
 ### Not done, and why -- RunIdentity's ablation axes (§47.2 / §48.4)
 

@@ -14,6 +14,13 @@
 # Usage:
 #   scripts/run_ablation_campaign.sh --plan P --ledger L [--dry-run]
 #   GPUS="0 1" scripts/run_ablation_campaign.sh ...   # else nvidia-smi decides
+#
+# `--dry-run` prints each cell's command and DOES NOT touch the ledger. It used
+# to pass the flag to the executor and then record every rc 0 as `status=ok`
+# with a null run directory, so a run that started no trainer and claimed no GPU
+# sealed a `campaign_complete.json` naming 24 cells. I did that with the real
+# plan and then wrote "planned, reserved, executed and sealed" in the project
+# log; nothing had been executed. A receipt now means trainers ran.
 set -Eeuo pipefail
 trap 'rc=$?; printf "[campaign] FAILED at line %s (rc %s): %s\n" \
         "$LINENO" "$rc" "$BASH_COMMAND" >&2; exit "$rc"' ERR
@@ -73,6 +80,18 @@ EXPECTED=$("$PY" -c \
 say "$NCELLS cells planned, plan ${PLAN_SHA:0:12}"
 
 # ---- reserve the whole set before starting any of it -----------------------
+if [ -n "$DRY" ]; then
+    say "DRY RUN: printing commands only. No reservation, no receipt."
+    for i in $(seq 0 $((NCELLS - 1))); do
+        IFS=$'\t' read -r CELL EXP TAG <<<"${ROWS[$i]}"
+        "$PY" scripts/_ablation_exec.py --plan "$PLAN" --index "$i" --gpu 0 \
+            --expect-plan-sha256 "$PLAN_SHA" --repo "$CHILD_REPO" --dry-run \
+            > "$LOGDIR/DRY_${CELL}_${EXP}.json"
+    done
+    say "DRY RUN: $NCELLS commands written to $LOGDIR/DRY_*.json"
+    exit 0
+fi
+
 "$PY" scripts/campaign_ledger.py open --ledger "$LEDGER" --plan "$PLAN" || {
     say "campaign not reserved; starting nothing"; exit 1; }
 
@@ -100,7 +119,6 @@ for i in $(seq 0 $((NCELLS - 1))); do
     say "  $CELL $EXP -> GPU $g"
     "$PY" scripts/_ablation_exec.py --plan "$PLAN" --index "$i" --gpu "$g" \
         --expect-plan-sha256 "$PLAN_SHA" --repo "$CHILD_REPO" \
-        ${DRY:+--dry-run} \
         > "$LOGDIR/ABL_${CELL}_${EXP}.out" 2>&1 &
     PIDS[$i]=$!
     [ "$STAGGER" = "0" ] || sleep "$STAGGER"
