@@ -487,6 +487,72 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-08-30 The top-p planner I wrote would have selected on the OFFICIAL TEST split — withdrawn
+
+Re-audit §53 stopped this before it ran. The finding that matters is §53.4's:
+the nine-cell top-p plan used `prompt_ablation_A_cell_fixedN.sh`, and that
+wrapper is not a hyperparameter-selection path. Read from real `args.txt` files
+rather than from either script's docstring:
+
+| launcher | val_split_ratio | whitening | final_epoch_eval |
+|---|---|---|---|
+| `phase3_selection_matrix.py` stage 1 | 0.1 | `text_whiten_optTrain_localOnly` | False |
+| `prompt_ablation_A_cell_fixedN.sh` | 0.0 | `text_whiten_trainOnly_localOnly` | 1 |
+
+The second trains on the full train split and evaluates the official query/DB
+set. Choosing top-p on it would have made the paper's top-p test-informed, which
+no later stage can undo. The planner is deleted rather than fixed: the D1
+train-only path already exists, is already audited, and the sweep belongs in it
+as two extra axes.
+
+Four other defects, all mine, all in one session:
+
+* I launched a real three-cell smoke while the selection contract was still
+  open, and described it as "one cell" when the plan held three.
+* `GPUS="0 1 2"` put all three on GPU 0 — the exact defect §50.1 had already
+  derived from the source. `next_gpu` took `${g%% *}`, the first token of the
+  candidate list, on every call.
+* I edited `run_ablation_campaign.sh` **while those three cells were running**.
+  Bash reads a script's top level incrementally, so the parent executed a hybrid
+  of the old and new files and died on `syntax error near unexpected token '('`
+  after all three children had succeeded. The repository's own fixedN wrapper
+  carries a comment warning against exactly this.
+* I then ran `campaign_ledger.py seal` by hand, producing a receipt whose three
+  `run_dir` values were all null — reproducing, manually, the false-receipt
+  defect I had fixed two commits earlier.
+
+The three smoke runs are in `result/_QUARANTINE/`. They are not evidence for
+anything: legacy JD, old N, no train-only reducer, and three trainers sharing
+one GPU.
+
+### What was salvaged, and what it is worth
+
+`campaign_ledger.py` now refuses `status=ok` without a `run_dir` that exists,
+and both `seal_campaign` and `require_sealed` reject null outputs. The launcher
+resolves each cell's directory and passes it. Its body is wrapped in
+`main(){...}; main "$@"` so bash parses the whole file before executing any of
+it — narrow protection against the mid-run edit above; it does NOT make the
+child sources immutable, and §49's source TOCTOU stays open.
+
+The GPU lease was wrong twice before it was right. `kill -0` succeeds on a
+zombie, and children are only waited for after the launch loop, so leases were
+never released and a campaign with more cells than GPUs deadlocked;
+`/proc/<pid>/stat` state `Z` is the test now. And the regression test asserted
+only that each offered GPU appeared somewhere in the logs, which a launcher that
+runs everything sequentially also satisfies — it records each cell's occupancy
+interval and checks for overlap now. Verified against the old allocator: fails.
+
+### The rule this session broke
+
+Every one of these came from writing new orchestration instead of extending the
+path that had already passed audit. Recorded as a standing constraint: name the
+existing tested launcher first and add parameters there; confirm train-only from
+a real `args.txt`; predeclare the reducer and tie rule before launching; never
+edit a script that is running.
+
+**Status: no top-p cell has been legitimately run. MAIN table (12 refits, 3
+seeds) not started. F09 open.**
+
 ## 2026-08-29 F09 v5: the wrapper's failure boundary, the pinned transform, and the campaign transaction
 
 Re-audit §48 examined commit `5c835a56` (the plan-driven campaign) and found the

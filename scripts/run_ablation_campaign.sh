@@ -27,6 +27,8 @@ trap 'rc=$?; printf "[campaign] FAILED at line %s (rc %s): %s\n" \
 
 PY="${PY:-/home/yschoi/.conda/envs/dna_hashing/bin/python}"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Exactly one result per tag, or refuse. Same helper the wrapper uses.
+source "$REPO/scripts/lib/result_dir.sh"
 PLAN=""; LEDGER=""; DRY=""; STAGGER="${STAGGER:-150}"
 # Where the plan's runner paths are rooted. The cells name their runner
 # relative to the repository, and the executor is what changes directory, so
@@ -49,6 +51,15 @@ done
 
 CHILD_REPO="${CHILD_REPO:-$REPO}"
 say(){ echo "[campaign $(date '+%F %T')] $*"; }
+
+# Everything below runs inside `main`, and `main` is called on the last line.
+# Bash reads a script INCREMENTALLY at the top level: editing this file while a
+# campaign is running corrupts the part that has not been read yet. That is not
+# hypothetical -- during the top-p smoke I edited the GPU allocator while the
+# three cells were running, and the seal step died with "syntax error near
+# unexpected token `('" after all three cells had succeeded. A function is
+# parsed in full before any of it executes, so an edit mid-run is ignored.
+main(){
 mkdir -p "$LOGDIR"
 
 # ---- the plan is read ONCE, and hashed once --------------------------------
@@ -68,7 +79,7 @@ trap 'rm -f "$ROWS_FILE"' EXIT
 import json, sys
 plan = json.load(open(sys.argv[1]))
 for cell in plan['cells']:
-    print(cell['cell'], cell['exp'], cell['tag'], sep='\t')
+    print(cell['cell'], cell['exp'], cell['tag'], cell['N'], sep='\t')
 " "$PLAN" > "$ROWS_FILE" || { say "could not read the plan's cells"; exit 1; }
 
 ROWS=(); while IFS= read -r row; do ROWS+=("$row"); done < "$ROWS_FILE"
@@ -109,10 +120,21 @@ candidate_gpus(){
 # nvidia-smi path had the same hole for as long as it takes a child's memory to
 # show up, which is longer than the stagger.
 declare -A LEASED=()
+# `kill -0` is NOT the liveness test here. Children are waited for only in the
+# collect loop below, so a cell that has finished during the launch loop is a
+# ZOMBIE -- and `kill -0` succeeds on a zombie. The lease was therefore never
+# released while launching, and a campaign with more cells than GPUs blocked
+# forever on the first full pass. `/proc/<pid>/stat` field 3 is the state, and
+# a zombie reports Z.
+still_running(){
+    local state
+    state=$(awk '{print $3}' "/proc/$1/stat" 2>/dev/null) || return 1
+    [ "$state" != "Z" ]
+}
 reap_leases(){
     local g
     for g in "${!LEASED[@]}"; do
-        kill -0 "${LEASED[$g]}" 2>/dev/null || unset 'LEASED['"$g"']'
+        still_running "${LEASED[$g]}" || unset 'LEASED['"$g"']'
     done
 }
 next_gpu(){
@@ -127,10 +149,10 @@ next_gpu(){
 }
 
 # ---- launch ----------------------------------------------------------------
-declare -a PIDS=() TAGS=() NAMES=()
+declare -a PIDS=() TAGS=() NAMES=() NS=()
 for i in $(seq 0 $((NCELLS - 1))); do
-    IFS=$'\t' read -r CELL EXP TAG <<<"${ROWS[$i]}"
-    TAGS[$i]="$TAG"; NAMES[$i]="${CELL}_${EXP}"
+    IFS=$'\t' read -r CELL EXP TAG N <<<"${ROWS[$i]}"
+    TAGS[$i]="$TAG"; NAMES[$i]="${CELL}_${EXP}"; NS[$i]="$N"
     g=$(next_gpu)
     say "  $CELL $EXP -> GPU $g"
     "$PY" scripts/_ablation_exec.py --plan "$PLAN" --index "$i" --gpu "$g" \
@@ -146,9 +168,23 @@ FAILED=0
 for i in $(seq 0 $((NCELLS - 1))); do
     rc=0; wait "${PIDS[$i]}" || rc=$?
     if [ "$rc" = "0" ]; then
-        say "  ${NAMES[$i]} ok"
+        # The ledger used to accept `ok` with no run directory, and this loop
+        # never passed one -- so a real campaign sealed a receipt whose every
+        # output was null. The wrapper names the directory it evaluated; this
+        # resolves the same tag and refuses if it is not exactly one.
+        RD=""
+        RD=$(resolve_one_result_dir "${TAGS[$i]}_P0refit_e${NS[$i]}" \
+             "$CHILD_REPO/result") || RD=""
+        if [ -z "$RD" ]; then
+            say "  ${NAMES[$i]} exited 0 but its result directory could not be resolved"
+            "$PY" scripts/campaign_ledger.py record --ledger "$LEDGER" \
+                --tag "${TAGS[$i]}" --status failed --detail "unresolvable result dir"
+            FAILED=1
+            continue
+        fi
+        say "  ${NAMES[$i]} ok  ->  $RD"
         "$PY" scripts/campaign_ledger.py record --ledger "$LEDGER" \
-            --tag "${TAGS[$i]}" --status ok
+            --tag "${TAGS[$i]}" --status ok --run-dir "$RD"
     else
         say "  ${NAMES[$i]} FAILED rc=$rc (see $LOGDIR/ABL_${NAMES[$i]}.out)"
         "$PY" scripts/campaign_ledger.py record --ledger "$LEDGER" \
@@ -164,3 +200,6 @@ done
     exit 1; }
 [ "$FAILED" = "0" ] || { say "INCOMPLETE"; exit 1; }
 say "done: $NCELLS cells sealed"
+}
+
+main "$@"

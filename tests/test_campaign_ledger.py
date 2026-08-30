@@ -41,9 +41,12 @@ def _plan(tmp_path: Path, *, tags=None, digest="d" * 64) -> Path:
     return path
 
 
-def _finish(ledger: Path, tags=None):
+def _finish(ledger: Path, tags=None, *, root: Path | None = None):
+    """`ok` now has to name a directory that exists -- see record_cell."""
     for tag in (TAGS if tags is None else tags):
-        record_cell(ledger, tag, "ok", run_dir=f"result/{tag}")
+        run_dir = (root or ledger.parent / "result") / tag
+        run_dir.mkdir(parents=True, exist_ok=True)
+        record_cell(ledger, tag, "ok", run_dir=str(run_dir))
 
 
 def test_a_complete_campaign_seals_and_verifies(tmp_path):
@@ -102,15 +105,46 @@ def test_a_cell_recorded_against_a_rebuilt_plan_is_not_this_campaigns(tmp_path):
 def test_a_campaign_cannot_grow_a_cell_after_it_opened(tmp_path):
     ledger = tmp_path / "ledger"
     open_campaign(ledger, _plan(tmp_path))
+    invented = tmp_path / "result" / "invented"
+    invented.mkdir(parents=True)
     with pytest.raises(CampaignRefused) as error:
-        record_cell(ledger, "promptAblA_ds0_A9_invented", "ok")
+        record_cell(ledger, "promptAblA_ds0_A9_invented", "ok",
+                    run_dir=str(invented))
     assert "not one of the 24 reserved cells" in str(error.value)
 
 
 def test_recording_without_opening_is_refused(tmp_path):
     with pytest.raises(CampaignRefused) as error:
-        record_cell(tmp_path / "ledger", TAGS[0], "ok")
+        record_cell(tmp_path / "ledger", TAGS[0], "ok", run_dir=str(tmp_path))
     assert "never opened" in str(error.value)
+
+
+def test_a_success_must_name_a_result_directory(tmp_path):
+    """The receipt that said "complete" and pointed at nothing.
+
+    A real three-cell run sealed with every `cells` value null, because the
+    ledger accepted `ok` with no run_dir and the launcher never passed one.
+    """
+    ledger = tmp_path / "ledger"
+    open_campaign(ledger, _plan(tmp_path))
+    with pytest.raises(CampaignRefused) as error:
+        record_cell(ledger, TAGS[0], "ok")
+    assert "points at nothing" in str(error.value)
+    with pytest.raises(CampaignRefused) as error:
+        record_cell(ledger, TAGS[0], "ok", run_dir=str(tmp_path / "gone"))
+    assert "not a directory that exists" in str(error.value)
+
+
+def test_a_reader_refuses_a_receipt_whose_outputs_are_null(tmp_path):
+    """A receipt forged with the right count but no outputs."""
+    ledger = tmp_path / "ledger"
+    ledger.mkdir()
+    (ledger / RECEIPT_NAME).write_text(json.dumps({
+        "schema_version": 1, "cell_count": 24,
+        "cells": {t: None for t in TAGS}}))
+    with pytest.raises(CampaignRefused) as error:
+        require_sealed(ledger, expected_cells=24)
+    assert "does not point at any output" in str(error.value)
 
 
 def test_a_reader_refuses_an_unsealed_campaign(tmp_path):
@@ -158,8 +192,10 @@ def test_the_cli_refuses_the_same_way_the_module_does(tmp_path):
     assert second.returncode == 1 and "already held" in second.stderr
     assert run("seal", "--ledger", str(ledger)).returncode == 1
     for tag in TAGS:
+        rd = tmp_path / "result" / tag
+        rd.mkdir(parents=True)
         assert run("record", "--ledger", str(ledger), "--tag", tag,
-                   "--status", "ok").returncode == 0
+                   "--status", "ok", "--run-dir", str(rd)).returncode == 0
     assert run("seal", "--ledger", str(ledger)).returncode == 0
     assert run("verify", "--ledger", str(ledger), "--plan", str(plan)).returncode == 0
 

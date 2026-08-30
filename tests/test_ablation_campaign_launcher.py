@@ -42,6 +42,10 @@ def _stub_runner(tmp_path: Path, *, failing: set) -> str:
         '    echo "[stub] dying"; exit 23\n'
         '  fi\n'
         'done\n'
+        # What a real cell leaves behind, and what the launcher now has to
+        # resolve before it may record the cell as ok.
+        'mkdir -p "result/260830+ds_promptAblA_${EXP}${TAG_SUFFIX}'
+        '_P0refit_e${FIXED_N}+bs+64"\n'
         'echo "[stub] DONE"\n')
     return str(path.relative_to(tmp_path))
 
@@ -56,7 +60,7 @@ def _plan(tmp_path: Path, runner: str) -> Path:
         env.update({"K": "64", "FIXED_N": "4", "NUM_CODONS": "3",
                     "TAG_SUFFIX": f"_{cell}", "VIZ": "0"})
         cells.append({"exp": exp, "cell": cell, "runner": runner, "env": env,
-                      "tag": f"promptAblA_{exp}_{cell}"})
+                      "N": 4, "tag": f"promptAblA_{exp}_{cell}"})
     plan = {
         "schema_version": 2,
         "expected_cells": len(cells),
@@ -219,18 +223,31 @@ def test_a_dry_run_cannot_produce_a_completion_receipt(tmp_path):
 
 
 def test_concurrent_cells_do_not_share_a_gpu(tmp_path):
-    """`GPUS="0 1 2"` put all three smoke cells on GPU 0 while 1-5 sat idle.
+    """`GPUS="0 1 2"` put all three top-p smoke cells on GPU 0 while 1-5 idled.
 
     `next_gpu` took `${g%% *}` -- the first token of the candidate list -- on
-    every call, so the explicit override was read as "use GPU 0". Re-audit
-    §50.1 predicted it from the source; the three-cell top-p smoke then did it.
-    The stub sleeps, so the cells are genuinely concurrent and a launcher that
-    hands out one GPU repeatedly is caught.
+    every call, so the explicit override read as "use GPU 0". Re-audit §50.1
+    predicted it from the source and the real smoke then did it.
+
+    The first version of this test asserted only that each of {0,1,2} appeared
+    somewhere across the logs, which a launcher that runs everything
+    sequentially on rotating devices also satisfies. What has to hold is that no
+    two cells hold one device AT THE SAME TIME, so each cell records the
+    interval it occupied and the intervals are checked for overlap.
     """
     runner = _tree(tmp_path)
     slow = tmp_path / "slow.sh"
-    slow.write_text('set -Eeuo pipefail\n'
-                    'echo "[stub] gpu=$CUDA_VISIBLE_DEVICES"\nsleep 3\n')
+    slow.write_text(
+        'set -Eeuo pipefail\n'
+        'S=$(date +%s%N)\n'
+        'sleep 2\n'
+        # The launcher refuses to record a cell whose result directory it cannot
+        # resolve, so the stub has to leave one behind like a real cell does.
+        'mkdir -p "result/260830+ds_promptAblA_${2}${TAG_SUFFIX}'
+        '_P0refit_e${FIXED_N}+bs+64"\n'
+        'mkdir -p occupancy\n'
+        'echo "$CUDA_VISIBLE_DEVICES $S $(date +%s%N)" '
+        '> "occupancy/${2}${TAG_SUFFIX}.txt"\n')
     plan_path = _plan(tmp_path, runner)
     payload = json.loads(plan_path.read_text())
     for cell in payload["cells"]:
@@ -243,15 +260,18 @@ def test_concurrent_cells_do_not_share_a_gpu(tmp_path):
     plan_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
     proc = _run(tmp_path, plan_path, tmp_path / "ledger",
-                extra_env={"GPUS": "0 1 2", "STAGGER": "0", "GPU_WAIT": "1"})
+                extra_env={"GPUS": "0 1", "STAGGER": "0", "GPU_WAIT": "1"})
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
-    assigned = {}
-    for log in (tmp_path / "logs").glob("ABL_*.out"):
-        line = log.read_text().strip().splitlines()[0]
-        assigned[log.name] = line.split("gpu=")[1].strip()
-    assert len(assigned) == len(CELLS)
-    # Three GPUs, twelve cells, each cell sleeping: at any instant at most three
-    # run, and no two of those may hold the same device.
-    assert set(assigned.values()) == {"0", "1", "2"}, (
-        f"cells did not spread across the offered GPUs: {assigned}")
+    spans = {}
+    for f in sorted((tmp_path / "occupancy").glob("*.txt")):
+        gpu, begin, end = f.read_text().split()
+        spans.setdefault(gpu, []).append((int(begin), int(end), f.name))
+    assert len(spans) == 2, f"cells did not spread over both GPUs: {spans}"
+    assert sum(len(v) for v in spans.values()) == len(CELLS)
+    for gpu, intervals in spans.items():
+        intervals.sort()
+        for (_, prev_end, prev), (nxt_begin, _, nxt) in zip(intervals,
+                                                            intervals[1:]):
+            assert nxt_begin >= prev_end, (
+                f"GPU {gpu} held by {prev} and {nxt} at the same time")

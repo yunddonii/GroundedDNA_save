@@ -136,6 +136,18 @@ def record_cell(ledger_dir: Path, tag: str, status: str, *,
                 run_dir: str | None = None, detail: str | None = None) -> dict:
     if status not in STATUSES:
         raise CampaignRefused(f"status {status!r} is not one of {STATUSES}")
+    # A success has to name what it produced. The first version accepted
+    # `status=ok` with no `--run-dir`, and the launcher never passed one, so a
+    # real three-cell run sealed a receipt whose every output was null -- the
+    # receipt said "complete" and pointed at nothing.
+    if status == "ok":
+        if not run_dir:
+            raise CampaignRefused(
+                f"{tag}: a successful cell must name its result directory; "
+                f"'ok' with no run_dir is a receipt that points at nothing")
+        if not Path(run_dir).is_dir():
+            raise CampaignRefused(
+                f"{tag}: run_dir {run_dir!r} is not a directory that exists")
     held = _reservation(ledger_dir)
     if tag not in held["tags"]:
         raise CampaignRefused(
@@ -167,6 +179,9 @@ def seal_campaign(ledger_dir: Path) -> dict:
             foreign.append(tag)
             continue
         if entry.get("status") != "ok":
+            failed.append(tag)
+            continue
+        if not entry.get("run_dir"):
             failed.append(tag)
             continue
         entries[tag] = entry
@@ -206,6 +221,11 @@ def require_sealed(ledger_dir: Path, *, expected_cells: int,
         raise CampaignRefused(
             f"{path}: {receipt.get('cell_count')} cells, expected "
             f"{expected_cells}")
+    empty = sorted(t for t, d in (receipt.get("cells") or {}).items() if not d)
+    if empty:
+        raise CampaignRefused(
+            f"{path}: {len(empty)} cells name no result directory {empty[:3]}; "
+            f"this receipt does not point at any output")
     if plan_file_sha256 is not None \
             and receipt.get("plan_file_sha256") != plan_file_sha256:
         raise CampaignRefused(
