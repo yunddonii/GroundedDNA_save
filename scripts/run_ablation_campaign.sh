@@ -96,17 +96,33 @@ fi
     say "campaign not reserved; starting nothing"; exit 1; }
 
 # ---- GPUs ------------------------------------------------------------------
-free_gpus(){
+candidate_gpus(){
     if [ -n "${GPUS:-}" ]; then printf '%s ' $GPUS; return; fi
     nvidia-smi --query-gpu=index,memory.used --format=csv,noheader,nounits \
         | awk -F', ' -v t="$IDLE_MIB" '$2+0 < t {printf "%s ", $1}'
 }
+
+# A GPU this launcher has handed to a child that is still alive. Without this,
+# `next_gpu` took `${g%% *}` -- the FIRST token of the candidate list -- every
+# time, so `GPUS="0 1 2"` put all three cells on GPU 0. Observed, not theorised:
+# the three-cell smoke landed entirely on GPU 0 while 1-5 sat idle. The
+# nvidia-smi path had the same hole for as long as it takes a child's memory to
+# show up, which is longer than the stagger.
+declare -A LEASED=()
+reap_leases(){
+    local g
+    for g in "${!LEASED[@]}"; do
+        kill -0 "${LEASED[$g]}" 2>/dev/null || unset 'LEASED['"$g"']'
+    done
+}
 next_gpu(){
     local g
     while :; do
-        g=$(free_gpus); g=${g%% *}
-        [ -n "$g" ] && { echo "$g"; return; }
-        sleep 60
+        reap_leases
+        for g in $(candidate_gpus); do
+            if [ -z "${LEASED[$g]:-}" ]; then echo "$g"; return; fi
+        done
+        sleep "${GPU_WAIT:-30}"
     done
 }
 
@@ -121,6 +137,7 @@ for i in $(seq 0 $((NCELLS - 1))); do
         --expect-plan-sha256 "$PLAN_SHA" --repo "$CHILD_REPO" \
         > "$LOGDIR/ABL_${CELL}_${EXP}.out" 2>&1 &
     PIDS[$i]=$!
+    LEASED[$g]=$!
     [ "$STAGGER" = "0" ] || sleep "$STAGGER"
 done
 

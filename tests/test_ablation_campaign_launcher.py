@@ -216,3 +216,42 @@ def test_a_dry_run_cannot_produce_a_completion_receipt(tmp_path):
     assert len(printed) == len(CELLS)
     assert json.loads(printed[0].read_text())["cmd"][:3] == ["bash", "-o",
                                                              "pipefail"]
+
+
+def test_concurrent_cells_do_not_share_a_gpu(tmp_path):
+    """`GPUS="0 1 2"` put all three smoke cells on GPU 0 while 1-5 sat idle.
+
+    `next_gpu` took `${g%% *}` -- the first token of the candidate list -- on
+    every call, so the explicit override was read as "use GPU 0". Re-audit
+    §50.1 predicted it from the source; the three-cell top-p smoke then did it.
+    The stub sleeps, so the cells are genuinely concurrent and a launcher that
+    hands out one GPU repeatedly is caught.
+    """
+    runner = _tree(tmp_path)
+    slow = tmp_path / "slow.sh"
+    slow.write_text('set -Eeuo pipefail\n'
+                    'echo "[stub] gpu=$CUDA_VISIBLE_DEVICES"\nsleep 3\n')
+    plan_path = _plan(tmp_path, runner)
+    payload = json.loads(plan_path.read_text())
+    for cell in payload["cells"]:
+        cell["runner"] = str(slow.relative_to(tmp_path))
+    payload["runners"] = [str(slow.relative_to(tmp_path))]
+    payload.pop("plan_digest")
+    payload["plan_digest"] = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    plan_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+
+    proc = _run(tmp_path, plan_path, tmp_path / "ledger",
+                extra_env={"GPUS": "0 1 2", "STAGGER": "0", "GPU_WAIT": "1"})
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+    assigned = {}
+    for log in (tmp_path / "logs").glob("ABL_*.out"):
+        line = log.read_text().strip().splitlines()[0]
+        assigned[log.name] = line.split("gpu=")[1].strip()
+    assert len(assigned) == len(CELLS)
+    # Three GPUs, twelve cells, each cell sleeping: at any instant at most three
+    # run, and no two of those may hold the same device.
+    assert set(assigned.values()) == {"0", "1", "2"}, (
+        f"cells did not spread across the offered GPUs: {assigned}")
