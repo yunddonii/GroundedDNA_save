@@ -137,6 +137,37 @@ def _reverify_run(payload: dict, path: Path) -> None:
             f"log.csv epoch {epoch} says {actual}")
 
 
+def _assert_claimed_coordinate(payload: dict, path: Path) -> None:
+    """§58.3: the record's `recipe` label must be what the RUN actually parsed.
+
+    Three genuine Flickr runs -- one underlying identity between them, because
+    the recipe axes were absent -- were relabelled `.3/.7`, `.4/.8`, `.6/.95`
+    in their record JSONs and the reducer accepted all three AND changed its
+    winner. Reopening the checkpoint and the CSV does not catch that: the bytes
+    are real, it is the label that is wrong. So the effective values are read
+    back out of `args.txt`, which is what the trainer parsed.
+    """
+    from scripts.phase3_selection_matrix import _arg_value
+
+    run_dir = Path(payload["run_dir"])
+    args_txt = run_dir / "args.txt"
+    if not args_txt.is_file():
+        raise SelectionRefused(f"{path.name}: {run_dir} has no args.txt")
+    claimed = payload.get("recipe") or {}
+    for field in ("routing_adaptive_topp_min", "routing_adaptive_topp_max",
+                  "lambda_codon_joint"):
+        want = claimed.get(field)
+        if want is None:
+            raise SelectionRefused(
+                f"{path.name}: the record claims no {field}")
+        actual = float(_arg_value(args_txt, field))
+        if abs(actual - float(want)) > 1e-12:
+            raise SelectionRefused(
+                f"{path.name}: the record is labelled {field}={want} but the "
+                f"run parsed {actual}; this is a genuine run under someone "
+                f"else's coordinate")
+
+
 def _check_record(payload: dict, path: Path) -> tuple:
     if payload.get("schema_version") != RECORD_SCHEMA:
         raise SelectionRefused(
@@ -324,16 +355,25 @@ RECIPE_REDUCTION = {
 }
 
 
-def choose_recipe(cells: dict, *, axis: str, grid: list, incumbent) -> dict:
+def choose_recipe(cells: dict, *, axis: str, grid: list, incumbent,
+                  datasets=None) -> dict:
     """Pick one coordinate per dataset on `RECIPE_REDUCTION`.
 
     `cells` maps (dataset, coordinate) -> value. `grid` is the exact set of
     coordinates every dataset must have run, so a dataset that is one cell
     short is refused rather than reduced.
     """
-    datasets = sorted({d for d, _ in cells})
-    if not datasets:
-        raise SelectionRefused("no cells to reduce")
+    seen = sorted({d for d, _ in cells})
+    if datasets is None:
+        raise SelectionRefused(
+            "the declared dataset set is required: reducing over 'whatever "
+            "turned up' accepted a Flickr-only matrix as a complete sweep")
+    datasets = sorted(datasets)
+    if seen != datasets:
+        raise SelectionRefused(
+            f"the sweep declares {datasets} but the records cover {seen}; a "
+            f"recipe chosen from the datasets that happened to finish is a "
+            f"partial matrix")
     chosen = {}
     for dataset in datasets:
         missing = [c for c in grid if (dataset, c) not in cells]
@@ -437,6 +477,7 @@ def _recipe_matrix(records_dir: Path, *, axis: str,
             # Everything except the (dataset, N) membership test, which is
             # about the N matrix rather than a recipe sweep.
             _reverify_run(payload, path)
+            _assert_claimed_coordinate(payload, path)
         except SelectionRefused as error:
             problems.append(str(error))
             continue
@@ -450,6 +491,72 @@ def _recipe_matrix(records_dir: Path, *, axis: str,
         snapshots.add(payload.get("plan_snapshot_sha256"))
     if problems:
         raise SelectionRefused("records refused:\n  " + "\n  ".join(problems))
+    # ---- the sweep's own receipt is the authority on what ran -------------
+    receipt_path = records_dir / f"{namespace}_sweep_complete.json"
+    if not receipt_path.is_file():
+        raise SelectionRefused(
+            f"{receipt_path.name} does not exist; a reduction over records "
+            f"nobody sealed cannot say the sweep finished")
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    if receipt.get("schema_version") != 2:
+        raise SelectionRefused(
+            f"{receipt_path.name}: schema_version "
+            f"{receipt.get('schema_version')!r}, not 2")
+    if receipt.get("axis") != axis or receipt.get("namespace") != namespace:
+        raise SelectionRefused(
+            f"{receipt_path.name} seals axis {receipt.get('axis')!r} in "
+            f"namespace {receipt.get('namespace')!r}, not {axis!r}/{namespace!r}")
+    if receipt.get("cell_count") != receipt.get("expected_cells"):
+        raise SelectionRefused(
+            f"{receipt_path.name}: {receipt.get('cell_count')} of "
+            f"{receipt.get('expected_cells')} cells")
+
+    # ---- the snapshot it names, reopened and re-hashed --------------------
+    snap_path = records_dir / str(receipt.get("plan_snapshot_file") or "")
+    if not snap_path.is_file():
+        raise SelectionRefused(
+            f"the receipt names snapshot {snap_path.name}, which is not here")
+    snapshot = json.loads(snap_path.read_text(encoding="utf-8"))
+    snap_digest = hashlib.sha256(
+        json.dumps(snapshot, sort_keys=True,
+                   separators=(",", ":")).encode()).hexdigest()
+    if snap_digest != receipt.get("plan_snapshot_sha256"):
+        raise SelectionRefused(
+            f"{snap_path.name} does not hash to the digest the receipt seals")
+    plan = snapshot.get("plan") or {}
+    if plan.get("axis") != axis or plan.get("namespace") != namespace:
+        raise SelectionRefused(
+            f"{snap_path.name} describes plan {plan.get('axis')!r}/"
+            f"{plan.get('namespace')!r}, not {axis!r}/{namespace!r}")
+    declared = sorted({c["dataset"] for c in (plan.get("cells") or [])})
+    if not declared:
+        raise SelectionRefused(
+            f"{snap_path.name} carries no plan; it was written before the "
+            f"snapshot named what it was running")
+
+    # ---- every record the receipt sealed, by name and by bytes ------------
+    sealed = receipt.get("cells") or {}
+    if len(sealed) != receipt["expected_cells"]:
+        raise SelectionRefused(
+            f"{receipt_path.name} seals {len(sealed)} cells, expected "
+            f"{receipt['expected_cells']}")
+    for key, entry in sorted(sealed.items()):
+        name = entry.get("record")
+        path = records_dir / str(name)
+        if not path.is_file():
+            raise SelectionRefused(f"the receipt seals {name}, which is gone")
+        if _sha(path) != entry.get("record_sha256"):
+            raise SelectionRefused(
+                f"{name} does not hash to the digest the receipt seals; it "
+                f"changed after the sweep finished")
+        if name not in digests:
+            raise SelectionRefused(
+                f"the receipt seals {name}, which this reduction did not admit")
+    extra = sorted(set(digests) - {e.get("record") for e in sealed.values()})
+    if extra:
+        raise SelectionRefused(
+            f"{extra} are being reduced but the receipt does not seal them")
+
     if not cells:
         raise SelectionRefused(
             f"no candidate {axis} records in {records_dir}"
@@ -467,9 +574,15 @@ def _recipe_matrix(records_dir: Path, *, axis: str,
             f"the cells carry {len(snapshots)} different plan snapshots "
             f"{sorted(str(x)[:12] for x in snapshots)}; a sweep reduced across "
             f"several plans is not one experiment")
+    only = snapshots.pop()
+    if only != snap_digest:
+        raise SelectionRefused(
+            f"the records carry plan {only[:12]}... but the receipt seals "
+            f"{snap_digest[:12]}...")
     return {"cells": cells, "grid": grid, "incumbent": incumbent,
             "record_sha256": digests,
-            "plan_snapshot_sha256": snapshots.pop(),
+            "plan_snapshot_sha256": only,
+            "datasets": declared,
             "namespace": namespaces.pop() if namespaces else None}
 
 
@@ -485,12 +598,18 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.axis != "n":
+        if not args.namespace:
+            print("[phase3-select] --namespace is required for a recipe "
+                  "reduction: the N matrix and every sweep share one records "
+                  "directory", file=sys.stderr)
+            return 2
         try:
             matrix = _recipe_matrix(Path(args.records), axis=args.axis,
                                     namespace=args.namespace)
             chosen = choose_recipe(matrix["cells"], axis=args.axis,
                                    grid=matrix["grid"],
-                                   incumbent=matrix["incumbent"])
+                                   incumbent=matrix["incumbent"],
+                                   datasets=matrix["datasets"])
         except SelectionRefused as error:
             print(f"[phase3-select] REFUSED: {error}", file=sys.stderr)
             return 1

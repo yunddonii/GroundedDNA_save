@@ -75,7 +75,13 @@ EVAL_EVERY = 5
 #: sixteen selection cells used -- confirmed in each winner's args.txt. The
 #: draft calls that top-p window the M=6 tuning, so the incumbent is the anchor
 #: of the sweep rather than the answer.
-TOPP_GRID = (("0.3", "0.7"), ("0.4", "0.8"), ("0.6", "0.95"))
+#: `(0.5, 0.9)` is the ORIGINAL adopted window -- v81a, chosen on Flickr25k
+#: final test mAP, and the one the v82a/b/c interval sweep failed to beat. The
+#: first grid took the three windows from the CIFAR correction cells and left it
+#: out, which would have meant sweeping without the incumbent that every earlier
+#: decision rested on. Flickr and NUS then moved 0.3/0.7 -> 0.4/0.8, i.e. WIDER,
+#: so the omission was in the direction the data was already pointing.
+TOPP_GRID = (("0.3", "0.7"), ("0.4", "0.8"), ("0.5", "0.9"), ("0.6", "0.95"))
 TOPP_INCUMBENT = TOPP_GRID[0]
 #: The lambda grid, swept at the winning top-p. 0.0 is not in it: the top-p
 #: stage runs at 0.0, so its winning cell IS the off-control, at the same N,
@@ -397,7 +403,8 @@ _SNAPSHOT_SOURCES = (
 )
 
 
-def plan_snapshot(datasets=None) -> dict:
+def plan_snapshot(datasets=None, *, plan=None, axis=None,
+                  namespace=None) -> dict:
     """The sources AND the inputs, frozen at plan time.
 
     The launcher-crash lesson generalises: bash reads a script incrementally,
@@ -433,7 +440,23 @@ def plan_snapshot(datasets=None) -> dict:
                 ("qwen", REPO / spec["qwen"])):
             inputs[f"{ds}/{label}"] = (_sha(path) if Path(path).is_file()
                                        else "#absent")
-    return {"schema_version": 1, "sources": sources, "inputs": inputs}
+    payload = {"schema_version": 2, "sources": sources, "inputs": inputs}
+    # WHAT is being run, not only WHAT IT IS RUN WITH. Without this the
+    # one-cell smoke and the nine-cell production sweep produced a
+    # byte-identical snapshot, so the digest in a receipt could not say which
+    # plan it sealed.
+    if plan is not None:
+        payload["plan"] = {
+            "axis": axis,
+            "namespace": namespace,
+            "expected_cells": len(plan),
+            "cells": [
+                {"dataset": ds, "N": n,
+                 "topp": list(topp) if topp is not None else None,
+                 "joint": jd}
+                for ds, n, topp, jd in plan],
+        }
+    return payload
 
 
 def verify_snapshot(snapshot: dict, *, datasets=None) -> None:
@@ -1168,7 +1191,9 @@ def _run_sweep(args, at_topp) -> int:
     # The snapshot spans the DECLARED sweep, not the subset `--only` narrowed
     # it to: a one-cell run that pins only its own dataset is a new baseline
     # each time, which is what nine `--only` processes produced.
-    snapshot = plan_snapshot(sorted({c[0] for c in full_plan}))
+    snapshot = plan_snapshot(sorted({c[0] for c in full_plan}),
+                             plan=full_plan, axis=args.sweep,
+                             namespace=args.namespace)
     # The snapshot file is named by its OWN digest. Three streams each running
     # `--only` wrote one shared `<namespace>_snapshot.json` and atomically
     # replaced each other's, so the file ended up holding one dataset's inputs
@@ -1241,12 +1266,26 @@ def _run_sweep(args, at_topp) -> int:
         print(f"[phase3] {len(done)} of {len(plan)} sweep cells complete; "
               f"missing {missing}", file=sys.stderr)
         return 1
+    # The receipt seals the EVIDENCE, not just a count. It used to record
+    # `key -> tag` and a number, which a reducer cannot use to check that the
+    # cells it is reading are the cells that ran.
     _atomic_json(RECORD_DIR / f"{args.namespace}_sweep_complete.json", {
-        "schema_version": 1, "axis": args.sweep,
+        "schema_version": 2, "axis": args.sweep,
         "namespace": args.namespace,
         "plan_snapshot_sha256": snap_digest,
-        "cells": {k: results[k][1]["tag"] for k in sorted(results)},
+        "plan_snapshot_file": snap_path.name,
+        "expected_cells": len(plan),
         "cell_count": len(done),
+        "cells": {
+            k: {
+                "tag": results[k][1]["tag"],
+                "run_dir": results[k][1]["run_dir"],
+                "identity_digest": results[k][1]["geometry"]["identity_digest"],
+                "record": f"{results[k][1]['tag']}.json",
+                "record_sha256": _sha(RECORD_DIR / f"{results[k][1]['tag']}.json"),
+                "recipe": results[k][1]["recipe"],
+            }
+            for k in sorted(results)},
     })
     print(f"[phase3] {len(plan)} of {len(plan)} sweep cells complete")
     return 0

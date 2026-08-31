@@ -487,6 +487,77 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-08-31 (PM2) The empty-slot table was measured at the wrong epoch — retracted; four preflight gates before the 12-cell sweep
+
+### Retraction
+
+`diagnose_per_image_empty_slots.py` calls `set_current_epoch()` only when
+`--epoch` is passed. I did not pass it, and the tool wrote `"epoch": null`
+into every JSON, which I did not read. The Sinkhorn epsilon therefore stayed at
+its epoch-0 default (~1.0), the transport plan was near-uniform, and a
+near-uniform plan gives every slot mass. **"0 % empty on all nine cells" was
+produced by the measurement, not by the models.** Same class as F01, in the
+diagnostic instead of the extractor. The nine JSONs are in
+`docs/newmodel_analysis/_RETRACTED/`.
+
+Re-measured at each cell's terminal epoch (Flickr/NUS 4, MS-COCO 39):
+
+| dataset | top-p | worst empty | min tokens | (epoch-0 said) |
+|---|---|---:|---:|---:|
+| Flickr | .3/.7 | 0.00 % | 26 | (6) |
+| Flickr | **.4/.8** | 0.00 % | **37** | (7) |
+| Flickr | .6/.95 | 0.00 % | 53 | (182) |
+| NUS | .3/.7 | 0.00 % | 20 | (10) |
+| NUS | **.4/.8** | 0.00 % | **18** | (8) |
+| NUS | .6/.95 | 0.00 % | 54 | (102) |
+| COCO | .3/.7 | 0.00 % | 28 | (10) |
+| COCO | .4/.8 | 0.00 % | 27 | (8) |
+| COCO | **.6/.95** | 0.00 % | **40** | (163) |
+
+The 0 % conclusion survives — CIFAR's 23.44 % starvation does not occur on these
+three multi-label datasets at any window. The magnitudes do not: I reported
+0.6/0.95 raising the token floor from single digits to three digits, a 20x gap.
+It is 40–54 against 18–28, about 2x, and 0.4/0.8 already secures 26–37 of 196
+patches. My "very thin" characterisation was wrong. Nothing here overturns the
+mAP@R-based choice.
+
+### `(0.5, 0.9)` joins the grid
+
+It is the ORIGINAL adopted window (v81a, chosen on Flickr25k final test mAP) and
+the one the v82a/b/c interval sweep failed to beat. I had built the grid from
+the three CIFAR correction cells and left the incumbent of every earlier
+decision out of it — while Flickr and NUS were moving 0.3/0.7 -> 0.4/0.8, i.e.
+WIDER, which is the direction 0.5/0.9 lies in.
+
+Changing `TOPP_GRID` changes the protocol source, so the nine cells and any new
+ones carry different plan snapshots and cannot be reduced together. That guard
+is correct: the grid IS the protocol. All twelve are re-run under one plan.
+
+### The four preflight gates, each with a test that fails against the old code
+
+* **Snapshot names its plan** (§59.2). The one-cell smoke and the nine-cell
+  production sweep produced a **byte-identical** snapshot, so a receipt's digest
+  could not say which plan it sealed. The payload now carries axis, namespace,
+  expected count and the exact cell list; smoke, production and a bare tree
+  snapshot are three different digests.
+* **The receipt seals evidence** (§58.4). It recorded `key -> tag` and a count.
+  It now seals each cell's run directory, identity digest, record filename and
+  record SHA — and the reducer reopens the receipt, reopens the snapshot it
+  names, re-hashes it, and re-hashes every sealed record. A record the receipt
+  does not seal cannot join, and a sealed record that is gone or altered refuses.
+* **Exact dataset x grid cardinality** (§58.2). `choose_recipe` derived its
+  dataset set from whatever turned up, so a Flickr-only matrix passed as a
+  complete sweep. The declared set is now required and compared.
+* **Coordinate relabelling** (§58.3) — the dangerous one. Three genuine runs
+  with one identity between them, relabelled .3/.7, .4/.8 and .6/.95 in their
+  record JSONs, were accepted and **changed the winner**. Reopening the
+  checkpoint and CSV cannot catch it: the bytes are real, the label is not. The
+  claimed coordinate is now read back out of `args.txt` — what the trainer
+  parsed — and compared.
+
+Eight adversarial tests. Against the previous selector, thirteen tests fail;
+against this one, all pass. 1096 passed.
+
 ## 2026-08-31 (PM) The 9-cell sweep was nine plans, not one — stopped, quarantined, rebuilt
 
 I launched the top-p sweep as three background shell streams, each calling

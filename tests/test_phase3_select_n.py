@@ -44,7 +44,8 @@ from scripts.phase3_selection_matrix import (  # noqa: E402
 _PROTOCOL = protocol_digests()
 
 
-def _real_run(root: Path, dataset: str, n: int, value: float) -> dict:
+def _real_run(root: Path, dataset: str, n: int, value: float, *,
+              topp=("0.3", "0.7"), joint="0.0") -> dict:
     """A run directory the aggregator can actually reopen.
 
     The old fixture wrote `run_dir: "/result/cifar10_N4"` and completion
@@ -58,8 +59,15 @@ def _real_run(root: Path, dataset: str, n: int, value: float) -> dict:
     from dna_utils.run_identity import RunIdentity, write_run_manifest
     from scripts.phase3_selection_matrix import DATASETS, _sha
 
-    run = root / f"{dataset}_N{n}"
+    run = root / f"{dataset}_N{n}_{topp[0]}_{topp[1]}_{joint}"
     run.mkdir(parents=True, exist_ok=True)
+    # `args.txt` is what the trainer parsed, and the reducer reads the swept
+    # coordinate back out of it -- a record cannot label a run with someone
+    # else's coordinate.
+    (run / "args.txt").write_text(
+        f"routing_adaptive_topp_min{'-' * 20}{topp[0]}\n"
+        f"routing_adaptive_topp_max{'-' * 20}{topp[1]}\n"
+        f"lambda_codon_joint{'-' * 20}{joint}\n")
     (run / "model_state_dict.pth").write_bytes(f"weights-{dataset}-{n}".encode())
     with open(run / "log.csv", "w", newline="", encoding="utf-8") as handle:
         writer = _csv.DictWriter(
@@ -77,10 +85,15 @@ def _real_run(root: Path, dataset: str, n: int, value: float) -> dict:
         selection_mode="select", val_split_ratio=VAL_RATIO,
         val_split_seed=VAL_SEED, lr_schedule_horizon=LR_HORIZON,
         sinkhorn_schedule_horizon=n + 1,
-        siglip2_feature_cache_dir=spec["cache"], eval_cache_dir=spec["cache"]))
+        siglip2_feature_cache_dir=spec["cache"], eval_cache_dir=spec["cache"],
+        routing_adaptive_topp=True,
+        routing_adaptive_topp_min=float(topp[0]),
+        routing_adaptive_topp_max=float(topp[1]),
+        lambda_codon_joint=float(joint)))
     write_run_manifest(str(run), identity)
     return {
         "run_dir": str(run),
+        "topp": topp, "joint": joint,
         "identity_digest": identity.digest,
         "checkpoint_sha256": _sha(run / "model_state_dict.pth"),
         "log_csv_sha256": _sha(run / "log.csv"),
@@ -504,10 +517,9 @@ def _grid():
 
 def test_the_recipe_winner_is_the_argmax(tmp_path):
     grid, inc = _grid()
-    cells = {("flickr25k", grid[0]): 0.7576,
-             ("flickr25k", grid[1]): 0.7608,
-             ("flickr25k", grid[2]): 0.7605}
-    got = choose_recipe(cells, axis="topp", grid=grid, incumbent=inc)
+    cells = dict(zip(((("flickr25k"), c) for c in grid),
+                     (0.7576, 0.7608, 0.7590, 0.7605)))
+    got = choose_recipe(cells, axis="topp", grid=grid, incumbent=inc, datasets=sorted({d for d, _ in cells}))
     assert got["flickr25k"]["selected"] == list(grid[1])
     assert got["flickr25k"]["delta_vs_incumbent"] == pytest.approx(0.0032)
     assert got["flickr25k"]["tie_broken"] is False
@@ -516,24 +528,23 @@ def test_the_recipe_winner_is_the_argmax(tmp_path):
 def test_a_tie_keeps_the_incumbent(tmp_path):
     """Not-moving wins a tie, so a coin flip cannot rewrite the recipe."""
     grid, inc = _grid()
-    got = choose_recipe({("f", c): 0.5 for c in grid},
-                        axis="topp", grid=grid, incumbent=inc)
+    got = choose_recipe({("f", c): 0.5 for c in grid}, axis="topp", grid=grid, incumbent=inc, datasets=sorted({d for d, _ in {("f", c): 0.5 for c in grid}}))
     assert got["f"]["selected"] == list(inc)
     assert got["f"]["tie_broken"] is True
 
 
 def test_a_tie_without_the_incumbent_takes_the_earlier_coordinate():
     grid, inc = _grid()
-    cells = {("f", grid[0]): 0.1, ("f", grid[1]): 0.9, ("f", grid[2]): 0.9}
-    got = choose_recipe(cells, axis="topp", grid=grid, incumbent=inc)
+    cells = {("f", c): 0.9 for c in grid[1:]}
+    cells[("f", grid[0])] = 0.1
+    got = choose_recipe(cells, axis="topp", grid=grid, incumbent=inc, datasets=sorted({d for d, _ in cells}))
     assert got["f"]["selected"] == list(grid[1])
 
 
 def test_a_dataset_missing_one_cell_refuses_the_dataset():
     grid, inc = _grid()
     with pytest.raises(SelectionRefused) as error:
-        choose_recipe({("f", grid[0]): 0.5, ("f", grid[1]): 0.6},
-                      axis="topp", grid=grid, incumbent=inc)
+        choose_recipe({("f", grid[0]): 0.5, ("f", grid[1]): 0.6}, axis="topp", grid=grid, incumbent=inc, datasets=sorted({d for d, _ in {("f", grid[0]): 0.5, ("f", grid[1]): 0.6}}))
     assert "partial matrix" in str(error.value)
 
 
@@ -542,7 +553,7 @@ def test_a_coordinate_off_the_declared_grid_is_refused():
     cells = {("f", c): 0.5 for c in grid}
     cells[("f", ("0.9", "0.99"))] = 0.99
     with pytest.raises(SelectionRefused) as error:
-        choose_recipe(cells, axis="topp", grid=grid, incumbent=inc)
+        choose_recipe(cells, axis="topp", grid=grid, incumbent=inc, datasets=sorted({d for d, _ in cells}))
     assert "not in the declared" in str(error.value)
 
 
@@ -552,7 +563,7 @@ def test_a_nonfinite_or_out_of_range_value_refuses(bad):
     cells = {("f", c): 0.5 for c in grid}
     cells[("f", grid[0])] = bad
     with pytest.raises(SelectionRefused):
-        choose_recipe(cells, axis="topp", grid=grid, incumbent=inc)
+        choose_recipe(cells, axis="topp", grid=grid, incumbent=inc, datasets=sorted({d for d, _ in cells}))
 
 
 def test_the_lambda_grid_reduces_without_its_incumbent(tmp_path):
@@ -564,8 +575,7 @@ def test_the_lambda_grid_reduces_without_its_incumbent(tmp_path):
     from scripts.phase3_selection_matrix import JOINT_GRID, JOINT_INCUMBENT
     grid = list(JOINT_GRID)
     cells = {("f", j): 0.5 + 0.01 * i for i, j in enumerate(grid)}
-    got = choose_recipe(cells, axis="joint", grid=grid,
-                        incumbent=JOINT_INCUMBENT)["f"]
+    got = choose_recipe(cells, axis="joint", grid=grid, incumbent=JOINT_INCUMBENT, datasets=sorted({d for d, _ in cells}))["f"]
     assert got["selected"] == grid[-1]
     assert got["incumbent_on_grid"] is False
     assert got["delta_vs_incumbent"] is None
@@ -573,40 +583,217 @@ def test_the_lambda_grid_reduces_without_its_incumbent(tmp_path):
 
 def test_cells_from_several_plan_snapshots_are_not_one_experiment(tmp_path):
     """§57.2: nine `--only` processes each took their own snapshot."""
-    from scripts.phase3_selection_matrix import TOPP_GRID
-    records = tmp_path / "records"
-    records.mkdir()
-    runs = tmp_path / "runs"
-    for i, (lo, hi) in enumerate(TOPP_GRID):
-        run = _real_run(runs / f"c{i}", "flickr25k", 4, 0.7 + 0.01 * i)
-        rec = _record("flickr25k", 4, 0.7 + 0.01 * i, run=run)
-        rec["namespace"] = "phase3topp"
-        rec["recipe"] = {"routing_adaptive_topp_min": lo,
-                         "routing_adaptive_topp_max": hi,
-                         "lambda_codon_joint": "0.0"}
-        # Each cell claims a DIFFERENT plan, which is what the nine processes
-        # produced.
-        rec["plan_snapshot_sha256"] = f"{i}" * 64
-        (records / f"c{i}.json").write_text(json.dumps(rec))
+    from scripts.phase3_select_n import _sha
+
+    def rebaseline(receipt, records_dir):
+        """One cell ran against its own snapshot, and the receipt says so.
+
+        Editing the record alone is caught earlier, by the receipt's own
+        digest -- so the receipt is kept honest about the edited bytes, which
+        is exactly what nine independent processes would have produced.
+        """
+        key = sorted(receipt["cells"])[1]
+        entry = receipt["cells"][key]
+        path = records_dir / entry["record"]
+        payload = json.loads(path.read_text())
+        payload["plan_snapshot_sha256"] = "9" * 64
+        path.write_text(json.dumps(payload))
+        entry["record_sha256"] = _sha(path)
+
+    records = _sweep(tmp_path, seal=rebaseline)
     with pytest.raises(SelectionRefused) as error:
-        _recipe_matrix(records, axis="topp", namespace="phase3topp")
+        _recipe_matrix(records, axis="topp", namespace="phase3sweep")
     assert "different plan snapshots" in str(error.value)
 
 
 def test_the_recipe_reducer_ignores_the_n_matrix_records(tmp_path):
     """§57.3: reading every candidate record made the sixteen N cells fatal."""
+    records = _sweep(tmp_path)
+    for dataset, n in cell_keys():          # the sixteen N-selection records
+        (records / f"phase3sel_{dataset}_N{n}.json").write_text(json.dumps(
+            _record(dataset, n, 0.5, run=_real_run(tmp_path / "nm", dataset, n, 0.5))))
     from scripts.phase3_selection_matrix import TOPP_GRID
-    records = _matrix(tmp_path)          # the sixteen N-selection records
-    runs = tmp_path / "swept"
-    for i, (lo, hi) in enumerate(TOPP_GRID):
-        run = _real_run(runs / f"s{i}", "flickr25k", 4, 0.7 + 0.01 * i)
-        rec = _record("flickr25k", 4, 0.7 + 0.01 * i, run=run)
-        rec["namespace"] = "phase3topp"
-        rec["recipe"] = {"routing_adaptive_topp_min": lo,
-                         "routing_adaptive_topp_max": hi,
-                         "lambda_codon_joint": "0.0"}
-        rec["plan_snapshot_sha256"] = "a" * 64
-        (records / f"swept_{i}.json").write_text(json.dumps(rec))
-    matrix = _recipe_matrix(records, axis="topp", namespace="phase3topp")
+    matrix = _recipe_matrix(records, axis="topp", namespace="phase3sweep")
     assert len(matrix["cells"]) == len(TOPP_GRID)
-    assert matrix["plan_snapshot_sha256"] == "a" * 64
+    assert matrix["datasets"] == ["flickr25k"]
+
+
+# ---------------------------------------------------------------------------
+# A sweep as production writes it: records, a content-addressed snapshot whose
+# `plan` names the exact cells, and a receipt sealing every record by name and
+# by digest. The reducer reopens all three.
+# ---------------------------------------------------------------------------
+
+def _sweep(tmp_path: Path, *, datasets=("flickr25k",), grid=None,
+           namespace="phase3sweep", axis="topp", values=None,
+           n=4, seal=None):
+    import hashlib as _h
+    from scripts.phase3_select_n import _sha
+    from scripts.phase3_selection_matrix import TOPP_GRID, plan_snapshot
+
+    grid = [tuple(c) for c in (grid or TOPP_GRID)]
+    records = tmp_path / "records"
+    records.mkdir(exist_ok=True)
+    plan = [(ds, n, c, "0.0") for ds in datasets for c in grid]
+    snapshot = plan_snapshot(list(datasets), plan=plan, axis=axis,
+                             namespace=namespace)
+    digest = _h.sha256(json.dumps(snapshot, sort_keys=True,
+                                  separators=(",", ":")).encode()).hexdigest()
+    snap_name = f"{namespace}_snapshot_{digest[:16]}.json"
+    (records / snap_name).write_text(
+        json.dumps(snapshot, indent=2, sort_keys=True) + "\n")
+
+    sealed = {}
+    for ds in datasets:
+        for c in grid:
+            value = (values or {}).get((ds, c), 0.5 + 0.01 * grid.index(c))
+            run = _real_run(tmp_path / "runs", ds, n, value, topp=c)
+            rec = _record(ds, n, value, run=run)
+            rec["namespace"] = namespace
+            rec["recipe"] = {"routing_adaptive_topp_min": c[0],
+                             "routing_adaptive_topp_max": c[1],
+                             "lambda_codon_joint": "0.0"}
+            rec["plan_snapshot_sha256"] = digest
+            name = f"{namespace}_{ds}_{c[0]}_{c[1]}.json"
+            (records / name).write_text(json.dumps(rec))
+            sealed[f"{ds}/{c}/0.0"] = {
+                "tag": rec["tag"], "run_dir": run["run_dir"],
+                "identity_digest": run["identity_digest"],
+                "record": name, "record_sha256": _sha(records / name),
+                "recipe": rec["recipe"]}
+    receipt = {"schema_version": 2, "axis": axis, "namespace": namespace,
+               "plan_snapshot_sha256": digest, "plan_snapshot_file": snap_name,
+               "expected_cells": len(plan), "cell_count": len(sealed),
+               "cells": sealed}
+    if seal:
+        seal(receipt, records)
+    (records / f"{namespace}_sweep_complete.json").write_text(
+        json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+    return records
+
+
+# ---------------------------------------------------------------------------
+# The four preflight conditions for the 12-cell sweep, each exercised against
+# the real reducer. §58.2 (exact cardinality), §58.3 (coordinate relabelling),
+# §58.4 (receipt reopen), §59.2 (snapshot must name its plan).
+# ---------------------------------------------------------------------------
+
+def test_a_genuine_run_under_someone_elses_coordinate_is_refused(tmp_path):
+    """§58.3, and the most dangerous of the four.
+
+    Three genuine Flickr runs -- one identity between them, because the recipe
+    axes were absent -- were relabelled .3/.7, .4/.8 and .6/.95 in their record
+    JSONs. Every byte the reducer reopened was real; only the label was wrong,
+    and the winner changed. So the coordinate is read back out of `args.txt`.
+    """
+    from scripts.phase3_select_n import _sha
+
+    def relabel(receipt, records_dir):
+        key = sorted(receipt["cells"])[-1]
+        entry = receipt["cells"][key]
+        path = records_dir / entry["record"]
+        payload = json.loads(path.read_text())
+        # The run really parsed 0.6/0.95; claim it was 0.3/0.7.
+        payload["recipe"]["routing_adaptive_topp_min"] = "0.3"
+        payload["recipe"]["routing_adaptive_topp_max"] = "0.7"
+        path.write_text(json.dumps(payload))
+        entry["record_sha256"] = _sha(path)
+
+    records = _sweep(tmp_path, seal=relabel)
+    with pytest.raises(SelectionRefused) as error:
+        _recipe_matrix(records, axis="topp", namespace="phase3sweep")
+    assert "someone else's coordinate" in str(error.value)
+
+
+def test_a_sweep_missing_a_whole_dataset_is_refused(tmp_path):
+    """§58.2: a Flickr-only matrix was accepted as a complete sweep."""
+    records = _sweep(tmp_path, datasets=("flickr25k", "nuswide"))
+    for stray in records.glob("phase3sweep_nuswide_*.json"):
+        stray.unlink()
+    with pytest.raises(SelectionRefused) as error:
+        _recipe_matrix(records, axis="topp", namespace="phase3sweep")
+    assert "did not admit" in str(error.value) or "seals" in str(error.value)
+
+
+def test_the_declared_dataset_set_is_what_must_be_present(tmp_path):
+    from scripts.phase3_selection_matrix import TOPP_GRID, TOPP_INCUMBENT
+    grid = [tuple(c) for c in TOPP_GRID]
+    cells = {("flickr25k", c): 0.5 for c in grid}
+    with pytest.raises(SelectionRefused) as error:
+        choose_recipe(cells, axis="topp", grid=grid,
+                      incumbent=tuple(TOPP_INCUMBENT),
+                      datasets=["flickr25k", "nuswide", "mscoco"])
+    assert "partial matrix" in str(error.value)
+
+
+def test_a_reduction_without_a_receipt_is_refused(tmp_path):
+    """§58.4: nothing tied the records to 'they all ran in one sweep'."""
+    records = _sweep(tmp_path)
+    (records / "phase3sweep_sweep_complete.json").unlink()
+    with pytest.raises(SelectionRefused) as error:
+        _recipe_matrix(records, axis="topp", namespace="phase3sweep")
+    assert "nobody sealed" in str(error.value)
+
+
+def test_a_receipt_naming_a_missing_snapshot_is_refused(tmp_path):
+    records = _sweep(tmp_path)
+    for snap in records.glob("phase3sweep_snapshot_*.json"):
+        snap.unlink()
+    with pytest.raises(SelectionRefused) as error:
+        _recipe_matrix(records, axis="topp", namespace="phase3sweep")
+    assert "not here" in str(error.value)
+
+
+def test_an_edited_snapshot_is_refused(tmp_path):
+    records = _sweep(tmp_path)
+    snap = next(records.glob("phase3sweep_snapshot_*.json"))
+    payload = json.loads(snap.read_text())
+    payload["sources"]["loss_siglip2.py"] = "0" * 64
+    snap.write_text(json.dumps(payload))
+    with pytest.raises(SelectionRefused) as error:
+        _recipe_matrix(records, axis="topp", namespace="phase3sweep")
+    assert "does not hash to the digest" in str(error.value)
+
+
+def test_a_planless_snapshot_is_refused(tmp_path):
+    """§59.2: the smoke's snapshot and production's were byte-identical."""
+    from scripts.phase3_select_n import _sha
+    records = _sweep(tmp_path)
+    snap = next(records.glob("phase3sweep_snapshot_*.json"))
+    payload = json.loads(snap.read_text())
+    del payload["plan"]
+    snap.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+    receipt_path = records / "phase3sweep_sweep_complete.json"
+    receipt = json.loads(receipt_path.read_text())
+    import hashlib
+    receipt["plan_snapshot_sha256"] = hashlib.sha256(
+        json.dumps(payload, sort_keys=True,
+                   separators=(",", ":")).encode()).hexdigest()
+    receipt_path.write_text(json.dumps(receipt))
+    with pytest.raises(SelectionRefused) as error:
+        _recipe_matrix(records, axis="topp", namespace="phase3sweep")
+    assert "carries no plan" in str(error.value) or "describes plan" in str(error.value)
+
+
+def test_an_unsealed_extra_record_is_refused(tmp_path):
+    """A cell nobody's receipt mentions cannot join the reduction."""
+    from scripts.phase3_selection_matrix import TOPP_GRID
+    records = _sweep(tmp_path)
+    # An off-grid coordinate, so the duplicate check does not fire first and
+    # the record reaches the receipt comparison this test is about.
+    run = _real_run(tmp_path / "extra", "flickr25k", 4, 0.99,
+                    topp=("0.2", "0.6"))
+    rec = _record("flickr25k", 4, 0.99, run=run)
+    rec["namespace"] = "phase3sweep"
+    rec["recipe"] = {"routing_adaptive_topp_min": "0.2",
+                     "routing_adaptive_topp_max": "0.6",
+                     "lambda_codon_joint": "0.0"}
+    snap = next(records.glob("phase3sweep_snapshot_*.json"))
+    import hashlib
+    rec["plan_snapshot_sha256"] = hashlib.sha256(
+        json.dumps(json.loads(snap.read_text()), sort_keys=True,
+                   separators=(",", ":")).encode()).hexdigest()
+    (records / "phase3sweep_flickr25k_smuggled.json").write_text(json.dumps(rec))
+    with pytest.raises(SelectionRefused) as error:
+        _recipe_matrix(records, axis="topp", namespace="phase3sweep")
+    assert "does not seal them" in str(error.value)
