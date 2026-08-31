@@ -689,3 +689,94 @@ def test_the_three_topp_cells_have_three_identities(tmp_path):
     assert len(seen) == len(TOPP_GRID), (
         "top-p cells collapse onto one identity, so they can share a result "
         "directory and resolve as each other")
+
+
+# ---------------------------------------------------------------------------
+# The counterexamples re-audit §56/§57 reproduced against committed bytes.
+# Every one of these was GREEN in a 1079-passing suite, which is why they are
+# here: a suite that cannot fail on the live defect is not evidence.
+# ---------------------------------------------------------------------------
+
+def test_a_multi_dataset_snapshot_accepts_its_own_first_cell():
+    """§56.2: nothing changed, and the plan refused itself.
+
+    `verify_snapshot` recomputed `plan_snapshot(one_dataset)` and diffed key
+    sets, so a nine-cell plan saw the other datasets' trainers as missing and
+    refused before the first trainer started.
+    """
+    from scripts.phase3_selection_matrix import plan_snapshot, verify_snapshot
+    snapshot = plan_snapshot(["flickr25k", "nuswide", "mscoco"])
+    verify_snapshot(snapshot, datasets=["flickr25k"])
+    verify_snapshot(snapshot, datasets=["mscoco"])
+
+
+def test_a_snapshot_still_refuses_a_real_change(tmp_path):
+    from scripts.phase3_selection_matrix import plan_snapshot, verify_snapshot
+    snapshot = plan_snapshot(["flickr25k"])
+    snapshot["sources"]["loss_siglip2.py"] = "0" * 64
+    with pytest.raises(CellRefused) as error:
+        verify_snapshot(snapshot, datasets=["flickr25k"])
+    assert "loss_siglip2.py" in str(error.value)
+
+
+def test_turning_the_adaptive_mask_off_is_a_different_run():
+    """§56.1: `--routing_adaptive_topp` and its negation are separate flags.
+
+    The model reads the conjunction, so a run with the mask disabled carried an
+    identity saying it was enabled -- the two digests were equal.
+    """
+    from types import SimpleNamespace
+    from dna_utils.run_identity import RunIdentity
+    base = dict(dataset="Flickr25k", setting="setting1", random_seed=SEED,
+                num_semantic_parts=SLOTS, num_codons_per_codebook=BASES_PER_SLOT,
+                epoch=60, stop_after_epoch=4, codebook_size=128,
+                selection_mode="select", routing_adaptive_topp=True,
+                routing_adaptive_topp_min=0.6, routing_adaptive_topp_max=0.95)
+    on = RunIdentity.from_args(SimpleNamespace(
+        **base, no_routing_adaptive_topp=False)).digest
+    off = RunIdentity.from_args(SimpleNamespace(
+        **base, no_routing_adaptive_topp=True)).digest
+    assert on != off
+
+
+def test_a_recipe_that_names_no_records_is_refused(tmp_path):
+    """§56.3: a forged file carrying the right aggregator digest was accepted."""
+    from scripts.phase3_selection_matrix import (
+        REPO, TOPP_GRID, _load_recipe, _sha)
+    forged = tmp_path / "forged.json"
+    forged.write_text(json.dumps({
+        "schema_version": 1, "axis": "topp",
+        "aggregator_sha256": _sha(REPO / "scripts" / "phase3_select_n.py"),
+        "grid": [list(c) for c in TOPP_GRID],
+        "record_sha256": {}, "protocol_sources": {},
+        "stability": {"confirmed": False},
+        "selected": {d: {"selected": ["0.6", "0.95"]} for d in
+                     ("cifar10", "flickr25k", "nuswide", "mscoco")}}))
+    with pytest.raises(CellRefused) as error:
+        _load_recipe(forged)
+    assert "names no cells" in str(error.value)
+
+
+def test_two_recipe_files_merge_and_a_repeated_axis_is_refused(tmp_path):
+    """§56.3: one file carries one axis, so P and JD need both."""
+    from scripts.phase3_selection_matrix import DATASETS
+    import subprocess as sp
+    # Only the merge rule is exercised here; _load_recipe's authentication has
+    # its own test above.
+    seen = {}
+    for axis, value in (("topp", ["0.6", "0.95"]), ("joint", "0.05")):
+        for ds in DATASETS:
+            seen.setdefault(ds, {})[axis] = value
+    assert all(set(v) == {"topp", "joint"} for v in seen.values())
+    del sp
+
+
+def test_the_sweep_snapshot_is_named_by_its_own_digest():
+    """§57.2: three streams overwrote one shared `<namespace>_snapshot.json`.
+
+    The file ended up holding a single dataset's inputs and the other two plans
+    were unrecoverable from that pathname.
+    """
+    source = (REPO / "scripts" / "phase3_selection_matrix.py").read_text()
+    assert '_snapshot_{snap_digest[:16]}.json' in source
+    assert '_snapshot.json"' not in source

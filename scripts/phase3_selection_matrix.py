@@ -437,12 +437,35 @@ def plan_snapshot(datasets=None) -> dict:
 
 
 def verify_snapshot(snapshot: dict, *, datasets=None) -> None:
-    """Refuse when anything the plan pinned has moved."""
-    now = plan_snapshot(datasets)
-    for kind in ("sources", "inputs"):
-        before, after = snapshot.get(kind) or {}, now[kind]
-        changed = sorted(k for k in set(before) | set(after)
-                         if before.get(k) != after.get(k))
+    """Refuse when anything the PLAN pinned has moved.
+
+    The comparison is over the snapshot's OWN keys, re-hashed now. Comparing
+    against `plan_snapshot(one_dataset)` compared a nine-cell plan's key set
+    against a one-cell key set, so every multi-dataset plan refused its own
+    first cell -- with nothing changed -- because the other datasets' trainers
+    were "missing" from the narrower recomputation. The snapshot is the
+    authority; the subset is not a second snapshot to diff against it.
+    """
+    del datasets  # the snapshot's keys decide what is re-checked
+    now_sources = {rel: (_sha(REPO / rel) if (REPO / rel).is_file()
+                         else "#absent")
+                   for rel in (snapshot.get("sources") or {})}
+    now_inputs = {}
+    for key in (snapshot.get("inputs") or {}):
+        ds, label = key.split("/", 1)
+        spec = DATASETS[ds]
+        path = {
+            "feature_cache_meta": Path(spec["cache"]) / "meta.json",
+            "foils_meta": Path(spec["foils"]) / "meta.json",
+            "whiten_select": Path(_whitening(spec, stage="select")),
+            "whiten_refit": Path(_whitening(spec, stage="refit")),
+            "qwen": REPO / spec["qwen"],
+        }[label]
+        now_inputs[key] = _sha(path) if Path(path).is_file() else "#absent"
+
+    for kind, after in (("sources", now_sources), ("inputs", now_inputs)):
+        before = snapshot.get(kind) or {}
+        changed = sorted(k for k in before if before[k] != after.get(k))
         if changed:
             raise CellRefused(
                 f"{kind} changed while the sweep was running: {changed}. What "
@@ -978,6 +1001,27 @@ def _load_recipe(path: Path) -> dict:
         raise CellRefused(
             f"{path} was written by a different {aggregator.name} than the one "
             f"in this tree")
+    # A recipe that names no records is a receipt for whatever wrote it. A
+    # forged file carrying the current aggregator's digest, an empty
+    # `record_sha256` and `protocol_sources`, and `stability.confirmed: false`
+    # was accepted for all four datasets.
+    records = payload.get("record_sha256")
+    if not isinstance(records, dict) or not records:
+        raise CellRefused(
+            f"{path}: record_sha256 names no cells, so this choice cannot be "
+            f"traced to any run")
+    bad = sorted(k for k, v in records.items()
+                 if not isinstance(v, str) or len(v) != 64)
+    if bad:
+        raise CellRefused(f"{path}: record_sha256 entries are not digests {bad}")
+    from scripts.phase3_select_n import RECIPE_REDUCTION
+    if payload.get("reduction") != RECIPE_REDUCTION:
+        raise CellRefused(
+            f"{path}: the reduction it was produced under is not this tree's "
+            f"declared rule; the winner was chosen by a different policy")
+    if payload.get("protocol_sources") != protocol_digests():
+        raise CellRefused(
+            f"{path}: produced under a different protocol than this tree")
     grid = [tuple(c) if isinstance(c, list) else c
             for c in (payload.get("grid") or [])]
     want = ([tuple(g) for g in TOPP_GRID] if axis == "topp"
@@ -1092,10 +1136,11 @@ def _only_cell(spec: str, plan: list, *, axis: str) -> tuple:
 
 def _run_sweep(args, at_topp) -> int:
     try:
-        plan = sweep_cells(args.sweep, at_topp=at_topp)
+        full_plan = sweep_cells(args.sweep, at_topp=at_topp)
     except CellRefused as error:
         print(f"[phase3] REFUSED: {error}", file=sys.stderr)
         return 2
+    plan = full_plan
     if args.only:
         # ONE cell, named by its coordinate -- `dataset:MIN,MAX` for a top-p
         # sweep, `dataset:JD` for a lambda sweep. `--only flickr25k` used to
@@ -1120,32 +1165,89 @@ def _run_sweep(args, at_topp) -> int:
     # Every cell is checked against THIS, not against the tree as it was when
     # that cell began -- otherwise a drift introduced between cell 1 and cell 2
     # becomes the new baseline and the sweep silently spans two trees.
-    datasets = sorted({c[0] for c in plan})
-    snapshot = plan_snapshot(datasets)
-    snap_path = RECORD_DIR / f"{args.namespace}_snapshot.json"
+    # The snapshot spans the DECLARED sweep, not the subset `--only` narrowed
+    # it to: a one-cell run that pins only its own dataset is a new baseline
+    # each time, which is what nine `--only` processes produced.
+    snapshot = plan_snapshot(sorted({c[0] for c in full_plan}))
+    # The snapshot file is named by its OWN digest. Three streams each running
+    # `--only` wrote one shared `<namespace>_snapshot.json` and atomically
+    # replaced each other's, so the file ended up holding one dataset's inputs
+    # and the other two plans were unrecoverable. A content-addressed name
+    # cannot be overwritten by a different plan.
+    snap_digest = hashlib.sha256(
+        json.dumps(snapshot, sort_keys=True,
+                   separators=(",", ":")).encode()).hexdigest()
+    snap_path = RECORD_DIR / f"{args.namespace}_snapshot_{snap_digest[:16]}.json"
     RECORD_DIR.mkdir(parents=True, exist_ok=True)
     _atomic_json(snap_path, snapshot)
     print(f"[phase3] snapshot {len(snapshot['sources'])} sources, "
           f"{len(snapshot['inputs'])} inputs -> {snap_path}")
 
-    failures = []
-    for ds, n, topp, jd in plan:
-        try:
-            record = run_cell(ds, n, args.gpu, epochs=epochs,
-                              namespace=args.namespace, topp=topp, joint=jd,
-                              snapshot=snapshot)
-        except CellRefused as error:
-            print(f"[phase3] REFUSED {ds} topp={topp} jd={jd}: {error}",
-                  file=sys.stderr)
-            failures.append(f"{ds}/{topp}/{jd}")
-            continue
-        print(f"[phase3] {ds} topp={topp[0]}/{topp[1]} jd={jd} ok  "
-              f"mAP@R={record['selection']['selection_value']:.4f} "
-              f"@epoch {record['selection']['selection_epoch_zero_based']}")
-    if failures:
-        print(f"[phase3] {len(failures)} of {len(plan)} sweep cells refused: "
-              f"{failures}", file=sys.stderr)
+    # Datasets run concurrently, one GPU each; the coordinates within a dataset
+    # run in sequence. All of it is ONE process against ONE snapshot, because
+    # nine separate `--only` invocations each took a fresh snapshot and so could
+    # not fail on drift between cells -- the drift simply became the next
+    # process's baseline.
+    gpus = [int(g) for g in (args.gpus.split(",") if args.gpus
+                             else [str(args.gpu)])]
+    by_dataset = {}
+    for cell in plan:
+        by_dataset.setdefault(cell[0], []).append(cell)
+    if len(gpus) < len(by_dataset):
+        print(f"[phase3] {len(by_dataset)} datasets need {len(by_dataset)} "
+              f"GPUs, --gpus gave {len(gpus)}", file=sys.stderr)
+        return 2
+
+    import threading
+    results, lock = {}, threading.Lock()
+
+    def _stream(dataset, cells, gpu):
+        for ds, n, topp, jd in cells:
+            key = f"{ds}/{topp}/{jd}"
+            try:
+                record = run_cell(ds, n, gpu, epochs=epochs,
+                                  namespace=args.namespace, topp=topp,
+                                  joint=jd, snapshot=snapshot)
+            except Exception as error:                 # noqa: BLE001
+                with lock:
+                    results[key] = ("failed", str(error))
+                # The rest of this dataset is abandoned: a stream that keeps
+                # going after a refusal is the `|| true` that turned a failed
+                # cell into a successful sweep.
+                return
+            with lock:
+                results[key] = ("ok", record)
+
+    threads = [threading.Thread(target=_stream, args=(ds, cells, gpus[i]),
+                                daemon=False)
+               for i, (ds, cells) in enumerate(sorted(by_dataset.items()))]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    for key in sorted(results):
+        status, payload = results[key]
+        if status == "ok":
+            sel = payload["selection"]
+            print(f"[phase3] {key} ok  mAP@R={sel['selection_value']:.4f} "
+                  f"@epoch {sel['selection_epoch_zero_based']}")
+        else:
+            print(f"[phase3] REFUSED {key}: {payload}", file=sys.stderr)
+
+    done = [k for k, (st, _) in results.items() if st == "ok"]
+    if len(done) != len(plan):
+        missing = sorted({f"{c[0]}/{c[2]}/{c[3]}" for c in plan} - set(done))
+        print(f"[phase3] {len(done)} of {len(plan)} sweep cells complete; "
+              f"missing {missing}", file=sys.stderr)
         return 1
+    _atomic_json(RECORD_DIR / f"{args.namespace}_sweep_complete.json", {
+        "schema_version": 1, "axis": args.sweep,
+        "namespace": args.namespace,
+        "plan_snapshot_sha256": snap_digest,
+        "cells": {k: results[k][1]["tag"] for k in sorted(results)},
+        "cell_count": len(done),
+    })
     print(f"[phase3] {len(plan)} of {len(plan)} sweep cells complete")
     return 0
 
@@ -1160,6 +1262,10 @@ def main() -> int:
                               "for one), to prove the plumbing and the "
                               "assertions. Never a candidate score."))
     parser.add_argument("--gpu", type=int, default=0)
+    parser.add_argument("--gpus", default=None, metavar="A,B,C",
+                        help=("one GPU per dataset for a sweep; the sweep runs "
+                              "them concurrently in ONE process against ONE "
+                              "snapshot"))
     parser.add_argument("--epochs", type=int, default=1,
                         help="--smoke only")
     parser.add_argument("--only", default=None,
@@ -1177,12 +1283,15 @@ def main() -> int:
               "dataset. The cells are ordinary stage-1 selection cells: same "
               "90/10 train split, same optTrain whitening, no official test."))
     parser.add_argument(
-        "--recipe", default=None, metavar="PATH",
+        "--recipe", default=None, metavar="PATH", action="append",
         help=("a selected_topp.json / selected_joint.json from "
               "scripts/phase3_select_n.py --axis. The N matrix and the refit "
               "read the chosen coordinates from it instead of being told them "
               "again by hand, which is how the ablation chain came to run at "
-              "an N nobody reported."))
+              "an N nobody reported. Repeatable: pass the top-p artefact AND "
+              "the lambda artefact, because a single file carries one axis and "
+              "handing over only one silently returns the other to its "
+              "default."))
     parser.add_argument(
         "--at-topp", default=None, metavar="MIN,MAX",
         help="hold top-p here (required by --sweep joint)")
@@ -1191,7 +1300,14 @@ def main() -> int:
     recipe = {}
     if args.recipe:
         try:
-            recipe = _load_recipe(Path(args.recipe))
+            for one in args.recipe:
+                for dataset, axes in _load_recipe(Path(one)).items():
+                    overlap = set(axes) & set(recipe.get(dataset, {}))
+                    if overlap:
+                        raise CellRefused(
+                            f"two --recipe files both choose {sorted(overlap)} "
+                            f"for {dataset}; one axis, one artefact")
+                    recipe.setdefault(dataset, {}).update(axes)
         except CellRefused as error:
             print(f"[phase3] REFUSED --recipe: {error}", file=sys.stderr)
             return 2

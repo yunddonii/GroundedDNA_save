@@ -487,6 +487,64 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-08-31 (PM) The 9-cell sweep was nine plans, not one — stopped, quarantined, rebuilt
+
+I launched the top-p sweep as three background shell streams, each calling
+`--only` once per coordinate. Re-audit §57.2 is right about what that was.
+
+Every `--only` invocation builds its OWN `plan_snapshot()`, so drift between
+cells became the next process's baseline — defeating the snapshot I had just
+built to prevent exactly that. The three streams then atomically replaced one
+shared `phase3topp_snapshot.json`; it ended up holding Flickr-only inputs, and
+the NUS and MS-COCO plans were unrecoverable from that pathname. And `|| true`
+after each cell turned `CellRefused`, a dead trainer, snapshot drift and output
+verification failure into stream success.
+
+Seven cells had published (Flickr 3/3, NUS 3/3, MS-COCO 1/3) with correct
+effective args. They are in `result/_QUARANTINE/` anyway: the trainings were
+fine, but "these nine came from one plan" is not a sentence anyone could say
+about them, and that is the property the sweep exists to have.
+
+### The four §56 counterexamples, reproduced before being fixed
+
+| | probe | result |
+|---|---|---|
+| adaptive disable | `no_routing_adaptive_topp` False vs True | **same digest** `7ee3696573…` |
+| snapshot | 2-dataset plan, verify its own first cell | **REFUSED**, nothing changed |
+| lambda reducer | complete positive JD grid | **`KeyError: '0.0'`** |
+| forged recipe | current aggregator SHA, empty `record_sha256` | **ACCEPTED** for 4 datasets |
+
+Fixes. `--routing_adaptive_topp` and its negation are separate arguments and the
+model reads the conjunction, so the disable flag is in the identity — and the
+schema is bumped to **v4** rather than expanded in place, which is the mistake
+v3 made (three manifests written under v3 became unreadable while still claiming
+to be v3). `verify_snapshot` re-hashes the snapshot's OWN keys instead of diffing
+against a narrower recomputation. `delta_vs_incumbent` is `None` with
+`incumbent_on_grid: false` when the incumbent is off the grid, which is the
+lambda case by the user's own decision. `_load_recipe` requires a non-empty
+`record_sha256` of real digests, the declared reduction, and this tree's
+protocol; `--recipe` is repeatable so the P and JD artefacts merge, and a
+repeated axis is refused.
+
+### The orchestration
+
+The sweep is ONE process now. `--gpus A,B,C` runs the datasets concurrently as
+threads against ONE snapshot spanning the declared plan (not the `--only`
+subset); a refused cell abandons the rest of its dataset instead of being
+swallowed; the snapshot file is named by its own digest so two plans cannot
+overwrite each other; and a `<namespace>_sweep_complete.json` receipt is written
+only when every planned cell succeeded.
+
+§57.3: the reducer scanned every `is_candidate_cell` record in the shared
+directory, so the sixteen N-selection records — written under an older identity
+schema — were sixteen fatal problems and the reduction could not run even in
+principle. It selects by namespace now, and refuses a set whose cells carry more
+than one `plan_snapshot_sha256`.
+
+Six regression tests, one per counterexample, all of which were green in the
+1079-passing suite before. 1088 passed. No sweep cell has run under the new
+orchestration.
+
 ## 2026-08-31 The recipe becomes a coordinate: P/JD enter the D1 path, the identity, and the reducer
 
 The top-p sweep runs inside `scripts/phase3_selection_matrix.py` -- the D1

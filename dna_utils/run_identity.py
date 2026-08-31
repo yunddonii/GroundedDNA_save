@@ -61,7 +61,15 @@ MANIFEST_NAME = "run_identity.json"
 #: leaving the version at 2 -- which an earlier attempt did -- is the actual
 #: mistake: it makes old manifests unreadable while still claiming to be the
 #: schema they were written under.
-_SCHEMA_VERSION = 3
+#:
+#: v4 adds `no_routing_adaptive_topp`. `--routing_adaptive_topp` and its
+#: negation are SEPARATE arguments, and the model reads the conjunction
+#: (model_siglip2.py:2277), so a run with the mechanism switched off carried an
+#: identity that said it was on: the two digests were equal. The version is
+#: bumped rather than the field being added in place, which is the mistake v3
+#: made -- three manifests written under v3 became unreadable while still
+#: claiming to be v3.
+_SCHEMA_VERSION = 4
 
 #: Claimed by a live process. Created with O_EXCL, so two processes cannot both
 #: believe they own the directory; removed by `release_run_dir` when the run
@@ -113,6 +121,7 @@ class RunIdentity:
     proj_lr: float
     # ---- the recipe axes (v3) ----
     routing_adaptive_topp: bool
+    no_routing_adaptive_topp: bool
     routing_adaptive_topp_min: Optional[float]
     routing_adaptive_topp_max: Optional[float]
     # The window means nothing without the switch that reads it and the rule
@@ -226,6 +235,8 @@ class RunIdentity:
             proj_lr=float(getattr(args, "proj_lr", 0.0) or 0.0),
             routing_adaptive_topp=bool(
                 getattr(args, "routing_adaptive_topp", False)),
+            no_routing_adaptive_topp=bool(
+                getattr(args, "no_routing_adaptive_topp", False)),
             routing_adaptive_topp_min=_opt_float(
                 getattr(args, "routing_adaptive_topp_min", None)),
             routing_adaptive_topp_max=_opt_float(

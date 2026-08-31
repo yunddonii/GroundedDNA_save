@@ -17,6 +17,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
 from scripts.phase3_select_n import (  # noqa: E402
+    _recipe_matrix,
     choose_recipe,
     SelectionRefused,
     choose,
@@ -552,3 +553,60 @@ def test_a_nonfinite_or_out_of_range_value_refuses(bad):
     cells[("f", grid[0])] = bad
     with pytest.raises(SelectionRefused):
         choose_recipe(cells, axis="topp", grid=grid, incumbent=inc)
+
+
+def test_the_lambda_grid_reduces_without_its_incumbent(tmp_path):
+    """§56.3: the lambda grid is the five positive values.
+
+    Its zero control comes from the top-p stage, so `values[incumbent]` raised
+    KeyError('0.0') and the whole lambda reduction was unrunnable.
+    """
+    from scripts.phase3_selection_matrix import JOINT_GRID, JOINT_INCUMBENT
+    grid = list(JOINT_GRID)
+    cells = {("f", j): 0.5 + 0.01 * i for i, j in enumerate(grid)}
+    got = choose_recipe(cells, axis="joint", grid=grid,
+                        incumbent=JOINT_INCUMBENT)["f"]
+    assert got["selected"] == grid[-1]
+    assert got["incumbent_on_grid"] is False
+    assert got["delta_vs_incumbent"] is None
+
+
+def test_cells_from_several_plan_snapshots_are_not_one_experiment(tmp_path):
+    """§57.2: nine `--only` processes each took their own snapshot."""
+    from scripts.phase3_selection_matrix import TOPP_GRID
+    records = tmp_path / "records"
+    records.mkdir()
+    runs = tmp_path / "runs"
+    for i, (lo, hi) in enumerate(TOPP_GRID):
+        run = _real_run(runs / f"c{i}", "flickr25k", 4, 0.7 + 0.01 * i)
+        rec = _record("flickr25k", 4, 0.7 + 0.01 * i, run=run)
+        rec["namespace"] = "phase3topp"
+        rec["recipe"] = {"routing_adaptive_topp_min": lo,
+                         "routing_adaptive_topp_max": hi,
+                         "lambda_codon_joint": "0.0"}
+        # Each cell claims a DIFFERENT plan, which is what the nine processes
+        # produced.
+        rec["plan_snapshot_sha256"] = f"{i}" * 64
+        (records / f"c{i}.json").write_text(json.dumps(rec))
+    with pytest.raises(SelectionRefused) as error:
+        _recipe_matrix(records, axis="topp", namespace="phase3topp")
+    assert "different plan snapshots" in str(error.value)
+
+
+def test_the_recipe_reducer_ignores_the_n_matrix_records(tmp_path):
+    """§57.3: reading every candidate record made the sixteen N cells fatal."""
+    from scripts.phase3_selection_matrix import TOPP_GRID
+    records = _matrix(tmp_path)          # the sixteen N-selection records
+    runs = tmp_path / "swept"
+    for i, (lo, hi) in enumerate(TOPP_GRID):
+        run = _real_run(runs / f"s{i}", "flickr25k", 4, 0.7 + 0.01 * i)
+        rec = _record("flickr25k", 4, 0.7 + 0.01 * i, run=run)
+        rec["namespace"] = "phase3topp"
+        rec["recipe"] = {"routing_adaptive_topp_min": lo,
+                         "routing_adaptive_topp_max": hi,
+                         "lambda_codon_joint": "0.0"}
+        rec["plan_snapshot_sha256"] = "a" * 64
+        (records / f"swept_{i}.json").write_text(json.dumps(rec))
+    matrix = _recipe_matrix(records, axis="topp", namespace="phase3topp")
+    assert len(matrix["cells"]) == len(TOPP_GRID)
+    assert matrix["plan_snapshot_sha256"] == "a" * 64

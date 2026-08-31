@@ -370,8 +370,14 @@ def choose_recipe(cells: dict, *, axis: str, grid: list, incumbent) -> dict:
             "tie_broken": len(tied) > 1,
             "all_candidates": {
                 str(c): values[c] for c in grid},
-            "delta_vs_incumbent": round(
-                values[winner] - values[incumbent], 6),
+            # The incumbent is only ON the grid for the top-p sweep. The
+            # lambda grid is the five positive values, and its zero control
+            # comes from the top-p stage, so `values[incumbent]` raised
+            # KeyError('0.0') and the whole lambda reduction was unrunnable.
+            "delta_vs_incumbent": (
+                round(values[winner] - values[incumbent], 6)
+                if incumbent in values else None),
+            "incumbent_on_grid": incumbent in values,
         }
     return chosen
 
@@ -398,7 +404,8 @@ def choose(cells: dict) -> dict:
     return chosen
 
 
-def _recipe_matrix(records_dir: Path, *, axis: str) -> dict:
+def _recipe_matrix(records_dir: Path, *, axis: str,
+                   namespace: str | None = None) -> dict:
     """The same per-record authentication, keyed by the swept coordinate."""
     from scripts.phase3_selection_matrix import (
         JOINT_GRID, JOINT_INCUMBENT, TOPP_GRID, TOPP_INCUMBENT)
@@ -407,12 +414,20 @@ def _recipe_matrix(records_dir: Path, *, axis: str) -> dict:
             else list(JOINT_GRID))
     incumbent = (tuple(TOPP_INCUMBENT) if axis == "topp" else JOINT_INCUMBENT)
 
-    cells, digests, problems, namespaces = {}, {}, [], set()
+    cells, digests, problems, namespaces, snapshots = {}, {}, [], set(), set()
     for path in sorted(records_dir.glob("*.json")):
-        if path.name.endswith("_snapshot.json") or path.name == DEFAULT_OUT.name:
+        if "_snapshot" in path.name or "_sweep_complete" in path.name \
+                or path.name == DEFAULT_OUT.name:
             continue
         payload = json.loads(path.read_text(encoding="utf-8"))
         if not payload.get("is_candidate_cell"):
+            continue
+        # A recipe sweep and the N matrix share one directory, so the sweep
+        # must be selected by its NAMESPACE rather than by "everything that
+        # looks like a candidate". Reading all of them made the sixteen
+        # N-selection records -- written under an older identity schema -- into
+        # sixteen fatal problems, so the reducer could not run at all.
+        if namespace is not None and payload.get("namespace") != namespace:
             continue
         recipe = payload.get("recipe") or {}
         coord = ((str(recipe.get("routing_adaptive_topp_min")),
@@ -432,14 +447,29 @@ def _recipe_matrix(records_dir: Path, *, axis: str) -> dict:
         cells[key] = float(payload["selection"]["selection_value"])
         digests[path.name] = _sha(path)
         namespaces.add(payload.get("namespace"))
+        snapshots.add(payload.get("plan_snapshot_sha256"))
     if problems:
         raise SelectionRefused("records refused:\n  " + "\n  ".join(problems))
+    if not cells:
+        raise SelectionRefused(
+            f"no candidate {axis} records in {records_dir}"
+            + (f" for namespace {namespace!r}" if namespace else ""))
     if len(namespaces) > 1:
         raise SelectionRefused(
             f"records come from {len(namespaces)} namespaces "
             f"{sorted(namespaces)}; one sweep, one namespace")
+    # Every cell must have run against the SAME plan. Nine `--only` processes
+    # each took their own snapshot, so nine cells carried up to nine different
+    # digests and "these came from one plan" was not a statement anyone could
+    # make about them.
+    if len(snapshots) != 1 or None in snapshots:
+        raise SelectionRefused(
+            f"the cells carry {len(snapshots)} different plan snapshots "
+            f"{sorted(str(x)[:12] for x in snapshots)}; a sweep reduced across "
+            f"several plans is not one experiment")
     return {"cells": cells, "grid": grid, "incumbent": incumbent,
             "record_sha256": digests,
+            "plan_snapshot_sha256": snapshots.pop(),
             "namespace": namespaces.pop() if namespaces else None}
 
 
@@ -447,13 +477,17 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--records", default=str(DEFAULT_RECORDS))
     parser.add_argument("--out", default=str(DEFAULT_OUT))
+    parser.add_argument("--namespace", default=None,
+                        help=("which sweep to reduce; the N matrix and a recipe "
+                              "sweep share one records directory"))
     parser.add_argument("--axis", choices=("n", "topp", "joint"), default="n",
                         help="which coordinate this reduction chooses")
     args = parser.parse_args()
 
     if args.axis != "n":
         try:
-            matrix = _recipe_matrix(Path(args.records), axis=args.axis)
+            matrix = _recipe_matrix(Path(args.records), axis=args.axis,
+                                    namespace=args.namespace)
             chosen = choose_recipe(matrix["cells"], axis=args.axis,
                                    grid=matrix["grid"],
                                    incumbent=matrix["incumbent"])
@@ -470,6 +504,7 @@ def main() -> int:
                           if isinstance(matrix["incumbent"], tuple)
                           else matrix["incumbent"]),
             "namespace": matrix["namespace"],
+            "plan_snapshot_sha256": matrix["plan_snapshot_sha256"],
             "aggregator_sha256": _sha(Path(__file__)),
             "protocol_sources": protocol_digests(),
             "record_sha256": matrix["record_sha256"],
