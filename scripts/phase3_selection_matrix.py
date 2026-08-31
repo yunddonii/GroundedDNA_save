@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -65,6 +66,38 @@ EPOCH_BUDGET = 60
 #: (or at the nominal final epoch), so it decides whether a candidate's own
 #: terminal epoch is scored at all.
 EVAL_EVERY = 5
+
+#: The RECIPE axes, and what the original sixteen cells effectively ran at.
+#:
+#: Neither was ever passed: the four trainers hardcode
+#: `--routing_adaptive_topp_min 0.3 --max 0.7` in their command bodies, and
+#: `--lambda_codon_joint` defaults to 0.0 in config.py, so those are what all
+#: sixteen selection cells used -- confirmed in each winner's args.txt. The
+#: draft calls that top-p window the M=6 tuning, so the incumbent is the anchor
+#: of the sweep rather than the answer.
+TOPP_GRID = (("0.3", "0.7"), ("0.4", "0.8"), ("0.6", "0.95"))
+TOPP_INCUMBENT = TOPP_GRID[0]
+#: The lambda grid, swept at the winning top-p. 0.0 is not in it: the top-p
+#: stage runs at 0.0, so its winning cell IS the off-control, at the same N,
+#: seed, split and protocol as every lambda cell.
+JOINT_GRID = ("0.02", "0.03", "0.05", "0.07", "0.10")
+JOINT_INCUMBENT = "0.0"
+
+#: CIFAR is not swept on this metric, and pinning it is not a shortcut.
+#: The draft settled CIFAR at 0.6/0.95 on the per-image empty-slot rate, because
+#: on a single-label dataset the codon decoding probe REWARDS slot starvation
+#: (decoding .9033 < .9053 < .9158 < .9175 as empty images go 0% -> 43%) and
+#: mAP@R prefers the starved cell too (.9019 at 0.3/0.7 vs .8875 at 0.6/0.95).
+#: Selecting CIFAR by mAP@R here would therefore overturn a structural decision
+#: with the very metric that decision was made to overrule. The other three are
+#: multi-label, so that inversion does not apply and mAP@R is valid.
+TOPP_SWEEP_DATASETS = ("flickr25k", "nuswide", "mscoco")
+TOPP_PINNED = {"cifar10": ("0.6", "0.95")}
+
+#: The N the sweeps hold fixed. These came out of the first sixteen cells, i.e.
+#: at the incumbent recipe, so they are a HORIZON here and not a result -- N is
+#: chosen again, by D1's own rule, once the recipe is settled.
+INCUMBENT_N = {"cifar10": 39, "flickr25k": 4, "nuswide": 4, "mscoco": 39}
 
 #: The paper's geometry, asserted before and after every cell.
 SLOTS, BASES_PER_SLOT = 5, 3
@@ -147,6 +180,7 @@ PROTOCOL_SOURCES = (
     "scripts/phase3_selection_matrix.py",
     "train_siglip2.py",
     "model_siglip2.py",
+    "config.py",
     "dna_utils/run_identity.py",
 )
 
@@ -160,8 +194,18 @@ def _sha(path) -> str:
     return digest.hexdigest()
 
 
-def protocol_digests() -> dict:
-    return {rel: _sha(REPO / rel) for rel in PROTOCOL_SOURCES}
+#: The shell that actually launches the cell. It was not in PROTOCOL_SOURCES,
+#: and it is the file that hardcodes the top-p window this stage is sweeping --
+#: so the one source whose edit would silently change what a cell ran was the
+#: one the record did not name. Bash reads a script's top level incrementally,
+#: so editing a trainer WHILE cells run gives a hybrid execution; the digest is
+#: taken at launch and again after the child exits, and a change is a refusal.
+def protocol_digests(dataset: str | None = None) -> dict:
+    out = {rel: _sha(REPO / rel) for rel in PROTOCOL_SOURCES}
+    if dataset is not None:
+        trainer = DATASETS[dataset]["trainer"]
+        out[trainer] = _sha(REPO / trainer)
+    return out
 
 
 class CellRefused(RuntimeError):
@@ -174,8 +218,24 @@ def cell_keys() -> list:
             for n in CANDIDATE_N]
 
 
-def tag_for(dataset: str, n: int, *, namespace: str = NAMESPACE) -> str:
-    return f"{namespace}_{DATASETS[dataset]['exp']}_N{n}_s{SEED}"
+def recipe_fragment(topp=None, joint=None) -> str:
+    """How a non-incumbent recipe shows up in the tag, or "" for the incumbent.
+
+    The empty string matters: it keeps the existing sixteen cells' tags exactly
+    as they were, so this file still describes the matrix it already ran.
+    """
+    parts = []
+    if topp is not None and tuple(topp) != tuple(TOPP_INCUMBENT):
+        parts.append("P" + "".join(str(v).replace(".", "") for v in topp))
+    if joint is not None and str(joint) != JOINT_INCUMBENT:
+        parts.append("JD" + str(joint).replace(".", ""))
+    return ("_" + "_".join(parts)) if parts else ""
+
+
+def tag_for(dataset: str, n: int, *, namespace: str = NAMESPACE,
+            topp=None, joint=None) -> str:
+    return (f"{namespace}_{DATASETS[dataset]['exp']}_N{n}_s{SEED}"
+            f"{recipe_fragment(topp, joint)}")
 
 
 def _existing_artifacts(tag: str) -> list:
@@ -245,21 +305,36 @@ def _whitening(spec: dict, *, stage: str = "select") -> str:
 
 
 def refit_tag_for(dataset: str, n: int, seed: int, *,
-                  namespace: str = NAMESPACE) -> str:
-    return f"{namespace}_{DATASETS[dataset]['exp']}_refit_N{n}_s{seed}"
+                  namespace: str = NAMESPACE, topp=None, joint=None) -> str:
+    return (f"{namespace}_{DATASETS[dataset]['exp']}_refit_N{n}_s{seed}"
+            f"{recipe_fragment(topp, joint)}")
 
 
 def build_command(dataset: str, n: int, gpu: int, *,
                   epochs: int | None = None,
                   namespace: str = NAMESPACE,
-                  stage: str = "select", seed: int = SEED) -> tuple:
+                  stage: str = "select", seed: int = SEED,
+                  topp=None, joint=None) -> tuple:
     spec = DATASETS[dataset]
     if stage == "refit":
-        tag = refit_tag_for(dataset, n, seed, namespace=namespace)
+        tag = refit_tag_for(dataset, n, seed, namespace=namespace,
+                            topp=topp, joint=joint)
         flags = _refit_flags(n, seed) + S5_FLAGS + A_FLAGS + QUIET_FLAGS
     else:
-        tag = tag_for(dataset, n, namespace=namespace)
+        tag = tag_for(dataset, n, namespace=namespace, topp=topp, joint=joint)
         flags = _stage1_flags(n) + S5_FLAGS + A_FLAGS + QUIET_FLAGS
+    # EXTRA_ARGS lands at the END of every trainer's command, after the
+    # hardcoded window, and argparse keeps the last occurrence -- verified
+    # against config.py's own parser rather than assumed from the layout.
+    if topp is not None:
+        flags = _override_flags(flags, {
+            "--routing_adaptive_topp_min": str(topp[0]),
+            "--routing_adaptive_topp_max": str(topp[1]),
+        })
+        if "--routing_adaptive_topp" not in flags:
+            flags = flags + ["--routing_adaptive_topp"]
+    if joint is not None:
+        flags = _override_flags(flags, {"--lambda_codon_joint": str(joint)})
     stop = n
     if epochs is not None:
         # Smoke: shorten everything CONSISTENTLY, by NAME. Slicing off the
@@ -309,7 +384,77 @@ def build_command(dataset: str, n: int, gpu: int, *,
     return ["bash", spec["trainer"], str(gpu)], env, tag
 
 
+#: Every file whose bytes decide what a sweep cell computes, beyond the four
+#: PROTOCOL_SOURCES and the per-dataset trainer. A sweep spans hours; these are
+#: hashed ONCE when the plan is made and re-checked after every cell, so a
+#: campaign cannot be a mixture of two trees.
+_SNAPSHOT_SOURCES = (
+    "config.py", "train_siglip2.py", "model_siglip2.py", "loss_siglip2.py",
+    "dataloaders.py", "extraction_siglip2.py", "evaluation_siglip2.py",
+    "dna_utils/run_identity.py", "dna_utils/extraction_validation.py",
+    "dna_utils/cache_provenance.py",
+    "scripts/phase3_selection_matrix.py",
+)
+
+
+def plan_snapshot(datasets=None) -> dict:
+    """The sources AND the inputs, frozen at plan time.
+
+    The launcher-crash lesson generalises: bash reads a script incrementally,
+    Python loads a module once, and neither notices a cache being rebuilt
+    underneath it. Recording the digests is not the point -- COMPARING them
+    after each cell is, which is what `verify_snapshot` does.
+    """
+    datasets = sorted(DATASETS) if datasets is None else sorted(set(datasets))
+    # `#absent` rather than an error, the same marker RunIdentity._artifact
+    # uses: a file that is not there is RECORDED as not there, so it still
+    # differs from the same file appearing later. Refusing outright would make
+    # the snapshot unusable in any tree that does not carry the whole
+    # repository, and would hide the drift rather than name it.
+    def _digest(rel: str) -> str:
+        path = REPO / rel
+        return _sha(path) if path.is_file() else "#absent"
+
+    sources = {rel: _digest(rel) for rel in _SNAPSHOT_SOURCES}
+    for ds in datasets:
+        sources[DATASETS[ds]["trainer"]] = _digest(DATASETS[ds]["trainer"])
+    inputs = {}
+    for ds in datasets:
+        spec = DATASETS[ds]
+        # A feature cache is tens of gigabytes; `meta.json` is the file the
+        # provenance gate already checks and it carries the backbone revision,
+        # the transform and the row count. The whitening matrix and the caption
+        # file are small enough to hash whole, and both change the numbers.
+        for label, path in (
+                ("feature_cache_meta", Path(spec["cache"]) / "meta.json"),
+                ("foils_meta", Path(spec["foils"]) / "meta.json"),
+                ("whiten_select", Path(_whitening(spec, stage="select"))),
+                ("whiten_refit", Path(_whitening(spec, stage="refit"))),
+                ("qwen", REPO / spec["qwen"])):
+            inputs[f"{ds}/{label}"] = (_sha(path) if Path(path).is_file()
+                                       else "#absent")
+    return {"schema_version": 1, "sources": sources, "inputs": inputs}
+
+
+def verify_snapshot(snapshot: dict, *, datasets=None) -> None:
+    """Refuse when anything the plan pinned has moved."""
+    now = plan_snapshot(datasets)
+    for kind in ("sources", "inputs"):
+        before, after = snapshot.get(kind) or {}, now[kind]
+        changed = sorted(k for k in set(before) | set(after)
+                         if before.get(k) != after.get(k))
+        if changed:
+            raise CellRefused(
+                f"{kind} changed while the sweep was running: {changed}. What "
+                f"ran is a mixture of two trees, so no cell in this sweep is "
+                f"admissible against one protocol. Re-run against one tree.")
+
+
 # --------------------------------------------------------------- checking
+
+def _flag_value(flags: list, option: str, default: str) -> str:
+    return flags[flags.index(option) + 1] if option in flags else default
+
 
 def _arg_value(args_txt: Path, field: str) -> str:
     prefix = field + "-"
@@ -324,7 +469,8 @@ def assert_geometry(run_dir: Path, *, dataset: str, n: int,
                     mode: str = "select", val_ratio: float = VAL_RATIO,
                     budget: int | None = None,
                     lr_horizon: int | None = None,
-                    sinkhorn_horizon: int | None = None) -> dict:
+                    sinkhorn_horizon: int | None = None,
+                    topp=None, joint=None) -> dict:
     """The check the 18-base smoke did not have.
 
     Both the effective arguments and the sealed run manifest must say the
@@ -340,19 +486,35 @@ def assert_geometry(run_dir: Path, *, dataset: str, n: int,
     args_txt = run_dir / "args.txt"
     if not args_txt.is_file():
         raise CellRefused(f"{run_dir}: no args.txt")
+    # The swept axes are read from `args.txt` -- what the trainer actually
+    # parsed -- rather than from the command this process composed. The three
+    # top-p cells differ ONLY here, and until the identity carried these axes
+    # they all produced one digest, so a cell that silently kept the trainer's
+    # hardcoded 0.3/0.7 would have been indistinguishable from one that did not.
+    topp = TOPP_INCUMBENT if topp is None else topp
+    joint = JOINT_INCUMBENT if joint is None else joint
     effective = {
         "num_semantic_parts": int(_arg_value(args_txt, "num_semantic_parts")),
         "num_codebooks": int(_arg_value(args_txt, "num_codebooks")),
         "num_codons_per_codebook": int(
             _arg_value(args_txt, "num_codons_per_codebook")),
+        "routing_adaptive_topp_min": float(
+            _arg_value(args_txt, "routing_adaptive_topp_min")),
+        "routing_adaptive_topp_max": float(
+            _arg_value(args_txt, "routing_adaptive_topp_max")),
+        "lambda_codon_joint": float(_arg_value(args_txt, "lambda_codon_joint")),
     }
     want = {"num_semantic_parts": SLOTS, "num_codebooks": SLOTS,
-            "num_codons_per_codebook": BASES_PER_SLOT}
+            "num_codons_per_codebook": BASES_PER_SLOT,
+            "routing_adaptive_topp_min": float(topp[0]),
+            "routing_adaptive_topp_max": float(topp[1]),
+            "lambda_codon_joint": float(joint)}
     bad = {k: (v, want[k]) for k, v in effective.items() if v != want[k]}
     if bad:
         raise CellRefused(
-            f"{run_dir}: effective geometry is wrong {bad} -- this is the "
-            f"18-base failure, not the paper's {TOTAL_BASES}-base cell")
+            f"{run_dir}: effective recipe is wrong {bad} -- geometry like this "
+            f"is the 18-base failure, and a wrong top-p or lambda is a cell "
+            f"reported under a recipe it did not run")
 
     identity = load_run_manifest(str(run_dir))
     if identity is None:
@@ -375,6 +537,9 @@ def assert_geometry(run_dir: Path, *, dataset: str, n: int,
         # between a raw path and a content-bound one and never matches.
         "feature_cache": RunIdentity._artifact(spec["cache"]),
         "eval_cache": RunIdentity._artifact(spec["cache"]),
+        "routing_adaptive_topp_min": float(topp[0]),
+        "routing_adaptive_topp_max": float(topp[1]),
+        "lambda_codon_joint": float(joint),
     }
     manifest_bad = {k: (getattr(identity, k), v) for k, v in expected.items()
                     if getattr(identity, k) != v}
@@ -630,11 +795,22 @@ def _resolve(tag: str, *, expected_digest: str | None = None) -> Path:
     return hits[0]
 
 
+def _atomic_json(path: Path, payload: dict) -> None:
+    tmp = path.with_suffix(f".{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n",
+                   encoding="utf-8")
+    os.replace(tmp, path)
+
+
 def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
              namespace: str = NAMESPACE, stage: str = "select",
-             seed: int = SEED) -> dict:
-    tag = (refit_tag_for(dataset, n, seed, namespace=namespace)
-           if stage == "refit" else tag_for(dataset, n, namespace=namespace))
+             seed: int = SEED, topp=None, joint=None,
+             snapshot: dict | None = None) -> dict:
+    tag = (refit_tag_for(dataset, n, seed, namespace=namespace,
+                         topp=topp, joint=joint)
+           if stage == "refit"
+           else tag_for(dataset, n, namespace=namespace,
+                        topp=topp, joint=joint))
     existing = _existing_artifacts(tag)
     if existing:
         raise CellRefused(
@@ -642,7 +818,8 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
             f"namespace with PHASE3_NAMESPACE.")
 
     cmd, env, _ = build_command(dataset, n, gpu, epochs=epochs,
-                                namespace=namespace, stage=stage, seed=seed)
+                                namespace=namespace, stage=stage, seed=seed,
+                                topp=topp, joint=joint)
     # What THIS cell is supposed to end up being, derived once so the
     # post-checks and the record cannot drift from the command.
     _stop = int(env["STOP_EP"])
@@ -669,6 +846,12 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
             f"(epoch+1)={_stop + 1} is neither a multiple of "
             f"--eval_every={EVAL_EVERY} nor the nominal final epoch "
             f"({_budget}), so log.csv would carry no score for it")
+    # Taken BEFORE the child starts, compared after it exits. The plan-wide
+    # snapshot is the stronger check -- it spans the whole sweep -- and this
+    # narrower one still applies when a cell is run on its own.
+    if snapshot is not None:
+        verify_snapshot(snapshot, datasets=[dataset])
+    sources_before = protocol_digests(dataset)
     started = time.time()
     # The trainers end in `python ... | tee "$LOG"` under `set -eu` with no
     # `pipefail`, so the script's status is tee's, not python's: a crashed
@@ -683,7 +866,27 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
                           cwd=str(REPO), env=env)
     if proc.returncode != 0:
         raise CellRefused(f"{tag}: trainer exited {proc.returncode}")
+    if snapshot is not None:
+        verify_snapshot(snapshot, datasets=[dataset])
+    sources_after = protocol_digests(dataset)
+    if sources_after != sources_before:
+        changed = sorted(k for k in sources_before
+                         if sources_before[k] != sources_after.get(k))
+        raise CellRefused(
+            f"{tag}: {changed} changed while this cell was running, so what "
+            f"executed is a mixture of two versions -- the same way editing "
+            f"the campaign launcher mid-run produced a hybrid parse. The run "
+            f"is not admissible; re-run it against one tree.")
 
+    # §54.3 asks for a precomputed expected digest here. Reconstructing one
+    # means restating the batch size, projection LR, Sinkhorn epsilon endpoints
+    # and every lambda the trainer sets -- values this file does not own, and
+    # guessing them wrong would refuse every honest cell. The hole it names --
+    # "a sole directory with the wrong P/JD is accepted and its own manifest is
+    # copied into the record" -- is closed instead by `assert_geometry` below,
+    # which now compares the effective top-p window and lambda from args.txt
+    # AND from the manifest against what this cell asked for. Same property,
+    # from values that were verified rather than assumed.
     run_dir = _resolve(tag)
     record = {
         "schema_version": RECORD_SCHEMA,
@@ -691,7 +894,24 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
         "matrix": {"candidate_n": list(CANDIDATE_N),
                    "datasets": sorted(DATASETS),
                    "cells": len(cell_keys())},
-        "protocol_sources": protocol_digests(),
+        # The swept coordinate, read back from the composed command rather than
+        # from the caller's arguments, so a record cannot claim a recipe the
+        # trainer did not receive.
+        "recipe": {
+            "routing_adaptive_topp_min": _flag_value(_flags,
+                                                     "--routing_adaptive_topp_min",
+                                                     TOPP_INCUMBENT[0]),
+            "routing_adaptive_topp_max": _flag_value(_flags,
+                                                     "--routing_adaptive_topp_max",
+                                                     TOPP_INCUMBENT[1]),
+            "lambda_codon_joint": _flag_value(_flags, "--lambda_codon_joint",
+                                              JOINT_INCUMBENT),
+        },
+        "protocol_sources": sources_after,
+        "plan_snapshot_sha256": (hashlib.sha256(
+            json.dumps(snapshot, sort_keys=True,
+                       separators=(",", ":")).encode()).hexdigest()
+            if snapshot is not None else None),
         "inputs": {
             "feature_cache": DATASETS[dataset]["cache"],
             "eval_cache": DATASETS[dataset]["cache"],
@@ -716,7 +936,8 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
             run_dir, dataset=dataset, n=n, stop=_stop, seed=seed,
             mode="refit" if stage == "refit" else "select",
             val_ratio=0.0 if stage == "refit" else VAL_RATIO,
-            budget=_budget, lr_horizon=_lr_h, sinkhorn_horizon=_sk_h),
+            budget=_budget, lr_horizon=_lr_h, sinkhorn_horizon=_sk_h,
+            topp=topp, joint=joint),
         "selection": (
             read_selection(run_dir, n=_stop)
             if stage == "select" else
@@ -734,6 +955,51 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
                    encoding="utf-8")
     os.replace(tmp, out)
     return record
+
+
+def _load_recipe(path: Path) -> dict:
+    """Per-dataset {topp, joint} chosen by a recipe reduction.
+
+    Authenticated the same way the N artefact is: schema, declared reduction,
+    the aggregator's own digest, the grid, and that every value is ON the grid.
+    A file that merely has the right shape is a receipt for whatever wrote it.
+    """
+    if not path.is_file():
+        raise CellRefused(f"{path} does not exist")
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("schema_version") != 1:
+        raise CellRefused(f"{path}: unknown schema_version "
+                          f"{payload.get('schema_version')!r}")
+    axis = payload.get("axis")
+    if axis not in ("topp", "joint"):
+        raise CellRefused(f"{path}: axis is {axis!r}")
+    aggregator = REPO / "scripts" / "phase3_select_n.py"
+    if payload.get("aggregator_sha256") != _sha(aggregator):
+        raise CellRefused(
+            f"{path} was written by a different {aggregator.name} than the one "
+            f"in this tree")
+    grid = [tuple(c) if isinstance(c, list) else c
+            for c in (payload.get("grid") or [])]
+    want = ([tuple(g) for g in TOPP_GRID] if axis == "topp"
+            else list(JOINT_GRID))
+    if grid != want:
+        raise CellRefused(f"{path}: grid {grid} is not this tree's {want}")
+    selected = payload.get("selected") or {}
+    out = {}
+    for dataset, entry in selected.items():
+        if dataset not in DATASETS:
+            raise CellRefused(f"{path}: {dataset!r} is not a dataset")
+        value = entry.get("selected")
+        value = tuple(value) if isinstance(value, list) else value
+        if value not in grid:
+            raise CellRefused(
+                f"{path}: {dataset} selects {value!r}, which is not on the "
+                f"grid {grid}")
+        out[dataset] = {axis: value}
+    missing = sorted(set(DATASETS) - set(out))
+    if missing:
+        raise CellRefused(f"{path}: no choice for {missing}")
+    return out
 
 
 def _load_selection(path: Path) -> dict:
@@ -766,6 +1032,124 @@ def _load_selection(path: Path) -> dict:
     return out
 
 
+def sweep_cells(axis: str, *, at_topp=None) -> list:
+    """(dataset, N, topp, joint) for a recipe sweep. Exactly one axis moves.
+
+    The N is INCUMBENT_N, i.e. what the first sixteen cells chose at the
+    incumbent recipe. It is the horizon the candidates share, not the answer:
+    N is chosen again by D1's rule once the recipe is settled.
+    """
+    if axis == "topp":
+        # The lambda stays at the incumbent 0.0, so the only difference between
+        # these cells and the original sixteen is the window under test.
+        return [(ds, INCUMBENT_N[ds], topp, JOINT_INCUMBENT)
+                for ds in TOPP_SWEEP_DATASETS for topp in TOPP_GRID]
+    if at_topp is None:
+        raise CellRefused(
+            "--sweep joint needs --at-topp MIN,MAX: the two axes interact "
+            "(adding noGumbel already moved MS-COCO's lambda optimum from 0.05 "
+            "to 0.03), so a lambda swept at an unstated window measures "
+            "nothing transferable")
+    return [(ds, INCUMBENT_N[ds],
+             TOPP_PINNED.get(ds, at_topp), jd)
+            for ds in sorted(DATASETS) for jd in JOINT_GRID]
+
+
+def _only_cell(spec: str, plan: list, *, axis: str) -> tuple:
+    """Resolve `--only` to exactly one sweep cell, or refuse.
+
+    A selector that can quietly mean "several" is how a three-trainer run got
+    launched and reported as one cell.
+    """
+    if ":" not in spec:
+        raise CellRefused(
+            f"{spec!r} names no coordinate. For --sweep topp use "
+            f"dataset:MIN,MAX (e.g. flickr25k:0.6,0.95); for --sweep joint use "
+            f"dataset:LAMBDA (e.g. flickr25k:0.05)")
+    dataset, coord = spec.split(":", 1)
+    if dataset not in DATASETS:
+        raise CellRefused(f"{dataset!r} is not one of {sorted(DATASETS)}")
+
+    if axis == "topp":
+        want = tuple(part.strip() for part in coord.split(","))
+        if len(want) != 2:
+            raise CellRefused(
+                f"{coord!r} is not a top-p window; write MIN,MAX")
+        matches = [c for c in plan
+                   if c[0] == dataset and tuple(c[2]) == want]
+        offered = sorted({tuple(c[2]) for c in plan if c[0] == dataset})
+    else:
+        matches = [c for c in plan
+                   if c[0] == dataset and str(c[3]) == coord.strip()]
+        offered = sorted({str(c[3]) for c in plan if c[0] == dataset})
+
+    if len(matches) != 1:
+        raise CellRefused(
+            f"{spec!r} matches {len(matches)} cells; {dataset} offers "
+            f"{offered}")
+    return matches[0]
+
+
+def _run_sweep(args, at_topp) -> int:
+    try:
+        plan = sweep_cells(args.sweep, at_topp=at_topp)
+    except CellRefused as error:
+        print(f"[phase3] REFUSED: {error}", file=sys.stderr)
+        return 2
+    if args.only:
+        # ONE cell, named by its coordinate -- `dataset:MIN,MAX` for a top-p
+        # sweep, `dataset:JD` for a lambda sweep. `--only flickr25k` used to
+        # select the dataset, i.e. three cells, so "a one-cell smoke" ran three
+        # trainers and the description and the act disagreed.
+        try:
+            plan = [_only_cell(args.only, plan, axis=args.sweep)]
+        except CellRefused as error:
+            print(f"[phase3] REFUSED --only: {error}", file=sys.stderr)
+            return 2
+
+    if args.plan or not (args.run or args.smoke):
+        print(f"{len(plan)} cells, sweeping {args.sweep} at the incumbent N")
+        for ds, n, topp, jd in plan:
+            print(f"  {ds:<10} N={n:<3} topp={topp[0]}/{topp[1]:<5} "
+                  f"jd={jd:<5} -> "
+                  f"{tag_for(ds, n, namespace=args.namespace, topp=topp, joint=jd)}")
+        return 0
+
+    epochs = args.epochs if args.smoke else None
+    # One snapshot for the whole sweep, taken before the first trainer starts.
+    # Every cell is checked against THIS, not against the tree as it was when
+    # that cell began -- otherwise a drift introduced between cell 1 and cell 2
+    # becomes the new baseline and the sweep silently spans two trees.
+    datasets = sorted({c[0] for c in plan})
+    snapshot = plan_snapshot(datasets)
+    snap_path = RECORD_DIR / f"{args.namespace}_snapshot.json"
+    RECORD_DIR.mkdir(parents=True, exist_ok=True)
+    _atomic_json(snap_path, snapshot)
+    print(f"[phase3] snapshot {len(snapshot['sources'])} sources, "
+          f"{len(snapshot['inputs'])} inputs -> {snap_path}")
+
+    failures = []
+    for ds, n, topp, jd in plan:
+        try:
+            record = run_cell(ds, n, args.gpu, epochs=epochs,
+                              namespace=args.namespace, topp=topp, joint=jd,
+                              snapshot=snapshot)
+        except CellRefused as error:
+            print(f"[phase3] REFUSED {ds} topp={topp} jd={jd}: {error}",
+                  file=sys.stderr)
+            failures.append(f"{ds}/{topp}/{jd}")
+            continue
+        print(f"[phase3] {ds} topp={topp[0]}/{topp[1]} jd={jd} ok  "
+              f"mAP@R={record['selection']['selection_value']:.4f} "
+              f"@epoch {record['selection']['selection_epoch_zero_based']}")
+    if failures:
+        print(f"[phase3] {len(failures)} of {len(plan)} sweep cells refused: "
+              f"{failures}", file=sys.stderr)
+        return 1
+    print(f"[phase3] {len(plan)} of {len(plan)} sweep cells complete")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", action="store_true",
@@ -787,7 +1171,47 @@ def main() -> int:
               "scripts/phase3_select_n.py, for seeds 42/43/44"))
     parser.add_argument("--selection", default=str(
         REPO / "artifacts" / "phase3_selection" / "selected_n.json"))
+    parser.add_argument(
+        "--sweep", choices=("topp", "joint"), default=None,
+        help=("sweep a RECIPE axis instead of N, at the incumbent N for each "
+              "dataset. The cells are ordinary stage-1 selection cells: same "
+              "90/10 train split, same optTrain whitening, no official test."))
+    parser.add_argument(
+        "--recipe", default=None, metavar="PATH",
+        help=("a selected_topp.json / selected_joint.json from "
+              "scripts/phase3_select_n.py --axis. The N matrix and the refit "
+              "read the chosen coordinates from it instead of being told them "
+              "again by hand, which is how the ablation chain came to run at "
+              "an N nobody reported."))
+    parser.add_argument(
+        "--at-topp", default=None, metavar="MIN,MAX",
+        help="hold top-p here (required by --sweep joint)")
     args = parser.parse_args()
+
+    recipe = {}
+    if args.recipe:
+        try:
+            recipe = _load_recipe(Path(args.recipe))
+        except CellRefused as error:
+            print(f"[phase3] REFUSED --recipe: {error}", file=sys.stderr)
+            return 2
+
+    sweep_topp = None
+    if args.at_topp:
+        try:
+            lo, hi = args.at_topp.split(",")
+            sweep_topp = (lo.strip(), hi.strip())
+        except ValueError:
+            print(f"[phase3] --at-topp must be MIN,MAX, got {args.at_topp!r}",
+                  file=sys.stderr)
+            return 2
+        if sweep_topp not in TOPP_GRID:
+            print(f"[phase3] --at-topp {sweep_topp} is not one of the swept "
+                  f"windows {list(TOPP_GRID)}", file=sys.stderr)
+            return 2
+
+    if args.sweep:
+        return _run_sweep(args, sweep_topp)
 
     keys = cell_keys()
     if args.only:
@@ -831,6 +1255,7 @@ def main() -> int:
         return 0
 
     epochs = args.epochs if args.smoke else None
+    snapshot = plan_snapshot(sorted({d for d, _ in keys}))
 
     if args.refit:
         # Narrowing is for smoking the plumbing, never for producing the
@@ -852,7 +1277,10 @@ def main() -> int:
             try:
                 record = run_cell(ds, n, args.gpu, epochs=epochs,
                                   namespace=args.namespace, stage="refit",
-                                  seed=seed)
+                                  seed=seed,
+                                  topp=recipe.get(ds, {}).get("topp"),
+                                  joint=recipe.get(ds, {}).get("joint"),
+                                  snapshot=snapshot)
             except CellRefused as error:
                 print(f"[phase3] REFUSED refit {ds}/N{n}/s{seed}: {error}",
                       file=sys.stderr)
@@ -870,7 +1298,10 @@ def main() -> int:
     for ds, n in keys:
         try:
             record = run_cell(ds, n, args.gpu, epochs=epochs,
-                              namespace=args.namespace)
+                              namespace=args.namespace,
+                              topp=recipe.get(ds, {}).get("topp"),
+                              joint=recipe.get(ds, {}).get("joint"),
+                              snapshot=snapshot)
         except CellRefused as error:
             print(f"[phase3] REFUSED {ds}/N{n}: {error}", file=sys.stderr)
             failures.append(f"{ds}/N{n}")

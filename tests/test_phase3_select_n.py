@@ -17,6 +17,7 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
 from scripts.phase3_select_n import (  # noqa: E402
+    choose_recipe,
     SelectionRefused,
     choose,
     load_matrix,
@@ -37,28 +38,77 @@ from scripts.phase3_selection_matrix import (  # noqa: E402
     refit_tag_for,
 )
 
+# The fixture has to write what `run_cell` writes, including the per-dataset
+# trainer digest. A fixture that omits it encodes the very gap §54.4 named.
 _PROTOCOL = protocol_digests()
 
 
-def _record(dataset: str, n: int, value: float, **overrides) -> dict:
+def _real_run(root: Path, dataset: str, n: int, value: float) -> dict:
+    """A run directory the aggregator can actually reopen.
+
+    The old fixture wrote `run_dir: "/result/cifar10_N4"` and completion
+    digests of repeated characters, so it encoded exactly the gap §54.5 named:
+    sixteen records naming directories that do not exist were accepted. The
+    aggregator re-hashes the checkpoint and log.csv and re-reads the metric
+    from the CSV now, so the fixture has to produce all three.
+    """
+    import csv as _csv
+    from types import SimpleNamespace
+    from dna_utils.run_identity import RunIdentity, write_run_manifest
+    from scripts.phase3_selection_matrix import DATASETS, _sha
+
+    run = root / f"{dataset}_N{n}"
+    run.mkdir(parents=True, exist_ok=True)
+    (run / "model_state_dict.pth").write_bytes(f"weights-{dataset}-{n}".encode())
+    with open(run / "log.csv", "w", newline="", encoding="utf-8") as handle:
+        writer = _csv.DictWriter(
+            handle, fieldnames=["epoch", "eval_mAP_at_R", "eval_mAP_R_cutoff"])
+        writer.writeheader()
+        for e in range(n + 1):
+            writer.writerow({"epoch": e,
+                             "eval_mAP_at_R": f"{value if e == n else 0.1:.17g}",
+                             "eval_mAP_R_cutoff": "1000"})
+    spec = DATASETS[dataset]
+    identity = RunIdentity.from_args(SimpleNamespace(
+        dataset=spec["canon"], setting="setting1", random_seed=SEED, epoch=60,
+        stop_after_epoch=n, num_semantic_parts=SLOTS,
+        num_codons_per_codebook=BASES_PER_SLOT, codebook_size=spec["K"],
+        selection_mode="select", val_split_ratio=VAL_RATIO,
+        val_split_seed=VAL_SEED, lr_schedule_horizon=LR_HORIZON,
+        sinkhorn_schedule_horizon=n + 1,
+        siglip2_feature_cache_dir=spec["cache"], eval_cache_dir=spec["cache"]))
+    write_run_manifest(str(run), identity)
+    return {
+        "run_dir": str(run),
+        "identity_digest": identity.digest,
+        "checkpoint_sha256": _sha(run / "model_state_dict.pth"),
+        "log_csv_sha256": _sha(run / "log.csv"),
+    }
+
+
+def _record(dataset: str, n: int, value: float, *, run=None,
+            **overrides) -> dict:
+    run = run or {}
     base = {
         "schema_version": RECORD_SCHEMA,
         "namespace": "phase3sel",
-        "protocol_sources": _PROTOCOL,
+        "protocol_sources": dict(protocol_digests(dataset)),
         "stage": "select",
         # A record has to carry the evidence a completed cell produces. Sixteen
         # JSONs with none of this, and `protocol_sources: null` throughout,
         # passed the first version of the aggregator.
         "epoch_budget": 60,
-        "identity_digest": "d" * 64,
+        "identity_digest": run.get("identity_digest", "d" * 64),
         "matrix": {"cells": 16},
         "inputs": {"codebook_size": 64},
-        "completion": {"final_checkpoint_sha256": "a" * 64,
-                       "log_csv_sha256": "b" * 64,
-                       "terminal_weights_preserved": True},
+        "completion": {
+            "final_checkpoint": "model_state_dict.pth",
+            "final_checkpoint_sha256": run.get("checkpoint_sha256", "a" * 64),
+            "log_csv_sha256": run.get("log_csv_sha256", "b" * 64),
+            "terminal_weights_preserved": True},
         "dataset": dataset, "N": n,
         "tag": f"phase3sel_{dataset}_N{n}_s42",
-        "run_dir": f"/result/{dataset}_N{n}",
+        "run_dir": run.get("run_dir", f"/result/{dataset}_N{n}"),
         "seed": SEED, "val_split_ratio": VAL_RATIO, "val_split_seed": VAL_SEED,
         "lr_schedule_horizon": LR_HORIZON,
         "sinkhorn_schedule_horizon": n + 1,
@@ -68,7 +118,7 @@ def _record(dataset: str, n: int, value: float, **overrides) -> dict:
                       "selection_value": value,
                       "selection_epoch_zero_based": n,
                       "map_r_cutoff": "1000",
-                      "log_csv_sha256": "b" * 64},
+                      "log_csv_sha256": run.get("log_csv_sha256", "b" * 64)},
         "is_candidate_cell": True,
     }
     base.update(overrides)
@@ -78,9 +128,11 @@ def _record(dataset: str, n: int, value: float, **overrides) -> dict:
 def _matrix(tmp_path: Path, values=None, per_cell=None) -> Path:
     out = tmp_path / "records"
     out.mkdir(exist_ok=True)
+    runs = tmp_path / "runs"
     for dataset, n in cell_keys():
         value = (values or {}).get((dataset, n), 0.5 + 0.001 * n)
         record = _record(dataset, n, value,
+                         run=_real_run(runs, dataset, n, value),
                          **(per_cell or {}).get((dataset, n), {}))
         (out / f"{dataset}_N{n}.json").write_text(json.dumps(record))
     return out
@@ -131,8 +183,11 @@ def test_a_partial_matrix_is_refused(tmp_path):
 
 def test_a_duplicated_cell_is_refused(tmp_path):
     records = _matrix(tmp_path)
-    (records / "cifar10_N4_again.json").write_text(
-        json.dumps(_record("cifar10", 4, 0.99)))
+    # The duplicate has to be re-derivable too, or it is refused for the wrong
+    # reason and the duplicate check is never reached.
+    (records / "cifar10_N4_again.json").write_text(json.dumps(_record(
+        "cifar10", 4, 0.99,
+        run=_real_run(tmp_path / "dup", "cifar10", 4, 0.99))))
     with pytest.raises(SelectionRefused) as excinfo:
         load_matrix(records)
     assert "recorded twice" in str(excinfo.value)
@@ -355,3 +410,145 @@ def test_the_refit_record_names_the_whitening_it_actually_used():
         "text_whiten_trainOnly_localOnly.npz")
     assert _whitening(DATASETS["cifar10"], stage="select").endswith(
         "text_whiten_optTrain_localOnly.npz")
+
+
+# ---------------------------------------------------------------------------
+# §54.4: the trainer shell is the file that hardcodes the top-p window this
+# stage sweeps, and it was not in PROTOCOL_SOURCES -- so the one source whose
+# edit silently changes what a cell ran was the one the record did not name.
+# ---------------------------------------------------------------------------
+
+def test_a_record_naming_a_stale_trainer_is_refused(tmp_path):
+    from scripts.phase3_selection_matrix import DATASETS
+    records = _matrix(tmp_path)
+    victim = next(p for p in records.glob("*.json"))
+    payload = json.loads(victim.read_text())
+    trainer = DATASETS["cifar10"]["trainer"]
+    payload["protocol_sources"][trainer] = "0" * 64
+    victim.write_text(json.dumps(payload, indent=2, sort_keys=True))
+    with pytest.raises(SelectionRefused) as error:
+        load_matrix(records)
+    assert "trainer shell" in str(error.value)
+
+
+def test_records_from_two_trees_are_still_refused(tmp_path):
+    """The shared sources must be identical across the whole matrix."""
+    records = _matrix(tmp_path)
+    victim = next(p for p in records.glob("*.json"))
+    payload = json.loads(victim.read_text())
+    payload["protocol_sources"]["model_siglip2.py"] = "1" * 64
+    victim.write_text(json.dumps(payload, indent=2, sort_keys=True))
+    with pytest.raises(SelectionRefused):
+        load_matrix(records)
+
+
+# ---------------------------------------------------------------------------
+# §54.5: the record is a report written by the process now being trusted, so
+# the aggregator reopens the run and re-derives every claim from the bytes.
+# ---------------------------------------------------------------------------
+
+def test_a_record_naming_a_directory_that_does_not_exist_is_refused(tmp_path):
+    records = _matrix(tmp_path)
+    victim = next(records.glob("*.json"))
+    payload = json.loads(victim.read_text())
+    payload["run_dir"] = "/result/never_existed"
+    victim.write_text(json.dumps(payload))
+    with pytest.raises(SelectionRefused) as error:
+        load_matrix(records)
+    assert "does not exist" in str(error.value)
+
+
+def test_a_checkpoint_changed_after_the_cell_is_refused(tmp_path):
+    records = _matrix(tmp_path)
+    victim = next(records.glob("*.json"))
+    run = Path(json.loads(victim.read_text())["run_dir"])
+    (run / "model_state_dict.pth").write_bytes(b"different weights")
+    with pytest.raises(SelectionRefused) as error:
+        load_matrix(records)
+    assert "does not hash to the digest" in str(error.value)
+
+
+def test_a_metric_that_disagrees_with_log_csv_is_refused(tmp_path):
+    """The number has to be IN the bytes, not merely reported beside them."""
+    records = _matrix(tmp_path)
+    victim = next(records.glob("*.json"))
+    payload = json.loads(victim.read_text())
+    payload["selection"]["selection_value"] = 0.999
+    victim.write_text(json.dumps(payload))
+    with pytest.raises(SelectionRefused) as error:
+        load_matrix(records)
+    assert "log.csv epoch" in str(error.value)
+
+
+def test_a_forged_identity_digest_is_refused(tmp_path):
+    records = _matrix(tmp_path)
+    victim = next(records.glob("*.json"))
+    payload = json.loads(victim.read_text())
+    payload["identity_digest"] = "f" * 64
+    victim.write_text(json.dumps(payload))
+    with pytest.raises(SelectionRefused) as error:
+        load_matrix(records)
+    assert "the run's identity is" in str(error.value)
+
+
+# ---------------------------------------------------------------------------
+# The recipe reduction: declared before the cells run, so the rule cannot be
+# chosen after the numbers are seen.
+# ---------------------------------------------------------------------------
+
+def _grid():
+    from scripts.phase3_selection_matrix import TOPP_GRID, TOPP_INCUMBENT
+    return [tuple(c) for c in TOPP_GRID], tuple(TOPP_INCUMBENT)
+
+
+def test_the_recipe_winner_is_the_argmax(tmp_path):
+    grid, inc = _grid()
+    cells = {("flickr25k", grid[0]): 0.7576,
+             ("flickr25k", grid[1]): 0.7608,
+             ("flickr25k", grid[2]): 0.7605}
+    got = choose_recipe(cells, axis="topp", grid=grid, incumbent=inc)
+    assert got["flickr25k"]["selected"] == list(grid[1])
+    assert got["flickr25k"]["delta_vs_incumbent"] == pytest.approx(0.0032)
+    assert got["flickr25k"]["tie_broken"] is False
+
+
+def test_a_tie_keeps_the_incumbent(tmp_path):
+    """Not-moving wins a tie, so a coin flip cannot rewrite the recipe."""
+    grid, inc = _grid()
+    got = choose_recipe({("f", c): 0.5 for c in grid},
+                        axis="topp", grid=grid, incumbent=inc)
+    assert got["f"]["selected"] == list(inc)
+    assert got["f"]["tie_broken"] is True
+
+
+def test_a_tie_without_the_incumbent_takes_the_earlier_coordinate():
+    grid, inc = _grid()
+    cells = {("f", grid[0]): 0.1, ("f", grid[1]): 0.9, ("f", grid[2]): 0.9}
+    got = choose_recipe(cells, axis="topp", grid=grid, incumbent=inc)
+    assert got["f"]["selected"] == list(grid[1])
+
+
+def test_a_dataset_missing_one_cell_refuses_the_dataset():
+    grid, inc = _grid()
+    with pytest.raises(SelectionRefused) as error:
+        choose_recipe({("f", grid[0]): 0.5, ("f", grid[1]): 0.6},
+                      axis="topp", grid=grid, incumbent=inc)
+    assert "partial matrix" in str(error.value)
+
+
+def test_a_coordinate_off_the_declared_grid_is_refused():
+    grid, inc = _grid()
+    cells = {("f", c): 0.5 for c in grid}
+    cells[("f", ("0.9", "0.99"))] = 0.99
+    with pytest.raises(SelectionRefused) as error:
+        choose_recipe(cells, axis="topp", grid=grid, incumbent=inc)
+    assert "not in the declared" in str(error.value)
+
+
+@pytest.mark.parametrize("bad", [float("nan"), 1.5, -0.1, True, "0.5", None])
+def test_a_nonfinite_or_out_of_range_value_refuses(bad):
+    grid, inc = _grid()
+    cells = {("f", c): 0.5 for c in grid}
+    cells[("f", grid[0])] = bad
+    with pytest.raises(SelectionRefused):
+        choose_recipe(cells, axis="topp", grid=grid, incumbent=inc)

@@ -51,20 +51,43 @@ N="${STOP_EP}"
 BUDGET="$(echo "$EXTRA_ARGS" | tr ' ' '\n' | grep -A1 -x -- '-e' | tail -1)"
 DIR="result/260828+cifar10_setting1_${TAG}+bs+64+e+${BUDGET}+proj_lr+0.001"
 mkdir -p "$DIR" logs
+# A real run writes every argument the parser accepted. The swept recipe axes
+# are read from here, so a stub that omits them is refused -- which is the
+# point: their absence must not read as "the incumbent value".
+# `X="$(... | grep ...)"` exits 1 when the flag is absent, and
+# `[ test ] && X=default` exits 1 when the test is false -- both kill the
+# script under `set -e`. That is the same pair of mistakes the ablation chain
+# died on, so the defaults are taken with an `if` and a tolerated grep.
+arg_after() {
+  local want="$1" prev="" tok
+  for tok in $EXTRA_ARGS; do
+    if [ "$prev" = "$want" ]; then echo "$tok"; return 0; fi
+    prev="$tok"
+  done
+  return 1
+}
+if ! TOPP_MIN="$(arg_after --routing_adaptive_topp_min)"; then TOPP_MIN=0.3; fi
+if ! TOPP_MAX="$(arg_after --routing_adaptive_topp_max)"; then TOPP_MAX=0.7; fi
+if ! JD="$(arg_after --lambda_codon_joint)"; then JD=0.0; fi
 {
   echo "num_semantic_parts--------------5"
   echo "num_codebooks--------------5"
   echo "num_codons_per_codebook--------------3"
+  echo "routing_adaptive_topp_min--------------${TOPP_MIN}"
+  echo "routing_adaptive_topp_max--------------${TOPP_MAX}"
+  echo "lambda_codon_joint--------------${JD}"
 } > "$DIR/args.txt"
 echo "trained" > "logs/${TAG}.log"
 
-python3 - "$DIR" "$N" "$BUDGET" <<'PY'
+python3 - "$DIR" "$N" "$BUDGET" "$TOPP_MIN" "$TOPP_MAX" "$JD" <<'PY'
 import json, hashlib, os, sys
 sys.path.insert(0, os.getcwd())
 from types import SimpleNamespace
 from dna_utils.run_identity import RunIdentity, write_run_manifest
 
 run, n, budget = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
+topp_min, topp_max, jd = (float(sys.argv[4]), float(sys.argv[5]),
+                          float(sys.argv[6]))
 cache = os.environ["CACHE"]
 write_run_manifest(run, RunIdentity.from_args(SimpleNamespace(
     dataset="CIFAR10", setting="setting1",
@@ -76,7 +99,11 @@ write_run_manifest(run, RunIdentity.from_args(SimpleNamespace(
     val_split_seed=int(os.environ["VAL_SEED"]),
     lr_schedule_horizon=int(os.environ["EXTRA_LRH"]),
     sinkhorn_schedule_horizon=int(os.environ["EXTRA_SKH"]),
-    siglip2_feature_cache_dir=cache, eval_cache_dir=cache)))
+    siglip2_feature_cache_dir=cache, eval_cache_dir=cache,
+    routing_adaptive_topp=True,
+    routing_adaptive_topp_min=topp_min,
+    routing_adaptive_topp_max=topp_max,
+    lambda_codon_joint=jd)))
 
 cols = ["epoch", "eval_mAP", "eval_mAP_at_R", "eval_mAP_R_cutoff"]
 rows = [",".join(cols)]

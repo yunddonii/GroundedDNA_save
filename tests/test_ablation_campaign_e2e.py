@@ -208,15 +208,26 @@ def test_no_shell_in_the_launch_path_computes_a_cell():
     assert "_ablation_exec.py" in LAUNCHER.read_text()
 
 
-def test_the_plan_refuses_when_a_cache_cannot_be_accounted_for(tmp_path):
-    """18 of 24 cells used the legacy caches, which the gate refuses."""
+def test_the_plan_refuses_an_unaccountable_cache_or_a_superseded_selection(tmp_path):
+    """Two gates, and right now the earlier one fires first.
+
+    The cache gate is what this originally pinned: 18 of 24 cells pointed at
+    the legacy caches. Since then the Phase-3 selection this plan reads has
+    been superseded -- the sixteen records chose N at the trainers' hardcoded
+    top-p and lambda 0, and the aggregator that produced the artefact has
+    changed -- so `_load_selection` refuses before the caches are looked at.
+    Both are refusals; asserting only the cache message would fail for a reason
+    that is CORRECT, and asserting nothing would let a real regression pass.
+    """
     out = tmp_path / "plan.json"
     proc = subprocess.run(
         [PY, str(PLANNER), "--out", str(out), "--require-provenance"],
         capture_output=True, text=True, cwd=str(REPO), timeout=900,
         env=dict(os.environ, GDNA_CACHE_ROOT=str(tmp_path / "nowhere")))
     assert proc.returncode == 1
-    assert "cannot be accounted for" in proc.stderr
+    assert ("cannot be accounted for" in proc.stderr
+            or "different phase3_select_n.py" in proc.stderr), proc.stderr
+    assert not out.exists()
 
 
 # ---------------------------------------------------------------------------
@@ -245,15 +256,21 @@ def test_the_selection_is_in_the_committed_tree(tmp_path):
         f"a partial matrix is N chosen from whichever cells finished")
 
 
-def test_the_committed_records_re_derive_the_committed_choice(tmp_path):
-    """Not "the file is present" -- "the file is what the records say"."""
+def test_the_committed_records_are_refused_by_the_current_protocol(tmp_path):
+    """The sixteen records chose N under a protocol this tree no longer is.
+
+    They ran at the trainers' hardcoded top-p 0.3/0.7 and lambda 0.0, which the
+    draft calls the M=6 tuning, and the identity schema has since bumped to
+    carry those axes. Re-running them is the decision; what this test pins is
+    that the aggregator SAYS SO rather than reducing them anyway. A silent
+    acceptance here is how a superseded selection becomes a paper number.
+    """
     out = tmp_path / "selected_n.json"
     proc = subprocess.run(
         [sys.executable, str(REPO / "scripts" / "phase3_select_n.py"),
          "--records", str(REPO / "artifacts" / "phase3_selection"),
          "--out", str(out)],
         capture_output=True, text=True, timeout=300, cwd=str(REPO))
-    assert proc.returncode == 0, proc.stderr
-    committed = json.loads(
-        (REPO / "artifacts" / "phase3_selection" / "selected_n.json").read_text())
-    assert json.loads(out.read_text())["selected"] == committed["selected"]
+    assert proc.returncode == 1, proc.stdout + proc.stderr
+    assert "REFUSED" in proc.stderr
+    assert not out.exists()

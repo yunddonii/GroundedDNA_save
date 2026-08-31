@@ -136,13 +136,19 @@ def _fake_run(tmp_path: Path, *, slots=SLOTS, codons=BASES_PER_SLOT,
     breaks only that axis."""
     from types import SimpleNamespace
     from dna_utils.run_identity import RunIdentity, write_run_manifest
-    from scripts.phase3_selection_matrix import DATASETS, VAL_RATIO
+    from scripts.phase3_selection_matrix import (
+        DATASETS, JOINT_INCUMBENT, TOPP_INCUMBENT, VAL_RATIO)
 
     cache = DATASETS["cifar10"]["cache"]
     run = tmp_path / "run"
-    run.mkdir(exist_ok=True)
+    run.mkdir(parents=True, exist_ok=True)
+    # A real run writes every argument the parser accepted, so the fixture has
+    # to carry the swept axes too -- their absence is itself a refusal now.
     fields = {"num_semantic_parts": slots, "num_codebooks": slots,
-              "num_codons_per_codebook": codons}
+              "num_codons_per_codebook": codons,
+              "routing_adaptive_topp_min": TOPP_INCUMBENT[0],
+              "routing_adaptive_topp_max": TOPP_INCUMBENT[1],
+              "lambda_codon_joint": JOINT_INCUMBENT}
     (run / "args.txt").write_text(
         "\n".join(f"{k_}{'-' * 20}{v}" for k_, v in fields.items()) + "\n")
     args = dict(
@@ -152,7 +158,11 @@ def _fake_run(tmp_path: Path, *, slots=SLOTS, codons=BASES_PER_SLOT,
         selection_mode="select", val_split_ratio=VAL_RATIO,
         val_split_seed=SEED, lr_schedule_horizon=LR_HORIZON,
         sinkhorn_schedule_horizon=n + 1,
-        siglip2_feature_cache_dir=cache, eval_cache_dir=cache)
+        siglip2_feature_cache_dir=cache, eval_cache_dir=cache,
+        routing_adaptive_topp=True,
+        routing_adaptive_topp_min=float(TOPP_INCUMBENT[0]),
+        routing_adaptive_topp_max=float(TOPP_INCUMBENT[1]),
+        lambda_codon_joint=float(JOINT_INCUMBENT))
     args.update(overrides)
     write_run_manifest(str(run), RunIdentity.from_args(SimpleNamespace(**args)))
     return run
@@ -207,7 +217,10 @@ def test_args_and_manifest_must_agree(tmp_path):
     (run / "args.txt").write_text(
         "num_semantic_parts" + "-" * 20 + "6\n"
         "num_codebooks" + "-" * 20 + "6\n"
-        "num_codons_per_codebook" + "-" * 20 + "3\n")
+        "num_codons_per_codebook" + "-" * 20 + "3\n"
+        "routing_adaptive_topp_min" + "-" * 20 + "0.3\n"
+        "routing_adaptive_topp_max" + "-" * 20 + "0.7\n"
+        "lambda_codon_joint" + "-" * 20 + "0.0\n")
     with pytest.raises(CellRefused):
         assert_geometry(run, dataset="cifar10", n=4)
 
@@ -622,3 +635,57 @@ def test_the_matrix_wrapper_counts_the_exact_sixteen_keys():
     assert "grep -vc selected_n" not in source
     # And it is one of its own dirty-tree dependencies.
     assert "DEPS=(scripts/phase3_launch_matrix.sh" in source
+
+
+# ------------------------------------------------ the swept recipe axes
+
+def test_a_cell_that_ran_the_wrong_topp_window_is_refused(tmp_path):
+    """§54.2: the three top-p cells differ only here.
+
+    Until the identity carried the window, all three produced one digest, so a
+    cell that silently kept the trainer's hardcoded 0.3/0.7 was
+    indistinguishable from one that received the override.
+    """
+    from scripts.phase3_selection_matrix import assert_geometry as ag
+    run = _fake_run(tmp_path)
+    with pytest.raises(CellRefused) as error:
+        ag(run, dataset="cifar10", n=4, topp=("0.6", "0.95"))
+    assert "effective recipe is wrong" in str(error.value)
+    assert "routing_adaptive_topp_min" in str(error.value)
+
+
+def test_a_cell_that_ran_the_wrong_lambda_is_refused(tmp_path):
+    run = _fake_run(tmp_path)
+    with pytest.raises(CellRefused) as error:
+        assert_geometry(run, dataset="cifar10", n=4, joint="0.05")
+    assert "lambda_codon_joint" in str(error.value)
+
+
+def test_the_manifest_must_agree_with_the_swept_axes_too(tmp_path):
+    """args.txt alone is not enough: the sealed identity has to say it as well."""
+    run = _fake_run(tmp_path,
+                    routing_adaptive_topp_min=0.6,
+                    routing_adaptive_topp_max=0.95)
+    (run / "args.txt").write_text(
+        "num_semantic_parts" + "-" * 20 + f"{SLOTS}\n"
+        "num_codebooks" + "-" * 20 + f"{SLOTS}\n"
+        "num_codons_per_codebook" + "-" * 20 + f"{BASES_PER_SLOT}\n"
+        "routing_adaptive_topp_min" + "-" * 20 + "0.3\n"
+        "routing_adaptive_topp_max" + "-" * 20 + "0.7\n"
+        "lambda_codon_joint" + "-" * 20 + "0.0\n")
+    with pytest.raises(CellRefused):
+        assert_geometry(run, dataset="cifar10", n=4, topp=("0.3", "0.7"))
+
+
+def test_the_three_topp_cells_have_three_identities(tmp_path):
+    from dna_utils.run_identity import load_run_manifest
+    from scripts.phase3_selection_matrix import TOPP_GRID
+    seen = set()
+    for i, (lo, hi) in enumerate(TOPP_GRID):
+        run = _fake_run(tmp_path / f"c{i}",
+                        routing_adaptive_topp_min=float(lo),
+                        routing_adaptive_topp_max=float(hi))
+        seen.add(load_run_manifest(str(run)).digest)
+    assert len(seen) == len(TOPP_GRID), (
+        "top-p cells collapse onto one identity, so they can share a result "
+        "directory and resolve as each other")

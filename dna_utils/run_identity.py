@@ -44,7 +44,24 @@ MANIFEST_NAME = "run_identity.json"
 #: cache, the Sinkhorn epsilon endpoints, the validation split, the batch size
 #: or the projection learning rate left the digest identical -- ten axes that
 #: define different experiments, all colliding on one directory.
-_SCHEMA_VERSION = 2
+#:
+#: v3 added the RECIPE axes. Until it, three cells differing only in the
+#: confidence-adaptive top-p window produced one digest, and so did the four
+#: cells of the A5 factorial, which differ in the Gumbel relaxation and in
+#: L_joint. They were kept apart only by `--selection_mode`, a free string the
+#: launcher passes: a cell whose flags were composed wrongly -- which is what
+#: the shell chain did -- still matched the label it claimed. These fields are
+#: what the cells actually change, so the label is now redundant rather than
+#: load-bearing.
+#:
+#: Bumping the version makes `load_run_manifest` return None for a v2 manifest.
+#: That is deliberate and it is why this landed now: the sixteen Phase-3
+#: selection records are being re-run anyway, because they chose N at a top-p
+#: window the draft itself calls the M=6 tuning. Adding these fields while
+#: leaving the version at 2 -- which an earlier attempt did -- is the actual
+#: mistake: it makes old manifests unreadable while still claiming to be the
+#: schema they were written under.
+_SCHEMA_VERSION = 3
 
 #: Claimed by a live process. Created with O_EXCL, so two processes cannot both
 #: believe they own the directory; removed by `release_run_dir` when the run
@@ -94,6 +111,32 @@ class RunIdentity:
     val_split_seed: int
     batch_size: int
     proj_lr: float
+    # ---- the recipe axes (v3) ----
+    routing_adaptive_topp: bool
+    routing_adaptive_topp_min: Optional[float]
+    routing_adaptive_topp_max: Optional[float]
+    # The window means nothing without the switch that reads it and the rule
+    # that computes it: with `--routing_adaptive_topp` off, min/max are inert
+    # defaults, and `--routing_adaptive_topp_entropy` changes the threshold
+    # from max-probability confidence to normalised routing entropy -- a
+    # different mask at identical min/max. `--routing_perplexity_topk` is
+    # mutually exclusive with the whole mechanism, so a run using it is not a
+    # top-p run at all.
+    routing_adaptive_topp_entropy: bool
+    routing_perplexity_topk: bool
+    # L_joint's scope and its log floor. `--codon_joint_slots 0` applies the
+    # term to the global slot only, which is a different experiment at the
+    # same lambda; the floor sets where the log is clamped.
+    codon_joint_slots: str
+    codon_joint_floor: Optional[float]
+    share_codebook: bool
+    disable_text_supervision: bool
+    use_gumbel_softmax: bool
+    lambda_codon_joint: float
+    lambda_text_code_kl: float
+    lambda_text_hash_ntxent: float
+    lambda_xmodal_commit: float
+    lambda_codeword_codon_sinkhorn: float
 
     @property
     def digest(self) -> str:
@@ -181,6 +224,37 @@ class RunIdentity:
             val_split_seed=int(getattr(args, "val_split_seed", 42) or 42),
             batch_size=int(getattr(args, "batch_size", 0) or 0),
             proj_lr=float(getattr(args, "proj_lr", 0.0) or 0.0),
+            routing_adaptive_topp=bool(
+                getattr(args, "routing_adaptive_topp", False)),
+            routing_adaptive_topp_min=_opt_float(
+                getattr(args, "routing_adaptive_topp_min", None)),
+            routing_adaptive_topp_max=_opt_float(
+                getattr(args, "routing_adaptive_topp_max", None)),
+            routing_adaptive_topp_entropy=bool(
+                getattr(args, "routing_adaptive_topp_entropy", False)),
+            routing_perplexity_topk=bool(
+                getattr(args, "routing_perplexity_topk", False)),
+            codon_joint_slots=str(getattr(args, "codon_joint_slots", "") or ""),
+            codon_joint_floor=_opt_float(
+                getattr(args, "codon_joint_floor", None)),
+            share_codebook=bool(getattr(args, "share_codebook", False)),
+            disable_text_supervision=bool(
+                getattr(args, "disable_text_supervision", False)),
+            # `--no_gumbel_softmax` stores into `use_gumbel_softmax`, so the
+            # axis is read under the name the parser keeps. Reading the flag's
+            # own spelling would give None for every run and collapse the A5
+            # factorial back to two configurations.
+            use_gumbel_softmax=bool(getattr(args, "use_gumbel_softmax", True)),
+            lambda_codon_joint=float(
+                getattr(args, "lambda_codon_joint", 0.0) or 0.0),
+            lambda_text_code_kl=float(
+                getattr(args, "lambda_text_code_kl", 0.0) or 0.0),
+            lambda_text_hash_ntxent=float(
+                getattr(args, "lambda_text_hash_ntxent", 0.0) or 0.0),
+            lambda_xmodal_commit=float(
+                getattr(args, "lambda_xmodal_commit", 0.0) or 0.0),
+            lambda_codeword_codon_sinkhorn=float(
+                getattr(args, "lambda_codeword_codon_sinkhorn", 0.0) or 0.0),
         )
 
     def differing_fields(self, other: "RunIdentity") -> List[str]:

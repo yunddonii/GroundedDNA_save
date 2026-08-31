@@ -487,6 +487,73 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-08-31 The recipe becomes a coordinate: P/JD enter the D1 path, the identity, and the reducer
+
+The top-p sweep runs inside `scripts/phase3_selection_matrix.py` -- the D1
+train-only path, verified from a real `args.txt` (`val_split_ratio 0.1`,
+`text_whiten_optTrain_localOnly`, `final_epoch_eval False`) -- rather than in a
+new program. The planner that would have selected on the official test split was
+deleted yesterday; nothing replaced it.
+
+Five gaps closed before any production cell, each named by re-audit §54.
+
+**`--only` names one cell, not a dataset.** It was `dataset:N`, so
+`--only flickr25k` on a sweep meant three cells: the description "one-cell
+smoke" and the act disagreed, and a three-trainer run got reported as one. It is
+`dataset:MIN,MAX` for top-p and `dataset:LAMBDA` for the sweep now, and anything
+matching zero or several cells is refused with the offered coordinates named.
+
+**A plan-wide immutable snapshot.** Twelve sources plus the per-dataset trainer,
+and five inputs per dataset (feature-cache `meta.json`, foils `meta.json`, both
+whitening matrices, the caption file), hashed ONCE before the first trainer and
+re-checked after every cell against that first snapshot -- not against the tree
+as it was when each cell began, which would let drift become the new baseline.
+The trainer shell was not in `PROTOCOL_SOURCES` at all, and it is the file that
+hardcodes the very top-p window this stage sweeps.
+
+**The identity carries the whole recipe.** v3 adds the adaptive top-p switch,
+window, and entropy rule; `--routing_perplexity_topk`, which is mutually
+exclusive with the mechanism; `lambda_codon_joint`; and the joint term's slots
+and floor. Verified: adaptive-off, the entropy rule, perplexity-topk,
+`codon_joint_slots=0` and a different floor each produce a distinct digest, and
+the three top-p cells separate with `selection_mode` held constant. Before this
+they were one digest, kept apart only by a free label string.
+
+**A declared reducer with its tie and fail rule** (`RECIPE_REDUCTION`), written
+before the cells run so the rule cannot be picked after the numbers: train-only
+validation raw base-Hamming mAP@R at the cell's own terminal epoch, argmax within
+a dataset, ties to the INCUMBENT and then the earlier coordinate, and any
+missing, duplicated, off-grid or non-finite cell refuses the whole dataset.
+Codon decoding is deliberately absent -- the held-out decoder reads the official
+query split, so selecting on it would be test-informed. The artefact records
+`stability.confirmed: false`, and `--recipe` hands the winner to the N matrix
+and to the refit instead of the coordinates being retyped.
+
+**The selector reopens the bytes.** It re-reads the run manifest and compares
+the identity, re-hashes the checkpoint and `log.csv` against the record's
+digests, and re-reads the metric from the CSV row. A safe probe used to pass
+sixteen records whose `run_dir` did not exist and whose digests were repeated
+characters. The fixtures now build real run directories, because the old ones
+encoded exactly that gap.
+
+Consequence, and it is intended: the sixteen committed Phase-3 records no longer
+reduce. They chose N at the hardcoded top-p and lambda 0 under identity schema
+v2, and the aggregator says so instead of reducing them anyway. The test that
+asserted they re-derive now asserts they are REFUSED.
+
+Two of my own defects on the way. I put `[ "$X" = "..." ] && X=default` and a
+bare `X="$(... | grep ...)"` into a stub trainer -- both exit non-zero and kill
+the script under `set -e`, which is the pair the ablation chain died on and that
+I had already fixed once. And I started writing an expected-digest reconstruction
+that would have had to restate the batch size, projection LR, Sinkhorn epsilon
+endpoints and every lambda; guessing one wrong refuses every honest cell, so it
+was dropped in favour of `assert_geometry` comparing the effective top-p and
+lambda from `args.txt` AND the manifest, which closes the same hole from values
+that were verified.
+
+1079 passed. No production sweep cell has run; the earlier three-cell smoke is
+in `result/_QUARANTINE/`.
+
 ## 2026-08-30 The top-p planner I wrote would have selected on the OFFICIAL TEST split — withdrawn
 
 Re-audit §53 stopped this before it ran. The finding that matters is §53.4's:
