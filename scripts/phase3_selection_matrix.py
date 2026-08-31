@@ -403,7 +403,17 @@ _SNAPSHOT_SOURCES = (
 )
 
 
-def plan_snapshot(datasets=None, *, plan=None, axis=None,
+def canonical_plan(axis: str, *, at_topp=None) -> list:
+    """The plan the SOURCE declares for an axis.
+
+    The selector must compare a snapshot against this, not against the set the
+    snapshot names for itself: a Flickr-only snapshot claiming to be a complete
+    sweep was accepted as one.
+    """
+    return sweep_cells(axis, at_topp=at_topp)
+
+
+def plan_snapshot(datasets=None, *, plan=None, executed=None, axis=None,
                   namespace=None) -> dict:
     """The sources AND the inputs, frozen at plan time.
 
@@ -445,16 +455,24 @@ def plan_snapshot(datasets=None, *, plan=None, axis=None,
     # one-cell smoke and the nine-cell production sweep produced a
     # byte-identical snapshot, so the digest in a receipt could not say which
     # plan it sealed.
+    def _cells(rows):
+        return [{"dataset": ds, "N": n,
+                 "topp": list(topp) if topp is not None else None,
+                 "joint": jd}
+                for ds, n, topp, jd in rows]
+
     if plan is not None:
+        executed = plan if executed is None else executed
         payload["plan"] = {
             "axis": axis,
             "namespace": namespace,
-            "expected_cells": len(plan),
-            "cells": [
-                {"dataset": ds, "N": n,
-                 "topp": list(topp) if topp is not None else None,
-                 "joint": jd}
-                for ds, n, topp, jd in plan],
+            # What the axis declares, and what THIS invocation actually runs.
+            # One field could not express a `--only` smoke: the snapshot said
+            # twelve while its receipt said one, and nothing compared them.
+            "declared_cells": _cells(plan),
+            "declared_count": len(plan),
+            "executed_cells": _cells(executed),
+            "executed_count": len(executed),
         }
     return payload
 
@@ -1192,7 +1210,7 @@ def _run_sweep(args, at_topp) -> int:
     # it to: a one-cell run that pins only its own dataset is a new baseline
     # each time, which is what nine `--only` processes produced.
     snapshot = plan_snapshot(sorted({c[0] for c in full_plan}),
-                             plan=full_plan, axis=args.sweep,
+                             plan=full_plan, executed=plan, axis=args.sweep,
                              namespace=args.namespace)
     # The snapshot file is named by its OWN digest. Three streams each running
     # `--only` wrote one shared `<namespace>_snapshot.json` and atomically
@@ -1275,6 +1293,7 @@ def _run_sweep(args, at_topp) -> int:
         "plan_snapshot_sha256": snap_digest,
         "plan_snapshot_file": snap_path.name,
         "expected_cells": len(plan),
+        "declared_cells": len(full_plan),
         "cell_count": len(done),
         "cells": {
             k: {

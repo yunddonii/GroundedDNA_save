@@ -150,22 +150,42 @@ def _assert_claimed_coordinate(payload: dict, path: Path) -> None:
     from scripts.phase3_selection_matrix import _arg_value
 
     run_dir = Path(payload["run_dir"])
-    args_txt = run_dir / "args.txt"
-    if not args_txt.is_file():
-        raise SelectionRefused(f"{path.name}: {run_dir} has no args.txt")
     claimed = payload.get("recipe") or {}
+
+    # The MANIFEST first. `args.txt` is a plain text file that nothing hashes,
+    # so rotating it together with the record labels passed the earlier version
+    # of this check. The run manifest's stored digest is verified against its
+    # own fields by `load_run_manifest`, and schema 4 carries the recipe axes,
+    # so it is the tamper-evident copy of what ran.
+    identity = load_run_manifest(str(run_dir))
+    if identity is None:
+        raise SelectionRefused(
+            f"{path.name}: {run_dir} has no readable run manifest")
     for field in ("routing_adaptive_topp_min", "routing_adaptive_topp_max",
                   "lambda_codon_joint"):
         want = claimed.get(field)
         if want is None:
             raise SelectionRefused(
                 f"{path.name}: the record claims no {field}")
-        actual = float(_arg_value(args_txt, field))
-        if abs(actual - float(want)) > 1e-12:
+        actual = getattr(identity, field)
+        if actual is None or abs(float(actual) - float(want)) > 1e-12:
             raise SelectionRefused(
                 f"{path.name}: the record is labelled {field}={want} but the "
-                f"run parsed {actual}; this is a genuine run under someone "
-                f"else's coordinate")
+                f"run's sealed identity says {actual}; this is a genuine run "
+                f"under someone else's coordinate")
+
+    # And `args.txt` as a second witness, so a manifest and the arguments the
+    # trainer parsed cannot disagree unnoticed.
+    args_txt = run_dir / "args.txt"
+    if not args_txt.is_file():
+        raise SelectionRefused(f"{path.name}: {run_dir} has no args.txt")
+    for field in ("routing_adaptive_topp_min", "routing_adaptive_topp_max",
+                  "lambda_codon_joint"):
+        parsed = float(_arg_value(args_txt, field))
+        if abs(parsed - float(claimed[field])) > 1e-12:
+            raise SelectionRefused(
+                f"{path.name}: args.txt says {field}={parsed}, the record says "
+                f"{claimed[field]}")
 
 
 def _check_record(payload: dict, path: Path) -> tuple:
@@ -445,7 +465,7 @@ def choose(cells: dict) -> dict:
 
 
 def _recipe_matrix(records_dir: Path, *, axis: str,
-                   namespace: str | None = None) -> dict:
+                   namespace: str | None = None, at_topp=None) -> dict:
     """The same per-record authentication, keyed by the swept coordinate."""
     from scripts.phase3_selection_matrix import (
         JOINT_GRID, JOINT_INCUMBENT, TOPP_GRID, TOPP_INCUMBENT)
@@ -528,11 +548,36 @@ def _recipe_matrix(records_dir: Path, *, axis: str,
         raise SelectionRefused(
             f"{snap_path.name} describes plan {plan.get('axis')!r}/"
             f"{plan.get('namespace')!r}, not {axis!r}/{namespace!r}")
-    declared = sorted({c["dataset"] for c in (plan.get("cells") or [])})
-    if not declared:
+    if not plan.get("declared_cells"):
         raise SelectionRefused(
-            f"{snap_path.name} carries no plan; it was written before the "
-            f"snapshot named what it was running")
+            f"{snap_path.name} carries no declared plan; it was written before "
+            f"the snapshot named what it was running")
+
+    # The snapshot does NOT get to say what a complete sweep is. A Flickr-only
+    # snapshot calling itself complete was accepted as one, and a snapshot whose
+    # four coordinates had all been rewritten to 0.3/0.7 was too. Both are
+    # compared against the plan this source declares for the axis.
+    from scripts.phase3_selection_matrix import canonical_plan
+    want = [{"dataset": ds, "N": n,
+             "topp": list(topp) if topp is not None else None, "joint": jd}
+            for ds, n, topp, jd in canonical_plan(axis, at_topp=at_topp)]
+    if plan["declared_cells"] != want:
+        raise SelectionRefused(
+            f"{snap_path.name} declares a plan this tree does not: it names "
+            f"{len(plan['declared_cells'])} cells over "
+            f"{sorted({c['dataset'] for c in plan['declared_cells']})}, the "
+            f"source declares {len(want)} over "
+            f"{sorted({c['dataset'] for c in want})}")
+    executed = plan.get("executed_cells")
+    if executed != want:
+        raise SelectionRefused(
+            f"{snap_path.name} executed {len(executed or [])} of its "
+            f"{len(want)} declared cells; a reduction needs the whole sweep")
+    if receipt["expected_cells"] != len(want):
+        raise SelectionRefused(
+            f"{receipt_path.name} expects {receipt['expected_cells']} cells, "
+            f"the declared plan has {len(want)}")
+    declared = sorted({c["dataset"] for c in want})
 
     # ---- every record the receipt sealed, by name and by bytes ------------
     sealed = receipt.get("cells") or {}
@@ -552,6 +597,23 @@ def _recipe_matrix(records_dir: Path, *, axis: str,
         if name not in digests:
             raise SelectionRefused(
                 f"the receipt seals {name}, which this reduction did not admit")
+        # The receipt's own description of the cell has to be the record's.
+        # Rewriting an entry's tag, run_dir, identity or recipe to foreign
+        # values passed while the filename and its SHA still matched.
+        rec = json.loads(path.read_text(encoding="utf-8"))
+        for field, actual in (("tag", rec.get("tag")),
+                              ("run_dir", rec.get("run_dir")),
+                              ("recipe", rec.get("recipe"))):
+            if entry.get(field) != actual:
+                raise SelectionRefused(
+                    f"the receipt says {name} has {field}={entry.get(field)!r}, "
+                    f"the record says {actual!r}")
+        sealed_id = entry.get("identity_digest")
+        if sealed_id != (rec.get("geometry") or {}).get("identity_digest"):
+            raise SelectionRefused(
+                f"the receipt seals identity {str(sealed_id)[:12]}... for "
+                f"{name}, the record says "
+                f"{str((rec.get('geometry') or {}).get('identity_digest'))[:12]}...")
     extra = sorted(set(digests) - {e.get("record") for e in sealed.values()})
     if extra:
         raise SelectionRefused(

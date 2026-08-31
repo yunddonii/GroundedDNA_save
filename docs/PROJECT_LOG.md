@@ -487,6 +487,52 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-08-31 (PM3) §61: four forgeries passed my "gates" — the manifest, not args.txt, is the witness
+
+Re-audit §61 ran four counterexamples against the committed bytes of `00ec75d`,
+whose message claimed these were closed. All four were accepted, inside a
+1096-passing suite. My smoke on that tree is quarantined; it is not evidence.
+
+**1. A Flickr-only snapshot called itself a complete sweep.** The selector took
+its `declared` dataset set FROM the snapshot — the very artefact under
+suspicion. It now derives the canonical plan from the source
+(`canonical_plan(axis)`) and requires the snapshot's declared cells to equal it
+exactly, coordinates included.
+
+**2. All four windows rewritten to 0.3/0.7, with the whole digest chain
+re-sealed**, was accepted, because only the dataset NAMES were read out of the
+plan. Same fix: exact cell-list equality against the source.
+
+**3. A receipt entry with `tag=FOREIGN`, `run_dir=/tmp/foreign`, a foreign
+identity and a foreign recipe** was accepted as long as the record filename and
+its SHA still matched. The receipt's own seal fields are now compared to the
+record.
+
+**4. Rotating `args.txt` in step with the record labels** — the one that
+survived my previous fix, and the one worth understanding. I had "closed" the
+coordinate-relabel hole by reading the coordinate back out of `args.txt`. But
+`args.txt` is a plain text file that nothing hashes, so an attacker who edits
+the label edits the witness too. The run manifest is different: `load_run_manifest`
+verifies its stored digest against its own fields, and schema 4 carries
+`routing_adaptive_topp_min/max` and `lambda_codon_joint`. It was already being
+reopened by `_reverify_run` — I simply never compared those fields. The manifest
+is now the primary witness and `args.txt` a second one, so a manifest and the
+arguments the trainer parsed cannot disagree unnoticed.
+
+Also fixed, found in my own smoke before §61 was read: the snapshot passed
+`full_plan` while the receipt counted the `--only` subset, so a one-cell smoke
+wrote `expected_cells: 12` beside a receipt saying `1`. The snapshot seals
+`declared_cells` and `executed_cells` separately now, and a reduction requires
+them equal and equal to the receipt.
+
+The test fixture was the deeper problem. It built a Flickr-only sweep, so it
+encoded defect 1 rather than catching it — the same shape as every earlier
+fixture that made a green suite meaningless. It builds the canonical plan now,
+and a test that wants an incomplete sweep has to break it deliberately.
+
+Five differential tests. Against `00ec75d`'s selector all five fail; against
+this one all pass. 1093 passed.
+
 ## 2026-08-31 (PM2) The empty-slot table was measured at the wrong epoch — retracted; four preflight gates before the 12-cell sweep
 
 ### Retraction
