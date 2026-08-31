@@ -487,6 +487,60 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-08-31 (PM4) The two launch gates: namespace collision, and the re-signed manifest
+
+Both were required before the 12-cell sweep. Both are closed, and both have a
+test that fails against the previous commit.
+
+### The re-signed manifest (§61.3)
+
+My previous fix made the run manifest the witness for a cell's coordinate,
+because `load_run_manifest` verifies a stored digest against the manifest's own
+fields — unlike `args.txt`, which nothing hashes. That reasoning was incomplete
+and I verified the gap directly:
+
+```
+genuine  : 0.6  digest 059d522af422
+re-signed: 0.3  digest 7fb4bb4ea882   -> load_run_manifest ACCEPTS
+```
+
+`write_run_manifest` recomputes the digest, so a manifest only ever proves it
+agrees with **itself**. Anyone who can edit it can re-sign it.
+
+The anchor has to be something the forger cannot choose, and there is exactly
+one such thing left: the plan this SOURCE declares, which the snapshot is
+already compared against. `tag_for` is a deterministic function of (dataset, N,
+namespace, coordinate), so every declared cell implies exactly one tag; the
+receipt seals which record file carries it, and the run directory has to carry
+it too. A rotated coordinate therefore needs a tag the honest cell already
+holds. Both halves are tested: rotating onto a free window is refused by the tag
+gate, rotating onto an occupied one is refused as a duplicate.
+
+Writing that test found a bug in the test itself — it picked the first sorted
+Flickr cell, which was already 0.3/0.7, so the "rotation" changed nothing and
+the test passed for no reason. The failure was real; my reading of it was not.
+
+### Namespace collision
+
+Two sweeps sharing a namespace overwrite each other's records and receipt, and
+the survivor looks complete — the reducer would then read a mixture nothing
+distinguishes. A namespace is claimed by one sweep now, checked before the
+snapshot so a collision costs no GPU time.
+
+### Preflight status
+
+| §61 requirement | |
+|---|---|
+| missing one whole dataset | closed |
+| duplicated / wrong snapshot coordinate | closed |
+| snapshot count vs receipt count | closed |
+| receipt tag/run_dir/identity/recipe mismatch | closed |
+| smoke declared-vs-executed | closed |
+| same-namespace collision | closed |
+| re-signed manifest | closed |
+
+1098 passed. Against `5c7199b`, the three new gate tests fail.
+
 ## 2026-08-31 (PM3) §61: four forgeries passed my "gates" — the manifest, not args.txt, is the witness
 
 Re-audit §61 ran four counterexamples against the committed bytes of `00ec75d`,

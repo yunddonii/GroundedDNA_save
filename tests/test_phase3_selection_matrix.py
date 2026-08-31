@@ -780,3 +780,36 @@ def test_the_sweep_snapshot_is_named_by_its_own_digest():
     source = (REPO / "scripts" / "phase3_selection_matrix.py").read_text()
     assert '_snapshot_{snap_digest[:16]}.json' in source
     assert '_snapshot.json"' not in source
+
+
+def test_a_namespace_belongs_to_one_sweep(tmp_path, monkeypatch, capsys):
+    """Two sweeps in one namespace overwrite each other's records and receipt,
+    and the survivor looks complete -- the reducer would then be reading a
+    mixture whose parts nothing distinguishes."""
+    import scripts.phase3_selection_matrix as M
+
+    monkeypatch.setattr(M, "RECORD_DIR", tmp_path)
+    monkeypatch.setattr(sys, "argv", [
+        "phase3_selection_matrix.py", "--sweep", "topp", "--run",
+        "--namespace", "phase3toppB", "--gpus", "0,1,2"])
+    (tmp_path / "phase3toppB_flickr_A_v4_N4_s42.json").write_text("{}")
+
+    assert M.main() == 2
+    assert "already holds" in capsys.readouterr().err
+
+
+def test_a_fresh_namespace_is_not_refused(tmp_path, monkeypatch):
+    """The gate must not refuse the first sweep."""
+    import scripts.phase3_selection_matrix as M
+
+    monkeypatch.setattr(M, "RECORD_DIR", tmp_path)
+    calls = []
+    monkeypatch.setattr(M, "run_cell",
+                        lambda *a, **k: calls.append(k) or (_ for _ in ()).throw(
+                            M.CellRefused("stub: no trainer here")))
+    monkeypatch.setattr(sys, "argv", [
+        "phase3_selection_matrix.py", "--sweep", "topp", "--run",
+        "--namespace", "phase3fresh", "--gpus", "0,1,2"])
+    # It gets past the gate and into the cells, which the stub refuses.
+    assert M.main() == 1
+    assert calls, "the sweep never reached a cell"

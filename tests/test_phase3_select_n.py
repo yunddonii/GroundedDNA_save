@@ -45,7 +45,7 @@ _PROTOCOL = protocol_digests()
 
 
 def _real_run(root: Path, dataset: str, n: int, value: float, *,
-              topp=("0.3", "0.7"), joint="0.0") -> dict:
+              topp=("0.3", "0.7"), joint="0.0", tag=None) -> dict:
     """A run directory the aggregator can actually reopen.
 
     The old fixture wrote `run_dir: "/result/cifar10_N4"` and completion
@@ -59,7 +59,10 @@ def _real_run(root: Path, dataset: str, n: int, value: float, *,
     from dna_utils.run_identity import RunIdentity, write_run_manifest
     from scripts.phase3_selection_matrix import DATASETS, _sha
 
-    run = root / f"{dataset}_N{n}_{topp[0]}_{topp[1]}_{joint}"
+    # The directory carries its own tag, exactly as the trainer names it: the
+    # reducer requires that, so a rotated coordinate cannot keep its directory.
+    run = root / (f"260831+{dataset}_setting1_{tag}+bs+64"
+                  if tag else f"{dataset}_N{n}_{topp[0]}_{topp[1]}_{joint}")
     run.mkdir(parents=True, exist_ok=True)
     # `args.txt` is what the trainer parsed, and the reducer reads the swept
     # coordinate back out of it -- a record cannot label a run with someone
@@ -651,11 +654,14 @@ def _sweep(tmp_path: Path, *, namespace="phase3sweep", axis="topp",
         json.dumps(snapshot, indent=2, sort_keys=True) + "\n")
 
     sealed = {}
+    from scripts.phase3_selection_matrix import tag_for
     for i, (ds, n, c, jd) in enumerate(plan):
         value = (values or {}).get((ds, tuple(c)), 0.50 + 0.001 * i)
+        tag = tag_for(ds, n, namespace=namespace, topp=tuple(c), joint=jd)
         run = _real_run(tmp_path / "runs", ds, n, value, topp=tuple(c),
-                        joint=jd)
+                        joint=jd, tag=tag)
         rec = _record(ds, n, value, run=run)
+        rec["tag"] = tag
         rec["namespace"] = namespace
         rec["recipe"] = {"routing_adaptive_topp_min": c[0],
                          "routing_adaptive_topp_max": c[1],
@@ -804,3 +810,122 @@ def test_a_snapshot_declaring_more_than_it_executed_is_refused(tmp_path):
     with pytest.raises(SelectionRefused) as error:
         _recipe_matrix(records, axis="topp", namespace="phase3sweep")
     assert "of its" in str(error.value) and "declared cells" in str(error.value)
+
+
+def test_a_re_signed_manifest_cannot_move_a_cell(tmp_path):
+    """§61.3: `load_run_manifest` only checks a manifest against ITSELF.
+
+    Rotating the coordinate and calling `write_run_manifest` again produces a
+    new, internally valid manifest carrying the wrong window -- verified
+    directly: the same directory reads back 0.6/0.95 and then 0.3/0.7, each
+    time with a digest that matches its own fields.
+
+    The anchor is therefore the plan the SOURCE declares, which the snapshot has
+    already been compared against. Every declared cell implies exactly one tag,
+    the receipt seals which file carries it, and the run directory has to carry
+    it too -- so a rotated coordinate needs a tag that the honest cell already
+    holds.
+    """
+    import dataclasses
+    from dna_utils.run_identity import load_run_manifest, write_run_manifest
+    from scripts.phase3_select_n import _sha
+
+    records = _sweep(tmp_path)
+    receipt_path = next(records.glob("*_sweep_complete.json"))
+    receipt = json.loads(receipt_path.read_text())
+    # The 0.6/0.95 cell specifically: picking the first sorted Flickr key gives
+    # the 0.3/0.7 one, and "rotating" it to 0.3/0.7 changes nothing.
+    key = next(k for k in sorted(receipt["cells"])
+               if k.startswith("flickr25k/") and "0.6" in k)
+    entry = receipt["cells"][key]
+    path = records / entry["record"]
+    rec = json.loads(path.read_text())
+    run = Path(rec["run_dir"])
+
+    # Re-sign the manifest under a different window, and make every other
+    # witness agree with it.
+    identity = load_run_manifest(str(run))
+    # An UNOCCUPIED window, so the duplicate-coordinate check does not fire
+    # first and this test exercises the tag gate it is named for. Rotating onto
+    # an occupied one is refused too, as a duplicate.
+    forged = dataclasses.replace(identity, routing_adaptive_topp_min=0.2,
+                                 routing_adaptive_topp_max=0.6)
+    write_run_manifest(str(run), forged)
+    assert load_run_manifest(str(run)) is not None, (
+        "the re-signed manifest must be internally valid, or this test proves "
+        "nothing")
+    (run / "args.txt").write_text(
+        f"routing_adaptive_topp_min{'-' * 20}0.2\n"
+        f"routing_adaptive_topp_max{'-' * 20}0.6\n"
+        f"lambda_codon_joint{'-' * 20}0.0\n")
+    rec["recipe"]["routing_adaptive_topp_min"] = "0.2"
+    rec["recipe"]["routing_adaptive_topp_max"] = "0.6"
+    rec["identity_digest"] = forged.digest
+    rec["geometry"]["identity_digest"] = forged.digest
+    path.write_text(json.dumps(rec))
+    entry["recipe"] = rec["recipe"]
+    entry["identity_digest"] = forged.digest
+    entry["record_sha256"] = _sha(path)
+    receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+
+    with pytest.raises(SelectionRefused) as error:
+        _recipe_matrix(records, axis="topp", namespace="phase3sweep")
+    assert "which the plan says is" in str(error.value)
+
+
+def test_rotating_onto_an_occupied_window_is_refused_as_a_duplicate(tmp_path):
+    """The other half: two cells cannot both claim one coordinate."""
+    import dataclasses
+    from dna_utils.run_identity import load_run_manifest, write_run_manifest
+    from scripts.phase3_select_n import _sha
+
+    records = _sweep(tmp_path)
+    receipt_path = next(records.glob("*_sweep_complete.json"))
+    receipt = json.loads(receipt_path.read_text())
+    key = next(k for k in sorted(receipt["cells"])
+               if k.startswith("flickr25k/") and "0.6" in k)
+    entry = receipt["cells"][key]
+    path = records / entry["record"]
+    rec = json.loads(path.read_text())
+    run = Path(rec["run_dir"])
+    forged = dataclasses.replace(load_run_manifest(str(run)),
+                                 routing_adaptive_topp_min=0.3,
+                                 routing_adaptive_topp_max=0.7)
+    write_run_manifest(str(run), forged)
+    (run / "args.txt").write_text(
+        f"routing_adaptive_topp_min{'-' * 20}0.3\n"
+        f"routing_adaptive_topp_max{'-' * 20}0.7\n"
+        f"lambda_codon_joint{'-' * 20}0.0\n")
+    rec["recipe"]["routing_adaptive_topp_min"] = "0.3"
+    rec["recipe"]["routing_adaptive_topp_max"] = "0.7"
+    rec["identity_digest"] = forged.digest
+    rec["geometry"]["identity_digest"] = forged.digest
+    path.write_text(json.dumps(rec))
+    entry["recipe"] = rec["recipe"]
+    entry["identity_digest"] = forged.digest
+    entry["record_sha256"] = _sha(path)
+    receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+    with pytest.raises(SelectionRefused) as error:
+        _recipe_matrix(records, axis="topp", namespace="phase3sweep")
+    assert "recorded twice" in str(error.value)
+
+
+def test_a_run_directory_that_does_not_carry_its_tag_is_refused(tmp_path):
+    records = _sweep(tmp_path)
+    victim = next(records.glob("phase3sweep_flickr25k_*.json"))
+    rec = json.loads(victim.read_text())
+    moved = Path(rec["run_dir"]).parent / "260831+flickr25k_setting1_elsewhere+bs+64"
+    Path(rec["run_dir"]).rename(moved)
+    rec["run_dir"] = str(moved)
+    victim.write_text(json.dumps(rec))
+    from scripts.phase3_select_n import _sha
+    receipt_path = next(records.glob("*_sweep_complete.json"))
+    receipt = json.loads(receipt_path.read_text())
+    for entry in receipt["cells"].values():
+        if entry["record"] == victim.name:
+            entry["run_dir"] = str(moved)
+            entry["record_sha256"] = _sha(victim)
+    receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+    with pytest.raises(SelectionRefused) as error:
+        _recipe_matrix(records, axis="topp", namespace="phase3sweep")
+    assert "does not carry its own" in str(error.value)

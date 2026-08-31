@@ -1201,6 +1201,20 @@ def _run_sweep(args, at_topp) -> int:
                   f"{tag_for(ds, n, namespace=args.namespace, topp=topp, joint=jd)}")
         return 0
 
+    # A namespace is claimed by ONE sweep. Two sweeps sharing it overwrite each
+    # other's records and receipt, and the survivor looks complete: the reducer
+    # would then be reading a mixture whose parts nothing distinguishes. This is
+    # checked before the snapshot, so a collision costs no GPU time.
+    RECORD_DIR.mkdir(parents=True, exist_ok=True)
+    occupied = sorted(
+        p.name for p in RECORD_DIR.glob(f"{args.namespace}_*.json"))
+    if occupied:
+        print(f"[phase3] REFUSED: namespace {args.namespace!r} already holds "
+              f"{len(occupied)} artefacts {occupied[:3]}. A namespace belongs "
+              f"to one sweep; give this one its own, or move the old ones "
+              f"aside.", file=sys.stderr)
+        return 2
+
     epochs = args.epochs if args.smoke else None
     # One snapshot for the whole sweep, taken before the first trainer starts.
     # Every cell is checked against THIS, not against the tree as it was when

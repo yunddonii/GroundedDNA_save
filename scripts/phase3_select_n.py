@@ -579,6 +579,27 @@ def _recipe_matrix(records_dir: Path, *, axis: str,
             f"the declared plan has {len(want)}")
     declared = sorted({c["dataset"] for c in want})
 
+    # §61.3: the manifest can be RE-SIGNED. `load_run_manifest` verifies that a
+    # manifest agrees with itself, which says nothing about whether it agrees
+    # with reality -- rotating a coordinate and calling `write_run_manifest`
+    # again produces a new, internally valid manifest carrying the wrong
+    # window. So the coordinate is anchored to the one artefact the forger
+    # cannot choose: the plan this SOURCE declares, which the snapshot has
+    # already been compared against above.
+    #
+    # `tag_for` is a deterministic function of (dataset, N, namespace,
+    # coordinate), so every declared cell implies exactly one tag, and the
+    # receipt seals which record file carries it. A rotated coordinate must
+    # therefore also rename its tag, its record file and its run directory --
+    # and the tag it would need is already spoken for by the honest cell.
+    from scripts.phase3_selection_matrix import tag_for
+    expected_tag = {}
+    for cell in want:
+        coord = (tuple(cell["topp"]) if cell["topp"] is not None else None)
+        expected_tag[tag_for(cell["dataset"], cell["N"], namespace=namespace,
+                             topp=coord, joint=cell["joint"])] = (
+            cell["dataset"], coord, cell["joint"])
+
     # ---- every record the receipt sealed, by name and by bytes ------------
     sealed = receipt.get("cells") or {}
     if len(sealed) != receipt["expected_cells"]:
@@ -636,6 +657,41 @@ def _recipe_matrix(records_dir: Path, *, axis: str,
             f"the cells carry {len(snapshots)} different plan snapshots "
             f"{sorted(str(x)[:12] for x in snapshots)}; a sweep reduced across "
             f"several plans is not one experiment")
+    # Each admitted record's tag must be the tag its CLAIMED coordinate
+    # implies, and the twelve declared tags must each be claimed exactly once.
+    seen_tags = {}
+    for name in sorted(digests):
+        rec = json.loads((records_dir / name).read_text(encoding="utf-8"))
+        tag = rec.get("tag")
+        if tag not in expected_tag:
+            raise SelectionRefused(
+                f"{name} carries tag {tag!r}, which the declared plan does not "
+                f"name")
+        ds_want, coord_want, jd_want = expected_tag[tag]
+        recipe = rec.get("recipe") or {}
+        coord_have = (str(recipe.get("routing_adaptive_topp_min")),
+                      str(recipe.get("routing_adaptive_topp_max")))
+        if rec.get("dataset") != ds_want or coord_have != tuple(coord_want) \
+                or str(recipe.get("lambda_codon_joint")) != str(jd_want):
+            raise SelectionRefused(
+                f"{name} is tagged {tag!r}, which the plan says is "
+                f"{ds_want}/{coord_want}/{jd_want}, but the record claims "
+                f"{rec.get('dataset')}/{coord_have}/"
+                f"{recipe.get('lambda_codon_joint')}")
+        if tag not in Path(str(rec.get("run_dir"))).name:
+            raise SelectionRefused(
+                f"{name}: run_dir {rec.get('run_dir')!r} does not carry its own "
+                f"tag {tag!r}")
+        if tag in seen_tags:
+            raise SelectionRefused(
+                f"{tag!r} is claimed by {seen_tags[tag]} and {name}")
+        seen_tags[tag] = name
+    missing_tags = sorted(set(expected_tag) - set(seen_tags))
+    if missing_tags:
+        raise SelectionRefused(
+            f"the declared plan names {len(missing_tags)} tags no record "
+            f"claims: {missing_tags[:3]}")
+
     only = snapshots.pop()
     if only != snap_digest:
         raise SelectionRefused(
