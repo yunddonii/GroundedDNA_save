@@ -47,6 +47,18 @@ from evaluation_siglip2 import (  # noqa: E402
 )
 
 
+_CANONICAL_DATASET = {
+    "cifar10": "CIFAR10",
+    "flickr25k": "Flickr25k",
+    "mscoco": "MSCOCO",
+    "nuswide": "NUSWIDE",
+}
+
+
+def _canonical_dataset_name(value: object) -> object:
+    return _CANONICAL_DATASET.get(str(value), value)
+
+
 def _read_json_artifact(path: str) -> tuple[dict, dict]:
     """Read one canonical JSON inode and return its exact byte identity."""
     absolute = os.path.abspath(path)
@@ -203,7 +215,7 @@ def main() -> None:
     binding_before = metric_input_binding(
         args.dir, required_splits=required_splits,
         allow_backfilled=args.allow_backfilled)
-    if binding_before.get("dataset") != args.dataset \
+    if _canonical_dataset_name(binding_before.get("dataset")) != args.dataset \
             or binding_before.get("codebook_size") != args.K:
         raise SystemExit(
             "[eval_cell_bioproj] --dataset/--K do not equal the validated "

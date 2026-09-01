@@ -51,6 +51,14 @@ _NMI = {
 }
 
 
+@pytest.mark.parametrize("stored,canonical", (
+    ("cifar10", "CIFAR10"), ("flickr25k", "Flickr25k"),
+    ("mscoco", "MSCOCO"), ("nuswide", "NUSWIDE"),
+))
+def test_bio_evaluator_accepts_manifest_dataset_slugs(stored, canonical):
+    assert bio_eval_script._canonical_dataset_name(stored) == canonical
+
+
 def _halves(cell: Path, *, evaluation=True, nmi=True, binding=None,
             required_splits=("db", "query")) -> None:
     bound = binding if binding is not None else metric_input_binding(
