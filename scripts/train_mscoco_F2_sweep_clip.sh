@@ -16,7 +16,7 @@ SLA="${SLA:-1.0}"
 TAG="${TAG:-mscoco_F2sweep_${CELL}_w${WASS}_x${XMODAL}_th${THASH}_tk${TCKL}_cb${CIBNT}_ccs${CCS}_L${NUM_CODONS}}"
 LOG="logs/${TAG}.log"; mkdir -p logs
 echo "[mscoco-sweep-$CELL] GPU=$GPU WASS=$WASS XMODAL=$XMODAL THASH=$THASH TCKL=$TCKL CIBNT=$CIBNT CCS=$CCS L=$NUM_CODONS"
-CUDA_VISIBLE_DEVICES="$GPU" /home/yschoi/.conda/envs/dna_hashing/bin/python train_siglip2.py \
+CUDA_VISIBLE_DEVICES="$GPU" "${PY:-/home/yschoi/.conda/envs/dna_hashing/bin/python}" train_siglip2.py \
     --tag "$TAG" --dataset MSCOCO --setting 1 --dataset_dir /home/yschoi/GroundedDNA/dataset \
     --num_devices 0 -bs 64 -e 60 --proj_lr 1e-3 --num_workers 4 \
     --qwen_text_cache_path "$QWEN" --siglip2_feature_cache_dir "$CACHE" \

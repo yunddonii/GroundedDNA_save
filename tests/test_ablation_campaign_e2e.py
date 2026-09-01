@@ -269,6 +269,7 @@ def test_the_committed_records_are_refused_by_the_current_protocol(tmp_path):
     proc = subprocess.run(
         [sys.executable, str(REPO / "scripts" / "phase3_select_n.py"),
          "--records", str(REPO / "artifacts" / "phase3_selection"),
+         "--namespace", "phase3sel",
          "--out", str(out)],
         capture_output=True, text=True, timeout=300, cwd=str(REPO))
     assert proc.returncode == 1, proc.stdout + proc.stderr

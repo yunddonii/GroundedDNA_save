@@ -172,8 +172,10 @@ def test_every_trainer_lets_the_caller_choose_the_eval_cache(trainer, tmp_path):
     """
     echo = tmp_path / "echo_argv.py"
     echo.write_text(
+        f"#!{sys.executable}\n"
         "import sys, os\n"
         "open(os.environ['ARGV_OUT'], 'w').write(' '.join(sys.argv[1:]))\n")
+    echo.chmod(0o755)
     out = tmp_path / "argv.txt"
     # The CIFAR trainer refuses before it reaches python unless the token
     # sidecars are present, so the fixture supplies the files each trainer
@@ -186,17 +188,14 @@ def test_every_trainer_lets_the_caller_choose_the_eval_cache(trainer, tmp_path):
     whiten.write_bytes(b"")
     qwen = tmp_path / "q.jsonl"
     qwen.write_text("{}\n")
-    env = dict(os.environ, ARGV_OUT=str(out), CACHE=str(cache),
+    env = dict(os.environ, ARGV_OUT=str(out), PY=str(echo), CACHE=str(cache),
                EVAL_CACHE="/tmp/chosen_eval", QWEN=str(qwen),
                WHITEN_NPZ=str(whiten), TAG="probe", K="64")
-    # Substitute the interpreter the trainer invokes.
-    source = (REPO / "scripts" / trainer).read_text()
-    patched = tmp_path / trainer
-    patched.write_text(source.replace(
-        "/home/yschoi/.conda/envs/dna_hashing/bin/python",
-        f"{sys.executable} {echo}"))
-    subprocess.run(["bash", str(patched), "0"], capture_output=True,
-                   text=True, env=env, cwd=str(REPO), timeout=120)
+    proc = subprocess.run(
+        ["bash", str(REPO / "scripts" / trainer), "0"],
+        capture_output=True, text=True, env=env, cwd=str(REPO), timeout=120)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert not proc.stderr, proc.stderr
     assert out.exists(), (
         f"{trainer} never reached its python invocation, so what the child "
         f"would receive was not checked")

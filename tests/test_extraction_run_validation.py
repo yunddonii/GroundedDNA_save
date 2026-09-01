@@ -42,7 +42,8 @@ SLOTS, PER_SLOT = 5, 3
 BASES = SLOTS * PER_SLOT
 
 
-def _cell(tmp_path, rows=4, *, splits=("db", "query"), corrupt=None):
+def _cell(tmp_path, rows=4, *, splits=("db", "query"), corrupt=None,
+          label_case=None):
     ck = tmp_path / "model_state_dict.pth"
     ck.write_bytes(b"weights")
     cfg = tmp_path / "config.pt"
@@ -61,9 +62,29 @@ def _cell(tmp_path, rows=4, *, splits=("db", "query"), corrupt=None):
             codebook[0, 0] = 999
         if corrupt == "dtype":
             base = base.astype(np.float32)
+        values = {
+            "base_indices": base,
+            "hash_2bit": hashed,
+            "codebook_indices": codebook,
+        }
+        if label_case is None:
+            values["labels"] = np.arange(rows, dtype=np.int64) % 10
+        else:
+            width = 9 if label_case == "wrong_width" else 10
+            multi_hot = np.zeros((rows, width), dtype=np.uint8)
+            if label_case != "zero_positive":
+                multi_hot[np.arange(rows), np.arange(rows) % width] = 1
+            elif rows > 1:
+                multi_hot[np.arange(1, rows), np.arange(1, rows) % width] = 1
+            if label_case in {"float", "nan"}:
+                multi_hot = multi_hot.astype(np.float32)
+            if label_case == "nan":
+                multi_hot[0, 0] = np.nan
+            if label_case == "nonbinary":
+                multi_hot[0, 0] = 2
+            values["multi_hot_labels"] = multi_hot
         npz = tmp_path / f"extract_{split}.npz"
-        np.savez(npz, base_indices=base, hash_2bit=hashed,
-                 codebook_indices=codebook)
+        np.savez(npz, **values)
         # Built by the PRODUCTION writer, not hand-rolled. A hand-written
         # fixture drifts from the schema silently -- and a fixture that is
         # already invalid proves nothing about the counterexample under test.
@@ -185,6 +206,31 @@ def test_float_codes_are_refused(tmp_path):
     with pytest.raises(ExtractionInvalid) as excinfo:
         validate_extraction_run(str(cell))
     assert "dtype" in str(excinfo.value)
+
+
+def test_zero_positive_multihot_row_is_valid_and_contributes_ap_zero(tmp_path):
+    """Flickr's official split contains such rows; relevance is empty, not invalid."""
+    run = validate_extraction_run(
+        str(_cell(tmp_path, label_case="zero_positive")))
+    assert run.splits["query"]["dataset"] == "CIFAR10"
+
+
+@pytest.mark.parametrize("label_case", [
+    "float", "nan", "nonbinary", "wrong_width",
+])
+def test_invalid_multihot_label_contract_is_refused(tmp_path, label_case):
+    with pytest.raises(ExtractionInvalid):
+        validate_extraction_run(str(_cell(tmp_path, label_case=label_case)))
+
+
+def test_manifest_symlink_alias_is_not_a_canonical_transaction_file(tmp_path):
+    cell = _cell(tmp_path)
+    manifest = cell / "extraction_manifest_db.json"
+    target = cell / "db-manifest-identical.json"
+    manifest.rename(target)
+    manifest.symlink_to(target)
+    with pytest.raises(ExtractionInvalid, match="regular file"):
+        validate_extraction_run(str(cell))
 
 
 def test_splits_from_different_runtimes_are_refused(tmp_path):

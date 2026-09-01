@@ -8,10 +8,11 @@ unanswerable, since the metric JSONs are exactly as untracked as the NPZs
 (§19.7). It also wrote in place, so an interrupted run left a shorter file that
 still parses and still reads as complete.
 
-The fixtures are built by copying a real cell's small files into a temp root:
-the manifests carry absolute NPZ paths and digests, so the copy stays bound to
-the same bytes without duplicating gigabytes, and a metric recompute running
-concurrently cannot flip the fixture underneath the test.
+The fixtures are built by copying a real cell into a temporary root.  Each NPZ
+is copied adjacent to its manifest, then the manifest path and completion-marker
+digest chain are re-sealed.  A metric recompute running concurrently therefore
+cannot flip the fixture underneath the test, and the fixture exercises the
+same canonical-path contract as a production extraction.
 """
 from __future__ import annotations
 
@@ -32,6 +33,7 @@ from dna_utils.extraction_validation import (  # noqa: E402
     metric_input_binding,
     write_analysis_marker,
 )
+from dna_utils.runtime_state import sha256_file  # noqa: E402
 from tests.test_analysis_marker_contract import (  # noqa: E402
     _METRICS,
     _PROTOCOL,
@@ -59,7 +61,10 @@ class InventoryCoversBothHalves(unittest.TestCase):
         if source is None:
             self.skipTest("no validating Phase 2 cell to build a fixture from")
 
-        self.tmp = Path(os.environ.get("TMPDIR", "/tmp")) / f"p2inv{os.getpid()}"
+        # The inventory deliberately emits paths relative to REPO.  Keep this
+        # temporary external-root fixture under REPO so its canonical adjacent
+        # NPZ paths exercise that same output contract.
+        self.tmp = REPO / f".p2inv{os.getpid()}"
         shutil.rmtree(self.tmp, ignore_errors=True)
         self.root = self.tmp / "root"
         self.root.mkdir(parents=True)
@@ -70,6 +75,27 @@ class InventoryCoversBothHalves(unittest.TestCase):
             for path in sorted(source.iterdir()):
                 if path.is_file() and path.suffix in _SMALL:
                     shutil.copy(path, dest / path.name)
+            manifest_paths = {}
+            for split in ("db", "query"):
+                npz = dest / f"extract_{split}.npz"
+                shutil.copyfile(source / npz.name, npz)
+                manifest_path = dest / f"extraction_manifest_{split}.json"
+                manifest = json.loads(manifest_path.read_text())
+                manifest["npz_path"] = str(npz.resolve())
+                manifest["npz_sha256"] = sha256_file(str(npz))
+                manifest_path.write_text(
+                    json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+                manifest_paths[split] = manifest_path
+            completion = {
+                "schema_version": 1,
+                "splits": sorted(manifest_paths),
+                "manifest_sha256": {
+                    split: sha256_file(str(path))
+                    for split, path in sorted(manifest_paths.items())
+                },
+            }
+            (dest / "extraction_complete.json").write_text(
+                json.dumps(completion, indent=2, sort_keys=True) + "\n")
             # Seal the fixture here rather than copying whatever marker the
             # live cell happens to carry: a marker binds to its own absolute
             # run_dir on purpose, and a recompute running concurrently would

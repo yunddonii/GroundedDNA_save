@@ -55,6 +55,127 @@ from dna_utils import (
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 
+def _set_epoch_training_mode(model, criterion, training: bool) -> None:
+    """Keep model and stateful loss modules on the same train/eval boundary."""
+    model.train(bool(training))
+    criterion.train(bool(training))
+
+
+def _raise_mid_eval_if_campaign(args, error: Exception) -> None:
+    """A Phase-3 cell may not turn a failed selection metric into rc=0."""
+    if getattr(args, "_phase3_campaign_binding", None) is not None:
+        raise error
+
+
+def _phase3_terminal_checkpoint_only(args) -> bool:
+    """Phase-3 selects from terminal CSV evidence, never best-file bytes.
+
+    The immutable campaign binding is the opt-in boundary.  Direct/legacy
+    trainer invocations therefore retain their historical best-checkpoint
+    lifecycle, while an admitted Phase-3 cell avoids serializing a second copy
+    of the (large) frozen backbone.  The best metric/epoch are still tracked in
+    memory and written to the CSV exactly as before.
+    """
+    return getattr(args, "_phase3_campaign_binding", None) is not None
+
+
+def _phase3_input_authority_from_args(args):
+    """Stats-verify the launcher-admitted seal before any model/GPU work."""
+    path = getattr(args, "phase3_input_seal", None)
+    fields = (
+        "phase3_input_seal_sha256", "phase3_input_aggregate_sha256",
+        "phase3_split_identity_sha256", "phase3_hf_identity_sha256",
+        "clip_snapshot_dir", "clip_snapshot_revision",
+        "clip_snapshot_weight_file", "clip_snapshot_weight_sha256",
+        "clip_snapshot_config_sha256",
+        "clip_snapshot_tokenizers_sha256_json",
+    )
+    present = bool(path) or any(getattr(args, name, None) for name in fields)
+    if not present:
+        return None
+    if not path or any(not getattr(args, name, None) for name in fields):
+        missing = [name for name in ("phase3_input_seal", *fields)
+                   if not getattr(args, name, None)]
+        raise RuntimeError(f"incomplete Phase-3 input/HF authority: {missing}")
+    from scripts.seal_phase3_inputs import (
+        SealError, authority_from_verified_seal, assert_runtime_paths,
+        verify_seal_stats,
+    )
+    try:
+        sealed = verify_seal_stats(
+            path,
+            expected_aggregate_sha256=args.phase3_input_aggregate_sha256,
+        )
+        authority = authority_from_verified_seal(path, sealed)
+        expected = {
+            "seal_file_sha256": args.phase3_input_seal_sha256,
+            "aggregate_sha256": args.phase3_input_aggregate_sha256,
+            "split_identity_sha256": args.phase3_split_identity_sha256,
+            "hf_identity_sha256": args.phase3_hf_identity_sha256,
+        }
+        actual = {
+            "seal_file_sha256": authority["seal_file_sha256"],
+            "aggregate_sha256": authority["aggregate_sha256"],
+            "split_identity_sha256": authority["split_identity_sha256"],
+            "hf_identity_sha256": authority["hf_runtime"]["identity_sha256"],
+        }
+        wrong = {name: (expected[name], actual[name]) for name in expected
+                 if expected[name] != actual[name]}
+        if wrong:
+            raise SealError(f"trainer authority digest mismatch: {wrong}")
+        stage = ("stage1" if str(getattr(args, "selection_mode", "")) == "select"
+                 else "refit")
+        dataset = {
+            "CIFAR10": "cifar10", "Flickr25k": "flickr25k",
+            "NUSWIDE": "nuswide", "MSCOCO": "mscoco",
+        }.get(str(args.dataset))
+        if dataset is None:
+            raise SealError(f"unsupported Phase-3 trainer dataset {args.dataset!r}")
+        assert_runtime_paths(
+            authority, dataset=dataset, stage=stage,
+            dataset_root=args.dataset_dir,
+            feature_cache=args.siglip2_feature_cache_dir,
+            qwen=args.qwen_text_cache_path,
+            whitening=args.text_whiten_npz,
+        )
+        hf = authority["hf_runtime"]
+        cli_hf = {
+            "snapshot_dir": args.clip_snapshot_dir,
+            "revision": args.clip_snapshot_revision,
+            "weight_file": args.clip_snapshot_weight_file,
+            "weight_sha256": args.clip_snapshot_weight_sha256,
+            "config_sha256": args.clip_snapshot_config_sha256,
+        }
+        hf_wrong = {name: (value, hf.get(name)) for name, value in cli_hf.items()
+                    if value != hf.get(name)}
+        import json
+        if json.loads(args.clip_snapshot_tokenizers_sha256_json) != \
+                hf["tokenizer_files_sha256"]:
+            hf_wrong["tokenizer_files_sha256"] = ("CLI", "seal")
+        if hf_wrong:
+            raise SealError(f"trainer CLIP authority differs from seal: {hf_wrong}")
+    except (SealError, ValueError) as error:
+        raise RuntimeError(f"Phase-3 input authority refused: {error}") from error
+    args._phase3_input_authority = authority
+    return authority
+
+
+def _assert_phase3_runtime_rows(args, trainset, opt_idx, val_idx) -> None:
+    authority = getattr(args, "_phase3_input_authority", None)
+    if authority is None:
+        return
+    rows = getattr(trainset, "_feat_cache_rows", None)
+    if rows is None:
+        raise RuntimeError(
+            "Phase-3 trainer dataset exposes no feature-cache row mapping"
+        )
+    from scripts.seal_phase3_inputs import assert_runtime_split_rows
+    assert_runtime_split_rows(
+        authority, dataset_to_cache_rows=rows,
+        optimization_indices=opt_idx, validation_indices=val_idx,
+    )
+
+
 # ----------------------------- flat save-path helper
 
 def _resolve_save_path(args: Config) -> str:
@@ -101,26 +222,53 @@ def _resolve_save_path(args: Config) -> str:
     ]:
         tag = f"{tag}+{k}+{v}"
 
-    base = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)),
-        "result",
-        tag,
-    )
-    os.makedirs(base, exist_ok=True)
     # F08: the path above carries neither the seed, the geometry nor the
     # selection mode, so two runs differing only in those would land here
     # together and the second would overwrite the first -- which is what
     # happened on 2026-08-12, leaving directories whose args.txt and metrics
     # came from different processes. Claiming refuses that merge instead of
     # discovering it later from two seeds agreeing to full float precision.
+    # A Phase-3 child validates the seal/HF handoff before it creates a result
+    # directory, loads the model, or initializes CUDA.
+    _phase3_input_authority_from_args(args)
     from dna_utils.run_identity import (
-        RunIdentity, claim_run_dir, release_run_dir)
+        RunIdentity, claim_run_dir, phase3_campaign_binding_from_env,
+        release_run_dir, write_phase3_campaign_binding)
     # The claim is exclusive and held for the life of the process, so a second
     # cell cannot start writing here while this one runs. It is released at
-    # exit -- including on a crash -- so a stale claim does not outlive the run
-    # that took it and block a legitimate restart.
-    claim_run_dir(base, RunIdentity.from_args(args),
+    # normal interpreter exit, and synchronously below if publishing the
+    # campaign witness fails, so a rejected launch cannot strand its claim.
+    identity = RunIdentity.from_args(args)
+    campaign_binding = phase3_campaign_binding_from_env(
+        identity, actual_tag=user_tag)
+    if campaign_binding is not None and not (
+            bool(getattr(args, "final_epoch_eval", False))
+            or bool(getattr(args, "keep_final_checkpoint", False))):
+        raise RuntimeError(
+            "A Phase-3 campaign suppresses non-authoritative best checkpoint "
+            "files, so it must preserve the terminal checkpoint with "
+            "--keep_final_checkpoint or --final_epoch_eval."
+        )
+    result_root = (campaign_binding["result_root"]
+                   if campaign_binding is not None else os.path.join(
+                       os.path.dirname(os.path.realpath(__file__)), "result"))
+    base = os.path.join(result_root, tag)
+    os.makedirs(base, exist_ok=True)
+    claim_run_dir(base, identity,
                   resume=bool(getattr(args, "resume_run", False)))
+    try:
+        if campaign_binding is not None:
+            write_phase3_campaign_binding(base, campaign_binding)
+            # Runtime sidecars are produced much later, after training.  Keep
+            # the exact trainer-owned witness in memory so both best and final
+            # checkpoints carry the same launch-time cell binding.
+            args._phase3_campaign_binding = campaign_binding
+    except BaseException:
+        # ``write_phase3_campaign_binding`` is deliberately O_EXCL.  A prior
+        # immutable witness is a launch refusal, not a reason to leave this
+        # process's otherwise-successful run-directory claim behind.
+        release_run_dir(base)
+        raise
     import atexit
     atexit.register(release_run_dir, base)
     return os.path.join(base, "")
@@ -436,6 +584,13 @@ def main(args: Config):
 
     # ---------- model -------------------------------------------------------
     model = SigLIP2SemanticOTModel(args).to(args.device)
+    authority = getattr(args, "_phase3_input_authority", None)
+    if authority is not None:
+        actual_hf = getattr(model.backbone, "runtime_hf_identity", None)
+        if actual_hf != authority["hf_runtime"]:
+            raise RuntimeError(
+                "loaded CLIP runtime identity differs from the Phase-3 input seal"
+            )
     model.assert_no_shared_trainable_params(verbose=True)
     model.print_parameter_summary()
 
@@ -607,6 +762,12 @@ def main(args: Config):
               f"mid-eval = val_query vs val_db(opt-train); official-test dataset "
               f"not constructed in stage 1. Checkpoint selected on val "
               f"{args.val_select_metric}.")
+        _assert_phase3_runtime_rows(args, trainset, _opt_idx, _val_idx)
+    elif _p0_refit:
+        _all_idx = np.arange(len(trainset), dtype=np.int64)
+        _assert_phase3_runtime_rows(
+            args, trainset, _all_idx, np.empty(0, dtype=np.int64)
+        )
 
     # ---------- v41 (5-G): text-supervised codebook init --------------------
     # Replace the random Gaussian codebook init with K vectors derived from
@@ -1099,7 +1260,7 @@ def main(args: Config):
                   f"per_codebook={info['split_count_per_codebook']}, "
                   f"active_K={info['active_K_per_codebook']}")
 
-        model.train()
+        _set_epoch_training_mode(model, criterion, True)
         train_result = one_epoch(train=True, loader=train_loader, epoch=e)
         if scheduler is not None:
             scheduler.step()
@@ -1111,7 +1272,7 @@ def main(args: Config):
             val_result = {loss_name: float("nan") for loss_name in loss_types}
         else:
             with torch.no_grad():
-                model.eval()
+                _set_epoch_training_mode(model, criterion, False)
                 val_result = one_epoch(
                     train=False,
                     loader=(
@@ -1177,6 +1338,7 @@ def main(args: Config):
                     f"dead={float(np.mean(collapse['dead_code_ratio'])):.4f}"
                 )
             except Exception as ex:
+                _raise_mid_eval_if_campaign(args, ex)
                 print(f"[mid-eval] WARNING: skipped due to error: {ex}")
 
         # ---------- per-epoch CSV append
@@ -1190,9 +1352,9 @@ def main(args: Config):
         if ((e + 1) % args.print_epoch) == 0:
             print_one_epoch_info(e, [train_result, val_result])
 
-        # Track best mid-eval mAP checkpoint. SigLIP2 backbone is frozen so
-        # only the trainable adapter / codebook params get saved — small
-        # disk footprint (<300 MB), safe to keep alongside final.
+        # Track best mid-eval mAP. Legacy/direct runs also persist best weights;
+        # an admitted Phase-3 campaign keeps the metric tracking but omits that
+        # non-authoritative second full state_dict (~630 MiB in current runs).
         # Under the P0 protocol this score comes from the held-out val split and
         # defaults to mAP@R (the reported paper metric); without P0 it is the
         # legacy test-split mAP.
@@ -1211,35 +1373,47 @@ def main(args: Config):
             args._best_mid_mAP = _eval_mAP
             args._best_mid_epoch = int(e)
             args._best_mid_metric = _sel_key
-            best_model_path = os.path.join(args.save_model_state_path, "model_state_dict_best.pth")
-            best_crit_path  = os.path.join(args.save_model_state_path, "criterion_state_dict_best.pth")
-            torch.save(model.state_dict(),     best_model_path)
-            torch.save(criterion.state_dict(), best_crit_path)
-            # F01: the best weights carry a DIFFERENT epoch from the final ones,
-            # and the extraction epoch resolver reads the sidecar. Saving the
-            # weights without one left the best checkpoint unusable by the
-            # fail-closed resolver.
-            from dna_utils.runtime_state import (
-                resolve_horizons as _rh, write_checkpoint_metadata as _wcm)
-            _h = _rh(args)
-            _wcm(best_model_path,
-                 checkpoint_epoch_zero_based=int(e),
-                 training_epoch_budget=int(args.epoch),
-                 stop_after_epoch=getattr(args, "stop_after_epoch", None),
-                 lr_schedule_horizon=_h.lr_schedule_horizon,
-                 sinkhorn_schedule_horizon=_h.sinkhorn_schedule_horizon,
-                 # The flags are --sinkhorn_epsilon_init/--sinkhorn_epsilon_final;
-                 # reading `sinkhorn_eps` recorded None for every best sidecar,
-                 # so a best checkpoint had no operating point to restore.
-                 sinkhorn_epsilon_init=getattr(
-                     args, "sinkhorn_epsilon_init", None),
-                 sinkhorn_epsilon_final=getattr(
-                     args, "sinkhorn_epsilon_final", None),
-                 lr_scheduler=getattr(args, "lr_scheduler", None),
-                 extra={"checkpoint_role": "best_mid_eval",
-                        "selection_metric": _sel_key,
-                        "selection_value": float(_eval_mAP)})
-            print(f"[best-ckpt] new best mid-eval mAP={_eval_mAP:.4f} at epoch {e} — saved to model_state_dict_best.pth")
+            if _phase3_terminal_checkpoint_only(args):
+                print(
+                    f"[best-ckpt] new best mid-eval mAP={_eval_mAP:.4f} at "
+                    f"epoch {e} — metric tracked; Phase-3 terminal-only "
+                    "policy skips non-authoritative best checkpoint files"
+                )
+            else:
+                best_model_path = os.path.join(args.save_model_state_path, "model_state_dict_best.pth")
+                best_crit_path  = os.path.join(args.save_model_state_path, "criterion_state_dict_best.pth")
+                from dna_utils.run_identity import bind_phase3_campaign_to_state_dict
+                _best_state = bind_phase3_campaign_to_state_dict(
+                    model.state_dict(), None)
+                torch.save(_best_state, best_model_path)
+                torch.save(criterion.state_dict(), best_crit_path)
+                # F01: the best weights carry a DIFFERENT epoch from the final ones,
+                # and the extraction epoch resolver reads the sidecar. Saving the
+                # weights without one left the best checkpoint unusable by the
+                # fail-closed resolver.
+                from dna_utils.runtime_state import (
+                    resolve_horizons as _rh, write_checkpoint_metadata as _wcm)
+                _h = _rh(args)
+                _wcm(best_model_path,
+                     checkpoint_epoch_zero_based=int(e),
+                     training_epoch_budget=int(args.epoch),
+                     stop_after_epoch=getattr(args, "stop_after_epoch", None),
+                     lr_schedule_horizon=_h.lr_schedule_horizon,
+                     sinkhorn_schedule_horizon=_h.sinkhorn_schedule_horizon,
+                     # The flags are --sinkhorn_epsilon_init/--sinkhorn_epsilon_final;
+                     # reading `sinkhorn_eps` recorded None for every best sidecar,
+                     # so a best checkpoint had no operating point to restore.
+                     sinkhorn_epsilon_init=getattr(
+                         args, "sinkhorn_epsilon_init", None),
+                     sinkhorn_epsilon_final=getattr(
+                         args, "sinkhorn_epsilon_final", None),
+                     lr_scheduler=getattr(args, "lr_scheduler", None),
+                     extra={
+                         "checkpoint_role": "best_mid_eval",
+                         "selection_metric": _sel_key,
+                         "selection_value": float(_eval_mAP),
+                     })
+                print(f"[best-ckpt] new best mid-eval mAP={_eval_mAP:.4f} at epoch {e} — saved to model_state_dict_best.pth")
 
         # Save ONLY the final-epoch checkpoint. Per-epoch intermediates were
         # ~1.5 GB each (SigLIP2 backbone serialized), filling /home quickly.
@@ -1249,7 +1423,11 @@ def main(args: Config):
         if (e + 1) == args.epoch or _is_stop_point:
             model_path = os.path.join(args.save_model_state_path, "model_state_dict.pth")
             crit_path  = os.path.join(args.save_model_state_path, "criterion_state_dict.pth")
-            torch.save(model.state_dict(),     model_path)
+            from dna_utils.run_identity import bind_phase3_campaign_to_state_dict
+            _final_state = bind_phase3_campaign_to_state_dict(
+                model.state_dict(),
+                getattr(args, "_phase3_campaign_binding", None))
+            torch.save(_final_state, model_path)
             # Persist the criterion too so its EMA buffer survives a resume.
             torch.save(criterion.state_dict(), crit_path)
             # F01: `_current_epoch` is a plain int, so it does NOT travel in the
@@ -1268,15 +1446,22 @@ def main(args: Config):
                  sinkhorn_epsilon_init=getattr(args, "sinkhorn_epsilon_init", None),
                  sinkhorn_epsilon_final=getattr(args, "sinkhorn_epsilon_final", None),
                  lr_scheduler=str(getattr(args, "lr_scheduler", "cosine")),
-                 extra={"tag": str(getattr(args, "tag", "")),
-                        "dataset": str(getattr(args, "dataset", "")),
-                        "random_seed": int(getattr(args, "random_seed", 42)),
-                        "num_semantic_parts": int(getattr(args, "num_semantic_parts", 0) or 0),
-                        "num_codons_per_codebook": int(getattr(args, "num_codons_per_codebook", 3))})
+                 extra={
+                     "tag": str(getattr(args, "tag", "")),
+                     "dataset": str(getattr(args, "dataset", "")),
+                     "random_seed": int(getattr(args, "random_seed", 42)),
+                     "num_semantic_parts": int(getattr(args, "num_semantic_parts", 0) or 0),
+                     "num_codons_per_codebook": int(getattr(args, "num_codons_per_codebook", 3)),
+                     **({"phase3_campaign":
+                         getattr(args, "_phase3_campaign_binding")}
+                        if getattr(args, "_phase3_campaign_binding", None)
+                        is not None else {}),
+                 })
             print(f"Final checkpoint saved to `{args.save_model_state_path}`")
-            # If best-checkpoint differs from final, replace final with best
-            # for the downstream evaluation / extraction. Best is preserved
-            # as model_state_dict_best.pth.
+            # For a legacy/direct run, if best differs from final, replace the
+            # final file for downstream evaluation/extraction and retain the
+            # best file. Phase-3 always takes the preservation branch above and
+            # intentionally has no best file.
             if bool(getattr(args, "final_epoch_eval", False)) or \
                     bool(getattr(args, "keep_final_checkpoint", False)):
                 print(f"[final-epoch-eval] keeping FINAL-epoch checkpoint "
@@ -1413,6 +1598,7 @@ def main(args: Config):
                 distance_mode=distance_mode,
                 codebook_size=codebook_size_cf,
                 map_at_r=_map_r,
+                dataset_name=getattr(args, "dataset", None),
             )
         except Exception as ex:
             # The extraction above is fatal for exactly this reason, and the

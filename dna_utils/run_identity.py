@@ -69,12 +69,43 @@ MANIFEST_NAME = "run_identity.json"
 #: bumped rather than the field being added in place, which is the mistake v3
 #: made -- three manifests written under v3 became unreadable while still
 #: claiming to be v3.
-_SCHEMA_VERSION = 4
+#: v5 binds the fully verified Phase-3 input seal and immutable local CLIP
+#: snapshot.  These fields are empty for legacy runs and therefore do not
+#: alter their model behaviour; a Phase-3 cell cannot collide with a run that
+#: used a floating Hugging Face ref or different sealed bytes.
+_SCHEMA_VERSION = 5
 
 #: Claimed by a live process. Created with O_EXCL, so two processes cannot both
 #: believe they own the directory; removed by `release_run_dir` when the run
 #: finishes.
 ACTIVE_CLAIM_NAME = "run_active_claim.json"
+
+#: A Phase-3 launcher writes this second, campaign-level witness immediately
+#: after the ordinary run-directory claim.  Unlike ``args.txt`` and the run
+#: manifest, it is copied verbatim into every checkpoint runtime sidecar.  A
+#: reducer can therefore distinguish "these are real weights" from "these
+#: real weights were relabelled as another cell after training".
+PHASE3_CAMPAIGN_BINDING_NAME = "phase3_campaign_binding.json"
+PHASE3_CHECKPOINT_METADATA_KEY = "__groundeddna_phase3_campaign__"
+
+_PHASE3_BINDING_ENV = {
+    "campaign_nonce": "GDNA_PHASE3_CAMPAIGN_NONCE",
+    "plan_snapshot_sha256": "GDNA_PHASE3_PLAN_DIGEST",
+    "cell_id": "GDNA_PHASE3_CELL_ID",
+    "expected_identity_digest": "GDNA_PHASE3_EXPECTED_IDENTITY_DIGEST",
+    "expected_tag": "GDNA_PHASE3_EXPECTED_TAG",
+    "result_root": "GDNA_PHASE3_RESULT_ROOT",
+    "environment_sha256": "GDNA_PHASE3_ENVIRONMENT_DIGEST",
+    "child_environment_sha256": "GDNA_PHASE3_CHILD_ENVIRONMENT_DIGEST",
+    "physical_gpu_index": "GDNA_PHASE3_PHYSICAL_GPU_INDEX",
+    "input_authority_sha256": "GDNA_PHASE3_INPUT_AUTHORITY_DIGEST",
+    "input_seal_sha256": "GDNA_PHASE3_INPUT_SEAL_DIGEST",
+    "input_aggregate_sha256": "GDNA_PHASE3_INPUT_AGGREGATE_DIGEST",
+    "split_identity_sha256": "GDNA_PHASE3_SPLIT_IDENTITY_DIGEST",
+    "hf_identity_sha256": "GDNA_PHASE3_HF_IDENTITY_DIGEST",
+}
+_PHASE3_CHILD_ENVIRONMENT_JSON_ENV = \
+    "GDNA_PHASE3_EXPECTED_CHILD_ENVIRONMENT_JSON"
 
 #: Directory-name fragments that must never be resolved as a live run.
 _EXCLUDED_FRAGMENTS = ("quarantine", "_QUARANTINE", "smoke")
@@ -146,6 +177,17 @@ class RunIdentity:
     lambda_text_hash_ntxent: float
     lambda_xmodal_commit: float
     lambda_codeword_codon_sinkhorn: float
+    # ---- Phase-3 immutable input/runtime authority (v5) ----
+    phase3_input_seal: str
+    phase3_input_aggregate_sha256: str
+    phase3_split_identity_sha256: str
+    phase3_hf_identity_sha256: str
+    clip_snapshot_dir: str
+    clip_snapshot_revision: str
+    clip_snapshot_weight_file: str
+    clip_snapshot_weight_sha256: str
+    clip_snapshot_config_sha256: str
+    clip_snapshot_tokenizers_sha256_json: str
 
     @property
     def digest(self) -> str:
@@ -266,6 +308,25 @@ class RunIdentity:
                 getattr(args, "lambda_xmodal_commit", 0.0) or 0.0),
             lambda_codeword_codon_sinkhorn=float(
                 getattr(args, "lambda_codeword_codon_sinkhorn", 0.0) or 0.0),
+            phase3_input_seal=cls._artifact(
+                getattr(args, "phase3_input_seal", None)),
+            phase3_input_aggregate_sha256=str(getattr(
+                args, "phase3_input_aggregate_sha256", "") or ""),
+            phase3_split_identity_sha256=str(getattr(
+                args, "phase3_split_identity_sha256", "") or ""),
+            phase3_hf_identity_sha256=str(getattr(
+                args, "phase3_hf_identity_sha256", "") or ""),
+            clip_snapshot_dir=str(getattr(args, "clip_snapshot_dir", "") or ""),
+            clip_snapshot_revision=str(getattr(
+                args, "clip_snapshot_revision", "") or ""),
+            clip_snapshot_weight_file=str(getattr(
+                args, "clip_snapshot_weight_file", "") or ""),
+            clip_snapshot_weight_sha256=str(getattr(
+                args, "clip_snapshot_weight_sha256", "") or ""),
+            clip_snapshot_config_sha256=str(getattr(
+                args, "clip_snapshot_config_sha256", "") or ""),
+            clip_snapshot_tokenizers_sha256_json=str(getattr(
+                args, "clip_snapshot_tokenizers_sha256_json", "") or ""),
         )
 
     def differing_fields(self, other: "RunIdentity") -> List[str]:
@@ -371,6 +432,213 @@ def _boot_id() -> str:
             return fh.read().strip()
     except OSError:
         return ""
+
+
+def phase3_campaign_binding_from_env(identity: RunIdentity, *,
+                                     actual_tag: str) -> Optional[dict]:
+    """Validate and materialise the launcher's pre-training cell binding.
+
+    These variables are intentionally an all-or-none protocol.  A stale shell
+    export must not turn an ordinary run into half of a campaign, and a Phase-3
+    child must not start when the identity it parsed differs from the identity
+    the parent sealed before launch.
+    """
+    raw = {field: os.environ.get(env)
+           for field, env in _PHASE3_BINDING_ENV.items()}
+    child_json = os.environ.get(_PHASE3_CHILD_ENVIRONMENT_JSON_ENV)
+    present = {field for field, value in raw.items() if value not in (None, "")}
+    if not present:
+        if child_json not in (None, ""):
+            raise RunCollision(
+                "Phase-3 child environment authority was supplied without a "
+                "campaign binding")
+        return None
+    if present != set(raw):
+        missing = sorted(set(raw) - present)
+        raise RunCollision(
+            "incomplete Phase-3 campaign binding in the trainer environment; "
+            f"missing {missing}")
+    if child_json in (None, ""):
+        raise RunCollision(
+            "Phase-3 campaign binding has no expected child environment JSON")
+
+    for field in ("plan_snapshot_sha256", "expected_identity_digest",
+                  "environment_sha256", "child_environment_sha256",
+                  "input_authority_sha256",
+                  "input_seal_sha256", "input_aggregate_sha256",
+                  "split_identity_sha256", "hf_identity_sha256"):
+        value = str(raw[field])
+        if len(value) != 64 or any(c not in "0123456789abcdef" for c in value):
+            raise RunCollision(
+                f"Phase-3 {field}={value!r} is not a lowercase SHA-256 digest")
+    nonce = str(raw["campaign_nonce"])
+    if len(nonce) < 32 or any(c not in "0123456789abcdef" for c in nonce):
+        raise RunCollision(
+            "Phase-3 campaign_nonce must be at least 128 bits of lowercase hex")
+    if raw["expected_identity_digest"] != identity.digest:
+        raise RunCollision(
+            "Phase-3 prelaunch identity does not match the arguments parsed by "
+            f"the trainer: expected {raw['expected_identity_digest'][:12]}..., "
+            f"actual {identity.digest[:12]}...")
+    if raw["expected_tag"] != actual_tag:
+        raise RunCollision(
+            f"Phase-3 prelaunch tag {raw['expected_tag']!r} does not match the "
+            f"trainer tag {actual_tag!r}")
+    result_root = os.path.realpath(str(raw["result_root"]))
+    if not os.path.isabs(str(raw["result_root"])) \
+            or str(raw["result_root"]) != result_root:
+        raise RunCollision(
+            "Phase-3 result_root must be one canonical absolute path; got "
+            f"{raw['result_root']!r}")
+
+    from dna_utils.runtime_environment import (
+        EnvironmentAttestationError, semantic_digest,
+        verify_child_environment)
+    try:
+        expected_child_environment = json.loads(str(child_json))
+    except (TypeError, ValueError):
+        raise RunCollision(
+            "Phase-3 expected child environment is malformed JSON") from None
+    if not isinstance(expected_child_environment, dict) \
+            or semantic_digest(expected_child_environment) != \
+            raw["child_environment_sha256"]:
+        raise RunCollision(
+            "Phase-3 expected child environment does not match its digest")
+    try:
+        actual_child_environment = verify_child_environment(
+            expected_child_environment)
+    except EnvironmentAttestationError as error:
+        raise RunCollision(str(error)) from None
+
+    try:
+        physical_gpu_index = int(str(raw["physical_gpu_index"]))
+    except (TypeError, ValueError):
+        raise RunCollision(
+            "Phase-3 physical_gpu_index must be an integer") from None
+    if (expected_child_environment.get("physical_gpu") or {}).get("index") != \
+            physical_gpu_index:
+        raise RunCollision(
+            "Phase-3 physical GPU index differs from child environment authority")
+
+    return {
+        "schema_version": 1,
+        **{field: (physical_gpu_index if field == "physical_gpu_index"
+                   else str(raw[field]))
+           for field in _PHASE3_BINDING_ENV},
+        "actual_identity_digest": identity.digest,
+        "expected_child_environment": expected_child_environment,
+        "actual_child_environment": actual_child_environment,
+        "trainer_pid": os.getpid(),
+        "trainer_boot_id": _boot_id(),
+    }
+
+
+def write_phase3_campaign_binding(run_dir: str, binding: dict) -> str:
+    """Publish the trainer-owned campaign witness exactly once.
+
+    The containing run directory is already exclusively claimed.  ``O_EXCL``
+    still matters: silently replacing a witness left by an earlier attempt
+    would make a restarted process appear to have produced the earlier bytes.
+    """
+    out = os.path.join(run_dir, PHASE3_CAMPAIGN_BINDING_NAME)
+    blob = json.dumps(binding, indent=2, sort_keys=True) + "\n"
+    try:
+        fd = os.open(out, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o444)
+    except FileExistsError as error:
+        raise RunCollision(
+            f"{out} already exists; a campaign cell binding is immutable and "
+            "cannot be replaced by a new trainer") from error
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(blob)
+        handle.flush()
+        os.fsync(handle.fileno())
+    return out
+
+
+def bind_phase3_campaign_to_state_dict(state_dict, binding: Optional[dict]):
+    """Put the launch binding inside the serialized checkpoint bytes.
+
+    PyTorch state dictionaries carry an ``_metadata`` mapping that is itself
+    serialized but is not interpreted as a parameter key by ``load_state_dict``.
+    This keeps strict model loading unchanged while making the checkpoint SHA
+    commit to the campaign nonce/cell/identity.  The returned state dictionary
+    is the ordinary model state and no model tensor or architecture is changed.
+    """
+    if binding is None:
+        return state_dict
+    metadata = getattr(state_dict, "_metadata", None)
+    if metadata is None:
+        raise RunCollision(
+            "model.state_dict() has no serializable _metadata mapping")
+    if PHASE3_CHECKPOINT_METADATA_KEY in metadata:
+        raise RunCollision("checkpoint campaign metadata is already present")
+    # JSON round-trip enforces plain deterministic values and avoids retaining
+    # a mutable reference that later code could change before torch.save.
+    sealed = json.loads(json.dumps(binding, sort_keys=True))
+    metadata[PHASE3_CHECKPOINT_METADATA_KEY] = {
+        "schema_version": 1, "binding": sealed}
+    return state_dict
+
+
+def phase3_campaign_from_checkpoint(checkpoint_path: str) -> Optional[dict]:
+    """Read the binding committed by checkpoint serialization itself."""
+    import torch
+
+    try:
+        state_dict = torch.load(
+            checkpoint_path, map_location="cpu", weights_only=True)
+    except Exception as error:                         # noqa: BLE001
+        raise RunCollision(
+            f"cannot read Phase-3 checkpoint metadata from {checkpoint_path}: "
+            f"{error}") from None
+    metadata = getattr(state_dict, "_metadata", None)
+    payload = ((metadata or {}).get(PHASE3_CHECKPOINT_METADATA_KEY)
+               if isinstance(metadata, dict) else None)
+    if payload is None:
+        return None
+    if not isinstance(payload, dict) or payload.get("schema_version") != 1 \
+            or not isinstance(payload.get("binding"), dict):
+        raise RunCollision(
+            f"{checkpoint_path}: malformed Phase-3 checkpoint metadata")
+    return payload["binding"]
+
+
+def load_model_state_dict_for_extraction(model, checkpoint_path: str, *,
+                                         map_location=None):
+    """Load legacy weights permissively, but Phase-3 campaign weights exactly.
+
+    The campaign metadata lives in ``state_dict._metadata`` and therefore does
+    not alter model keys.  Its presence proves the checkpoint was produced by
+    the current sealed protocol, for which any missing or unexpected key is a
+    source/architecture mismatch and must be fatal.  Legacy checkpoints retain
+    their historical ``strict=False`` compatibility.
+    """
+    import torch
+
+    try:
+        state_dict = torch.load(
+            checkpoint_path, map_location=map_location, weights_only=True)
+    except TypeError:  # pragma: no cover - only for older supported PyTorch
+        state_dict = torch.load(checkpoint_path, map_location=map_location)
+    metadata = getattr(state_dict, "_metadata", None)
+    payload = ((metadata or {}).get(PHASE3_CHECKPOINT_METADATA_KEY)
+               if isinstance(metadata, dict) else None)
+    if payload is not None and (
+            not isinstance(payload, dict) or payload.get("schema_version") != 1
+            or not isinstance(payload.get("binding"), dict)):
+        raise RunCollision(
+            f"{checkpoint_path}: malformed Phase-3 checkpoint metadata")
+    phase3_binding = payload.get("binding") if payload is not None else None
+    try:
+        result = model.load_state_dict(
+            state_dict, strict=phase3_binding is not None)
+    except RuntimeError as error:
+        if phase3_binding is not None:
+            raise RunCollision(
+                f"{checkpoint_path}: Phase-3 checkpoint does not exactly match "
+                f"the committed model architecture: {error}") from None
+        raise
+    return result.missing_keys, result.unexpected_keys, phase3_binding
 
 
 def release_run_dir(run_dir: str) -> None:

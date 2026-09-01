@@ -233,6 +233,41 @@ def test_trainer_writes_a_sidecar_for_the_best_checkpoint():
         "_wcm(" in best_block[:2000])
 
 
+def test_phase3_skips_best_files_but_legacy_keeps_them():
+    """Phase-3 terminal CSV/weights are authoritative; best bytes are not."""
+    from types import SimpleNamespace
+    import train_siglip2
+
+    assert train_siglip2._phase3_terminal_checkpoint_only(
+        SimpleNamespace(_phase3_campaign_binding={"sealed": True})) is True
+    assert train_siglip2._phase3_terminal_checkpoint_only(
+        SimpleNamespace()) is False
+    source = open(os.path.join(_REPO, "train_siglip2.py"),
+                  encoding="utf-8").read()
+    policy = source[source.index("def _phase3_terminal_checkpoint_only"):]
+    policy = policy[:policy.index("def _phase3_input_authority_from_args")]
+    assert '_phase3_campaign_binding", None) is not None' in policy
+    best_block = source[source.index("if _eval_mAP > getattr"):]
+    best_block = best_block[:best_block.index("# Save ONLY the final-epoch")]
+    guard = best_block.index("if _phase3_terminal_checkpoint_only(args):")
+    save = best_block.index("torch.save(_best_state, best_model_path)")
+    assert guard < save
+    assert "metric tracked" in best_block[:save]
+    final_block = source[source.index("# Save ONLY the final-epoch checkpoint"):]
+    assert "torch.save(_final_state, model_path)" in final_block[:2500]
+    assert "_wcm(model_path" in final_block[:3500]
+
+
+def test_phase3_terminal_only_requires_terminal_preservation_before_claim():
+    source = open(os.path.join(_REPO, "train_siglip2.py"),
+                  encoding="utf-8").read()
+    block = source[source.index("campaign_binding = phase3_campaign_binding_from_env"):]
+    block = block[:block.index("result_root =")]
+    assert "keep_final_checkpoint" in block
+    assert "final_epoch_eval" in block
+    assert "raise RuntimeError" in block
+
+
 def test_trainer_swap_uses_the_atomic_helper():
     """`shutil.copy2` alone left the final sidecar describing the overwritten
     file. The swap must go through the helper that re-stamps both."""

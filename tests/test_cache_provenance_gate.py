@@ -190,6 +190,113 @@ def test_the_loader_admits_a_provenanced_cache(tmp_path):
     assert loaded.provenance["model_revision"] == _REVISION
 
 
+def test_factual_and_foil_slots_share_the_runtime_truncation(tmp_path, monkeypatch):
+    """A five-slot run must never receive six-slot counterfactual tensors.
+
+    The rebuilt cache deliberately stores the common six-slot source.  Factual
+    pooled/token tensors were truncated at ``get()``, while all four foil
+    tensors were returned at width six.  Enabling the counterfactual branch in
+    an M=5 run then failed at the model boundary before the first update.
+    """
+    import dataloaders
+
+    cache = _minimal_cache(tmp_path, dict(_GOOD_META, N=2))
+    rows, slots, tokens, dim = 2, 6, 3, 5
+    np.save(cache / "text_tokens.f16.npy",
+            np.zeros((rows, slots, tokens, dim), np.float16))
+    np.save(cache / "text_token_mask.bool.npy",
+            np.ones((rows, slots, tokens), bool))
+    np.save(cache / "text_foil_part.f16.npy",
+            np.zeros((rows, slots, dim), np.float16))
+    foil_valid = np.ones((rows, slots), bool)
+    foil_valid[:, 0] = False
+    np.save(cache / "text_foil_valid.bool.npy", foil_valid)
+    np.save(cache / "text_foil_tokens.f16.npy",
+            np.zeros((rows, slots, tokens, dim), np.float16))
+    foil_token_mask = np.repeat(foil_valid[:, :, None], tokens, axis=2)
+    np.save(cache / "text_foil_token_mask.bool.npy", foil_token_mask)
+    image_ids = json.loads((cache / "image_ids.json").read_text())
+    (cache / "text_foil_image_ids.json").write_text(json.dumps(image_ids))
+    (cache / "text_foil_token_image_ids.json").write_text(json.dumps(image_ids))
+
+    monkeypatch.setattr(dataloaders, "_GDNA_N_PARTS", 5)
+    item = dataloaders._SigLIP2FeatureCache(str(cache)).get(0)
+    expected = {
+        "cached_text_part_raw": (5, dim),
+        "cached_text_tokens": (5, tokens, dim),
+        "cached_text_token_mask": (5, tokens),
+        "cached_text_foil_raw": (5, dim),
+        "cached_text_foil_valid": (5,),
+        "cached_text_foil_tokens": (5, tokens, dim),
+        "cached_text_foil_token_mask": (5, tokens),
+    }
+    assert {name: tuple(item[name].shape) for name in expected} == expected
+
+
+def test_optional_text_token_geometry_is_checked_at_cache_open(tmp_path):
+    cache = _minimal_cache(tmp_path, dict(_GOOD_META, N=2))
+    np.save(cache / "text_tokens.f16.npy",
+            np.zeros((2, 5, 3, 5), np.float16))
+    np.save(cache / "text_token_mask.bool.npy", np.ones((2, 5, 3), bool))
+    from dataloaders import _SigLIP2FeatureCache
+
+    with pytest.raises(ValueError, match="text_tokens must be"):
+        _SigLIP2FeatureCache(str(cache))
+
+
+@pytest.mark.parametrize("name", [
+    "text_tokens.f16.npy", "text_token_mask.bool.npy",
+])
+def test_factual_token_half_sidecar_is_refused(tmp_path, name):
+    cache = _minimal_cache(tmp_path, dict(_GOOD_META, N=2))
+    value = (np.zeros((2, 6, 3, 5), np.float16)
+             if name.startswith("text_tokens")
+             else np.ones((2, 6, 3), bool))
+    np.save(cache / name, value)
+    from dataloaders import _SigLIP2FeatureCache
+
+    with pytest.raises(FileNotFoundError, match="factual token sidecars"):
+        _SigLIP2FeatureCache(str(cache))
+
+
+def test_pooled_foil_requires_exact_row_identity_sidecar(tmp_path):
+    cache = _minimal_cache(tmp_path, dict(_GOOD_META, N=2))
+    np.save(cache / "text_foil_part.f16.npy",
+            np.zeros((2, 6, 5), np.float16))
+    valid = np.ones((2, 6), bool)
+    valid[:, 0] = False
+    np.save(cache / "text_foil_valid.bool.npy", valid)
+    from dataloaders import _SigLIP2FeatureCache
+
+    with pytest.raises(FileNotFoundError, match="text_foil_image_ids"):
+        _SigLIP2FeatureCache(str(cache))
+
+
+def test_declared_augmented_views_reject_gap_or_half_pair(tmp_path):
+    cache = _minimal_cache(
+        tmp_path, dict(_GOOD_META, N=2, save_aug_views=2)
+    )
+    np.save(cache / "visual_tokens_aug0.f16.npy",
+            np.zeros((2, 3, 4), np.float16))
+    np.save(cache / "visual_global_aug0.f16.npy",
+            np.zeros((2, 5), np.float16))
+    np.save(cache / "visual_tokens_aug1.f16.npy",
+            np.zeros((2, 3, 4), np.float16))
+    from dataloaders import _SigLIP2FeatureCache
+
+    with pytest.raises(ValueError, match="exactly match save_aug_views"):
+        _SigLIP2FeatureCache(str(cache))
+
+
+def test_duplicate_cache_row_ids_are_refused(tmp_path):
+    cache = _minimal_cache(tmp_path, dict(_GOOD_META, N=2))
+    (cache / "image_ids.json").write_text(json.dumps(["same", "same"]))
+    from dataloaders import _SigLIP2FeatureCache
+
+    with pytest.raises(ValueError, match="unique"):
+        _SigLIP2FeatureCache(str(cache))
+
+
 # ------------------------------------------- the caches actually on disk
 
 _V6PROV = Path("/data/yschoi/groundeddna_cache_v6prov")

@@ -60,6 +60,7 @@ _PROTOCOL = {
     "gc_count_max_inclusive": 9,
     "gc_min_frac": 0.4,
     "gc_max_frac": 0.6,
+    "bio_max_homopolymer_run": 3,
     "nmi_average_method": "arithmetic",
     "sklearn_version": "1.3.0",
 }
@@ -137,24 +138,19 @@ def test_an_extra_metric_is_refused(tmp_path):
         _seal(cell, metrics={**_METRICS, "map_at_R_something_else": 0.5})
 
 
-def test_a_protocol_the_reader_does_not_expect_is_refused(tmp_path):
+def test_a_noncanonical_dataset_is_refused_at_write_time(tmp_path):
     """`protocol.dataset: "WRONG"` was previously accepted verbatim."""
     cell = _cell(tmp_path)
-    _seal(cell, protocol={**_PROTOCOL, "dataset": "WRONG"})
     with pytest.raises(ExtractionInvalid) as excinfo:
-        read_analysis_marker(str(cell), allow_backfilled=False,
-                             expected_protocol={"dataset": "CIFAR10"})
+        _seal(cell, protocol={**_PROTOCOL, "dataset": "WRONG"})
     assert "dataset" in str(excinfo.value)
 
 
-def test_a_changed_gc_window_is_refused_against_the_expected_protocol(tmp_path):
+def test_a_changed_gc_window_is_refused_at_write_time(tmp_path):
     """Two cells scored under different GC windows do not form a delta."""
     cell = _cell(tmp_path)
-    _seal(cell, protocol={**_PROTOCOL, "gc_count_max_inclusive": 12})
     with pytest.raises(ExtractionInvalid):
-        read_analysis_marker(
-            str(cell), allow_backfilled=False,
-            expected_protocol={"gc_count_max_inclusive": 9})
+        _seal(cell, protocol={**_PROTOCOL, "gc_count_max_inclusive": 12})
 
 
 def test_an_incomplete_protocol_is_refused_at_write_time(tmp_path):
@@ -164,6 +160,33 @@ def test_an_incomplete_protocol_is_refused_at_write_time(tmp_path):
     with pytest.raises(ExtractionInvalid) as excinfo:
         _seal(cell, protocol=partial)
     assert "nmi_average_method" in str(excinfo.value)
+
+
+@pytest.mark.parametrize(("field", "value"), [
+    ("codebook_size", True),
+    ("total_bases", 16),
+    ("map_r_cutoff", 5000),
+    ("gc_policy_version", "wrong-policy"),
+    ("gc_count_min_inclusive", 7),
+    ("gc_count_max_inclusive", 8),
+    ("gc_min_frac", float("nan")),
+    ("gc_max_frac", 0.61),
+    ("bio_max_homopolymer_run", 4),
+    ("nmi_average_method", "geometric"),
+    ("sklearn_version", ""),
+])
+def test_protocol_values_are_validated_not_just_present(tmp_path, field, value):
+    cell = _cell(tmp_path)
+    with pytest.raises(ExtractionInvalid):
+        _seal(cell, protocol={**_PROTOCOL, field: value})
+
+
+def test_reader_revalidates_protocol_after_marker_tamper(tmp_path):
+    cell = _cell(tmp_path)
+    _seal(cell)
+    _rewrite(cell, protocol={**_PROTOCOL, "map_r_cutoff": 5000})
+    with pytest.raises(ExtractionInvalid, match="requires 1000"):
+        read_analysis_marker(str(cell), allow_backfilled=False)
 
 
 def test_garbage_source_digests_are_refused(tmp_path):

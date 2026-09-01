@@ -1691,7 +1691,30 @@ class SigLIP2SemanticOTModel(nn.Module):
                 getattr(args, "clip_backbone", None)
                 or DEFAULT_CLIP_BACKBONE
             )
-            self.backbone = build_clip_backbone(clip_name)
+            phase3_snapshot = None
+            snapshot_dir = getattr(args, "clip_snapshot_dir", None)
+            if snapshot_dir:
+                import json
+                try:
+                    tokenizers = json.loads(
+                        getattr(args, "clip_snapshot_tokenizers_sha256_json")
+                    )
+                except (TypeError, ValueError) as error:
+                    raise ValueError(
+                        "Phase-3 CLIP tokenizer authority is not valid JSON"
+                    ) from error
+                phase3_snapshot = {
+                    "checkpoint": clip_name,
+                    "snapshot_dir": snapshot_dir,
+                    "revision": getattr(args, "clip_snapshot_revision", None),
+                    "weight_file": getattr(args, "clip_snapshot_weight_file", None),
+                    "weight_sha256": getattr(args, "clip_snapshot_weight_sha256", None),
+                    "config_sha256": getattr(args, "clip_snapshot_config_sha256", None),
+                    "tokenizer_files_sha256": tokenizers,
+                }
+            self.backbone = build_clip_backbone(
+                clip_name, phase3_snapshot=phase3_snapshot
+            )
         else:
             backbone_name = (
                 getattr(args, "siglip2_backbone", None)

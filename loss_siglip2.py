@@ -553,6 +553,17 @@ class DNACodonHashLoss(nn.Module):
 
         Returns the EMA tensor (caller is expected to .detach() before use).
         """
+        # Validation is observational.  It may consume a differently-sized
+        # last batch (or be the first loss call after resume), but it must not
+        # initialise, resize, or advance the persistent training EMA.  Reuse a
+        # compatible training anchor when one exists; otherwise the current
+        # batch is an ephemeral detached target and never enters state_dict().
+        if not self.training:
+            if self.ema_text_anchor.numel() > 0 \
+                    and self.ema_text_anchor.shape == batch_anchor.shape:
+                return self.ema_text_anchor
+            return batch_anchor.detach()
+
         # buffer 미초기화 또는 shape 변경 시 새로 등록 (resume 안전: shape이
         # 같으면 진짜 EMA를 누적하니까 첫-호출-overwrite는 일어나지 않는다).
         if (
