@@ -927,6 +927,11 @@ def main(args: Config):
         # score and collapses the whole grid onto one candidate.
         "eval_mAP_at_R",
         "eval_mAP_R_cutoff",
+        # Persist the distance semantics beside the value and cutoff.  The
+        # command line is separately sealed, but a selector must be able to
+        # reject a self-consistent CSV produced under a different metric
+        # without inferring that fact from another artifact.
+        "eval_distance_mode",
         "eval_mean_positive_distance",
         "eval_mean_negative_distance",
         "eval_dead_code_ratio_mean",
@@ -1312,6 +1317,7 @@ def main(args: Config):
                 )
                 eval_row = {
                     "eval_mAP":                          retrieval["mAP"],
+                    "eval_distance_mode":                distance_mode,
                     "eval_mean_positive_distance":       retrieval["mean_positive_distance"],
                     "eval_mean_negative_distance":       retrieval["mean_negative_distance"],
                     "eval_dead_code_ratio_mean":         float(np.mean(collapse["dead_code_ratio"])),
@@ -1326,7 +1332,8 @@ def main(args: Config):
                     eval_row["eval_mAP_at_R"] = retrieval["mAP_at_R"]
                     eval_row["eval_mAP_R_cutoff"] = retrieval["mAP_R_cutoff"]
                 for k, v in eval_row.items():
-                    val_writer.add_scalar(f"eval/{k}", float(v), e)
+                    if not isinstance(v, str):
+                        val_writer.add_scalar(f"eval/{k}", float(v), e)
                 _map_r_str = (
                     f", mAP@{retrieval['mAP_R_cutoff']}(proxy)={retrieval['mAP_at_R']:.4f}"
                     if "mAP_at_R" in retrieval else ""

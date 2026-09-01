@@ -85,13 +85,17 @@ def test_the_preflight_is_the_first_line_and_the_log_check_the_second(sandbox):
     assert "REFUSING" in refused.stderr
 
 
-def test_reusing_a_tag_that_already_has_artifacts_is_refused():
-    """August owns the un-suffixed namespace; a new run must not join it."""
-    proc = subprocess.run(
-        ["bash", str(RUNNER), "0", "cifar_A_v4"],
-        capture_output=True, text=True, cwd=str(REPO), timeout=180)
+def test_reusing_a_tag_that_already_has_artifacts_is_refused(sandbox):
+    """A collision is refused without relying on mutable production residue."""
+    collision = sandbox / "logs" / "promptAblA_cifar_A_v4_P0val.log"
+    collision.write_text("historical fixture\n")
+    sentinel = sandbox / "TRAINER_MUST_NOT_START"
+    _install_trainer(
+        sandbox, f'touch "{sentinel}"\nexit 99\n')
+    proc = _run(sandbox, suffix="", env_extra=_cache_env(sandbox))
     assert proc.returncode == 8, proc.stdout + proc.stderr
     assert "REFUSING" in proc.stderr
+    assert not sentinel.exists(), "collision preflight reached the trainer"
     # It names what it found, and says how to proceed.
     assert "promptAblA_cifar_A_v4_P0val.log" in proc.stderr
     assert "TAG_SUFFIX" in proc.stderr
@@ -113,7 +117,10 @@ def test_the_phase2_legacy_sources_are_still_in_place():
     """They must NOT be quarantined: Phase 2 binds them by absolute path."""
     from scripts.aggregate_phase2_f01 import LEGACY
 
-    missing = [rel for rel in LEGACY.values() if not (REPO / rel).is_dir()]
+    configured_root = os.environ.get("GDNA_PHASE2_LEGACY_ROOT")
+    legacy_root = Path(configured_root).resolve() if configured_root else REPO
+    missing = [rel for rel in LEGACY.values()
+               if not (legacy_root / rel).is_dir()]
     assert not missing, f"Phase 2 legacy sources moved: {missing[:3]}"
 
 
@@ -193,7 +200,7 @@ def test_every_trainer_lets_the_caller_choose_the_eval_cache(trainer, tmp_path):
                WHITEN_NPZ=str(whiten), TAG="probe", K="64")
     proc = subprocess.run(
         ["bash", str(REPO / "scripts" / trainer), "0"],
-        capture_output=True, text=True, env=env, cwd=str(REPO), timeout=120)
+        capture_output=True, text=True, env=env, cwd=str(tmp_path), timeout=120)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert not proc.stderr, proc.stderr
     assert out.exists(), (

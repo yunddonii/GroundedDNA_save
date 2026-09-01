@@ -44,6 +44,7 @@ from scripts.phase3_selection_matrix import (  # noqa: E402
     CANDIDATE_N,
     DATASETS,
     LR_HORIZON,
+    MAP_R_CUTOFF,
     RECORD_SCHEMA,
     SEED,
     SLOTS,
@@ -57,7 +58,7 @@ from scripts.phase3_selection_matrix import (  # noqa: E402
 
 DEFAULT_RECORDS = REPO / "artifacts" / "phase3_selection"
 DEFAULT_OUT = DEFAULT_RECORDS / "selected_n.json"
-SELECTED_N_SCHEMA = 2
+SELECTED_N_SCHEMA = 3
 REFIT_AGGREGATE_SCHEMA = 1
 REFIT_AGGREGATE_SUFFIX = "_refit_aggregate.json"
 N_SELECTION_REDUCTION = {
@@ -236,26 +237,38 @@ def _reverify_run(payload: dict, path: Path) -> None:
             f"{path.name}: log.csv does not hash to the digest the record "
             f"claims; the metric was read from different bytes")
 
-    # And the number itself, re-read from those bytes rather than copied.
-    import csv as _csv
-    with open(csv_path, newline="", encoding="utf-8") as handle:
-        rows = {int(r["epoch"]): r for r in _csv.DictReader(handle)
-                if (r.get("epoch") or "").strip().isdigit()}
+    # Re-run the launcher's canonical CSV parser rather than maintaining a
+    # weaker second parser here.  It enforces exact ordered epochs 0..N (no
+    # duplicate/gap/append), a finite proportion, the dataset-specific cutoff,
+    # and raw base-Hamming mode from the terminal row itself.
+    from scripts.phase3_selection_matrix import CellRefused, read_selection
     epoch = selection["selection_epoch_zero_based"]
-    if epoch not in rows:
-        raise SelectionRefused(
-            f"{path.name}: log.csv has no row for epoch {epoch}")
-    raw = (rows[epoch].get("eval_mAP_at_R") or "").strip()
     try:
-        actual = float(raw)
-    except ValueError:
+        reopened_selection = read_selection(
+            run_dir, dataset=payload["dataset"], n=epoch)
+    except CellRefused as error:
         raise SelectionRefused(
-            f"{path.name}: log.csv epoch {epoch} eval_mAP_at_R={raw!r} is not "
-            f"a number") from None
-    if abs(actual - float(selection["selection_value"])) > 1e-12:
+            f"{path.name}: terminal metric evidence refused: {error}") \
+            from None
+    critical = (
+        "selection_metric", "selection_epoch_zero_based", "map_r_cutoff",
+        "distance_mode", "log_csv_sha256",
+    )
+    mismatch = {
+        field: (selection.get(field), reopened_selection.get(field))
+        for field in critical
+        if selection.get(field) != reopened_selection.get(field)
+    }
+    actual = reopened_selection["selection_value"]
+    reported = selection.get("selection_value")
+    if not isinstance(reported, (int, float)) or isinstance(reported, bool) \
+            or not math.isfinite(float(reported)) \
+            or abs(float(reported) - actual) > 1e-12:
+        mismatch["selection_value"] = (reported, actual)
+    if mismatch:
         raise SelectionRefused(
-            f"{path.name}: the record says {selection['selection_value']}, "
-            f"log.csv epoch {epoch} says {actual}")
+            f"{path.name}: record selection differs from reopened terminal "
+            f"log.csv evidence: {mismatch}")
 
 
 def _reverify_refit_outputs(payload: dict, path: Path, identity,
@@ -367,9 +380,15 @@ def _check_record(payload: dict, path: Path) -> tuple:
         if not isinstance(digest, str) or len(digest) != 64:
             raise SelectionRefused(
                 f"{path.name}: completion.{field} is {digest!r}, not a digest")
-    if not (payload.get("selection") or {}).get("map_r_cutoff"):
+    selection = payload.get("selection") or {}
+    if selection.get("map_r_cutoff") != MAP_R_CUTOFF[dataset]:
         raise SelectionRefused(
-            f"{path.name}: the metric records no mAP@R cutoff")
+            f"{path.name}: mAP@R cutoff is {selection.get('map_r_cutoff')!r}, "
+            f"not canonical {MAP_R_CUTOFF[dataset]} for {dataset}")
+    if selection.get("distance_mode") != "base":
+        raise SelectionRefused(
+            f"{path.name}: selection distance mode is "
+            f"{selection.get('distance_mode')!r}, not raw base Hamming")
 
     expected = {
         "seed": SEED, "val_split_ratio": VAL_RATIO, "val_split_seed": VAL_SEED,
@@ -783,20 +802,38 @@ def verify_refit_campaign(records_dir: Path, *, namespace: str) -> dict:
     """Reopen the exact-12 refit receipt and every final paper output."""
     from scripts.phase3_selection_matrix import (
         DATASETS, REFIT_RECEIPT_SUFFIX, REFIT_SEEDS, refit_cells,
-        verify_recipe_authority)
+        SELECTED_N_AUTHORITY_SCHEMA, verify_recipe_authority)
 
     def canonical(authorities):
         recipe = verify_recipe_authority(authorities.get("recipe") or {})
         selected = authorities.get("selected_n") or {}
+        expected_keys = {
+            "schema_version", "path", "sha256", "selected_n",
+            "recipe_authority", "recipe_choices",
+        }
+        if selected.get("schema_version") != SELECTED_N_AUTHORITY_SCHEMA \
+                or set(selected) != expected_keys:
+            raise SelectionRefused(
+                "refit selected-N authority has an unknown or non-exact "
+                "schema")
         path = Path(str(selected.get("path") or ""))
         if not path.is_file() or _sha(path) != selected.get("sha256"):
             raise SelectionRefused(
                 "refit selected-N authority is absent or changed")
         reopened = verify_selection_artifact(path)
-        if reopened != selected.get("selected_n"):
+        if reopened.get("selected_n") != selected.get("selected_n"):
             raise SelectionRefused(
                 "refit snapshot copied a different selected-N decision")
-        return refit_cells(reopened, recipe)
+        if reopened.get("recipe_authority") != authorities.get("recipe") \
+                or reopened.get("recipe_authority") != selected.get(
+                    "recipe_authority") \
+                or reopened.get("recipe_choices") != recipe \
+                or reopened.get("recipe_choices") != selected.get(
+                    "recipe_choices"):
+            raise SelectionRefused(
+                "refit recipe and selected-N derivation recipe are not the "
+                "same byte-bound authority")
+        return refit_cells(reopened["selected_n"], recipe)
 
     envelope = _campaign_envelope(
         records_dir, namespace=namespace, campaign_kind="refit",
@@ -2087,8 +2124,22 @@ def verify_selection_artifact(path: Path) -> dict:
         raise SelectionRefused(
             f"{path}: selected N is not raw terminal mAP@R argmax with the "
             "smallest-N tie-break over its sealed 16 records")
-    return {dataset: entry["selected_N"]
-            for dataset, entry in sorted(recomputed.items())}
+    recipe_authority = matrix["recipe_authority"]
+    try:
+        from scripts.phase3_selection_matrix import verify_recipe_authority
+        recipe_choices = verify_recipe_authority(recipe_authority)
+    except Exception as error:                         # noqa: BLE001
+        raise SelectionRefused(
+            f"{path}: embedded recipe authority cannot be reopened: {error}") \
+            from None
+    return {
+        "selected_n": {
+            dataset: entry["selected_N"]
+            for dataset, entry in sorted(recomputed.items())
+        },
+        "recipe_authority": recipe_authority,
+        "recipe_choices": recipe_choices,
+    }
 
 
 def main() -> int:

@@ -142,13 +142,12 @@ def _fixture(tmp_path: Path, *, stage: str = "stage1") -> dict[str, Path | seal.
     for index, name in enumerate(donor_backed):
         target = _write(donor / name, (f"donor-{index}-{name}\n").encode())
         _relative_symlink(feature / name, target)
-    text_part_target = _npy(
-        donor / "text_part.f16.npy",
-        np.arange(12 * 6 * 4, dtype=np.float16).reshape(12, 6, 4),
-    )
-    has_text_target = _npy(
-        donor / "has_text.bool.npy", np.ones(12, dtype=np.bool_)
-    )
+    text_part_values = np.arange(
+        12 * 6 * 4, dtype=np.float16
+    ).reshape(12, 6, 4)
+    has_text_values = np.ones(12, dtype=np.bool_)
+    text_part_target = _npy(donor / "text_part.f16.npy", text_part_values)
+    has_text_target = _npy(donor / "has_text.bool.npy", has_text_values)
     _relative_symlink(feature / "text_part.f16.npy", text_part_target)
     _relative_symlink(feature / "has_text.bool.npy", has_text_target)
     _write(feature / "text_tokens.f16.npy", b"factual-token-features\n")
@@ -186,12 +185,17 @@ def _fixture(tmp_path: Path, *, stage: str = "stage1") -> dict[str, Path | seal.
     _json(overlay / "text_foil_image_ids.json", image_id_values)
     _json(overlay / "text_foil_token_image_ids.json", image_id_values)
     _write(overlay / "text_foil_edits.jsonl", b'{"row":0,"edits":{}}\n')
+    foil_jsonl = _write(
+        tmp_path / "artifacts" / "fixture.foils.jsonl",
+        b'{"image_id":"images/train-0.jpg","foils":{}}\n',
+    )
 
     image_ids_sha = _sha(image_ids)
-    foil_source_sha = hashlib.sha256(b"fixture-foil-source").hexdigest()
+    foil_source_sha = _sha(foil_jsonl)
     common_foil_meta = {
         "cache_dir": str(feature),
         "cache_image_ids_sha256": image_ids_sha,
+        "foil_jsonl": str(foil_jsonl),
         "foil_jsonl_sha256": foil_source_sha,
     }
     _json(overlay / "text_foil_meta.json", common_foil_meta)
@@ -199,20 +203,29 @@ def _fixture(tmp_path: Path, *, stage: str = "stage1") -> dict[str, Path | seal.
 
     if stage == "stage1":
         split_rows = opt_rows
-        whitening = _npz(
-            overlay / "text_whiten_optTrain_localOnly.npz",
-            mu=np.zeros(4, dtype=np.float32),
-            U=np.eye(4, dtype=np.float32),
-            S=np.ones(4, dtype=np.float32),
-        )
+        whitening_name = "text_whiten_optTrain_localOnly.npz"
     else:
         split_rows = train_rows
-        whitening = _npz(
-            overlay / "text_whiten_trainOnly_localOnly.npz",
-            mu=np.zeros(4, dtype=np.float32),
-            U=np.eye(4, dtype=np.float32),
-            S=np.ones(4, dtype=np.float32),
-        )
+        whitening_name = "text_whiten_trainOnly_localOnly.npz"
+    fit_rows = np.intersect1d(
+        np.flatnonzero(has_text_values),
+        np.load(split_rows, allow_pickle=False),
+    )
+    fit_vectors = np.asarray(
+        text_part_values[fit_rows, 1:, :], dtype=np.float32
+    ).reshape(-1, 4)
+    fit_mu = fit_vectors.mean(axis=0).astype(np.float32)
+    centered = fit_vectors - fit_mu
+    covariance = (centered.T @ centered) / max(len(centered) - 1, 1)
+    covariance = (covariance + covariance.T) * 0.5
+    eigenvalues, eigenvectors = np.linalg.eigh(covariance.astype(np.float64))
+    order = np.argsort(-eigenvalues)
+    whitening = _npz(
+        overlay / whitening_name,
+        mu=fit_mu,
+        U=eigenvectors[:, order].astype(np.float32),
+        S=eigenvalues[order].astype(np.float32),
+    )
     n_kept = int(np.load(split_rows, allow_pickle=False).size)
     whitening_meta = {
         "cache_dir": str(feature),
@@ -229,10 +242,16 @@ def _fixture(tmp_path: Path, *, stage: str = "stage1") -> dict[str, Path | seal.
     semantic = {
         "base_cache": str(feature),
         "dataset": "flickr",
+        "foil_jsonl": str(foil_jsonl),
         "foil_jsonl_sha256": foil_source_sha,
         "image_ids_sha256": image_ids_sha,
         "overlay": str(overlay),
+        "qwen_jsonl": str(qwen),
         "qwen_jsonl_sha256": _sha(qwen),
+        "source_sha256": {
+            relative: _sha(seal.REPO / relative)
+            for relative in seal._FOIL_DERIVATION_SOURCES
+        },
         "whitening": {
             whitening.name: {
                 "row_index": str(split_rows),
@@ -262,6 +281,7 @@ def _fixture(tmp_path: Path, *, stage: str = "stage1") -> dict[str, Path | seal.
         "overlay": overlay,
         "donor": donor,
         "qwen": qwen,
+        "foil_jsonl": foil_jsonl,
         "split_rows": split_rows,
         "whitening": whitening,
     }
@@ -542,6 +562,30 @@ def test_malformed_or_inconsistent_whitening_is_refused(
         _json(meta_path, meta)
         message = "N_kept"
     with pytest.raises(seal.SealError, match=message):
+        seal.build_seal(fixture["request"])
+
+
+def test_self_consistent_but_underived_whitening_is_refused(tmp_path: Path) -> None:
+    fixture = _fixture(tmp_path)
+    path = fixture["whitening"]
+    _npz(
+        path,
+        mu=np.zeros(4, dtype=np.float32),
+        U=np.eye(4, dtype=np.float32),
+        S=np.ones(4, dtype=np.float32),
+    )
+    semantic_path = fixture["overlay"] / "semantic_detail_cache_manifest.json"
+    semantic = json.loads(semantic_path.read_text(encoding="utf-8"))
+    semantic["whitening"][path.name]["sha256"] = _sha(path)
+    _json(semantic_path, semantic)
+    with pytest.raises(seal.SealError, match="not derived from the sealed"):
+        seal.build_seal(fixture["request"])
+
+
+def test_foil_manifest_must_match_actual_source_bytes(tmp_path: Path) -> None:
+    fixture = _fixture(tmp_path)
+    _write(fixture["foil_jsonl"], b'{"tampered":true}\n')
+    with pytest.raises(seal.SealError, match="actual foil JSONL bytes"):
         seal.build_seal(fixture["request"])
 
 

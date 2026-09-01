@@ -28,6 +28,7 @@ from scripts.phase3_selection_matrix import (  # noqa: E402
     BASES_PER_SLOT,
     CANDIDATE_N,
     LR_HORIZON,
+    MAP_R_CUTOFF,
     RECORD_SCHEMA,
     REFIT_SEEDS,
     SEED,
@@ -378,7 +379,7 @@ def _real_run(root: Path, dataset: str, n: int, value: float, *,
     import csv as _csv
     from dna_utils.run_identity import RunIdentity, write_run_manifest
     from scripts.phase3_selection_matrix import (
-        DATASETS, _sha, expected_run_identity)
+        DATASETS, MAP_R_CUTOFF, _sha, expected_run_identity)
 
     # The directory carries its own tag, exactly as the trainer names it: the
     # reducer requires that, so a rotated coordinate cannot keep its directory.
@@ -396,12 +397,16 @@ def _real_run(root: Path, dataset: str, n: int, value: float, *,
         f"weights-{dataset}-{n}-{stage}-{seed}".encode())
     with open(run / "log.csv", "w", newline="", encoding="utf-8") as handle:
         writer = _csv.DictWriter(
-            handle, fieldnames=["epoch", "eval_mAP_at_R", "eval_mAP_R_cutoff"])
+            handle, fieldnames=["epoch", "eval_mAP_at_R",
+                                "eval_mAP_R_cutoff", "eval_distance_mode"])
         writer.writeheader()
         for e in range(n + 1):
-            writer.writerow({"epoch": e,
-                             "eval_mAP_at_R": f"{value if e == n else 0.1:.17g}",
-                             "eval_mAP_R_cutoff": "1000"})
+            writer.writerow({
+                "epoch": e,
+                "eval_mAP_at_R": f"{value if e == n else 0.1:.17g}",
+                "eval_mAP_R_cutoff": str(MAP_R_CUTOFF[dataset]),
+                "eval_distance_mode": "base",
+            })
     identity = expected_run_identity(
         dataset, n, topp=topp, joint=joint, stage=stage, seed=seed,
         input_authority=input_authority)
@@ -608,7 +613,8 @@ def _record(dataset: str, n: int, value: float, *, run=None,
         "selection": {"selection_metric": "eval_mAP_at_R",
                       "selection_value": value,
                       "selection_epoch_zero_based": n,
-                      "map_r_cutoff": "1000",
+                      "map_r_cutoff": MAP_R_CUTOFF[dataset],
+                      "distance_mode": "base",
                       "log_csv_sha256": run.get("log_csv_sha256", "b" * 64)},
         "is_candidate_cell": True,
     }
@@ -835,9 +841,12 @@ def test_selected_n_reopens_all_16_and_rejects_forged_or_stale_choice(
 
     records, _ = _n_campaign(tmp_path, monkeypatch)
     selected = _selected_n_artifact(records, tmp_path / "selected_n.json")
-    assert verify_selection_artifact(selected) == {
+    verified = verify_selection_artifact(selected)
+    assert verified["selected_n"] == {
         dataset: 39 for dataset in
         ("cifar10", "flickr25k", "mscoco", "nuswide")}
+    assert verified["recipe_authority"]
+    assert verified["recipe_choices"]
 
     payload = json.loads(selected.read_text())
     payload["selected"]["cifar10"]["selected_N"] = 4
@@ -861,6 +870,7 @@ def test_selected_n_rejects_stale_source_seal(tmp_path, monkeypatch):
 def test_n_full_16_bundle_permutation_is_refused_by_checkpoint_binding(
         tmp_path, monkeypatch):
     """All mutable evidence is re-signed; checkpoint metadata stays physical."""
+    import csv as _csv
     from dna_utils.run_identity import (
         PHASE3_CAMPAIGN_BINDING_NAME, write_run_manifest)
     from scripts.phase3_select_n import _sha
@@ -928,16 +938,38 @@ def test_n_full_16_bundle_permutation_is_refused_by_checkpoint_binding(
         runtime.setdefault("extra", {})["phase3_campaign"] = evidence
         runtime_path.write_text(
             json.dumps(runtime, indent=2, sort_keys=True) + "\n")
+
+        # Re-sign the raw metric labels too.  The attack must reach the
+        # checkpoint-internal campaign binding, rather than being rejected by
+        # the independent canonical cutoff/distance gate.
+        log_path = target_run / "log.csv"
+        with open(log_path, newline="", encoding="utf-8") as handle:
+            reader = _csv.DictReader(handle)
+            fieldnames = reader.fieldnames
+            log_rows = list(reader)
+        for row in log_rows:
+            row["eval_mAP_R_cutoff"] = str(MAP_R_CUTOFF[target_ds])
+            row["eval_distance_mode"] = "base"
+        with open(log_path, "w", newline="", encoding="utf-8") as handle:
+            writer = _csv.DictWriter(handle, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(log_rows)
+        log_sha = _sha(log_path)
         rec.update(dataset=target_ds, tag=target_tag, run_dir=str(target_run),
                    identity_digest=identity.digest, campaign=campaign,
                    protocol_sources=M.protocol_digests(target_ds),
                    input_authority=snapshot["input_seals"][
                        f"{target_ds}:stage1"])
         rec["geometry"]["identity_digest"] = identity.digest
+        rec["selection"].update({
+            "map_r_cutoff": MAP_R_CUTOFF[target_ds],
+            "distance_mode": "base", "log_csv_sha256": log_sha,
+        })
         rec["completion"].update({
             "run_identity_sha256": _sha(target_run / "run_identity.json"),
             "phase3_campaign_evidence_sha256": _sha(evidence_path),
             "checkpoint_runtime_sha256": _sha(runtime_path),
+            "log_csv_sha256": log_sha,
         })
         target_name = f"{target_tag}.json"
         target_path = records / target_name
@@ -960,7 +992,8 @@ def test_n_full_16_bundle_permutation_is_refused_by_checkpoint_binding(
 
 
 def _refit_campaign(tmp_path: Path, monkeypatch,
-                    *, namespace="phase3refit") -> tuple[Path, dict, Path]:
+                    *, namespace="phase3refit",
+                    selected_recipe_authority=None) -> tuple[Path, dict, Path]:
     """Exact-12 latest-schema refit authority, with tiny valid outputs."""
     from scripts.phase3_select_n import _sha
     import scripts.phase3_select_n as S
@@ -977,12 +1010,23 @@ def _refit_campaign(tmp_path: Path, monkeypatch,
     monkeypatch.setattr(M, "verify_recipe_authority", lambda authority: choices)
     selected_path = tmp_path / "selected-authority.json"
     selected_path.write_text("fixture selected authority\n")
-    monkeypatch.setattr(S, "verify_selection_artifact",
-                        lambda path: dict(selected))
     recipe_authority = {"schema_version": 999, "fixture": "verified-recipe"}
+    selected_recipe_authority = (
+        recipe_authority if selected_recipe_authority is None
+        else selected_recipe_authority)
+    monkeypatch.setattr(
+        S, "verify_selection_artifact",
+        lambda path: {
+            "selected_n": dict(selected),
+            "recipe_authority": dict(selected_recipe_authority),
+            "recipe_choices": dict(choices),
+        })
     selection_authority = {
-        "schema_version": 1, "path": str(selected_path),
+        "schema_version": M.SELECTED_N_AUTHORITY_SCHEMA,
+        "path": str(selected_path),
         "sha256": _sha(selected_path), "selected_n": selected,
+        "recipe_authority": selected_recipe_authority,
+        "recipe_choices": choices,
     }
     plan = M.refit_cells(selected, choices)
     input_seals = _fake_input_authorities(plan)
@@ -1100,6 +1144,18 @@ def test_exact_12_refit_reopens_checkpoint_and_final_output_identity(
     assert len(verified["record_sha256"]) == 12
     for evidence in verified["datasets"].values():
         assert len(set(evidence["final_checkpoint_sha256"].values())) == 3
+
+
+def test_refit_refuses_selected_n_derived_under_another_recipe_authority(
+        tmp_path, monkeypatch):
+    from scripts.phase3_select_n import verify_refit_campaign
+
+    records, _, _ = _refit_campaign(
+        tmp_path, monkeypatch,
+        selected_recipe_authority={
+            "schema_version": 999, "fixture": "different-recipe"})
+    with pytest.raises(SelectionRefused, match="not the same byte-bound"):
+        verify_refit_campaign(records, namespace="phase3refit")
 
 
 def test_refit_aggregate_refuses_identical_checkpoint_sha_across_seeds(
@@ -1334,7 +1390,8 @@ def test_a_value_from_the_wrong_epoch_is_refused(tmp_path):
     bad = {"selection": {"selection_metric": "eval_mAP_at_R",
                          "selection_value": 0.9,
                          "selection_epoch_zero_based": 4,
-                         "map_r_cutoff": "1000",
+                         "map_r_cutoff": 1000,
+                         "distance_mode": "base",
                          "log_csv_sha256": "b" * 64}}
     records = _matrix(tmp_path, None, {("cifar10", 39): bad})
     with pytest.raises(SelectionRefused) as excinfo:
@@ -1438,7 +1495,7 @@ def test_the_refit_refuses_an_out_of_grid_selection(tmp_path):
         ("cifar10", "flickr25k", "nuswide", "mscoco")}}))
     with pytest.raises(CellRefused) as excinfo:
         _load_selection(path)
-    assert "not a schema-2 selected-N authority" in str(excinfo.value)
+    assert "not a schema-3 selected-N authority" in str(excinfo.value)
 
 
 # ------------------------------------------------ evidence, not shape (§39.2)
@@ -1605,7 +1662,39 @@ def test_a_metric_that_disagrees_with_log_csv_is_refused(tmp_path):
     victim.write_text(json.dumps(payload))
     with pytest.raises(SelectionRefused) as error:
         load_matrix(records)
-    assert "log.csv epoch" in str(error.value)
+    assert "reopened terminal log.csv evidence" in str(error.value)
+
+
+def test_selector_reopens_the_raw_terminal_metric_contract(tmp_path):
+    """The terminal CSV, not only its mutable record, names the metric."""
+    import csv as _csv
+    from scripts.phase3_select_n import _sha
+
+    records = _matrix(tmp_path)
+    victim = next(records.glob("*.json"))
+    payload = json.loads(victim.read_text())
+    run = Path(payload["run_dir"])
+    with open(run / "log.csv", newline="", encoding="utf-8") as handle:
+        reader = _csv.DictReader(handle)
+        fieldnames = reader.fieldnames
+        rows = list(reader)
+    terminal = int(payload["selection"]["selection_epoch_zero_based"])
+    next(row for row in rows if int(row["epoch"]) == terminal)[
+        "eval_mAP_R_cutoff"] = "7"
+    with open(run / "log.csv", "w", newline="", encoding="utf-8") as handle:
+        writer = _csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    # Re-sign every mutable hash that legitimately changes while retaining the
+    # canonical labels in the record.  The reducer must still inspect the raw
+    # terminal row and refuse it.
+    new_sha = _sha(run / "log.csv")
+    payload["completion"]["log_csv_sha256"] = new_sha
+    payload["selection"]["log_csv_sha256"] = new_sha
+    victim.write_text(json.dumps(payload))
+    with pytest.raises(SelectionRefused, match="canonical"):
+        load_matrix(records)
 
 
 def test_a_forged_identity_digest_is_refused(tmp_path):

@@ -258,6 +258,7 @@ S5_FLAGS = [
     "--num_codebooks", str(SLOTS),
     "--no_gumbel_softmax",
     "--lambda_codeword_codon_sinkhorn", "0.0",
+    "--text_hash_counterfactual_weight", "0.0",
 ]
 
 #: The A recipe's global-slot skips, as the prompt-A wrapper passes them.
@@ -342,6 +343,7 @@ N_SELECTION_RECEIPT_SUFFIX = "_n_selection_complete.json"
 REFIT_RECEIPT_SUFFIX = "_refit_complete.json"
 RECIPE_RECEIPT_SUFFIX = "_sweep_complete.json"
 RECIPE_AUTHORITY_SCHEMA = 2
+SELECTED_N_AUTHORITY_SCHEMA = 2
 
 #: Files whose bytes decide what a cell is. Recorded per cell so the aggregator
 #: can refuse a matrix assembled from more than one protocol.
@@ -1363,12 +1365,15 @@ def assert_geometry(run_dir: Path, *, dataset: str, n: int,
         "routing_adaptive_topp_max": float(
             _arg_value(args_txt, "routing_adaptive_topp_max")),
         "lambda_codon_joint": float(_arg_value(args_txt, "lambda_codon_joint")),
+        "text_hash_counterfactual_weight": float(
+            _arg_value(args_txt, "text_hash_counterfactual_weight")),
     }
     want = {"num_semantic_parts": SLOTS, "num_codebooks": SLOTS,
             "num_codons_per_codebook": BASES_PER_SLOT,
             "routing_adaptive_topp_min": float(topp[0]),
             "routing_adaptive_topp_max": float(topp[1]),
-            "lambda_codon_joint": float(joint)}
+            "lambda_codon_joint": float(joint),
+            "text_hash_counterfactual_weight": 0.0}
     bad = {k: (v, want[k]) for k, v in effective.items() if v != want[k]}
     if bad:
         raise CellRefused(
@@ -2043,7 +2048,7 @@ def assert_completed(run_dir: Path, *, terminal_epoch: int,
     return result
 
 
-def read_selection(run_dir: Path, *, n: int) -> dict:
+def read_selection(run_dir: Path, *, dataset: str, n: int) -> dict:
     """The candidate's score at ITS OWN terminal epoch N.
 
     D1 compares candidates by what training to N produces, so the number has to
@@ -2065,6 +2070,9 @@ def read_selection(run_dir: Path, *, n: int) -> dict:
         rows = list(csv.DictReader(handle))
     if not rows:
         raise CellRefused(f"{csv_path} has no rows")
+    if dataset not in MAP_R_CUTOFF:
+        raise CellRefused(
+            f"{csv_path}: dataset {dataset!r} has no canonical mAP@R contract")
     if "eval_mAP_at_R" not in rows[0]:
         raise CellRefused(
             f"{csv_path} has no eval_mAP_at_R column; this run predates the "
@@ -2091,20 +2099,37 @@ def read_selection(run_dir: Path, *, n: int) -> dict:
         value = float(raw)
     except ValueError:
         raise CellRefused(f"{csv_path}: eval_mAP_at_R={raw!r} is not a number")
-    if not 0.0 <= value <= 1.0:
-        raise CellRefused(f"{csv_path}: eval_mAP_at_R={value} is not a "
-                          f"proportion")
+    if not math.isfinite(value) or not 0.0 <= value <= 1.0:
+        raise CellRefused(f"{csv_path}: eval_mAP_at_R={raw!r} is not a "
+                          "finite proportion")
 
     cutoff = (terminal[0].get("eval_mAP_R_cutoff") or "").strip()
     if not cutoff:
         raise CellRefused(
             f"{csv_path}: epoch {n} records no mAP@R cutoff, so the metric "
             f"cannot be compared across datasets")
+    try:
+        cutoff_value = int(cutoff)
+    except ValueError:
+        raise CellRefused(
+            f"{csv_path}: epoch {n} mAP@R cutoff {cutoff!r} is not an integer") \
+            from None
+    expected_cutoff = MAP_R_CUTOFF[dataset]
+    if cutoff != str(expected_cutoff) or cutoff_value != expected_cutoff:
+        raise CellRefused(
+            f"{csv_path}: epoch {n} mAP@R cutoff is {cutoff!r}, expected "
+            f"canonical {expected_cutoff} for {dataset}")
+    metric_distance = (terminal[0].get("eval_distance_mode") or "").strip()
+    if metric_distance != "base":
+        raise CellRefused(
+            f"{csv_path}: epoch {n} distance mode is {metric_distance!r}, "
+            "expected canonical raw base Hamming mode 'base'")
     record = {
         "selection_metric": "eval_mAP_at_R",
         "selection_value": value,
         "selection_epoch_zero_based": n,
-        "map_r_cutoff": cutoff,
+        "map_r_cutoff": cutoff_value,
+        "distance_mode": metric_distance,
         "epochs_logged": len(rows),
         # The bytes the number came from. `log.csv` is append-only and nothing
         # else binds it to the run.
@@ -2587,7 +2612,7 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
         },
         "geometry": geometry,
         "selection": (
-            read_selection(run_dir, n=_stop)
+            read_selection(run_dir, dataset=dataset, n=_stop)
             if stage == "select" else
             {"selection_metric": None,
              "note": "a refit has no held-out validation to select on"}),
@@ -2679,10 +2704,11 @@ def _load_selection(path: Path) -> dict:
     from scripts.phase3_select_n import (
         SelectionRefused, verify_selection_artifact)
     try:
-        selected = verify_selection_artifact(path)
+        selection = verify_selection_artifact(path)
     except SelectionRefused as error:
         raise CellRefused(f"{path}: selected-N authority refused: {error}") \
             from None
+    selected = selection.get("selected_n") or {}
     missing = sorted(set(DATASETS) - set(selected))
     extra = sorted(set(selected) - set(DATASETS))
     bad = {dataset: n for dataset, n in selected.items()
@@ -2691,7 +2717,16 @@ def _load_selection(path: Path) -> dict:
         raise CellRefused(
             f"{path}: selected-N verifier returned invalid coverage; missing "
             f"{missing}, unexpected {extra}, out-of-grid {bad}")
-    return selected
+    recipe_authority = selection.get("recipe_authority")
+    recipe_choices = selection.get("recipe_choices")
+    if not isinstance(recipe_authority, dict) or not isinstance(recipe_choices, dict):
+        raise CellRefused(
+            f"{path}: selected-N verifier returned no recipe lineage")
+    return {
+        "selected_n": selected,
+        "recipe_authority": recipe_authority,
+        "recipe_choices": recipe_choices,
+    }
 
 
 def sweep_cells(axis: str, *, at_topp=None) -> list:
@@ -2898,7 +2933,7 @@ def _run_sweep(args, at_topp, *, full_plan=None,
               f"missing {missing}", file=sys.stderr)
         return 1
     try:
-        verify_snapshot_input_seals(snapshot, full=True)
+        verify_snapshot_input_seals(snapshot, full=not args.smoke)
     except CellRefused as error:
         print(f"[phase3] REFUSED final input-seal verification: {error}",
               file=sys.stderr)
@@ -3276,6 +3311,11 @@ def main() -> int:
                 return _run_sweep(
                     args, None, full_plan=stage_plan,
                     authorities={"stability_stage": stage_authority})
+            if args.only and not args.smoke:
+                print("[phase3] REFUSED: --only cannot narrow a production "
+                      "P/J stability campaign; use it only with --smoke",
+                      file=sys.stderr)
+                return 2
             return _with_campaign_gpu_leases(
                 args, lambda: _run_sweep(
                     args, None, full_plan=stage_plan,
@@ -3318,8 +3358,17 @@ def main() -> int:
     if args.sweep:
         if args.plan or not (args.run or args.smoke):
             return _run_sweep(args, sweep_topp)
-        return _with_campaign_gpu_leases(
-            args, lambda: _run_sweep(args, sweep_topp))
+        if args.smoke:
+            if not args.only:
+                print("[phase3] REFUSED: a direct P/J smoke must name exactly "
+                      "one coordinate with --only", file=sys.stderr)
+                return 2
+            return _with_campaign_gpu_leases(
+                args, lambda: _run_sweep(args, sweep_topp))
+        print("[phase3] REFUSED: an executable P/J sweep requires an exact "
+              "--stability-plan; direct candidate-shaped campaigns cannot "
+              "participate in the fixed-point authority", file=sys.stderr)
+        return 2
 
     keys = cell_keys()
     if args.only:
@@ -3384,13 +3433,22 @@ def main() -> int:
         # and its snapshot records that it executed a strict subset.
         try:
             selection_path = Path(args.selection).resolve()
-            chosen = _load_selection(selection_path)
+            selection = _load_selection(selection_path)
         except CellRefused as error:
             print(f"[phase3] REFUSED --selection: {error}", file=sys.stderr)
             return 2
+        chosen = selection["selected_n"]
+        if selection["recipe_authority"] != recipe_authority \
+                or selection["recipe_choices"] != recipe:
+            print("[phase3] REFUSED --selection: selected N was derived under "
+                  "a different stable recipe authority", file=sys.stderr)
+            return 2
         selection_authority = {
-            "schema_version": 1, "path": str(selection_path),
+            "schema_version": SELECTED_N_AUTHORITY_SCHEMA,
+            "path": str(selection_path),
             "sha256": _sha(selection_path), "selected_n": chosen,
+            "recipe_authority": selection["recipe_authority"],
+            "recipe_choices": selection["recipe_choices"],
         }
         full_plan = refit_cells(chosen, recipe)
         executed = full_plan

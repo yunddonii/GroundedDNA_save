@@ -147,6 +147,7 @@ def test_the_s5_recipe_is_passed(dataset, n):
     extra = env["EXTRA_ARGS"].split()
     assert "--no_gumbel_softmax" in extra
     assert extra[extra.index("--lambda_codeword_codon_sinkhorn") + 1] == "0.0"
+    assert extra[extra.index("--text_hash_counterfactual_weight") + 1] == "0.0"
     for flag in A_FLAGS:
         assert flag in extra
 
@@ -186,7 +187,8 @@ def _fake_run(tmp_path: Path, *, slots=SLOTS, codons=BASES_PER_SLOT,
               "num_codons_per_codebook": codons,
               "routing_adaptive_topp_min": TOPP_INCUMBENT[0],
               "routing_adaptive_topp_max": TOPP_INCUMBENT[1],
-              "lambda_codon_joint": JOINT_INCUMBENT}
+              "lambda_codon_joint": JOINT_INCUMBENT,
+              "text_hash_counterfactual_weight": 0.0}
     (run / "args.txt").write_text(
         "\n".join(f"{k_}{'-' * 20}{v}" for k_, v in fields.items()) + "\n")
     args = dict(
@@ -218,6 +220,17 @@ def test_the_eighteen_base_configuration_is_refused(tmp_path):
     with pytest.raises(CellRefused) as excinfo:
         assert_geometry(run, dataset="cifar10", n=4)
     assert "18-base failure" in str(excinfo.value)
+
+
+def test_nonzero_counterfactual_weight_is_refused(tmp_path):
+    run = _fake_run(tmp_path)
+    args_path = run / "args.txt"
+    text = args_path.read_text()
+    args_path.write_text(text.replace(
+        "text_hash_counterfactual_weight--------------------0.0",
+        "text_hash_counterfactual_weight--------------------0.5"))
+    with pytest.raises(CellRefused, match="effective recipe is wrong"):
+        assert_geometry(run, dataset="cifar10", n=4)
 
 
 @pytest.mark.parametrize("field,value", [
@@ -268,7 +281,8 @@ def test_args_and_manifest_must_agree(tmp_path):
 def _cell_csv(tmp_path: Path, rows: list, *, header=None) -> Path:
     run = tmp_path / "run"
     run.mkdir(parents=True, exist_ok=True)
-    cols = header or ["epoch", "eval_mAP", "eval_mAP_at_R", "eval_mAP_R_cutoff"]
+    cols = header or ["epoch", "eval_mAP", "eval_mAP_at_R",
+                      "eval_mAP_R_cutoff", "eval_distance_mode"]
     lines = [",".join(cols)]
     for row in rows:
         lines.append(",".join(str(row.get(c, "")) for c in cols))
@@ -288,13 +302,14 @@ def _rows(n: int, scored: dict) -> list:
     """Epochs 0..n, once each, scored only where the cadence says."""
     return [{"epoch": e,
              "eval_mAP_at_R": scored.get(e, ""),
-             "eval_mAP_R_cutoff": 1000 if e in scored else ""}
+             "eval_mAP_R_cutoff": 1000 if e in scored else "",
+             "eval_distance_mode": "base" if e in scored else ""}
             for e in range(n + 1)]
 
 
 def test_the_value_is_the_candidates_own_terminal_epoch(tmp_path):
     run = _cell_csv(tmp_path, _rows(4, {0: 0.90, 4: 0.61}))
-    record = read_selection(run, n=4)
+    record = read_selection(run, dataset="cifar10", n=4)
     assert record["selection_value"] == pytest.approx(0.61)
     assert record["selection_epoch_zero_based"] == 4
 
@@ -308,7 +323,7 @@ def test_the_best_over_prefix_is_recorded_but_never_selected(tmp_path):
     """
     run = _cell_csv(tmp_path, _rows(39, {0: 0.90, 39: 0.55}))
     _best_sidecar(run, epoch=0, value=0.90)
-    record = read_selection(run, n=39)
+    record = read_selection(run, dataset="cifar10", n=39)
     assert record["selection_value"] == pytest.approx(0.55), \
         "selection must not take the best over the prefix"
     assert record["best_over_prefix"]["value"] == pytest.approx(0.90)
@@ -318,7 +333,7 @@ def test_the_best_over_prefix_is_recorded_but_never_selected(tmp_path):
 def test_a_cell_that_never_reached_its_epoch_is_refused(tmp_path):
     run = _cell_csv(tmp_path, _rows(0, {0: 0.9}))
     with pytest.raises(CellRefused) as excinfo:
-        read_selection(run, n=39)
+        read_selection(run, dataset="cifar10", n=39)
     assert "did not train to its candidate epoch" in str(excinfo.value)
 
 
@@ -328,16 +343,18 @@ def test_a_csv_with_a_gap_or_a_repeat_is_refused(tmp_path):
               for e in (0, 1, 3, 4)]
     gapped[-1].update(eval_mAP_at_R=0.6, eval_mAP_R_cutoff=1000)
     with pytest.raises(CellRefused):
-        read_selection(_cell_csv(tmp_path / "gap", gapped), n=4)
+        read_selection(_cell_csv(tmp_path / "gap", gapped),
+                       dataset="cifar10", n=4)
 
     repeated = _rows(4, {4: 0.6}) + _rows(4, {4: 0.7})[-1:]
     with pytest.raises(CellRefused):
-        read_selection(_cell_csv(tmp_path / "dup", repeated), n=4)
+        read_selection(_cell_csv(tmp_path / "dup", repeated),
+                       dataset="cifar10", n=4)
 
 
 def test_the_csv_the_number_came_from_is_digested(tmp_path):
     run = _cell_csv(tmp_path, _rows(4, {4: 0.61}))
-    record = read_selection(run, n=4)
+    record = read_selection(run, dataset="cifar10", n=4)
     assert len(record["log_csv_sha256"]) == 64
 
 
@@ -346,7 +363,7 @@ def test_a_terminal_row_without_a_cutoff_is_refused(tmp_path):
     rows = _rows(4, {4: 0.61})
     rows[-1]["eval_mAP_R_cutoff"] = ""
     with pytest.raises(CellRefused) as excinfo:
-        read_selection(_cell_csv(tmp_path, rows), n=4)
+        read_selection(_cell_csv(tmp_path, rows), dataset="cifar10", n=4)
     assert "cutoff" in str(excinfo.value)
 
 
@@ -354,7 +371,7 @@ def test_a_terminal_epoch_with_no_score_is_refused(tmp_path):
     """Mid-eval does not run every epoch on every schedule."""
     run = _cell_csv(tmp_path, _rows(4, {0: 0.9}))
     with pytest.raises(CellRefused) as excinfo:
-        read_selection(run, n=4)
+        read_selection(run, dataset="cifar10", n=4)
     assert "never scored at its own terminal epoch" in str(excinfo.value)
 
 
@@ -364,20 +381,34 @@ def test_a_run_predating_the_per_epoch_metric_is_refused(tmp_path):
                                for e in range(5)],
                     header=["epoch", "eval_mAP"])
     with pytest.raises(CellRefused) as excinfo:
-        read_selection(run, n=4)
+        read_selection(run, dataset="cifar10", n=4)
     assert "not recoverable" in str(excinfo.value)
 
 
 def test_a_cell_with_no_csv_is_refused(tmp_path):
     with pytest.raises(CellRefused):
-        read_selection(tmp_path, n=4)
+        read_selection(tmp_path, dataset="cifar10", n=4)
 
 
 @pytest.mark.parametrize("raw", ["999", "-0.1", "nope"])
 def test_a_value_that_is_not_a_proportion_is_refused(tmp_path, raw):
     run = _cell_csv(tmp_path, _rows(4, {4: raw}))
     with pytest.raises(CellRefused):
-        read_selection(run, n=4)
+        read_selection(run, dataset="cifar10", n=4)
+
+
+def test_wrong_dataset_cutoff_and_distance_mode_are_refused(tmp_path):
+    rows = _rows(4, {4: 0.61})
+    rows[-1]["eval_mAP_R_cutoff"] = 7
+    with pytest.raises(CellRefused, match="canonical 1000"):
+        read_selection(_cell_csv(tmp_path / "cutoff", rows),
+                       dataset="cifar10", n=4)
+
+    rows = _rows(4, {4: 0.61})
+    rows[-1]["eval_distance_mode"] = "2bit"
+    with pytest.raises(CellRefused, match="raw base Hamming"):
+        read_selection(_cell_csv(tmp_path / "distance", rows),
+                       dataset="cifar10", n=4)
 
 
 def test_the_trainer_persists_the_selection_metric_per_epoch():
@@ -386,6 +417,8 @@ def test_the_trainer_persists_the_selection_metric_per_epoch():
     fields = source[source.index("csv_fields += ["):]
     fields = fields[:fields.index("]")]
     assert '"eval_mAP_at_R"' in fields
+    assert '"eval_mAP_R_cutoff"' in fields
+    assert '"eval_distance_mode"' in fields
 
 
 # ------------------------------------------------ what cannot be launched
@@ -545,7 +578,7 @@ def test_the_selection_file_must_name_exactly_the_four_datasets(tmp_path):
         "invented": {"selected_N": 4}}}))
     with pytest.raises(CellRefused) as excinfo:
         _load_selection(path)
-    assert "not a schema-2 selected-N authority" in str(excinfo.value)
+    assert "not a schema-3 selected-N authority" in str(excinfo.value)
 
 
 def _completed_run(tmp_path: Path, **sidecar) -> Path:
@@ -836,17 +869,23 @@ def test_a_namespace_belongs_to_one_sweep(tmp_path, monkeypatch, capsys):
                         lambda snapshot: None)
     monkeypatch.setattr(M, "verify_campaign_input_seals",
                         lambda specs, plan, **kw: _fake_input_authorities(plan))
-    monkeypatch.setattr(sys, "argv", [
-        "phase3_selection_matrix.py", "--sweep", "topp", "--run",
-        "--namespace", "phase3toppB", "--gpus", "0,1,2"])
     (tmp_path / "phase3toppB_flickr_A_v4_N4_s42.json").write_text("{}")
+    from types import SimpleNamespace
+    args = SimpleNamespace(
+        sweep="topp", only=None, plan=False, run=True, smoke=False,
+        epochs=1, gpus="0,1,2", gpu=0, namespace="phase3toppB",
+        input_seal_specs={})
 
-    assert M.main() == 2
+    # The public CLI now refuses executable P/J work without a sealed stage
+    # plan.  Exercise the lower campaign primitive here because namespace
+    # ownership remains an independent invariant of every planned campaign.
+    assert M._run_sweep(args, None) == 2
     assert "already holds" in capsys.readouterr().err
 
 
-def test_a_fresh_namespace_is_not_refused(tmp_path, monkeypatch):
-    """The gate must not refuse the first sweep."""
+def test_a_direct_executable_sweep_without_stability_plan_is_refused(
+        tmp_path, monkeypatch, capsys):
+    """Candidate-shaped P/J GPU work is reachable only from a stage plan."""
     import scripts.phase3_selection_matrix as M
 
     monkeypatch.setattr(M, "RECORD_DIR", tmp_path)
@@ -861,9 +900,32 @@ def test_a_fresh_namespace_is_not_refused(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "argv", [
         "phase3_selection_matrix.py", "--sweep", "topp", "--run",
         "--namespace", "phase3fresh", "--gpus", "0,1,2"])
-    # It gets past the gate and into the cells, which the stub refuses.
-    assert M.main() == 1
-    assert calls, "the sweep never reached a cell"
+    assert M.main() == 2
+    assert not calls, "a direct sweep reached a cell without stability evidence"
+    assert "requires an exact --stability-plan" in capsys.readouterr().err
+
+
+def test_a_direct_one_cell_smoke_remains_available(monkeypatch):
+    import scripts.phase3_selection_matrix as M
+
+    seen = []
+    monkeypatch.setattr(M, "_run_sweep",
+                        lambda args, topp: seen.append((args.only, args.epochs)) or 0)
+    monkeypatch.setattr(M, "_with_campaign_gpu_leases",
+                        lambda args, action: action())
+    monkeypatch.setattr(sys, "argv", [
+        "phase3_selection_matrix.py", "--sweep", "topp", "--smoke",
+        "--only", "flickr25k:0.3,0.7", "--epochs", "1",
+    ])
+    assert M.main() == 0
+    assert seen == [("flickr25k:0.3,0.7", 1)]
+
+
+def test_only_smoke_uses_fast_final_input_bookend():
+    source = (REPO / "scripts" / "phase3_selection_matrix.py").read_text()
+    assert source.count(
+        "verify_snapshot_input_seals(snapshot, full=not args.smoke)") == 1
+    assert source.count("verify_snapshot_input_seals(snapshot, full=True)") == 1
 
 
 def test_two_simultaneous_fresh_callers_admit_exactly_one(
@@ -1398,3 +1460,65 @@ def test_stability_pj_plan_does_not_acquire_gpu_lease(tmp_path, monkeypatch):
     assert M.main() == 0
     assert len(calls) == 1
     assert calls[0][1]["full_plan"] == [row]
+
+
+def test_refit_cli_refuses_selected_n_from_another_recipe_before_launch(
+        tmp_path, monkeypatch, capsys):
+    import scripts.phase3_selection_matrix as M
+
+    selected_path = tmp_path / "selected.json"
+    recipe_path = tmp_path / "recipe-b.json"
+    selected_path.write_text("fixture\n")
+    recipe_path.write_text("fixture\n")
+    choices = {
+        dataset: {"topp": ["0.3", "0.7"], "joint": "0.01"}
+        for dataset in M.DATASETS
+    }
+    recipe_a = {"schema_version": 2, "fixture": "recipe-a"}
+    recipe_b = {"schema_version": 2, "fixture": "recipe-b"}
+    monkeypatch.setattr(M, "load_recipe_authority", lambda paths: recipe_b)
+    monkeypatch.setattr(M, "verify_recipe_authority", lambda authority: choices)
+    monkeypatch.setattr(
+        M, "_load_selection",
+        lambda path: {
+            "selected_n": {dataset: 4 for dataset in M.DATASETS},
+            "recipe_authority": recipe_a,
+            "recipe_choices": choices,
+        })
+    monkeypatch.setattr(
+        M, "_with_campaign_gpu_leases",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("cross-recipe refit reached the launch boundary")))
+    monkeypatch.setattr(sys, "argv", [
+        "phase3_selection_matrix.py", "--refit", "--run",
+        "--selection", str(selected_path), "--recipe", str(recipe_path),
+    ])
+    assert M.main() == 2
+    assert "different stable recipe authority" in capsys.readouterr().err
+
+
+def test_production_pj_stage_plan_cannot_be_narrowed_with_only(
+        tmp_path, monkeypatch, capsys):
+    import scripts.phase3_select_n as S
+    import scripts.phase3_selection_matrix as M
+
+    stage_path = tmp_path / "stage.json"
+    stage_path.write_text("{}\n")
+    rows = [
+        (dataset, 4, ("0.3", "0.7"), "0.02", "select", 42)
+        for dataset in ("flickr25k", "mscoco", "nuswide")
+    ]
+    monkeypatch.setattr(
+        S, "load_stability_stage_authority",
+        lambda path: {"axis": "topp", "fixture": str(path)})
+    monkeypatch.setattr(S, "stability_stage_cells", lambda payload: rows)
+    monkeypatch.setattr(
+        M, "_with_campaign_gpu_leases",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("partial production P/J reached GPU admission")))
+    monkeypatch.setattr(sys, "argv", [
+        "phase3_selection_matrix.py", "--stability-plan", str(stage_path),
+        "--sweep", "topp", "--run", "--only", "flickr25k:0.3,0.7",
+    ])
+    assert M.main() == 2
+    assert "cannot narrow a production P/J" in capsys.readouterr().err
