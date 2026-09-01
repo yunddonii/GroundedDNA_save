@@ -79,6 +79,18 @@ def _phase3_terminal_checkpoint_only(args) -> bool:
     return getattr(args, "_phase3_campaign_binding", None) is not None
 
 
+def _canonical_phase3_tokenizer_json(value) -> str:
+    """Undo the one literal quote layer left by unquoted EXTRA_ARGS."""
+    import json
+    raw = str(value or "")
+    if len(raw) >= 2 and raw[0] == raw[-1] == "'":
+        raw = raw[1:-1]
+    payload = json.loads(raw)
+    if not isinstance(payload, dict):
+        raise ValueError("tokenizer SHA authority must be a JSON object")
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+
 def _phase3_input_authority_from_args(args):
     """Stats-verify the launcher-admitted seal before any model/GPU work."""
     path = getattr(args, "phase3_input_seal", None)
@@ -148,8 +160,11 @@ def _phase3_input_authority_from_args(args):
         }
         hf_wrong = {name: (value, hf.get(name)) for name, value in cli_hf.items()
                     if value != hf.get(name)}
+        tokenizer_json = _canonical_phase3_tokenizer_json(
+            args.clip_snapshot_tokenizers_sha256_json)
+        args.clip_snapshot_tokenizers_sha256_json = tokenizer_json
         import json
-        if json.loads(args.clip_snapshot_tokenizers_sha256_json) != \
+        if json.loads(tokenizer_json) != \
                 hf["tokenizer_files_sha256"]:
             hf_wrong["tokenizer_files_sha256"] = ("CLI", "seal")
         if hf_wrong:

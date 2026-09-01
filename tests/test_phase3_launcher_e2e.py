@@ -76,6 +76,7 @@ if ! JD="$(arg_after --lambda_codon_joint)"; then JD=0.0; fi
   echo "routing_adaptive_topp_min--------------${TOPP_MIN}"
   echo "routing_adaptive_topp_max--------------${TOPP_MAX}"
   echo "lambda_codon_joint--------------${JD}"
+  echo "text_hash_counterfactual_weight--------------0.0"
 } > "$DIR/args.txt"
 echo "trained" > "logs/${TAG}.log"
 
@@ -141,12 +142,14 @@ assert binding is not None
 assert identity.digest == binding["expected_identity_digest"]
 write_phase3_campaign_binding(run, binding)
 
-cols = ["epoch", "eval_mAP", "eval_mAP_at_R", "eval_mAP_R_cutoff"]
+cols = ["epoch", "eval_mAP", "eval_mAP_at_R", "eval_mAP_R_cutoff",
+        "eval_distance_mode"]
 rows = [",".join(cols)]
 for e in range(n + 1):
     score = f"{0.50 + 0.01 * e:.4f}" if (e + 1) % 5 == 0 else ""
     cutoff = "1000" if score else ""
-    rows.append(f"{e},0.4,{score},{cutoff}")
+    distance = "base" if score else ""
+    rows.append(f"{e},0.4,{score},{cutoff},{distance}")
 open(os.path.join(run, "log.csv"), "w").write("\n".join(rows) + "\n")
 
 ckpt = os.path.join(run, "model_state_dict.pth")

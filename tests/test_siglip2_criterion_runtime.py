@@ -5,6 +5,7 @@ import torch
 
 from loss_siglip2 import DNACodonHashLoss
 from train_siglip2 import (
+    _canonical_phase3_tokenizer_json,
     _raise_mid_eval_if_campaign,
     _set_epoch_training_mode,
 )
@@ -52,3 +53,9 @@ def test_phase3_mid_eval_error_is_fatal_but_legacy_policy_is_unchanged():
             error,
         )
     assert caught.value is error
+
+
+def test_phase3_tokenizer_json_survives_shell_quote_transport():
+    transported = "'{\"z.json\":\"bb\",\"a.json\":\"aa\"}'"
+    assert _canonical_phase3_tokenizer_json(transported) == \
+        '{"a.json":"aa","z.json":"bb"}'
