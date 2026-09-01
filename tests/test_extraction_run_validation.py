@@ -67,8 +67,11 @@ def _cell(tmp_path, rows=4, *, splits=("db", "query"), corrupt=None,
             "hash_2bit": hashed,
             "codebook_indices": codebook,
         }
-        if label_case is None:
-            values["labels"] = np.arange(rows, dtype=np.int64) % 10
+        if label_case in (None, "single_out_of_range"):
+            labels = np.arange(rows, dtype=np.int64) % 10
+            if label_case == "single_out_of_range":
+                labels[0] = 10
+            values["labels"] = labels
         else:
             width = 9 if label_case == "wrong_width" else 10
             multi_hot = np.zeros((rows, width), dtype=np.uint8)
@@ -413,6 +416,29 @@ def test_expected_identity_catches_a_self_consistent_wrong_cell(tmp_path):
         validate_extraction_run(
             str(cell), expected=ExpectedIdentity(dataset="MSCOCO"))
     assert "expects 'MSCOCO'" in str(excinfo.value)
+
+
+def test_unknown_dataset_alias_is_refused(tmp_path):
+    cell = _mutate(tmp_path, lambda manifest: manifest.update(
+        dataset="cifar-10"))
+    with pytest.raises(ExtractionInvalid, match="allowed dataset identity"):
+        validate_extraction_run(str(cell))
+
+
+def test_lowercase_dataset_still_enforces_canonical_label_width(tmp_path):
+    cell = _mutate(
+        tmp_path, lambda manifest: manifest.update(dataset="cifar10"),
+        label_case="wrong_width")
+    with pytest.raises(ExtractionInvalid, match="canonical CIFAR10 requires 10"):
+        validate_extraction_run(str(cell))
+
+
+def test_lowercase_dataset_enforces_single_label_range(tmp_path):
+    cell = _mutate(
+        tmp_path, lambda manifest: manifest.update(dataset="cifar10"),
+        label_case="single_out_of_range")
+    with pytest.raises(ExtractionInvalid, match="canonical CIFAR10 class width"):
+        validate_extraction_run(str(cell))
 
 
 def test_mixed_backfill_state_is_refused(tmp_path):

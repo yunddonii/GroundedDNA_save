@@ -38,6 +38,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np  # noqa: E402
 
 from dna_utils.bio_constraints import _resolve_gc_count_range  # noqa: E402
+from dna_utils.extraction_validation import (  # noqa: E402
+    canonical_dataset_name as _canonical_dataset_name,
+)
 from dna_utils.gc_policy import resolve_gc_policy  # noqa: E402
 from evaluation_siglip2 import (  # noqa: E402
     EVALUATION_SCHEMA_VERSION,
@@ -45,18 +48,6 @@ from evaluation_siglip2 import (  # noqa: E402
     evaluation,
     resolve_map_at_r,
 )
-
-
-_CANONICAL_DATASET = {
-    "cifar10": "CIFAR10",
-    "flickr25k": "Flickr25k",
-    "mscoco": "MSCOCO",
-    "nuswide": "NUSWIDE",
-}
-
-
-def _canonical_dataset_name(value: object) -> object:
-    return _CANONICAL_DATASET.get(str(value), value)
 
 
 def _read_json_artifact(path: str) -> tuple[dict, dict]:

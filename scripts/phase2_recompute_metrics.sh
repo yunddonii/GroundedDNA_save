@@ -1,153 +1,182 @@
 #!/usr/bin/env bash
-# Recompute the Phase 2 metrics from a COMMITTED source and seal each result.
-#
-# The first attempt ran while the validator was still being edited, so the first
-# seven cells and the rest were computed by different code and the artefacts
-# cannot tell them apart. The second ran from a clean commit but called the
-# bio-evaluation only: no NMI, so every marker it wrote was missing a metric,
-# and the fixed side was recomputed while the legacy side was left as whatever
-# ran in August (§20.7). A delta whose two halves come from different evaluators
-# is not a delta anyone can quote.
-#
-# This runs all three stages -- evaluation, NMI, seal -- over both sides, and
-# records the commit it ran from. It refuses to start if the tree is dirty for
-# any file the numbers depend on.
-#
-# Usage:
-#   scripts/phase2_recompute_metrics.sh [gpu]
+# Re-score the two inventory-bound Phase-2 F01 roots with one committed CPU
+# evaluator, then issue the exact-15/15 diagnostic report receipt.
 set -euo pipefail
-cd /home/yschoi/GroundedDNA
-PY=/home/yschoi/.conda/envs/dna_hashing/bin/python
-GPU="${1:-0}"
 
-FIXED_ROOT=result_diagnostic/phase2_F01_only
-LEGACY_ROOT=result_diagnostic/phase2_legacy_bound
+SCRIPT=$(realpath "${BASH_SOURCE[0]}")
+REPO=$(dirname "$(dirname "$SCRIPT")")
+DEFAULT_PY=/home/yschoi/.conda/envs/dna_hashing/bin/python
 
-# The driver itself is a dependency: a change to which stages run, or in which
-# order, changes the artefacts as surely as a change to the evaluator.
-DEPS=(scripts/eval_cell_bioproj.py scripts/pairwise_nmi.py
-      scripts/seal_cell_analysis.py scripts/phase2_recompute_metrics.sh
-      scripts/_phase2_cell_state.py scripts/bind_legacy_phase2.py
-      dna_utils/extraction_validation.py dna_utils/runtime_state.py
-      dna_utils/bio_constraints.py dna_utils/gc_policy.py
-      dna_utils/dna_code_utils.py evaluation_siglip2.py)
-if [[ -n "$(git status --porcelain "${DEPS[@]}")" ]]; then
-    echo "refusing: the evaluation source is dirty; commit it first" >&2
-    git status --short "${DEPS[@]}" >&2
+if [[ "${1:-}" == "--run-cell" ]]; then
+    [[ "$#" -eq 8 ]] || exit 64
+    cd "$2"
+    PY=$3; side=$4; cell=$5; dataset=$6; codebook_size=$7; log=$8
+    [[ ! -e "$log" && ! -L "$log" ]] || {
+        echo "refusing existing log $log" >&2; exit 65; }
+    umask 077
+    set -o noclobber
+    exec >"$log" 2>&1
+    set +o noclobber
+    echo "[phase2] side=$side cell=$cell dataset=$dataset K=$codebook_size"
+    env -u PYTHONPATH CUDA_VISIBLE_DEVICES='' GDNA_NUM_SEMANTIC_PARTS=5 \
+        OMP_NUM_THREADS=4 MKL_NUM_THREADS=4 \
+        "$PY" evaluation_siglip2.py --extraction_path "$cell" \
+        --distance_mode base --codebook_size "$codebook_size" \
+        --dataset "$dataset" --no-bio_project --query_chunk_size 64
+    env -u PYTHONPATH CUDA_VISIBLE_DEVICES='' GDNA_NUM_SEMANTIC_PARTS=5 \
+        OMP_NUM_THREADS=4 MKL_NUM_THREADS=4 \
+        "$PY" scripts/eval_cell_bioproj.py --dir "$cell" \
+        --dataset "$dataset" --K "$codebook_size" --allow-backfilled
+    env -u PYTHONPATH CUDA_VISIBLE_DEVICES='' OMP_NUM_THREADS=4 \
+        MKL_NUM_THREADS=4 "$PY" scripts/pairwise_nmi.py \
+        --results "$cell" --allow-backfilled
+    env -u PYTHONPATH CUDA_VISIBLE_DEVICES='' "$PY" \
+        scripts/seal_cell_analysis.py --dir "$cell" --allow-backfilled
+    state=$(env -u PYTHONPATH CUDA_VISIBLE_DEVICES='' "$PY" \
+        scripts/_phase2_cell_state.py "$cell" \
+        --allow-backfilled --require-valid)
+    [[ "$state" == complete ]] || {
+        echo "cell did not finish complete: $state" >&2; exit 66; }
+    echo "[phase2] COMPLETE $side/$(basename "$cell")"
+    exit 0
+fi
+
+usage() {
+    echo "usage: $0 --fixed-root PATH --legacy-root PATH --log-root PATH --report-root PATH [--python PATH] [--jobs N]" >&2
+    exit 64
+}
+
+FIXED_ROOT= LEGACY_ROOT= LOG_ROOT= REPORT_ROOT=
+PY=$DEFAULT_PY
+JOBS=4
+while [[ "$#" -gt 0 ]]; do
+    case "$1" in
+        --fixed-root) FIXED_ROOT=${2:-}; shift 2 ;;
+        --legacy-root) LEGACY_ROOT=${2:-}; shift 2 ;;
+        --log-root) LOG_ROOT=${2:-}; shift 2 ;;
+        --report-root) REPORT_ROOT=${2:-}; shift 2 ;;
+        --python) PY=${2:-}; shift 2 ;;
+        --jobs) JOBS=${2:-}; shift 2 ;;
+        *) usage ;;
+    esac
+done
+[[ -n "$FIXED_ROOT" && -n "$LEGACY_ROOT" && -n "$LOG_ROOT" \
+   && -n "$REPORT_ROOT" ]] || usage
+[[ "$JOBS" =~ ^[1-9][0-9]*$ && "$JOBS" -le 8 ]] || usage
+[[ -x "$PY" ]] || { echo "refusing non-executable Python: $PY" >&2; exit 2; }
+
+cd "$REPO"
+[[ ! -L "$FIXED_ROOT" && ! -L "$LEGACY_ROOT" ]] || {
+    echo "input roots must not be symlinks" >&2; exit 2; }
+FIXED_ROOT=$(realpath "$FIXED_ROOT")
+LEGACY_ROOT=$(realpath "$LEGACY_ROOT")
+LOG_ROOT=$(realpath -m "$LOG_ROOT")
+REPORT_ROOT=$(realpath -m "$REPORT_ROOT")
+[[ -d "$FIXED_ROOT" && -d "$LEGACY_ROOT" ]] || {
+    echo "both input roots must exist" >&2; exit 2; }
+[[ ! -e "$LOG_ROOT" && ! -L "$LOG_ROOT" \
+   && ! -e "$REPORT_ROOT" && ! -L "$REPORT_ROOT" ]] || {
+    echo "log/report roots must be fresh and absent" >&2; exit 2; }
+PATHS=("$FIXED_ROOT" "$LEGACY_ROOT" "$LOG_ROOT" "$REPORT_ROOT")
+for ((i=0; i<${#PATHS[@]}; i++)); do
+    for ((j=i+1; j<${#PATHS[@]}; j++)); do
+        if [[ "${PATHS[$i]}" == "${PATHS[$j]}" \
+           || "${PATHS[$i]}" == "${PATHS[$j]}/"* \
+           || "${PATHS[$j]}" == "${PATHS[$i]}/"* ]]; then
+            echo "input/log/report roots must be disjoint" >&2; exit 2
+        fi
+    done
+done
+[[ "$LOG_ROOT" != "$REPO" && "$LOG_ROOT" != "$REPO/"* \
+   && "$REPORT_ROOT" != "$REPO" && "$REPORT_ROOT" != "$REPO/"* ]] || {
+    echo "log/report roots must be outside the clean source tree" >&2; exit 2; }
+
+STATUS_START=$(git status --porcelain) || {
+    echo "cannot inspect Phase-2 source status" >&2; exit 2; }
+if [[ -n "$STATUS_START" ]]; then
+    echo "refusing dirty Phase-2 source" >&2
+    git status --short >&2
     exit 2
 fi
-HEAD_SHA=$(git rev-parse HEAD)
-echo "[recompute] source commit $HEAD_SHA on gpu $GPU"
+HEAD_START=$(git rev-parse HEAD)
 
-canon() {
-    case "$1" in
-    cifar10)   echo "CIFAR10 64"   ;;
-    flickr25k) echo "Flickr25k 128" ;;
-    nuswide)   echo "NUSWIDE 128"  ;;
-    mscoco)    echo "MSCOCO 128"   ;;
-    *) return 1 ;;
-    esac
-}
-
-FAILED=0
-
-recompute_side() {
-    local d="$1" side="$2"
-    local n ds C K
-    n=$(basename "$d"); ds=${n%_N*}
-    read -r C K <<<"$(canon "$ds")" || { echo "  [$side] $n: unknown dataset" >&2; FAILED=1; return; }
-
-    # Phase 2 is the retrospectively bound diagnostic on both sides, so the
-    # opt-in is explicit rather than a default anything else can inherit.
-    if ! CUDA_VISIBLE_DEVICES="$GPU" GDNA_NUM_SEMANTIC_PARTS=5 \
-         "$PY" scripts/eval_cell_bioproj.py --dir "$d" --dataset "$C" --K "$K" \
-         --allow-backfilled >> logs/phase2_recompute.log 2>&1; then
-        echo "  [$side] $n bioproj FAIL"; FAILED=1; return
+"$PY" scripts/bind_legacy_phase2.py --verify-root "$FIXED_ROOT" --side fixed
+"$PY" scripts/bind_legacy_phase2.py --verify-root "$LEGACY_ROOT" --side legacy
+for root in "$FIXED_ROOT" "$LEGACY_ROOT"; do
+    if find "$root" -mindepth 2 -maxdepth 2 \
+        \( -name 'evaluation_siglip2*.json' -o -name 'cell_result.json' \
+           -o -name 'pairwise_nmi.json' -o -name 'analysis_complete.json' \) \
+        -print -quit | grep -q .; then
+        echo "refusing input root that already contains metric output: $root" >&2
+        exit 2
     fi
-    if ! CUDA_VISIBLE_DEVICES="$GPU" \
-         "$PY" scripts/pairwise_nmi.py --results "$d" --allow-backfilled \
-         >> logs/phase2_recompute.log 2>&1; then
-        echo "  [$side] $n nmi FAIL"; FAILED=1; return
-    fi
-    if ! "$PY" scripts/seal_cell_analysis.py --dir "$d" --allow-backfilled \
-         >> logs/phase2_recompute.log 2>&1; then
-        echo "  [$side] $n seal FAIL"; FAILED=1; return
-    fi
-    echo "  [$side] $n ok"
-}
+done
 
-# PREFLIGHT, before anything is written. The first version recomputed all 15
-# fixed cells and only then noticed that the legacy root did not exist, so it
-# overwrote production and exited INCOMPLETE with half a delta on disk (§22.2).
-# The exact expected cell set is checked on both roots, not an arbitrary subset:
-# one fixed plus one legacy would otherwise finish with FAILED=0 and print DONE.
+mkdir -m 0755 -- "$LOG_ROOT" "$REPORT_ROOT"
+PAIR_RECEIPT="$REPORT_ROOT/phase2_input_pair_receipt.json"
+"$PY" scripts/aggregate_phase2_f01.py \
+    --phase2-root "$FIXED_ROOT" --legacy-root "$LEGACY_ROOT" \
+    --pair-receipt "$PAIR_RECEIPT" --seal-input-pair
+
 EXPECTED_CELLS=(cifar10_N4 cifar10_N9 cifar10_N19 cifar10_N39
                 flickr25k_N4 flickr25k_N9 flickr25k_N19
                 nuswide_N4 nuswide_N9 nuswide_N19 nuswide_N39
                 mscoco_N4 mscoco_N9 mscoco_N19 mscoco_N39)
-
-preflight_root() {
-    local root="$1" side="$2" missing=0
-    if [[ ! -d "$root" ]]; then
-        echo "[preflight] $side root $root is absent" >&2
-        if [[ "$side" == legacy ]]; then
-            echo "            run scripts/bind_legacy_phase2.py first" >&2
-        fi
-        return 1
-    fi
-    for cell in "${EXPECTED_CELLS[@]}"; do
-        if [[ ! -d "$root/$cell" ]]; then
-            echo "[preflight] $side: missing cell $cell" >&2; missing=1; continue
-        fi
-        # An unreadable extraction here means an aborted run later, after the
-        # earlier cells have already been overwritten.
-        if ! "$PY" scripts/_phase2_cell_state.py "$root/$cell" \
-             --allow-backfilled --require-valid >/dev/null 2>&1; then
-            echo "[preflight] $side: $cell does not validate" >&2; missing=1
-        fi
-    done
-    local found
-    found=$(find "$root" -mindepth 1 -maxdepth 1 -type d | wc -l)
-    if [[ "$found" != "${#EXPECTED_CELLS[@]}" ]]; then
-        echo "[preflight] $side: $found cell dirs, expected ${#EXPECTED_CELLS[@]}" >&2
-        missing=1
-    fi
-    return "$missing"
+canonical() {
+    case "$1" in
+        cifar10) echo "CIFAR10 64" ;;
+        flickr25k) echo "Flickr25k 128" ;;
+        nuswide) echo "NUSWIDE 128" ;;
+        mscoco) echo "MSCOCO 128" ;;
+        *) return 1 ;;
+    esac
 }
 
-PREFLIGHT_OK=0
-preflight_root "$FIXED_ROOT" fixed || PREFLIGHT_OK=1
-preflight_root "$LEGACY_ROOT" legacy || PREFLIGHT_OK=1
-mkdir -p logs
-: >> logs/phase2_recompute.log || { echo "[preflight] logs are not writable" >&2; PREFLIGHT_OK=1; }
-if [[ "$PREFLIGHT_OK" != "0" ]]; then
-    echo "RECOMPUTE REFUSED $HEAD_SHA (nothing was written)" >&2
-    exit 2
-fi
-echo "[recompute] preflight ok: ${#EXPECTED_CELLS[@]} cells on each of 2 roots"
+{
+    for side in fixed legacy; do
+        root=$FIXED_ROOT; [[ "$side" == legacy ]] && root=$LEGACY_ROOT
+        for name in "${EXPECTED_CELLS[@]}"; do
+            slug=${name%_N*}; read -r dataset k <<<"$(canonical "$slug")"
+            printf '%s\0%s\0%s\0%s\0%s\0' "$side" "$root/$name" \
+                "$dataset" "$k" "$LOG_ROOT/${side}_${name}.log"
+        done
+    done
+} | xargs -0 -r -n 5 -P "$JOBS" "$SCRIPT" --run-cell "$REPO" "$PY"
 
-for cell in "${EXPECTED_CELLS[@]}"; do
-    recompute_side "$FIXED_ROOT/$cell" fixed
-done
-
-# The legacy faces must come from the SAME evaluator, or the delta measures the
-# evaluator change as much as F01 (§19.4). They are bound by
-# scripts/bind_legacy_phase2.py, which never writes into the legacy run itself.
-for cell in "${EXPECTED_CELLS[@]}"; do
-    recompute_side "$LEGACY_ROOT/$cell" legacy
-done
-
-# Count what is actually on disk rather than trusting the loop's own bookkeeping.
+"$PY" scripts/bind_legacy_phase2.py --verify-root "$FIXED_ROOT" --side fixed
+"$PY" scripts/bind_legacy_phase2.py --verify-root "$LEGACY_ROOT" --side legacy
 for root in "$FIXED_ROOT" "$LEGACY_ROOT"; do
-    sealed=$(find "$root" -name analysis_complete.json -type f | wc -l)
-    if [[ "$sealed" != "${#EXPECTED_CELLS[@]}" ]]; then
-        echo "[recompute] $root: $sealed seals, expected ${#EXPECTED_CELLS[@]}" >&2
-        FAILED=1
-    fi
+    [[ "$(find "$root" -mindepth 2 -maxdepth 2 -type f \
+        -name analysis_complete.json | wc -l)" -eq 15 ]] || {
+        echo "not all 15 cells are sealed under $root" >&2; exit 1; }
 done
+[[ "$(git rev-parse HEAD)" == "$HEAD_START" ]] || {
+    echo "source HEAD changed during Phase 2" >&2; exit 2; }
+STATUS_END=$(git status --porcelain) || {
+    echo "cannot re-inspect Phase-2 source status" >&2; exit 2; }
+[[ -z "$STATUS_END" ]] || {
+    echo "Phase-2 source changed during execution" >&2; exit 2; }
 
-if [[ "$FAILED" != "0" ]]; then
-    echo "RECOMPUTE INCOMPLETE $HEAD_SHA" >&2
-    exit 1
-fi
-echo "RECOMPUTE DONE $HEAD_SHA"
+"$PY" scripts/aggregate_phase2_f01.py \
+    --phase2-root "$FIXED_ROOT" --legacy-root "$LEGACY_ROOT" \
+    --pair-receipt "$PAIR_RECEIPT" \
+    --out-json "$REPORT_ROOT/phase2_f01_impact.json" \
+    --out-md "$REPORT_ROOT/phase2_f01_impact.md" \
+    --out-receipt "$REPORT_ROOT/phase2_f01_receipt.json"
+[[ "$(git rev-parse HEAD)" == "$HEAD_START" ]] || {
+    echo "source HEAD changed during final aggregation" >&2; exit 2; }
+STATUS_FINAL=$(git status --porcelain) || {
+    echo "cannot inspect final Phase-2 source status" >&2; exit 2; }
+[[ -z "$STATUS_FINAL" ]] || {
+    echo "Phase-2 source changed during final aggregation" >&2; exit 2; }
+"$PY" scripts/aggregate_phase2_f01.py --verify-report-receipt \
+    "$REPORT_ROOT/phase2_f01_receipt.json" \
+    --expected-fixed-root "$FIXED_ROOT" \
+    --expected-legacy-root "$LEGACY_ROOT" \
+    --expected-pair-receipt "$PAIR_RECEIPT" \
+    --expected-report-json "$REPORT_ROOT/phase2_f01_impact.json" \
+    --expected-report-md "$REPORT_ROOT/phase2_f01_impact.md"
+[[ -f "$REPORT_ROOT/phase2_f01_receipt.json" \
+   && ! -L "$REPORT_ROOT/phase2_f01_receipt.json" ]] || {
+    echo "aggregator returned without its completion receipt" >&2; exit 1; }
+echo "PHASE2 COMPLETE head=$HEAD_START report=$REPORT_ROOT/phase2_f01_receipt.json"

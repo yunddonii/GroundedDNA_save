@@ -28,6 +28,7 @@ from scripts.aggregate_phase2_f01 import (  # noqa: E402
     expected_protocol,
 )
 from dna_utils.gc_policy import resolve_gc_policy  # noqa: E402
+import sklearn  # noqa: E402
 
 REPORT = REPO / "docs" / "phase2_f01_impact.json"
 
@@ -82,7 +83,9 @@ def test_the_expected_protocol_pins_the_gc_fractions_and_nmi_convention():
     protocol = expected_protocol("cifar10", resolve_gc_policy(15))
     assert protocol["gc_min_frac"] == pytest.approx(0.4)
     assert protocol["gc_max_frac"] == pytest.approx(0.6)
+    assert protocol["bio_max_homopolymer_run"] == 3
     assert protocol["nmi_average_method"] == "arithmetic"
+    assert protocol["sklearn_version"] == sklearn.__version__
 
 
 # ------------------------------------------------ the published report

@@ -26,7 +26,9 @@ from dna_utils.extraction_validation import (  # noqa: E402
     ExtractionInvalid,
     metric_input_binding,
     read_analysis_marker,
+    validate_extraction_run,
 )
+from dna_utils.runtime_state import sha256_file  # noqa: E402
 import scripts.eval_cell_bioproj as bio_eval_script  # noqa: E402
 from evaluation_siglip2 import evaluation as run_evaluation  # noqa: E402
 from scripts.pairwise_nmi import _record_for_result  # noqa: E402
@@ -137,6 +139,49 @@ def test_both_halves_present_seals_the_full_metric_set(tmp_path):
         "raw", "bio_projected", "cell_result", "pairwise_nmi"}
     assert set(payload["extraction_evidence"]["npz_artifacts"]) == {
         "db", "query"}
+
+
+def test_seal_accepts_canonical_name_for_slug_extraction_identity(tmp_path):
+    cell = _cell(tmp_path)
+    completion_path = cell / "extraction_complete.json"
+    completion = json.loads(completion_path.read_text())
+    for split in ("db", "query"):
+        manifest_path = cell / f"extraction_manifest_{split}.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["dataset"] = "cifar10"
+        manifest["backfilled"] = True
+        manifest_path.write_text(json.dumps(manifest, indent=2))
+        completion["manifest_sha256"][split] = sha256_file(
+            str(manifest_path))
+    completion_path.write_text(json.dumps(completion, indent=2))
+
+    run = validate_extraction_run(str(cell), allow_backfilled=True)
+    assert run.common["dataset"] == "cifar10"
+    commands = [
+        [sys.executable, str(REPO / "evaluation_siglip2.py"),
+         "--extraction_path", str(cell), "--distance_mode", "base",
+         "--codebook_size", "64", "--dataset", "CIFAR10",
+         "--no-bio_project", "--query_chunk_size", "64"],
+        [sys.executable, str(REPO / "scripts" / "eval_cell_bioproj.py"),
+         "--dir", str(cell), "--dataset", "CIFAR10", "--K", "64",
+         "--allow-backfilled"],
+        [sys.executable, str(REPO / "scripts" / "pairwise_nmi.py"),
+         "--results", str(cell), "--allow-backfilled"],
+        [sys.executable, str(SCRIPT), "--dir", str(cell),
+         "--allow-backfilled"],
+    ]
+    for command in commands:
+        process = subprocess.run(
+            command, capture_output=True, text=True, cwd=tmp_path,
+            timeout=300)
+        assert process.returncode == 0, process.stdout + process.stderr
+    cell_result = json.loads((cell / "cell_result.json").read_text())
+    assert cell_result["dataset"] == "CIFAR10"
+    assert cell_result["input_binding"]["dataset"] == "cifar10"
+    marker = read_analysis_marker(
+        str(cell), allow_backfilled=True,
+        expected_protocol={"dataset": "CIFAR10"})
+    assert marker["input_binding"]["dataset"] == "cifar10"
 
 
 def test_main_requires_one_three_split_transaction(tmp_path):
