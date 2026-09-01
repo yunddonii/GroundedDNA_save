@@ -84,6 +84,36 @@ def _stability_decisions(*, topp=("0.4", "0.8"), joint="0.03", n=9):
     }
 
 
+def test_emit_stage_plan_cli_initial_succeeds(tmp_path):
+    """The real CLI must reach its publisher, not shadow it in ``main``."""
+    import subprocess as _sp
+    from scripts.phase3_select_n import (
+        initial_recipe_state, load_stability_stage_authority)
+
+    out = tmp_path / "bootstrap_topp.json"
+    proc = _sp.run(
+        [sys.executable, str(REPO / "scripts" / "phase3_select_n.py"),
+         "--emit-stage-plan", "bootstrap_topp",
+         "--state", "initial",
+         "--round-index", "0",
+         "--max-update-rounds", "3",
+         "--out", str(out)],
+        capture_output=True, text=True, cwd=str(REPO), timeout=120)
+
+    assert proc.returncode == 0, proc.stderr
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["artifact_kind"] == \
+        "phase3_recipe_stability_stage_plan"
+    assert payload["phase"] == "bootstrap_topp"
+    assert payload["axis"] == "topp"
+    assert payload["round_index"] == 0
+    assert payload["max_update_rounds"] == 3
+    assert payload["state"] == initial_recipe_state()
+    authority = load_stability_stage_authority(out)
+    assert authority["path"] == str(out.resolve())
+    assert authority["phase"] == "bootstrap_topp"
+
+
 def test_recipe_stability_honest_fixed_point_and_explicit_cifar_pin():
     from scripts.phase3_select_n import (
         PINNED_CIFAR_TOPP_POLICY, run_recipe_stability)

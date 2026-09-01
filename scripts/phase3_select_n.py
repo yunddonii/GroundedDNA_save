@@ -2254,9 +2254,14 @@ def main() -> int:
     }
 
     out = Path(args.out)
-    from scripts.phase3_selection_matrix import _publish_json_exclusive
+    # Keep this import distinct from this module's stage/stability publisher.
+    # Importing it under the same name inside ``main`` makes that name local to
+    # the whole function, so the earlier --emit-stage-plan and
+    # --stability-spec branches raise UnboundLocalError before publishing.
+    from scripts.phase3_selection_matrix import (
+        _publish_json_exclusive as _publish_matrix_json_exclusive)
     try:
-        _publish_json_exclusive(out, payload)
+        _publish_matrix_json_exclusive(out, payload)
     except Exception as error:                         # noqa: BLE001
         print(f"[phase3-select] REFUSED output: {error}", file=sys.stderr)
         return 1
