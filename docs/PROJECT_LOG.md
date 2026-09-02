@@ -673,9 +673,58 @@ and a test pins that.
 `scripts/pairwise_nmi.py` was already inside `_BOOTSTRAP_SOURCE_PATHS`, so the shared
 implementation is bound by the campaign's source authority like every other producer.
 
+### Correction: the audit session cannot approve GPU execution, and I recorded otherwise
+
+Commit `023fc47`'s body ends "Phase 3 waits for the audit session's approval." That is
+wrong, and audit §78.4 is right to flag it: §64.6 and §65.4 raised the Phase-2 → Phase-3
+serialisation as a **user decision**. The audit's role is to say where a relaxation is
+needed and whether the technical preconditions are closed — not to grant execution.
+Left uncorrected, that sentence would later read as "the audit approved this." It did
+not. Commits are not amended here, so the correction lives in this entry.
+
+### The recommended refit-smoke-first order cannot be executed
+
+Audit §80.4 recommends running one refit cell end to end before the twelve. That order
+is not reachable from the launcher as written, verified directly:
+
+```
+$ phase3_selection_matrix.py --refit --smoke --only cifar10:4
+[phase3] REFUSED --recipe: production N/refit needs one confirmed recipe-stability artefact
+```
+
+`--refit` requires a confirmed recipe-stability artefact even for a smoke, and that
+artefact only exists after P → JD → N reach a fixed point. Nor can the post-process be
+exercised on an existing directory instead: `assert_refit_outputs` requires db, query
+**and** train, and selection cells extract nothing — all six 2026-08-31 `phase3topp`
+run directories contain zero `extract_*.npz`. Exercising that chain needs a refit-shaped
+training run, which is the thing being gated.
+
+So the only feasible order is:
+
+```
+P12 -> JD20 -> N16 -> fixed point -> refit smoke -> refit 12
+```
+
+The refit smoke survives, and lands immediately before production refit — which is
+where §68.3's "one real cell before the batch" rule actually wants it, and where
+§80.3's three never-executed branches (three splits, `allow_backfilled=False`, the MAIN
+three-split seal contract) first matter.
+
+One cost note for whoever plans the stage. A one-coordinate P12 smoke does **not** cost
+one cell's worth of admission: `_run_sweep` verifies the seals of the DECLARED sweep,
+and for `axis == "topp"` that is `TOPP_SWEEP_DATASETS x TOPP_GRID` = twelve cells over
+three datasets regardless of what `--only` narrows execution to. So a smoke pays the
+same ~452 GB full seal pass as production — about 54 minutes at the 115-139 MB/s this
+host sustains — and production then pays it again. That is the surviving half of the
+bookend cost; `FINAL_BOOKEND_FULL` removed the other. Against that, the selection path
+already has real evidence: nine cells completed 9/9 under this launcher on 2026-08-31,
+and none of `b177207`, `ac1d185` or `023fc47` touched the selection cell path.
+
 ### Next
 
-Phase 2 completes first; Phase 3 starts once the audit session approves. P12
+GPU trainer cells remain at zero pending the user's decision, now that the audit has
+stated it cannot supply one. `phase2-authority` (`b36ad6f`) and `phase3-exec-20260902`
+were pushed to origin before any GPU work, per §79.3 and §80.4-4. P12
 (`bootstrap_topp`) → JD20 → N16 → fixed point → refit12, from this frozen tree. Before
 the twelve refits, one refit cell runs end to end including post-process — that chain
 has never executed on real data, which is exactly where the defect above was hiding.
