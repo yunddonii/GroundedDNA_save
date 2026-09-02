@@ -487,6 +487,109 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-02 Phase 1 closes on a frozen Phase-3 tree; the campaign stops rehashing 452 GB it already read
+
+Status: 🟢 active
+
+Phase 3 had two hard blockers (audit §63.9): no full unit/integration receipt on a
+clean commit, and the Phase-2 current-source re-admission. Both were being treated
+as one serial queue in a single shared worktree, so every Phase-2 source edit
+invalidated the suite receipt that gates Phase 3. That queue had run 19 days
+(2026-08-14 → 09-02) with **zero paper-valid cells** and all six GPUs idle for the
+last 43.6 hours (audit §64.5).
+
+### The coupling was the shared tree, not the science
+
+Phase 3 does not read a single Phase-2 artifact. Its sealed source closure is
+`PROTOCOL_SOURCES = (phase3_selection_matrix.py, train_siglip2.py, model_siglip2.py,
+config.py, dna_utils/run_identity.py)` plus the per-dataset trainer shell, and no
+Phase-2 file is in it. The master protocol itself scopes Phase 2 as
+"epoch-0 버그 영향 보고용이며 F02의 paper-valid 선택을 대체하지 않는다"
+(`EXPERIMENT_PROTOCOL_AUDIT_2026-08-13.md:578-609`).
+
+So Phase 3 was moved to its own frozen worktree, `/data/yschoi/gdna_p3exec` at
+`608280e`, with only gitignored dataset payloads symlinked in. Phase-2 work
+continues in `groundeddna_phase3_release_85442cca` and can no longer invalidate
+this tree's receipt. Master Phase 1 is met literally — full repository suite, not a
+narrowed one — with no relaxation of the clause.
+
+| run | bytes | result |
+|---|---|---|
+| clean `608280e` | pre-change | `1263 passed, 54 skipped, 31 subtests`, 544.14s, rc0 |
+| `608280e` + this change | post-change | `1264 passed, 54 skipped, 31 subtests`, 538.18s, rc0 |
+
+Both ran to completion under `CUDA_VISIBLE_DEVICES=''`; HEAD and `git status` were
+re-checked after each. No trainer ran.
+
+### The final input-seal bookend was a duplicate pass, measured
+
+Each campaign verified its input seals twice at full byte level — once at admission
+(`full=True`) and once more immediately before writing its receipt. Measured on this
+host:
+
+| | sealed bytes | one pass @ 115 MB/s |
+|---|---:|---:|
+| 3 swept datasets (P) | 452,143,242,085 | 65 min |
+| 4 datasets (JD / N / refit) | ~526 GB | 76 min |
+
+Byte counts are the seals' own `hash_summary.unique_resolved_content_bytes`;
+115 MB/s is a measured cold 8 GiB read of `nuswide_clip_tokens/text_tokens.f16.npy`.
+The working set is 452–526 GB against 251 GB of RAM, so unlike the Phase-2 figures
+in audit §64.2 it does not sit in page cache. Across P→JD→N→refit the second pass
+alone costs ~4.5 h, more than every trainer in those campaigns combined (measured
+16-cell N matrix = 183 GPU-min; top-p 9 cells = 29 min wall-clock).
+
+It also detects nothing new. `verify_snapshot` already runs the stats-only recheck
+around **every** cell, so at the receipt the last cell's own recheck has just covered
+the same inputs. A second full rehash can only catch a mutation that landed after
+that recheck *and* preserved every file's lstat, link text, resolved target stat and
+directory inventory — deliberate forgery, not the drift this bookend exists to catch.
+`verify_seal_stats` was written for exactly this pattern; its docstring says so.
+
+| Change | Implementation |
+|---|---|
+| Final bookend is stats-only | `FINAL_BOOKEND_FULL = False`, consumed by both campaign runners |
+| Admission unchanged | `verify_campaign_input_seals(..., full=True)` in both runners |
+| Bound to admission digest | stats path is checked against the admission `aggregate_sha256` |
+
+Two tests. One fixes the campaign contract (`FINAL_BOOKEND_FULL is False`, two
+bookend call sites, zero `full=True` bookends, two untouched admissions). The other
+is behavioural: it seals a real fixture, then shows the stats path still refuses a
+foreign aggregate digest, a rewritten sealed input, and a stat-only `utime` change.
+That test documents the boundary that was traded away rather than asserting it does
+not exist.
+
+### Record of 2026-09-01 → 09-02 (audit §61.6–§63.32), none of which produced a cell
+
+Carried here because PROJECT_LOG had no entry after 2026-08-31 (PM4) and the audit
+document is the watcher's record, not this project's.
+
+- Three accidental `phase3toppB` partial trainer runs, byte-preserving quarantine (§61.6, §62.1).
+- Two Phase-2 input roots built out of order — an old binder that consumed no
+  inventory, and an ad-hoc `shutil.copyfile` staging — both quarantined
+  `PRE_AUTHORITY_DIAGNOSTIC_ONLY_NEVER_CONSUME`, never consumed (§63.15–63.16).
+- A 30-cell CPU metric batch started on those roots, failed at the BIO dataset-alias
+  boundary (11/15 raw, 0/15 BIO), interrupted; the roots must never be retried in
+  place (§63.17–63.18).
+- `41fce1b` was green but false: its tests checked helper strings, not the real
+  lowercase cell path, so the same alias contract still failed at the sealer (§63.20–63.21).
+- Audit §64.2 **retracts** §63.31's cost argument: the 121 GB figure was wrong in both
+  directions (actually 167 GB, but warm in page cache ≈ 15 min), and the gate it
+  justified burned tens of GPU-hours to save ~3 minutes. Cost now blocks a step only
+  above 30 measured wall-clock minutes.
+- `66b3c04` is reachable from no branch — only the detached worktree HEAD (§64.7).
+
+`paper_table_eligible: true` artifacts remain **0** repository-wide. Every current
+table number stays historical/diagnostic.
+
+### Next
+
+P12 (`bootstrap_topp`) → JD20 → N16 → fixed point → refit12, from this frozen tree,
+with Phase-2 diagnostics running on CPU in parallel. Input seals are rebuilt here
+because the existing three bind absolute paths and inodes under the other worktree.
+
+---
+
 ## 2026-08-31 (PM4) The two launch gates: namespace collision, and the re-signed manifest
 
 Both were required before the 12-cell sweep. Both are closed, and both have a

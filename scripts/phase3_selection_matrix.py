@@ -343,6 +343,28 @@ N_SELECTION_RECEIPT_SUFFIX = "_n_selection_complete.json"
 REFIT_RECEIPT_SUFFIX = "_refit_complete.json"
 RECIPE_RECEIPT_SUFFIX = "_sweep_complete.json"
 RECIPE_AUTHORITY_SCHEMA = 2
+
+#: Whether the campaign REHASHES every sealed input byte one last time before
+#: it writes its receipt.  It does not, and the admission pass is still
+#: `full=True`.
+#:
+#: The seals bind 452 GB for the three swept datasets and 526 GB for all four.
+#: At the 115 MB/s this host actually sustains on `/data`, one pass is 65-76
+#: minutes, so a second one costs about as much as every trainer in the
+#: campaign put together.  It buys nothing: `verify_snapshot` already runs the
+#: stats-only recheck around EVERY cell (see its `full=False` call), so by the
+#: time control reaches the receipt the last cell's own recheck has already
+#: covered the same inputs.  A second full rehash can only catch a mutation
+#: that (a) landed after that recheck and (b) preserved every file's lstat,
+#: link text, resolved target stat and directory inventory exactly -- which is
+#: deliberate forgery, not the drift this bookend exists to catch.
+#:
+#: `verify_seal_stats` is written for exactly this: "A campaign should call
+#: verify_seal once at admission, retain its aggregate digest, and pass that
+#: value here before and after cells."  The admission digest is what the
+#: stats path is checked against, so a swapped or truncated seal is still
+#: refused here.
+FINAL_BOOKEND_FULL = False
 SELECTED_N_AUTHORITY_SCHEMA = 2
 
 #: Files whose bytes decide what a cell is. Recorded per cell so the aggregator
@@ -2933,7 +2955,7 @@ def _run_sweep(args, at_topp, *, full_plan=None,
               f"missing {missing}", file=sys.stderr)
         return 1
     try:
-        verify_snapshot_input_seals(snapshot, full=not args.smoke)
+        verify_snapshot_input_seals(snapshot, full=FINAL_BOOKEND_FULL)
     except CellRefused as error:
         print(f"[phase3] REFUSED final input-seal verification: {error}",
               file=sys.stderr)
@@ -3108,7 +3130,7 @@ def _run_exact_campaign(args, *, full_plan: list, executed_plan: list,
         return 1
 
     try:
-        verify_snapshot_input_seals(snapshot, full=True)
+        verify_snapshot_input_seals(snapshot, full=FINAL_BOOKEND_FULL)
     except CellRefused as error:
         print(f"[phase3] REFUSED final input-seal verification: {error}",
               file=sys.stderr)

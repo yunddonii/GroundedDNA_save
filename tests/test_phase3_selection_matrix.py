@@ -921,11 +921,23 @@ def test_a_direct_one_cell_smoke_remains_available(monkeypatch):
     assert seen == [("flickr25k:0.3,0.7", 1)]
 
 
-def test_only_smoke_uses_fast_final_input_bookend():
+def test_no_campaign_rehashes_every_sealed_byte_at_its_receipt():
+    """The final bookend is stats-only; only ADMISSION rehashes content.
+
+    Both campaign runners reach their receipt through `FINAL_BOOKEND_FULL`, so
+    neither can quietly reintroduce a second 452-526 GB pass.  Admission stays
+    `full=True` in both, which is what the stats path is later checked against.
+    """
+    import scripts.phase3_selection_matrix as M
+
+    assert M.FINAL_BOOKEND_FULL is False
     source = (REPO / "scripts" / "phase3_selection_matrix.py").read_text()
     assert source.count(
-        "verify_snapshot_input_seals(snapshot, full=not args.smoke)") == 1
-    assert source.count("verify_snapshot_input_seals(snapshot, full=True)") == 1
+        "verify_snapshot_input_seals(snapshot, full=FINAL_BOOKEND_FULL)") == 2
+    assert source.count("verify_snapshot_input_seals(snapshot, full=True)") == 0
+    # Admission is untouched: one full campaign-seal verification per runner.
+    assert source.count(
+        "verify_campaign_input_seals(\n            args.input_seal_specs, full_plan, full=True)") == 2
 
 
 def test_two_simultaneous_fresh_callers_admit_exactly_one(

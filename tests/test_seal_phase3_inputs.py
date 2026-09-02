@@ -352,6 +352,44 @@ def test_seal_verify_and_symlink_target_hash_memoization(tmp_path: Path) -> None
     ) == authority
 
 
+def test_the_stats_only_bookend_still_refuses_real_input_drift(
+    tmp_path: Path,
+) -> None:
+    """What the campaign's final bookend gives up, and what it keeps.
+
+    `FINAL_BOOKEND_FULL` makes the receipt-side check stats-only so a campaign
+    stops rereading 452-526 GB it already read at admission.  That is only
+    sound if the stats path still fails closed on the drift this bookend
+    exists to catch, and if it is still bound to the admission digest.
+    """
+    fixture = _fixture(tmp_path)
+    output = tmp_path / "phase3-inputs.json"
+    sealed = seal.create_seal(fixture["request"], output)
+    admission = str(sealed["aggregate_digest"]["sha256"])
+
+    # Nothing moved: the stats path agrees with the admission digest.
+    assert seal.verify_seal_stats(
+        output, expected_aggregate_sha256=admission,
+    )["aggregate_digest"]["sha256"] == admission
+
+    # A seal that is not the one admission verified is refused outright.
+    with pytest.raises(seal.SealError):
+        seal.verify_seal_stats(output, expected_aggregate_sha256="0" * 64)
+
+    # A rewritten sealed input is refused: rewriting changes its stat, and the
+    # stats path compares every record's stat, link text and target identity.
+    victim = Path(fixture["request"].whitening)
+    original = victim.read_bytes()
+    victim.write_bytes(original + b"\x00")
+    with pytest.raises(seal.SealError):
+        seal.verify_seal_stats(output, expected_aggregate_sha256=admission)
+
+    victim.write_bytes(original)
+    os.utime(victim, (0, 0))
+    with pytest.raises(seal.SealError):
+        seal.verify_seal_stats(output, expected_aggregate_sha256=admission)
+
+
 def test_runtime_authority_rejects_path_and_split_row_drift(tmp_path: Path) -> None:
     fixture = _fixture(tmp_path)
     output = tmp_path / "phase3-inputs.json"
