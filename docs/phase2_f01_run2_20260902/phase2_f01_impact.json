@@ -1,0 +1,1118 @@
+{
+  "cells": [
+    {
+      "N": 4,
+      "cell": "cifar10/N4",
+      "dataset": "cifar10",
+      "delta": {
+        "dna_unique_db": 0.016423728813559316,
+        "full_map_bioproj": -0.006919251680559624,
+        "full_map_pre_projection": -0.004083497602861086,
+        "map_at_R_bioproj": 0.0015950880532626943,
+        "nmi": -0.06762662487566518
+      },
+      "fixed_side_sealed": true,
+      "legacy": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/legacy/cifar10_N4",
+        "dna_unique_db": 0.07038983050847458,
+        "full_map_bioproj": 0.8317456645726238,
+        "full_map_pre_projection": 0.8340282830456328,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8822763084031652,
+        "nmi": 0.676638560477927,
+        "sealed": true
+      },
+      "legacy_side_sealed": true,
+      "phase2": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/fixed/cifar10_N4",
+        "dna_unique_db": 0.0868135593220339,
+        "full_map_bioproj": 0.8248264128920642,
+        "full_map_pre_projection": 0.8299447854427717,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8838713964564279,
+        "nmi": 0.6090119356022619,
+        "sealed": true
+      },
+      "provenance": {
+        "checkpoint_sha256": "ebf6a1c3ad3cceb71a7feff5cb7e6baae6af7c90a1c7921c38e236387fb31228",
+        "config_sha256": "c5ee9c455f3253d328d6741ed570c94dd5ef973d6ce95bab0439ec98676ed022",
+        "legacy": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 1.0,
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "sinkhorn_annealing_enabled": true
+        },
+        "pair_identity_verified": true,
+        "phase2": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 0.1,
+          "inference_epoch": 4,
+          "inference_epoch_source": "explicit_flag",
+          "sinkhorn_annealing_enabled": true
+        }
+      },
+      "same_evaluator_both_sides": true
+    },
+    {
+      "N": 9,
+      "cell": "cifar10/N9",
+      "dataset": "cifar10",
+      "delta": {
+        "dna_unique_db": 0.020305084745762716,
+        "full_map_bioproj": -0.03989018392823529,
+        "full_map_pre_projection": -0.03367031358329631,
+        "map_at_R_bioproj": -0.005345705969694525,
+        "nmi": -0.10954110351850821
+      },
+      "fixed_side_sealed": true,
+      "legacy": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/legacy/cifar10_N9",
+        "dna_unique_db": 0.07910169491525423,
+        "full_map_bioproj": 0.810744674600553,
+        "full_map_pre_projection": 0.8255071619449219,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8789390926043303,
+        "nmi": 0.6870311083325499,
+        "sealed": true
+      },
+      "legacy_side_sealed": true,
+      "phase2": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/fixed/cifar10_N9",
+        "dna_unique_db": 0.09940677966101695,
+        "full_map_bioproj": 0.7708544906723177,
+        "full_map_pre_projection": 0.7918368483616256,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8735933866346358,
+        "nmi": 0.5774900048140417,
+        "sealed": true
+      },
+      "provenance": {
+        "checkpoint_sha256": "bc5f4502e0412f9a5a1ef72c6f69fcbe1695abf9a525a8307463752d5f378786",
+        "config_sha256": "a4d562a0a109a29f497c00a008d294554faf3535dd34279b7e67ad674f8b886b",
+        "legacy": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 1.0,
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "sinkhorn_annealing_enabled": true
+        },
+        "pair_identity_verified": true,
+        "phase2": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 0.1,
+          "inference_epoch": 9,
+          "inference_epoch_source": "explicit_flag",
+          "sinkhorn_annealing_enabled": true
+        }
+      },
+      "same_evaluator_both_sides": true
+    },
+    {
+      "N": 19,
+      "cell": "cifar10/N19",
+      "dataset": "cifar10",
+      "delta": {
+        "dna_unique_db": 0.03132203389830508,
+        "full_map_bioproj": -0.03468838474737845,
+        "full_map_pre_projection": -0.03521921977902609,
+        "map_at_R_bioproj": -0.010152843851570004,
+        "nmi": -0.0860379528464068
+      },
+      "fixed_side_sealed": true,
+      "legacy": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/legacy/cifar10_N19",
+        "dna_unique_db": 0.08154237288135593,
+        "full_map_bioproj": 0.7670082353761929,
+        "full_map_pre_projection": 0.7932161017137699,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8775050033949918,
+        "nmi": 0.703670567985138,
+        "sealed": true
+      },
+      "legacy_side_sealed": true,
+      "phase2": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/fixed/cifar10_N19",
+        "dna_unique_db": 0.11286440677966102,
+        "full_map_bioproj": 0.7323198506288144,
+        "full_map_pre_projection": 0.7579968819347438,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8673521595434218,
+        "nmi": 0.6176326151387312,
+        "sealed": true
+      },
+      "provenance": {
+        "checkpoint_sha256": "1b1b2fa297956b2c99d7b1eaa6d6492e8cc9f3b37caa7bf0865210e0a4d616f3",
+        "config_sha256": "b4162a12742ff636aeb7ef223ca21a7ff7d4f96752c204c562bb7fe4253a8d89",
+        "legacy": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 1.0,
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "sinkhorn_annealing_enabled": true
+        },
+        "pair_identity_verified": true,
+        "phase2": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 0.1,
+          "inference_epoch": 19,
+          "inference_epoch_source": "explicit_flag",
+          "sinkhorn_annealing_enabled": true
+        }
+      },
+      "same_evaluator_both_sides": true
+    },
+    {
+      "N": 39,
+      "cell": "cifar10/N39",
+      "dataset": "cifar10",
+      "delta": {
+        "dna_unique_db": 0.016406779661016946,
+        "full_map_bioproj": -0.019217556078863662,
+        "full_map_pre_projection": -0.01597527744085747,
+        "map_at_R_bioproj": -0.007681323201268575,
+        "nmi": -0.06703333794561672
+      },
+      "fixed_side_sealed": true,
+      "legacy": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/legacy/cifar10_N39",
+        "dna_unique_db": 0.08547457627118644,
+        "full_map_bioproj": 0.7478611425234051,
+        "full_map_pre_projection": 0.759433221335402,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8751489856406786,
+        "nmi": 0.7194769082123691,
+        "sealed": true
+      },
+      "legacy_side_sealed": true,
+      "phase2": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/fixed/cifar10_N39",
+        "dna_unique_db": 0.10188135593220339,
+        "full_map_bioproj": 0.7286435864445414,
+        "full_map_pre_projection": 0.7434579438945446,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.86746766243941,
+        "nmi": 0.6524435702667524,
+        "sealed": true
+      },
+      "provenance": {
+        "checkpoint_sha256": "7e3fc4fddc0128bc9de4436d55de2f5d73ed6a62de06935248f0ee4ea6b34444",
+        "config_sha256": "f20cc57bee2ab27ac81e850eb451dbead11acd84743abf4e613aa20046728f33",
+        "legacy": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 1.0,
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "sinkhorn_annealing_enabled": true
+        },
+        "pair_identity_verified": true,
+        "phase2": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 0.1,
+          "inference_epoch": 39,
+          "inference_epoch_source": "explicit_flag",
+          "sinkhorn_annealing_enabled": true
+        }
+      },
+      "same_evaluator_both_sides": true
+    },
+    {
+      "N": 4,
+      "cell": "flickr25k/N4",
+      "dataset": "flickr25k",
+      "delta": {
+        "dna_unique_db": 0.07356521739130434,
+        "full_map_bioproj": 0.0034313894714946835,
+        "full_map_pre_projection": 0.002999214590010957,
+        "map_at_R_bioproj": -0.000691908586036849,
+        "nmi": -0.07746383823059688
+      },
+      "fixed_side_sealed": true,
+      "legacy": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/legacy/flickr25k_N4",
+        "dna_unique_db": 0.2823913043478261,
+        "full_map_bioproj": 0.7351976396832325,
+        "full_map_pre_projection": 0.7416904028827848,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8564850140878828,
+        "nmi": 0.6170285342816574,
+        "sealed": true
+      },
+      "legacy_side_sealed": true,
+      "phase2": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/fixed/flickr25k_N4",
+        "dna_unique_db": 0.35595652173913045,
+        "full_map_bioproj": 0.7386290291547272,
+        "full_map_pre_projection": 0.7446896174727957,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.855793105501846,
+        "nmi": 0.5395646960510605,
+        "sealed": true
+      },
+      "provenance": {
+        "checkpoint_sha256": "afcc8e17ccf61b00cb3291ce94d79abc49dfcc2ccd20207c2e36ce36b694515d",
+        "config_sha256": "f3956e20bfd4cf577d561319992c2c29b1431f6f120433c7acd61fd48ba74f60",
+        "legacy": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 1.0,
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "sinkhorn_annealing_enabled": true
+        },
+        "pair_identity_verified": true,
+        "phase2": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 0.1,
+          "inference_epoch": 4,
+          "inference_epoch_source": "explicit_flag",
+          "sinkhorn_annealing_enabled": true
+        }
+      },
+      "same_evaluator_both_sides": true
+    },
+    {
+      "N": 9,
+      "cell": "flickr25k/N9",
+      "dataset": "flickr25k",
+      "delta": {
+        "dna_unique_db": 0.045521739130434835,
+        "full_map_bioproj": -0.008390333637595893,
+        "full_map_pre_projection": -0.005805561856295771,
+        "map_at_R_bioproj": -0.008755645749859986,
+        "nmi": -0.15444578084586014
+      },
+      "fixed_side_sealed": true,
+      "legacy": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/legacy/flickr25k_N9",
+        "dna_unique_db": 0.3298260869565217,
+        "full_map_bioproj": 0.7299309635767289,
+        "full_map_pre_projection": 0.7334877701444038,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8507091579364616,
+        "nmi": 0.6358384258999509,
+        "sealed": true
+      },
+      "legacy_side_sealed": true,
+      "phase2": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/fixed/flickr25k_N9",
+        "dna_unique_db": 0.37534782608695655,
+        "full_map_bioproj": 0.721540629939133,
+        "full_map_pre_projection": 0.727682208288108,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8419535121866016,
+        "nmi": 0.48139264505409074,
+        "sealed": true
+      },
+      "provenance": {
+        "checkpoint_sha256": "a6bfe42ced56253d79e31e07db596a0c56885c80052e0c846156cf93c3147320",
+        "config_sha256": "8b660939ef9da0df845f7cf46302e4b9f0145021ad9e6083e13e501a12222ac0",
+        "legacy": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 1.0,
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "sinkhorn_annealing_enabled": true
+        },
+        "pair_identity_verified": true,
+        "phase2": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 0.1,
+          "inference_epoch": 9,
+          "inference_epoch_source": "explicit_flag",
+          "sinkhorn_annealing_enabled": true
+        }
+      },
+      "same_evaluator_both_sides": true
+    },
+    {
+      "N": 19,
+      "cell": "flickr25k/N19",
+      "dataset": "flickr25k",
+      "delta": {
+        "dna_unique_db": 0.07100000000000001,
+        "full_map_bioproj": -0.014919194949160275,
+        "full_map_pre_projection": -0.012055468775086675,
+        "map_at_R_bioproj": -0.01362323938395027,
+        "nmi": -0.1023258565167825
+      },
+      "fixed_side_sealed": true,
+      "legacy": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/legacy/flickr25k_N19",
+        "dna_unique_db": 0.3217391304347826,
+        "full_map_bioproj": 0.7227768817012374,
+        "full_map_pre_projection": 0.7286716057466627,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8496241308619311,
+        "nmi": 0.6603390692591856,
+        "sealed": true
+      },
+      "legacy_side_sealed": true,
+      "phase2": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/fixed/flickr25k_N19",
+        "dna_unique_db": 0.3927391304347826,
+        "full_map_bioproj": 0.7078576867520772,
+        "full_map_pre_projection": 0.716616136971576,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8360008914779808,
+        "nmi": 0.5580132127424031,
+        "sealed": true
+      },
+      "provenance": {
+        "checkpoint_sha256": "232cfa5fb02dd28d4c6fdd6238bdba296e1581f192da054908fadc06dbadae9d",
+        "config_sha256": "66b63bd8bc4184d5da35410af847df5604fada5636067e5db3ac337f9d6c7cb9",
+        "legacy": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 1.0,
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "sinkhorn_annealing_enabled": true
+        },
+        "pair_identity_verified": true,
+        "phase2": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 0.1,
+          "inference_epoch": 19,
+          "inference_epoch_source": "explicit_flag",
+          "sinkhorn_annealing_enabled": true
+        }
+      },
+      "same_evaluator_both_sides": true
+    },
+    {
+      "N": 4,
+      "cell": "nuswide/N4",
+      "dataset": "nuswide",
+      "delta": {
+        "dna_unique_db": 0.04882983885120837,
+        "full_map_bioproj": -0.0024115323808706624,
+        "full_map_pre_projection": 0.000463545376271024,
+        "map_at_R_bioproj": 0.0011094280459071904,
+        "nmi": -0.07336843972297835
+      },
+      "fixed_side_sealed": true,
+      "legacy": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/legacy/nuswide_N4",
+        "dna_unique_db": 0.14163750296798702,
+        "full_map_bioproj": 0.5788344103405041,
+        "full_map_pre_projection": 0.5901483009265659,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8150237470291969,
+        "nmi": 0.6181866131679274,
+        "sealed": true
+      },
+      "legacy_side_sealed": true,
+      "phase2": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/fixed/nuswide_N4",
+        "dna_unique_db": 0.1904673418191954,
+        "full_map_bioproj": 0.5764228779596334,
+        "full_map_pre_projection": 0.5906118463028369,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8161331750751041,
+        "nmi": 0.5448181734449491,
+        "sealed": true
+      },
+      "provenance": {
+        "checkpoint_sha256": "c39c68e2629e7c70b823f9769fb26564bf5c95a804f95b1b6fba902d6762d15a",
+        "config_sha256": "7845fc04077fced36a13fc25e7b5ab3a2912bcde7a251dd5d09305741d8c49a3",
+        "legacy": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 0.5,
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "sinkhorn_annealing_enabled": true
+        },
+        "pair_identity_verified": true,
+        "phase2": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 0.1,
+          "inference_epoch": 4,
+          "inference_epoch_source": "explicit_flag",
+          "sinkhorn_annealing_enabled": true
+        }
+      },
+      "same_evaluator_both_sides": true
+    },
+    {
+      "N": 9,
+      "cell": "nuswide/N9",
+      "dataset": "nuswide",
+      "delta": {
+        "dna_unique_db": 0.051410697141441364,
+        "full_map_bioproj": 0.0016576461294671718,
+        "full_map_pre_projection": 0.0018307362090932422,
+        "map_at_R_bioproj": 5.300891438220212e-05,
+        "nmi": -0.06535404958072621
+      },
+      "fixed_side_sealed": true,
+      "legacy": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/legacy/nuswide_N9",
+        "dna_unique_db": 0.1326716012677176,
+        "full_map_bioproj": 0.5645339525705378,
+        "full_map_pre_projection": 0.5750989732299517,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8114826830142682,
+        "nmi": 0.6484434307928345,
+        "sealed": true
+      },
+      "legacy_side_sealed": true,
+      "phase2": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/fixed/nuswide_N9",
+        "dna_unique_db": 0.18408229840915896,
+        "full_map_bioproj": 0.566191598700005,
+        "full_map_pre_projection": 0.576929709439045,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8115356919286504,
+        "nmi": 0.5830893812121083,
+        "sealed": true
+      },
+      "provenance": {
+        "checkpoint_sha256": "f94d990b396569893b3af37cadeca96d439974d315af579267d3ce6a73f40307",
+        "config_sha256": "1ee1a3a06f2c02c4cae775eef815feabe6ee0af54935deb40ba20a4ec0307be3",
+        "legacy": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 0.5,
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "sinkhorn_annealing_enabled": true
+        },
+        "pair_identity_verified": true,
+        "phase2": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 0.1,
+          "inference_epoch": 9,
+          "inference_epoch_source": "explicit_flag",
+          "sinkhorn_annealing_enabled": true
+        }
+      },
+      "same_evaluator_both_sides": true
+    },
+    {
+      "N": 19,
+      "cell": "nuswide/N19",
+      "dataset": "nuswide",
+      "delta": {
+        "dna_unique_db": 0.039327118626570456,
+        "full_map_bioproj": 0.004224448515141699,
+        "full_map_pre_projection": 0.007654815500634404,
+        "map_at_R_bioproj": -0.0016463790929780453,
+        "nmi": -0.04942550179009386
+      },
+      "fixed_side_sealed": true,
+      "legacy": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/legacy/nuswide_N19",
+        "dna_unique_db": 0.12994105319665109,
+        "full_map_bioproj": 0.5560729916303988,
+        "full_map_pre_projection": 0.5639681037060948,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8106492264535694,
+        "nmi": 0.6623407090850897,
+        "sealed": true
+      },
+      "legacy_side_sealed": true,
+      "phase2": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/fixed/nuswide_N19",
+        "dna_unique_db": 0.16926817182322154,
+        "full_map_bioproj": 0.5602974401455405,
+        "full_map_pre_projection": 0.5716229192067293,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8090028473605914,
+        "nmi": 0.6129152072949958,
+        "sealed": true
+      },
+      "provenance": {
+        "checkpoint_sha256": "5dc5fa633bf189d033841cdf62e829407951f7d4ce90e74eea9703cca838caa5",
+        "config_sha256": "747c42e2ac76fb5ac7fbe3454052ab79ec7e6b61ed446d8b165c3bc0d9fcd02d",
+        "legacy": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 0.5,
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "sinkhorn_annealing_enabled": true
+        },
+        "pair_identity_verified": true,
+        "phase2": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 0.1,
+          "inference_epoch": 19,
+          "inference_epoch_source": "explicit_flag",
+          "sinkhorn_annealing_enabled": true
+        }
+      },
+      "same_evaluator_both_sides": true
+    },
+    {
+      "N": 39,
+      "cell": "nuswide/N39",
+      "dataset": "nuswide",
+      "delta": {
+        "dna_unique_db": 0.03169810152064172,
+        "full_map_bioproj": 0.0034060788552451315,
+        "full_map_pre_projection": 0.0031265200971003493,
+        "map_at_R_bioproj": 0.0022967547776926445,
+        "nmi": -0.03591558598953104
+      },
+      "fixed_side_sealed": true,
+      "legacy": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/legacy/nuswide_N39",
+        "dna_unique_db": 0.11681480793252604,
+        "full_map_bioproj": 0.5496867771022302,
+        "full_map_pre_projection": 0.5626659302825557,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8038853762976063,
+        "nmi": 0.6804184001248081,
+        "sealed": true
+      },
+      "legacy_side_sealed": true,
+      "phase2": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/fixed/nuswide_N39",
+        "dna_unique_db": 0.14851290945316775,
+        "full_map_bioproj": 0.5530928559574754,
+        "full_map_pre_projection": 0.5657924503796561,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8061821310752989,
+        "nmi": 0.6445028141352771,
+        "sealed": true
+      },
+      "provenance": {
+        "checkpoint_sha256": "41ddb7467af78bb683f2da3983c7a2de6b53e09beb56fd9f9d0a9629c81a9e9a",
+        "config_sha256": "8c6a0ac4ff0ba98efca19200d455cc12720198d6dbaa7abe595132fdf0518e31",
+        "legacy": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 0.5,
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "sinkhorn_annealing_enabled": true
+        },
+        "pair_identity_verified": true,
+        "phase2": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 0.1,
+          "inference_epoch": 39,
+          "inference_epoch_source": "explicit_flag",
+          "sinkhorn_annealing_enabled": true
+        }
+      },
+      "same_evaluator_both_sides": true
+    },
+    {
+      "N": 4,
+      "cell": "mscoco/N4",
+      "dataset": "mscoco",
+      "delta": {
+        "dna_unique_db": 0.05627786379152755,
+        "full_map_bioproj": -0.004015512806710642,
+        "full_map_pre_projection": -0.005509825816971237,
+        "map_at_R_bioproj": -0.008233854678017627,
+        "nmi": -0.09406835502639388
+      },
+      "fixed_side_sealed": true,
+      "legacy": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/legacy/mscoco_N4",
+        "dna_unique_db": 0.12808483650133373,
+        "full_map_bioproj": 0.5777240407855183,
+        "full_map_pre_projection": 0.5935754781253741,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.7883573830484478,
+        "nmi": 0.7054925222960309,
+        "sealed": true
+      },
+      "legacy_side_sealed": true,
+      "phase2": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/fixed/mscoco_N4",
+        "dna_unique_db": 0.18436270029286128,
+        "full_map_bioproj": 0.5737085279788077,
+        "full_map_pre_projection": 0.5880656523084029,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.7801235283704302,
+        "nmi": 0.611424167269637,
+        "sealed": true
+      },
+      "provenance": {
+        "checkpoint_sha256": "81c1eb5b2fe1f1137eae2b94d4f5b74bf29843969baabd70f2f61c52b3eefd32",
+        "config_sha256": "1f514f38b9621a51118f06ddfdf852a3949b040b9d17efabd0272eeb7f235b95",
+        "legacy": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 1.0,
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "sinkhorn_annealing_enabled": true
+        },
+        "pair_identity_verified": true,
+        "phase2": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 0.1,
+          "inference_epoch": 4,
+          "inference_epoch_source": "explicit_flag",
+          "sinkhorn_annealing_enabled": true
+        }
+      },
+      "same_evaluator_both_sides": true
+    },
+    {
+      "N": 9,
+      "cell": "mscoco/N9",
+      "dataset": "mscoco",
+      "delta": {
+        "dna_unique_db": 0.04895633195918597,
+        "full_map_bioproj": -0.004653336054946,
+        "full_map_pre_projection": -0.006905546179242661,
+        "map_at_R_bioproj": -0.0053820720557162804,
+        "nmi": -0.1348602734901816
+      },
+      "fixed_side_sealed": true,
+      "legacy": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/legacy/mscoco_N9",
+        "dna_unique_db": 0.12517487735268332,
+        "full_map_bioproj": 0.5794822546455248,
+        "full_map_pre_projection": 0.5915067649441372,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8030389318889629,
+        "nmi": 0.7181456034959381,
+        "sealed": true
+      },
+      "legacy_side_sealed": true,
+      "phase2": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/fixed/mscoco_N9",
+        "dna_unique_db": 0.1741312093118693,
+        "full_map_bioproj": 0.5748289185905788,
+        "full_map_pre_projection": 0.5846012187648946,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.7976568598332466,
+        "nmi": 0.5832853300057566,
+        "sealed": true
+      },
+      "provenance": {
+        "checkpoint_sha256": "1577644f026e6adcf7fd40ee87b9f333ec1c4b2aa79d4817f04130de20585a89",
+        "config_sha256": "6d7d54fcc80e40febf6cb3de0224c606b9b81697947b78ba964753af61054f52",
+        "legacy": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 1.0,
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "sinkhorn_annealing_enabled": true
+        },
+        "pair_identity_verified": true,
+        "phase2": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 0.1,
+          "inference_epoch": 9,
+          "inference_epoch_source": "explicit_flag",
+          "sinkhorn_annealing_enabled": true
+        }
+      },
+      "same_evaluator_both_sides": true
+    },
+    {
+      "N": 19,
+      "cell": "mscoco/N19",
+      "dataset": "mscoco",
+      "delta": {
+        "dna_unique_db": 0.060335018373780525,
+        "full_map_bioproj": 0.004589997465135887,
+        "full_map_pre_projection": 0.0017531580098008037,
+        "map_at_R_bioproj": 0.0022809253527409368,
+        "nmi": -0.0848293243304924
+      },
+      "fixed_side_sealed": true,
+      "legacy": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/legacy/mscoco_N19",
+        "dna_unique_db": 0.1342125389393572,
+        "full_map_bioproj": 0.5710461681108701,
+        "full_map_pre_projection": 0.5853340031824715,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8076276945256915,
+        "nmi": 0.7174478260837553,
+        "sealed": true
+      },
+      "legacy_side_sealed": true,
+      "phase2": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/fixed/mscoco_N19",
+        "dna_unique_db": 0.19454755731313772,
+        "full_map_bioproj": 0.5756361655760059,
+        "full_map_pre_projection": 0.5870871611922723,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8099086198784324,
+        "nmi": 0.632618501753263,
+        "sealed": true
+      },
+      "provenance": {
+        "checkpoint_sha256": "fa09a5d2ad7e876234c3e7fb956398f4766618b69e44fa2d722d457bac8e984f",
+        "config_sha256": "b7dad59785f2a49eb5029b699e270adc15151e829e90f75ee7d0960318a39766",
+        "legacy": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 1.0,
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "sinkhorn_annealing_enabled": true
+        },
+        "pair_identity_verified": true,
+        "phase2": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 0.1,
+          "inference_epoch": 19,
+          "inference_epoch_source": "explicit_flag",
+          "sinkhorn_annealing_enabled": true
+        }
+      },
+      "same_evaluator_both_sides": true
+    },
+    {
+      "N": 39,
+      "cell": "mscoco/N39",
+      "dataset": "mscoco",
+      "delta": {
+        "dna_unique_db": 0.051474565837825725,
+        "full_map_bioproj": -0.004498531012682272,
+        "full_map_pre_projection": -0.006135362361721075,
+        "map_at_R_bioproj": -0.005416110632813997,
+        "nmi": -0.055903205803975564
+      },
+      "fixed_side_sealed": true,
+      "legacy": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/legacy/mscoco_N39",
+        "dna_unique_db": 0.12038090619112463,
+        "full_map_bioproj": 0.5814299147327175,
+        "full_map_pre_projection": 0.5979085115958876,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8287046057524009,
+        "nmi": 0.7172028405098383,
+        "sealed": true
+      },
+      "legacy_side_sealed": true,
+      "phase2": {
+        "analysis_sources": {
+          "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+          "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+          "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+          "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+          "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+          "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2"
+        },
+        "dir": "/data/yschoi/gdna_phase2_run2_20260902/fixed/mscoco_N39",
+        "dna_unique_db": 0.17185547202895035,
+        "full_map_bioproj": 0.5769313837200353,
+        "full_map_pre_projection": 0.5917731492341666,
+        "gc_max_frac": 0.6,
+        "gc_min_frac": 0.4,
+        "map_at_R_bioproj": 0.8232884951195869,
+        "nmi": 0.6612996347058627,
+        "sealed": true
+      },
+      "provenance": {
+        "checkpoint_sha256": "8c8541babb94e0d592ac81ffa9802a5fdbfa875c31bc53ff27f73690e42cc2e8",
+        "config_sha256": "be0ba783abdd3b5ec4a23b33aadf937b6f8e83321de94633ebc0b393783bf6f8",
+        "legacy": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 1.0,
+          "inference_epoch": 0,
+          "inference_epoch_source": "f01_unrestored",
+          "sinkhorn_annealing_enabled": true
+        },
+        "pair_identity_verified": true,
+        "phase2": {
+          "backfilled": true,
+          "effective_sinkhorn_epsilon": 0.1,
+          "inference_epoch": 39,
+          "inference_epoch_source": "explicit_flag",
+          "sinkhorn_annealing_enabled": true
+        }
+      },
+      "same_evaluator_both_sides": true
+    }
+  ],
+  "complete": true,
+  "eligibility": "diagnostic_only_never_paper_main",
+  "expected_cells": 15,
+  "gc_policy": {
+    "gc_max_count": 9,
+    "gc_max_frac": 0.6,
+    "gc_min_count": 6,
+    "gc_min_frac": 0.4,
+    "max_run": 3,
+    "policy_version": "gc-40-60-inclusive-v1",
+    "total_bases": 15
+  },
+  "input_authority": {
+    "input_receipt_sha256": {
+      "fixed": "09deedbcacca12fd28f3dd362786bbc2358eb17d26611bc0ec23994bfb46cb61",
+      "legacy": "b005c5de63377136e6f0f8c645606a64052c9175c921fd8450c27847a32fec5b"
+    },
+    "limitations": [
+      "CIFAR labels bind preserved bytes but cannot exclude a within-class permutation"
+    ],
+    "pair_receipt": "/data/yschoi/gdna_phase2_run2_20260902/report/phase2_input_pair_receipt.json",
+    "pair_receipt_sha256": "13441a8490de0fa1696bc2504a22ffb491b6564c9fffe19860fe63b6b4d711b3"
+  },
+  "mean_delta": {
+    "dna_unique_db": 0.04419027464950433,
+    "full_map_bioproj": -0.008152950456034546,
+    "full_map_pre_projection": -0.007168805574163173,
+    "map_at_R_bioproj": -0.003972925203861366,
+    "nmi": -0.08387994870092061
+  },
+  "paired_cells": 15,
+  "total_bases": 15,
+  "unpaired": [],
+  "what_this_measures": "F01 only: the same checkpoint re-inferred with the training epoch restored, so the router runs at the annealed Sinkhorn epsilon instead of the initial one. Not an N selection."
+}

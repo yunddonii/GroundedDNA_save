@@ -1,0 +1,80 @@
+{
+  "analysis_marker_sha256": {
+    "fixed": {
+      "cifar10_N19": "2e73d1cf9fd7e18010f9bc995aba97db2ab8188690145641d42fb15d08d4287c",
+      "cifar10_N39": "16d47a418d45e24a10b17c62b6eef5562e607511443ec7de53e6204d2c361e44",
+      "cifar10_N4": "7867adb76e4107573699eaef4a0d3871d0056f80a7a7e82c9ac310bc30e9a7fa",
+      "cifar10_N9": "63fdcf2fc42eaccdb3ade03e2b4a060af65971249b1d8e2f9f47f509777fbcdd",
+      "flickr25k_N19": "e852d163b4c313ac792e66caebb670c57fade3e13af0b459d47bf57867228494",
+      "flickr25k_N4": "8d847869eac9828fad1f6667c0a0f4d780c01a95d4a005a5d7706e46bd7978d4",
+      "flickr25k_N9": "34f93988dabed10a6108580aa585feeb800bde79d7be0db53dc833881d437c64",
+      "mscoco_N19": "834e3a35af2e7008b42cd1aa46e1e8291dd7bc40d9292d11bcf3dd046c240a2b",
+      "mscoco_N39": "198d98bd92dd81da78532267f33936e14aa103817ff3e16b9510d0ab221248e7",
+      "mscoco_N4": "7ff4882d369fda9cd9fb43d757f3bae4e0dd73e73ea316719edcef42a175896c",
+      "mscoco_N9": "21b3098d4d09587c0c4834534cb8478b69fe3238740145599565098ba2c6d2f1",
+      "nuswide_N19": "f22968fb84378c8d89a909aaef130b6ccc06a4d35f498635adaf5c6a6f253e65",
+      "nuswide_N39": "aab78366583268fb81ea77658b56f1c3bbf26c24ef66d3c0a5e7a2e4426d7398",
+      "nuswide_N4": "f97d9ebc5d6239e080dc7c82bf8753601f7f92638f8b0cb212ad832ed88e3090",
+      "nuswide_N9": "f154bed8780aac7ff51ac4f0d59e19a89f9a913415dc8091836d2a046c35b09e"
+    },
+    "legacy": {
+      "cifar10_N19": "215319a1d77a74c49719c01227feb400aaa0fe55956592f9ac5cca294fa42230",
+      "cifar10_N39": "dfd65a54d441174a9a2b2e3623b26b8f5fbfbb536ce283215b8bd722932addc6",
+      "cifar10_N4": "dcf994b27f113e28385789e8dd24eab46470976e7deea150b5283d8645a54fcf",
+      "cifar10_N9": "229e0665e46026c8b74a4b3083db32754148d9c4966ba1f21305b562690a8696",
+      "flickr25k_N19": "7a883cb7ef45ac9f0aca5470d891f4ea54880ca2fdaf1c69466058d6a49efd85",
+      "flickr25k_N4": "da96f1071ab60f00818c74031d35d57dbe5141b658d666b7d05e08263bffbeb0",
+      "flickr25k_N9": "4caefcc6c5b3bda4f4bacd88cf86521ec92598ab8cb785f853b5ddede1e7b5aa",
+      "mscoco_N19": "84ae7fe401520291690b561e9766752a36271ba9485e0ba6e6a9a2bac6b326d6",
+      "mscoco_N39": "d35d47d665a1ca0b27d51948fb21591cf6f37bacc8264869d85e13d38f555022",
+      "mscoco_N4": "f42212bd07d9eed500631e821f1c9be3f2784c6db73bfc37d1a4b621aabf6b59",
+      "mscoco_N9": "070673a94b204baecb63b48afcfa9c5eb85288831691fab3700c20a8f53b76d5",
+      "nuswide_N19": "f5ddbe8b20868dfb9c3502d2aacb3e44a9ece369fb01dcddc38e95cfe1334afb",
+      "nuswide_N39": "685c19e78cae5813e971e97fe66741319ffb47551dfb73b21a034a9a7dceba78",
+      "nuswide_N4": "6a4dcc9cc4b4289cfa81796e7f3c1b2c12a02fbfc1420b1fd01d307fa8398c4c",
+      "nuswide_N9": "0b1b85acb7a301bbf408b7d5f3e3da8c036fbe13f31155ef933f99ca134af829"
+    }
+  },
+  "complete": true,
+  "eligibility": "diagnostic_only_never_paper_main",
+  "expected_cells": 15,
+  "git_head": "b36ad6f483f1eb8ee12963df1ba0be9176bc2913",
+  "input_pair_receipt": {
+    "path": "/data/yschoi/gdna_phase2_run2_20260902/report/phase2_input_pair_receipt.json",
+    "sha256": "13441a8490de0fa1696bc2504a22ffb491b6564c9fffe19860fe63b6b4d711b3"
+  },
+  "input_receipt_sha256": {
+    "fixed": "09deedbcacca12fd28f3dd362786bbc2358eb17d26611bc0ec23994bfb46cb61",
+    "legacy": "b005c5de63377136e6f0f8c645606a64052c9175c921fd8450c27847a32fec5b"
+  },
+  "paired_cells": 15,
+  "paper_result_eligible": false,
+  "receipt_type": "phase2_f01_report",
+  "reports": {
+    "json": {
+      "path": "/data/yschoi/gdna_phase2_run2_20260902/report/phase2_f01_impact.json",
+      "sha256": "609b0d5aed480d15f45bc26f81f099e84a2713a7ac7d74b777c37933e0972525"
+    },
+    "markdown": {
+      "path": "/data/yschoi/gdna_phase2_run2_20260902/report/phase2_f01_impact.md",
+      "sha256": "5e5906d97bfb6c74f953b062696a03c98445789a3f1ba628466ba2ad109fde8e"
+    }
+  },
+  "schema_version": 1,
+  "source_sha256": {
+    "aggregate_phase2_f01_sha256": "a38a326998ebd761ed965c91c5055a1c9e66d329e5b8cdca3392df29fa260f07",
+    "bind_legacy_phase2_sha256": "33c32d9614836c7325a177be686b29fb727820be6000f1da9cfad81b480af5b8",
+    "bio_constraints_sha256": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+    "dna_code_utils_sha256": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+    "eval_cell_bioproj_sha256": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+    "evaluation_siglip2_sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+    "extraction_validation_sha256": "bd126a04aac5d1b51eca0379180924d0ad9e80b8d6bae6c2784c86a12c88c8ca",
+    "gc_policy_sha256": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+    "pairwise_nmi_sha256": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2",
+    "phase2_cell_state_sha256": "86a2291b9f569a65644cebdd3ea6db4ff24aa9ec27a9b0a02f527c8cd33513f3",
+    "phase2_recompute_metrics_sha256": "778e0e0d0474d2dccefd4e8d71112447ef71950bc91c308f5dc7b220ad01d700",
+    "runtime_state_sha256": "cdab32494012f3f7199c7f05af81af547f5ddcbeb2131e166787dab94d26e333",
+    "seal_cell_analysis_sha256": "65be44b77bf3a03a2afcee81c3bb24d3431f6d74d5e00debd878fe11a2a2e695"
+  },
+  "unpaired_cells": 0
+}
