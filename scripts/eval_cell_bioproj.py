@@ -38,6 +38,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np  # noqa: E402
 
 from dna_utils.bio_constraints import _resolve_gc_count_range  # noqa: E402
+from dna_utils.extraction_validation import (  # noqa: E402
+    canonical_dataset_name as _canonical_dataset_name,
+)
 from dna_utils.gc_policy import resolve_gc_policy  # noqa: E402
 from evaluation_siglip2 import (  # noqa: E402
     EVALUATION_SCHEMA_VERSION,
@@ -203,7 +206,7 @@ def main() -> None:
     binding_before = metric_input_binding(
         args.dir, required_splits=required_splits,
         allow_backfilled=args.allow_backfilled)
-    if binding_before.get("dataset") != args.dataset \
+    if _canonical_dataset_name(binding_before.get("dataset")) != args.dataset \
             or binding_before.get("codebook_size") != args.K:
         raise SystemExit(
             "[eval_cell_bioproj] --dataset/--K do not equal the validated "

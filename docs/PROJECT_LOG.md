@@ -582,11 +582,72 @@ document is the watcher's record, not this project's.
 `paper_table_eligible: true` artifacts remain **0** repository-wide. Every current
 table number stays historical/diagnostic.
 
+### One ULP of NMI would have refused all twelve refit cells, after training them
+
+Running the Phase-2 diagnostic surfaced a defect that sits directly on the paper's
+main-table path. The chain refused 29 of its 30 cells:
+
+```
+[seal] REFUSED cifar10_N4: pairwise_nmi.json matrix is malformed
+```
+
+`seal_cell_analysis._check_nmi` requires `np.array_equal(matrix, matrix.T)` — exact
+bit-level symmetry. `pairwise_nmi` scored `out[i, j]` and `out[j, i]` independently,
+and `score(a, b)` is not bit-identical to `score(b, a)`: the mutual-information and
+entropy sums accumulate in a different order. Measured `max|M − Mᵀ|` over the sixteen
+matrices produced: `0.0` once, `1.11e-16` fourteen times, `2.22e-16` once. One ULP.
+The single cell that passed was simply the one whose twenty off-diagonal entries
+happened to round the same both ways.
+
+This is not a Phase-2 problem. `_run_refit_postprocess`
+(`scripts/phase3_selection_matrix.py`) runs the same chain — `extract_train_split` →
+`eval_cell_bioproj` → `pairwise_nmi` → `seal_cell_analysis` — and raises `CellRefused`
+on any nonzero exit. It runs **only** on refits, which is why the 2026-08-31 top-p
+selection cells never hit it (their directories carry no `pairwise_nmi.json`). So the
+twelve refit cells would each have trained to completion and then been refused. That
+is the worst possible discovery point, and nothing before it would have shown the
+problem.
+
+Fixed in the producer, not the checker: each unordered pair is scored once and
+mirrored. The artifact becomes genuinely symmetric instead of carrying a 1 ULP
+inconsistency that a loosened check would have to tolerate; `array_equal` stays a
+strong invariant with no new tolerance boundary to defend; off-diagonal sklearn calls
+halve. Reported numbers do not move — `mean/max/min_off_diag_nmi` come from this
+matrix and the change is at most 1 ULP.
+
+The suite could not have caught it. `tests/test_seal_cell_analysis.py` already drives
+the four real producers as subprocesses, but its cell fixture is four rows, and at four
+rows every pair rounds identically — the invariant is vacuous there. Asymmetry first
+appears at sixteen rows. The new test uses 4000 and asserts **first** that the naive
+both-orders computation still disagrees, so a future sklearn that makes the orders
+bit-identical reports "the fixture stopped covering this" rather than passing for no
+reason.
+
+What actually would have caught it, and did not run: one real cell before the batch.
+That rule was already written down here and was not followed. Twenty-five minutes of
+compute went into a batch whose first real cell would have failed in seconds.
+
+### Both fixes are on this line, because the refit chain needs them
+
+| Ported here | Why |
+|---|---|
+| `scripts/pairwise_nmi.py` mirroring | Required. Without it every refit cell is refused after training. |
+| `dna_utils/extraction_validation.py` `canonical_dataset_name` | `seal_cell_analysis` compares `cell_result.dataset` against the manifest's `run.common["dataset"]`. No real Phase-3 extraction manifest exists yet, so that comparison cannot be pre-verified statically; normalizing makes it pass under either spelling and removes the unverifiable risk. |
+| `scripts/eval_cell_bioproj.py`, `scripts/seal_cell_analysis.py` | Consumers of the same central helper. |
+
+`tests/test_phase2_pair_identity.py` was deliberately *not* taken: it pins
+`expected_protocol`, which lives in `scripts/aggregate_phase2_f01.py` — the Phase-2
+aggregator, 599 lines divergent, and absent from the refit path. Pulling it in to
+satisfy one assertion would have been the wrong trade.
+
+`1273 passed, 54 skipped, 31 subtests, rc0`, source hashes stable across the run.
+
 ### Next
 
-P12 (`bootstrap_topp`) → JD20 → N16 → fixed point → refit12, from this frozen tree,
-with Phase-2 diagnostics running on CPU in parallel. Input seals are rebuilt here
-because the existing three bind absolute paths and inodes under the other worktree.
+Phase 2 completes first; Phase 3 starts once the audit session approves. P12
+(`bootstrap_topp`) → JD20 → N16 → fixed point → refit12, from this frozen tree. Before
+the twelve refits, one refit cell runs end to end including post-process — that chain
+has never executed on real data, which is exactly where the defect above was hiding.
 
 ---
 

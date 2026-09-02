@@ -53,6 +53,7 @@ from dna_utils.extraction_validation import (  # noqa: E402
     ANALYSIS_MARKER_NAME,
     ExtractionInvalid,
     analysis_source_digests,
+    canonical_dataset_name,
     check_metric_input_binding,
     metric_input_binding,
     validate_extraction_run,
@@ -300,7 +301,7 @@ def seal(cell: Path, *, allow_backfilled: bool,
             expected_inputs=evaluator_inputs, bio_project=True)
     except RuntimeError as error:
         raise SealRefused(str(error)) from None
-    if dataset != run.common.get("dataset") \
+    if dataset != canonical_dataset_name(run.common.get("dataset")) \
             or codebook_size != run.common.get("codebook_size") \
             or evaluation.get("total_bases") != actual_bases:
         raise SealRefused(
