@@ -224,16 +224,47 @@ TOPP_INCUMBENT = TOPP_GRID[0]
 JOINT_GRID = ("0.02", "0.03", "0.05", "0.07", "0.10")
 JOINT_INCUMBENT = "0.0"
 
-#: CIFAR is not swept on this metric, and pinning it is not a shortcut.
-#: The draft settled CIFAR at 0.6/0.95 on the per-image empty-slot rate, because
-#: on a single-label dataset the codon decoding probe REWARDS slot starvation
-#: (decoding .9033 < .9053 < .9158 < .9175 as empty images go 0% -> 43%) and
-#: mAP@R prefers the starved cell too (.9019 at 0.3/0.7 vs .8875 at 0.6/0.95).
-#: Selecting CIFAR by mAP@R here would therefore overturn a structural decision
-#: with the very metric that decision was made to overrule. The other three are
-#: multi-label, so that inversion does not apply and mAP@R is valid.
-TOPP_SWEEP_DATASETS = ("flickr25k", "nuswide", "mscoco")
-TOPP_PINNED = {"cifar10": ("0.6", "0.95")}
+#: CIFAR used to be pinned here at 0.6/0.95 rather than swept. The pin's stated
+#: reason was that on a single-label dataset the codon decoding probe REWARDS
+#: slot starvation, so selecting CIFAR by mAP@R would overturn a structural
+#: decision with the very metric that decision was made to overrule. That
+#: reasoning about the metric is still sound. What did not hold up is the
+#: evidence the pin rested on -- the draft's four-row CIFAR table -- so the pin
+#: is withdrawn and CIFAR is swept like the other three.
+#:
+#: Reading the seven cells' args.txt through the rule at model_siglip2.py:2301
+#: (`no_routing_adaptive_topp` overrides `routing_adaptive_topp`) gives their
+#: effective settings, and the four rows do not isolate top-p:
+#:
+#:   cell       ep  top-p      window   color_texture empty%   n_tok median
+#:   slot5       4  on         .3/.7          23.44              84.5
+#:   s5topp45    4  on         .4/.8           9.77             149.5
+#:   s5csd005    9  on (+csd)  .3/.7          43.36               2.0
+#:   topp69      9  on         .6/.95          0.00             196.0
+#:   noTOPP     14  OFF        --              0.00             196.0
+#:   s5topp69   14  on         .6/.95          0.00             196.0   <- adopted
+#:   baseline   19  on         .3/.7           0.00             196.0
+#:
+#: Holding the window at .3/.7 and moving only the epoch reproduces the entire
+#: 23.44% -> 0.00% transition the table credits to top-p (slot5 ep4 vs baseline
+#: ep19). Top-p does do real work at ep4 -- .3/.7 vs .4/.8 is a clean
+#: same-epoch, same-loss contrast, 23.44% -> 9.77% -- but the ADOPTED window was
+#: only ever measured at ep9 and ep14, where every setting has saturated to
+#: 0.00%/196.0 and nothing is distinguishable, mask-off included. So the table
+#: cannot say the adopted window beats the alternatives; it says late epochs
+#: beat early ones.
+#:
+#: Nor is there an operating point to appeal to: INCUMBENT_N is a horizon, not a
+#: result, and CIFAR's N is re-chosen by D1 once the recipe settles. The pin was
+#: therefore a declaration about a coordinate nobody has fixed yet.
+#:
+#: Sweeping CIFAR costs one extra seal (79.5 GB, already built) and four N=39
+#: cells (~80 GPU-min), and does not move the wall clock -- MS-COCO's four
+#: coordinates are the longest chain either way. In exchange the recipe stops
+#: carrying an undeclared free parameter, and master's fairness acceptance
+#: ("test-independent selection", :662-669) holds for all four datasets.
+TOPP_SWEEP_DATASETS = ("cifar10", "flickr25k", "nuswide", "mscoco")
+TOPP_PINNED: dict = {}
 
 PHASE3_CLIP_CHECKPOINT = "openai/clip-vit-base-patch16"
 PHASE3_CLIP_REVISION = "57c216476eefef5ab752ec549e440a49ae4ae5f3"

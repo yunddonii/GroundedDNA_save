@@ -873,7 +873,11 @@ def test_a_namespace_belongs_to_one_sweep(tmp_path, monkeypatch, capsys):
     from types import SimpleNamespace
     args = SimpleNamespace(
         sweep="topp", only=None, plan=False, run=True, smoke=False,
-        epochs=1, gpus="0,1,2", gpu=0, namespace="phase3toppB",
+        # One GPU per swept dataset; CIFAR joined the sweep when its
+        # top-p pin was withdrawn, so this is four, not three. With
+        # three the runner refuses on the GPU count and never reaches
+        # the namespace check this test is about.
+        epochs=1, gpus="0,1,2,3", gpu=0, namespace="phase3toppB",
         input_seal_specs={})
 
     # The public CLI now refuses executable P/J work without a sealed stage

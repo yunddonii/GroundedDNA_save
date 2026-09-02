@@ -115,17 +115,34 @@ def test_emit_stage_plan_cli_initial_succeeds(tmp_path):
     assert authority["phase"] == "bootstrap_topp"
 
 
-def test_recipe_stability_honest_fixed_point_and_explicit_cifar_pin():
+def test_recipe_stability_honest_fixed_point_with_cifar_swept_not_pinned():
+    """CIFAR now takes its swept window like the other three.
+
+    This test used to assert the opposite -- that CIFAR's final top-p stayed at
+    the pinned ("0.6", "0.95") whatever the sweep decided. The pin was withdrawn
+    because the evidence behind it, the draft's four-row empty-slot table, does
+    not isolate top-p from the epoch each row was measured at, and the adopted
+    window was never measured at an early epoch at all. See TOPP_PINNED in
+    phase3_selection_matrix for the seven-cell reading.
+
+    What must still hold is that the withdrawal is *recorded*: a stage plan says
+    "nothing is pinned" explicitly, rather than dropping the field, so a reader
+    can tell an empty pin table from a missing one.
+    """
     from scripts.phase3_select_n import (
         PINNED_CIFAR_TOPP_POLICY, run_recipe_stability)
+    from scripts.phase3_selection_matrix import DATASETS
     boot = _stability_decisions()
     result = run_recipe_stability(
         boot, [{"topp": boot["topp"], "joint": boot["joint"]}],
         max_update_rounds=3)
     assert result["confirmed"] is True
     assert result["update_rounds"] == 0
-    assert result["final_state"]["cifar10"]["topp"] == ["0.6", "0.95"]
+    for dataset in DATASETS:
+        assert result["final_state"][dataset]["topp"] == ["0.4", "0.8"]
     assert result["pinned_policy"] == PINNED_CIFAR_TOPP_POLICY
+    assert PINNED_CIFAR_TOPP_POLICY["pinned"] == {}
+    assert "cifar10" in PINNED_CIFAR_TOPP_POLICY["withdrawn"]
 
 
 def test_recipe_stability_p_or_j_drift_requires_n_rerun():
@@ -172,12 +189,30 @@ def test_recipe_stability_cycle_and_max_update_never_publish_winner():
             max_update_rounds=1)
 
 
-def test_recipe_stability_refuses_a_fake_cifar_p_candidate_and_jd_zero():
+def test_recipe_stability_refuses_an_inexact_p_decision_set_and_jd_zero():
+    """The P decision set must be exactly the swept datasets -- no more, no less.
+
+    This used to check that supplying CIFAR was refused, because CIFAR was
+    pinned out of the sweep. Now CIFAR is swept, so supplying it is correct and
+    OMITTING it is the error. The invariant under test is unchanged -- exact
+    coverage -- only its membership moved, so the test follows the membership
+    instead of restating a list that can drift.
+    """
     from scripts.phase3_select_n import run_recipe_stability
+    from scripts.phase3_selection_matrix import TOPP_SWEEP_DATASETS
+
+    assert "cifar10" in TOPP_SWEEP_DATASETS
+
     boot = _stability_decisions()
-    boot["topp"]["cifar10"] = ["0.6", "0.95"]
+    boot["topp"].pop("cifar10")
     with pytest.raises(SelectionRefused, match="topp decisions must cover exactly"):
         run_recipe_stability(boot, [], max_update_rounds=3)
+
+    boot = _stability_decisions()
+    boot["topp"]["not_a_dataset"] = ["0.4", "0.8"]
+    with pytest.raises(SelectionRefused, match="topp decisions must cover exactly"):
+        run_recipe_stability(boot, [], max_update_rounds=3)
+
     boot = _stability_decisions()
     boot["joint"]["cifar10"] = "0.0"
     with pytest.raises(SelectionRefused, match="positive grid"):
@@ -317,7 +352,10 @@ def test_stage_plan_is_exclusive_current_state_authority(tmp_path):
         path, expected_phase="bootstrap_topp", expected_state=state,
         expected_round=0, expected_max_update_rounds=3)
     assert authority["sha256"] == S._sha(path)
-    assert len(S.stability_stage_cells(payload)) == 12
+    from scripts.phase3_selection_matrix import (
+        TOPP_GRID as _G, TOPP_SWEEP_DATASETS as _D)
+    # Four swept datasets x four windows since the CIFAR pin was withdrawn.
+    assert len(S.stability_stage_cells(payload)) == len(_D) * len(_G) == 16
     with pytest.raises(SelectionRefused, match="will not be replaced"):
         S._publish_json_exclusive(path, payload)
 
@@ -2237,7 +2275,9 @@ def test_full_bundle_cyclic_relabel_is_refused_by_trainer_evidence(tmp_path):
                 rec["recipe"]["routing_adaptive_topp_max"])
         target = grid[(grid.index(here) + 1) % len(grid)]
         bundles.append((key, entry, record_path, rec, here, target))
-    assert len(bundles) == 3 * len(grid) == 12
+    from scripts.phase3_selection_matrix import TOPP_SWEEP_DATASETS
+    # Four swept datasets since the CIFAR top-p pin was withdrawn.
+    assert len(bundles) == len(TOPP_SWEEP_DATASETS) * len(grid) == 16
 
     # Move every occupied path through a temporary name so the permutation is
     # collision-free; this is exactly why the old "target is occupied" argument

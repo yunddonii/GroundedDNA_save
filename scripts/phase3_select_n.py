@@ -995,10 +995,29 @@ RECIPE_STAGE_PHASES = {
     "confirm_joint": "joint",
     "update_n": "n",
 }
+def _matrix_topp_pinned() -> dict:
+    """The launcher's pin table, read rather than restated."""
+    from scripts.phase3_selection_matrix import TOPP_PINNED
+    return dict(TOPP_PINNED)
+
+
+#: Recorded in every stage plan so a reader can see which datasets were held out
+#: of the top-p sweep and why. CIFAR's pin was withdrawn once the evidence behind
+#: it -- the draft's four-row table -- turned out not to isolate top-p from the
+#: epoch it was measured at (see TOPP_PINNED in phase3_selection_matrix). The
+#: key stays, and derives from the pin table, so a plan emitted today states
+#: "nothing is pinned" rather than silently dropping the field.
 PINNED_CIFAR_TOPP_POLICY = {
-    "dataset": "cifar10",
-    "topp": ["0.6", "0.95"],
+    "pinned": {
+        dataset: list(window)
+        for dataset, window in sorted(_matrix_topp_pinned().items())
+    },
     "source": "structural_empty_slot_policy",
+    "withdrawn": {
+        "cifar10": "the empty-slot table confounds top-p with epoch; the "
+                   "adopted window was measured only where all settings "
+                   "saturate, and CIFAR's N is not yet chosen",
+    },
     "selection_metric": None,
     "fake_candidate_record": False,
 }
