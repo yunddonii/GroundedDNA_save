@@ -1469,7 +1469,19 @@ def main(args: Config):
                  sinkhorn_epsilon_final=getattr(args, "sinkhorn_epsilon_final", None),
                  lr_scheduler=str(getattr(args, "lr_scheduler", "cosine")),
                  extra={
-                     "tag": str(getattr(args, "tag", "")),
+                     # `--tag` is `nargs='+'`, so `args.tag` is a LIST. `str()`
+                     # on it wrote "['p3fQ_flickr_A_v4_N4_s42']" into the
+                     # checkpoint's provenance, and the campaign compares that
+                     # field against the bare tag it asked for -- so every cell
+                     # of P16C trained to completion and was then refused with
+                     # `extra.identity`. Four cells, 129 minutes, nothing kept.
+                     #
+                     # The joined form is not a new convention: it is the same
+                     # `"_".join(...)` that `_resolve_save_path` (above) uses to
+                     # build the run directory this checkpoint sits in, so the
+                     # identity now names the run the way everything else does.
+                     "tag": ("_".join(args.tag)
+                             if getattr(args, "tag", None) else ""),
                      "dataset": str(getattr(args, "dataset", "")),
                      "random_seed": int(getattr(args, "random_seed", 42)),
                      "num_semantic_parts": int(getattr(args, "num_semantic_parts", 0) or 0),

@@ -1632,3 +1632,39 @@ def test_the_exec_block_parse_is_first_wins_on_a_repeated_name(tmp_path):
                    text=True, timeout=120)
     assert proc.returncode == 0, proc.stderr
     assert json.loads(proc.stdout)["LD_LIBRARY_PATH"] == "/first"
+
+
+def test_the_checkpoint_identity_tag_is_the_tag_not_its_list_repr():
+    """P16C trained all four first cells and then refused all four.
+
+    `--tag` is `nargs='+'`, so `args.tag` is a list. The checkpoint provenance
+    wrote `str(args.tag)` -- literally `"['p3fQ_flickr_A_v4_N4_s42']"` -- while
+    `assert_completed` compares that field against `expected_tag`, the bare
+    string the campaign asked for. Four cells, 129 minutes of GPU, nothing kept,
+    and the mismatch was invisible until every stream had finished because the
+    launcher only prints refusals after joining its threads.
+
+    The fix reuses the join `_resolve_save_path` already applies to build the
+    run directory, so the identity names the run the way its own path does.
+    Asserted on the composed expression rather than on a trained checkpoint,
+    which no test can afford to produce.
+    """
+    import argparse
+
+    source = (REPO / "train_siglip2.py").read_text()
+    assert 'str(getattr(args, "tag", ""))' not in source
+    assert '"_".join(args.tag)' in source
+
+    # `--tag` really is a list, which is what made str() wrong.
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--tag", dest="tag", nargs="+")
+    parsed = parser.parse_args(["--tag", "p3fQ_flickr_A_v4_N4_s42"])
+    assert parsed.tag == ["p3fQ_flickr_A_v4_N4_s42"]
+    assert str(parsed.tag) != "p3fQ_flickr_A_v4_N4_s42"
+
+    written = "_".join(parsed.tag) if parsed.tag else ""
+    assert written == "p3fQ_flickr_A_v4_N4_s42"
+
+    # A tag the launcher never passes must not crash the provenance write.
+    empty = parser.parse_args([])
+    assert ("_".join(empty.tag) if empty.tag else "") == ""
