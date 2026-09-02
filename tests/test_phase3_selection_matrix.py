@@ -1569,3 +1569,66 @@ def test_production_pj_stage_plan_cannot_be_narrowed_with_only(
     ])
     assert M.main() == 2
     assert "cannot narrow a production P/J" in capsys.readouterr().err
+
+
+def test_an_import_that_rewrites_the_environment_does_not_break_attestation():
+    """P16 was refused 16/16 because cv2 rewrites LD_LIBRARY_PATH on import.
+
+    Every cell died with `child environment differs from its plan:
+    ['library_environment']`. The trainer's import chain pulls in cv2, which
+    unconditionally prepends its bundled lib directory; the launcher's chain
+    does not. So the parent recorded the variable as the caller left it and the
+    child recorded it as cv2 left it, and no starting value can reconcile them
+    -- the child prepends on top of whatever it inherits, leaving the parent
+    exactly one prepend behind.
+
+    The attestation is for the environment the launcher HANDS the child, so
+    both sides read the exec block instead of the in-process copy.
+
+    Deliberately written against the public capture API only, so it runs on the
+    pre-fix commit and fails there: a test that passes on both sides would
+    prove nothing.
+    """
+    from dna_utils.runtime_environment import capture_parent_environment
+
+    before = capture_parent_environment([])["library_environment"]
+    previous = os.environ.get("LD_LIBRARY_PATH")
+    try:
+        # Exactly what cv2 does at import time.
+        os.environ["LD_LIBRARY_PATH"] = "/prepended/by/an/import:" + (
+            previous or "")
+        after = capture_parent_environment([])["library_environment"]
+    finally:
+        if previous is None:
+            os.environ.pop("LD_LIBRARY_PATH", None)
+        else:
+            os.environ["LD_LIBRARY_PATH"] = previous
+    assert after == before, (
+        "an in-process rewrite moved the attested environment; parent and "
+        "child can then never agree")
+
+
+def test_the_exec_block_parse_is_first_wins_on_a_repeated_name(tmp_path):
+    """`getenv(3)` returns the first match, so the attestation must too.
+
+    A NUL block may repeat a name. Last-wins would attest a value no library
+    ever reads.
+    """
+    import subprocess as _sp
+    probe = tmp_path / "dup.py"
+    probe.write_text(
+        "import json, sys\n"
+        f"sys.path.insert(0, {str(REPO)!r})\n"
+        "import dna_utils.runtime_environment as R\n"
+        "block = b'LD_LIBRARY_PATH=/first\\x00LD_LIBRARY_PATH=/second\\x00'\n"
+        "import builtins, io\n"
+        "real = builtins.open\n"
+        "builtins.open = lambda p, *a, **k: (\n"
+        "    io.BytesIO(block) if str(p) == '/proc/self/environ'\n"
+        "    else real(p, *a, **k))\n"
+        "print(json.dumps(R.caller_environment()))\n",
+        encoding="utf-8")
+    proc = _sp.run([sys.executable, str(probe)], capture_output=True,
+                   text=True, timeout=120)
+    assert proc.returncode == 0, proc.stderr
+    assert json.loads(proc.stdout)["LD_LIBRARY_PATH"] == "/first"

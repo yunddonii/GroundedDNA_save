@@ -38,18 +38,72 @@ sys.path.insert(0, os.path.join(_REPO, "scripts"))
 SLOTS = ["global", "primary_object", "secondary_object",
          "activity_relation", "color_texture", "scene_type"]
 
+#: Everything whose bytes decide what this tool reports.  Recorded in the output
+#: so a table built from it can be re-derived rather than believed -- including
+#: this file, which is edited more often than the model it measures.
+_PROVENANCE_SOURCES = (
+    "scripts/diagnose_per_image_empty_slots.py",
+    "scripts/regen_viz_routing.py",
+    "model_siglip2.py",
+    "models/semantic_router.py",
+    "dna_utils/visualization.py",
+)
+
+
+def _sha256_file(path: str) -> str:
+    import hashlib
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--result_dir", required=True)
+    ap.add_argument("--record", required=True, metavar="PATH", help=(
+        "the cell's sealed selection record. The epoch to measure at and the "
+        "checkpoint to measure are BOTH taken from here; there is no flag to "
+        "state them by hand."))
     ap.add_argument("--n", type=int, default=512)
-    ap.add_argument("--epoch", type=int, default=None)
     ap.add_argument("--sample_seed", type=int, default=1234)
     ap.add_argument("--split", default="train", choices=("train", "test"))
     ap.add_argument("--disable_adaptive_topp", action="store_true")
     ap.add_argument("--device", default="cuda:0")
     ap.add_argument("--out", default=None)
     a = ap.parse_args()
+
+    # The epoch decides the Sinkhorn epsilon, and the epsilon decides the
+    # routing distribution this tool measures.  `--epoch` used to be an
+    # unchecked integer that was simply believed, and omitting it left the
+    # model at epoch 0 -- which is how a whole diagnostic table ended up
+    # measured at the wrong operating point.  Both now come from the cell's own
+    # sealed record, and a cell without one is not measured.
+    record_path = os.path.abspath(a.record)
+    with open(record_path, "rb") as handle:
+        record_bytes = handle.read()
+    record = json.loads(record_bytes.decode("utf-8"))
+    completion = record.get("completion") or {}
+    epoch = completion.get("final_checkpoint_epoch_zero_based")
+    expected_ckpt = completion.get("final_checkpoint_sha256")
+    if not isinstance(epoch, int) or isinstance(epoch, bool) \
+            or not isinstance(expected_ckpt, str) or len(expected_ckpt) != 64:
+        raise SystemExit(
+            f"{record_path}: record carries no terminal epoch and checkpoint "
+            f"digest; refusing to guess an operating point")
+    if os.path.abspath(str(record.get("run_dir", ""))) \
+            != os.path.abspath(a.result_dir):
+        raise SystemExit(
+            f"record names run_dir {record.get('run_dir')!r}, which is not "
+            f"{a.result_dir!r}")
+
+    checkpoint = os.path.join(a.result_dir, "model_state_dict.pth")
+    actual_ckpt = _sha256_file(checkpoint)
+    if actual_ckpt != expected_ckpt:
+        raise SystemExit(
+            f"{checkpoint}: sha256 {actual_ckpt} is not the sealed terminal "
+            f"checkpoint {expected_ckpt}")
 
     from regen_viz_routing import _parse_args_txt
     args = _parse_args_txt(os.path.join(a.result_dir, "args.txt"))
@@ -60,11 +114,19 @@ def main() -> int:
     from dna_utils.visualization import _forward_text_routed
 
     model = SigLIP2SemanticOTModel(args).to(a.device).eval()
-    sd = torch.load(os.path.join(a.result_dir, "model_state_dict.pth"),
-                    map_location="cpu", weights_only=False)
-    model.load_state_dict(sd, strict=False)
-    if a.epoch is not None:
-        model.set_current_epoch(a.epoch)
+    sd = torch.load(checkpoint, map_location="cpu", weights_only=False)
+    # `strict=False` silently tolerated a partially loaded model, which would
+    # be measured as if it were the trained one.
+    incompatible = model.load_state_dict(sd, strict=False)
+    missing = list(getattr(incompatible, "missing_keys", []) or [])
+    unexpected = list(getattr(incompatible, "unexpected_keys", []) or [])
+    if missing or unexpected:
+        raise SystemExit(
+            f"{checkpoint}: state dict does not match the model: "
+            f"{len(missing)} missing {missing[:5]}, "
+            f"{len(unexpected)} unexpected {unexpected[:5]}")
+    model.set_current_epoch(epoch)
+    effective_epsilon = model._current_sinkhorn_epsilon()
 
     want_train = (a.split == "train")
     tr, te, _ = load_dataset(
@@ -151,8 +213,38 @@ def main() -> int:
             rows[name]["codons_when_seen"] = int(len(us))
 
     out = {"dataset": args.dataset, "dir": a.result_dir, "split": a.split,
-           "epoch": a.epoch, "images": int(B),
-           "adaptive_topp_disabled": bool(a.disable_adaptive_topp), "slots": rows}
+           "epoch": epoch, "images": int(B),
+           "adaptive_topp_disabled": bool(a.disable_adaptive_topp),
+           # `adaptive_topp_disabled` above is this TOOL's flag, not the cell's
+           # setting -- it was misread as the latter once.  The cell's own
+           # effective value is stated separately, composed the way
+           # model_siglip2.py:2300-2301 composes it.
+           "cell_adaptive_topp_effective": bool(
+               getattr(args, "routing_adaptive_topp", False)) and not bool(
+               getattr(args, "no_routing_adaptive_topp", False)),
+           "cell_adaptive_topp_min": getattr(
+               args, "routing_adaptive_topp_min", None),
+           "cell_adaptive_topp_max": getattr(
+               args, "routing_adaptive_topp_max", None),
+           # The epoch is only a label; epsilon is what the routing actually
+           # ran at.  Recording it makes "measured at the terminal epoch" a
+           # property of the model state rather than of a command line.
+           "effective_sinkhorn_epsilon": (
+               None if effective_epsilon is None else float(effective_epsilon)),
+           "provenance": {
+               "record_path": record_path,
+               "record_sha256": __import__("hashlib").sha256(
+                   record_bytes).hexdigest(),
+               "checkpoint_path": checkpoint,
+               "checkpoint_sha256": actual_ckpt,
+               "source_sha256": {
+                   rel: _sha256_file(os.path.join(_REPO, rel))
+                   for rel in _PROVENANCE_SOURCES
+                   if os.path.exists(os.path.join(_REPO, rel))},
+               "sample_seed": int(a.sample_seed),
+               "sample_indices": [int(i) for i in order],
+           },
+           "slots": rows}
     if a.out:
         os.makedirs(os.path.dirname(a.out) or ".", exist_ok=True)
         json.dump(out, open(a.out, "w"), indent=2)
