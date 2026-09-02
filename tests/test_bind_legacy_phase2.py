@@ -287,6 +287,8 @@ def test_both_sides_publish_one_common_exact_receipt_and_verify(
 
     events = []
     original_sources = aggregator._report_source_sha256
+    original_validate = extraction_validation.validate_extraction_run
+    validate_calls = 0
 
     def record_loader(path, what):
         payload, digest = original_loader(path, what)
@@ -298,12 +300,37 @@ def test_both_sides_publish_one_common_exact_receipt_and_verify(
         events.append("source")
         return original_sources()
 
+    def count_validate(*args, **kwargs):
+        nonlocal validate_calls
+        validate_calls += 1
+        return original_validate(*args, **kwargs)
+
+    def recursive_main_is_forbidden():
+        pytest.fail("report verification must not recursively call main()")
+
     with authority.monkeypatch.context() as nested:
         nested.setattr(extraction_validation, "_load_json_bound", record_loader)
         nested.setattr(aggregator, "_report_source_sha256", record_sources)
+        nested.setattr(
+            extraction_validation, "validate_extraction_run", count_validate)
+        nested.setattr(binder, "validate_extraction_run", count_validate)
+        nested.setattr(aggregator, "main", recursive_main_is_forbidden)
         aggregator.verify_report_receipt(
             report / "receipt.json", **verify_kwargs)
     assert events[-1] == "receipt"
+    # This pins ONE thing: the verifier no longer reaches its canonical payload
+    # by re-entering `main()`, so it does not produce what it verifies.  It is
+    # NOT evidence that the duplicate-read cost of §63.31 is resolved -- audit
+    # §64.2 retracted that as a gate anyway, and §64.3 showed this count cannot
+    # carry it.  The verifier still validates each cell-side FOUR times, and
+    # `_inspect_npz` is not counted here at all; the dominant repetition is in
+    # `verify_input_root`, which this refactor does not touch.  Writing the
+    # duplication factor out loud keeps a later reader from mistaking a passing
+    # test for an efficient one.
+    validates_per_cell_side = 4
+    sides = 2  # fixed + legacy
+    assert validate_calls == (
+        validates_per_cell_side * sides * len(aggregator.EXPECTED_CELLS))
     (report / "impact.md").write_text("changed after receipt\n")
     with pytest.raises(aggregator.ManifestMissing, match="report bytes"):
         aggregator.verify_report_receipt(

@@ -23,7 +23,6 @@ from pathlib import Path
 import statistics
 import subprocess
 import sys
-import tempfile
 
 import sklearn
 
@@ -217,8 +216,7 @@ def verify_report_receipt(
         path: Path, *, expected_fixed_root: Path, expected_legacy_root: Path,
         expected_pair_receipt: Path, expected_report_json: Path,
         expected_report_md: Path) -> tuple[dict, str]:
-    from dna_utils.extraction_validation import (
-        ANALYSIS_MARKER_NAME, _load_json_bound, read_analysis_marker)
+    from dna_utils.extraction_validation import ANALYSIS_MARKER_NAME, _load_json_bound
     path = _leaf_path(path)
     receipt, digest = _load_json_bound(str(path), "Phase-2 report receipt")
     expected_keys = {
@@ -264,16 +262,9 @@ def verify_report_receipt(
     marker_shas = receipt.get("analysis_marker_sha256")
     if not isinstance(marker_shas, dict) or set(marker_shas) != {"fixed", "legacy"}:
         raise ManifestMissing("Phase-2 final receipt marker map is invalid")
-    for side, root in (("fixed", fixed_root), ("legacy", legacy_root)):
-        if set(marker_shas[side]) != set(EXPECTED_CELLS):
-            raise ManifestMissing(f"Phase-2 {side} marker set is not exact")
-        for cell in EXPECTED_CELLS:
-            cell_dir = root / cell
-            marker = read_analysis_marker(str(cell_dir), allow_backfilled=True)
-            reopened, marker_sha = _load_json_bound(
-                str(cell_dir / ANALYSIS_MARKER_NAME), "Phase-2 analysis marker")
-            if marker != reopened or marker_shas[side][cell] != marker_sha:
-                raise ManifestMissing(f"Phase-2 {side}/{cell} marker differs")
+    if any(set(marker_shas.get(side, {})) != set(EXPECTED_CELLS)
+           for side in ("fixed", "legacy")):
+        raise ManifestMissing("Phase-2 final receipt marker set is not exact")
 
     reports = receipt.get("reports") or {}
     if set(reports) != {"json", "markdown"}:
@@ -291,29 +282,11 @@ def verify_report_receipt(
                 "pair_receipt_sha256") != pair_sha:
         raise ManifestMissing("Phase-2 report bytes/authority differ from receipt")
 
-    # Reuse the actual reducer/renderer in a private temporary output. This
-    # avoids a second implementation that could accept a self-consistent but
-    # scientifically different report.
-    with tempfile.TemporaryDirectory(prefix="groundeddna-phase2-verify-") as tmp:
-        temporary = Path(tmp)
-        saved_argv = sys.argv
-        sys.argv = [
-            str(Path(__file__).resolve()), "--phase2-root", str(fixed_root),
-            "--legacy-root", str(legacy_root), "--pair-receipt", str(pair_path),
-            "--out-json", str(temporary / "report.json"),
-            "--out-md", str(temporary / "report.md"),
-            "--out-receipt", str(temporary / "receipt.json")]
-        try:
-            result = main()
-        finally:
-            sys.argv = saved_argv
-        if result != 0:
-            raise ManifestMissing("canonical Phase-2 report regeneration failed")
-        canonical, _ = _load_json_bound(
-            str(temporary / "report.json"), "canonical Phase-2 JSON report")
-        canonical_md, _ = _bound_bytes(
-            temporary / "report.md", "canonical Phase-2 Markdown report")
-    if canonical != report or canonical_md != markdown:
+    canonical, canonical_md, canonical_marker_shas, _ = _reduce_report(
+        fixed_root, legacy_root, pair_path, pair, pair_sha)
+    if canonical_marker_shas != marker_shas:
+        raise ManifestMissing("Phase-2 report marker evidence differs from receipt")
+    if canonical != report or canonical_md.encode("utf-8") != markdown:
         raise ManifestMissing("Phase-2 report semantics differ from sealed markers")
 
     # Final bookend: receipt, roots, markers, reports, and source must still be
@@ -479,6 +452,167 @@ def _delta(new, old):
     return float(new) - float(old)
 
 
+def _reduce_report(root: Path, legacy_root: Path, pair_receipt_path: Path,
+                   pair_authority: dict, pair_receipt_sha256: str
+                   ) -> tuple[dict, str, dict, dict]:
+    """Validate the 30 markers once and deterministically render the report."""
+    policy = resolve_gc_policy(TOTAL_BASES)
+    cells, unpaired = [], []
+    marker_sha256 = {"fixed": {}, "legacy": {}}
+    markers = {"fixed": {}, "legacy": {}}
+    for dataset in ORDER:
+        for (ds, n), _legacy_rel in sorted(LEGACY.items()):
+            if ds != dataset:
+                continue
+            cell_dir = root / f"{ds}_N{n}"
+            legacy_dir = legacy_root / f"{ds}_N{n}"
+            protocol = expected_protocol(ds, policy)
+            try:
+                manifests, marker, marker_sha = _require_manifests(
+                    cell_dir, protocol=protocol,
+                    identity=expected_identity(
+                        ds, n, epoch=n, epoch_source="explicit_flag"))
+                legacy_manifests, legacy_marker, legacy_marker_sha = \
+                    _require_manifests(
+                        legacy_dir, protocol=protocol,
+                        identity=expected_identity(
+                            ds, n, epoch=0,
+                            epoch_source="f01_unrestored"))
+            except ManifestMissing as error:
+                unpaired.append({"cell": f"{ds}/N{n}", "reason": str(error)})
+                continue
+            new = _side(cell_dir, marker)
+            old = _side(legacy_dir, legacy_marker)
+            same, differing = _pair_identity(manifests, legacy_manifests)
+            if not same:
+                unpaired.append({
+                    "cell": f"{ds}/N{n}",
+                    "reason": (f"the two sides are not the same run: "
+                               f"{', '.join(differing)} differ, so the "
+                               f"difference is not F01"),
+                })
+                continue
+            if new["analysis_sources"] != old["analysis_sources"]:
+                unpaired.append({
+                    "cell": f"{ds}/N{n}",
+                    "reason": ("the two sides were scored by different "
+                               "analysis sources; the delta would measure the "
+                               "evaluator change, not F01"),
+                })
+                continue
+            if (new["gc_min_frac"], new["gc_max_frac"]) != (
+                    old["gc_min_frac"], old["gc_max_frac"]):
+                unpaired.append({
+                    "cell": f"{ds}/N{n}",
+                    "reason": "GC windows differ; the difference would measure "
+                              "the window change, not F01",
+                    "phase2_gc": [new["gc_min_frac"], new["gc_max_frac"]],
+                    "legacy_gc": [old["gc_min_frac"], old["gc_max_frac"]],
+                })
+                continue
+            cells.append({
+                "cell": f"{ds}/N{n}", "dataset": ds, "N": n,
+                "legacy": old, "phase2": new,
+                "fixed_side_sealed": bool(new["sealed"]),
+                "legacy_side_sealed": bool(old["sealed"]),
+                "same_evaluator_both_sides": True,
+                "provenance": {
+                    "checkpoint_sha256": manifests["db"]["checkpoint_sha256"],
+                    "config_sha256": manifests["db"]["config_sha256"],
+                    "pair_identity_verified": True,
+                    "phase2": _provenance(manifests["db"]),
+                    "legacy": _provenance(legacy_manifests["db"]),
+                },
+                "delta": {
+                    key: _delta(new[key], old[key])
+                    for key in _REPORTED_METRICS
+                },
+            })
+            name = f"{ds}_N{n}"
+            marker_sha256["fixed"][name] = marker_sha
+            marker_sha256["legacy"][name] = legacy_marker_sha
+            markers["fixed"][name] = marker
+            markers["legacy"][name] = legacy_marker
+
+    def mean_delta(key):
+        values = [c["delta"][key] for c in cells if c["delta"][key] is not None]
+        return statistics.fmean(values) if values else None
+
+    payload = {
+        "what_this_measures": (
+            "F01 only: the same checkpoint re-inferred with the training epoch "
+            "restored, so the router runs at the annealed Sinkhorn epsilon "
+            "instead of the initial one. Not an N selection."),
+        "total_bases": TOTAL_BASES,
+        "gc_policy": policy.as_manifest_record(),
+        "paired_cells": len(cells),
+        "unpaired": unpaired,
+        "mean_delta": {key: mean_delta(key) for key in _REPORTED_METRICS},
+        "cells": cells,
+        "expected_cells": len(LEGACY),
+        "complete": len(cells) == len(LEGACY),
+        "eligibility": "diagnostic_only_never_paper_main",
+        "input_authority": {
+            "pair_receipt": str(pair_receipt_path),
+            "pair_receipt_sha256": pair_receipt_sha256,
+            "input_receipt_sha256": pair_authority["input_receipt_sha256"],
+            "limitations": pair_authority["limitations"],
+        },
+    }
+
+    def fmt(value, places=4):
+        return "-" if value is None else f"{float(value):+.{places}f}"
+
+    def raw(value, places=4):
+        return "-" if value is None else f"{float(value):.{places}f}"
+
+    lines = [
+        "# Phase 2 — what the epoch-0 extraction bug (F01) cost", "",
+        payload["what_this_measures"], "",
+        "- Ranking below is **post-bio diagnostic**. D1's selection metric is "
+        "raw base-Hamming mAP@R, which these artefacts do not store, so this "
+        "does not show what the train-only selection would have chosen.",
+        "- Both sides are scored by the SAME committed evaluator, and the "
+        "aggregation refuses any pair whose recorded analysis sources differ.",
+        "- Extraction manifests were **backfilled** after the fact and carry "
+        "`backfilled: true`; the cells' inputs were verified byte-identical to "
+        "their canonical legacy sources, but the manifests are not evidence "
+        "that the extraction recorded itself.",
+        "- CIFAR stores class-label bytes but no image-path identity; exact "
+        "label order is paired, while within-class sample permutation cannot "
+        "be excluded. This is one reason the result remains diagnostic-only.",
+        f"- Paired cells: **{len(cells)} / {len(LEGACY)}**",
+        f"- GC window (both sides): count "
+        f"[{policy.gc_min_count}, {policy.gc_max_count}] at {TOTAL_BASES} bases "
+        f"(`{policy.policy_version}`)", "",
+        "| cell | mAP@R legacy | mAP@R fixed | Δ | DNA-uniq legacy | DNA-uniq fixed | Δ | NMI legacy | NMI fixed | Δ |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+    ]
+    for cell in cells:
+        lines.append(
+            f"| {cell['cell']} "
+            f"| {raw(cell['legacy']['map_at_R_bioproj'])} "
+            f"| {raw(cell['phase2']['map_at_R_bioproj'])} "
+            f"| {fmt(cell['delta']['map_at_R_bioproj'])} "
+            f"| {raw(cell['legacy']['dna_unique_db'])} "
+            f"| {raw(cell['phase2']['dna_unique_db'])} "
+            f"| {fmt(cell['delta']['dna_unique_db'])} "
+            f"| {raw(cell['legacy']['nmi'])} "
+            f"| {raw(cell['phase2']['nmi'])} "
+            f"| {fmt(cell['delta']['nmi'])} |")
+    lines += [
+        "",
+        "Mean Δ (fixed − legacy): "
+        f"mAP@R {fmt(payload['mean_delta']['map_at_R_bioproj'])}, "
+        f"DNA-uniq {fmt(payload['mean_delta']['dna_unique_db'])}, "
+        f"NMI {fmt(payload['mean_delta']['nmi'])}.",
+    ]
+    if unpaired:
+        lines += ["", "## Unpaired", ""]
+        lines += [f"- `{entry['cell']}`: {entry['reason']}" for entry in unpaired]
+    return payload, "\n".join(lines) + "\n", marker_sha256, markers
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--phase2-root")
@@ -581,121 +715,11 @@ def main() -> int:
         print("REFUSED: every report output parent must already exist")
         return 2
 
-    policy = resolve_gc_policy(TOTAL_BASES)
-    cells, unpaired = [], []
-    analysis_marker_sha256 = {"fixed": {}, "legacy": {}}
-    analysis_markers = {"fixed": {}, "legacy": {}}
-    for dataset in ORDER:
-        for (ds, n), _legacy_rel in sorted(LEGACY.items()):
-            if ds != dataset:
-                continue
-            cell_dir = root / f"{ds}_N{n}"
-            legacy_dir = legacy_root / f"{ds}_N{n}"
-            protocol = expected_protocol(ds, policy)
-            try:
-                # The fixed side was re-inferred AT this cell's own N; the
-                # legacy side is the F01 defect, which never restored the epoch.
-                manifests, marker, marker_sha = _require_manifests(
-                    cell_dir, protocol=protocol,
-                    identity=expected_identity(
-                        ds, n, epoch=n, epoch_source="explicit_flag"))
-                legacy_manifests, legacy_marker, legacy_marker_sha = _require_manifests(
-                    legacy_dir, protocol=protocol,
-                    identity=expected_identity(
-                        ds, n, epoch=0, epoch_source="f01_unrestored"))
-            except ManifestMissing as error:
-                unpaired.append({"cell": f"{ds}/N{n}", "reason": str(error)})
-                continue
-            new = _side(cell_dir, marker)
-            old = _side(legacy_dir, legacy_marker)
-
-            # The claim this whole table makes is "the SAME checkpoint, with the
-            # epoch restored". That was assumed, never checked: the legacy
-            # manifests were validated and then discarded, and only the analysis
-            # sources and the GC window were compared. Two different checkpoints
-            # would have been differenced without a word.
-            same, differing = _pair_identity(manifests, legacy_manifests)
-            if not same:
-                unpaired.append({
-                    "cell": f"{ds}/N{n}",
-                    "reason": (f"the two sides are not the same run: "
-                               f"{', '.join(differing)} differ, so the "
-                               f"difference is not F01"),
-                })
-                continue
-
-            # Both sides must have been scored by the SAME evaluator, or the
-            # difference measures the evaluator change as much as F01.
-            if new["analysis_sources"] != old["analysis_sources"]:
-                unpaired.append({
-                    "cell": f"{ds}/N{n}",
-                    "reason": ("the two sides were scored by different "
-                               "analysis sources; the delta would measure the "
-                               "evaluator change, not F01"),
-                })
-                continue
-            if (new["gc_min_frac"], new["gc_max_frac"]) != (
-                    old["gc_min_frac"], old["gc_max_frac"]):
-                unpaired.append({
-                    "cell": f"{ds}/N{n}",
-                    "reason": "GC windows differ; the difference would measure "
-                              "the window change, not F01",
-                    "phase2_gc": [new["gc_min_frac"], new["gc_max_frac"]],
-                    "legacy_gc": [old["gc_min_frac"], old["gc_max_frac"]],
-                })
-                continue
-            cells.append({
-                "cell": f"{ds}/N{n}", "dataset": ds, "N": n,
-                "legacy": old, "phase2": new,
-                "fixed_side_sealed": bool(new["sealed"]),
-                "legacy_side_sealed": bool(old["sealed"]),
-                "same_evaluator_both_sides": True,
-                # BOTH sides. Recording only the fixed one left the reader
-                # unable to see the axis the pair actually differs along.
-                "provenance": {
-                    "checkpoint_sha256": manifests["db"]["checkpoint_sha256"],
-                    "config_sha256": manifests["db"]["config_sha256"],
-                    "pair_identity_verified": True,
-                    "phase2": _provenance(manifests["db"]),
-                    "legacy": _provenance(legacy_manifests["db"]),
-                },
-                "delta": {
-                    key: _delta(new[key], old[key])
-                    for key in _REPORTED_METRICS
-                },
-            })
-            name = f"{ds}_N{n}"
-            analysis_marker_sha256["fixed"][name] = marker_sha
-            analysis_marker_sha256["legacy"][name] = legacy_marker_sha
-            analysis_markers["fixed"][name] = marker
-            analysis_markers["legacy"][name] = legacy_marker
-
-    def _mean(key):
-        values = [c["delta"][key] for c in cells if c["delta"][key] is not None]
-        return statistics.fmean(values) if values else None
-
-    payload = {
-        "what_this_measures": (
-            "F01 only: the same checkpoint re-inferred with the training epoch "
-            "restored, so the router runs at the annealed Sinkhorn epsilon "
-            "instead of the initial one. Not an N selection."),
-        "total_bases": TOTAL_BASES,
-        "gc_policy": policy.as_manifest_record(),
-        "paired_cells": len(cells),
-        "unpaired": unpaired,
-        "mean_delta": {key: _mean(key) for key in _REPORTED_METRICS},
-        "cells": cells,
-        "expected_cells": len(LEGACY),
-        "complete": len(cells) == len(LEGACY),
-        "eligibility": "diagnostic_only_never_paper_main",
-        "input_authority": {
-            "pair_receipt": str(pair_receipt_path),
-            "pair_receipt_sha256": pair_receipt_sha256,
-            "input_receipt_sha256": pair_authority[
-                "input_receipt_sha256"],
-            "limitations": pair_authority["limitations"],
-        },
-    }
+    payload, markdown, analysis_marker_sha256, analysis_markers = \
+        _reduce_report(
+            root, legacy_root, pair_receipt_path, pair_authority,
+            pair_receipt_sha256)
+    cells, unpaired = payload["cells"], payload["unpaired"]
 
     # A report covering 1 of 15 cells is not a smaller version of the answer,
     # it is a different claim -- and it used to be written straight over the
@@ -716,61 +740,6 @@ def main() -> int:
         out_md = out_md.with_suffix(f".partial{out_md.suffix}")
 
     _publish_json_exclusive(out_json, payload)
-
-    def fmt(value, places=4):
-        return "-" if value is None else f"{float(value):+.{places}f}"
-
-    def raw(value, places=4):
-        return "-" if value is None else f"{float(value):.{places}f}"
-
-    lines = [
-        "# Phase 2 — what the epoch-0 extraction bug (F01) cost",
-        "",
-        payload["what_this_measures"],
-        "",
-        "- Ranking below is **post-bio diagnostic**. D1's selection metric is "
-        "raw base-Hamming mAP@R, which these artefacts do not store, so this "
-        "does not show what the train-only selection would have chosen.",
-        "- Both sides are scored by the SAME committed evaluator, and the "
-        "aggregation refuses any pair whose recorded analysis sources differ.",
-        "- Extraction manifests were **backfilled** after the fact and carry "
-        "`backfilled: true`; the cells' inputs were verified byte-identical to "
-        "their canonical legacy sources, but the manifests are not evidence "
-        "that the extraction recorded itself.",
-        "- CIFAR stores class-label bytes but no image-path identity; exact "
-        "label order is paired, while within-class sample permutation cannot "
-        "be excluded. This is one reason the result remains diagnostic-only.",
-        f"- Paired cells: **{len(cells)} / {len(LEGACY)}**",
-        f"- GC window (both sides): count "
-        f"[{policy.gc_min_count}, {policy.gc_max_count}] at {TOTAL_BASES} bases "
-        f"(`{policy.policy_version}`)",
-        "",
-        "| cell | mAP@R legacy | mAP@R fixed | Δ | DNA-uniq legacy | DNA-uniq fixed | Δ | NMI legacy | NMI fixed | Δ |",
-        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
-    ]
-    for c in cells:
-        lines.append(
-            f"| {c['cell']} "
-            f"| {raw(c['legacy']['map_at_R_bioproj'])} "
-            f"| {raw(c['phase2']['map_at_R_bioproj'])} "
-            f"| {fmt(c['delta']['map_at_R_bioproj'])} "
-            f"| {raw(c['legacy']['dna_unique_db'])} "
-            f"| {raw(c['phase2']['dna_unique_db'])} "
-            f"| {fmt(c['delta']['dna_unique_db'])} "
-            f"| {raw(c['legacy']['nmi'])} "
-            f"| {raw(c['phase2']['nmi'])} "
-            f"| {fmt(c['delta']['nmi'])} |")
-    lines += [
-        "",
-        "Mean Δ (fixed − legacy): "
-        f"mAP@R {fmt(payload['mean_delta']['map_at_R_bioproj'])}, "
-        f"DNA-uniq {fmt(payload['mean_delta']['dna_unique_db'])}, "
-        f"NMI {fmt(payload['mean_delta']['nmi'])}.",
-    ]
-    if unpaired:
-        lines += ["", "## Unpaired", ""]
-        lines += [f"- `{u['cell']}`: {u['reason']}" for u in unpaired]
-    markdown = "\n".join(lines) + "\n"
     _publish_text_exclusive(out_md, markdown)
     try:
         from dna_utils.extraction_validation import _load_json_bound
