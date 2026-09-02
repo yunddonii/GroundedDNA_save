@@ -24,17 +24,27 @@ def pairwise_nmi(codebook_indices):
     M = codebook_indices.shape[1]
     out = np.zeros((M, M), dtype=np.float64)
     for i in range(M):
-        for j in range(M):
-            if i == j:
-                out[i, j] = 1.0
-            else:
-                # `average_method` is stated rather than defaulted: it has
-                # changed default across sklearn releases, and it changes every
-                # number in this matrix.
-                out[i, j] = normalized_mutual_info_score(
-                    codebook_indices[:, i], codebook_indices[:, j],
-                    average_method="arithmetic",
-                )
+        out[i, i] = 1.0
+        for j in range(i + 1, M):
+            # `average_method` is stated rather than defaulted: it has
+            # changed default across sklearn releases, and it changes every
+            # number in this matrix.
+            #
+            # Each unordered pair is scored ONCE and mirrored. NMI is symmetric
+            # by definition, but `score(a, b)` and `score(b, a)` are not
+            # bit-identical -- the mutual-information and entropy sums
+            # accumulate in a different order, which moved entries by ~1 ULP
+            # (1.1e-16 observed). Scoring both halves therefore produced a
+            # matrix that `seal_cell_analysis._check_nmi` rejects, since it
+            # requires `array_equal(matrix, matrix.T)` exactly. On the
+            # 2026-09-02 diagnostic that refused 29 of 30 cells, each with
+            # "pairwise_nmi.json matrix is malformed", while the one cell whose
+            # twenty off-diagonal entries happened to round identically passed.
+            # Mirroring also halves the work.
+            out[i, j] = out[j, i] = normalized_mutual_info_score(
+                codebook_indices[:, i], codebook_indices[:, j],
+                average_method="arithmetic",
+            )
     return out
 
 

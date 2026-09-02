@@ -52,6 +52,52 @@ def test_honest_result_is_strict_bound_json(tmp_path):
     assert 0.0 <= payload["mean_off_diag_nmi"] <= 1.0
 
 
+def test_the_matrix_is_exactly_symmetric_on_data_that_exposes_the_rounding():
+    """`seal_cell_analysis` requires `array_equal(m, m.T)`, so mirror the pair.
+
+    NMI is symmetric by definition but sklearn's `score(a, b)` and
+    `score(b, a)` are not bit-identical -- the sums accumulate in a different
+    order. Scoring both halves therefore built matrices the sealer rejected as
+    "malformed": on the 2026-09-02 diagnostic that was 29 of 30 cells, and the
+    one survivor was simply the cell whose entries happened to round the same
+    both ways.
+
+    The existing cell fixture has four rows, so every pair rounds identically
+    and the whole suite passed over the defect. This uses a shape that
+    actually reaches the rounding, and asserts the naive computation still
+    disagrees -- if a future sklearn makes both orders bit-identical, this
+    guard tells us the fixture stopped covering the case.
+    """
+    import numpy as np
+    from sklearn.metrics import normalized_mutual_info_score
+
+    codebook_indices = np.random.default_rng(0).integers(0, 64, size=(4000, 5))
+
+    naive_disagreements = sum(
+        normalized_mutual_info_score(
+            codebook_indices[:, i], codebook_indices[:, j],
+            average_method="arithmetic")
+        != normalized_mutual_info_score(
+            codebook_indices[:, j], codebook_indices[:, i],
+            average_method="arithmetic")
+        for i in range(5) for j in range(i + 1, 5)
+    )
+    assert naive_disagreements > 0, (
+        "fixture no longer reaches the argument-order rounding; pick a shape "
+        "that does, or this test proves nothing")
+
+    matrix = nmi_script.pairwise_nmi(codebook_indices)
+    assert np.array_equal(matrix, matrix.T)
+    assert np.array_equal(np.diag(matrix), np.ones(5))
+    # Mirroring must not quietly change what is reported: every off-diagonal
+    # entry is still the score of that unordered pair in index order.
+    for i in range(5):
+        for j in range(i + 1, 5):
+            assert matrix[i, j] == normalized_mutual_info_score(
+                codebook_indices[:, i], codebook_indices[:, j],
+                average_method="arithmetic")
+
+
 def test_main_three_split_transaction_requires_explicit_flag(tmp_path):
     path = tmp_path / "main"
     path.mkdir()
