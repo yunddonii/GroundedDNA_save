@@ -720,14 +720,96 @@ bookend cost; `FINAL_BOOKEND_FULL` removed the other. Against that, the selectio
 already has real evidence: nine cells completed 9/9 under this launcher on 2026-08-31,
 and none of `b177207`, `ac1d185` or `023fc47` touched the selection cell path.
 
+### The CIFAR top-p pin is withdrawn: its evidence measured epoch, not top-p
+
+CIFAR was held out of the sweep at a pinned (0.6, 0.95). The reasoning about the
+*metric* stands — on a single-label dataset the decoding probe rewards slot
+starvation, so picking CIFAR by mAP@R would overturn a structural decision using
+the metric that decision existed to overrule. The *evidence* does not.
+
+Reading all seven cells' `args.txt` through `model_siglip2.py:2300-2301`
+(`routing_adaptive_topp AND NOT no_routing_adaptive_topp` — both fields are
+present and only that line decides):
+
+| cell | ep | top-p | window | `color_texture` empty | n_tok median |
+|---|---:|---|---|---:|---:|
+| `slot5` | 4 | on | .3/.7 | 23.44 % | 84.5 |
+| `s5topp45` | 4 | on | .4/.8 | 9.77 % | 149.5 |
+| `s5csd005` | 9 | on (+csd) | .3/.7 | 43.36 % | 2.0 |
+| `topp69` | 9 | on | .6/.95 | 0.00 % | 196.0 |
+| `noTOPP` | 14 | **off** | — | 0.00 % | 196.0 |
+| **`s5topp69`** | 14 | on | .6/.95 | 0.00 % | 196.0 |
+| `baseline` | 19 | on | .3/.7 | 0.00 % | 196.0 |
+
+Hold the window at .3/.7 and move only the epoch: `slot5` at ep4 is 23.44 %/84.5,
+`baseline` at ep19 is 0.00 %/196.0. The whole transition the draft credits to
+top-p tuning reproduces with no top-p change at all.
+
+Top-p does real work early — `slot5` vs `s5topp45` is a clean same-epoch,
+same-loss contrast, 23.44 % → 9.77 %. But the adopted window was only ever
+measured at ep9 and ep14, where every setting has saturated to 0.00 %/196.0 and
+nothing is distinguishable, mask-off included. And there is no operating point to
+appeal to: `INCUMBENT_N` is a horizon by its own comment, and CIFAR's is 39, not
+4. The pin was a declaration about a coordinate nobody has fixed yet.
+
+So CIFAR joins the sweep, at the cost of one already-built seal and four N=39
+cells; MS-COCO's chain still sets the wall clock. The selection rule is
+untouched — train-only mAP@R stays the single predeclared metric. Empty-slot
+ratio is **not** entering selection; it gets measured per coordinate at each
+cell's terminal epoch afterwards, which is the controlled contrast (same N, same
+loss, window only) the four-row table never had.
+
+### P16 was refused 16/16 by an attestation that had never run
+
+The first campaign hashed 531.7 GB over 79 minutes and then lost every cell in
+about a second:
+
+```
+RunCollision: Phase-3 child environment differs from its plan: ['library_environment']
+```
+
+The trainer's import chain pulls in `cv2`, which prepends its bundled lib
+directory to `LD_LIBRARY_PATH` at import. The launcher's chain does not, so its
+snapshot recorded all four `RUNTIME_ENV_KEYS` as null while every child recorded
+the rewritten value. Presetting the variable cannot reconcile them: the prepend
+is unconditional — 82 characters in, 164 out — so the parent is always exactly
+one prepend behind.
+
+`dna_utils/runtime_environment.py` was added in `7c31754`;
+`git cat-file -e 3a64f22:dna_utils/runtime_environment.py` fails, and `3a64f22`
+is what the 2026-08-31 9/9 sweep ran under. **The "selection path already has
+real evidence" argument that justified skipping a smoke did not cover this file
+at all.** One `git diff --stat 3a64f22..0c4d797` would have listed it. Audit
+§80.3 warned about never-executed branches on the refit path; one was sitting on
+the selection path, and both the audit session and I reasoned past it.
+
+Fixed by changing what is read, not what is compared. `/proc/self/environ` is the
+block the process was exec'd with and no import can touch it; `os.environ` is a
+mutable in-process copy. One `caller_environment()` serves both sides — not two,
+because a verifier that reimplements what it verifies is the fault removed from
+the NMI cross-check one commit earlier. Repeated names resolve first-wins, since
+`getenv(3)` returns the first match. The compared field set and the equality rule
+are unchanged, and a caller genuinely supplying a different `LD_LIBRARY_PATH` is
+still refused. The regression test uses only the public capture API so it runs on
+the pre-fix commit and fails there.
+
+Also reworked, outside every seal: the empty-slot diagnostic took `--epoch` as an
+unchecked integer, measured at epoch 0 when the flag was omitted, loaded with
+`strict=False`, and recorded no provenance. It now takes epoch and expected
+checkpoint digest from the cell's sealed record and refuses without one, verifies
+the checkpoint on disk, refuses a partial load, and records the digests, sample
+indices, the cell's effective top-p, and the effective Sinkhorn epsilon — so
+"measured at the terminal epoch" is a property of model state, not of a command
+line.
+
 ### Next
 
-GPU trainer cells remain at zero pending the user's decision, now that the audit has
-stated it cannot supply one. `phase2-authority` (`b36ad6f`) and `phase3-exec-20260902`
-were pushed to origin before any GPU work, per §79.3 and §80.4-4. P12
-(`bootstrap_topp`) → JD20 → N16 → fixed point → refit12, from this frozen tree. Before
-the twelve refits, one refit cell runs end to end including post-process — that chain
-has never executed on real data, which is exactly where the defect above was hiding.
+P16 relaunched under a fresh namespace (`p3fP` is spent; its reservation and
+snapshot are left in place, never stolen). Before spending the 79 minutes again,
+all four datasets were pre-flighted on the committed bytes — parent fingerprint →
+expected child contract → a real child that imports the trainer's chain including
+cv2 — and all four attested in seconds. Then JD20 → N16 → fixed point → one refit
+cell end to end including post-process → refit12.
 
 ---
 
