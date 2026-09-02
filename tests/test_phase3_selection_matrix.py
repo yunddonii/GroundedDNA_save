@@ -921,6 +921,37 @@ def test_a_direct_one_cell_smoke_remains_available(monkeypatch):
     assert seen == [("flickr25k:0.3,0.7", 1)]
 
 
+def test_the_refit_verifier_has_no_second_nmi_implementation():
+    """§74.3: one implementation defines the number the verifier checks.
+
+    `assert_refit_outputs` recomputes NMI from the raw codebook indices instead
+    of trusting `pairwise_nmi.json`, then demands **exact float equality** with
+    the producer's `mean_off_diag_nmi`. It used to do that with its own
+    both-directions loop -- the naive form `pairwise_nmi` was fixed to stop
+    using. Two implementations that differ by 1 ULP per entry, reconciled by an
+    equality test, agree only while the perturbation stays below the ULP of the
+    sum. That held on every cell measured, which makes it rounding luck rather
+    than a guarantee, and it would break at the refit, after training.
+
+    The cross-check keeps its independence: the arrays still come from the NPZ
+    the verifier opened itself. Only the duplicate arithmetic is gone.
+    """
+    import scripts.phase3_selection_matrix as M
+    from scripts.pairwise_nmi import pairwise_nmi
+
+    source = (REPO / "scripts" / "phase3_selection_matrix.py").read_text()
+    assert "normalized_mutual_info_score" not in source
+    assert "from scripts.pairwise_nmi import pairwise_nmi" in source
+
+    # The shared implementation is a genuine cross-check: on data that reaches
+    # the argument-order rounding it is exactly symmetric, so the mean the
+    # verifier compares against cannot depend on which half was scored.
+    import numpy as np
+    indices = np.random.default_rng(0).integers(0, 64, size=(4000, M.SLOTS))
+    matrix = pairwise_nmi(indices)
+    assert np.array_equal(matrix, matrix.T)
+
+
 def test_no_campaign_rehashes_every_sealed_byte_at_its_receipt():
     """The final bookend is stats-only; only ADMISSION rehashes content.
 

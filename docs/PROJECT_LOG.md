@@ -642,6 +642,37 @@ satisfy one assertion would have been the wrong trade.
 
 `1273 passed, 54 skipped, 31 subtests, rc0`, source hashes stable across the run.
 
+### The refit verifier was checking its own second copy of the NMI arithmetic
+
+Mirroring the producer exposed a second instance of the same design fault, one step
+downstream. `assert_refit_outputs` deliberately does not trust `pairwise_nmi.json` —
+it reopens the NPZ and recomputes the matrix — but it did so with its **own**
+both-directions loop, the exact form `pairwise_nmi` had just stopped using, and then
+demanded exact float equality:
+
+```python
+or nmi_result.get("mean_off_diag_nmi") != recomputed_nmi:
+    raise CellRefused(...)
+```
+
+Two implementations differing by 1 ULP per entry, reconciled by an equality test, agree
+only while the perturbation stays under the ULP of the sum. Measured across the 22 real
+matrices available: 22/22 bit-identical, so it would not have blocked today. That is
+rounding luck, not a guarantee — the off-diagonal sum is order 10, its ULP about
+1.8e-15, and ten accumulated 1.1e-16 differences sit just under it. More slots, or a
+different sklearn accumulation order, flips it silently. It would flip at the refit,
+after twelve cells have finished training.
+
+The verifier now calls `scripts.pairwise_nmi.pairwise_nmi`. Independence is untouched:
+the arrays still come from the NPZ the verifier opened itself, so this is still "sealed
+value equals value recomputed from raw data". Only the duplicate arithmetic is gone,
+which is the same principle applied to the producer — one implementation defines the
+number. The module now contains no reference to `normalized_mutual_info_score` at all,
+and a test pins that.
+
+`scripts/pairwise_nmi.py` was already inside `_BOOTSTRAP_SOURCE_PATHS`, so the shared
+implementation is bound by the campaign's source authority like every other producer.
+
 ### Next
 
 Phase 2 completes first; Phase 3 starts once the audit session approves. P12

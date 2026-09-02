@@ -1572,7 +1572,7 @@ def assert_refit_outputs(run_dir: Path, *, dataset: str) -> dict:
     """Reopen exact db/query/train, raw metric and post-BIO/NMI evidence."""
     import importlib.metadata
     import numpy as np
-    from sklearn.metrics import normalized_mutual_info_score
+    from scripts.pairwise_nmi import pairwise_nmi as _shared_pairwise_nmi
     from dna_utils.extraction_validation import (
         ExpectedIdentity, ExtractionInvalid, read_analysis_marker,
         validate_extraction_run)
@@ -1786,11 +1786,22 @@ def assert_refit_outputs(run_dir: Path, *, dataset: str) -> dict:
     ci = np.asarray(arrays["db"].get("codebook_indices"))
     if ci.shape != (rows["db"], SLOTS) or not np.issubdtype(ci.dtype, np.integer):
         raise CellRefused(f"{run_dir}/extract_db.npz: invalid codebook_indices")
-    nmi_matrix = np.empty((SLOTS, SLOTS), dtype=np.float64)
-    for left in range(SLOTS):
-        for right in range(SLOTS):
-            nmi_matrix[left, right] = normalized_mutual_info_score(
-                ci[:, left], ci[:, right], average_method="arithmetic")
+    # The cross-check recomputes NMI from the raw codebook indices rather than
+    # trusting the sealed JSON -- but through the SAME implementation the
+    # producer used, not a second copy of it. This loop used to be its own
+    # both-directions version, i.e. exactly the naive form `pairwise_nmi` was
+    # just fixed to stop using, while the comparison below demands exact float
+    # equality. Two implementations differing by 1 ULP per entry, reconciled by
+    # an equality test, pass only while the perturbation stays under the ULP of
+    # the sum: measured 22/22 bit-identical on the cells that exist today, which
+    # is rounding luck, not design. More slots or a different sklearn
+    # accumulation order flips it silently -- and it would flip at the refit,
+    # after twelve cells have finished training.
+    #
+    # Independence is preserved: the arrays still come from the NPZ this
+    # function opened, so this remains "sealed value == value recomputed from
+    # raw data". Only the duplicate arithmetic is gone.
+    nmi_matrix = _shared_pairwise_nmi(ci)
     off_diag = nmi_matrix[~np.eye(SLOTS, dtype=bool)]
     recomputed_nmi = float(off_diag.mean())
     marker_metrics = marker["metrics"]
