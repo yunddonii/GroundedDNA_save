@@ -489,6 +489,72 @@ def verify_campaign_input_seals(specs: dict, plan: list, *, full: bool,
     return authorities
 
 
+def admission_is_full(authority) -> bool:
+    """Whether this campaign must rehash every sealed byte at admission.
+
+    A named decision rather than an inline expression, so a test can assert the
+    rule instead of grepping for the line that implements it -- the previous
+    guard here matched on source text and broke the moment the call it was
+    watching gained an argument.
+
+    The first campaign of a run has no prior authority to check against, which
+    is why §63.6 refused a stats-only admission; it pays the full pass. A later
+    campaign carries its predecessor's, and pays seconds.
+    """
+    return authority is None
+
+
+def load_admission_authority(path) -> dict:
+    """The seal authority a PREVIOUS campaign established by full verification.
+
+    Admission hashes every sealed byte -- 531.7 GB, about 82 minutes here -- and
+    every stage pays it again: P, JD, N and the refit come to roughly five hours
+    of hashing for one Phase 3. The first campaign has to pay it, because there
+    is nothing to check against yet; §63.6 refused a stats-only admission for
+    exactly that reason. A later campaign is not in that position. Its
+    predecessor's receipt records, per dataset and stage, the compact authority
+    that a full pass produced, `aggregate_sha256` included, so a stats-only
+    admission has something to be bound to.
+
+    What the later campaigns give up is the same boundary `FINAL_BOOKEND_FULL`
+    documents: a byte rewrite between campaigns that preserved every file's
+    lstat, link text, resolved target stat and directory inventory. Anything
+    coarser -- a replaced seal, a truncated cache, a different aggregate -- is
+    still refused, and the per-cell stats rechecks still run around every cell.
+    """
+    from scripts.seal_phase3_inputs import SealError, verify_seal_stats
+
+    path = Path(path).resolve()
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise CellRefused(f"{path}: unreadable admission authority: {error}")
+    seals = payload.get("input_seals")
+    if not isinstance(seals, dict) or not seals:
+        raise CellRefused(
+            f"{path} records no input_seals; it is not a campaign receipt or "
+            f"plan snapshot that completed a full admission")
+    recorded = payload.get("input_seals_sha256")
+    if recorded is not None and recorded != _semantic_digest(seals):
+        raise CellRefused(
+            f"{path}: input_seals do not match the digest recorded beside them")
+    # The authority is only worth carrying forward if the seals it names are
+    # still the ones on disk. This is the stats pass itself, run once here so a
+    # stale authority is refused before any cell is planned.
+    for key, authority in sorted(seals.items()):
+        seal_path = authority.get("seal_path")
+        try:
+            verify_seal_stats(
+                seal_path,
+                expected_aggregate_sha256=str(
+                    authority.get("aggregate_sha256", "")))
+        except SealError as error:
+            raise CellRefused(
+                f"{path}: admission authority for {key} no longer matches "
+                f"{seal_path}: {error}") from None
+    return seals
+
+
 def verify_snapshot_input_seals(snapshot: dict, *, full: bool) -> None:
     sealed = snapshot.get("input_seals")
     if not isinstance(sealed, dict) or not sealed:
@@ -2901,10 +2967,24 @@ def _run_sweep(args, at_topp, *, full_plan=None,
     # The snapshot spans the DECLARED sweep, not the subset `--only` narrowed
     # it to: a one-cell run that pins only its own dataset is a new baseline
     # each time, which is what nine `--only` processes produced.
+    try:
+        _admission_authority = (
+            load_admission_authority(args.admission_authority)
+            if getattr(args, "admission_authority", None) else None)
+    except CellRefused as error:
+        print(f"[phase3] REFUSED --admission-authority: {error}",
+              file=sys.stderr)
+        return 2
+    if _admission_authority is not None:
+        print(f"[phase3] admission carried from "
+              f"{args.admission_authority} ({len(_admission_authority)} seals, "
+              f"stats-only)")
     campaign_nonce = secrets.token_hex(32)
     try:
         input_seals = verify_campaign_input_seals(
-            args.input_seal_specs, full_plan, full=True)
+            args.input_seal_specs, full_plan,
+            full=admission_is_full(_admission_authority),
+            expected=_admission_authority)
         snapshot = plan_snapshot(
             sorted({c[0] for c in full_plan}), plan=full_plan, executed=plan,
             axis=args.sweep, namespace=args.namespace,
@@ -3094,10 +3174,24 @@ def _run_exact_campaign(args, *, full_plan: list, executed_plan: list,
               file=sys.stderr)
         return 2
 
+    try:
+        _admission_authority = (
+            load_admission_authority(args.admission_authority)
+            if getattr(args, "admission_authority", None) else None)
+    except CellRefused as error:
+        print(f"[phase3] REFUSED --admission-authority: {error}",
+              file=sys.stderr)
+        return 2
+    if _admission_authority is not None:
+        print(f"[phase3] admission carried from "
+              f"{args.admission_authority} ({len(_admission_authority)} seals, "
+              f"stats-only)")
     campaign_nonce = secrets.token_hex(32)
     try:
         input_seals = verify_campaign_input_seals(
-            args.input_seal_specs, full_plan, full=True)
+            args.input_seal_specs, full_plan,
+            full=admission_is_full(_admission_authority),
+            expected=_admission_authority)
         snapshot = plan_snapshot(
             sorted({_campaign_cell_parts(c)[0] for c in full_plan}),
             plan=full_plan, executed=executed_plan,
@@ -3289,6 +3383,13 @@ def main() -> int:
         help=("exact root for newly produced Phase-3 run directories; the "
               "default remains repository/result, while production may use "
               "a fresh absolute /data root"))
+    parser.add_argument(
+        "--admission-authority", default=None, metavar="PATH", help=(
+            "a previous campaign's receipt or plan snapshot whose input_seals "
+            "a FULL admission already established. Given it, this campaign's "
+            "admission is stats-only against those digests instead of "
+            "rehashing every sealed byte again. The first campaign of a Phase-3 "
+            "run has no such authority and must pay the full pass."))
     parser.add_argument(
         "--input-seal", action="append", default=[],
         metavar="DATASET:STAGE=ABS_PATH",

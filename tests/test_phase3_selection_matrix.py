@@ -970,9 +970,11 @@ def test_no_campaign_rehashes_every_sealed_byte_at_its_receipt():
     assert source.count(
         "verify_snapshot_input_seals(snapshot, full=FINAL_BOOKEND_FULL)") == 2
     assert source.count("verify_snapshot_input_seals(snapshot, full=True)") == 0
-    # Admission is untouched: one full campaign-seal verification per runner.
-    assert source.count(
-        "verify_campaign_input_seals(\n            args.input_seal_specs, full_plan, full=True)") == 2
+    # Admission is a decision, not a literal, so assert the rule rather than
+    # the line implementing it: the previous form here matched on source text
+    # and broke as soon as that call gained an argument.
+    assert M.admission_is_full(None) is True
+    assert M.admission_is_full({"flickr25k:stage1": {}}) is False
 
 
 def test_two_simultaneous_fresh_callers_admit_exactly_one(
@@ -1668,3 +1670,73 @@ def test_the_checkpoint_identity_tag_is_the_tag_not_its_list_repr():
     # A tag the launcher never passes must not crash the provenance write.
     empty = parser.parse_args([])
     assert ("_".join(empty.tag) if empty.tag else "") == ""
+
+
+def test_a_carried_admission_authority_replaces_the_rehash_but_not_the_binding(
+        tmp_path, monkeypatch):
+    """Every stage re-hashed all 531.7 GB; only the first one has to.
+
+    Admission is ~82 minutes here, and P, JD, N and the refit each pay it: about
+    five hours of hashing for one Phase 3, against roughly one hour of actual
+    training. The first campaign genuinely must pay it -- §63.6 refused a
+    stats-only admission because at that point there is no prior authority to
+    check against. A later campaign has one: its predecessor's receipt records
+    the compact per-seal authority a full pass produced.
+
+    What must NOT relax is the binding. A carried authority is only usable while
+    the seals it names still match it, so this checks the refusals as well as
+    the acceptance.
+    """
+    import scripts.phase3_selection_matrix as M
+
+    authority = {
+        "flickr25k:stage1": {
+            "seal_path": "/nonexistent/flickr25k.json",
+            "aggregate_sha256": "a" * 64,
+        },
+    }
+    receipt = tmp_path / "receipt.json"
+
+    def write(payload):
+        receipt.write_text(json.dumps(payload), encoding="utf-8")
+        return receipt
+
+    seen = {}
+
+    def fake_stats(path, *, expected_aggregate_sha256):
+        seen[str(path)] = expected_aggregate_sha256
+        if expected_aggregate_sha256 != "a" * 64:
+            from scripts.seal_phase3_inputs import SealError
+            raise SealError("aggregate differs from the admission digest")
+        return {"aggregate_digest": {"sha256": expected_aggregate_sha256}}
+
+    monkeypatch.setattr(
+        "scripts.seal_phase3_inputs.verify_seal_stats", fake_stats)
+
+    carried = M.load_admission_authority(
+        write({"input_seals": authority,
+               "input_seals_sha256": M._semantic_digest(authority)}))
+    assert carried == authority
+    # It really did check the named seal against the recorded digest.
+    assert seen == {"/nonexistent/flickr25k.json": "a" * 64}
+
+    # A receipt that carries no seals is not an authority.
+    with pytest.raises(M.CellRefused, match="records no input_seals"):
+        M.load_admission_authority(write({"input_seals": {}}))
+
+    # The digest recorded beside the seals has to agree with them.
+    with pytest.raises(M.CellRefused, match="do not match the digest"):
+        M.load_admission_authority(
+            write({"input_seals": authority, "input_seals_sha256": "b" * 64}))
+
+    # And a seal that no longer matches its recorded aggregate is refused.
+    stale = {"flickr25k:stage1": dict(authority["flickr25k:stage1"],
+                                      aggregate_sha256="c" * 64)}
+    with pytest.raises(M.CellRefused, match="no longer matches"):
+        M.load_admission_authority(
+            write({"input_seals": stale,
+                   "input_seals_sha256": M._semantic_digest(stale)}))
+
+    # The first campaign of a run has nothing to carry and still pays in full.
+    assert M.admission_is_full(None) is True
+    assert M.admission_is_full(carried) is False
