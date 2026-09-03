@@ -172,7 +172,7 @@ def main() -> int:
     N_patch = None
 
     print(f"{args.dataset} [{a.split}] images={B} slots={M} "
-          f"topp={'OFF' if a.disable_adaptive_topp else 'ON'} epoch={a.epoch}")
+          f"topp={'OFF' if a.disable_adaptive_topp else 'ON'} epoch={epoch}")
     print(f"  {'slot':20s}{'empty imgs %':>14s}{'n_tok med':>11s}"
           f"{'n_tok p10':>11s}{'mass med':>11s}{'mass<1e-6 %':>13s}")
     rows = {}

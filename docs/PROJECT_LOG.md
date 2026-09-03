@@ -487,6 +487,190 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-03 P16 completes: the first full selection sweep, after four launches that produced nothing
+
+Phase 3 ①'s first sub-stage — the 16-cell top-p sweep — is done. It took five
+launches. The first four produced no admissible cell and cost 358 minutes, and
+the shape of those failures is the part worth keeping.
+
+| attempt | namespace | cost | died at | nature |
+|---|---|---:|---|---|
+| P16 | `p3fP` | 79 min | child environment attestation | code, added in `7c31754` |
+| P16B | `p3fQ` | 81 min | sealed bundle hash | a mid-run commit moved HEAD |
+| P16C | `p3fQ` | 129 min | checkpoint identity schema | code, added after `3a64f22` |
+| P16D | `p3fR` | 69 min | session restart killed the launcher | not detached from the session |
+| **P16E/F** | **`p3fS`** | **108 min** | **—** | **16/16 records + sweep receipt** |
+
+Each of the first three paid the full ~82-minute admission and then died seconds
+after it. Two of them were verification layers that had **never executed against
+a real trainer**: `dna_utils/runtime_environment.py` does not exist at
+`3a64f22`, and neither does the `phase3_campaign` block in the checkpoint
+identity. The 2026-08-31 nine-cell sweep — the evidence used to argue a smoke
+test could be skipped — ran under `3a64f22` and therefore covered neither.
+
+**P16 — cv2 rewrites `LD_LIBRARY_PATH`.** The trainer's import chain pulls in
+cv2, which prepends its bundled lib directory at import; the launcher's chain
+does not. The parent snapshotted the variable as the caller left it, every child
+read it as cv2 left it, and no starting value reconciles them — the prepend is
+unconditional, so an 82-character value comes back 164. Fixed by reading
+`/proc/self/environ`, the block the process was exec'd with, which no import can
+touch. That is what the attestation was always about: the environment the
+launcher *hands* the child.
+
+**P16B — a commit during the run.** A docs-only PROJECT_LOG commit, nothing in
+any sealed path, and the launcher has no tree-wide cleanliness gate. All three
+premises true, conclusion wrong: the sealed bundle carries `head_commit`
+(`scripts/phase3_selection_matrix.py:135`), so any commit moves HEAD and
+invalidates the campaign whatever it touched.
+
+**P16C — the identity carried a list repr.** `--tag` is `nargs='+'`, so
+`args.tag` is a list, and the checkpoint provenance wrote `str(args.tag)` —
+`"['p3fQ_flickr_A_v4_N4_s42']"` — while the campaign compares it to the bare
+tag. All four cells trained to completion and were then refused. The joined form
+was already there: `_resolve_save_path` uses `"_".join(...)` to build the very
+directory the checkpoint sits in.
+
+### The method that stopped the bleeding
+
+Three attempts had each burned ~2 h to surface exactly one gate. P16C left four
+fully trained run directories, and that changed what was possible: every gate in
+`run_cell`'s post-trainer chain was replayed offline against them — each called
+separately, not stopping at the first failure, all four datasets — with no GPU
+and no admission.
+
+| gate | result |
+|---|---|
+| `_resolve(tag)` | PASS ×4 |
+| `assert_completed` | **FAIL ×4** |
+| `assert_geometry` | PASS ×4 |
+| identity == binding | PASS ×4 |
+| `verify_snapshot` | PASS ×4 |
+| `protocol_digests` stable | PASS ×4 |
+| `read_selection(log.csv)` | PASS ×4 |
+| `_publish_json_exclusive` | PASS ×4 |
+
+Minutes instead of hours, and it closed the list for that path rather than
+finding the next item on it. Pre-verifying downstream gates against artifacts
+that already exist is the same method Phase 2 used; it had simply not been
+applied here.
+
+### Admission now costs once per run, not once per stage
+
+Admission hashes 531.7 GB. The first four attempts spent 311 minutes there for
+one record. `--admission-authority` carries a predecessor's per-seal digests
+forward, so a later campaign verifies stats-only against them:
+
+```
+[phase3] admission carried from p3fR_snapshot_f6f327f4e1724c45.json (4 seals, stats-only)
+```
+
+**Admission went from 69–82 minutes to 6 seconds** (10:43:29 start → 10:43:35
+reservation). The binding does not loosen: an unreadable file, absent
+`input_seals`, an `input_seals_sha256` that disagrees with the seals beside it,
+or a seal whose aggregate has changed are all refused, and the plan — not the
+authority — fixes which coordinates are required, so a carried authority cannot
+introduce one. Only the first campaign of a Phase-3 run has no authority and
+must pay the full pass.
+
+### Result — the 16 cells
+
+All 16 ran as stage-1 selection cells: 90/10 train split, optTrain whitening, no
+official test. Every cell logs
+`[p0-stage1] SKIP official-test extraction/evaluation`, every run directory
+contains `train/` and `val/` and no `test/`, and every input authority names
+`opt_train_rows.npy`. mAP@R uses the dataset's protocol cutoff on raw base
+Hamming distance at the cell's own terminal epoch.
+
+| top-p | cifar10 @1000 | flickr25k @5000 | nuswide @5000 | mscoco @5000 |
+|---|---:|---:|---:|---:|
+| 0.3 / 0.7 | **0.8851** | 0.7574 | 0.7449 | 0.6398 |
+| 0.4 / 0.8 | 0.8830 | 0.7602 | **0.7479** | 0.6377 |
+| 0.5 / 0.9 | 0.8706 | **0.7639** | 0.7463 | 0.6463 |
+| 0.6 / 0.95 | 0.8794 | 0.7568 | 0.7440 | **0.6568** |
+| spread | 0.0145 | 0.0071 | 0.0039 | 0.0192 |
+
+| dataset | selected | Δ vs incumbent | tie broken |
+|---|---|---:|---|
+| cifar10 | 0.3 / 0.7 | +0.0000 | no |
+| flickr25k | 0.5 / 0.9 | +0.0065 | no |
+| nuswide | 0.4 / 0.8 | +0.0031 | no |
+| mscoco | 0.6 / 0.95 | +0.0170 | no |
+
+No dataset tied, and the incumbent `0.3/0.7` was on the grid for all four. The
+four winners are four *different* windows, which is why the next stage is driven
+by a per-dataset stage plan rather than a global `--at-topp`.
+
+`stability.confirmed` is **false**: this is a bootstrap round, and the
+top-p → JD → N → top-p fixed point has not been reached. These values are not a
+paper result. `paper_table_eligible` remains 0.
+
+**CIFAR selected the narrowest window**, which is the outcome the retracted
+§4.10b table warned about — there, empty-slot share and mAP@R rose together, so
+the selection metric may be rewarding starvation. The selection rule is
+predeclared and was **not** changed. Instead the empty-slot share is being
+measured at all four CIFAR coordinates, all of which ran at the same N=39,
+terminal epoch 39 and seed 42 — the epoch control the retracted table never had.
+It is recorded, not fed back into selection.
+
+### A parser defect that had disabled every args-reconstructing diagnostic
+
+`scripts/regen_viz_routing.py::_parse_args_txt` was silently dropping the
+`clip_snapshot_tokenizers_sha256_json` line. `config.py:2252` writes each line as
+`f"{k:-<30s}{str(v):->70s}"`, so the dashes are *padding, not a delimiter*: a key
+of 30+ characters gets none after it and a value of 70+ characters gets none
+before it. That line has both, so it contains no dash at all between the fields,
+and the parser's "break at the first dash, else skip the line" rule discarded it.
+`model_siglip2.py:1700` requires that attribute, so model construction died with
+`AttributeError` — in all eight diagnostics that share this parser.
+
+The key is now read as the leading run of identifier characters, which is exact
+because `-` cannot occur in an attribute name. Verified by parsing all 16
+`args.txt` files and diffing against `config.pt`, which stores the same dict:
+**5840 keys compared, 0 phantom keys, 0 value mismatches**. The 64 remaining
+absences are four keys × 16 runs (`_best_mid_*`, `_val_protocol`) that are set
+after `print_info()` runs and so are genuinely not in `args.txt`. The old rule
+lost exactly one key — the one that mattered.
+
+### CIFAR empty-slot share at the terminal epoch: 0.00 % at every window
+
+The retracted §4.10b table paired the narrow window with a 23.44 % empty-slot
+share, which is why CIFAR selecting `0.3/0.7` needed checking. All four CIFAR
+cells ran at N=39, terminal epoch 39, seed 42, so the epoch confound that forced
+that retraction is absent here; each was measured from its own sealed record and
+checkpoint on the same 512 train images (`--sample_seed 1234`).
+
+| top-p | max empty-image % over slots | min slot mass (single image) | min tokens in a slot | Σ median tokens | ε | mAP@R |
+|---|---:|---:|---:|---:|---:|---:|
+| 0.3 / 0.7 | **0.00 %** | 0.0642 | 25 | 519.5 | 0.1 | 0.8851 |
+| 0.4 / 0.8 | **0.00 %** | 0.0787 | 29 | 578.0 | 0.1 | 0.8830 |
+| 0.5 / 0.9 | **0.00 %** | 0.0577 | 27 | 658.0 | 0.1 | 0.8706 |
+| 0.6 / 0.95 | **0.00 %** | 0.0977 | 31 | 700.0 | 0.1 | 0.8794 |
+
+No slot is empty on any image at any window, and the least-fed slot on the
+least-fed image still receives 0.058–0.098 of the mass — five orders of magnitude
+above the `denom.clamp_min(1e-12)` threshold that would make a pooled feature the
+zero vector. **The selection metric is not rewarding starvation, because at the
+terminal epoch there is no starvation to reward.** The 23.44 % in §4.10b was an
+epoch artifact, and this is the controlled measurement that confirms its
+retraction rather than merely asserting it.
+
+What the window does control is breadth: summed median tokens per image rise
+monotonically 519.5 → 578.0 → 658.0 → 700.0 as it widens. mAP@R does not follow
+that ordering (0.8851, 0.8830, 0.8706, 0.8794), so breadth and retrieval quality
+are not monotonically related on CIFAR, and the whole 4-window spread is 0.0145.
+Recorded under `emptyslot_cifar_p3fS/`; it does **not** enter selection, per the
+predeclared metric.
+
+### Next
+
+State carried forward with `phase3_select_n --emit-stage-plan bootstrap_joint`;
+the JD20 plan is 20 cells (5 joint values × 4 datasets), each pinned to its own
+dataset's top-p. A stability plan forbids `--at-topp` outright and refuses
+`--only` outside `--smoke`, so the four different windows cannot be flattened
+into one global value and the sweep cannot be split into per-cell processes.
+
+---
+
 ## 2026-09-02 Phase 1 closes on a frozen Phase-3 tree; the campaign stops rehashing 452 GB it already read
 
 Status: 🟢 active

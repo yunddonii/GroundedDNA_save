@@ -17,6 +17,7 @@ Saves to `<result_dir>/viz_routing_heatmap.png` (overwriting any existing).
 """
 from __future__ import annotations
 import argparse
+import re
 import os
 import sys
 from types import SimpleNamespace
@@ -34,26 +35,34 @@ from dna_utils import visualize_routing
 def _parse_args_txt(path: str) -> SimpleNamespace:
     """Parse the dashed key/value file train_siglip2 writes at run start.
 
-    Each line is `<key><dashes><value>`. Values get coerced to int / float /
-    bool / None / list-of-str where the obvious shape matches.
+    `config.py:2252` writes each line as `f"{k:-<30s}{str(v):->70s}"`, so the
+    dashes are PADDING, not a delimiter: a key of 30+ characters gets none after
+    it, and a value of 70+ characters gets none before it. A line with both --
+    `clip_snapshot_tokenizers_sha256_json` followed by its JSON -- therefore
+    contains no dash at all between the two fields, and the earlier "break at
+    the first dash" rule dropped the line entirely, silently leaving the
+    attribute unset for every caller of this parser.
+
+    The key is instead read as the leading run of identifier characters, which
+    is exact because the padding character `-` can never occur in an attribute
+    name. Any dashes after it are padding and are skipped.
+
+    Values get coerced to int / float / bool / None / list-of-str where the
+    obvious shape matches.
     """
     ns = SimpleNamespace()
+    key_re = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
     with open(path) as f:
         for raw in f:
             line = raw.rstrip("\n")
-            # split on the FIRST run of >=3 dashes
-            for k_end in range(len(line)):
-                if line[k_end] == "-":
-                    break
-            else:
+            match = key_re.match(line)
+            if match is None:
                 continue
-            v_start = k_end
+            key = match.group(0)
+            v_start = match.end()
             while v_start < len(line) and line[v_start] == "-":
                 v_start += 1
-            key = line[:k_end]
             val = line[v_start:].strip()
-            if not key:
-                continue
             # coerce
             if val == "None":
                 val = None
