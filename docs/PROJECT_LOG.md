@@ -487,6 +487,282 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-07 Phase 3 — the recipe/N selection chain, end to end
+
+🟢 active. This entry is written to stand alone: a session that reads only this
+should be able to say what Phase 3 is, what it has decided, what it has not, and
+what may not be cited.
+
+### Why Phase 3 exists
+
+`docs/EXPERIMENT_PROTOCOL_AUDIT_2026-08-13.md` found that the old N was chosen
+from a **test** curve (F02) and that the LR/ε horizons were entangled with it
+(F03). Every hyper-parameter that fed the paper's tables therefore had to be
+re-derived under a rule that never touches the official test split. Phase 3 is
+that re-derivation. `docs/MODEL_AND_PROTOCOL_SPEC.md` §7 lists what it
+deliberately leaves unfixed for this reason — **N, the adaptive top-p window,
+`lambda_codon_joint`, `val_split_ratio` and the LR horizon are all in flight and
+must not be cited as settled.**
+
+### The rule the chain obeys
+
+Selection scores **raw base-Hamming mAP@R** on a **held-out train validation**
+split — 10 % carved from the designated train with `carve_val_indices(ratio=0.1,
+seed=42)`, queried against the remaining 90 % — at the candidate's **own terminal
+epoch**, ties to the incumbent then the smaller coordinate. Cutoffs are the
+protocol's: CIFAR@1000, the rest @5000. Every cell logs
+`[p0-stage1] SKIP official-test extraction/evaluation` and no cell writes an
+`extract_*.npz`; `train_siglip2.py:772` asserts the test loader is absent.
+
+Raw, not projected, is deliberate: draft §4.5.-1 states the D1 selection metric
+is raw base-Hamming. PAPER INVARIANT 5's "pre-projection numbers are diagnostics
+only" governs **reported** tables, not this selector.
+
+The stage machine (`scripts/phase3_select_n.py:1154-1232`) runs
+bootstrap top-p → joint → N, then confirmation rounds. A round is judged on
+`("topp","joint")` **only** — N is not part of the verdict:
+
+```python
+recipe_changed = any(after_j[d][axis] != before[d][axis]
+                     for d in after_j for axis in ("topp", "joint"))
+if not recipe_changed:
+    if evidence.get("n") is not None:
+        raise SelectionRefused("unchanged P/J must not rerun or replace N")
+    return {..., "confirmed": True, ...}
+```
+
+So an unchanged P/J round ends the chain and forbids rerunning N; a changed one
+**requires** the exact-16 N matrix to rerun. `max_update_rounds = 3`; exceeding it
+raises `SelectionRefused("recipe drift exceeds max_update_rounds=3; no winner
+exists")` and Phase 3 stops with no recipe.
+
+### Campaigns
+
+Each is one process against one sealed snapshot, its own namespace, and a
+reservation that pins `head_commit`. All ran in tmux via
+`gdna_p3exec_authority/bin/tmux_run.sh`.
+
+| # | stage | ns | cells | wall | admission | decision |
+|---|---|---|---:|---:|---:|---|
+| 1 | bootstrap top-p | `p3fS` | 16 | 108 min | 6 s | .3/.7 · .5/.9 · .4/.8 · .6/.95 |
+| 2 | bootstrap lambda | `p3fT` | 20 | 142 min | 9 s | .02 · .02 · .05 · .03 |
+| 3 | bootstrap N | `p3fU` | 16 | 69 min | 9 s | **cifar 19** · 4 · 4 · 39 |
+| 4 | confirm_topp r1 | `p3fV` | 16 | 113 min | 8 s | **flickr .5/.9 → .6/.95** |
+| 5 | confirm_joint r1 | `p3fW` | 20 | 141 min | 8 s | unchanged 4/4 |
+| 6 | update_n r1 | `p3fX` | 16 | 55 min | 8 s | unchanged 4/4 |
+| 7 | confirm_topp r2 | `p3fY` | 16 | 114 min | 8 s | unchanged 4/4 |
+| 8 | confirm_joint r2 | `p3fZ` | 20 | 144 min | 8 s | unchanged 4/4 → **fixed point** |
+
+Order is dataset-major: `phase3_selection_matrix.py:3055` starts **one thread per
+dataset**, so at most four GPUs are ever used no matter how many are passed.
+MS-COCO is the sole critical path (28.5 min/cell against Flickr's 2.1).
+
+**Admission.** Hashing the 531.7 GB of sealed inputs took 69–82 min per campaign
+until `--admission-authority` let a later campaign verify stats-only against its
+predecessor's per-seal digests. It has held at **6–9 s for eight consecutive
+campaigns**, saving roughly nine hours. The binding does not loosen: an
+unreadable authority, absent `input_seals`, a disagreeing `input_seals_sha256`,
+or a changed aggregate are all refused, and the plan — not the authority — fixes
+which coordinates are required.
+
+### What the sweeps found
+
+**N16 — the incumbent N was wrong on CIFAR by 0.05.**
+
+| dataset | N=4 | N=9 | N=19 | N=39 | selected |
+|---|---:|---:|---:|---:|---|
+| cifar10 | .8446 | .8526 | **.8771** | .8260 | **19** (was 39) |
+| flickr25k | **.7531** | .7403 | .7207 | .7114 | 4 |
+| nuswide | **.7430** | .7286 | .7115 | .7000 | 4 |
+| mscoco | .6250 | .6441 | .6313 | **.6501** | 39 |
+
+`INCUMBENT_N["cifar10"] = 39` was a starting horizon, never a measurement, and
+both the top-p and lambda sweeps chose CIFAR's coordinates at that inferior point.
+
+**The axes are not independent, and not in the direction expected.** The dataset
+whose N moved (CIFAR, 39 → 19) kept its window and widened its margin from .0145
+to .0456. The dataset that moved its window (Flickr) never changed N. What changed
+for Flickr was **lambda**: round 0 swept top-p at `JOINT_INCUMBENT = 0.0` for
+every dataset, round 1 at each dataset's chosen lambda. `sweep_cells` documents
+the interaction in the other direction — *"a lambda swept at an unstated window
+measures nothing transferable"* — and the converse holds.
+
+**Putting one axis on its optimum sharpens the other.** Flickr's lambda held at
+.02 across the window change while its first-to-second margin went
+**.00456 → .02287**, five times wider. The same happened on CIFAR's lambda (12x)
+and Flickr's N (3x): three consecutive stages of "decision unchanged, evidence
+stronger".
+
+**Round 2 — both axes unchanged, so the chain is confirmed.** Top-p held 4/4
+(margins .02107 / .00369 / .00654 / .01120) and lambda held 4/4
+(.02434 / .02287 / .00980 / .00858). `recipe_changed == False` puts the machine on
+the `"confirmed": True` path, and N must not be rerun in such a round.
+**`updates = 1` of 3.**
+
+#### The settled recipe
+
+| dataset | N | top-p | `lambda_codon_joint` |
+|---|---:|---|---:|
+| cifar10 | **19** | 0.3 / 0.7 | 0.02 |
+| flickr25k | 4 | **0.6 / 0.95** | 0.02 |
+| nuswide | 4 | 0.4 / 0.8 | 0.05 |
+| mscoco | 39 | 0.6 / 0.95 | 0.03 |
+
+Two coordinates moved off the bootstrap: CIFAR's N (39 → 19) and Flickr's window
+(.5/.9 → .6/.95). Neither would have been caught without the confirmation rounds.
+Flickr and MS-COCO landed on `0.6/0.95`, which is the window
+`docs/MODEL_AND_PROTOCOL_SPEC.md` records for the champion runs and calls a
+regression when a failed override left a cell at `0.3/0.7` — the re-selection
+returned to it independently on those two datasets, while CIFAR and NUS-WIDE
+settled elsewhere.
+
+### Determinism, measured by accident
+
+`p3fZ_flickr_A_v4_N4_s42_P06095_JD002` and its `p3fY` twin are independent
+trainings under different campaign nonces and different snapshots. Their
+`selection_value` agrees to six decimals (0.763553). Same coordinate, same seed,
+bit-identical result — the fixed-point verdict is not reading noise.
+
+### The lambda diagnostic (`jd60`) — DIAGNOSTIC ONLY
+
+🟠 **Never a paper row and never a selection input.** Every cell chose its epoch
+on the **official test** split, which master F02 reserves for the refit. All 25
+run directories carry `DIAGNOSTIC_ONLY.json` and live outside the Phase-3 tree in
+`/data/yschoi/gdna_jd60_result` (logs in `/data/yschoi/gdna_jd60_logs`).
+
+It was run because JD20 measured all five lambdas at **one fixed epoch** — each
+dataset's incumbent N — and concluded lambda=0 beat the grid 4/4. The 2026-07-31
+entry had already recorded that lambda moves the optimum epoch and that
+lambda=0.10's loss there was *"under-training from over-regularisation, not the
+cost of the constraint"*. 24 cells at 60 epochs, official-test mid-eval every 5,
+best-epoch checkpoint, with **lambda=0 as a candidate** (the reducer cannot select
+it: `choose_recipe` builds its argmax only over the declared grid,
+`phase3_select_n.py:1271`, and rejects coordinates outside it, `:1265-1269`).
+
+At epoch 39 lambda=0 leads by .038–.106 on every dataset — JD20's pattern exactly.
+At each lambda's own best epoch the margin collapses or reverses, and the E\*
+values move (mscoco 14 → 19 → 34 → 44 → 29 → 9). On the **real protocol** (official
+query vs full DB) the best lambda>0 beats lambda=0 on 4/4: CIFAR +.0128,
+Flickr +.0067, NUS +.0024, COCO +.0150. On **held-out codon decoding** it wins 3/3,
+and on NUS-WIDE — the only dataset where all six cells share E\*=4, so training
+length is controlled — on 5/5 lambdas at 1.7–2.7σ.
+
+**`L_codon_joint` is not a term to remove.** JD20's own output (all four values
+> 0) is consistent with that, so the protocol-valid choice and the diagnostic
+agree in direction and the sealed chain was left alone.
+
+### Retrieval vs interpretability, on the paper's own metric
+
+Draft §4.7 held-out codon decoding is *"논문의 해석성 주 근거"*. It was computed for
+every selection cell **without touching official test**: the
+`(slot, code) → concept` dictionary is built on the optimization-train rows and
+evaluated on the held-out validation rows, using `carve_val_indices` with the
+cell's own ratio and seed so the split is exactly the one the cell held out.
+Inference only. `gdna_p3exec_authority/bin/valsplit_codon_decoding.py`.
+
+Codes are **bio-projected before codon extraction** — `resolve_gc_policy(15)` gives
+GC count [6,9] and homopolymer ≤ 3 — because PAPER INVARIANT 5 makes projection
+mandatory for reported numbers and the repo's own callers pass `--bio_project`
+(`auto_chain_after_3seed.sh:172`, `sweep_joint_cell_fixedN.sh:83`). Projection is
+not cosmetic here: it moved the decoding argmax on three coordinates
+(nuswide top-p .3/.7 → .6/.95, flickr N 39 → 9, flickr lambda .03 → .07).
+
+**CIFAR is excluded by design.** §4.7c shows the probe collapses on a single-label
+dataset — slots that saw nothing score higher — and the draft refuses to cite it.
+
+Counting the confirmation rounds with the probe's own `shuffled` control as the
+noise floor (2σ): **agree 4, differ within noise 3, significantly differ 2.**
+The two axes point at the same coordinate far more often than not, and where they
+differ the gap is usually inside the probe's own noise.
+
+Two cautions belong with any use of this table. Draft §0 records that MS-COCO's
+**seed-to-seed spread is .017**, wider than the lambda spread being compared, and
+concludes *"단일 seed로 .003 수준의 우열을 판정하지 않는다"* — several selection
+margins here (top-p .0037, lambda .0050) sit inside that band. And DNA-unique is a
+**diversity** axis (§4.6), not interpretability; B0/B1/B2 compositional lift
+appears nowhere in the draft and is an internal convention only.
+
+### Declared before they could be needed
+
+- **`flickr_cutoff_predeclaration.json`** — Flickr's validation database is 4,500
+  rows against a cutoff of R=5000, so `evaluation_siglip2.py:220-234`'s
+  `rel_sorted[:R]` truncates nothing and the quantity is a full mAP, not mAP@5000.
+  Three datasets are selected on a truncated metric and Flickr on an untruncated
+  one. The computation is left alone — every Flickr candidate was scored the same
+  way, so the ranking is internally valid, and correcting the label means editing
+  a PROTOCOL_SOURCE and re-running the earlier stages. Declared before N16 launched.
+  **Draft §4.3 must state it.**
+- **`nonconvergence_predeclaration.json`** — if the state machine refuses for
+  exceeding `max_update_rounds`, no recipe is manufactured: not by picking a state
+  from the history, not by widening the bound, not by adding a margin. The run
+  reports non-convergence with per-round oscillation amplitudes and the decision
+  goes to the user. Declared during round 1.
+
+### Defects found and closed
+
+- **cv2 rewrites `LD_LIBRARY_PATH` at import**, non-idempotently, so no starting
+  value reconciles parent and child. Fixed by reading `/proc/self/environ`.
+- **`--tag` is `nargs='+'`**, so the checkpoint provenance wrote
+  `"['p3fQ_flickr_...']"` while the campaign compared the bare tag. Four trained
+  cells were refused.
+- **`pairwise_nmi` scored both directions independently**, so `M != Mᵀ` by 1 ULP
+  and `seal_cell_analysis._check_nmi` refused 29 of 30 Phase-2 cells. Fixed the
+  producer, not the checker.
+- **`_parse_args_txt` silently dropped a whole line.** `config.py:2252` writes
+  `f"{k:-<30s}{str(v):->70s}"`, so the dashes are padding, not a delimiter: a 30+
+  character key gets none after it and a 70+ character value none before it.
+  `clip_snapshot_tokenizers_sha256_json` has both, and `model_siglip2.py:1700`
+  requires it — all eight diagnostics sharing the parser died. Verified by diffing
+  16 `args.txt` against `config.pt`: 5840 keys, 0 phantom, 0 mismatches.
+- **`--log_dir` is inert.** `train_siglip2.py:267-269` takes the result root from
+  the campaign binding and otherwise hardcodes `<repo>/result`; the flag parses and
+  changes nothing.
+- **A mid-run commit invalidates a campaign** — the bundle carries `head_commit`
+  (`phase3_selection_matrix.py:135`), so any commit moves HEAD whatever it touched.
+
+### Corrections to earlier records
+
+- **`paper_table_eligible` is not a Phase-3 signal.** It is set only in
+  `scripts/aggregate_baseline_p0_matrix.py`; both Phase-3 sources contain zero
+  occurrences. Phase 3 can finish with that flag at 0. Its own completion artifact
+  is the 3-seed aggregate preserving the seed vector and `ddof=1`.
+- **A refit smoke is three cells, not one.** `--only` narrows by *dataset*
+  (`phase3_selection_matrix.py:3621-3623`) and a refit is three seeds per dataset.
+  `full_plan` stays at 12, so the snapshot and receipt still declare 12.
+- **The refit entry contract is enforced**: `:3606-3610` refuses unless
+  `selected_n.json`'s `recipe_authority` and `recipe_choices` match the current
+  recipe exactly, so refit cannot start while the recipe is still drifting.
+- **`TOPP_INCUMBENT` is `0.3/0.7`** while `MODEL_AND_PROTOCOL_SPEC.md` records the
+  champion window as `0.6/0.95` and calls `0.3/0.7` the trainer shell's hardcoded
+  default. The tie-break therefore favours the value the spec calls a regression.
+  It only bites on an exact tie, and top-p is being re-derived anyway, but it is
+  worth knowing when reading these tables.
+
+### Current position
+
+**Phase 3 ① is complete.** 144 cells across eight campaigns, zero refusals, one
+update round of the three allowed. Phase 3 ② is the refit: a
+three-cell smoke on the shortest dataset through
+`_run_refit_postprocess`'s four-command chain, then the 12-cell refit at seeds
+42/43/44, which is the stage that finally evaluates the official test split.
+
+Static pre-verification of that path is done: the four commands exist with the
+flags the chain passes, `--require-train` widens `required_splits` to
+`("db","query","train")` in all three consumers, none of them needs `image_paths`
+(so CIFAR's absence of it is not a blocker), and `extract_train_split.py` was
+exercised on six real cells — it writes `extract_train.npz` plus a manifest with
+`backfilled: false` and `inference_epoch_source: checkpoint_metadata`, which is
+what `allow_backfilled=False` requires. What remains unverified is the chain
+running end to end inside a refit run directory.
+
+Artifacts: decisions, plans and pre-declarations in
+`/data/yschoi/gdna_p3exec_authority/`; a chunked, symlinked reading view of every
+run at `result/phase3` (built by `gdna_p3exec_authority/bin/organize_results.py`,
+which does not move anything — records store absolute `run_dir` paths and
+`_resolve` globs the result root directly, so relocating a run breaks its seal).
+
+---
+
 ## 2026-08-31 (PM4) The two launch gates: namespace collision, and the re-signed manifest
 
 Both were required before the 12-cell sweep. Both are closed, and both have a
