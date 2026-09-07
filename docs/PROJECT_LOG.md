@@ -487,6 +487,256 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-05 The recipe axes are not independent — N moved CIFAR, lambda moved Flickr's top-p
+
+Phase 3 ①'s bootstrap finished and its first confirmation round is in. Two axes
+moved, and neither moved for the reason it was being watched for.
+
+### The bootstrap chain
+
+| stage | namespace | cells | wall | admission | result |
+|---|---|---:|---:|---:|---|
+| P16 top-p | `p3fS` | 16 | 108 min | 6 s | .3/.7 · .5/.9 · .4/.8 · .6/.95 |
+| JD20 lambda | `p3fT` | 20 | 142 min | 9 s | .02 · .02 · .05 · .03 |
+| N16 | `p3fU` | 16 | 69 min | 9 s | **cifar 19** · 4 · 4 · 39 |
+| confirm_topp r1 | `p3fV` | 16 | 113 min | 8 s | **flickr .6/.95** · rest unchanged |
+| confirm_joint r1 | `p3fW` | 20 | 141 min | 8 s | **all four unchanged** |
+
+`--admission-authority` held across all five: 6–9 s each where a full pass is
+70–80 min, so the chain paid for one full admission rather than five.
+
+### N16 — CIFAR's incumbent was wrong by 0.05
+
+| dataset | N=4 | N=9 | N=19 | N=39 | selected |
+|---|---:|---:|---:|---:|---|
+| cifar10 | .8446 | .8526 | **.8771** | .8260 | **19** (was 39) |
+| flickr25k | **.7531** | .7403 | .7207 | .7114 | 4 |
+| nuswide | **.7430** | .7286 | .7115 | .7000 | 4 |
+| mscoco | .6250 | .6441 | .6313 | **.6501** | 39 |
+
+`INCUMBENT_N["cifar10"] = 39` was a starting horizon, not a measurement, and it
+was wrong by **+0.0511**. Both P16 and JD20 chose CIFAR's top-p and lambda at
+that inferior operating point.
+
+### confirm_topp — Flickr moved, and N is not why
+
+| dataset | N | .3/.7 | .4/.8 | .5/.9 | .6/.95 | round 0 | round 1 |
+|---|---:|---:|---:|---:|---:|---|---|
+| cifar10 | 19 | **.8771** | .8560 | .8315 | .8386 | .3/.7 | .3/.7 |
+| **flickr25k** | 4 | .7599 | .7545 | .7531 | **.7636** | .5/.9 | **.6/.95** |
+| nuswide | 4 | .7285 | **.7430** | .7365 | .7250 | .4/.8 | .4/.8 |
+| mscoco | 39 | .6324 | .6389 | .6365 | **.6501** | .6/.95 | .6/.95 |
+
+The dataset whose N changed (CIFAR, 39 → 19) kept its window — and widened its
+margin from 0.0145 at N=39 to **0.0456** at N=19. The dataset that moved
+(Flickr) kept N=4 throughout. **The only thing that changed for Flickr was
+lambda**: round 0 swept top-p at `JOINT_INCUMBENT = 0.0` for every dataset,
+round 1 swept it at each dataset's chosen lambda, and Flickr's is 0.02.
+
+`sweep_cells` already carries the warning in the other direction — *"the two
+axes interact … a lambda swept at an unstated window measures nothing
+transferable"*. The converse holds too: **a top-p swept at an unstated lambda
+does not transfer either.**
+
+### confirm_joint — unchanged 4/4, and the axis got sharper
+
+| dataset | .02 | .03 | .05 | .07 | .10 | selected | 1st–2nd gap |
+|---|---:|---:|---:|---:|---:|---|---:|
+| cifar10 | **.8771** | .8527 | .8323 | .8256 | .8206 | .02 | .02434 |
+| flickr25k | **.7636** | .7407 | .7161 | .7318 | .7149 | .02 | **.02287** |
+| nuswide | .7323 | .7332 | **.7430** | .7273 | .7305 | .05 | .00980 |
+| mscoco | .6324 | **.6501** | .6411 | .6416 | .6208 | .03 | .00858 |
+
+Flickr's lambda held at 0.02 even though its top-p had moved, and its
+first-to-second margin went from **0.00456 at .5/.9 to 0.02287 at .6/.95 — five
+times wider**. Putting one axis on its optimum made the other axis easier to
+resolve, which is the same interaction seen from the other side.
+
+**Round 1 verdict: `recipe_changed = True`** on Flickr's top-p alone, so
+`run_recipe_stability` requires the exact-16 N matrix to rerun before round 2
+(`phase3_select_n.py:1219-1221`). One of three update rounds is spent.
+
+### Two things declared before they could be needed
+
+- **`flickr_cutoff_predeclaration.json`** — Flickr's validation database is 4,500
+  rows against a cutoff of R=5000, so `evaluation_siglip2.py:220-234`'s
+  `rel_sorted[:R]` truncates nothing and the quantity is a full mAP, not the
+  paper's mAP@5000. Three datasets are selected on a truncated metric and Flickr
+  on an untruncated one. The computation is left alone — every Flickr candidate
+  was scored the same way, so the ranking is internally valid, and correcting the
+  label means editing a PROTOCOL_SOURCE and re-running P16 and JD20. Declared
+  before N16 launched; draft §4.3 must say it.
+- **`nonconvergence_predeclaration.json`** — if the state machine refuses for
+  exceeding `max_update_rounds=3`, no recipe is manufactured: not by picking a
+  state from the history, not by widening the bound, not by adding a margin. The
+  run reports non-convergence with the per-round oscillation amplitude and the
+  decision goes to the user. Declared during round 1, before any round could
+  exceed. The bands that moved are ~0.01 wide at one seed, which is exactly the
+  regime where an argmax is not stable under a change of another axis — so
+  non-convergence would be the procedure reporting under-determination, not
+  failing.
+
+### Corrections to earlier records here
+
+- **`paper_table_eligible` is not a Phase-3 signal.** It is set only in
+  `scripts/aggregate_baseline_p0_matrix.py`; `phase3_selection_matrix.py` and
+  `phase3_select_n.py` contain zero occurrences. Phase 3 can finish with that
+  flag at 0 and nothing is wrong. Phase 3's own completion artifact is the
+  3-seed aggregate preserving the seed vector and `ddof=1`.
+- **A refit smoke is three cells, not one.** `--only` narrows by *dataset*
+  (`phase3_selection_matrix.py:3621-3623`), and a refit is three seeds per
+  dataset, so the smallest runnable unit is one dataset × seeds 42/43/44.
+  `full_plan` stays at 12 cells, so the snapshot and receipt still declare 12 —
+  the "nine `--only` processes are nine plans" defect does not recur here.
+- **The refit entry contract is enforced, not merely documented.** `:3606-3610`
+  refuses unless `selected_n.json`'s `recipe_authority` and `recipe_choices`
+  match the current recipe exactly, so refit cannot start while the recipe is
+  still drifting.
+
+---
+
+## 2026-09-04 The lambda sweep was measuring over-training, not lambda — 24 cells at 60 epochs say so
+
+🟠 **DIAGNOSTIC ONLY — never a paper main-table row, never a Phase-3 selection input.**
+Every cell chose its epoch on the OFFICIAL TEST split. Master F02 reserves that
+split for the scratch full-train refit, so nothing here may enter a selection
+artifact or a recipe-stability replay. All 25 run directories carry
+`DIAGNOSTIC_ONLY.json` saying so, and they live outside the Phase-3 tree in
+`/data/yschoi/gdna_jd60_result` (logs in `/data/yschoi/gdna_jd60_logs`).
+
+### Why it was run
+
+The Phase-3 JD20 sweep measured all five lambdas at ONE fixed epoch — each
+dataset's incumbent N (cifar/mscoco 39, flickr/nuswide 4) — and concluded that
+lambda=0 beat the whole grid on 4/4 datasets. Three things were wrong with using
+that as the verdict on `L_codon_joint`:
+
+1. **Lambda moves the optimum epoch.** The 2026-07-31 entry already recorded it
+   (E\* 39 at lambda=0, 24 at 0.02/0.05, 9 at 0.10) and wrote that lambda=0.10's
+   loss there was *"under-training from over-regularisation, not the cost of the
+   constraint"*. A fixed-epoch cut therefore does not measure the cost of lambda.
+2. **The term was never introduced for retrieval.** The 2026-07-31 entry adopted
+   it on **codon decoding improving 4/4** and the slot-0 collapse being removed
+   (slot0 codons 21 → 63, gap −27.6 → +8.3, multi-information 1.722 → 0.159).
+3. **Flickr's validation metric is degenerate.** Its validation DB is 4,500 rows
+   against a cutoff of R=5000, so `evaluation_siglip2.py:220-234`'s
+   `rel_sorted[:R]` truncates nothing and the quantity is a full mAP, not the
+   paper's mAP@5000.
+
+So the sweep was re-run in the regime the term was adopted in: 60 epochs,
+official-test mid-eval every 5, best-epoch (E\*) checkpoint, at each dataset's
+P16 top-p, with **lambda=0 as a candidate** — the off-control that JD20's
+reducer refuses structurally, because `choose_recipe` builds its argmax only
+over the declared grid (`phase3_select_n.py:1271`) and rejects any coordinate
+outside it (`:1265-1269`).
+
+24 cells, 4 datasets x lambda {0.0, 0.02, 0.03, 0.05, 0.07, 0.10}, all rc=0.
+
+### The fixed epoch was measuring over-training
+
+Every dataset reproduces the same shape. `E*` is each cell's own best epoch on
+the official-test proxy; `e39` is the epoch JD20 measured at.
+
+| dataset | quantity | λ=0 | 0.02 | 0.03 | 0.05 | 0.07 | 0.10 |
+|---|---|---:|---:|---:|---:|---:|---:|
+| CIFAR-10 | at E\* | .8469 | .8515 | **.8582** | .8443 | .8329 | .8330 |
+| CIFAR-10 | **at e39** | **.8268** | .7884 | .7627 | .7435 | .7271 | .7211 |
+| Flickr25K | at E\* | .7460 | **.7461** | .7287 | .7155 | .7331 | .7243 |
+| Flickr25K | **at e39** | **.7389** | .6933 | .6928 | .6893 | .7003 | .6914 |
+| NUS-WIDE | at E\* | **.7191** | .6963 | .7008 | .6902 | .6939 | .6847 |
+| MS-COCO | at E\* | **.6189** | .6109 | .6086 | .6041 | .6079 | .5997 |
+
+At epoch 39 lambda=0 wins by .038–.106 — exactly JD20's reported pattern. At each
+lambda's own E\* the margin collapses or reverses. The E\* values themselves move:
+cifar 9 → 4, flickr 14 → 4/9, **mscoco 14 → 19 → 34 → 44 → 29 → 9**. NUS-WIDE is
+the exception where λ=0 already peaks at 4, so nothing can move earlier.
+
+### On the official protocol, every dataset prefers λ>0
+
+The table above is the *selection proxy* (official test used as both query and
+db, self-matches removed). The final evaluation of each E\* checkpoint runs the
+real protocol — official query against the full database.
+
+| dataset | DB | λ=0 | best λ | Δ |
+|---|---:|---:|---|---:|
+| CIFAR-10 | 59,000 | .8914 | **0.03** → .9042 | **+.0128** |
+| Flickr25K | 23,000 | .8508 | **0.02** → .8575 | **+.0067** |
+| NUS-WIDE | 193,734 | .8293 | **0.02** → .8317 | +.0024 |
+| MS-COCO | 107,218 | .8274 | **0.07** → .8424 | **+.0150** |
+
+**The proxy and the real protocol disagree, and MS-COCO disagrees most**: the
+proxy makes λ=0 the winner while on the 107,218-row database four λ>0 cells beat
+it by +.011 to +.015. A 5,000-image split searched against itself does not
+predict ranking in a 100k database.
+
+### Codon decoding — the paper's primary interpretability metric
+
+Draft §4.7 is explicit that held-out codon decoding *"이 표가 논문의 해석성 주
+근거다"*. It was computed for all 18 multi-label cells by inference alone: the
+`(slot, code) → concept` dictionary is built on train rows and evaluated on the
+official test query split, from the integer code and nothing else.
+
+**CIFAR is excluded deliberately.** §4.7c shows the probe collapses on a
+single-label dataset and rewards slot starvation, and the draft itself refuses to
+cite CIFAR as interpretability evidence; its extractions carry no `image_paths`
+either, so train rows cannot be sliced out.
+
+| dataset | E\* matched? | λ=0 | best λ | Δ | probe 2σ | draft §4.7 3-seed |
+|---|---|---:|---|---:|---:|---:|
+| **NUS-WIDE** | **yes, all 4** | .7352 | **0.02** → .7486 | **+.0134** | .0050 | .7318 |
+| MS-COCO | no (9–44) | .6515 | **0.02** → .6931 | **+.0416** | .0085 | .6466 |
+| Flickr25K | no (4/9/14) | .7786 | 0.07 → .8008 | +.0221 | .0274 | .7694 |
+
+Every λ=0 value lands within .009 of the draft's 3-seed reference, so the probe
+reproduces. `shuffled ≈ majority` holds everywhere (.31–.48), so it is not
+reading noise.
+
+**3/3 datasets improve under λ>0**, and NUS-WIDE — the only one where all six
+cells share E\*=4, so training length is controlled — improves on **5/5** lambdas
+at 1.7–2.7σ. **The 2026-07-31 adoption rationale reproduces at the settled
+operating point.** `L_codon_joint` is not a term to remove.
+
+The interpretability axis is confounded where E\* differs, because E\* is chosen
+by *retrieval* and the interpretability metrics are then read off that
+checkpoint. NUS-WIDE is the controlled reading; MS-COCO's +.0416 is the largest
+effect in the sweep but its cells trained for 10 to 45 epochs.
+
+### What this does and does not decide
+
+It decides that λ>0 is right: 4/4 on retrieval under the real protocol, 3/3 on
+the paper's interpretability metric. It does **not** set the value used by Phase
+3. JD20's reducer output (cifar .02, flickr .02, nuswide .05, mscoco .03) stands,
+for two reasons:
+
+- These numbers selected E\* on official test and cannot be a selection input.
+- `build_recipe_stability_artifact` recomputes the joint decision from the p3fT
+  records when it replays the chain (`phase3_select_n.py:1979-1984`), and the N
+  stage builds its cells from that state (`:1853-1855`). Running N16 at a lambda
+  the reducer did not produce makes the final replay refuse — the cost of a
+  one-notch difference would be the reproducible recipe artifact itself.
+
+All four JD20 values are λ>0 and sit in the same .02–.05 band this sweep points
+at, so the protocol-valid choice and the diagnostic agree in direction.
+
+Draft §4.8 A5 must report both tables and state that E\* was chosen on official
+test.
+
+### Defects found and fixed on the way
+
+- `scripts/diagnose_per_image_empty_slots.py` still referenced `a.epoch` in a
+  print after `--epoch` was removed from argparse; all four processes died.
+- `--log_dir` is silently inert: `train_siglip2.py:267-269` takes the result root
+  from the campaign binding and otherwise hardcodes `<repo>/result`, so the flag
+  parses fine and changes nothing. The first smoke landed in the repo tree
+  because of it.
+- Dropping `--keep_final_checkpoint` to match the legacy protocol means
+  `best_save` overwrites the final checkpoint, so **no epoch-59 weights exist**
+  in any cell. The fixed-epoch control for the interpretability axis is
+  therefore not available from these artifacts; NUS-WIDE's matched E\* is the
+  control that does exist.
+
+---
+
 ## 2026-09-03 P16 completes: the first full selection sweep, after four launches that produced nothing
 
 Phase 3 ①'s first sub-stage — the 16-cell top-p sweep — is done. It took five
