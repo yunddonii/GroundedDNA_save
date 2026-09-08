@@ -258,9 +258,21 @@ class _CampaignLifecycle:
                 "matrix signal supervision must start in the main thread")
         if self._installed:
             raise RuntimeError("matrix signal handlers are already installed")
+        # SIGHUP belongs here with the other two. `tmux kill-session` -- the
+        # actual operational way a campaign gets stopped -- delivers SIGHUP,
+        # which was unhandled and so took the default action: the matrix died
+        # without running _handle_signal, and every direct child, living in its
+        # own session/PGID from start_new_session=True, survived with PPID 1.
+        # That is exactly the 2026-09-08 orphans: a trainer that ran on to
+        # epoch 999 after its parent was gone, and a projector still holding
+        # 12.8 GB of GPU. getattr keeps this total on platforms without SIGHUP.
+        supervised_signals = [signal.SIGINT, signal.SIGTERM]
+        sighup = getattr(signal, "SIGHUP", None)
+        if sighup is not None:
+            supervised_signals.append(sighup)
         self._previous_handlers = {
             signum: signal.getsignal(signum)
-            for signum in (signal.SIGINT, signal.SIGTERM)
+            for signum in supervised_signals
         }
         installed: list[int] = []
         try:

@@ -279,7 +279,16 @@ def _synthetic_campaign_code(
 
 @pytest.mark.parametrize(
     ("signum", "expected_returncode"),
-    [(signal.SIGINT, 130), (signal.SIGTERM, 143)],
+    [
+        (signal.SIGINT, 130),
+        (signal.SIGTERM, 143),
+        # SIGHUP is how a campaign actually gets stopped: `tmux kill-session`
+        # sends it. It was not supervised, so the matrix took the default
+        # action and its children -- each in its own session from
+        # start_new_session=True -- survived with PPID 1. On 2026-09-08 that
+        # left a trainer running to epoch 999 and a projector holding 12.8 GB.
+        (signal.SIGHUP, 129),
+    ],
 )
 def test_campaign_signal_kills_sleeper_grandchild_before_lease_release(
         tmp_path, signum, expected_returncode):
