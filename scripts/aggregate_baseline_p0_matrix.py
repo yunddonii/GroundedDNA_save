@@ -183,11 +183,11 @@ KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
             "b1c77ad73f04fde0e37f46eb83afa0a0ebdb53e0515442bace9c3780e52df09d"
         ),
         "after_sha256": (
-            "8f0b61463385794fcf9a880f3ae38994df2ec060e00297b3e404614aa0547025"
+            "7888c20376ddc70a1df6fce3588ab0d4c58150a93690c1a0c4e87ccfc49f041c"
         ),
         "reviewed_sha256": (
             "b1c77ad73f04fde0e37f46eb83afa0a0ebdb53e0515442bace9c3780e52df09d",
-            "8f0b61463385794fcf9a880f3ae38994df2ec060e00297b3e404614aa0547025",
+            "7888c20376ddc70a1df6fce3588ab0d4c58150a93690c1a0c4e87ccfc49f041c",
         ),
         "classification": "non_scientific_dispatch_and_protocol_provenance_only",
         "evidence": (

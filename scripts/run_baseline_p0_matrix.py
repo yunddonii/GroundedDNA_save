@@ -778,12 +778,34 @@ def _self_transition_is_reviewed(recorded: str, current: str) -> bool:
     """
     try:
         from scripts.aggregate_baseline_p0_matrix import (
-            KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS as registry)
+            KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS as registry,
+            NON_SCIENTIFIC_TRANSITION_CLASSIFICATIONS)
     except Exception:                                      # noqa: BLE001
         return False
     entry = registry.get(SELF_SOURCE_RELATIVE)
     if not isinstance(entry, Mapping):
         return False
+
+    # Review metadata is not decoration: `classification` is what the path
+    # audit hands out for a reviewed transition, and `evidence` is the written
+    # justification. An entry missing either was never reviewed, whatever its
+    # digests say.
+    classification = entry.get("classification")
+    if classification not in NON_SCIENTIFIC_TRANSITION_CLASSIFICATIONS:
+        return False
+    evidence = entry.get("evidence")
+    if not isinstance(evidence, str) or not evidence.strip():
+        return False
+
+    # This launcher trains nothing and scores nothing, so a transition of it is
+    # either non-scientific for EVERY variant and bit budget or it does not
+    # belong here at all. A scope key would claim otherwise, and the caller has
+    # no variant/bit to check it against -- so refuse rather than ignore it.
+    for scope_key in ("non_scientific_variants_by_sha256",
+                      "non_scientific_bits_by_sha256"):
+        if entry.get(scope_key):
+            return False
+
     reviewed = entry.get("reviewed_sha256") or ()
     return (current == entry.get("after_sha256")
             and recorded in reviewed and current in reviewed)

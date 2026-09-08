@@ -198,3 +198,43 @@ def test_the_aggregator_source_audit_blocks_an_unreviewed_digest():
     assert audit.get("comparison_safe") is False or (
         audit.get("blocked_cells") or {}), (
         "an unreviewed digest must not clear the aggregator's source audit")
+
+
+@pytest.mark.skipif(not _stored_manifests(),
+                    reason="stored 30-bit manifests are not on this host")
+@pytest.mark.parametrize("name,mutate", [
+    ("classification removed",
+     lambda e: {k: v for k, v in e.items() if k != "classification"}),
+    ("evidence removed",
+     lambda e: {k: v for k, v in e.items() if k != "evidence"}),
+    ("classification not in the allowed vocabulary",
+     lambda e: {**e, "classification": "made_up_classification"}),
+    ("evidence blank",
+     lambda e: {**e, "evidence": "   "}),
+    ("variant scope present",
+     lambda e: {**e, "non_scientific_variants_by_sha256":
+                {e["before_sha256"]: ("not-a-variant",)}}),
+    ("bit scope present",
+     lambda e: {**e, "non_scientific_bits_by_sha256":
+                {e["before_sha256"]: (999,)}}),
+])
+def test_the_self_transition_refuses_an_unreviewed_registry_entry(name, mutate):
+    """Digests alone are not review.
+
+    An entry can carry the right before/after SHAs and still never have been
+    reviewed: no classification, no written evidence, or a scope claiming the
+    change is non-scientific for only some variants or bit budgets. The
+    launcher trains and scores nothing, so a scoped entry for it is a
+    contradiction the caller cannot even evaluate -- refuse rather than ignore.
+
+    All six passed as accepted before this contract existed (audit §254).
+    """
+    import scripts.aggregate_baseline_p0_matrix as aggregator
+    payload = json.loads(_stored_manifests()[0].read_text(encoding="utf-8"))
+    saved = aggregator.KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS
+    aggregator.KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
+        **saved, SELF_SOURCE_RELATIVE: mutate(saved[SELF_SOURCE_RELATIVE])}
+    try:
+        assert not _matches_canonical_source_profile(payload, _variant(payload)), name
+    finally:
+        aggregator.KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = saved
