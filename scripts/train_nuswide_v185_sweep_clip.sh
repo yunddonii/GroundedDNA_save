@@ -50,7 +50,7 @@ mkdir -p logs
 echo "[sweep-$CELL] GPU=$GPU WASS=$WASS XMODAL=$XMODAL THASH=$THASH TCKL=$TCKL CIBNT=$CIBNT CCS=$CCS GATE=$GATE"
 
 CUDA_VISIBLE_DEVICES="$GPU" \
-/home/yschoi/.conda/envs/dna_hashing/bin/python train_siglip2.py \
+"${PY:-/home/yschoi/.conda/envs/dna_hashing/bin/python}" train_siglip2.py \
     --tag "$TAG" \
     --dataset NUSWIDE --setting 1 \
     --dataset_dir /home/yschoi/GroundedDNA/dataset \

@@ -314,6 +314,52 @@ _POST_CACHE_GATE_METHOD_PROTOCOL_LOCK_BY_LENGTH = {
 }
 
 
+# A FOURTH generation for the clean Phase-3 source closure.  ``dataloaders.py``
+# added fail-closed shape/dtype/sidecar validation inside
+# ``_SigLIP2FeatureCache`` and slices foil tensors to the configured semantic
+# slot count.  Native-DNA training uses
+# ``baseline.base_model.CachedFeatureDataset`` and imports from dataloaders only
+# the unchanged CIFAR row-ID/sampling helpers; it never constructs
+# ``_SigLIP2FeatureCache``.  The edit therefore cannot reach a native model,
+# objective, optimizer, split, extraction, retrieval metric, or BIO projection.
+#
+# These values deliberately use the clean-release versions of the two D6-only
+# files in the conservative lock closure (``baseline/base_model.py`` at
+# b9d7e1a0... and ``baseline/cache_provenance.py`` at 4fe40c86...), not the
+# concurrent dirty D6 implementations.  Registering the combined dirty-tree
+# digests would claim review of a different release.  Keep every earlier
+# reviewed generation for historical manifests and append only this exact
+# Phase-3 transition after the reachability review above.
+# Regenerate with scripts/recompute_native_method_locks.py --length <L> after
+# READING the source diff -- never by weakening the validator.
+_POST_PHASE3_CACHE_VALIDATION_METHOD_PROTOCOL_LOCK_BY_LENGTH = {
+    15: {
+        "bee2018": "27ca7fc6154b4cd1f532316971395d85f49dea6a502802848f937273bbeefd60",
+        "bee2021": "0a966eb5788f5750bc65826b457d63361e29462654e9c127d4a0733045803a73",
+        "koike2024": "7f2029d3a031aad4065e8e09949047edc3779355614eace645714ccdcd05701e",
+        "koike2026": "297b75d0c3522184a6dddbcd08750a2e1b971028dafdda16d2cfb0049a0a8a1d",
+    },
+    18: {
+        "bee2018": "01ab2e67aef1fd5098d27ce1936e2f4bd27ecd599442a5b7aecb3e16be19e106",
+        "bee2021": "cde6e77c7e1b0da5275c67eabd9578fc88eca3e8201cf5fbf753b9d7bb40d39e",
+        "koike2024": "4cd4820df3d1bf630e7c6b9869f47fa2dd77aa3572eb7c8c7cf26ac7c171a636",
+        "koike2026": "0e67c9c30fee78e057a5d17c02e89b217899c06e0ca0da29980763fc1a343a18",
+    },
+    20: {
+        "bee2018": "2e8d2f367002345b5763fa3dc8e158e2942e0e7f3c273349d873c94778b3cc64",
+        "bee2021": "78f0fe944a73ec2d6846b9139c8598971c7d5f11ee2e1f3ece68b2545f6f2f28",
+        "koike2024": "32962a4aeec6666b96d4e11ebba54fbb0a0f3e125cefa8ff13aedc630a5f61bb",
+        "koike2026": "9111e995b04f06c6b246249edd881b235d724e7ae3e1db01aed8ec6cb2c1d620",
+    },
+    24: {
+        "bee2018": "ce35f1a9ffac67b439543b3a7fc189487cec177d21b0da089a3ef7dc505fce4c",
+        "bee2021": "ececfbe66621d5b29311dc9e92f082c3c8fd69fb0989a81a5cbb4740f7d0353f",
+        "koike2024": "b66e44cf8285dfc1f41662a3130013812436459359b2de3ba49455ce8b6d9180",
+        "koike2026": "16ef1db2ee956630f564593dc1a4e0fc46646abf4a96f7cfd29a12fa02f6080f",
+    },
+}
+
+
 def reviewed_method_locks(protocol) -> dict:
     """{method: frozenset(reviewed digests)} for a length.
 
@@ -325,7 +371,11 @@ def reviewed_method_locks(protocol) -> dict:
     pre = _METHOD_PROTOCOL_LOCK_BY_LENGTH.get(length, {})
     post = _POST_F18_METHOD_PROTOCOL_LOCK_BY_LENGTH.get(length, {})
     gated = _POST_CACHE_GATE_METHOD_PROTOCOL_LOCK_BY_LENGTH.get(length, {})
-    if not pre and not post and not gated:
+    phase3 = (
+        _POST_PHASE3_CACHE_VALIDATION_METHOD_PROTOCOL_LOCK_BY_LENGTH.get(
+            length, {})
+    )
+    if not pre and not post and not gated and not phase3:
         raise SystemExit(
             f"no reviewed method-protocol lock registered for {length} bases; "
             f"known: {sorted(_REGISTERED_LOCK_LENGTHS)}. "
@@ -333,9 +383,16 @@ def reviewed_method_locks(protocol) -> dict:
             f"diff, and register the digest rather than disabling the check.")
     return {
         method: frozenset(
-            d for d in (pre.get(method), post.get(method), gated.get(method))
+            d for d in (
+                pre.get(method),
+                post.get(method),
+                gated.get(method),
+                phase3.get(method),
+            )
             if d is not None)
-        for method in sorted(set(pre) | set(post) | set(gated))
+        for method in sorted(
+            set(pre) | set(post) | set(gated) | set(phase3)
+        )
     }
 
 
@@ -347,7 +404,8 @@ def reviewed_method_locks(protocol) -> dict:
 _REGISTERED_LOCK_LENGTHS = sorted(
     set(_METHOD_PROTOCOL_LOCK_BY_LENGTH)
     | set(_POST_F18_METHOD_PROTOCOL_LOCK_BY_LENGTH)
-    | set(_POST_CACHE_GATE_METHOD_PROTOCOL_LOCK_BY_LENGTH))
+    | set(_POST_CACHE_GATE_METHOD_PROTOCOL_LOCK_BY_LENGTH)
+    | set(_POST_PHASE3_CACHE_VALIDATION_METHOD_PROTOCOL_LOCK_BY_LENGTH))
 
 if LENGTH not in _REGISTERED_LOCK_LENGTHS:
     raise SystemExit(
@@ -373,10 +431,19 @@ def method_protocol_lock_for(protocol: "NativeProtocol | int | None") -> dict:
             f"known: {_REGISTERED_LOCK_LENGTHS}. Run "
             f"scripts/recompute_native_method_locks.py, read the source diff, "
             f"and register the digest rather than disabling the check.")
+    current = (
+        _POST_PHASE3_CACHE_VALIDATION_METHOD_PROTOCOL_LOCK_BY_LENGTH.get(
+            length, {})
+    )
+    gated = _POST_CACHE_GATE_METHOD_PROTOCOL_LOCK_BY_LENGTH.get(length, {})
     post = _POST_F18_METHOD_PROTOCOL_LOCK_BY_LENGTH.get(length, {})
     pre = _METHOD_PROTOCOL_LOCK_BY_LENGTH.get(length, {})
-    return {method: post.get(method, pre.get(method))
-            for method in sorted(set(pre) | set(post))}
+    methods = set(pre) | set(post) | set(gated) | set(current)
+    return {
+        method: current.get(
+            method, gated.get(method, post.get(method, pre.get(method))))
+        for method in sorted(methods)
+    }
 
 
 METHOD_PROTOCOL_LOCK_SHA256 = method_protocol_lock_for(LENGTH)

@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/bash
 # Single-stage, fixed-epoch variant of prompt_ablation_A_cell.sh.
 #
 # Protocol change requested 2026-08-09: drop the P0 two-stage split and train
@@ -35,7 +35,14 @@ trap 'rc=$?; printf "[promptAblA] FAILED at line %s (rc %s): %s\n" \
 
 # Exactly one result per tag, or refuse -- `ls | head -1` silently returned a
 # concurrently running cell's directory (F08).
-source "$(dirname "${BASH_SOURCE[0]}")/lib/result_dir.sh"
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+source "$REPO/scripts/lib/result_dir.sh"
+
+# Bash reads top-level source incrementally. Parsing the complete body before
+# execution prevents an in-place edit from splicing two wrapper generations
+# into one running cell; the campaign's end-of-cell source digest then turns
+# any later dependency drift into a refusal.
+main(){
 
 GPU="$1"; EXP="$2"
 # Only the mscoco_A_v5b case used to honour CACHE_OVERRIDE, so the other three
@@ -115,13 +122,24 @@ echo "[fixN $EXP] fixed epoch = $NEPOCH, val_split_ratio=0 (test-monitored), no 
 #             swap) and runs the single final extraction. This is the reported
 #             model; mid-eval being off is fine once N is fixed.
 if [ -n "${CURVE:-}" ]; then FE=""; else FE="1"; fi
-env LBU="${LBU:-0.02}" CACHE="$CACHE" QWEN="$QWEN" WHITEN_NPZ="$WTR" K="$K" NUM_CODONS="${NUM_CODONS:-3}" CIBNT="$CIBNT" \
+/usr/bin/env LBU="${LBU:-0.02}" CACHE="$CACHE" QWEN="$QWEN" WHITEN_NPZ="$WTR" K="$K" NUM_CODONS="${NUM_CODONS:-3}" CIBNT="$CIBNT" \
     ${FE:+FINAL_EPOCH=1} STOP_EP="$NEPOCH" TAG="${BASE}_P0refit_e${NEPOCH}" EXTRA_ARGS="$A_FLAGS $SKIP --eval_every ${EVERY:-1}" "${EXTRA[@]}" \
-    bash -o pipefail "$SCRIPT" "$GPU"
+    /usr/bin/bash -o pipefail "$REPO/$SCRIPT" "$GPU"
 
 # Reached only if the trainer exited 0; errexit above is the boundary.
-RD=$(resolve_one_result_dir "${BASE}_P0refit_e${ESTAR}")
+RD=$(resolve_one_result_dir "${BASE}_P0refit_e${ESTAR}" "$REPO/result")
 [ -n "${RD:-}" ] && [ -f "$RD/extract_db.npz" ] || { echo "[promptAblA $EXP] ERROR refit dir/extract missing (RD=$RD)"; exit 4; }
 if [ "${NUM_CODONS:-3}" = "4" ]; then GCMIN=0.416; GCMAX=0.584; else GCMIN=0.40; GCMAX=0.60; fi
-"$PY" scripts/eval_cell_bioproj.py --dir "$RD" --dataset "$CANON" --K "$K" --gc_min "$GCMIN" --gc_max "$GCMAX"
+"$PY" "$REPO/scripts/eval_cell_bioproj.py" --dir "$RD" --dataset "$CANON" --K "$K" --gc_min "$GCMIN" --gc_max "$GCMAX"
+# A trainer rc=0 plus one retrieval JSON is not a completed Phase-5 cell.
+# Produce the second analysis half and the repository's strict integrity seal;
+# the ledger reopens all of these bytes and retains the seal's explicit
+# scientific_authority=false boundary.
+"$PY" "$REPO/scripts/pairwise_nmi.py" --results "$RD"
+"$PY" "$REPO/scripts/seal_cell_analysis.py" --dir "$RD"
+[ -f "$RD/analysis_complete.json" ] || {
+    echo "[promptAblA $EXP] ERROR analysis integrity seal missing"; exit 5; }
 echo "[promptAblA $EXP] DONE @ $(date '+%F %T')  RD=$RD"
+}
+
+main "$@"

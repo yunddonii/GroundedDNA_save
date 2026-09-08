@@ -23,12 +23,15 @@ recorded itself.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import hashlib
 import json
 import os
+import stat
 from typing import Iterable, Mapping, Sequence
 
 import numpy as np
 
+from dna_utils.gc_policy import resolve_gc_policy, UnsupportedBudget
 from dna_utils.runtime_state import sha256_file
 
 #: `base_indices` -> `hash_2bit`, the encoding every consumer assumes.
@@ -72,6 +75,8 @@ class ValidatedRun:
     splits: dict
     backfilled: bool
     common: dict = field(default_factory=dict)
+    manifest_sha256: dict = field(default_factory=dict)
+    completion_marker_sha256: str = ""
 
 
 def base_indices_to_2bit(codes: np.ndarray) -> np.ndarray:
@@ -79,17 +84,56 @@ def base_indices_to_2bit(codes: np.ndarray) -> np.ndarray:
     return _BASE_TO_BITS[np.asarray(codes)].reshape(len(codes), -1)
 
 
-def _load_json(path: str, what: str) -> dict:
-    if not os.path.isfile(path):
-        raise ExtractionInvalid(f"{what} is missing: {path}")
+def _load_json_bound(path: str, what: str) -> tuple[dict, str]:
+    """Parse and hash one exact regular-file inode, rejecting path races."""
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) \
+        | getattr(os, "O_NOFOLLOW", 0)
     try:
-        with open(path, encoding="utf-8") as handle:
-            payload = json.load(handle)
-    except (OSError, json.JSONDecodeError) as error:
+        fd = os.open(path, flags)
+    except OSError as error:
+        raise ExtractionInvalid(f"{what} is missing or not a regular file: {path}: {error}") \
+            from None
+    try:
+        before = os.fstat(fd)
+        if not stat.S_ISREG(before.st_mode):
+            raise ExtractionInvalid(f"{what} is not a regular file: {path}")
+        chunks: list[bytes] = []
+        while True:
+            block = os.read(fd, 1 << 20)
+            if not block:
+                break
+            chunks.append(block)
+        after = os.fstat(fd)
+    finally:
+        os.close(fd)
+    try:
+        current = os.stat(path, follow_symlinks=False)
+    except OSError as error:
+        raise ExtractionInvalid(f"{what} changed while it was read: {path}: {error}") \
+            from None
+    fields = ("st_dev", "st_ino", "st_mode", "st_size", "st_mtime_ns", "st_ctime_ns")
+    if stat.S_ISLNK(current.st_mode) or any(
+            getattr(before, key) != getattr(after, key)
+            or getattr(after, key) != getattr(current, key)
+            for key in fields):
+        raise ExtractionInvalid(f"{what} changed or was replaced while it was read: {path}")
+    raw = b"".join(chunks)
+    try:
+        payload = json.loads(
+            raw.decode("utf-8"),
+            parse_constant=lambda value: (_ for _ in ()).throw(
+                ValueError(f"non-finite JSON constant {value}")),
+        )
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
         raise ExtractionInvalid(f"{what} is not readable JSON: {error}") from None
     if not isinstance(payload, dict):
         raise ExtractionInvalid(f"{what} is not an object: {path}")
-    return payload
+    return payload, hashlib.sha256(raw).hexdigest()
+
+
+def _load_json(path: str, what: str) -> dict:
+    """Compatibility wrapper for readers that do not publish the digest."""
+    return _load_json_bound(path, what)[0]
 
 
 #: Every manifest field that must be present, non-null and of this type. The
@@ -126,6 +170,9 @@ _MANIFEST_SCHEMA = {
 }
 
 MANIFEST_SCHEMA_VERSION = 2
+_CANONICAL_CLASS_WIDTH = {
+    "CIFAR10": 10, "Flickr25k": 24, "NUSWIDE": 21, "MSCOCO": 80,
+}
 
 #: Sources the resolver can legitimately report -- where the EPOCH came from,
 #: which is a different question from whether epsilon was annealed. `bogus` is
@@ -373,34 +420,116 @@ def validate_code_arrays(base, hashed, codebook, *, rows: int, slots: int,
             f"[{codebook.min()}, {codebook.max()}]")
 
 
-def _validate_npz(manifest: Mapping, *, split: str) -> None:
+def _validate_npz(manifest: Mapping, *, split: str, run_dir: str) -> dict:
     """Open the NPZ the manifest names and hold it to every declared field."""
     npz_path = str(manifest.get("npz_path") or "")
+    canonical = os.path.join(os.path.abspath(run_dir), f"extract_{split}.npz")
+    if npz_path != canonical or os.path.realpath(npz_path) != canonical:
+        raise ExtractionInvalid(
+            f"{split}: manifest npz_path must be canonical {canonical!r}, "
+            f"found {npz_path!r}")
     if not os.path.isfile(npz_path):
         raise ExtractionInvalid(
             f"{split}: manifest names {npz_path!r}, which does not exist")
-    digest = sha256_file(npz_path)
+    slots = int(manifest["num_slots"])
+    per_slot = int(manifest["bases_per_slot"])
+    rows = int(manifest["n_rows"])
+
+    fd = os.open(npz_path, os.O_RDONLY | getattr(os, "O_CLOEXEC", 0))
+    try:
+        before = os.fstat(fd)
+        with os.fdopen(fd, "rb", closefd=False) as handle:
+            first = hashlib.sha256()
+            for block in iter(lambda: handle.read(1 << 20), b""):
+                first.update(block)
+            handle.seek(0)
+            with np.load(handle, allow_pickle=False) as stored:
+                for name in ("base_indices", "hash_2bit", "codebook_indices"):
+                    if name not in stored:
+                        raise ExtractionInvalid(
+                            f"{split}: {npz_path} has no {name}")
+                base = np.asarray(stored["base_indices"])
+                hashed = np.asarray(stored["hash_2bit"])
+                codebook = np.asarray(stored["codebook_indices"])
+                labels = (np.asarray(stored["labels"])
+                          if "labels" in stored.files else None)
+                multi_hot = (np.asarray(stored["multi_hot_labels"])
+                             if "multi_hot_labels" in stored.files else None)
+            handle.seek(0)
+            second = hashlib.sha256()
+            for block in iter(lambda: handle.read(1 << 20), b""):
+                second.update(block)
+        after = os.fstat(fd)
+    finally:
+        os.close(fd)
+    current = os.stat(npz_path, follow_symlinks=True)
+    stat_fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
+    if first.hexdigest() != second.hexdigest() or any(
+            getattr(before, key) != getattr(after, key)
+            or getattr(after, key) != getattr(current, key)
+            for key in stat_fields):
+        raise ExtractionInvalid(
+            f"{split}: {npz_path} changed or was replaced while it was read")
+    digest = second.hexdigest()
     if digest != manifest.get("npz_sha256"):
         raise ExtractionInvalid(
             f"{split}: {npz_path} hashes to {digest[:12]}... but the manifest "
             f"declares {str(manifest.get('npz_sha256'))[:12]}...")
 
-    slots = int(manifest["num_slots"])
-    per_slot = int(manifest["bases_per_slot"])
-    rows = int(manifest["n_rows"])
-
-    with np.load(npz_path, allow_pickle=False) as stored:
-        for name in ("base_indices", "hash_2bit", "codebook_indices"):
-            if name not in stored:
-                raise ExtractionInvalid(f"{split}: {npz_path} has no {name}")
-        base = np.asarray(stored["base_indices"])
-        hashed = np.asarray(stored["hash_2bit"])
-        codebook = np.asarray(stored["codebook_indices"])
-
     validate_code_arrays(base, hashed, codebook, rows=rows, slots=slots,
                          per_slot=per_slot,
                          codebook_size=manifest.get("codebook_size"),
                          split=split)
+    if labels is None and multi_hot is None:
+        raise ExtractionInvalid(
+            f"{split}: {npz_path} has neither labels nor multi_hot_labels; "
+            "retrieval relevance is undefined")
+    if labels is not None:
+        if labels.shape != (rows,) or not np.issubdtype(labels.dtype, np.integer):
+            raise ExtractionInvalid(
+                f"{split}: labels must be integer [{rows}], found "
+                f"shape={labels.shape} dtype={labels.dtype}")
+        if labels.size and labels.min() < 0:
+            raise ExtractionInvalid(f"{split}: labels contain a negative class")
+        canonical_width = _CANONICAL_CLASS_WIDTH.get(manifest.get("dataset"))
+        if canonical_width is not None and labels.size \
+                and labels.max() >= canonical_width:
+            raise ExtractionInvalid(
+                f"{split}: labels exceed canonical {manifest.get('dataset')} "
+                f"class width {canonical_width}")
+    multi_width = None
+    if multi_hot is not None:
+        if multi_hot.ndim != 2 or multi_hot.shape[0] != rows \
+                or multi_hot.shape[1] <= 0 \
+                or not (np.issubdtype(multi_hot.dtype, np.integer)
+                        or np.issubdtype(multi_hot.dtype, np.bool_)):
+            raise ExtractionInvalid(
+                f"{split}: multi_hot_labels must be integer/bool [N,C], found "
+                f"shape={multi_hot.shape} dtype={multi_hot.dtype}")
+        if not np.isfinite(multi_hot).all() \
+                or not np.isin(multi_hot, (0, 1)).all():
+            raise ExtractionInvalid(
+                f"{split}: multi_hot_labels must be finite binary values")
+        multi_width = int(multi_hot.shape[1])
+        canonical_width = _CANONICAL_CLASS_WIDTH.get(manifest.get("dataset"))
+        if canonical_width is not None and multi_width != canonical_width:
+            raise ExtractionInvalid(
+                f"{split}: multi_hot_labels width {multi_width}, canonical "
+                f"{manifest.get('dataset')} requires {canonical_width}")
+    if labels is not None and multi_hot is not None:
+        if labels.size and labels.max() >= multi_hot.shape[1]:
+            raise ExtractionInvalid(
+                f"{split}: labels index exceeds multi_hot_labels width")
+        if not np.array_equal(multi_hot.sum(axis=1), np.ones(rows, dtype=int)) \
+                or not np.array_equal(
+                    multi_hot.argmax(axis=1).astype(labels.dtype), labels):
+            raise ExtractionInvalid(
+                f"{split}: labels and multi_hot_labels disagree")
+    return {
+        "has_labels": labels is not None,
+        "has_multi_hot_labels": multi_hot is not None,
+        "multi_hot_width": multi_width,
+    }
 
 
 def validate_extraction_run(
@@ -419,7 +548,7 @@ def validate_extraction_run(
     """
     required = tuple(required_splits)
     marker_path = os.path.join(run_dir, MARKER_NAME)
-    marker = _load_json(marker_path, "completion marker")
+    marker, marker_sha256 = _load_json_bound(marker_path, "completion marker")
     if marker.get("schema_version") != 1:
         raise ExtractionInvalid(
             f"{run_dir}: unknown completion marker schema_version "
@@ -439,12 +568,12 @@ def validate_extraction_run(
             f"{sorted(digests) if isinstance(digests, Mapping) else digests} "
             f"do not match {sorted(required)}")
 
-    manifests, backfilled = {}, False
+    manifests, manifest_sha256, backfilled, label_schemas = {}, {}, False, {}
     for split in required:
         path = os.path.join(run_dir, f"extraction_manifest_{split}.json")
-        manifest = _load_json(path, f"{split} extraction manifest")
+        manifest, actual = _load_json_bound(
+            path, f"{split} extraction manifest")
         recorded = (marker.get("manifest_sha256") or {}).get(split)
-        actual = sha256_file(path)
         if recorded != actual:
             raise ExtractionInvalid(
                 f"{split}: the marker records manifest digest "
@@ -470,8 +599,10 @@ def validate_extraction_run(
                     f"but the manifest declares "
                     f"{str(manifest.get(f'{name}_sha256'))[:12]}...")
         if verify_npz:
-            _validate_npz(manifest, split=split)
+            label_schemas[split] = _validate_npz(
+                manifest, split=split, run_dir=run_dir)
         manifests[split] = manifest
+        manifest_sha256[split] = actual
 
     states = {split: bool(m.get("backfilled", False))
               for split, m in manifests.items()}
@@ -491,6 +622,15 @@ def validate_extraction_run(
                 f"produced by the same runtime state.")
         common[key] = first.get(key)
 
+    if verify_npz:
+        first_labels = label_schemas[required[0]]
+        for split in required[1:]:
+            current_labels = label_schemas[split]
+            if current_labels != first_labels:
+                raise ExtractionInvalid(
+                    f"{run_dir}: splits disagree on label representation: "
+                    f"{label_schemas}")
+
     if backfilled and not allow_backfilled:
         raise ExtractionInvalid(
             f"{run_dir}: the manifests were backfilled after the fact. They "
@@ -498,8 +638,10 @@ def validate_extraction_run(
             f"recorded itself; pass allow_backfilled=True to admit it as a "
             f"diagnostic.")
 
-    return ValidatedRun(run_dir=run_dir, splits=manifests,
-                        backfilled=backfilled, common=common)
+    return ValidatedRun(
+        run_dir=run_dir, splits=manifests, backfilled=backfilled,
+        common=common, manifest_sha256=manifest_sha256,
+        completion_marker_sha256=marker_sha256)
 
 
 def describe_failure(run_dir: str, **kwargs) -> str | None:
@@ -538,8 +680,7 @@ def metric_input_binding(run_dir: str, *,
             for split, manifest in sorted(run.splits.items())
         },
         "manifest_sha256": {
-            split: sha256_file(
-                os.path.join(run_dir, f"extraction_manifest_{split}.json"))
+            split: run.manifest_sha256[split]
             for split in sorted(run.splits)
         },
         "checkpoint_sha256": run.common["checkpoint_sha256"],
@@ -555,7 +696,9 @@ def metric_input_binding(run_dir: str, *,
 
 
 def check_metric_input_binding(run_dir: str, metric: Mapping, *,
-                               what: str, allow_backfilled: bool) -> None:
+                               what: str, allow_backfilled: bool,
+                               required_splits: Sequence[str] = DEFAULT_SPLITS,
+                               ) -> None:
     """Refuse a metric whose declared inputs are not this run's.
 
     `allow_backfilled` is the CALLER's trust policy and has no default. It used
@@ -583,7 +726,9 @@ def check_metric_input_binding(run_dir: str, metric: Mapping, *,
         raise ExtractionInvalid(
             f"{what}: the metric declares retrospectively bound inputs, and "
             f"this reader did not admit backfilled runs")
-    current = metric_input_binding(run_dir, allow_backfilled=allow_backfilled)
+    current = metric_input_binding(
+        run_dir, required_splits=required_splits,
+        allow_backfilled=allow_backfilled)
     # What the numbers were computed FROM. `validator_sha256` is deliberately
     # not here: this module checks artefacts, it does not produce them, so
     # requiring equality made every improvement to the checker invalidate every
@@ -632,9 +777,17 @@ REQUIRED_PROTOCOL = (
     "gc_count_max_inclusive",
     "gc_min_frac",
     "gc_max_frac",
+    "bio_max_homopolymer_run",
     "nmi_average_method",
     "sklearn_version",
 )
+
+_MAP_R_CUTOFF = {
+    "CIFAR10": 1000,
+    "Flickr25k": 5000,
+    "NUSWIDE": 5000,
+    "MSCOCO": 5000,
+}
 
 #: The code whose bytes decide the numbers, keyed by the field that records it.
 #: Recomputed and compared on read, so a marker cannot outlive the evaluator
@@ -697,6 +850,47 @@ def _check_protocol(protocol: Mapping, *, what: str,
         raise ExtractionInvalid(
             f"{what}: analysis protocol carries unexpected key(s) "
             f"{', '.join(extra)}")
+
+    dataset = protocol["dataset"]
+    if not isinstance(dataset, str) or dataset not in _MAP_R_CUTOFF:
+        raise ExtractionInvalid(
+            f"{what}: protocol.dataset={dataset!r} is not canonical")
+    for key in ("codebook_size", "total_bases", "map_r_cutoff",
+                "gc_count_min_inclusive", "gc_count_max_inclusive",
+                "bio_max_homopolymer_run"):
+        value = protocol[key]
+        if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+            raise ExtractionInvalid(
+                f"{what}: protocol.{key}={value!r} is not a positive integer")
+    if protocol["map_r_cutoff"] != _MAP_R_CUTOFF[dataset]:
+        raise ExtractionInvalid(
+            f"{what}: protocol.map_r_cutoff={protocol['map_r_cutoff']!r}, "
+            f"but {dataset} requires {_MAP_R_CUTOFF[dataset]}")
+    try:
+        policy = resolve_gc_policy(protocol["total_bases"])
+    except (UnsupportedBudget, TypeError, ValueError) as error:
+        raise ExtractionInvalid(f"{what}: invalid GC budget ({error})") from None
+    exact_gc = {
+        "gc_policy_version": policy.policy_version,
+        "gc_count_min_inclusive": policy.gc_min_count,
+        "gc_count_max_inclusive": policy.gc_max_count,
+        "gc_min_frac": policy.gc_min_frac,
+        "gc_max_frac": policy.gc_max_frac,
+        "bio_max_homopolymer_run": policy.max_run,
+    }
+    for key, want in exact_gc.items():
+        value = protocol[key]
+        if isinstance(value, bool) or value != want:
+            raise ExtractionInvalid(
+                f"{what}: protocol.{key}={value!r}, but the central GC "
+                f"policy requires {want!r}")
+    if protocol["nmi_average_method"] != "arithmetic":
+        raise ExtractionInvalid(
+            f"{what}: protocol.nmi_average_method must be 'arithmetic'")
+    version = protocol["sklearn_version"]
+    if not isinstance(version, str) or not version.strip():
+        raise ExtractionInvalid(
+            f"{what}: protocol.sklearn_version is not a non-empty string")
     if expected is None:
         return
     for key, want in sorted(expected.items()):
@@ -754,7 +948,8 @@ def write_analysis_marker(run_dir: str, *, metrics: Mapping,
     path = os.path.join(run_dir, ANALYSIS_MARKER_NAME)
     tmp = f"{path}.{os.getpid()}.tmp"
     with open(tmp, "w", encoding="utf-8") as handle:
-        json.dump(payload, handle, indent=2, sort_keys=True)
+        json.dump(payload, handle, indent=2, sort_keys=True, allow_nan=False)
+        handle.write("\n")
         handle.flush()
         os.fsync(handle.fileno())
     os.replace(tmp, path)
@@ -763,7 +958,10 @@ def write_analysis_marker(run_dir: str, *, metrics: Mapping,
 
 def read_analysis_marker(run_dir: str, *, allow_backfilled: bool,
                          expected: "ExpectedIdentity | None" = None,
-                         expected_protocol: "Mapping | None" = None) -> dict:
+                         expected_protocol: "Mapping | None" = None,
+                         required_splits: Sequence[str] = DEFAULT_SPLITS,
+                         expected_sha256: str | None = None,
+                         ) -> dict:
     """The only admissible source of a cell's numbers.
 
     It used to check that four keys were mappings and stop there. A probe
@@ -777,7 +975,11 @@ def read_analysis_marker(run_dir: str, *, allow_backfilled: bool,
     and the artefact does not get to state it for them.
     """
     path = os.path.join(run_dir, ANALYSIS_MARKER_NAME)
-    payload = _load_json(path, "analysis marker")
+    payload, marker_sha256 = _load_json_bound(path, "analysis marker")
+    if expected_sha256 is not None and marker_sha256 != expected_sha256:
+        raise ExtractionInvalid(
+            f"{run_dir}: analysis marker bytes differ from the caller's "
+            "same-inode evidence")
     if payload.get("schema_version") != 1:
         raise ExtractionInvalid(
             f"{run_dir}: unknown analysis marker schema_version "
@@ -790,8 +992,10 @@ def read_analysis_marker(run_dir: str, *, allow_backfilled: bool,
     _check_protocol(payload["protocol"], what=what, expected=expected_protocol)
     _check_sources(payload["analysis_sources"], what=what)
     check_metric_input_binding(run_dir, payload, what=what,
-                               allow_backfilled=allow_backfilled)
+                               allow_backfilled=allow_backfilled,
+                               required_splits=required_splits)
     if expected is not None:
-        validate_extraction_run(run_dir, allow_backfilled=allow_backfilled,
-                                expected=expected)
+        validate_extraction_run(
+            run_dir, required_splits=required_splits,
+            allow_backfilled=allow_backfilled, expected=expected)
     return payload

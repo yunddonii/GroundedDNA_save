@@ -42,10 +42,12 @@ def main() -> None:
     ckpt = _find_model_checkpoint(args.save_model_state_path)
     if not os.path.exists(ckpt):
         raise FileNotFoundError(f"no checkpoint at {ckpt}")
-    missing, unexpected = model.load_state_dict(
-        torch.load(ckpt, map_location=args.device), strict=False)
+    from dna_utils.run_identity import load_model_state_dict_for_extraction
+    missing, unexpected, phase3_binding = load_model_state_dict_for_extraction(
+        model, ckpt, map_location=args.device)
     print(f"[extract-train] loaded {ckpt} "
-          f"(missing={len(missing)} unexpected={len(unexpected)})")
+          f"(missing={len(missing)} unexpected={len(unexpected)} "
+          f"phase3_exact={phase3_binding is not None})")
     # F01: same fail-closed epoch restore as extraction_siglip2, via the SAME
     # helper. Duplicating the resolution logic is how the two paths drifted into
     # producing train and query/DB codes at different operating points.

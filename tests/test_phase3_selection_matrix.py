@@ -15,7 +15,9 @@ asserted otherwise.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 
 import pytest
@@ -40,6 +42,42 @@ from scripts.phase3_selection_matrix import (  # noqa: E402
     read_selection,
     tag_for,
 )
+
+
+def _fake_input_authorities(plan):
+    import scripts.phase3_selection_matrix as M
+    result = {}
+    for cell in plan:
+        dataset, _, _, _, stage, _ = M._campaign_cell_parts(cell)
+        seal_stage = "refit" if stage == "refit" else "stage1"
+        key = f"{dataset}:{seal_stage}"
+        if key in result:
+            continue
+        tokenizers = {name: "16" * 32 for name in (
+            "tokenizer.json", "tokenizer_config.json", "vocab.json",
+            "merges.txt", "special_tokens_map.json")}
+        result[key] = {
+            "schema": "groundeddna.phase3-input-authority",
+            "schema_version": 1,
+            "seal_path": f"/nonexistent/{dataset}-{seal_stage}.json",
+            "seal_file_sha256": "10" * 32,
+            "aggregate_sha256": "11" * 32,
+            "dataset": dataset, "stage": seal_stage,
+            "request": {}, "split_identity_sha256": "12" * 32,
+            "split_identity": {}, "authority_sha256": "13" * 32,
+            "hf_runtime": {
+                "checkpoint": M.PHASE3_CLIP_CHECKPOINT,
+                "revision": M.PHASE3_CLIP_REVISION,
+                "snapshot_dir": "/nonexistent/hf/snapshots/" + M.PHASE3_CLIP_REVISION,
+                "weight_file": "pytorch_model.bin",
+                "weight_sha256": M.PHASE3_CLIP_WEIGHT_SHA256,
+                "config_file": "config.json", "config_sha256": "14" * 32,
+                "tokenizer_files_sha256": tokenizers,
+                "tokenizer_set_sha256": "15" * 32,
+                "local_files_only": True, "identity_sha256": "17" * 32,
+            },
+        }
+    return result
 
 
 # ------------------------------------------------------------- the grid
@@ -370,10 +408,15 @@ def test_the_caller_environment_cannot_redefine_the_recipe(monkeypatch):
                         ("SHARE_CB", "1"), ("EXTRA_ARGS", "--nonsense"),
                         ("FINAL_EPOCH", "1")):
         monkeypatch.setenv(name, value)
+    monkeypatch.setenv("PYTHONPATH", "/tmp/phase3-shadow")
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/opt/cuda/test")
     _, env, _ = build_command("cifar10", 4, gpu=0)
     for name in ("WASS", "DISABLE_TEXT", "SHARE_CB", "FINAL_EPOCH"):
         assert name not in env, f"{name} leaked in from the caller"
     assert "--nonsense" not in env["EXTRA_ARGS"]
+    assert "PYTHONPATH" not in env
+    assert env["LD_LIBRARY_PATH"] == "/opt/cuda/test"
+    assert Path(env["PY"]).resolve() == Path(sys.executable).resolve()
     # The cell's own recipe still arrives.
     assert env["CCS"] == "0.1"
 
@@ -502,7 +545,7 @@ def test_the_selection_file_must_name_exactly_the_four_datasets(tmp_path):
         "invented": {"selected_N": 4}}}))
     with pytest.raises(CellRefused) as excinfo:
         _load_selection(path)
-    assert "unexpected ['invented']" in str(excinfo.value)
+    assert "not a schema-2 selected-N authority" in str(excinfo.value)
 
 
 def _completed_run(tmp_path: Path, **sidecar) -> Path:
@@ -606,7 +649,7 @@ def test_a_selection_cell_keeps_its_terminal_checkpoint():
 
 def test_the_trainer_honours_keep_final_checkpoint():
     source = (REPO / "train_siglip2.py").read_text()
-    block = source[source.index("If best-checkpoint differs from final"):]
+    block = source[source.index("For a legacy/direct run, if best differs"):]
     block = block[:block.index("if _is_stop_point")]
     assert 'getattr(args, "keep_final_checkpoint", False)' in block
     assert "--keep_final_checkpoint" in (REPO / "config.py").read_text()
@@ -754,7 +797,7 @@ def test_a_recipe_that_names_no_records_is_refused(tmp_path):
                      ("cifar10", "flickr25k", "nuswide", "mscoco")}}))
     with pytest.raises(CellRefused) as error:
         _load_recipe(forged)
-    assert "names no cells" in str(error.value)
+    assert "recipe stability is not confirmed" in str(error.value)
 
 
 def test_two_recipe_files_merge_and_a_repeated_axis_is_refused(tmp_path):
@@ -789,6 +832,10 @@ def test_a_namespace_belongs_to_one_sweep(tmp_path, monkeypatch, capsys):
     import scripts.phase3_selection_matrix as M
 
     monkeypatch.setattr(M, "RECORD_DIR", tmp_path)
+    monkeypatch.setattr(M, "assert_production_source_authority",
+                        lambda snapshot: None)
+    monkeypatch.setattr(M, "verify_campaign_input_seals",
+                        lambda specs, plan, **kw: _fake_input_authorities(plan))
     monkeypatch.setattr(sys, "argv", [
         "phase3_selection_matrix.py", "--sweep", "topp", "--run",
         "--namespace", "phase3toppB", "--gpus", "0,1,2"])
@@ -803,6 +850,10 @@ def test_a_fresh_namespace_is_not_refused(tmp_path, monkeypatch):
     import scripts.phase3_selection_matrix as M
 
     monkeypatch.setattr(M, "RECORD_DIR", tmp_path)
+    monkeypatch.setattr(M, "assert_production_source_authority",
+                        lambda snapshot: None)
+    monkeypatch.setattr(M, "verify_campaign_input_seals",
+                        lambda specs, plan, **kw: _fake_input_authorities(plan))
     calls = []
     monkeypatch.setattr(M, "run_cell",
                         lambda *a, **k: calls.append(k) or (_ for _ in ()).throw(
@@ -813,3 +864,537 @@ def test_a_fresh_namespace_is_not_refused(tmp_path, monkeypatch):
     # It gets past the gate and into the cells, which the stub refuses.
     assert M.main() == 1
     assert calls, "the sweep never reached a cell"
+
+
+def test_two_simultaneous_fresh_callers_admit_exactly_one(
+        tmp_path, monkeypatch):
+    """§61.7/§61.8: O_EXCL is the fresh-namespace linearisation point.
+
+    Both callers finish planning and arrive at reservation together.  No GPU or
+    trainer is reachable in this test.  Exactly one caller may cross the
+    reservation boundary and reach the inert cell stub; the other must refuse
+    while the namespace was genuinely fresh at the start.
+    """
+    from types import SimpleNamespace
+    import threading
+    import scripts.phase3_selection_matrix as M
+
+    monkeypatch.setattr(M, "RECORD_DIR", tmp_path)
+    barrier = threading.Barrier(2)
+    real_reserve = M.reserve_sweep_namespace
+
+    def reserve_together(*args, **kwargs):
+        barrier.wait(timeout=10)
+        return real_reserve(*args, **kwargs)
+
+    reached = []
+    reached_lock = threading.Lock()
+
+    def inert_cell(*args, **kwargs):
+        with reached_lock:
+            reached.append(threading.current_thread().name)
+        raise M.CellRefused("inert test boundary: trainer must not run")
+
+    monkeypatch.setattr(M, "reserve_sweep_namespace", reserve_together)
+    monkeypatch.setattr(M, "run_cell", inert_cell)
+    monkeypatch.setattr(M, "assert_production_source_authority",
+                        lambda snapshot: None)
+    monkeypatch.setattr(M, "verify_campaign_input_seals",
+                        lambda specs, plan, **kw: _fake_input_authorities(plan))
+    args = SimpleNamespace(
+        sweep="topp", only="flickr25k:0.3,0.7", plan=False,
+        run=True, smoke=False, epochs=1, gpus=None, gpu=0,
+        namespace="phase3_atomic_fresh")
+    args.input_seal_specs = {}
+    returns = []
+
+    def call():
+        returns.append(M._run_sweep(args, None))
+
+    callers = [threading.Thread(target=call, name=f"caller-{i}")
+               for i in range(2)]
+    for caller in callers:
+        caller.start()
+    for caller in callers:
+        caller.join(timeout=20)
+        assert not caller.is_alive()
+
+    assert sorted(returns) == [1, 2]
+    assert len(reached) == 1, reached
+    reservation = json.loads(
+        M.campaign_reservation_path(args.namespace).read_text())
+    assert reservation["owner_pid"] > 0
+    assert reservation["owner_boot_id"]
+    assert len(reservation["campaign_nonce"]) == 64
+    assert len(reservation["plan_digest"]) == 64
+
+
+def test_authority_json_publication_is_exclusive_and_finite(
+        tmp_path):
+    import scripts.phase3_selection_matrix as M
+
+    path = tmp_path / "cell.json"
+    M._publish_json_exclusive(path, {"metric": 0.5})
+    original = path.read_bytes()
+    with pytest.raises(M.CellRefused, match="already exists"):
+        M._publish_json_exclusive(path, {"metric": 0.6})
+    assert path.read_bytes() == original
+    with pytest.raises(ValueError, match="Out of range float"):
+        M._publish_json_exclusive(tmp_path / "nan.json", {"metric": float("nan")})
+    assert not (tmp_path / "nan.json").exists()
+
+
+def test_authoritative_bound_readers_refuse_final_symlink(tmp_path):
+    import numpy as np
+    import scripts.phase3_selection_matrix as M
+
+    real_json = tmp_path / "real.json"
+    real_json.write_text('{"finite": 1}\n')
+    json_link = tmp_path / "alias.json"
+    json_link.symlink_to(real_json)
+    with pytest.raises(M.CellRefused, match="cannot open authoritative JSON"):
+        M._read_json_bound(json_link)
+
+    real_npz = tmp_path / "real.npz"
+    np.savez(real_npz, values=np.asarray([1], dtype=np.int64))
+    npz_link = tmp_path / "alias.npz"
+    npz_link.symlink_to(real_npz)
+    with pytest.raises(M.CellRefused, match="extraction path is not canonical|cannot open"):
+        M._read_npz_bound(npz_link)
+
+
+def test_binding_publish_failure_releases_trainer_claim(tmp_path, monkeypatch):
+    """A campaign O_EXCL refusal must not poison the run dir for a retry."""
+    from types import SimpleNamespace
+    import dna_utils.run_identity as RI
+    import train_siglip2 as T
+
+    # Keep every filesystem effect under pytest's temporary directory while
+    # exercising the real save-path/claim ordering.
+    monkeypatch.setattr(T, "__file__", str(tmp_path / "train_siglip2.py"))
+    monkeypatch.setattr(
+        RI, "phase3_campaign_binding_from_env",
+        lambda *args, **kwargs: {
+            "schema_version": 1, "test": "witness",
+            "result_root": str((tmp_path / "result").resolve())})
+
+    def refuse_binding(*args, **kwargs):
+        raise RI.RunCollision("injected immutable binding collision")
+
+    monkeypatch.setattr(RI, "write_phase3_campaign_binding", refuse_binding)
+    args = SimpleNamespace(
+        dataset="Flickr25k", setting="setting1", tag=["claim_cleanup"],
+        date="2099-01-01", batch_size=1, epoch=1, proj_lr=0.001,
+        keep_final_checkpoint=True)
+
+    with pytest.raises(RI.RunCollision, match="injected immutable binding"):
+        T._resolve_save_path(args)
+
+    assert not list(tmp_path.rglob(RI.ACTIVE_CLAIM_NAME)), (
+        "a rejected campaign launch left an active trainer claim behind")
+
+
+def test_phase3_trainer_handoff_writes_only_under_sealed_alternate_root(
+        tmp_path, monkeypatch):
+    """The /data-style root is launch evidence, not an unbound search hint."""
+    from types import SimpleNamespace
+    import dna_utils.run_identity as RI
+    import train_siglip2 as T
+
+    args = SimpleNamespace(
+        dataset="Flickr25k", setting="setting1", tag=["alternate_root"],
+        date="2099-01-02", batch_size=1, epoch=1, proj_lr=0.001,
+        keep_final_checkpoint=True)
+    identity = RI.RunIdentity.from_args(args)
+    result_root = (tmp_path / "data" / "phase3-fresh").resolve()
+    import dna_utils.runtime_environment as RTE
+    expected_child = {
+        "schema_version": 1,
+        "physical_gpu": {"index": 0, "uuid": "GPU-fixture",
+                         "name": "fixture", "pci_bus_id": "00:00.0",
+                         "driver": "fixture"},
+    }
+    monkeypatch.setattr(
+        RTE, "verify_child_environment",
+        lambda expected: json.loads(json.dumps(expected)))
+    env = {
+        "GDNA_PHASE3_CAMPAIGN_NONCE": "ab" * 32,
+        "GDNA_PHASE3_PLAN_DIGEST": "cd" * 32,
+        "GDNA_PHASE3_CELL_ID": "fixture-cell",
+        "GDNA_PHASE3_EXPECTED_IDENTITY_DIGEST": identity.digest,
+        "GDNA_PHASE3_EXPECTED_TAG": "alternate_root",
+        "GDNA_PHASE3_RESULT_ROOT": str(result_root),
+        "GDNA_PHASE3_ENVIRONMENT_DIGEST": "ef" * 32,
+        "GDNA_PHASE3_CHILD_ENVIRONMENT_DIGEST":
+            RTE.semantic_digest(expected_child),
+        "GDNA_PHASE3_PHYSICAL_GPU_INDEX": "0",
+        "GDNA_PHASE3_EXPECTED_CHILD_ENVIRONMENT_JSON": json.dumps(
+            expected_child, sort_keys=True, separators=(",", ":")),
+        "GDNA_PHASE3_INPUT_AUTHORITY_DIGEST": "01" * 32,
+        "GDNA_PHASE3_INPUT_SEAL_DIGEST": "02" * 32,
+        "GDNA_PHASE3_INPUT_AGGREGATE_DIGEST": "03" * 32,
+        "GDNA_PHASE3_SPLIT_IDENTITY_DIGEST": "04" * 32,
+        "GDNA_PHASE3_HF_IDENTITY_DIGEST": "05" * 32,
+    }
+    for key, value in env.items():
+        monkeypatch.setenv(key, value)
+
+    resolved = Path(T._resolve_save_path(args)).resolve()
+    assert resolved.parent == result_root
+    witness = json.loads(
+        (resolved / RI.PHASE3_CAMPAIGN_BINDING_NAME).read_text())
+    assert witness["result_root"] == str(result_root)
+    RI.release_run_dir(str(resolved))
+
+
+def test_snapshot_binds_exact_transitive_sources_and_identical_start_end_hashes(
+        tmp_path, monkeypatch):
+    import scripts.phase3_selection_matrix as M
+
+    monkeypatch.setattr(M, "RECORD_DIR", tmp_path)
+    plan = M.canonical_plan("topp")
+    snapshot = M.plan_snapshot(
+        sorted(M.DATASETS), plan=plan, executed=plan, axis="topp",
+        namespace="source_bundle", campaign_nonce="ef" * 32,
+        result_root=(tmp_path / "results").resolve(), gpu_ids=(0,))
+    required = {
+        "val_split.py", "p0_protocol.py", "dna_utils/runtime_state.py",
+        "scripts/seal_phase3_inputs.py", "scripts/phase3_select_n.py",
+        "dna_utils/__init__.py", "models/semantic_router.py",
+    }
+    assert required <= set(snapshot["sources"])
+    environment = snapshot["environment"]
+    assert environment["requested_gpu_indices"] == [0]
+    assert environment["selected_gpus"][0]["uuid"].startswith("GPU-")
+    assert environment["packages"]["torch"]["version"]
+    assert environment["torch_runtime"]["torch_cuda"]
+    start = snapshot["source_authority"]
+    M.verify_snapshot(snapshot)
+    assert M._source_authority_bundle(snapshot["sources"]) == start
+
+    reservation = M.reserve_sweep_namespace(
+        "source_bundle", snapshot=snapshot,
+        plan_digest=M._json_digest(snapshot), campaign_nonce="ef" * 32,
+        snapshot_file="source_bundle_snapshot.json")
+    assert reservation["source_authority_sha256"] == \
+        snapshot["source_authority_sha256"]
+    assert reservation["head_commit"] == start["head_commit"]
+    assert reservation["environment_sha256"] == snapshot["environment_sha256"]
+
+    real_bundle = M._source_authority_bundle
+
+    def changed(paths):
+        payload = json.loads(json.dumps(real_bundle(paths)))
+        payload["head_commit"] = "0" * 40
+        return payload
+
+    monkeypatch.setattr(M, "_source_authority_bundle", changed)
+    with pytest.raises(M.CellRefused, match="start/end hashes are not identical"):
+        M.verify_snapshot(snapshot)
+
+
+def test_checkpoint_campaign_metadata_keeps_strict_model_loading(tmp_path):
+    import torch
+    from dna_utils.run_identity import (
+        bind_phase3_campaign_to_state_dict,
+        phase3_campaign_from_checkpoint,
+    )
+
+    binding = {
+        "schema_version": 1, "campaign_nonce": "12" * 32,
+        "cell_id": "cell", "plan_snapshot_sha256": "34" * 32,
+        "expected_identity_digest": "56" * 32,
+        "expected_tag": "tag", "result_root": str(tmp_path.resolve()),
+        "environment_sha256": "78" * 32,
+    }
+    source = torch.nn.Linear(3, 2)
+    state = bind_phase3_campaign_to_state_dict(source.state_dict(), binding)
+    path = tmp_path / "checkpoint.pth"
+    torch.save(state, path)
+    target = torch.nn.Linear(3, 2)
+    result = target.load_state_dict(
+        torch.load(path, map_location="cpu", weights_only=True), strict=True)
+    assert not result.missing_keys and not result.unexpected_keys
+    assert phase3_campaign_from_checkpoint(str(path)) == binding
+
+
+@pytest.mark.parametrize("kind,suffix", [
+    ("n_selection", "N_SELECTION_RECEIPT_SUFFIX"),
+    ("refit", "REFIT_RECEIPT_SUFFIX"),
+])
+def test_exact_campaign_two_fresh_callers_have_one_owner(
+        tmp_path, monkeypatch, kind, suffix):
+    """N16/refit12 reuse the same O_EXCL admission, before any trainer."""
+    from types import SimpleNamespace
+    import threading
+    import scripts.phase3_selection_matrix as M
+
+    root = tmp_path / kind
+    monkeypatch.setattr(M, "RECORD_DIR", root)
+    choices = {dataset: {"topp": ["0.3", "0.7"], "joint": "0.01"}
+               for dataset in sorted(M.DATASETS)}
+    selected = {dataset: 4 for dataset in sorted(M.DATASETS)}
+    full = (M.n_selection_cells(choices) if kind == "n_selection"
+            else M.refit_cells(selected, choices))
+    barrier = threading.Barrier(2)
+    real_reserve = M.reserve_sweep_namespace
+
+    def reserve_together(*args, **kwargs):
+        barrier.wait(timeout=10)
+        return real_reserve(*args, **kwargs)
+
+    reached = []
+
+    def inert_cell(*args, **kwargs):
+        reached.append(kwargs["campaign_binding"]["campaign_nonce"])
+        raise M.CellRefused("trainer boundary is inert")
+
+    monkeypatch.setattr(M, "reserve_sweep_namespace", reserve_together)
+    monkeypatch.setattr(M, "run_cell", inert_cell)
+    monkeypatch.setattr(M, "assert_production_source_authority",
+                        lambda snapshot: None)
+    monkeypatch.setattr(M, "verify_campaign_input_seals",
+                        lambda specs, plan, **kw: _fake_input_authorities(plan))
+    args = SimpleNamespace(namespace=f"fresh_{kind}", gpus=None, gpu=0,
+                           input_seal_specs={})
+    returns = []
+
+    def call():
+        returns.append(M._run_exact_campaign(
+            args, full_plan=full, executed_plan=[full[0]],
+            campaign_kind=kind, receipt_suffix=getattr(M, suffix),
+            authorities={"fixture": True}, epochs=1))
+
+    callers = [threading.Thread(target=call) for _ in range(2)]
+    for caller in callers:
+        caller.start()
+    for caller in callers:
+        caller.join(timeout=20)
+        assert not caller.is_alive()
+    assert sorted(returns) == [1, 2]
+    assert len(reached) == 1
+    reservation = json.loads(next(root.glob("*_campaign_reservation.json")).read_text())
+    assert reservation["campaign_kind"] == kind
+    assert reservation["owner_pid"] > 0 and reservation["owner_boot_id"]
+
+
+@pytest.mark.parametrize("trainer", [
+    "scripts/train_cifar10_v185_bidirTokenPrune05_ccs01_clip.sh",
+    "scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh",
+    "scripts/train_nuswide_v185_sweep_clip.sh",
+    "scripts/train_mscoco_F2_sweep_clip.sh",
+])
+def test_canonical_trainer_shell_preserves_uuid_selector_to_python(
+        tmp_path, trainer):
+    """Exercise the real shell assignment without invoking a trainer/GPU."""
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    for name in ("text_tokens.f16.npy", "text_token_mask.bool.npy",
+                 "text_whiten.npz"):
+        (cache / name).write_bytes(b"fixture")
+    probe = tmp_path / "python-probe.sh"
+    probe.write_text(
+        "#!/usr/bin/env bash\n"
+        "printf '%s\\n' \"${CUDA_VISIBLE_DEVICES-}\" > \"$ATTEST_OUT\"\n")
+    probe.chmod(0o755)
+    output = tmp_path / "visible-device.txt"
+    uuid = "GPU-11111111-2222-3333-4444-555555555555"
+    env = dict(os.environ)
+    env.update({
+        "PY": str(probe), "ATTEST_OUT": str(output),
+        "CACHE": str(cache), "WHITEN_NPZ": str(cache / "text_whiten.npz"),
+        "QWEN": str(tmp_path / "qwen.jsonl"), "TAG": "uuid-shell-probe",
+    })
+    proc = subprocess.run(
+        ["bash", "-o", "pipefail", str(REPO / trainer), uuid],
+        cwd=tmp_path, env=env, capture_output=True, text=True, timeout=30)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+    assert output.read_text().strip() == uuid
+
+
+def test_campaign_rewrites_both_shell_argument_and_environment_to_uuid():
+    import scripts.phase3_selection_matrix as M
+
+    uuid = "GPU-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    command = ["bash", "scripts/trainer.sh", "3"]
+    environment = {"CUDA_VISIBLE_DEVICES": "3"}
+    rewritten = M._bind_campaign_gpu_selector(
+        command, environment, gpu=3,
+        campaign_binding={"expected_child_environment": {
+            "physical_gpu": {"uuid": uuid}}})
+    assert rewritten == ["bash", "scripts/trainer.sh", uuid]
+    assert environment["CUDA_VISIBLE_DEVICES"] == uuid
+
+
+def test_phase3_holds_shared_uuid_leases_for_the_whole_callback(
+        tmp_path, monkeypatch):
+    from types import SimpleNamespace
+    import dna_utils.gpu_lease as lease_module
+    import scripts.phase3_selection_matrix as M
+
+    uuid = "GPU-aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    monkeypatch.setattr(M, "environment_fingerprint", lambda gpus: {
+        "errors": [],
+        "selected_gpus": [{"index": gpus[0], "uuid": uuid}],
+    })
+    events = []
+    lease_handle = (tmp_path / "lease.lock").open("w+")
+
+    class Lease:
+        handles = [lease_handle]
+
+        def release(self):
+            assert not M._ACTIVE_CHILDREN
+            events.append("release")
+            lease_handle.close()
+
+    def acquire(assignments, *, owner_metadata):
+        assert assignments == [{"index": 2, "uuid": uuid}]
+        assert owner_metadata["campaign"] == "phase3_selection"
+        events.append("acquire")
+        return Lease()
+
+    monkeypatch.setattr(lease_module, "acquire_gpu_leases", acquire)
+    args = SimpleNamespace(gpus=None, gpu=2, namespace="lease-fixture")
+
+    def callback():
+        events.append(("callback", args._phase3_gpu_lease_uuids))
+        return 17
+
+    assert M._with_campaign_gpu_leases(args, callback) == 17
+    assert events == ["acquire", ("callback", (uuid,)), "release"]
+    assert not hasattr(args, "_phase3_gpu_lease_uuids")
+    assert "dna_utils/gpu_lease.py" in M._BOOTSTRAP_SOURCE_PATHS
+    assert "scripts/__init__.py" in M._BOOTSTRAP_SOURCE_PATHS
+
+
+def test_signal_cleanup_kills_managed_process_group_before_lease_release(
+        tmp_path, monkeypatch):
+    """Synthetic sleeper tree only: no trainer, CUDA, or model is invoked."""
+    from types import SimpleNamespace
+    import signal as signal_module
+    import threading as threading_module
+    import time as time_module
+    import dna_utils.gpu_lease as lease_module
+    import scripts.phase3_selection_matrix as M
+
+    uuid = "GPU-aaaaaaaa-bbbb-cccc-dddd-ffffffffffff"
+    monkeypatch.setattr(M, "environment_fingerprint", lambda gpus: {
+        "errors": [],
+        "selected_gpus": [{"index": gpus[0], "uuid": uuid}],
+    })
+    lease_handle = (tmp_path / "lease.lock").open("w+")
+    events = []
+
+    class Lease:
+        handles = [lease_handle]
+
+        def release(self):
+            assert not M._ACTIVE_CHILDREN
+            events.append("release")
+            lease_handle.close()
+
+    monkeypatch.setattr(
+        lease_module, "acquire_gpu_leases",
+        lambda assignments, *, owner_metadata: Lease())
+    pid_path = tmp_path / "pids.txt"
+    code = (
+        "import os,subprocess,sys,time; "
+        f"os.fstat({lease_handle.fileno()}); "
+        "child=subprocess.Popen([sys.executable,'-c','import time;time.sleep(60)']); "
+        f"open({str(pid_path)!r},'w').write(str(os.getpid())+' '+str(child.pid)); "
+        "time.sleep(60)"
+    )
+    outcomes = []
+    worker = None
+
+    def callback():
+        nonlocal worker
+        worker = threading_module.Thread(
+            target=lambda: outcomes.append(M._run_managed_process(
+                [sys.executable, "-c", code], cwd=str(tmp_path),
+                env=dict(os.environ))))
+        worker.start()
+        deadline = time_module.monotonic() + 5.0
+        while not pid_path.exists() and time_module.monotonic() < deadline:
+            time_module.sleep(0.01)
+        assert pid_path.exists()
+        M._campaign_signal_handler(signal_module.SIGTERM, None)
+
+    args = SimpleNamespace(gpus=None, gpu=0, namespace="signal-fixture")
+    with pytest.raises(SystemExit) as excinfo:
+        M._with_campaign_gpu_leases(args, callback)
+    assert excinfo.value.code == 128 + signal_module.SIGTERM
+    assert worker is not None
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert outcomes and outcomes[0].returncode != 0
+    assert events == ["release"]
+
+    parent_pid, child_pid = map(int, pid_path.read_text().split())
+
+    def process_is_live(pid):
+        try:
+            stat_text = Path(f"/proc/{pid}/stat").read_text()
+        except FileNotFoundError:
+            return False
+        # A killed orphan may be visible briefly as a zombie; it cannot use a
+        # GPU or retain inherited resources and therefore is not live.
+        return stat_text.split()[2] != "Z"
+
+    deadline = time_module.monotonic() + 2.0
+    while any(process_is_live(pid) for pid in (parent_pid, child_pid)) \
+            and time_module.monotonic() < deadline:
+        time_module.sleep(0.02)
+    assert not process_is_live(parent_pid)
+    assert not process_is_live(child_pid)
+
+
+def test_managed_child_refuses_main_thread_popen_registration_window():
+    import scripts.phase3_selection_matrix as M
+
+    with pytest.raises(
+            M.CellRefused, match="must launch from a worker thread"):
+        M._run_managed_process(
+            [sys.executable, "-c", "raise SystemExit(0)"],
+            cwd=str(REPO), env=dict(os.environ))
+
+
+def test_generic_sweep_plan_does_not_acquire_gpu_lease(monkeypatch):
+    import scripts.phase3_selection_matrix as M
+
+    called = []
+    monkeypatch.setattr(
+        M, "_with_campaign_gpu_leases",
+        lambda *args, **kwargs: called.append("lease") or 99)
+    monkeypatch.setattr(sys, "argv", [
+        "phase3_selection_matrix.py", "--sweep", "topp", "--plan"])
+    assert M.main() == 0
+    assert called == []
+
+
+def test_stability_pj_plan_does_not_acquire_gpu_lease(tmp_path, monkeypatch):
+    import scripts.phase3_select_n as S
+    import scripts.phase3_selection_matrix as M
+
+    stage_path = tmp_path / "stage.json"
+    stage_path.write_text('{}\n')
+    row = ("flickr25k", 4, ("0.3", "0.7"), "0.02", "select", 42)
+    monkeypatch.setattr(
+        S, "load_stability_stage_authority",
+        lambda path: {"axis": "topp", "fixture": str(path)})
+    monkeypatch.setattr(S, "stability_stage_cells", lambda payload: [row])
+    calls = []
+    monkeypatch.setattr(
+        M, "_run_sweep",
+        lambda *args, **kwargs: calls.append((args, kwargs)) or 0)
+    monkeypatch.setattr(
+        M, "_with_campaign_gpu_leases",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("plan-only stability must not acquire a GPU lease")))
+    monkeypatch.setattr(sys, "argv", [
+        "phase3_selection_matrix.py", "--stability-plan", str(stage_path),
+        "--sweep", "topp", "--plan"])
+    assert M.main() == 0
+    assert len(calls) == 1
+    assert calls[0][1]["full_plan"] == [row]

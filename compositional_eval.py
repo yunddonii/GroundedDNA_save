@@ -32,12 +32,99 @@ Usage:
 """
 from __future__ import annotations
 import argparse
+import hashlib
 import json
 import os
+import pickle
 import sys
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 import numpy as np
+
+
+class CompositionalInputError(RuntimeError):
+    """Phase-5 evidence cannot be bound to its claimed inputs."""
+
+
+def _sha256_file(path: os.PathLike[str] | str) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(8 * 1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _stable_file_evidence(path: os.PathLike[str] | str) -> dict[str, Any]:
+    logical = os.path.abspath(os.fspath(path))
+    try:
+        before = os.stat(logical)
+        digest = _sha256_file(logical)
+        after = os.stat(logical)
+    except OSError as error:
+        raise CompositionalInputError(
+            f"cannot seal Phase-5 input {logical}: {error}"
+        ) from error
+    identity_before = (
+        before.st_dev, before.st_ino, before.st_size,
+        before.st_mtime_ns, before.st_ctime_ns,
+    )
+    identity_after = (
+        after.st_dev, after.st_ino, after.st_size,
+        after.st_mtime_ns, after.st_ctime_ns,
+    )
+    if identity_before != identity_after:
+        raise CompositionalInputError(
+            f"Phase-5 input changed while hashing: {logical}"
+        )
+    return {
+        "path": logical,
+        "resolved_path": os.path.realpath(logical),
+        "size": int(before.st_size),
+        "device": int(before.st_dev),
+        "inode": int(before.st_ino),
+        "mtime_ns": int(before.st_mtime_ns),
+        "ctime_ns": int(before.st_ctime_ns),
+        "sha256": digest,
+    }
+
+
+def _assert_file_evidence_current(evidence: Mapping[str, Any]) -> None:
+    path = str(evidence["path"])
+    try:
+        current = os.stat(path)
+    except OSError as error:
+        raise CompositionalInputError(
+            f"sealed Phase-5 input disappeared: {path}: {error}"
+        ) from error
+    actual = {
+        "resolved_path": os.path.realpath(path),
+        "size": int(current.st_size),
+        "device": int(current.st_dev),
+        "inode": int(current.st_ino),
+        "mtime_ns": int(current.st_mtime_ns),
+        "ctime_ns": int(current.st_ctime_ns),
+    }
+    expected = {key: evidence[key] for key in actual}
+    if actual != expected:
+        raise CompositionalInputError(
+            f"sealed Phase-5 input stat/path drifted: {path}"
+        )
+
+
+def _strict_json(path: str, description: str) -> tuple[Any, dict[str, Any]]:
+    evidence = _stable_file_evidence(path)
+    try:
+        with open(path, "r", encoding="utf-8") as handle:
+            value = json.load(handle)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise CompositionalInputError(
+            f"invalid UTF-8 JSON {description} {path}: {error}"
+        ) from error
+    if _sha256_file(path) != evidence["sha256"]:
+        raise CompositionalInputError(
+            f"{description} changed between hashing and parsing: {path}"
+        )
+    return value, evidence
 
 
 # ----------------------- helpers -----------------------
@@ -60,30 +147,123 @@ def _intra_cluster_cos_sim(feats: np.ndarray) -> float:
     return float(sim[iu].mean())
 
 
-def _build_path_to_cache_row(image_paths: np.ndarray, cache_image_ids: List[str],
-                              dataset_root: str) -> np.ndarray:
-    """For each DB sample (by full image path), find its cache row id.
+def _strict_canonical_image_id(value: Any, *, what: str) -> str:
+    """Admit one portable, root-relative image identifier.
 
-    Cache keys are repository-relative (e.g. 'images/im15316.jpg').
-    Returns int64 array of length N (with -1 for misses).
+    ``pathlib.Path.as_posix()`` does not collapse ``a/../b`` and treats a
+    backslash as an ordinary character on Linux.  Accepting either makes the
+    supposedly exact mapping platform-dependent, so validate the wire-format
+    directly.
     """
-    id_to_row = {iid: i for i, iid in enumerate(cache_image_ids)}
-    rows = np.full(len(image_paths), -1, dtype=np.int64)
-    miss = 0
-    for i, p in enumerate(image_paths):
-        # try relpath against dataset_root, fall back to basename heuristics
-        relp = os.path.relpath(str(p), dataset_root)
-        if relp in id_to_row:
-            rows[i] = id_to_row[relp]
-            continue
-        # fall back: try with leading './' or just 'images/<base>'
-        bn = "images/" + os.path.basename(str(p))
-        if bn in id_to_row:
-            rows[i] = id_to_row[bn]
-            continue
-        miss += 1
-    if miss > 0:
-        print(f"[compositional] WARN: {miss}/{len(image_paths)} db rows unmatched in cache.")
+    if not isinstance(value, str) or not value:
+        raise CompositionalInputError(f"{what} must be a non-empty string")
+    if (
+        "\x00" in value
+        or "\\" in value
+        or os.path.isabs(value)
+        or any(part in {"", ".", ".."} for part in value.split("/"))
+    ):
+        raise CompositionalInputError(
+            f"{what} is not a normalized root-relative image ID: {value!r}"
+        )
+    return value
+
+
+def _strict_cache_image_ids(value: Any) -> List[str]:
+    if not isinstance(value, list) or not value:
+        raise CompositionalInputError("cache image_ids.json must be non-empty list[str]")
+    if any(not isinstance(item, str) or not item for item in value):
+        raise CompositionalInputError(
+            "cache image_ids.json contains a non-string or empty identifier"
+        )
+    for index, item in enumerate(value):
+        _strict_canonical_image_id(item, what=f"cache image ID row {index}")
+    if len(set(value)) != len(value):
+        raise CompositionalInputError("cache image_ids.json contains duplicates")
+    return value
+
+
+def _canonical_ids_from_image_paths(
+    image_paths: np.ndarray, dataset_root: str
+) -> List[str]:
+    paths = np.asarray(image_paths)
+    if paths.ndim != 1 or paths.dtype.kind not in {"U", "S"}:
+        raise CompositionalInputError(
+            "extract_db image_paths must be a non-pickled string [N] array"
+        )
+    # Keep lexical paths here. Canonical datasets intentionally place `images/`
+    # behind a symlink to bulk storage; realpath-containment would reject every
+    # valid Flickr/MSCOCO/NUS-WIDE row as an escape from the small metadata root.
+    # Traversal is still impossible because IDs are derived only after strict
+    # lexical containment under the manifest-bound dataset root.
+    root = os.path.abspath(dataset_root)
+    if not os.path.isdir(root):
+        raise CompositionalInputError(f"dataset_root is not a directory: {root}")
+    result: List[str] = []
+    for index, raw_path in enumerate(paths.tolist()):
+        if isinstance(raw_path, bytes):
+            try:
+                raw_path = raw_path.decode("utf-8")
+            except UnicodeDecodeError as error:
+                raise CompositionalInputError(
+                    f"extract_db image path {index} is not UTF-8"
+                ) from error
+        if not isinstance(raw_path, str) or not raw_path:
+            raise CompositionalInputError(
+                f"extract_db image path {index} is empty/non-string"
+            )
+        full = (
+            os.path.abspath(os.path.normpath(raw_path))
+            if os.path.isabs(raw_path)
+            else os.path.abspath(os.path.normpath(os.path.join(root, raw_path)))
+        )
+        try:
+            inside = os.path.commonpath((root, full)) == root
+        except ValueError:
+            inside = False
+        if not inside:
+            raise CompositionalInputError(
+                f"extract_db image path escapes dataset_root: {raw_path!r}"
+            )
+        canonical = os.path.relpath(full, root).replace(os.sep, "/")
+        if canonical == ".." or canonical.startswith("../"):
+            raise CompositionalInputError(
+                f"cannot canonicalize extraction image path {raw_path!r}"
+            )
+        result.append(canonical)
+    if len(set(result)) != len(result):
+        raise CompositionalInputError(
+            "extract_db canonical image ids contain duplicates"
+        )
+    return result
+
+
+def _build_path_to_cache_row(
+    image_paths: np.ndarray,
+    cache_image_ids: List[str],
+    dataset_root: str,
+) -> np.ndarray:
+    """Exact canonical image-ID map from extraction rows to cache rows.
+
+    Missing rows and duplicate IDs are fatal. Basename/suffix fallbacks are
+    intentionally absent because they silently bind different images that share
+    a filename.
+    """
+    cache_ids = _strict_cache_image_ids(cache_image_ids)
+    extraction_ids = _canonical_ids_from_image_paths(image_paths, dataset_root)
+    id_to_row = {image_id: row for row, image_id in enumerate(cache_ids)}
+    missing = [image_id for image_id in extraction_ids if image_id not in id_to_row]
+    if missing:
+        preview = missing[:3]
+        raise CompositionalInputError(
+            f"{len(missing)}/{len(extraction_ids)} extraction image IDs are "
+            f"missing from the cache (first={preview})"
+        )
+    rows = np.asarray([id_to_row[image_id] for image_id in extraction_ids], dtype=np.int64)
+    if np.unique(rows).size != len(rows):
+        raise CompositionalInputError(
+            "extraction rows do not map one-to-one onto cache image IDs"
+        )
     return rows
 
 
@@ -103,6 +283,319 @@ def _save_image_grid(image_paths: List[str], out_path: str,
         canvas.paste(im, (c * thumb, r * thumb))
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     canvas.save(out_path)
+
+
+def _load_phase5_extraction(
+    result_dir: str, *, split: str = "db", allow_backfilled: bool
+) -> dict[str, Any]:
+    """Validate one complete extraction transaction and load ``split`` arrays.
+
+    A run with an additive train extraction commits all three manifests in the
+    completion marker.  Validating only DB/query would reject that transaction;
+    validating only train would ignore stale siblings.  Re-open the marker and
+    validate its exact declared transaction, then select the requested split.
+    """
+    if split not in {"db", "train"}:
+        raise CompositionalInputError(f"unsupported Phase-5 split {split!r}")
+    result_dir = os.path.abspath(result_dir)
+    marker_path = os.path.join(result_dir, "extraction_complete.json")
+    marker, marker_evidence = _strict_json(marker_path, "extraction completion marker")
+    if not isinstance(marker, Mapping):
+        raise CompositionalInputError("extraction completion marker is not an object")
+    declared_value = marker.get("splits")
+    if not isinstance(declared_value, list) or any(
+        not isinstance(item, str) for item in declared_value
+    ):
+        raise CompositionalInputError("completion marker splits must be list[str]")
+    declared = tuple(declared_value)
+    if len(set(declared)) != len(declared) or set(declared) not in (
+        {"db", "query"}, {"db", "query", "train"},
+    ):
+        raise CompositionalInputError(
+            f"unsupported/incomplete extraction transaction splits={list(declared)!r}"
+        )
+    if split not in declared:
+        raise CompositionalInputError(
+            f"requested split {split!r} is not sealed by the completion marker"
+        )
+    try:
+        from dna_utils.extraction_validation import (
+            ExtractionInvalid,
+            metric_input_binding,
+        )
+
+        binding = metric_input_binding(
+            result_dir,
+            required_splits=declared,
+            allow_backfilled=allow_backfilled,
+        )
+    except (ExtractionInvalid, KeyError, TypeError, ValueError) as error:
+        raise CompositionalInputError(
+            f"Phase-5 extraction is not admissible: {error}"
+        ) from error
+
+    manifest_path = os.path.join(result_dir, f"extraction_manifest_{split}.json")
+    manifest, manifest_evidence = _strict_json(
+        manifest_path, f"{split} extraction manifest"
+    )
+    if not isinstance(manifest, Mapping):
+        raise CompositionalInputError(f"{split} extraction manifest is not an object")
+    if manifest_evidence["sha256"] != binding["manifest_sha256"][split]:
+        raise CompositionalInputError(
+            f"{split} extraction manifest changed after validator admission"
+        )
+    db_path = os.path.abspath(str(manifest.get("npz_path") or ""))
+    expected_db = os.path.abspath(os.path.join(result_dir, f"extract_{split}.npz"))
+    if db_path != expected_db:
+        raise CompositionalInputError(
+            f"{split} manifest names {db_path}, not result split NPZ {expected_db}"
+        )
+    db_evidence = _stable_file_evidence(db_path)
+    if db_evidence["sha256"] != binding["npz_sha256"][split]:
+        raise CompositionalInputError(
+            f"extract_{split}.npz changed after extraction validator admission"
+        )
+    try:
+        with np.load(db_path, allow_pickle=False) as stored:
+            if "image_paths" not in stored:
+                raise CompositionalInputError(
+                    f"extract_{split}.npz has no canonical image_paths; basename/order "
+                    "inference is not paper-eligible"
+                )
+            codebook_indices = np.asarray(stored["codebook_indices"])
+            base_indices = np.asarray(stored["base_indices"])
+            image_paths = np.asarray(stored["image_paths"])
+    except CompositionalInputError:
+        raise
+    except (OSError, ValueError) as error:
+        raise CompositionalInputError(
+            f"extract_{split}.npz is not safe/readable without pickle: {error}"
+        ) from error
+
+    M = manifest.get("num_slots")
+    L = manifest.get("bases_per_slot")
+    K = manifest.get("codebook_size")
+    if any(isinstance(value, bool) or not isinstance(value, int) or value <= 0
+           for value in (M, L, K)):
+        raise CompositionalInputError(
+            f"invalid manifest geometry M/L/K={M!r}/{L!r}/{K!r}"
+        )
+    n_rows = int(manifest["n_rows"])
+    if codebook_indices.shape != (n_rows, M):
+        raise CompositionalInputError(
+            f"codebook_indices shape {codebook_indices.shape} != {(n_rows, M)}"
+        )
+    if base_indices.shape != (n_rows, M * L):
+        raise CompositionalInputError(
+            f"base_indices shape {base_indices.shape} != {(n_rows, M * L)}"
+        )
+    if image_paths.shape != (n_rows,) or image_paths.dtype.kind not in {"U", "S"}:
+        raise CompositionalInputError(
+            "extract_db image_paths must be a non-pickled string [N] array"
+        )
+
+    config_path = str(manifest["config_path"])
+    config_evidence = _stable_file_evidence(config_path)
+    if config_evidence["sha256"] != binding["config_sha256"]:
+        raise CompositionalInputError(
+            "manifest-bound config changed after extraction validator admission"
+        )
+    checkpoint_path = str(manifest["checkpoint_path"])
+    checkpoint_evidence = _stable_file_evidence(checkpoint_path)
+    if checkpoint_evidence["sha256"] != binding["checkpoint_sha256"]:
+        raise CompositionalInputError(
+            "manifest-bound checkpoint changed after extraction validator admission"
+        )
+    try:
+        import torch
+
+        config = torch.load(config_path, map_location="cpu", weights_only=True)
+    except (OSError, RuntimeError, TypeError, ValueError, pickle.UnpicklingError) as error:
+        raise CompositionalInputError(
+            f"cannot safely read manifest-bound config {config_path}: {error}"
+        ) from error
+    if not isinstance(config, Mapping):
+        raise CompositionalInputError("manifest-bound config.pt is not a mapping")
+    for key, expected in (
+        ("num_semantic_parts", M),
+        ("num_codons_per_codebook", L),
+        ("codebook_size", K),
+    ):
+        if config.get(key) != expected:
+            raise CompositionalInputError(
+                f"config {key}={config.get(key)!r} differs from extraction "
+                f"manifest value {expected!r}"
+            )
+
+    return {
+        "input_binding": binding,
+        "manifest": dict(manifest),
+        "config": dict(config),
+        "codebook_indices": codebook_indices,
+        "base_indices": base_indices,
+        "image_paths": image_paths,
+        "geometry": {"M": M, "L": L, "K": K, "N": n_rows},
+        "split": split,
+        "paper_eligible": not bool(binding["backfilled_inputs"]),
+        "db_evidence": db_evidence,
+        "manifest_evidence": manifest_evidence,
+        "transaction_evidence": {
+            "completion_marker": marker_evidence,
+            "selected_manifest": manifest_evidence,
+            "selected_npz": db_evidence,
+            "checkpoint": checkpoint_evidence,
+            "config": config_evidence,
+        },
+    }
+
+
+def _resolve_config_path(value: str) -> str:
+    if os.path.isabs(value):
+        return os.path.realpath(value)
+    # Training launchers are repository-root relative. Binding relative paths
+    # to the tool's source root avoids dependence on the caller's current cwd.
+    return os.path.realpath(os.path.join(os.path.dirname(__file__), value))
+
+
+def _validate_dataset_root_binding(
+    dataset_root: str, *, extraction: Mapping[str, Any]
+) -> str:
+    """Bind canonical image IDs to the dataset root recorded by config.pt."""
+    config = extraction["config"]
+    dataset_dir = config.get("dataset_dir")
+    dataset_name = config.get("dataset")
+    if not isinstance(dataset_dir, str) or not dataset_dir:
+        raise CompositionalInputError("manifest-bound config names no dataset_dir")
+    if not isinstance(dataset_name, str) or not dataset_name:
+        raise CompositionalInputError("manifest-bound config names no dataset")
+    configured_root = _resolve_config_path(os.path.join(dataset_dir, dataset_name))
+    explicit_root = os.path.realpath(os.path.abspath(dataset_root))
+    if configured_root != explicit_root:
+        raise CompositionalInputError(
+            "explicit dataset_root differs from the manifest-bound config: "
+            f"{explicit_root!r} != {configured_root!r}"
+        )
+    if not os.path.isdir(explicit_root):
+        raise CompositionalInputError(
+            f"manifest-bound dataset_root is not a directory: {explicit_root}"
+        )
+    return os.path.abspath(dataset_root)
+
+
+def _validate_cache_binding(
+    cache_dir: str,
+    *,
+    extraction: Mapping[str, Any],
+) -> dict[str, Any]:
+    explicit_cache = os.path.realpath(os.path.abspath(cache_dir))
+    configured = extraction["config"].get("siglip2_feature_cache_dir")
+    if not isinstance(configured, str) or not configured:
+        raise CompositionalInputError(
+            "manifest-bound config names no siglip2_feature_cache_dir"
+        )
+    configured_cache = _resolve_config_path(configured)
+    if configured_cache != explicit_cache:
+        raise CompositionalInputError(
+            "explicit cache_dir differs from the manifest-bound config: "
+            f"{explicit_cache!r} != {configured_cache!r}"
+        )
+    if not os.path.isdir(explicit_cache):
+        raise CompositionalInputError(f"cache_dir is not a directory: {explicit_cache}")
+
+    required = {
+        "meta": "meta.json",
+        "image_ids": "image_ids.json",
+        "text_part": "text_part.f16.npy",
+        "visual_global": "visual_global.f16.npy",
+        "has_text": "has_text.bool.npy",
+    }
+    files = {
+        role: _stable_file_evidence(os.path.join(explicit_cache, name))
+        for role, name in required.items()
+    }
+    meta, meta_evidence = _strict_json(
+        os.path.join(explicit_cache, "meta.json"), "feature-cache metadata"
+    )
+    image_ids_value, image_ids_evidence = _strict_json(
+        os.path.join(explicit_cache, "image_ids.json"), "feature-cache image IDs"
+    )
+    if meta_evidence["sha256"] != files["meta"]["sha256"]:
+        raise CompositionalInputError("cache meta changed during binding")
+    if image_ids_evidence["sha256"] != files["image_ids"]["sha256"]:
+        raise CompositionalInputError("cache image IDs changed during binding")
+    if not isinstance(meta, Mapping):
+        raise CompositionalInputError("feature-cache meta.json is not an object")
+    image_ids = _strict_cache_image_ids(image_ids_value)
+    n_cache = len(image_ids)
+    M = int(extraction["geometry"]["M"])
+    try:
+        text_part = np.load(files["text_part"]["path"], mmap_mode="r", allow_pickle=False)
+        visual_global = np.load(
+            files["visual_global"]["path"], mmap_mode="r", allow_pickle=False
+        )
+        has_text = np.load(files["has_text"]["path"], mmap_mode="r", allow_pickle=False)
+    except (OSError, ValueError) as error:
+        raise CompositionalInputError(f"invalid cache NPY input: {error}") from error
+    if text_part.ndim != 3 or text_part.shape[0] != n_cache or text_part.shape[1] < M:
+        raise CompositionalInputError(
+            f"text_part geometry {text_part.shape} cannot serve N={n_cache}, M={M}"
+        )
+    if text_part.dtype != np.float16:
+        raise CompositionalInputError(
+            f"text_part dtype {text_part.dtype} is not canonical float16"
+        )
+    D = int(text_part.shape[2])
+    if visual_global.shape != (n_cache, D) or visual_global.dtype != np.float16:
+        raise CompositionalInputError(
+            f"visual_global geometry/dtype {visual_global.shape}/{visual_global.dtype} "
+            f"!= {(n_cache, D)}/float16"
+        )
+    if has_text.shape != (n_cache,) or has_text.dtype != np.bool_:
+        raise CompositionalInputError(
+            f"has_text geometry/dtype {has_text.shape}/{has_text.dtype} "
+            f"!= {(n_cache,)}/bool"
+        )
+    if meta.get("N") != n_cache:
+        raise CompositionalInputError(
+            f"cache meta N={meta.get('N')!r} != image_ids rows {n_cache}"
+        )
+    if meta.get("D_proj") != D:
+        raise CompositionalInputError(
+            f"cache meta D_proj={meta.get('D_proj')!r} != text width {D}"
+        )
+
+    payload: dict[str, Any] = {
+        "schema_version": 1,
+        "cache_dir": explicit_cache,
+        "config_declared_cache_dir": configured,
+        "files": files,
+        "geometry": {
+            "N": n_cache,
+            "cache_text_slots": int(text_part.shape[1]),
+            "extraction_model_slots": M,
+            "D": D,
+        },
+    }
+    payload["aggregate_sha256"] = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return {
+        "binding": payload,
+        "image_ids": image_ids,
+        "text_part": text_part,
+        "visual_global": visual_global,
+        "has_text": has_text,
+    }
+
+
+def _atomic_json(path: str, payload: Mapping[str, Any]) -> None:
+    temporary = f"{path}.{os.getpid()}.tmp"
+    with open(temporary, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+        handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, path)
 
 
 # ----------------------- main metrics -----------------------
@@ -293,29 +786,37 @@ def main() -> int:
     ap.add_argument("--viz_per_grid",      type=int, default=9)
     ap.add_argument("--skip_grids", action="store_true", default=False,
         help="Skip metric C (image grids). Just compute metric B.")
+    ap.add_argument(
+        "--allow_backfilled", action="store_true", default=False,
+        help=(
+            "admit retrospectively bound extraction for diagnostics; output is "
+            "explicitly paper_eligible=false"
+        ),
+    )
     args = ap.parse_args()
 
-    extract_p = os.path.join(args.result_dir, "extract_db.npz")
-    if not os.path.exists(extract_p):
-        raise FileNotFoundError(f"missing {extract_p}")
-    print(f"[compositional] loading {extract_p}")
-    d = np.load(extract_p, allow_pickle=True)
-    cb_idx       = np.asarray(d["codebook_indices"], dtype=np.int64)   # [N, M]
-    image_paths  = np.asarray(d["image_paths"])                         # [N]
+    extraction = _load_phase5_extraction(
+        args.result_dir, split="db", allow_backfilled=args.allow_backfilled
+    )
+    dataset_root = _validate_dataset_root_binding(
+        args.dataset_root, extraction=extraction
+    )
+    cb_idx = np.asarray(extraction["codebook_indices"], dtype=np.int64)
+    image_paths = np.asarray(extraction["image_paths"])
     N, M = cb_idx.shape
-    print(f"[compositional] N={N}, M={M}, K~{int(cb_idx.max())+1}")
+    L, K = extraction["geometry"]["L"], extraction["geometry"]["K"]
+    print(
+        f"[compositional] admitted N={N}, M={M}, L={L}, K={K} from "
+        "extraction/checkpoint manifests"
+    )
 
-    # cache
-    ids_p   = os.path.join(args.cache_dir, "image_ids.json")
-    tp_p    = os.path.join(args.cache_dir, "text_part.f16.npy")
-    vg_p    = os.path.join(args.cache_dir, "visual_global.f16.npy")
-    ht_p    = os.path.join(args.cache_dir, "has_text.bool.npy")
-    cache_image_ids = json.load(open(ids_p))
-    text_part = np.load(tp_p, mmap_mode="r")               # [N_cache, 6, D_proj]
-    visual_global = np.load(vg_p, mmap_mode="r") if os.path.exists(vg_p) else None
-    has_text  = np.asarray(np.load(ht_p, mmap_mode="r"))   # [N_cache]
+    cache = _validate_cache_binding(args.cache_dir, extraction=extraction)
+    cache_image_ids = cache["image_ids"]
+    text_part = cache["text_part"]
+    visual_global = cache["visual_global"]
+    has_text = np.asarray(cache["has_text"])
     cache_rows = _build_path_to_cache_row(
-        image_paths, cache_image_ids, args.dataset_root,
+        image_paths, cache_image_ids, dataset_root,
     )
 
     # --- metric B (three variants: B0 raw text, B1 centered text, B2 visual_global)
@@ -350,10 +851,30 @@ def main() -> int:
         "dataset_root":   args.dataset_root,
         "metric_b":       metric_b,
         "metric_c":       metric_c if metric_c else None,
+        "input_binding": extraction["input_binding"],
+        "extraction_file_evidence": extraction["transaction_evidence"],
+        "cache_binding": cache["binding"],
+        "geometry": extraction["geometry"],
+        "analysis_split": "db",
+        "paper_eligibility": {
+            "eligible": bool(extraction["paper_eligible"]),
+            "reason": (
+                "fresh extraction/checkpoint manifests and exact cache/image-ID binding"
+                if extraction["paper_eligible"]
+                else "diagnostic only: extraction manifests were backfilled"
+            ),
+        },
+        "producer": {
+            "path": os.path.abspath(__file__),
+            "sha256": _sha256_file(__file__),
+        },
     }
+    for evidence in extraction["transaction_evidence"].values():
+        _assert_file_evidence_current(evidence)
+    for evidence in cache["binding"]["files"].values():
+        _assert_file_evidence_current(evidence)
     out_p = os.path.join(args.result_dir, "compositional_eval.json")
-    with open(out_p, "w") as f:
-        json.dump(out, f, indent=2)
+    _atomic_json(out_p, out)
     print(f"[compositional] saved -> {out_p}")
     return 0
 

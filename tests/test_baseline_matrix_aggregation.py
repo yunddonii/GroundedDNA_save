@@ -5,6 +5,10 @@ from hashlib import sha256
 from pathlib import Path
 from unittest.mock import patch
 
+import torch
+
+from baseline.cache_provenance import audit_cache_decode_failures
+from baseline.execution_environment import canonical_digest
 from scripts.aggregate_baseline_p0_matrix import (
     CANONICAL_VARIANT_SOURCE_PROFILES,
     COMMON_REQUIRED_IMPLEMENTATION_PATHS as AGGREGATE_COMMON_SOURCE_PATHS,
@@ -31,9 +35,51 @@ from scripts.run_baseline_p0_matrix import (
     _protocol_identity_digest as runner_protocol_identity_digest,
     _required_implementation_paths as runner_required_implementation_paths,
 )
+from scripts.run_modern_baseline_p0 import _dataset_source_binding
 
 
 REPO = Path(__file__).resolve().parents[1]
+
+
+def _execution_environment() -> tuple[dict[str, object], str]:
+    distributions = {
+        "torch": "torch", "transformers": "transformers",
+        "numpy": "numpy", "scipy": "scipy",
+        "sklearn": "scikit-learn", "pandas": "pandas",
+        "timm": "timm", "tensorboard": "tensorboard",
+        "tqdm": "tqdm", "Pillow": "Pillow",
+    }
+    environment = {
+        "schema": "groundeddna.baseline-child-execution-environment",
+        "schema_version": 1,
+        "python": {
+            "executable": "/synthetic/python",
+            "executable_sha256": "1" * 64,
+            "implementation": "CPython", "version": "3.test",
+            "version_info": [3, 11, 0, "final", 0],
+        },
+        "packages": {
+            key: {"distribution": value, "installed": True,
+                  "version": "test-version"}
+            for key, value in distributions.items()
+        },
+        "cuda_runtime": {
+            "torch_version": "test-version", "torch_cuda": "test",
+            "cudnn_version": 1},
+        "cuda_visible_devices": "GPU-TEST-0000",
+        "torch_visible_device_count": 1,
+        "logical_device_0": {
+            "logical_index": 0, "name": "Synthetic GPU",
+            "total_memory": 1, "major": 1, "minor": 0,
+            "multi_processor_count": 1, "uuid": "GPU-TEST-0000",
+        },
+        "assigned_physical_gpu": {
+            "physical_index": 0, "uuid": "GPU-TEST-0000",
+            "name": "Synthetic GPU", "pci_bus_id": "0000:01:00.0",
+            "driver_version": "test",
+        },
+    }
+    return environment, canonical_digest(environment)
 
 
 def _record(key: Key, snapshot: dict[str, str], *,
@@ -70,12 +116,14 @@ def _write_artifact(path: Path, data: bytes) -> str:
     return sha256(data).hexdigest()
 
 
-def _minimal_resume_fixture(root: Path) -> tuple[Path, dict[str, object]]:
-    """Create a complete, self-contained diagnostic manifest for resume tests."""
+def _minimal_resume_fixture(
+        root: Path, *, author_fixed: bool = False,
+        ) -> tuple[Path, dict[str, object]]:
+    """Create a complete, self-contained legacy or D6 manifest fixture."""
     variant = "cibhash"
     dataset = "CIFAR10"
-    bit = 36
-    base_length = 18
+    bit = 30 if author_fixed else 36
+    base_length = bit // 2
     seed = 42
     cell_dir = root / "cell"
     cell_dir.mkdir(parents=True)
@@ -95,16 +143,69 @@ def _minimal_resume_fixture(root: Path) -> tuple[Path, dict[str, object]]:
     identity = {
         "variant": variant,
         "dataset": dataset,
+        "setting": "setting1",
         "bit": bit,
         "seed": seed,
-        "val_seed": 42,
-        "val_ratio": 0.1,
-        "eval_period": 5,
+        "val_seed": None if author_fixed else 42,
+        "val_ratio": 0.0 if author_fixed else 0.1,
+        "eval_period": 60 if author_fixed else 5,
         "horizon": 60,
         "batch_size_override": None,
         "implementation_sha256": implementation,
         "semantic_information_condition": semantic,
     }
+    decode_failure_audit = None
+    execution_environment, execution_environment_sha256 = (
+        _execution_environment())
+    if author_fixed:
+        source_root = root / "dataset"
+        (source_root / "CIFAR10" / "cifar-10-batches-py").mkdir(
+            parents=True)
+        for index in range(1, 6):
+            _write_artifact(
+                source_root / "CIFAR10" / "cifar-10-batches-py"
+                / f"data_batch_{index}", f"batch-{index}".encode())
+        _write_artifact(
+            source_root / "CIFAR10" / "cifar-10-batches-py" / "test_batch",
+            b"test-batch")
+        _write_artifact(
+            source_root / "CIFAR10" / "cifar-10-batches-py" / "batches.meta",
+            b"metadata")
+        dataset_root, split_sha256 = _dataset_source_binding(
+            dataset, "setting1", source_root)
+        cache = root / "eligible-cache"
+        cache.mkdir()
+        _write_json(cache / "meta.json", {})
+        _write_json(cache / "image_ids.json", ["cifar-row-0"])
+        decode_failure_audit = audit_cache_decode_failures(
+            cache, dataset=dataset, dataset_root=source_root)
+        identity.update({
+            "protocol_mode": "author_fixed_final",
+            "trainer_protocol_stages": ["author_fixed_single_stage"],
+            "final_checkpoint_protocol_stage": (
+                "author_fixed_single_stage"),
+            "checkpoint_policy": "author_horizon_last",
+            "author_horizon": 60,
+            "training_epochs": 60,
+            "final_epoch_zero_based": 59,
+            "validation_selection": False,
+            "designated_train_scope": "full_designated_train",
+            "dataset_root": dataset_root,
+            "split_sha256": split_sha256,
+            "cache_dir": str(cache.resolve()),
+            "cache_meta_sha256": (
+                decode_failure_audit["cache_meta_sha256"]),
+            "cache_image_ids_sha256": (
+                decode_failure_audit["cache_image_ids_sha256"]),
+            "cache_decode_failure_audit": decode_failure_audit,
+            "cache_artifact_sha256": {
+                "visual_global.f16.npy": "3" * 64,
+                "visual_global_aug0.f16.npy": "4" * 64,
+                "visual_global_aug1.f16.npy": "5" * 64,
+            },
+            "execution_environment": execution_environment,
+            "execution_environment_sha256": execution_environment_sha256,
+        })
     protocol_digest = runner_protocol_identity_digest(identity)
 
     extraction_hashes = {
@@ -118,12 +219,23 @@ def _minimal_resume_fixture(root: Path) -> tuple[Path, dict[str, object]]:
         )
         for name in ("db", "query")
     }
-    checkpoint = root / "checkpoint.pth"
-    checkpoint_sha = _write_artifact(checkpoint, b"checkpoint")
+    checkpoint = root / ("epoch_059.pth" if author_fixed else "checkpoint.pth")
+    checkpoint_config = {
+        "protocol_identity_sha256": protocol_digest,
+    }
+    if author_fixed:
+        checkpoint_config.update({
+            "protocol_mode": "author_fixed_final",
+            "protocol_stage": "author_fixed_single_stage",
+            "execution_environment": execution_environment,
+            "execution_environment_sha256": execution_environment_sha256,
+        })
+    torch.save({"config": checkpoint_config, "model_state_dict": {}}, checkpoint)
+    checkpoint_sha = sha256(checkpoint.read_bytes()).hexdigest()
     selection = root / "selection.json"
-    selection_sha = _write_json(selection, {})
+    selection_sha = None if author_fixed else _write_json(selection, {})
     protocol_manifest = cell_dir / "p0_protocol_manifest.json"
-    protocol_manifest_sha = _write_json(protocol_manifest, {})
+    protocol_manifest_sha = None
 
     bio = {
         "config": {
@@ -141,8 +253,9 @@ def _minimal_resume_fixture(root: Path) -> tuple[Path, dict[str, object]]:
             "projection_failures_db": 0,
             "projection_failures_qy": 0,
             "projection_invariant_satisfied": True,
-            "gc_count_range": [8, 10],
-            "paper_result_eligible": False,
+            "gc_count_range": (
+                [6, 9] if author_fixed else [8, 10]),
+            "paper_result_eligible": author_fixed,
             "map_at_R_pre": 0.5,
             "map_at_R_post": 0.5,
             "dna_unique_pre": 0.5,
@@ -168,7 +281,26 @@ def _minimal_resume_fixture(root: Path) -> tuple[Path, dict[str, object]]:
             },
             "training_provenance": {
                 "protocol_identity_sha256": protocol_digest,
-                "checkpoint": {"sha256": checkpoint_sha},
+                **({
+                    "protocol_mode": "author_fixed_final",
+                    "protocol_stage": "author_fixed_single_stage",
+                    "cache_decode_failure_audit": decode_failure_audit,
+                    "execution_environment": execution_environment,
+                    "execution_environment_sha256": (
+                        execution_environment_sha256),
+                } if author_fixed else {}),
+                "checkpoint": {
+                    "sha256": checkpoint_sha,
+                    **({
+                        "checkpoint_protocol_mode": "author_fixed_final",
+                        "checkpoint_protocol_stage": (
+                            "author_fixed_single_stage"),
+                        "protocol_identity_sha256": protocol_digest,
+                        "execution_environment": execution_environment,
+                        "execution_environment_sha256": (
+                            execution_environment_sha256),
+                    } if author_fixed else {}),
+                },
             },
         }],
     }
@@ -185,19 +317,20 @@ def _minimal_resume_fixture(root: Path) -> tuple[Path, dict[str, object]]:
         "bit_length": bit,
         "base_length": base_length,
         "seed": seed,
-        "val_seed": 42,
+        "val_seed": None if author_fixed else 42,
         "information_tier": "U0",
         "semantic_information_condition": semantic,
-        "selection_metric": "raw_18base_base_hamming_mAP_at_R",
+        "selection_metric": (
+            None if author_fixed
+            else "raw_18base_base_hamming_mAP_at_R"),
         "test_used_for_selection": False,
         "final_checkpoint_count": 1,
         "nominal_schedule_horizon": 60,
         "run_manifest_phase": "bio_projection_completed",
         "protocol_deviations": [],
-        "main_eligibility_blockers": ["cache_test_provenance_missing"],
-        "main_protocol_eligible": False,
-        "best_epoch_zero_based": 0,
-        "refit_epochs": 1,
+        "main_eligibility_blockers": (
+            [] if author_fixed else ["cache_test_provenance_missing"]),
+        "main_protocol_eligible": author_fixed,
         "protocol_identity": identity,
         "protocol_digest_sha256": protocol_digest,
         "final_checkpoint": str(checkpoint.resolve()),
@@ -206,13 +339,16 @@ def _minimal_resume_fixture(root: Path) -> tuple[Path, dict[str, object]]:
         "extraction_artifact_sha256": extraction_hashes,
         "protocol_manifest": str(protocol_manifest.resolve()),
         "protocol_manifest_sha256": protocol_manifest_sha,
-        "selection_artifact": str(selection.resolve()),
+        "selection_artifact": (
+            None if author_fixed else str(selection.resolve())),
         "selection_artifact_sha256": selection_sha,
         "bio_projection_manifest": str(bio_path.resolve()),
         "bio_projection_manifest_sha256": bio_sha,
         "bio_projection_sidecar": str(sidecar.resolve()),
         "bio_projection_sidecar_sha256": sidecar_sha,
-        "bio_projection_status": "completed_not_paper_eligible",
+        "bio_projection_status": (
+            "paper_result_eligible" if author_fixed
+            else "completed_not_paper_eligible"),
         "bio_projected_artifacts": {
             name: {
                 "path": str(
@@ -222,12 +358,340 @@ def _minimal_resume_fixture(root: Path) -> tuple[Path, dict[str, object]]:
             for name in ("db", "query")
         },
     }
+    if author_fixed:
+        manifest.update({
+            "protocol_mode": "author_fixed_final",
+            "checkpoint_policy": "author_horizon_last",
+            "author_horizon": 60,
+            "training_epochs": 60,
+            "final_epoch_zero_based": 59,
+            "validation_selection": False,
+            "refit_performed": False,
+            "training_stage": "author_fixed_single_stage",
+            "designated_train_scope": "full_designated_train",
+            "checkpoint_protocol": {
+                "protocol_mode": "author_fixed_final",
+                "protocol_stage": "author_fixed_single_stage",
+                "protocol_identity_sha256": protocol_digest,
+            },
+            "cache_decode_failure_audit": decode_failure_audit,
+            "execution_environment": execution_environment,
+            "execution_environment_sha256": execution_environment_sha256,
+        })
+    else:
+        manifest.update({
+            "best_epoch_zero_based": 0,
+            "refit_epochs": 1,
+        })
+    pre_manifest = {
+        key: value for key, value in manifest.items()
+        if key not in {
+            "protocol_manifest", "protocol_manifest_sha256",
+            "bio_projection_manifest", "bio_projection_manifest_sha256",
+            "bio_projection_sidecar", "bio_projection_sidecar_sha256",
+            "bio_projected_artifacts",
+        }
+    }
+    pre_manifest["run_manifest_phase"] = "pre_bio_projection"
+    pre_manifest["bio_projection_status"] = "pending"
+    protocol_manifest_sha = _write_json(protocol_manifest, pre_manifest)
+    manifest["protocol_manifest_sha256"] = protocol_manifest_sha
+
     manifest_path = cell_dir / "p0_run_manifest.json"
     _write_json(manifest_path, manifest)
     return manifest_path, manifest
 
 
 class BaselineMatrixImplementationAuditTest(unittest.TestCase):
+    def test_d6_author_fixed_manifest_is_accepted_without_selection_or_refit(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path, manifest = _minimal_resume_fixture(
+                root, author_fixed=True)
+            key = Key("u0", "cibhash", "CIFAR10", 30, 42)
+            record = _validate_manifest(
+                manifest_path, key, verify_hashes=True,
+                expected_protocol_mode="author_fixed_final")
+            self.assertEqual(record["status"], "complete_main_eligible")
+            self.assertEqual(record["validation_errors"], [])
+            self.assertEqual(record["author_horizon"], 60)
+            self.assertEqual(record["final_epoch_zero_based"], 59)
+            self.assertIsNone(manifest["selection_artifact"])
+            self.assertNotIn("best_epoch_zero_based", manifest)
+            self.assertNotIn("refit_epochs", manifest)
+
+    def test_d6_rejects_consumed_cifar_label_source_tamper(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path, manifest = _minimal_resume_fixture(
+                root, author_fixed=True)
+            source_root = Path(manifest["protocol_identity"]["dataset_root"])
+            label_source = (
+                source_root / "CIFAR10" / "cifar-10-batches-py"
+                / "data_batch_1")
+            label_source.write_bytes(b"label-only-tamper")
+            record = _validate_manifest(
+                manifest_path, Key("u0", "cibhash", "CIFAR10", 30, 42),
+                verify_hashes=False,
+                expected_protocol_mode="author_fixed_final")
+            self.assertEqual(record["status"], "invalid")
+            self.assertTrue(any(
+                "dataset source binding" in error
+                and "split/source changed" in error
+                for error in record["validation_errors"]),
+                record["validation_errors"])
+
+    def test_d6_rejects_omitted_null_or_present_legacy_fields(self) -> None:
+        mutations = (
+            ("missing-selection-key", lambda payload: payload.pop(
+                "selection_artifact")),
+            ("present-best-epoch", lambda payload: payload.__setitem__(
+                "best_epoch_zero_based", None)),
+            ("present-refit", lambda payload: payload.__setitem__(
+                "refit_epochs", 60)),
+        )
+        for label, mutate in mutations:
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                manifest_path, manifest = _minimal_resume_fixture(
+                    root, author_fixed=True)
+                mutate(manifest)
+                _write_json(manifest_path, manifest)
+                record = _validate_manifest(
+                    manifest_path,
+                    Key("u0", "cibhash", "CIFAR10", 30, 42),
+                    verify_hashes=False,
+                    expected_protocol_mode="author_fixed_final")
+                self.assertEqual(record["status"], "invalid")
+                self.assertTrue(any(
+                    "author_fixed_final" in error
+                    for error in record["validation_errors"]),
+                    record["validation_errors"])
+
+    def test_d6_rejects_checkpoint_mode_stage_digest_forgery(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path, manifest = _minimal_resume_fixture(
+                root, author_fixed=True)
+            manifest["checkpoint_protocol"]["protocol_stage"] = (
+                "P0_stage2_refit_test")
+            _write_json(manifest_path, manifest)
+            record = _validate_manifest(
+                manifest_path, Key("u0", "cibhash", "CIFAR10", 30, 42),
+                verify_hashes=False,
+                expected_protocol_mode="author_fixed_final")
+            self.assertEqual(record["status"], "invalid")
+            self.assertTrue(any(
+                "checkpoint_protocol" in error
+                for error in record["validation_errors"]),
+                record["validation_errors"])
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path, manifest = _minimal_resume_fixture(
+                root, author_fixed=True)
+            checkpoint = Path(manifest["final_checkpoint"])
+            payload = torch.load(
+                checkpoint, map_location="cpu", weights_only=True)
+            payload["config"]["protocol_mode"] = "validation_sensitivity"
+            torch.save(payload, checkpoint)
+            record = _validate_manifest(
+                manifest_path, Key("u0", "cibhash", "CIFAR10", 30, 42),
+                verify_hashes=False,
+                expected_protocol_mode="author_fixed_final")
+            self.assertEqual(record["status"], "invalid")
+            self.assertTrue(any(
+                "final checkpoint protocol contract" in error
+                for error in record["validation_errors"]),
+                record["validation_errors"])
+
+    def test_d6_rejects_pre_bio_or_bio_protocol_stage_forgery(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path, manifest = _minimal_resume_fixture(
+                root, author_fixed=True)
+            pre_path = Path(manifest["protocol_manifest"])
+            pre = json.loads(pre_path.read_text(encoding="utf-8"))
+            pre["checkpoint_protocol"]["protocol_stage"] = (
+                "P0_stage2_refit_test")
+            manifest["protocol_manifest_sha256"] = _write_json(pre_path, pre)
+            _write_json(manifest_path, manifest)
+            record = _validate_manifest(
+                manifest_path, Key("u0", "cibhash", "CIFAR10", 30, 42),
+                verify_hashes=True,
+                expected_protocol_mode="author_fixed_final")
+            self.assertEqual(record["status"], "invalid")
+            self.assertTrue(any(
+                "pre-bio/run checkpoint_protocol" in error
+                for error in record["validation_errors"]),
+                record["validation_errors"])
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path, manifest = _minimal_resume_fixture(
+                root, author_fixed=True)
+            bio_path = Path(manifest["bio_projection_manifest"])
+            bio = json.loads(bio_path.read_text(encoding="utf-8"))
+            bio["cells"][0]["training_provenance"]["protocol_stage"] = (
+                "P0_stage2_refit_test")
+            bio_sha = _write_json(bio_path, bio)
+            manifest["bio_projection_manifest_sha256"] = bio_sha
+            sidecar = Path(manifest["bio_projection_sidecar"])
+            manifest["bio_projection_sidecar_sha256"] = _write_artifact(
+                sidecar, f"{bio_sha}  bio_projection.json\n".encode("utf-8"))
+            _write_json(manifest_path, manifest)
+            record = _validate_manifest(
+                manifest_path, Key("u0", "cibhash", "CIFAR10", 30, 42),
+                verify_hashes=True,
+                expected_protocol_mode="author_fixed_final")
+            self.assertEqual(record["status"], "invalid")
+            self.assertTrue(any(
+                "bio training protocol stage" in error
+                for error in record["validation_errors"]),
+                record["validation_errors"])
+
+    def test_d6_rejects_decode_audit_manifest_cache_or_bio_tamper(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path, manifest = _minimal_resume_fixture(
+                root, author_fixed=True)
+            manifest["cache_decode_failure_audit"]["policy"] = "forged"
+            _write_json(manifest_path, manifest)
+            record = _validate_manifest(
+                manifest_path, Key("u0", "cibhash", "CIFAR10", 30, 42),
+                verify_hashes=False,
+                expected_protocol_mode="author_fixed_final")
+            self.assertEqual(record["status"], "invalid")
+            self.assertTrue(any(
+                "cache_decode_failure_audit" in error
+                for error in record["validation_errors"]),
+                record["validation_errors"])
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path, manifest = _minimal_resume_fixture(
+                root, author_fixed=True)
+            cache = Path(manifest["protocol_identity"]["cache_dir"])
+            _write_json(cache / "image_ids.json", ["cifar-row-tampered"])
+            record = _validate_manifest(
+                manifest_path, Key("u0", "cibhash", "CIFAR10", 30, 42),
+                verify_hashes=False,
+                expected_protocol_mode="author_fixed_final")
+            self.assertEqual(record["status"], "invalid")
+            self.assertTrue(any(
+                "cache decode-failure binding" in error
+                for error in record["validation_errors"]),
+                record["validation_errors"])
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path, manifest = _minimal_resume_fixture(
+                root, author_fixed=True)
+            bio_path = Path(manifest["bio_projection_manifest"])
+            bio = json.loads(bio_path.read_text(encoding="utf-8"))
+            bio["cells"][0]["training_provenance"].pop(
+                "cache_decode_failure_audit")
+            bio_sha = _write_json(bio_path, bio)
+            manifest["bio_projection_manifest_sha256"] = bio_sha
+            sidecar = Path(manifest["bio_projection_sidecar"])
+            manifest["bio_projection_sidecar_sha256"] = _write_artifact(
+                sidecar, f"{bio_sha}  bio_projection.json\n".encode("utf-8"))
+            _write_json(manifest_path, manifest)
+            record = _validate_manifest(
+                manifest_path, Key("u0", "cibhash", "CIFAR10", 30, 42),
+                verify_hashes=True,
+                expected_protocol_mode="author_fixed_final")
+            self.assertEqual(record["status"], "invalid")
+            self.assertTrue(any(
+                "bio training cache decode-failure audit" in error
+                for error in record["validation_errors"]),
+                record["validation_errors"])
+
+    def test_d6_validator_rejects_non_30_bit_key(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path, _ = _minimal_resume_fixture(
+                root, author_fixed=True)
+            record = _validate_manifest(
+                manifest_path, Key("u0", "cibhash", "CIFAR10", 36, 42),
+                verify_hashes=False,
+                expected_protocol_mode="author_fixed_final")
+            self.assertEqual(record["status"], "invalid")
+            self.assertTrue(any(
+                "matched 30-bit" in error
+                for error in record["validation_errors"]))
+
+    def test_d6_resume_binds_mode_and_every_cache_digest(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, manifest = _minimal_resume_fixture(root, author_fixed=True)
+            identity = manifest["protocol_identity"]
+            self.assertIsInstance(identity, dict)
+            binding = {
+                field: identity[field]
+                for field in (
+                    "dataset_root", "split_sha256",
+                    "cache_dir", "cache_meta_sha256",
+                    "cache_image_ids_sha256", "cache_artifact_sha256",
+                    "cache_decode_failure_audit")
+            }
+            key = ("cibhash", "CIFAR10", 30, 42)
+            expected = {("cibhash", "CIFAR10"): binding}
+            self.assertIn(key, _completed_keys(
+                root, expected_protocol_mode="author_fixed_final",
+                cache_bindings=expected))
+            self.assertNotIn(key, _completed_keys(
+                root, expected_protocol_mode="validation_sensitivity",
+                cache_bindings=expected))
+
+            for field in (
+                    "split_sha256", "cache_meta_sha256", "cache_image_ids_sha256",
+                    "cache_artifact_sha256", "cache_decode_failure_audit"):
+                changed = dict(binding)
+                changed[field] = (
+                    {"visual_global.f16.npy": "9" * 64}
+                    if field == "cache_artifact_sha256" else
+                    {**binding["cache_decode_failure_audit"],
+                     "policy": "forged"}
+                    if field == "cache_decode_failure_audit" else
+                    {**binding["split_sha256"],
+                     "CIFAR10/cifar-10-batches-py/data_batch_1": "9" * 64}
+                    if field == "split_sha256" else "9" * 64)
+                self.assertNotIn(key, _completed_keys(
+                    root, expected_protocol_mode="author_fixed_final",
+                    cache_bindings={("cibhash", "CIFAR10"): changed}), field)
+
+    def test_d6_resume_rejects_missing_or_drifted_execution_environment(self) -> None:
+        mutations = (
+            lambda manifest: manifest.pop("execution_environment"),
+            lambda manifest: manifest["execution_environment"]["packages"]
+            ["numpy"].__setitem__("version", "forged-package-drift"),
+        )
+        for mutate in mutations:
+            with self.subTest(mutation=mutate), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                manifest_path, manifest = _minimal_resume_fixture(
+                    root, author_fixed=True)
+                mutate(manifest)
+                _write_json(manifest_path, manifest)
+                self.assertNotIn(
+                    ("cibhash", "CIFAR10", 30, 42),
+                    _completed_keys(
+                        root, expected_protocol_mode="author_fixed_final"))
+
+    def test_legacy_two_stage_manifest_cannot_satisfy_d6_validator(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path, _ = _minimal_resume_fixture(root)
+            record = _validate_manifest(
+                manifest_path, Key("u0", "cibhash", "CIFAR10", 36, 42),
+                verify_hashes=False,
+                expected_protocol_mode="author_fixed_final")
+            self.assertEqual(record["status"], "invalid")
+            self.assertTrue(any(
+                "protocol_mode" in error
+                for error in record["validation_errors"]))
+
     def test_source_profile_filter_is_exact_and_fail_closed(self) -> None:
         key = Key("u0", "mls3rduh", "CIFAR10", 36, 42)
         profile = CANONICAL_VARIANT_SOURCE_PROFILES["mls3rduh"]
@@ -297,7 +761,7 @@ class BaselineMatrixImplementationAuditTest(unittest.TestCase):
     def test_required_implementation_paths_match_runner_and_aggregator(self) -> None:
         self.assertEqual(
             AGGREGATE_COMMON_SOURCE_PATHS, RUNNER_COMMON_SOURCE_PATHS)
-        self.assertEqual(len(AGGREGATE_COMMON_SOURCE_PATHS), 10)
+        self.assertEqual(len(AGGREGATE_COMMON_SOURCE_PATHS), 14)
         for variant in CANONICAL_VARIANT_SOURCE_PROFILES:
             self.assertEqual(
                 aggregate_required_implementation_paths(variant),
@@ -305,7 +769,7 @@ class BaselineMatrixImplementationAuditTest(unittest.TestCase):
                 variant,
             )
             self.assertEqual(
-                len(aggregate_required_implementation_paths(variant)), 11,
+                len(aggregate_required_implementation_paths(variant)), 15,
                 variant,
             )
 

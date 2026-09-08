@@ -393,13 +393,18 @@ def extract_code(args: Config) -> None:
 
     ckpt_path = _find_model_checkpoint(args.save_model_state_path)
     if os.path.exists(ckpt_path):
-        sd = torch.load(ckpt_path, map_location=args.device)
-        # `strict=False` because the checkpoint may predate the new gumbel/anchor keys.
-        missing, unexpected = model.load_state_dict(sd, strict=False)
+        from dna_utils.run_identity import load_model_state_dict_for_extraction
+        missing, unexpected, phase3_binding = \
+            load_model_state_dict_for_extraction(
+                model, ckpt_path, map_location=args.device)
+        # Only legacy checkpoints may predate newer keys. A checkpoint carrying
+        # sealed Phase-3 metadata was produced by this committed architecture
+        # and the shared loader makes any mismatch fatal.
         if missing or unexpected:
             print(f"[extraction] load_state_dict: "
                   f"missing={len(missing)} unexpected={len(unexpected)}")
-        print(f"[extraction] loaded checkpoint from {ckpt_path}")
+        print(f"[extraction] loaded checkpoint from {ckpt_path} "
+              f"(phase3_exact={phase3_binding is not None})")
         # F01: restore the epoch BEFORE the first forward. `_current_epoch` is
         # a plain int and is absent from the state dict, so a fresh model sits
         # at 0 and the router runs at the INITIAL Sinkhorn epsilon instead of

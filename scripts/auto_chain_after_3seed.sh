@@ -214,7 +214,8 @@ say "step 2: building the campaign plan"
 # around it were evidence about a file rather than about a launcher. Splitting
 # it out is what lets tests/test_ablation_campaign_launcher.py drive the real
 # plan -> reserve -> 24 cells -> seal path with stub trainers.
-bash scripts/run_ablation_campaign.sh --plan "$PLAN" --ledger "$LEDGER" \
+/usr/bin/env -u BASH_ENV -u ENV scripts/run_ablation_campaign.sh \
+    --plan "$PLAN" --ledger "$LEDGER" \
     2>&1 | tee -a "$LOG" || { say "step 2 INCOMPLETE"; exit 1; }
 say "step 2 done"
 

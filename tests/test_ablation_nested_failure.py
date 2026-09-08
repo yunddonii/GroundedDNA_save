@@ -46,6 +46,16 @@ EVALUATOR = """import sys
 print("[stub-eval]", " ".join(sys.argv[1:]))
 """
 
+PAIRWISE = """import sys
+print("[stub-nmi]", " ".join(sys.argv[1:]))
+"""
+
+SEALER = """import json, pathlib, sys
+cell = pathlib.Path(sys.argv[sys.argv.index("--dir") + 1])
+(cell / "analysis_complete.json").write_text(json.dumps({"stub": True}))
+print("[stub-seal]", cell)
+"""
+
 
 def _tree(tmp_path: Path, *, trainer_rc: int, make_result: bool = True) -> Path:
     root = tmp_path / "repo"
@@ -61,6 +71,8 @@ def _tree(tmp_path: Path, *, trainer_rc: int, make_result: bool = True) -> Path:
     (root / "scripts" / "train_cifar10_v185_bidirTokenPrune05_ccs01_clip.sh"
      ).write_text(TRAINER.replace("__EXIT_LINE__", exit_line))
     (root / "scripts" / "eval_cell_bioproj.py").write_text(EVALUATOR)
+    (root / "scripts" / "pairwise_nmi.py").write_text(PAIRWISE)
+    (root / "scripts" / "seal_cell_analysis.py").write_text(SEALER)
 
     whiten = root / "wdir"
     whiten.mkdir()
@@ -99,8 +111,7 @@ def _plan(root: Path) -> Path:
         "schema_version": 2,
         "expected_cells": 1,
         "env_passthrough": sorted(ENV_PASSTHROUGH),
-        "env_passthrough_values": {"PATH": "/usr/bin:/bin",
-                                   "HOME": str(root),
+        "env_passthrough_values": {"HOME": str(root),
                                    "PY": PY},
         "env_pinned": list(_PINNED),
         "runners": [WRAPPER],
@@ -122,7 +133,8 @@ def _exec(root: Path, plan: Path):
     return subprocess.run(
         [PY, str(REPO / "scripts" / "_ablation_exec.py"),
          "--plan", str(plan), "--index", "0", "--gpu", "0",
-         "--repo", str(root), "--expect-plan-sha256", sha],
+         "--repo", str(root), "--expect-plan-sha256", sha,
+         "--test-only-unsealed"],
         capture_output=True, text=True, timeout=180)
 
 
@@ -196,8 +208,9 @@ def test_the_child_cannot_inherit_an_experiment_changing_variable(tmp_path):
                "K": "999", "HOME": str(root)}
     proc = subprocess.run(
         [PY, str(REPO / "scripts" / "_ablation_exec.py"),
-         "--plan", str(plan), "--index", "0", "--gpu", "0",
-         "--repo", str(root), "--expect-plan-sha256", sha],
+             "--plan", str(plan), "--index", "0", "--gpu", "0",
+             "--repo", str(root), "--expect-plan-sha256", sha,
+             "--test-only-unsealed"],
         capture_output=True, text=True, timeout=180, env=hostile)
     assert proc.returncode == 0, proc.stdout + proc.stderr
     assert "codons=3" in proc.stdout and "k=64" in proc.stdout

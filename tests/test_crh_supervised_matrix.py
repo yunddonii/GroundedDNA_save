@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from hashlib import sha256
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts.aggregate_baseline_p0_matrix import (
     CANONICAL_VARIANT_SOURCE_PROFILES as AGGREGATE_SOURCE_PROFILES,
@@ -183,47 +184,72 @@ class CRHSupervisedMatrixTest(unittest.TestCase):
             runner_path]
         runner_history = tuple(runner_transition["reviewed_sha256"])
 
-        # Both reviewed historical runner snapshots are non-scientific for a
+        def reviewed_reference_snapshot(variant: str) -> dict[str, str | None]:
+            """Hold unrelated reviewed transitions at their audited endpoint.
+
+            This regression varies one source path at a time.  Building the
+            fixture from every live working-tree byte made an in-progress,
+            independently unreviewed D6 edit to ``base_model.py`` cause the
+            historical runner-transition assertion to fail before the runner
+            digest was examined at all.
+            """
+            reference = {
+                path: _current_source_sha256(path)
+                for path in runner_required_paths(variant)
+            }
+            for path, transition in (
+                KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS.items()
+            ):
+                if path in reference:
+                    reference[path] = str(transition["after_sha256"])
+            return reference
+
+        # Every reviewed historical runner snapshot is non-scientific for a
         # pre-existing unaffected U0 method.
-        snapshot = {
-            path: _current_source_sha256(path)
-            for path in runner_required_paths("cimon")
-        }
+        snapshot = reviewed_reference_snapshot("cimon")
         self.assertTrue(all(isinstance(value, str)
                             for value in snapshot.values()))
         payload = {"protocol_identity": {"implementation_sha256": snapshot}}
-        for digest in runner_history[:-1]:
-            snapshot[runner_path] = str(digest)
-            self.assertTrue(
-                _matches_canonical_source_profile(payload, "cimon"))
+        reviewed_current = dict(snapshot)
+        with patch(
+            "scripts.run_baseline_p0_matrix._current_source_sha256",
+            side_effect=reviewed_current.__getitem__,
+        ):
+            for digest in runner_history[:-1]:
+                snapshot[runner_path] = str(digest)
+                self.assertTrue(
+                    _matches_canonical_source_profile(payload, "cimon"))
 
-        # The base-model CRH dispatch addition remains non-scientific for
-        # Cimon and is still independently content-scoped.
-        base_transition = KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS[
-            "baseline/base_model.py"]
-        snapshot[runner_path] = str(runner_history[-1])
-        snapshot["baseline/base_model.py"] = str(
-            base_transition["before_sha256"])
-        self.assertTrue(_matches_canonical_source_profile(payload, "cimon"))
-        snapshot["baseline/base_model.py"] = "f" * 64
-        self.assertFalse(_matches_canonical_source_profile(payload, "cimon"))
+            # The base-model CRH dispatch addition remains non-scientific for
+            # Cimon and is still independently content-scoped.
+            base_transition = KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS[
+                "baseline/base_model.py"]
+            snapshot[runner_path] = str(runner_history[-1])
+            snapshot["baseline/base_model.py"] = str(
+                base_transition["before_sha256"])
+            self.assertTrue(_matches_canonical_source_profile(payload, "cimon"))
+            snapshot["baseline/base_model.py"] = "f" * 64
+            self.assertFalse(
+                _matches_canonical_source_profile(payload, "cimon"))
 
         # The same pre-dispatch base-model snapshot is scientific for CRH:
         # that source does not contain a CRH branch and therefore cannot have
         # produced a valid supervised CRH result.
-        crh_snapshot = {
-            path: _current_source_sha256(path)
-            for path in runner_required_paths(CRH_VARIANT)
-        }
+        crh_snapshot = reviewed_reference_snapshot(CRH_VARIANT)
         crh_payload = {
             "protocol_identity": {
                 "implementation_sha256": crh_snapshot,
             },
         }
+        crh_current = dict(crh_snapshot)
         crh_snapshot["baseline/base_model.py"] = str(
             base_transition["before_sha256"])
-        self.assertFalse(
-            _matches_canonical_source_profile(crh_payload, CRH_VARIANT))
+        with patch(
+            "scripts.run_baseline_p0_matrix._current_source_sha256",
+            side_effect=crh_current.__getitem__,
+        ):
+            self.assertFalse(
+                _matches_canonical_source_profile(crh_payload, CRH_VARIANT))
 
         # Runner A predates CRH; runner A/B both carry the stale CIBHash
         # horizon (100, corrected to 60 by the 2026-08-05 auditfix).  Neither
@@ -236,22 +262,25 @@ class CRHSupervisedMatrixTest(unittest.TestCase):
             ("crh-supervised", runner_history[1], (runner_history[0],)),
             ("cibhash", runner_history[-1], stale_cibhash_horizon),
         ):
-            scoped_snapshot = {
-                path: _current_source_sha256(path)
-                for path in runner_required_paths(variant)
-            }
+            scoped_snapshot = reviewed_reference_snapshot(variant)
             scoped_payload = {
                 "protocol_identity": {
                     "implementation_sha256": scoped_snapshot,
                 },
             }
+            scoped_current = dict(scoped_snapshot)
             scoped_snapshot[runner_path] = str(accepted_digest)
-            self.assertTrue(
-                _matches_canonical_source_profile(scoped_payload, variant))
-            for digest in rejected_digests:
-                scoped_snapshot[runner_path] = str(digest)
-                self.assertFalse(
+            with patch(
+                "scripts.run_baseline_p0_matrix._current_source_sha256",
+                side_effect=scoped_current.__getitem__,
+            ):
+                self.assertTrue(
                     _matches_canonical_source_profile(scoped_payload, variant))
+                for digest in rejected_digests:
+                    scoped_snapshot[runner_path] = str(digest)
+                    self.assertFalse(
+                        _matches_canonical_source_profile(
+                            scoped_payload, variant))
 
     def test_variant_scoped_runner_transition_is_non_blocking_for_cimon(self) -> None:
         path = "scripts/run_modern_baseline_p0.py"

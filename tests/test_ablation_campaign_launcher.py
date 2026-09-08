@@ -1,277 +1,534 @@
-"""The campaign launcher, executed end to end: plan -> reserve -> cells -> seal.
-
-Re-audit §48.4 ended on this: the loop lived below `auto_chain_after_3seed.sh`'s
-`exit 91`, so it was unreachable, and every test around it read the file's text
-or the executor's `--dry-run` output. "Narrow safety PASS, not production E2E."
-
-These tests run `scripts/run_ablation_campaign.sh` against a plan of stub cells
-in a temporary tree -- the real launcher, the real executor, the real ledger --
-and check the property that matters at each boundary: a campaign that loses a
-cell must not produce a completion receipt, and one that finishes must.
-"""
+"""GPU-free adversarial lifecycle tests for the Phase-5 launcher/executor."""
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
+import time
 
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 LAUNCHER = REPO / "scripts" / "run_ablation_campaign.sh"
+EXECUTOR = REPO / "scripts" / "_ablation_exec.py"
 PY = sys.executable
 
-CELLS = [(exp, cell) for exp in ("cifar_A_v4", "flickr_A_v4")
-         for cell in ("A2_no_text", "A4_shared_codebook", "A5_none",
-                      "A5_joint", "A5_nogumbel", "A5_both")]
+sys.path.insert(0, str(REPO))
+from scripts.campaign_ledger import campaign_lock_key  # noqa: E402
+from scripts._ablation_exec import (  # noqa: E402
+    PlanRejected,
+    _arm_parent_death_signal,
+    _validate_campaign_lock_fd,
+    child_env,
+)
+from scripts._ablation_campaign_launch import ProcessSupervisor  # noqa: E402
+from scripts.ablation_campaign_plan import (  # noqa: E402
+    ENV_PASSTHROUGH, RUNNERS, _PINNED)
+from tests.test_campaign_ledger import _plan as canonical_plan  # noqa: E402
 
 
-def _stub_runner(tmp_path: Path, *, failing: set) -> str:
-    """Stands in for the fixedN wrapper: same argv, same rc semantics."""
-    path = tmp_path / "stub_runner.sh"
-    path.write_text(
-        'set -Eeuo pipefail\n'
-        f'FAILING="{" ".join(sorted(failing))}"\n'
-        'GPU="$1"; EXP="$2"\n'
-        'echo "[stub] gpu=$GPU exp=$EXP suffix=$TAG_SUFFIX k=$K n=$FIXED_N"\n'
-        'for f in $FAILING; do\n'
-        '  if [ "${EXP}${TAG_SUFFIX}" = "$f" ]; then\n'
-        '    echo "[stub] dying"; exit 23\n'
-        '  fi\n'
-        'done\n'
-        # What a real cell leaves behind, and what the launcher now has to
-        # resolve before it may record the cell as ok.
-        'mkdir -p "result/260830+ds_promptAblA_${EXP}${TAG_SUFFIX}'
-        '_P0refit_e${FIXED_N}+bs+64"\n'
-        'echo "[stub] DONE"\n')
-    return str(path.relative_to(tmp_path))
+def _fake_nvidia(root: Path, uuid: str) -> Path:
+    bindir = root / "bin"
+    bindir.mkdir(parents=True, exist_ok=True)
+    executable = bindir / "nvidia-smi"
+    executable.write_text(
+        "#!/usr/bin/env bash\n"
+        f"printf '0, {uuid}, Synthetic GPU, 0000:01:00.0, test-driver\\n'\n")
+    executable.chmod(0o755)
+    return bindir
 
 
-def _plan(tmp_path: Path, runner: str) -> Path:
-    sys.path.insert(0, str(REPO))
-    from scripts.ablation_campaign_plan import ENV_PASSTHROUGH, _PINNED
-
-    cells = []
-    for exp, cell in CELLS:
-        env = {k: "" for k in _PINNED}
-        env.update({"K": "64", "FIXED_N": "4", "NUM_CODONS": "3",
-                    "TAG_SUFFIX": f"_{cell}", "VIZ": "0"})
-        cells.append({"exp": exp, "cell": cell, "runner": runner, "env": env,
-                      "N": 4, "tag": f"promptAblA_{exp}_{cell}"})
-    plan = {
-        "schema_version": 2,
-        "expected_cells": len(cells),
-        "plan_digest": None,
-        "env_passthrough": sorted(ENV_PASSTHROUGH),
-        "env_passthrough_values": {"PATH": os.environ["PATH"]},
-        "env_pinned": list(_PINNED),
-        "runners": [runner],
-        "cells": cells,
+def _one_cell_plan(root: Path, *, uuid: str) -> tuple[Path, dict]:
+    bindir = _fake_nvidia(root, uuid)
+    runner = root / "runner.sh"
+    runner.write_text(
+        "#!/usr/bin/env bash\n"
+        "set -Eeuo pipefail\n"
+        "echo $$ > runner.pid\n"
+        f'"{PY}" -c \'import signal; '
+        'print(int(signal.SIGTERM in signal.pthread_sigmask(signal.SIG_BLOCK, [])))\' '
+        "> signal-mask.txt\n"
+        "sleep 300 &\n"
+        "echo $! > nested.pid\n"
+        "wait\n")
+    runner.chmod(0o755)
+    relative = runner.name
+    path_value = f"{bindir}:/usr/bin:/bin"
+    cell = {
+        "exp": "synthetic", "dataset": "CIFAR10", "cell": "lifecycle",
+        "N": 4, "tag": "synthetic_lifecycle", "runner": relative,
+        "env": {}, "flags": [],
     }
-    del plan["plan_digest"]
+    plan = {
+        "schema_version": 2, "expected_cells": 1,
+        "env_passthrough": ["PATH", "PY"],
+        "env_passthrough_values": {"PATH": path_value, "PY": PY},
+        "env_pinned": [], "runners": [relative], "cells": [cell],
+    }
     plan["plan_digest"] = hashlib.sha256(
         json.dumps(plan, sort_keys=True, separators=(",", ":")).encode()
     ).hexdigest()
-    path = tmp_path / "plan.json"
-    path.write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n")
-    return path
+    plan_path = root / "plan.json"
+    plan_path.write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n")
+    return plan_path, {**os.environ, "PATH": path_value}
 
 
-def _run(tmp_path: Path, plan: Path, ledger: Path, *, extra_env=None):
-    env = dict(os.environ)
-    env.update({"PY": PY, "GPUS": "0 1", "STAGGER": "0",
-                "LOGDIR": str(tmp_path / "logs")})
-    env.update(extra_env or {})
-    return subprocess.run(
-        ["bash", str(LAUNCHER), "--plan", str(plan), "--ledger", str(ledger),
-         "--repo", str(tmp_path)],
-        cwd=str(tmp_path), env=env, capture_output=True, text=True, timeout=300)
+def _start_executor(root: Path, *, uuid: str) -> subprocess.Popen:
+    plan, env = _one_cell_plan(root, uuid=uuid)
+    digest = hashlib.sha256(plan.read_bytes()).hexdigest()
+    return subprocess.Popen(
+        [PY, str(EXECUTOR), "--plan", str(plan), "--index", "0",
+         "--gpu", "0", "--repo", str(root),
+         "--expect-plan-sha256", digest, "--test-only-unsealed"],
+        cwd=str(root), env=env, stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT, text=True)
 
 
-def _tree(tmp_path: Path, *, failing=frozenset()):
-    """A working directory with the repo's scripts/ reachable as `scripts/`."""
-    (tmp_path / "scripts").symlink_to(REPO / "scripts")
-    return _stub_runner(tmp_path, failing=failing)
+def _wait_for(path: Path, process: subprocess.Popen | None = None,
+              timeout: float = 15.0) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if path.exists():
+            return
+        if process is not None and process.poll() is not None:
+            output = process.stdout.read() if process.stdout else ""
+            raise AssertionError(f"process exited before {path}: {output}")
+        time.sleep(0.02)
+    raise AssertionError(f"timed out waiting for {path}")
 
 
-def test_a_complete_campaign_seals(tmp_path):
-    runner = _tree(tmp_path)
+def _not_running(pid: int) -> bool:
+    try:
+        state = Path(f"/proc/{pid}/stat").read_text().split()[2]
+    except (FileNotFoundError, ProcessLookupError):
+        return True
+    return state == "Z"
+
+
+def _wait_gone(pid: int, timeout: float = 10.0) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if _not_running(pid):
+            return
+        time.sleep(0.02)
+    raise AssertionError(f"pid {pid} survived supervised termination")
+
+
+def test_dry_run_is_cwd_independent_and_cannot_touch_the_ledger(tmp_path):
+    plan = canonical_plan(tmp_path / "plan")
     ledger = tmp_path / "ledger"
-    proc = _run(tmp_path, _plan(tmp_path, runner), ledger)
-    assert proc.returncode == 0, proc.stdout + proc.stderr
-    receipt = json.loads((ledger / "campaign_complete.json").read_text())
-    assert receipt["cell_count"] == len(CELLS)
-    assert set(receipt["cells"]) == {f"promptAblA_{e}_{c}" for e, c in CELLS}
+    logs = tmp_path / "logs"
+    process = subprocess.run(
+        [str(LAUNCHER), "--plan", str(plan), "--ledger", str(ledger),
+         "--dry-run"], cwd=str(tmp_path),
+        env={**os.environ, "PY": PY, "LOGDIR": str(logs)},
+        capture_output=True, text=True, timeout=120)
+    assert process.returncode == 0, process.stdout + process.stderr
+    assert not ledger.exists()
+    dry_root = logs / f"phase5-dry-{hashlib.sha256(plan.read_bytes()).hexdigest()}"
+    assert len(list(dry_root.glob("cell_*.json"))) == 24
+    first = json.loads(next(dry_root.glob("cell_*.json")).read_text())
+    assert first["cmd"][:3] == ["bash", "-o", "pipefail"]
 
 
-def test_one_dead_cell_leaves_no_receipt(tmp_path):
-    """The whole point: 11 of 12 must not be readable as a table."""
-    runner = _tree(tmp_path, failing={"flickr_A_v4_A5_both"})
-    ledger = tmp_path / "ledger"
-    proc = _run(tmp_path, _plan(tmp_path, runner), ledger)
-    assert proc.returncode != 0
-    assert not (ledger / "campaign_complete.json").exists()
-    assert "FAILED rc=23" in proc.stdout
-    recorded = json.loads(
-        (ledger / "cell_promptAblA_flickr_A_v4_A5_both.json").read_text())
-    assert recorded["status"] == "failed"
+def test_foreign_repo_is_refused_before_plan_or_child_access(tmp_path):
+    marker = tmp_path / "must_not_run"
+    plan = tmp_path / "missing-plan.json"
+    process = subprocess.run(
+        [str(LAUNCHER), "--plan", str(plan),
+         "--ledger", str(tmp_path / "ledger"), "--repo", str(tmp_path)],
+        cwd=str(tmp_path), capture_output=True, text=True)
+    assert process.returncode != 0
+    assert "must be the launcher source root" in process.stderr
+    assert not marker.exists()
 
 
-def test_a_second_campaign_is_refused_before_any_cell_starts(tmp_path):
-    runner = _tree(tmp_path)
-    ledger = tmp_path / "ledger"
-    plan = _plan(tmp_path, runner)
-    assert _run(tmp_path, plan, ledger).returncode == 0
-    second = _run(tmp_path, plan, ledger)
-    assert second.returncode != 0
-    assert "already held" in second.stdout + second.stderr
+def test_noncanonical_plan_cannot_reserve_or_start_a_child(tmp_path):
+    plan, env = _one_cell_plan(
+        tmp_path / "cell", uuid="GPU-PHASE5-NONCANONICAL")
+    process = subprocess.run(
+        [str(LAUNCHER), "--plan", str(plan),
+         "--ledger", str(tmp_path / "ledger")], cwd=str(tmp_path),
+        env={**env, "PY": PY, "LOGDIR": str(tmp_path / "logs")},
+        capture_output=True, text=True, timeout=60)
+    assert process.returncode != 0
+    assert "exactly 24" in process.stdout + process.stderr
+    assert not (tmp_path / "cell" / "runner.pid").exists()
+    assert not (tmp_path / "ledger" / "campaign_complete.json").exists()
 
 
-def test_a_plan_edited_mid_campaign_stops_the_cells(tmp_path):
-    """TOCTOU: the launcher hashes once and hands that digest to every cell."""
-    runner = _tree(tmp_path, failing=set())
-    ledger = tmp_path / "ledger"
-    plan = _plan(tmp_path, runner)
-    # A slow first cell gives the edit somewhere to land.
-    slow = tmp_path / "slow_runner.sh"
-    slow.write_text('set -Eeuo pipefail\nsleep 2\necho "[stub] $2 $TAG_SUFFIX"\n')
-    payload = json.loads(plan.read_text())
-    payload["cells"][0]["runner"] = str(slow.relative_to(tmp_path))
-    payload["runners"].append(str(slow.relative_to(tmp_path)))
-    payload.pop("plan_digest")
-    payload["plan_digest"] = hashlib.sha256(
-        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
-    plan.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+def test_global_tag_set_lock_blocks_a_different_ledger_before_gpu(tmp_path):
+    plan = canonical_plan(tmp_path / "plan")
+    key = campaign_lock_key(plan)
+    root = Path(f"/tmp/groundeddna-ablation-campaign-leases-{os.getuid()}")
+    root.mkdir(mode=0o700, exist_ok=True)
+    root.chmod(0o700)
+    handle = (root / f"{key}.lock").open("a+")
+    os.chmod(root / f"{key}.lock", 0o600)
+    fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        process = subprocess.run(
+            [str(LAUNCHER), "--plan", str(plan),
+             "--ledger", str(tmp_path / "different-ledger")],
+            cwd=str(tmp_path), env={**os.environ, "PY": PY},
+            capture_output=True, text=True, timeout=60)
+    finally:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        handle.close()
+    assert process.returncode != 0
+    assert "live campaign owner" in process.stdout + process.stderr
+    assert not (tmp_path / "different-ledger" / "campaign_reservation.json").exists()
 
-    proc = subprocess.Popen(
-        ["bash", str(LAUNCHER), "--plan", str(plan), "--ledger", str(ledger),
-         "--repo", str(tmp_path)],
-        cwd=str(tmp_path), env={**os.environ, "PY": PY, "GPUS": "0",
-                                "STAGGER": "1", "LOGDIR": str(tmp_path / "logs")},
+
+@pytest.mark.parametrize(
+    ("requested_signal", "expected_returncode"),
+    ((signal.SIGTERM, 143), (signal.SIGINT, 130)),
+    ids=("term", "int"))
+def test_signal_kills_the_entire_nested_process_group(
+        tmp_path, requested_signal, expected_returncode):
+    root = tmp_path / requested_signal.name.lower()
+    root.mkdir()
+    process = _start_executor(
+        root, uuid=f"GPU-PHASE5-{requested_signal.name}-TEST")
+    try:
+        _wait_for(root / "nested.pid", process)
+        assert (root / "signal-mask.txt").read_text().strip() == "0"
+        runner_pid = int((root / "runner.pid").read_text())
+        nested_pid = int((root / "nested.pid").read_text())
+        process.send_signal(requested_signal)
+        output = process.communicate(timeout=20)[0]
+        assert process.returncode == expected_returncode, output
+        _wait_gone(runner_pid)
+        _wait_gone(nested_pid)
+    finally:
+        if process.poll() is None:
+            process.kill()
+
+
+def test_launcher_sigkill_triggers_executor_parent_death_cleanup(tmp_path):
+    root = tmp_path / "pdeath"
+    root.mkdir()
+    plan, env = _one_cell_plan(root, uuid="GPU-PHASE5-PDEATH-TEST")
+    digest = hashlib.sha256(plan.read_bytes()).hexdigest()
+    command = (
+        f'"{PY}" "{EXECUTOR}" --plan "{plan}" --index 0 --gpu 0 '
+        f'--repo "{root}" --expect-plan-sha256 "{digest}" '
+        '--test-only-unsealed & echo $! > executor.pid; wait')
+    parent = subprocess.Popen(
+        ["bash", "-c", command], cwd=str(root), env=env,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    # Rewrite the plan while the campaign is running.
-    import time
-    time.sleep(2)
-    plan.write_text(plan.read_text().replace('"K": "64"', '"K": "999"'))
-    out = proc.communicate(timeout=300)[0]
-    assert proc.returncode != 0, out
-    assert not (ledger / "campaign_complete.json").exists()
-    # The refusal is the child's, so it lands in that cell's log rather than on
-    # the launcher's stdout.
-    refusals = [p for p in (tmp_path / "logs").glob("ABL_*.out")
-                if "the plan changed after the run began" in p.read_text()]
-    assert refusals, (
-        "cells launched after the edit ran the new plan instead of refusing:\n"
-        + out)
+    try:
+        _wait_for(root / "nested.pid", parent)
+        executor_pid = int((root / "executor.pid").read_text())
+        runner_pid = int((root / "runner.pid").read_text())
+        nested_pid = int((root / "nested.pid").read_text())
+        parent.kill()
+        parent.wait(timeout=10)
+        _wait_gone(executor_pid)
+        _wait_gone(runner_pid)
+        _wait_gone(nested_pid)
+    finally:
+        if parent.poll() is None:
+            parent.kill()
 
 
-def test_the_launcher_passes_the_plans_environment_to_the_child(tmp_path):
-    runner = _tree(tmp_path)
-    ledger = tmp_path / "ledger"
-    proc = _run(tmp_path, _plan(tmp_path, runner), ledger,
-                extra_env={"K": "999", "NUM_CODONS": "4", "FIXED_N": "77"})
-    assert proc.returncode == 0, proc.stdout + proc.stderr
-    logs = sorted((tmp_path / "logs").glob("ABL_*.out"))
-    assert len(logs) == len(CELLS)
-    for log in logs:
-        text = log.read_text()
-        assert "k=64" in text and "n=4" in text, text
+def test_executor_sigkill_guardian_reaps_group_and_releases_gpu_lease(tmp_path):
+    uuid = "GPU-PHASE5-INHERITED-LEASE"
+    first_root = tmp_path / "first"
+    first_root.mkdir()
+    first = _start_executor(first_root, uuid=uuid)
+    runner_pid = nested_pid = first_group = None
+    blocked = second = None
+    second_runner = second_nested = second_group = None
+    try:
+        _wait_for(first_root / "nested.pid", first)
+        runner_pid = int((first_root / "runner.pid").read_text())
+        nested_pid = int((first_root / "nested.pid").read_text())
+        first_group = os.getpgid(runner_pid)
+        # Freeze the guardian so the executor-death TERM is pending.  Its
+        # inherited lease must still block a colliding executor during this
+        # forced cleanup window, not merely after eventual reaping.
+        os.kill(first_group, signal.SIGSTOP)
+        first.kill()
+        first.wait(timeout=10)
+        blocked_root = tmp_path / "blocked"
+        blocked_root.mkdir()
+        blocked = _start_executor(blocked_root, uuid=uuid)
+        blocked_output = blocked.communicate(timeout=10)[0]
+        assert blocked.returncode != 0
+        assert "already has a live GroundedDNA lease" in blocked_output
+        assert not _not_running(runner_pid)
+        assert not _not_running(nested_pid)
+        os.kill(first_group, signal.SIGCONT)
+        _wait_gone(runner_pid)
+        _wait_gone(nested_pid)
+
+        second_root = tmp_path / "second"
+        second_root.mkdir()
+        second = _start_executor(second_root, uuid=uuid)
+        _wait_for(second_root / "nested.pid", second)
+        second_runner = int((second_root / "runner.pid").read_text())
+        second_nested = int((second_root / "nested.pid").read_text())
+        second_group = os.getpgid(second_runner)
+        second.send_signal(signal.SIGTERM)
+        second.communicate(timeout=20)
+        _wait_gone(second_runner)
+        _wait_gone(second_nested)
+    finally:
+        if first_group is not None:
+            try:
+                os.kill(first_group, signal.SIGCONT)
+            except ProcessLookupError:
+                pass
+            try:
+                os.killpg(first_group, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        if runner_pid is not None:
+            _wait_gone(runner_pid)
+        if nested_pid is not None:
+            _wait_gone(nested_pid)
+        if first.poll() is None:
+            first.kill()
+        if blocked is not None and blocked.poll() is None:
+            blocked.kill()
+        if second is not None and second.poll() is None:
+            second.kill()
+        if second_group is not None:
+            try:
+                os.killpg(second_group, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        if second_runner is not None:
+            _wait_gone(second_runner)
+        if second_nested is not None:
+            _wait_gone(second_nested)
 
 
-def test_the_chain_delegates_to_this_launcher():
-    """Wired to production, not merely available."""
+def test_lock_leaf_symlink_is_refused_without_corrupting_target(tmp_path):
+    plan = canonical_plan(tmp_path / "plan")
+    key = campaign_lock_key(plan)
+    root = Path(f"/tmp/groundeddna-ablation-campaign-leases-{os.getuid()}")
+    root.mkdir(mode=0o700, exist_ok=True)
+    root.chmod(0o700)
+    leaf = root / f"{key}.lock"
+    victim = tmp_path / "victim.txt"
+    victim.write_text("DO-NOT-OVERWRITE\n")
+    if leaf.exists() or leaf.is_symlink():
+        leaf.unlink()
+    leaf.symlink_to(victim)
+    try:
+        process = subprocess.run(
+            [str(LAUNCHER), "--plan", str(plan),
+             "--ledger", str(tmp_path / "ledger")], cwd=str(tmp_path),
+            env={**os.environ, "PY": PY}, capture_output=True, text=True,
+            timeout=60)
+    finally:
+        if leaf.is_symlink():
+            leaf.unlink()
+    assert process.returncode != 0
+    assert "unsafe campaign lock leaf" in process.stdout + process.stderr
+    assert victim.read_text() == "DO-NOT-OVERWRITE\n"
+
+
+def test_executor_rejects_character_device_as_campaign_lock_fd(tmp_path):
+    tag_set = hashlib.sha256(str(tmp_path).encode()).hexdigest()
+    root = Path(f"/tmp/groundeddna-ablation-campaign-leases-{os.getuid()}")
+    root.mkdir(mode=0o700, exist_ok=True)
+    root.chmod(0o700)
+    leaf = root / f"{tag_set}.lock"
+    leaf.touch(mode=0o600, exist_ok=False)
+    descriptor = os.open("/dev/null", os.O_RDWR)
+    try:
+        with pytest.raises(PlanRejected, match="canonical safe tag lock"):
+            _validate_campaign_lock_fd(
+                {"tag_set_sha256": tag_set}, descriptor)
+    finally:
+        os.close(descriptor)
+        leaf.unlink()
+
+
+def test_production_env_schema_rejects_bash_startup_injection():
+    # These values are normalized by the launcher and therefore must not also
+    # be compared with a plan built in the caller's pre-launch environment.
+    assert {"PATH", "PYTHONPATH", "LD_LIBRARY_PATH"}.isdisjoint(
+        ENV_PASSTHROUGH)
+    values = {name: os.environ[name] for name in ENV_PASSTHROUGH
+              if name in os.environ}
+    values["PY"] = str(Path(PY).resolve())
+    cell_env = {name: "" for name in _PINNED}
+    plan = {
+        "env_passthrough": sorted(ENV_PASSTHROUGH),
+        "env_passthrough_values": values,
+        "env_pinned": list(_PINNED), "runners": sorted(RUNNERS),
+    }
+    cell = {"tag": "canonical", "env": cell_env}
+    child_env(plan, cell, production=True)
+    plan["env_passthrough"].append("BASH_ENV")
+    plan["env_passthrough_values"]["BASH_ENV"] = "/tmp/startup.sh"
+    with pytest.raises(PlanRejected, match="schema is not canonical"):
+        child_env(plan, cell, production=True)
+
+
+def test_parent_death_arm_requires_the_declared_launcher_pid():
+    with pytest.raises(PlanRejected, match="expected live launcher"):
+        _arm_parent_death_signal(os.getppid() + 1_000_000)
+
+
+def test_direct_entrypoint_drops_bash_env_before_parsing(tmp_path):
+    marker = tmp_path / "bash-env-executed"
+    startup = tmp_path / "startup.sh"
+    startup.write_text(f"touch {marker}\n")
+    process = subprocess.run(
+        [str(LAUNCHER), "--definitely-invalid"],
+        env={**os.environ, "BASH_ENV": str(startup), "PY": PY},
+        capture_output=True, text=True)
+    assert process.returncode == 2
+    assert not marker.exists()
+
+
+def test_direct_entrypoint_never_imports_bash_xtrace_or_functions(tmp_path):
+    xtrace_marker = tmp_path / "xtrace-startup"
+    function_marker = tmp_path / "function-startup"
+    env = {
+        **os.environ,
+        "PY": PY,
+        "SHELLOPTS": "xtrace",
+        "PS4": f'$(/usr/bin/touch "{xtrace_marker}")',
+        "FUNC_MARKER": str(function_marker),
+        "BASH_FUNC_pwd%%": (
+            "() { /usr/bin/touch \"$FUNC_MARKER\"; builtin pwd \"$@\"; }")
+    }
+    process = subprocess.run(
+        [str(LAUNCHER), "--definitely-invalid"], env=env,
+        capture_output=True, text=True)
+    assert process.returncode == 2
+    assert not xtrace_marker.exists()
+    assert not function_marker.exists()
+
+
+def test_term_then_hup_interrupts_hung_helper_and_finishes_cleanup(tmp_path):
+    child_file = tmp_path / "stubborn.pid"
+    helper_file = tmp_path / "helper.pid"
+    command = f'''
+import sys
+sys.path.insert(0, {str(REPO)!r})
+from scripts._ablation_campaign_launch import ProcessSupervisor
+s = ProcessSupervisor(grace_seconds=1.0)
+s.install_handlers()
+s.spawn(["/usr/bin/bash", "-c",
+         "trap '' INT TERM HUP; echo $$ > {child_file}; exec /usr/bin/sleep 300"])
+helper = s.spawn(["/usr/bin/bash", "-c",
+                  "trap '' INT TERM HUP; echo $$ > {helper_file}; exec /usr/bin/sleep 300"])
+s.wait(helper)
+'''
+    process = subprocess.Popen(
+        [PY, "-c", command], start_new_session=True,
+        env={**os.environ, "PY": PY},
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    child_pid = helper_pid = None
+    try:
+        _wait_for(child_file, process)
+        _wait_for(helper_file, process)
+        child_pid = int(child_file.read_text())
+        helper_pid = int(helper_file.read_text())
+        process.send_signal(signal.SIGTERM)
+        time.sleep(0.1)
+        process.send_signal(signal.SIGHUP)
+        output = process.communicate(timeout=10)[0]
+        assert process.returncode == 143, output
+        _wait_gone(child_pid)
+    finally:
+        if process.poll() is None:
+            process.kill()
+        if child_pid is not None and not _not_running(child_pid):
+            os.kill(child_pid, signal.SIGKILL)
+            _wait_gone(child_pid)
+        if helper_pid is not None and not _not_running(helper_pid):
+            os.kill(helper_pid, signal.SIGKILL)
+            _wait_gone(helper_pid)
+
+
+def test_malformed_cleanup_knob_is_refused_before_any_child(tmp_path):
+    process = subprocess.run(
+        [str(LAUNCHER), "--plan", str(tmp_path / "missing-plan"),
+         "--ledger", str(tmp_path / "ledger")],
+        env={**os.environ, "PY": PY,
+             "CAMPAIGN_TERM_GRACE": "not-an-integer"},
+        capture_output=True, text=True)
+    assert process.returncode == 2
+    assert "CAMPAIGN_TERM_GRACE must be" in process.stderr
+    assert not (tmp_path / "ledger").exists()
+
+
+def test_only_executors_receive_the_campaign_lock_fd(tmp_path):
+    lock = tmp_path / "campaign.lock"
+    descriptor = os.open(lock, os.O_RDWR | os.O_CREAT, 0o600)
+    supervisor = ProcessSupervisor(grace_seconds=0.2)
+    code = (
+        "import json,os; print(json.dumps([os.readlink('/proc/self/fd/'+f) "
+        "for f in os.listdir('/proc/self/fd') if os.path.exists('/proc/self/fd/'+f)]))")
+    try:
+        rc, stdout, _ = supervisor.communicate([PY, "-c", code])
+        assert rc == 0
+        assert str(lock) not in json.loads(stdout)
+        rc, stdout, _ = supervisor.communicate(
+            [PY, "-c", code], pass_fds=(descriptor,))
+        assert rc == 0
+        assert str(lock) in json.loads(stdout)
+    finally:
+        supervisor.terminate_all()
+        os.close(descriptor)
+
+
+def test_sigkill_supervisor_cannot_leave_a_publishing_helper(tmp_path):
+    helper_pid_file = tmp_path / "helper.pid"
+    marker = tmp_path / "late-publication"
+    command = f'''
+import sys, time
+sys.path.insert(0, {str(REPO)!r})
+from scripts._ablation_campaign_launch import ProcessSupervisor
+s = ProcessSupervisor(grace_seconds=1.0)
+p = s.spawn(["/usr/bin/bash", "-c",
+             "echo $$ > {helper_pid_file}; sleep 1; touch {marker}"])
+time.sleep(300)
+'''
+    parent = subprocess.Popen([PY, "-c", command])
+    helper_pid = None
+    try:
+        _wait_for(helper_pid_file, parent)
+        helper_pid = int(helper_pid_file.read_text())
+        parent.kill()
+        parent.wait(timeout=10)
+        _wait_gone(helper_pid)
+        time.sleep(1.1)
+        assert not marker.exists()
+    finally:
+        if parent.poll() is None:
+            parent.kill()
+        if helper_pid is not None and not _not_running(helper_pid):
+            os.kill(helper_pid, signal.SIGKILL)
+            _wait_gone(helper_pid)
+
+
+def test_chain_delegates_to_the_single_supervised_launcher():
     chain = (REPO / "scripts" / "auto_chain_after_3seed.sh").read_text()
     assert "run_ablation_campaign.sh" in chain
-    assert "_ablation_exec.py" not in chain, (
-        "the chain still launches cells itself; there are two loops to keep "
-        "correct instead of one")
+    assert "_ablation_exec.py" not in chain
 
 
-def test_a_dry_run_cannot_produce_a_completion_receipt(tmp_path):
-    """The false seal I actually created, with the real 24-cell plan.
-
-    `--dry-run` was passed through to the executor, which prints the command and
-    returns 0; the launcher recorded each of those as `status=ok` with a null
-    run directory and sealed. `/tmp/dryledger/campaign_complete.json` came out
-    naming 24 cells after zero trainers ran and zero GPUs were claimed, and I
-    wrote "planned, reserved, executed and sealed" in the project log on the
-    strength of it. A receipt has to mean trainers ran.
-    """
-    runner = _tree(tmp_path)
-    ledger_dry = tmp_path / "ledger_dry"
-    dry = subprocess.run(
-        ["bash", str(LAUNCHER), "--plan", str(_plan(tmp_path, runner)),
-         "--ledger", str(ledger_dry), "--repo", str(tmp_path), "--dry-run"],
-        cwd=str(tmp_path),
-        env={**os.environ, "PY": PY, "GPUS": "0", "STAGGER": "0",
-             "LOGDIR": str(tmp_path / "drylogs")},
-        capture_output=True, text=True, timeout=300)
-    assert dry.returncode == 0, dry.stdout + dry.stderr
-    assert not (ledger_dry / "campaign_complete.json").exists(), (
-        "a dry run sealed a completion receipt")
-    assert not (ledger_dry / "campaign_reservation.json").exists(), (
-        "a dry run reserved the campaign, so the real one cannot open it")
-    assert not list(ledger_dry.glob("cell_*.json")) if ledger_dry.exists() else True
-    printed = sorted((tmp_path / "drylogs").glob("DRY_*.json"))
-    assert len(printed) == len(CELLS)
-    assert json.loads(printed[0].read_text())["cmd"][:3] == ["bash", "-o",
-                                                             "pipefail"]
-
-
-def test_concurrent_cells_do_not_share_a_gpu(tmp_path):
-    """`GPUS="0 1 2"` put all three top-p smoke cells on GPU 0 while 1-5 idled.
-
-    `next_gpu` took `${g%% *}` -- the first token of the candidate list -- on
-    every call, so the explicit override read as "use GPU 0". Re-audit §50.1
-    predicted it from the source and the real smoke then did it.
-
-    The first version of this test asserted only that each of {0,1,2} appeared
-    somewhere across the logs, which a launcher that runs everything
-    sequentially on rotating devices also satisfies. What has to hold is that no
-    two cells hold one device AT THE SAME TIME, so each cell records the
-    interval it occupied and the intervals are checked for overlap.
-    """
-    runner = _tree(tmp_path)
-    slow = tmp_path / "slow.sh"
-    slow.write_text(
-        'set -Eeuo pipefail\n'
-        'S=$(date +%s%N)\n'
-        'sleep 2\n'
-        # The launcher refuses to record a cell whose result directory it cannot
-        # resolve, so the stub has to leave one behind like a real cell does.
-        'mkdir -p "result/260830+ds_promptAblA_${2}${TAG_SUFFIX}'
-        '_P0refit_e${FIXED_N}+bs+64"\n'
-        'mkdir -p occupancy\n'
-        'echo "$CUDA_VISIBLE_DEVICES $S $(date +%s%N)" '
-        '> "occupancy/${2}${TAG_SUFFIX}.txt"\n')
-    plan_path = _plan(tmp_path, runner)
-    payload = json.loads(plan_path.read_text())
-    for cell in payload["cells"]:
-        cell["runner"] = str(slow.relative_to(tmp_path))
-    payload["runners"] = [str(slow.relative_to(tmp_path))]
-    payload.pop("plan_digest")
-    payload["plan_digest"] = hashlib.sha256(
-        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-    ).hexdigest()
-    plan_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n")
-
-    proc = _run(tmp_path, plan_path, tmp_path / "ledger",
-                extra_env={"GPUS": "0 1", "STAGGER": "0", "GPU_WAIT": "1"})
-    assert proc.returncode == 0, proc.stdout + proc.stderr
-
-    spans = {}
-    for f in sorted((tmp_path / "occupancy").glob("*.txt")):
-        gpu, begin, end = f.read_text().split()
-        spans.setdefault(gpu, []).append((int(begin), int(end), f.name))
-    assert len(spans) == 2, f"cells did not spread over both GPUs: {spans}"
-    assert sum(len(v) for v in spans.values()) == len(CELLS)
-    for gpu, intervals in spans.items():
-        intervals.sort()
-        for (_, prev_end, prev), (nxt_begin, _, nxt) in zip(intervals,
-                                                            intervals[1:]):
-            assert nxt_begin >= prev_end, (
-                f"GPU {gpu} held by {prev} and {nxt} at the same time")
+def test_launcher_and_wrapper_parse_before_any_gpu_execution():
+    process = subprocess.run(
+        [PY, "-m", "py_compile", str(LAUNCHER)],
+        capture_output=True, text=True)
+    assert process.returncode == 0, process.stderr
+    process = subprocess.run(
+        ["bash", "-n",
+         str(REPO / "scripts" / "prompt_ablation_A_cell_fixedN.sh")],
+        capture_output=True, text=True)
+    assert process.returncode == 0, process.stderr

@@ -88,6 +88,7 @@ def expected_protocol(dataset: str, policy) -> dict:
         # the NMI is not interpretable without its averaging convention.
         "gc_min_frac": policy.gc_min_frac,
         "gc_max_frac": policy.gc_max_frac,
+        "bio_max_homopolymer_run": policy.max_run,
         "nmi_average_method": "arithmetic",
     }
 

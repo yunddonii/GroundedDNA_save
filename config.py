@@ -142,6 +142,20 @@ class Config():
             help='OpenAI CLIP backbone name (default: %(default)s). Used only '
                  'when --backbone_type=clip. Image and text encoders both come '
                  'from this single CLIPModel checkpoint.')
+        # Phase-3 execution authority.  These remain inert for every legacy
+        # invocation; the verified launcher supplies the complete set and the
+        # CLIP loader then refuses any floating Hugging Face resolution.
+        siglip2_arg.add_argument('--phase3_input_seal', default=None)
+        siglip2_arg.add_argument('--phase3_input_seal_sha256', default=None)
+        siglip2_arg.add_argument('--phase3_input_aggregate_sha256', default=None)
+        siglip2_arg.add_argument('--phase3_split_identity_sha256', default=None)
+        siglip2_arg.add_argument('--phase3_hf_identity_sha256', default=None)
+        siglip2_arg.add_argument('--clip_snapshot_dir', default=None)
+        siglip2_arg.add_argument('--clip_snapshot_revision', default=None)
+        siglip2_arg.add_argument('--clip_snapshot_weight_file', default=None)
+        siglip2_arg.add_argument('--clip_snapshot_weight_sha256', default=None)
+        siglip2_arg.add_argument('--clip_snapshot_config_sha256', default=None)
+        siglip2_arg.add_argument('--clip_snapshot_tokenizers_sha256_json', default=None)
         siglip2_arg.add_argument('--qwen_text_cache_path', dest='qwen_text_cache_path',
             default=None,
             help='JSONL cache produced by preprocess_qwen_codebook_texts.py.')

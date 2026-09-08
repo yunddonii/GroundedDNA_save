@@ -100,9 +100,9 @@ _TAKES_VALUE = {
 #: NUM_CODONS changes the code length, CURVE removes FINAL_EPOCH, K changes the
 #: capacity, WHITEN_VARIANT changes the transform.
 ENV_PASSTHROUGH = frozenset({
-    "PATH", "HOME", "USER", "SHELL", "LANG", "LC_ALL", "TERM", "TMPDIR",
-    "PYTHONPATH", "PYTHONUNBUFFERED", "CONDA_PREFIX", "CONDA_DEFAULT_ENV",
-    "LD_LIBRARY_PATH", "HF_HOME", "GDNA_CACHE_ROOT", "PY",
+    "HOME", "USER", "SHELL", "LANG", "LC_ALL", "TERM", "TMPDIR",
+    "PYTHONUNBUFFERED", "CONDA_PREFIX", "CONDA_DEFAULT_ENV",
+    "HF_HOME", "GDNA_CACHE_ROOT", "PY",
 })
 
 #: Set explicitly on every child, so an inherited value cannot decide it.
@@ -426,6 +426,12 @@ def build_plan() -> dict:
         "runners": sorted(RUNNERS),
         "cells": cells,
     }
+    # ``PY`` is commonly a non-exported shell variable (including in the
+    # repository's chain), so reading only os.environ omitted it from otherwise
+    # valid plans.  Production refuses to guess an interpreter: record the
+    # exact interpreter that built the plan every time.
+    plan["env_passthrough_values"]["PY"] = str(
+        Path(sys.executable).resolve())
     # A digest OF the plan, IN the plan: the executor is handed the digest the
     # chain computed at build time on its command line and re-derives this one,
     # so a plan edited between `--out` and the twenty-fourth cell is refused

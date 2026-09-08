@@ -194,7 +194,63 @@ def test_stage1_initialization_does_not_load_test_or_database():
     assert calls[0]['load_database'] is False
     assert method.testset is None and method.dbset is None
     assert method.valset is not None
+    assert method.config['protocol_stage'] == bm.P0_STAGE1_VAL_SELECTION
     temporary.cleanup()
+
+
+def test_explicit_protocol_contract_preserves_legacy_stages_and_seals_d6():
+    digest = 'a' * 64
+    common = {
+        'protocol_identity_sha256': digest,
+        'max_epoch': 60,
+        'schedule_horizon': 60,
+        'eval_period': 60,
+    }
+    author = {
+        **common,
+        'protocol_mode': bm.AUTHOR_FIXED_FINAL,
+        'protocol_stage': bm.AUTHOR_FIXED_SINGLE_STAGE,
+        'val_split_ratio': 0.0,
+    }
+    assert bm._resolve_protocol_stage(author) == bm.AUTHOR_FIXED_SINGLE_STAGE
+
+    selection = {
+        **common,
+        'protocol_mode': bm.VALIDATION_SENSITIVITY,
+        'protocol_stage': bm.P0_STAGE1_VAL_SELECTION,
+        'val_split_ratio': 0.1,
+    }
+    refit = {
+        **common,
+        'protocol_mode': bm.VALIDATION_SENSITIVITY,
+        'protocol_stage': bm.P0_STAGE2_REFIT_TEST,
+        'val_split_ratio': 0.0,
+    }
+    assert bm._resolve_protocol_stage(selection) == bm.P0_STAGE1_VAL_SELECTION
+    assert bm._resolve_protocol_stage(refit) == bm.P0_STAGE2_REFIT_TEST
+
+
+def test_author_fixed_protocol_contract_rejects_stage_split_and_horizon_forgery():
+    valid = {
+        'protocol_mode': bm.AUTHOR_FIXED_FINAL,
+        'protocol_stage': bm.AUTHOR_FIXED_SINGLE_STAGE,
+        'protocol_identity_sha256': 'a' * 64,
+        'val_split_ratio': 0.0,
+        'max_epoch': 60,
+        'schedule_horizon': 60,
+        'eval_period': 60,
+    }
+    mutations = (
+        ('protocol_stage', bm.P0_STAGE2_REFIT_TEST, 'protocol_stage'),
+        ('val_split_ratio', 0.1, 'val_split_ratio'),
+        ('schedule_horizon', 59, 'single-stage invariant'),
+        ('eval_period', 5, 'single-stage invariant'),
+        ('protocol_identity_sha256', 'not-a-digest', 'lowercase SHA-256'),
+    )
+    for field, value, message in mutations:
+        forged = {**valid, field: value}
+        with unittest.TestCase().assertRaisesRegex(ValueError, message):
+            bm._resolve_protocol_stage(forged)
 
 
 def test_checkpoint_cache_identity_rejects_same_width_stale_cache():

@@ -38,6 +38,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from dna_utils.bit_slice import resolve_bit_slice, selection_metric_by_bit  # noqa: E402
 from dna_utils.flat_geometry import resolve_flat_geometry  # noqa: E402
+from baseline.cache_provenance import (  # noqa: E402
+    verify_cache_decode_failure_binding,
+)
+from baseline.execution_environment import (  # noqa: E402
+    ExecutionEnvironmentError,
+    require_exact_environment,
+    verify_execution_environment,
+)
 
 
 REPO = Path(__file__).resolve().parents[1]
@@ -64,6 +72,33 @@ U2_DATASETS = ("Flickr25k", "MSCOCO", "NUSWIDE")
 SUPERVISED_VARIANTS = ("crh-supervised",)
 SUPERVISED_DATASETS = DATASETS
 DEFAULT_PANELS = ("u0", "u2")
+AUTHOR_FIXED_FINAL = "author_fixed_final"
+VALIDATION_SENSITIVITY = "validation_sensitivity"
+PROTOCOL_MODES = (AUTHOR_FIXED_FINAL, VALIDATION_SENSITIVITY)
+AUTHOR_CHECKPOINT_POLICY = "author_horizon_last"
+LEGACY_CHECKPOINT_POLICY = "validation_selected_scratch_refit"
+AUTHOR_FIXED_SINGLE_STAGE = "author_fixed_single_stage"
+P0_STAGE1_VAL_SELECTION = "P0_stage1_val_selection"
+P0_STAGE2_REFIT_TEST = "P0_stage2_refit_test"
+CURRENT_AGGREGATE_SCHEMA_VERSION = 8
+AGGREGATOR_SOURCE_RELATIVE = "scripts/aggregate_baseline_p0_matrix.py"
+AGGREGATE_PRODUCER_SOURCE_RELATIVE_PATHS = (
+    AGGREGATOR_SOURCE_RELATIVE,
+    "scripts/run_modern_baseline_p0.py",
+    "scripts/run_baseline_p0_matrix.py",
+    "baseline/cache_provenance.py",
+    "baseline/execution_environment.py",
+    "dna_utils/runtime_environment.py",
+    "dna_utils/gpu_lease.py",
+    "dna_utils/bit_slice.py",
+    "dna_utils/flat_geometry.py",
+)
+CIFAR10_CONSUMED_SOURCE_RELATIVE_PATHS = (
+    *(f"CIFAR10/cifar-10-batches-py/data_batch_{index}"
+      for index in range(1, 6)),
+    "CIFAR10/cifar-10-batches-py/test_batch",
+    "CIFAR10/cifar-10-batches-py/batches.meta",
+)
 
 DISPLAY = {
     "cibhash": "CIBHash",
@@ -139,13 +174,19 @@ KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
             "ec761115371f09e6e3a00ab816888188b0df234805920b153ef06e08a598405c"
         ),
         "after_sha256": (
-            "4fe40c862a23e265ecf0559232d8b6ac5b84b282df720670c3aed58e3daf588d"
+            "3e137fa7a5180370f810a9b2555292aa0ac9a6794189d89550454a9967805ba8"
+        ),
+        "reviewed_sha256": (
+            "ec761115371f09e6e3a00ab816888188b0df234805920b153ef06e08a598405c",
+            "4fe40c862a23e265ecf0559232d8b6ac5b84b282df720670c3aed58e3daf588d",
+            "3e137fa7a5180370f810a9b2555292aa0ac9a6794189d89550454a9967805ba8",
         ),
         "classification": "non_scientific_performance_memo_only",
         "evidence": (
             "reviewed exact-hash transition adds a stat-attested persistent "
-            "SHA-256 performance memo; scientific inputs and outputs remain "
-            "content-bound by the same artifact digests"
+            "SHA-256 performance memo and then a decode-failure/split evidence "
+            "validator; model, objective, schedule, data rows, and metrics are "
+            "unchanged, while old D6 manifests fail the new mandatory contract"
         ),
     },
     "baseline/base_model.py": {
@@ -153,7 +194,13 @@ KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
             "c9f39c05a27cca24ab0084bdd00462b634953499021a67c1cdc18dfc33837a47"
         ),
         "after_sha256": (
-            "b9d7e1a0cfab613fd72ce3dc38fafeca82ca99f6121d20138bf22239ef34f3be"
+            "f5a1a1b25a89ac5e9ca8bdf17ab2605921cb81dfc90a38ccef6d1b12dcd57add"
+        ),
+        "reviewed_sha256": (
+            "c9f39c05a27cca24ab0084bdd00462b634953499021a67c1cdc18dfc33837a47",
+            "b9d7e1a0cfab613fd72ce3dc38fafeca82ca99f6121d20138bf22239ef34f3be",
+            "22ea888f88cd52cfd476b3ed76514345e5d45fc7ba159bf2904c35ee67fd767d",
+            "f5a1a1b25a89ac5e9ca8bdf17ab2605921cb81dfc90a38ccef6d1b12dcd57add",
         ),
         "non_scientific_variants_by_sha256": {
             # The old dispatcher remains scientifically equivalent for every
@@ -161,11 +208,19 @@ KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
             "c9f39c05a27cca24ab0084bdd00462b634953499021a67c1cdc18dfc33837a47": (
                 U0_VARIANTS + U2_VARIANTS
             ),
+            "b9d7e1a0cfab613fd72ce3dc38fafeca82ca99f6121d20138bf22239ef34f3be": (
+                U0_VARIANTS + U2_VARIANTS + SUPERVISED_VARIANTS
+            ),
+            "22ea888f88cd52cfd476b3ed76514345e5d45fc7ba159bf2904c35ee67fd767d": (
+                U0_VARIANTS + U2_VARIANTS + SUPERVISED_VARIANTS
+            ),
         },
-        "classification": "non_scientific_dispatch_extension_only",
+        "classification": "non_scientific_dispatch_and_protocol_provenance_only",
         "evidence": (
-            "reviewed exact-hash transition adds only CRH lazy dispatch aliases "
-            "and CLI help; existing U0/U2 model construction is unchanged"
+            "reviewed exact-hash transitions add CRH lazy dispatch and later "
+            "validate/persist explicit D6 or validation-sensitivity mode/stage "
+            "metadata; model, objective, optimizer, schedule, and split carving "
+            "are unchanged"
         ),
     },
     # 2026-08-10 bit-budget extension (30-bit input-validation branch only),
@@ -243,7 +298,7 @@ KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
             "9809a70fde66d473540fa11d10752a83453d60ac6bfc9b80d0490a1e7ce7eca5"
         ),
         "after_sha256": (
-            "c333bf1aafcf809b57f5e3e46eb977b1666936c4ec962e927972a2804798ad4a"
+            "ad7b73f3124ffbeedfa115650c7d804d964a191bf125c6b2b3cc7abfbe15fd54"
         ),
         "reviewed_sha256": (
             "9809a70fde66d473540fa11d10752a83453d60ac6bfc9b80d0490a1e7ce7eca5",
@@ -260,6 +315,15 @@ KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
             # the 4-base codon panel. One tuple line; every other budget's code
             # path is byte-identical. Non-scientific for EVERY variant.
             "c333bf1aafcf809b57f5e3e46eb977b1666936c4ec962e927972a2804798ad4a",
+            # D6 adds an author-fixed branch under a mandatory protocol-mode
+            # schema. The historical branch remains byte-semantically the
+            # validation_sensitivity path, and cross-mode admission is rejected
+            # before implementation comparison.
+            "afd8fd0d7d1fb894b7948a321c6cbbe6bf2f7786baf8e21e0c210f75529bb429",
+            "175654df2bcedb43800bd00c77d19b53572e53aff2327dc6d0a2532b812c6aec",
+            "e412ea8e48b7075be6b26351e48a9050234716129706f871fbece900dc277091",
+            "cccd1a307a04f3ca63b9cdf2eac735e1fcfc2ed6096c90a3fa2b361f520cfbe6",
+            "ad7b73f3124ffbeedfa115650c7d804d964a191bf125c6b2b3cc7abfbe15fd54",
         ),
         "non_scientific_variants_by_sha256": {
             # This snapshot predates CRH dispatch and has the stale CIBHash
@@ -287,6 +351,21 @@ KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
             # to SUPPORTED_BITS for the 4-base codon panel.
             "4e9959b28fd7118ecdbd794555e22ede53064df6fe447c2ab85d30c1c8541a6c":
                 U0_VARIANTS + U2_VARIANTS + SUPERVISED_VARIANTS,
+            "c333bf1aafcf809b57f5e3e46eb977b1666936c4ec962e927972a2804798ad4a":
+                U0_VARIANTS + U2_VARIANTS + SUPERVISED_VARIANTS,
+            "afd8fd0d7d1fb894b7948a321c6cbbe6bf2f7786baf8e21e0c210f75529bb429":
+                U0_VARIANTS + U2_VARIANTS + SUPERVISED_VARIANTS,
+            "175654df2bcedb43800bd00c77d19b53572e53aff2327dc6d0a2532b812c6aec":
+                U0_VARIANTS + U2_VARIANTS + SUPERVISED_VARIANTS,
+            # Actual CIFAR pickle-batch provenance only. Old D6 manifests are
+            # independently rejected because they lack the mandatory seven-file
+            # source binding; diagnostic training behavior is unchanged.
+            "e412ea8e48b7075be6b26351e48a9050234716129706f871fbece900dc277091":
+                U0_VARIANTS + U2_VARIANTS + SUPERVISED_VARIANTS,
+            # Decode-failure audit/provenance only; old D6 payloads remain
+            # independently invalid because the required field is absent.
+            "cccd1a307a04f3ca63b9cdf2eac735e1fcfc2ed6096c90a3fa2b361f520cfbe6":
+                U0_VARIANTS + U2_VARIANTS + SUPERVISED_VARIANTS,
         },
         "classification": "non_scientific_for_reviewed_variants_only",
         "evidence": (
@@ -294,8 +373,11 @@ KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
             "and the later CIBHash-only horizon correction; the latter is "
             "scientific for CIBHash and non-scientific only for the explicitly "
             "listed unaffected variants; the two later hashes widen "
-            "SUPPORTED_BITS to 30 and then 40 by one tuple line each and are "
-            "non-scientific for every variant"
+            "SUPPORTED_BITS to 30 and then 40 by one tuple line each. The final "
+            "transition adds the mode-separated D6 orchestration; historical "
+            "hashes are comparable only inside validation_sensitivity because "
+            "author_fixed_final admission requires the new schema and exact "
+            "consumed dataset-source hashes"
         ),
     },
 }
@@ -308,7 +390,7 @@ KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
 # path audited clean (F15).
 NON_SCIENTIFIC_TRANSITION_CLASSIFICATIONS = frozenset({
     "non_scientific_performance_memo_only",
-    "non_scientific_dispatch_extension_only",
+    "non_scientific_dispatch_and_protocol_provenance_only",
     "non_scientific_for_reviewed_variants_only",
     "non_scientific_bit_budget_extension",
 })
@@ -415,10 +497,14 @@ CANONICAL_VARIANT_SOURCE_PROFILES = {
 
 COMMON_REQUIRED_IMPLEMENTATION_PATHS = frozenset({
     "scripts/run_modern_baseline_p0.py",
+    "scripts/run_baseline_p0_matrix.py",
     "baseline/base_model.py",
     "baseline/modern_unsupervised.py",
     "baseline/asset_provenance.py",
     "baseline/cache_provenance.py",
+    "baseline/execution_environment.py",
+    "dna_utils/runtime_environment.py",
+    "dna_utils/gpu_lease.py",
     "scripts/baseline_val_select_p0.py",
     "scripts/extract_flat_baseline.py",
     "scripts/apply_bio_projection.py",
@@ -466,6 +552,54 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _source_closure_sha256() -> dict[str, str]:
+    """Hash every local source imported by the aggregate authority."""
+    return {
+        relative: _sha256(REPO / relative)
+        for relative in AGGREGATE_PRODUCER_SOURCE_RELATIVE_PATHS
+    }
+
+
+def _source_closure_digest(source_sha256: Mapping[str, str]) -> str:
+    encoded = json.dumps(
+        dict(source_sha256), sort_keys=True,
+        separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def _verify_dataset_source_binding(identity: Mapping[str, object], *,
+                                   dataset: str, setting: str) -> None:
+    """Validate source bytes without importing an unsealed validator module."""
+    expected_paths = (
+        CIFAR10_CONSUMED_SOURCE_RELATIVE_PATHS
+        if dataset == "CIFAR10" else
+        tuple(f"{dataset}/{setting}/{name}"
+              for name in ("train.txt", "test.txt", "database.txt")))
+    root_raw = identity.get("dataset_root")
+    snapshot = identity.get("split_sha256")
+    if not isinstance(root_raw, str) or not root_raw:
+        raise ValueError("protocol_identity.dataset_root is missing")
+    if not isinstance(snapshot, Mapping) or set(snapshot) != set(expected_paths):
+        raise ValueError(
+            "protocol_identity.split_sha256 path-set mismatch; expected="
+            f"{list(expected_paths)!r}")
+    root = Path(root_raw).expanduser().resolve()
+    for relative in expected_paths:
+        declared = snapshot.get(relative)
+        if not isinstance(declared, str) or SHA256_PATTERN.fullmatch(
+                declared) is None:
+            raise ValueError(f"invalid source digest for {relative!r}")
+        path = (root / relative).resolve()
+        try:
+            path.relative_to(root)
+        except ValueError as error:
+            raise ValueError(f"dataset source escapes root: {relative!r}") from error
+        if not path.is_file():
+            raise ValueError(f"dataset source is missing: {path}")
+        if _sha256(path) != declared:
+            raise ValueError(f"dataset split/source changed: {path}")
+
+
 def _atomic_json(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_name(f".{path.name}.tmp.{os.getpid()}")
@@ -490,6 +624,31 @@ def _atomic_text(path: Path, value: str) -> None:
 def _load_json(path: Path) -> object:
     with path.open(encoding="utf-8") as handle:
         return json.load(handle)
+
+
+def _read_checkpoint_protocol(
+        path: Path, errors: list[str]) -> dict[str, object] | None:
+    """Reopen a checkpoint on CPU and return its immutable protocol triple."""
+    import torch
+
+    try:
+        payload = torch.load(path, map_location="cpu", weights_only=True)
+    except Exception as error:
+        errors.append(
+            f"final checkpoint protocol metadata cannot be reopened: {error}")
+        return None
+    if not isinstance(payload, dict) or not isinstance(payload.get("config"), dict):
+        errors.append("final checkpoint lacks config protocol metadata")
+        return None
+    config = payload["config"]
+    return {
+        "protocol_mode": config.get("protocol_mode"),
+        "protocol_stage": config.get("protocol_stage"),
+        "protocol_identity_sha256": config.get("protocol_identity_sha256"),
+        "execution_environment": config.get("execution_environment"),
+        "execution_environment_sha256": config.get(
+            "execution_environment_sha256"),
+    }
 
 
 def _mapping(value: object) -> Mapping[str, object] | None:
@@ -574,6 +733,12 @@ def _manifest_bit(payload: Mapping[str, object]) -> int | None:
         return int(raw) if raw is not None else None
     except (TypeError, ValueError):
         return None
+
+
+def _manifest_protocol_mode(payload: Mapping[str, object]) -> object:
+    """Classify old two-stage manifests without ever treating them as D6."""
+    raw = payload.get("protocol_mode")
+    return VALIDATION_SENSITIVITY if raw is None else raw
 
 
 def _panel_for_variant(variant: str) -> str | None:
@@ -801,8 +966,9 @@ def _verify_record_file(errors: list[str], label: str, value: object,
     return {"path": str(path), "sha256": declared}
 
 
-def _validate_manifest(path: Path, key: Key,
-                       *, verify_hashes: bool) -> dict[str, object]:
+def _validate_manifest(path: Path, key: Key, *, verify_hashes: bool,
+                       expected_protocol_mode: str | None = None,
+                       ) -> dict[str, object]:
     errors: list[str] = []
     try:
         raw = _load_json(path)
@@ -822,6 +988,18 @@ def _validate_manifest(path: Path, key: Key,
             "validation_errors": ["run manifest root must be an object"],
         }
 
+    protocol_mode = _manifest_protocol_mode(manifest)
+    if protocol_mode not in PROTOCOL_MODES:
+        errors.append(
+            f"protocol_mode: expected one of {PROTOCOL_MODES}, "
+            f"found {protocol_mode!r}")
+    if (expected_protocol_mode is not None
+            and protocol_mode != expected_protocol_mode):
+        errors.append(
+            f"protocol_mode: expected requested {expected_protocol_mode!r}, "
+            f"found {protocol_mode!r}")
+    author_fixed = protocol_mode == AUTHOR_FIXED_FINAL
+
     expected_panel = _panel_for_variant(key.variant)
     if expected_panel != key.panel:
         errors.append(
@@ -839,7 +1017,9 @@ def _validate_manifest(path: Path, key: Key,
     if "base_length" in manifest:
         _append_equal(errors, "base_length", manifest.get("base_length"), expected_base)
     _append_equal(errors, "seed", manifest.get("seed"), key.seed)
-    _append_equal(errors, "val_seed", manifest.get("val_seed"), 42)
+    _append_equal(
+        errors, "val_seed", manifest.get("val_seed"),
+        None if author_fixed else 42)
     _append_equal(errors, "information_tier", manifest.get("information_tier"), expected_tier)
     _append_equal(
         errors, "semantic_information_condition",
@@ -850,7 +1030,8 @@ def _validate_manifest(path: Path, key: Key,
             manifest.get("comparison_panel"), "supervised")
     _append_equal(
         errors, "selection_metric", manifest.get("selection_metric"),
-        f"raw_{expected_base}base_base_hamming_mAP_at_R")
+        None if author_fixed
+        else f"raw_{expected_base}base_base_hamming_mAP_at_R")
     _append_equal(errors, "test_used_for_selection",
                   manifest.get("test_used_for_selection"), False)
     _append_equal(errors, "final_checkpoint_count",
@@ -872,7 +1053,10 @@ def _validate_manifest(path: Path, key: Key,
     legacy_cache_blockers = _legacy_cache_blockers(blockers)
     # Aggregation is deliberately one-way: it may downgrade a declared result,
     # but can never promote a legacy-cache result into the paper-main pool.
-    main_eligible = declared_main_eligible and not legacy_cache_blockers
+    # A validation-selected/refit result is useful sensitivity evidence, but it
+    # is never the D6 paper-main contract even with a perfect feature cache.
+    main_eligible = bool(
+        author_fixed and declared_main_eligible and not legacy_cache_blockers)
     if declared_main_eligible and blockers:
         errors.append(
             "eligibility contradiction: main_protocol_eligible=true with blockers")
@@ -880,18 +1064,67 @@ def _validate_manifest(path: Path, key: Key,
         errors.append(
             "eligibility contradiction: ineligible manifest has no blocker")
 
-    best_epoch = manifest.get("best_epoch_zero_based")
-    refit_epochs = manifest.get("refit_epochs")
-    if isinstance(best_epoch, bool) or not isinstance(best_epoch, int) \
-            or best_epoch < 0:
-        errors.append(
-            f"best_epoch_zero_based: expected non-negative integer, found {best_epoch!r}")
-    elif refit_epochs != best_epoch + 1:
-        errors.append(
-            f"refit_epochs: expected E*+1={best_epoch + 1}, found {refit_epochs!r}")
+    author_horizon = HORIZON[key.variant][key.dataset]
+    if author_fixed:
+        if key.bit != 30:
+            errors.append(
+                "bit_length: author_fixed_final is the D6 matched 30-bit "
+                f"protocol, found {key.bit}")
+        for required_nullable in (
+                "selection_metric", "selection_artifact",
+                "selection_artifact_sha256", "val_seed"):
+            if required_nullable not in manifest:
+                errors.append(
+                    f"{required_nullable}: author_fixed_final requires an "
+                    "explicit null field, not an omitted key")
+        expected_author_fields = {
+            "checkpoint_policy": AUTHOR_CHECKPOINT_POLICY,
+            "author_horizon": author_horizon,
+            "training_epochs": author_horizon,
+            "final_epoch_zero_based": author_horizon - 1,
+            "validation_selection": False,
+            "refit_performed": False,
+            "training_stage": "author_fixed_single_stage",
+            "designated_train_scope": "full_designated_train",
+            "selection_artifact": None,
+            "selection_artifact_sha256": None,
+        }
+        for field, expected in expected_author_fields.items():
+            _append_equal(errors, field, manifest.get(field), expected)
+        for forbidden in (
+                "best_epoch_zero_based", "refit_epochs", "stage1_model_dir",
+                "refit_model_dir", "refit_result_dir"):
+            if forbidden in manifest:
+                errors.append(
+                    f"{forbidden}: forbidden legacy selection/refit field in "
+                    "author_fixed_final manifest")
+    else:
+        if "protocol_mode" in manifest:
+            _append_equal(
+                errors, "checkpoint_policy", manifest.get("checkpoint_policy"),
+                LEGACY_CHECKPOINT_POLICY)
+            _append_equal(
+                errors, "validation_selection",
+                manifest.get("validation_selection"), True)
+            _append_equal(
+                errors, "refit_performed", manifest.get("refit_performed"), True)
+        best_epoch = manifest.get("best_epoch_zero_based")
+        refit_epochs = manifest.get("refit_epochs")
+        if isinstance(best_epoch, bool) or not isinstance(best_epoch, int) \
+                or best_epoch < 0:
+            errors.append(
+                "best_epoch_zero_based: expected non-negative integer, "
+                f"found {best_epoch!r}")
+        elif refit_epochs != best_epoch + 1:
+            errors.append(
+                f"refit_epochs: expected E*+1={best_epoch + 1}, "
+                f"found {refit_epochs!r}")
 
     implementation_snapshot: dict[str, str] | None = None
     implementation_fingerprint: str | None = None
+    decode_failure_audit: dict[str, object] | None = None
+    execution_environment: dict[str, object] | None = None
+    execution_environment_sha256: str | None = None
     identity = _mapping(manifest.get("protocol_identity"))
     if identity is None:
         errors.append("protocol_identity: missing object")
@@ -904,12 +1137,83 @@ def _validate_manifest(path: Path, key: Key,
                       identity.get("bit"), key.bit)
         _append_equal(errors, "protocol_identity.seed",
                       identity.get("seed"), key.seed)
-        _append_equal(errors, "protocol_identity.val_seed",
-                      identity.get("val_seed"), 42)
-        _append_equal(errors, "protocol_identity.val_ratio",
-                      identity.get("val_ratio"), 0.1)
-        _append_equal(errors, "protocol_identity.eval_period",
-                      identity.get("eval_period"), 5)
+        if author_fixed:
+            _append_equal(
+                errors, "protocol_identity.setting",
+                identity.get("setting"), "setting1")
+            expected_identity = {
+                "protocol_mode": AUTHOR_FIXED_FINAL,
+                "trainer_protocol_stages": [AUTHOR_FIXED_SINGLE_STAGE],
+                "final_checkpoint_protocol_stage": (
+                    AUTHOR_FIXED_SINGLE_STAGE),
+                "checkpoint_policy": AUTHOR_CHECKPOINT_POLICY,
+                "author_horizon": author_horizon,
+                "training_epochs": author_horizon,
+                "final_epoch_zero_based": author_horizon - 1,
+                "validation_selection": False,
+                "designated_train_scope": "full_designated_train",
+                "val_seed": None,
+                "val_ratio": 0.0,
+                "eval_period": author_horizon,
+            }
+            for field, expected in expected_identity.items():
+                _append_equal(
+                    errors, f"protocol_identity.{field}",
+                    identity.get(field), expected)
+            try:
+                _verify_dataset_source_binding(
+                    identity, dataset=key.dataset, setting="setting1")
+            except (OSError, ValueError) as error:
+                errors.append(f"protocol_identity dataset source binding: {error}")
+            try:
+                decode_failure_audit = verify_cache_decode_failure_binding(
+                    identity, dataset=key.dataset, setting="setting1")
+            except (OSError, ValueError) as error:
+                errors.append(
+                    "protocol_identity cache decode-failure binding: "
+                    f"{error}")
+            else:
+                _append_equal(
+                    errors, "cache_decode_failure_audit",
+                    manifest.get("cache_decode_failure_audit"),
+                    decode_failure_audit)
+            try:
+                execution_environment = verify_execution_environment(
+                    identity.get("execution_environment"),
+                    identity.get("execution_environment_sha256"))
+            except ExecutionEnvironmentError as error:
+                errors.append(
+                    "protocol_identity execution environment: " + str(error))
+            else:
+                execution_environment_sha256 = str(
+                    identity.get("execution_environment_sha256"))
+                _append_equal(
+                    errors, "execution_environment",
+                    manifest.get("execution_environment"),
+                    execution_environment)
+                _append_equal(
+                    errors, "execution_environment_sha256",
+                    manifest.get("execution_environment_sha256"),
+                    execution_environment_sha256)
+        else:
+            if "protocol_mode" in manifest:
+                _append_equal(
+                    errors, "protocol_identity.protocol_mode",
+                    identity.get("protocol_mode"), VALIDATION_SENSITIVITY)
+                _append_equal(
+                    errors, "protocol_identity.trainer_protocol_stages",
+                    identity.get("trainer_protocol_stages"),
+                    [P0_STAGE1_VAL_SELECTION, P0_STAGE2_REFIT_TEST])
+                _append_equal(
+                    errors, "protocol_identity.final_checkpoint_protocol_stage",
+                    identity.get("final_checkpoint_protocol_stage"),
+                    P0_STAGE2_REFIT_TEST)
+            _append_equal(errors, "protocol_identity.val_seed",
+                          identity.get("val_seed"), 42)
+            _append_equal(errors, "protocol_identity.val_ratio",
+                          identity.get("val_ratio"), 0.1)
+            _append_equal(errors, "protocol_identity.eval_period",
+                          identity.get("eval_period"), 5)
         _append_equal(errors, "protocol_identity.horizon",
                       identity.get("horizon"), HORIZON[key.variant][key.dataset])
         _append_equal(errors, "protocol_identity.batch_size_override",
@@ -952,6 +1256,59 @@ def _validate_manifest(path: Path, key: Key,
     _verify_hash(
         errors, "final_checkpoint_sha256", final_checkpoint,
         manifest.get("final_checkpoint_sha256"), enabled=verify_hashes)
+    expected_checkpoint_stage = (
+        AUTHOR_FIXED_SINGLE_STAGE
+        if author_fixed else P0_STAGE2_REFIT_TEST)
+    expected_checkpoint_contract = {
+        "protocol_mode": protocol_mode,
+        "protocol_stage": expected_checkpoint_stage,
+        "protocol_identity_sha256": protocol_digest,
+    }
+    # New explicit-mode manifests must contain the runner's checkpoint reopen
+    # evidence. Historical mode-less sensitivity manifests remain diagnostic.
+    if author_fixed or "protocol_mode" in manifest:
+        _append_equal(
+            errors, "checkpoint_protocol", manifest.get("checkpoint_protocol"),
+            expected_checkpoint_contract)
+        if final_checkpoint is not None:
+            checkpoint_metadata = _read_checkpoint_protocol(
+                final_checkpoint, errors)
+            if checkpoint_metadata is not None:
+                checkpoint_contract = {
+                    field: checkpoint_metadata.get(field)
+                    for field in (
+                        "protocol_mode", "protocol_stage",
+                        "protocol_identity_sha256")
+                }
+                _append_equal(
+                    errors, "final checkpoint protocol contract",
+                    checkpoint_contract, expected_checkpoint_contract)
+                if author_fixed and execution_environment is not None:
+                    try:
+                        require_exact_environment(
+                            execution_environment,
+                            execution_environment_sha256,
+                            actual=checkpoint_metadata.get(
+                                "execution_environment"),
+                            actual_digest=checkpoint_metadata.get(
+                                "execution_environment_sha256"))
+                    except ExecutionEnvironmentError as error:
+                        errors.append(
+                            "final checkpoint execution environment: "
+                            + str(error))
+    if author_fixed and final_checkpoint is not None:
+        expected_checkpoint_name = f"epoch_{author_horizon - 1:03d}.pth"
+        if final_checkpoint.name != expected_checkpoint_name:
+            errors.append(
+                "final_checkpoint: author_fixed_final requires terminal LAST "
+                f"{expected_checkpoint_name}, found {final_checkpoint.name}")
+        actual_checkpoint_set = sorted(
+            candidate.name for candidate in final_checkpoint.parent.glob(
+                "epoch_*.pth"))
+        if actual_checkpoint_set != [expected_checkpoint_name]:
+            errors.append(
+                "final checkpoint set: author_fixed_final requires exactly "
+                f"[{expected_checkpoint_name!r}], found {actual_checkpoint_set!r}")
 
     extraction_dir = path.parent.resolve()
     declared_extraction = manifest.get("extraction_dir")
@@ -981,12 +1338,33 @@ def _validate_manifest(path: Path, key: Key,
     _verify_hash(
         errors, "protocol_manifest_sha256", protocol_manifest,
         manifest.get("protocol_manifest_sha256"), enabled=verify_hashes)
+    if protocol_manifest is not None and (author_fixed or "protocol_mode" in manifest):
+        try:
+            pre_protocol_payload = _mapping(_load_json(protocol_manifest))
+        except (OSError, json.JSONDecodeError) as error:
+            errors.append(f"cannot reopen pre-bio protocol manifest: {error}")
+            pre_protocol_payload = None
+        if pre_protocol_payload is None:
+            errors.append("pre-bio protocol manifest root must be an object")
+        else:
+            for field in (
+                    "protocol_mode", "protocol_digest_sha256",
+                    "protocol_identity", "checkpoint_protocol",
+                    "final_checkpoint_sha256", "training_stage",
+                    "cache_decode_failure_audit", "execution_environment",
+                    "execution_environment_sha256"):
+                _append_equal(
+                    errors, f"pre-bio/run {field}",
+                    pre_protocol_payload.get(field), manifest.get(field))
 
-    selection_artifact = _declared_path(
-        errors, "selection_artifact", manifest.get("selection_artifact"))
-    _verify_hash(
-        errors, "selection_artifact_sha256", selection_artifact,
-        manifest.get("selection_artifact_sha256"), enabled=verify_hashes)
+    if author_fixed:
+        selection_artifact = None
+    else:
+        selection_artifact = _declared_path(
+            errors, "selection_artifact", manifest.get("selection_artifact"))
+        _verify_hash(
+            errors, "selection_artifact_sha256", selection_artifact,
+            manifest.get("selection_artifact_sha256"), enabled=verify_hashes)
 
     bio_sibling = extraction_dir / "bio_projection.json"
     bio_path = _declared_path(
@@ -1106,6 +1484,26 @@ def _validate_manifest(path: Path, key: Key,
             _append_equal(
                 errors, "bio training protocol identity",
                 provenance.get("protocol_identity_sha256"), protocol_digest)
+            if author_fixed or "protocol_mode" in manifest:
+                _append_equal(
+                    errors, "bio training protocol mode",
+                    provenance.get("protocol_mode"), protocol_mode)
+                _append_equal(
+                    errors, "bio training protocol stage",
+                    provenance.get("protocol_stage"), expected_checkpoint_stage)
+            if author_fixed:
+                _append_equal(
+                    errors, "bio training cache decode-failure audit",
+                    provenance.get("cache_decode_failure_audit"),
+                    decode_failure_audit)
+                _append_equal(
+                    errors, "bio training execution environment",
+                    provenance.get("execution_environment"),
+                    execution_environment)
+                _append_equal(
+                    errors, "bio training execution environment SHA-256",
+                    provenance.get("execution_environment_sha256"),
+                    execution_environment_sha256)
             checkpoint_record = _mapping(provenance.get("checkpoint"))
             if checkpoint_record is None:
                 errors.append("bio training checkpoint record: missing object")
@@ -1114,6 +1512,30 @@ def _validate_manifest(path: Path, key: Key,
                     errors, "bio checkpoint SHA",
                     checkpoint_record.get("sha256"),
                     manifest.get("final_checkpoint_sha256"))
+                if author_fixed or "protocol_mode" in manifest:
+                    _append_equal(
+                        errors, "bio checkpoint protocol mode",
+                        checkpoint_record.get("checkpoint_protocol_mode"),
+                        protocol_mode)
+                    _append_equal(
+                        errors, "bio checkpoint protocol stage",
+                        checkpoint_record.get("checkpoint_protocol_stage"),
+                        expected_checkpoint_stage)
+                    _append_equal(
+                        errors, "bio checkpoint protocol identity",
+                        checkpoint_record.get("protocol_identity_sha256"),
+                        protocol_digest)
+                    if author_fixed:
+                        _append_equal(
+                            errors, "bio checkpoint execution environment",
+                            checkpoint_record.get("execution_environment"),
+                            execution_environment)
+                        _append_equal(
+                            errors,
+                            "bio checkpoint execution environment SHA-256",
+                            checkpoint_record.get(
+                                "execution_environment_sha256"),
+                            execution_environment_sha256)
 
     expected_status = (
         "paper_result_eligible" if main_eligible
@@ -1142,6 +1564,13 @@ def _validate_manifest(path: Path, key: Key,
         "manifest": str(path.resolve()),
         "manifest_sha256": _sha256(path) if verify_hashes else None,
         "status": status,
+        "protocol_mode": protocol_mode,
+        "protocol_stage": expected_checkpoint_stage,
+        "checkpoint_protocol": manifest.get("checkpoint_protocol"),
+        "final_checkpoint_sha256": manifest.get("final_checkpoint_sha256"),
+        "cache_decode_failure_audit": decode_failure_audit,
+        "execution_environment": execution_environment,
+        "execution_environment_sha256": execution_environment_sha256,
         "declared_main_protocol_eligible": declared_main_eligible,
         "main_protocol_eligible": main_eligible,
         "main_eligibility_blockers": blockers,
@@ -1155,6 +1584,9 @@ def _validate_manifest(path: Path, key: Key,
             None if map_pre is None or map_post is None else map_post - map_pre),
         "dna_unique_pre": dna_unique_pre,
         "dna_unique_post": dna_unique_post,
+        "author_horizon": manifest.get("author_horizon"),
+        "training_epochs": manifest.get("training_epochs"),
+        "final_epoch_zero_based": manifest.get("final_epoch_zero_based"),
         "best_epoch_zero_based": manifest.get("best_epoch_zero_based"),
         "refit_epochs": manifest.get("refit_epochs"),
         "protocol_digest_sha256": protocol_digest,
@@ -1550,6 +1982,7 @@ def _markdown(payload: Mapping[str, object],
     paper_admission = _mapping(payload.get("paper_table_admission")) or {}
     implementation = _mapping(payload.get("implementation_audit")) or {}
     protocol = _mapping(payload.get("protocol")) or {}
+    protocol_mode = protocol.get("protocol_mode", VALIDATION_SENSITIVITY)
     raw_panels = protocol.get("comparison_panels", list(DEFAULT_PANELS))
     selected_panels = frozenset(
         str(panel) for panel in raw_panels
@@ -1560,13 +1993,19 @@ def _markdown(payload: Mapping[str, object],
     lines = [
         "# Common-P0 baseline matrix aggregation",
         "",
-        "> **Eligibility warning:** `†` values completed the requested raw-code → DNA "
-        "conversion and common biological post-processing, but are diagnostic-only "
-        "when legacy cache provenance keeps `main_protocol_eligible=false`. They must "
-        "not be copied into the paper main table as eligible results.",
+        "> **Eligibility warning:** `†` values are diagnostic-only. Only "
+        "`author_fixed_final` cells with a fully eligible cache and bio manifest "
+        "may enter the paper main table.",
         "",
         f"- Train seed(s): `{', '.join(map(str, seeds))}`",
-        "- Validation split: ratio `0.1`, seed `42`; E* chosen by raw base-Hamming mAP@R",
+        f"- Protocol mode: `{protocol_mode}`",
+        (
+            "- Checkpoint rule: full designated train for author horizon `H`; "
+            "terminal `LAST = H-1`; no validation selection or refit"
+            if protocol_mode == AUTHOR_FIXED_FINAL else
+            "- Diagnostic checkpoint rule: validation E* selection followed by "
+            "scratch full-train refit; never paper-main eligible"
+        ),
         # F15: was a hard-coded 36/48 string, which described the wrong panel
         # for every 30-bit aggregation ever emitted.
         "- Budgets: " + ", ".join(
@@ -1765,6 +2204,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Validate P0 manifests and emit JSON plus Markdown tables.")
     parser.add_argument(
+        "--protocol-mode", choices=PROTOCOL_MODES,
+        default=AUTHOR_FIXED_FINAL,
+        help=(
+            "D6 author_fixed_final is the paper-main default. "
+            "validation_sensitivity aggregates legacy E*/refit diagnostics "
+            "without paper-main admission."),
+    )
+    parser.add_argument(
         "--result-root", action="append", default=None,
         help=("Result root to scan; repeat for separately launched queues. "
               "Defaults to the seed-derived matrix root."))
@@ -1803,7 +2250,15 @@ def main() -> int:
               "and at least three unique train seeds were aggregated."))
     args = parser.parse_args()
 
+    if args.protocol_mode == AUTHOR_FIXED_FINAL and args.bits is None:
+        parser.error(
+            "D6 paper-main aggregation requires explicit --bits 30")
     requested_bits = resolve_bit_slice(args.bits)
+    if (args.protocol_mode == AUTHOR_FIXED_FINAL
+            and tuple(requested_bits) != (30,)):
+        parser.error(
+            "D6 paper-main aggregation accepts exactly --bits 30; use "
+            "validation_sensitivity for diagnostic non-main budgets")
 
     if not args.seeds or len(set(args.seeds)) != len(args.seeds):
         parser.error("--seeds must contain at least one unique integer")
@@ -1813,10 +2268,13 @@ def main() -> int:
     panels = tuple(args.panels)
     seed_slug = "seeds" + "-".join(map(str, seeds))
     panel_slug = "-".join(panels)
+    mode_slug = (
+        "author_fixed_30b" if args.protocol_mode == AUTHOR_FIXED_FINAL
+        else "validation_sensitivity_legacy")
     default_matrix_name = (
-        f"p0_matrix_{seed_slug}_legacy_cache"
+        f"p0_matrix_{seed_slug}_{mode_slug}"
         if panels == DEFAULT_PANELS
-        else f"p0_matrix_{seed_slug}_{panel_slug}_legacy_cache"
+        else f"p0_matrix_{seed_slug}_{panel_slug}_{mode_slug}"
     )
     result_roots = (
         [_absolute(path) for path in args.result_root]
@@ -1896,7 +2354,8 @@ def main() -> int:
             }
             continue
         record = _validate_manifest(
-            paths[0], key, verify_hashes=args.verify_artifact_hashes)
+            paths[0], key, verify_hashes=args.verify_artifact_hashes,
+            expected_protocol_mode=args.protocol_mode)
         records[key] = record
         if record["status"] == "invalid":
             invalid.append(key.text)
@@ -1949,6 +2408,8 @@ def main() -> int:
     integrity_incomplete = bool(
         missing or invalid or duplicates or malformed or implementation_blocked)
     paper_admission_reasons: list[str] = []
+    if args.protocol_mode != AUTHOR_FIXED_FINAL:
+        paper_admission_reasons.append("protocol_mode_not_author_fixed_final")
     if integrity_incomplete:
         paper_admission_reasons.append("matrix_incomplete_or_invalid")
     if paper_table_eligible != len(expected):
@@ -1956,18 +2417,40 @@ def main() -> int:
     if len(seeds) < 3:
         paper_admission_reasons.append("fewer_than_three_train_seeds")
     strict_paper_eligible = not paper_admission_reasons
+    producer_source_closure = _source_closure_sha256()
     payload: dict[str, object] = {
-        "schema_version": 4,
+        "schema_version": CURRENT_AGGREGATE_SCHEMA_VERSION,
         "generated_at_utc": _utc_now(),
+        "producer": {
+            "source_path": AGGREGATOR_SOURCE_RELATIVE,
+            "source_sha256": producer_source_closure[
+                AGGREGATOR_SOURCE_RELATIVE],
+            "source_closure_sha256": producer_source_closure,
+            "source_closure_digest_sha256": _source_closure_digest(
+                producer_source_closure),
+        },
         "result_roots": [str(path) for path in result_roots],
         "protocol": {
+            "protocol_mode": args.protocol_mode,
+            "final_checkpoint_protocol_stage": (
+                AUTHOR_FIXED_SINGLE_STAGE
+                if args.protocol_mode == AUTHOR_FIXED_FINAL
+                else P0_STAGE2_REFIT_TEST),
+            "checkpoint_policy": (
+                AUTHOR_CHECKPOINT_POLICY
+                if args.protocol_mode == AUTHOR_FIXED_FINAL
+                else LEGACY_CHECKPOINT_POLICY),
             "train_seeds": list(seeds),
             "comparison_panels": list(panels),
-            "validation_seed": 42,
-            "validation_ratio": 0.1,
+            "validation_seed": (
+                None if args.protocol_mode == AUTHOR_FIXED_FINAL else 42),
+            "validation_ratio": (
+                0.0 if args.protocol_mode == AUTHOR_FIXED_FINAL else 0.1),
             # F15: scoped to the requested slice, and 30/40 were missing
             # entirely -- a 30-bit run had no declared selection metric.
-            "selection_metric_by_bit": selection_metric_by_bit(requested_bits),
+            "selection_metric_by_bit": (
+                None if args.protocol_mode == AUTHOR_FIXED_FINAL
+                else selection_metric_by_bit(requested_bits)),
             "requested_bit_slice": list(requested_bits),
             "mandatory_bio_projection": True,
             "three_seed_mean_std_status": (
@@ -1975,9 +2458,9 @@ def main() -> int:
             ),
         },
         "eligibility_warning": (
-            "Metrics with complete_diagnostic_only status came from the explicit "
-            "legacy-cache opt-in and must not be copied into the eligible paper "
-            "main table until strict cache provenance is regenerated."
+            "Only author_fixed_final records can enter the paper-main table. "
+            "complete_diagnostic_only records, including validation-selected "
+            "scratch refits, must never be promoted."
         ),
         "paper_table_admission": {
             "eligible": strict_paper_eligible,
@@ -2015,9 +2498,9 @@ def main() -> int:
     }
 
     default_output_stem = (
-        f"baseline_p0_matrix_{seed_slug}_legacy_cache"
+        f"baseline_p0_matrix_{seed_slug}_{mode_slug}"
         if panels == DEFAULT_PANELS
-        else f"baseline_p0_matrix_{seed_slug}_{panel_slug}_legacy_cache"
+        else f"baseline_p0_matrix_{seed_slug}_{panel_slug}_{mode_slug}"
     )
     out_json = _absolute(
         args.out_json or f"docs/{default_output_stem}.json")

@@ -40,11 +40,32 @@ from dna_utils.bio_constraints import (          # noqa: E402
     PROJECTION_TIE_POLICY,
 )
 from baseline.base_model import _ap_at_r, _multi_hot_relevance  # noqa: E402
+from baseline.cache_provenance import (                       # noqa: E402
+    verify_cache_decode_failure_binding,
+)
+from baseline.execution_environment import (                  # noqa: E402
+    ExecutionEnvironmentError,
+    require_exact_environment,
+    verify_execution_environment,
+)
 
 
 REPO = Path(__file__).resolve().parents[1]
 RETRIEVAL_TIE_POLICY = "stable_database_order_numpy_stable_v1"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+AUTHOR_FIXED_FINAL = "author_fixed_final"
+VALIDATION_SENSITIVITY = "validation_sensitivity"
+AUTHOR_CHECKPOINT_POLICY = "author_horizon_last"
+LEGACY_CHECKPOINT_POLICY = "validation_selected_scratch_refit"
+AUTHOR_FIXED_SINGLE_STAGE = "author_fixed_single_stage"
+P0_STAGE1_VAL_SELECTION = "P0_stage1_val_selection"
+P0_STAGE2_REFIT_TEST = "P0_stage2_refit_test"
+CIFAR10_CONSUMED_SOURCE_RELATIVE_PATHS = (
+    *(f"CIFAR10/cifar-10-batches-py/data_batch_{index}"
+      for index in range(1, 6)),
+    "CIFAR10/cifar-10-batches-py/test_batch",
+    "CIFAR10/cifar-10-batches-py/batches.meta",
+)
 
 
 def sha256_file(path: os.PathLike[str] | str) -> str:
@@ -53,6 +74,38 @@ def sha256_file(path: os.PathLike[str] | str) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _verify_dataset_source_binding(identity: dict, *, dataset: str,
+                                   setting: str) -> None:
+    """Validate source bytes locally so this script's sealed SHA is authority."""
+    expected_paths = (
+        CIFAR10_CONSUMED_SOURCE_RELATIVE_PATHS
+        if dataset == "CIFAR10" else
+        tuple(f"{dataset}/{setting}/{name}"
+              for name in ("train.txt", "test.txt", "database.txt")))
+    root_raw = identity.get("dataset_root")
+    snapshot = identity.get("split_sha256")
+    if not isinstance(root_raw, str) or not root_raw:
+        raise ValueError("protocol_identity.dataset_root is missing")
+    if not isinstance(snapshot, dict) or set(snapshot) != set(expected_paths):
+        raise ValueError(
+            "protocol_identity.split_sha256 path-set mismatch; expected="
+            f"{list(expected_paths)!r}")
+    root = Path(root_raw).expanduser().resolve()
+    for relative in expected_paths:
+        declared = snapshot.get(relative)
+        if not isinstance(declared, str) or _SHA256_RE.fullmatch(declared) is None:
+            raise ValueError(f"invalid source digest for {relative!r}")
+        path = (root / relative).resolve()
+        try:
+            path.relative_to(root)
+        except ValueError as error:
+            raise ValueError(f"dataset source escapes root: {relative!r}") from error
+        if not path.is_file():
+            raise ValueError(f"dataset source is missing: {path}")
+        if sha256_file(path) != declared:
+            raise ValueError(f"dataset split/source changed: {path}")
 
 
 def _atomic_write_json(path: os.PathLike[str] | str, payload: dict) -> str:
@@ -368,10 +421,15 @@ def _read_checkpoint_protocol(checkpoint: Path) -> dict[str, Any]:
                 f"invalid checkpoint protocol_identity_sha256: {protocol!r}")
     return {
         "protocol_identity_sha256": protocol,
+        "checkpoint_protocol_mode": config.get("protocol_mode"),
+        "checkpoint_protocol_stage": config.get("protocol_stage"),
         "checkpoint_method": config.get("method"),
         "checkpoint_dataset": config.get("dataset"),
         "checkpoint_setting": config.get("setting"),
         "checkpoint_bit": config.get("bit"),
+        "execution_environment": config.get("execution_environment"),
+        "execution_environment_sha256": config.get(
+            "execution_environment_sha256"),
     }
 
 
@@ -465,6 +523,10 @@ def _collect_provenance(
 
     eligibility_reasons = []
     selection_record = None
+    protocol_mode = None
+    decode_failure_audit = None
+    execution_environment = None
+    execution_environment_sha256 = None
     if protocol_manifest is None:
         eligibility_reasons.append("missing immutable p0_protocol_manifest.json")
     else:
@@ -513,10 +575,6 @@ def _collect_provenance(
               or int(declared_base_length) != expected_bit // 2):
             raise ValueError(
                 "protocol manifest bit/base length labels do not match extraction")
-        expected_selection_metric = (
-            f"raw_{expected_bit // 2}base_base_hamming_mAP_at_R")
-        if protocol_manifest.get("selection_metric") != expected_selection_metric:
-            eligibility_reasons.append("unexpected or missing selection metric")
         if protocol_manifest.get("run_manifest_phase") != "pre_bio_projection":
             eligibility_reasons.append(
                 "protocol manifest phase is not pre_bio_projection")
@@ -533,6 +591,191 @@ def _collect_provenance(
             if payload_digest != protocol:
                 raise ValueError(
                     "protocol manifest protocol_identity payload does not match its SHA-256")
+
+        raw_protocol_mode = protocol_manifest.get("protocol_mode")
+        # Historical manifests predate the mode field and are unambiguously the
+        # former selector/refit workflow.  They remain diagnostics, never D6.
+        protocol_mode = (
+            VALIDATION_SENSITIVITY
+            if raw_protocol_mode is None else raw_protocol_mode)
+        expected_checkpoint_stage = (
+            AUTHOR_FIXED_SINGLE_STAGE
+            if protocol_mode == AUTHOR_FIXED_FINAL
+            else P0_STAGE2_REFIT_TEST)
+        expected_checkpoint_contract = {
+            "protocol_mode": protocol_mode,
+            "protocol_stage": expected_checkpoint_stage,
+            "protocol_identity_sha256": protocol,
+        }
+        # New manifests are produced only after the runner has reopened the
+        # final checkpoint. Bind that evidence to a second, independent reopen
+        # here. Historical mode-less sensitivity artifacts remain diagnostic.
+        if raw_protocol_mode is not None:
+            declared_checkpoint_contract = protocol_manifest.get(
+                "checkpoint_protocol")
+            if not isinstance(declared_checkpoint_contract, dict):
+                eligibility_reasons.append(
+                    "protocol manifest lacks checkpoint_protocol contract")
+            elif declared_checkpoint_contract != expected_checkpoint_contract:
+                raise ValueError(
+                    "protocol manifest checkpoint_protocol contract mismatch")
+            actual_checkpoint_contract = {
+                "protocol_mode": metadata.get("checkpoint_protocol_mode"),
+                "protocol_stage": metadata.get("checkpoint_protocol_stage"),
+                "protocol_identity_sha256": metadata.get(
+                    "protocol_identity_sha256"),
+            }
+            if any(value is None for value in actual_checkpoint_contract.values()):
+                eligibility_reasons.append(
+                    "checkpoint config lacks explicit mode/stage/digest contract")
+            elif actual_checkpoint_contract != expected_checkpoint_contract:
+                raise ValueError(
+                    "checkpoint config mode/stage/digest disagrees with protocol "
+                    "manifest")
+        if protocol_mode == AUTHOR_FIXED_FINAL:
+            if not isinstance(protocol_payload, dict):
+                eligibility_reasons.append(
+                    "author_fixed_final lacks protocol identity payload")
+            else:
+                _verify_dataset_source_binding(
+                    protocol_payload, dataset=dataset, setting="setting1")
+                declared_environment = protocol_payload.get(
+                    "execution_environment")
+                declared_environment_sha256 = protocol_payload.get(
+                    "execution_environment_sha256")
+                try:
+                    execution_environment = verify_execution_environment(
+                        declared_environment, declared_environment_sha256)
+                except ExecutionEnvironmentError as error:
+                    eligibility_reasons.append(
+                        "execution environment attestation is missing or "
+                        f"invalid: {error}")
+                else:
+                    execution_environment_sha256 = str(
+                        declared_environment_sha256)
+                    if protocol_manifest.get("execution_environment") \
+                            != execution_environment \
+                            or protocol_manifest.get(
+                                "execution_environment_sha256") \
+                            != execution_environment_sha256:
+                        raise ValueError(
+                            "protocol manifest execution environment does not "
+                            "match its protocol identity")
+                    if metadata_error is None:
+                        try:
+                            require_exact_environment(
+                                execution_environment,
+                                execution_environment_sha256,
+                                actual=metadata.get("execution_environment"),
+                                actual_digest=metadata.get(
+                                    "execution_environment_sha256"))
+                        except ExecutionEnvironmentError as error:
+                            raise ValueError(
+                                "checkpoint execution environment disagrees "
+                                f"with protocol identity: {error}") from error
+                declared_decode_audit = protocol_payload.get(
+                    "cache_decode_failure_audit")
+                if not isinstance(declared_decode_audit, dict) \
+                        or declared_decode_audit.get("status") != "verified":
+                    decode_failure_audit = declared_decode_audit
+                    eligibility_reasons.append(
+                        "cache decode-failure audit is not verified")
+                else:
+                    decode_failure_audit = verify_cache_decode_failure_binding(
+                        protocol_payload, dataset=dataset, setting="setting1")
+                if protocol_manifest.get("cache_decode_failure_audit") \
+                        != decode_failure_audit:
+                    raise ValueError(
+                        "protocol manifest cache_decode_failure_audit does not "
+                        "match its protocol identity/current cache and split "
+                        "evidence")
+            if expected_bit != 30:
+                eligibility_reasons.append(
+                    "author_fixed_final is the D6 matched 30-bit protocol")
+            horizon = protocol_manifest.get("author_horizon")
+            if (isinstance(horizon, bool) or not isinstance(horizon, int)
+                    or horizon <= 0):
+                eligibility_reasons.append(
+                    "author_fixed_final lacks a positive author_horizon")
+            else:
+                for required_nullable in (
+                        "selection_metric", "selection_artifact",
+                        "selection_artifact_sha256", "val_seed"):
+                    if required_nullable not in protocol_manifest:
+                        eligibility_reasons.append(
+                            "author_fixed_final requires explicit null "
+                            f"{required_nullable}, not an omitted key")
+                expected_author_fields = {
+                    "checkpoint_policy": AUTHOR_CHECKPOINT_POLICY,
+                    "training_epochs": horizon,
+                    "final_epoch_zero_based": horizon - 1,
+                    "validation_selection": False,
+                    "refit_performed": False,
+                    "training_stage": "author_fixed_single_stage",
+                    "designated_train_scope": "full_designated_train",
+                    "val_seed": None,
+                    "selection_metric": None,
+                    "selection_artifact": None,
+                    "selection_artifact_sha256": None,
+                }
+                for field, expected in expected_author_fields.items():
+                    if protocol_manifest.get(field) != expected:
+                        eligibility_reasons.append(
+                            f"author_fixed_final {field} is not {expected!r}")
+                for forbidden in (
+                        "best_epoch_zero_based", "refit_epochs",
+                        "stage1_model_dir", "refit_model_dir",
+                        "refit_result_dir"):
+                    if forbidden in protocol_manifest:
+                        eligibility_reasons.append(
+                            f"author_fixed_final contains forbidden legacy field {forbidden}")
+                if isinstance(protocol_payload, dict):
+                    expected_identity = {
+                        "protocol_mode": AUTHOR_FIXED_FINAL,
+                        "trainer_protocol_stages": [
+                            AUTHOR_FIXED_SINGLE_STAGE],
+                        "final_checkpoint_protocol_stage": (
+                            AUTHOR_FIXED_SINGLE_STAGE),
+                        "checkpoint_policy": AUTHOR_CHECKPOINT_POLICY,
+                        "author_horizon": horizon,
+                        "training_epochs": horizon,
+                        "final_epoch_zero_based": horizon - 1,
+                        "validation_selection": False,
+                        "designated_train_scope": "full_designated_train",
+                        "val_seed": None,
+                        "val_ratio": 0.0,
+                        "horizon": horizon,
+                        "eval_period": horizon,
+                    }
+                    for field, expected in expected_identity.items():
+                        if protocol_payload.get(field) != expected:
+                            eligibility_reasons.append(
+                                "author_fixed_final protocol_identity."
+                                f"{field} is not {expected!r}")
+                if checkpoint is not None:
+                    expected_name = f"epoch_{horizon - 1:03d}.pth"
+                    if checkpoint.name != expected_name:
+                        eligibility_reasons.append(
+                            "author_fixed_final checkpoint is not terminal LAST "
+                            f"{expected_name}")
+                    checkpoint_set = sorted(
+                        candidate.name
+                        for candidate in checkpoint.parent.glob("epoch_*.pth"))
+                    if checkpoint_set != [expected_name]:
+                        eligibility_reasons.append(
+                            "author_fixed_final checkpoint set is not exactly "
+                            f"[{expected_name!r}]")
+        elif protocol_mode == VALIDATION_SENSITIVITY:
+            eligibility_reasons.append(
+                "validation_sensitivity selection/refit is diagnostic-only, "
+                "not the D6 paper-main protocol")
+            expected_selection_metric = (
+                f"raw_{expected_bit // 2}base_base_hamming_mAP_at_R")
+            if protocol_manifest.get("selection_metric") != expected_selection_metric:
+                eligibility_reasons.append("unexpected or missing selection metric")
+        else:
+            eligibility_reasons.append(
+                f"unknown baseline protocol_mode {protocol_mode!r}")
         declared_inputs = protocol_manifest.get("extraction_artifact_sha256")
         expected_inputs = dict(extraction_input_sha256)
         if args_path.is_file():
@@ -567,7 +810,11 @@ def _collect_provenance(
 
         selection_path_raw = protocol_manifest.get("selection_artifact")
         selection_sha_declared = protocol_manifest.get("selection_artifact_sha256")
-        if selection_path_raw is None or selection_sha_declared is None:
+        if protocol_mode == AUTHOR_FIXED_FINAL:
+            if selection_path_raw is not None or selection_sha_declared is not None:
+                eligibility_reasons.append(
+                    "author_fixed_final must not bind a selection artifact")
+        elif selection_path_raw is None or selection_sha_declared is None:
             eligibility_reasons.append("protocol manifest lacks selection artifact binding")
         else:
             assert protocol_manifest_path is not None
@@ -639,6 +886,11 @@ def _collect_provenance(
         "protocol_manifest": protocol_manifest_record,
         "protocol_artifacts": protocol_artifacts,
         "selection_artifact": selection_record,
+        "protocol_mode": protocol_mode,
+        "protocol_stage": metadata.get("checkpoint_protocol_stage"),
+        "cache_decode_failure_audit": decode_failure_audit,
+        "execution_environment": execution_environment,
+        "execution_environment_sha256": execution_environment_sha256,
         "paper_protocol_eligible": paper_protocol_eligible,
         "eligibility_reasons": eligibility_reasons,
     }
@@ -769,6 +1021,10 @@ def run_cell(
                 "source_npz_sha256": np.asarray(source["sha256"]),
                 "protocol_identity_sha256": np.asarray(
                     provenance.get("protocol_identity_sha256") or ""),
+                "protocol_mode": np.asarray(
+                    provenance.get("protocol_mode") or ""),
+                "protocol_stage": np.asarray(
+                    provenance.get("protocol_stage") or ""),
                 "protocol_manifest_sha256": np.asarray(
                     (provenance.get("protocol_manifest") or {}).get("sha256", "")),
                 "checkpoint_sha256": np.asarray(

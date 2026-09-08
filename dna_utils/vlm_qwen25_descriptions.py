@@ -1177,6 +1177,92 @@ Correct output example (uniform / unmarked bird):
 """
 
 
+# --- V8 (scope-stratified, generic natural-photo datasets) ----------------
+# The V2/V4/V5b axis set mixes three incompatible carving principles:
+#   salience rank (primary vs secondary object), predicate (activity), and
+#   attribute (colour) -- and the last two are LOGICALLY ARGUMENTS of the
+#   first. A relation cannot be stated without naming its participants and a
+#   colour cannot be stated without naming what is coloured, so V5b had to
+#   forbid object nouns inside C_activity_or_relation / C_color_texture to
+#   keep them disjoint, which strips those axes of their referents. The
+#   measured cross-slot anchor cosine (.5742-.6693) is the residue of that
+#   trade, not a prompt-tuning failure.
+#
+# V8 replaces the CATEGORY partition with a SCOPE partition of the frame:
+#   subject / periphery / ground / backdrop. Three consequences:
+#   1. No axis is an argument of another, so no forbidden-vocabulary rule is
+#      needed -- disjointness comes from the referents not overlapping.
+#   2. Attributes and actions live in the axis that OWNS them; there is no
+#      separate colour axis and no separate action axis.
+#   3. Every axis is always instantiable, because a region of the frame
+#      cannot be absent the way a category can. This is what lets V8 forbid
+#      "none" outright: a reserved ABSENT codeword would manufacture exactly
+#      the codeword collisions the DNA-unique metric is already worst at.
+# Slot 5 is intentionally unused -- the 5-slot config truncates the cached
+# text slots to positions 0-4, so no sixth sentence is generated.
+CODEBOOK_KEYS_V8: Tuple[str, ...] = (
+    "C_global",
+    "C_subject",
+    "C_periphery",
+    "C_ground",
+    "C_backdrop",
+)
+
+_PROMPT_V8 = """\
+You are a vision-language parser. Output a single JSON with five sentences.
+Four of them describe four NON-OVERLAPPING PARTS of the frame. Every visible
+pixel belongs to exactly one of C_subject, C_periphery, C_ground, C_backdrop.
+
+Parts:
+- C_subject   : the largest, sharpest, most prominent content in the frame --
+                whatever the photograph is primarily showing.
+- C_periphery : content beside or around the subject, at the frame edges or
+                at a similar distance -- companions, accessories, nearby items.
+- C_ground    : the lower region and the surface things rest on -- ground,
+                floor, road, water, table, sand, snow.
+- C_backdrop  : the upper and far region behind everything -- sky, wall,
+                distant scenery, out-of-focus background.
+- C_global    : the image as a whole -- scene category, place, time of day,
+                weather, ambient light, mood, viewpoint.
+
+Rules:
+- Describe ONLY your own part of the frame. Do not mention content that
+  belongs to another part.
+- Within your part, describe everything about it: what it is, its shape,
+  size, COLOR, MATERIAL, TEXTURE, and what it is DOING. Attributes and
+  actions belong to the part that owns them -- there is no separate colour
+  slot and no separate action slot.
+- Every part always exists, because it is a region of the frame, not a
+  category of object. If your region holds no distinct object, describe the
+  surface, material, colour or blur that occupies it. NEVER output "none",
+  and NEVER borrow content from another part.
+- Each sentence is 10-15 words, concrete and specific. No generic filler.
+- Output ONLY a single JSON object. No prose, no markdown fences.
+
+Schema:
+{
+  "codebook_texts": {
+    "C_global": "",
+    "C_subject": "",
+    "C_periphery": "",
+    "C_ground": "",
+    "C_backdrop": ""
+  }
+}
+
+Example (a cyclist on a coastal road at dusk):
+{
+  "codebook_texts": {
+    "C_global": "Dusk coastal ride, low side-on view, cool breezy autumn evening light.",
+    "C_subject": "Lone cyclist crouched low, red windbreaker taut, legs driving a black road bike.",
+    "C_periphery": "A weathered timber guardrail and two dark leaning signposts crowd the right edge.",
+    "C_ground": "Damp grey asphalt streaked with faded white paint and shallow reflective puddles.",
+    "C_backdrop": "Hazy violet sky over a soft blurred sea, thin band of amber cloud."
+  }
+}
+"""
+
+
 # ----------------------------------------------------------------- builder
 def build_qwen25_vl_generator(
     model_name: str = DEFAULT_VLM,

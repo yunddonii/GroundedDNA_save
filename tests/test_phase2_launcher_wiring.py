@@ -212,13 +212,36 @@ class CellStateProbe(unittest.TestCase):
         if source is None:
             self.skipTest("no validating cell to copy the binding from")
 
-        # The manifests carry absolute NPZ/config paths and their digests, so a
-        # copy of the small files alone is still bound to the same bytes.
+        # A valid run is relocatable only as a transaction: the NPZ must be
+        # adjacent to its manifest, the manifest must name that canonical
+        # path, and the completion marker must bind the rewritten manifest.
         cell = self.tmp / source.name
         cell.mkdir()
         for path in sorted(source.iterdir()):
             if path.is_file() and path.suffix in {".json", ".txt", ".log"}:
                 shutil.copy(path, cell / path.name)
+        from dna_utils.runtime_state import sha256_file
+        manifest_paths = {}
+        for split in ("db", "query"):
+            npz = cell / f"extract_{split}.npz"
+            shutil.copyfile(source / npz.name, npz)
+            manifest_path = cell / f"extraction_manifest_{split}.json"
+            manifest = json.loads(manifest_path.read_text())
+            manifest["npz_path"] = str(npz.resolve())
+            manifest["npz_sha256"] = sha256_file(str(npz))
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+            manifest_paths[split] = manifest_path
+        completion = {
+            "schema_version": 1,
+            "splits": sorted(manifest_paths),
+            "manifest_sha256": {
+                split: sha256_file(str(path))
+                for split, path in sorted(manifest_paths.items())
+            },
+        }
+        (cell / "extraction_complete.json").write_text(
+            json.dumps(completion, indent=2, sort_keys=True) + "\n")
         (cell / "analysis_complete.json").unlink(missing_ok=True)
 
         self.assertIsNone(

@@ -67,6 +67,15 @@ class _SigLIP2FeatureCache:
         self.provenance = require_cache_provenance(cache_dir, self.meta)
         with open(ids_p, "r") as f:
             ids = json.load(f)
+        if (
+            not isinstance(ids, list)
+            or any(not isinstance(iid, str) or not iid for iid in ids)
+            or len(set(ids)) != len(ids)
+        ):
+            raise ValueError(
+                "[siglip2-cache] image_ids.json must be a unique, non-empty "
+                "list of non-empty strings"
+            )
         self.image_ids = list(ids)
         self.id_to_row = {iid: i for i, iid in enumerate(self.image_ids)}
         # mmap_mode='r' -> file stays on disk, no full RAM load
@@ -74,6 +83,33 @@ class _SigLIP2FeatureCache:
         self.visual_global = np.load(vg_p, mmap_mode="r")
         self.text_part     = np.load(tp_p, mmap_mode="r")
         self.has_text      = np.load(ht_p, mmap_mode="r")
+        core_contract = {
+            "visual_tokens": (self.visual_tokens, np.float16, 3),
+            "visual_global": (self.visual_global, np.float16, 2),
+            "text_part": (self.text_part, np.float16, 3),
+            "has_text": (self.has_text, np.bool_, 1),
+        }
+        malformed_core = {
+            name: {"dtype": str(array.dtype), "shape": tuple(array.shape)}
+            for name, (array, dtype, rank) in core_contract.items()
+            if array.dtype != dtype or array.ndim != rank
+        }
+        if malformed_core:
+            raise ValueError(
+                "[siglip2-cache] core tensor dtype/rank contract failed: "
+                f"{malformed_core}"
+            )
+        if (
+            self.text_part.shape[1] < _GDNA_N_PARTS
+            or self.text_part.shape[2] != self.visual_global.shape[1]
+        ):
+            raise ValueError(
+                "[siglip2-cache] text_part must provide the configured slot "
+                "count and share D_proj with visual_global; got "
+                f"text_part={self.text_part.shape}, "
+                f"visual_global={self.visual_global.shape}, "
+                f"configured_slots={_GDNA_N_PARTS}"
+            )
         # Cache metadata is part of the experiment definition.  In particular,
         # historical FAIR/local-crop caches claimed a token-only intervention
         # while their generator silently replaced the full-image global with a
@@ -110,6 +146,17 @@ class _SigLIP2FeatureCache:
                 "[siglip2-cache] feature rows differ from image_ids.json: "
                 f"{bad_first_dims} vs {len(self.image_ids)}"
             )
+        declared_aug_views = None
+        if "save_aug_views" in self.meta:
+            raw_aug_views = self.meta["save_aug_views"]
+            if isinstance(raw_aug_views, bool) or not isinstance(
+                raw_aug_views, int
+            ) or raw_aug_views < 0:
+                raise ValueError(
+                    "[siglip2-cache] save_aug_views must be a non-negative "
+                    f"integer, got {raw_aug_views!r}"
+                )
+            declared_aug_views = int(raw_aug_views)
         declared_local_aug_views = None
         if (
             "local_crops_L" in self.meta or "local_crops_K" in self.meta
@@ -120,20 +167,12 @@ class _SigLIP2FeatureCache:
                     "global feature is not provenance-bound to the donor "
                     "full image; rebuild it with extract_clip_local_crops.py"
                 )
-            try:
-                declared_local_aug_views = int(
-                    self.meta.get("save_aug_views", 0)
-                )
-            except (TypeError, ValueError) as exc:
+            if declared_aug_views is None:
                 raise ValueError(
-                    "[siglip2-cache] local-crop save_aug_views must be an "
-                    "integer"
-                ) from exc
-            if declared_local_aug_views < 0:
-                raise ValueError(
-                    "[siglip2-cache] local-crop save_aug_views must be "
-                    "non-negative"
+                    "[siglip2-cache] local-crop cache must declare "
+                    "save_aug_views"
                 )
+            declared_local_aug_views = declared_aug_views
             expected_global_files = ["visual_global.f16.npy"] + [
                 f"visual_global_aug{view}.f16.npy"
                 for view in range(declared_local_aug_views)
@@ -279,9 +318,38 @@ class _SigLIP2FeatureCache:
         ttm_p = os.path.join(cache_dir, "text_token_mask.bool.npy")
         self.text_tokens = None
         self.text_token_mask = None
+        if os.path.exists(tt_p) != os.path.exists(ttm_p):
+            raise FileNotFoundError(
+                "[siglip2-cache] factual token sidecars are incomplete; "
+                "text_tokens.f16.npy and text_token_mask.bool.npy must "
+                "either both exist or both be absent."
+            )
         if os.path.exists(tt_p) and os.path.exists(ttm_p):
             self.text_tokens     = np.load(tt_p,  mmap_mode="r")        # [N, 6, T, D_proj]
             self.text_token_mask = np.load(ttm_p, mmap_mode="r")        # [N, 6, T]
+            expected_prefix = self.text_part.shape[:2]
+            if (
+                self.text_tokens.dtype != np.float16
+                or self.text_tokens.ndim != 4
+                or self.text_tokens.shape[:2] != expected_prefix
+                or self.text_tokens.shape[3] != self.text_part.shape[2]
+            ):
+                raise ValueError(
+                    "[siglip2-cache] text_tokens must be float16 "
+                    "[N, M, T, D_proj] aligned to text_part; got "
+                    f"{self.text_tokens.dtype} {self.text_tokens.shape} vs "
+                    f"{self.text_part.shape}"
+                )
+            if (
+                self.text_token_mask.dtype != np.bool_
+                or self.text_token_mask.shape != self.text_tokens.shape[:3]
+            ):
+                raise ValueError(
+                    "[siglip2-cache] text_token_mask must be bool [N, M, T] "
+                    "aligned to text_tokens; got "
+                    f"{self.text_token_mask.dtype} "
+                    f"{self.text_token_mask.shape}"
+                )
             print(f"[siglip2-cache] loaded token-level text cache from {cache_dir} "
                   f"(text_tokens {self.text_tokens.shape}).")
 
@@ -293,15 +361,23 @@ class _SigLIP2FeatureCache:
         tfi_p = os.path.join(cache_dir, "text_foil_image_ids.json")
         self.text_foil_part = None
         self.text_foil_valid = None
-        if os.path.exists(tf_p) != os.path.exists(tfv_p):
+        pooled_foil_presence = tuple(
+            os.path.exists(path) for path in (tf_p, tfv_p, tfi_p))
+        if any(pooled_foil_presence) and not all(pooled_foil_presence):
             raise FileNotFoundError(
                 "[siglip2-cache] counterfactual sidecars are incomplete; "
-                "text_foil_part.f16.npy and text_foil_valid.bool.npy must "
-                "either both exist or both be absent."
+                "text_foil_part.f16.npy, text_foil_valid.bool.npy and "
+                "text_foil_image_ids.json must either all exist or all be "
+                "absent."
             )
         if os.path.exists(tf_p):
             self.text_foil_part = np.load(tf_p, mmap_mode="r")
             self.text_foil_valid = np.load(tfv_p, mmap_mode="r")
+            if self.text_foil_part.dtype != np.float16:
+                raise TypeError(
+                    "[siglip2-cache] text_foil_part must be float16, got "
+                    f"{self.text_foil_part.dtype}"
+                )
             if self.text_foil_part.shape != self.text_part.shape:
                 raise ValueError(
                     "[siglip2-cache] text foil/factual feature shapes differ: "
@@ -321,14 +397,13 @@ class _SigLIP2FeatureCache:
                 raise ValueError(
                     "[siglip2-cache] counterfactual C_global must be invalid"
                 )
-            if os.path.exists(tfi_p):
-                with open(tfi_p, "r") as f:
-                    foil_image_ids = json.load(f)
-                if foil_image_ids != self.image_ids:
-                    raise ValueError(
-                        "[siglip2-cache] text foil row order does not match "
-                        "image_ids.json"
-                    )
+            with open(tfi_p, "r") as f:
+                foil_image_ids = json.load(f)
+            if foil_image_ids != self.image_ids:
+                raise ValueError(
+                    "[siglip2-cache] text foil row order does not match "
+                    "image_ids.json"
+                )
             print(
                 f"[siglip2-cache] loaded local counterfactual text sidecars "
                 f"from {cache_dir} (valid={int(self.text_foil_valid.sum())})."
@@ -357,6 +432,11 @@ class _SigLIP2FeatureCache:
                 )
             self.text_foil_tokens = np.load(tft_p, mmap_mode="r")
             self.text_foil_token_mask = np.load(tftm_p, mmap_mode="r")
+            if self.text_foil_tokens.dtype != np.float16:
+                raise TypeError(
+                    "[siglip2-cache] text_foil_tokens must be float16, got "
+                    f"{self.text_foil_tokens.dtype}"
+                )
             if self.text_foil_tokens.shape != self.text_tokens.shape:
                 raise ValueError(
                     "[siglip2-cache] factual/foil token shapes differ: "
@@ -409,17 +489,56 @@ class _SigLIP2FeatureCache:
         # the SigLIP2 backbone live on each augmented view at train time.
         self.visual_tokens_aug = []   # list of memmaps [N, num_patches, H_v]
         self.visual_global_aug = []   # list of memmaps [N, D_proj]
+        if declared_aug_views is not None:
+            aug_pattern = re.compile(
+                r"^visual_(tokens|global)_aug([0-9]+)\.f16\.npy$"
+            )
+            actual_aug = {"tokens": set(), "global": set()}
+            for name in os.listdir(cache_dir):
+                match = aug_pattern.fullmatch(name)
+                if match is not None:
+                    actual_aug[match.group(1)].add(int(match.group(2)))
+            expected_aug = set(range(declared_aug_views))
+            if (
+                actual_aug["tokens"] != expected_aug
+                or actual_aug["global"] != expected_aug
+            ):
+                raise ValueError(
+                    "[siglip2-cache] augmented visual files do not exactly "
+                    "match save_aug_views: "
+                    f"expected={sorted(expected_aug)}, actual={actual_aug}"
+                )
         aug_indices = (
-            range(declared_local_aug_views)
-            if declared_local_aug_views is not None else range(8)
+            range(declared_aug_views)
+            if declared_aug_views is not None else range(8)
         )
         for i in aug_indices:  # legacy caches stop at the first missing pair
             t_p = os.path.join(cache_dir, f"visual_tokens_aug{i}.f16.npy")
             g_p = os.path.join(cache_dir, f"visual_global_aug{i}.f16.npy")
             if not (os.path.exists(t_p) and os.path.exists(g_p)):
                 break
-            self.visual_tokens_aug.append(np.load(t_p, mmap_mode="r"))
-            self.visual_global_aug.append(np.load(g_p, mmap_mode="r"))
+            token_array = np.load(t_p, mmap_mode="r")
+            global_array = np.load(g_p, mmap_mode="r")
+            if (
+                token_array.dtype != np.float16
+                or token_array.shape != self.visual_tokens.shape
+            ):
+                raise ValueError(
+                    f"[siglip2-cache] visual_tokens_aug{i} must be float16 "
+                    f"{self.visual_tokens.shape}, got "
+                    f"{token_array.dtype} {token_array.shape}"
+                )
+            if (
+                global_array.dtype != np.float16
+                or global_array.shape != self.visual_global.shape
+            ):
+                raise ValueError(
+                    f"[siglip2-cache] visual_global_aug{i} must be float16 "
+                    f"{self.visual_global.shape}, got "
+                    f"{global_array.dtype} {global_array.shape}"
+                )
+            self.visual_tokens_aug.append(token_array)
+            self.visual_global_aug.append(global_array)
         if self.visual_tokens_aug:
             print(f"[siglip2-cache] loaded {len(self.visual_tokens_aug)} "
                   f"paired-aug view(s) from {cache_dir}.")
@@ -444,19 +563,19 @@ class _SigLIP2FeatureCache:
         if self.text_foil_part is not None:
             out["cached_text_foil_raw"] = torch.from_numpy(
                 np.asarray(self.text_foil_part[row_idx], dtype=np.float32)
-            )
+            )[:_GDNA_N_PARTS]
             out["cached_text_foil_valid"] = torch.from_numpy(
                 np.asarray(self.text_foil_valid[row_idx], dtype=np.bool_)
-            )
+            )[:_GDNA_N_PARTS]
         if self.text_foil_tokens is not None:
             out["cached_text_foil_tokens"] = torch.from_numpy(
                 np.asarray(self.text_foil_tokens[row_idx], dtype=np.float32)
-            )
+            )[:_GDNA_N_PARTS]
             out["cached_text_foil_token_mask"] = torch.from_numpy(
                 np.asarray(
                     self.text_foil_token_mask[row_idx], dtype=np.bool_,
                 )
-            )
+            )[:_GDNA_N_PARTS]
         # Paired-augmentation views (built by `--save_aug_views K`).
         # Exposed as cached_visual_{tokens,global}_aug{i}. Trainer can
         # use these as view-1/view-2 inputs to skip the live backbone

@@ -37,6 +37,7 @@ import csv
 import hashlib
 import json
 import os
+import re
 import sys
 import time
 from abc import ABCMeta, abstractmethod
@@ -56,6 +57,12 @@ from .cache_provenance import (
     consumed_cache_artifact_names,
     hash_cache_artifacts,
     verify_cache_artifact_hashes,
+)
+from .execution_environment import (
+    ExecutionEnvironmentError,
+    capture_child_execution_environment,
+    require_exact_environment,
+    verify_execution_environment,
 )
 from tqdm import tqdm
 
@@ -83,6 +90,86 @@ DEFAULT_CACHE_DIR: Dict[str, str] = {
     'NUSWIDE':   './cache/nuswide_siglip2',
     'CUB_200':   './cache/cub200_clip',
 }
+
+AUTHOR_FIXED_FINAL = 'author_fixed_final'
+VALIDATION_SENSITIVITY = 'validation_sensitivity'
+PROTOCOL_MODES = (AUTHOR_FIXED_FINAL, VALIDATION_SENSITIVITY)
+AUTHOR_FIXED_SINGLE_STAGE = 'author_fixed_single_stage'
+P0_STAGE1_VAL_SELECTION = 'P0_stage1_val_selection'
+P0_STAGE2_REFIT_TEST = 'P0_stage2_refit_test'
+PROTOCOL_STAGES = (
+    AUTHOR_FIXED_SINGLE_STAGE,
+    P0_STAGE1_VAL_SELECTION,
+    P0_STAGE2_REFIT_TEST,
+)
+_SHA256_RE = re.compile(r'^[0-9a-f]{64}$')
+
+
+def _resolve_protocol_stage(config: dict) -> str:
+    """Validate an orchestrated protocol contract without changing training.
+
+    Historical direct invocations did not carry an explicit mode/stage.  They
+    retain the original labels inferred from ``val_split_ratio``.  An
+    orchestrated run must provide mode, stage, and protocol digest together;
+    D6 additionally has one full-train horizon and one terminal save cadence.
+    """
+    ratio = float(config.get('val_split_ratio', 0.0) or 0.0)
+    inferred_legacy = (
+        P0_STAGE1_VAL_SELECTION if ratio > 0.0 else P0_STAGE2_REFIT_TEST)
+    mode = config.get('protocol_mode')
+    stage = config.get('protocol_stage')
+    if mode is None and stage is None:
+        return inferred_legacy
+    if mode is None or stage is None:
+        raise ValueError(
+            'orchestrated baseline protocol requires both --protocol_mode and '
+            '--protocol_stage')
+    if mode not in PROTOCOL_MODES:
+        raise ValueError(f'unknown protocol_mode={mode!r}')
+    if stage not in PROTOCOL_STAGES:
+        raise ValueError(f'unknown protocol_stage={stage!r}')
+    digest = config.get('protocol_identity_sha256')
+    if not isinstance(digest, str) or _SHA256_RE.fullmatch(digest) is None:
+        raise ValueError(
+            'orchestrated baseline protocol requires a lowercase SHA-256 '
+            '--protocol_identity_sha256')
+
+    if mode == AUTHOR_FIXED_FINAL:
+        if ratio != 0.0:
+            raise ValueError(
+                'author_fixed_final requires val_split_ratio=0.0')
+        if stage != AUTHOR_FIXED_SINGLE_STAGE:
+            raise ValueError(
+                'author_fixed_final requires '
+                f'protocol_stage={AUTHOR_FIXED_SINGLE_STAGE!r}')
+        try:
+            max_epoch = int(config['max_epoch'])
+            schedule_horizon = int(config['schedule_horizon'])
+            eval_period = int(config['eval_period'])
+        except (KeyError, TypeError, ValueError) as error:
+            raise ValueError(
+                'author_fixed_final requires integer max_epoch, '
+                'schedule_horizon, and eval_period') from error
+        if max_epoch <= 0 or schedule_horizon != max_epoch \
+                or eval_period != max_epoch:
+            raise ValueError(
+                'author_fixed_final single-stage invariant requires '
+                'max_epoch == schedule_horizon == eval_period > 0')
+        return AUTHOR_FIXED_SINGLE_STAGE
+
+    expected = inferred_legacy
+    if stage != expected:
+        raise ValueError(
+            'validation_sensitivity protocol_stage does not match '
+            f'val_split_ratio: expected {expected!r}, found {stage!r}')
+    if stage == P0_STAGE1_VAL_SELECTION and not 0.0 < ratio < 1.0:
+        raise ValueError(
+            'validation_sensitivity selection requires '
+            '0.0 < val_split_ratio < 1.0')
+    if stage == P0_STAGE2_REFIT_TEST and ratio != 0.0:
+        raise ValueError(
+            'validation_sensitivity refit requires val_split_ratio=0.0')
+    return expected
 
 
 def _sha256_file(path: str) -> str:
@@ -820,9 +907,28 @@ class DeepHashBase(metaclass=ABCMeta):
                   'orchestrating comparison driver and persisted in checkpoints.'),
         )
         g.add_argument(
+            '--protocol_mode', default=None, choices=PROTOCOL_MODES,
+            help=('Explicit orchestrator protocol. Omitted only for historical '
+                  'standalone/diagnostic invocations.'),
+        )
+        g.add_argument(
+            '--protocol_stage', default=None, choices=PROTOCOL_STAGES,
+            help=('Exact training partition/stage persisted in checkpoints and '
+                  'validated against --protocol_mode.'),
+        )
+        g.add_argument(
             '--expected_cache_artifact_sha256_json', default=None, type=str,
             help=('Canonical JSON mapping of every consumed cache .npy to its '
                   'driver-computed SHA-256.'),
+        )
+        g.add_argument(
+            '--expected_execution_environment_json', default=None, type=str,
+            help=('Canonical child execution-environment JSON sealed by the '
+                  'D6 runner and independently recomputed by this trainer.'),
+        )
+        g.add_argument(
+            '--expected_execution_environment_sha256', default=None, type=str,
+            help=('Canonical SHA-256 of --expected_execution_environment_json.'),
         )
 
         g = parser.add_argument_group(BOLD + 'Model' + END)
@@ -1069,6 +1175,41 @@ class DeepHashBase(metaclass=ABCMeta):
         self._check_required_args_not_None(config)
         self.config = config
         fix_random_seed(config['seed'])
+        # Metadata-only contract validation. Dataset loading, objective,
+        # optimizer, schedule construction, and split carving remain unchanged.
+        config['protocol_stage'] = _resolve_protocol_stage(config)
+        expected_environment_json = config.get(
+            'expected_execution_environment_json')
+        expected_environment_sha256 = config.get(
+            'expected_execution_environment_sha256')
+        if ((expected_environment_json is None)
+                != (expected_environment_sha256 is None)):
+            raise ValueError(
+                'execution environment JSON and SHA-256 must be supplied together')
+        if (config.get('protocol_mode') == AUTHOR_FIXED_FINAL
+                and expected_environment_json is None):
+            raise ValueError(
+                'author_fixed_final requires an exact child execution '
+                'environment attestation')
+        if expected_environment_json is not None:
+            try:
+                expected_environment = json.loads(
+                    str(expected_environment_json))
+                expected_environment = verify_execution_environment(
+                    expected_environment, expected_environment_sha256)
+                actual_environment, actual_environment_sha256 = (
+                    capture_child_execution_environment(
+                        expected_environment['assigned_physical_gpu']))
+                require_exact_environment(
+                    expected_environment, expected_environment_sha256,
+                    actual=actual_environment,
+                    actual_digest=actual_environment_sha256)
+            except (json.JSONDecodeError, ExecutionEnvironmentError) as error:
+                raise ValueError(
+                    f'child execution environment attestation failed: {error}') \
+                    from error
+            config['execution_environment'] = actual_environment
+            config['execution_environment_sha256'] = actual_environment_sha256
         self.model_dir    = self._make_and_register_exp_dirs('model_dir',    config['model_root'],   config['day_info'], config['trial_name'])
         self.result_dir   = self._make_and_register_exp_dirs('result_dir',   config['result_root'],  config['day_info'], config['trial_name'])
         self.compress_dir = self._make_and_register_exp_dirs('compress_dir', config['compress_root'], config['day_info'], config['trial_name'])
@@ -1136,7 +1277,6 @@ class DeepHashBase(metaclass=ABCMeta):
         else:
             config['resolved_backbone'] = 'unknown-cache-backbone'
             config['resolved_projection_dim'] = int(self.trainset.visual_global.shape[1])
-        config['protocol_stage'] = 'P0_stage1_val_selection' if _stage1 else 'P0_stage2_refit_test'
         # ---- P0 stage 1: restrict training to the optimization-train rows ----
         if _stage1:
             sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

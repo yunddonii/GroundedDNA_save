@@ -69,7 +69,7 @@ fi
 echo "[v185] GPU=$GPU cache=$CACHE bi_v=$BI_V bi_t=$BI_T tag=$TAG"
 
 CUDA_VISIBLE_DEVICES="$GPU" \
-/home/yschoi/.conda/envs/dna_hashing/bin/python train_siglip2.py \
+"${PY:-/home/yschoi/.conda/envs/dna_hashing/bin/python}" train_siglip2.py \
     --tag "$TAG" \
     --dataset Flickr25k --setting 1 \
     --dataset_dir /home/yschoi/GroundedDNA/dataset \
