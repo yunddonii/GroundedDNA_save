@@ -55,6 +55,16 @@ def _variant(payload):
 SYNTHETIC_VARIANT = "bihalf"
 
 
+def _manifest_bit(payload):
+    for field in ("bit_length", "bit"):
+        value = payload.get(field)
+        if value is not None:
+            return int(value)
+    raise AssertionError(
+        "manifest carries no bit budget; the audit would coerce the missing "
+        "value to -1 and judge the cell under a budget it never ran at")
+
+
 def _synthetic_manifest(self_digest=None):
     """A manifest built from the current tree, not from stored experiments.
 
@@ -107,6 +117,7 @@ def test_the_aggregator_gate_runs_without_stored_experiments():
     audit = _audit_implementation_fingerprints(
         _synthetic_audit_records(entry["before_sha256"]))
     assert audit.get("status") != "no_completed_cells_to_audit"
+    assert audit.get("completed_records_audited") == 1
     assert audit.get("comparison_safe") is True, audit.get(
         "historical_snapshot_current_drift_paths")
     assert not (audit.get("blocked_cells") or {})
@@ -277,14 +288,19 @@ def _audit_fixture(historical_only=True):
         key = (f"u0/{payload.get('variant')}/{payload.get('dataset')}"
                f"/30b/seed{payload.get('seed')}")
         snapshot = identity.get("implementation_sha256")
+        assert key not in records, (
+            f"duplicate coordinate {key}: a dict overwrite would hide one of "
+            "two cells claiming the same slot")
         records[key] = {
             "key": key,
             "variant": payload.get("variant"),
-            # `bit` is read directly at :1693; without it the audit raises
-            # instead of judging. `protocol_digest_sha256` is a different
-            # digest -- the fingerprint the audit groups by is
+            # `bit` is read at :1693 and coerced with int(); a missing value
+            # lands as -1 and the cell is judged under a budget it never ran
+            # at. Take the manifest's own value and fail loudly if absent
+            # rather than defaulting to 30. `protocol_digest_sha256` is a
+            # different digest -- the fingerprint the audit groups by is
             # `_implementation_fingerprint(snapshot)`.
-            "bit": int(payload.get("bit_length") or payload.get("bit") or 30),
+            "bit": _manifest_bit(payload),
             "status": "complete_main_eligible",
             "implementation_sha256": snapshot,
             "implementation_fingerprint_sha256": _implementation_fingerprint(
@@ -312,6 +328,8 @@ def test_the_aggregator_source_audit_also_clears_every_stored_cell():
     audit = _audit_implementation_fingerprints(records)
     assert audit.get("status") != "no_completed_cells_to_audit", (
         "the fixture audited nothing -- check that status starts with 'complete_'")
+    assert audit.get("completed_records_audited") == len(records) == 105, (
+        f"audited {audit.get('completed_records_audited')} of {len(records)}")
     assert audit.get("comparison_safe") is True, audit.get(
         "historical_snapshot_current_drift_paths")
     assert not (audit.get("blocked_cells") or {})
@@ -377,5 +395,39 @@ def test_the_self_transition_refuses_an_unreviewed_registry_entry(name, mutate):
         **saved, SELF_SOURCE_RELATIVE: mutate(saved[SELF_SOURCE_RELATIVE])}
     try:
         assert not _matches_canonical_source_profile(payload, _variant(payload)), name
+    finally:
+        aggregator.KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = saved
+
+
+@pytest.mark.parametrize("name,mutate", [
+    ("empty variant scope",
+     lambda e: {**e, "non_scientific_variants_by_sha256": {}}),
+    ("wrong variant scope",
+     lambda e: {**e, "non_scientific_variants_by_sha256":
+                {e["before_sha256"]: ("not-a-variant",)}}),
+    ("empty bit scope",
+     lambda e: {**e, "non_scientific_bits_by_sha256": {}}),
+    ("wrong bit scope",
+     lambda e: {**e, "non_scientific_bits_by_sha256":
+                {e["before_sha256"]: (999,)}}),
+])
+def test_the_aggregator_gate_refuses_bad_scope_without_stored_data(name, mutate):
+    """The aggregator must refuse the same scopes the launcher refuses.
+
+    Checked without stored experiments, because a scope defect that only the
+    /data host can see is a scope defect nobody sees in review.
+    """
+    import scripts.aggregate_baseline_p0_matrix as aggregator
+    from scripts.aggregate_baseline_p0_matrix import (
+        _audit_implementation_fingerprints)
+    saved = aggregator.KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS
+    records = _synthetic_audit_records(saved[SELF_SOURCE_RELATIVE][
+        "before_sha256"])
+    aggregator.KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
+        **saved, SELF_SOURCE_RELATIVE: mutate(saved[SELF_SOURCE_RELATIVE])}
+    try:
+        audit = _audit_implementation_fingerprints(records)
+        assert audit.get("comparison_safe") is False or (
+            audit.get("blocked_cells") or {}), name
     finally:
         aggregator.KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = saved
