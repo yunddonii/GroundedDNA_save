@@ -371,6 +371,16 @@ KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
             "dacee2e311061c2c877cc374418600a629cc22db5b7f5b862626bdf18d1decd7",
         ),
         "non_scientific_variants_by_sha256": {
+            # The digest all 105 completed 30-bit author_fixed_final cells
+            # recorded. 52faa66 only moved the Bi-half/NUS-WIDE adaptation from
+            # the eligibility blockers into `source_boundary_adaptations`; the
+            # branch is guarded by `variant == 'bihalf' and dataset ==
+            # 'NUSWIDE'` and refused before training, so it produced no
+            # manifest and no completed cell of ANY variant executed it --
+            # including Bi-half's own CIFAR/Flickr/MS-COCO cells.
+            "3a50232b85fe167d9e22f8ef1b7f9826531fb12639e4f4355114d86c7dfe99dd": tuple(
+                U0_VARIANTS + U2_VARIANTS + SUPERVISED_VARIANTS
+            ),
             # This snapshot predates CRH dispatch and has the stale CIBHash
             # horizon, so neither variant may inherit it.
             "9809a70fde66d473540fa11d10752a83453d60ac6bfc9b80d0490a1e7ce7eca5": tuple(
@@ -422,6 +432,12 @@ KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
             "transition adds the mode-separated D6 orchestration; historical "
             "hashes are comparable only inside validation_sensitivity because "
             "author_fixed_final admission requires the new schema and exact "
+            "provenance. 52faa66 then moves the Bi-half/NUS-WIDE adaptation "
+            "out of the eligibility blockers into a recorded "
+            "source_boundary_adaptations entry; that branch is guarded by "
+            "`variant == 'bihalf' and dataset == 'NUSWIDE'` and refused "
+            "before training, so it produced no manifest and no completed "
+            "cell of any variant ever executed it. "
             "consumed dataset-source hashes"
         ),
     },

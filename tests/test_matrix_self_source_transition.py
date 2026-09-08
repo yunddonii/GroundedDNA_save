@@ -134,3 +134,67 @@ def test_a_missing_registry_entry_fails_closed():
             entry["before_sha256"], entry["after_sha256"])
     finally:
         aggregator.KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = saved
+
+
+def _audit_fixture():
+    """Records shaped the way `_audit_implementation_fingerprints` reads them.
+
+    `status` must start with "complete_": a plain "complete" audits zero cells
+    and the function then answers `no_completed_cells_to_audit`, which reads
+    like a pass. That is how a first attempt at this fixture missed the very
+    blocking it was written to detect.
+    """
+    records = {}
+    for path in _stored_manifests():
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        identity = payload.get("protocol_identity") or {}
+        key = (f"u0/{payload.get('variant')}/{payload.get('dataset')}"
+               f"/30b/seed{payload.get('seed')}")
+        records[key] = {
+            "key": key,
+            "variant": payload.get("variant"),
+            "status": "complete_main_eligible",
+            "implementation_sha256": identity.get("implementation_sha256"),
+            "implementation_fingerprint_sha256": identity.get(
+                "protocol_digest_sha256"),
+        }
+    return records
+
+
+@pytest.mark.skipif(not _stored_manifests(),
+                    reason="stored 30-bit manifests are not on this host")
+def test_the_aggregator_source_audit_also_clears_every_stored_cell():
+    """The launcher and the aggregator are two different gates.
+
+    Registering `reviewed_sha256` and `after_sha256` made the launcher accept
+    all 105 while the aggregator still blocked all 105, because its scope map
+    demands an explicit variant list for every past mismatch digest. Only this
+    second call catches that.
+    """
+    from scripts.aggregate_baseline_p0_matrix import (
+        _audit_implementation_fingerprints)
+    records = _audit_fixture()
+    assert records, "fixture built no records"
+    audit = _audit_implementation_fingerprints(records)
+    assert audit.get("status") != "no_completed_cells_to_audit", (
+        "the fixture audited nothing -- check that status starts with 'complete_'")
+    assert audit.get("comparison_safe") is True, audit.get(
+        "historical_snapshot_current_drift_paths")
+    assert not (audit.get("blocked_cells") or {})
+
+
+@pytest.mark.skipif(not _stored_manifests(),
+                    reason="stored 30-bit manifests are not on this host")
+def test_the_aggregator_source_audit_blocks_an_unreviewed_digest():
+    from scripts.aggregate_baseline_p0_matrix import (
+        _audit_implementation_fingerprints)
+    records = _audit_fixture()
+    victim = sorted(records)[0]
+    tampered = copy.deepcopy(records)
+    tampered[victim]["implementation_sha256"] = dict(
+        tampered[victim]["implementation_sha256"])
+    tampered[victim]["implementation_sha256"][SELF_SOURCE_RELATIVE] = "f" * 64
+    audit = _audit_implementation_fingerprints(tampered)
+    assert audit.get("comparison_safe") is False or (
+        audit.get("blocked_cells") or {}), (
+        "an unreviewed digest must not clear the aggregator's source audit")
