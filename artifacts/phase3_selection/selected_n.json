@@ -1,0 +1,163 @@
+{
+  "aggregator_sha256": "1feaa90cd76077a7f53006c8905dd5db5478a700811eaf13edd9a7eaa449009e",
+  "artifact_kind": "phase3_selected_n",
+  "candidate_n": [
+    4,
+    9,
+    19,
+    39
+  ],
+  "geometry": {
+    "bases_per_slot": 3,
+    "num_slots": 5,
+    "total_bases": 15,
+    "total_bits": 30
+  },
+  "namespace": "p3gE",
+  "plan_snapshot_file": "p3gE_snapshot_9e456d0c6dfe83c9.json",
+  "plan_snapshot_sha256": "9e456d0c6dfe83c93f714462d3a23cd292cb70caf6c12ea675cdd1a053026a83",
+  "protocol_sources": {
+    "config.py": "8bc54df67e92d56387eaa40fd89b3a37feca5919b56a7e1668221c3a022cfc4e",
+    "dna_utils/run_identity.py": "a6cfe0e902e889c4ccc35ada829fbd80063811457cf04a4c06c58939ec184c9f",
+    "model_siglip2.py": "749ac1bc101b06620c0f40b42fe64b5995f653a9cb8959d9f248ee430f87fc36",
+    "scripts/phase3_selection_matrix.py": "60eaefc2b8a3997627c5ab6398c2cac6231ffb0b5dc46bbb4e977174f2fc212d",
+    "train_siglip2.py": "fe7ba262296ad87ebc8cb82f70ab2a36e40b9cd4e96a62975e856e3c5c5089b8"
+  },
+  "receipt_file": "p3gE_n_selection_complete.json",
+  "receipt_sha256": "7b047a24505355f565ec1e41a3f4d567e0fdc4e99cb925d77b02927ed836b427",
+  "recipe_authority": {
+    "artifact": {
+      "path": "/data/yschoi/gdna_p3exec_authority/phase3_recipe_stability.json",
+      "sha256": "e61748d7cf3c08dcacb91e4737b32834dfbfa42e49bfa6fd7641c0f28d774f73"
+    },
+    "choices": {
+      "cifar10": {
+        "joint": "0.02",
+        "topp": [
+          "0.3",
+          "0.7"
+        ]
+      },
+      "flickr25k": {
+        "joint": "0.02",
+        "topp": [
+          "0.6",
+          "0.95"
+        ]
+      },
+      "mscoco": {
+        "joint": "0.03",
+        "topp": [
+          "0.6",
+          "0.95"
+        ]
+      },
+      "nuswide": {
+        "joint": "0.05",
+        "topp": [
+          "0.4",
+          "0.8"
+        ]
+      }
+    },
+    "schema_version": 2
+  },
+  "record_sha256": {
+    "p3gE_cifar_A_v4_N19_s42_JD002.json": "1e6bc96b6fe3f48bc7eeeded555a93d7ab6ec0ec126a054704eca3c1c2350177",
+    "p3gE_cifar_A_v4_N39_s42_JD002.json": "83fbec21ac04046f3e8e42c099faaf1360d95d9cb88ed4dac641bc2f2d545385",
+    "p3gE_cifar_A_v4_N4_s42_JD002.json": "a15a6edaf38f65e958ad92383fbd134f5a8c356b83a8f72c27dbee1169a6832b",
+    "p3gE_cifar_A_v4_N9_s42_JD002.json": "fbea5a9df04941593a781d3a5222022691778cbf910edef5679a6afe22cf8295",
+    "p3gE_flickr_A_v4_N19_s42_P06095_JD002.json": "217441c787a3e6dac2185cbe5d797f7fa6ce8c9fbd1e4e4bce065c6c06d98df9",
+    "p3gE_flickr_A_v4_N39_s42_P06095_JD002.json": "9ce74016065a6a944bebbbcd8115bb9425b6ff057fa23e4a6c1c015935254c1d",
+    "p3gE_flickr_A_v4_N4_s42_P06095_JD002.json": "5ac7b57d0f6d7482e9d9e5cdb84510b282c2294466aa6af7904353409a0972b0",
+    "p3gE_flickr_A_v4_N9_s42_P06095_JD002.json": "41993a28ae2af4453eddf803d7d185b317d8516c170e00671fba412cd4f1f719",
+    "p3gE_mscoco_A_v5b_N19_s42_P06095_JD003.json": "92beb8ef96440134eaac57fffc0ef961cfc360f9c9eb75298ff64e40cbf655e6",
+    "p3gE_mscoco_A_v5b_N39_s42_P06095_JD003.json": "5e0334941bddd4c2b1837e56fcc399f25897c05a9f58a9dee18195ef63208020",
+    "p3gE_mscoco_A_v5b_N4_s42_P06095_JD003.json": "b74653652ee10d36d4a586a38f36e3b4a72275144482bd1f02b2256ab16dda00",
+    "p3gE_mscoco_A_v5b_N9_s42_P06095_JD003.json": "b7bbf3d618ed3b2eda00d65200a3219e8d9b0b56f9945c4727408ee2ae5a4d03",
+    "p3gE_nuswide_A_v4_N19_s42_P0408_JD005.json": "fad2dae9960e46c73b5c89e2298c5ad025d2ab6fe41a7b366a5d3457b34a0000",
+    "p3gE_nuswide_A_v4_N39_s42_P0408_JD005.json": "2dc9f2097e35ab04180f456e13543457ab21c0d8fbe4e0ff460d73a9fd3b4cfa",
+    "p3gE_nuswide_A_v4_N4_s42_P0408_JD005.json": "d35b2b0053a1d92e29f07e54b5c14f8441297bb17b2b88338d4e86717781d26a",
+    "p3gE_nuswide_A_v4_N9_s42_P0408_JD005.json": "81ac9a6d707f945fc1fd9c46794c5cc9f7d40acc8c444167705ec4e4d8dcafd6"
+  },
+  "records_dir": "/data/yschoi/gdna_p3exec/artifacts/phase3_selection",
+  "reduction": {
+    "candidate_epoch": "own_terminal_epoch",
+    "candidate_n": [
+      4,
+      9,
+      19,
+      39
+    ],
+    "distance": "base_hamming",
+    "metric": "eval_mAP_at_R",
+    "seed": 42,
+    "split": "train_only_validation",
+    "tie_break": "smallest_N"
+  },
+  "schema_version": 3,
+  "seed": 42,
+  "selected": {
+    "cifar10": {
+      "all_candidates": {
+        "19": 0.8770506966769467,
+        "39": 0.8260349940495969,
+        "4": 0.8446358653517364,
+        "9": 0.8525742638196622
+      },
+      "selected_N": 19,
+      "selection_value": 0.8770506966769467,
+      "tie_broken_by_smallest_N": false,
+      "tied_with": [
+        19
+      ]
+    },
+    "flickr25k": {
+      "all_candidates": {
+        "19": 0.7235810342489729,
+        "39": 0.7192415325049387,
+        "4": 0.7635532117270416,
+        "9": 0.725404271429461
+      },
+      "selected_N": 4,
+      "selection_value": 0.7635532117270416,
+      "tie_broken_by_smallest_N": false,
+      "tied_with": [
+        4
+      ]
+    },
+    "mscoco": {
+      "all_candidates": {
+        "19": 0.6312529236911008,
+        "39": 0.6501403165123075,
+        "4": 0.6250243251026066,
+        "9": 0.644073758295244
+      },
+      "selected_N": 39,
+      "selection_value": 0.6501403165123075,
+      "tie_broken_by_smallest_N": false,
+      "tied_with": [
+        39
+      ]
+    },
+    "nuswide": {
+      "all_candidates": {
+        "19": 0.7114927747381627,
+        "39": 0.7000465528073472,
+        "4": 0.7430284798444635,
+        "9": 0.7286354731470754
+      },
+      "selected_N": 4,
+      "selection_value": 0.7430284798444635,
+      "tie_broken_by_smallest_N": false,
+      "tied_with": [
+        4
+      ]
+    }
+  },
+  "selection_distance": "base_hamming",
+  "selection_metric": "eval_mAP_at_R",
+  "val_split_ratio": 0.1,
+  "val_split_seed": 42,
+  "what_this_is": "D1's (N) choice per dataset: argmax of the raw base-Hamming mAP@R at each candidate's own terminal epoch, ties to the smallest N. The chosen N is reused unchanged for seeds 42, 43 and 44."
+}
