@@ -324,6 +324,18 @@ KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
             "e412ea8e48b7075be6b26351e48a9050234716129706f871fbece900dc277091",
             "cccd1a307a04f3ca63b9cdf2eac735e1fcfc2ed6096c90a3fa2b361f520cfbe6",
             "ad7b73f3124ffbeedfa115650c7d804d964a191bf125c6b2b3cc7abfbe15fd54",
+            # 2026-09-08: the Bi-half/NUS-WIDE pair stops being an eligibility
+            # blocker and becomes a recorded `source_boundary_adaptations`
+            # entry. Master audit :442 already settled that this pair runs the
+            # paper/Flickr profile with its source boundary disclosed in the
+            # table and the text; treating the same adaptation as a blocker
+            # refused the cell before training, which made the 108-cell
+            # expected matrix unreachable and `--require-paper-eligible`
+            # permanently false. The removed branch only ever executed for
+            # (bihalf, NUSWIDE) -- three cells that never produced a manifest --
+            # so every other (variant, dataset) code path is byte-semantically
+            # unchanged, and the nine existing Bi-half cells never entered it.
+            "dacee2e311061c2c877cc374418600a629cc22db5b7f5b862626bdf18d1decd7",
         ),
         "non_scientific_variants_by_sha256": {
             # This snapshot predates CRH dispatch and has the stale CIBHash

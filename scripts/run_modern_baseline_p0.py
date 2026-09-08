@@ -1162,8 +1162,17 @@ def main() -> int:
     input_eligibility_blockers = [
         *cache_audit['eligibility_blockers'], *semantic_blockers,
     ]
+    #: Master audit :442 already settled this pair: the public Bi-half release
+    #: has no NUS-WIDE trainer, so NUS-WIDE runs the paper/Flickr profile and
+    #: the source boundary is DISCLOSED in the table and the text. Treating the
+    #: same adaptation as an eligibility blocker refused the cell before
+    #: training and made the 108-cell expected matrix unreachable, so
+    #: `--require-paper-eligible` could never pass. The adaptation is recorded
+    #: as a source boundary instead -- visible in every manifest, and named in
+    #: the paper -- rather than silently run or silently refused.
+    source_boundary_adaptations: list[str] = []
     if args.variant == 'bihalf' and args.dataset == 'NUSWIDE':
-        input_eligibility_blockers.append(
+        source_boundary_adaptations.append(
             'bihalf_public_release_has_no_nuswide_training_script; '
             'paper_flickr_profile_adapter')
     if args.skip_bio_projection:
@@ -1413,6 +1422,7 @@ def main() -> int:
         "main_protocol_eligible": main_protocol_eligible,
         "protocol_deviations": protocol_deviations,
         "main_eligibility_blockers": eligibility_blockers,
+        "source_boundary_adaptations": source_boundary_adaptations,
         "published_table_reproduction_eligible": False,
         "matched_comparison_core_status": (
             "released-objective adapter; noun selection unverified"
