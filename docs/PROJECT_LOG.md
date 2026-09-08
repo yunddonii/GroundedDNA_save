@@ -487,6 +487,125 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-08 Phase 3 ②③ — the fixed point is sealed, and the N the user's rule asks for cannot be delivered by the sealed path
+
+🟢 active. Read this together with the 2026-09-07 entry below; this one records
+what completed after that entry's "Current position" was written, and one
+structural finding that changes what Phase 3 can produce.
+
+### What completed
+
+| stage | result | wall |
+|---|---|---:|
+| C′ repair chain, 68 cells | 68/68 **bit-identical** to the originals | 429 min |
+| fixed-point seal `phase3_recipe_stability.json` | 3 verifications passed | 11.5 min |
+| ② production N `p3gE`, 16 cells under the seal | 16/16 bit-identical to `p3gB` | 72 min |
+| ③ reduction → `selected_n.json` | verified, `recipe_authority` present | ~2 min |
+
+Cumulative reproduction across the campaign is **84/84 coordinates bit-identical**
+at different HEADs, nonces, namespaces and authority kinds, weight tensors
+included. `confirmed=True`, update rounds 1 of 3.
+
+```
+selected_n.json  sha256 2bf6133d…  namespace p3gE
+selected  {cifar10: 19, flickr25k: 4, mscoco: 39, nuswide: 4}
+```
+
+The seal's real work is 11.5 min, not the 151 min its tmux record shows:
+`seal_after_chain.sh` blocks on two wait loops (`rerun_cjoint2.status`, then
+`p3gD`'s trainers) before doing anything, and that 140 min is campaign time
+already counted elsewhere. Anyone costing this chain from `TMUX_RUN_SECONDS`
+will double-count it.
+
+### The finding: the D1-bis override artifact cannot exist
+
+The user fixed rule **D1-bis** on 2026-09-07 17:20, before results were visible:
+among the two N with the best held-out-validation codon decoding, take the one
+with higher retrieval; CIFAR excluded per draft §4.7c. On flickr that rule gives
+**N=19**; the tool's retrieval argmax gives **N=4**.
+
+The plan was an override artifact passed to `--refit --selection <path>`. **It
+cannot work, for two independent reasons.** `--selection` does accept an
+arbitrary path, but the file passes through `verify_selection_artifact`
+(`scripts/phase3_select_n.py:2100`):
+
+```python
+recomputed = choose(matrix["cells"])                      # :2141
+if payload.get("selected") != recomputed:                 # :2142
+    raise SelectionRefused("selected N is not raw terminal mAP@R argmax
+                            with the smallest-N tie-break over its sealed 16 records")
+...
+return {"selected_n": {ds: e["selected_N"] for ds, e in sorted(recomputed.items())}, ...}  # :2154
+```
+
+`:2142` refuses any payload differing from the recomputed argmax, and `:2154`
+returns **`recomputed`**, not the payload — so even a file that passed would hand
+the refit flickr 4. `choose()` takes no arguments and `N_SELECTION_REDUCTION` is
+a module constant the verifier requires to match exactly. There is no knob.
+
+Verified by execution against the real artifact, with a positive control so the
+probe could not pass vacuously:
+
+```
+payload == recomputed              : True    ← the genuine artifact passes
+OVERRIDE(flickr 19) == recomputed  : False   → :2142 SelectionRefused
+_load_selection would return       : {cifar10: 19, flickr25k: 4, mscoco: 39, nuswide: 4}
+```
+
+Editing the reducer to implement D1-bis is also closed: **`scripts/phase3_select_n.py`
+is one of the sealed 47 `sources`** (confirmed in 5/5 `p3g*` snapshots), so
+changing it fails every snapshot's source gate and invalidates
+`phase3_recipe_stability.json` as well. `scripts/ablation_campaign_plan.py`, by
+contrast, is **not** in the 47 and can be edited freely — the same-looking
+situation with the opposite answer, which is why membership is checked before
+any such edit is proposed.
+
+### Three ways to honour D1-bis, with measured costs
+
+Per-cell times measured from the `p3gE` records (increments linear in epochs,
+0.70 min/epoch; mscoco N=39 ≈ 30–33 min, and mscoco is the sole critical path
+because refit runs 3 seeds sequentially per dataset):
+
+| | flickr N | what runs | cost |
+|---|---:|---|---:|
+| **A** keep the sealed rule | 4 | ④ refit 12 cells | ~1.8 h |
+| **B** D1-bis reducer + full re-seal | **19** | 8 campaigns 943 m + seal 11.5 m + prod-N 72 m + refit 105 m | **~19 h** |
+| **C** flickr via the fixedN wrapper | **19** | 3 cells + ④ refit | ~2.5 h |
+
+B makes D1-bis the sealed rule itself, so N=19 becomes an output rather than an
+override, and every reported number sits under one mechanism. C reaches the same
+N in a tenth of the time but produces flickr's row outside the sealed refit
+campaign, which must then be stated in the paper. The *rule* stays single in
+both — D1-bis applies uniformly to all four datasets and merely coincides with
+the retrieval argmax on three; what differs is the evidence chain. **Not decided;
+this is a user decision and nothing has been run on it.**
+
+### Defect fixed: a stale `selected_n.json` in the main tree
+
+The main tree carried a pre-fixed-point `selected_n.json` saying **cifar10 N=39**
+against the fixed point's **19**. It was the more dangerous of the two schema
+states present: the ablation planner's schema gate *passes* on it
+(`schema_version 1 == _SELECTION_SCHEMA 1`), and only the `aggregator_sha256`
+check at `scripts/ablation_campaign_plan.py:192-196` stood between it and 24 GPU
+cells planned at the wrong N. Renamed to
+`selected_n.superseded_pre_fixedpoint.json` (`129dd75`); the planner now refuses
+with "does not exist", verified.
+
+The general lesson, since it recurs: **a `file:line = value` claim is scoped to
+one worktree.** The same constant reads 2 in the main tree and 3 in `gdna_p3exec`.
+When a guard refuses, the tree to inspect is the one where it *passes* — a
+refusal is fail-closed.
+
+### Not decided / not citable
+
+- flickr's N, hence the whole ④ refit, hence every official-test number.
+- `_SELECTION_SCHEMA` in the ablation planner: correct value is 2 or 3 depending
+  on which tree P1 runs in. Deliberately left alone rather than hardcoded again;
+  it should be derived from the `phase3_select_n.py` the planner already
+  authenticates by hash.
+
+---
+
 ## 2026-09-07 Phase 3 — the recipe/N selection chain, end to end
 
 🟢 active. This entry is written to stand alone: a session that reads only this
