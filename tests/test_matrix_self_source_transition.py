@@ -34,6 +34,7 @@ from scripts.run_baseline_p0_matrix import (  # noqa: E402
 )
 from scripts.aggregate_baseline_p0_matrix import (  # noqa: E402
     KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS as REGISTRY,
+    _implementation_fingerprint,
 )
 
 RESULT_ROOT = pathlib.Path(
@@ -75,7 +76,49 @@ def _synthetic_manifest(self_digest=None):
     if self_digest is not None:
         snapshot[SELF_SOURCE_RELATIVE] = self_digest
     return {"variant": SYNTHETIC_VARIANT,
+            "bit_length": 30,
             "protocol_identity": {"implementation_sha256": snapshot}}
+
+
+def _synthetic_audit_records(self_digest):
+    """One `complete_*` record built from the synthetic snapshot.
+
+    Lets the aggregator's own gate be exercised with no experiment artifacts,
+    so its behaviour is not left to a host that happens to hold /data.
+    """
+    payload = _synthetic_manifest(self_digest=self_digest)
+    snapshot = payload["protocol_identity"]["implementation_sha256"]
+    key = f"u0/{SYNTHETIC_VARIANT}/Flickr25k/30b/seed42"
+    return {key: {
+        "key": key,
+        "variant": SYNTHETIC_VARIANT,
+        "bit": 30,
+        "status": "complete_main_eligible",
+        "implementation_sha256": snapshot,
+        "implementation_fingerprint_sha256": _implementation_fingerprint(
+            snapshot),
+    }}
+
+
+def test_the_aggregator_gate_runs_without_stored_experiments():
+    from scripts.aggregate_baseline_p0_matrix import (
+        _audit_implementation_fingerprints)
+    entry = REGISTRY[SELF_SOURCE_RELATIVE]
+    audit = _audit_implementation_fingerprints(
+        _synthetic_audit_records(entry["before_sha256"]))
+    assert audit.get("status") != "no_completed_cells_to_audit"
+    assert audit.get("comparison_safe") is True, audit.get(
+        "historical_snapshot_current_drift_paths")
+    assert not (audit.get("blocked_cells") or {})
+
+
+def test_the_aggregator_gate_refuses_an_unknown_digest_without_stored_data():
+    from scripts.aggregate_baseline_p0_matrix import (
+        _audit_implementation_fingerprints)
+    audit = _audit_implementation_fingerprints(
+        _synthetic_audit_records("f" * 64))
+    assert audit.get("comparison_safe") is False or (
+        audit.get("blocked_cells") or {})
 
 
 def test_the_synthetic_fixture_is_accepted_when_untampered():
@@ -223,13 +266,19 @@ def _audit_fixture():
         identity = payload.get("protocol_identity") or {}
         key = (f"u0/{payload.get('variant')}/{payload.get('dataset')}"
                f"/30b/seed{payload.get('seed')}")
+        snapshot = identity.get("implementation_sha256")
         records[key] = {
             "key": key,
             "variant": payload.get("variant"),
+            # `bit` is read directly at :1693; without it the audit raises
+            # instead of judging. `protocol_digest_sha256` is a different
+            # digest -- the fingerprint the audit groups by is
+            # `_implementation_fingerprint(snapshot)`.
+            "bit": int(payload.get("bit_length") or payload.get("bit") or 30),
             "status": "complete_main_eligible",
-            "implementation_sha256": identity.get("implementation_sha256"),
-            "implementation_fingerprint_sha256": identity.get(
-                "protocol_digest_sha256"),
+            "implementation_sha256": snapshot,
+            "implementation_fingerprint_sha256": _implementation_fingerprint(
+                snapshot),
         }
     return records
 
@@ -247,7 +296,8 @@ def test_the_aggregator_source_audit_also_clears_every_stored_cell():
     from scripts.aggregate_baseline_p0_matrix import (
         _audit_implementation_fingerprints)
     records = _audit_fixture()
-    assert records, "fixture built no records"
+    assert len(records) == 105, (
+        f"expected the 105 stored 30-bit cells, built {len(records)}")
     audit = _audit_implementation_fingerprints(records)
     assert audit.get("status") != "no_completed_cells_to_audit", (
         "the fixture audited nothing -- check that status starts with 'complete_'")
