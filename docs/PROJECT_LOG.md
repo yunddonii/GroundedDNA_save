@@ -487,6 +487,125 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-08 Phase 4 — the D6 baseline matrix is complete: 105 cells, 35 of 36 table cells, one deliberate gap
+
+🟢 complete. This is the first baseline panel that matches the paper's own
+geometry (5 slots / 15 bases / 30 bits) on a provenance-strict cache. Every
+earlier baseline table in this repository is 36- or 48-bit and `†`
+diagnostic-only.
+
+### What ran
+
+```
+tmux p4base   worktree /data/yschoi/gdna_p4baseline @ c0b2729 (detached)
+09:44:54 -> 15:53:58   6.15 h on GPUs 4,5 only
+108 scheduled · 104 completed · 4 failed
+resume (1 cell, attempt_002)  15:59 -> 16:05  rc=0
+final: 105 complete · 105 main_protocol_eligible · 105 paper_table_eligible
+       0 invalid · 0 duplicate · 0 malformed · 0 extraneous · 0 implementation-blocked
+```
+
+9 U0 variants × 4 datasets × 3 seeds `{42,43,44}` × 30 bit,
+`--protocol-mode author_fixed_final`, cache `groundeddna_cache_v6prov`,
+per-cell mandatory DP projection (`gc 0.4/0.6`, `max_run 3`, `L 15` → GC count
+`[6,9]`), `post_compliance 1.0`, `projection_failures 0`.
+
+### Results — post-projection base-Hamming mAP@R, mean<sub>±sd</sub> over 3 seeds
+
+| Method | CIFAR-10 @1000 | Flickr25K @5000 | NUS-WIDE @5000 | MS-COCO @5000 |
+|---|---:|---:|---:|---:|
+| CIBHash | 0.8164<sub>±0.0056</sub> | 0.7242<sub>±0.0039</sub> | 0.7449<sub>±0.0085</sub> | 0.7692<sub>±0.0076</sub> |
+| CIMON | 0.8746<sub>±0.0055</sub> | 0.8141<sub>±0.0034</sub> | 0.7980<sub>±0.0046</sub> | 0.6845<sub>±0.0012</sub> |
+| MLS³RDUH | 0.6226<sub>±0.0396</sub> | 0.7507<sub>±0.0081</sub> | 0.7590<sub>±0.0026</sub> | 0.6301<sub>±0.0061</sub> |
+| GreedyHash-UGH | 0.1059<sub>±0.0000</sub> ✗ | 0.6484<sub>±0.0062</sub> | 0.6504<sub>±0.0146</sub> | 0.5621<sub>±0.0060</sub> |
+| Bi-half | 0.7598<sub>±0.0023</sub> | 0.8158<sub>±0.0119</sub> | **-** | 0.7191<sub>±0.0037</sub> |
+| SDC-paper | 0.7856<sub>±0.0095</sub> | 0.7267<sub>±0.0034</sub> | 0.7692<sub>±0.0031</sub> | 0.8114<sub>±0.0031</sub> |
+| OH | 0.8665<sub>±0.0096</sub> | **0.8366<sub>±0.0057</sub>** | **0.8053<sub>±0.0019</sub>** | 0.7653<sub>±0.0103</sub> |
+| HHCH | 0.2794<sub>±0.0833</sub> | 0.6144<sub>±0.0218</sub> | 0.3844<sub>±0.0217</sub> | 0.4102<sub>±0.0126</sub> |
+| CroVCA | **0.8916<sub>±0.0065</sub>** | 0.7715<sub>±0.0017</sub> | 0.8002<sub>±0.0041</sub> | **0.8146<sub>±0.0159</sub>** |
+
+Strongest baseline per dataset: CIFAR-10 CroVCA `.8916`, Flickr25K OH `.8366`,
+NUS-WIDE OH `.8053`, MS-COCO CroVCA `.8146`. **GroundedDNA's own row cannot be
+filled yet** — ④ refit is the only stage that evaluates the official test split
+and has never run, so no comparison or Δ exists.
+
+### Two cells that must not be read as numbers
+
+**Bi-half / NUS-WIDE `-` is a refusal.** The public release ships no NUS-WIDE
+trainer; the cell would need the Flickr profile as an adapter, and
+`run_modern_baseline_p0.py:1165` blocks that from the main comparison. All three
+seeds refuse *before* training, so they cost seconds. Filling this cell would be
+the protocol violation. Note this contradicts draft `:869`, which planned to
+"apply the Flickr profile and mark it as an adaptation"; `:908` ("full run `-`")
+is what the code does.
+
+**GreedyHash / CIFAR-10 `✗` is collapse, not weakness.** `dna_unique = 0.000017`
+— one distinct code for all 59,000 database images, identical across three
+seeds; `0.1059` is the class prior. The 36-/48-bit tables show `0.1546`/`0.2379`
+with no such collapse, so it is specific to the 30-bit budget.
+
+Database code diversity generally (post-projection `dna_unique`, DB split):
+
+| | CIFAR-10 | Flickr25K | NUS-WIDE | MS-COCO |
+|---|---:|---:|---:|---:|
+| CIBHash | 0.642 | 0.933 | 0.665 | 0.588 |
+| CIMON | 0.149 | 0.699 | 0.370 | 0.335 |
+| MLS³RDUH | 0.012 | 0.618 | 0.498 | 0.449 |
+| GreedyHash-UGH | **0.000017** | 0.225 | 0.098 | 0.120 |
+| Bi-half | 0.081 | 0.489 | - | 0.174 |
+| SDC-paper | 0.848 | 0.918 | 0.611 | 0.476 |
+| OH | 0.082 | 0.512 | 0.236 | 0.217 |
+| HHCH | 0.001 | 0.021 | 0.003 | 0.004 |
+| CroVCA | 0.268 | 0.866 | 0.551 | 0.372 |
+
+HHCH's `0.001`–`0.021` explains its mAP@R directly. All ratios are on the
+**database** split (107,218 MS-COCO / 59,000 CIFAR-10), never on query.
+
+### Completion criterion, declared before results
+
+`--require-paper-eligible` cannot pass here and its exit code is not the test.
+`_expected_keys` builds an unconditional 9×4×3 = 108 rectangle with no mechanism
+to exclude a (variant, dataset) pair, while the runner refuses 3 of those cells
+by design, so the two disagree permanently. The verdict is per table cell:
+
+```
+(1) cells                        36        declared 36        OK
+(2) complete_paper_table_eligible 35        declared 35        OK
+(3) missing                       exactly [(bihalf, NUSWIDE)]  OK
+(4) eligible cells with 3 seeds   35 / 35                      OK
+    other statuses                none                         OK
+```
+
+The aggregator was deliberately **not** modified to make the gate pass; that
+would have meant editing the expected matrix to accept fewer cells.
+
+### Defects found and fixed
+
+1. **A worktree symlink defeated a provenance guard.** The fresh worktree had no
+   untracked data, so the dataset was symlinked from the main tree.
+   `_verify_dataset_source_binding` resolves paths and requires containment, so
+   CIFAR-10 — the only dataset that binds raw pickle batches rather than tracked
+   `setting1/*.txt` — failed *after* a full cell of training. Fixed by copying
+   the 178 MB of batches in as real files (hashes verified byte-identical to the
+   main tree), never by relaxing the guard. Cost: 1 cell, recovered as
+   `attempt_002`.
+2. **A stale `selected_n.json` in the main tree** said cifar10 N=39 against the
+   fixed point's 19, and the ablation planner's schema gate *passed* on it.
+   Retired to `selected_n.superseded_pre_fixedpoint.json` (`129dd75`).
+
+### Verified before publishing the numbers
+
+All 23 sealed source paths recorded in the 104 run manifests have exactly one
+distinct hash each, all matching the current worktree — **the source did not
+change during the 6.2-hour run**, so the cells are mutually comparable. Nothing
+else was edited in that worktree while it ran.
+
+Artifacts: `docs/baseline_p0_matrix_seeds42-43-44_author_fixed_30b.json` and
+`.md` are the numeric source of truth; the tables above are rendered from that
+one file rather than transcribed.
+
+---
+
 ## 2026-09-08 Phase 3 ②③ — the fixed point is sealed, and the N the user's rule asks for cannot be delivered by the sealed path
 
 🟢 active. Read this together with the 2026-09-07 entry below; this one records

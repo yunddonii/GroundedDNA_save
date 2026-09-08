@@ -1128,6 +1128,55 @@ Hashing은 loss가 45까지 계속 내려가는 동안 test mAP는 10 epoch 이�
 모든 행이 seeds `{42,43,44}` **평균<sub>±표본표준편차</sub>**다. 지표는 공통 DP 투영 후의
 base-Hamming mAP@R(bio-projected)이며 baseline도 동일 지표다.
 
+#### baseline 행 — D6 `author_fixed_final`, 15 base(30 bit), 확정 (2026-09-08)
+
+**아래 baseline 수치가 현재 확정본이다.** 논문 본문의 5 slot / 15 base / 30 bit
+기하와 일치하는 유일한 패널이고, provenance-strict 캐시
+(`groundeddna_cache_v6prov`)에서 3 seed로 실행됐다. 완료 105셀 전량이
+`main_protocol_eligible`이며 blocker·deviation 0이다. 원본:
+`docs/baseline_p0_matrix_seeds42-43-44_author_fixed_30b.json`.
+
+| Method | CIFAR-10 | Flickr25K | NUS-WIDE | MS-COCO |
+|---|---:|---:|---:|---:|
+| CIBHash | 0.8164<sub>±0.0056</sub> | 0.7242<sub>±0.0039</sub> | 0.7449<sub>±0.0085</sub> | 0.7692<sub>±0.0076</sub> |
+| CIMON | 0.8746<sub>±0.0055</sub> | 0.8141<sub>±0.0034</sub> | 0.7980<sub>±0.0046</sub> | 0.6845<sub>±0.0012</sub> |
+| MLS³RDUH | 0.6226<sub>±0.0396</sub> | 0.7507<sub>±0.0081</sub> | 0.7590<sub>±0.0026</sub> | 0.6301<sub>±0.0061</sub> |
+| GreedyHash-UGH | 0.1059<sub>±0.0000</sub> ✗ | 0.6484<sub>±0.0062</sub> | 0.6504<sub>±0.0146</sub> | 0.5621<sub>±0.0060</sub> |
+| Bi-half | 0.7598<sub>±0.0023</sub> | 0.8158<sub>±0.0119</sub> | **-** | 0.7191<sub>±0.0037</sub> |
+| SDC-paper | 0.7856<sub>±0.0095</sub> | 0.7267<sub>±0.0034</sub> | 0.7692<sub>±0.0031</sub> | 0.8114<sub>±0.0031</sub> |
+| OH | 0.8665<sub>±0.0096</sub> | **0.8366<sub>±0.0057</sub>** | **0.8053<sub>±0.0019</sub>** | 0.7653<sub>±0.0103</sub> |
+| HHCH | 0.2794<sub>±0.0833</sub> | 0.6144<sub>±0.0218</sub> | 0.3844<sub>±0.0217</sub> | 0.4102<sub>±0.0126</sub> |
+| CroVCA | **0.8916<sub>±0.0065</sub>** | 0.7715<sub>±0.0017</sub> | 0.8002<sub>±0.0041</sub> | **0.8146<sub>±0.0159</sub>** |
+| 최강 BL | CroVCA .8916 | OH .8366 | OH .8053 | CroVCA .8146 |
+| **GroundedDNA** | *(④ refit 대기)* | *(④ refit 대기)* | *(④ refit 대기)* | *(④ refit 대기)* |
+
+**`-` (Bi-half / NUS-WIDE)는 미실행이 아니라 거부다.** 공개 릴리스에 NUS-WIDE
+학습 스크립트가 없어 Flickr 프로필을 어댑터로 써야 하는데,
+`run_modern_baseline_p0.py:1165`가 그 구성의 main 진입을 차단한다(3 seed 전부
+학습 전 거부). 이 칸이 채워지면 오히려 프로토콜 위반이다. exact DUH-EG의 공백과
+같은 계열이며, 프로토콜이 뒷받침하지 못하는 수치를 만들어 내길 거부한 결과다.
+
+**`✗` (GreedyHash / CIFAR-10)는 낮은 성능이 아니라 붕괴다.** database 59,000장
+전체가 **하나의 코드**로 축약된다(`dna_unique = 0.000017`, 3 seed 동일).
+0.1059는 CIFAR-10의 class prior에 해당하므로 이 예산에서 동작하는 baseline으로
+읽어서는 안 된다. 36/48 bit에서는 이 붕괴가 나타나지 않아(`0.1546`/`0.2379`)
+30 bit 예산에 특유한 현상이다.
+
+HHCH의 낮은 수치도 code diversity로 설명된다 — database `dna_unique`가
+`0.001`(CIFAR-10)~`0.021`(Flickr25K)로, 서로 다른 코드를 거의 만들지 못한다.
+모든 unique 비율은 **database split**(MS-COCO 107,218 / CIFAR-10 59,000)에서
+계산했고 query split은 쓰지 않았다.
+
+**GroundedDNA 행과 `Δ vs 최강 BL`은 ④ refit 완료 후에 채운다.** ④가 공식 test를
+평가하는 유일한 단계이므로 현재 우리 모델의 test 수치는 존재하지 않는다. 확정된
+baseline 수치와 다른 실행에서 나온 옛 수치를 같은 표에 섞지 않는다.
+
+#### (구) legacy-cache 표 — baseline 행은 위 표로 대체됨
+
+아래 표의 baseline 행은 legacy 캐시 기반이며 위 D6 패널로 대체된다. ④ 완료 시
+GroundedDNA 행과 함께 하나의 표로 통합한다. 특히 아래 `Bi-half`의 NUS-WIDE
+`0.7532`는 Flickr 프로필 어댑터로 만든 값이라 D6에서는 재현되지 않는다.
+
 | Method | CIFAR-10 | Flickr25K | NUS-WIDE | MS-COCO |
 |---|---:|---:|---:|---:|
 | CIBHash | 0.8677<sub>±0.0028</sub> | 0.7915<sub>±0.0021</sub> | 0.7977<sub>±0.0016</sub> | 0.7949<sub>±0.0025</sub> |

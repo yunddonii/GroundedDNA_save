@@ -291,6 +291,46 @@ the unchanged official 80-mer predictor and is therefore an 80-to-24-nt
 length-transfer adaptation, not a physically recalibrated PRIMO-24
 reproduction.
 
+## 15-base (30-bit) panel — computed, but ineligible
+
+**The paper's main panel is 15 bases / 30 bits, and these direct-predecessor
+baselines have no admissible result at that length.** Only 18-base and 24-base
+matrices are sealed above.
+
+This is not an unfinished run. Measured 2026-09-08 at
+`/data/yschoi/groundeddna_native_p0_15base_attempt_20260813T181511/runs`:
+
+```
+manifests            48
+base_length          15   (48/48)
+methods              bee2018 12 · bee2021 12 · koike2024 12 · koike2026 12
+cells carrying metrics   48 / 48        <- the computation finished
+main_protocol_eligible   False 48/48
+blockers   legacy_cache_missing_strict_provenance      48
+           primo_frozen_predictor_length_transfer      12
+```
+
+The matrix ran to the same 4×4×3 scale as the sealed 18-/24-base matrices and
+produced metrics for every cell. What disqualifies it is **cache lineage**: all
+48 cells ran on a legacy cache rather than the provenance-strict
+`groundeddna_cache_v6prov`, so every one carries
+`legacy_cache_missing_strict_provenance`. Three further partial roots exist
+(`..._15base`, `..._15base_attempt_20260812T172527`, `..._15base_SMOKE`, with 3,
+18 and 1 manifests); none is sealed and no 15-base aggregate document exists.
+
+The remedy is therefore a **full 48-cell re-run on the strict cache**, not a
+continuation. That is a deferred item, not a new blocker:
+`docs/TODO_reexperiments.md` P0 #4 already records it as *"native-DNA 15-base 48
+cells — full re-run after protocol-label fix · 48 cells · deferred
+(diagnostic-only, below P0)"*, matching the cell count exactly.
+
+Until that re-run, the 15-base predecessor rows stay `-`. This is the third
+disclosed gap of its kind, alongside exact DUH-EG (no ordered noun bank) and
+Bi-half/NUS-WIDE (no authored NUS-WIDE trainer). Each is a refusal to publish a
+number the protocol cannot support, and each is stated rather than left blank.
+The gap is independent of the U0 modern-baseline panel, whose completion is not
+affected by it.
+
 ## Reproduction boundaries
 
 - DNA24 did not release an official implementation and omits

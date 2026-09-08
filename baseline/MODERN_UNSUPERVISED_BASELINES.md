@@ -344,6 +344,70 @@ use legacy caches and have `main_protocol_eligible=false`; `†` prevents
 accidental promotion into the paper main table. A final U0 paper table still
 requires strict-provenance three-seed reruns.
 
+### U0 visual-only — 15 bases (30 bits), D6 `author_fixed_final` — PAPER MAIN PANEL
+
+This is the only panel that matches the paper's 5-slot / 15-base / 30-bit
+geometry. Unlike every table below it, these cells are **not** `†` diagnostics:
+all 105 completed cells are `main_protocol_eligible` with zero blockers and zero
+protocol deviations, on the provenance-strict `groundeddna_cache_v6prov` cache.
+Three seeds `{42,43,44}`, mean<sub>±sample sd</sub> of post-projection
+base-Hamming mAP@R. Source of truth:
+[JSON](../docs/baseline_p0_matrix_seeds42-43-44_author_fixed_30b.json) ·
+[Markdown](../docs/baseline_p0_matrix_seeds42-43-44_author_fixed_30b.md).
+
+| Method | Flickr25K @5000 | MS-COCO @5000 | NUS-WIDE @5000 | CIFAR-10 @1000 |
+|---|---:|---:|---:|---:|
+| CIBHash | 0.7242<sub>±0.0039</sub> | 0.7692<sub>±0.0076</sub> | 0.7449<sub>±0.0085</sub> | 0.8164<sub>±0.0056</sub> |
+| CIMON | 0.8141<sub>±0.0034</sub> | 0.6845<sub>±0.0012</sub> | 0.7980<sub>±0.0046</sub> | 0.8746<sub>±0.0055</sub> |
+| MLS³RDUH (paper-cache) | 0.7507<sub>±0.0081</sub> | 0.6301<sub>±0.0061</sub> | 0.7590<sub>±0.0026</sub> | 0.6226<sub>±0.0396</sub> |
+| GreedyHash-UGH | 0.6484<sub>±0.0062</sub> | 0.5621<sub>±0.0060</sub> | 0.6504<sub>±0.0146</sub> | 0.1059<sub>±0.0000</sub> ✗ |
+| Bi-half | 0.8158<sub>±0.0119</sub> | 0.7191<sub>±0.0037</sub> | **-** | 0.7598<sub>±0.0023</sub> |
+| SDC-paper | 0.7267<sub>±0.0034</sub> | 0.8114<sub>±0.0031</sub> | 0.7692<sub>±0.0031</sub> | 0.7856<sub>±0.0095</sub> |
+| OH | 0.8366<sub>±0.0057</sub> | 0.7653<sub>±0.0103</sub> | 0.8053<sub>±0.0019</sub> | 0.8665<sub>±0.0096</sub> |
+| HHCH | 0.6144<sub>±0.0218</sub> | 0.4102<sub>±0.0126</sub> | 0.3844<sub>±0.0217</sub> | 0.2794<sub>±0.0833</sub> |
+| CroVCA-cache2v-probe | 0.7715<sub>±0.0017</sub> | 0.8146<sub>±0.0159</sub> | 0.8002<sub>±0.0041</sub> | 0.8916<sub>±0.0065</sub> |
+
+**`-` (Bi-half / NUS-WIDE) is a refusal, not a missing run.** The public release
+ships no NUS-WIDE training script, so the cell would require running the Flickr
+profile as an adapter. `run_modern_baseline_p0.py:1165` blocks that from the main
+comparison (`bihalf_public_release_has_no_nuswide_training_script;
+paper_flickr_profile_adapter`), and all three seeds refuse before training. The
+`‡` adaptation reported in the 36-/48-bit tables below is exactly what this
+protocol declines to do; those `‡` values are not comparable to this panel.
+
+**`✗` (GreedyHash / CIFAR-10) marks a degenerate run, not a weak one.** Its
+database code diversity is `dna_unique = 0.000017`, i.e. **one distinct code for
+all 59,000 database images**, identically across all three seeds; 0.1059 is
+simply the CIFAR-10 class prior. It must not be read as a functioning baseline
+at this budget. The 36-/48-bit tables below do not show this collapse
+(`0.1546†` / `0.2379†`), so it is specific to the 30-bit budget.
+
+Code diversity is worth reading beside mAP@R throughout this panel. Mean
+post-projection `dna_unique` on the database split:
+
+| | Flickr25K | MS-COCO | NUS-WIDE | CIFAR-10 |
+|---|---:|---:|---:|---:|
+| CIBHash | 0.933 | 0.588 | 0.665 | 0.642 |
+| CIMON | 0.699 | 0.335 | 0.370 | 0.149 |
+| MLS³RDUH | 0.618 | 0.449 | 0.498 | 0.012 |
+| GreedyHash-UGH | 0.225 | 0.120 | 0.098 | **0.000017** |
+| Bi-half | 0.489 | 0.174 | - | 0.081 |
+| SDC-paper | 0.918 | 0.476 | 0.611 | 0.848 |
+| OH | 0.512 | 0.217 | 0.236 | 0.082 |
+| HHCH | 0.021 | 0.004 | 0.003 | 0.001 |
+| CroVCA-cache2v-probe | 0.866 | 0.372 | 0.551 | 0.268 |
+
+HHCH's `0.001`–`0.021` explains its mAP@R directly: it emits very few distinct
+codes on every dataset. These ratios are computed on the **database** split
+(107,218 MS-COCO / 59,000 CIFAR-10 rows), never on the query split.
+
+The matrix is 36 cells; 35 are `complete_paper_table_eligible` with all three
+seeds, and the single `missing` cell is exactly Bi-half/NUS-WIDE. Filling it
+would itself be the protocol violation. `--require-paper-eligible` therefore
+cannot pass: it expects a 108-cell rectangle and cannot express a structurally
+excluded pair. Its nonzero exit reports the matrix's non-rectangularity, not an
+incomplete table.
+
 ### U0 visual-only — 18 bases (36 bits)
 
 | Method | Flickr25K | MSCOCO | NUS-WIDE | CIFAR-10 |
