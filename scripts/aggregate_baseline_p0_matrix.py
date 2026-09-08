@@ -189,22 +189,13 @@ KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
             "b1c77ad73f04fde0e37f46eb83afa0a0ebdb53e0515442bace9c3780e52df09d",
             "8f0b61463385794fcf9a880f3ae38994df2ec060e00297b3e404614aa0547025",
         ),
-    },
-    # 52faa66 moves the Bi-half/NUS-WIDE adaptation out of the eligibility
-    # blockers and into a recorded source_boundary_adaptations entry. The
-    # branch is guarded by `variant == 'bihalf' and dataset == 'NUSWIDE'` and
-    # refused before training, so it produced no manifest and no completed
-    # cell of any variant ever executed it.
-    "scripts/run_modern_baseline_p0.py": {
-        "before_sha256": (
-            "3a50232b85fe167d9e22f8ef1b7f9826531fb12639e4f4355114d86c7dfe99dd"
-        ),
-        "after_sha256": (
-            "dacee2e311061c2c877cc374418600a629cc22db5b7f5b862626bdf18d1decd7"
-        ),
-        "reviewed_sha256": (
-            "3a50232b85fe167d9e22f8ef1b7f9826531fb12639e4f4355114d86c7dfe99dd",
-            "dacee2e311061c2c877cc374418600a629cc22db5b7f5b862626bdf18d1decd7",
+        "classification": "non_scientific_dispatch_and_protocol_provenance_only",
+        "evidence": (
+            "reviewed exact-hash transition adds SIGHUP to the supervised "
+            "signal set and routes this file's own transition through this "
+            "registry, because a launcher cannot hold its own post-edit digest. "
+            "Orchestration and termination only: no variant's model, loss, "
+            "schedule, split, metric or DNA projection is reachable from the diff."
         ),
     },
     "baseline/cache_provenance.py": {
@@ -336,7 +327,7 @@ KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
             "9809a70fde66d473540fa11d10752a83453d60ac6bfc9b80d0490a1e7ce7eca5"
         ),
         "after_sha256": (
-            "ad7b73f3124ffbeedfa115650c7d804d964a191bf125c6b2b3cc7abfbe15fd54"
+            "dacee2e311061c2c877cc374418600a629cc22db5b7f5b862626bdf18d1decd7"
         ),
         "reviewed_sha256": (
             "9809a70fde66d473540fa11d10752a83453d60ac6bfc9b80d0490a1e7ce7eca5",
@@ -373,6 +364,10 @@ KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
             # (bihalf, NUSWIDE) -- three cells that never produced a manifest --
             # so every other (variant, dataset) code path is byte-semantically
             # unchanged, and the nine existing Bi-half cells never entered it.
+            # The digest all 105 completed 30-bit author_fixed_final cells
+            # recorded. It was the current source until 52faa66, so it never
+            # needed to be listed and its absence went unnoticed.
+            "3a50232b85fe167d9e22f8ef1b7f9826531fb12639e4f4355114d86c7dfe99dd",
             "dacee2e311061c2c877cc374418600a629cc22db5b7f5b862626bdf18d1decd7",
         ),
         "non_scientific_variants_by_sha256": {

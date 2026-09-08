@@ -51,6 +51,35 @@ def _variant(payload):
     return str(payload.get("variant") or payload.get("method"))
 
 
+def test_the_registry_has_no_duplicate_keys_and_full_metadata():
+    """A duplicated key is silently shadowed; a bare entry skips review.
+
+    Python keeps the last of two identical dict keys, so a second entry for a
+    path is dead code that still reads as registered. Both defects were present
+    in the first version of this fix.
+    """
+    import ast
+    import collections
+    source = (REPO / "scripts/aggregate_baseline_p0_matrix.py").read_text(
+        encoding="utf-8")
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(getattr(t, "id", None)
+                   == "KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS"
+                   for t in node.targets):
+            continue
+        keys = [k.value for k in node.value.keys if isinstance(k, ast.Constant)]
+        duplicates = {k: n for k, n in collections.Counter(keys).items() if n > 1}
+        assert not duplicates, f"shadowed registry keys: {duplicates}"
+        for key, value in zip(node.value.keys, node.value.values):
+            fields = {f.value for f in value.keys if isinstance(f, ast.Constant)}
+            missing = {"classification", "evidence"} - fields
+            assert not missing, f"{key.value} is missing {sorted(missing)}"
+        return
+    raise AssertionError("transition registry not found")
+
+
 def test_the_registry_declares_this_files_current_digest():
     """`after_sha256` must be what the launcher hashes to right now.
 
