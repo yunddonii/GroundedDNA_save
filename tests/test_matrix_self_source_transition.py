@@ -51,6 +51,79 @@ def _variant(payload):
     return str(payload.get("variant") or payload.get("method"))
 
 
+SYNTHETIC_VARIANT = "bihalf"
+
+
+def _synthetic_manifest(self_digest=None):
+    """A manifest built from the current tree, not from stored experiments.
+
+    The stored-manifest tests only protect the host that happens to hold
+    /data. On a fresh clone they skip, and a suite that skips its own contract
+    reports green while the contract is unenforced (audit §261). This payload
+    reproduces the shape the profile check reads -- the exact required path set
+    at their current digests, with the launcher's entry set to whatever the
+    case under test needs -- so the negative contract runs everywhere.
+    """
+    from scripts.run_baseline_p0_matrix import (
+        _required_implementation_paths, CANONICAL_VARIANT_SOURCE_PROFILES)
+    snapshot = {}
+    for path in _required_implementation_paths(SYNTHETIC_VARIANT):
+        snapshot[path] = _current_source_sha256(path)
+    profile_path, profile_digest = CANONICAL_VARIANT_SOURCE_PROFILES[
+        SYNTHETIC_VARIANT]
+    snapshot[profile_path] = profile_digest
+    if self_digest is not None:
+        snapshot[SELF_SOURCE_RELATIVE] = self_digest
+    return {"variant": SYNTHETIC_VARIANT,
+            "protocol_identity": {"implementation_sha256": snapshot}}
+
+
+def test_the_synthetic_fixture_is_accepted_when_untampered():
+    """Anchors the negatives below: if this fails they prove nothing."""
+    entry = REGISTRY[SELF_SOURCE_RELATIVE]
+    payload = _synthetic_manifest(self_digest=entry["before_sha256"])
+    assert _matches_canonical_source_profile(payload, SYNTHETIC_VARIANT), (
+        "the synthetic manifest must pass before it can demonstrate refusal")
+
+
+@pytest.mark.parametrize("name,mutate", [
+    ("classification removed",
+     lambda e: {k: v for k, v in e.items() if k != "classification"}),
+    ("evidence removed",
+     lambda e: {k: v for k, v in e.items() if k != "evidence"}),
+    ("classification not in the allowed vocabulary",
+     lambda e: {**e, "classification": "made_up_classification"}),
+    ("evidence blank", lambda e: {**e, "evidence": "   "}),
+    ("variant scope present",
+     lambda e: {**e, "non_scientific_variants_by_sha256":
+                {e["before_sha256"]: ("not-a-variant",)}}),
+    ("bit scope present",
+     lambda e: {**e, "non_scientific_bits_by_sha256":
+                {e["before_sha256"]: (999,)}}),
+    ("empty variant scope map",
+     lambda e: {**e, "non_scientific_variants_by_sha256": {}}),
+    ("empty bit scope map",
+     lambda e: {**e, "non_scientific_bits_by_sha256": {}}),
+])
+def test_the_contract_holds_without_stored_experiments(name, mutate):
+    import scripts.aggregate_baseline_p0_matrix as aggregator
+    saved = aggregator.KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS
+    payload = _synthetic_manifest(self_digest=saved[SELF_SOURCE_RELATIVE][
+        "before_sha256"])
+    aggregator.KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
+        **saved, SELF_SOURCE_RELATIVE: mutate(saved[SELF_SOURCE_RELATIVE])}
+    try:
+        assert not _matches_canonical_source_profile(
+            payload, SYNTHETIC_VARIANT), name
+    finally:
+        aggregator.KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = saved
+
+
+def test_an_unreviewed_self_digest_is_refused_without_stored_experiments():
+    payload = _synthetic_manifest(self_digest="f" * 64)
+    assert not _matches_canonical_source_profile(payload, SYNTHETIC_VARIANT)
+
+
 def test_the_registry_has_no_duplicate_keys_and_full_metadata():
     """A duplicated key is silently shadowed; a bare entry skips review.
 
