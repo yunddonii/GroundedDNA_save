@@ -169,6 +169,44 @@ SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 # fall back to unknown/scientifically-relevant drift instead of inheriting the
 # exemption by filename.
 KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = {
+    # The matrix launcher's own transition CANNOT live in the launcher: writing
+    # its new SHA there changes that SHA again, so no fixed point exists
+    # (audit §219). This file is not part of the hashed implementation set, so
+    # it is the non-circular anchor the launcher consults for its own path.
+    #
+    # 66f0953 adds SIGHUP to the supervised signal set, so `tmux kill-session`
+    # -- how a campaign is actually stopped -- runs the child supervisor
+    # instead of orphaning trainers with PPID 1. Orchestration only: no cell's
+    # training, loss, schedule, split, metric or projection depends on it.
+    "scripts/run_baseline_p0_matrix.py": {
+        "before_sha256": (
+            "b1c77ad73f04fde0e37f46eb83afa0a0ebdb53e0515442bace9c3780e52df09d"
+        ),
+        "after_sha256": (
+            "8f0b61463385794fcf9a880f3ae38994df2ec060e00297b3e404614aa0547025"
+        ),
+        "reviewed_sha256": (
+            "b1c77ad73f04fde0e37f46eb83afa0a0ebdb53e0515442bace9c3780e52df09d",
+            "8f0b61463385794fcf9a880f3ae38994df2ec060e00297b3e404614aa0547025",
+        ),
+    },
+    # 52faa66 moves the Bi-half/NUS-WIDE adaptation out of the eligibility
+    # blockers and into a recorded source_boundary_adaptations entry. The
+    # branch is guarded by `variant == 'bihalf' and dataset == 'NUSWIDE'` and
+    # refused before training, so it produced no manifest and no completed
+    # cell of any variant ever executed it.
+    "scripts/run_modern_baseline_p0.py": {
+        "before_sha256": (
+            "3a50232b85fe167d9e22f8ef1b7f9826531fb12639e4f4355114d86c7dfe99dd"
+        ),
+        "after_sha256": (
+            "dacee2e311061c2c877cc374418600a629cc22db5b7f5b862626bdf18d1decd7"
+        ),
+        "reviewed_sha256": (
+            "3a50232b85fe167d9e22f8ef1b7f9826531fb12639e4f4355114d86c7dfe99dd",
+            "dacee2e311061c2c877cc374418600a629cc22db5b7f5b862626bdf18d1decd7",
+        ),
+    },
     "baseline/cache_provenance.py": {
         "before_sha256": (
             "ec761115371f09e6e3a00ab816888188b0df234805920b153ef06e08a598405c"

@@ -517,6 +517,17 @@ KNOWN_NON_SCIENTIFIC_SOURCE_SHA_ALIASES: Mapping[str, frozenset[str]] = {
         # evidence, never model/loss/schedule/split behavior; old D6 manifests
         # still fail the mandatory audit-field validator below.
         "ad7b73f3124ffbeedfa115650c7d804d964a191bf125c6b2b3cc7abfbe15fd54",
+        # The digest every completed 30-bit author_fixed_final cell recorded.
+        # Until 52faa66 it was also the current source, so no alias was needed
+        # and its absence here went unnoticed.
+        "3a50232b85fe167d9e22f8ef1b7f9826531fb12639e4f4355114d86c7dfe99dd",
+        # 52faa66: the Bi-half/NUS-WIDE pair moves from an eligibility blocker
+        # to a recorded source_boundary_adaptations entry. That branch is
+        # guarded by `variant == 'bihalf' and dataset == 'NUSWIDE'` and had
+        # produced no manifest at all -- it refused before training -- so no
+        # completed cell of any variant ever executed it. Training, loss,
+        # schedule, split, metric and projection are untouched.
+        "dacee2e311061c2c877cc374418600a629cc22db5b7f5b862626bdf18d1decd7",
     }),
 }
 # Some shared-source edits are scientific only for one method, and an older
@@ -542,6 +553,16 @@ KNOWN_NON_SCIENTIFIC_SOURCE_SHA_ALIAS_VARIANTS: Mapping[
         ),
     },
     "scripts/run_modern_baseline_p0.py": {
+        # The digest every completed 30-bit author_fixed_final cell recorded.
+        # 52faa66 only moved the Bi-half/NUS-WIDE adaptation out of the
+        # eligibility blockers and into source_boundary_adaptations. That
+        # branch is guarded by `variant == 'bihalf' and dataset == 'NUSWIDE'`
+        # and refused before training, so it produced no manifest and no
+        # completed cell of any variant ever entered it. Non-scientific for
+        # every variant, including bihalf on its other three datasets.
+        "3a50232b85fe167d9e22f8ef1b7f9826531fb12639e4f4355114d86c7dfe99dd": (
+            frozenset(CANONICAL_VARIANT_SOURCE_PROFILES)
+        ),
         # Before CRH dispatch existed.  The CIBHash horizon was also stale.
         "9809a70fde66d473540fa11d10752a83453d60ac6bfc9b80d0490a1e7ce7eca5": (
             frozenset(CANONICAL_VARIANT_SOURCE_PROFILES)
@@ -743,6 +764,31 @@ def _manifest_bit(payload: Mapping[str, object]) -> int | None:
         return None
 
 
+#: This module's own path, as recorded in every manifest's implementation map.
+SELF_SOURCE_RELATIVE = "scripts/run_baseline_p0_matrix.py"
+
+
+def _self_transition_is_reviewed(recorded: str, current: str) -> bool:
+    """Is recorded->current an approved transition of THIS file?
+
+    Fail closed on every uncertainty: a missing registry entry, an unreviewed
+    digest on either side, or a current file that is not the registry's
+    declared `after_sha256`. Editing this launcher arbitrarily still refuses;
+    only the exact reviewed pair passes.
+    """
+    try:
+        from scripts.aggregate_baseline_p0_matrix import (
+            KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS as registry)
+    except Exception:                                      # noqa: BLE001
+        return False
+    entry = registry.get(SELF_SOURCE_RELATIVE)
+    if not isinstance(entry, Mapping):
+        return False
+    reviewed = entry.get("reviewed_sha256") or ()
+    return (current == entry.get("after_sha256")
+            and recorded in reviewed and current in reviewed)
+
+
 def _matches_canonical_source_profile(
         payload: Mapping[str, object], variant: str) -> bool:
     """Fail closed unless the manifest used the pinned method source."""
@@ -766,6 +812,16 @@ def _matches_canonical_source_profile(
             return False
         current = _current_source_sha256(path)
         if current == raw_digest:
+            continue
+        if path == SELF_SOURCE_RELATIVE:
+            # This file cannot hold its own approved digest: writing the new
+            # SHA into the map changes the SHA again, so no fixed point
+            # exists. The aggregator is a separate file and is not part of the
+            # hashed implementation set, so its transition registry is a
+            # non-circular anchor. Import is function-local to keep the module
+            # import graph acyclic.
+            if not _self_transition_is_reviewed(raw_digest, current):
+                return False
             continue
         aliases = KNOWN_NON_SCIENTIFIC_SOURCE_SHA_ALIASES.get(path)
         if aliases is None or current not in aliases or raw_digest not in aliases:
