@@ -252,18 +252,28 @@ def test_a_missing_registry_entry_fails_closed():
         aggregator.KNOWN_NON_SCIENTIFIC_IMPLEMENTATION_TRANSITIONS = saved
 
 
-def _audit_fixture():
+def _audit_fixture(historical_only=True):
     """Records shaped the way `_audit_implementation_fingerprints` reads them.
 
     `status` must start with "complete_": a plain "complete" audits zero cells
     and the function then answers `no_completed_cells_to_audit`, which reads
     like a pass. That is how a first attempt at this fixture missed the very
     blocking it was written to detect.
+
+    `historical_only` selects the cells recorded BEFORE this launcher's
+    reviewed transition. Those are the ones whose acceptance the transition has
+    to preserve, and their number is fixed at 105. Counting every completed
+    cell instead would break the moment the matrix legitimately grows to 108.
     """
+    before = REGISTRY[SELF_SOURCE_RELATIVE]["before_sha256"]
     records = {}
     for path in _stored_manifests():
         payload = json.loads(path.read_text(encoding="utf-8"))
         identity = payload.get("protocol_identity") or {}
+        if historical_only:
+            snapshot = identity.get("implementation_sha256") or {}
+            if snapshot.get(SELF_SOURCE_RELATIVE) != before:
+                continue
         key = (f"u0/{payload.get('variant')}/{payload.get('dataset')}"
                f"/30b/seed{payload.get('seed')}")
         snapshot = identity.get("implementation_sha256")
@@ -297,7 +307,8 @@ def test_the_aggregator_source_audit_also_clears_every_stored_cell():
         _audit_implementation_fingerprints)
     records = _audit_fixture()
     assert len(records) == 105, (
-        f"expected the 105 stored 30-bit cells, built {len(records)}")
+        "expected the 105 cells recorded before this launcher's transition, "
+        f"built {len(records)}")
     audit = _audit_implementation_fingerprints(records)
     assert audit.get("status") != "no_completed_cells_to_audit", (
         "the fixture audited nothing -- check that status starts with 'complete_'")
