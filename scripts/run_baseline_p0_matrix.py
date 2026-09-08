@@ -801,9 +801,13 @@ def _self_transition_is_reviewed(recorded: str, current: str) -> bool:
     # either non-scientific for EVERY variant and bit budget or it does not
     # belong here at all. A scope key would claim otherwise, and the caller has
     # no variant/bit to check it against -- so refuse rather than ignore it.
+    # `in`, not truthiness: an EMPTY scope map still makes the aggregator's
+    # audit demand a per-digest entry and block every cell, so a launcher that
+    # shrugged at `{}` would accept what the aggregator refuses -- the two
+    # gates must not disagree (audit §255).
     for scope_key in ("non_scientific_variants_by_sha256",
                       "non_scientific_bits_by_sha256"):
-        if entry.get(scope_key):
+        if scope_key in entry:
             return False
 
     reviewed = entry.get("reviewed_sha256") or ()

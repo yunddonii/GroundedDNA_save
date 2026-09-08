@@ -217,6 +217,13 @@ def test_the_aggregator_source_audit_blocks_an_unreviewed_digest():
     ("bit scope present",
      lambda e: {**e, "non_scientific_bits_by_sha256":
                 {e["before_sha256"]: (999,)}}),
+    # An EMPTY scope map is the sharp case: it is falsy, so a truthiness check
+    # lets it through, while the aggregator's audit still demands a per-digest
+    # entry and blocks all 105 cells. The two gates disagreed here (§255).
+    ("empty variant scope map",
+     lambda e: {**e, "non_scientific_variants_by_sha256": {}}),
+    ("empty bit scope map",
+     lambda e: {**e, "non_scientific_bits_by_sha256": {}}),
 ])
 def test_the_self_transition_refuses_an_unreviewed_registry_entry(name, mutate):
     """Digests alone are not review.
