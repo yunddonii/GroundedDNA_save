@@ -487,6 +487,31 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-15 Lambda confirmation axis (`--sweep lambda`): 8 stage-1 Flickr25k cells at the approved refit's incumbent, outside the fixed-point protocol
+
+**Status:** 🟢 active (code only; no cell has run under it yet).
+
+User instruction 2026-09-14: confirm the three loss coefficients whose gradient share changed most at
+the approved operating point, Flickr25k first, and change the paper recipe only if a value wins under
+a train-only rule. `scripts/phase3_selection_matrix.py` gains a `lambda` axis:
+
+| what | value |
+|---|---|
+| axes | `lambda_wasserstein` {0.15, 0.30, 0.50}, `lambda_bu` {0.02, 0}, `lambda_text_hash_ntxent` {0.025, 0.05, 0.10} |
+| incumbent | the approved refit aggregate's Flickr25k cell (N=4, top-p 0.6/0.95, λ_joint 0.02; 0.15 / 0.02 / 0.05), pinned by `--incumbent-refit-aggregate(-sha256)` and its per-seed records re-hashed |
+| cells | incumbent at seeds 42/43/44 (same seed reproduces to full precision: p3gD/p3gE Flickr N4 0.7635532117270416 twice, so a same-seed repeat measures nothing) + 5 single-override cells at seed 42 = 8 |
+| cell form | ordinary stage-1 selection cell: `-e 60`, LR horizon 60, Sinkhorn horizon N+1, stop N, 90/10 train split, optTrain whitening, terminal-epoch `eval_mAP_at_R`; official test never read |
+| tag | `..._s42_LW030_P06095_JD002` (override fragment FIRST so the incumbent tag is not a substring of any override tag; `_resolve` globs `*tag*`) |
+| identity | `lambda_text_hash_ntxent` is a RunIdentity field; `lambda_wasserstein` / `lambda_bu` are not (schema v5). Cells moving them share the incumbent digest and are bound by tag, prelaunch cell binding (`recipe`, `lambda_overrides`) and `assert_geometry`, which now reads all three coefficients back from `args.txt` for every lambda cell (positive control on the real p3gE Flickr N4 run; each single-coefficient mutant refused) |
+| authority | receipt `fixed_point_authority: false`; not a `--recipe`/`--selection` consumer: their replays compare stage plans' pinned protocol-source digests with THIS tree, which now differs, so they refuse by construction (observed with `--plan`) |
+| reducer | `scripts/phase3_lambda_decision.py`, pre-declared: floor = max(0.002, max−min over incumbent seeds); a candidate replaces its axis's value iff score − incumbent(seed 42) > floor, highest wins; re-reads each `log.csv` under the record's digest. Fixture 12/12 (2 positive + 10 negative) |
+
+Legacy campaigns are unchanged: old tags, cell ids, six-tuple plans and `assert_geometry` keys reproduce
+byte-for-byte (checked). A refit at a changed coefficient is a separate decision and is refused by
+`build_command` for now.
+
+---
+
 ## 2026-09-03 P16 completes: the first full selection sweep, after four launches that produced nothing
 
 Phase 3 ①'s first sub-stage — the 16-cell top-p sweep — is done. It took five

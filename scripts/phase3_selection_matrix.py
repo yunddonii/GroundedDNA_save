@@ -224,6 +224,37 @@ TOPP_INCUMBENT = TOPP_GRID[0]
 JOINT_GRID = ("0.02", "0.03", "0.05", "0.07", "0.10")
 JOINT_INCUMBENT = "0.0"
 
+#: The lambda CONFIRMATION axes (user instruction 2026-09-14; contract
+#: docs/LAMBDA_RESWEEP_CONTRACT_2026-09-14.md). These are not part of the
+#: P/JD/N fixed-point protocol: a lambda campaign takes the CONFIRMED recipe and
+#: the SELECTED N as its incumbent and moves exactly one loss coefficient per
+#: cell, as an ordinary stage-1 selection cell (90/10 train split, optTrain
+#: whitening, terminal-epoch `eval_mAP_at_R`, never the official test split).
+#: The incumbent is trained at three seeds because the same seed reproduces the
+#: same number to full precision (p3gD/p3gE Flickr N4: 0.7635532117270416 twice),
+#: so a same-seed repeat would measure nothing; the seed spread is the noise
+#: floor the reducer compares a candidate against.
+#:
+#: `lambda_text_hash_ntxent` is a RunIdentity field; `lambda_wasserstein` and
+#: `lambda_bu` are NOT (identity schema v5). Cells that move those two carry the
+#: incumbent's identity digest and are told apart by their tag, their prelaunch
+#: cell binding (`recipe`/`lambda_overrides`) and `assert_geometry`, which reads
+#: all three coefficients back from `args.txt`. The receipt says so.
+LAMBDA_AXES = {
+    "lambda_wasserstein": {"grid": ("0.15", "0.30", "0.50"), "tag": "LW"},
+    "lambda_bu": {"grid": ("0.02", "0"), "tag": "LBU"},
+    "lambda_text_hash_ntxent": {"grid": ("0.025", "0.05", "0.10"), "tag": "LTH"},
+}
+#: What the per-dataset trainer runs at when nothing overrides it -- the values
+#: every approved refit's args.txt records (Flickr: 0.15 / 0.02 / 0.05).
+LAMBDA_INCUMBENT = {
+    "flickr25k": {"lambda_wasserstein": "0.15", "lambda_bu": "0.02",
+                  "lambda_text_hash_ntxent": "0.05"},
+}
+LAMBDA_SWEEP_DATASETS = ("flickr25k",)
+LAMBDA_INCUMBENT_SEEDS = (42, 43, 44)
+LAMBDA_CAMPAIGN_KIND = "lambda_confirmation"
+
 #: CIFAR used to be pinned here at 0.6/0.95 rather than swept. The pin's stated
 #: reason was that on a single-label dataset the codon decoding probe REWARDS
 #: slot starvation, so selecting CIFAR by mAP@R would overturn a structural
@@ -614,13 +645,19 @@ def cell_keys() -> list:
             for n in CANDIDATE_N]
 
 
-def recipe_fragment(topp=None, joint=None) -> str:
+def recipe_fragment(topp=None, joint=None, overrides=()) -> str:
     """How a non-incumbent recipe shows up in the tag, or "" for the incumbent.
 
     The empty string matters: it keeps the existing sixteen cells' tags exactly
     as they were, so this file still describes the matrix it already ran.
+
+    A lambda override goes FIRST (`..._s42_LW030_P06095_JD002`): the incumbent
+    tag `..._s42_P06095_JD002` must not be a substring of any override tag,
+    because `_resolve`/`_existing_artifacts` glob `*{tag}*`.
     """
     parts = []
+    for flag, value in overrides:
+        parts.append(LAMBDA_AXES[flag]["tag"] + str(value).replace(".", ""))
     if topp is not None and tuple(topp) != tuple(TOPP_INCUMBENT):
         parts.append("P" + "".join(str(v).replace(".", "") for v in topp))
     if joint is not None and str(joint) != JOINT_INCUMBENT:
@@ -629,9 +666,9 @@ def recipe_fragment(topp=None, joint=None) -> str:
 
 
 def tag_for(dataset: str, n: int, *, namespace: str = NAMESPACE,
-            topp=None, joint=None) -> str:
-    return (f"{namespace}_{DATASETS[dataset]['exp']}_N{n}_s{SEED}"
-            f"{recipe_fragment(topp, joint)}")
+            topp=None, joint=None, seed: int = SEED, overrides=()) -> str:
+    return (f"{namespace}_{DATASETS[dataset]['exp']}_N{n}_s{seed}"
+            f"{recipe_fragment(topp, joint, overrides)}")
 
 
 def _canonical_result_root(value=None) -> Path:
@@ -651,13 +688,13 @@ def _existing_artifacts(tag: str, *, result_root=None) -> list:
     return sorted(hits)
 
 
-def _stage1_flags(n: int) -> list:
+def _stage1_flags(n: int, seed: int = SEED) -> list:
     """D2's search cell. `-e 60` and the LR horizon are shared by every N."""
     return [
         "-e", str(EPOCH_BUDGET),
         "--lr_schedule_horizon", str(LR_HORIZON),
         "--sinkhorn_schedule_horizon", str(n + 1),
-        "--random_seed", str(SEED),
+        "--random_seed", str(seed),
         "--dna_distance_mode", "base",
         # Stage 1 IS the search. Left at its default the run identity records
         # `refit`, so a selection cell and the later refit at the same N
@@ -719,15 +756,20 @@ def build_command(dataset: str, n: int, gpu: int, *,
                   epochs: int | None = None,
                   namespace: str = NAMESPACE,
                   stage: str = "select", seed: int = SEED,
-                  topp=None, joint=None) -> tuple:
+                  topp=None, joint=None, overrides=()) -> tuple:
     spec = DATASETS[dataset]
     if stage == "refit":
+        if overrides:
+            raise CellRefused(
+                "lambda overrides are defined for stage-1 confirmation cells "
+                "only; a refit at a changed lambda is a separate decision")
         tag = refit_tag_for(dataset, n, seed, namespace=namespace,
                             topp=topp, joint=joint)
         flags = _refit_flags(n, seed) + S5_FLAGS + A_FLAGS + QUIET_FLAGS
     else:
-        tag = tag_for(dataset, n, namespace=namespace, topp=topp, joint=joint)
-        flags = _stage1_flags(n) + S5_FLAGS + A_FLAGS + QUIET_FLAGS
+        tag = tag_for(dataset, n, namespace=namespace, topp=topp, joint=joint,
+                      seed=seed, overrides=overrides)
+        flags = _stage1_flags(n, seed) + S5_FLAGS + A_FLAGS + QUIET_FLAGS
     # EXTRA_ARGS lands at the END of every trainer's command, after the
     # hardcoded window, and argparse keeps the last occurrence -- verified
     # against config.py's own parser rather than assumed from the layout.
@@ -740,6 +782,10 @@ def build_command(dataset: str, n: int, gpu: int, *,
             flags = flags + ["--routing_adaptive_topp"]
     if joint is not None:
         flags = _override_flags(flags, {"--lambda_codon_joint": str(joint)})
+    for flag, value in overrides:
+        if flag not in LAMBDA_AXES:
+            raise CellRefused(f"{flag!r} is not a declared lambda axis")
+        flags = _override_flags(flags, {f"--{flag}": str(value)})
     stop = n
     if epochs is not None:
         # Smoke: shorten everything CONSISTENTLY, by NAME. Slicing off the
@@ -990,7 +1036,8 @@ _IDENTITY_PROFILE = {
 def expected_run_identity(dataset: str, n: int, *, stage: str = "select",
                           seed: int = SEED, topp=None, joint=None,
                           epochs: int | None = None,
-                          input_authority: dict | None = None) -> RunIdentity:
+                          input_authority: dict | None = None,
+                          overrides=()) -> RunIdentity:
     """Compute the identity a canonical child must parse before it is started.
 
     This is an admission value, not a reconstruction after the fact.  The
@@ -1004,6 +1051,10 @@ def expected_run_identity(dataset: str, n: int, *, stage: str = "select",
     profile = _IDENTITY_PROFILE[dataset]
     topp = TOPP_INCUMBENT if topp is None else tuple(topp)
     joint = JOINT_INCUMBENT if joint is None else str(joint)
+    # Only `lambda_text_hash_ntxent` is an identity field (schema v5), so only
+    # it can be carried here; see LAMBDA_AXES for how the other two are bound.
+    text_hash_ntxent = float(dict(overrides).get(
+        "lambda_text_hash_ntxent", profile["text_hash_ntxent"]))
     if stage == "refit":
         budget = n + 1
         stop = n
@@ -1056,7 +1107,7 @@ def expected_run_identity(dataset: str, n: int, *, stage: str = "select",
         use_gumbel_softmax=False,
         lambda_codon_joint=float(joint),
         lambda_text_code_kl=profile["text_code_kl"],
-        lambda_text_hash_ntxent=profile["text_hash_ntxent"],
+        lambda_text_hash_ntxent=text_hash_ntxent,
         lambda_xmodal_commit=profile["xmodal_commit"],
         lambda_codeword_codon_sinkhorn=profile["codeword_codon_sinkhorn"],
         phase3_input_seal=authority.get("seal_path"),
@@ -1074,10 +1125,12 @@ def expected_run_identity(dataset: str, n: int, *, stage: str = "select",
 
 
 def campaign_cell_id(dataset: str, n: int, *, topp, joint,
-                     stage: str = "select", seed: int = SEED) -> str:
+                     stage: str = "select", seed: int = SEED,
+                     overrides=()) -> str:
     """Stable, human-readable primary key for one planned recipe cell."""
     return (f"{dataset}|N={int(n)}|P={str(topp[0])},{str(topp[1])}|"
-            f"JD={str(joint)}|stage={stage}|seed={int(seed)}")
+            f"JD={str(joint)}|stage={stage}|seed={int(seed)}"
+            + "".join(f"|{flag}={value}" for flag, value in overrides))
 
 
 def expected_cell_binding(dataset: str, n: int, *, namespace: str,
@@ -1087,14 +1140,16 @@ def expected_cell_binding(dataset: str, n: int, *, namespace: str,
                           result_root=None,
                           environment_sha256: str | None = None,
                           child_environment: dict | None = None,
-                          input_authority: dict | None = None) -> dict:
+                          input_authority: dict | None = None,
+                          overrides=()) -> dict:
     identity = expected_run_identity(
         dataset, n, stage=stage, seed=seed, topp=topp, joint=joint,
-        epochs=epochs, input_authority=input_authority)
+        epochs=epochs, input_authority=input_authority, overrides=overrides)
     tag = (refit_tag_for(dataset, n, seed, namespace=namespace,
                          topp=topp, joint=joint)
            if stage == "refit" else
-           tag_for(dataset, n, namespace=namespace, topp=topp, joint=joint))
+           tag_for(dataset, n, namespace=namespace, topp=topp, joint=joint,
+                   seed=seed, overrides=overrides))
     authority = input_authority or {}
     hf = authority.get("hf_runtime") or {}
     child_environment_sha256 = (
@@ -1102,7 +1157,8 @@ def expected_cell_binding(dataset: str, n: int, *, namespace: str,
         else None)
     return {
         "cell_id": campaign_cell_id(
-            dataset, n, topp=topp, joint=joint, stage=stage, seed=seed),
+            dataset, n, topp=topp, joint=joint, stage=stage, seed=seed,
+            overrides=overrides),
         "campaign_nonce": campaign_nonce,
         "dataset": dataset,
         "N": int(n),
@@ -1112,7 +1168,9 @@ def expected_cell_binding(dataset: str, n: int, *, namespace: str,
             "routing_adaptive_topp_min": str(topp[0]),
             "routing_adaptive_topp_max": str(topp[1]),
             "lambda_codon_joint": str(joint),
+            **{flag: str(value) for flag, value in overrides},
         },
+        "lambda_overrides": {flag: str(value) for flag, value in overrides},
         "expected_tag": tag,
         "result_root": str(_canonical_result_root(result_root)),
         "environment_sha256": environment_sha256,
@@ -1158,15 +1216,27 @@ def launch_binding_from_expected(binding: dict, plan_snapshot_sha256: str) -> di
 
 
 def _campaign_cell_parts(cell) -> tuple:
-    """Normalise legacy four-tuples and stage-aware six-tuples."""
+    """Normalise legacy four-tuples, stage-aware six-tuples and lambda
+    seven-tuples to the six coordinates every campaign shares."""
     if len(cell) == 4:
         dataset, n, topp, joint = cell
         return dataset, n, topp, joint, "select", SEED
-    if len(cell) == 6:
-        dataset, n, topp, joint, stage, seed = cell
+    if len(cell) in (6, 7):
+        dataset, n, topp, joint, stage, seed = cell[:6]
         return dataset, n, topp, joint, stage, int(seed)
     raise CellRefused(
-        f"campaign cell {cell!r} has {len(cell)} fields, expected 4 or 6")
+        f"campaign cell {cell!r} has {len(cell)} fields, expected 4, 6 or 7")
+
+
+def _cell_overrides(cell) -> tuple:
+    """The lambda overrides of a seven-tuple cell, `()` for every other cell."""
+    if len(cell) != 7:
+        return ()
+    overrides = tuple((str(flag), str(value)) for flag, value in cell[6])
+    for flag, _ in overrides:
+        if flag not in LAMBDA_AXES:
+            raise CellRefused(f"{flag!r} is not a declared lambda axis")
+    return overrides
 
 
 #: Every file whose bytes decide what a sweep cell computes, beyond the four
@@ -1262,9 +1332,11 @@ def plan_snapshot(datasets=None, *, plan=None, executed=None, axis=None,
     def _cells(rows):
         return [{"dataset": ds, "N": n,
                  "topp": list(topp) if topp is not None else None,
-                 "joint": jd, "stage": stage, "seed": seed}
-                for ds, n, topp, jd, stage, seed in
-                (_campaign_cell_parts(row) for row in rows)]
+                 "joint": jd, "stage": stage, "seed": seed,
+                 **({"overrides": dict(_cell_overrides(row))}
+                    if _cell_overrides(row) else {})}
+                for row, (ds, n, topp, jd, stage, seed) in
+                ((row, _campaign_cell_parts(row)) for row in rows)]
 
     if plan is not None:
         if not isinstance(campaign_nonce, str) or len(campaign_nonce) < 32:
@@ -1300,6 +1372,7 @@ def plan_snapshot(datasets=None, *, plan=None, executed=None, axis=None,
             binding = expected_cell_binding(
                 ds, n, namespace=namespace, campaign_nonce=campaign_nonce,
                 topp=topp, joint=jd, epochs=epochs, stage=stage, seed=seed,
+                overrides=_cell_overrides(row),
                 result_root=canonical_result_root,
                 environment_sha256=environment_sha,
                 child_environment=child_environment,
@@ -1451,7 +1524,8 @@ def assert_geometry(run_dir: Path, *, dataset: str, n: int,
                     budget: int | None = None,
                     lr_horizon: int | None = None,
                     sinkhorn_horizon: int | None = None,
-                    topp=None, joint=None) -> dict:
+                    topp=None, joint=None,
+                    lambda_expected: dict | None = None) -> dict:
     """The check the 18-base smoke did not have.
 
     Both the effective arguments and the sealed run manifest must say the
@@ -1493,6 +1567,13 @@ def assert_geometry(run_dir: Path, *, dataset: str, n: int,
             "routing_adaptive_topp_max": float(topp[1]),
             "lambda_codon_joint": float(joint),
             "text_hash_counterfactual_weight": 0.0}
+    if lambda_expected is not None:
+        # A lambda confirmation cell: every declared axis is read back from
+        # what the trainer parsed, the incumbent cells included, because two
+        # of the three coefficients are not in the run identity.
+        for flag in LAMBDA_AXES:
+            effective[flag] = float(_arg_value(args_txt, flag))
+            want[flag] = float(lambda_expected[flag])
     bad = {k: (v, want[k]) for k, v in effective.items() if v != want[k]}
     if bad:
         raise CellRefused(
@@ -2478,13 +2559,18 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
              seed: int = SEED, topp=None, joint=None,
              snapshot: dict | None = None,
              campaign_binding: dict | None = None,
-             result_root=None) -> dict:
+             result_root=None, overrides=None) -> dict:
+    """`overrides` is None for every P/JD/N/refit cell; a lambda confirmation
+    cell passes a tuple (possibly empty, for an incumbent seed cell), which
+    turns on the args.txt read-back of all three coefficients."""
     result_root = _canonical_result_root(result_root)
+    lambda_overrides = () if overrides is None else tuple(overrides)
     tag = (refit_tag_for(dataset, n, seed, namespace=namespace,
                          topp=topp, joint=joint)
            if stage == "refit"
            else tag_for(dataset, n, namespace=namespace,
-                        topp=topp, joint=joint))
+                        topp=topp, joint=joint, seed=seed,
+                        overrides=lambda_overrides))
     existing = _existing_artifacts(tag, result_root=result_root)
     if existing:
         raise CellRefused(
@@ -2493,7 +2579,8 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
 
     cmd, env, _ = build_command(dataset, n, gpu, epochs=epochs,
                                 namespace=namespace, stage=stage, seed=seed,
-                                topp=topp, joint=joint)
+                                topp=topp, joint=joint,
+                                overrides=lambda_overrides)
     input_authority = None
     if snapshot is not None:
         input_authority = (snapshot.get("input_seals") or {}).get(
@@ -2668,12 +2755,19 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
             "expected_identity_digest"), result_root=result_root)
     completion = assert_completed(
         run_dir, terminal_epoch=_stop, campaign_binding=campaign_binding)
+    lambda_expected = None
+    if overrides is not None:
+        if dataset not in LAMBDA_INCUMBENT:
+            raise CellRefused(
+                f"{tag}: no declared lambda incumbent for {dataset}")
+        lambda_expected = {**LAMBDA_INCUMBENT[dataset],
+                           **dict(lambda_overrides)}
     geometry = assert_geometry(
         run_dir, dataset=dataset, n=n, stop=_stop, seed=seed,
         mode="refit" if stage == "refit" else "select",
         val_ratio=0.0 if stage == "refit" else VAL_RATIO,
         budget=_budget, lr_horizon=_lr_h, sinkhorn_horizon=_sk_h,
-        topp=topp, joint=joint)
+        topp=topp, joint=joint, lambda_expected=lambda_expected)
     if campaign_binding is not None and geometry["identity_digest"] != \
             campaign_binding["expected_identity_digest"]:
         raise CellRefused(
@@ -2714,7 +2808,14 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
                                                      TOPP_INCUMBENT[1]),
             "lambda_codon_joint": _flag_value(_flags, "--lambda_codon_joint",
                                               JOINT_INCUMBENT),
+            **({"lambda_overrides": dict(lambda_overrides),
+                # What the trainer PARSED for every declared axis (args.txt,
+                # verified by assert_geometry), incumbent cells included.
+                "lambda_effective": {flag: geometry[flag]
+                                     for flag in LAMBDA_AXES}}
+               if lambda_expected is not None else {}),
         },
+        "seed": int(seed),
         "protocol_sources": sources_after,
         "plan_snapshot_sha256": (_json_digest(snapshot)
             if snapshot is not None else None),
@@ -2859,13 +2960,45 @@ def _load_selection(path: Path) -> dict:
     }
 
 
-def sweep_cells(axis: str, *, at_topp=None) -> list:
+def lambda_confirmation_cells(incumbent: dict) -> list:
+    """Seven-tuples for the lambda confirmation: per swept dataset, the
+    incumbent at LAMBDA_INCUMBENT_SEEDS, then every non-incumbent grid value of
+    every axis at seed SEED with exactly one coefficient overridden.
+
+    `incumbent[dataset]` = {"N", "topp", "joint"} from the confirmed recipe and
+    the selected N -- the coordinates the approved refit ran at.
+    """
+    cells = []
+    for dataset in LAMBDA_SWEEP_DATASETS:
+        if dataset not in incumbent or dataset not in LAMBDA_INCUMBENT:
+            raise CellRefused(
+                f"lambda confirmation needs an incumbent for {dataset}")
+        inc = incumbent[dataset]
+        n, topp, joint = int(inc["N"]), tuple(inc["topp"]), str(inc["joint"])
+        for seed in LAMBDA_INCUMBENT_SEEDS:
+            cells.append((dataset, n, topp, joint, "select", seed, ()))
+        for flag, spec in LAMBDA_AXES.items():
+            for value in spec["grid"]:
+                if value == LAMBDA_INCUMBENT[dataset][flag]:
+                    continue
+                cells.append((dataset, n, topp, joint, "select", SEED,
+                              ((flag, value),)))
+    return cells
+
+
+def sweep_cells(axis: str, *, at_topp=None, incumbent=None) -> list:
     """(dataset, N, topp, joint) for a recipe sweep. Exactly one axis moves.
 
     The N is INCUMBENT_N, i.e. what the first sixteen cells chose at the
     incumbent recipe. It is the horizon the candidates share, not the answer:
     N is chosen again by D1's rule once the recipe is settled.
     """
+    if axis == "lambda":
+        if not incumbent:
+            raise CellRefused(
+                "--sweep lambda takes its incumbent from --recipe and "
+                "--selection; there is no global lambda incumbent")
+        return lambda_confirmation_cells(incumbent)
     if axis == "topp":
         # The lambda stays at the incumbent 0.0, so the only difference between
         # these cells and the original sixteen is the window under test.
@@ -2905,6 +3038,24 @@ def _only_cell(spec: str, plan: list, *, axis: str) -> tuple:
         matches = [c for c in plan
                    if c[0] == dataset and tuple(c[2]) == want]
         offered = sorted({tuple(c[2]) for c in plan if c[0] == dataset})
+    elif axis == "lambda":
+        # `dataset:incumbent:SEED` or `dataset:FLAG=VALUE`.
+        coord = coord.strip()
+        if coord.startswith("incumbent:"):
+            seed = int(coord.split(":", 1)[1])
+            matches = [c for c in plan if c[0] == dataset
+                       and not _cell_overrides(c) and c[5] == seed]
+        elif "=" in coord:
+            flag, value = coord.split("=", 1)
+            matches = [c for c in plan if c[0] == dataset
+                       and _cell_overrides(c) == ((flag, value),)]
+        else:
+            raise CellRefused(
+                f"{coord!r}: for --sweep lambda write dataset:incumbent:SEED "
+                f"or dataset:FLAG=VALUE (e.g. flickr25k:lambda_bu=0)")
+        offered = sorted({f"incumbent:{c[5]}" if not _cell_overrides(c)
+                          else "=".join(_cell_overrides(c)[0])
+                          for c in plan if c[0] == dataset})
     else:
         matches = [c for c in plan
                    if c[0] == dataset and str(c[3]) == coord.strip()]
@@ -2937,12 +3088,16 @@ def _run_sweep(args, at_topp, *, full_plan=None,
             print(f"[phase3] REFUSED --only: {error}", file=sys.stderr)
             return 2
 
+    campaign_kind = (LAMBDA_CAMPAIGN_KIND if args.sweep == "lambda"
+                     else f"recipe_{args.sweep}")
     if args.plan or not (args.run or args.smoke):
         print(f"{len(plan)} cells, sweeping {args.sweep} at the incumbent N")
-        for ds, n, topp, jd in plan:
+        for cell in plan:
+            ds, n, topp, jd, stage, seed = _campaign_cell_parts(cell)
+            ov = _cell_overrides(cell)
             print(f"  {ds:<10} N={n:<3} topp={topp[0]}/{topp[1]:<5} "
-                  f"jd={jd:<5} -> "
-                  f"{tag_for(ds, n, namespace=args.namespace, topp=topp, joint=jd)}")
+                  f"jd={jd:<5} seed={seed} {dict(ov) or 'incumbent'} -> "
+                  f"{tag_for(ds, n, namespace=args.namespace, topp=topp, joint=jd, seed=seed, overrides=ov)}")
         return 0
 
     epochs = args.epochs if args.smoke else None
@@ -2989,7 +3144,7 @@ def _run_sweep(args, at_topp, *, full_plan=None,
             sorted({c[0] for c in full_plan}), plan=full_plan, executed=plan,
             axis=args.sweep, namespace=args.namespace,
             campaign_nonce=campaign_nonce, epochs=epochs,
-            campaign_kind=f"recipe_{args.sweep}",
+            campaign_kind=campaign_kind,
             authorities=authorities,
             input_seals=input_seals,
             result_root=getattr(args, "result_root", REPO / "result"),
@@ -3028,20 +3183,29 @@ def _run_sweep(args, at_topp, *, full_plan=None,
     import threading
     results, lock = {}, threading.Lock()
 
+    def _cell_key(cell):
+        ds, n, topp, jd, stage, seed = _campaign_cell_parts(cell)
+        return campaign_cell_id(ds, n, topp=topp, joint=jd, stage=stage,
+                                seed=seed, overrides=_cell_overrides(cell))
+
     def _stream(dataset, cells, gpu):
-        for ds, n, topp, jd in cells:
-            key = campaign_cell_id(ds, n, topp=topp, joint=jd)
+        for cell in cells:
+            ds, n, topp, jd, stage, seed = _campaign_cell_parts(cell)
+            key = _cell_key(cell)
             try:
                 assert_reservation_owner(args.namespace, reservation)
-                cell_id = campaign_cell_id(ds, n, topp=topp, joint=jd)
-                planned = snapshot["plan"]["cell_bindings"][cell_id]
+                planned = snapshot["plan"]["cell_bindings"][key]
                 launch_binding = launch_binding_from_expected(
                     planned, snap_digest)
                 record = run_cell(ds, n, gpu, epochs=epochs,
-                                  namespace=args.namespace, topp=topp,
+                                  namespace=args.namespace, stage=stage,
+                                  seed=seed, topp=topp,
                                   joint=jd, snapshot=snapshot,
                                   campaign_binding=launch_binding,
-                                  result_root=snapshot["plan"]["result_root"])
+                                  result_root=snapshot["plan"]["result_root"],
+                                  overrides=(_cell_overrides(cell)
+                                             if args.sweep == "lambda"
+                                             else None))
             except Exception as error:                 # noqa: BLE001
                 with lock:
                     results[key] = ("failed", str(error))
@@ -3071,8 +3235,7 @@ def _run_sweep(args, at_topp, *, full_plan=None,
 
     done = [k for k, (st, _) in results.items() if st == "ok"]
     if len(done) != len(plan):
-        missing = sorted({campaign_cell_id(
-            c[0], c[1], topp=c[2], joint=c[3]) for c in plan} - set(done))
+        missing = sorted({_cell_key(c) for c in plan} - set(done))
         print(f"[phase3] {len(done)} of {len(plan)} sweep cells complete; "
               f"missing {missing}", file=sys.stderr)
         return 1
@@ -3088,7 +3251,22 @@ def _run_sweep(args, at_topp, *, full_plan=None,
     assert_reservation_owner(args.namespace, reservation)
     receipt = {
         "schema_version": SWEEP_RECEIPT_SCHEMA, "axis": args.sweep,
-        "campaign_kind": f"recipe_{args.sweep}",
+        "campaign_kind": campaign_kind,
+        # A lambda confirmation is OUTSIDE the P/JD/N fixed-point protocol: it
+        # cannot define the production recipe by itself, and its reducer is
+        # scripts/phase3_lambda_decision.py, not the stability state machine.
+        "fixed_point_authority": args.sweep != "lambda",
+        **({"lambda_axes": LAMBDA_AXES,
+            "lambda_incumbent": {ds: LAMBDA_INCUMBENT[ds]
+                                 for ds in LAMBDA_SWEEP_DATASETS},
+            "lambda_incumbent_seeds": list(LAMBDA_INCUMBENT_SEEDS),
+            "incumbent_authorities": authorities or {},
+            "identity_note": (
+                "lambda_text_hash_ntxent is a RunIdentity field; "
+                "lambda_wasserstein and lambda_bu are not (schema v5), so "
+                "cells moving them share the incumbent identity digest and "
+                "are bound by tag, cell binding and args.txt read-back")}
+           if args.sweep == "lambda" else {}),
         "namespace": args.namespace,
         "campaign_nonce": campaign_nonce,
         "result_root": snapshot["plan"]["result_root"],
@@ -3114,6 +3292,8 @@ def _run_sweep(args, at_topp, *, full_plan=None,
                 "record": f"{results[k][1]['tag']}.json",
                 "record_sha256": _sha(RECORD_DIR / f"{results[k][1]['tag']}.json"),
                 "recipe": results[k][1]["recipe"],
+                "seed": results[k][1]["seed"],
+                "selection": results[k][1]["selection"],
                 "campaign": results[k][1]["campaign"],
                 "completion": {
                     field: results[k][1]["completion"].get(field)
@@ -3359,6 +3539,112 @@ def _run_exact_campaign(args, *, full_plan: list, executed_plan: list,
     return 0
 
 
+def _lambda_confirmation_main(args) -> int:
+    """`--sweep lambda`: the incumbent is the APPROVED REFIT AGGREGATE's
+    per-dataset N and recipe -- the coordinates the paper's main rows were
+    trained at -- pinned by the digest the caller declares. Its per-seed
+    records are reopened and hashed. Production runs the whole declared plan
+    in one process; `--only` is for a one-cell smoke.
+
+    Why not --recipe/--selection: their verifiers replay the fixed-point
+    campaigns and compare the stage plans' pinned protocol-source digests with
+    THIS tree, which now carries the lambda extension, so they refuse by
+    construction (observed 2026-09-15). The aggregate is the artefact the
+    audit already bound to that replay in the frozen tree."""
+    if args.at_topp or args.stability_plan or args.refit or args.recipe:
+        print("[phase3] REFUSED: --sweep lambda takes no --at-topp, "
+              "--stability-plan, --refit or --recipe", file=sys.stderr)
+        return 2
+    if not args.incumbent_refit_aggregate \
+            or not args.incumbent_refit_aggregate_sha256:
+        print("[phase3] REFUSED: --sweep lambda needs --incumbent-refit-"
+              "aggregate and --incumbent-refit-aggregate-sha256", file=sys.stderr)
+        return 2
+    aggregate_path = Path(args.incumbent_refit_aggregate).resolve()
+    try:
+        raw = aggregate_path.read_bytes()
+    except OSError as error:
+        print(f"[phase3] REFUSED --incumbent-refit-aggregate: {error}",
+              file=sys.stderr)
+        return 2
+    aggregate_sha = hashlib.sha256(raw).hexdigest()
+    if aggregate_sha != str(args.incumbent_refit_aggregate_sha256).lower():
+        print(f"[phase3] REFUSED: {aggregate_path} hashes to {aggregate_sha[:16]}..., "
+              f"not the declared {str(args.incumbent_refit_aggregate_sha256)[:16]}...",
+              file=sys.stderr)
+        return 2
+    try:
+        aggregate = json.loads(raw.decode("utf-8"))
+    except ValueError as error:
+        print(f"[phase3] REFUSED --incumbent-refit-aggregate: {error}",
+              file=sys.stderr)
+        return 2
+    incumbent, records = {}, {}
+    for dataset in LAMBDA_SWEEP_DATASETS:
+        cell = (aggregate.get("datasets") or {}).get(dataset)
+        if not isinstance(cell, dict) or not cell.get("seeds"):
+            print(f"[phase3] REFUSED: aggregate has no complete cell for "
+                  f"{dataset}", file=sys.stderr)
+            return 2
+        recipe = cell.get("recipe") or {}
+        chosen = {"N": int(cell["N"]),
+                  "topp": [str(recipe.get("routing_adaptive_topp_min")),
+                           str(recipe.get("routing_adaptive_topp_max"))],
+                  "joint": str(recipe.get("lambda_codon_joint"))}
+        if tuple(chosen["topp"]) not in TOPP_GRID \
+                or chosen["joint"] not in JOINT_GRID \
+                or chosen["N"] not in CANDIDATE_N:
+            print(f"[phase3] REFUSED: {dataset} incumbent {chosen} is off the "
+                  f"declared grids", file=sys.stderr)
+            return 2
+        names = aggregate.get("record_sha256") or {}
+        for seed in cell["seeds"]:
+            digest = (cell.get("record_sha256") or {}).get(str(seed))
+            named = [name for name, value in names.items() if value == digest]
+            path = aggregate_path.parent / named[0] if len(named) == 1 else None
+            if path is None or not path.is_file() or _sha(path) != digest:
+                print(f"[phase3] REFUSED: {dataset} seed {seed}: the record the "
+                      f"aggregate names is missing or not its bytes",
+                      file=sys.stderr)
+                return 2
+            record = json.loads(path.read_text(encoding="utf-8"))
+            rec_recipe = record.get("recipe") or {}
+            if int(record.get("N", -1)) != chosen["N"] or \
+                    [str(rec_recipe.get("routing_adaptive_topp_min")),
+                     str(rec_recipe.get("routing_adaptive_topp_max"))] != chosen["topp"] \
+                    or str(rec_recipe.get("lambda_codon_joint")) != chosen["joint"] \
+                    or record.get("stage") != "refit":
+                print(f"[phase3] REFUSED: {dataset} seed {seed}: record "
+                      f"disagrees with the aggregate cell", file=sys.stderr)
+                return 2
+            records[f"{dataset}:{seed}"] = {"record": path.name, "sha256": digest}
+        incumbent[dataset] = chosen
+    authorities = {
+        "incumbent_refit_aggregate": {
+            "path": str(aggregate_path), "sha256": aggregate_sha,
+            "incumbent": incumbent, "records": records},
+    }
+    try:
+        full_plan = sweep_cells("lambda", incumbent=incumbent)
+    except CellRefused as error:
+        print(f"[phase3] REFUSED: {error}", file=sys.stderr)
+        return 2
+    if args.plan or not (args.run or args.smoke):
+        return _run_sweep(args, None, full_plan=full_plan,
+                          authorities=authorities)
+    if args.smoke and not args.only:
+        print("[phase3] REFUSED: a lambda smoke must name exactly one cell "
+              "with --only", file=sys.stderr)
+        return 2
+    if args.run and args.only:
+        print("[phase3] REFUSED: --only cannot narrow a production lambda "
+              "confirmation; use it only with --smoke", file=sys.stderr)
+        return 2
+    return _with_campaign_gpu_leases(
+        args, lambda: _run_sweep(args, None, full_plan=full_plan,
+                                 authorities=authorities))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", action="store_true",
@@ -3402,10 +3688,24 @@ def main() -> int:
     parser.add_argument("--selection", default=str(
         REPO / "artifacts" / "phase3_selection" / "selected_n.json"))
     parser.add_argument(
-        "--sweep", choices=("topp", "joint"), default=None,
+        "--sweep", choices=("topp", "joint", "lambda"), default=None,
         help=("sweep a RECIPE axis instead of N, at the incumbent N for each "
               "dataset. The cells are ordinary stage-1 selection cells: same "
-              "90/10 train split, same optTrain whitening, no official test."))
+              "90/10 train split, same optTrain whitening, no official test. "
+              "`lambda` is the loss-coefficient confirmation (LAMBDA_AXES) at "
+              "the confirmed recipe (--recipe) and selected N (--selection); "
+              "it is not part of the fixed-point protocol."))
+    parser.add_argument(
+        "--incumbent-refit-aggregate", default=None, metavar="PATH",
+        help=("--sweep lambda only: the approved refit aggregate (the one the "
+              "paper's main rows come from) whose per-dataset N and recipe ARE "
+              "the incumbent. It is pinned by --incumbent-refit-aggregate-sha256 "
+              "rather than replayed: the fixed-point replay pins the protocol "
+              "sources of the tree it ran in, and this tree carries the lambda "
+              "extension, so a replay here can only refuse."))
+    parser.add_argument(
+        "--incumbent-refit-aggregate-sha256", default=None, metavar="HEX",
+        help="full SHA-256 the aggregate must hash to (--sweep lambda only)")
     parser.add_argument(
         "--recipe", default=None, metavar="PATH", action="append",
         help=("the one final phase3_recipe_stability artefact. Production N "
@@ -3447,6 +3747,9 @@ def main() -> int:
             print(f"[phase3] --at-topp {sweep_topp} is not one of the swept "
                   f"windows {list(TOPP_GRID)}", file=sys.stderr)
             return 2
+
+    if args.sweep == "lambda":
+        return _lambda_confirmation_main(args)
 
     if args.stability_plan:
         try:
