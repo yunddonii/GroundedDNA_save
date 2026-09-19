@@ -117,7 +117,18 @@ def main() -> int:
         print(f"ERROR: {ckpt_path} not found.")
         return 1
 
-    args = _parse_args_txt(args_path)
+    # Prefer the run's STRUCTURED record. `args.txt` is written for display --
+    # `{k:-<30s}{str(v):->70s}` -- so a key over 30 characters followed by a
+    # value over 70 leaves no hyphen for `_parse_args_txt` to split on, and the
+    # line is dropped. The approved MS-COCO run has exactly one such line
+    # (`clip_snapshot_tokenizers_sha256_json`), and without it `model_siglip2`
+    # refuses to build a model whose snapshot has no tokenizer authority.
+    # `_parse_args_txt` stays for runs that predate `config.pt`.
+    from slot_dissection_coco import _load_run_config   # local: avoids a cycle
+    args, _config_source, _config_sha = _load_run_config(os.path.dirname(args_path))
+    print(f"[regen] config from {_config_source} ({_config_sha[:16]}…)")
+    # Set BEFORE the model is built: `__init__` ends with
+    # `self.to(self.device)`, so a later `.to()` cannot decide the device.
     args.device = cli.device
     # Optional: override cache (e.g. whole-image cache for a FAIRrank-trained ckpt).
     if cli.cache_dir_override:

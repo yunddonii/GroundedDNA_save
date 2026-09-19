@@ -836,6 +836,51 @@ class Config():
             help='Freeze the EMA codebook from this epoch onward. '
                  '-1 (default) never freezes and reproduces prior behaviour; '
                  '0 freezes from the start; N freezes from epoch N.')
+        # ---- 2026-09-20, off-protocol branch arch-exp-2026-09 ------------
+        # Every flag below defaults to OFF and leaves the historical path
+        # bit-identical (proven by an entry gate before any experiment).
+        # (a-1) content-dependent slot mass. The Sinkhorn part marginal is
+        # uniform (1/M) by default, so every local slot must take the same
+        # share of patch mass in every image, whether or not the image has
+        # anything for that axis. With alpha > 0 the target for slot m becomes
+        #   (1-alpha)/M + alpha * softmax_m((cos(g, p_m) - mu_m) / tau)
+        # where g is the frozen CLIP image embedding, p_m the mean CLIP text
+        # embedding of axis-m captions over the optimisation rows, and mu_m
+        # that axis's mean similarity. The (1-alpha)/M floor keeps every slot
+        # non-empty; routing sharpness (epsilon, top-p) is untouched.
+        siglip2_arg.add_argument('--routing_mass_alpha', dest='routing_mass_alpha',
+            type=float, default=0.0,
+            help='(a-1) weight of the content-dependent part of the slot mass target; 0 = off.')
+        siglip2_arg.add_argument('--routing_mass_tau', dest='routing_mass_tau',
+            type=float, default=0.0,
+            help='(a-1) softmax temperature; <=0 sets it to the pooled SD of the centred similarities.')
+        # (a-2) the learnable null/background centroid (--use_null_centroid)
+        # with its column marginal left FREE (tau_b = 0 for that column) and
+        # excluded from the slot mass budget, so it only takes mass that
+        # patches actually prefer to give it.
+        siglip2_arg.add_argument('--null_free_marginal', dest='null_free_marginal',
+            action='store_true', default=False,
+            help='(a-2) leave the null column of the Sinkhorn plan unconstrained.')
+        # (b-1) masked entity completion (OVSegmentor, CVPR 2023), bound per
+        # slot: slot m's code must complete the entities masked out of the
+        # axis-m caption. Needs a cache built by scripts/build_mec_cache.py.
+        siglip2_arg.add_argument('--lambda_mec', dest='lambda_mec',
+            type=float, default=0.0,
+            help='(b-1) weight of the masked-entity-completion loss; 0 = off.')
+        siglip2_arg.add_argument('--mec_cache_dir', dest='mec_cache_dir',
+            type=str, default=None,
+            help='(b-1) directory written by scripts/build_mec_cache.py.')
+        siglip2_arg.add_argument('--mec_temperature', dest='mec_temperature',
+            type=float, default=0.07,
+            help='(b-1) initial contrastive temperature (learnable, as in OVSegmentor).')
+        # (c-1) two-stage training: for the first N epochs the quantizer is
+        # the identity (no codebook, no EMA, no revival) and the codebook
+        # KL loss is off; at epoch N the codebook is initialised by k-means
+        # on the routed visual tokens of the optimisation rows, then VQ runs
+        # normally. 0 = off.
+        siglip2_arg.add_argument('--vq_bypass_epochs', dest='vq_bypass_epochs',
+            type=int, default=0,
+            help='(c-1) epochs of VQ-free training before k-means codebook init; 0 = off.')
         # Option α: Codeword Repulsion. After each EMA update, push each
         # codeword in a codebook away from its closest neighbours
         # (Gaussian-weighted, auto-sigma per codebook). Disabled by default.

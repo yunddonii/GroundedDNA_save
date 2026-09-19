@@ -40,7 +40,7 @@ import numpy as np
 
 
 SCHEMA = "groundeddna.phase3-input-seal"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 HASH_ALGORITHM = "sha256"
 HASH_CHUNK_BYTES = 8 * 1024 * 1024
 PREFLIGHT_JSON_MAX_BYTES = 64 * 1024 * 1024
@@ -67,6 +67,7 @@ _WHITENING_ORTHONORMAL_ATOL = 2.0e-5
 # Float32 eigensolvers can leave tiny negative roundoff in a PSD covariance.
 # Production v6prov reaches about -2.2e-10, so this is deliberately tight.
 _WHITENING_EIGENVALUE_NEGATIVE_ATOL = 1.0e-8
+_WHITENING_DERIVATION_ATOL = 2.0e-6
 _WHITENING_SOURCE_SLOTS = (1, 2, 3, 4, 5)
 _WHITENING_RUNTIME_LOCAL_SLOTS = (1, 2, 3, 4)
 
@@ -125,6 +126,14 @@ _FOIL_PROVENANCE = (
     "text_foil_token_meta.json",
     "text_foil_edits.jsonl",
     "semantic_detail_cache_manifest.json",
+)
+
+_FOIL_DERIVATION_SOURCES = (
+    "scripts/build_counterfactual_caption_foils.py",
+    "scripts/build_text_whiten_matrix.py",
+    "scripts/extract_counterfactual_foil_features.py",
+    "scripts/extract_counterfactual_foil_token_features.py",
+    "scripts/prepare_semantic_detail_cache.py",
 )
 
 _AUGMENTED_RE = re.compile(
@@ -1660,11 +1669,59 @@ def _whitening_preflight(
             f"match {expected_kept} rows * 5 source local slots"
         )
 
+    # Recompute the statistics from the exact train-only source rows.  Shape,
+    # metadata, and self-reported hashes alone cannot establish that this NPZ
+    # was actually derived from the sealed text cache.
+    text_path = os.path.join(request.feature_cache, "text_part.f16.npy")
+    text_target = str(Path(text_path).resolve(strict=True))
+    text_stat_before = os.stat(text_target, follow_symlinks=False)
+    text_part = np.load(text_path, mmap_mode="r", allow_pickle=False)
+    kept_rows = np.intersect1d(np.flatnonzero(has_text), split_rows)
+    vectors = np.asarray(
+        text_part[kept_rows, 1:, :], dtype=np.float32
+    ).reshape(-1, dimension)
+    del text_part
+    derived_mu = vectors.mean(axis=0).astype(np.float32)
+    centered = vectors - derived_mu
+    derived_cov = (centered.T @ centered) / max(len(centered) - 1, 1)
+    derived_cov = (derived_cov + derived_cov.T) * 0.5
+    text_stat_after = os.stat(text_target, follow_symlinks=False)
+    if _stat_json(text_stat_before) != _stat_json(text_stat_after):
+        raise SealError("text_part changed while whitening was re-derived")
+    stored_cov = (
+        np.asarray(U, dtype=np.float64)
+        * np.asarray(S, dtype=np.float64)[None, :]
+    ) @ np.asarray(U, dtype=np.float64).T
+    mu_error = float(np.max(np.abs(
+        np.asarray(mu, dtype=np.float64)
+        - np.asarray(derived_mu, dtype=np.float64)
+    ), initial=0.0))
+    covariance_error = float(np.max(np.abs(
+        np.asarray(derived_cov, dtype=np.float64) - stored_cov
+    ), initial=0.0))
+    if (
+        mu_error > _WHITENING_DERIVATION_ATOL
+        or covariance_error > _WHITENING_DERIVATION_ATOL
+    ):
+        raise SealError(
+            "whitening NPZ is not derived from the sealed train-only text rows: "
+            f"mu_error={mu_error}, covariance_error={covariance_error}"
+        )
+
     return {
         "artifact_raw_sha256": whitening_sha,
         "metadata_raw_sha256": metadata_sha,
         "has_text_raw_sha256": has_text_sha,
         "split_rows_raw_sha256": split_sha,
+        "text_part_source": {
+            "resolved_path": text_target,
+            "stat": _stat_json(text_stat_before),
+        },
+        "derivation_check": {
+            "mu_max_abs_error": mu_error,
+            "covariance_max_abs_error": covariance_error,
+            "atol": _WHITENING_DERIVATION_ATOL,
+        },
         "npz": {
             "keys": sorted(_WHITENING_KEYS),
             "dtypes": {"mu": mu.dtype.str, "U": U.dtype.str, "S": S.dtype.str},
@@ -1779,6 +1836,8 @@ def _assert_manifest_contract(
     whitening_meta: Mapping[str, Any],
     split_record: Mapping[str, Any],
     qwen_record: Mapping[str, Any],
+    foil_jsonl_record: Mapping[str, Any],
+    foil_source_records: Mapping[str, Mapping[str, Any]],
     semantic_manifest: Mapping[str, Any],
     foil_meta: Mapping[str, Any],
     foil_token_meta: Mapping[str, Any],
@@ -1857,6 +1916,24 @@ def _assert_manifest_contract(
     qwen_sha = _effective_sha(qwen_record)
     if semantic_manifest.get("qwen_jsonl_sha256") != qwen_sha:
         raise SealError("foil manifest qwen_jsonl_sha256 does not match explicit Qwen bytes")
+    manifest_qwen = semantic_manifest.get("qwen_jsonl")
+    manifest_foil = semantic_manifest.get("foil_jsonl")
+    if not isinstance(manifest_qwen, str) or not isinstance(manifest_foil, str):
+        raise SealError("foil manifest must name qwen_jsonl and foil_jsonl")
+    _assert_same_real_path(manifest_qwen, request.qwen, "foil-manifest Qwen input")
+    _assert_same_real_path(manifest_foil, str(foil_jsonl_record["path"]), "foil source")
+    foil_sha = _effective_sha(foil_jsonl_record)
+    if semantic_manifest.get("foil_jsonl_sha256") != foil_sha:
+        raise SealError("foil manifest digest does not match actual foil JSONL bytes")
+
+    declared_sources = semantic_manifest.get("source_sha256")
+    if not isinstance(declared_sources, Mapping) or set(declared_sources) != set(
+        _FOIL_DERIVATION_SOURCES
+    ):
+        raise SealError("foil manifest has an incomplete producer source set")
+    for relative_path, record in foil_source_records.items():
+        if declared_sources.get(relative_path) != _effective_sha(record):
+            raise SealError(f"foil producer source digest mismatch: {relative_path}")
 
     whitening_table = semantic_manifest.get("whitening")
     if not isinstance(whitening_table, Mapping):
@@ -1884,7 +1961,11 @@ def _assert_manifest_contract(
         if not isinstance(cache_dir, str):
             raise SealError(f"{label} metadata has no cache_dir")
         _assert_same_real_path(cache_dir, request.feature_cache, f"{label} cache")
-        if meta.get("foil_jsonl_sha256") != semantic_manifest.get("foil_jsonl_sha256"):
+        meta_foil = meta.get("foil_jsonl")
+        if not isinstance(meta_foil, str):
+            raise SealError(f"{label} metadata has no foil_jsonl")
+        _assert_same_real_path(meta_foil, manifest_foil, f"{label} foil source")
+        if meta.get("foil_jsonl_sha256") != foil_sha:
             raise SealError(f"{label} metadata disagrees on the foil JSONL digest")
 
 
@@ -2036,6 +2117,19 @@ def build_seal(request: SealRequest) -> dict[str, Any]:
         != whitening_validation["has_text_raw_sha256"]
     ):
         raise SealError("has_text bytes changed after whitening validation")
+    text_part_record = _record_by_name(feature, "text_part.f16.npy")
+    text_part_target = (
+        text_part_record["resolved_target"]
+        if text_part_record["file_type"] == "symlink"
+        else text_part_record
+    )
+    if (
+        text_part_target["path"]
+        != whitening_validation["text_part_source"]["resolved_path"]
+        or text_part_target["stat"]
+        != whitening_validation["text_part_source"]["stat"]
+    ):
+        raise SealError("text_part changed after whitening derivation check")
     # The overlay deliberately exposes the same row index as a logical symlink.
     # Preserve that link evidence too, while memoizing its target hash.
     overlay_split_path = os.path.join(
@@ -2075,6 +2169,15 @@ def build_seal(request: SealRequest) -> dict[str, Any]:
         if not isinstance(value, Mapping):
             raise SealError(f"{label} is not a JSON object")
 
+    foil_jsonl = semantic_manifest.get("foil_jsonl")
+    if not isinstance(foil_jsonl, str):
+        raise SealError("foil manifest has no string foil_jsonl")
+    foil_jsonl_record = _seal_file(foil_jsonl, memo)
+    foil_source_records = {
+        relative_path: _seal_file(REPO / relative_path, memo)
+        for relative_path in _FOIL_DERIVATION_SOURCES
+    }
+
     _assert_manifest_contract(
         request,
         feature=feature,
@@ -2085,6 +2188,8 @@ def build_seal(request: SealRequest) -> dict[str, Any]:
         whitening_meta=whitening_meta,
         split_record=split_record,
         qwen_record=qwen_record,
+        foil_jsonl_record=foil_jsonl_record,
+        foil_source_records=foil_source_records,
         semantic_manifest=semantic_manifest,
         foil_meta=foil_meta,
         foil_token_meta=foil_token_meta,
@@ -2112,6 +2217,7 @@ def build_seal(request: SealRequest) -> dict[str, Any]:
                 "derivation_provenance": [
                     "inputs.dataset_rows.files[consumption_role=derivation_provenance]",
                     "inputs.foil_overlay",
+                    "inputs.foil_derivation",
                     "inputs.image_id_alignment",
                     "inputs.qwen_jsonl",
                     "inputs.split_rows.foil_overlay_entry",
@@ -2143,6 +2249,10 @@ def build_seal(request: SealRequest) -> dict[str, Any]:
                 "foil_overlay_entry": overlay_split_record,
             },
             "qwen_jsonl": qwen_record,
+            "foil_derivation": {
+                "foil_jsonl": foil_jsonl_record,
+                "producer_sources": foil_source_records,
+            },
         },
         "hash_summary": {
             "algorithm": HASH_ALGORITHM,

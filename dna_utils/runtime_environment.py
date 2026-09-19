@@ -42,6 +42,50 @@ RUNTIME_ENV_KEYS = (
 )
 
 
+def caller_environment() -> dict:
+    """The runtime variables as the CALLER supplied them, not as imports left them.
+
+    Read from `/proc/self/environ`, which holds the block this process was
+    exec'd with and is immutable for its lifetime, rather than from
+    `os.environ`, which any imported package may rewrite.
+
+    `cv2` rewrites `LD_LIBRARY_PATH` on import, prepending its bundled lib
+    directory, and it does so unconditionally -- importing it twice yields the
+    directory twice. The trainer's import chain pulls cv2 in; the launcher's
+    does not. Reading `os.environ` therefore compared a parent that had never
+    imported cv2 against a child that had, so the two could never agree and
+    every cell was refused with `library_environment`. Presetting the variable
+    does not help either, because the child prepends on top of whatever it
+    inherits: the parent is always exactly one prepend behind.
+
+    What the attestation is actually for is the environment the launcher hands
+    the child, and that is what the exec block records. A caller supplying a
+    different `LD_LIBRARY_PATH` is still caught; a library rewriting its own
+    copy in memory is not mistaken for one.
+    """
+    try:
+        with open("/proc/self/environ", "rb") as handle:
+            block = handle.read()
+    except OSError:
+        # Non-Linux or a hidden /proc. Fall back to os.environ and accept that
+        # an import-time rewrite would be visible; nothing else here is
+        # portable either, and the callers all run on this host.
+        return {key: os.environ.get(key) for key in RUNTIME_ENV_KEYS}
+    # The block can repeat a name. `getenv(3)` returns the FIRST match, so
+    # first-wins is the value the process actually runs under; last-wins would
+    # attest something no library ever reads.
+    supplied: dict = {}
+    for entry in block.split(b"\0"):
+        if not entry or b"=" not in entry:
+            continue
+        name, _, value = entry.partition(b"=")
+        try:
+            supplied.setdefault(name.decode(), value.decode())
+        except UnicodeDecodeError:
+            continue
+    return {key: supplied.get(key) for key in RUNTIME_ENV_KEYS}
+
+
 class EnvironmentAttestationError(RuntimeError):
     """The actual child environment is not the one sealed by its plan."""
 
@@ -159,9 +203,7 @@ def capture_parent_environment(gpu_ids: Sequence[int] = ()) -> dict:
         "selected_gpus": [by_index[index] for index in requested
                           if index in by_index],
         "caller_cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
-        "library_environment": {
-            key: os.environ.get(key) for key in RUNTIME_ENV_KEYS
-        },
+        "library_environment": caller_environment(),
         "pythonpath": os.environ.get("PYTHONPATH"),
         "errors": errors,
     }
@@ -226,9 +268,7 @@ def capture_child_environment(expected: Mapping[str, Any]) -> dict:
         "python_version": sys.version,
         "packages": packages,
         "torch_runtime": runtime,
-        "library_environment": {
-            key: os.environ.get(key) for key in RUNTIME_ENV_KEYS
-        },
+        "library_environment": caller_environment(),
         "pythonpath": os.environ.get("PYTHONPATH"),
         "cuda_visible_devices": os.environ.get("CUDA_VISIBLE_DEVICES"),
         "physical_gpu": physical,

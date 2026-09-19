@@ -173,6 +173,20 @@ MANIFEST_SCHEMA_VERSION = 2
 _CANONICAL_CLASS_WIDTH = {
     "CIFAR10": 10, "Flickr25k": 24, "NUSWIDE": 21, "MSCOCO": 80,
 }
+_CANONICAL_DATASET_NAME = {
+    "cifar10": "CIFAR10", "CIFAR10": "CIFAR10",
+    "flickr25k": "Flickr25k", "Flickr25k": "Flickr25k",
+    "nuswide": "NUSWIDE", "NUSWIDE": "NUSWIDE",
+    "mscoco": "MSCOCO", "MSCOCO": "MSCOCO",
+}
+
+
+def canonical_dataset_name(value: object, *, what: str = "dataset") -> str:
+    """Return the one display name for an explicitly allowed identity."""
+    if not isinstance(value, str) or value not in _CANONICAL_DATASET_NAME:
+        raise ExtractionInvalid(
+            f"{what}={value!r} is not an allowed dataset identity")
+    return _CANONICAL_DATASET_NAME[value]
 
 #: Sources the resolver can legitimately report -- where the EPOCH came from,
 #: which is a different question from whether epsilon was annealed. `bogus` is
@@ -225,6 +239,8 @@ def _check_schema(manifest: Mapping, *, split: str) -> None:
         raise ExtractionInvalid(
             f"{split}: unknown manifest schema_version "
             f"{manifest['schema_version']!r}")
+    canonical_dataset_name(
+        manifest["dataset"], what=f"{split}: manifest dataset")
     source = manifest["inference_epoch_source"]
     if source not in _EPOCH_SOURCES:
         raise ExtractionInvalid(
@@ -434,6 +450,8 @@ def _validate_npz(manifest: Mapping, *, split: str, run_dir: str) -> dict:
     slots = int(manifest["num_slots"])
     per_slot = int(manifest["bases_per_slot"])
     rows = int(manifest["n_rows"])
+    dataset = canonical_dataset_name(
+        manifest.get("dataset"), what=f"{split}: manifest dataset")
 
     fd = os.open(npz_path, os.O_RDONLY | getattr(os, "O_CLOEXEC", 0))
     try:
@@ -491,11 +509,10 @@ def _validate_npz(manifest: Mapping, *, split: str, run_dir: str) -> dict:
                 f"shape={labels.shape} dtype={labels.dtype}")
         if labels.size and labels.min() < 0:
             raise ExtractionInvalid(f"{split}: labels contain a negative class")
-        canonical_width = _CANONICAL_CLASS_WIDTH.get(manifest.get("dataset"))
-        if canonical_width is not None and labels.size \
-                and labels.max() >= canonical_width:
+        canonical_width = _CANONICAL_CLASS_WIDTH[dataset]
+        if labels.size and labels.max() >= canonical_width:
             raise ExtractionInvalid(
-                f"{split}: labels exceed canonical {manifest.get('dataset')} "
+                f"{split}: labels exceed canonical {dataset} "
                 f"class width {canonical_width}")
     multi_width = None
     if multi_hot is not None:
@@ -511,11 +528,11 @@ def _validate_npz(manifest: Mapping, *, split: str, run_dir: str) -> dict:
             raise ExtractionInvalid(
                 f"{split}: multi_hot_labels must be finite binary values")
         multi_width = int(multi_hot.shape[1])
-        canonical_width = _CANONICAL_CLASS_WIDTH.get(manifest.get("dataset"))
-        if canonical_width is not None and multi_width != canonical_width:
+        canonical_width = _CANONICAL_CLASS_WIDTH[dataset]
+        if multi_width != canonical_width:
             raise ExtractionInvalid(
                 f"{split}: multi_hot_labels width {multi_width}, canonical "
-                f"{manifest.get('dataset')} requires {canonical_width}")
+                f"{dataset} requires {canonical_width}")
     if labels is not None and multi_hot is not None:
         if labels.size and labels.max() >= multi_hot.shape[1]:
             raise ExtractionInvalid(

@@ -1,0 +1,29 @@
+{
+ "note": "sha256 of every source file the 2026-09-20 arch-exp runs and probe import, as they were on disk when the runs started",
+ "files": {
+  "train_siglip2.py": "b1b893f2bcea58fc3b7a59a4acefb79644e4fc3e9083a51b44f8cb220606f760",
+  "config.py": "11986e912d7daac5b4307572afc10a46e275f9257ca14ec4eddfe9371d570735",
+  "model_siglip2.py": "d0303b5197f934941281076d963e6975a9409c3d9057b438e5e0c650e3d6a3f6",
+  "loss_siglip2.py": "d4cdc346ec5e37aa1fdbffad65b11934558756b28ba28eab46df70af9672f76d",
+  "dataloaders.py": "fa7545908664502a5a4f20fe8d3441b42d5f441653d1310dc4fbf08c1bb14e27",
+  "evaluation_siglip2.py": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+  "extraction_siglip2.py": "1d10b3b0e065179f72e477edb98a37be77890040410c6b8a6f1fafc82ed9aab6",
+  "models/semantic_router.py": "a332a95ec9dca63e4399036af46dd9b80f1e28be798d1ec18bddb259db045718",
+  "models/mec_head.py": "a3e64dc2e81218419dd0a4d3ae22c9774f5969176d5898eaa3daea1a72c4c85e",
+  "models/adapters.py": "0aa62a08472ef29662480023747caf661104d70b006f14311be7ffc165c68c4a",
+  "models/pretrained_backbone_clip.py": "c0237e43c6fcbd3fb9221bd147648b2e42fa59df280e5919d1699f4c33d4580a",
+  "models/pretrained_backbone.py": "e86953f0760c8f46649b2152b0d2e812053f549da75b9c5a97de05fbd5801b3f",
+  "dna_utils/arch_exp.py": "8e96826947bc7c1823ef026f77a36e7a38464016273818f067582efa14a18d37",
+  "dna_utils/run_identity.py": "1ffc4e6b29f372e0b249325ad92bc67065069d7ca04af47748e925d9698f186d",
+  "dna_utils/runtime_environment.py": "a78d51dbb134bcc400443a42b4c9fa46063b7bef356ab5b37b571a44f489a597",
+  "dna_utils/runtime_state.py": "cdab32494012f3f7199c7f05af81af547f5ddcbeb2131e166787dab94d26e333",
+  "dna_utils/visualization.py": "f71796319f19915371ae1ba12e25f6fa37a30429860c6d84a15aa222607c25bd",
+  "dna_utils/extraction_validation.py": "bd126a04aac5d1b51eca0379180924d0ad9e80b8d6bae6c2784c86a12c88c8ca",
+  "scripts/seal_phase3_inputs.py": "12233f8e4967c90afcab131a1061fe76abfbaed86648e1388826538a6d42f214",
+  "scripts/build_offprotocol_cmd.py": "977aa69f065f91a455b6ee706736ce257e789b82189e8fb28ce05c5817af6c54",
+  "scripts/build_mec_cache.py": "d97e837acf746544c4f45216beed42d8b93f6422dc02a05f590b28348e6a62e0",
+  "scripts/slot_role_probe.py": "95ae59e3214972b93ec61b26c65940e8f7e19c228cd8a103f071a6a68381783a",
+  "scripts/regen_viz_routing.py": "60dda0c67a6e1955c159e690400720e87d6c3324c983e5d07a63a6821d9e1fc0",
+  "scripts/heldout_codon_decoding.py": "1f8cf34d9afc545ea5d4e864fb7db33e417f006901f66a033fa1b178cfe8ce64"
+ }
+}

@@ -395,6 +395,11 @@ class DNACodonHashLoss(nn.Module):
         # slots 1-5 sit at their marginal budget. This term regularises the
         # per-slot batch-mean distribution over the 4**L codons directly.
         self.lambda_codon_joint = float(getattr(cfg, "lambda_codon_joint", 0.0))
+        # 2026-09-20, off-protocol branch arch-exp-2026-09 (default off):
+        # (c-1) no codebook-KL while the quantizer is bypassed (the codebook is
+        # still random then); (b-1) weight of the model's masked-entity loss.
+        self.vq_bypass_epochs = int(getattr(cfg, "vq_bypass_epochs", 0) or 0)
+        self.lambda_mec = float(getattr(cfg, "lambda_mec", 0.0) or 0.0)
         # ConceptHash Eq. 8 (`L_csd`) ported onto the routing matrix.
         self.lambda_slot_diversity      = float(getattr(cfg, "lambda_slot_diversity", 0.0))
         self.slot_diversity_skip_global = bool(getattr(cfg, "slot_diversity_skip_global", True))
@@ -3085,7 +3090,9 @@ class DNACodonHashLoss(nn.Module):
         # Only fires when --lambda_text_code_kl > 0 and the model exposed
         # the full codebook tensor + text_part_tokens.
         loss_text_code_kl = u.new_zeros(())
-        if self.lambda_text_code_kl > 0.0:
+        _vq_bypassed = (self.vq_bypass_epochs > 0 and epoch is not None
+                        and int(epoch) < self.vq_bypass_epochs)
+        if self.lambda_text_code_kl > 0.0 and not _vq_bypassed:
             z_tck = outputs.get("semantic_visual_tokens")
             if z_tck is None:
                 z_tck = outputs.get("quantizer_input")
@@ -3581,9 +3588,21 @@ class DNACodonHashLoss(nn.Module):
         else:
             loss_codon_joint = u.new_zeros(())
 
+        # (b-1) masked entity completion, computed inside the model forward.
+        loss_mec = outputs.get("loss_mec")
+        mec_acc = outputs.get("mec_acc")
+        if self.lambda_mec > 0.0 and loss_mec is not None:
+            total = total + self.lambda_mec * loss_mec
+        else:
+            loss_mec = u.new_zeros(())
+        if mec_acc is None:
+            mec_acc = u.new_zeros(())
+
         return {
             "loss":              total,
             "loss_codon_joint":  loss_codon_joint,
+            "loss_mec":          loss_mec,
+            "mec_acc":           mec_acc,
             "loss_slot_diversity": (loss_slot_diversity
                                     if loss_slot_diversity is not None
                                     else u.new_zeros(())),

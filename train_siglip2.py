@@ -79,6 +79,18 @@ def _phase3_terminal_checkpoint_only(args) -> bool:
     return getattr(args, "_phase3_campaign_binding", None) is not None
 
 
+def _canonical_phase3_tokenizer_json(value) -> str:
+    """Undo the one literal quote layer left by unquoted EXTRA_ARGS."""
+    import json
+    raw = str(value or "")
+    if len(raw) >= 2 and raw[0] == raw[-1] == "'":
+        raw = raw[1:-1]
+    payload = json.loads(raw)
+    if not isinstance(payload, dict):
+        raise ValueError("tokenizer SHA authority must be a JSON object")
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+
+
 def _phase3_input_authority_from_args(args):
     """Stats-verify the launcher-admitted seal before any model/GPU work."""
     path = getattr(args, "phase3_input_seal", None)
@@ -148,8 +160,11 @@ def _phase3_input_authority_from_args(args):
         }
         hf_wrong = {name: (value, hf.get(name)) for name, value in cli_hf.items()
                     if value != hf.get(name)}
+        tokenizer_json = _canonical_phase3_tokenizer_json(
+            args.clip_snapshot_tokenizers_sha256_json)
+        args.clip_snapshot_tokenizers_sha256_json = tokenizer_json
         import json
-        if json.loads(args.clip_snapshot_tokenizers_sha256_json) != \
+        if json.loads(tokenizer_json) != \
                 hf["tokenizer_files_sha256"]:
             hf_wrong["tokenizer_files_sha256"] = ("CLI", "seal")
         if hf_wrong:
@@ -411,6 +426,7 @@ def _build_active_loss_types(args) -> list:
     if _on('lambda_sim_spread'):        keys.append('loss_sim_spread')
     if _on('lambda_bio_constraint'):    keys.append('loss_bio_constraint')
     if _on('lambda_codon_joint'):       keys.append('loss_codon_joint')
+    if _on('lambda_mec'):               keys.extend(['loss_mec', 'mec_acc'])   # (b-1)
 
     # ---- routing-side alignment
     if _on('lambda_wasserstein'): keys.append('loss_wasserstein')
@@ -773,7 +789,7 @@ def main(args: Config):
     # Replace the random Gaussian codebook init with K vectors derived from
     # train-set `cached_text_part_raw`. Text routing path is preserved
     # (still runs every forward) -- this is purely additive supervision for
-    # the codebook starting point. See docs/ANALYSIS_2026-05-19.md sec 5-G.
+    # the codebook starting point. See docs/analysis/ANALYSIS_2026-05-19.md sec 5-G.
     _text_init_mode = str(getattr(args, "text_init_codebook", "none"))
     if (
         bool(getattr(args, "disable_text_supervision", False))
@@ -837,6 +853,12 @@ def main(args: Config):
         )
         print(f"[text_init_codebook] done: {_diag}")
         del text_buffer, text_anchors
+
+    # (a-1, 2026-09-20 branch arch-exp-2026-09) fixed slot-mass statistics,
+    # read from the cache files so no DataLoader (and no RNG) is touched.
+    if float(getattr(args, "routing_mass_alpha", 0.0) or 0.0) > 0.0:
+        from dna_utils.arch_exp import init_routing_mass_stats
+        print(f"[routing-mass] {init_routing_mass_stats(model, args)}")
 
     # ---------- optimizer ---------------------------------------------------
     backbone_params = [p for p in model.backbone.parameters()             if p.requires_grad]
@@ -927,6 +949,11 @@ def main(args: Config):
         # score and collapses the whole grid onto one candidate.
         "eval_mAP_at_R",
         "eval_mAP_R_cutoff",
+        # Persist the distance semantics beside the value and cutoff.  The
+        # command line is separately sealed, but a selector must be able to
+        # reject a self-consistent CSV produced under a different metric
+        # without inferring that fact from another artifact.
+        "eval_distance_mode",
         "eval_mean_positive_distance",
         "eval_mean_negative_distance",
         "eval_dead_code_ratio_mean",
@@ -1070,6 +1097,8 @@ def main(args: Config):
                 cached_text_foil_valid=cached_tfv,
                 cached_text_foil_tokens=cached_tft,
                 cached_text_foil_token_mask=cached_tftm,
+                mec_image_ids=(batch.get("image_path")
+                               if getattr(model, "mec", None) is not None else None),
             )
 
             # ---- v29 paired-aug NtXent: forward a SECOND augmented view --
@@ -1219,6 +1248,15 @@ def main(args: Config):
         if hasattr(model, "set_current_epoch"):
             model.set_current_epoch(e)
 
+        # (c-1, 2026-09-20 branch arch-exp-2026-09) end of the VQ-free stage:
+        # k-means the routed visual tokens into the codebook before this
+        # epoch's first step (RNG states are restored inside).
+        if (int(getattr(args, "vq_bypass_epochs", 0) or 0) > 0
+                and e == int(args.vq_bypass_epochs)):
+            from dna_utils.arch_exp import init_codebook_from_routed_visual
+            print(f"[vq-bypass] codebook init at epoch {e}: "
+                  f"{init_codebook_from_routed_visual(model, train_loader.dataset, args)}")
+
         # v112: hierarchical codon decomposition -- refresh text-similarity
         # clusters every N epochs after a warmup, by running k-means on the
         # codebook codewords. Cluster labels are stored as a buffer in the
@@ -1312,6 +1350,7 @@ def main(args: Config):
                 )
                 eval_row = {
                     "eval_mAP":                          retrieval["mAP"],
+                    "eval_distance_mode":                distance_mode,
                     "eval_mean_positive_distance":       retrieval["mean_positive_distance"],
                     "eval_mean_negative_distance":       retrieval["mean_negative_distance"],
                     "eval_dead_code_ratio_mean":         float(np.mean(collapse["dead_code_ratio"])),
@@ -1326,7 +1365,8 @@ def main(args: Config):
                     eval_row["eval_mAP_at_R"] = retrieval["mAP_at_R"]
                     eval_row["eval_mAP_R_cutoff"] = retrieval["mAP_R_cutoff"]
                 for k, v in eval_row.items():
-                    val_writer.add_scalar(f"eval/{k}", float(v), e)
+                    if not isinstance(v, str):
+                        val_writer.add_scalar(f"eval/{k}", float(v), e)
                 _map_r_str = (
                     f", mAP@{retrieval['mAP_R_cutoff']}(proxy)={retrieval['mAP_at_R']:.4f}"
                     if "mAP_at_R" in retrieval else ""
@@ -1447,7 +1487,19 @@ def main(args: Config):
                  sinkhorn_epsilon_final=getattr(args, "sinkhorn_epsilon_final", None),
                  lr_scheduler=str(getattr(args, "lr_scheduler", "cosine")),
                  extra={
-                     "tag": str(getattr(args, "tag", "")),
+                     # `--tag` is `nargs='+'`, so `args.tag` is a LIST. `str()`
+                     # on it wrote "['p3fQ_flickr_A_v4_N4_s42']" into the
+                     # checkpoint's provenance, and the campaign compares that
+                     # field against the bare tag it asked for -- so every cell
+                     # of P16C trained to completion and was then refused with
+                     # `extra.identity`. Four cells, 129 minutes, nothing kept.
+                     #
+                     # The joined form is not a new convention: it is the same
+                     # `"_".join(...)` that `_resolve_save_path` (above) uses to
+                     # build the run directory this checkpoint sits in, so the
+                     # identity now names the run the way everything else does.
+                     "tag": ("_".join(args.tag)
+                             if getattr(args, "tag", None) else ""),
                      "dataset": str(getattr(args, "dataset", "")),
                      "random_seed": int(getattr(args, "random_seed", 42)),
                      "num_semantic_parts": int(getattr(args, "num_semantic_parts", 0) or 0),

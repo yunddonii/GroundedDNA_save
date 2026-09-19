@@ -37,7 +37,7 @@ What's OUT of scope this stage (do NOT add here):
 """
 
 from __future__ import annotations
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import math
 import os
@@ -465,6 +465,10 @@ class SemanticCodebookQuantizer(nn.Module):
         # set_current_epoch, because the quantizer has no epoch of its own.
         self.freeze_after_epoch = int(freeze_after_epoch)
         self._frozen_epoch_now  = 0
+        # (c-1, 2026-09-20): True during the VQ-free first stage of the
+        # two-stage schedule; set by the model from the epoch. The quantizer
+        # is then the identity and the codebook is neither read nor updated.
+        self.bypass = False
         self.revive_dead       = bool(revive_dead)
         self.revive_threshold  = float(revive_threshold)
         self.revive_every      = max(1, int(revive_every))
@@ -1139,7 +1143,12 @@ class SemanticCodebookQuantizer(nn.Module):
 
         # straight-through estimator (gradient passes through to the encoder
         # while the actual values are the quantized codewords)
-        quantized_st = semantic_visual_tokens + (quantized - semantic_visual_tokens).detach()
+        if self.bypass:
+            # (c-1) stage 1: identity quantisation.
+            quantized = semantic_visual_tokens
+            quantized_st = semantic_visual_tokens
+        else:
+            quantized_st = semantic_visual_tokens + (quantized - semantic_visual_tokens).detach()
 
         # EMA codebook update (only when training; no-op in 'gradient' mode).
         # Done AFTER computing indices/quantized so this batch's outputs are
@@ -1152,7 +1161,7 @@ class SemanticCodebookQuantizer(nn.Module):
             self.freeze_after_epoch >= 0
             and int(self._frozen_epoch_now) >= self.freeze_after_epoch
         )
-        if self.update_mode == "ema" and self.training and not _frozen:
+        if self.update_mode == "ema" and self.training and not _frozen and not self.bypass:
             self._ema_update(semantic_visual_tokens.detach(), indices)
             # dead-code rejuvenation -- run every `revive_every` training
             # forwards. We skip it on the very first step so the EMA has at
@@ -2398,6 +2407,11 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.sinkhorn_lambda_b      = getattr(args, "sinkhorn_lambda_b",      None)
         # v56: optional learnable null/background centroid
         self.use_null_centroid      = bool(getattr(args, "use_null_centroid", False))
+        # 2026-09-20, off-protocol branch arch-exp-2026-09; all default off.
+        self.routing_mass_alpha     = float(getattr(args, "routing_mass_alpha", 0.0) or 0.0)   # (a-1)
+        self.null_free_marginal     = bool(getattr(args, "null_free_marginal", False))          # (a-2)
+        self.lambda_mec             = float(getattr(args, "lambda_mec", 0.0) or 0.0)           # (b-1)
+        self.vq_bypass_epochs       = int(getattr(args, "vq_bypass_epochs", 0) or 0)           # (c-1)
         self.total_epochs           = int(getattr(args, "epoch", 60))
         # D2: the epsilon anneal has its own horizon. Using total_epochs
         # meant `-e N+1` compressed the LR cosine as well, so choosing N
@@ -2475,6 +2489,37 @@ class SigLIP2SemanticOTModel(nn.Module):
             )
         else:
             self.register_parameter("null_centroid", None)
+
+        # (a-1) statistics for the content-dependent slot mass. Persistent,
+        # so a checkpoint carries the exact prototypes it was trained with and
+        # deployment computes the same targets. Filled before training by
+        # dna_utils.arch_exp.init_routing_mass_stats.
+        if self.routing_mass_alpha > 0.0:
+            if not (0.0 < self.routing_mass_alpha <= 1.0):
+                raise ValueError("--routing_mass_alpha must be in (0, 1]")
+            self.register_buffer("routing_mass_proto",
+                                 torch.zeros(int(NUM_LOCAL_PARTS), int(self.proj_dim)))
+            self.register_buffer("routing_mass_center", torch.zeros(int(NUM_LOCAL_PARTS)))
+            self.register_buffer("routing_mass_tau", torch.ones(()))
+            self.register_buffer("routing_mass_ready", torch.zeros((), dtype=torch.bool))
+        if self.null_free_marginal and not self.use_null_centroid:
+            raise ValueError("--null_free_marginal requires --use_null_centroid")
+        # (b-1) masked entity completion (OVSegmentor port), training only.
+        if self.lambda_mec > 0.0:
+            import json as _json
+            from models.mec_head import MaskedEntityCompletion
+            _mec_dir = getattr(args, "mec_cache_dir", None)
+            if not _mec_dir:
+                raise ValueError("--lambda_mec > 0 requires --mec_cache_dir")
+            _mec_meta = _json.load(open(os.path.join(_mec_dir, "meta.json")))
+            self.mec = MaskedEntityCompletion(
+                slot_dim=int(self.d_model), text_dim=int(_mec_meta["text_dim"]),
+                temperature=float(getattr(args, "mec_temperature", 0.07)),
+                seed=int(getattr(args, "random_seed", 0) or 0),
+            )
+            self.mec.load_cache(_mec_dir)
+        else:
+            self.mec = None
 
         # ---------- per-codebook codon heads -----------------------------
         # 6 SEPARATE CodonHead instances (no weight sharing across codebooks).
@@ -2630,6 +2675,47 @@ class SigLIP2SemanticOTModel(nn.Module):
 
     # ====================================================== sanity helpers
 
+    def _routing_mass_kwargs(self, feats, route_centroids_aug, route_global_text_active) -> Dict[str, Any]:
+        """(a-1 / a-2, 2026-09-20) column targets for the Sinkhorn router.
+
+        Local columns get the content-dependent mass
+            (1 - alpha) / M_loc + alpha * softmax_m((cos(g, p_m) - mu_m) / tau)
+        scaled to their usual share of the budget. g is the frozen CLIP image
+        embedding (available with or without captions, so train and deployment
+        compute the same targets); p_m, mu_m, tau are fixed training-set
+        statistics stored as buffers. With --null_free_marginal the null column
+        is excluded from the budget and left unconstrained in the solver.
+        """
+        B, M_route = int(route_centroids_aug.shape[0]), int(route_centroids_aug.shape[1])
+        has_null = bool(self.use_null_centroid and self.null_centroid is not None)
+        n_glob = 1 if route_global_text_active else 0
+        pm = torch.ones(B, M_route, device=route_centroids_aug.device, dtype=torch.float32)
+        kw: Dict[str, Any] = {}
+        if self.null_free_marginal and has_null:
+            pm[:, -1] = 0.0
+            free = torch.zeros(M_route, dtype=torch.bool, device=pm.device)
+            free[-1] = True
+            kw["free_part_mask"] = free
+        if self.routing_mass_alpha > 0.0:
+            if not bool(self.routing_mass_ready.item()):
+                raise RuntimeError("routing mass statistics were never initialised "
+                                   "(dna_utils.arch_exp.init_routing_mass_stats)")
+            g = feats.get("visual_global") if isinstance(feats, dict) else None
+            if g is None:
+                raise RuntimeError("--routing_mass_alpha needs feats['visual_global']")
+            g = F.normalize(g.float(), dim=-1)                                   # [B, D_shared]
+            p = F.normalize(self.routing_mass_proto.float(), dim=-1)             # [M_loc, D_shared]
+            s = g @ p.t() - self.routing_mass_center.float()                     # [B, M_loc]
+            w = torch.softmax(s / self.routing_mass_tau.float().clamp_min(1e-6), dim=-1)
+            M_loc = int(p.shape[0])
+            if n_glob + M_loc > M_route - (1 if has_null else 0):
+                raise ValueError(f"route columns {M_route} cannot hold {M_loc} local slots")
+            mass = (1.0 - self.routing_mass_alpha) / M_loc + self.routing_mass_alpha * w
+            loc = slice(n_glob, n_glob + M_loc)
+            pm[:, loc] = mass * pm[:, loc].sum(dim=-1, keepdim=True)
+        kw["part_marginal"] = pm.detach()
+        return kw
+
     def set_current_epoch(self, epoch: int) -> None:
         """Trainer calls this once per epoch so the router can compute the
         annealed epsilon. v33a only; no-op when annealing is off."""
@@ -2639,6 +2725,10 @@ class SigLIP2SemanticOTModel(nn.Module):
         _q = getattr(self, "quantizer", None)
         if _q is not None and hasattr(_q, "_frozen_epoch_now"):
             _q._frozen_epoch_now = int(epoch)
+        # (c-1): the quantizer is the identity for epochs < vq_bypass_epochs.
+        if _q is not None and hasattr(_q, "bypass"):
+            _q.bypass = bool(self.vq_bypass_epochs > 0
+                             and int(epoch) < self.vq_bypass_epochs)
 
     def _grounded_text_routing(
         self,
@@ -3535,6 +3625,7 @@ class SigLIP2SemanticOTModel(nn.Module):
         cached_text_foil_tokens:  Optional[torch.Tensor] = None,       # [B, M, T, D_proj]
         cached_text_foil_token_mask: Optional[torch.Tensor] = None,    # [B, M, T] bool
         compute_text_foil:        bool = True,
+        mec_image_ids:            Optional[Sequence[str]] = None,      # (b-1) training batch ids
     ) -> Dict[str, Any]:
         """One full pass: encoders -> adapters -> routing -> quantization.
 
@@ -4336,6 +4427,10 @@ class SigLIP2SemanticOTModel(nn.Module):
             "visual_mask":      visual_attention_mask,
             "part_mask":        route_part_mask_used_aug,
         }
+        if self.router_type == "sinkhorn" and (
+                self.routing_mass_alpha > 0.0 or self.null_free_marginal):
+            router_kwargs.update(self._routing_mass_kwargs(
+                feats, route_centroids_aug, route_global_text_active))
         if self.router_type == "sinkhorn":
             # v186: slot-specific visual pruning support. The row mask above
             # removes patches selected by no local slot. This [B, N, M_route]
@@ -5429,4 +5524,10 @@ class SigLIP2SemanticOTModel(nn.Module):
         else:
             out["dual_hash_semantic"] = None
             out["dual_hash_instance"] = None
+        # 14) (b-1, 2026-09-20) masked entity completion on the 4 local slots'
+        #     straight-through codes; training forward of view 1 only.
+        if (self.mec is not None and self.training and mec_image_ids is not None
+                and quantized_tokens is not None):
+            out["loss_mec"], out["mec_acc"] = self.mec(
+                quantized_tokens[:, 1:1 + int(NUM_LOCAL_PARTS), :], mec_image_ids)
         return out

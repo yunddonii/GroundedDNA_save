@@ -12,7 +12,7 @@ to one path. What survived was worse than nothing: `args.txt` came from whicheve
 process started last and the evaluation JSON from whichever finished last, so a
 directory labelled seed 44 contained seed 43's numbers. It was caught only
 because two seeds agreed to full float precision. The wreckage is kept under
-`result_quarantine_collided_20260812/`.
+`result/result_quarantine_collided_20260812/`.
 
 Lookup has the same defect in the other direction. `ls -dt <glob> | head -1`
 returns the newest match, so an ablation or a lambda variant sharing the prefix

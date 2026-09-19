@@ -48,8 +48,14 @@ def _log_sinkhorn(
     epsilon: float = 0.05,
     lambda_a: Optional[float] = None,    # KL marginal penalty on visual side
     lambda_b: Optional[float] = None,    # KL marginal penalty on part side
+    free_col_mask: Optional[torch.Tensor] = None,  # [M] or [B, M] bool
 ) -> torch.Tensor:
     """Stable log-space Sinkhorn-Knopp (balanced OR unbalanced).
+
+    ``free_col_mask`` (2026-09-20, branch arch-exp-2026-09): columns marked
+    True get no marginal constraint at all (tau_b = 0 for them, i.e. their
+    scaling stays 1), so they take exactly the mass the rows send them.
+    None leaves every column constrained, bit-identical to before.
 
     Balanced mode (default — lambda_a=lambda_b=None):
         Returns log_P: [B, N, M] such that exp(log_P) has row marginal
@@ -81,6 +87,8 @@ def _log_sinkhorn(
         log_u = tau_a * (log_a - torch.logsumexp(log_K + log_v.unsqueeze(1), dim=-1))
         # col update : v <- (b / (K^T u))^tau_b
         log_v = tau_b * (log_b - torch.logsumexp(log_K + log_u.unsqueeze(-1), dim=1))
+        if free_col_mask is not None:
+            log_v = log_v.masked_fill(free_col_mask.to(torch.bool), 0.0)
     return log_u.unsqueeze(-1) + log_K + log_v.unsqueeze(1)
 
 
@@ -134,6 +142,8 @@ class SemanticSinkhornRouter(nn.Module):
         hard_visual_mask: bool = False,
         uot_lambda_a:     Optional[float] = None,
         uot_lambda_b:     Optional[float] = None,
+        part_marginal:    Optional[torch.Tensor] = None,  # [B, M] (a-1)
+        free_part_mask:   Optional[torch.Tensor] = None,  # [M] bool (a-2)
     ) -> Dict[str, torch.Tensor]:
         # ---- shape sanity ------------------------------------------------
         B, N, D = visual_tokens.shape
@@ -279,6 +289,16 @@ class SemanticSinkhornRouter(nn.Module):
         else:
             m = part_mask.to(dtype)
             b = m / m.sum(dim=1, keepdim=True).clamp_min(1e-12)
+        if part_marginal is not None:
+            # (a-1) content-dependent column targets. part_mask still zeroes
+            # invalid columns; the remainder is renormalised to sum to 1.
+            if tuple(part_marginal.shape) != (B, M):
+                raise ValueError(
+                    f"part_marginal must be [B, M]={(B, M)}, got {tuple(part_marginal.shape)}")
+            pmv = part_marginal.to(device=device, dtype=dtype).clamp_min(0.0)
+            if part_mask is not None:
+                pmv = pmv * part_mask.to(dtype)
+            b = pmv / pmv.sum(dim=1, keepdim=True).clamp_min(1e-12)
 
         log_a = torch.log(a.clamp_min(1e-12))
         log_b = torch.log(b.clamp_min(1e-12))
@@ -293,6 +313,7 @@ class SemanticSinkhornRouter(nn.Module):
             epsilon=eps_eff,
             lambda_a=uot_lambda_a,
             lambda_b=uot_lambda_b,
+            free_col_mask=(free_part_mask.to(device) if free_part_mask is not None else None),
         )
         P = torch.exp(log_P)                             # [B, N, M]
         if centered_consensus_mask or hard_visual_mask:
