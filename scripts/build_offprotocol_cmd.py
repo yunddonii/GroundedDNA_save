@@ -88,7 +88,13 @@ def build(args_txt: str, overrides: dict) -> list:
             continue
         if val == "None":
             continue
-        cmd += [name, val]
+        # A negative number as a separate token is parsed as an option, not a
+        # value: `--flag -1` silently becomes `--flag` with its own default or
+        # a different flag entirely. `--flag=-1` is unambiguous.
+        if val.startswith("-") and val[1:2].isdigit():
+            cmd.append(f"{name}={val}")
+        else:
+            cmd += [name, val]
     return cmd
 
 

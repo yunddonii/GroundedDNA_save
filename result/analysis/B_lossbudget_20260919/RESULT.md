@@ -52,3 +52,18 @@ Stage-1 selection cells deliberately write no extraction
 needs a separate image-only extraction over the train split. Until that is run,
 this experiment says nothing about whether raising
 `lambda_text_hash_ntxent` changes deployment-path codebook collapse.
+
+## Qualification added after (A), 2026-09-19
+
+The (A) experiment on this branch froze the codebook and, as a side effect,
+produced the *best* anchor separation of anything measured here — .0189 and
+.0299 against this baseline's .13, with cost-stage cosine .215 and .301 against
+.84 — while being the worst arms on retrieval (mAP .633) and unique code ratio
+(.027 against .530). With the codebook held still the text adapter moves
+instead and over-separates the axes at the representation's expense.
+
+So the monotone anchor-separation improvement reported above is **not by itself
+evidence of a better model**. What (B) establishes is narrower: raising
+`lambda_text_hash_ntxent` separates the text anchors at no measurable retrieval
+or dead-codeword cost. Whether that separation is useful is not settled by this
+experiment.
