@@ -101,6 +101,8 @@ text-routed forward pass. cb0 is the global slot, which bypasses the router.
 | A3_s43 | **9.9** | 6.1 | 5.9 | 6.3 | 5.9 |
 | A3_s44 | **10.0** | 6.8 | 6.5 | 6.0 | 6.3 |
 | A4_s42 random, frozen@0 | 89.8 | **5.2** | **4.5** | **5.4** | **4.9** |
+| A4_s43 | 24.1 | **6.1** | **5.5** | **7.7** | **5.8** |
+| A4_s44 | 73.3 | **5.0** | **6.8** | **5.2** | **6.4** |
 
 Freezing does not hold the codebook in place in any useful sense: it makes most
 codewords **unreachable**. Every frozen arm uses roughly 4-8 effective codewords
