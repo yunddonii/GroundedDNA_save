@@ -822,6 +822,20 @@ class Config():
         siglip2_arg.add_argument('--codebook_revive_every', dest='codebook_revive_every',
             type=int, default=50,
             help='Run dead-code rejuvenation every N training forwards (steps).')
+        # (A) 2026-09-19, off-protocol experiment branch. Stop the EMA (and
+        # dead-code revival) from moving the codebook, so whatever the codebook
+        # was initialised to stays put. Combined with
+        # `--text_init_codebook {mean,kmeans}` this makes codeword k a FIXED
+        # text-derived vector instead of a quantity defined by whichever
+        # samples happened to select it. -1 = never freeze (default, unchanged
+        # behaviour); 0 = frozen from the first step; N = frozen from epoch N
+        # onward, which is how the VQ literature applies freezing (late
+        # consolidation rather than an initial tokenisation assumption).
+        siglip2_arg.add_argument('--codebook_freeze_after_epoch',
+            dest='codebook_freeze_after_epoch', type=int, default=-1,
+            help='Freeze the EMA codebook from this epoch onward. '
+                 '-1 (default) never freezes and reproduces prior behaviour; '
+                 '0 freezes from the start; N freezes from epoch N.')
         # Option α: Codeword Repulsion. After each EMA update, push each
         # codeword in a codebook away from its closest neighbours
         # (Gaussian-weighted, auto-sigma per codebook). Disabled by default.
@@ -925,7 +939,7 @@ class Config():
         # (SigLIP2 text-encoder pooled embeddings per part). The text path
         # is KEPT active during training as well (still routes Sinkhorn
         # centroids each forward) -- this is purely additive supervision
-        # for the codebook's starting point. See docs/ANALYSIS_2026-05-19.md
+        # for the codebook's starting point. See docs/analysis/ANALYSIS_2026-05-19.md
         # section 5-G.
         siglip2_arg.add_argument('--text_init_codebook',
             dest='text_init_codebook',

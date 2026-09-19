@@ -437,6 +437,7 @@ class SemanticCodebookQuantizer(nn.Module):
         distance_mode: str = "euclidean",
         K_max: int = 0,
         share_codebook: bool = False,
+        freeze_after_epoch: int = -1,
     ) -> None:
         super().__init__()
         self.num_codebooks = int(num_codebooks)
@@ -459,6 +460,11 @@ class SemanticCodebookQuantizer(nn.Module):
         # `revive_threshold * max(cluster_size_in_codebook)` are replaced with
         # a random z sampled from the current batch every `revive_every`
         # training forward calls. Only active when EMA mode is on.
+        # (A): epoch from which the codebook stops moving. -1 disables the
+        # feature entirely. `_frozen_epoch_now` is refreshed by the model's
+        # set_current_epoch, because the quantizer has no epoch of its own.
+        self.freeze_after_epoch = int(freeze_after_epoch)
+        self._frozen_epoch_now  = 0
         self.revive_dead       = bool(revive_dead)
         self.revive_threshold  = float(revive_threshold)
         self.revive_every      = max(1, int(revive_every))
@@ -1138,7 +1144,15 @@ class SemanticCodebookQuantizer(nn.Module):
         # EMA codebook update (only when training; no-op in 'gradient' mode).
         # Done AFTER computing indices/quantized so this batch's outputs are
         # consistent with the codebook state seen during the loss computation.
-        if self.update_mode == "ema" and self.training:
+        # (A): `freeze_after_epoch` >= 0 stops the codebook moving from that
+        # epoch on. Both the EMA write and dead-code revival are suppressed,
+        # because reviving a codeword also rewrites it. -1 (default) keeps the
+        # historical behaviour exactly.
+        _frozen = (
+            self.freeze_after_epoch >= 0
+            and int(self._frozen_epoch_now) >= self.freeze_after_epoch
+        )
+        if self.update_mode == "ema" and self.training and not _frozen:
             self._ema_update(semantic_visual_tokens.detach(), indices)
             # dead-code rejuvenation -- run every `revive_every` training
             # forwards. We skip it on the very first step so the EMA has at
@@ -2424,6 +2438,7 @@ class SigLIP2SemanticOTModel(nn.Module):
             distance_mode=str(getattr(args, "vq_distance_mode", "euclidean")),
             K_max=int(getattr(args, "codebook_K_max", 0)),
             share_codebook=bool(getattr(args, "share_codebook", False)),
+            freeze_after_epoch=int(getattr(args, "codebook_freeze_after_epoch", -1)),
         )
 
         # ---------- gated global addition --------------------------------
@@ -2619,6 +2634,11 @@ class SigLIP2SemanticOTModel(nn.Module):
         """Trainer calls this once per epoch so the router can compute the
         annealed epsilon. v33a only; no-op when annealing is off."""
         self._current_epoch = int(epoch)
+        # (A): the quantizer has no epoch of its own; hand it the current one
+        # so `freeze_after_epoch` can take effect at the right time.
+        _q = getattr(self, "quantizer", None)
+        if _q is not None and hasattr(_q, "_frozen_epoch_now"):
+            _q._frozen_epoch_now = int(epoch)
 
     def _grounded_text_routing(
         self,
