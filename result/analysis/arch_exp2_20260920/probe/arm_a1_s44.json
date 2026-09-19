@@ -1,0 +1,120 @@
+{
+ "result_dir": "result/260920+flickr25k_setting1_arm_a1_s44+bs+64+e+60+proj_lr+0.001",
+ "tag": [
+  "arm_a1_s44"
+ ],
+ "random_seed": 44,
+ "inference_epoch": 4,
+ "n_opt": 4500,
+ "n_val": 500,
+ "M1_role": {
+  "axes": [
+   "C_primary_object",
+   "C_secondary_object",
+   "C_activity_or_relation",
+   "C_color_texture"
+  ],
+  "D": [
+   [
+    0.33806,
+    0.40215,
+    0.32263,
+    0.35959
+   ],
+   [
+    0.29782,
+    0.40336,
+    0.31265,
+    0.35293
+   ],
+   [
+    0.33647,
+    0.41337,
+    0.32297,
+    0.36506
+   ],
+   [
+    0.32299,
+    0.41913,
+    0.32111,
+    0.36282
+   ]
+  ],
+  "D_shuffled_control": [
+   [
+    0.1457,
+    0.31688,
+    0.21857,
+    0.21121
+   ],
+   [
+    0.1604,
+    0.32507,
+    0.23394,
+    0.21294
+   ],
+   [
+    0.15389,
+    0.31157,
+    0.21965,
+    0.21107
+   ],
+   [
+    0.15166,
+    0.31435,
+    0.22324,
+    0.2064
+   ]
+  ],
+  "advantage_per_axis": [
+   0.01897,
+   -0.00819,
+   0.00417,
+   0.00362
+  ],
+  "advantage_mean": 0.00464,
+  "own_slot_is_argmax": 2,
+  "vocab_sizes": {
+   "C_primary_object": 100,
+   "C_secondary_object": 56,
+   "C_activity_or_relation": 100,
+   "C_color_texture": 100
+  }
+ },
+ "M2_label_decoding": {
+  "per_local_slot": [
+   0.83039,
+   0.75826,
+   0.82168,
+   0.81702
+  ],
+  "mean": 0.80684
+ },
+ "M3_codebook": {
+  "perplexity": [
+   75.78,
+   75.56,
+   53.82,
+   68.13,
+   70.62
+  ],
+  "min_over_median": 0.762,
+  "never_used_fraction": [
+   0.0078,
+   0.2266,
+   0.2578,
+   0.2812,
+   0.2891
+  ]
+ },
+ "M4_mass": {
+  "mean_per_slot": [
+   0.24300000071525574,
+   0.23510000109672546,
+   0.2535000145435333,
+   0.26829999685287476
+  ],
+  "per_image_max_over_min_median": 1.79,
+  "fraction_images_with_empty_slot": 0.0
+ }
+}

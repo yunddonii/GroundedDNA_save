@@ -119,3 +119,21 @@ Caveat on the measurement: these perplexities come from the TEXT-routed forward
 pass, not the deployment path that the extraction npz files use. They are
 comparable to each other because every cell was measured the same way, but they
 are not comparable to the deployment-path numbers quoted elsewhere.
+
+## Correction 2026-09-20: compared against a same-mode baseline
+
+The baseline above (.7483 ± .0139) came from the campaign-mode `p3lamA` cells, while every
+A arm was launched off-protocol. A later gate found the two modes are each deterministic but
+diverge from epoch 1 (same command, same seed: campaign .7635532117 vs off-protocol
+.7588274741; cause not identified; it is not the best-checkpoint save). Re-compared against
+the same recipe run off-protocol at seeds 42/43/44 (`result/260920+…_base_s4{2,3,4}`,
+.7453 ± .0133):
+
+| arm | mAP@R | Δ vs same-mode base |
+|---|---:|---:|
+| A1 kmeans, never frozen | .7439 | −.0014 (inside base SD) |
+| A2 kmeans + frozen@0 | .6327 | −.1126 (outside) |
+| A3 kmeans + frozen@2 | .7357 | −.0096 (inside) |
+| A4 random + frozen@0 | .7161 | −.0292 (outside) |
+
+Every conclusion above stands.

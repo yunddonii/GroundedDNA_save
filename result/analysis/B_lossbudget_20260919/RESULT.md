@@ -67,3 +67,17 @@ evidence of a better model**. What (B) establishes is narrower: raising
 `lambda_text_hash_ntxent` separates the text anchors at no measurable retrieval
 or dead-codeword cost. Whether that separation is useful is not settled by this
 experiment.
+
+## Correction 2026-09-20: mixed run modes
+
+The lambda 0.05 baseline and the lambda 0.10 seed-42 cell above are campaign-mode `p3lamA` runs;
+the other five cells were launched off-protocol, and the two modes diverge from epoch 1 (see the
+A result file). Against the same recipe run off-protocol (.7453 ± .0133, seeds 42/43/44):
+lambda 0.20 (all off-protocol) .7460, Δ +.0007; lambda 0.10 off-protocol seeds 43/44 only .7391,
+Δ −.0062. Retrieval remains flat. The lambda 0.10 seed-42 cell will be re-run off-protocol so the
+comparison is same-mode throughout.
+- 2026-09-20: the lambda 0.10 seed-42 cell was re-run off-protocol
+  (`result/260920+flickr25k_setting1_bexpB_flickr_lth010_s42_offprotocol`, .7603; the campaign-mode
+  value was .7556). All-same-mode comparison, seeds 42/43/44 each:
+  base .7453 ± .0133 | lambda 0.10 .7462 ± .0125 (Δ +.0009) | lambda 0.20 .7460 ± .0082 (Δ +.0007).
+  Retrieval is flat; the conclusions above stand.
