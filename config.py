@@ -878,6 +878,36 @@ class Config():
         # KL loss is off; at epoch N the codebook is initialised by k-means
         # on the routed visual tokens of the optimisation rows, then VQ runs
         # normally. 0 = off.
+        # arch-exp-3 (P2): per-image axis-deviation representation. The four
+        # axis captions of one image all describe that image, so their
+        # embeddings share a large common component -- and so do the four slot
+        # readouts. Subtracting the mean across the local axes leaves only what
+        # distinguishes each axis; the global slot keeps the shared content it
+        # exists to carry. Adds no loss term.
+        #   anchors : centre the router's text anchors (changes the OT cost)
+        #   readout : centre the slot tokens and the text tokens the losses see
+        #   both    : both of the above
+        # arch-exp-3 (P4): in-image cross-axis alignment. Slot m must fit axis m
+        # of THIS image better than it fits the other axes of the same image --
+        # the one comparison no active term makes. Intended as a REPLACEMENT for
+        # --lambda_text_code_kl (set that to 0.0 in the same cell), not an
+        # addition: both say slot m belongs to axis m, only this one supplies the
+        # competing axes as negatives, so the objective does not grow.
+        siglip2_arg.add_argument('--lambda_role', dest='lambda_role',
+            type=float, default=0.0,
+            help='(arch-exp-3 P4) weight of the in-image cross-axis term; 0 = off.')
+        siglip2_arg.add_argument('--role_source', dest='role_source',
+            type=str, default='quantized', choices=['quantized', 'pre_quant'],
+            help='(arch-exp-3 P4) which slot representation the cross-axis term '
+                 'scores: the codeword (quantized) or the slot token before '
+                 'quantisation (pre_quant).')
+        siglip2_arg.add_argument('--role_tau', dest='role_tau',
+            type=float, default=0.07,
+            help='(arch-exp-3 P4) softmax temperature for --lambda_role.')
+        siglip2_arg.add_argument('--axis_center', dest='axis_center',
+            type=str, default='none', choices=['none', 'anchors', 'readout', 'both'],
+            help='(arch-exp-3 P2) subtract the per-image mean across local axes; '
+                 'none = unchanged behaviour.')
         siglip2_arg.add_argument('--vq_bypass_epochs', dest='vq_bypass_epochs',
             type=int, default=0,
             help='(c-1) epochs of VQ-free training before k-means codebook init; 0 = off.')

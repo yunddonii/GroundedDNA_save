@@ -400,6 +400,10 @@ class DNACodonHashLoss(nn.Module):
         # still random then); (b-1) weight of the model's masked-entity loss.
         self.vq_bypass_epochs = int(getattr(cfg, "vq_bypass_epochs", 0) or 0)
         self.lambda_mec = float(getattr(cfg, "lambda_mec", 0.0) or 0.0)
+        # arch-exp-3 (P4)
+        self.lambda_role = float(getattr(cfg, "lambda_role", 0.0) or 0.0)
+        self.role_tau    = float(getattr(cfg, "role_tau", 0.07) or 0.07)
+        self.role_source = str(getattr(cfg, "role_source", "quantized") or "quantized")
         # ConceptHash Eq. 8 (`L_csd`) ported onto the routing matrix.
         self.lambda_slot_diversity      = float(getattr(cfg, "lambda_slot_diversity", 0.0))
         self.slot_diversity_skip_global = bool(getattr(cfg, "slot_diversity_skip_global", True))
@@ -1046,6 +1050,43 @@ class DNACodonHashLoss(nn.Module):
         delta = prob - threshold
         z_hard = 2.0 * (delta >= 0).to(prob.dtype) - 1.0
         return delta + (z_hard - delta).detach()
+
+
+    def _loss_role_axis(self, q_local, t_local):
+        """(arch-exp-3 P4) In-image cross-axis alignment.
+
+        ``q_local`` [B, M, D] are the local slot codes (straight-through, so the
+        gradient reaches the encoder) and ``t_local`` [B, M, D] the caption
+        embedding of each axis OF THE SAME IMAGE. For every image the M x M
+        cosine matrix is read as a two-way classification whose negatives are
+        the other axes of that image -- the comparison no other active term
+        makes. The text side is detached, exactly as ``text_code_kl`` detaches
+        its text view, so the pressure falls on the code.
+
+        Both sides are centred per column over the batch first. Without that, a
+        slot could win every softmax by emitting one constant direction per axis
+        (the axis means are far apart after the per-slot adapter); after it, only
+        this image's deviation from its axis mean carries any signal.
+        """
+        if q_local is None or t_local is None:
+            return None
+        if q_local.dim() != 3 or t_local.shape != q_local.shape:
+            return None
+        B, M, _ = q_local.shape
+        if B < 4 or M < 2:
+            return None
+        q = q_local.float()
+        t = t_local.float().detach()
+        q = q - q.mean(dim=0, keepdim=True)
+        t = t - t.mean(dim=0, keepdim=True)
+        q = F.normalize(q, dim=-1)
+        t = F.normalize(t, dim=-1)
+        tau = max(float(self.role_tau), 1e-6)
+        S = torch.einsum("bmd,bad->bma", q, t) / tau          # [B, code m, axis a]
+        tgt = torch.arange(M, device=S.device).expand(B, M).reshape(-1)
+        l_code = F.cross_entropy(S.reshape(-1, M), tgt)
+        l_axis = F.cross_entropy(S.transpose(1, 2).reshape(-1, M), tgt)
+        return 0.5 * (l_code + l_axis)
 
     def _loss_text_code_kl_per_codebook(
         self,
@@ -3588,6 +3629,24 @@ class DNACodonHashLoss(nn.Module):
         else:
             loss_codon_joint = u.new_zeros(())
 
+        # (P4) in-image cross-axis alignment; replaces text_code_kl.
+        loss_role = u.new_zeros(())
+        if self.lambda_role > 0.0 and not _vq_bypassed:
+            if self.role_source == "pre_quant":
+                _q_role = outputs.get("semantic_visual_tokens")
+                if _q_role is None:
+                    _q_role = outputs.get("quantizer_input")
+            else:
+                _q_role = outputs.get("quantized_tokens")
+                if _q_role is None:
+                    _q_role = outputs.get("semantic_visual_tokens")
+            _t_role = outputs.get("text_part_tokens")
+            if _q_role is not None and _t_role is not None:
+                _r = self._loss_role_axis(_q_role[:, 1:, :], _t_role[:, 1:, :])
+                if _r is not None:
+                    loss_role = _r
+                    total = total + self.lambda_role * loss_role
+
         # (b-1) masked entity completion, computed inside the model forward.
         loss_mec = outputs.get("loss_mec")
         mec_acc = outputs.get("mec_acc")
@@ -3602,6 +3661,7 @@ class DNACodonHashLoss(nn.Module):
             "loss":              total,
             "loss_codon_joint":  loss_codon_joint,
             "loss_mec":          loss_mec,
+            "loss_role":         loss_role,
             "mec_acc":           mec_acc,
             "loss_slot_diversity": (loss_slot_diversity
                                     if loss_slot_diversity is not None

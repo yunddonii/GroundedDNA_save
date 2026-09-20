@@ -487,6 +487,1288 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-20 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] Six more slot-role mechanisms, none of which passes; the axis signal is reachable in the slot token and not in the codeword; and the role metric itself is now in question
+
+**Status:** 🟡 exploratory, off-protocol. Must not enter `docs/paper_draft/`. Records:
+`result/analysis/arch_exp3_20260920/` (`PREREGISTRATION.md` with its decision log, `RESULT.md`,
+`deploy_routing_diag.py`, `anchor_content_diag.py`, `quant_gap_diag.py`, 27 probe JSONs, 26 diagnostic
+JSONs). Flickr25K stage-1 selection recipe, seeds 42/43/44, every arm launched directly and compared
+with the same recipe launched directly. Two entry gates, one per code-bearing change: **280/280
+logged values identical** with the new flags at their defaults.
+
+**Why these six.** The 2026-09-20 design entry argued the objective never compares one axis against
+another inside one image. The user's constraint is that the objective must not grow, so the arms were
+ordered by role gain per added loss term: two that change no code at all, two that change
+representation only, and one that *replaces* `text_code_kl` rather than joining it.
+
+| arm | exact delta | loss terms | M1 role adv. | mAP@R | dead | unique | M3 cb min/med |
+|---|---|---:|---:|---:|---:|---:|---:|
+| base | — | 12 | **+.0065 ± .0043** | .7453 | .241 | .536 | .582 |
+| P1a | `routing_adaptive_topp_min/max .6/.95 → .3/.7` | 12 | +.0017 ± .0014 | .7511 | .251 | .575 | **.894** |
+| P1b | `… → .15/.5` | 12 | −.0002 ± .0062 | .7447 | .177 | .593 | **.884** |
+| P2anc | `--axis_center anchors` | 12 | +.0066 ± .0085 | **.7513** | .186 | .540 | **.882** |
+| P2rdo | `--axis_center readout` | 12 | −.0022 ± .0026 | **.7009** | .408 | .638 | .520 |
+| P3gate | `--disable_global_gate` | 12 | +.0062 ± .0042 | .7456 | .157 | .587 | .643 |
+| P3soft | `--global_gate_init_logit=-3.0` | 12 | +.0080 ± .0043 | .7385 | .128 | .594 | .557 |
+| P4role | `--lambda_role .05` **with** `--lambda_text_code_kl 0.0` | 12 | +.0005 ± .0011 | .7113 | .349 | .379 | .358 |
+| P4drop | `--lambda_text_code_kl 0.0`, nothing added | **11** | +.0078 ± .0009 | .7409 | .232 | .517 | **.672** |
+| P5quant | `--lambda_role 1.0 --role_tau .2 --role_source quantized` | 12 | −.0000 ± .0057 | .6624 | .362 | **.045** | .624 |
+| P5prequ | `… --role_source pre_quant` | 12 | +.0069 ± .0047 | .7001 | .369 | **.728** | .757 |
+
+🔴 **Screening verdict (pre-registered threshold M1 ≥ .020, mAP ≥ base − SD, dead ≤ .30, unique ≥ .45;
+a threshold, not a significance test): no arm passes.** Ten mechanisms have now been measured against
+M1 across arch-exp-2 and arch-exp-3; each moves its own proximal target and none moves M1.
+
+🟢 **Three results worth keeping anyway.**
+
+1. **Routing sharpness and axis-centred anchors each repair the codebook collapse for free.** Worst
+   codebook perplexity .58 → .89 (P1a/P1b) and → .88 (P2anc), seed spread .277 → .09, with no code
+   change (P1) or no added loss (P2anc) and no retrieval cost. This is what the two-stage k-means
+   start (c-1) bought, at one flag instead of a schedule change.
+2. **`text_code_kl` is removable.** Dropping it with nothing in its place costs .0044 mAP — inside the
+   baseline's .011 seed SD — improves every codebook diversity measure and leaves M1 unchanged. An
+   eleven-term objective behaving like the twelve-term one is directly relevant to the parsimony of
+   the claim, and it is the first term the paper could consider dropping.
+3. **The gate hypothesis is refuted a second time, in this regime.** Every local slot receives
+   `q_local_m + .993 · q_global` before the codon head; removing it changes nothing (M1 .0062), and
+   started at .047 the learned gate **stays** at .045–.064, so .993 is not what the optimiser wants.
+
+🔬 **The mechanism this program did establish.** The same cross-axis term was scored at two points of
+the same forward. On the slot token the quantiser receives, it is solved: `train_loss_role` .33
+against a chance value of ln 4 = 1.386. On the codeword, at twenty times the weight, it ends at
+**3.59 — far above chance** and takes unique codes to .045. Whatever axis structure the continuous
+slot token can hold, nearest-codeword assignment does not preserve it.
+
+⚠️ **The role metric is now itself in question, and that blocks the next mechanism.** A post-hoc
+endpoint (`quant_gap_diag.py`: after batch-centring, is slot m's codeword the nearest of four to axis
+m's caption for that image; chance .250; deployment forward, no text) separates the arms far more
+than M1 does: base .307 ± .005, P2anc **.370 ± .011**, P5prequ **.454 ± .025**, P5quant .227 ± .012.
+Over the 27 runs the two endpoints correlate at Pearson +.30 (Spearman +.30); M1 spans .023 end to
+end, this one spans .27. Either M1 is too blunt, or the alignment lives in the codeword vectors and
+does not survive into the codon indices M1 decodes. **No further mechanism should be run until M1's
+sensitivity is established**, e.g. against a model whose slots are axis-specific by construction.
+
+🔁 **What this implies for the claim.** Every arm that made the slots less redundant also cost
+retrieval (P2rdo −.044 mAP, P5prequ −.045), and every arm that left retrieval alone left the roles
+alone. That is the same trade the 2026-07-20 entry named between slot differentiation and codebook
+gradedness. Until it is broken, the interpretability claim stays where §4.7 puts it — codon-level
+decoding — and is not extended to per-slot roles.
+
+🧰 **Code (all default-off; both entry gates 280/280).** `config.py` `--axis_center
+{none,anchors,readout,both}`, `--lambda_role`, `--role_tau`, `--role_source {quantized,pre_quant}`;
+`model_siglip2.py` `_axis_center_local()` plus two call sites; `loss_siglip2.py` `_loss_role_axis()`
+plus wiring; `train_siglip2.py` logs `loss_role` when it is on.
+
+📋 **Not run, and why.** No MS-COCO confirmation: the pre-registration carries an arm to stage 2 only
+if it passes, and none did. No compositional analysis (NMI / drop / B0-B1-B2 / grids): these are
+4-epoch stage-1 screening cells launched with `--no-post_eval_compositional`, and the pre-registration
+attaches that analysis to stage 2. Both remain owed by any arm that is carried forward.
+
+---
+
+## 2026-09-20 [OFF-PROTOCOL, branch arch-exp-2026-09 — DESIGN RECORD, no results in this entry] Why no active loss can produce axis roles; the in-image cross-axis objective; a cross-domain survey of axis-supervision mechanisms; and the minimum-loss priority that follows
+
+**Status:** 🟡 design + literature record for the branch. **Contains no measurements** — every arm it
+names is pre-registered in `result/analysis/arch_exp3_20260920/PREREGISTRATION.md` and will be
+recorded as its own results entry. Must not enter `docs/paper_draft/`.
+
+### 1. The structural reason the present objective cannot separate the axes
+
+Sorting the twelve active terms (SPEC §2.1) by what each one *compares*:
+
+| what the term compares | terms |
+|---|---|
+| image against other images | `cibhash_ntxent`, `cibhash_kl`, `text_hash_ntxent`, paired-aug NtXent |
+| slot *m* against axis *m* of the same image, in isolation | `xmodal_commit`, `text_code_kl` |
+| a distribution against a fixed prior | `codon_joint`, `bu`, `base_balance`/`entropy`, `dna` |
+| a vector against its own quantisation | `vq`, `quant`, `anchor` |
+| the routing plan against the transport target | `wasserstein` |
+
+Not one term ever asks whether slot *m* fits axis *m* **better than it fits axis *m′* of the same
+image**. `text_code_kl` and `xmodal_commit` pull slot *m* towards axis *m*, but a solution in which
+every slot carries the whole image satisfies all four alignment terms at once, because all four axis
+captions describe that same image. The redundant solution is not penalised anywhere, and it is the
+one the model finds:
+
+- cross-slot decoding matrix ≈ .36 in every cell; M1 own-minus-other advantage **.0065 ± .0053** (3 seeds)
+- a patch spreads over **2.97 of the 4 local slots**; only **3.1 %** of patches reach exactly one slot
+  (`train_routing_mean_effective_k`, `train_routing_fraction_top1`, champion recipe)
+- four mechanisms tried on 2026-09-20 (content-dependent slot mass, free-marginal null, masked entity
+  completion, two-stage k-means codebook) each moved their own target and left M1 at the floor.
+
+So the gap is not a weight-tuning gap. Either an objective has to compare axes inside one image, or
+the architecture has to make the redundant solution unreachable.
+
+### 2. The in-image cross-axis objective, written out
+
+With q_m = slot *m*'s straight-through quantised code (`quantized_tokens[:, 1:]`) and t_m = axis *m*'s
+caption embedding of the **same image** (`text_part_tokens[:, 1:]`), s(m,m′) = cos(q_m, t_m′)/τ:
+
+```
+L_role = − (1/M) Σ_m log [ exp s(m,m) / Σ_{m′} exp s(m,m′) ]      # code picks its axis
+         − (1/M) Σ_a log [ exp s(a,a) / Σ_{m}  exp s(m,a) ]       # axis picks its code
+```
+
+```python
+q = F.normalize(outputs["quantized_tokens"][:, 1:], dim=-1)            # [B, M, D]
+t = F.normalize(outputs["text_part_tokens"][:, 1:] - mu_axis, dim=-1)  # [B, M, D]
+S = torch.einsum("bmd,bad->bma", q, t) / tau
+tgt = torch.arange(M, device=S.device).expand(B, M)
+L = 0.5 * (F.cross_entropy(S.reshape(-1, M), tgt.reshape(-1))
+         + F.cross_entropy(S.transpose(1, 2).reshape(-1, M), tgt.reshape(-1)))
+```
+
+The negatives are the other axes of the *same* image, so the batch supplies no easier shortcut, and a
+slot that carries image-level content is now strictly worse than a slot that carries its own axis.
+
+Three ways it can be won without learning anything, and the counter to each:
+
+1. **Constant "I am slot m" offset.** Each axis has a mean direction in CLIP space; a slot that emits
+   a constant vector near μ_m wins the softmax with no image information. The current whitening file
+   holds one global μ of shape (512,), so the per-axis means survive whitening. Counter: subtract the
+   per-axis mean μ_m — the same statistic already computed for `routing_mass_center`.
+2. **The axes share vocabulary.** Among the axis-distinctive top-100 words, primary and secondary
+   object share 53, secondary and colour/texture 42. Part of every negative is a true positive.
+   Counter, in increasing cost: Jaccard-weighted negatives, axis-distinctive words only, or axis-
+   exclusive caption regeneration.
+3. **Collapse.** Pushing slots apart can starve one. Counter: keep the two-stage codebook start
+   (c-1), which by itself moved the worst codebook's perplexity .58 → .94 and dead codes .24 → .05.
+
+### 3. Cross-domain survey — mechanisms that make a latent axis own a concept
+
+Searched beyond vision-language, for anything whose *mechanism* transfers. The rightmost column is
+the one that now decides priority: **does it add a loss term?**
+
+| domain | representative mechanism | transfer here | adds a loss? |
+|---|---|---|---|
+| open-vocabulary segmentation | GroupViT group tokens; OVSegmentor masked entity completion; TCL / PACL patch-text alignment | caption-only region supervision | yes |
+| mixture-of-experts routing | **expert-choice routing** (each expert selects its own tokens) replaces the auxiliary load-balancing loss | **slot-choice routing**: slot *m* selects its patches instead of each patch spreading over slots | **no — and it deletes one** |
+| self-supervised redundancy reduction | Barlow Twins cross-correlation → identity; VICReg covariance term; **W-MSE whitening as an operation** | decorrelate the slot readouts structurally | **no (whitening variant)** |
+| voice conversion / speech VQ | **instance normalisation removes speaker identity from content** with no extra objective; RVQ stages carry disjoint residual | strip the image-common component from each slot, leave it in the global slot | **no** |
+| object-centric learning | Slot Attention: softmax **over slots** makes slots compete for each pixel; DINOSAUR reconstructs frozen features | sharpen the competition we already have (top-p window) | **no** |
+| interpretable-by-construction latents (biology) | **expiMap masked decoder**: latent node *k* wired only to gene programme *k* | block-diagonal caption decoder, slot *m* → axis *m* only | replaces 3 with 1 |
+| concept-aligned axes | Concept Whitening (whiten + rotate axes onto concepts); Concept Bottleneck / label-free CBM built from CLIP | slot readout whitened and rotated onto the four axis anchors | no (module) |
+| statistical independence | β-TCVAE total correlation; **CLUB** MI upper bound; HSIC / distance covariance | minimise MI between slot codes | yes |
+| domain adaptation | **gradient reversal** (DANN); fader-network attribute adversary | slot *m*'s code must fail to predict axis *m′* | yes (+ a head) |
+| mechanistic interpretability | sparse autoencoders / dictionary learning; SpLiCE sparse concept decomposition of CLIP | codewords as a sparse concept dictionary | yes |
+| metric learning | supervision by neighbourhood structure rather than by pairs | axis-neighbour mining for match pairs | yes |
+
+### 4. The priority this implies, under "the fewer losses the stronger the claim"
+
+The count of objectives is itself part of the claim. Ranked by *contribution to axis roles per added
+loss term*, the order is no longer the one written on 2026-09-19:
+
+1. **Routing sharpness** — the top-p window is the direct handle on the 2.97/4 spreading. No code, no loss.
+2. **Slot-centred readout** — subtract the per-image mean across local slots, so a slot carries only
+   its deviation from the image; the global slot keeps the shared content, which is what it is for.
+   Structural, no loss. (Voice-conversion instance norm / W-MSE whitening.)
+3. **Slot-choice routing** — invert the selection direction so each slot picks its patches.
+   Structural, no loss, and it is the mechanism that let MoE *drop* its balancing loss.
+4. **`L_role` replacing `text_code_kl`** — the only way to add in-image axis competition without
+   growing the objective: the term it replaces is the weaker statement of the same intent.
+5. **Masked per-axis decoder** — one block-diagonal reconstruction in place of `text_code_kl` +
+   `xmodal_commit` + `text_hash_ntxent`; twelve terms become ten. Contingent on 1–4.
+
+Everything that only ever *adds* (CLUB / HSIC, gradient reversal, sparse dictionary, neighbour
+mining) is deferred behind these, whatever its standing in the literature.
+
+---
+
+## 2026-09-20 A direct (non-campaign) launch of an approved recipe does not reproduce the campaign number — both modes are deterministic, they diverge from epoch 1
+
+**Status:** 🟢 active. Finding only; no approved number changes.
+
+The 2026-09-15 incumbent cell (`p3lamA_flickr_A_v4_N4_s42`, campaign mode) was re-launched with the
+identical command line, rebuilt from its own `args.txt` (`scripts/build_offprotocol_cmd.py`), but
+without the campaign binding.
+
+| run | code | mode | GPU | terminal val mAP@R |
+|---|---|---|---:|---:|
+| incumbent (2026-09-15) | frozen tree `88c3a25` | campaign | 0 | 0.7635532117270416 |
+| gate1 | this tree | off-protocol | 0 | 0.7588274740818336 |
+| gate2 | frozen tree `88c3a25` (throwaway worktree) | off-protocol | 1 | 0.7588274740818336 |
+| gate3 | frozen tree, best-checkpoint save disabled | off-protocol | 2 | 0.7588274740818336 |
+
+gate1/2/3 agree in all 280 logged values; each differs from the campaign run in 136 of 280, and
+epoch 0 agrees exactly in every case — the divergence starts at epoch 1. So both modes are
+deterministic, the code is not the cause (gate2 = frozen code), the physical GPU is not the cause
+(the campaign also ran on GPU 0), and the per-epoch best-checkpoint save that only off-protocol
+runs perform is not the cause (gate3). **The cause is not identified.** Consequence: numbers from a
+direct launch must be compared with baselines launched the same way, never with campaign cells.
+Records: `result/analysis/arch_exp2_20260920/cells_gate{1,2,3}.txt`, run dirs
+`result/260920+flickr25k_setting1_gate{1,2,3}_*` (stored under `/data/yschoi/gdna_archexp_result/`).
+
+---
+
+## 2026-09-20 paper_draft consistency repairs — §4.5.2 recomputed from the approved aggregates, combined main table regenerated at the reseal, stale status tables corrected
+
+**Status:** 🟢 active. Documentation only; no experiment was run for these repairs.
+
+1. **§4.5.2 was entirely stale, not only its CIFAR cell.** Its ours column (.8668/.8246/.8232/.8940)
+   came from the A-champion era (this log, the `+.0341` table) and disagreed with §4.5.1. Recomputed
+   from the approved P3 refit aggregate (`b4f3b0df…`, `bio_map_at_R`) and the resealed P4 aggregate
+   (`686cc390…`, panel u0, `mean_map_at_R_post`) — the same sources and metric as §4.5.1:
+
+   | Dataset | ours | best U0 | Δ (point estimate) |
+   |---|---:|---|---:|
+   | Flickr25K | .8498 ± .0062 | OH .8366 ± .0057 | +.0132 |
+   | NUS-WIDE | .8161 ± .0070 | OH .8053 ± .0019 | +.0108 |
+   | MS-COCO | .8271 ± .0006 | CroVCA .8146 ± .0159 | +.0125 |
+   | CIFAR-10 | .8851 ± .0035 | CroVCA .8916 ± .0065 | **−.0064** |
+
+   The CIFAR-10 column was "withheld pending the CIBHash re-run"; the corrected CIBHash is .8164 and
+   the strongest U0 there is CroVCA, whose point estimate is above ours. No test is run (F14).
+2. **Combined main table.** `build_maintable_combined.py` is pinned by the ledger to the old baseline
+   aggregate and refuses the `phase3_selection_matrix.py` digest transition, so it cannot be re-run.
+   `scripts/build_maintable_combined_reseal.py` renders the same body from the two aggregates'
+   declared values; fed the OLD aggregate it reproduces the sealed generator's body byte for byte;
+   fed the reseal, only the HHCH row changes. New file
+   `docs/paper_draft/tables/maintable_combined_30bit_reseal_generated.tex`; the stale file is in
+   `docs/paper_draft/del/tables/`. The new generator does not repeat the sealed one's record-closure
+   verification.
+3. **`result/final_result_for_paper/90_pending_not_run/README.md`** said D4/D5/D6 were NOT run and
+   TODO 18 was "proposed only". All four were executed on 2026-09-16/17 (D4 42 cells; D5 4 + 24 cells;
+   D6 36 cells; TODO 18 receipt `959c0558…`, `paper_result_eligible: false`). Corrected by hand. The
+   collector (`collect_final_results_for_paper.py`) still embeds the old text and is ledger-pinned, so
+   it was not edited: re-running it restores the stale wording.
+4. **§4.4z asset table:** the §4.7d row now records seeds 43/44 as run (2026-09-18) and the §4.9 row
+   records D5 (20-base) as executed.
+
+Not repaired here, recorded as gaps: D5 and D6 results have no PROJECT_LOG results entry and no
+collection folder; nothing after ledger §598 (2026-09-16 16:37) has an independent audit verdict.
+
+---
+
+## 2026-09-20 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] Four slot-role mechanisms: none makes a slot specialise in its own axis; two remove the seed-dependent codebook collapse
+
+**Status:** 🟡 exploratory, off-protocol. Must not enter `docs/paper_draft/`. Records:
+`result/analysis/arch_exp2_20260920/` (`PREREGISTRATION.md`, `RESULT.md`), code `8925504`.
+
+Flickr25K stage-1 selection recipe, seeds 42/43/44, every arm launched directly and compared with the
+same recipe launched directly (see the run-mode entry above). Entry gate: with all new flags off the
+final code reproduces the pre-change run in 280/280 logged values. Role measured on the held-out
+validation rows through the deployment forward: M1 = own-slot minus other-slot decoding of axis-
+distinctive caption words; M2 = dataset-label decoding (caption-free).
+
+| arm | mAP@R | M1 role adv. | M2 label AP | codebook min/median pp | dead |
+|---|---:|---:|---:|---:|---:|
+| base | .7453 ± .0133 | .0065 ± .0053 | .796 | .58 ± .34 | .24 |
+| a-1 content-dependent slot mass | .7476 | .0062 | .795 | .53 | .24 |
+| a-2 a-1 + free-marginal null | **.7165** | −.0070 | .673 | .69 | .53 |
+| b-1 per-slot masked entity completion (OVSegmentor port) | **.7566** | .0021 | .811 | **.91** | .25 |
+| c-1 two-stage (VQ-free 2 epochs, k-means codebook) | .7429 | .0011 | **.824** | **.94** | **.05** |
+
+Pre-registered rule (retrieval ≥ base − SD and M1 gain > base SD; not a significance test): no arm
+passes. a-1 changes per-image slot mass as designed (max/min 1.32 → 1.79, 0 % empty slots) and
+nothing downstream; a-2's null absorbs 11–46 % of mass and degrades every axis; b-1 learns its task
+(completion 17 % → 53 %) and improves retrieval, uniqueness, label decoding and collapse, but not
+roles; c-1 removes the collapse outright (all codebooks at perplexity 80–121) with the largest label
+gain. Reading: every objective here contrasts images, none contrasts one axis against another within
+an image, so slots stay redundant carriers of image-level content. Untried next step: in-image
+cross-axis negatives. The 2026-09-19 A/B records were re-compared against same-mode baselines; their
+conclusions stand.
+
+---
+
+## 2026-09-19 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] (A) Frozen text-initialised codebook: text init alone does nothing, freezing is harmful in every form, and freezing a RANDOM codebook beats freezing the text-initialised one
+
+**Status:** 🟡 exploratory, off-protocol. Must not enter `docs/paper_draft/`. Record:
+`result/analysis/A_frozencodebook_20260919/RESULT.md`, `SMOKE_EVIDENCE.md`; code commit `a45cc45`
+(`--codebook_freeze_after_epoch`, default −1 = unchanged behaviour; the two existing EMA tests pass).
+
+**Hypothesis.** No active loss pins a codeword's meaning: `text_code_kl` is exactly invariant to
+relabelling codewords (permute codebook rows and `logits_v`, `logits_t` permute identically; its own
+docstring: gradient reaches `z_visual` only, `z_text` detached, `C` an EMA buffer), `codon_joint` targets a
+uniform distribution, `codeword_codon_sinkhorn` is 0.0 in the approved recipe, and `_loss_codebook_ortho`
+acts on slot-level batch means. If codeword k were a FIXED text-derived vector, that freedom would not
+exist. Mechanism: the existing, never-measured `--text_init_codebook kmeans` (built 2026-05-19,
+discarded before results) plus a freeze that suppresses the EMA write and dead-code revival.
+
+Flickr25K stage-1 selection recipe (2026-09-15 `p3lamA`), seeds 42/43/44, 4 arms:
+
+| arm | mAP@R | dead | unique | vs baseline |
+|---|---:|---:|---:|---|
+| baseline (no init, never frozen; campaign cells) | .7483 ± .0139 | .258 | .530 | — |
+| A1 kmeans init, never frozen | .7439 | .313 | .484 | −.004, inside seed SD |
+| A2 kmeans + frozen from epoch 0 | **.6327** | .542 | **.027** | −.116, outside |
+| A3 kmeans + frozen from epoch 2 | .7357 | **.808** | .130 | −.013, inside |
+| A4 random init + frozen from epoch 0 (control) | .7161 | .482 | .275 | −.032, outside |
+
+Freezing does not hold the codebook in place in any useful sense: every frozen arm addresses 4–8 of
+128 codewords per local codebook (text-routed perplexity) against 38–52 unfrozen. The A4 control
+settles the attribution — a frozen random codebook beats the frozen text-initialised one on retrieval
+(.716 vs .633) and unique codes (.275 vs .027). Likely cause, visible in the code: `--text_init_codebook`
+runs before the optimizer is built and projects captions through a still-random `text_adapter`, so the
+"text-derived" codewords are text through a random projection. Side finding that qualifies (B): the
+frozen arms show the best text-anchor separation measured anywhere (.019/.030 vs .13) while being the
+worst on every other axis — anchor separation alone is not evidence of a better model.
+2026-09-20 re-comparison against a same-mode (direct-launch) baseline .7453 ± .0133: all conclusions
+stand.
+
+---
+
+## 2026-09-19 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] (B) Loss-budget rebalancing: raising `lambda_text_hash_ntxent` separates the text anchors threefold at no retrieval cost, but the routing plan does not follow; raising `lambda_wasserstein` is wrong-signed
+
+**Status:** 🟡 exploratory, off-protocol. Must not enter `docs/paper_draft/`. Records:
+`result/analysis/lambda_slot_health_20260919/` (probe on the 8 existing 2026-09-15 λ cells),
+`result/analysis/B_lossbudget_20260919/RESULT.md` (5 new cells); code commit `a45cc45`.
+
+**Pre-measurement on the existing λ-confirmation cells** (`scripts/diagnose_slot_heatmap_collapse.py`
+through a new args.txt shim, 256 train images; 4 local slots, so not comparable to the 6-slot 0.987):
+
+| cell | text-anchor cos (post-adapter) | cost cos | plan pre-mask (centred) | plan post-mask (centred) |
+|---|---:|---:|---:|---:|
+| λ_w .15 (3 seeds) | .160 / .107 / .120 | .84 / .82 / .82 | −.306 / −.303 / −.301 | same |
+| λ_w .30 | .260 | .886 | −.296 | −.294 |
+| λ_w .50 | **.458** | .803 | −.283 | −.279 |
+| λ_th .10 | **.052** | .712 | −.307 | −.305 |
+
+Four things this settles: the anchors are NOT the bottleneck (.13 after the adapter, from .59 raw);
+the top-p mask does nothing here (stages 4 and 5 agree to four decimals — the earlier "the mask does all
+the differentiating" reading was the 6-slot / ε-misaligned era); ε is not a lever (replaying the same
+cost at ε 1.0 → .02 moves the centred cosine −.306 → −.329); and the centred metric is structurally
+pinned near −1/(M−1) = −.333, so it has almost no dynamic range. Also, per-slot transported mass is
+~22 % for every local slot regardless of λ, and the one-codebook collapse (below) happens downstream of
+routing. Raw log.csv loss columns are UNWEIGHTED (`loss_siglip2.py:2578/3597`; λ applied only in the
+total at `:3287`): raising λ_w .15 → .50 drove raw OT cost .68 → .45, anchor .86 → .22, xmodal_commit
+3.31 → 1.10, i.e. the mechanism fired, and the campaign judged only retrieval, where it is inert.
+
+**5 new cells complete the 3 × 3 grid** (λ_th ∈ {.05, .10, .20} × seeds; stage-1 cells, official test
+never read):
+
+| λ_th | mAP@R | dead | anchor cos |
+|---:|---:|---:|---:|
+| .05 | .7482 ± .0139 | .258 ± .054 | .129 |
+| .10 | .7446 ± .0099 | .233 ± .025 | .055 |
+| .20 | .7460 ± .0082 | .274 ± .048 | .044 |
+
+Retrieval is flat (means span .0036 vs seed SD .008–.014); dead stays inside seed noise, so the
+6-codebook v140 "dead .013 → .309" catastrophe does not reproduce at 5 codebooks; anchor separation
+improves monotonically and outside noise; the routing plan does not move. **Verdict: (B) does not reach
+its goal** — rebalancing moves the text side only. Limitation recorded: codebook collapse was measured on
+the text-routed path, not the deployment path.
+
+**Deployment-path collapse, measured from the approved refit extractions** (per-codebook perplexity,
+K = 128): Flickr s42 78.7 / **6.0** / 77.3 / 85.3 / 79.4, s43 … / **44.9** / …, s44 … / **51.9** / …;
+MS-COCO and NUS-WIDE ≥ .65 min/median. Across fifteen 5-slot runs the weakest axis changes with the seed
+in every dataset and the two catastrophic cases are both Flickr25K (5 K train images). The collapsed axis
+still receives 21.74 % of routing mass (healthy seed: 21.73 %): it is fed normally and fails inside VQ.
+This is the same phenomenon this log recorded as "the dead slot MOVES rather than disappearing".
+
+Review document (not a paper file): `docs/experiments/ARCHITECTURE_REVIEW_2026-09-19.md` — places the
+instability on the already-withdrawn claim ① (slot role) and not on ②/③, surveys PSA (NeurIPS 2024;
+identifiable only up to permutation + affine), LG-VQ / TA-VQ / CTRL-O (no per-code pinning, no seed
+stability measured), and the V2L Tokenizer (frozen LLM vocabulary as codebook). Written before the (A)
+result; its §4–§7 do not yet reflect that freezing failed.
+
+---
+
+## 2026-09-18 Slot dissection extended to seeds 43/44 — seed-42 giraffe alignment does NOT reproduce; no slot keeps a best category across seeds
+
+🟢 active
+
+§4.7d was a single-seed result (MS-COCO seed 42). The same producer (`scripts/slot_dissection_coco.py`
+`6d1e38d4…`, all six co-captured sources byte-identical to the 2026-09-10 receipt) was run on the approved
+seed-43/44 refits through the deployment path (eval, no text, `codebook_mean`), 2000 probe images each,
+IoU against COCO polygon masks, criterion IoU > .04. Seed 42 was re-run first as an entry gate and
+reproduced the approved record to the last printed digit.
+
+| slot | s42 best (IoU / n>.04) | s43 | s44 | IoU mean ± sd | shuffled mean |
+|---|---|---|---|---:|---:|
+| primary_object | giraffe .1354 / 1 | dog .0259 / 0 | person .0259 / 0 | .0624 ± .0632 | .0117 |
+| secondary_object | laptop .0329 / 0 | umbrella .0217 / 0 | person .0228 / 0 | .0258 ± .0062 | .0095 |
+| activity_relation | cake .0290 / 0 | person .0056 / 0 | orange .0076 / 0 | .0141 ± .0130 | .0064 |
+| color_texture | refrigerator .0174 / 0 | bench .0157 / 0 | cake .0947 / 2 | .0426 ± .0452 | .0043 |
+
+**Verdict: DISCARD as evidence of slot–object grounding; KEEP §4.7d as a bounded negative-leaning
+result.** The one cell that cleared the criterion at seed 42 does not reproduce; no slot has a stable
+best category; 2/12 cells clear .04 on different slots and categories. All slot means exceed shuffled,
+so routing is not random — but which object a slot attends to is a property of the training seed, not
+of the axis. This is consistent with §4.10.6 (0 confirmed local pairs) and §4.10.3 (no independent
+control). Artifacts `result/analysis/slots/semantics/slot_dissection_mscoco_N39_polygon_deployment_20260918_s{42,43,44}.json`;
+table `docs/paper_draft/tables/slot_dissection_mscoco_3seeds/`; run tmux `dissect_3seeds_20260918`, 443 s, rc=0.
+Routing heatmaps (§4.10c) were inspected directly the same day: slot maps differ, but heat often sits on
+background and shows grid artefacts; the bundles print "not evidence of grounding" and this measurement agrees.
+
+---
+
+## 2026-09-18 paper_draft reorganized — `del/` for retired tables/figures, PAPER SECTION headers on every tex, current heatmaps brought in, ours main-table row filled from the sealed aggregate
+
+🟢 active
+
+- `docs/paper_draft/del/` (with README) now holds: v1 bundles superseded by v2 (bioproj, concept
+  specificity, empty slot), `maintable_15base_20base.tex` (BLOCKED 08-13), `maintable_18base.tex`
+  (6-slot era), `maintable_baseline_30bit_generated.tex` (stale HHCH), the wide-layout duplicate of
+  the decoding table, `architecture_v29.png` (v29: SigLIP2/6 slots/K64/18 bases — **a new architecture
+  figure is needed**), three July PR-curve PNGs, and the 2026-08-11 `s5topp69` qualitative figures.
+- Every remaining `.tex` (17 + 5 new) carries a `PAPER SECTION / RESULT PATH` comment block
+  (`scripts/annotate_paper_tex_sections.py`, idempotent; paths read from receipts/provenance).
+- New tables from artifacts (`scripts/make_extra_paper_tables.py`): §4.7f partitions, §4.4.0 HHCH
+  variability, §4.7d 3-seed dissection; D4 copied from its bundle; F01 built from the markdown of record.
+- `figures/caption_heatmaps_layout_v2/` (10 paper pages) and `figures/qualitative_query_v1/` (8)
+  copied from the collection with their READMEs.
+- Draft: 18 Experiments subsections got a `[표·그림 확정 2026-09-18]` block (table path + short
+  interpretation); the `(④ refit 대기)` ours row of the 30-bit main table was filled programmatically
+  from `tables/ours_15base_30bit/table.md` (.8851 / .8498 / .8161 / .8271, matches the combined tex row);
+  the "no generation path" paragraph was rewritten to the current state.
+- Not moved: `DRAFT_GROUNDEDDNA_PAPER_KO.md` (superseded draft), `FINDINGS_PAPER_CLAIMS_2026-07-19.md`,
+  `QUALITATIVE_INTERPRETABILITY_PROPOSAL_2026-07-11.md`, `RELATED_WORKS_AND_MAINTABLE_SELECTION.md` —
+  documents, not experiment results; left for the user to decide.
+
+---
+
+## 2026-09-17 Reinforcement A — ours decodes better than the BEST of 22 pre-drawn partitions of the flat control (12/12 cells)
+
+🟢 active
+
+Pre-registered control answering "you compared your structure against an arbitrary cut of theirs".
+The CIBHash 30-bit control is put through the same DP projection our codes take, then its 15
+projected base positions are cut 22 ways (`contiguous`, `interleaved`, `permuted_1..20` from
+`np.random.default_rng(1000+k)`); `best_flat` is the maximum over all 22, chosen on the same test
+scores reported, which biases the comparison **against us**.
+
+| dataset | ours codon (3-seed mean) | best flat (3-seed mean) | mean Δ | sd | seed-42 95 % CI | verdict |
+|---|---:|---:|---:|---:|---|:-:|
+| Flickr25K | 0.7481 | 0.6386 | +0.1095 | 0.0096 | [+0.0930, +0.1055] | **PASS** |
+| NUS-WIDE | 0.7250 | 0.6107 | +0.1143 | 0.0048 | [+0.1023, +0.1156] | **PASS** |
+| MS-COCO | 0.6579 | 0.5072 | +0.1506 | 0.0038 | [+0.1478, +0.1572] | **PASS** |
+| CIFAR-10 * | 0.8984 | 0.7334 | +0.1650 | 0.0087 | [+0.1538, +0.1726] | **PASS** |
+
+`*` CIFAR-10 reported but **not counted** (draft §4.7c: single-positive labels make the column
+unreadable for slot-level claims). Written into the draft as **§4.7f**; its `ours codon` and
+`contiguous` three-seed means reproduce the two columns §4.7 already prints (.7481/.6337,
+.7250/.6063, .6579/.5064, .8984/.7249) to four decimals, so the new panel scores the same arms the
+paper already reports. Margins are 25×–68× the 22-arm sd; all 12 cells in
+`result/analysis/interp_controls/A_partitions_20260917/`, full write-up in
+`docs/INTERPRETABILITY_CONTROL_A_RESULTS_2026-09-17.md`, pre-registration in
+`docs/INTERPRETABILITY_CONTROLS_CONTRACT_2026-09-17.md`.
+
+**Verdict: ADOPT** as a §4.7 reinforcement. Licensed claim is bounded — *our codons decode better
+than the best of 22 pre-drawn partitions of the equal-nominal-alphabet flat code* — and explicitly
+does NOT say the codon arm beats every arm (`ours_codeword` still beats `ours_codon` on Flickr25K
+s42 by +0.0249), nor that a human can read a slot.
+
+Deltas: new `scripts/interp_control_a_partitions.py` (`ba6dcf96…`); no existing file changed. It
+imports `load_split`, `_paired_rows`, `_index_by_identity`, `_check_paired_labels`,
+`load_approved_train_derivative`, `expected_identity_from_record`, `codon_ids` and
+`decode_all_slots` from the pinned probe `scripts/heldout_codon_decoding.py` (`1f8cf34d…`),
+re-implementing only the `_bioproj` wrapper, which is a closure inside that file's `main()`.
+
+An adversarial design review (47 candidates → 17 real defects) caught the load-bearing error before
+any cell ran: under `projection: bio` the approved control is **not** built by `bit_chunk_ids`, so
+partitioning raw bits scores a different code (0.650311 where the paper prints 0.639626) and
+relocates where the projector repairs. Arms now permute projected **bases**, and an entry gate
+requires the `contiguous` arm to reproduce the approved `cibhash_chunk` value before any other arm
+is scored — it did, bit-identically, on all 12 cells, as did the recomputed `ours_codon` arm.
+
+No compositional (NMI / drop / B0-B1-B2 / grid) numbers are reported: A trains nothing and emits no
+new codes, so those axes are unchanged from the approved P3 refit that produced the extractions.
+
+**Reinforcement B was NOT run.** The same review showed the probe is exactly invariant to relabeling
+the codon alphabet and to which axis a slot is named after, so B as originally written cannot answer
+the identity question at all; the corrected version answers a weaker one. Awaiting a decision.
+
+---
+
+## 2026-09-16 D4 MS-COCO decode-failure exclusion sensitivity, all 42 cells — retrieval conclusions unchanged, uniqueness displays move
+
+**Status:** 🟢 active. A re-evaluation on existing admitted arrays: no training, no model forward, no new
+extraction, CPU only. The reported bundle is
+`result/analysis/d4_exclusion_sensitivity/p3_20260916_v4/` (receipt `f24006975f6b2ff9…`, 6,722 s), produced by
+the executor that runs each frozen evaluator from a verified snapshot, and collected as
+`result/final_result_for_paper/16_d4_mscoco_exclusion_sensitivity/`. `paper_result_eligible` false.
+
+**Design, fixed before the numbers existed.** keep16 is the main protocol with all 107,218 MS-COCO
+database rows; drop16 removes the 16 undecodable images from the **database only**, leaving 107,202 rows
+in canonical order. Query stays 5,000 and R stays 5,000. 42 cells: ours 3, `U0` 27, native 12, each
+evaluated by the frozen code path that produced its approved number. A table entry "changes" if its
+4-decimal rounding changes; a comparison "changes" if its sign flips.
+
+**Admission.** Every cell's keep16 had to reproduce every metric its approved record claims — mAP@R,
+full mAP and DB uniqueness, raw and post-DP separately — exactly, before its drop16 was accepted.
+All 42 passed. Independent verification after the run: the 42 identities and their eligibility equal the
+approved plan, keep/drop database rows are 107,218/107,202 everywhere, and the recorded keep-mask digest
+equals a boolean mask rebuilt here.
+
+| Observation | Value |
+|---|---:|
+| Method-level mean displays changed at 4 dp | 9 (8 DB uniqueness, 1 `U0` Bi-half raw mAP@R) |
+| Method-level sample-SD displays changed | 1 (`U0` CroVCA raw mAP@R, .0137 → .0136) |
+| Per-cell entries changed at 4 dp | 38 (DB uniqueness 27, mAP@R 8, full mAP 3) |
+| Comparison sign flips | 0 of 52, per seed and at the mean level |
+| ours post-DP mAP@R | keep16 0.827119, drop16 0.827123, display unchanged |
+
+**Reading.** The retrieval conclusions do not move: no ours-versus-baseline comparison changes sign, and
+ours' own mean and SD displays are unchanged. What moves is mostly DB uniqueness, and for a mechanical
+reason: the denominator falls by 16 rows while 54 of 78 array pairs lose exactly one distinct code, so
+the ratio rises. That is not better learning or a different projection. Audit section 598 counted the
+same arrays independently and reported the same eight uniqueness mean-display changes.
+
+n = 3 means and sample SDs are descriptive, not tests. **Nothing here authorises a canonical-split
+switch**; that needs its own split/protocol version and approval. The three native bee2021 cells stay
+diagnostic-only.
+
+**Why the first bundle was provisional, and what changed.** Audit section 594 found that the executor that produced `p3_20260916_v3` hashes each frozen evaluator and
+then imports it by path, so the bytes it executed are not proven to be the bytes it verified. The numbers
+above were checked against the approved records independently, but the provenance claim is weaker than
+the receipt implies. Two earlier attempts were stopped on audit findings and published nothing.
+
+**The repair, and how it is verified.** `scripts/d4_exclusion_sensitivity.py` `822b3ccdd96e62a5…` now copies
+each family's Python tree into a private snapshot, checks every pinned file's copy against its digest, and
+imports from that copy, so nothing that happens to the live tree afterwards can change what executed. The
+producer digest is read at process start rather than at output time. A probe worker confirms it: the
+executed evaluator hashes to the pinned `7cca26a0…` out of 214 snapshot files, the device is CPU, and every
+keep16 metric reproduced. Three fixture cases hold the boundary — the honest control, a transient
+replacement that reaches only the snapshot copy and is refused, and a check that the frozen evaluator on
+disk is unchanged. The v3 bundle keeps its provenance as published; the repaired executor published to
+`p3_20260916_v4` instead. Verifying v4 independently: its 42 identities and eligibility equal the approved
+plan, every recorded keep16 metric reproduced, keep/drop rows are 107,218/107,202, the keep-mask digest
+matches a mask rebuilt here, all three families record CPU, and **all 516 metric values are identical to
+v3** — the loading path changed, the numbers did not.
+
+**Audit section 597, repaired in the same round.** The D6 selector recorded an index *sum* and a
+five-element head as its split evidence, and two different valid held-out subsets share both. The selector
+`8ca1de02401ff5c1…` now records ordered membership digests for the held-out rows, the optimization rows and
+the train labels; the consumer `003d100178d61502…` rebuilds the split with the actual `carve_val_indices`
+for that ratio and seed and refuses any disagreement in digests, counts or strategy.
+
+**Fixtures, all re-run together against these sources:** collector 7/7, empty-slot 5/5, D6 selection gate
+35/35 with zero training commands built, D6 selector byte binding 5/5, D5 extraction 12/12, D4 refusal
+28/28, publication boundary 26/26.
+
+---
+
+## 2026-09-16 Second audit round: D4 run stopped on its own contract, executor rebuilt, D5/D6 gates closed
+
+**Status:** 🟢 active. Audit sections 581-588 reviewed the morning's repairs and found new defects.
+Every repair below is verified by a fixture that is proven able to fail. No training, model forward,
+extraction or DP projection was run, and **no D4 number exists yet**: the campaign was stopped and
+nothing was published.
+
+**The D4 run was stopped, not finished.** Audit section 585 tested the exact executor that was
+running and found two HIGH defects and a contract violation, so the run was terminated at 15:01
+(rc 143, 1,177 s) with nothing written. The empty bundle directory it had created was removed and
+the temporary worker files deleted; the publish root no longer exists.
+
+| Audit | Defect in my code | Repair |
+|---|---|---|
+| 585.1 HIGH | Full mAP was recorded but never gated, so a wrong full-mAP reference passed while mAP@R and DB-unique mismatches refused | keep16 is now evaluated and fully admitted before drop16, and every recorded metric of a cell (mAP@R, full mAP, DB unique, raw and post separately) must reproduce exactly |
+| 585.2 HIGH | Completion proved neither membership nor source closure: only the requested count was checked, repeated identities collapsed, and evaluator/mapping/contract changes after the first write went unnoticed | the expected cell identities come from the approved records, duplicates and wrong seeds refuse, a subset run is labelled partial with the missing groups named, and one non-overriding union of producer, contract, mapping, evaluator, dependency and worker inputs is revalidated before the receipt |
+| 585.2 | The three P3 DP dependencies were recorded as current bytes rather than pinned | pinned to the digests audit section 575 verified |
+| 585.3 MED | Group reductions covered only mAP@R, mean and SD rounding changes shared one flag, mean-level comparison flips were invisible, and the mask hash was of the row list | every metric is reduced, mean and sample SD are flagged apart, comparisons are reported per seed and at the mean level with ties explicit, and the digest is of the actual boolean mask with its declared serialization, shape and dtype |
+| 585.4 | The contract says GPU is not involved, but the run exported `cuda:0` and the U0 path auto-selects CUDA | the executor forces CPU, each worker clears the visible devices before torch loads, the parent refuses a worker that resolved anything else, and the resolved device is recorded per cell |
+| 582.2 | The flat extractor saved misaligned rows: correct bit width did not imply matching code, label and path counts | an explicit row-count check refuses before any NPZ or metadata is written |
+| 583.1 | Six malformed D6 selections still passed: an incomplete candidate grid, a wrong dataset cutoff, a fractional split seed, counts that do not partition, missing winner summaries and duplicate epoch aliases in the score table | the validator derives the complete expected grid from the horizon and cadence, requires the canonical dataset cutoff, an integer seed, a real partition, both finite summaries, and canonical one-to-one epoch keys |
+| 587.1 HIGH | The TODO 18 contract named `codon_head.*`, which matches nothing: the model registers `codon_heads` (plural) and `quantizer` | the contract now names the real prefixes, requires the exact key set to be enumerated from each admitted checkpoint and to be non-empty, and fixes the per-tensor initialization rule |
+| 588.3 MED | `epoch_004.pth` and `epoch_4.pth` are separately hash-bound files that collapsed into one key while the filename-to-epoch map was built, leaving a real candidate with no score evidence | the validator requires each candidate filename to be the canonical name for its epoch and refuses two files that resolve to the same epoch, before the map exists; no file is renamed and no duplicate is preferred |
+| 589.2 HIGH | The source union held whatever the workers reported, so an input omitted from a worker's message and then changed still produced a complete receipt | the parent derives the required set itself: the pinned evaluators and DP dependencies of each requested family, and every admitted cell's raw and post arrays. That set joins the union before the workers run, and a worker that omits or contradicts any of it is refused |
+| 589.3 HIGH | Cell identity did not include eligibility, so a worker could promote the three diagnostic native cells to main-eligible with every identifier correct | eligibility is compared against the approved plan per cell and a disagreement refuses |
+| 589.4 MED | Per-seed sign changes were counted once per comparison group, so six seed events were reported as two | the summary and the TeX comment now report seed events and affected groups as separate, named statistics |
+
+**Fixtures, all re-run together against the repaired sources (355 s):**
+
+| Fixture | Result |
+|---|---|
+| collector boundary | 7/7 |
+| empty-slot table | 5/5 |
+| D6 selection gate | 30/30 after the alias case was added, zero training commands built |
+| D6 selector byte binding | 5/5 |
+| D5 extraction geometry and row alignment | 12/12 |
+| D4 refusal, including the real orchestrator | 25/25 after the section 589 cases were added |
+| publication boundary | 26/26 |
+
+The D4 refusal fixture now drives the actual `orchestrate`: a subset run is labelled partial, a
+repeated identity refuses, a worker reporting a different producer digest or a GPU device refuses,
+and a contract, evaluator pin or consumed input changed after the first write refuses with no receipt.
+
+**Audit verdicts this round.** Sections 581 and 584 accepted the empty-slot producer repair and the
+v2 publication, including its collection copies. Section 588 accepted the flat-extractor row repair
+and the six D6 selection repairs at their new bytes. Section 583 accepted the selector's same-byte
+checkpoint consumption. Section 587 confirmed the D5 and D6 contract scopes against the actual job
+constructor: 24 tuples with an explicit `u0` panel against 27 with the default, and 36 for D6.
+
+**Contracts.** `docs/D5_20BASE_DIAGNOSTIC_CONTRACT.md`, `docs/D6_VALIDATION_SELECTED_APPENDIX_CONTRACT.md`
+and `docs/TODO18_WEIGHT_RANDOMIZATION_CONTRACT.md` are proposed and unrun. They now also carry the
+per-cell frozen plan requirement, the statement that a 40-bit validation-selected baseline differs
+from a 30-bit author-fixed one in protocol as well as length, the no-alias checkpoint rule, and the
+corrected randomization targets.
+
+A second 42-cell attempt was started at 15:23 and stopped at 15:25 (rc 143, 73 s) as soon as audit
+section 589 reported these three defects; nothing was published and its empty directory was removed.
+The repaired executor is `1fdff47805f8733c…`.
+
+Consumer source after the alias repair: `dd4cf9cb5c59fb98…`.
+
+**Verdict.** The repairs are adopted. D4, D5, D6, TODO 18 and real-human TODO 19 have produced no
+results, and the audit's review of this round's executor is still open.
+
+---
+
+## 2026-09-16 Audit-found defects repaired in five producers and gates; draft closing claims rebound — no experiment rerun
+
+**Status:** 🟢 active. Five code defects the audit reproduced (sections 567, 572, 576, 577, 578) are repaired,
+each with its own regression, and the draft's closing sections are rebound to approved results (sections 573, 579).
+No model forward, training, extraction, DP projection or recipe change. Approved results are untouched.
+
+| Audit | Defect | Repair (SHA-256) | Regression |
+|---|---|---|---|
+| 572 HIGH | The empty-slot table producer verified the result file, then reopened and parsed it. A change between the two reads could publish altered numbers under the approved input digest. | `scripts/make_empty_slot_table.py` `c47771c5…` parses the bytes it hashed; the vacuous hash assertion and the unused `n.o.` legend are gone | 5/5: control publishes 64.70 %; changing any read kills the run with no bundle |
+| 576 HIGH | The D6 selection handoff accepted an absent, negative, fractional or suboptimal E*, missing or non-finite scores, and a zero validation split. | `scripts/run_modern_baseline_p0.py` `09cc9fa2…` binds a candidate epoch, an existing checkpoint, complete finite scores in [0, 1], the recomputed winner (earliest epoch on ties), and the split/seed/horizon/period | 23/23, and zero training commands were built during the whole run |
+| 577 HIGH | The D6 selector hashed each checkpoint, then reopened it for scoring, so a transient replacement could decide the winner under the original digest. | `scripts/baseline_val_select_p0.py` `becbbc76…` reads each candidate once, hashes those bytes, deserializes the same bytes, and re-hashes the files at the end | 5/5: the transient replacement is refused; a persistent one is declared as what was read |
+| 578 | The flat extractor's log and `args_extract.txt` derived their own slot count (`bit // 6`), and neither extractor refused an emitted width that differed from the declared budget. | `scripts/extract_flat_baseline.py` `0de66ba9…` and `scripts/baseline_extract_splits.py` `712126f4…` resolve one declared panel geometry and refuse a width mismatch before saving | 10/10: 30/36/40/48-bit round trips with matching metadata; declared 40 / emitted 36 refused |
+| 567 | The publication-boundary oracle accepted a bundle that dropped an admitted file from both its closure and its union, or that lied about closure, cell identity, mode or artifact kind. | The fixture now derives each cell's expected authority from a fresh admission and checks `closed`, identity, mode and kinds | 26/26; all five malformed variants rejected, each by the intended check, and an unchanged copy still passes |
+
+**Draft.** `a252e099…` → `a23cd954…`, 23 edits. Sections 5.1/5.2 drop the old intervention ratios, the 40–57 %
+pre-validity range and the unbound DNA-unique and win/loss claims, and use the current conditional per-axis results
+(10 of 16 local means positive; CIFAR-10 secondary object and MS-COCO primary object negative in all three seeds;
+common-valid subset 80–166 of 500). Pre-validity is now the approved 62.2–69.4 % with the length-matched 0.6244
+reference. Section 4.10.4's collapse table is labelled unbound and its four-dataset cure claim is removed. Geometry
+consumers move from 18 bases / 36 bits / K^6 / 6K to 15 bases / 30 bits / K^5 / 5K. The front status, abstract and
+section 4.4 name the approved 108-cell P4 campaign, the native 36 main plus 12 diagnostic split, and the fixed
+CIBHash control, and separate validation-only selection from terminal test evaluation.
+
+**Collection.** The empty-slot table was republished from the repaired producer as
+`docs/paper_draft/tables/empty_slot_15base_v2/` (receipt `ad0e6329…`); its numbers are identical to v1, which is kept
+as history. `scripts/collect_final_results_for_paper.py` `f451cbe6…` rebuilt the public collection: 1,787 copies
+re-hashed with 0 mismatches, 316 links, no pending or build marker, and the previous root preserved.
+
+**Not covered by this entry.** D4 is not run: its executor and refusal fixtures exist, but no D4 number is produced,
+so nothing about the exclusion sensitivity is recorded here. D5, D6, TODO 18 and real-human TODO 19 remain open, and
+the audit's review of these repairs is separate.
+
+---
+
+## 2026-09-15 Caption heatmap layout v2 published (paper-size pages, visible caveat); collection rebuilt with folder 15
+
+**Status:** 🟢 active. Layout-only redraw of the audited TODO 9b bundle (receipt `0514b2b5…`): same rows, captions and
+routing arrays, no model forward, `paper_result_eligible` false. Addresses audit §559 (caveat must be visible, pages
+must be readable at paper size). Audit review is separate.
+
+| item | value |
+|---|---|
+| producer | `scripts/todo9b_caption_heatmap_layout.py` `796fc63b…` |
+| bundle | `result/analysis/slots/caption_heatmap_layout_v2/p3_20260915_v2/` (receipt `60914537…`, 16 files) |
+| per cell | 1 native figure + 2 paper pages (rows 1–4, 5–8); 6.5 in wide, 6 pt captions, 300 dpi |
+| cells | CIFAR10 query, CIFAR10 / Flickr25k / NUSWIDE / MSCOCO train |
+| layout violations | 0 in all 15 renders (text vs strip, figure, images and other text) |
+| caveat on every page | "A 14x14 routing map is not a measured overlap with an object region; these panels are not evidence of grounding." |
+
+**Refusal and repair.** The first publish refused at MSCOCO train, paper page 1, and saved nothing. A scratch probe
+showed 4 overflows across both pages, all in column 0. A space-free COCO image ID cut at 24 characters ran about
+2 px past its 1.3 in column at 6 pt. The repair breaks IDs 4 characters earlier than captions. Caption wrapping
+is unchanged, and every native-width ID still fits on one line. Rerun chain:
+
+| step | result |
+|---|---|
+| layout fixture | 4/4 |
+| full five-cell probe | 0 violations |
+| publish | rc 0 |
+
+All 15 published PNGs are byte-identical to the probe. Before the chain, the changed-stack integration had passed:
+collector 7/7, layout 4/4, preflight 31/31, 12-cell replay rc 0, consumers 23/23, publisher boundary 20/20.
+That run covered §558 large-byte copies and rename recovery, and §560 strong receipt oracles.
+
+**Collection.** `scripts/collect_final_results_for_paper.py` `9b01c087…` adds folder
+`15_caption_heatmaps_layout_v2/`, pinned to the exact receipt with a 16-file inventory. The new branch also checks
+source receipt = v1, zero violations, the visible caveat per page, and zero forwards. `admit_bundle`,
+`_admit_and_copy`, `copy_blob` and `switch_public` are AST-identical to the §565-accepted `2848b8a6…`; README
+texts for folders 04/07/08/12/13/14 are refreshed. Boundary fixture 7/7, then `--rebuild` rc 0:
+
+| check | result |
+|---|---|
+| public directory state | real directory, no `BUILD_INCOMPLETE`, no `PUBLISH_PENDING` |
+| previous collections | kept (`__previous_20260915T160725`, `__previous_20260915T204135`) |
+| staged copies (MANIFEST) | 1,783 re-hashed, 0 mismatches; 316 links |
+| folder 15 | 17 regular non-symlink files match the receipt; all 15 advertised PNG paths resolve to stored copies |
+| folders 12/13/14 | bundles re-verified against their receipts |
+| folder 04 | the three new table bundles copied byte-identically |
+
+Draft §4.10c now names layout v2 as the body figure (draft `a252e099…`).
+
+**Verdict.** Adopted for display. v1 stays the audited source of rows, captions and arrays.
+
+---
+
+## 2026-09-15 Paper tables for §4.10.1 / §4.10.3 / §4.10b from accepted results; draft §4.10 rewritten — no recomputation
+
+**Status:** 🟢 active. Three new producers format results the audit already accepted; no model forward, retrieval,
+swap, bootstrap or DP projection is rerun. Every bundle keeps `paper_result_eligible` false; audit review of the
+producers and the draft wording is separate.
+
+| section | producer (SHA-256) | pinned input | bundle (receipt SHA-256) |
+|---|---|---|---|
+| §4.10.1 NMI | `scripts/make_nmi_table.py` `dd4ff32b…` | P3 refit aggregate `b4f3b0df…` + 12 `pairwise_nmi.json` | `docs/paper_draft/tables/nmi_codebook_15base/` (`8d2ae8a9…`) |
+| §4.10.3 intervention | `scripts/make_intervention_table.py` `cb9e34b6…` | intervention v2 aggregate `7cdfecc9…` + its 12 cell JSONs | `docs/paper_draft/tables/intervention_v2_15base/` (`5039efcc…`) |
+| §4.10b empty slot | `scripts/make_empty_slot_table.py` `1f8b1897…` | TODO 10 receipt `34bf7a2e…`, result `85c40781…`, 12 NPZs | `docs/paper_draft/tables/empty_slot_15base/` (`4ff21c90…`) |
+
+**What each producer re-checks before writing.** NMI: 5×5 symmetric matrices, unit diagonal, ten-pair mean and
+extrema against the file and the record, checkpoint binding, and the aggregate's stored mean / sample SD / per-seed
+values (1e-12). Intervention: every stored mean, sample SD and defined-seed count re-reduced from its seed vector;
+selectivity = target gain − off-target drift per seed and arm; each ours-minus-control contrast per seed;
+coverage × 500 = paired count. Empty slot: receipt bytes, all 12 NPZ digests, whole-split row counts and replay
+flags, each rate against its count, and zero-denominator groups carrying no statistics. All three write once to a
+new directory, reread every output and rehash every input before the receipt.
+
+**Agreement with the audit's independent numbers.** NMI equals §554 to printed precision. All 16 local
+`ours − CIBHash chunk` contrasts equal §556.2 to six decimals. Every empty-slot range and maximum equals §562.2.
+
+NMI between slot codebook assignments (full DB, before codon mapping and DP; mean ± sample SD, n = 3, descriptive):
+
+| Dataset | DB rows | seed 42 | seed 43 | seed 44 | mean ± SD |
+|---|---:|---:|---:|---:|---:|
+| CIFAR-10 | 59,000 | 0.6582 | 0.6511 | 0.6477 | 0.6523 ± 0.0053 |
+| Flickr25K | 23,000 | 0.4412 | 0.5181 | 0.5298 | 0.4963 ± 0.0481 |
+| MS-COCO | 107,218 | 0.6588 | 0.6533 | 0.6628 | 0.6583 ± 0.0048 |
+| NUS-WIDE | 193,734 | 0.5375 | 0.5518 | 0.5526 | 0.5473 ± 0.0085 |
+
+Other headline facts carried into the draft:
+- **Empty slot.** 0 empty and 0 tiny images in all 60 slot records, so the codons-when-empty groups have denominator 0
+  and are reported as not observed.
+- **Intervention.** 10 of 16 local `ours − CIBHash chunk` means are positive. CIFAR-10 secondary object and MS-COCO
+  primary object are negative in all three seeds. The common-valid subset is 80–166 of 500 queries.
+- None of these counts is a test.
+
+**Draft.** `docs/paper_draft/DRAFT_GROUNDEDNDA_PAPER_KO_MODIFY.md` `8926d9f9…` → `fdcb5a82…`.
+§4.10.1 and §4.10.3 are replaced; the former three-dataset NMI values and the Flickr 1.54× / NUS 1.69× ratios are
+kept only as named historical numbers. §4.10b gains a current-measurement block above the old 6→5-slot diagnostics,
+which are now labelled historical. §4.10c describes the 2026-09-15 bundles (deployment routing, t-SNE of
+post-router pre-quantization tokens at 1,000 / 2,000 / 2,100 / 3,000 points, caption panel separate). §4.10f is
+marked resolved by §4.7. Lines 1–1830 are byte-identical. No LaTeX compiler is installed here; the TeX was not
+compiled.
+
+**Verdict.** Adopted as the current §4.10 reporting. The superseded values stay in the draft only under historical labels.
+
+---
+
+## 2026-09-15 Caption-detail diagnostics: relation words are lost inside frozen CLIP, not by our pooling; deployment routing never sees the caption
+
+**Status:** 🟢 active. Read-only CPU diagnostics on the approved seed-42 Flickr25k and MS-COCO refits (train
+split; 1,500 captioned rows per dataset with one-word foils, 64 rows for routing). No training, no recipe or
+paper-number change, `paper_result_eligible` false. Evidence (scripts, JSON, logs, `SHA256SUMS`):
+`result/analysis/text/caption_detail_probe_20260915/`.
+
+**Question (user).** In the caption-labelled deployment heatmaps (TODO 9b) the heat lands on regions tied to
+individual words, not on the actions, relations or patterns the captions describe. Hypothesis: encoding each
+slot caption as a single vector loses that detail.
+
+**What the approved pipeline actually does.**
+- Deployment routing uses no text. The four local anchors are the codebook means, identical for every image
+  (`get_codebook_mean_anchors`; routing-mode rule in `model_siglip2.py`). The caption in the figure is a label.
+- Training anchors are not CLIP's pooled EOS vector. All four approved configs run `bidirectional_token_prune`
+  in `legacy` mode, whose importance is constant (2026-07-13 entry), so the anchor is a mean of CLIP-projected
+  token states. Logged keep ratios: text 0.77 per slot and patches 0.996 union where 0.5 was configured
+  (MS-COCO, ratio 1.0, keeps 0.998).
+- Routing is soft: the strongest patch per slot carries 2.3–4.1× the uniform share (median over 64 images).
+  The figures auto-scale colour per panel (§550), which exaggerates these differences.
+
+**Probe 1 — how far a one-word foil moves the caption vector, and who can tell.** Shift = median(1−cos(factual,
+foil)) ÷ median(1−cos) between two different images' captions of the same slot. "Anchor space" = token mean →
+partial whitening → per-slot text adapter. Last two columns: fraction of rows where the image side is closer to
+the factual caption than to its foil (chance 0.5).
+
+| dataset | slot / foil family | n | shift, CLIP pooled | shift, anchor space | CLIP image prefers factual | our image-only slot prefers factual |
+|---|---|---:|---:|---:|---:|---:|
+| Flickr25k | primary / object | 366 | .100 | .152 | .913 | .582 |
+| Flickr25k | color_texture / color | 1243 | .114 | .018 | .757 | .558 |
+| Flickr25k | activity / action | 174 | .074 | .025 | .667 | .615 |
+| Flickr25k | activity / relation | 341 | .018 | .007 | .554 | .499 |
+| Flickr25k | secondary / relation | 457 | .032 | .013 | .643 | .613 |
+| MS-COCO | primary / object | 411 | .133 | .129 | .876 | .813 |
+| MS-COCO | color_texture / color | 1311 | .134 | .073 | .713 | .681 |
+| MS-COCO | activity / action | 350 | .079 | .092 | .686 | .671 |
+| MS-COCO | activity / relation | 569 | .023 | .025 | .452 | .594 |
+| MS-COCO | secondary / relation | 381 | .009 | .011 | .486 | .483 |
+
+Relation foils are mostly position or direction swaps (forward→backward, above→below, background→foreground,
+right→left). The foils are rule-generated and not certified to contradict the image (2026-08 minimal-pair
+entry), so near-chance values partly reflect foil quality.
+
+**Probe 2 — does keeping every word vector help? (frozen CLIP only).** Fraction preferring the factual caption.
+one/one = pooled text vs image vector; words/one = mean word-token cosine vs image vector; words/patches = mean
+over words of the best-matching patch (late interaction). Control: the cached end-token vector equals the
+cached pooled vector (median cosine 1.0000).
+
+| dataset | slot / family | one/one | words/one | words/patches |
+|---|---|---:|---:|---:|
+| Flickr25k | primary / object | .913 | .923 | .852 |
+| Flickr25k | activity / relation | .554 | .584 | .528 |
+| Flickr25k | secondary / relation | .643 | .665 | .492 |
+| MS-COCO | primary / object | .876 | .886 | .813 |
+| MS-COCO | activity / relation | .452 | .478 | .439 |
+| MS-COCO | secondary / relation | .486 | .554 | .493 |
+
+Word vectors do not recover relation information, and matching words to patches lowers accuracy on most families.
+
+**Routing side.** Anchor pairwise cosine .17–.60 (Flickr) and .27–.49 (MS-COCO). A patch's cost varies across
+slots about as much as across patches (.133 vs .140; .073 vs .076); the median gap between a patch's best and
+second-best slot is .090 / .051 in cosine. Flickr seed 42 `primary_object`: every image has extreme-norm routed
+tokens (9.3 per image, median maximum robust z 43.8). They take 25 % of this slot's routing mass while being
+4.7 % of tokens, 58 % of its norm-weighted pooled input and 76 % of its top-10 patches; 7 of the 8 TODO 9b rows
+have such a token among the slot's top-3 patches (z 10–56). This matches the isolated dots in sky and borders
+and the codeword-46 concentration measured in TODO 10. MS-COCO shows a weaker version in `secondary_object`
+(5 % mass, 16 % pooled input); the other slots place ≈0 on these tokens.
+
+**Reading (descriptive; no test was run).**
+1. Relation and position detail is already missing inside frozen CLIP, in pooled and in word-level form. A
+   multi-vector CLIP text input alone is therefore unlikely to make slots encode relations. Object and colour
+   words survive CLIP, and those are what the heatmaps can reflect.
+2. Training loses more on top of CLIP on Flickr: in anchor space colour, action and relation edits move the
+   anchor 0.7–2.5 % of a between-image distance, and the image-only slot feature prefers the factual caption
+   50–61 % of the time even where CLIP reaches 76–91 %. MS-COCO keeps more (68–81 % on object and colour).
+   This agrees with the 2026-07-29 finding that the text branch is the bottleneck.
+3. A patch heatmap cannot show a relation. It shows which patches a fixed slot direction pulls under nearly
+   balanced Sinkhorn mass; relation or action encoding needs non-spatial tests such as these minimal pairs.
+4. The obvious alternatives were already tried and discarded on retrieval under older recipes: token
+   cross-attention (v22b, −.022), phrase-level text (v114d, −.013, slots became more similar), text-as-query
+   router (v146), grounded soft pooling (v191b, collapsed to single-word cues), text prototypes at inference
+   (v184), EOS vs token mean (A1, +.003).
+
+**Verdict:** diagnostic only, no recipe change.
+
+---
+
+## 2026-09-15 Caption-aligned deployment heatmaps (TODO 9b): the caption is a label, never an input
+
+**Status:** 🟢 active. Illustration for a reader to judge, not measured grounding; `paper_result_eligible`
+false. Added at the user's request after the TODO 9 figures: without the per-slot sentence a reader cannot
+judge whether a slot's routing landed where that slot is about.
+
+**The split fact that forced it.** The Qwen captions exist only on the designated train split — 0 of 200
+sampled query rows of Flickr25K / NUS-WIDE / MS-COCO carry text; CIFAR-10 is the one exception (its JSONL
+has 6000 entries covering train and query). `extract_train.npz` is digest-bound in the approved record for
+all four datasets, so `admit()` gained a `split` parameter and the train split is checked exactly as the
+query split is (whole-split row identity; codes are replayed only for the rows a consumer forwards: every query row in TODO10, the 8 selected rows per cell in TODO9b). The query default is unchanged and the
+31/31 preflight fixture and the 12-cell replay were re-run to show it.
+
+**The design choice, and why the other one would prove little.** `model_siglip2` routes by text only when
+`self.training` is true, so a text-routed heatmap needs training mode and its agreement with the caption is
+near-circular — the caption told the router where to attend, and it is not the shipped path. Here the
+heatmap is the deployment routing (eval, no text, pinned F12 wrapper) and the caption is read from the JSONL
+and printed as a label; the admission loads the split with `qwen_text_cache_path=None` and the batch's text
+keys are dropped before the forward. The model saw pixels alone.
+
+**Producer** `scripts/todo9b_caption_aligned_heatmap.py` `51ab0650882c…` → `result/analysis/slots/caption_heatmap_v1/p3_20260915_v1/`
+(receipt `0514b2b55351…`, result `08cdc220eef7…`, 5 figures + 5 routing NPZs). Cells: train × 4 datasets, plus
+CIFAR-10 query as the only held-out-with-captions case. Rows = `default_rng(1234).permutation(n)[:8]`,
+recorded before drawing; the CIFAR-10 query cell reproduced the §514 pre-bound rows and IDs exactly
+(checked against the archived report). Captions keyed by the admission's own row identity, the six-part
+schema asserted per file, and a basename collision refused rather than silently overwritten.
+
+**Consumer fixture** `consumer_mutants.py` `e83b0872…`: **23/23 = 4 positive + 19 negative**, counted
+honestly after re-labelling one case that expects a receipt. New negatives: a split whose rows have no
+caption (Flickr query) refuses; the caption file changed during the forward refuses at close; colliding
+caption basenames refuse; forwarded codes differing refuses — each with no receipt and no bundle directory.
+
+**What the figures do and do not support.** Train captions trained this checkpoint, so agreement can be fit
+rather than generalisation; CIFAR-10 query is the held-out case but is spatially the weakest (32×32 upscaled
+under a 14×14 grid). A 14×14 routing map is not a measured overlap with an object region — that is §4.10.4,
+which cleared its detector threshold on one axis only. One cross-check worth keeping: on Flickr25K seed 42
+the sampled `primary_object` codewords are 46 in 5 of 8 train rows, the same concentration TODO 10 measured
+on the query split (52 of 128 distinct, top-1 share 0.647, value 46); seeds 43/44 do not show it. So that
+slot's panel is not image-specific on that one cell, and that is a real property, not a figure defect.
+
+---
+
+## 2026-09-15 TODO 9/10 run under a closed admission lifetime (§539): no empty slot in any of 12 cells; figures bound to the §514 rows
+
+**Status:** 🟢 active. Diagnostics and figures, not retrieval results; `paper_result_eligible` false in both
+bundles; audit review of the consumers and the paper binding (§4.10b / §4.10c) are separate.
+
+**Preflight (§539 closure).** `scripts/preflight_forward_admission.py` `46189f19…` (was `12cdbee1…`, whose
+pre-forward checks §527.1 accepted — those checks are unchanged, diffed against the archived copy). `admit()`
+now returns an `Admission` (model, aligned query set, parsed NPZ, digests of every consumed file); consumers
+forward through it and must `close()` before publishing, which re-hashes every consumed file + the consumer's
+own pins and requires the learned state byte-identical. Fixture `preflight_mutants_v4.py` `00825063…`:
+**31/31** (2 positive + 29 negative; the seven §539 during-forward mutations and the pinned wrapper all refused
+at close). Replay 12/12 cells, 8 rows each, closed. Consumer fixture `consumer_mutants.py` `2b2c6653…`:
+**16/16** (2 positive + 14 negative: codes differ, checkpoint/NPZ/config/producer/preflight/bio_constraints/
+§514-report changed during the forward, §514 RNG changed, pre-existing bundle, confinement — no receipt, no
+directory). Runner `runs/fixtures_539b_20260915` rc 0 (383 s). The first consumer-fixture run found the
+producers hashing their own pins *at close* (two mutants survived); pins are now taken before the first
+forward. The first formal launch (`runs/todo9_10_publish_20260915`) was refused by the closure because I
+edited the contract document — a pinned input — while it ran; the bundle was abandoned and the run relaunched
+untouched (`runs/todo9_10_publish_20260915b`, rc 0, 564 s).
+
+**TODO 10 — `scripts/todo10_empty_slot_diagnosis.py` `c8c9c242…`** → `result/analysis/slots/empty_slot_v1/p3_20260915_v1/` (receipt `34bf7a2efb4c…`,
+result `85c40781569f…`, 12 per-image NPZs). Whole query split per cell (1000/2000/2100/5000 rows), deployment
+forward, every row's codes equal to the approved extraction. **Empty local evidence = 0 and tiny mass = 0 in all
+12 cells and all four local slots**; minimum local token count 12 (CIFAR s44) and minimum local mass 0.021;
+median local token count 69–161 of 196, median mass 0.18–0.24 per local slot (global slot mass 1.0, 196 tokens
+— it bypasses the router); global gate sigmoid 0.99 in every cell. Codeword use per slot: CIFAR (K=64) 60–64
+distinct, Flickr/NUS/COCO (K=128) 84–128 distinct, **except Flickr s42 primary_object: 52 distinct with a top-1
+codeword share of 0.647** (raw codon top-1 0.357); Flickr s43 activity_relation top-1 0.200; all other top-1
+shares ≤ 0.17. Raw codons per slot 29–64 distinct of 64; post-DP 30–64. These are counts, not tests; the
+Flickr s42 primary_object concentration is one seed and one slot and is not reproduced by seeds 43/44.
+The draft's §4.10b sentence ("that slot's three bases become independent of the image") is not supported by
+this measurement — no slot is empty — and must be rewritten from this bundle when the paper binding is done.
+
+**TODO 9 — `scripts/todo9_qualitative_figures.py` `224c1323…`** → `result/analysis/slots/qualitative_v1/p3_20260915_v1/` (receipt `80a206ec1b6e…`, result
+`832e8d19416d…`). Seed 42; heatmap rows and t-SNE rows reproduced the §514 binding exactly (indices, IDs, ID
+digests; CIFAR 314,767,539,43,558,709,737,67 …); t-SNE on `semantic_visual_tokens[:, slot, :]` (n = 1000 /
+2000 / 2100 / 3000; features saved, sha256 recorded), TSNE max_iter 1000, sklearn 1.7.2; heatmaps =
+deployment `local_routing_matrix` on the 14×14 grid. Figures are qualitative; no example was redrawn.
+Collection: `result/final_result_for_paper/12_sec4.10b_empty_slot_diagnosis/`, `13_sec4.10c_qualitative_figures/`.
+Collector `scripts/collect_final_results_for_paper.py` `9d8c0978…` also closes three §527/§537 items: the F09
+column now reads the evaluation JSON's `mAP_at_R` key (it displayed "—" before), the λ display is bound to the
+receipt/record/decision digests (membership from the receipt, never a glob), the two new bundles are admitted
+only with a receipt whose files all hash as declared, and `--rebuild` moves the previous collection aside
+(`result/final_result_for_paper__previous_<stamp>/`) instead of deleting it. The λ reducer's §533 defects
+remain open (the verified no-change decision does not depend on it).
+
+---
+
+## 2026-09-15 λ confirmation (TODO 13–15), Flickr25k, 8 cells — every candidate below the incumbent; recipe unchanged
+
+**Status:** 🟢 active. Train-only selection cells; the official test split was never read. No paper
+number changes. Audit review of the campaign is separate.
+
+User instruction 2026-09-14: confirm `λ_transport` {0.15, 0.30, 0.50}, `λ_codebook_balance` {0.02, 0}
+and `λ_text_code_contrastive` {0.025, 0.05, 0.10} on Flickr25k first (contract
+`docs/LAMBDA_RESWEEP_CONTRACT_2026-09-14.md`); 2026-09-15: incumbent repeated at three seeds.
+Run in the frozen campaign worktree `/data/yschoi/gdna_p3exec` at `88c3a25` (= approved-chain tree
+`5304005` + the `--sweep lambda` extension, see that branch's log entry), namespace `p3lamA`, one GPU,
+17 min. Incumbent = the approved refit aggregate's Flickr25k cell (`b4f3b0df…`, digest-pinned,
+records re-hashed): N=4, top-p 0.6/0.95, λ_joint 0.02, coefficients 0.15 / 0.02 / 0.05. Cells are
+stage-1 selection cells (`-e 60`, Sinkhorn horizon 5, stop 4, 90/10 train split), scored by
+terminal-epoch `eval_mAP_at_R` on the held-out 10 % of train. All eight `args.txt` read-backs
+matched the declared coefficients (incumbent cells included).
+
+| cell (seed) | λ_transport | λ_balance | λ_text-code | val mAP@R (ep 4) | Δ vs incumbent s42 |
+|---|---:|---:|---:|---:|---:|
+| incumbent (42) | 0.15 | 0.02 | 0.05 | **0.7636** | — |
+| incumbent (43) | 0.15 | 0.02 | 0.05 | 0.7365 | −0.0271 |
+| incumbent (44) | 0.15 | 0.02 | 0.05 | 0.7447 | −0.0189 |
+| λ_transport 0.30 (42) | 0.30 | 0.02 | 0.05 | 0.7625 | −0.0011 |
+| λ_transport 0.50 (42) | 0.50 | 0.02 | 0.05 | 0.7511 | −0.0125 |
+| λ_balance 0 (42) | 0.15 | 0 | 0.05 | 0.7540 | −0.0096 |
+| λ_text-code 0.025 (42) | 0.15 | 0.02 | 0.025 | 0.7529 | −0.0106 |
+| λ_text-code 0.10 (42) | 0.15 | 0.02 | 0.10 | 0.7556 | −0.0080 |
+
+Pre-declared rule (`scripts/phase3_lambda_decision.py`, fixture 12/12): a candidate replaces its
+axis's value only if it beats the incumbent's seed-42 score by more than max(0.002, incumbent seed
+spread). Seed spread = 0.0271, so the floor is 0.0271; every candidate is **below** the incumbent
+anyway, so no axis changes: **keep 0.15 / 0.02 / 0.05**. Nothing downstream is restarted (contract
+§3.3). Observations, not verdicts: (i) the incumbent seed-42 cell reproduced the 2026-09-08 p3gE
+value to full precision (0.7635532117270416), so training is deterministic per seed and the tree
+change did not alter the numerics; (ii) the seed spread (0.027) is an order of magnitude larger than
+the λ effects seen here, so a single-seed λ comparison cannot resolve differences of this size —
+which is why the rule uses the spread as its floor; (iii) removing `λ_codebook_balance` (−0.0096)
+does not look free, contrary to the zero-gradient diagnostic in TODO §λ, but n=1 seed.
+
+Evidence: receipt `p3lamA_sweep_complete.json` `5a8901b7…`, decision `p3lamA_lambda_decision.json`
+`7e7f4ff1…` (both in `/data/yschoi/gdna_p3exec/artifacts/phase3_selection/`), run dirs
+`/data/yschoi/gdna_p3exec_result/260915+flickr25k_setting1_p3lamA_*`, runner logs
+`gdna_p3exec_authority/runs/lambda_smoke_20260915.*` (rc 0, 253 s) and `lambda_p3lamA_20260915.*`
+(rc 0, 1056 s), raw `/data/yschoi/gdna_p3exec_lambda{_smoke,}.log`. Identity note: λ_transport /
+λ_balance are not run-identity fields (v5); those cells are bound by tag, cell binding and
+`args.txt` read-back, as the receipt states. `--recipe`/`--selection` were not used: their replays
+pin the frozen tree's protocol-source digests and refuse in a tree with the extension.
+
+---
+
+## 2026-09-14 TODO 9/10 preflight: §524 authority-chain closure; `result/final_result_for_paper/` collection
+
+**Status:** 🟢 active. No experiment, model, config or paper number changed.
+
+**Preflight (`scripts/preflight_forward_admission.py` `12cdbee1…`, was `fa5c34d8…`).** Audit §524.1
+reproduced, through the real `admit` body, a case the previous version admitted: after the
+expectation was resolved, a private config / analysis marker / P3 aggregate chain was replaced
+(marker naming the new config hash, P3 cell naming the new marker hash) while the per-seed record,
+checkpoint and runtime stayed original. Cause: P3 was re-parsed by path after the resolver, the
+marker was chosen from that unverified parse, and neither P3 nor the marker was in the re-hashed
+closure. Fix: every authority file (P3 aggregate, record, marker, checkpoint, `config.pt`,
+`runtime.json`, query NPZ) enters through one `read` closure — hashed once, used from those bytes,
+re-hashed at the end; the marker is bound to `completion.analysis_complete_sha256` of the same
+record that binds checkpoint and runtime (field absent = refusal) and then to the retained P3 cell;
+the record's `run_dir` and `final_checkpoint_epoch_zero_based` must agree with the resolved
+expectation. Docstring no longer claims a small replay proves input identity.
+
+| run | fixture | replay | rc |
+|---|---|---|---:|
+| `runs/preflight_524_20260914` | 18/21 — three isolating runtime cases refused for the *wrong* reason (fixture had not rebuilt a P3 consistent with its mutated record: fixture defect, not a producer defect) | not run (runner exits on fixture failure) | 1 |
+| `runs/preflight_524_20260914b` | 21/21 = 2 positive controls + 19 negatives (§517–518 cases + four §524 cases: chain replaced with record pin intact; P3 alone replaced → closure re-hash; marker alone edited; record lacking the pin) | 12/12 cells admitted, 8 rows each, learned state unchanged | 0 |
+
+Fixture `scratchpad/preflight_mutants_v3.py` (`2d80ae2a…`, in-process interception, originals
+re-hashed unchanged). Runner `preflight_524_run.sh` prints the Python return codes and exits with
+the child's status. **Formal admission remains NOT ACCEPTED** pending audit re-validation
+(contract `docs/EMPTY_SLOT_AND_QUALITATIVE_CONTRACT.md`, TODO #9/#10 updated). TODO 10 diagnosis and
+TODO 9 figures are still unrun.
+
+**Collection.** `scripts/collect_final_results_for_paper.py` (`c259f92e…`) builds
+`result/final_result_for_paper/`: one folder per paper experiment (ours P3 refit 12 cells, P4
+conventional 30-bit 108 cells, native-DNA 15-base 48 cells, §4.7 held-out decoding, §4.8 F09 24
+cells, §4.10.1 NMI, §4.10.3 intervention, §4.10.4 dissection, §4.10.6 concept specificity, table
+bundles, and a `90_pending_not_run/` list). Membership comes from the approved aggregates only; small
+files are copied read-only with SHA-256 in `MANIFEST.json` (1647 copies, 0 missing), heavy run
+directories are symlinked (304), folder names carry dataset / seed / N / epochs / top-p / λ /
+condition / tier. Nothing moved or recomputed; "collected" ≠ "paper-approved".
+
+---
+
+## 2026-09-14 Paper tables published from the accepted F09 / TODO 17 / bio-projection results — no recomputation
+
+**Status:** 🟢 active. Three exclusive table bundles under `docs/paper_draft/tables/`, each generated
+from an archived accepted result bound by digest, each with a completion receipt, each
+`paper_result_eligible: false` (paper acceptance is a separate audit step).
+
+| bundle | producer | TeX | source it binds |
+|---|---|---|---|
+| `f09_ablation_15base/` | `scripts/make_f09_table.py` `46e094f3…` | `e7bfd1fd…` | accepted F09 recomputation `849abb84…` (§500), frozen plan `17c2e746…` / receipt `94970957…` |
+| `concept_specificity_15base/` | `scripts/make_concept_table.py` `89444c81…` | `89edf188…` | accepted 12-cell result `f9b27362…` (§505) + verified MS-COCO label mapping `cb58df50…` (§506) |
+| `bioproj_effect_15base_v2/` | `scripts/make_bioproj_table.py` `55ecb825…` | `3d0febc5…` | approved P3 refit `b4f3b0df…` via the approved closure contracts |
+| `concept_specificity_15base_v2/` (2026-09-14, supersedes the row above by notation only) | `scripts/make_concept_table.py` `a5721260…` | `bcd4bcd0…` | same inputs; §512 notation fix (`b` = null exceedances, distinct from JSON `k`). v1 preserved byte-for-byte |
+
+Every producer pins its inputs before computation, refuses a wrong digest / missing cell / late
+change / occupied path (fixtures: F09 9/9, concept 10/10, bio 3/3), and never relabels the source
+bundle. `bioproj_effect_15base_v2` supersedes `bioproj_effect_15base/` (kept byte-for-byte) because
+the earlier producer pinned its delegate source **after** computation (§499). Draft §4.6 / §4.8 /
+§4.10.6 and TODO #2 / #5 / #17 now point at these bundles; §4.5.3, §4.9 and the old §4.8 tables are
+isolated as 6-slot / 18-base historical text.
+
+---
+
+## 2026-09-11 TODO 17 — slot concept specificity, formal 12 cells: one confirmed pair (MS-COCO global–bird), zero elsewhere
+
+**Status:** 🟢 active. Supersedes the four `result/analysis/slots/semantics/` JSONs (single un-seeded
+run, query 600 / DB 4000, R 4000, uncorrected winner, p = 0 attainable), which stay historical.
+
+Contract `docs/SLOT_CONCEPT_SPECIFICITY_RERUN_CONTRACT.md` (`8e9734ab…`), analysis
+`scripts/slot_concept_specificity_v2.py` (`05ccaa77…`), run 2026-09-11 17:01:59 → 18:25:27 KST
+(rc 0, 5008 s), bundle `result/analysis/slots/concept_specificity_v2/p3_12cell_20260911_v1/`
+(`f9b27362…`). Intervention = removal of one slot's distance contribution on both query and DB
+from the **post-DP** codes, no reprojection (not a donor swap). Full query split, full canonical DB,
+paper R, floors 50/50, null 10 000 per slot with a fixed `SeedSequence(1234, (dataset, seed, slot))`,
+Holm over the 5 × m tests of one (dataset, seed) cell, p = (1+k)/(1+n). A pair is **confirmed** only
+if it survives Holm and has positive specificity in all three seeds. Audit §505 re-hashed all 64
+inputs and independently recomputed all 1,890 tests (exact match).
+
+| Dataset | m | tests / seed | confirmed pairs |
+|---|---:|---:|---:|
+| CIFAR-10 | 10 | 50 | 0 |
+| Flickr25K | 23 | 115 | 0 |
+| NUS-WIDE | 21 | 105 | 0 |
+| MS-COCO | 72 | 360 | 1 |
+
+The single confirmed pair is **global–bird** (label column 10, bound to COCO id 16 from the original
+annotations, §506 — not the fire hydrant a category-ordered list would give): specificity
++0.0348 / +0.0499 / +0.0513, 0 exceedances of 10 000 in each seed, adjusted p 0.0360.
+It sits on the **global** slot; no local-axis pair is confirmed on any dataset. Verdict: this is a
+label-associated effect of removing the global slot's distance contribution and nothing more — no
+disentanglement, bird-exclusive representation, causal isolation or study-wide FWER claim. Nothing
+was re-tuned or re-run after seeing it.
+
+---
+
+## 2026-09-11 F09 A-series ablation — 24 cells, downstream deterministic recomputation accepted (delta 0)
+
+**Status:** 🟢 active. Supersedes the 6-slot-era A2/A4/A5 tables in the draft (now historical).
+
+Campaign `/data/yschoi/gdna_f09_ablation_v1` (plan `17c2e746…`, 54 frozen sources), 4 datasets ×
+{A2_no_text, A4_shared_codebook, A5_none, A5_joint, A5_nogumbel, A5_both}, training seed 42 only,
+outer status rc 0 / 31 891 s. Downstream consumer `scripts/aggregate_f09_ablation.py` (`abbfbfa2…`)
+recomputed all five metrics per cell from the emitted arrays through the frozen evaluation path:
+max |recomputed − recorded| = **0** on all 24 cells; ≤ 5e-15 against the audit's independent
+oracles (§466, §480); all 443 declared inputs re-hashed (§500). `A5_none` = joint 0 with Gumbel
+**on**; A2/A4 share `A5_both`'s base flags (checked against the plan).
+
+Post-DP mAP@R (seed 42; no dispersion exists):
+
+| Dataset | A5 none | +joint | +noGumbel | both | A2 no text | A4 shared |
+|---|---:|---:|---:|---:|---:|---:|
+| Flickr25K | .8516 | .8492 | .8532 | .8427 | .8480 | .8568 |
+| MS-COCO | .8094 | .8243 | .8133 | .8264 | .7906 | .8287 |
+| NUS-WIDE | .8213 | .8159 | .8186 | .8096 | .8098 | .8173 |
+| CIFAR-10 | .8762 | .8897 | .8785 | .8871 | .8433 | .8788 |
+
+A5 factorial contrasts (averages over the other factor's two levels, not seeds):
+
+| Dataset | joint avg | noGumbel avg | interaction | both − none |
+|---|---:|---:|---:|---:|
+| Flickr25K | -0.0064 | -0.0025 | -0.0081 | -0.0089 |
+| MS-COCO | +0.0140 | +0.0030 | -0.0017 | +0.0171 |
+| NUS-WIDE | -0.0072 | -0.0045 | -0.0035 | -0.0117 |
+| CIFAR-10 | +0.0110 | -0.0001 | -0.0050 | +0.0109 |
+
+Verdict: descriptive only. All four interaction contrasts are negative (no additive gain observed on
+this scale; not a mechanism). Joint helps MS-COCO/CIFAR and hurts Flickr/NUS-WIDE; NUS-WIDE orders
+none > nogumbel > joint > both, so "both always best" is not supported. A2/A4 effects are mixed
+across datasets and are kept as such; no recipe/N/seed was re-chosen. The old "text supervision
+essential 4/4 / additive / direct causal evidence" claims were 6-slot-era and are withdrawn.
+
+---
+
+## 2026-09-10 F12 — Network Dissection re-measured on the DEPLOYMENT path; three of four axes do not clear the detector bar
+
+**Status:** 🟢 active. Supersedes `slot_dissection_mscoco_N39_polygon.json`, which stays 🔴 invalid.
+
+The previous MS-COCO dissection number was invalid for a reason the audit named
+(F12) and for a second reason found while fixing it:
+
+1. **The IoU was accumulated only over categories present in each image.** An
+   image where category `c` is absent contributed to neither the intersection
+   nor the union, so a slot's activation there -- pure false positive for `c` --
+   was never charged. Both the real and the shuffled branch had the bug, so the
+   control was inflated in the same direction and could not expose it. The
+   accumulator was fixed first, but the CALLER also dropped every image COCO
+   lists with no instances, which made the fixed empty-mask path unreachable in
+   production.
+2. **It was measured on the wrong forward.** `_forward_text_routed` calls
+   `model.train()` on purpose, and `model_siglip2` then selects
+   `routing_mode="text"`. That is a training-style, text-conditioned regime. The
+   shipped model has neither text nor VLM (SPEC 1.7/1.8: `eval_routing_mode =
+   codebook_mean`; `extraction_siglip2` asserts it). A grounding claim about the
+   deployed model has to be measured on the deployment path.
+
+**Run.** Approved Phase-3 refit, MS-COCO seed 42, N=39:
+`p3rfB_mscoco_A_v5b_refit_N39_s42_P06095_JD003`. Checkpoint
+`e4299fdb…`, config.pt `abeade4a…` (the structured record -- `args.txt` cannot be
+re-read, see below), COCO `instances_train2014.json` `777ef504…` /
+`instances_val2014.json` `e1b4d1bc…`. Deployment routing, epoch 39, 2000 probe
+images, seed 1234, side 112, top-quantile 0.005, detector bar IoU > 0.04,
+polygon masks, CPU, 311 s. Output
+`slot_dissection_mscoco_N39_polygon_deployment_20260910.json` `cb5ed4a6…`.
+
+| local slot | best category | IoU | shuffled (same cat) | ratio | #cat > 0.04 | runner-up |
+|---|---|---:|---:|---:|---:|---|
+| primary_object | giraffe | **0.1354** | 0.0116 | 11.6× | 1 | bicycle 0.0190 |
+| secondary_object | laptop | 0.0329 | 0.0117 | 2.8× | 0 | couch 0.0187 |
+| activity_relation | cake | 0.0290 | 0.0088 | 3.3× | 0 | person 0.0201 |
+| color_texture | refrigerator | 0.0174 | 0.0028 | 6.3× | 0 | dog 0.0159 |
+
+Probe set 2000 images, category universe 80, distinct best categories 4/4.
+
+**Reading.** Only `primary_object` clears Bau et al.'s detector bar, and with
+exactly one category. Under this fixed probe all four scored above their
+shuffled controls and all four best categories differed -- an observed
+difference against one shuffled draw, not a significance test, so it does not
+by itself reject "the slots all detect the same thing". This is a partial
+result and is reported as one: it does not establish that the four named axes
+are grounded in the human-annotation sense, and it is one seed on one dataset.
+
+**Not a controlled delta.** The old file reported 0.465 / 0.193 / 0.121 / 0.097.
+Three things differ at once -- the accumulation fix, the routing mode, and a
+probe set of 2000 rather than 600 -- so the drop cannot be attributed to any one
+of them, and the old numbers stay invalid rather than becoming a baseline.
+
+**Two blockers found in the real inputs, both fixed in the probe only.**
+`config.py` writes `args.txt` as `{k:-<30s}{str(v):->70s}`; a key longer than 30
+characters followed by a value longer than 70 leaves NO hyphen, and the shared
+parser splits on the first hyphen. The approved run has exactly such a line
+(`clip_snapshot_tokenizers_sha256_json` + a long JSON), so the tokenizer
+authority vanished and `model_siglip2` refused to build the model. The probe
+reads the structured `config.pt` instead, as the extraction path already does;
+the shared parser was NOT changed. Second, `SigLIP2SemanticOTModel.__init__`
+ends with `self.to(self.device)` and `self.device` is the TRAINING device, so a
+`.to(cpu)` after construction is too late -- it died with `No CUDA GPUs are
+available`. The requested device is now applied before construction and is the
+only value overridden from the run's own config.
+
+**Verdict.** Adopt as the current F12 evidence, with the caveats above. The
+codon-decoding analysis remains the primary interpretability evidence; this
+probe is a second, independent one measured against annotation the model never
+saw. Re-running on seeds 43/44 is not done.
+
+---
+
+## 2026-09-09 Phase 4 closed at 108/108 — the last three cells, and why the "deliberate gap" was not one
+
+🟢 complete. The D6 baseline matrix is now a full 9 × 4 × 3 rectangle. The
+2026-09-08 entry below recorded 105 cells and argued that filling
+Bi-half / NUS-WIDE would itself be a protocol violation. That framing is
+superseded, and the entry stays as written because the reasoning was real at the
+time: the launcher genuinely refused the cell before training.
+
+### What changed in the contract, not in the science
+
+`run_modern_baseline_p0.py` no longer treats "the public Bi-half release ships no
+NUS-WIDE training script" as an eligibility blocker. It records it:
+
+```python
+if args.variant == 'bihalf' and args.dataset == 'NUSWIDE':
+    source_boundary_adaptations.append(
+        'bihalf_public_release_has_no_nuswide_training_script; '
+        'paper_flickr_profile_adapter')
+```
+
+A refusal and a disclosure carry the same information; only the disclosure
+produces a comparable number. The manifest now states the boundary instead of
+the absence of a cell. No model, loss, schedule, split, metric or projection
+changed — the diff reaches none of them.
+
+### What ran
+
+```
+tmux p4bihalf   worktree /data/yschoi/gdna_p4baseline @ 8707dc4, tracked-clean
+14:19:04 -> 14:27:48   525 s on GPUs 0,1,2 (one seed each)
+plan: 3 scheduled · 105 completed_skipped · failures 0
+fresh attempt_003 (the isolated attempt_002 under _aborted_attempts_ is untouched)
+HEAD and both runner SHAs identical before and after
+```
+
+525 s is not a truncated run: Bi-half trains an MLP over the precomputed CLIP
+cache, and every manifest records `training_epochs = 100`,
+`final_epoch_zero_based = 99`, `author_horizon = 100`.
+
+### Results — Bi-half / NUS-WIDE, post-projection base-Hamming mAP@R
+
+| seed | mAP@R | `dna_unique` (database) |
+|---|---:|---:|
+| 42 | 0.7463765121270116 | 0.2388 |
+| 43 | 0.7631290677376542 | 0.2631 |
+| 44 | 0.7505161565465176 | 0.2631 |
+| **mean ± sample sd** | **0.7533 ± 0.0087** | 0.255 |
+
+It lands mid-panel on NUS-WIDE — below OH (0.8053) and CroVCA (0.8002), above
+CIBHash (0.7449) — so the cell neither rescues nor damages Bi-half's standing.
+
+**This number must never be described as reproducing the authors' NUS-WIDE
+result.** No such released configuration exists; it is the paper's Flickr
+profile applied across a source boundary, and the manifest says so.
+
+### Strict acceptance
+
+```
+--protocol-mode author_fixed_final --panels u0 --bits 30 --seeds 42 43 44
+--require-complete --require-paper-eligible --verify-artifact-hashes
+expected = complete = complete_main_eligible = paper_table_eligible = 108
+missing = invalid = duplicate = malformed = extraneous = 0
+implementation_comparison_blocked = 0 · source_profile_excluded = 0
+AGG_RC=0
+```
+
+The 105 previously accepted records are field-for-field identical in the new
+aggregate; only three records are new. Independently re-verified by the audit
+running the same strict `main()` once with only the output writer replaced
+(`status=PASS`, 142.66 s), against the bytes of 225 evidence files and 1404 file
+stats, unchanged before and after.
+
+### Published
+
+| path | SHA-256 |
+|---|---|
+| `baseline/result/matrix/baseline_p0_matrix_seeds42-43-44_author_fixed_30b.json` (current, 108) | `63b597e0513c629f4f2908394c2ab87d0cd6d8f9a2501b717a5f1908135bd8d0` |
+| `..._30b_105cells_20260908.json` (history, preserved) | `5336a8263d8c4c4057164ae64a8529cbf21a555c6b97086ac37da040b4e1ced5` |
+| `docs/paper_draft/tables/maintable_baseline_30bit_generated.tex` | `947a273cc07751e008e0329ed556ce9a8f9669ccd3fc803e07c3368cb756ab87` |
+
+**Column-order trap.** `build_maintable_from_aggregate.py` emits
+`COLUMN_ORDER = (Flickr25k, MSCOCO, NUSWIDE, CIFAR10)`; the legacy combined table
+`docs/paper_draft/tables/maintable_15base_20base.tex` is `CIFAR10, Flickr25k, NUSWIDE, MSCOCO`.
+Pasting one into the other by position leaves only NUS-WIDE in place and
+mis-maps the other **three** datasets — Flickr's numbers land in CIFAR's column,
+MS-COCO's in Flickr's, CIFAR's in MS-COCO's. It is not a two-column swap. Join
+by name.
+
+### What this does NOT close
+
+The generator emits the **baseline block only**. The GroundedDNA row still has no
+generation path bound to the sealed Phase 3 aggregate, and the legacy TeX ours
+row differs from the accepted refit on all four datasets, so it cannot be reused.
+`build_p0_table.py`'s legacy 36-bit/P0val glob is not a substitute. Phase 5
+reporting gates, D4 exclusion sensitivity, the D6 validation-selected sub-table,
+native-DNA/F18 and the root integration items remain open.
+
+---
+
 ## 2026-09-08 Phase 4 — the D6 baseline matrix is complete: 105 cells, 35 of 36 table cells, one deliberate gap
 
 🟢 complete. This is the first baseline panel that matches the paper's own
@@ -600,7 +1882,7 @@ distinct hash each, all matching the current worktree — **the source did not
 change during the 6.2-hour run**, so the cells are mutually comparable. Nothing
 else was edited in that worktree while it ran.
 
-Artifacts: `docs/baseline_p0_matrix_seeds42-43-44_author_fixed_30b.json` and
+Artifacts: `baseline/result/matrix/baseline_p0_matrix_seeds42-43-44_author_fixed_30b.json` and
 `.md` are the numeric source of truth; the tables above are rendered from that
 one file rather than transcribed.
 
@@ -1055,6 +2337,8 @@ snapshot so a collision costs no GPU time.
 
 1098 passed. Against `5c7199b`, the three new gate tests fail.
 
+---
+
 ## 2026-08-31 (PM3) §61: four forgeries passed my "gates" — the manifest, not args.txt, is the witness
 
 Re-audit §61 ran four counterexamples against the committed bytes of `00ec75d`,
@@ -1101,6 +2385,8 @@ and a test that wants an incomplete sweep has to break it deliberately.
 Five differential tests. Against `00ec75d`'s selector all five fail; against
 this one all pass. 1093 passed.
 
+---
+
 ## 2026-08-31 (PM2) The empty-slot table was measured at the wrong epoch — retracted; four preflight gates before the 12-cell sweep
 
 ### Retraction
@@ -1112,7 +2398,7 @@ its epoch-0 default (~1.0), the transport plan was near-uniform, and a
 near-uniform plan gives every slot mass. **"0 % empty on all nine cells" was
 produced by the measurement, not by the models.** Same class as F01, in the
 diagnostic instead of the extractor. The nine JSONs are in
-`docs/newmodel_analysis/_RETRACTED/`.
+`result/analysis/slots/retracted/`.
 
 Re-measured at each cell's terminal epoch (Flickr/NUS 4, MS-COCO 39):
 
@@ -1172,6 +2458,8 @@ is correct: the grid IS the protocol. All twelve are re-run under one plan.
 Eight adversarial tests. Against the previous selector, thirteen tests fail;
 against this one, all pass. 1096 passed.
 
+---
+
 ## 2026-08-31 (PM) The 9-cell sweep was nine plans, not one — stopped, quarantined, rebuilt
 
 I launched the top-p sweep as three background shell streams, each calling
@@ -1229,6 +2517,8 @@ than one `plan_snapshot_sha256`.
 Six regression tests, one per counterexample, all of which were green in the
 1079-passing suite before. 1088 passed. No sweep cell has run under the new
 orchestration.
+
+---
 
 ## 2026-08-31 The recipe becomes a coordinate: P/JD enter the D1 path, the identity, and the reducer
 
@@ -1297,6 +2587,8 @@ that were verified.
 1079 passed. No production sweep cell has run; the earlier three-cell smoke is
 in `result/_QUARANTINE/`.
 
+---
+
 ## 2026-08-30 The top-p planner I wrote would have selected on the OFFICIAL TEST split — withdrawn
 
 Re-audit §53 stopped this before it ran. The finding that matters is §53.4's:
@@ -1362,6 +2654,8 @@ edit a script that is running.
 
 **Status: no top-p cell has been legitimately run. MAIN table (12 refits, 3
 seeds) not started. F09 open.**
+
+---
 
 ## 2026-08-29 F09 v5: the wrapper's failure boundary, the pinned transform, and the campaign transaction
 
@@ -1507,6 +2801,8 @@ costs either 16 re-run selection cells or a redesign of the protocol binding,
 and that is a decision about GPU hours, not a code cleanup.
 
 **Status: F09 still OPEN. No ablation cell has been launched; no exact-12 refit.**
+
+---
 
 ## 2026-08-29 — 🟢 **잔여 항목 4개 + 감사 §39/§40이 지적한 결함 9개를 닫음. 자기검토로 grep식 테스트를 실행형으로 교체**
 
@@ -1762,7 +3058,7 @@ lambda_codeword_codon_sinkhorn = 0.1        (S5 레시피는 0.0)
 2행에는 "18-base", 20행에는 "four paper 15-base panel"이라고 적혀 있어 모순된다.
 
 **나는 이것을 `521c5ae`에서 "Phase 3 smoke passes"로 기록했다. 과학적 오분류다.** 실행은
-`result_diagnostic/smoke_18base_20260827/`로 격리했다. expected M5 계약으로 validator를 부르면
+`result/result_diagnostic/smoke_18base_20260827/`로 격리했다. expected M5 계약으로 validator를 부르면
 `db: manifest num_slots=6 but caller expects 5`로 거절되며, `extract_train.npz`·pairwise NMI·
 `analysis_complete.json`·완료 marker도 없다.
 
@@ -1814,7 +3110,6 @@ result  심볼릭 541 -> 676,  실디렉터리 399 -> 264
 착수 전 필요한 것: exact 16키만 만들고 stage별 horizon을 분리해 넘기며, launch 전후로
 `num_slots=5 / L=3 / total_bases=15 / total_bits=30`을 effective argv와 manifest 양쪽에서 assert하고,
 raw mAP@R로 N을 고르되 동률이면 최소 N을 택하는 launcher + aggregator.
-
 
 ---
 
@@ -2002,12 +3297,12 @@ fixed는 epoch을 복원한 재추론. 그것이 바로 이 실험이 분리하�
 ### 산출물
 
 ```text
-docs/phase2_f01_impact.{json,md}                 15/15 paired, complete=true
-docs/phase2_extraction_inventory.json            fixed 15셀 digest+metric 인벤토리
-docs/phase2_legacy_bound_inventory.json          legacy 15셀 동일
-result_diagnostic/phase2_F01_only/               fixed 15 × sealed
-result_diagnostic/phase2_legacy_bound/           legacy 15 × sealed (symlink 결속)
-result_diagnostic/QUARANTINE_notes/eval_only_markers_20260814/   폐기된 eval-only marker 9개
+result/analysis/audit/phase2_f01_impact.{json,md}                 15/15 paired, complete=true
+result/analysis/audit/phase2_extraction_inventory.json            fixed 15셀 digest+metric 인벤토리
+result/analysis/audit/phase2_legacy_bound_inventory.json          legacy 15셀 동일
+result/result_diagnostic/phase2_F01_only/               fixed 15 × sealed
+result/result_diagnostic/phase2_legacy_bound/           legacy 15 × sealed (symlink 결속)
+result/result_diagnostic/QUARANTINE_notes/eval_only_markers_20260814/   폐기된 eval-only marker 9개
 source commit                                    006f6f0
 ```
 
@@ -2163,7 +3458,7 @@ and the TeX. The reasons are stacked, not singular:
   completed**. One matrix invocation per cell against a shared `--data-root`
   makes the preflight see the other cells' partial state and reject them. That
   queue design was wrong and is a concrete instance of F08.
-- `docs/phase0_20260813/` preserves HEAD, worktree status/diff, 15 source SHAs
+- `result/analysis/audit/snapshot_20260813/` preserves HEAD, worktree status/diff, 15 source SHAs
   and a manifest of the twelve ours runs with checkpoint SHAs and their epoch-0
   metrics, labelled `LEGACY_DIAGNOSTIC_ONLY`. Nothing deleted.
 
@@ -2290,7 +3585,7 @@ so an ablation sharing the prefix can be selected as the reference run.
   raises and names the differing fields; a non-empty directory with no manifest
   raises rather than being merged into
 - **resolve** — matches on the manifest, never mtime; absence and ambiguity both
-  raise instead of guessing. `result_quarantine_collided_20260812/` and smoke
+  raise instead of guessing. `result/result_quarantine_collided_20260812/` and smoke
   dirs are excluded, since reading from the quarantine is what it exists to
   prevent
 
@@ -2403,7 +3698,7 @@ the same universe, so the control genuinely bounds the score.
 One further test pins that the result is a **ratio of sums**, not a mean of
 per-image ratios — the latter weights a one-pixel image like a full one.
 
-`docs/newmodel_analysis/slot_dissection_mscoco_N39_polygon.json` is marked
+`result/analysis/slots/semantics/slot_dissection_mscoco_N39_polygon.json` is marked
 `INVALID`. The values reported on 2026-08-12 (`primary_object` → fire hydrant
 IoU .4654 etc.) are **not valid Network Dissection IoU** and are withdrawn; the
 audit also notes its `dir` field points at a collided run that no longer exists.
@@ -2429,7 +3724,7 @@ Three defects surfaced only once a real slice could be aggregated:
 
 1. **`selection_metric_by_bit` had entries for 36 and 48 only** — so every
    30-bit aggregation ever emitted declared *no selection metric at all*.
-   Confirmed in `docs/baseline_p0_matrix_30bit_seed42.json`, whose protocol
+   Confirmed in `baseline/result/matrix/baseline_p0_matrix_30bit_seed42.json`, whose protocol
    block lists 36 and 48 while the matrix is 30-bit. Now emitted from the slice:
    30 → `raw_15base_base_hamming_mAP_at_R`, 40 → `raw_20base_...`.
 2. **Four source revisions were never registered.** All are one-line
@@ -2666,7 +3961,7 @@ bases에서 이는 count `[7,8]`이고 **중앙 F07 정책은 `[6,9]`**다. 두 
 검증하며 counts와 `gc_policy_version`을 `cell_result.json`에 기록한다.
 
 **최종 결과 (15/15셀, 양쪽 모두 GC `[6,9]` 동일 창)** — 전문은
-`docs/phase2_f01_impact.{json,md}`
+`result/analysis/audit/phase2_f01_impact.{json,md}`
 
 | dataset | mAP@R Δ 범위 | DNA-uniq Δ 범위 | NMI Δ 범위 |
 |---|---|---|---|
@@ -2949,22 +4244,22 @@ full split.
 The MS-COCO baseline comparison fails with a KeyError on every train basename.
 Diagnosis: our optimisation-train pool (10 000 images) is **100 % disjoint** from
 the baseline DB extraction (107 218), at BOTH 30 and 36 bits. Every past
-`docs/heldout_decoding_mscoco*.json` has an empty baseline key list, so this
+`result/analysis/decoding/heldout_decoding_mscoco*.json` has an empty baseline key list, so this
 never worked — it is not a regression from the slot reduction. Making it work
 requires the baseline runners to emit `extract_train.npz`, or drawing our train
 pool from the DB. Not fabricated around.
 
 ### 7. Qualitative figures — 5 slots, all four datasets
 
-`docs/figures/qualitative_s5/` (README in the same directory records the source
+`docs/paper_draft/figures/qualitative/` (README in the same directory records the source
 run per dataset).
 
 | dataset | routing heatmap | codebook t-SNE |
 |---|---|---|
-| CIFAR-10 | `docs/figures/qualitative_s5/cifar10_routing_s5.png` | `docs/figures/qualitative_s5/cifar10_codebook_tsne_s5.png` |
-| Flickr25k | `docs/figures/qualitative_s5/flickr25k_routing_s5.png` | `docs/figures/qualitative_s5/flickr25k_codebook_tsne_s5.png` |
-| NUS-WIDE | `docs/figures/qualitative_s5/nuswide_routing_s5.png` | `docs/figures/qualitative_s5/nuswide_codebook_tsne_s5.png` |
-| MS-COCO | `docs/figures/qualitative_s5/mscoco_routing_s5.png` | `docs/figures/qualitative_s5/mscoco_codebook_tsne_s5.png` |
+| CIFAR-10 | `docs/paper_draft/figures/qualitative/cifar10_routing_s5.png` | `docs/paper_draft/figures/qualitative/cifar10_codebook_tsne_s5.png` |
+| Flickr25k | `docs/paper_draft/figures/qualitative/flickr25k_routing_s5.png` | `docs/paper_draft/figures/qualitative/flickr25k_codebook_tsne_s5.png` |
+| NUS-WIDE | `docs/paper_draft/figures/qualitative/nuswide_routing_s5.png` | `docs/paper_draft/figures/qualitative/nuswide_codebook_tsne_s5.png` |
+| MS-COCO | `docs/paper_draft/figures/qualitative/mscoco_routing_s5.png` | `docs/paper_draft/figures/qualitative/mscoco_codebook_tsne_s5.png` |
 
 Each heatmap is 8 train images x (source image + 4 local slots), the Qwen caption
 for that axis in the panel title; t-SNE over 3000 test images per codebook.
@@ -3240,7 +4535,7 @@ what produces the reported 4 axes.
 
 ### Phase A results (60 epochs, `--eval_every 1`, seed 42, full test)
 
-Artefact: `docs/newmodel_analysis/fixedN_phaseA_curves.json`.
+Artefact: `result/analysis/selection/fixedN_phaseA_curves.json`.
 
 | dataset | mAP peak | uniq peak | cbuniq peak | dead<1 % at |
 |---|---|---|---|---:|
@@ -3290,8 +4585,8 @@ CIFAR). Different denominators, and the two have disagreed before.
    seed-42 N unchanged).
 3. **Re-run the ablations** under the chosen N. Every A2/A4/bio number currently
    in the draft is P0 two-stage and is no longer paired with the headline.
-4. **Only then** update `docs/maintable_18base.tex`,
-   `docs/table_codon_decoding.tex` and the draft §4.5/§4.8 panels. Deliberately
+4. **Only then** update `docs/paper_draft/tables/maintable_18base.tex`,
+   `docs/paper_draft/tables/table_codon_decoding.tex` and the draft §4.5/§4.8 panels. Deliberately
    deferred: the model is not fixed yet, so table edits would be thrown away.
 
 ### `L_csd` (ConceptHash Eq. 8) — REJECTED at 3 seeds
@@ -3769,8 +5064,8 @@ Also settled this session:
 
 ### Follow-ups
 
-- Regenerate the NUS row of `docs/maintable_18base.tex`,
-  `docs/table_codon_decoding.tex` and the draft §4.5 panel from `epsI05`
+- Regenerate the NUS row of `docs/paper_draft/tables/maintable_18base.tex`,
+  `docs/paper_draft/tables/table_codon_decoding.tex` and the draft §4.5 panel from `epsI05`
   (mAP .8283 → .8246, decode .7368 → .7318, DNA-uniq .2116 → .2353).
 - Test `lambda_routing_text` — the only unused lever that touches routing.
 - CIFAR: report the dead slots as a limitation with the axis-redundancy table
@@ -3872,7 +5167,7 @@ slot-mean 0.7347 → 0.7263. Its local spread NARROWS (0.0624 → 0.0521), so th
   of entropy, not code capacity. `pooled = Σ_n P[n,m]·x_n / denom` is
   denominator-normalised, so a small mass still yields a well-defined,
   image-varying direction. Artefact:
-  `docs/newmodel_analysis/slot_codon_diversity_vs_routing.json`.
+  `result/analysis/routing/slot_codon_diversity_vs_routing.json`.
 - **`tau_b` path REJECTED.** The MS-COCO control has no dead slots at all and
   still pays mAP −0.0169 for `lambda_b 1→20`, so the retrieval cost is
   unconditional, not the price of reviving a slot. DNA-unique rises
@@ -3924,13 +5219,13 @@ whole `tau_b` family.
   correlation, since neither decoding nor intervention can do it.
 - Optional: `extract_code` → `set_current_epoch(E*)` (correctness only).
 
-Artefacts: `docs/sweep_rows/cifar10_{noTOPP,topp69}.json`,
-`docs/sweep_rows/nuswide_noTOPP.json`,
-`docs/heldout_decoding_{cifar10,nuswide}_*.json`,
-`docs/newmodel_analysis/otcells/`,
-`docs/newmodel_analysis/extraction_epoch_{cifar,mscoco}_s42.json`,
-`docs/newmodel_analysis/slot_codon_diversity_vs_routing.json`,
-`docs/newmodel_analysis/slot_intervention_cifar_v2_auditfix_20260804.json`.
+Artefacts: `result/analysis/sweeps/cifar10_{noTOPP,topp69}.json`,
+`result/analysis/sweeps/nuswide_noTOPP.json`,
+`result/analysis/decoding/heldout_decoding_{cifar10,nuswide}_*.json`,
+`result/analysis/ablation/transport/`,
+`result/analysis/audit/extraction_epoch_{cifar,mscoco}_s42.json`,
+`result/analysis/routing/slot_codon_diversity_vs_routing.json`,
+`result/analysis/slots/intervention/slot_intervention_cifar_v2_auditfix_20260804.json`.
 
 ---
 
@@ -4109,9 +5404,9 @@ invalid until that measurement lands.**
   recipe. Whichever fix is adopted, the "six semantic slots" claim needs the
   measured per-slot mass table as evidence.
 
-Artefacts: `docs/newmodel_analysis/slot_routing_mass_SUMMARY.json`,
-`docs/newmodel_analysis/slotmass/`, `docs/newmodel_analysis/toppabl/`,
-`docs/newmodel_analysis/otcells/`, `docs/newmodel_analysis/dynamic_tau_*.json`.
+Artefacts: `result/analysis/routing/slot_routing_mass_SUMMARY.json`,
+`result/analysis/routing/slot_mass/`, `result/analysis/ablation/top_p/`,
+`result/analysis/ablation/transport/`, `result/analysis/routing/dynamic_tau_*.json`.
 
 ---
 
@@ -4232,9 +5527,9 @@ were all pre-P0/pre-bio and self-marked unusable).
 📊 **MS-COCO λ re-checked at 3 seeds**: λ=.03 → .8232 ± .0098, λ=.05 → .8194 ± .0056. The means favour
 .03 but the spreads overlap, so the choice is **not statistically resolved**; .03 is kept.
 
-🧰 **Artifacts.** `docs/baseline_p0_matrix_seeds43-44_legacy_cache.{json,md}` (60/60, failures=0,
+🧰 **Artifacts.** `baseline/result/matrix/baseline_p0_matrix_seeds43-44_legacy_cache.{json,md}` (60/60, failures=0,
 DUH-EG `blocked_not_aggregated` as expected); `docs/newmodel_analysis/`;
-`docs/DRAFT_GROUNDEDNDA_PAPER_KO_MODIFY.md` with Panel A now 3-seed on both sides.
+`docs/paper_draft/DRAFT_GROUNDEDNDA_PAPER_KO_MODIFY.md` with Panel A now 3-seed on both sides.
 
 ⚠️ **Caveats.** Baselines remain **strict-main ineligible** under invariant #6: filling seeds satisfies
 #3 and #9 but legacy-cache provenance is a separate condition. CIFAR-10 baselines are single-seed.
@@ -4323,7 +5618,7 @@ row, or (ii) unified as main with the CIFAR/MS-COCO retrieval losses stated. Thi
 
 🧰 **New.** `scripts/bioproj_effect_newmodel.py`, `scripts/queue_ours_multiseed.sh`,
 `scripts/queue_ablations_newmodel.sh`; `docs/newmodel_analysis/` (bioproj, NMI, slot-intervention,
-summary); `docs/DRAFT_GROUNDEDNDA_PAPER_KO_MODIFY.md` — the draft with §0/§3.8.4/§3.9/§4.5–4.10/§5
+summary); `docs/paper_draft/DRAFT_GROUNDEDNDA_PAPER_KO_MODIFY.md` — the draft with §0/§3.8.4/§3.9/§4.5–4.10/§5
 replaced by the new numbers.
 
 ⚠️ **Caveats.** Baseline rows are still single-seed, so no ranking is claimed. A2/A4 pending. Legacy
@@ -4454,7 +5749,7 @@ outstanding, so the per-dataset λ choices are not yet known to be optimal. Base
 legacy-cache diagnostics under invariant #6.
 
 🧰 **New.** `scripts/sweep_joint_cell.sh`, `scripts/sweep_summarize_cell.py`; per-cell rows in
-`docs/sweep_rows/*.json`; decoding JSONs `docs/heldout_decoding_{dataset}_{tag}.json`.
+`result/analysis/sweeps/*.json`; decoding JSONs `result/analysis/decoding/heldout_decoding_{dataset}_{tag}.json`.
 
 ---
 
@@ -4589,7 +5884,7 @@ A-champion recipe and prompt, changing only λ. Codon-map enumeration is valid o
 
 🧰 **New.** `--lambda_codon_joint` / `--codon_joint_floor` (config.py, loss_siglip2.py, train logging),
 `--codon_chunk_interleave` (config.py, model_siglip2.py) — all default OFF, champion bit-identical.
-Outputs `docs/heldout_decoding_mscoco_jointDiv005.json`; result dirs
+Outputs `result/analysis/decoding/heldout_decoding_mscoco_jointDiv005.json`; result dirs
 `result/260730+*_jointDiv{002,005,010}_P0refit_*` and `*_chunkIntlv_P0refit_*`.
 
 ---
@@ -4734,10 +6029,10 @@ run**, so the only admissible statement today is "on NUS-WIDE, separate codebook
 `GLOBAL_SKIPS=""` explicitly, NUS uses a different launcher, and the two failed cells produced no
 artifacts. The post-launch `args.txt` check introduced on 2026-07-29 is what caught it.
 
-🧰 **New.** `scripts/diagnose_slot0_codon_collapse.py` (+ `docs/slot0_collapse_mscoco.json`);
+🧰 **New.** `scripts/diagnose_slot0_codon_collapse.py` (+ `result/analysis/slots/collapse/slot0_collapse_mscoco.json`);
 `--codon_position_specific_head_slots` (config.py + model_siglip2.py, default `''` = bit-identical);
 `scripts/train_mscoco_F2_sweep_clip.sh` `GLOBAL_SKIPS` quoting fix. Outputs
-`docs/dual_metric_arena_{cifar10,mscoco}.json`; result dirs
+`result/analysis/retrieval/dual_metric_arena_{cifar10,mscoco}.json`; result dirs
 `result/260730+*promptAblA_mscoco_A_v5b_{psAll,psSlot0}_P0refit_*`,
 `result/260729+*promptAblA_nuswide_A_v4_A4shared_P0refit_e29*`.
 
@@ -4760,7 +6055,7 @@ answerable objections. This entry reports the four blocks that completed. Two tr
 🔴 **The premise that forced this experiment.** `homopolymer` / `gc_*` appear **0 times** in
 `loss_siglip2.py`, `model_siglip2.py`, `train_siglip2.py`, `config.py`. Until today the two bio
 constraints were enforced **only** by the post-hoc DP projection, and the same projection is applied
-to baselines — so "DNA is load-bearing" had no support. `DRAFT_GROUNDEDDNA_PAPER_KO.md` already says
+to baselines — so "DNA is load-bearing" had no support. `docs/paper_draft/DRAFT_GROUNDEDDNA_PAPER_KO.md` already says
 this (§5.1 calls the constraints "post-processing"; §6 lists `constraint-aware training` as future work).
 
 🧰 **New loss** (default OFF, champion bit-identical). On `continuous_code` `u : [B, R, 4]`:
@@ -4911,7 +6206,7 @@ matrix already selects on `raw_18base_base_hamming_mAP_at_R`
    5000/5000 train ids present in the DB.
 4. MSCOCO needed purpose-built train extractions (its train split is disjoint from its DB, so the
    decoder's db-slice fallback raises `KeyError`); built with
-   `scripts/extract_mscoco_baseline_decodectl.sh` into `result_baseline/260729_mscoco_decodectl_rawbaseEstar/`.
+   `scripts/extract_mscoco_baseline_decodectl.sh` into `result/result_baseline/260729_mscoco_decodectl_rawbaseEstar/`.
 
 ---
 
@@ -4938,7 +6233,7 @@ matrix already selects on `raw_18base_base_hamming_mAP_at_R`
 `A_SKIPS` / `WHITEN_VARIANT` and `scripts/train_mscoco_F2_sweep_clip.sh` gained `GLOBAL_SKIPS`
 — all three use `${VAR-default}` so an unset variable reproduces the previous behaviour exactly
 (verified). Outputs: `docs/{preprojection_validity,dual_metric_arena_flickr}.json`,
-`docs/heldout_decoding_{flickr,mscoco,nuswide,cifar10}_rawbaseEstar.json`.
+`result/analysis/decoding/heldout_decoding_{flickr,mscoco,nuswide,cifar10}_rawbaseEstar.json`.
 
 ⚠️ **Caveats.** Single seed (42) everywhere. Block 1 is Flickr-only and λ=10 was not swept. Block 3 is
 Flickr-only (CIFAR/MSCOCO arenas running). Blocks 2–3 use legacy-cache baseline artifacts and remain
@@ -5026,7 +6321,7 @@ L=4 while these cells are L=3 (the evaluator re-encodes per model, but the pair 
 
 🧰 `--sim_spread_metric base_match` and `--lambda_sim_spread` (default OFF) added earlier remain unused after
 pre-refutation. Runner gained `CACHE_OVERRIDE` (to train on the `_foils` overlay) and fixed `CIBNT`/`K`
-overrides. Outputs: `docs/minpair_{cibnt_sweep,q4,q5}_mscoco.json`, `docs/heldout_codon_q4_*.json`,
+overrides. Outputs: `result/analysis/text/minimal_pairs/minpair_{cibnt_sweep,q4,q5}_mscoco.json`, `result/analysis/decoding/heldout_codon_q4_*.json`,
 result dirs `result/260728+*promptAblA_mscoco_A_v5b_{cib050,cib025,codonRouted,noGumbel,dual,triple}_P0refit_*`.
 
 ---
@@ -5276,7 +6571,7 @@ the crossover depth. Tests T2/T3/T4 are pure post-hoc on saved codes.
 over-interpreting the magnitude. The *direction* (they win only on MSCOCO; they lose to the raw ceiling
 elsewhere) is robust across all four datasets.
 
-🧰 **New:** `scripts/clip_continuous_ceiling.py`; outputs `docs/clip_continuous_ceiling.json`
+🧰 **New:** `scripts/clip_continuous_ceiling.py`; outputs `baseline/result/retrieval/clip_continuous_ceiling.json`
 (+ `_partial`/`_big` shards). T5 read from `result/260724+*promptAblA_mscoco_A_v5b_P0refit_*/extract_db.npz`.
 
 ---
@@ -5375,7 +6670,7 @@ profiles** (`bio_projection_comparison.json` vs `baseline_p0_matrix_seeds42_lega
 mixed within a column. (3) CroVCA's row is the `cache2v-probe` adaptation; SDC is `SDC-paper`. (4) Modern-U0 and
 UMRCH cells are legacy-cache diagnostics (`†`), not strict-eligible.
 
-🧰 **Artifacts.** Table doc `docs/comparison_Achampion_vs_baselines_2026-07-27.md`; A cells
+🧰 **Artifacts.** Table doc `baseline/docs/comparison/comparison_Achampion_vs_baselines_2026-07-27.md`; A cells
 `result/2607{24,27}+*promptAblA_{flickr_A_v4,mscoco_A_v5b,nuswide_A_v4,cifar_A_v4}_P0refit_*` (+`cell_result.json`);
 runner `scripts/prompt_ablation_A_cell.sh`, GPU-wait launcher `scripts/watch_and_run_promptAblA.sh`.
 Baseline sources as listed in the table doc.
@@ -5393,7 +6688,7 @@ branch** (it previously crashed on CIFAR — no `setting1/*.txt` path manifest, 
 ## 2026-07-27 — 🟢 Related Works / MAINTABLE 문헌 선정 메모: non-bio와 bio-native 비교 경계 고정
 
 📚 **새 문헌 선정 source of truth.**
-[`RELATED_WORKS_AND_MAINTABLE_SELECTION.md`](./RELATED_WORKS_AND_MAINTABLE_SELECTION.md)에
+[`docs/paper_draft/RELATED_WORKS_AND_MAINTABLE_SELECTION.md`](paper_draft/RELATED_WORKS_AND_MAINTABLE_SELECTION.md)에
 논문의 `Related Works`와 `Experiments`에서 사용할 연구를 non-bio와
 bio로 나누고, 각 논문의 주요 contribution, method, supervision,
 MAINTABLE 포함 여부 및 matched-reproduction 경계를 정리했다.
@@ -5444,8 +6739,8 @@ reports:
 - checkpoint/evaluation SHA-256, versioned per-method protocol locks,
   `refit_epochs=E*+1`, and query/database post-compliance `1.0` verified.
 
-The generated [audit Markdown](native_dna_p0_24base_aggregate.md) and
-[JSON](native_dna_p0_24base_aggregate.json) are the numeric source of truth.
+The generated [audit Markdown](../baseline/docs/native_dna/native_dna_p0_24base_aggregate.md) and
+[JSON](../baseline/result/native_dna/native_dna_p0_24base_aggregate.json) are the numeric source of truth.
 
 ### Sealed matched 24-base protocol
 
@@ -5515,8 +6810,8 @@ aggregation reports:
 - checkpoint/evaluation SHA-256 verified, `refit_epochs=E*+1`, query and
   database post-compliance exactly `1.0`.
 
-The generated [audit Markdown](native_dna_p0_aggregate.md) and
-[JSON](native_dna_p0_aggregate.json) are the numeric source of truth.
+The generated [audit Markdown](../baseline/docs/native_dna/native_dna_p0_aggregate.md) and
+[JSON](../baseline/result/native_dna/native_dna_p0_aggregate.json) are the numeric source of truth.
 
 ### Sealed matched protocol
 
@@ -5599,8 +6894,8 @@ kept in the generated aggregate rather than compressed into this table.
 36-/48-bit budgets, and seeds `{42,43,44}` with no failed, missing, invalid,
 duplicate, malformed, extraneous, source-profile-excluded, or
 implementation-blocked cell. The authoritative
-[JSON aggregate](baseline_p0_matrix_seeds42-43-44_supervised_legacy_cache.json)
-and [audit Markdown](baseline_p0_matrix_seeds42-43-44_supervised_legacy_cache.md)
+[JSON aggregate](../baseline/result/matrix/baseline_p0_matrix_seeds42-43-44_supervised_legacy_cache.json)
+and [audit Markdown](../baseline/docs/matrix/baseline_p0_matrix_seeds42-43-44_supervised_legacy_cache.md)
 report 24 `complete_diagnostic_only`, 0 strict-main eligible, and a consistent
 implementation fingerprint across every cell.
 
@@ -5744,7 +7039,7 @@ current best-practice config.
 🧰 **Artifacts.** `scripts/prompt_ablation_cell.sh`, `scripts/run_cifar_v4_continue.sh`; alternate caches
 `cache/{flickr25k_clip_v5b_tokens, mscoco_clip_v4plus_tokens, cifar10_clip_v4_tokens}` + their whitening;
 result dirs `result/260724+*promptAbl_{flickr_v5b,mscoco_v4,cifar_v4}_P0refit_*`;
-`docs/heldout_promptAbl_{mscoco_v5b,mscoco_v4,flickr_v4,flickr_v5b}.json`; caption `cache/cifar10_qwen_v4.jsonl`
+`result/analysis/decoding/heldout_promptAbl_{mscoco_v5b,mscoco_v4,flickr_v4,flickr_v5b}.json`; caption `cache/cifar10_qwen_v4.jsonl`
 (6,000 rows). Champion baselines: `result/260717+*_P0refit_*` (Flickr e4 / MSCOCO e49 / CIFAR e14).
 
 ---
@@ -6486,15 +7781,15 @@ unique ratios are likewise visible in the table. These are method×cached-featur
 or post-processing errors, and the objectives were not retuned to hide them.
 
 🧰 **Artifacts / fill source.** Matrix roots:
-`result_baseline/p0_matrix_seeds42_legacy_cache`,
+`result/result_baseline/p0_matrix_seeds42_legacy_cache`,
 `params_baseline/p0_matrix_seeds42_legacy_cache`,
 `compress_baseline/p0_matrix_seeds42_legacy_cache`, and
 `logs/p0_baseline_matrix_seeds42_legacy_cache`; independently queued CroVCA cells are under
-`result_baseline/260722`; canonical MLS³RDUH reruns are under
-`result_baseline/p0_matrix_seeds42_mls3rduh_paper_cache`. Only the validator output
-`docs/baseline_p0_matrix_seeds42_legacy_cache.json` (schema v4) and its Markdown rendering are authoritative;
-do not copy values from the older `docs/bio_projection_comparison.json` or
-`docs/baseline_24base_dnaeval_all.json`. Final admission: expected/complete `78/78`, missing/invalid/
+`result/result_baseline/260722`; canonical MLS³RDUH reruns are under
+`result/result_baseline/p0_matrix_seeds42_mls3rduh_paper_cache`. Only the validator output
+`baseline/result/matrix/baseline_p0_matrix_seeds42_legacy_cache.json` (schema v4) and its Markdown rendering are authoritative;
+do not copy values from the older `result/analysis/bio_projection/bio_projection_comparison.json` or
+`baseline/result/dna/baseline_24base_dnaeval_all.json`. Final admission: expected/complete `78/78`, missing/invalid/
 duplicate/implementation-blocked `0/0/0/0`, paper-table eligible `0`, and projection failure `0`.
 
 The validator recomputes the canonical digest of the full protocol identity and SHA-256 of each referenced
@@ -6611,7 +7906,7 @@ homopolymer ≤ 3) — symmetric with our model's 24-base cells (2026-07-22 grid
 
 🔬 **Protocol (fully symmetric with Ours).** `scripts/run_baselines_48bit.sh` trained stage-1 (90% opt-train,
 val_split 0.1 seed 42) for all 4 datasets + 100%-train for NUS/CIFAR (Flickr/MSCOCO 100%-train already at
-result_baseline/260715); consistent clip_v4plus / nuswide_clip / cifar10_clip cache for both stages.
+result/result_baseline/260715); consistent clip_v4plus / nuswide_clip / cifar10_clip cache for both stages.
 `scripts/baseline_48bit_dnaeval.py` then: (1) selects **E\*** leak-free = argmax **non-projected** 24-base
 val_query-vs-opt-DB mAP@R over the 12 stage-1 checkpoints (test never touched); (2) extracts test-query +
 official-DB from the 100%-train checkpoint at E\*, maps 48 sign bits → 24 DNA bases, applies bio-projection,
@@ -6658,8 +7953,8 @@ CIBHash peaks early (E4) on Flickr/NUS/CIFAR — the known CIBHash early-peak be
 🧰 **New/artifacts.** `scripts/run_baselines_48bit.sh` (training), `scripts/baseline_48bit_dnaeval.py` (P0
 select + extract + DNA-space + bio-projection, memoised projection), `scripts/run_baseline_24base_eval.sh`
 (dataset-parallel driver); `scripts/eval_baseline_dna_space.py` made length-agnostic (commit `a5b1f58`).
-Outputs `docs/baseline_24base_dnaeval_all.json` (+ per-dataset). Baseline 48-bit dirs
-`params_baseline/260722/*_48bit_*` + `result_baseline/260715/*_48bit_unsup60` (Flickr/MSCOCO 100%-train).
+Outputs `baseline/result/dna/baseline_24base_dnaeval_all.json` (+ per-dataset). Baseline 48-bit dirs
+`params_baseline/260722/*_48bit_*` + `result/result_baseline/260715/*_48bit_unsup60` (Flickr/MSCOCO 100%-train).
 
 🗃️ **Historical three-baseline panel complete only.** It covered K∈{128,64} × {18-base, 24-base} for
 GroundedDNA and the three then-included baselines. It is not the current MAIN TABLE and supports no
@@ -6762,8 +8057,8 @@ champion, so the comparison is not protocol-symmetric; the direction is very unl
 sizes (0.05–0.12 vs a measured selection bias of ~0.014 on Flickr) but the asymmetry must be stated, and the
 clean fix is to re-score P0 versions of A2/A4. (2) NUS-WIDE A4 was never trained. (3) Single seed.
 
-🧰 Outputs: `docs/heldout_decoding_flickr_{A0_champion,A2_noText,A4_sharedCB}.json`,
-`docs/heldout_decoding_{nuswide,mscoco}_A{0,2,4}.json`.
+🧰 Outputs: `result/analysis/decoding/heldout_decoding_flickr_{A0_champion,A2_noText,A4_sharedCB}.json`,
+`result/analysis/decoding/heldout_decoding_{nuswide,mscoco}_A{0,2,4}.json`.
 
 **Note:** no 4-axis compositional analysis — this is a re-scoring of existing ablations on the decoding axis,
 which supersedes the NMI axis for interpretability claims per the 2026-07-19 entry.
@@ -6828,7 +8123,7 @@ decoding and argmax results are not marginal.
 🟢 **Kept anyway.** The flag is committed (default off, backward-compatible) so the negative result is
 reproducible and the mechanism is not re-proposed later.
 
-🧰 Outputs: `docs/seqres_alignment.json`, `docs/heldout_seqres_*.json`, `docs/seqres_role_g{0.25,0.5}.json`.
+🧰 Outputs: `result/analysis/codebook/alignment/seqres_alignment.json`, `result/analysis/decoding/heldout_seqres_*.json`, `result/analysis/slots/semantics/seqres_role_g{0.25,0.5}.json`.
 Result dirs `result/2607*flickr25k*SEQRES_g*`.
 
 **Note:** no 4-axis compositional analysis — reported on the ρ / decoding / role-argmax panel, which is the
@@ -6881,7 +8176,7 @@ B에서 slot은 패치의 절반만 보고, **31%는 어느 slot도 가져가지
 
 🟢 **논문에 쓸 수 있는 것.** "슬롯이 서로 다른 시각 증거를 보도록 구조적으로 강제해도(패치 공유 0.99→0.69) 역할 분화는 개선되지 않는다"는 **인과적 음성 결과**. §4c의 한계 서술을 상관이 아닌 **개입 근거**로 뒷받침한다. 또한 "역할 정보는 어느 패치를 보느냐가 아니라 codebook 경계에 있다"는 §4c 경계파괴 대조 결과와 정합.
 
-🧰 산출물: `scripts/train_cub200_bidirAB_clip.sh`, `docs/cub_AB_{legacy,mutual_dual_softmax}.json`, `result/*cub200_bidirAB_*`.
+🧰 산출물: `scripts/train_cub200_bidirAB_clip.sh`, `result/analysis/slots/semantics/cub_AB_{legacy,mutual_dual_softmax}.json`, `result/*cub200_bidirAB_*`.
 
 ---
 
@@ -6955,8 +8250,8 @@ CIBHash 0.96/0.72/0.81/0.50, down to mls3rduh CIFAR 0.007 (near-total collapse).
 (0.40 Flickr etc.) remains the separate compression story from 2026-05-14 — flat hashes live in a different,
 far-less-compressed regime.
 
-🧰 New: `scripts/eval_baseline_dna_space.py`. Outputs: `docs/baseline_dna_space_comparison.{json,md}`,
-`result_baseline/260721/{method}_{Dataset}_clip_E{E*}_dnaeval/` (12 dirs with extractions + per-cell eval).
+🧰 New: `scripts/eval_baseline_dna_space.py`. Outputs: `baseline/result/dna/baseline_dna_space_comparison.{json,md}`,
+`result/result_baseline/260721/{method}_{Dataset}_clip_E{E*}_dnaeval/` (12 dirs with extractions + per-cell eval).
 
 **Note:** no 4-axis compositional analysis — the baselines are flat hashes with no codon/slot structure, so
 the compositional protocol does not apply (same rationale as the P0 baseline entries).
@@ -7027,7 +8322,7 @@ retrain). The direction (our margin grows) is robust across all four datasets an
 strongly.
 
 🧰 New: `scripts/apply_bio_projection.py`; `--bio_project` default flipped ON in `evaluation_siglip2.py`.
-Outputs: `docs/bio_projection_comparison.json` (16 cells: pre/post base mAP@R, compliance, mean edit).
+Outputs: `result/analysis/bio_projection/bio_projection_comparison.json` (16 cells: pre/post base mAP@R, compliance, mean edit).
 
 **Note:** no 4-axis compositional analysis — baselines are flat hashes; this entry reports the invariant
 retrieval panel (post-projection base mAP@R) that supersedes the bare base-space table for all paper numbers.
@@ -7097,8 +8392,8 @@ projection deltas* and the DNA-unique comparison are used here. (2) 24-base exis
 near-collapsed (DNA-unique 0.007), so projection barely moves it (−0.0003). (4) Single seed.
 
 🧰 New: `scripts/bioproj_dna_unique.py` (CPU-only DNA-unique pre/post); `--save_projected` + DNA-unique wired
-into `scripts/apply_bio_projection.py`. Outputs: `docs/bioproj_dna_unique.json` (16 cells 18-base + 2 24-base),
-`docs/bio_projection_18base.json`, `docs/bio_projection_24base.json`.
+into `scripts/apply_bio_projection.py`. Outputs: `result/analysis/bio_projection/bioproj_dna_unique.json` (16 cells 18-base + 2 24-base),
+`result/analysis/bio_projection/bio_projection_18base.json`, `result/analysis/bio_projection/bio_projection_24base.json`.
 
 **GC principle recorded as an invariant.** GC window scales with code length: 18-base [8,10] (44.4-55.6%),
 24-base [10,14] (41.67-58.33%). `evaluation_siglip2.py --bio_gc_min_frac/--bio_gc_max_frac` should be set to
@@ -7188,8 +8483,8 @@ attribution entry; effect sizes (0.04–0.11) far exceed the ~0.014 selection bi
 
 🧰 New/changed: `--bio_project` (+ GC-frac / max-run args) in `scripts/heldout_codon_decoding.py` and
 `scripts/slot_intervention_eval.py`; `scripts/run_slot_intervention_bioproj.sh`. Outputs:
-`docs/heldout_decoding_*_bioproj.json` (Flickr/NUS/MSCOCO main + Flickr/NUS/MSCOCO A2 + Flickr/MSCOCO A4),
-`docs/slot_intervention_{flickr25k,mscoco,nuswide}_bioproj.json`.
+`result/analysis/decoding/heldout_decoding_*_bioproj.json` (Flickr/NUS/MSCOCO main + Flickr/NUS/MSCOCO A2 + Flickr/MSCOCO A4),
+`result/analysis/slots/intervention/earlier/slot_intervention_{flickr25k,mscoco,nuswide}_bioproj.json`.
 
 **Invariance note (paper-ready).** State explicitly that codebook-level compositional metrics (NMI, B-lift,
 drop, codeword decoding, ρ) are exactly invariant to the bio-projection post-processing, while DNA-sequence
@@ -7229,7 +8524,7 @@ metrics (mAP@R, DNA-unique, codon decoding, intervention) are reported post-proj
 
 🟢 **부수 소득.** gate는 retrieval을 위해 code diversity를 희생하는 트레이드오프다(DNA-uniq 0.401→0.424, P@1 0.9315→0.9375, mAP@R −0.013). DNA-축 우선 변형이 필요하면 기록해둘 값.
 
-🧰 산출물: `result/*flickr_CONV_noGlobalGate*`, `docs/slot_role_alignment_flickr25k_noGate.json`, `logs/flickr_CONV_noGlobalGate.log`.
+🧰 산출물: `result/*flickr_CONV_noGlobalGate*`, `result/analysis/slots/semantics/slot_role_alignment_flickr25k_noGate.json`, `logs/flickr_CONV_noGlobalGate.log`.
 
 ---
 
@@ -7300,7 +8595,7 @@ pattern (17.0/0.619, 16.4/0.506, 50.0/0.245) but n=3; the next step must be an i
 geometry and checks whether ρ_z and ρ_codebook move together.
 
 🧰 **New:** `scripts/extract_z_prequant.py` (forward-pre-hook capture; `Z_SPLIT`, `Z_MAX`, `Z_BLOCKS`),
-`scripts/z_geometry_analysis.py`. **Output:** `docs/z_geometry.json`.
+`scripts/z_geometry_analysis.py`. **Output:** `result/analysis/codebook/geometry/z_geometry.json`.
 
 📌 **Sampling note (methodological).** z extraction is **I/O bound, not compute bound** (GPU at 0%): the
 feature caches are 36–57 GB memory-mapped arrays. Scattered index sampling made it ~90× slower
@@ -7364,7 +8659,7 @@ scene_type은 압도적 저차원(eff_rank 58.5, 다음이 111.2)이고 모든 �
 2. **원인 귀속이 정정된다.** 2026-07-19 "모든 local slot이 global caption과 가장 잘 정렬 = 모델이 global을 퍼뜨림"이라는 해석은 **열 방향에 한해 틀렸다**. 행 방향(global code slot이 다른 slot보다 잘 조직함)은 별개 문제이며 gate ablation(2026-07-20)에서 gate 원인이 아님이 확인됐다.
 3. **논문에 쓸 수 있는 새 문장**: "우리 코드는 6개 caption 차원 **전부**에서 동일 예산 flat 분할보다 1.4~1.6× 잘 조직한다"(orthogonality·역할 배정을 주장하지 않고 성립).
 
-🧰 산출물: `scripts/caption_column_effect.py`, `docs/caption_column_effect_flickr25k.json`, `logs/caption_column_effect.log`.
+🧰 산출물: `scripts/caption_column_effect.py`, `result/analysis/text/caption_column_effect_flickr25k.json`, `logs/caption_column_effect.log`.
 
 ---
 
@@ -7471,7 +8766,7 @@ train and db are disjoint — but MSCOCO's codebook ρ was verified identical on
 statistics, independent of label mix), unlike the prototype analyses which use block-strided sampling.
 
 🧰 **New:** `scripts/text_target_dynamic_range.py`, `scripts/routing_selectivity.py`.
-**Outputs:** `docs/text_target_dynamic_range.json`, `docs/routing_selectivity.json`.
+**Outputs:** `result/analysis/text/text_target_dynamic_range.json`, `result/analysis/routing/routing_selectivity.json`.
 
 **Note:** no 4-axis compositional analysis — diagnostic entry, no model variant trained.
 
@@ -7518,7 +8813,7 @@ raw 일치율 0.074 vs 우연 0.084 — **우연 이하**. code slot 0(global)�
 4. 교사 측은 train 내부(캡션이 train에만 존재), 코드 측은 held-out test. 두 측의 평가 범위가 다르다.
 5. flat baseline(CIBHash/CIMON/MLS3RDUH) 대조는 **미실행** — CUB baseline은 체크포인트만 있고 코드 추출물이 없다. 경계 파괴 대조가 대체 역할을 하지만, camera-ready 전 추출 권장.
 
-🧰 산출물: `scripts/cub_per_slot_role.py`, `docs/cub_per_slot_role.json`, `logs/cub_per_slot_role.log`.
+🧰 산출물: `scripts/cub_per_slot_role.py`, `result/analysis/slots/semantics/cub_per_slot_role.json`, `logs/cub_per_slot_role.log`.
 
 ---
 
@@ -7609,8 +8904,8 @@ while lowering instance-discrimination pressure — which is exactly the follow-
 
 🧰 New: `scripts/run_amplifier_intervention.sh`, `scripts/analyse_amplifier_cells.sh`; `CIBNT` env var in
 `scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh`.
-Outputs: `docs/amplifier_z_geometry.json`, `docs/amplifier_codebook_alignment.json`,
-`docs/amplifier_z_flickr.json`. Result dirs `result/260720+*_AMPL_cb*`.
+Outputs: `result/analysis/codebook/geometry/amplifier_z_geometry.json`, `result/analysis/codebook/alignment/amplifier_codebook_alignment.json`,
+`result/analysis/codebook/geometry/amplifier_z_flickr.json`. Result dirs `result/260720+*_AMPL_cb*`.
 
 **Note:** the 4-axis compositional analysis is superseded here by the ρ/eff_rank/DNA-uniq/mAP@R panel, which
 is the axis set this trade-off is defined on; NMI is excluded for the reasons in the 2026-07-19 entry.
@@ -7687,7 +8982,7 @@ if PSOT transfers there it is a real mechanism rather than a Flickr artefact.
 
 🧰 New: `scripts/run_tradeoff_experiments.sh`, `scripts/run_psot_followup.sh`; `LBU`/`SLA` env vars in
 `scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh`, `SLA` in `scripts/train_mscoco_F2_sweep_clip.sh`.
-Outputs: `docs/tradeoff_z_geometry.json`, `docs/tradeoff_codebook_alignment.json`, `docs/tradeoff_routing.json`.
+Outputs: `result/analysis/codebook/geometry/tradeoff_z_geometry.json`, `result/analysis/codebook/alignment/tradeoff_codebook_alignment.json`, `result/analysis/routing/tradeoff_routing.json`.
 
 **Note:** the 4-axis compositional analysis is superseded by the ρ/eff_rank/DNA-uniq/mAP@R panel that this
 trade-off is defined on; NMI is excluded per the 2026-07-19 entry.
@@ -7740,7 +9035,7 @@ C_global 텍스트와의 코사인으로 상위 K% 패치만 남기는 공간 �
 
 ⚠️ **이 sweep의 한계.** 21개 모델이 여러 축에서 동시에 다르다(K, fgMask, gate, whiten, crop, 손실 가중). 상관 분석이며 인과가 아니고, **강한 주장을 반증할 수는 있어도(후보 1) 약한 효과를 확립할 수는 없다**(후보 2·3). fgMask를 단일 delta로 검정하려면 통제된 A/B 2런이 필요하다.
 
-🧰 산출물: `docs/cub_sharpness/*.json` (21개), `logs/cub_sharpness_sweep.log`.
+🧰 산출물: `result/analysis/slots/bird_sharpness/*.json` (21개), `logs/cub_sharpness_sweep.log`.
 
 ### ⚠️ 2026-07-20 정정 — 위 sweep 분석은 **부분 표본(21/60)** 이었다
 
@@ -7832,7 +9127,7 @@ CUB 200종 분류 정확도(centroid, split-half, chance 0.5%):
 3. **캡션 균형 개선(v7)이 역할 타당성을 올리지 않았다** → 캡션 품질도 병목이 아니다. 라우팅·K·fgMask에 이어 **네 번째 후보 배제**.
 4. 관측된 부수 사항: Flickr에서 색상 어휘(white/blue/green/black)가 **모든 slot 최빈어**에 등장 — 색은 어디서나 서술되므로 slot 특화를 희석할 수 있다. 미검정.
 
-🧰 산출물: `docs/cub_v7role/*.json` (13개), 진단 코드는 본 로그 내 인라인.
+🧰 산출물: `result/analysis/slots/bird_roles/*.json` (13개), 진단 코드는 본 로그 내 인라인.
 
 ### 2026-07-20 추가 — "CLIP encoder가 캡션 품질을 흐리는가?" → **흐리지만, whitening이 이미 복구한다**
 
@@ -7953,7 +9248,7 @@ own. The MSCOCO null is the more robust of the two results (three quantities all
 miss), but neither has seed replication, and the Flickr plateau's −0.01 mAP is close to what a seed sweep
 could absorb.
 
-🧰 Outputs: `docs/psot_grid_alignment.json`, `docs/psot_mscoco_alignment.json`.
+🧰 Outputs: `result/analysis/codebook/alignment/psot_grid_alignment.json`, `result/analysis/codebook/alignment/psot_mscoco_alignment.json`.
 Result dirs `result/260720+{flickr25k,mscoco}*PSOT_la*`.
 
 **Note:** no 4-axis compositional analysis — the ρ/eff_rank/DNA-uniq/mAP@R panel is the axis set this
@@ -8038,9 +9333,9 @@ whitening 후 **47.3% vs 47.1% — 차이 없음**. SigLIP2가 raw eff_rank는 �
 
 > ⚠️ **SUPERSEDED (2026-07-21).** The reported headline numbers are the **post-bio-projection** values in the Current State snapshot and the 2026-07-21 bio-projection entries. The numbers in this entry predate one or more paper invariants (P0 selection / DNA-space evaluation / bio-constraint projection) and are kept as the historical record only.
 
-**Gap this closes.** Stage 1 (`scripts/run_baselines_p0_stage1.sh`) retrained cibhash/cimon/mls3rduh × 4 datasets at 36-bit on the optimization-train 90% and dumped 12 checkpoints each (`params_baseline/260718/{method}_{ds}_clip_P0s1_unsup60/epoch_XXX.pth`). But those runs' `result_baseline/260718/.../eval_epoch_*.json` contain **only test** metrics — E* could not be read off them without leaking test into the selection. The earlier `docs/baseline_val_select/` selection did use val, but scored checkpoints from the **100%-train** runs, so its "val" rows were in-sample.
+**Gap this closes.** Stage 1 (`scripts/run_baselines_p0_stage1.sh`) retrained cibhash/cimon/mls3rduh × 4 datasets at 36-bit on the optimization-train 90% and dumped 12 checkpoints each (`params_baseline/260718/{method}_{ds}_clip_P0s1_unsup60/epoch_XXX.pth`). But those runs' `result/result_baseline/260718/.../eval_epoch_*.json` contain **only test** metrics — E* could not be read off them without leaking test into the selection. The earlier `baseline/result/validation/` selection did use val, but scored checkpoints from the **100%-train** runs, so its "val" rows were in-sample.
 
-**What was added.** `scripts/baseline_val_select_p0.py`: rebuilds each baseline head from the config stored inside its checkpoint, carves the split with the *imported* `val_split.carve_val_indices(labels, 0.1, 42)` (never reimplemented), extracts `sign(encoder(cached_feat))` via the same `_extract_codes` that produced the test numbers, and scores **val_query vs opt-train DB** with `evaluate_retrieval_model(..., map_at_r=MAP_AT_R_BY_DATASET[ds])`. E* = argmax val mAP@R. The reported cell is then the **existing 100%-train run's** `result_baseline/260714/.../eval_epoch_{E*}.json` test mAP@R — mirroring our own stage 2 (refit on 100%, stop at E*). All 12 E* had their 100%-train eval present; nothing substituted.
+**What was added.** `scripts/baseline_val_select_p0.py`: rebuilds each baseline head from the config stored inside its checkpoint, carves the split with the *imported* `val_split.carve_val_indices(labels, 0.1, 42)` (never reimplemented), extracts `sign(encoder(cached_feat))` via the same `_extract_codes` that produced the test numbers, and scores **val_query vs opt-train DB** with `evaluate_retrieval_model(..., map_at_r=MAP_AT_R_BY_DATASET[ds])`. E* = argmax val mAP@R. The reported cell is then the **existing 100%-train run's** `result/result_baseline/260714/.../eval_epoch_{E*}.json` test mAP@R — mirroring our own stage 2 (refit on 100%, stop at E*). All 12 E* had their 100%-train eval present; nothing substituted.
 
 **Split identity verified**, not assumed: for CIFAR10 the baseline loader passes a one-hot `[N,10]` matrix while `train_siglip2.py` passes the `[N]` integer `targets`; `carve_val_indices` argmaxes the one-hot, so both take the same branch on the same class ids. Checked directly — `ImgRtvCIFAR10(mode='train').targets` equals `CachedFeatureDataset(...).labels.argmax(1)` element-wise (both go through `get_idx_for_uniform_sampling(ds,10,500)`, seed 0), and the resulting `val_idx` arrays are identical. Multi-label datasets take the seeded-shuffle branch and match trivially.
 
@@ -8069,7 +9364,7 @@ Max regret 0.005. Val curves are monotone or single-peaked in every cell (MLS3RD
 
 ### Diagnostic 2 — in-sample val vs held-out val (what the leak was worth)
 
-Old = `docs/baseline_val_select/` (checkpoints from 100%-train runs, val rows in-sample). New = this run (checkpoints from 90%-train runs, val genuinely held out).
+Old = `baseline/result/validation/` (checkpoints from 100%-train runs, val rows in-sample). New = this run (checkpoints from 90%-train runs, val genuinely held out).
 
 | pair | old E* | old test | new E* | new test | Δ |
 |---|---:|---:|---:|---:|---:|
@@ -8084,7 +9379,7 @@ E* moved in 3/12 cells; every move costs the baseline a little (−0.001 to −0
 
 **Note:** no compositional analysis (NMI / B0-B1-B2 / drop grids) for this entry — these are external binary-hashing baselines with no codon/DNA structure, so the 4-axis protocol does not apply.
 
-🧰 New: `scripts/baseline_val_select_p0.py`, `docs/baseline_p0_stage2.json` (per-epoch val curve + E* + test source path per pair), `docs/baseline_p0_stage2.md`, `docs/baseline_p0_stage2_partial/*.json`, `logs/p0s2_*.log`.
+🧰 New: `scripts/baseline_val_select_p0.py`, `baseline/result/validation/baseline_p0_stage2.json` (per-epoch val curve + E* + test source path per pair), `baseline/docs/validation/baseline_p0_stage2.md`, `baseline/result/validation/refit/*.json`, `logs/p0s2_*.log`.
 
 ✅ **Verdict: adopt.** These are the baseline numbers of record for the paper. Ours and theirs now share: same features (CLIP), same 36 bits, same splits, same 10%/seed-42 carve, same 5-epoch cadence, same val-selection metric, same "refit on 100%, stop at E*" stage 2.
 
@@ -8095,7 +9390,7 @@ E* moved in 3/12 cells; every move costs the baseline a little (−0.001 to −0
 > ⚠️ **SUPERSEDED (2026-07-21).** The reported headline numbers are the **post-bio-projection** values in the Current State snapshot and the 2026-07-21 bio-projection entries. The numbers in this entry predate one or more paper invariants (P0 selection / DNA-space evaluation / bio-constraint projection) and are kept as the historical record only.
 
 The `(slot, code) -> concept` held-out decoding experiment (REQUIRED_EXPERIMENTS §2) previously ran its
-flat-hash chunk control on Flickr25k only, because only `result_baseline/260527/*_flickr25k_clip_unsup60/`
+flat-hash chunk control on Flickr25k only, because only `result/result_baseline/260527/*_flickr25k_clip_unsup60/`
 had saved code extractions. MSCOCO's `260529` dirs held db+query but no train (and MSCOCO train is
 **disjoint** from its DB, so it cannot be sliced out), and NUS-WIDE had no baseline extraction at all.
 This entry closes both gaps, so the §2.9 control now exists on every multi-label dataset in the paper.
@@ -8103,7 +9398,7 @@ This entry closes both gaps, so the §2.9 control now exists on every multi-labe
 ### Setup
 
 Baseline codes were re-extracted from the **100 %-train runs** (`params_baseline/260714/`) at the
-**P0-selected epoch E\*** taken from `docs/baseline_p0_stage2.json` — i.e. the same checkpoint that
+**P0-selected epoch E\*** taken from `baseline/result/validation/baseline_p0_stage2.json` — i.e. the same checkpoint that
 produces the retrieval number of record for each cell, so the decoding control and the mAP@R table
 describe the same model.
 
@@ -8173,14 +9468,14 @@ artefact, and the codon-vs-chunk comparison is at equal alphabet size (64 = 64).
   is therefore *not* explained by using more effective symbols; it uses roughly a third as many.
 
 🧰 New: `scripts/baseline_extract_splits.py` (any split incl. `train`, all 5 datasets, rebuilds the head
-from the ckpt state dict); `result_baseline/260719/{cibhash,cimon,mls3rduh}_{mscoco,nuswide}_clip_decodectl/`
-(gitignored); regenerated `docs/heldout_decoding_{mscoco,nuswide}.json` (now with the 3 chunk controls).
+from the ckpt state dict); `result/result_baseline/260719/{cibhash,cimon,mls3rduh}_{mscoco,nuswide}_clip_decodectl/`
+(gitignored); regenerated `result/analysis/decoding/heldout_decoding_{mscoco,nuswide}.json` (now with the 3 chunk controls).
 Modified: `scripts/heldout_codon_decoding.py` — baseline train-side pool now prefers the baseline's own
 `extract_train.npz` when present, falling back to `extract_db.npz` otherwise. Flickr25k re-run is
 byte-identical to the previously committed JSON, so the change is a pure extension.
 
-**Caveat.** The Flickr25k chunk controls in `docs/heldout_decoding_flickr25k.json` still come from the
-older `result_baseline/260527/` extraction at **epoch 059** for all three methods, not at their P0 E\*
+**Caveat.** The Flickr25k chunk controls in `result/analysis/decoding/heldout_decoding_flickr25k.json` still come from the
+older `result/result_baseline/260527/` extraction at **epoch 059** for all three methods, not at their P0 E\*
 (cibhash 4, cimon 49, mls3rduh 59). MLS3RDUH matches; cibhash and cimon do not. For strict cross-dataset
 consistency the Flickr controls should be re-extracted at E\* with the same script before the table goes
 into the paper — the decoding control is not very epoch-sensitive, but the mismatch should not survive
@@ -8302,8 +9597,8 @@ target gain). The paper should say so explicitly rather than implying a role dec
 
 🧰 **New:** `scripts/slot_role_analysis.py` (both analyses; `--distinctive_ratio` for the vocabulary
 confound check; `--caption_jsonl` optional so (B) runs without captions).
-**Outputs:** `docs/slot_role_flickr25k.json` (plain vocab), `docs/slot_role_flickr25k_distinctive.json`
-(distinctive vocab — the reported one), `docs/slot_role_{mscoco,nuswide}.json` (B only).
+**Outputs:** `result/analysis/slots/semantics/slot_role_flickr25k.json` (plain vocab), `result/analysis/slots/semantics/slot_role_flickr25k_distinctive.json`
+(distinctive vocab — the reported one), `result/analysis/slots/semantics/slot_role_{mscoco,nuswide}.json` (B only).
 
 **Note:** no 4-axis compositional analysis (NMI / B0-B1-B2 / drop grids) — these two analyses *are*
 compositional-structure measurements and supersede the NMI axis, which the 2026-07-19 findings document
@@ -8365,7 +9660,7 @@ ours 선택 epoch: Flickr 4, NUS-WIDE 4, CIFAR-10 14, MS-COCO 24.
 
 🔎 **실패의 형태가 원인을 지목한다.** 모든 local slot 이 자기 caption 이 아니라 **global·scene caption 과 가장 잘 정렬**된다. 이는 `q_conditioned_local = q_local + sigmoid(gate)·q_global`(학습된 gate **0.993**×5)가 만들 패턴 그대로다. → `--disable_global_gate` ablation 진행 중, 비교 지표는 **상호작용 대각 우위(+0.0052)** 와 **열 rank-1(1/6)**.
 
-🧰 산출물: `scripts/slot_role_alignment.py`, `docs/slot_role_alignment_flickr25k.json`, `result/*_CONV*`(4개), `docs/baseline_val_select/*.json`.
+🧰 산출물: `scripts/slot_role_alignment.py`, `result/analysis/slots/semantics/slot_role_alignment_flickr25k.json`, `result/*_CONV*`(4개), `baseline/result/validation/*.json`.
 
 ---
 
@@ -8493,8 +9788,8 @@ requires a forward pass (modest GPU) and is the next step. Adding a codebook met
 distillation, text-anchored codewords) before knowing this risks stacking a term that fights the encoder.
 
 🧰 New: `scripts/codebook_semantic_alignment.py`, `scripts/teacher_slot_separability.py`.
-Outputs: `docs/codebook_alignment_mscoco.json`, `docs/codebook_alignment_crossdataset.json`,
-`docs/teacher_slot_separability.json`.
+Outputs: `result/analysis/codebook/alignment/codebook_alignment_mscoco.json`, `result/analysis/codebook/alignment/codebook_alignment_crossdataset.json`,
+`result/analysis/text/teacher_slot_separability.json`.
 
 **Note:** no 4-axis compositional analysis — this entry *is* a compositional-structure analysis and supersedes
 the NMI axis for the reasons above.
@@ -8673,7 +9968,7 @@ Design points: mid-eval became **query-vs-db** (disjoint val_query vs opt-train)
 
 🟢 **Verdict: 4-base codon is a Pareto improvement** — higher mAP@R, higher DNA-uniqueness, collision structurally resolved, SOTA on both K=128 datasets at matched budget. Strong candidate for the paper's main configuration (resolves the §5 collision limitation).
 
-🧰 Baseline 48-bit dirs: `result_baseline/*/{method}_{flickr25k,mscoco}_clip_48bit_unsup60/`.
+🧰 Baseline 48-bit dirs: `result/result_baseline/*/{method}_{flickr25k,mscoco}_clip_48bit_unsup60/`.
 
 ---
 
@@ -8882,7 +10177,7 @@ Ours 🥇 SOTA: mAP@1000 0.9067 (+0.0058 vs best baseline)
 
 🔑 **Metric changes the MSCOCO story.** In full mAP Ours led MSCOCO by +0.025; under mAP@5000 CIBHash's near-perfect-unique flat hash gives sharp top-5000 precision and edges us by +0.0013 (statistical tie). CIBHash also benefits most from best-epoch selection (early-peak: NUS-WIDE ep9, CIFAR10 ep14, MSCOCO ep54, Flickr ep4). On the compositional axes (NMI, B0/B1/B2) Ours remains far ahead everywhere (baselines are flat hashes with no slots).
 
-🧰 **Artifacts.** `docs/comparison_4dataset_mapr_2026-07-14.json`; baseline dirs `result_baseline/*/{method}_{dataset}_clip_mapr_unsup60/` (with extract npz saved for recompute).
+🧰 **Artifacts.** `result/analysis/retrieval/comparison_4dataset_mapr_2026-07-14.json`; baseline dirs `result/result_baseline/*/{method}_{dataset}_clip_mapr_unsup60/` (with extract npz saved for recompute).
 
 ---
 
@@ -8979,7 +10274,7 @@ Ours-F2 SOTA: +0.0075 vs best baseline
 
 ⚖️ **Decision open.** Full whole-image unification (clean structural story, MSCOCO 2nd) vs keep Flickr/MSCOCO on FAIRrank (MSCOCO tied, but training paradigm differs across datasets). Small numeric gap either way.
 
-🧰 **Scripts.** `scripts/train_flickr25k_F2_wholeimg_meanpool_clip.sh`, `scripts/train_mscoco_F2_wholeimg_meanpool_clip.sh`. Result dirs `260714+...F2_WHOLEIMG_meanpool...`. `docs/comparison_wholeimg_unified_mapr_2026-07-14.json`.
+🧰 **Scripts.** `scripts/train_flickr25k_F2_wholeimg_meanpool_clip.sh`, `scripts/train_mscoco_F2_wholeimg_meanpool_clip.sh`. Result dirs `260714+...F2_WHOLEIMG_meanpool...`. `result/analysis/retrieval/comparison_wholeimg_unified_mapr_2026-07-14.json`.
 
 ---
 
@@ -9422,9 +10717,9 @@ CIMON/MLS3RDUH are near-monotone (best ≈ final, gain ≤ +0.004). This is a pa
 📋 **NUS-WIDE setup recap.** 10,500 balanced trainset (500/tag×21, refilled), Qwen3-VL PROMPT_V4 (0 parse fail), CLIP cache over 193,734 DB images, v185 unified architecture (bidirectional 0.5/0.5, K=128, Flickr weights). N=193,734 DB, unique 0.169.
 
 🧰 **Artifacts.**
-- `docs/comparison_4dataset_bestep_2026-07-13.json` — full best-epoch table (mAP/P@k/AUC-PR per method-dataset).
-- `docs/nuswide_baseline_bestep_2026-07-13.json` — NUS-WIDE baseline best-epoch metrics.
-- Baseline ep5 result dirs: `result_baseline/260713/{method}_{dataset}_clip_ep5_unsup60/` (+ `_nuswide_clip_unsup60`).
+- `result/analysis/retrieval/comparison_4dataset_bestep_2026-07-13.json` — full best-epoch table (mAP/P@k/AUC-PR per method-dataset).
+- `baseline/result/retrieval/nuswide_baseline_bestep_2026-07-13.json` — NUS-WIDE baseline best-epoch metrics.
+- Baseline ep5 result dirs: `result/result_baseline/260713/{method}_{dataset}_clip_ep5_unsup60/` (+ `_nuswide_clip_unsup60`).
 - Ours NUS-WIDE: `result/260713+nuswide_...v185_bidir_v0.5_t0.5_K128...`
 
 🔭 **Follow-ups.**
@@ -9753,10 +11048,10 @@ Baseline flat hashes cluster near random-partition NMI (0.19–0.41). Ours 0.55�
 - **Compositional interpretability** (NMI + B0/B1/B2 lift) available ONLY on Ours — baselines have no slot concept.
 
 🧰 **Artifacts.**
-- `docs/COMPARISON_unsup_baselines_2026-07-11.md` — full comparison document.
-- `docs/baseline_db_unique_2026-07-11.json` — recomputed DB-unique for Flickr / MSCOCO baselines.
+- `baseline/docs/comparison/COMPARISON_unsup_baselines_2026-07-11.md` — full comparison document.
+- `baseline/result/retrieval/baseline_db_unique_2026-07-11.json` — recomputed DB-unique for Flickr / MSCOCO baselines.
 - `scripts/run_unsup_baselines_cifar10.sh` — CIFAR10 baseline launcher (CIBHash / CIMON / MLS3RDUH on GPUs 3/4/5).
-- Result dirs: `result_baseline/260711/{cibhash,cimon,mls3rduh}_cifar10_clip_unsup60/`.
+- Result dirs: `result/result_baseline/260711/{cibhash,cimon,mls3rduh}_cifar10_clip_unsup60/`.
 
 🔭 **Follow-ups.**
 1. Re-run CIFAR10 baselines with `--save_code` to enable NMI + DB-unique.
@@ -9805,16 +11100,16 @@ Precision + Recall at k 를 모든 12개 method-dataset 조합 (Ours + CIBHash +
 🟢 **Paper narrative**: "**Ours 는 deep-rank retrieval SOTA (mAP), CIBHash 는 shallow-rank sharp (top-1000 PR)**" 이라는 정직한 trade-off 표현 → 우리 강점을 왜곡 없이 서술.
 
 🧰 **Artifacts (PR-curve).**
-- `docs/pr_curve_data_2026-07-11.json` — 12개 method-dataset PR 원본 데이터.
-- `docs/pr_curve_auc_2026-07-11.json` — 각 조합 AUC-PR.
-- `docs/pr_curves_unsup_baselines_2026-07-11.png` — 3-panel PR curve (recall vs precision).
-- `docs/pr_at_k_curves_2026-07-11.png` — 6-panel P@k / R@k vs k (log-scale).
+- `result/analysis/retrieval/pr_curve_data_2026-07-11.json` — 12개 method-dataset PR 원본 데이터.
+- `result/analysis/retrieval/pr_curve_auc_2026-07-11.json` — 각 조합 AUC-PR.
+- `docs/paper_draft/figures/pr_curves_unsup_baselines_2026-07-11.png` — 3-panel PR curve (recall vs precision).
+- `docs/paper_draft/figures/pr_at_k_curves_2026-07-11.png` — 6-panel P@k / R@k vs k (log-scale).
 
 ---
 
 ### Part 2 — Qualitative interpretability 제안 (3가지 방법)
 
-Compositional code (Ours) vs flat 36-bit hash (baseline) 의 interpretability 차이를 시각적으로 보이는 3가지 방법 설계. 완전한 제안 은 `docs/QUALITATIVE_INTERPRETABILITY_PROPOSAL_2026-07-11.md` 참고.
+Compositional code (Ours) vs flat 36-bit hash (baseline) 의 interpretability 차이를 시각적으로 보이는 3가지 방법 설계. 완전한 제안 은 `docs/paper_draft/QUALITATIVE_INTERPRETABILITY_PROPOSAL_2026-07-11.md` 참고.
 
 **Method A — Per-slot Codeword Atlas (1순위 추천).**
 - Ours: (slot m, codeword k) 조합 별로 라우팅되는 이미지 8-16장 grid.
@@ -9838,7 +11133,7 @@ Compositional code (Ours) vs flat 36-bit hash (baseline) 의 interpretability �
 📎 **다음 tick 목표**: Method A + C 구현. Flickr champion 위에서 시연 후 3-dataset (Flickr, MSCOCO, CIFAR10) 적용.
 
 🧰 **Artifacts (proposal).**
-- `docs/QUALITATIVE_INTERPRETABILITY_PROPOSAL_2026-07-11.md` — 완전 제안.
+- `docs/paper_draft/QUALITATIVE_INTERPRETABILITY_PROPOSAL_2026-07-11.md` — 완전 제안.
 
 ---
 
@@ -9950,8 +11245,8 @@ Delta vs MSCOCO v180B (K=128): `--lambda_codeword_codon_sinkhorn 0.0 → 0.1`. K
 🏆 **AUC-PR 2/3 wins (Flickr, CIFAR10).** MSCOCO 만 CIBHash 우세 (−0.002). mAP 은 여전히 3/3 SOTA.
 
 🧰 **Artifacts.**
-- `docs/pr_curve_data_v2_2026-07-11.json` — updated PR data.
-- `docs/pr_curves_unsup_baselines_v2_2026-07-11.png` — updated 3-panel plot.
+- `result/analysis/retrieval/pr_curve_data_v2_2026-07-11.json` — updated PR data.
+- `docs/paper_draft/figures/pr_curves_unsup_baselines_v2_2026-07-11.png` — updated 3-panel plot.
 - Result dirs (all 3 cells): result/260711+...
 - Scripts: `scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh`, `scripts/train_cifar10_flickrChamp_ccs01_clip.sh`, `scripts/train_mscoco_v180B_ccs01_clip.sh` (last discarded).
 
@@ -12704,7 +13999,7 @@ Under C2, four of five local anatomy slots (cb2, cb3, cb4, cb5) become informati
 🧰 **Code and artefacts (already in repo from earlier commits):**
 - [baseline/base_model.py](baseline/base_model.py) (commit 44ee756) — `CUB_200` registered in `NUM_CLASS=200` / `MULTI_LABEL=False` / `DEFAULT_CACHE_DIR=./cache/cub200_clip`.
 - [scripts/run_unsup_baselines_cub.sh](scripts/run_unsup_baselines_cub.sh) — orchestrator for parallel launch on three GPUs.
-- Result dirs: `result_baseline/260622/{cibhash,cimon,mls3rduh}_cub200_unsup60/eval_epoch_059.json` (mAP / P@k / R@k). Checkpoints: `params_baseline/260622/{...}/epoch_059.pth` (single Linear 512 → 36 per method).
+- Result dirs: `result/result_baseline/260622/{cibhash,cimon,mls3rduh}_cub200_unsup60/eval_epoch_059.json` (mAP / P@k / R@k). Checkpoints: `params_baseline/260622/{...}/epoch_059.pth` (single Linear 512 → 36 per method).
 
 🔭 **Follow-ups.**
 1. **Re-position paper CUB section** around compositional/interpretability axes (B1, per-codebook drop, DNA codon structure). Move CUB retrieval to a side-table with honest baseline comparison.
@@ -16866,7 +18161,7 @@ as the canonical text source.
 - Prompt: hardcoded in `tools/v5_small_scale_test.py`.
 - Generated captions: `cache/flickr25k_qwen_v5_smoke.jsonl` (50
   records with both V4 baseline and V5 outputs).
-- Summary: `docs/v5_small_scale_summary.json`
+- Summary: `result/analysis/text/v5_small_scale_summary.json`
   (full cos matrix + per-axis stats).
 
 ---
@@ -18248,7 +19543,7 @@ its codeword into their codon heads. This is exactly the
   — model, extract_db/query.npz, evaluation_siglip2_base.json,
   pairwise_nmi.json, codebook_drop_ablation.json,
   viz_routing_heatmap.png, viz_codebook_tsne.png.
-- `docs/nmi_v92a_combined.json` (v92a + v91a-CLIP).
+- `result/analysis/codebook/dependence/nmi_v92a_combined.json` (v92a + v91a-CLIP).
 - Implementation: `config.py` argparse exposure of two existing
   flags. No model/loss changes.
 
@@ -18439,11 +19734,11 @@ by K=128 on every metric.
   — model, extract_db/query.npz, evaluation_siglip2_base.json,
   pairwise_nmi.json, codebook_drop_ablation_subset1000.json,
   viz_routing_heatmap.png, viz_codebook_tsne.png.
-- `result_baseline/260529/{cibhash,cimon,mls3rduh}_mscoco_clip_unsup60/`
+- `result/result_baseline/260529/{cibhash,cimon,mls3rduh}_mscoco_clip_unsup60/`
   — config.json, eval_epoch_059.json, extract_db/query.npz,
   pairwise_nmi.json, codebook_drop_ablation_subset1000.json.
 - `params_baseline/260529/{...}/epoch_059.pth` — trained weights.
-- Combined NMI: `docs/nmi_mscoco_clip_combined.json` (v91a K=64 +
+- Combined NMI: `result/analysis/codebook/dependence/nmi_mscoco_clip_combined.json` (v91a K=64 +
   3 CLIP baselines; K=128 separate file in result dir).
 
 ### Suggested follow-up
@@ -18680,8 +19975,8 @@ text adapter). v91a remains canonical on CLIP backbone only.
 - `result/260528+flickr25k_setting1_v91a_siglip_textHash_005+bs+64+e+60+proj_lr+0.001/`
   — same artifact set for SigLIP-Flickr DISCARDED run.
 - Combined NMI tables:
-  - `docs/nmi_mscoco_v91a_clip_combined.json` (mscoco_v91a-CLIP vs mscoco_v81a)
-  - `docs/nmi_v91a_siglip_combined.json` (v91a-SigLIP vs v81a-SigLIP vs v88a-SigLIP)
+  - `result/analysis/codebook/dependence/nmi_mscoco_v91a_clip_combined.json` (mscoco_v91a-CLIP vs mscoco_v81a)
+  - `result/analysis/codebook/dependence/nmi_v91a_siglip_combined.json` (v91a-SigLIP vs v81a-SigLIP vs v88a-SigLIP)
 
 ### Suggested follow-up
 
@@ -18926,7 +20221,7 @@ global channel learned a near-bijective text-image map.
   - `compositional_eval.json`, `codebook_drop_ablation.json`,
     `pairwise_nmi.json`, `codebook_grids/` (30 PNG), `model_state_dict.pth`,
     `extract_db.npz`, `extract_query.npz`.
-- Combined NMI: `docs/nmi_v91a_combined.json` (v88a-CLIP, v90a, v91a).
+- Combined NMI: `result/analysis/codebook/dependence/nmi_v91a_combined.json` (v88a-CLIP, v90a, v91a).
 - Image-Text DNA agreement: measured directly in the post-analysis
   notebook; reported above.
 - Implementation: `config.py` (`--lambda_text_hash`),
@@ -19089,7 +20384,7 @@ mAP.
 - Result dir: `result/260528+flickr25k_setting1_v90b_v88aCLIP_wasserstein_020+bs+64+e+60+proj_lr+0.001/`
   - `compositional_eval.json`, `codebook_drop_ablation.json`,
     `pairwise_nmi.json`, `codebook_grids/`.
-- Combined NMI for sweep: `docs/nmi_v90_sweep_combined.json`
+- Combined NMI for sweep: `result/analysis/codebook/dependence/nmi_v90_sweep_combined.json`
   (v88a-CLIP, v90a, v90b).
 - No code changes; only `--lambda_wasserstein 0.20`.
 
@@ -19241,7 +20536,7 @@ distance distribution).
 - Result dir: `result/260528+flickr25k_setting1_v90a_v88aCLIP_wasserstein_010+bs+64+e+60+proj_lr+0.001/`
   - `compositional_eval.json`, `codebook_drop_ablation.json`,
     `pairwise_nmi.json`, `codebook_grids/` (30 PNG).
-- Combined NMI: `docs/nmi_v90a_combined.json` (v88a-CLIP vs v90a).
+- Combined NMI: `result/analysis/codebook/dependence/nmi_v90a_combined.json` (v88a-CLIP vs v90a).
 - Implementation: no code changes; only `--lambda_wasserstein 0.10`
   differs from v88a-CLIP.
 
@@ -19599,7 +20894,7 @@ This is the first variant in our series to:
   `result/260527+flickr25k_setting1_v88a_clip_maclPaired_alpha05+bs+64+e+60+proj_lr+0.001/`
   - `compositional_eval.json`, `codebook_drop_ablation.json`,
     `pairwise_nmi.json`, `codebook_grids/` (30 PNG).
-- Combined NMI matrix: `docs/nmi_v88a_clip_combined.json`.
+- Combined NMI matrix: `result/analysis/codebook/dependence/nmi_v88a_clip_combined.json`.
 - Implementation: identical to v88a; only
   `--backbone_type clip --clip_backbone openai/clip-vit-base-patch16
    --siglip2_feature_cache_dir flickr25k_clip_v4plus --d_model 768`
@@ -19871,7 +21166,7 @@ positive-alignment objective.
   - `pairwise_nmi.json` (6×6 NMI matrix)
   - `codebook_grids/` (30 PNG)
 - Combined NMI (v62b/v79c/v81a/v87a/v88a):
-  `docs/nmi_v88a_combined.json`
+  `result/analysis/codebook/dependence/nmi_v88a_combined.json`
 - Implementation: `config.py` (`--ntxent_macl_alpha`, `--ntxent_macl_a0`),
   `loss_siglip2.py` (constructor, function signature, per-cb loop
   with multiplicative T_eff, caller in `forward`).
@@ -20037,7 +21332,7 @@ unaffected by the upgrade.
    v81a-CLIP** — verify the structural "6 active codebooks with
    graded contribution" claim transfers cross-backbone. Compare
    directly against the v81a SigLIP2 compositional analysis
-   (`docs/nmi_v81a_combined.json`).
+   (`result/analysis/codebook/dependence/nmi_v81a_combined.json`).
 
 ### Artifacts
 
@@ -20316,7 +21611,7 @@ modulation of cumulative-probability thresholds.
   - `codebook_drop_ablation.json` (per-cb ΔmAP, P@k)
   - `pairwise_nmi.json` (6×6 NMI matrix)
   - `codebook_grids/` (30 PNG)
-- Combined NMI: `docs/nmi_v87a_combined.json` (v62b/v79c/v81a/v87a).
+- Combined NMI: `result/analysis/codebook/dependence/nmi_v87a_combined.json` (v62b/v79c/v81a/v87a).
 - Implementation: `config.py:--ntxent_hard_neg_alpha`,
   `loss_siglip2.py:597-624`.
 
@@ -20469,11 +21764,11 @@ further at minimal information cost.
   - `params_baseline/260527/cimon_flickr25k_clip_unsup60/epoch_059.pth`
   - `params_baseline/260527/mls3rduh_flickr25k_clip_unsup60/epoch_059.pth`
 - Extracted hashes (via `scripts/extract_flat_baseline.py`):
-  - `result_baseline/260527/<method>_flickr25k_clip_unsup60/extract_{db,query}.npz`
+  - `result/result_baseline/260527/<method>_flickr25k_clip_unsup60/extract_{db,query}.npz`
 - Compositional artifacts in same directories:
   `compositional_eval.json`, `codebook_drop_ablation.json`,
   `pairwise_nmi.json`.
-- Combined NMI matrix: `docs/nmi_clip_combined.json` (v81a, v88a-CLIP,
+- Combined NMI matrix: `result/analysis/codebook/dependence/nmi_clip_combined.json` (v81a, v88a-CLIP,
   3 CLIP baselines).
 - Code patches: `baseline/base_model.py:689-712` +
   `baseline/MLS3RDUH.py:254-269` (both d_in/dim_feature auto-detect).
@@ -20636,7 +21931,7 @@ roughly half the cb1-5 mutual redundancy, while also gaining v79c's
 unique-code diversity — without v79c's cb3 collapse. **This is the first
 variant in the series whose mAP improvement is matched by an honest
 structural compositional improvement.** Full writeup is in
-`docs/ANALYSIS_compositional_contribution.md` (Update 2026-05-26 v81a
+`docs/analysis/ANALYSIS_compositional_contribution.md` (Update 2026-05-26 v81a
 section); below is the detailed numerical record.
 
 ### Methodology and artifacts
@@ -20645,7 +21940,7 @@ Analyses run (all default Flickr25k 2K queries × 23K DB):
 
 | Tool | Output |
 |---|---|
-| `scripts/pairwise_nmi.py` | `pairwise_nmi.json` per result dir + combined `docs/nmi_v81a_combined.json` |
+| `scripts/pairwise_nmi.py` | `pairwise_nmi.json` per result dir + combined `result/analysis/codebook/dependence/nmi_v81a_combined.json` |
 | `compositional_eval.py` (with grids) | `compositional_eval.json` + `codebook_grids/*.png` (30 grid images) |
 | `scripts/codebook_drop_ablation.py` (full Nq=2000) | `codebook_drop_ablation.json` |
 
@@ -20896,9 +22191,9 @@ the raw retrieval number.
   - `pairwise_nmi.json` (6×6 NMI matrix + summary stats)
   - `codebook_grids/` (30 PNG, 5 codewords × 6 codebooks)
 - Combined NMI across v62b / v79a / v79c / v81a:
-  `docs/nmi_v81a_combined.json`.
+  `result/analysis/codebook/dependence/nmi_v81a_combined.json`.
 - Detailed analysis writeup:
-  `docs/ANALYSIS_compositional_contribution.md` (Update 2026-05-26 v81a
+  `docs/analysis/ANALYSIS_compositional_contribution.md` (Update 2026-05-26 v81a
   section).
 
 ---
@@ -21091,7 +22386,7 @@ Result dirs:
 grids on the v79 batch + the new MSCOCO SOTA. Key finding: **v79c hard
 routing halves codebook redundancy (mean off-diag pairwise NMI 0.64 → 0.29)
 and produces visually specialised codebooks, but cb3 collapses to
-near-random.** Full writeup in `docs/ANALYSIS_compositional_contribution.md`
+near-random.** Full writeup in `docs/analysis/ANALYSIS_compositional_contribution.md`
 (Update 2026-05-26 section).
 
 ### Tools used
@@ -21180,11 +22475,11 @@ text-grounded analysis.
    random patch group.
 
 ### Artifacts
-- Analysis: `docs/ANALYSIS_compositional_contribution.md` (Update
+- Analysis: `docs/analysis/ANALYSIS_compositional_contribution.md` (Update
   2026-05-26 section).
 - Per-result: `pairwise_nmi.json`, `compositional_eval.json`,
   `codebook_drop_ablation.json`, `codebook_drop_ablation_subset1000.json`.
-- Combined NMI matrix: `docs/nmi_v79_combined.json`.
+- Combined NMI matrix: `result/analysis/codebook/dependence/nmi_v79_combined.json`.
 
 ---
 
@@ -21960,7 +23255,7 @@ follow-up.
 ## 2026-05-25 — MSCOCO codebook drop ablation (supplement to compositional analysis)
 
 🟢 MSCOCO drop ablation completes the per-dataset comparison started in
-`docs/ANALYSIS_compositional_contribution.md`. Mirrors Flickr25k findings:
+`docs/analysis/ANALYSIS_compositional_contribution.md`. Mirrors Flickr25k findings:
 **C_0 (global) is the dominant codebook; C_1-5 are mostly redundant**.
 
 #
@@ -22920,7 +24215,7 @@ remains SOTA**.
 🟡 Active. Single Flickr25k run probing whether the structural change
 from `Linear(chunk, 4)` → cos-sim prototype + text-derived CE supervision
 on the codon decoding stage breaks the codon-level collision bottleneck
-discovered on v62b. See `docs/SUMMARY_post_v62b_experiments.md` for the
+discovered on v62b. See `docs/analysis/SUMMARY_post_v62b_experiments.md` for the
 motivating analysis.
 
 **Single change vs v62b** (γ=0.3 residual retained):
@@ -23033,7 +24328,7 @@ recovered most of the way but still −0.0076 vs v62b. Hypotheses:
 🟢 First successful generalization of v57 SOTA setup to MSCOCO. Same
 recipe (V4 caption + routing_topp 0.7 + sinkhorn ε anneal 1.0→0.1 +
 dynamic-τ α=0.3 + lambda_wasserstein 0.05) on MSCOCO setting1 with K
-sweep. Detailed analysis: see `docs/ANALYSIS_mscoco_v63.md`.
+sweep. Detailed analysis: see `docs/analysis/ANALYSIS_mscoco_v63.md`.
 
 ### Setup
 - Dataset: MSCOCO setting1 (10K train, 5K test, 107K database, 80 class)
@@ -23132,7 +24427,7 @@ launched via `scripts/mscoco_autopilot.sh`.
 ## 2026-05-21 — v62: Residual-Conditioned Codon Head (Option A) γ-sweep — NEW ABSOLUTE SOTA
 
 🟢 ★ First successful realization of Option A from
-`docs/PLAN_high_unique_compositional_code.md`. **v62b (γ=0.3) becomes the
+`docs/design/PLAN_high_unique_compositional_code.md`. **v62b (γ=0.3) becomes the
 new absolute Flickr25k SOTA**, surpassing v57 by +0.0095 final test mAP
 **while also increasing per-codebook unique-code ratio**. Confirms the
 plan's hypothesis: feeding the post-VQ residual (`z − q`) into the codon
@@ -23291,7 +24586,7 @@ ranks. Different retrieval profile than CIBHash (sharp top, drops later).
 - 100% codebook utilization, dead=0
 - Frozen backbone + lean adapter contribution intact
 
-Full analysis: `docs/ANALYSIS_mscoco_unsup_baselines.md`.
+Full analysis: `baseline/docs/comparison/ANALYSIS_mscoco_unsup_baselines.md`.
 
 ### Code / no changes
 Existing `baseline/CIBHash.py`, `baseline/CIMON.py`, `baseline/MLS3RDUH.py`
@@ -24305,7 +25600,7 @@ Original plan / context preserved below for reference:
 | v41a | K-means on `text_part_raw` (K=128 centroids per codebook) | v40e (per-cb, K=128, bs=64) | 0 | logs/v41a_163034.log |
 | v41b | random K-sample from `text_part_raw` | v40e | 2 | logs/v41b_163034.log |
 
-**Motivation** (docs/ANALYSIS_2026-05-19.md §5-G): Per-codebook NtXent
+**Motivation** (docs/analysis/ANALYSIS_2026-05-19.md §5-G): Per-codebook NtXent
 (v40a/e) gives the best B1/B2 compositional lift but mAP regresses
 under text-on. Sinkhorn routing every forward keeps amplifying SigLIP2's
 cross-slot text uniformity (§4-1). 5-G shifts text supervision from
@@ -24402,7 +25697,7 @@ Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
 
 ---
 
-## 2026-05-19 — Comprehensive analysis writeup (docs/ANALYSIS_2026-05-19.md)
+## 2026-05-19 — Comprehensive analysis writeup (docs/analysis/ANALYSIS_2026-05-19.md)
 
 🟢 reference — full project synthesis covering 7 sections:
 
@@ -25220,7 +26515,7 @@ Pushed to `github.com:yunddonii/GroundedDNA_save` (`main`).
 
 ## 2026-05-15 — Architecture diagram for v29 (forward + losses)
 
-🟢 reference — `docs/architecture_v29.png` rendered by
+🟢 reference — `docs/paper_draft/figures/architecture_v29.png` rendered by
 `scripts/draw_architecture.py`. Solid arrows = data flow, dashed red
 arrows = loss targets. Detail boxes for the Sinkhorn-OT router
 (6 sub-steps), per-slot VQ codebook (6 × K=64 grid drawn), 6 codon
@@ -25804,7 +27099,7 @@ Procedure:
    36-bit head on cached SigLIP2, identical optimiser to the 2026-05-12
    run). CSQ skipped — its 260512 run had failed to produce a result.
    Trial names: `<method>_mscoco_dnacompare` under
-   `result_baseline/260514/`, checkpoints at `params/260514/`.
+   `result/result_baseline/260514/`, checkpoints at `params/260514/`.
 2. Re-extract sign-binary codes `{-1,+1}^36` on query (5,000) and DB
    (107,218).
 3. Convert to 18-base DNA: reshape `[N, 36] → [N, 18, 2]`, map
@@ -27138,7 +28433,7 @@ from v63b's 0.5606 to 0.5830 (the actual SOTA gain mechanism).
 
 ### Implication for paper narrative
 
-Updated claim to add to `docs/ANALYSIS_compositional_contribution.md`:
+Updated claim to add to `docs/analysis/ANALYSIS_compositional_contribution.md`:
 
 > "On MSCOCO (80 classes, 107K db), dropping the global codebook C_0
 > reduces P@1 by 9.7 percentage points (0.583 → 0.486), whereas

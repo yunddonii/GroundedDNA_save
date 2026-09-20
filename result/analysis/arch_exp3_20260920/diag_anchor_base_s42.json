@@ -1,0 +1,61 @@
+{
+ "result_dir": "result/260920+flickr25k_setting1_base_s42+bs+64+e+60+proj_lr+0.001",
+ "n_images": 256,
+ "note": "column 0 is the global slot; axes are columns 1..4",
+ "raw_cached_axis_embeddings": {
+  "concentration": [
+   0.5714,
+   0.6374,
+   0.6864,
+   0.7638,
+   0.7335
+  ],
+  "mean_cos_between_images_same_axis": [
+   0.3173,
+   0.3929,
+   0.4583,
+   0.5712,
+   0.5231
+  ],
+  "axis_mean_pairwise_cos": {
+   "mean": 0.9332,
+   "min": 0.8886,
+   "max": 0.9811
+  },
+  "residual_energy_fraction": [
+   0.6757,
+   0.5976,
+   0.5332,
+   0.4221,
+   0.4675
+  ]
+ },
+ "adapted_router_anchors": {
+  "concentration": [
+   0.3779,
+   0.381,
+   0.3103,
+   0.4308,
+   0.3388
+  ],
+  "mean_cos_between_images_same_axis": [
+   0.1392,
+   0.1237,
+   0.0901,
+   0.1596,
+   0.0939
+  ],
+  "axis_mean_pairwise_cos": {
+   "mean": 0.1557,
+   "min": -0.0005,
+   "max": 0.3103
+  },
+  "residual_energy_fraction": [
+   0.8574,
+   0.8735,
+   0.9121,
+   0.8434,
+   0.8999
+  ]
+ }
+}

@@ -1,0 +1,28 @@
+{
+ "result_dir": "result/260920+flickr25k_setting1_base_s42+bs+64+e+60+proj_lr+0.001",
+ "n_images": 256,
+ "deploy_anchor_pairwise_cos": {
+  "mean": 0.31252026557922363,
+  "min": -0.2288416177034378,
+  "max": 0.7555364370346069
+ },
+ "deploy_anchor_norm_mean": 1.0,
+ "text_prototype_initialized": true,
+ "text_prototype_pairwise_cos": {
+  "mean": 0.6806875467300415,
+  "min": 0.6305376887321472,
+  "max": 0.7075389623641968
+ },
+ "plan_deploy": {
+  "max_prob": 0.48360875248908997,
+  "effective_k": 2.8349416255950928,
+  "spread_of_patch_max": 0.16879457235336304,
+  "plan_column_corr_mean": -0.26265034079551697
+ },
+ "plan_train_text": {
+  "max_prob": 0.48360875248908997,
+  "effective_k": 2.8349416255950928,
+  "spread_of_patch_max": 0.16879457235336304,
+  "plan_column_corr_mean": -0.26265034079551697
+ }
+}

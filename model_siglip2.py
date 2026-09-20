@@ -2412,6 +2412,8 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.null_free_marginal     = bool(getattr(args, "null_free_marginal", False))          # (a-2)
         self.lambda_mec             = float(getattr(args, "lambda_mec", 0.0) or 0.0)           # (b-1)
         self.vq_bypass_epochs       = int(getattr(args, "vq_bypass_epochs", 0) or 0)           # (c-1)
+        # arch-exp-3 (P2): per-image axis-deviation representation.
+        self.axis_center            = str(getattr(args, "axis_center", "none") or "none")
         self.total_epochs           = int(getattr(args, "epoch", 60))
         # D2: the epsilon anneal has its own horizon. Using total_epochs
         # meant `-e N+1` compressed the LR cosine as well, so choosing N
@@ -2674,6 +2676,23 @@ class SigLIP2SemanticOTModel(nn.Module):
             self.to(self.device)
 
     # ====================================================== sanity helpers
+
+
+    def _axis_center_local(self, x, n_global: int = 1, mask=None):
+        """Subtract, per image, the mean across the LOCAL axis columns.
+
+        arch-exp-3 (P2). ``x`` is [B, n_global + M_local, D]. Column(s) before
+        ``n_global`` are returned untouched. With ``mask`` ([B, n_global +
+        M_local]) the mean is taken over active columns only. Pure
+        representation change: no parameters, no loss term.
+        """
+        loc = x[:, n_global:, :]
+        if mask is not None:
+            w = mask[:, n_global:].to(loc.dtype).unsqueeze(-1)
+            mu = (loc * w).sum(dim=1, keepdim=True) / w.sum(dim=1, keepdim=True).clamp_min(1e-6)
+        else:
+            mu = loc.mean(dim=1, keepdim=True)
+        return torch.cat([x[:, :n_global, :], loc - mu], dim=1)
 
     def _routing_mass_kwargs(self, feats, route_centroids_aug, route_global_text_active) -> Dict[str, Any]:
         """(a-1 / a-2, 2026-09-20) column targets for the Sinkhorn router.
@@ -4140,6 +4159,17 @@ class SigLIP2SemanticOTModel(nn.Module):
             route_centroids = local_centroids                             # [B, 5, D]
             route_part_mask_used = None
 
+        # ---- arch-exp-3 (P2) anchors: axis-deviation transport cost -------
+        # Sharpening the routing mask (P1) sent 67 % of patches to exactly one
+        # slot and still produced no axis roles, which says the cost itself does
+        # not separate the axes. Removing the component that every axis anchor
+        # of this image shares leaves the cost with only the differences.
+        if self.axis_center in ("anchors", "both") and route_centroids is not None:
+            _ng = 1 if route_global_text_active else 0
+            route_centroids = self._axis_center_local(
+                route_centroids, _ng, route_part_mask_used,
+            )
+
         # v184: EMA update text_prototype during training when text_part_tokens available.
         if (
             self.training
@@ -4999,6 +5029,23 @@ class SigLIP2SemanticOTModel(nn.Module):
             out["text_part_tokens"]   = text_part_tokens
             out["global_text_token"]  = global_text_token
             out["local_text_tokens"]  = local_text_tokens
+
+        # ---- arch-exp-3 (P2) readout: axis-deviation slot / text tokens ---
+        # Applied to BOTH sides: a slot token centred across slots has to be
+        # compared with a text token centred the same way, or every alignment
+        # term is left comparing a deviation with an absolute vector.
+        if self.axis_center in ("readout", "both"):
+            semantic_visual_tokens = self._axis_center_local(semantic_visual_tokens, 1)
+            local_semantic_visual_tokens = semantic_visual_tokens[:, 1:, :]
+            if text_part_tokens is not None:
+                text_part_tokens = self._axis_center_local(text_part_tokens, 1)
+                global_text_token = text_part_tokens[:, 0, :]
+                local_text_tokens = text_part_tokens[:, 1:, :]
+                for _k, _v in (("text_part_tokens", text_part_tokens),
+                               ("global_text_token", global_text_token),
+                               ("local_text_tokens", local_text_tokens)):
+                    if _k in out:
+                        out[_k] = _v
 
         cibhash_visual_tokens = None
         if self.cibhash_visual_projection_head:
