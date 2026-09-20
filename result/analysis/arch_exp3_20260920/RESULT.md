@@ -197,3 +197,36 @@ Two candidate readings remain, and they call for different work:
    it.
 
 Reading 2 is cheap to settle and blocks reading 1, so it goes first.
+
+## P6 — the top-p window, swept (2026-09-21, no code change)
+
+P1 showed the window is not a role lever. This sweep asks the other question it raised: how narrow
+should the window be for the things it *does* move. Four more windows, seeds 42/43/44, `archexp3_p6topp`,
+rc=0, 270 s for twelve cells. Nothing else changed.
+
+| window | patches per slot | patches owned by one slot | mAP@R | dead | unique | codebook min/median | M1 | empty slots |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| .60/.95 (recipe) | 3.07 | 4.0 % | .7453 ± .011 | .241 | .536 | .582 ± .277 | +.0065 ± .0043 | 0 % |
+| .45/.85 | 2.20 | 15.0 % | .7472 ± .002 | .174 | .588 | .842 ± .036 | −.0003 ± .0033 | 0 % |
+| .30/.70 | 1.78 | 27.4 % | .7511 ± .003 | .251 | .575 | .894 ± .091 | +.0017 ± .0014 | 0 % |
+| **.20/.60** | 1.55 | 44.5 % | **.7547 ± .005** | .208 | .580 | **.925 ± .041** | +.0005 ± .0066 | 0 % |
+| .15/.50 | 1.33 | 67.2 % | .7447 ± .012 | .177 | .593 | .884 ± .060 | −.0002 ± .0062 | 0 % |
+| .10/.40 | 1.05 | 94.8 % | .7478 ± .006 | .197 | .583 | .865 ± .080 | +.0007 ± .0038 | 0 % |
+| .05/.30 | 1.00 | 100 % | .7509 ± .014 | .219 | .555 | .588 ± .079 | −.0007 ± .0055 | 0 % |
+
+**.20/.60 is the best cell of this entire program on retrieval**, +.0094 over the recipe window with
+half its seed spread, and it is simultaneously the healthiest codebook measured anywhere here:
+worst-codebook perplexity .925 of median against .582, and the .277 seed spread that made the
+baseline unpredictable becomes .041.
+
+The optimum is interior in both directions. Fully hard routing at .05/.30 sends every patch to one
+slot and the collapse comes back, .925 → .588 — so the gain is not "sharper is better" but "neither
+end is good". No window produces empty slots on Flickr25K, and M1 is flat across the whole sweep,
+which is P1's verdict re-confirmed over five more settings.
+
+**Status: adopt-candidate, not adopted.** It is one dataset, at the 4-epoch stage-1 cell, on
+validation rows. Before it can touch the recipe it needs the same sweep on a second dataset, because
+this project has a recorded Flickr/MS-COCO asymmetry for related routing knobs (2026-06-18) and a
+recorded CIFAR empty-slot failure for sharp windows (2026-08). That confirmation was not launched
+here: the current-protocol MS-COCO selection cell could not be reconstructed from an existing
+`args.txt`, and improvising one risks a wrong per-dataset delta or a read of the official test split.

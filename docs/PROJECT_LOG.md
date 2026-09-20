@@ -487,6 +487,43 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-21 [OFF-PROTOCOL, branch arch-exp-2026-09 — adopt-candidate, not adopted] The confidence-adaptive top-p window swept end to end: .20/.60 gives the best retrieval and the healthiest codebook of any cell in the arch-exp programs, and the optimum is interior
+
+**Status:** 🟡 exploratory, off-protocol, Flickr25K only. Must not enter `docs/paper_draft/`. Record:
+`result/analysis/arch_exp3_20260920/RESULT.md` §P6, cells `cells_p6.txt`, run `archexp3_p6topp`
+rc=0 270 s, 12 probe JSONs. No code change: the delta is `--routing_adaptive_topp_min/max` only.
+
+Flickr25K stage-1 selection recipe, seeds 42/43/44, direct launch, everything else as SPEC.
+
+| window | patches/slot | one-slot patches | mAP@R | dead | unique | cb min/median | M1 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| .60/.95 recipe | 3.07 | 4.0 % | .7453 ± .011 | .241 | .536 | .582 ± .277 | +.0065 |
+| .45/.85 | 2.20 | 15.0 % | .7472 ± .002 | .174 | .588 | .842 ± .036 | −.0003 |
+| .30/.70 | 1.78 | 27.4 % | .7511 ± .003 | .251 | .575 | .894 ± .091 | +.0017 |
+| **.20/.60** | 1.55 | 44.5 % | **.7547 ± .005** | .208 | .580 | **.925 ± .041** | +.0005 |
+| .15/.50 | 1.33 | 67.2 % | .7447 ± .012 | .177 | .593 | .884 ± .060 | −.0002 |
+| .10/.40 | 1.05 | 94.8 % | .7478 ± .006 | .197 | .583 | .865 ± .080 | +.0007 |
+| .05/.30 | 1.00 | 100 % | .7509 ± .014 | .219 | .555 | .588 ± .079 | −.0007 |
+
+🟢 **.20/.60 Pareto-dominates the recipe window** on retrieval (+.0094 with half the seed spread),
+on worst-codebook perplexity (.582 → .925, seed spread .277 → .041), on dead codes (.241 → .208) and
+on unique codes (.536 → .580), at no measured cost. No window empties a slot on Flickr25K.
+
+🔬 **The optimum is interior in both directions.** Fully hard routing at .05/.30 puts every patch in
+exactly one slot and the codebook collapse returns (.925 → .588). So the mechanism is not "sharper
+is better": too soft and every slot pools the same patches, too hard and the EMA sees too few
+patches per codeword. M1 is flat across all seven windows, which re-confirms P1's verdict over five
+further settings — the window is a codebook-health knob, not a slot-role knob.
+
+🔴 **Not adopted, and what it needs.** One dataset, one 4-epoch stage-1 cell, validation rows. The
+project has a recorded Flickr/MS-COCO asymmetry for related routing knobs (2026-06-18) and a
+recorded CIFAR empty-slot failure at sharp windows (2026-08), so a second-dataset sweep is required
+before the recipe changes. It was not launched here because the current-protocol MS-COCO selection
+cell could not be rebuilt from an existing `args.txt`; reconstructing it is the first task if this
+is carried forward.
+
+---
+
 ## 2026-09-20 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] Six more slot-role mechanisms, none of which passes; the axis signal is reachable in the slot token and not in the codeword; and the role metric itself is now in question
 
 **Status:** 🟡 exploratory, off-protocol. Must not enter `docs/paper_draft/`. Records:
