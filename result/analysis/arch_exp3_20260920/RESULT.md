@@ -433,3 +433,52 @@ strength, the two possible readings left after arch-exp-3 collapse to one: the a
 hash are competing for the same capacity, and the interpretability claim belongs where §4.7 already
 puts it. Every centred arm, repaired or not, sits below the uncentred baseline on the vector
 endpoint, so the two endpoints agree on this.
+
+## Necessity ablation — what caption supervision actually gives the code (2026-09-21)
+
+`--disable_text_supervision` on the stage-1 Flickr25K cell: text inputs are nulled, so routing uses
+codebook means from the first step and every text-derived loss is exactly 0.0 (verified in the log).
+Seeds 42/43/44, `archexp3_notext`, rc=0, 113 s. Compared with the text-supervised baseline on the
+same rows through the same deployment forward.
+
+| endpoint | text ON | text OFF | gap |
+|---|---:|---:|---:|
+| **caption-word decodability from the code, all 16 slot×axis cells** | **.3543 ± .0027** | **.3565 ± .0026** | −.0022 |
+| shuffled floor (image correspondence destroyed) | .2274 | .2270 | — |
+| best slot per axis | .3658 | .3625 | +.0033 |
+| M2 dataset-label decoding | .7957 ± .0153 | .8083 ± .0019 | −.0126 |
+| M1 role advantage | +.0065 ± .0043 | −.0010 ± .0022 | +.0075 |
+| **codeword → own axis, vector endpoint** | **.3075 ± .0053** | **.2515 ± .0032** | **+.0560** |
+| mAP@R | .7453 ± .0108 | .7294 ± .0059 | +.0159 |
+| unique codes | .536 | .486 | +.050 |
+| dead codes | .241 | .177 | |
+| codebook min/median | .582 ± .277 | .843 ± .052 | |
+
+per-seed word decodability — ON .3551 / .3506 / .3571, OFF .3598 / .3534 / .3562.
+
+**Caption-word decodability does not come from the captions.** A model that never sees a caption
+yields codes from which the same axis-distinctive words are read equally well: .357 against .354,
+with seed spreads of .003 and a shuffled floor of .227 for both. This replicates the 2026-07-15 A2
+finding at the word level and under the current protocol: the language content a post-hoc dictionary
+reads off the code is inherited from the frozen text-aligned backbone, and any 30-bit hash of those
+features would carry it.
+
+**What captions do give, measured on the same rows:**
+1. retrieval, +.016 mAP@R here and −.012 to −.052 across four datasets in July;
+2. code diversity, +.050 unique codes;
+3. **codeword-vector alignment with the axis caption of the same image**, .3075 against a no-text
+   .2515 that is chance to the third decimal — a separation of ten seed SDs, and the only
+   interpretability endpoint in this program that captions are necessary for;
+4. a small role advantage, +.0065 against −.0010, at the edge of what three seeds can show.
+
+**An unplanned finding.** Without captions the codebook is healthy: worst-codebook perplexity .843
+of median with seed spread .052, against .582 ± .277 with them. The seed-dependent codebook
+collapse that P1/P2-anchors repair is *caused by text-driven routing*; it is a cost of the text
+path, not a property of the quantiser.
+
+**What this means for the claim.** "Captions are necessary for a natural-language-interpretable
+code" is false if interpretability means post-hoc word decoding. It is true, and cleanly so, if it
+means that each slot's codeword lives in the caption space of its axis: that alignment is at chance
+without captions and .31 with them, .37 with axis-centred anchors (P2), .45 with the pre-quantisation
+term (P5). The reading of a code is then a nearest-caption or nearest-word lookup in the shared
+embedding space, which a caption-free model cannot perform above chance.

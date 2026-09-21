@@ -487,6 +487,49 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-21 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] Necessity ablation under the current protocol: word decodability of the code is identical without captions; what captions give is retrieval, diversity and codeword–caption alignment, and they are also what collapses the codebook
+
+**Status:** 🟡 exploratory, off-protocol. Must not enter `docs/paper_draft/`. Record:
+`result/analysis/arch_exp3_20260920/RESULT.md` §"Necessity ablation"; cells `cells_notext.txt`, run
+`archexp3_notext` rc=0 113 s; probes and `diag_quantgap_notext_s*.json`. No code change:
+`--disable_text_supervision` (2026-07-15 A2 switch) on the Flickr25K stage-1 cell, seeds 42/43/44.
+All text-derived losses log exactly 0.0; routing is codebook-mean from step one.
+
+| endpoint | text ON | text OFF | gap |
+|---|---:|---:|---:|
+| caption-word decodability, 16 slot×axis cells | .3543 ± .0027 | .3565 ± .0026 | −.0022 |
+| shuffled floor | .2274 | .2270 | — |
+| M2 label decoding | .7957 | .8083 | −.0126 |
+| M1 role advantage | +.0065 ± .0043 | −.0010 ± .0022 | +.0075 |
+| **codeword → own axis (vector)** | **.3075 ± .0053** | **.2515 ± .0032** | **+.0560** |
+| mAP@R | .7453 ± .0108 | .7294 ± .0059 | +.0159 |
+| unique codes | .536 | .486 | +.050 |
+| codebook min/median | .582 ± .277 | **.843 ± .052** | |
+
+🔴 **Post-hoc word decodability is not caption-dependent.** A model that never sees a caption
+yields codes from which the axis-distinctive words are read equally well (.357 vs .354, seed spread
+.003, shuffled floor .227 for both). This is the 2026-07-15 A2 result (NMI/B1 unchanged without
+text) reproduced at the word level under the current unsupervised stage-1 protocol. The language
+content a frequency dictionary reads off the code is inherited from the frozen text-aligned backbone.
+
+🟢 **What captions are necessary for, on the same rows:** retrieval (+.016 here; −.012 to −.052 on
+four datasets in July), unique codes (+.050), and **codeword-vector alignment with the axis caption
+of the same image**: .3075 against a no-text .2515 that equals chance to the third decimal, a
+ten-seed-SD separation. That endpoint rises to .370 with axis-centred anchors (P2anc, no added loss,
++.006 mAP) and .454 with the pre-quantisation cross-axis term (P5prequ, −.045 mAP).
+
+🔬 **Unplanned:** the seed-dependent codebook collapse is *caused by text-driven routing*. Without
+captions the worst codebook sits at .843 of median with spread .052; with them .582 ± .277. The
+window and anchor repairs of arch-exp-3 were repairing a cost of the text path.
+
+**Claim consequence.** "Captions are necessary for a natural-language-interpretable code" is false
+if interpretability means post-hoc word decoding, and true if it means each slot's codeword lives in
+the caption space of its axis, read by nearest-caption/nearest-word lookup in the shared embedding
+space. The second is the claim the evidence supports; its magnitude is modest and its strongest
+loss-free lever is P2anc.
+
+---
+
 ## 2026-09-21 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] The codebook can be repaired and the role still does not appear: the quantiser hypothesis is closed, and with it the last reading that was not the capacity trade-off
 
 **Status:** 🟡 exploratory, off-protocol. Must not enter `docs/paper_draft/`. Record:
