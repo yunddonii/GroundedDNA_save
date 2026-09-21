@@ -487,6 +487,60 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-21 Evidence plan stage 0–1: the s4.7 decoding advantage is structural, captions add to it only on MS-COCO, and the F09 shared-codebook arm collapses at deployment so it cannot test multiple codebooks
+
+**Status:** 🟡 analysis (no training). Records: `result/analysis/stage1_f09_decoding/` (scripts, JSON,
+train-code metadata; the 34 MB train-code npz files stay local). Also in this entry: the §610.3
+paper-copy replacement and the §612 driver repair.
+
+**D4 paper copy (§610.3, user-authorised).** `docs/paper_draft/tables/d4_mscoco_exclusion_sensitivity/`:
+`d4_exclusion_table.tex` is now the annotation header + the accepted derivative table (body
+c0090a42, whole file 9fed6816); `paper_copy_receipt.json` binds those displayed bytes, the derivative
+receipt (copied as `derivative_receipt.json`, 2857d723) and the historical source; `bundle_receipt.json`
+(f2400697) is kept unchanged as source authority. Old copy c1baec6d backed up. No number changed.
+The draft §4.5.4 prose still says "52 comparisons" (48 main + 4 PRIMO diagnostic) — not edited.
+
+**Stage 0 — §612 driver repair.** `scripts/interp_control_a_partitions.py` ba6dcf96 → 3feaa408:
+the control is derived from the approved Phase-4 aggregate and read at its manifest digests with an
+exact query set (§612.1); the probe and its `dna_utils` dependencies (5 pinned files) execute from
+verified in-memory bytes (§612.2); each analysis record is admitted only at the digest its approved
+F10 aggregate lists, with all eight decoder settings and the full analysis policy (incl.
+`gc_policy_version`) compared, and the projector refuses another policy version (§612.3); the ours
+gate and the output-exists refusal run before the 22 arms, results are written only after all cells
+score, and a panel is sealed complete only as all 12 cells (§612.3/§612.5). Re-running Flickr s42
+through it reproduces the stored values exactly (ours .741234, contiguous .639626, best flat
+`permuted_15` .641507, CI [+.092971, +.105541]). `tests/test_interp_control_a_admission.py` (2e84699a,
+18 tests). The audited original, in a sandbox, accepts a query superset and changed control bytes;
+the repaired driver refuses both. A dated correction note (execution order, active-symbol counts,
+seed-42 winning cut) is appended to `docs/INTERPRETABILITY_CONTROL_A_RESULTS_2026-09-17.md`;
+the draft §4.7f sentence is not edited.
+
+**Stage 1 — paper s4.7 decoding on the F09 ablation cells (seed 42).** Pinned probe, approved decoder
+settings and bio-projection policy, exactly the approved panel's query rows (order) and train rows
+(set). MS-COCO train codes were encoded in memory with the extractor's own steps, validated by
+re-encoding 2,048 DB rows identically to each run's `extract_db.npz`, and bound to the query's checkpoint.
+
+| dataset | CIBHash chunk | A5_both (full recipe) | A2_no_text | A4_shared_codebook |
+|---|---:|---:|---:|---:|
+| Flickr25k | .6396 | .7412 | .7523 (+.0111, CI [+.0069, +.0154]) | .7645 (invalid) |
+| NUS-WIDE | .6050 | .7195 | .7250 (+.0055, CI [+.0009, +.0102]) | .7273 (invalid) |
+| MS-COCO | .5058 | .6582 | **.6164 (−.0419, CI [−.0455, −.0382])** | .6681 (invalid) |
+
+A5_both reproduces the approved P3 ours value to four decimals on all three datasets.
+
+🔬 **The advantage over the flat control is mostly structural.** The caption-free model still beats
+CIBHash by +.113 / +.120 / +.111. That supports the compositional-code claim (3), not captions.
+🔬 **Captions add decodability only on MS-COCO** (−.042 without them); on Flickr25K and NUS-WIDE
+decoding is slightly higher without captions. s4.7 alone cannot carry claim (2).
+🔴 **The F09 A4 arm is not a shared-vs-separate-codebook test.** At deployment the shared bank makes
+the four local anchors identical: all four local slots pick the same codeword for 100% of DB images on
+Flickr25K and MS-COCO; on NUS-WIDE and CIFAR-10 slots 1–3 are identical and slot 4 collapses to one
+codeword. Unique full codes fall to .123 / .052 / .045 / .032. Its higher "decoding" reads one
+codeword through four different codon heads. Claim (1) currently has no valid ablation, and the
+draft §4.8 A4 row reports this collapsed arm.
+
+---
+
 ## 2026-09-21 Audit §602/§608/§610 closed the §600 and §601 HIGH defects; §608.2's optional-strategy residual repaired; §610.3's paper-copy residual left alone because it sits in docs/paper_draft
 
 **Status:** 🟢 working-tree source repair + tests, uncommitted like the rest of the main-line state

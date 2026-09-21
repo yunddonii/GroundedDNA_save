@@ -1,0 +1,10 @@
+{
+ "run_dir": "result/260911+mscoco_setting1_promptAblA_mscoco_A_v5b_A5_both_P0refit_e39+bs+64+e+40+proj_lr+0.001",
+ "checkpoint": "result/260911+mscoco_setting1_promptAblA_mscoco_A_v5b_A5_both_P0refit_e39+bs+64+e+40+proj_lr+0.001/model_state_dict.pth",
+ "checkpoint_sha256": "5d542b5a83716dc062b8f3014afaf877af9ba9b671feb42667bf51e71f314f1a",
+ "inference_epoch": 39,
+ "rows": 10000,
+ "npz_sha256": "9c2bc72c2e7556360b76d2122dd9e207c0f703232b50a72e7e9ccff8bbc69ee8",
+ "db_check_rows": 2048,
+ "db_check": "identical ids and base indices"
+}

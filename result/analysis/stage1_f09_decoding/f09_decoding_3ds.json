@@ -1,0 +1,214 @@
+{
+ "cells": {
+  "flickr25k": {
+   "approved_cibhash_chunk": 0.639626367989389,
+   "approved_ours_codon_P3": 0.7412335069016764,
+   "arms": {
+    "A2_no_text": {
+     "concept_mAP": 0.7523077141882517,
+     "n_test": 2000,
+     "n_train": 5000,
+     "per_slot": [
+      0.770652501440047,
+      0.7712260360789948,
+      0.7565713903737169,
+      0.7355515477721182,
+      0.7275370952763812
+     ],
+     "run_dir": "/home/yschoi/GroundedDNA/result/260910+flickr25k_setting1_promptAblA_flickr_A_v4_A2_no_text_P0refit_e4+bs+64+e+5+proj_lr+0.001"
+    },
+    "A4_shared_codebook": {
+     "concept_mAP": 0.7645030851210958,
+     "n_test": 2000,
+     "n_train": 5000,
+     "per_slot": [
+      0.7658345029178848,
+      0.7700506951167786,
+      0.7655139435845361,
+      0.7571053300072311,
+      0.7640109539790483
+     ],
+     "run_dir": "/home/yschoi/GroundedDNA/result/260910+flickr25k_setting1_promptAblA_flickr_A_v4_A4_shared_codebook_P0refit_e4+bs+64+e+5+proj_lr+0.001"
+    },
+    "A5_both": {
+     "concept_mAP": 0.7412335069016764,
+     "n_test": 2000,
+     "n_train": 5000,
+     "per_slot": [
+      0.7717124289507628,
+      0.6580476967572783,
+      0.7713094452804246,
+      0.7560269215821217,
+      0.7490710419377952
+     ],
+     "run_dir": "/home/yschoi/GroundedDNA/result/260910+flickr25k_setting1_promptAblA_flickr_A_v4_A5_both_P0refit_e4+bs+64+e+5+proj_lr+0.001"
+    }
+   },
+   "dataset": "Flickr25k",
+   "record_sha256": "f5199b6c0bec884ec69e9bc1b4de0ce779e99471e80e6703e6e6a16b7000ab72",
+   "vs_A5_both": {
+    "A2_no_text": {
+     "ci95": [
+      0.006867529739994141,
+      0.01543821114786998
+     ],
+     "delta": 0.011074207286575266,
+     "excludes_zero": true
+    },
+    "A4_shared_codebook": {
+     "ci95": [
+      0.01824486673723954,
+      0.02818606132948055
+     ],
+     "delta": 0.02326957821941933,
+     "excludes_zero": true
+    }
+   }
+  },
+  "mscoco": {
+   "approved_cibhash_chunk": 0.5057727410365087,
+   "approved_ours_codon_P3": 0.6582261881219826,
+   "arms": {
+    "A2_no_text": {
+     "concept_mAP": 0.6163528443772212,
+     "n_test": 5000,
+     "n_train": 10000,
+     "per_slot": [
+      0.7103581620250686,
+      0.6037170201074392,
+      0.6047486609923918,
+      0.5854494427067682,
+      0.5774909360544384
+     ],
+     "run_dir": "/home/yschoi/GroundedDNA/result/260911+mscoco_setting1_promptAblA_mscoco_A_v5b_A2_no_text_P0refit_e39+bs+64+e+40+proj_lr+0.001"
+    },
+    "A4_shared_codebook": {
+     "concept_mAP": 0.6680951242987334,
+     "n_test": 5000,
+     "n_train": 10000,
+     "per_slot": [
+      0.6765465741708743,
+      0.6886874021682734,
+      0.6817702314476995,
+      0.6598494093525991,
+      0.6336220043542203
+     ],
+     "run_dir": "/home/yschoi/GroundedDNA/result/260911+mscoco_setting1_promptAblA_mscoco_A_v5b_A4_shared_codebook_P0refit_e39+bs+64+e+40+proj_lr+0.001"
+    },
+    "A5_both": {
+     "concept_mAP": 0.6582261881219826,
+     "n_test": 5000,
+     "n_train": 10000,
+     "per_slot": [
+      0.7082143476047517,
+      0.6750446804558609,
+      0.6591187092011369,
+      0.6455627066848105,
+      0.6031904966633529
+     ],
+     "run_dir": "/home/yschoi/GroundedDNA/result/260911+mscoco_setting1_promptAblA_mscoco_A_v5b_A5_both_P0refit_e39+bs+64+e+40+proj_lr+0.001"
+    }
+   },
+   "dataset": "MSCOCO",
+   "record_sha256": "def1c27fcb9b899cf0c630d6bb5b7029dd348f7672695d23053f449283ffb880",
+   "vs_A5_both": {
+    "A2_no_text": {
+     "ci95": [
+      -0.045519988476921555,
+      -0.03818702022849085
+     ],
+     "delta": -0.04187334374476148,
+     "excludes_zero": true
+    },
+    "A4_shared_codebook": {
+     "ci95": [
+      0.006586983183024401,
+      0.013179146089084489
+     ],
+     "delta": 0.009868936176750776,
+     "excludes_zero": true
+    }
+   }
+  },
+  "nuswide": {
+   "approved_cibhash_chunk": 0.6049852511681703,
+   "approved_ours_codon_P3": 0.7195337785599295,
+   "arms": {
+    "A2_no_text": {
+     "concept_mAP": 0.7250209848942063,
+     "n_test": 2100,
+     "n_train": 10500,
+     "per_slot": [
+      0.7553134153504769,
+      0.72056295999772,
+      0.728414948608028,
+      0.7291038162312712,
+      0.6917097842835352
+     ],
+     "run_dir": "/home/yschoi/GroundedDNA/result/260910+nuswide_setting1_promptAblA_nuswide_A_v4_A2_no_text_P0refit_e4+bs+64+e+5+proj_lr+0.001"
+    },
+    "A4_shared_codebook": {
+     "concept_mAP": 0.7272716315634913,
+     "n_test": 2100,
+     "n_train": 10500,
+     "per_slot": [
+      0.7454893609023786,
+      0.7323392261039007,
+      0.7329778071750456,
+      0.7238582963771848,
+      0.7016934672589468
+     ],
+     "run_dir": "/home/yschoi/GroundedDNA/result/260910+nuswide_setting1_promptAblA_nuswide_A_v4_A4_shared_codebook_P0refit_e4+bs+64+e+5+proj_lr+0.001"
+    },
+    "A5_both": {
+     "concept_mAP": 0.7195337785599295,
+     "n_test": 2100,
+     "n_train": 10500,
+     "per_slot": [
+      0.7523312544338019,
+      0.7009319224430597,
+      0.715277081827115,
+      0.7296809480176151,
+      0.6994476860780562
+     ],
+     "run_dir": "/home/yschoi/GroundedDNA/result/260911+nuswide_setting1_promptAblA_nuswide_A_v4_A5_both_P0refit_e4+bs+64+e+5+proj_lr+0.001"
+    }
+   },
+   "dataset": "NUSWIDE",
+   "record_sha256": "b55bbee31a7cdab477a529e378fd69d1ad5adad559e85983f0acc21f74ce3ca9",
+   "vs_A5_both": {
+    "A2_no_text": {
+     "ci95": [
+      0.0009461438209500018,
+      0.010190389120879759
+     ],
+     "delta": 0.005487206334276795,
+     "excludes_zero": true
+    },
+    "A4_shared_codebook": {
+     "ci95": [
+      0.003408350344008079,
+      0.012521735728268786
+     ],
+     "delta": 0.007737853003561779,
+     "excludes_zero": true
+    }
+   }
+  }
+ },
+ "driver_sha256": "3feaa408c04ad9d11f8dfb84c5acee0a375f8e6a6ca9d590d68263d3769356b1",
+ "executed_dependencies": {
+  "dna_utils/__init__.py": "b20f32c8266c4bbdd4efa88fc1ce23bb17cacd7c76fa7ddcdd04437275c082e3",
+  "dna_utils/bio_constraints.py": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+  "dna_utils/csv_logger.py": "68450e316bf775989f547b2593131e767e24903b3bef0893bda7a27055cb8d6f",
+  "dna_utils/dna_code_utils.py": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+  "dna_utils/extraction_validation.py": "bd126a04aac5d1b51eca0379180924d0ad9e80b8d6bae6c2784c86a12c88c8ca",
+  "dna_utils/gc_policy.py": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+  "dna_utils/runtime_state.py": "cdab32494012f3f7199c7f05af81af547f5ddcbeb2131e166787dab94d26e333",
+  "dna_utils/text_description_processor.py": "e2028a9d007de711eebcb1b00e7a5fcb37e593d06c28231f3fa9bbf0a0541221",
+  "dna_utils/training_utils.py": "f1a6ef9a0383312e4d52e0d693656c778ea620e53e69dc61f75d2510946cddb8",
+  "dna_utils/visualization.py": "f71796319f19915371ae1ba12e25f6fa37a30429860c6d84a15aa222607c25bd",
+  "dna_utils/vlm_qwen25_descriptions.py": "0f8df8be6fc69282b4b50ebf65f799c84c250bb7d63b11a4b64683d4aaf05fee"
+ },
+ "probe_sha256": "1f8cf34d9afc545ea5d4e864fb7db33e417f006901f66a033fa1b178cfe8ce64"
+}
