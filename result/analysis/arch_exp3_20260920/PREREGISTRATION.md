@@ -105,3 +105,21 @@ withdrawn — it is moved behind P2.
 
 **Entry gate for the `--axis_center` code.** Cell `gate_ac`, the baseline command on seed 42 with the
 new flag at its default, compared value-by-value against `base_s42`.
+
+**2026-09-21, priority run.** Four additions, all outside the original §2 list, run in the order the
+user set. (i) A metric-calibration control with no model and no training, `m1_calibration.py`, which
+takes precedence over further mechanism search because every §4 verdict depends on M1's scale.
+(ii) The MS-COCO transfer test of the .20/.60 window, which §5 already required of any carried arm;
+it is run here even though the window failed §4 criterion 1, because its gain was on the secondary
+endpoints, which §5 does not cover. (iii) `--quant_center_local` and `--quant_center_rescale`, new
+arms motivated by the P5 result, screened against the same §4 rule with `p4drop` as their control
+because they require `--lambda_text_code_kl 0.0`. (iv) `--lambda_text_code_kl 0.0` on MS-COCO, the
+second-dataset check of the one objective simplification §P4 found. Endpoints and the screening rule
+are unchanged. The vector endpoint remains post-hoc and decides nothing.
+
+**Deviation recorded.** MS-COCO cells ran in a detached worktree at the same commit so the main tree
+stayed editable; the four source files were verified byte-identical before launch. MS-COCO cells
+were rebuilt from the Flickr cell plus per-dataset deltas read from `scripts/train_mscoco_F2_sweep_clip.sh`
+and `scripts/phase3_selection_matrix.py`, not from a recorded MS-COCO `args.txt`, because none exists
+on the current protocol. `--phase3_hf_identity_sha256` is carried over from the Flickr cell: it names
+the frozen CLIP snapshot, whose own pins are identical in both commands, and it is not in either seal.

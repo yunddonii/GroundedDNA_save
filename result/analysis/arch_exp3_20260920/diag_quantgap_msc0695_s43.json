@@ -1,0 +1,19 @@
+{
+ "result_dir": "result/260921+mscoco_setting1_msc0695_s43+bs+64+e+60+proj_lr+0.001",
+ "n_images": 512,
+ "note": "deployment forward (no text reaches the model); captions used only as the target",
+ "pre_quantisation_slot_token": {
+  "code_picks_own_axis": 0.2593,
+  "axis_picks_own_code": 0.2617,
+  "chance": 0.25,
+  "mean_diag_cos": 0.2535,
+  "mean_offdiag_cos": 0.2525
+ },
+ "quantised_codeword": {
+  "code_picks_own_axis": 0.3496,
+  "axis_picks_own_code": 0.4282,
+  "chance": 0.25,
+  "mean_diag_cos": 0.2533,
+  "mean_offdiag_cos": 0.2185
+ }
+}

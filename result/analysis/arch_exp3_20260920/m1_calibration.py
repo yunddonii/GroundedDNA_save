@@ -54,6 +54,11 @@ def main():
     for line in open(getattr(args, "qwen_text_cache_path", None)):
         d = json.loads(line)
         caps[str(d["image_id"])] = {k: str(d["codebook_texts"].get(k, "") or "") for k in AXES}
+    # MS-COCO keys images as "images/train2014/<file>"; the ids built here are
+    # "images/" + basename. Add that spelling as an alias where it is not
+    # already a key, which leaves Flickr25K keys untouched.
+    caps.update({("images/" + os.path.basename(k)): v for k, v in caps.items()
+                 if ("images/" + os.path.basename(k)) not in caps})
     id_opt, id_val = ids[:n_opt], ids[n_opt:]
     vocab = distinctive_vocab(caps, id_opt)
     T_opt = {ax: multi_hot(caps, id_opt, ax, vocab[ax]) for ax in AXES}

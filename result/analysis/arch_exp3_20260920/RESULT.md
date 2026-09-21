@@ -354,3 +354,43 @@ Every quantiser-side arm sits **below** the baseline on this endpoint, P7b inclu
 M1 mean, which came with a seed spread as large as itself, is not corroborated: on the endpoint that
 separates arms most sharply it is .278 against the baseline's .307. Read together, the two endpoints
 agree that the quantiser intervention did not create a role.
+
+## Priority 4 — is `text_code_kl` removable on a second dataset? (2026-09-21)
+
+Same MS-COCO stage-1 cell, single delta `--lambda_text_code_kl 0.10 → 0.0`, seeds 42/43/44,
+`archexp3_mscoco_tckl`, rc=0, 1749 s. Twelve loss terms become eleven.
+
+| | MS-COCO tckl .10 | MS-COCO tckl 0.0 | Flickr25K tckl .05 | Flickr25K tckl 0.0 |
+|---|---:|---:|---:|---:|
+| mAP@R | .6396 ± .003 | .6369 ± .008 | .7453 ± .011 | .7409 ± .009 |
+| per-seed mAP | .6393 / .6359 / .6436 | .6258 / .6411 / .6437 | — | — |
+| dead codes | .004 | **.001** | .241 | .232 |
+| unique codes | .358 | **.312** | .536 | .517 |
+| M2 label decoding | .702 | .704 | .796 | **.803** |
+| codebook min/median | .853 | **.917** | .582 | **.672** |
+| M1 | +.0036 ± .0039 | +.0023 ± .0023 | +.0065 ± .0043 | +.0078 ± .0009 |
+
+**The term is removable on both datasets, with the same shape of trade.** Retrieval costs .0027 on
+MS-COCO and .0044 on Flickr25K, both inside the seed spread of the cell that loses them; the codebook
+gets better balanced on both (.853 → .917 and .582 → .672) and loses dead codes; the role metric does
+not move on either. The one cost that is not noise is unique codes, −.046 on MS-COCO and −.019 on
+Flickr25K.
+
+**Verdict: a defensible simplification, on branch evidence.** Eleven terms behave like twelve on two
+datasets. Like the window, it is a stage-1 validation-row result and would have to be confirmed
+through the refit/test protocol before the paper's recipe changes. Unlike the window, it transfers.
+
+## M1 calibrated on MS-COCO as well
+
+Same construction, MS-COCO split, 1,000 validation rows against Flickr's 500.
+
+| role fraction a | 0.00 | 0.10 | 0.25 | 1.00 |
+|---|---:|---:|---:|---:|
+| M1, MS-COCO | +.0014 | +.0087 | +.0229 | +.1381 |
+| M1, Flickr25K | −.0020 | +.0123 | +.0280 | +.1306 |
+| code → own axis, MS-COCO | .257 | .294 | .387 | .933 |
+
+The scale is the same on both datasets, so the cross-dataset comparisons above are on one ruler.
+MS-COCO's trained M1 of +.0036 sits at a ≈ .04 and Flickr25K's +.0065 at a ≈ .05: both models hold
+about a twentieth of a full role. Their vector endpoints, .355 and .307, read a ≈ .20 and a ≈ .09 —
+the same divergence between the two endpoints, on both datasets.

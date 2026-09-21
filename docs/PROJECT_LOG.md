@@ -487,6 +487,107 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-21 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] The role metric is calibrated and sound; the top-p window gain does not survive MS-COCO; the quantiser intervention fails on both endpoints; `text_code_kl` is removable on two datasets
+
+**Status:** 🟡 exploratory, off-protocol. Must not enter `docs/paper_draft/`. Records:
+`result/analysis/arch_exp3_20260920/` (`RESULT.md` §Priority 1/2/3 and §P6, `m1_calibration.py` +
+3 JSONs, `quant_gap_diag.py` + 45 JSONs, cells and probes). Code `036a0fb`. MS-COCO ran in a detached
+worktree at the same commit, `/data/yschoi/gdna_wt_mscoco`, verified byte-identical on the four
+source files first. `main` untouched; `docs/paper_draft/` not modified today.
+
+Run in the priority order set on 2026-09-21. Three entry gates, each 280/280 logged values identical
+with the new flags at their defaults.
+
+### 1. M1 is calibrated, and every earlier verdict stands
+
+Codes were synthesised with a known amount of role structure: slot m is the k-means label, K=128, of
+`normalise((1-a)·global_caption + a·axis_m_caption)`, on the probe's own split, vocabulary and
+decoder. No model, no training.
+
+| role fraction a | 0.00 | 0.05 | 0.10 | 0.25 | 0.50 | 1.00 |
+|---|---:|---:|---:|---:|---:|---:|
+| M1 | −.0020 ± .0032 | +.0051 | **+.0123 ± .0011** | +.0280 ± .0029 | +.0734 | +.1306 |
+| code → own axis | .247–.253 | .267–.275 | .306–.316 | .416–.422 | .679 | .911 |
+
+🟢 M1's null is −.002 ± .003, it separates a 10 % role from noise fourfold, and it is monotone across
+the range; the pre-registered .020 threshold is a ≈ .18. **The ten "no role" verdicts of arch-exp-2
+and arch-exp-3 are not a measurement artefact.** On this scale the trained models hold a ≈ .05, about
+a twentieth of what quantising the axis caption directly would give. The calibration also resolves the
+endpoint disagreement: the two endpoints agree everywhere on synthetic codes and part only on the arm
+that optimises embedding alignment, whose codewords point at the right caption vectors without
+predicting the axis-distinctive words any better.
+
+### 2. The .20/.60 window does not transfer to MS-COCO
+
+MS-COCO stage-1 selection cell, N=39, seeds 42/43/44, per-dataset deltas read from the MS-COCO
+trainer and the selection matrix, four provenance pins from `mscoco.stage1.input-seal.json`, split
+10,000 / 9,000 / 1,000.
+
+| window | patches/slot | mAP@R | dead | codebook min/median | M1 |
+|---|---:|---:|---:|---:|---:|
+| .60/.95 recipe | 3.05 | .6396 ± .003 | .004 | .853 | +.0036 ± .0039 |
+| .20/.60 candidate | 1.70 | .6369 ± .012 | .005 | **.931** | +.0011 ± .0026 |
+
+🔴 **Withdrawn as a universal recipe change.** Flickr gained +.0094 mAP; MS-COCO loses .0027, inside
+its own seed spread, and is worse on two seeds of three. The mechanism still fires and the codebook
+still improves, but MS-COCO's codebook was never sick — .004 dead against Flickr's .241 — so there
+was nothing to repair. This is the Flickr/MS-COCO asymmetry the 2026-06-18 record predicted for a
+related routing knob. It survives only as a possible Flickr-specific per-dataset delta, and that
+would have to go through the refit/test protocol, not a branch screening cell.
+
+### 3. Quantising the deviation does not create a role either
+
+`--quant_center_local` subtracts the per-image mean across local slots **only from the quantiser
+input** and restores it on the output, so the codeword index follows the deviation while the
+retrieval path keeps the shared content. `--quant_center_rescale` returns each centred token to its
+original norm, invertibly. `--lambda_text_code_kl 0.0` throughout, control `p4drop`.
+
+| | base | p4drop | centre | centre+rescale | +window | window alone |
+|---|---:|---:|---:|---:|---:|---:|
+| M1 | +.0065 | +.0078 | −.0026 | **+.0096 ± .0094** | +.0015 | −.0009 |
+| mAP@R | .7453 | .7409 | .7499 | **.7588** | **.6790** | .7491 |
+| dead | .241 | .232 | .680 | .586 | .707 | .223 |
+| codebook min/median | .582 | .672 | .511 | **.125** | .495 | .865 |
+| code → own axis | .307 | .302 | .261 | .278 | .248 | .295 |
+
+🔴 **All three fail the screening rule.** Centre+rescale posts the best mAP@R of the whole program
+and the best M1 mean of any trained arm, but its seed spread equals its mean, its codebook is at an
+eighth of median, and on the vector endpoint it sits **below** the baseline (.278 vs .307) — as do
+all three quantiser arms. The two endpoints agree that no role was created. The failure mode is
+consistent: quantising a deviation gives the EMA a much smaller target, it concentrates on few
+codewords, and the routing-side window cannot balance a codebook whose input distribution shrank.
+A codebook-side remedy — fewer codewords, or re-initialisation matched to the centred scale — is what
+this points to and was not tried.
+
+### 4. `text_code_kl` is removable on Flickr25K and on MS-COCO
+
+MS-COCO stage-1 cell, single delta `--lambda_text_code_kl .10 → 0.0`, seeds 42/43/44, rc=0, 1749 s.
+
+| | MSCOCO .10 | MSCOCO 0.0 | Flickr .05 | Flickr 0.0 |
+|---|---:|---:|---:|---:|
+| mAP@R | .6396 ± .003 | .6369 ± .008 | .7453 ± .011 | .7409 ± .009 |
+| dead / unique | .004 / .358 | **.001** / **.312** | .241 / .536 | .232 / .517 |
+| codebook min/median | .853 | **.917** | .582 | **.672** |
+| M1 | +.0036 ± .0039 | +.0023 ± .0023 | +.0065 ± .0043 | +.0078 ± .0009 |
+
+🟢 **Removable on both datasets, with the same shape of trade.** Retrieval costs .0027 and .0044,
+both inside the losing cell's own seed spread; the codebook is better balanced on both and loses
+dead codes; the role metric does not move. The one cost above noise is unique codes, −.046 on
+MS-COCO and −.019 on Flickr25K. Eleven terms behave like twelve on two datasets — a defensible
+simplification on branch evidence, to be confirmed through the refit/test protocol before the
+recipe changes. Unlike the window, it transfers.
+
+**M1 calibrated on MS-COCO too** (1,000 val rows against Flickr's 500): a = 0 → +.0014, .10 → +.0087,
+.25 → +.0229, 1.0 → +.1381. Same scale as Flickr, so the cross-dataset numbers are on one ruler.
+MS-COCO's trained M1 sits at a ≈ .04, Flickr's at a ≈ .05.
+
+🧰 **Code (all default-off, three gates at 280/280):** `--quant_center_local`,
+`--quant_center_rescale`. **Fixed:** `scripts/slot_role_probe.py` now takes its caption file from the
+run's own `args.txt`; its fixed default had been pairing MS-COCO codes with Flickr captions. Flickr
+probe output is byte-identical before and after the change.
+
+---
+
 ## 2026-09-21 [OFF-PROTOCOL, branch arch-exp-2026-09 — adopt-candidate, not adopted] The confidence-adaptive top-p window swept end to end: .20/.60 gives the best retrieval and the healthiest codebook of any cell in the arch-exp programs, and the optimum is interior
 
 **Status:** 🟡 exploratory, off-protocol, Flickr25K only. Must not enter `docs/paper_draft/`. Record:
