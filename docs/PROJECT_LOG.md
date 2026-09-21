@@ -487,6 +487,54 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-21 Evidence plan stage 2–3: captions give the code a working language interface (+.022 over the best caption-free reading, 3 seeds); each codon is readable on its own, but positions overlap rather than add
+
+**Status:** 🟡 analysis (no training). Records: `result/analysis/stage2_zscr/` (Flickr25K stage-1
+branch runs, seeds 42/43/44, caption-trained `base_*` vs `--disable_text_supervision` `notext_*`) and
+`result/analysis/stage3_composition/` (approved s4.7 panel rows, 3 counted datasets x 3 seeds).
+
+**Stage 2 — zero-shot codon reading (ZSCR, `zscr_pilot.py`).** Held-out val rows (500), local slots,
+AP of the own-axis caption words. Every reader uses the same posterior scoring and support fallback
+as the supervised dictionary; they differ only in where the word counts come from.
+- *text path*: opt captions sent through the model's own caption path to a slot codeword, turned into
+  the codon the IMAGE path would emit (marginalising the gated global codeword over the opt images'
+  global codewords); no image is paired with its caption.
+- *CLIP only*: the codon's opt-image prototype matched to the opt caption pool by CLIP similarity
+  (a reader any code can use, including a caption-free one or a flat hash).
+- *supervised ceiling*: opt image codes paired with their own captions (`decode_slot`).
+
+| model | supervised ceiling | **text path** | CLIP only | prior only | text path, shuffled |
+|---|---:|---:|---:|---:|---:|
+| caption-trained | .3469 ± .0035 | **.3272 ± .0023** | .3048 ± .0043 | .2837 | .2355 |
+| caption-free | .3454 ± .0031 | .2824 ± .0003 | .3058 ± .0023 | .2837 | .2823 |
+
+🟢 The supervised decodability and the CLIP reading are the same with and without captions (both are
+CLIP's). Only the caption-trained model can be read through its own language path, and that reading
+beats the best caption-free reader by +.022 (about 5 seed SDs), recovering 69% of the supervised gain
+above the prior without any image–caption pairing (CLIP only: 34%). First direct, caption-dependent
+evidence for claim (2). Scope: one dataset, stage-1 cells, branch; the caption-free text path is
+untrained by construction, so the fair comparison is against the CLIP-only reader.
+
+**Stage 3 — joint decoding over codon subsets (`joint_decoding.py`).** Labels decoded from a subset S
+of positions by naive-Bayes combination of the probe's per-position dictionaries (approved settings,
+approved rows; CIBHash = the approved contiguous 3-base cut). Mean AP over all subsets of each size:
+
+| cell (mean of 3 seeds) | ours k=1 | ours k=5 | ours gain 1→5 | CIBHash k=1 | CIBHash k=5 | CIBHash gain 1→5 |
+|---|---:|---:|---:|---:|---:|---:|
+| Flickr25K | .748 | .815 | +.067 | .634 | .806 | +.172 |
+| NUS-WIDE | .725 | .784 | +.059 | .606 | .785 | +.178 |
+| MS-COCO | .658 | .724 | +.066 | .506 | .664 | +.158 |
+
+🔬 A single codon is far more readable than a single flat chunk (+.10 to +.15), which is the s4.7
+result. With all five positions the two codes are level on Flickr25K and NUS-WIDE and ours leads only
+on MS-COCO. The flat code's positions are complementary; ours overlap, because every slot carries much
+of the image-level meaning (the capacity trade-off measured on 2026-09-20/21). Caveat: naive Bayes
+double-counts correlated positions, which is also why MS-COCO dips after k = 3 for both codes.
+**Claim (3) consequence:** state the contribution as *every codon position is independently readable*,
+not as *meaning accumulates compositionally across positions*.
+
+---
+
 ## 2026-09-21 Evidence plan stage 0–1: the s4.7 decoding advantage is structural, captions add to it only on MS-COCO, and the F09 shared-codebook arm collapses at deployment so it cannot test multiple codebooks
 
 **Status:** 🟡 analysis (no training). Records: `result/analysis/stage1_f09_decoding/` (scripts, JSON,
