@@ -568,6 +568,25 @@ unique −.089/−.017/−.022, txt=img cw −.012/−.044/−.049. pool is mixe
   already agreed 91.5% of the time on 512 train rows of base_s42, and 100% with the flag. The flag
   stays in the code, default off.
 
+**3b. slim split into single terms** (each = tier1 + ONE removed term, `args.txt` checked; tier1 is
+bit-identical to base, so each arm differs from base by that one term only):
+
+| arm | mAP@R | per-seed Δ mAP@R | dead | unique | txt=img cw | ZSCR text |
+|---|---:|---|---:|---:|---:|---:|
+| base | .7453 ± .0133 | — | .241 ± .036 | .536 ± .018 | .166 ± .008 | .3272 ± .0028 |
+| −text_code_kl | .7409 ± .0123 | −.011 / −.006 / +.004 | .232 ± .025 | .517 ± .006 | .171 ± .012 | .3371 ± .0013 |
+| −bu | .7447 ± .0145 | −.005 / −.004 / +.007 | .250 ± .028 | .517 ± .006 | .167 ± .013 | .3253 ± .0007 |
+| −quant | .7412 ± .0056 | −.019 / +.004 / +.002 | .206 ± .033 | .559 ± .003 | .147 ± .007 | .3317 ± .0076 |
+| slim (all three) | .7350 ± .0092 | −.023 / −.007 / −.001 | .245 ± .010 | .531 ± .014 | .167 ± .018 | .3271 ± .0144 |
+
+No single removal moves mAP@R in the same direction on all seeds. The three small mean costs
+(−.004, −.001, −.004) add up to roughly slim's −.010, which is the only consistent drop. Verdict:
+12 → 10 active terms is supported now (tier1, bit-identical). None of text_code_kl, bu or quant is
+adopted for removal at n = 3. `quant` is the best next candidate: it has the healthiest codebook when
+removed (dead −.035, unique +.023). `text_code_kl` is second, as the caption reading rises +.010
+without it. Either needs more seeds, and the full-length protocol cell, before any recipe change.
+Records: `result/analysis/stage4_arms/step2_split_summary.{txt,json}`, cells `cells_split.txt`.
+
 **Answers recorded for the user (2026-09-22).**
 - *Where is the text codon made?* Only in training: `_encode_text_tokens_to_dna`, called from the
   training forward (`model_siglip2.py`, factual caption path). It is consumed only by
