@@ -230,3 +230,127 @@ this project has a recorded Flickr/MS-COCO asymmetry for related routing knobs (
 recorded CIFAR empty-slot failure for sharp windows (2026-08). That confirmation was not launched
 here: the current-protocol MS-COCO selection cell could not be reconstructed from an existing
 `args.txt`, and improvising one risks a wrong per-dataset delta or a read of the official test split.
+
+## Priority 1 — what M1 reads when a role IS present (2026-09-21, no training)
+
+Every verdict above rests on M1, and nothing had established its scale. `m1_calibration.py` builds
+codes whose role structure is dialled in and runs the same M1 computation on them. Slot m's code is
+the k-means label of `normalise((1-a) * global_caption_emb + a * axis_m_caption_emb)`, K=128, on the
+same opt/val split and with the same vocabulary and decoder the probe uses. At `a = 0` four slots
+quantise the same shared vector; at `a = 1` slot m quantises axis m alone.
+
+| role fraction a | M1 (3 clustering seeds) | own slot is argmax | code → own axis |
+|---:|---:|---:|---:|
+| 0.00 | −.0020 ± .0032 | 1/4 | .247 – .253 |
+| 0.05 | +.0051 | 1–2/4 | .267 – .275 |
+| 0.10 | **+.0123 ± .0011** | 4/4 | .306 – .316 |
+| 0.25 | +.0280 ± .0029 | 3–4/4 | .416 – .422 |
+| 0.50 | +.0734 | 4/4 | .679 |
+| 0.75 | +.1139 | 4/4 | .853 |
+| 1.00 | +.1306 | 4/4 | .911 |
+
+**M1 is not blunt.** Its null is −.002 ± .003, it separates a 10 % role from noise by a factor of
+four, and it is monotone over the whole range. The pre-registered threshold of .020 corresponds to
+a ≈ .18. **Every verdict in arch-exp-2 and arch-exp-3 stands.**
+
+**What the real models are worth on this scale.** Base M1 +.0065 sits at a ≈ .05; the best arm
+measured here, +.0096, at a ≈ .08. The trained models hold roughly a twentieth of the role structure
+that quantising the axis caption directly would give.
+
+**And it explains the endpoint disagreement.** On synthetic codes the two endpoints agree: a ≈ .10
+gives M1 .012 and code → axis .31, exactly where the real baseline sits on both. They part company
+only on the pre-quantisation arm, which reads a ≈ .05 by M1 and a ≈ .28 by the vector endpoint. That
+arm optimises embedding alignment, so its codewords point at the right caption vectors without
+predicting the axis-distinctive words any better. The two endpoints are both valid and measure
+different things; M1 measures the one the paper's claim is about.
+
+## Priority 3 — quantise the deviation, carry the shared part around the codebook
+
+P5 localised the loss of axis structure at the nearest-codeword step. `--quant_center_local`
+subtracts the per-image mean across local slots **only from the quantiser input** and adds it back to
+the quantiser output, so the codeword INDEX is chosen by the deviation while every downstream
+consumer, including the retrieval hash, still receives the shared content. `--quant_center_rescale`
+additionally restores each centred token to its original norm, exactly invertibly. Both default off;
+entry gates 280/280 identical. `--lambda_text_code_kl 0.0` in every cell, because that term compares
+an uncentred token with a codebook that now lives in the centred space; its own control is `p4drop`.
+
+| | base | p4drop control | centre | centre + rescale | + window .20/.60 | window .20/.60 alone |
+|---|---:|---:|---:|---:|---:|---:|
+| **M1** | +.0065 ± .0043 | +.0078 ± .0009 | −.0026 ± .0069 | **+.0096 ± .0094** | +.0015 ± .0016 | −.0009 ± .0003 |
+| M1 per seed | — | — | — | −.003 / .011 / **.020** | — | — |
+| mAP@R | .7453 | .7409 | .7499 | **.7588** | **.6790** | .7491 |
+| dead codes | .241 | .232 | .680 | .586 | .707 | .223 |
+| unique codes | .536 | .517 | .771 | .732 | .316 | .564 |
+| M2 label decoding | .796 | .803 | .560 | .607 | .537 | .815 |
+| codebook min/median | .582 | .672 | .511 | **.125** | .495 | .865 |
+
+**Screening verdict: all three fail.** Centring alone fails on M1 and on dead codes. Centring with
+the norm restored posts the **highest mAP@R of the entire program, .7588**, and the highest M1 mean
+of any trained arm, but its seed spread is as large as its mean and its codebook is wrecked: .586
+dead, worst-codebook perplexity .125 of median. The combination with the narrow window, which was
+the obvious repair for a dead codebook, is the worst cell measured anywhere: .6790 mAP and .707 dead.
+
+The failure mode is informative and consistent across all three. Quantising the deviation gives the
+codebook a much smaller target to cover; the EMA concentrates on a few codewords, and the codes that
+survive are diverse but few. Restoring the norm recovers retrieval and part of the role signal but
+not the balance, and the window, which balances the *routing*, cannot balance a codebook whose input
+distribution has shrunk. A codebook-side remedy — fewer codewords, or a re-initialisation matched to
+the centred scale — is what this points to, and it was not tried here.
+
+## Priority 2 — does the .20/.60 window transfer to MS-COCO? (2026-09-21)
+
+Run in a detached worktree at the same commit, `/data/yschoi/gdna_wt_mscoco`, so the main tree stayed
+free; its four trainer/loss/model/config files were verified byte-identical to the main tree first.
+MS-COCO stage-1 selection cell rebuilt from the Flickr cell with the per-dataset deltas read from
+`scripts/train_mscoco_F2_sweep_clip.sh` and `scripts/phase3_selection_matrix.py`: `--dataset MSCOCO`,
+mscoco caches and v5b captions, `cibhash 1.5`, `wasserstein .05`, `xmodal / text_hash / text_code_kl
+.10`, `codon_joint .03`, prune ratios 1.0/1.0, `--sinkhorn_schedule_horizon 40 --stop_after_epoch 39`,
+K=128, and the four MS-COCO provenance pins taken from `mscoco.stage1.input-seal.json`. Split is
+train 10,000 / opt 9,000 / val 1,000. Seeds 42/43/44, `archexp3_mscoco_win`, rc=0, 2151 s.
+
+| window | patches per slot | one-slot patches | mAP@R | dead | unique | codebook min/median | M1 | empty |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| .60/.95 recipe | 3.05 | 2.0 % | .6396 ± .003 | .004 | .358 | .853 | +.0036 ± .0039 | 0 % |
+| .20/.60 candidate | 1.70 | 30.2 % | .6369 ± .012 | .005 | .363 | **.931** | +.0011 ± .0026 | 0 % |
+
+per-seed mAP@R: recipe .6393 / .6359 / .6436, candidate .6389 / .6218 / .6500.
+
+**The retrieval gain does not transfer.** On Flickr25K the narrow window was worth +.0094 mAP; on
+MS-COCO it is −.0027, well inside the candidate's own .012 seed spread, and the candidate is the
+worse of the two on two seeds of three. The mechanism still fires — patches per slot 3.05 → 1.70 —
+and the codebook still improves, .853 → .931, but MS-COCO's codebook was not sick: .004 dead codes
+against Flickr's .241, and .853 of median against Flickr's .582. There was nothing there to repair,
+so nothing was gained.
+
+**Verdict: the adopt-candidate is withdrawn as a universal recipe change.** What remains is a
+Flickr25K-specific observation, and the protocol already carries per-dataset deltas, so it could be
+proposed as one — but only through the refit/test protocol, not from a branch screening cell. This
+is the Flickr/MS-COCO asymmetry the 2026-06-18 record predicted for a related routing knob, now
+measured for this one.
+
+## The post-hoc endpoint over every arm measured in this program
+
+Chance .250. Not pre-registered; reported for completeness and for the disagreement it exposed.
+
+| arm | code → own axis | axis → own code |
+|---|---:|---:|
+| base | .307 ± .005 | .374 ± .002 |
+| P1 window .45/.85 | .320 ± .014 | .392 ± .022 |
+| P1 window .30/.70 | .335 ± .013 | .424 ± .022 |
+| P1 window .20/.60 | .298 ± .018 | .435 ± .043 |
+| P1 window .15/.50 | .300 ± .028 | .419 ± .042 |
+| **P2 anchors** | **.370 ± .011** | **.493 ± .006** |
+| P3 gate removed | .290 ± .012 | .327 ± .008 |
+| P4 text_code_kl removed | .302 ± .005 | .380 ± .027 |
+| P4 role at codeword | .292 ± .016 | .326 ± .046 |
+| P5 role at codeword λ=1 | .227 ± .012 | .229 ± .041 |
+| **P5 role at slot token λ=1** | **.454 ± .025** | **.464 ± .036** |
+| P7 quantiser centred | .261 ± .005 | .283 ± .016 |
+| P7b centred + rescaled | .278 ± .006 | .346 ± .007 |
+| P8 window .20/.60 + tckl 0 | .295 ± .014 | .408 ± .016 |
+| P8 combination | .248 ± .006 | .261 ± .009 |
+
+Every quantiser-side arm sits **below** the baseline on this endpoint, P7b included. So P7b's higher
+M1 mean, which came with a seed spread as large as itself, is not corroborated: on the endpoint that
+separates arms most sharply it is .278 against the baseline's .307. Read together, the two endpoints
+agree that the quantiser intervention did not create a role.

@@ -88,7 +88,11 @@ def main():
     ap.add_argument("--result_dir", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--device", default="cuda:0")
-    ap.add_argument("--qwen_jsonl", default="/data/yschoi/dataset/deephashing/cache/flickr25k_qwen3_v4_trainset.jsonl")
+    # Default to the caption file the RUN was trained with, read from its
+    # args.txt. A fixed default silently pairs one dataset's codes with
+    # another dataset's captions; here that raised a KeyError, but with
+    # overlapping ids it would have produced numbers instead.
+    ap.add_argument("--qwen_jsonl", default=None)
     ap.add_argument("--shuffle_seed", type=int, default=0)
     a = ap.parse_args()
     if os.path.exists(a.out):
@@ -128,9 +132,21 @@ def main():
     idx_val = [i for i in range(len(tr)) if int(rows_of[i]) in val_rows]
 
     caps = {}
-    for line in open(a.qwen_jsonl):
+    _qj = a.qwen_jsonl or getattr(args, "qwen_text_cache_path", None)
+    assert _qj, "no caption file: pass --qwen_jsonl or train with --qwen_text_cache_path"
+    for line in open(_qj):
         d = json.loads(line)
         caps[str(d["image_id"])] = {k: str(d["codebook_texts"].get(k, "") or "") for k in AXES}
+    # Caption files key images differently per dataset: Flickr25K uses
+    # "images/<file>", MS-COCO "images/train2014/<file>". The ids built below
+    # are always "images/" + basename, so add that spelling as an ALIAS where it
+    # is not already a key. Flickr25K keys are unchanged, exactly.
+    _alias = {}
+    for _k, _v in caps.items():
+        _b = "images/" + os.path.basename(_k)
+        if _b not in caps:
+            _alias[_b] = _v
+    caps.update(_alias)
 
     def run(indices):
         codes, labels, ids, masses = [], [], [], []

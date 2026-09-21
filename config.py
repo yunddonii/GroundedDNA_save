@@ -904,6 +904,30 @@ class Config():
         siglip2_arg.add_argument('--role_tau', dest='role_tau',
             type=float, default=0.07,
             help='(arch-exp-3 P4) softmax temperature for --lambda_role.')
+        # arch-exp-3 (P7): quantise the axis deviation, carry the shared part
+        # around the codebook. P5 localised the loss of axis structure at the
+        # nearest-codeword step: the same objective reaches .33 on the slot
+        # token and 3.59 on the codeword. Subtracting the per-image mean across
+        # local slots ONLY on the quantiser input makes the codeword INDEX a
+        # function of the deviation, and adding the mean back to the quantiser
+        # output leaves every downstream consumer, including the retrieval
+        # hash, with the shared content it needs. Adds no loss term.
+        # NOTE: `--lambda_text_code_kl` must be 0 in the same cell; it compares
+        # an UNCENTRED slot token with the codebook, which now lives in the
+        # centred space. Removing it costs .0044 mAP on Flickr25K (2026-09-20).
+        # arch-exp-3 (P7b): with --quant_center_local, restore each centred
+        # local token to its ORIGINAL norm before quantisation and undo the
+        # scaling afterwards. P7 without this left 68 % of codewords unused:
+        # the deviation is small next to the token it came from, so the
+        # codebook had nothing to spread over. Exactly invertible.
+        siglip2_arg.add_argument('--quant_center_rescale', dest='quant_center_rescale',
+            action='store_true', default=False,
+            help='(arch-exp-3 P7b) renormalise the centred local tokens to '
+                 'their original norm; requires --quant_center_local.')
+        siglip2_arg.add_argument('--quant_center_local', dest='quant_center_local',
+            action='store_true', default=False,
+            help='(arch-exp-3 P7) quantise local slots after subtracting the '
+                 'per-image mean across them; add it back to the output.')
         siglip2_arg.add_argument('--axis_center', dest='axis_center',
             type=str, default='none', choices=['none', 'anchors', 'readout', 'both'],
             help='(arch-exp-3 P2) subtract the per-image mean across local axes; '

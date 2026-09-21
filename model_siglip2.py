@@ -2414,6 +2414,8 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.vq_bypass_epochs       = int(getattr(args, "vq_bypass_epochs", 0) or 0)           # (c-1)
         # arch-exp-3 (P2): per-image axis-deviation representation.
         self.axis_center            = str(getattr(args, "axis_center", "none") or "none")
+        self.quant_center_local     = bool(getattr(args, "quant_center_local", False))
+        self.quant_center_rescale   = bool(getattr(args, "quant_center_rescale", False))
         self.total_epochs           = int(getattr(args, "epoch", 60))
         # D2: the epsilon anneal has its own horizon. Using total_epochs
         # meant `-e N+1` compressed the LR cosine as well, so choosing N
@@ -5127,7 +5129,31 @@ class SigLIP2SemanticOTModel(nn.Module):
                     _mk[0, _m, _m * _blk:_hi] = 1.0
                 self._pq_mask = _mk
             quant_input = quant_input * self._pq_mask.to(quant_input.dtype)
+        # ---- arch-exp-3 (P7): centre only what the codebook sees ----------
+        # The nearest codeword is chosen by whatever dominates the token, and
+        # that is the component every local slot shares. Removing it for the
+        # assignment and restoring it afterwards changes which codeword each
+        # slot picks without changing what the rest of the model receives.
+        _qc_mu = None
+        _qc_s = None
+        if self.quant_center_local and quant_input.shape[1] > 1:
+            _qc_loc = quant_input[:, 1:, :]
+            _qc_mu = _qc_loc.mean(dim=1, keepdim=True)                        # [B, 1, D]
+            _qc_dev = _qc_loc - _qc_mu
+            if self.quant_center_rescale:
+                _qc_s = (_qc_loc.norm(dim=-1, keepdim=True)
+                         / _qc_dev.norm(dim=-1, keepdim=True).clamp_min(1e-6))
+                _qc_dev = _qc_dev * _qc_s
+            quant_input = torch.cat([quant_input[:, :1, :], _qc_dev], dim=1)
         q_out = self.quantizer(quant_input)
+        if _qc_mu is not None:
+            for _k in ("quantized_tokens", "quantized_tokens_raw"):
+                _v = q_out.get(_k)
+                if _v is not None:
+                    _loc = _v[:, 1:, :]
+                    if _qc_s is not None:
+                        _loc = _loc / _qc_s.clamp_min(1e-6)
+                    q_out[_k] = torch.cat([_v[:, :1, :], _loc + _qc_mu], dim=1)
         quantized_tokens     = q_out["quantized_tokens"]      # [B, 6, D]   STE
         quantized_tokens_raw = q_out["quantized_tokens_raw"]  # [B, 6, D]   pure codewords
         codebook_indices     = q_out["codebook_indices"]      # [B, 6]
