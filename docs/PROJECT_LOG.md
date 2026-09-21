@@ -487,6 +487,45 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-21 Audit §602/§608/§610 closed the §600 and §601 HIGH defects; §608.2's optional-strategy residual repaired; §610.3's paper-copy residual left alone because it sits in docs/paper_draft
+
+**Status:** 🟢 working-tree source repair + tests, uncommitted like the rest of the main-line state
+(see the preceding entry). No campaign rerun.
+
+**What the audit decided on the preceding repairs.** §602 passes all 60 D5/D6 memberships against its
+own independent reconstruction (agreeing with the modifier's rederivation). §608 closes §601's
+omitted-label defect at consumer 1eab9be8 (66 direct + 66 CLI cases across 30/40 bits and the
+`all`/`selection`/`refit` branches). §610 closes §600's execution-byte and worker-evidence defects
+at producer 35454a4b (24 loader, 16 parent, 3 lazy-import cases) and accepts §599's label repair
+in the published derivative. Each leaves one MEDIUM.
+
+**§608.2 repaired.** The validator accepted a selection whose `val_split.strategy` was absent or
+null (`split.get('strategy') not in (None, strategy_expected)`). It now requires the strategy to
+equal the rederived one. Consumer 1eab9be8 → 3035d2cd. Tests add `null_strategy` and
+`missing_strategy` to the direct mutations and to the actual-`main()` cases, and the `selection`
+branch joins `refit` and `all` (honest `selection` builds no refit; every mismatch raises before
+any refit). `tests/test_modern_driver_protocol.py` → c2431abb. Related suites **110 passed**.
+Against 1eab9be8 in a sandbox exactly the eight new strategy subtests fail (four refit commands
+built, two direct acceptances, two selection acceptances). All 60 existing selections record their
+strategy (§602), so none is affected and none is rerun.
+
+**§610.3 not repaired, deliberately.** The manuscript-facing copy
+`docs/paper_draft/tables/d4_mscoco_exclusion_sensitivity/d4_exclusion_table.tex` (c1baec6d) is the
+old unmarked table under a paper-section header, beside a copy of the old v4 receipt that binds TeX
+24b1ea98, not those display bytes. The fix is a separately bound derivative placed there, but
+`docs/paper_draft/` is outside what the user has authorised to change, so it waits for that decision.
+The accepted derivative at `result/analysis/d4_exclusion_sensitivity/p3_20260916_v4_tex_eligibility_20260921/`
+is ready to be the source of that copy.
+
+**New audit findings not taken up here** (beyond the three items asked for): §603 five
+final-evaluation vs BIO-input metric differences in D5/D6; §605 HIGH, TODO18's 72 S2/S3 conditions
+use the wrong codebook initialisation; §606 HIGH, the recovered D5-ours generation is not the
+declared length-only diagnostic; §609 D5 paper rows match nonconforming runs; §612 Reinforcement A
+run admission incomplete. The D6 contract still names consumer 003d1001; §608.2 asks that any future
+launch first bind the reviewed source and replay the launch fixtures.
+
+---
+
 ## 2026-09-21 Audit §599–601 repaired in the working tree: labels reach both refit handoffs, D4 executes only verified bytes and admits only checked evidence, eligibility survives into the table — and all 60 existing D5/D6 selections used the right rows
 
 **Status:** 🟢 source repairs + tests, working tree `/home/yschoi/GroundedDNA` (the tree the audit
