@@ -430,6 +430,7 @@ class SemanticCodebookQuantizer(nn.Module):
         ema_eps: float = 1e-5,
         revive_dead: bool = True,
         revive_threshold: float = 0.01,
+        revive_from_worst: bool = False,
         revive_every: int = 1,
         repel_strength: float = 0.0,
         repel_sigma_factor: float = 0.5,
@@ -471,6 +472,7 @@ class SemanticCodebookQuantizer(nn.Module):
         self.bypass = False
         self.revive_dead       = bool(revive_dead)
         self.revive_threshold  = float(revive_threshold)
+        self.revive_from_worst = bool(revive_from_worst)
         self.revive_every      = max(1, int(revive_every))
         # Option α: Codeword Repulsion. After each EMA update step, push each
         # codeword away from its closest neighbours within the same codebook.
@@ -790,7 +792,21 @@ class SemanticCodebookQuantizer(nn.Module):
             n_dead = int(dead_mask.sum().item())
             if n_dead == 0:
                 continue
-            idx_pool   = torch.randint(0, B, (n_dead,), device=z.device)
+            if self.revive_from_worst:
+                # distance of every batch sample to its nearest LIVE codeword
+                live = active_m & ~dead_mask
+                if int(live.sum().item()) > 0:
+                    cb_live = self.codebooks[m][live]                         # [n_live, D]
+                    d2 = torch.cdist(z[:, m, :].float(), cb_live.float()) ** 2  # [B, n_live]
+                    err = d2.min(dim=1).values                                # [B]
+                    idx_pool = err.topk(min(n_dead, B)).indices               # worst first
+                    if idx_pool.numel() < n_dead:
+                        pad = torch.randint(0, B, (n_dead - idx_pool.numel(),), device=z.device)
+                        idx_pool = torch.cat([idx_pool, pad], dim=0)
+                else:
+                    idx_pool = torch.randint(0, B, (n_dead,), device=z.device)
+            else:
+                idx_pool = torch.randint(0, B, (n_dead,), device=z.device)
             new_codes  = z[idx_pool, m, :]                                    # [n_dead, D]
             active_alive_cs = cs[active_m & ~dead_mask]
             if active_alive_cs.numel() > 0:
@@ -2450,6 +2466,7 @@ class SigLIP2SemanticOTModel(nn.Module):
             revive_dead=bool(getattr(args, "codebook_revive", True)),
             revive_threshold=float(getattr(args, "codebook_revive_threshold", 0.01)),
             revive_every=int(getattr(args, "codebook_revive_every", 50)),
+            revive_from_worst=bool(getattr(args, "revive_from_worst", False)),
             repel_strength=float(getattr(args, "codebook_repel_strength", 0.0)),
             repel_sigma_factor=float(getattr(args, "codebook_repel_sigma_factor", 0.5)),
             repel_every=int(getattr(args, "codebook_repel_every", 1)),

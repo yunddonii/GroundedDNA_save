@@ -394,3 +394,42 @@ The scale is the same on both datasets, so the cross-dataset comparisons above a
 MS-COCO's trained M1 of +.0036 sits at a ≈ .04 and Flickr25K's +.0065 at a ≈ .05: both models hold
 about a twentieth of a full role. Their vector endpoints, .355 and .307, read a ≈ .20 and a ≈ .09 —
 the same divergence between the two endpoints, on both datasets.
+
+## Priority 3, continued — the codebook-side remedies (2026-09-21)
+
+P7b left the role question unanswerable: its codebook was wrecked, so a flat M1 could have meant
+"no role" or "no working codebook". Four remedies were run against that, each on top of
+`--quant_center_local --quant_center_rescale --lambda_text_code_kl 0.0`, seeds 42/43/44. A
+**mechanism gate** was set first: dead codes must fall to .30 or below, or the remedy has not done
+its own job and its role reading means nothing. Entry gates for the two code-bearing changes:
+280/280 identical.
+
+| arm | what changed | M1 | mAP@R | dead | unique | codebook min/median | code → own axis | gate |
+|---|---|---:|---:|---:|---:|---:|---:|---|
+| base | — | +.0065 ± .0043 | .7453 | .241 | .536 | .582 | .307 | pass |
+| p4drop | control, tckl 0 | +.0078 ± .0009 | .7409 | .232 | .517 | .672 | .302 | pass |
+| P7b | centre + rescale | +.0096 ± .0094 | .7588 | .586 | .732 | .125 | .278 | **fail** |
+| R1 | + k-means init matched to the centred scale | +.0050 ± .0077 | .7485 | .514 | .715 | .557 | .262 | **fail** |
+| **R2** | + K 128 → 32 | +.0088 ± .0093 | .7574 | **.263** | .686 | .400 | .265 | **pass** |
+| R3 | + revive from the worst-fit sample | +.0073 ± .0085 | **.7612** | .455 | .738 | .254 | .286 | **fail** |
+| R4 | R2 + R3 + R1 together | +.0013 ± .0041 | .7485 | .442 | .675 | .440 | .258 | **fail** |
+
+**R2 repairs the codebook and the role still does not appear.** Shrinking the codebook to 32
+codewords brings dead codes to .263, which is *better than the uncentred baseline's .241 is far from
+it* — the codebook is as healthy as the recipe's own. M1 is +.0088, a ≈ .07 on the calibration
+against the baseline's a ≈ .05, with a seed spread larger than the difference and one negative seed.
+On the vector endpoint R2 reads .265 against the baseline's .307, close to chance.
+
+The other three are informative failures. Matching the k-means initialisation to the centred scale
+fixes the balance it was supposed to fix — worst-codebook perplexity .125 → .557 — and revives
+nothing, so the death is not an initialisation artefact. Reviving from the worst-fit sample posts the
+**highest mAP@R of the entire program at .7612** and the highest unique-code ratio at .738, and still
+leaves .455 dead. Stacking all three is the worst of the four on M1.
+
+**This closes the priority-3 hypothesis.** The codebook can be repaired, by the one remedy that
+matches its capacity to the shrunken input cloud, and repairing it does not produce axis roles.
+Together with the calibration, which showed M1 would have registered a role of a tenth the full
+strength, the two possible readings left after arch-exp-3 collapse to one: the axis and the retrieval
+hash are competing for the same capacity, and the interpretability claim belongs where §4.7 already
+puts it. Every centred arm, repaired or not, sits below the uncentred baseline on the vector
+endpoint, so the two endpoints agree on this.

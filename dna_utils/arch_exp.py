@@ -114,6 +114,20 @@ def init_codebook_from_routed_visual(model, dataset, args) -> Dict[str, Any]:
                 o = _forward_text_routed(model, batch, args.device)
                 zs.append(o["semantic_visual_tokens"].detach().float().cpu())
         Z = torch.cat(zs, dim=0)                                               # [N, M, D]
+        # (R1, arch-exp-3) The quantiser may not see these tokens as they are.
+        # With --quant_center_local it receives the per-image deviation across
+        # the LOCAL slots, and optionally that deviation rescaled to the token's
+        # original norm. k-means must cluster the SAME thing, or the codewords
+        # are placed where the uncentred tokens live while the inputs are
+        # deviations -- which is a worse mismatch than no initialisation at all.
+        _qc_centered = bool(getattr(model, "quant_center_local", False))
+        if _qc_centered and Z.shape[1] > 1:
+            _loc = Z[:, 1:, :]
+            _dev = _loc - _loc.mean(dim=1, keepdim=True)
+            if bool(getattr(model, "quant_center_rescale", False)):
+                _dev = _dev * (_loc.norm(dim=-1, keepdim=True)
+                               / _dev.norm(dim=-1, keepdim=True).clamp_min(1e-6))
+            Z = torch.cat([Z[:, :1, :], _dev], dim=1)
         M_cb, K, D = q.codebooks.shape
         if tuple(Z.shape[1:]) != (M_cb, D):
             raise ValueError(f"routed tokens {tuple(Z.shape)} vs codebooks {tuple(q.codebooks.shape)}")
@@ -133,7 +147,8 @@ def init_codebook_from_routed_visual(model, dataset, args) -> Dict[str, Any]:
                 inertia.append(round(float(km.inertia_), 2))
         z_norm = float(Z.norm(dim=-1).mean())
         return {"N": int(Z.shape[0]), "M": int(M_cb), "K": int(q.codebook_size),
-                "z_mean_norm": round(z_norm, 4), "inertia": inertia, "rescaled": False}
+                "z_mean_norm": round(z_norm, 4), "inertia": inertia, "rescaled": False,
+                "centered_like_quantiser": _qc_centered}
     finally:
         torch.set_rng_state(states[0])
         if states[1] is not None:

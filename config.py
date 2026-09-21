@@ -924,6 +924,15 @@ class Config():
             action='store_true', default=False,
             help='(arch-exp-3 P7b) renormalise the centred local tokens to '
                  'their original norm; requires --quant_center_local.')
+        # arch-exp-3 (R3): revive a dead codeword from the batch sample the
+        # codebook fits WORST, not from a uniformly random one. With a narrow
+        # input cloud a random draw lands where codewords already are and the
+        # revived code dies again on the next update; the worst-fit sample is
+        # by construction where the codebook has no coverage.
+        siglip2_arg.add_argument('--revive_from_worst', dest='revive_from_worst',
+            action='store_true', default=False,
+            help='(arch-exp-3 R3) revive dead codewords from the highest '
+                 'quantisation-error samples in the batch.')
         siglip2_arg.add_argument('--quant_center_local', dest='quant_center_local',
             action='store_true', default=False,
             help='(arch-exp-3 P7) quantise local slots after subtracting the '

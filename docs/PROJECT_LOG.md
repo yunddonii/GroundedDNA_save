@@ -487,6 +487,56 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-21 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] The codebook can be repaired and the role still does not appear: the quantiser hypothesis is closed, and with it the last reading that was not the capacity trade-off
+
+**Status:** 🟡 exploratory, off-protocol. Must not enter `docs/paper_draft/`. Record:
+`result/analysis/arch_exp3_20260920/RESULT.md` §"Priority 3, continued". Two entry gates, both
+280/280 identical with the new flags off. Flickr25K stage-1 cell, seeds 42/43/44, every arm on top
+of `--quant_center_local --quant_center_rescale --lambda_text_code_kl 0.0`.
+
+**Why these four.** P7b's flat M1 was unreadable: its codebook was wrecked, so "no role" and "no
+working codebook" were indistinguishable. A **mechanism gate** was fixed before the run — dead codes
+must reach .30 or below, or the remedy has not done its own job and its role number means nothing.
+
+| arm | change | M1 | mAP@R | dead | unique | cb min/med | code→axis | gate |
+|---|---|---:|---:|---:|---:|---:|---:|---|
+| base | — | +.0065 ± .0043 | .7453 | .241 | .536 | .582 | .307 | pass |
+| p4drop | control | +.0078 ± .0009 | .7409 | .232 | .517 | .672 | .302 | pass |
+| P7b | centre + rescale | +.0096 ± .0094 | .7588 | .586 | .732 | .125 | .278 | fail |
+| R1 | k-means init matched to the centred scale | +.0050 ± .0077 | .7485 | .514 | .715 | .557 | .262 | fail |
+| **R2** | K 128 → 32 | +.0088 ± .0093 | .7574 | **.263** | .686 | .400 | .265 | **pass** |
+| R3 | revive from the worst-fit sample | +.0073 ± .0085 | **.7612** | .455 | .738 | .254 | .286 | fail |
+| R4 | R1 + R2 + R3 | +.0013 ± .0041 | .7485 | .442 | .675 | .440 | .258 | fail |
+
+🔴 **R2 repairs the codebook and the role still does not appear.** Matching K to the shrunken input
+cloud brings dead codes to .263, healthier than the uncentred baseline's .241 by the only measure
+that was broken. M1 is +.0088 — a ≈ .07 on the 2026-09-21 calibration against the baseline's a ≈ .05
+— with a seed spread larger than the difference and one negative seed, and on the vector endpoint it
+reads .265 against the baseline's .307, near the .250 chance line.
+
+🔬 **The three failures each say something.** Matching the k-means initialisation fixes exactly the
+balance it targets, worst-codebook perplexity .125 → .557, and revives nothing: the death is not an
+initialisation artefact. Worst-fit revival posts the **highest mAP@R of the whole program, .7612**,
+and the highest unique-code ratio, .738, and still leaves .455 dead: the deviation cloud is genuinely
+too small for 128 codewords, not badly covered. Stacking all three is the worst of the four on M1.
+A trap found and fixed on the way: the existing two-stage initialiser clusters the **uncentred**
+slot tokens, so combining it with `--quant_center_local` unpatched would place codewords where the
+uncentred tokens live while feeding the quantiser deviations — a worse mismatch than no
+initialisation. The initialiser now applies the same transform and logs `centered_like_quantiser`.
+
+✅ **This closes the quantiser hypothesis, and the program.** After the 2026-09-21 calibration showed
+M1 registers a tenth-strength role at four times its own noise, two readings remained: the metric is
+blind, or the axis and the retrieval hash compete for the same capacity. The metric is not blind, and
+now the codebook has been repaired without producing a role. **The capacity reading is the one left
+standing.** Fourteen mechanisms have been measured against the same baseline on the same three seeds
+across arch-exp-2 and arch-exp-3; none passes. The interpretability claim stays where §4.7 puts it,
+at codon-level decoding, and is not extended to per-slot roles.
+
+🧰 **Code (default-off, gates 280/280):** `--revive_from_worst`; `dna_utils/arch_exp.py` initialiser
+now centres like the quantiser when `--quant_center_local` is set.
+
+---
+
 ## 2026-09-21 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] The role metric is calibrated and sound; the top-p window gain does not survive MS-COCO; the quantiser intervention fails on both endpoints; `text_code_kl` is removable on two datasets
 
 **Status:** 🟡 exploratory, off-protocol. Must not enter `docs/paper_draft/`. Records:
