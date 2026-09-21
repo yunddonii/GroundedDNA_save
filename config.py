@@ -288,6 +288,13 @@ class Config():
             help='Skip the C_0 -> C_1..5 gated addition before the codon '
                  'heads. Each local codon head sees its own codeword in '
                  'isolation (v23b ablation).')
+        siglip2_arg.add_argument('--text_codon_global_context', dest='text_codon_global_context',
+            type=str, default='none', choices=['none', 'image'],
+            help='Training-time text codon for local slots. "none" (default): '
+                 'the local codon head reads the text codeword alone. "image": '
+                 'it reads text codeword + sg(gate) * sg(the paired image\'s '
+                 'global codeword), the same form as the deployed image codon, '
+                 'so matching codewords give matching codons.')
         siglip2_arg.add_argument('--global_gate_init_logit', dest='global_gate_init_logit',
             type=float, default=-3.0,
             help='Initial logit for the per-local-codebook C_0->C_m gate '

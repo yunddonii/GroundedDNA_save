@@ -2485,6 +2485,15 @@ class SigLIP2SemanticOTModel(nn.Module):
         # blending step before the codon heads. When True, each local codon
         # head sees the local codeword in isolation (no C_global injection).
         self.disable_global_gate: bool = bool(getattr(args, "disable_global_gate", False))
+        # Text codon for local slots: "none" reads the text codeword alone;
+        # "image" adds sg(gate) * sg(paired image global codeword), as the
+        # deployed image codon does.
+        self.text_codon_global_context: str = str(getattr(args, "text_codon_global_context", "none"))
+        if self.text_codon_global_context not in ("none", "image"):
+            raise ValueError(
+                f"[model_siglip2] text_codon_global_context must be 'none' or "
+                f"'image', got {self.text_codon_global_context!r}"
+            )
         # v138: source of codon_head input.
         #   "quantized" (default): legacy VQ output (post-gate quantized_tokens)
         #   "routed": raw router weighted-sum vectors (semantic_visual_tokens
@@ -3517,8 +3526,12 @@ class SigLIP2SemanticOTModel(nn.Module):
         *,
         allow_mm_ema: bool,
         deterministic_codon: bool = False,
+        local_global_context: Optional[torch.Tensor] = None,   # [B, M-1, D] or None
     ) -> Dict[str, torch.Tensor]:
-        """Shared text -> VQ -> codon path for factual captions and foils."""
+        """Shared text -> VQ -> codon path for factual captions and foils.
+
+        `local_global_context`, when given, is added to the head input of
+        every local slot (the image path's gated global addition)."""
         if text_tokens.dim() != 3 or text_tokens.shape[1:] != (
             NUM_SEMANTIC_PARTS, self.d_model,
         ):
@@ -3560,6 +3573,11 @@ class SigLIP2SemanticOTModel(nn.Module):
             quantizer_tokens if self.codon_input_source == "routed"
             else text_q_st
         )
+        if local_global_context is not None:
+            text_head_inputs = torch.cat(
+                [text_head_inputs[:, :1, :],
+                 text_head_inputs[:, 1:, :] + local_global_context], dim=1,
+            )
         continuous = []
         previous_head_modes = [head.training for head in self.codon_heads]
         if deterministic_codon:
@@ -5199,6 +5217,13 @@ class SigLIP2SemanticOTModel(nn.Module):
             # broadcast: gate [5] -> [1, 5, 1], q_global_for_local [B, D] -> [B, 1, D]
             global_addition  = gate_values.view(1, -1, 1) * q_global_for_local.unsqueeze(1)  # [B, 5, D]
             q_conditioned_local = q_local_cw + global_addition                                # [B, 5, D]
+        # Same gated global addition for the text codon of each local slot
+        # (detached: the text branch must not move the gate or C_global).
+        text_local_context = (
+            global_addition.detach()
+            if self.text_codon_global_context == "image" and not self.disable_global_gate
+            else None
+        )
         head_inputs = torch.cat(
             [q_global_cw.unsqueeze(1), q_conditioned_local], dim=1,
         )                                                       # [B, 6, D]
@@ -5364,6 +5389,7 @@ class SigLIP2SemanticOTModel(nn.Module):
             factual_text_dna = self._encode_text_tokens_to_dna(
                 text_part_tokens,
                 allow_mm_ema=True,
+                local_global_context=text_local_context,
             )
             text_continuous_code = factual_text_dna["continuous_code"]
             text_quantized_tokens = factual_text_dna["quantized_tokens"]
@@ -5451,6 +5477,7 @@ class SigLIP2SemanticOTModel(nn.Module):
                     foil_text_tokens,
                     allow_mm_ema=False,
                     deterministic_codon=True,
+                    local_global_context=text_local_context,
                 )
             text_foil_continuous_code = foil_text_dna["continuous_code"]
             text_foil_codebook_indices = foil_text_dna["codebook_indices"]
