@@ -1,0 +1,8 @@
+mean over 4 local slots and seeds 42/43/44 (population SD); held-out val rows of each run's own split
+dataset   arm        supervised_ceiling           text_path           clip_only          prior_only  text-prior  clip-prior
+Flickr25k captions       0.3469±0.0035      0.3272±0.0023      0.3048±0.0043      0.2837±0.0000     +0.0435     +0.0211
+Flickr25k none           0.3454±0.0031      0.2824±0.0003      0.3058±0.0023      0.2837±0.0000     -0.0013     +0.0221
+NUS-WIDE  captions       0.3659±0.0008      0.3295±0.0062      0.3382±0.0008      0.2791±0.0000     +0.0504     +0.0591
+NUS-WIDE  none           0.3581±0.0032      0.2790±0.0001      0.3237±0.0042      0.2791±0.0000     -0.0001     +0.0446
+MS-COCO   captions       0.4405±0.0051      0.4103±0.0058      0.4124±0.0039      0.3146±0.0000     +0.0956     +0.0978
+MS-COCO   none           0.4062±0.0032      0.3146±0.0000      0.3709±0.0031      0.3146±0.0000     +0.0000     +0.0563

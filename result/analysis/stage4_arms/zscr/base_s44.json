@@ -1,0 +1,58 @@
+{
+ "result_dir": "result/260920+flickr25k_setting1_base_s44+bs+64+e+60+proj_lr+0.001",
+ "n_opt": 4500,
+ "n_val": 500,
+ "gate": [
+  0.9929999709129333,
+  0.9929999709129333,
+  0.9930999875068665,
+  0.9926999807357788
+ ],
+ "slots": {
+  "C_primary_object": {
+   "text_path": 0.2894679899897967,
+   "text_path_shuffled": 0.15617215150824937,
+   "clip_only": 0.2747155213989046,
+   "clip_only_shuffled": 0.10677672795786382,
+   "prior_only": 0.21064077412878002,
+   "supervised_ceiling": 0.319685575846901,
+   "text_codeword_agrees_with_image_codeword": 0.178
+  },
+  "C_secondary_object": {
+   "text_path": 0.39420023515391833,
+   "text_path_shuffled": 0.3308066301010702,
+   "clip_only": 0.36683132871518154,
+   "clip_only_shuffled": 0.34264636437812473,
+   "prior_only": 0.3923570645947547,
+   "supervised_ceiling": 0.4060946166568646,
+   "text_codeword_agrees_with_image_codeword": 0.164
+  },
+  "C_activity_or_relation": {
+   "text_path": 0.3162880907935917,
+   "text_path_shuffled": 0.23221646136139132,
+   "clip_only": 0.28975804626380497,
+   "clip_only_shuffled": 0.23079104385876884,
+   "prior_only": 0.27635025805134966,
+   "supervised_ceiling": 0.32047017489117297,
+   "text_codeword_agrees_with_image_codeword": 0.2
+  },
+  "C_color_texture": {
+   "text_path": 0.31244164889329396,
+   "text_path_shuffled": 0.20785531545523683,
+   "clip_only": 0.27814622752759177,
+   "clip_only_shuffled": 0.2204451837005135,
+   "prior_only": 0.25551994600477196,
+   "supervised_ceiling": 0.33803579828385527,
+   "text_codeword_agrees_with_image_codeword": 0.148
+  }
+ },
+ "mean_over_local_slots": {
+  "text_path": 0.3280994912076502,
+  "text_path_shuffled": 0.23176263960648694,
+  "clip_only": 0.3023627809763707,
+  "clip_only_shuffled": 0.2251648299738177,
+  "prior_only": 0.28371701069491406,
+  "supervised_ceiling": 0.3460715414196985,
+  "text_codeword_agrees_with_image_codeword": 0.17250000000000001
+ }
+}

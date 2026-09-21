@@ -105,7 +105,7 @@ def main():
                 torch.cat(txt))
 
     c_opt, k_opt, vg_opt, raw_opt = forward(idx_opt)
-    c_val, _, _, _ = forward(idx_val)
+    c_val, k_val, _, raw_val = forward(idx_val)
 
     # ---- image-style codon distribution for every (local slot m, codeword k) -----------------
     cb = model.quantizer.get_effective_codebooks().detach()                 # [5, K, D]
@@ -128,20 +128,27 @@ def main():
     for line in open(args.qwen_text_cache_path):
         d = json.loads(line)
         caps[str(d["image_id"])] = {k: str(d["codebook_texts"].get(k, "") or "") for k in AXES}
+    # NUS-WIDE / MS-COCO key images under subfolders; the ids below are "images/" + basename.
+    caps.update({"images/" + os.path.basename(k): v for k, v in list(caps.items())
+                 if "images/" + os.path.basename(k) not in caps})
     name = lambda i: "images/" + os.path.basename(str(tr[i]["image_path"]))   # noqa: E731
     id_opt, id_val = [name(i) for i in idx_opt], [name(i) for i in idx_val]
     vocab = distinctive_vocab(caps, id_opt)
     T_opt = {ax: multi_hot(caps, id_opt, ax, vocab[ax]) for ax in AXES}
     T_val = {ax: multi_hot(caps, id_val, ax, vocab[ax]) for ax in AXES}
 
-    # ---- text path: opt captions -> slot codewords --------------------------------------
-    with torch.no_grad():
-        k_txt = []
-        for s0 in range(0, len(raw_opt), 256):
-            t = model._adapt_pooled_text_for_loss(raw_opt[s0:s0 + 256].to(a.device))
-            enc = model._encode_text_tokens_to_dna(t, allow_mm_ema=False, deterministic_codon=True)
-            k_txt.append(enc["codebook_indices"].cpu())
-        k_txt = torch.cat(k_txt).numpy()                                            # [n_opt, 5]
+    # ---- text path: captions -> slot codewords -------------------------------------------
+    def text_codewords(raw):
+        with torch.no_grad():
+            out = []
+            for s0 in range(0, len(raw), 256):
+                t = model._adapt_pooled_text_for_loss(raw[s0:s0 + 256].to(a.device))
+                enc = model._encode_text_tokens_to_dna(t, allow_mm_ema=False, deterministic_codon=True)
+                out.append(enc["codebook_indices"].cpu())
+            return torch.cat(out).numpy()                                           # [n, 5]
+    k_txt = text_codewords(raw_opt)
+    # Held-out rows: how often a caption lands on the codeword its own image deploys (local slots).
+    agree_val = (text_codewords(raw_val)[:, 1:] == k_val[:, 1:]).mean(0)            # [4]
 
     # ---- CLIP-only prototypes (C2b) -------------------------------------------------------
     img = F.normalize(vg_opt, dim=-1)
@@ -177,12 +184,12 @@ def main():
             np.tile((prior + 1.0) / (n_prior + 2.0), (len(idx_val), 1)), Tval)))
         res["supervised_ceiling"] = decode_slot(c_opt[:, m], Topt, c_val[:, m], Tval, 64,
                                                 DEFAULT_ALPHA, DEFAULT_MIN_SUPPORT)["concept_mAP"]
-        res["text_codon_agrees_with_image_codon"] = None
+        res["text_codeword_agrees_with_image_codeword"] = float(agree_val[m - 1])
         report["slots"][ax] = res
         print(f"slot {m} {ax:24s} " + "  ".join(f"{k}={v:.4f}" for k, v in res.items() if v is not None))
     means = {k: float(np.mean([report["slots"][ax][k] for ax in AXES]))
              for k in ("text_path", "text_path_shuffled", "clip_only", "clip_only_shuffled",
-                       "prior_only", "supervised_ceiling")}
+                       "prior_only", "supervised_ceiling", "text_codeword_agrees_with_image_codeword")}
     report["mean_over_local_slots"] = means
     print("MEAN " + "  ".join(f"{k}={v:.4f}" for k, v in means.items()))
     json.dump(report, open(a.out, "w"), indent=1)

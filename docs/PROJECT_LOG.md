@@ -487,6 +487,97 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-22 [branch arch-exp-2026-09 — analysis + OFF-PROTOCOL screening, not a paper result] Separate codebooks are what keep deployed codes apart; the caption reading holds on all three captioned datasets but beats a CLIP-only reader only on Flickr25K; of four loss/architecture arms only the two inert losses can go
+
+**Status:** 🟡 analysis + 12 stage-1 screening cells. Records: `result/analysis/stage1_f09_decoding/a4_reeval/`,
+`result/analysis/stage2_zscr/zscr_3ds_summary.txt`, `result/analysis/stage4_arms/step2_summary.{txt,json}`.
+Training cells ran in worktree `/data/yschoi/gdna_wt_mscoco` frozen at `8cae54d` (identical model/config/
+trainer/loss/dataloader bytes to the shared tree); `hash_target_mode siglip_cos` (unsupervised), stage-1
+stop after epoch 4, `--no-post_eval_compositional`, so no NMI / drop / B0-B1-B2 / grid numbers exist
+for these cells.
+
+**1. Multiple codebooks (claim 1) — F09 A4 re-scored.** Under the paper's deployment rule
+(`codebook_mean`) a shared codebook gives every local slot the same anchor, so all four local slots
+deploy the same codeword. Post-DP numbers straight from each run's `evaluation_siglip2_base_bioproj.json`:
+
+| dataset | mAP@R A5 (separate) | mAP@R A4 (shared) | DNA-unique A5 | DNA-unique A4 | unique lost |
+|---|---:|---:|---:|---:|---:|
+| CIFAR-10 | .8871 | .8788 | .1059 | .0320 | −70% |
+| Flickr25K | .8427 | .8568 | .2620 | .1207 | −54% |
+| NUS-WIDE | .8096 | .8173 | .2092 | .0509 | −76% |
+| MS-COCO | .8264 | .8287 | .1708 | .0443 | −74% |
+
+Re-encoded under ONE rule that gives slots their own anchors (`eval_routing_mode text_prototype`, the
+per-slot EMA of training captions the checkpoint already stores; `a4_reeval.py`, approved s4.7 rows and
+settings), the two arms decode the same: Flickr .7675/.7668, NUS .7241/.7241, MS-COCO .6608/.6594
+(A5/A4), with query uniqueness .514/.514, .691/.737, .426/.439. 🟢 **Claim (1), stated precisely:** with
+the text-free deployment rule the paper uses, separate codebooks are what keep the five slots from
+collapsing onto one codeword; retrieval does not need them (mAP@R level or slightly higher with A4), the
+address space does (54–76% of distinct codes lost). A shared codebook recovers only when each slot is
+given its own stored anchor.
+
+**2. Zero-shot codon reading on all captioned datasets (claim 2).** Same reader as the 2026-09-21 entry,
+held-out rows of each run's own split, mean over 4 local slots, seeds 42/43/44 (mean ± population SD):
+
+| dataset | model | supervised ceiling | text path | CLIP only | prior | text − prior | CLIP − prior |
+|---|---|---:|---:|---:|---:|---:|---:|
+| Flickr25K | captions | .3469 ± .0035 | .3272 ± .0023 | .3048 ± .0043 | .2837 | +.0435 | +.0211 |
+| Flickr25K | none | .3454 ± .0031 | .2824 | .3058 ± .0023 | .2837 | −.0013 | +.0221 |
+| NUS-WIDE | captions | .3659 ± .0008 | .3295 ± .0062 | .3382 ± .0008 | .2791 | +.0504 | +.0591 |
+| NUS-WIDE | none | .3581 ± .0032 | .2790 | .3237 ± .0042 | .2791 | −.0001 | +.0446 |
+| MS-COCO | captions | .4405 ± .0051 | .4103 ± .0058 | .4124 ± .0039 | .3146 | +.0956 | +.0978 |
+| MS-COCO | none | .4062 ± .0032 | .3146 | .3709 ± .0031 | .3146 | .0000 | +.0563 |
+
+(NUS runs: `nus_text/nus_notext`; MS-COCO: `msc0695` vs `msc_notext`, trained in the worktree; NUS
+caption ids needed an `images/<basename>` alias in `zscr_pilot.py`.) 🟢 The code can be read through its
+own caption path on every captioned dataset, recovering 69% / 58% / 76% of the supervised gain over the
+prior with no image–caption pairing. 🔴 It beats the best caption-free reader only on Flickr25K
+(+.022); on NUS-WIDE (−.009) and MS-COCO (−.002) it is level with a CLIP-only reading of the same
+caption-trained code. What captions add to the *code itself* shows on MS-COCO (ceiling +.034, CLIP
+reading +.042 over the caption-free code) and slightly on NUS-WIDE (+.008 / +.015), not on Flickr25K,
+matching stage 1. No test was pre-specified; these are means and SDs only.
+
+**3. Step 2 arms (Flickr25K stage-1, 3 seeds).** Entry gate for the one code change: `gateT_s42`
+(new flag off) reproduces `base_s42` byte for byte (log.csv 280/280). Held-out rows; "txt=img cw" is
+how often a caption lands on the codeword its own image deploys (local slots).
+
+| arm | change | mAP@R | dead | unique | txt=img cw | ZSCR text |
+|---|---|---:|---:|---:|---:|---:|
+| base | — | .7453 ± .0133 | .241 ± .036 | .536 ± .018 | .166 ± .008 | .3272 ± .0028 |
+| tier1 | `--lambda_cibhash_kl 0 --lambda_anchor 0` | identical | identical | identical | identical | identical |
+| slim | tier1 + `--lambda_text_code_kl 0 --lambda_bu 0 --lambda_quant 0` | .7350 ± .0092 | .245 ± .010 | .531 ± .014 | .167 ± .018 | .3271 ± .0144 |
+| pool | `--bidirectional_token_prune_text_ratio 1.0` | .7426 ± .0101 | .246 ± .039 | .535 ± .030 | .158 ± .019 | .3264 ± .0129 |
+| textctx | `--text_codon_global_context image` (new) | .7328 ± .0110 | .266 ± .017 | .493 ± .028 | .131 ± .013 | .3263 ± .0050 |
+
+Per-seed differences from base (s42/s43/s44). slim mAP@R −.023/−.007/−.001. textctx mAP@R −.013/−.006/−.018,
+unique −.089/−.017/−.022, txt=img cw −.012/−.044/−.049. pool is mixed on every measure.
+
+- ✅ **tier1 — safe to drop, no retraining needed.** Final weights are bit-identical to base on all
+  three seeds (`torch.equal` on every tensor); only the logged anchor loss and total loss differ. The
+  EMA codebooks receive no gradient from the anchor term, and cibhash_kl returns zeros with the
+  visual-token source. The recipe keeps its flags until consolidation, because a protocol-args change
+  breaks `--recipe` replay; the paper may describe 10 active terms instead of 12.
+- ❌ **slim — not adopted.** Lower mAP@R on 3/3 seeds, mean −.010, with nothing gained elsewhere.
+  Which of the three terms is responsible is not separable at n = 3.
+- ❌ **pool — not adopted.** No measure moves beyond seed spread.
+- ❌ **textctx — discarded.** It was meant to make the training-time text codon read the image's gated
+  global codeword, as the deployed image codon does. Doing so moved agreement the WRONG way on 3/3
+  seeds, and mAP@R and unique codes were also lower on 3/3. The premise was small anyway: at base, a
+  caption lands on its image's local codeword only 17% of the time on held-out rows, so the gate
+  addition accounts for a minor part of text/image codon disagreement. With the same codeword, codons
+  already agreed 91.5% of the time on 512 train rows of base_s42, and 100% with the flag. The flag
+  stays in the code, default off.
+
+**Answers recorded for the user (2026-09-22).**
+- *Where is the text codon made?* Only in training: `_encode_text_tokens_to_dna`, called from the
+  training forward (`model_siglip2.py`, factual caption path). It is consumed only by
+  `text_hash_ntxent`. At test time no caption exists, and the text path serves interpretation only (ZSCR).
+- *Is the gate learnable?* Yes. `global_gate_logits` is an `nn.Parameter`; its recipe initial logit
+  gives ≈ .990 and it ends ≈ .993. A run started at .047 stays near .045–.064: the parameter is weakly
+  driven, not fixed.
+
+---
+
 ## 2026-09-21 Evidence plan stage 2–3: captions give the code a working language interface (+.022 over the best caption-free reading, 3 seeds); each codon is readable on its own, but positions overlap rather than add
 
 **Status:** 🟡 analysis (no training). Records: `result/analysis/stage2_zscr/` (Flickr25K stage-1
