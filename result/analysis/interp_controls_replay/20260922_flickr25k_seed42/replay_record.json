@@ -1,0 +1,13 @@
+{
+ "command": "python scripts/interp_control_a_partitions.py --out <D>/never_created --cells flickr25k_seed42 --allow-partial --dry-run",
+ "rc": 0,
+ "start": "2026-09-22 01:47:00 +0900",
+ "end": "2026-09-22 01:47:25 +0900",
+ "driver_sha256": "cd0dcb7038b662e100f5d70bb3fc1a859d916ba5aadda23e6faf43c630212ffc",
+ "probe_sha256": "1f8cf34d9afc545ea5d4e864fb7db33e417f006901f66a033fa1b178cfe8ce64",
+ "stdout_sha256": "c7f83265e6d015d55f2619734e1be6a769af2e4b3957f74070d981058711bc19",
+ "stderr_sha256": "8930dd17be519282b049c1c2d1ca19b16f912ce53a7423930b0cd138ac5fcd2c",
+ "out_created": false,
+ "stored_record": "result/analysis/interp_controls/A_partitions_20260917/flickr25k_seed42.json",
+ "stored_record_sha256": "44651a632a9f8799e41df6a1b0131079d3c0c3521f373c86b3c443310e366358"
+}

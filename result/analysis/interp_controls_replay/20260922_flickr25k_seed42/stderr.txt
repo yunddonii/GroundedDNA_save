@@ -1,0 +1,2 @@
+/home/yschoi/GroundedDNA/scripts/heldout_codon_decoding.py:207: RuntimeWarning: Mean of empty slice
+  mean_ap = np.nanmean(ap_stack, axis=0)

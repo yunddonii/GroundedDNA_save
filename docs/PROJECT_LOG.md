@@ -487,6 +487,58 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-22 Audit §622–§645 applied: every candidate the audit handed over is installed except the three that change the manuscript or a protocol-pinned shared module, and the two gaps it found in installed code (D5 child output, TODO18 probe mode) are closed
+
+**Status:** 🟢 execution-integrity repairs; no training except two default-path gate cells, and no
+scientific value changed. Main-line code stays uncommitted in the shared tree (decision (나)).
+Backups are under `/data/yschoi/gdna_audit_fix_backup_20260922/`. Every install was done with
+`git apply` of the audit's own patch, then a byte comparison with its candidate file.
+
+| audit | what | installed bytes | tests |
+|---|---|---|---|
+| §633–635 | Reinforcement A driver: 13-file dependency closure, where an unpinned `dna_utils` name refuses; a new output directory reserved before scoring; receipt published last by hard link | driver `cd0dcb70` (= §635 candidate) | 22 (`07a4e5b5`); 4 new tests fail on `3feaa408` for the intended reasons |
+| §633.3/§639.3 | A replay evidence: dry run re-done through `cd0dcb70` with command, log, rc and digests kept; six-decimal match to the stored Flickr25K s42 cell | `result/analysis/interp_controls_replay/20260922_flickr25k_seed42/`; results doc §9 (`aa6ff803`); contract §11 prospective pin (`e9022551`) | — |
+| §627–630, §637, §638 | Paper-table writer: P3 and baseline admission (§630); §637 wording, with the D6 MS-COCO sentence computed from admitted rows; D5-ours historical loader (§638.5) | `e2e31c73` (= §638 final candidate) | 13 (`c5782555`); `--list` validates all 4 panels and writes nothing |
+| §624–626 | TODO18: joint codebook/EMA reset, consumed-input recheck and atomic writer (§625); `--publish` refuses until §626 is decided | `64d8af80`, accepted in §639.2 | 37 |
+| §639.2 | TODO18 probe mode (my repair, no audit candidate): a probe inside the publication root, or with no `--cell/--stage/--seed/--rows`, refuses; every payload records `mode`; `diagnostic_incomplete` is always true, with reasons, while the routing measurement is undefined | `c3c853f3` | 45 (`c4116db4`); the 8 new tests all fail on `64d8af80` |
+| §622/§623 | D5 driver and finisher: approved-args bytes, 6 recipe flags, child args must equal the approved args, 13-field input hold, pipefail and child exit status, no-overwrite receipts | `74d47cad` / `b52a8db9`, accepted in §639.1 | 106 (`49330ae9`); 100 fail on the pre-repair code |
+| §639.1/§645 | D5 child-output ownership: the driver reserves `<generation>/<dataset>.launch/run`; the trainer's resolver claims exactly that directory and its post-main hook publishes completion (13 terminal files); projection and recovery need the whole request/start/completion/exit chain, and a foreign same-tag directory is never used | driver `d09ac608`, finisher `4c911aa1`, trainer `d9fad063`, helper `d506b451` (= §645 candidates) | repo D5 suite ported to the protocol (`73834789`, 110); audit suite ported (`62893544`, 99 + 4 skipped); the 4 skipped tests, run with `GDNA_D5_ORIGINAL_DRIVER` = `74d47cad`, show the old driver publishing the foreign output (4/4) |
+| §642 | Status text: dated TODO snapshot; collector pending README and index (3 string constants) | TODO `c209eb60`, then TODO18 line updated (`a56f3e9d`); collector `8d6fcece` | — |
+| §641 | Publisher-oracle fixture (scratchpad, never executed) | `40afef94` (= candidate) | — |
+
+**Gates.** The trainer edit (§645) and yesterday's `--text_codon_global_context` each reproduce
+`base_s42` byte for byte. Log file 280/280: `gate645_s42` from the shared tree and `gateT_s42` from
+the worktree. Both hooks return immediately without `GDNA_D5_OUTPUT_REQUEST`.
+
+All seven suites together: 337 passed, 4 skipped (positive control only), 26 subtests, rc 0.
+
+**Found while doing this.** The Phase 3 tree (`/data/yschoi/gdna_p3exec`) and the shared tree
+disagree on 4 of the 5 `PROTOCOL_SOURCES`:
+
+| file | shared tree | Phase 3 tree |
+|---|---|---|
+| trainer | `d9fad063` | `fe7ba262` |
+| model | `160e76ab` | `749ac1bc` |
+| config | `35adf9d1` | `8bc54df6` |
+| run_identity | `1ffc4e6b` | `a6cfe0e9` |
+
+The fifth file, the selection matrix, is `f202dbeb` in both. Shared-tree edits therefore cannot
+touch the sealed Phase 3 campaigns. A corrected D5 launch, however, runs the shared tree's trainer,
+so its source pins are still to be decided.
+
+**Not applied, needs the user.**
+1. §643, the combined manuscript successor, which supersedes §636 and §640, and §637's companion
+   table derivatives: both write into `docs/paper_draft/`.
+2. §644 (`dna_utils/run_identity.py` released-claim fix): it changes a protocol-pinned shared module
+   that is also one of the Reinforcement A driver's 13 dependency pins. That would move both pins
+   together.
+3. §626: which routing overlap TODO18 should measure.
+
+Still on hold by design: the D5 corrected launch (13 input-authority fields, typed config) and the
+five D5/D6 metric differences (§631 plan: proposed, not executable).
+
+---
+
 ## 2026-09-22 [branch arch-exp-2026-09 — analysis + OFF-PROTOCOL screening, not a paper result] Separate codebooks are what keep deployed codes apart; the caption reading holds on all three captioned datasets but beats a CLIP-only reader only on Flickr25K; of four loss/architecture arms only the two inert losses can go
 
 **Status:** 🟡 analysis + 12 stage-1 screening cells. Records: `result/analysis/stage1_f09_decoding/a4_reeval/`,

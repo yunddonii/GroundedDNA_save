@@ -1,0 +1,4 @@
+cell                         ours     contig  best_flat          arm  ours-best                   CI95  excl0
+flickr25k_seed42         0.741234   0.639626   0.641507  permuted_15  +0.099726 [+0.092971, +0.105541]   True
+
+1 cells, entry gate passed on every one.
