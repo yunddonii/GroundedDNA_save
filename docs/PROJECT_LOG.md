@@ -487,6 +487,110 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-21 Audit §599–601 repaired in the working tree: labels reach both refit handoffs, D4 executes only verified bytes and admits only checked evidence, eligibility survives into the table — and all 60 existing D5/D6 selections used the right rows
+
+**Status:** 🟢 source repairs + tests, working tree `/home/yschoi/GroundedDNA` (the tree the audit
+reads). **Not committed to any branch** — the audited versions of all three files existed only as
+uncommitted working-tree state, and main lacks 16 files of their import closure (see "Where this
+lives"). No training, no GPU, no scientific rerun. Pre-fix bytes preserved with digests at
+`/data/yschoi/gdna_audit_fix_backup_20260921/` (822b3ccd / 003d1001 / 8ca1de02 / c87cf6ab, each
+matching the audit's pins).
+
+### §601 HIGH — the membership check now runs on both real CLI handoffs
+
+`scripts/run_modern_baseline_p0.py` 003d1001 → 1eab9be8:
+- `_admitted_train_labels()` rebuilds the train labels with the **same class and arguments** the
+  selector digests (`CachedFeatureDataset(dataset, setting, 'train', dataset_root, cache_dir).labels`).
+- `_load_verified_selection_artifact(..., expected_train_labels)` — the argument is required
+  (keyword-only, no default) and `None` is refused; the formerly conditional rederivation always runs.
+- Both call sites (`--stage all` after the selector, standalone `--stage refit`) pass the labels.
+
+Tests (`tests/test_modern_driver_protocol.py`): a whole-chain selection builder; the audit's six
+mutations refused with labels, `None` and omission refused; the **actual `main()`** driven through
+both branches — honest builds exactly one refit command, three mismatches build none and fail for
+the membership reason. The stale `test_refit_selection_json_is_bound_to_checkpoint_set` was
+**already failing on the audited bytes** (it predates the `map_at_r_cutoff` requirement) and was
+rebuilt on the consistent chain. Related suites: 1 failed + 75 passed → **78 passed**.
+Positive control: the same tests against the audited 003d1001 in a sandbox fail exactly on the six
+main() mismatch cases (a refit command is built) and on the required-labels test.
+
+**The 60 existing D5/D6 selections (§601.3).** Labels rebuilt with the fixed loader from each job's
+own command (`--cache-dir/--setting/--dataset-root`), split rederived with `val_split.carve_val_indices`:
+
+| panel | CIFAR10 | Flickr25k | MSCOCO | NUSWIDE | membership verified |
+|---|---:|---:|---:|---:|---:|
+| D6 (30 bit) | 9 | 9 | 9 | 9 | 36/36 |
+| D5 (40 bit) | 6 | 6 | 6 | 6 | 24/24 |
+
+Label digest, validation rows, optimisation rows, counts, strategy and ratio/seed all match: **no
+cell used the wrong rows, no retraining is needed.** The defect was a gate defect with no realised
+harm. Positive control: one flipped label bit → 15/15 Flickr cells refused.
+
+### §600 HIGH + MED — D4 executes the verified bytes and the parent checks what ran
+
+`scripts/d4_exclusion_sensitivity.py` 822b3ccd → 35454a4b:
+- `snapshot_family` reads the family tree once and verifies the pins **on those in-memory bytes**.
+- `VerifiedSourceImporter` (a meta-path finder/loader) compiles every family module from the
+  verified bytes; nothing is reread from a path, so a snapshot or original-tree change after
+  verification — persistent or restored around the import — cannot change what runs. Every
+  execution, including lazy imports during evaluation, is recorded as path → digest of the bytes run.
+- The worker reports that record after all cells; `admit_execution_evidence` requires this family's
+  entry at its pinned digest, **every** pinned evaluator/dependency among the executed modules at
+  its pin, a matching family name and a coherent file count; the bundle keeps it as `executed`.
+- Verified beforehand on the frozen trees: all nine pins match, and every pinned file is imported by
+  a real run (ours/u0 at import; native's `base_model` lazily during evaluation).
+
+Independent check with **the audit's own §600 harness** (`/tmp/gdna_d4_snapshot_600_20260921.py`
+5afd41d7), target switched to the fixed producer: with its original defect expectations it passes the
+honest and source-change cases and **breaks at the first snapshot counterexample**; with the
+expectations flipped to the repaired behaviour, **24/24 loader and 11/11 parent cases pass**, every
+accepted case asserted to execute the verified 0.5, the four evidence mutations refused for their
+named reasons. New `tests/test_d4_execution_boundary.py` (32 tests) re-implements that harness in
+pytest; against the audited 822b3ccd it fails 29/32, including all nine `0.75 == 0.5` loader
+counterexamples and every evidence mutation accepted with rc 0.
+
+### §599 MED — eligibility survives into the table, as a separately bound derivative
+
+`to_tex` sets main-ineligible methods below a second rule under "Diagnostic only, not
+main-eligible", adds a caption qualification, and treats a missing flag as ineligible. A new
+`--render-tex-from <sealed bundle> --source-receipt-sha256 <audited digest>` mode re-renders a sealed
+bundle's table without recomputing anything. Published:
+`result/analysis/d4_exclusion_sensitivity/p3_20260916_v4_tex_eligibility_20260921/` — table
+c0090a42…, derivative receipt 2857d723…, bound to source receipt f2400697… / result 591a41e4… /
+producer 822b3ccd…. All 28 data rows are byte-identical to the sealed table; only `native/bee2021`
+moves into the diagnostic block. The sealed v4 bundle is unchanged (f2400697 / 591a41e4 / 24b1ea98).
+
+### Where this lives, and what is still open
+
+The audited versions were never committed: `scripts/d4_exclusion_sensitivity.py` is untracked, the
+consumer and selector are uncommitted modifications, and the working tree carries 626 deletions /
+94 modifications / 119 untracked files over its branch. Their import closure differs from `main` in
+16 files (3 of them absent on main). Committing the fixes to `main` therefore means adopting that
+closure — a consolidation decision (charter #2/#4), not a fix. **Open for the audit:** §600's
+execution-boundary repair and new evidence schema need its review before D4 acceptance; no D4 rerun
+was made or is implied. §601.3's reconciliation of TODO's pre-launch text and the old bbd7bad0 D5
+plan pin, and the `d5_ours_20260917` rc=1 attempt, were not touched.
+
+### The whole suite, and why it is not green
+
+`pytest tests/` twice, identical both times: **2111 passed, 41 failed, 71 errors**. None of the
+failures comes from these three repairs:
+- **2** are the runner-digest allowlist tests (`test_the_current_runner_digest_is_reviewed`,
+  `test_historical_common_dispatch_hashes_remain_resume_auditable`). The aggregator's
+  `reviewed_sha256` for `run_modern_baseline_p0.py` ends at dacee2e3; the audited 003d1001 is not in
+  it either, and a sandbox with 003d1001 fails both tests the same way. Registering a digest attests
+  a reviewed transition, so neither 003d1001 (what D5/D6 recorded) nor 1eab9be8 was added here.
+- **39 failed + 71 errors** sit in 11 files that import none of the changed modules, and reproduce
+  with the new test file excluded: the frozen Phase-3 producer no longer matches the working tree
+  (`test_ablation_campaign_e2e` 74, `test_campaign_ledger`), unregistered source transitions
+  (`test_aggregator_bit_slice`, `test_matrix_self_source_transition`), `ls -d … | head -1` still in
+  four `sweep_joint_cell*.sh` (`test_result_dir_resolution`), result-directory state
+  (`test_extraction_run_validation` missing a preserved Phase-2 checkpoint, `test_prompt_a_handoff`,
+  `test_native_p0_complete`), `test_f10_mscoco_train_executor` and `test_phase5_compositional_tools`.
+They are the test debt of the uncommitted working state, recorded here, not triaged.
+
+---
+
 ## 2026-09-21 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] Necessity ablation under the current protocol: word decodability of the code is identical without captions; what captions give is retrieval, diversity and codeword–caption alignment, and they are also what collapses the codebook
 
 **Status:** 🟡 exploratory, off-protocol. Must not enter `docs/paper_draft/`. Record:
