@@ -487,6 +487,52 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-22 [branch arch-exp-2026-09 — analysis, no training] Stage 6b: what the axis-centred anchors change inside the code — sharper routing, codewords nearer their own axis, slightly less slot overlap; word-level readings unchanged. Decisions: A′ stopped at (a); D5 code base deferred until the model is final
+
+**Status:** 🟡 analysis of the stage-6 runs (24 runs, no new training). Records:
+`result/analysis/stage6_p2anc/analysis/` (`anchor_analysis.py`, one JSON per run) and
+`analysis_summary.txt`. Deployment forward, no text; opt rows = dictionary side, val rows held out.
+3-seed means, descriptive, no test.
+
+| dataset | arm | code→axis | axis→code | diag−offdiag cos | eff. slots/patch | top-1 frac | codon NMI (local pairs) | label AP k=1 → k=5 | cb min/med |
+|---|---|---:|---:|---:|---:|---:|---:|---|---:|
+| Flickr25K | base | .307 | .374 | .020 | 3.07 | .040 | .443 | .772 → .817 | .58 |
+| Flickr25K | anchors | .370 | .493 | .043 | 2.42 | .134 | .433 | .774 → .820 | .88 |
+| NUS-WIDE | base | .360 | .455 | .040 | 2.28 | .108 | .479 | .738 → .789 | .93 |
+| NUS-WIDE | anchors | .445 | .576 | .066 | 1.88 | .284 | .460 | .736 → .791 | .90 |
+| MS-COCO | base | .355 | .452 | .039 | 3.05 | .020 | .621 | .666 → .715 | .85 |
+| MS-COCO | anchors | .418 | .520 | .052 | 2.58 | .084 | .587 | .657 → .722 | .89 |
+| CIFAR-10 | base | .304 | .359 | .023 | 1.75 | .304 | .662 | .933 → .970 | .87 |
+| CIFAR-10 | anchors | .397 | .476 | .204 | 1.35 | .654 | .448 | .836 → .960 | .76 |
+
+Per-seed: effective slots per patch fall on 12/12 seed-datasets; codon NMI between local slots falls
+on 3/3 seeds on NUS-WIDE and MS-COCO (Flickr mixed); label AP from all five codons rises 3/3 on
+Flickr25K and MS-COCO.
+
+**What the anchors do, in order of size:**
+1. **Codewords move toward their own axis's language.** Nearest-caption reading of a slot's codeword
+   picks the right axis .31→.37 (Flickr), .36→.45 (NUS), .36→.42 (COCO); the reverse direction .37→.49,
+   .46→.58, .45→.52. The gap between own-axis and other-axis cosine roughly doubles.
+2. **Routing gets sharper without a flag change.** A patch spreads over 3.1→2.4 slots on Flickr,
+   2.3→1.9 on NUS, 3.1→2.6 on COCO; the share of patches on exactly one slot triples.
+3. **Slots overlap a little less, and positions add a little more.** Local-slot codon NMI −.01 to
+   −.03; joint label decoding from five codons +.003 to +.007 with the 1→5 gain up on all three.
+4. **Codebook health** improves where it was poor (Flickr dead .24→.19, worst-codebook perplexity
+   .58→.88).
+5. **Unchanged:** word-level readings (supervised dictionary, caption path) and M1. The anchors improve
+   the vector-level language alignment of codewords, not the word-level decodability of codons.
+
+**CIFAR-10 is the counter-case:** slots do separate (NMI .66→.45, top-1 .30→.65), but by giving up
+the class: single-codon label AP .93→.84 and mAP@R −.12. With one object per image, the shared
+component the anchors remove *is* the content.
+
+**Decisions recorded (user, 2026-09-22):**
+- A′ (named concept codebook) stops here, option (a). Flickr/NUS results stay as branch exploration.
+- D5 corrected-run code base: deferred; keep modifying the model and decide with the final code.
+- CIFAR-10 stays in every experiment for now; the user is considering dropping it from the paper.
+
+---
+
 ## 2026-09-22 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] Stage 8: the tied concept codebook replicates only on Flickr25K (partly on NUS-WIDE, not on MS-COCO or CIFAR-10); the B2 caption queue makes the codebook worse; anchors' retrieval change is within seed noise on multi-label data but −.12 on CIFAR-10
 
 **Status:** 🟡 exploratory confirmation, pre-registered in `result/analysis/stage8_extend/PREREGISTRATION.md`
