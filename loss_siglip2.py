@@ -44,6 +44,8 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 import math
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -404,6 +406,21 @@ class DNACodonHashLoss(nn.Module):
         self.lambda_role = float(getattr(cfg, "lambda_role", 0.0) or 0.0)
         self.role_tau    = float(getattr(cfg, "role_tau", 0.07) or 0.07)
         self.role_source = str(getattr(cfg, "role_source", "quantized") or "quantized")
+        # (stage 7) local-slot target of the visual-token NT-Xent, and the caption-
+        # concept cross-entropy of the named concept codebook.
+        self.cibhash_local_target = str(getattr(cfg, "cibhash_local_target", "instance") or "instance")
+        self.cibhash_local_target_tau = float(getattr(cfg, "cibhash_local_target_tau", 0.2))
+        self._axis_mean_ema = None                  # per-axis caption mean, EMA over batches
+        self.lambda_concept = float(getattr(cfg, "lambda_concept", 0.0) or 0.0)
+        self.concept_tau = float(getattr(cfg, "concept_tau", 0.5))
+        self._concept_centers = self._concept_axis_mean = None
+        if self.lambda_concept > 0.0:
+            _cc = str(getattr(cfg, "concept_codebook_npz", "") or "")
+            if not _cc:
+                raise ValueError("--lambda_concept needs --concept_codebook_npz")
+            _z = np.load(_cc)
+            self._concept_centers = torch.as_tensor(_z["centers"], dtype=torch.float32)       # [4, 64, D]
+            self._concept_axis_mean = torch.as_tensor(_z["axis_mean"], dtype=torch.float32)  # [5, D]
         # ConceptHash Eq. 8 (`L_csd`) ported onto the routing matrix.
         self.lambda_slot_diversity      = float(getattr(cfg, "lambda_slot_diversity", 0.0))
         self.slot_diversity_skip_global = bool(getattr(cfg, "slot_diversity_skip_global", True))
@@ -1052,6 +1069,38 @@ class DNACodonHashLoss(nn.Module):
         return delta + (z_hard - delta).detach()
 
 
+    def _centred_axis_text(self, t_raw):
+        """(stage 7, B) per-axis caption embeddings minus an EMA of their mean, unit norm."""
+        if t_raw is None:
+            raise ValueError("--cibhash_local_target axis_soft needs the cached caption embeddings")
+        t = t_raw.detach().float()
+        with torch.no_grad():
+            if self._axis_mean_ema is None:
+                self._axis_mean_ema = t.mean(dim=0)
+            else:
+                self._axis_mean_ema = 0.99 * self._axis_mean_ema.to(t.device) + 0.01 * t.mean(dim=0)
+        return F.normalize(t - self._axis_mean_ema.to(t.device), dim=-1)
+
+    def _loss_concept(self, t_raw, distances):
+        """(stage 7, A) local slot m must pick the codeword of its own caption concept.
+
+        The concept of a caption is its nearest k-means centre (per-axis-centred cache
+        embedding, the space the centres were fitted in). Logits are standardised
+        negative codeword distances, the same quantity the concept codon uses."""
+        if t_raw is None or distances is None:
+            return None
+        t = t_raw.detach().float()[:, 1:, :]                                   # [B, 4, D]
+        mu = self._concept_axis_mean.to(t.device)[1:]                          # [4, D]
+        c = self._concept_centers.to(t.device)                                 # [4, 64, D]
+        y = torch.cdist((t - mu).transpose(0, 1), c).argmin(dim=-1).transpose(0, 1)  # [B, 4]
+        valid = t.norm(dim=-1) > 0                                              # captionless rows
+        d = distances[:, 1:, :64].float()
+        z = (d - d.mean(-1, keepdim=True)) / d.std(-1, keepdim=True).clamp_min(1e-6)
+        logits = (-z / self.concept_tau)
+        if not bool(valid.any()):
+            return None
+        return F.cross_entropy(logits[valid], y[valid])
+
     def _loss_role_axis(self, q_local, t_local):
         """(arch-exp-3 P4) In-image cross-axis alignment.
 
@@ -1444,8 +1493,17 @@ class DNACodonHashLoss(nn.Module):
         text_part_raw: Optional[torch.Tensor] = None,
         dynamic_tau_alpha: float = 0.0,
         dynamic_tau_skip_global: bool = False,
+        local_target: str = "instance",
+        local_target_tau: float = 0.2,
+        axis_text: Optional[torch.Tensor] = None,     # [B, M, D_text] centred, normalised
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """v150: per-codebook NtXent on pre-VQ routed visual tokens.
+
+        Stage 7: ``local_target`` changes what the LOCAL slots (m >= 1) are asked
+        for; the global slot always keeps the instance target. "axis_soft" uses the
+        soft target softmax(cos(axis_text_i^m, axis_text_j^m) / local_target_tau)
+        over the other 2B-1 rows (the augmentation partner shares the caption, so
+        it keeps the largest share); "none" drops the local terms.
 
         Same per_codebook geometry as `_loss_cibhash_per_codebook` with
         mode="per_codebook", but operates on the D-dim semantic_visual_tokens
@@ -1475,11 +1533,21 @@ class DNACodonHashLoss(nn.Module):
 
         ntxent_per_cb: list = []
         for m in range(M):
+            if m > 0 and local_target == "none":
+                continue
             vm1 = visual_tokens_view1[:, m, :]                            # [B, D]
             vm2 = visual_tokens_view2[:, m, :]                            # [B, D]
             v = torch.cat([vm1, vm2], dim=0)                               # [2B, D]
             v_n = F.normalize(v, dim=-1, eps=1e-8)
             sim_raw = v_n @ v_n.T                                          # [2B, 2B], cosine
+
+            if m > 0 and local_target == "axis_soft":
+                eye_ax = torch.eye(2 * B, device=sim_raw.device, dtype=torch.bool)
+                t2 = torch.cat([axis_text[:, m, :], axis_text[:, m, :]], dim=0).float()
+                tgt = torch.softmax((t2 @ t2.T).masked_fill(eye_ax, -1e9) / local_target_tau, dim=1)
+                logp = F.log_softmax((sim_raw / T).masked_fill(eye_ax, -1e9), dim=1)
+                ntxent_per_cb.append(-(tgt.detach() * logp).sum(dim=1).mean())
+                continue
 
             if use_dyn and not (dynamic_tau_skip_global and m == 0):
                 t_m = text_part_raw[:, m, :]                                # [B, D_text]
@@ -3094,11 +3162,17 @@ class DNACodonHashLoss(nn.Module):
                 if sv_v2 is None:
                     sv_v2 = outputs_view2.get("semantic_visual_tokens")
                 if sv_v1 is not None and sv_v2 is not None:
+                    _axis_text = None
+                    if self.cibhash_local_target == "axis_soft":
+                        _axis_text = self._centred_axis_text(outputs.get("text_part_raw_cached"))
                     loss_cibhash_ntxent_v, loss_cibhash_kl_v = self._loss_cibhash_visual_per_codebook(
                         sv_v1, sv_v2, temperature=self.cibhash_temperature,
                         text_part_raw=_ttp_raw,
                         dynamic_tau_alpha=_dyn_alpha,
                         dynamic_tau_skip_global=self.cibhash_dynamic_tau_skip_global,
+                        local_target=self.cibhash_local_target,
+                        local_target_tau=self.cibhash_local_target_tau,
+                        axis_text=_axis_text,
                     )
                     if (
                         self.cibhash_visual_token_bit_kl
@@ -3647,6 +3721,15 @@ class DNACodonHashLoss(nn.Module):
                     loss_role = _r
                     total = total + self.lambda_role * loss_role
 
+        # (stage 7, A) caption-concept cross-entropy for the named concept codebook.
+        loss_concept = u.new_zeros(())
+        if self.lambda_concept > 0.0 and not _vq_bypassed:
+            _c = self._loss_concept(outputs.get("text_part_raw_cached"),
+                                    outputs.get("codebook_distances"))
+            if _c is not None:
+                loss_concept = _c
+                total = total + self.lambda_concept * loss_concept
+
         # (b-1) masked entity completion, computed inside the model forward.
         loss_mec = outputs.get("loss_mec")
         mec_acc = outputs.get("mec_acc")
@@ -3662,6 +3745,7 @@ class DNACodonHashLoss(nn.Module):
             "loss_codon_joint":  loss_codon_joint,
             "loss_mec":          loss_mec,
             "loss_role":         loss_role,
+            "loss_concept":      loss_concept,
             "mec_acc":           mec_acc,
             "loss_slot_diversity": (loss_slot_diversity
                                     if loss_slot_diversity is not None

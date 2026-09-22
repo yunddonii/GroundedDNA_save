@@ -2488,6 +2488,23 @@ class SigLIP2SemanticOTModel(nn.Module):
         # Text codon for local slots: "none" reads the text codeword alone;
         # "image" adds sg(gate) * sg(paired image global codeword), as the
         # deployed image codon does.
+        # (stage 7, A) named caption-concept codebook: local codeword k of slot m
+        # emits the FIXED codon concept_layout[m-1, k] instead of a learned head.
+        self.concept_tau = float(getattr(args, "concept_tau", 0.5))
+        _cc = str(getattr(args, "concept_codebook_npz", "") or "")
+        if _cc:
+            import numpy as _np
+            _z = _np.load(_cc)
+            _layout = torch.as_tensor(_z["layout"], dtype=torch.long)          # [4, 64, 3]
+            if _layout.shape != (NUM_LOCAL_PARTS, 64, 3) or int(getattr(args, "codebook_size", 0)) != 64:
+                raise ValueError("concept codebook needs 4 local slots, codebook_size 64 and a "
+                                 f"[4, 64, 3] layout; got {tuple(_layout.shape)}")
+            codons = _layout[..., 0] * 16 + _layout[..., 1] * 4 + _layout[..., 2]
+            if any(len(set(codons[m].tolist())) != 64 for m in range(NUM_LOCAL_PARTS)):
+                raise ValueError("concept layout must be a bijection onto the 64 codons")
+            self.register_buffer("concept_layout", _layout, persistent=False)
+        else:
+            self.concept_layout = None
         self.text_codon_global_context: str = str(getattr(args, "text_codon_global_context", "none"))
         if self.text_codon_global_context not in ("none", "image"):
             raise ValueError(
@@ -4252,6 +4269,9 @@ class SigLIP2SemanticOTModel(nn.Module):
             "local_codebook_mean_anchors":  local_codebook_mean_anchors_raw,   # [5, D]
             "visual_global_feat":           feats["visual_global"],
             "text_global_feat":             feats["text_part_raw"],     # [B, 6, D_proj] or None
+            # (stage 7) the cache's own per-axis caption embeddings, before any
+            # token pruning re-pools them; the concept/axis targets are defined here.
+            "text_part_raw_cached":         cached_text_part_raw,       # [B, 6, D_proj] or None
             "local_routing_matrix":         None,
             "routing_matrix":               None,
             "routing_mean_effective_k":      None,
@@ -5310,6 +5330,33 @@ class SigLIP2SemanticOTModel(nn.Module):
             codeword_codon_logits = None
             codeword_K_active     = None
         base_indices_per_codebook        = torch.stack(indices_list,      dim=1)  # [B, 6, 3]
+        # (stage 7, A) local slots emit the fixed codon of their concept codeword. The
+        # soft code is the concept posterior pushed through the same layout, so losses
+        # on the continuous code still reach the slot token through the distances.
+        if self.concept_layout is not None:
+            _d = codebook_distances[:, 1:, :64].float()                        # [B, 4, 64]
+            _z = (_d - _d.mean(-1, keepdim=True)) / _d.std(-1, keepdim=True).clamp_min(1e-6)
+            _p = torch.softmax(-_z / self.concept_tau, dim=-1)                  # [B, 4, 64]
+            _oh = F.one_hot(self.concept_layout, 4).to(_p.dtype)               # [4, 64, 3, 4]
+            _soft = torch.einsum("bmk,mkcf->bmcf", _p, _oh)                     # [B, 4, 3, 4]
+            _base = self.concept_layout[torch.arange(NUM_LOCAL_PARTS, device=_d.device)[None, :],
+                                        codebook_indices[:, 1:]]                # [B, 4, 3]
+            _hard = F.one_hot(_base, 4).to(_soft.dtype)
+            _dt = continuous_codes_per_codebook.dtype
+            continuous_codes_per_codebook = torch.cat(
+                [continuous_codes_per_codebook[:, :1], _soft.to(_dt)], dim=1)
+            dna_hash_codes_per_codebook = torch.cat(
+                [dna_hash_codes_per_codebook[:, :1], _soft.to(_dt)], dim=1)
+            dna_hash_codes_per_codebook_hard = torch.cat(
+                [dna_hash_codes_per_codebook_hard[:, :1], _hard.to(_dt)], dim=1)
+            dna_hash_codes_per_codebook_st = torch.cat(
+                [dna_hash_codes_per_codebook_st[:, :1],
+                 (_hard + _soft - _soft.detach()).to(_dt)], dim=1)
+            codon_logits_per_codebook = torch.cat(
+                [codon_logits_per_codebook[:, :1],
+                 torch.log(_soft.clamp_min(1e-6)).to(codon_logits_per_codebook.dtype)], dim=1)
+            base_indices_per_codebook = torch.cat(
+                [base_indices_per_codebook[:, :1], _base.to(base_indices_per_codebook.dtype)], dim=1)
         # 9) flatten to a single concatenated code: 6 codebooks * 3 codon positions = 18
         L = self.num_codons_per_codebook
         Mp3 = NUM_SEMANTIC_PARTS * L                                         # M*L (was always 6*3=18; now 6*L)

@@ -948,6 +948,29 @@ class Config():
             type=str, default='none', choices=['none', 'anchors', 'readout', 'both'],
             help='(arch-exp-3 P2) subtract the per-image mean across local axes; '
                  'none = unchanged behaviour.')
+        siglip2_arg.add_argument('--cibhash_local_target', dest='cibhash_local_target',
+            type=str, default='instance', choices=['instance', 'axis_soft', 'none'],
+            help='(stage 7) target of the per-slot visual-token NT-Xent for the LOCAL '
+                 'slots; the global slot always keeps its instance target. '
+                 'instance = unchanged; axis_soft = soft target over the batch, '
+                 'softmax(cos of per-axis-centred axis-m captions / tau); none = no '
+                 'instance NT-Xent on local slots.')
+        siglip2_arg.add_argument('--cibhash_local_target_tau', dest='cibhash_local_target_tau',
+            type=float, default=0.2,
+            help='(stage 7) temperature of the axis_soft target.')
+        siglip2_arg.add_argument('--concept_codebook_npz', dest='concept_codebook_npz',
+            type=str, default='',
+            help='(stage 7) caption-concept file (centers [4,64,512], axis_mean [5,512], '
+                 'layout [4,64,3]). Local codeword k of slot m emits the FIXED codon '
+                 'layout[m-1, k]; empty = learned codon heads (unchanged).')
+        siglip2_arg.add_argument('--lambda_concept', dest='lambda_concept',
+            type=float, default=0.0,
+            help='(stage 7) weight of the cross-entropy that makes local slot m pick '
+                 'its own caption concept (needs --concept_codebook_npz).')
+        siglip2_arg.add_argument('--concept_tau', dest='concept_tau',
+            type=float, default=0.5,
+            help='(stage 7) temperature on standardised negative codeword distances '
+                 'for the concept cross-entropy and the soft concept codon.')
         siglip2_arg.add_argument('--vq_bypass_epochs', dest='vq_bypass_epochs',
             type=int, default=0,
             help='(c-1) epochs of VQ-free training before k-means codebook init; 0 = off.')

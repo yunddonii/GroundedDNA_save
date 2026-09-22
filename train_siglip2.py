@@ -428,6 +428,7 @@ def _build_active_loss_types(args) -> list:
     if _on('lambda_codon_joint'):       keys.append('loss_codon_joint')
     if _on('lambda_mec'):               keys.extend(['loss_mec', 'mec_acc'])   # (b-1)
     if _on('lambda_role'):              keys.append('loss_role')             # (P4)
+    if _on('lambda_concept'):           keys.append('loss_concept')          # (stage 7, A)
 
     # ---- routing-side alignment
     if _on('lambda_wasserstein'): keys.append('loss_wasserstein')
