@@ -131,7 +131,10 @@ def main():
     # NUS-WIDE / MS-COCO key images under subfolders; the ids below are "images/" + basename.
     caps.update({"images/" + os.path.basename(k): v for k, v in list(caps.items())
                  if "images/" + os.path.basename(k) not in caps})
-    name = lambda i: "images/" + os.path.basename(str(tr[i]["image_path"]))   # noqa: E731
+    fc_ids = json.load(open(os.path.join(cache, "image_ids.json")))
+    # CIFAR-10 samples carry no image_path; their captions are keyed by the cache row id.
+    name = lambda i: ("images/" + os.path.basename(str(tr[i]["image_path"]))      # noqa: E731
+                      if "image_path" in tr[i] else str(fc_ids[int(rows[i])]))
     id_opt, id_val = [name(i) for i in idx_opt], [name(i) for i in idx_val]
     vocab = distinctive_vocab(caps, id_opt)
     T_opt = {ax: multi_hot(caps, id_opt, ax, vocab[ax]) for ax in AXES}

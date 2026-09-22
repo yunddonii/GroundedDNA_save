@@ -1,0 +1,3 @@
+mscoco p2anc 42 /data/yschoi/gdna_wt_mscoco/result/260922+mscoco_setting1_msc_p2anc_s42+bs+64+e+60+proj_lr+0.001
+mscoco p2anc 43 /data/yschoi/gdna_wt_mscoco/result/260922+mscoco_setting1_msc_p2anc_s43+bs+64+e+60+proj_lr+0.001
+mscoco p2anc 44 /data/yschoi/gdna_wt_mscoco/result/260922+mscoco_setting1_msc_p2anc_s44+bs+64+e+60+proj_lr+0.001

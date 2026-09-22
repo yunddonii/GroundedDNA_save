@@ -487,6 +487,142 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-22 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] Stage 6: axis-centred anchors on all four datasets. The codeword→own-axis gain holds everywhere, and retrieval is neutral on the three multi-label datasets, but CIFAR-10 loses .12 mAP@R
+
+**Status:** 🟡 exploratory, off-protocol. Records: `result/analysis/stage6_p2anc/`
+(`summary.{txt,json}`, `eval/` with 72 probe JSONs, cells, `eval_one.sh`).
+- **Change under test:** `--axis_center anchors` (existing code, default off). Per image, subtract the
+  mean of the four local routing anchors from each local anchor, in training (caption anchors) and at
+  deployment (codebook-mean anchors). No parameter and no loss is added.
+- **Setup:** each dataset's stage-1 selection cell, seeds 42/43/44.
+- **Base cells:** Flickr `base`, NUS `nus_text`, MS-COCO `msc0695`, all reused. CIFAR-10 `cifar_base` is
+  new, built from the NUS cell with CIFAR's trainer defaults and approved values: K 64, top-p .3/.7,
+  codon_joint .02, N 19, and the cifar10 stage-1 input seal. Its `args.txt` was verified.
+- **Unsupervised:** `hash_target_mode siglip_cos` throughout.
+- **Probe fix:** the role and reading probes gained a caption-id fallback for CIFAR-10, whose samples
+  carry no `image_path`; it uses the cache row id from `image_ids.json`. Other datasets' code path is
+  unchanged.
+
+| dataset | arm | mAP@R | unique | dead | code→axis | M1 | sup. ceiling | caption path |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| CIFAR-10 | base | .8611 ± .013 | .332 | .012 | .304 | .0012 | .4824 | .4515 |
+| CIFAR-10 | anchors | **.7425 ± .016** | .435 | .121 | .397 | .0006 | .4476 | .3882 |
+| Flickr25K | base | .7453 ± .013 | .536 | .241 | .308 | .0065 | .3469 | .3272 |
+| Flickr25K | anchors | .7513 ± .006 | .540 | .186 | .370 | .0066 | .3460 | .3149 |
+| NUS-WIDE | base | .7328 ± .003 | .512 | .024 | .361 | .0025 | .3659 | .3295 |
+| NUS-WIDE | anchors | .7314 ± .009 | .530 | .018 | .445 | .0052 | .3682 | .3398 |
+| MS-COCO | base | .6396 ± .004 | .358 | .004 | .355 | .0036 | .4405 | .4103 |
+| MS-COCO | anchors | .6379 ± .005 | .396 | .013 | .418 | .0040 | .4372 | .3896 |
+
+Per-seed Δ(anchors − base):
+
+| dataset | code→axis | mAP@R |
+|---|---|---|
+| CIFAR-10 | +.070 / +.062 / +.149 | −.139 / −.091 / −.125 |
+| Flickr25K | +.059 / +.056 / +.073 | −.001 / +.014 / +.005 |
+| NUS-WIDE | +.094 / +.087 / +.073 | +.002 / −.011 / +.005 |
+| MS-COCO | +.102 / +.057 / +.030 | +.001 / −.004 / −.002 |
+
+- 🟢 **The mechanism transfers.** Codewords point at their own axis's caption more often on every
+  dataset and every seed: +.06 to +.09 on top of a .30–.36 base, chance .25.
+- 🟢 **Retrieval is neutral on the three multi-label datasets**, and unique codes rise on all four.
+- 🔴 **CIFAR-10 loses .12 mAP@R on 3/3 seeds, and every reading drops.** Plausible reading, not tested:
+  a CIFAR-10 image is one object, so all four axis captions share mainly the class. Subtracting their
+  mean removes the class from the local anchors, and the routing then follows background and colour.
+- 🔴 **Word-level role (M1) and the supervised reading do not move on any dataset.** The caption-path
+  reading rises on NUS-WIDE only.
+
+**Verdict:** not a universal recipe change. At most a per-dataset option for multi-label scenes, and
+it would have to go through the refit/test protocol. The interpretability claim it supports is the
+vector-level one: "each slot's codeword lies nearer its own axis's caption". It does not support
+word-level roles. No compositional analysis (NMI / drop / B0-B1-B2 / grids): 5–40-epoch screening
+cells with `--no-post_eval_compositional`.
+
+---
+
+## 2026-09-22 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] Stage 7: giving local slots their own targets. The named caption-concept codebook, once its codewords are tied to their concepts, is the first arm to lift every interpretability measure on all seeds, at −.045 mAP@R; axis-neighbour targets are free but nearly inert in-batch
+
+**Status:** 🟡 exploratory screening. Pre-registered in `result/analysis/stage7_bigarms/PREREGISTRATION.md`
+(with one appended deviation, logged before the new arm ran). Records: `summary_flickr.{txt,json}`,
+`eval/`, `inbatch_js.txt`, `lit_review.md`. Code `8e81a9b` + `--concept_label_ema`. All flags are off by
+default; entry gates `gate7_s42` and `gate7b_s42` both match `base_s42` 280/280. Flickr25K stage-1,
+seeds 42/43/44, worktree `/data/yschoi/gdna_wt_arms`, `hash_target_mode siglip_cos`.
+
+Arms, each the base command plus:
+- **bc (B+C):** `--cibhash_local_target axis_soft --cibhash_local_target_tau 0.2`. The local slots'
+  NT-Xent target is the softmax of per-axis-centred axis-m caption cosines; the global slot keeps its
+  instance target.
+- **ac (A+C):** K 64. A fixed, bijective, Hamming-aware codon per caption concept (64 k-means concepts
+  per axis, opt rows only). Concept cross-entropy λ 1.0, no local instance NT-Xent.
+  `text_code_kl` = `text_hash_ntxent` = 0; `codon_joint` on the global slot only.
+- **ac2 (A′+C):** ac plus `--concept_label_ema`. Each local codebook's EMA assigns every training
+  token to its caption concept, so codeword k is the running mean of concept-k tokens.
+- **k64:** K 128 → 64 only (control).
+
+| arm | mAP@R | unique | dead | sup. ceiling | caption path | CLIP only | concept name | M1 | code→axis |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| base | .7453 ± .013 | .536 | .241 | .3469 | .3272 | .3048 | — | .0065 | .308 |
+| bc | .7518 ± .006 | .558 | .240 | .3516 | .3311 | .3079 | — | .0052 | .334 |
+| k64 | .7455 ± .010 | .487 | .080 | .3402 | .3226 | .3006 | — | −.0031 | .295 |
+| ac | .6536 ± .020 | .398 | .428 | .3048 | .2818 | .2807 | .2170 | −.0015 | .236 |
+| **ac2** | .6999 ± .003 | **.668** | **.019** | **.3698** | .2802 | .3266 | .3479 | **.0162** | .322 |
+
+- 🔴 **ac failed its own mechanism.** Training concept CE stayed at 4.35–4.63 (ln 64 = 4.16).
+  Deployed concept = caption concept on only 1.7–3.6% of val images (chance 1.6%). Reason: EMA
+  codebooks follow nearest-codeword assignments, so codeword k never became concept k. It is an
+  implementation failure, not a test of the idea.
+- 🟢 **ac2** (training CE 2.7 by epoch 1):
+  - Its supervised-dictionary reading is the highest of any arm in the branch, +.021/+.023/+.025 per
+    seed, and ≥ base on all four axes (primary .345, secondary .415, activity .343, colour .376).
+  - M1 is up on 3/3 seeds, at 2.5× base. On the 2026-09-21 calibration this is a role fraction of
+    ≈ .13 against base's ≈ .05; the first arm above the 10% mark.
+  - Dead codewords .019, unique .668.
+  - The dictionary-free concept-name reading is .348: each deployed codon is read as its concept's
+    caption words, and no image is ever paired with a caption. Deployed concept = caption concept on
+    29–30% of val images (chance 1.6%); 60 of 64 concepts are used.
+  - The cost is retrieval: mAP@R is lower on all three seeds, by −.056 / −.036 / −.045.
+- 🟡 **bc** keeps retrieval (+.0065) and raises code→axis on 3/3 seeds (+.012 to +.035). Readings move
+  only +.004 to +.005, and M1 is unchanged. Offline, the four axis targets differ by only
+  JS = .090 nats in a batch of 64 (maximum 1.386). A 4,096-caption queue at τ .1 would triple that
+  (.283) while keeping the image's own share at .58. The weak pressure is expected, and the queue
+  is the fix.
+- **k64** shows that K 64 alone costs no retrieval (.7455), so ac2's retrieval drop is the concept
+  code itself.
+
+Per-seed Δ vs base:
+
+| arm | mAP@R | sup. ceiling |
+|---|---|---|
+| ac2 | −.056 / −.036 / −.045 | +.021 / +.023 / +.025 |
+| bc | −.005 / +.012 / +.013 | +.005 / +.008 / +.001 |
+
+**Pre-registered verdict.** No arm is carried to NUS-WIDE and MS-COCO.
+- **ac2** passes interpretability (.3698 ≥ .367; 4/4 axes ≥ base) and diversity (.668 ≥ .45). It
+  fails retrieval (.6999 < .715): the cost is .045 against the declared .03 tolerance.
+- **bc** fails interpretability (.3516 < .367).
+
+Whether a larger retrieval cost is acceptable for ac2's interpretability gain is the user's decision.
+
+**Theory and literature** (`lit_review.md`; four key citations re-opened here). The diagnosis is
+exact:
+- With the same one-hot target on every slot and no term coupling slots, identical slots are a
+  global optimum.
+- Per-pair temperatures only change how hard negatives are pushed; they never pull neighbours.
+- For B, with differing slot targets, the shared solution pays at least M·JS extra loss (an identity).
+
+Closest precedents:
+- SCE (Denize et al., WACV 2023): the same soft-target form.
+- X-CLR (Sobal et al., arXiv 2407.18134): caption-similarity targets.
+- LooC (Xiao et al., ICLR 2021): a different positive set per head.
+- Conditional Similarity Networks (Veit et al., CVPR 2017).
+- For A: concept bottlenecks (Koh et al., ICML 2020; Label-free CBM, ICLR 2023), which usually cost
+  accuracy; pseudo-Gray index assignment (Zeger & Gersho 1990) for the layout.
+
+No compositional analysis (NMI / drop / B0-B1-B2 / grids): these are 5-epoch screening cells launched
+with `--no-post_eval_compositional`.
+
+---
+
 ## 2026-09-22 [branch arch-exp-2026-09 — analysis, no training, not a paper result] Why the slots overlap: the dominant loss makes every slot identify the image alone. Two redesigns measured on frozen features: axis neighbourhoods are distinct, and a named caption-concept codebook is more readable than the trained codons
 
 **Status:** 🟡 feasibility only. No model is trained; a linear probe on frozen CLIP image features and

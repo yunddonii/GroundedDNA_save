@@ -1,0 +1,19 @@
+{
+ "result_dir": "/data/yschoi/gdna_wt_mscoco/result/260922+nuswide_setting1_nus_p2anc_s43+bs+64+e+60+proj_lr+0.001",
+ "n_images": 512,
+ "note": "deployment forward (no text reaches the model); captions used only as the target",
+ "pre_quantisation_slot_token": {
+  "code_picks_own_axis": 0.3027,
+  "axis_picks_own_code": 0.3208,
+  "chance": 0.25,
+  "mean_diag_cos": 0.2069,
+  "mean_offdiag_cos": 0.1924
+ },
+ "quantised_codeword": {
+  "code_picks_own_axis": 0.4609,
+  "axis_picks_own_code": 0.6006,
+  "chance": 0.25,
+  "mean_diag_cos": 0.2426,
+  "mean_offdiag_cos": 0.1693
+ }
+}

@@ -1,0 +1,58 @@
+{
+ "result_dir": "/data/yschoi/gdna_wt_mscoco/result/260922+nuswide_setting1_nus_p2anc_s43+bs+64+e+60+proj_lr+0.001",
+ "n_opt": 9450,
+ "n_val": 1050,
+ "gate": [
+  0.9947999715805054,
+  0.9941999912261963,
+  0.9948999881744385,
+  0.9944999814033508
+ ],
+ "slots": {
+  "C_primary_object": {
+   "text_path": 0.32159326126191223,
+   "text_path_shuffled": 0.14117383516968177,
+   "clip_only": 0.31515707578512403,
+   "clip_only_shuffled": 0.13635633146817014,
+   "prior_only": 0.22110893366802833,
+   "supervised_ceiling": 0.3574676747492853,
+   "text_codeword_agrees_with_image_codeword": 0.13142857142857142
+  },
+  "C_secondary_object": {
+   "text_path": 0.37757988119840347,
+   "text_path_shuffled": 0.25943444994794856,
+   "clip_only": 0.3705157876974859,
+   "clip_only_shuffled": 0.251862142749101,
+   "prior_only": 0.31640619297387357,
+   "supervised_ceiling": 0.4010758283526343,
+   "text_codeword_agrees_with_image_codeword": 0.10380952380952381
+  },
+  "C_activity_or_relation": {
+   "text_path": 0.3017689169394593,
+   "text_path_shuffled": 0.21101747183415728,
+   "clip_only": 0.31362775007222743,
+   "clip_only_shuffled": 0.20947262149442378,
+   "prior_only": 0.2667727709853247,
+   "supervised_ceiling": 0.32397856370035133,
+   "text_codeword_agrees_with_image_codeword": 0.12285714285714286
+  },
+  "C_color_texture": {
+   "text_path": 0.3566498910743202,
+   "text_path_shuffled": 0.2608002362981877,
+   "clip_only": 0.36138858804358986,
+   "clip_only_shuffled": 0.24842610337930165,
+   "prior_only": 0.3119580183800192,
+   "supervised_ceiling": 0.38833186825526245,
+   "text_codeword_agrees_with_image_codeword": 0.11142857142857143
+  }
+ },
+ "mean_over_local_slots": {
+  "text_path": 0.3393979876185238,
+  "text_path_shuffled": 0.21810649831249385,
+  "clip_only": 0.3401723003996068,
+  "clip_only_shuffled": 0.21152929977274915,
+  "prior_only": 0.27906147900181144,
+  "supervised_ceiling": 0.3677134837643834,
+  "text_codeword_agrees_with_image_codeword": 0.11738095238095239
+ }
+}

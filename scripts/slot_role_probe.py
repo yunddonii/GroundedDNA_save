@@ -160,7 +160,11 @@ def main():
                           cached_text_part_raw=None, cached_has_text=None)
                 codes.append(o["codebook_indices"].cpu().numpy())
                 labels.append(np.stack([np.asarray(s["label"]) for s in samples]))
-                ids += ["images/" + os.path.basename(str(s["image_path"])) for s in samples]
+                # CIFAR-10 samples carry no image_path: its captions are keyed by the
+                # cache row id (image_ids.json), the same row the features come from.
+                ids += [("images/" + os.path.basename(str(s["image_path"]))) if "image_path" in s
+                        else str(fc_ids[int(rows_of[i])])
+                        for i, s in zip(indices[s0:s0 + 128], samples)]
                 rm = o.get("local_routing_matrix")
                 if rm is not None:
                     col = rm.float().sum(dim=1)

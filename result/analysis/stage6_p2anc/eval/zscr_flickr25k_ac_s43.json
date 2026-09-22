@@ -1,0 +1,58 @@
+{
+ "result_dir": "/data/yschoi/gdna_wt_arms/result/260922+flickr25k_setting1_ac_s43+bs+64+e+60+proj_lr+0.001",
+ "n_opt": 4500,
+ "n_val": 500,
+ "gate": [
+  0.9900000095367432,
+  0.9900000095367432,
+  0.9900000095367432,
+  0.9900000095367432
+ ],
+ "slots": {
+  "C_primary_object": {
+   "text_path": 0.20213489789199834,
+   "text_path_shuffled": 0.2092410443231378,
+   "clip_only": 0.20760995874971153,
+   "clip_only_shuffled": 0.15746806944071462,
+   "prior_only": 0.21064077412878002,
+   "supervised_ceiling": 0.25153912815534246,
+   "text_codeword_agrees_with_image_codeword": 0.0
+  },
+  "C_secondary_object": {
+   "text_path": 0.39229929068621333,
+   "text_path_shuffled": 0.39207897685756915,
+   "clip_only": 0.37403516667028774,
+   "clip_only_shuffled": 0.3516068501941545,
+   "prior_only": 0.3923570645947547,
+   "supervised_ceiling": 0.40835542058902546,
+   "text_codeword_agrees_with_image_codeword": 0.0
+  },
+  "C_activity_or_relation": {
+   "text_path": 0.27627664951891046,
+   "text_path_shuffled": 0.2762696507655549,
+   "clip_only": 0.27494295824797965,
+   "clip_only_shuffled": 0.25288909605033383,
+   "prior_only": 0.27635025805134966,
+   "supervised_ceiling": 0.2852041286116767,
+   "text_codeword_agrees_with_image_codeword": 0.0
+  },
+  "C_color_texture": {
+   "text_path": 0.2413929707588018,
+   "text_path_shuffled": 0.2555795114197983,
+   "clip_only": 0.25825107837125894,
+   "clip_only_shuffled": 0.22706794618416443,
+   "prior_only": 0.25551994600477196,
+   "supervised_ceiling": 0.2987019244106988,
+   "text_codeword_agrees_with_image_codeword": 0.006
+  }
+ },
+ "mean_over_local_slots": {
+  "text_path": 0.27802595221398096,
+  "text_path_shuffled": 0.28329229584151505,
+  "clip_only": 0.2787097905098095,
+  "clip_only_shuffled": 0.24725799046734187,
+  "prior_only": 0.28371701069491406,
+  "supervised_ceiling": 0.31095015044168584,
+  "text_codeword_agrees_with_image_codeword": 0.0015
+ }
+}

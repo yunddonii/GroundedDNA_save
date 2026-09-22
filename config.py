@@ -967,6 +967,12 @@ class Config():
             type=float, default=0.0,
             help='(stage 7) weight of the cross-entropy that makes local slot m pick '
                  'its own caption concept (needs --concept_codebook_npz).')
+        siglip2_arg.add_argument('--concept_label_ema', dest='concept_label_ema',
+            action='store_true', default=False,
+            help='(stage 7, A-prime) the EMA update of each LOCAL codebook assigns every '
+                 'training token to its caption concept instead of its nearest codeword, so '
+                 'codeword k becomes the running mean of concept-k tokens (a prototype); '
+                 'the output assignment stays nearest-codeword, as at deployment.')
         siglip2_arg.add_argument('--concept_tau', dest='concept_tau',
             type=float, default=0.5,
             help='(stage 7) temperature on standardised negative codeword distances '

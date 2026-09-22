@@ -1,0 +1,19 @@
+{
+ "result_dir": "/data/yschoi/gdna_wt_mscoco/result/260921+mscoco_setting1_msc0695_s42+bs+64+e+60+proj_lr+0.001",
+ "n_images": 512,
+ "note": "deployment forward (no text reaches the model); captions used only as the target",
+ "pre_quantisation_slot_token": {
+  "code_picks_own_axis": 0.2642,
+  "axis_picks_own_code": 0.2729,
+  "chance": 0.25,
+  "mean_diag_cos": 0.2542,
+  "mean_offdiag_cos": 0.2519
+ },
+ "quantised_codeword": {
+  "code_picks_own_axis": 0.3418,
+  "axis_picks_own_code": 0.458,
+  "chance": 0.25,
+  "mean_diag_cos": 0.2625,
+  "mean_offdiag_cos": 0.2262
+ }
+}

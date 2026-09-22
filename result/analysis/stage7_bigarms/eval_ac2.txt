@@ -1,0 +1,3 @@
+flickr25k ac2 42 /data/yschoi/gdna_wt_arms/result/260922+flickr25k_setting1_ac2_s42+bs+64+e+60+proj_lr+0.001
+flickr25k ac2 43 /data/yschoi/gdna_wt_arms/result/260922+flickr25k_setting1_ac2_s43+bs+64+e+60+proj_lr+0.001
+flickr25k ac2 44 /data/yschoi/gdna_wt_arms/result/260922+flickr25k_setting1_ac2_s44+bs+64+e+60+proj_lr+0.001

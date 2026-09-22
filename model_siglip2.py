@@ -1177,8 +1177,11 @@ class SemanticCodebookQuantizer(nn.Module):
             self.freeze_after_epoch >= 0
             and int(self._frozen_epoch_now) >= self.freeze_after_epoch
         )
+        _ov = getattr(self, "_ema_assign_override", None)
+        self._ema_assign_override = None                   # consumed by this call only
         if self.update_mode == "ema" and self.training and not _frozen and not self.bypass:
-            self._ema_update(semantic_visual_tokens.detach(), indices)
+            _ema_idx = indices if _ov is None else torch.where(_ov >= 0, _ov, indices)
+            self._ema_update(semantic_visual_tokens.detach(), _ema_idx)
             # dead-code rejuvenation -- run every `revive_every` training
             # forwards. We skip it on the very first step so the EMA has at
             # least one batch of real assignments to compute "max" against.
@@ -2505,6 +2508,14 @@ class SigLIP2SemanticOTModel(nn.Module):
             self.register_buffer("concept_layout", _layout, persistent=False)
         else:
             self.concept_layout = None
+        self.concept_label_ema = bool(getattr(args, "concept_label_ema", False))
+        if self.concept_label_ema:
+            if self.concept_layout is None:
+                raise ValueError("--concept_label_ema needs --concept_codebook_npz")
+            self.register_buffer("_concept_centers", torch.as_tensor(_z["centers"], dtype=torch.float32),
+                                 persistent=False)                                   # [4, 64, D]
+            self.register_buffer("_concept_mu", torch.as_tensor(_z["axis_mean"], dtype=torch.float32),
+                                 persistent=False)                                   # [5, D]
         self.text_codon_global_context: str = str(getattr(args, "text_codon_global_context", "none"))
         if self.text_codon_global_context not in ("none", "image"):
             raise ValueError(
@@ -5200,6 +5211,17 @@ class SigLIP2SemanticOTModel(nn.Module):
                          / _qc_dev.norm(dim=-1, keepdim=True).clamp_min(1e-6))
                 _qc_dev = _qc_dev * _qc_s
             quant_input = torch.cat([quant_input[:, :1, :], _qc_dev], dim=1)
+        # (stage 7, A-prime) label-assigned EMA for the local codebooks: each training
+        # token updates the codeword of its own caption concept.
+        if self.concept_label_ema and self.training and cached_text_part_raw is not None:
+            with torch.no_grad():
+                _t = cached_text_part_raw.detach().float()[:, 1:, :]                  # [B, 4, D]
+                _y = torch.cdist((_t - self._concept_mu[1:]).transpose(0, 1),
+                                 self._concept_centers).argmin(-1).transpose(0, 1)    # [B, 4]
+                _y = torch.where(_t.norm(dim=-1) > 0, _y, torch.full_like(_y, -1))
+                _ov = torch.full((B, NUM_SEMANTIC_PARTS), -1, dtype=torch.long, device=_y.device)
+                _ov[:, 1:] = _y
+                self.quantizer._ema_assign_override = _ov
         q_out = self.quantizer(quant_input)
         if _qc_mu is not None:
             for _k in ("quantized_tokens", "quantized_tokens_raw"):

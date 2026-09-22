@@ -1,0 +1,19 @@
+{
+ "result_dir": "/data/yschoi/gdna_wt_mscoco/result/260922+cifar10_setting1_cifar_base_s44+bs+64+e+60+proj_lr+0.001",
+ "n_images": 500,
+ "note": "deployment forward (no text reaches the model); captions used only as the target",
+ "pre_quantisation_slot_token": {
+  "code_picks_own_axis": 0.2535,
+  "axis_picks_own_code": 0.278,
+  "chance": 0.25,
+  "mean_diag_cos": 0.4299,
+  "mean_offdiag_cos": 0.4262
+ },
+ "quantised_codeword": {
+  "code_picks_own_axis": 0.2955,
+  "axis_picks_own_code": 0.349,
+  "chance": 0.25,
+  "mean_diag_cos": 0.444,
+  "mean_offdiag_cos": 0.4258
+ }
+}
