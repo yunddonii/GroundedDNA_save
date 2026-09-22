@@ -3190,7 +3190,9 @@ class DNACodonHashLoss(nn.Module):
                     if self.cibhash_local_target == "axis_soft":
                         _axis_text = self._centred_axis_text(outputs.get("text_part_raw_cached"))
                         if self.cibhash_local_queue > 0 and self._q_n > 0:
-                            _queue = (self._q_v[: self._q_n], self._q_t[: self._q_n])
+                            # a snapshot: the enqueue below rewrites the FIFO in place before
+                            # backward, and autograd keeps the queue tensor for d(logit)/d(token)
+                            _queue = (self._q_v[: self._q_n].clone(), self._q_t[: self._q_n].clone())
                     loss_cibhash_ntxent_v, loss_cibhash_kl_v = self._loss_cibhash_visual_per_codebook(
                         sv_v1, sv_v2, temperature=self.cibhash_temperature,
                         text_part_raw=_ttp_raw,
