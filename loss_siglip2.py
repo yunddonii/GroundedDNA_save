@@ -411,6 +411,9 @@ class DNACodonHashLoss(nn.Module):
         self.cibhash_local_target = str(getattr(cfg, "cibhash_local_target", "instance") or "instance")
         self.cibhash_local_target_tau = float(getattr(cfg, "cibhash_local_target_tau", 0.2))
         self._axis_mean_ema = None                  # per-axis caption mean, EMA over batches
+        self.cibhash_local_queue = int(getattr(cfg, "cibhash_local_queue", 0) or 0)
+        self._q_v = self._q_t = None                # (stage 8, B2) FIFO of past slot tokens / captions
+        self._q_n = self._q_ptr = 0
         self.lambda_concept = float(getattr(cfg, "lambda_concept", 0.0) or 0.0)
         self.concept_tau = float(getattr(cfg, "concept_tau", 0.5))
         self._concept_centers = self._concept_axis_mean = None
@@ -1081,6 +1084,20 @@ class DNACodonHashLoss(nn.Module):
                 self._axis_mean_ema = 0.99 * self._axis_mean_ema.to(t.device) + 0.01 * t.mean(dim=0)
         return F.normalize(t - self._axis_mean_ema.to(t.device), dim=-1)
 
+    @torch.no_grad()
+    def _enqueue(self, v, t):
+        """(stage 8, B2) FIFO of normalised slot tokens [B, M, D] and centred captions [B, M, Dt]."""
+        Q = self.cibhash_local_queue
+        if self._q_v is None:
+            self._q_v = v.new_zeros((Q,) + tuple(v.shape[1:]))
+            self._q_t = t.new_zeros((Q,) + tuple(t.shape[1:]))
+        n = min(v.shape[0], Q)
+        idx = (self._q_ptr + torch.arange(n, device=v.device)) % Q
+        self._q_v[idx] = v[:n].to(self._q_v.dtype)
+        self._q_t[idx] = t[:n].to(self._q_t.dtype)
+        self._q_ptr = int((self._q_ptr + n) % Q)
+        self._q_n = min(self._q_n + n, Q)
+
     def _loss_concept(self, t_raw, distances):
         """(stage 7, A) local slot m must pick the codeword of its own caption concept.
 
@@ -1496,6 +1513,7 @@ class DNACodonHashLoss(nn.Module):
         local_target: str = "instance",
         local_target_tau: float = 0.2,
         axis_text: Optional[torch.Tensor] = None,     # [B, M, D_text] centred, normalised
+        queue: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,   # ([Q, M, D], [Q, M, D_text])
     ) -> Tuple[torch.Tensor, torch.Tensor]:
         """v150: per-codebook NtXent on pre-VQ routed visual tokens.
 
@@ -1544,8 +1562,14 @@ class DNACodonHashLoss(nn.Module):
             if m > 0 and local_target == "axis_soft":
                 eye_ax = torch.eye(2 * B, device=sim_raw.device, dtype=torch.bool)
                 t2 = torch.cat([axis_text[:, m, :], axis_text[:, m, :]], dim=0).float()
-                tgt = torch.softmax((t2 @ t2.T).masked_fill(eye_ax, -1e9) / local_target_tau, dim=1)
-                logp = F.log_softmax((sim_raw / T).masked_fill(eye_ax, -1e9), dim=1)
+                t_logit = (t2 @ t2.T).masked_fill(eye_ax, -1e9)
+                v_logit = (sim_raw.float() / T).masked_fill(eye_ax, -1e9)
+                if queue is not None:                     # (stage 8, B2) past pairs join the candidates
+                    qv, qt = queue
+                    v_logit = torch.cat([v_logit, (v_n.float() @ qv[:, m, :].T) / T], dim=1)
+                    t_logit = torch.cat([t_logit, t2 @ qt[:, m, :].T], dim=1)
+                tgt = torch.softmax(t_logit / local_target_tau, dim=1)
+                logp = F.log_softmax(v_logit, dim=1)
                 ntxent_per_cb.append(-(tgt.detach() * logp).sum(dim=1).mean())
                 continue
 
@@ -3162,9 +3186,11 @@ class DNACodonHashLoss(nn.Module):
                 if sv_v2 is None:
                     sv_v2 = outputs_view2.get("semantic_visual_tokens")
                 if sv_v1 is not None and sv_v2 is not None:
-                    _axis_text = None
+                    _axis_text = _queue = None
                     if self.cibhash_local_target == "axis_soft":
                         _axis_text = self._centred_axis_text(outputs.get("text_part_raw_cached"))
+                        if self.cibhash_local_queue > 0 and self._q_n > 0:
+                            _queue = (self._q_v[: self._q_n], self._q_t[: self._q_n])
                     loss_cibhash_ntxent_v, loss_cibhash_kl_v = self._loss_cibhash_visual_per_codebook(
                         sv_v1, sv_v2, temperature=self.cibhash_temperature,
                         text_part_raw=_ttp_raw,
@@ -3173,7 +3199,10 @@ class DNACodonHashLoss(nn.Module):
                         local_target=self.cibhash_local_target,
                         local_target_tau=self.cibhash_local_target_tau,
                         axis_text=_axis_text,
+                        queue=_queue,
                     )
+                    if self.cibhash_local_queue > 0 and _axis_text is not None and self.training:
+                        self._enqueue(F.normalize(sv_v1.detach().float(), dim=-1), _axis_text)
                     if (
                         self.cibhash_visual_token_bit_kl
                         and self.lambda_cibhash_kl > 0.0
@@ -3740,12 +3769,11 @@ class DNACodonHashLoss(nn.Module):
         if mec_acc is None:
             mec_acc = u.new_zeros(())
 
-        return {
+        _ret = {
             "loss":              total,
             "loss_codon_joint":  loss_codon_joint,
             "loss_mec":          loss_mec,
             "loss_role":         loss_role,
-            "loss_concept":      loss_concept,
             "mec_acc":           mec_acc,
             "loss_slot_diversity": (loss_slot_diversity
                                     if loss_slot_diversity is not None
@@ -3805,3 +3833,6 @@ class DNACodonHashLoss(nn.Module):
             "loss_dual_instance":     loss_dual_instance,
             "loss_codebook_ortho":    loss_codebook_ortho,
         }
+        if self.lambda_concept > 0.0:                       # (stage 7) only when it is on
+            _ret["loss_concept"] = loss_concept
+        return _ret

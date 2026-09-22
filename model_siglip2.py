@@ -2509,6 +2509,9 @@ class SigLIP2SemanticOTModel(nn.Module):
         else:
             self.concept_layout = None
         self.concept_label_ema = bool(getattr(args, "concept_label_ema", False))
+        self._emit_cached_text = (
+            str(getattr(args, "cibhash_local_target", "instance") or "instance") != "instance"
+            or float(getattr(args, "lambda_concept", 0.0) or 0.0) > 0.0 or self.concept_label_ema)
         if self.concept_label_ema:
             if self.concept_layout is None:
                 raise ValueError("--concept_label_ema needs --concept_codebook_npz")
@@ -4280,9 +4283,6 @@ class SigLIP2SemanticOTModel(nn.Module):
             "local_codebook_mean_anchors":  local_codebook_mean_anchors_raw,   # [5, D]
             "visual_global_feat":           feats["visual_global"],
             "text_global_feat":             feats["text_part_raw"],     # [B, 6, D_proj] or None
-            # (stage 7) the cache's own per-axis caption embeddings, before any
-            # token pruning re-pools them; the concept/axis targets are defined here.
-            "text_part_raw_cached":         cached_text_part_raw,       # [B, 6, D_proj] or None
             "local_routing_matrix":         None,
             "routing_matrix":               None,
             "routing_mean_effective_k":      None,
@@ -4335,6 +4335,10 @@ class SigLIP2SemanticOTModel(nn.Module):
             "dual_hash_instance":                 None,
             "routing_mode":                       routing_mode,
         }
+        # (stage 7) the cache's own per-axis caption embeddings, before any token pruning
+        # re-pools them; emitted only when a stage-7 target needs them (default schema unchanged).
+        if self._emit_cached_text:
+            out["text_part_raw_cached"] = cached_text_part_raw
 
         if not return_routing:
             return out

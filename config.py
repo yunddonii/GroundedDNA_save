@@ -958,6 +958,11 @@ class Config():
         siglip2_arg.add_argument('--cibhash_local_target_tau', dest='cibhash_local_target_tau',
             type=float, default=0.2,
             help='(stage 7) temperature of the axis_soft target.')
+        siglip2_arg.add_argument('--cibhash_local_queue', dest='cibhash_local_queue',
+            type=int, default=0,
+            help='(stage 8, B2) with axis_soft: a FIFO of this many past (slot token, axis '
+                 'caption) pairs joins the candidates of the local-slot soft target, so real '
+                 'axis neighbours are present; 0 = batch only.')
         siglip2_arg.add_argument('--concept_codebook_npz', dest='concept_codebook_npz',
             type=str, default='',
             help='(stage 7) caption-concept file (centers [4,64,512], axis_mean [5,512], '
