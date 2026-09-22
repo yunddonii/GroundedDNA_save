@@ -1,0 +1,338 @@
+{
+ "result_dir": "result/260920+flickr25k_setting1_base_s43+bs+64+e+60+proj_lr+0.001",
+ "n_opt": 4500,
+ "n_val": 500,
+ "top": 5,
+ "slots": {
+  "C_primary_object": {
+   "axis_specificity_top5": 0.2453125,
+   "chance": 0.25,
+   "name_precision_ap": 0.2644668461770584,
+   "prior_ap": 0.21064077412878002,
+   "codewords_used_val": 72,
+   "names": [
+    {
+     "codeword": 55,
+     "val_images": 23,
+     "name": "large / dominates",
+     "example_caption": "Large, sprawling tree with dense canopy stands prominently, silhouetted against glowing sk"
+    },
+    {
+     "codeword": 85,
+     "val_images": 16,
+     "name": "",
+     "example_caption": "Silhouetted figures in small boat drift peacefully across tranquil water surface."
+    },
+    {
+     "codeword": 47,
+     "val_images": 15,
+     "name": "round",
+     "example_caption": "A small, round chocolate cake with powdered sugar, centered on the plate."
+    },
+    {
+     "codeword": 17,
+     "val_images": 15,
+     "name": "rectangular",
+     "example_caption": "Two handwritten sticky notes with angry messages about sushi in the fridge."
+    },
+    {
+     "codeword": 77,
+     "val_images": 15,
+     "name": "",
+     "example_caption": "Classic silver automobile with chrome grille and dual round headlights prominently display"
+    },
+    {
+     "codeword": 84,
+     "val_images": 15,
+     "name": "tail / wings",
+     "example_caption": "A commercial jet aircraft in mid-flight, wings level, tail fin visible, dark outline."
+    },
+    {
+     "codeword": 43,
+     "val_images": 14,
+     "name": "",
+     "example_caption": "A large, cylindrical metal water tower with a rusted platform and supporting truss structu"
+    },
+    {
+     "codeword": 19,
+     "val_images": 14,
+     "name": "massive",
+     "example_caption": "Massive, layered storm clouds stretch across the sky, appearing dense and ominous."
+    },
+    {
+     "codeword": 87,
+     "val_images": 14,
+     "name": "hair / woman / wearing / long",
+     "example_caption": "Woman with long, reddish-brown hair, wearing dark top with white collar, looking downward."
+    },
+    {
+     "codeword": 98,
+     "val_images": 14,
+     "name": "",
+     "example_caption": "Fondant angel figurines with brown hair, pink hearts, and tiny wings perched atop cupcakes"
+    },
+    {
+     "codeword": 117,
+     "val_images": 13,
+     "name": "ears / profile",
+     "example_caption": "Feline head shown in profile, featuring detailed whiskers and textured fur with a sharp ga"
+    },
+    {
+     "codeword": 2,
+     "val_images": 13,
+     "name": "featuring",
+     "example_caption": "White text on black background reads Brad & Dave & Rubin & Simmy & Stephen."
+    }
+   ]
+  },
+  "C_secondary_object": {
+   "axis_specificity_top5": 0.2375,
+   "chance": 0.25,
+   "name_precision_ap": 0.31552991387100326,
+   "prior_ap": 0.3923570645947547,
+   "codewords_used_val": 51,
+   "names": [
+    {
+     "codeword": 37,
+     "val_images": 207,
+     "name": "background / focus / blurred / distant",
+     "example_caption": "Soft, blurred background hints at distant vegetation and a pale, diffused sky above."
+    },
+    {
+     "codeword": 30,
+     "val_images": 37,
+     "name": "",
+     "example_caption": "Blue star-patterned balloon with yellow string attached to his hand and waist."
+    },
+    {
+     "codeword": 42,
+     "val_images": 33,
+     "name": "",
+     "example_caption": "Scattered bricks and broken concrete blocks lie around the chair's base."
+    },
+    {
+     "codeword": 17,
+     "val_images": 26,
+     "name": "visible",
+     "example_caption": "Striped shirt worn by the second person, partially obscured by motion blur."
+    },
+    {
+     "codeword": 100,
+     "val_images": 17,
+     "name": "visible / strap",
+     "example_caption": "Blue strap visible near dog's neck, suggesting harness or collar attachment."
+    },
+    {
+     "codeword": 70,
+     "val_images": 15,
+     "name": "hillside",
+     "example_caption": "Tall statue of Jesus with arms outstretched, standing atop snow-covered hillside."
+    },
+    {
+     "codeword": 84,
+     "val_images": 14,
+     "name": "",
+     "example_caption": "Metal folding chair with visible legs and seat frame, positioned in bathroom."
+    },
+    {
+     "codeword": 118,
+     "val_images": 10,
+     "name": "background",
+     "example_caption": "Curved glowing band at bottom adds depth to composition with warm tones."
+    },
+    {
+     "codeword": 68,
+     "val_images": 9,
+     "name": "",
+     "example_caption": "White statue of robed figure with raised hand, mounted on stone niche above."
+    },
+    {
+     "codeword": 0,
+     "val_images": 8,
+     "name": "",
+     "example_caption": "A black cylindrical capacitor and a blue Arduino board are mounted beneath the breadboard."
+    },
+    {
+     "codeword": 85,
+     "val_images": 8,
+     "name": "",
+     "example_caption": "Stack of Disney Press VOLO books with varied titles and bright covers."
+    },
+    {
+     "codeword": 21,
+     "val_images": 8,
+     "name": "",
+     "example_caption": "A concrete ledge runs along the water\u2019s edge, where visitors sit and enjoy the surrounding"
+    }
+   ]
+  },
+  "C_activity_or_relation": {
+   "axis_specificity_top5": 0.2203125,
+   "chance": 0.25,
+   "name_precision_ap": 0.27419188627827024,
+   "prior_ap": 0.27635025805134966,
+   "codewords_used_val": 78,
+   "names": [
+    {
+     "codeword": 100,
+     "val_images": 18,
+     "name": "",
+     "example_caption": "Clouds are illuminated from below, casting shadows and creating dynamic contrast."
+    },
+    {
+     "codeword": 11,
+     "val_images": 17,
+     "name": "suggesting / intimate / moment / viewer",
+     "example_caption": "She leans slightly forward, her gaze fixed on the viewer, creating an intimate and introsp"
+    },
+    {
+     "codeword": 115,
+     "val_images": 17,
+     "name": "",
+     "example_caption": "Individuals dispersed across beach, some near water, others walking or sitting."
+    },
+    {
+     "codeword": 59,
+     "val_images": 16,
+     "name": "positioned / stationary",
+     "example_caption": "Zebra positioned near grassy area, appearing calm and stationary in frame."
+    },
+    {
+     "codeword": 93,
+     "val_images": 15,
+     "name": "",
+     "example_caption": "Sausages and ribs are being cooked simultaneously on multiple grill levels."
+    },
+    {
+     "codeword": 98,
+     "val_images": 14,
+     "name": "creating",
+     "example_caption": "Visitors walk along seawall, observing sea and modern architecture under bright sun."
+    },
+    {
+     "codeword": 27,
+     "val_images": 13,
+     "name": "suggesting / people",
+     "example_caption": "The girls are seated side by side, suggesting companionship or shared activity."
+    },
+    {
+     "codeword": 21,
+     "val_images": 13,
+     "name": "positioned",
+     "example_caption": "The woman is positioned at the water's edge, with swimmers and buoys visible in the bay."
+    },
+    {
+     "codeword": 88,
+     "val_images": 13,
+     "name": "positioned / close",
+     "example_caption": "Child gazes intently at bubble, positioned close to camera with blurred background."
+    },
+    {
+     "codeword": 45,
+     "val_images": 12,
+     "name": "positioned",
+     "example_caption": "Vehicle is drifting with rear tire smoke and exhaust fire, indicating aggressive driving."
+    },
+    {
+     "codeword": 30,
+     "val_images": 11,
+     "name": "arranged / diagonally / neatly",
+     "example_caption": "Sewing machine manual lies open in front, suggesting user is learning or setting up the ma"
+    },
+    {
+     "codeword": 1,
+     "val_images": 11,
+     "name": "people / facing",
+     "example_caption": "People arranged in tight circle, all facing downward toward camera, suggesting group photo"
+    }
+   ]
+  },
+  "C_color_texture": {
+   "axis_specificity_top5": 0.2640625,
+   "chance": 0.25,
+   "name_precision_ap": 0.29234423977985097,
+   "prior_ap": 0.25551994600477196,
+   "codewords_used_val": 81,
+   "names": [
+    {
+     "codeword": 61,
+     "val_images": 20,
+     "name": "sky / contrast / soft / blue / gray / deep",
+     "example_caption": "Vibrant rainbow hues contrast with deep blue sky and dark building silhouettes."
+    },
+    {
+     "codeword": 34,
+     "val_images": 20,
+     "name": "blue / vibrant / grass / concrete / contrasts / gray",
+     "example_caption": "Bright blue door contrasts with weathered white walls and mossy stone steps."
+    },
+    {
+     "codeword": 56,
+     "val_images": 18,
+     "name": "sky / contrast / smooth / tones / bright / monochrome",
+     "example_caption": "Smooth gradient sky transitions from teal to blue, contrasting with the green building's p"
+    },
+    {
+     "codeword": 122,
+     "val_images": 17,
+     "name": "tones / warm / golden / grass / soft / contrast",
+     "example_caption": "Warm golden hues contrast with cool blue tones, showing soft, fuzzy textures on grass."
+    },
+    {
+     "codeword": 64,
+     "val_images": 15,
+     "name": "sky / blue / gray / textures / deep",
+     "example_caption": "Clouds display soft white, golden-yellow highlights, and deep shadowy gray textures."
+    },
+    {
+     "codeword": 55,
+     "val_images": 15,
+     "name": "vibrant / blue / texture / gray / walls",
+     "example_caption": "Warm ochre walls, rusty red door, vibrant blue scooter, and rough cobblestone ground."
+    },
+    {
+     "codeword": 2,
+     "val_images": 14,
+     "name": "rough / tones / surfaces / textures / muted / stone",
+     "example_caption": "The scene features muted blues, grays, and whites, with rough stone textures and faded gra"
+    },
+    {
+     "codeword": 19,
+     "val_images": 14,
+     "name": "accents / blue / metallic",
+     "example_caption": "Blue signs with white text and orange accents contrast with muted winter clothing."
+    },
+    {
+     "codeword": 29,
+     "val_images": 13,
+     "name": "stone / surfaces / rough / tones / warm / textured",
+     "example_caption": "Pale green wood siding, white railings, and stone steps with floral accents."
+    },
+    {
+     "codeword": 84,
+     "val_images": 13,
+     "name": "rough / paint / faded / textures / brown",
+     "example_caption": "Worn greenish wall with rust stains, dark reddish-brown metal gate, and faded yellow light"
+    },
+    {
+     "codeword": 10,
+     "val_images": 13,
+     "name": "texture",
+     "example_caption": "Vibrant green liquid with frothy texture and small bubbles on surface."
+    },
+    {
+     "codeword": 49,
+     "val_images": 12,
+     "name": "tones / contrast / grainy",
+     "example_caption": "Vibrant orange, yellow, and purple gradients blend with dark, wet, grainy sand textures."
+    }
+   ]
+  }
+ },
+ "centring": "captions minus their axis mean (opt); codewords minus the mean deployed codeword of their slot (val) -- the quant_gap probe's centring, on the pool",
+ "mean": {
+  "axis_specificity_top5": 0.241796875,
+  "name_precision_ap": 0.28663322152654575,
+  "prior_ap": 0.28371701069491406
+ }
+}

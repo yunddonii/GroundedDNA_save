@@ -1,0 +1,338 @@
+{
+ "result_dir": "result/260920+flickr25k_setting1_p2anc_s43+bs+64+e+60+proj_lr+0.001",
+ "n_opt": 4500,
+ "n_val": 500,
+ "top": 5,
+ "slots": {
+  "C_primary_object": {
+   "axis_specificity_top5": 0.278125,
+   "chance": 0.25,
+   "name_precision_ap": 0.22389834398696334,
+   "prior_ap": 0.21064077412878002,
+   "codewords_used_val": 83,
+   "names": [
+    {
+     "codeword": 68,
+     "val_images": 19,
+     "name": "",
+     "example_caption": "Long stone wall with watchtowers winds along rugged mountain ridges."
+    },
+    {
+     "codeword": 76,
+     "val_images": 18,
+     "name": "long",
+     "example_caption": "Person with curly hair and brown jacket lying on back holding paper."
+    },
+    {
+     "codeword": 69,
+     "val_images": 16,
+     "name": "hair / wearing / glasses / man / young",
+     "example_caption": "Person with curly hair, glasses, and a cropped graphic tee strikes dynamic dance poses."
+    },
+    {
+     "codeword": 103,
+     "val_images": 15,
+     "name": "wearing / holding / curly",
+     "example_caption": "Person with curly hair and brown jacket lying on back holding paper."
+    },
+    {
+     "codeword": 35,
+     "val_images": 14,
+     "name": "",
+     "example_caption": "Yellow diamond-shaped sign with black text reading 'OPEN RANGE' mounted on single pole."
+    },
+    {
+     "codeword": 71,
+     "val_images": 13,
+     "name": "massive",
+     "example_caption": "Dark, textured clouds fill upper sky, casting soft shadows over landscape below."
+    },
+    {
+     "codeword": 126,
+     "val_images": 12,
+     "name": "hair / woman / wearing / man / holding / tousled",
+     "example_caption": "Woman with shoulder-length hair and bangs, wearing striped top and patterned scarf."
+    },
+    {
+     "codeword": 42,
+     "val_images": 11,
+     "name": "hair / man / glasses",
+     "example_caption": "Portrait of man with long hair, glasses, and red handkerchief covering mouth."
+    },
+    {
+     "codeword": 121,
+     "val_images": 11,
+     "name": "",
+     "example_caption": "Four identical blue-and-white jets fly in tight formation, leaving thick white smoke trail"
+    },
+    {
+     "codeword": 105,
+     "val_images": 10,
+     "name": "",
+     "example_caption": "Black-framed photograph held by hand, displaying colorful outdoor scene within."
+    },
+    {
+     "codeword": 49,
+     "val_images": 10,
+     "name": "",
+     "example_caption": "Young people dressed in jackets and casual wear, sitting or lying on ground."
+    },
+    {
+     "codeword": 54,
+     "val_images": 10,
+     "name": "",
+     "example_caption": "Central yellow spadix with textured surface and spiky top protruding from white petal encl"
+    }
+   ]
+  },
+  "C_secondary_object": {
+   "axis_specificity_top5": 0.2859375,
+   "chance": 0.25,
+   "name_precision_ap": 0.3377374072360993,
+   "prior_ap": 0.3923570645947547,
+   "codewords_used_val": 83,
+   "names": [
+    {
+     "codeword": 62,
+     "val_images": 32,
+     "name": "background",
+     "example_caption": "Person's brown shoes and blue jeans visible from top-down perspective near plant."
+    },
+    {
+     "codeword": 3,
+     "val_images": 23,
+     "name": "visible",
+     "example_caption": "Yellow taxis and delivery trucks moving along the city street below."
+    },
+    {
+     "codeword": 89,
+     "val_images": 18,
+     "name": "sparse",
+     "example_caption": "Orange buoys float on water, bare trees line riverbank, and distant snow patches visible."
+    },
+    {
+     "codeword": 85,
+     "val_images": 13,
+     "name": "background / visible",
+     "example_caption": "White teeth are visible behind the lips, partially obscured by the dark coating."
+    },
+    {
+     "codeword": 55,
+     "val_images": 12,
+     "name": "left",
+     "example_caption": "Spiky-haired face with blue skin and red lips appears on the left side of the mural."
+    },
+    {
+     "codeword": 77,
+     "val_images": 12,
+     "name": "",
+     "example_caption": "White streetlights and yellow road markings define the circular traffic flow around the pa"
+    },
+    {
+     "codeword": 63,
+     "val_images": 12,
+     "name": "",
+     "example_caption": "White teeth are visible behind the lips, partially obscured by the dark coating."
+    },
+    {
+     "codeword": 60,
+     "val_images": 11,
+     "name": "",
+     "example_caption": "Rope fence, wooden posts, and lush green trees form the background behind her."
+    },
+    {
+     "codeword": 117,
+     "val_images": 11,
+     "name": "background / focus",
+     "example_caption": "Background features out-of-focus green leaves and bright patches of sunlight filtering thr"
+    },
+    {
+     "codeword": 7,
+     "val_images": 11,
+     "name": "right",
+     "example_caption": "Visible page edges and faint adjacent text on neighboring pages suggest book binding."
+    },
+    {
+     "codeword": 61,
+     "val_images": 10,
+     "name": "",
+     "example_caption": "Foreground reveals clear shallow water with visible pebbles and stones."
+    },
+    {
+     "codeword": 99,
+     "val_images": 10,
+     "name": "",
+     "example_caption": "Yellow taxis and delivery trucks moving along the city street below."
+    }
+   ]
+  },
+  "C_activity_or_relation": {
+   "axis_specificity_top5": 0.21875,
+   "chance": 0.25,
+   "name_precision_ap": 0.2665225634889105,
+   "prior_ap": 0.27635025805134966,
+   "codewords_used_val": 90,
+   "names": [
+    {
+     "codeword": 68,
+     "val_images": 21,
+     "name": "appears",
+     "example_caption": "Person appears to be relaxing or bathing, with head tilted back in water."
+    },
+    {
+     "codeword": 90,
+     "val_images": 16,
+     "name": "positioned",
+     "example_caption": "The baby is positioned in front of the adult, suggesting a close, affectionate interaction"
+    },
+    {
+     "codeword": 127,
+     "val_images": 14,
+     "name": "",
+     "example_caption": "Water channels weave through vegetation, creating fragmented pools."
+    },
+    {
+     "codeword": 15,
+     "val_images": 13,
+     "name": "creating / point",
+     "example_caption": "Pilings align linearly, creating vanishing point illusion in foggy environment."
+    },
+    {
+     "codeword": 79,
+     "val_images": 13,
+     "name": "creating",
+     "example_caption": "Branches frame the moon, creating a natural vignette from a low-angle perspective."
+    },
+    {
+     "codeword": 26,
+     "val_images": 13,
+     "name": "motion / blur",
+     "example_caption": "Long exposure captures motion blur of traffic passing in front of the building."
+    },
+    {
+     "codeword": 53,
+     "val_images": 13,
+     "name": "creating",
+     "example_caption": "Light beams originate from building's summit, creating dramatic upward motion."
+    },
+    {
+     "codeword": 72,
+     "val_images": 13,
+     "name": "suggesting / arranged",
+     "example_caption": "Cacti are densely arranged, overlapping each other in a tightly packed, natural growth pat"
+    },
+    {
+     "codeword": 40,
+     "val_images": 12,
+     "name": "arranged / perspective",
+     "example_caption": "The camera is tilted upward, emphasizing the plane's flight path near urban structures."
+    },
+    {
+     "codeword": 10,
+     "val_images": 12,
+     "name": "",
+     "example_caption": "Camera positioned below, looking upward through fragmented glass structure toward bright s"
+    },
+    {
+     "codeword": 126,
+     "val_images": 12,
+     "name": "arranged / creating",
+     "example_caption": "She stands sideways, gazing right, positioned near a weathered wall with graffiti."
+    },
+    {
+     "codeword": 19,
+     "val_images": 12,
+     "name": "arranged / surrounded",
+     "example_caption": "Toys are nestled together in bowl, surrounded by decorative ceramics on shelf."
+    }
+   ]
+  },
+  "C_color_texture": {
+   "axis_specificity_top5": 0.234375,
+   "chance": 0.25,
+   "name_precision_ap": 0.27513934087058567,
+   "prior_ap": 0.25551994600477196,
+   "codewords_used_val": 85,
+   "names": [
+    {
+     "codeword": 38,
+     "val_images": 27,
+     "name": "sky / smooth / yellow / soft / golden / hues",
+     "example_caption": "Smooth metallic gray wing contrasts with deep blue sky and white vapor trails."
+    },
+    {
+     "codeword": 77,
+     "val_images": 18,
+     "name": "tones / smooth / monochromatic / bark / texture / rough",
+     "example_caption": "Monochromatic greenish-gray tones with smooth water texture and rough bark details."
+    },
+    {
+     "codeword": 16,
+     "val_images": 16,
+     "name": "glossy / blue / vibrant / smooth / orange / warm",
+     "example_caption": "Smooth white laptop, textured blue bag, orange book cover with bold text."
+    },
+    {
+     "codeword": 42,
+     "val_images": 14,
+     "name": "textures / surfaces / rough / tones / stone / monochrome",
+     "example_caption": "Monochromatic tones highlight rough concrete surfaces and gravelly ground textures."
+    },
+    {
+     "codeword": 54,
+     "val_images": 12,
+     "name": "fabric / textured / blue / vibrant / soft / create",
+     "example_caption": "Vibrant red, pink, blue, orange, and green threads create textured, raised embroidery on w"
+    },
+    {
+     "codeword": 59,
+     "val_images": 12,
+     "name": "tones / smooth / gray / sky",
+     "example_caption": "White paint on tower, red shingled roof, grayish water with white foam."
+    },
+    {
+     "codeword": 120,
+     "val_images": 12,
+     "name": "vibrant / orange / textured / tones / fabric / warm",
+     "example_caption": "Vibrant red-orange accents contrast with black fabric and warm skin tones under soft light"
+    },
+    {
+     "codeword": 40,
+     "val_images": 12,
+     "name": "blue / contrasts / sky / reflective",
+     "example_caption": "Red, white, and blue fabric contrasts with gray metal fence and dull concrete ground."
+    },
+    {
+     "codeword": 79,
+     "val_images": 11,
+     "name": "skin / tones / gray / contrasts / brown / warm",
+     "example_caption": "Mottled black and white piglet skin contrasts with rough gray stone and rusty metal."
+    },
+    {
+     "codeword": 81,
+     "val_images": 11,
+     "name": "sky / blue / soft / textures / golden / deep",
+     "example_caption": "The balloon's surface is smooth and pale white, contrasting with the deep blue sky and flu"
+    },
+    {
+     "codeword": 46,
+     "val_images": 11,
+     "name": "tones / smooth / surfaces / textured / fabric / monochrome",
+     "example_caption": "Monochrome tones highlight textured fabrics, grainy wood, and rough brick surfaces in high"
+    },
+    {
+     "codeword": 3,
+     "val_images": 11,
+     "name": "soft / texture / textured",
+     "example_caption": "Lush green canvas, bold pink rubber, and leopard-print laces with textured carpet."
+    }
+   ]
+  }
+ },
+ "centring": "captions minus their axis mean (opt); codewords minus the mean deployed codeword of their slot (val) -- the quant_gap probe's centring, on the pool",
+ "mean": {
+  "axis_specificity_top5": 0.254296875,
+  "name_precision_ap": 0.2758244138956397,
+  "prior_ap": 0.28371701069491406
+ }
+}

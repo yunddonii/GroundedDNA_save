@@ -487,6 +487,37 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-22 [branch arch-exp-2026-09 — analysis, no training, negative result] Stage 10: codewords cannot be named by their nearest captions; the anchors' alignment is relative within an image, not an absolute position in caption space
+
+**Status:** 🔴 negative, no training. Records: `result/analysis/stage10_naming/` (`codeword_names.py`,
+`out/flickr_{base,p2anc}_s4{2,3,4}.json`). Flickr25K, base and anchors, 3 seeds each; opt captions
+through the model's own text path, val images through the deployment forward.
+
+Method: for slot m, codeword k, rank the 4,500 opt captions of axis m (and, for specificity, all four
+axes' captions) by cosine to the codeword, after the code→axis probe's centring (captions minus their
+axis mean, codewords minus the slot's mean deployed codeword). Name = word bag of the top-5 captions.
+
+| model | axis specificity of the top-5 (chance .25) | name precision AP on val (prior .284) |
+|---|---:|---:|
+| base | .244 | .288 |
+| anchors | .252 | .272 |
+
+Raw (uncentred) cosines give the same: .249 / .289 and .235 / .265. The top-5 captions of a
+codeword share almost no words (most names are empty or one word), and the val images deployed to
+it are read no better than the prior.
+
+**Reading.** The code→axis probe (.31 → .37 with anchors) asks, within ONE image, which of that
+image's four axis captions the slot's codeword is nearest to. That is a relative statement and it
+holds. Over the whole caption pool the codeword's neighbours are not its axis's captions: the
+codeword vector has no absolute, nameable position in caption space. So:
+- the "codeword name table" proposed as new paper evidence is **not available**;
+- the dictionary-free readings that do work remain the caption-path reading (stage 2) and, for the
+  concept codebook only, the concept names (stage 7);
+- the anchors' contribution to interpretability is routing sharpness, within-image axis alignment
+  and slight de-redundancy, not nameable codewords.
+
+---
+
 ## 2026-09-22 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] Stage 9: two more levers on top of the anchors. A weak global gate keeps everything and adds code diversity; a codon-level axis target costs retrieval and undoes the anchors' alignment. Plus TODO18 contract revision 1 and its first conforming probe
 
 **Status:** 🟡 screening, pre-registered in `result/analysis/stage9_levers/PREREGISTRATION.md`. Records:

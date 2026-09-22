@@ -1,0 +1,338 @@
+{
+ "result_dir": "result/260920+flickr25k_setting1_p2anc_s44+bs+64+e+60+proj_lr+0.001",
+ "n_opt": 4500,
+ "n_val": 500,
+ "top": 5,
+ "slots": {
+  "C_primary_object": {
+   "axis_specificity_top5": 0.2515625,
+   "chance": 0.25,
+   "name_precision_ap": 0.2321226265482365,
+   "prior_ap": 0.21064077412878002,
+   "codewords_used_val": 68,
+   "names": [
+    {
+     "codeword": 87,
+     "val_images": 58,
+     "name": "roof",
+     "example_caption": "Weathered adobe building with arched windows and wooden porch structure."
+    },
+    {
+     "codeword": 41,
+     "val_images": 23,
+     "name": "hair / wearing / woman / young",
+     "example_caption": "A young woman in a pink button-up shirt holds her hair while walking forward."
+    },
+    {
+     "codeword": 86,
+     "val_images": 21,
+     "name": "",
+     "example_caption": "Stone tower with red conical roof stands alone, partially submerged in misty water."
+    },
+    {
+     "codeword": 95,
+     "val_images": 21,
+     "name": "hair / wearing / man / expression / woman / stubble",
+     "example_caption": "Man with tousled hair and dark jacket gazes forward with focused expression."
+    },
+    {
+     "codeword": 124,
+     "val_images": 18,
+     "name": "man / detailed",
+     "example_caption": "Blue fuzzy koala with embroidered floral ears and stitched facial features."
+    },
+    {
+     "codeword": 39,
+     "val_images": 18,
+     "name": "pointed / roof",
+     "example_caption": "Tall pointed spire with ornate detailing and cross atop its peak."
+    },
+    {
+     "codeword": 8,
+     "val_images": 16,
+     "name": "eyes / chest",
+     "example_caption": "The artwork features layered circular rings with varying widths and earthy tones."
+    },
+    {
+     "codeword": 17,
+     "val_images": 15,
+     "name": "hair / wears / alert",
+     "example_caption": "A small, bushy-tailed red squirrel with alert posture and focused gaze rests on the grass."
+    },
+    {
+     "codeword": 106,
+     "val_images": 15,
+     "name": "woman / wearing / hair / wears",
+     "example_caption": "Two young women in white tops, one holding a bag, smiling and walking forward."
+    },
+    {
+     "codeword": 126,
+     "val_images": 14,
+     "name": "roof",
+     "example_caption": "Wooden houses with snow-laden roofs and glowing windows in foreground."
+    },
+    {
+     "codeword": 57,
+     "val_images": 13,
+     "name": "",
+     "example_caption": "Driver in blue jacket grips steering wheel of open-top sports car."
+    },
+    {
+     "codeword": 105,
+     "val_images": 12,
+     "name": "",
+     "example_caption": "A small, brownish bird with a rounded body, short tail, and downward-pointing beak."
+    }
+   ]
+  },
+  "C_secondary_object": {
+   "axis_specificity_top5": 0.246875,
+   "chance": 0.25,
+   "name_precision_ap": 0.35866166113868236,
+   "prior_ap": 0.3923570645947547,
+   "codewords_used_val": 81,
+   "names": [
+    {
+     "codeword": 54,
+     "val_images": 21,
+     "name": "",
+     "example_caption": "Wooden bookshelf packed with books, decorative items, and framed art on the wall."
+    },
+    {
+     "codeword": 35,
+     "val_images": 20,
+     "name": "visible",
+     "example_caption": "Smooth, teal-colored ground with subtle cracks and texture variations."
+    },
+    {
+     "codeword": 22,
+     "val_images": 19,
+     "name": "",
+     "example_caption": "Red plastic bag and wooden sign with partial text in background."
+    },
+    {
+     "codeword": 34,
+     "val_images": 19,
+     "name": "background / blurred / suggests",
+     "example_caption": "Teal-colored surface beneath cupcakes, slightly textured with scattered crumbs."
+    },
+    {
+     "codeword": 10,
+     "val_images": 17,
+     "name": "distant / horizon / shows / background / faint",
+     "example_caption": "Background shows distant horizon where gray clouds meet a faint yellow glow."
+    },
+    {
+     "codeword": 25,
+     "val_images": 14,
+     "name": "background",
+     "example_caption": "A vintage black camera sits atop the wooden baseboard behind the rodent."
+    },
+    {
+     "codeword": 95,
+     "val_images": 14,
+     "name": "background / blurred / softly",
+     "example_caption": "Softly blurred background suggests indoor setting with natural light filtering through."
+    },
+    {
+     "codeword": 4,
+     "val_images": 13,
+     "name": "shoulders",
+     "example_caption": "A young child in red jacket and blue bandana, smiling while being held."
+    },
+    {
+     "codeword": 71,
+     "val_images": 13,
+     "name": "background",
+     "example_caption": "Small green maintenance platform suspended mid-height on the building's exterior surface."
+    },
+    {
+     "codeword": 104,
+     "val_images": 13,
+     "name": "background / focus / surround",
+     "example_caption": "Background houses appear softly out of focus, suggesting residential neighborhood setting."
+    },
+    {
+     "codeword": 90,
+     "val_images": 12,
+     "name": "",
+     "example_caption": "Blue ceramic cup with floral design stands beside the main bowl, holding no food."
+    },
+    {
+     "codeword": 121,
+     "val_images": 12,
+     "name": "background / streetlights",
+     "example_caption": "Glowing red traffic lights, illuminated signs, and wet pavement reflecting city lights."
+    }
+   ]
+  },
+  "C_activity_or_relation": {
+   "axis_specificity_top5": 0.259375,
+   "chance": 0.25,
+   "name_precision_ap": 0.2622854652288324,
+   "prior_ap": 0.27635025805134966,
+   "codewords_used_val": 79,
+   "names": [
+    {
+     "codeword": 30,
+     "val_images": 17,
+     "name": "suggesting / photo",
+     "example_caption": "People are captured in motion, suggesting movement through a culturally significant site."
+    },
+    {
+     "codeword": 102,
+     "val_images": 17,
+     "name": "affixed",
+     "example_caption": "Costumed individuals and children are grouped closely for a photo in a convention hall."
+    },
+    {
+     "codeword": 75,
+     "val_images": 13,
+     "name": "",
+     "example_caption": "Books are scattered across floor and shelves, indicating recent collapse or disaster event"
+    },
+    {
+     "codeword": 28,
+     "val_images": 13,
+     "name": "positioned / appears / forward / stationary / field / shallow",
+     "example_caption": "Bunny is stationary, facing forward, with ears upright and eyes fixed, suggesting alertnes"
+    },
+    {
+     "codeword": 89,
+     "val_images": 13,
+     "name": "positioned / slightly",
+     "example_caption": "Animal is held gently in palm, positioned centrally with paws near face."
+    },
+    {
+     "codeword": 36,
+     "val_images": 12,
+     "name": "suggesting / items",
+     "example_caption": "Objects are densely packed and randomly arranged within the wicker basket\u2019s confines."
+    },
+    {
+     "codeword": 11,
+     "val_images": 12,
+     "name": "arranged",
+     "example_caption": "Berries, bananas, and cereal are arranged together in a bowl, floating in milk."
+    },
+    {
+     "codeword": 37,
+     "val_images": 12,
+     "name": "",
+     "example_caption": "Building appears static and unused, with empty plaza and distant tables under umbrellas."
+    },
+    {
+     "codeword": 69,
+     "val_images": 12,
+     "name": "people",
+     "example_caption": "People are cycling along paved path while others stroll or stand on grassy embankment."
+    },
+    {
+     "codeword": 42,
+     "val_images": 12,
+     "name": "",
+     "example_caption": "Clouds hover above the cityscape, suggesting an impending storm or weather change."
+    },
+    {
+     "codeword": 110,
+     "val_images": 11,
+     "name": "motion / stationary",
+     "example_caption": "Car appears airborne with dynamic lines, suggesting motion or explosion."
+    },
+    {
+     "codeword": 91,
+     "val_images": 11,
+     "name": "creating",
+     "example_caption": "Sun sets behind cityscape, casting long shadows and creating layered atmospheric perspecti"
+    }
+   ]
+  },
+  "C_color_texture": {
+   "axis_specificity_top5": 0.2515625,
+   "chance": 0.25,
+   "name_precision_ap": 0.2586506115706077,
+   "prior_ap": 0.25551994600477196,
+   "codewords_used_val": 85,
+   "names": [
+    {
+     "codeword": 73,
+     "val_images": 19,
+     "name": "sky / blue / warm / textures / stone / rough",
+     "example_caption": "Warm golden hues dominate the scene, contrasting with deep shadows and textured brick pave"
+    },
+    {
+     "codeword": 11,
+     "val_images": 18,
+     "name": "contrast / textures / gray / bright / weathered / grain",
+     "example_caption": "Weathered white wall with black stains, dark wood grain, and a bright spotlight contrast."
+    },
+    {
+     "codeword": 35,
+     "val_images": 15,
+     "name": "walls / contrast / gray / textures / brown / denim",
+     "example_caption": "White walls contrast with gray roof, green grass, and brown tree trunks."
+    },
+    {
+     "codeword": 21,
+     "val_images": 14,
+     "name": "glossy / surfaces / orange / metallic / bright",
+     "example_caption": "Vibrant red glossy cherry contrasts with metallic silver fork and stark white background."
+    },
+    {
+     "codeword": 100,
+     "val_images": 14,
+     "name": "rough / stone / textured / weathered / gray / contrast",
+     "example_caption": "Weathered gray and warm orange walls, rough wooden doors, textured stone arches, and dark "
+    },
+    {
+     "codeword": 127,
+     "val_images": 13,
+     "name": "vibrant / fabric / rich / purple",
+     "example_caption": "The gown has a shimmering satin texture, while the prince's uniform features gold embroide"
+    },
+    {
+     "codeword": 6,
+     "val_images": 13,
+     "name": "textures / stone / grass / vibrant / rough / textured",
+     "example_caption": "Rich brown wood, rusted metal, vibrant green foliage, and mossy stone textures."
+    },
+    {
+     "codeword": 41,
+     "val_images": 11,
+     "name": "create / tones / warm / textures / wood / lighting",
+     "example_caption": "Moss presents lush green, pebbles vary in earthy tones, and glass case reflects ambient ov"
+    },
+    {
+     "codeword": 64,
+     "val_images": 11,
+     "name": "glossy / vibrant / surfaces / smooth / reds",
+     "example_caption": "Smooth, glossy green surface with white segmented lines and slight surface imperfections."
+    },
+    {
+     "codeword": 19,
+     "val_images": 11,
+     "name": "vibrant / contrast / blue / smooth / deep / matte",
+     "example_caption": "Vibrant red glowing lines contrast with deep black, creating a high-contrast, minimalist, "
+    },
+    {
+     "codeword": 111,
+     "val_images": 11,
+     "name": "textures / brown / denim / smooth / blue",
+     "example_caption": "Vibrant blue jacket, earthy brown pants, and varied denim textures dominate scene."
+    },
+    {
+     "codeword": 98,
+     "val_images": 11,
+     "name": "yellow / warm / blue / sky / orange / deep",
+     "example_caption": "Vibrant blue and warm yellow lights contrast with dark sky and reflective water surface."
+    }
+   ]
+  }
+ },
+ "centring": "captions minus their axis mean (opt); codewords minus the mean deployed codeword of their slot (val) -- the quant_gap probe's centring, on the pool",
+ "mean": {
+  "axis_specificity_top5": 0.25234375,
+  "name_precision_ap": 0.2779300911215898,
+  "prior_ap": 0.28371701069491406
+ }
+}

@@ -1,0 +1,338 @@
+{
+ "result_dir": "result/260920+flickr25k_setting1_p2anc_s42+bs+64+e+60+proj_lr+0.001",
+ "n_opt": 4500,
+ "n_val": 500,
+ "top": 5,
+ "slots": {
+  "C_primary_object": {
+   "axis_specificity_top5": 0.196875,
+   "chance": 0.25,
+   "name_precision_ap": 0.20615253024319524,
+   "prior_ap": 0.21064077412878002,
+   "codewords_used_val": 78,
+   "names": [
+    {
+     "codeword": 88,
+     "val_images": 46,
+     "name": "shaped",
+     "example_caption": "Heart-shaped tree roots intricately woven together on a mossy hillside."
+    },
+    {
+     "codeword": 17,
+     "val_images": 20,
+     "name": "wearing / girl",
+     "example_caption": "Young girl with long dark hair, wearing sleeveless pink top with button details."
+    },
+    {
+     "codeword": 102,
+     "val_images": 18,
+     "name": "",
+     "example_caption": "A vertical stack of children's books with titles like 'The Bug Book' and 'How Things Work'"
+    },
+    {
+     "codeword": 116,
+     "val_images": 16,
+     "name": "beak",
+     "example_caption": "Giraffe with long neck and spotted coat stands upright, facing left, near bent tree branch"
+    },
+    {
+     "codeword": 50,
+     "val_images": 14,
+     "name": "wearing / hair / woman / long",
+     "example_caption": "Girl with pigtails and headband wears plaid blouse, black skirt, and lace-trimmed apron."
+    },
+    {
+     "codeword": 74,
+     "val_images": 12,
+     "name": "large",
+     "example_caption": "Large black steam engine with red stripe and number 2816 on side."
+    },
+    {
+     "codeword": 9,
+     "val_images": 12,
+     "name": "jagged / massive",
+     "example_caption": "Massive, jagged rocks stand tall, forming a natural archway over turbulent waters."
+    },
+    {
+     "codeword": 4,
+     "val_images": 11,
+     "name": "",
+     "example_caption": "Theater marquee with dual sides showing movie ads featuring actor names and humorous text."
+    },
+    {
+     "codeword": 46,
+     "val_images": 11,
+     "name": "",
+     "example_caption": "Three powdered pastries rest on ornate white ceramic cake stand."
+    },
+    {
+     "codeword": 67,
+     "val_images": 11,
+     "name": "large / dominates",
+     "example_caption": "Large, leafy tree with thick trunk and rounded canopy dominates center."
+    },
+    {
+     "codeword": 113,
+     "val_images": 10,
+     "name": "limbs",
+     "example_caption": "A star-shaped electric guitar with colorful buttons on its neck and a black strap."
+    },
+    {
+     "codeword": 94,
+     "val_images": 10,
+     "name": "",
+     "example_caption": "Five coin-operated payphones arranged in a row with black receivers and labels."
+    }
+   ]
+  },
+  "C_secondary_object": {
+   "axis_specificity_top5": 0.2609375,
+   "chance": 0.25,
+   "name_precision_ap": 0.3408480108300894,
+   "prior_ap": 0.3923570645947547,
+   "codewords_used_val": 73,
+   "names": [
+    {
+     "codeword": 22,
+     "val_images": 30,
+     "name": "",
+     "example_caption": "Referee in white shirt and bow tie stands behind ropes, observing match closely."
+    },
+    {
+     "codeword": 62,
+     "val_images": 20,
+     "name": "",
+     "example_caption": "Large reflective glass panels with bold white lettering spell out 'T3' on the building fac"
+    },
+    {
+     "codeword": 42,
+     "val_images": 19,
+     "name": "",
+     "example_caption": "White fence with red posts lines the path leading to the church entrance."
+    },
+    {
+     "codeword": 10,
+     "val_images": 19,
+     "name": "",
+     "example_caption": "Moss-covered boulders and patches of dry grass cling to the rugged cliff walls on either s"
+    },
+    {
+     "codeword": 98,
+     "val_images": 18,
+     "name": "visible",
+     "example_caption": "Metal support pillars and distant hills frame the railway scene under twilight sky."
+    },
+    {
+     "codeword": 68,
+     "val_images": 16,
+     "name": "background",
+     "example_caption": "A black O'Reilly Conferences booklet with gray text lies beneath the pill case."
+    },
+    {
+     "codeword": 19,
+     "val_images": 15,
+     "name": "",
+     "example_caption": "Distant high-rise building contrasts with surrounding low-rise architecture."
+    },
+    {
+     "codeword": 56,
+     "val_images": 15,
+     "name": "",
+     "example_caption": "Multiple fishing rods lean against the pier, with a red backpack nearby on the stone surfa"
+    },
+    {
+     "codeword": 24,
+     "val_images": 14,
+     "name": "background",
+     "example_caption": "Snow-laden tree branches arching over the stream, forming a natural canopy in the backgrou"
+    },
+    {
+     "codeword": 117,
+     "val_images": 13,
+     "name": "background",
+     "example_caption": "A faded wooden door with peeling paint and a small window is visible in the blurred backgr"
+    },
+    {
+     "codeword": 71,
+     "val_images": 12,
+     "name": "",
+     "example_caption": "Smooth gray background surface and soft lighting casting gentle shadows around the cup."
+    },
+    {
+     "codeword": 90,
+     "val_images": 12,
+     "name": "",
+     "example_caption": "Cracked or scratched surface behind her, creating a gritty, abstract background texture."
+    }
+   ]
+  },
+  "C_activity_or_relation": {
+   "axis_specificity_top5": 0.2828125,
+   "chance": 0.25,
+   "name_precision_ap": 0.268180319080103,
+   "prior_ap": 0.27635025805134966,
+   "codewords_used_val": 93,
+   "names": [
+    {
+     "codeword": 123,
+     "val_images": 17,
+     "name": "",
+     "example_caption": "Person holds sticks or rods in hands, seated or standing in public gathering."
+    },
+    {
+     "codeword": 78,
+     "val_images": 16,
+     "name": "mirrored",
+     "example_caption": "Swingers use ropes tied to tree branches, diving into river from various heights."
+    },
+    {
+     "codeword": 25,
+     "val_images": 15,
+     "name": "slightly / subject / positioned",
+     "example_caption": "Subject leans slightly forward, creating a close-up, direct eye contact composition."
+    },
+    {
+     "codeword": 38,
+     "val_images": 15,
+     "name": "subject / slightly",
+     "example_caption": "Subject is positioned low to the ground, looking downward with mouth slightly open."
+    },
+    {
+     "codeword": 0,
+     "val_images": 14,
+     "name": "suggesting / arranged / diagonally",
+     "example_caption": "The pattern is printed or embossed, arranged diagonally across the paper's surface."
+    },
+    {
+     "codeword": 82,
+     "val_images": 12,
+     "name": "positioned / slightly / facing / centrally",
+     "example_caption": "The horse stands alone in the foreground, positioned centrally with mountains framing the "
+    },
+    {
+     "codeword": 43,
+     "val_images": 12,
+     "name": "",
+     "example_caption": "Train is stationary, facing viewer directly with symmetrical design and balanced compositi"
+    },
+    {
+     "codeword": 11,
+     "val_images": 12,
+     "name": "people / moves",
+     "example_caption": "Boy stands in water, actively kicking ball, with sun casting long reflection behind him."
+    },
+    {
+     "codeword": 81,
+     "val_images": 11,
+     "name": "positioned",
+     "example_caption": "Marshmallows are piled haphazardly, overlapping and clustered together in a dense arrangem"
+    },
+    {
+     "codeword": 13,
+     "val_images": 11,
+     "name": "stationary",
+     "example_caption": "Deer figurine positioned to the left of the gumball machine, both stationary on white surf"
+    },
+    {
+     "codeword": 8,
+     "val_images": 10,
+     "name": "creating",
+     "example_caption": "The branch is positioned in the foreground, creating depth and contrast with the blurred b"
+    },
+    {
+     "codeword": 14,
+     "val_images": 10,
+     "name": "positioned / arranged",
+     "example_caption": "Sky panels are arranged side by side, showing progression of night from dusk to dark."
+    }
+   ]
+  },
+  "C_color_texture": {
+   "axis_specificity_top5": 0.253125,
+   "chance": 0.25,
+   "name_precision_ap": 0.2373034964951927,
+   "prior_ap": 0.25551994600477196,
+   "codewords_used_val": 74,
+   "names": [
+    {
+     "codeword": 51,
+     "val_images": 21,
+     "name": "blue / sky / deep / metallic / orange / warm",
+     "example_caption": "Shiny metallic silver surface reflects sunlight, contrasted with deep blue sky and white c"
+    },
+    {
+     "codeword": 81,
+     "val_images": 21,
+     "name": "smooth / glossy / brown / rich / metallic",
+     "example_caption": "Blue and yellow sticky notes with black ink, fridge interior has white plastic and metalli"
+    },
+    {
+     "codeword": 55,
+     "val_images": 19,
+     "name": "tones / contrasts / skin / texture / warm / fabric",
+     "example_caption": "Monochromatic tones with high contrast, emphasizing textures like skin and fabric surfaces"
+    },
+    {
+     "codeword": 37,
+     "val_images": 18,
+     "name": "soft / fabric / yellow / blue / surfaces / textured",
+     "example_caption": "Red and white stripes, black-and-white geometric patterns, and soft fabric textures domina"
+    },
+    {
+     "codeword": 108,
+     "val_images": 17,
+     "name": "textures / sky / blue / contrast / rough / textured",
+     "example_caption": "Dark gray rough lava textures contrast with orange-red glowing lava and rust-brown rocky s"
+    },
+    {
+     "codeword": 119,
+     "val_images": 16,
+     "name": "tones / smooth / metallic / concrete / reflective / surfaces",
+     "example_caption": "Monochrome tones, smooth concrete floor, and reflective glass surfaces."
+    },
+    {
+     "codeword": 44,
+     "val_images": 16,
+     "name": "rough / gray / smooth / textures / texture / surfaces",
+     "example_caption": "The image is monochromatic, showing smooth fabric textures, rough wall surfaces, and refle"
+    },
+    {
+     "codeword": 41,
+     "val_images": 13,
+     "name": "smooth / vibrant / glossy / orange / purple / creamy",
+     "example_caption": "Pastel pink, orange, and purple polka dots, smooth fondant, and textured sugar flowers."
+    },
+    {
+     "codeword": 113,
+     "val_images": 13,
+     "name": "blue / texture / brown",
+     "example_caption": "Dog's fur is thick and white, grass is green with white blooms, water is deep blue."
+    },
+    {
+     "codeword": 103,
+     "val_images": 13,
+     "name": "tones / grass / rough / textures / varied / fabric",
+     "example_caption": "Monochrome tones, rough grass texture, varied fabric textures on clothing."
+    },
+    {
+     "codeword": 59,
+     "val_images": 12,
+     "name": "blue / vibrant / yellow / orange / tones / texture",
+     "example_caption": "Vibrant orange rust contrasts with deep blue sky and cracked reflective glass."
+    },
+    {
+     "codeword": 24,
+     "val_images": 12,
+     "name": "sky / deep / blue / contrast / vibrant / yellow",
+     "example_caption": "Deep blues and purples in the sky, with warm golden edges on clouds and a bright greenish-"
+    }
+   ]
+  }
+ },
+ "centring": "captions minus their axis mean (opt); codewords minus the mean deployed codeword of their slot (val) -- the quant_gap probe's centring, on the pool",
+ "mean": {
+  "axis_specificity_top5": 0.24843749999999998,
+  "name_precision_ap": 0.2631210891621451,
+  "prior_ap": 0.28371701069491406
+ }
+}

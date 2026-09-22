@@ -1,0 +1,338 @@
+{
+ "result_dir": "result/260920+flickr25k_setting1_base_s44+bs+64+e+60+proj_lr+0.001",
+ "n_opt": 4500,
+ "n_val": 500,
+ "top": 5,
+ "slots": {
+  "C_primary_object": {
+   "axis_specificity_top5": 0.2484375,
+   "chance": 0.25,
+   "name_precision_ap": 0.25748593431383787,
+   "prior_ap": 0.21064077412878002,
+   "codewords_used_val": 67,
+   "names": [
+    {
+     "codeword": 95,
+     "val_images": 74,
+     "name": "",
+     "example_caption": "Round, cratered moon appears close-up, with visible surface features and illuminated edges"
+    },
+    {
+     "codeword": 87,
+     "val_images": 22,
+     "name": "",
+     "example_caption": "Circular glass lamp with metal frame suspended by twisted wires against plain wall."
+    },
+    {
+     "codeword": 49,
+     "val_images": 20,
+     "name": "eyes / hair / woman / wide",
+     "example_caption": "Woman's face partially visible, showing eyes, lips, and hand near cheek."
+    },
+    {
+     "codeword": 7,
+     "val_images": 19,
+     "name": "wearing / hair / woman / girl",
+     "example_caption": "A girl with shoulder-length hair holds a small black dog, wearing a dark jacket and jeans."
+    },
+    {
+     "codeword": 47,
+     "val_images": 19,
+     "name": "",
+     "example_caption": "White and maroon flag with serrated edge waves vigorously in breeze."
+    },
+    {
+     "codeword": 36,
+     "val_images": 18,
+     "name": "wearing / man",
+     "example_caption": "Young people dressed in jackets and casual wear, sitting or lying on ground."
+    },
+    {
+     "codeword": 21,
+     "val_images": 17,
+     "name": "",
+     "example_caption": "Bare-branched peach trees with pink flowers form orderly rows in the orchard landscape."
+    },
+    {
+     "codeword": 13,
+     "val_images": 15,
+     "name": "cylindrical",
+     "example_caption": "Dark-hulled vessel with pointed bow and raised mast flying Union Jack flag."
+    },
+    {
+     "codeword": 98,
+     "val_images": 13,
+     "name": "",
+     "example_caption": "Striped equine with white body, upright mane, and bridle on head."
+    },
+    {
+     "codeword": 94,
+     "val_images": 12,
+     "name": "",
+     "example_caption": "Modern high-rise building with reflective glass facade and geometric design."
+    },
+    {
+     "codeword": 8,
+     "val_images": 12,
+     "name": "man",
+     "example_caption": "A man with a beard wears a metal helmet with a visor, showing only one eye and part of his"
+    },
+    {
+     "codeword": 86,
+     "val_images": 11,
+     "name": "shaped / roof",
+     "example_caption": "Dark-hulled vessel with pointed bow and raised mast flying Union Jack flag."
+    }
+   ]
+  },
+  "C_secondary_object": {
+   "axis_specificity_top5": 0.2484375,
+   "chance": 0.25,
+   "name_precision_ap": 0.35268354005393227,
+   "prior_ap": 0.3923570645947547,
+   "codewords_used_val": 81,
+   "names": [
+    {
+     "codeword": 31,
+     "val_images": 19,
+     "name": "",
+     "example_caption": "Red traffic lights and illuminated street lamps casting warm glow on wet asphalt."
+    },
+    {
+     "codeword": 87,
+     "val_images": 16,
+     "name": "",
+     "example_caption": "Countertop displays various groceries including tomatoes, bread, and packaged snacks."
+    },
+    {
+     "codeword": 119,
+     "val_images": 15,
+     "name": "visible",
+     "example_caption": "Another rose and glass vase are partially visible in the background."
+    },
+    {
+     "codeword": 10,
+     "val_images": 14,
+     "name": "visible",
+     "example_caption": "A weathered brick wall with visible mortar lines and minor stains or marks."
+    },
+    {
+     "codeword": 66,
+     "val_images": 14,
+     "name": "background / visible / blurred",
+     "example_caption": "White tents and distant crowd visible behind vehicle in background."
+    },
+    {
+     "codeword": 127,
+     "val_images": 14,
+     "name": "",
+     "example_caption": "A textured, weathered rock with small orange lichen patches serves as the mantis's perch."
+    },
+    {
+     "codeword": 53,
+     "val_images": 14,
+     "name": "horizon / utility",
+     "example_caption": "Silhouetted power lines stretch diagonally across lower sky and horizon."
+    },
+    {
+     "codeword": 2,
+     "val_images": 13,
+     "name": "fence",
+     "example_caption": "Metal fence bars, wooden posts, distant barn, and grazing horses in the background."
+    },
+    {
+     "codeword": 1,
+     "val_images": 13,
+     "name": "hillside",
+     "example_caption": "Dry grassy field with scattered wildflowers and line of dark trees in distance."
+    },
+    {
+     "codeword": 111,
+     "val_images": 13,
+     "name": "visible",
+     "example_caption": "Delicate black ink tattoo on her neck, featuring swirling patterns and dots."
+    },
+    {
+     "codeword": 85,
+     "val_images": 12,
+     "name": "horizon",
+     "example_caption": "Silhouetted power lines stretch diagonally across lower sky and horizon."
+    },
+    {
+     "codeword": 90,
+     "val_images": 12,
+     "name": "right",
+     "example_caption": "Large leafless tree with intricate branches dominates right side, casting stark shadows."
+    }
+   ]
+  },
+  "C_activity_or_relation": {
+   "axis_specificity_top5": 0.2046875,
+   "chance": 0.25,
+   "name_precision_ap": 0.26352192854308654,
+   "prior_ap": 0.27635025805134966,
+   "codewords_used_val": 78,
+   "names": [
+    {
+     "codeword": 28,
+     "val_images": 16,
+     "name": "positioned / suggesting / slightly / forward",
+     "example_caption": "Dog appears to be resting or playing, positioned centrally on ground."
+    },
+    {
+     "codeword": 75,
+     "val_images": 16,
+     "name": "stationary / gripping / slightly / positioned",
+     "example_caption": "Insect is stationary, gripping the branch with its legs while wings are spread open."
+    },
+    {
+     "codeword": 91,
+     "val_images": 16,
+     "name": "",
+     "example_caption": "Cars move along wide avenue flanked by tall structures under clear sky."
+    },
+    {
+     "codeword": 9,
+     "val_images": 15,
+     "name": "positioned",
+     "example_caption": "Fields roll gently in undulating terrain, creating layered depth with horizon line far awa"
+    },
+    {
+     "codeword": 19,
+     "val_images": 14,
+     "name": "arranged / suggesting / overlapping / neatly",
+     "example_caption": "The rolls are arranged in a diagonal line, slightly overlapping each other on the surface."
+    },
+    {
+     "codeword": 4,
+     "val_images": 13,
+     "name": "",
+     "example_caption": "Berries, bananas, and cereal are arranged together in a bowl, floating in milk."
+    },
+    {
+     "codeword": 34,
+     "val_images": 13,
+     "name": "",
+     "example_caption": "Leaves scatter across pavement, casting shadows from the tree\u2019s canopy."
+    },
+    {
+     "codeword": 43,
+     "val_images": 12,
+     "name": "",
+     "example_caption": "Sausages and ribs are being cooked simultaneously on multiple grill levels."
+    },
+    {
+     "codeword": 46,
+     "val_images": 11,
+     "name": "creating",
+     "example_caption": "Branches frame the moon, creating a natural vignette from a low-angle perspective."
+    },
+    {
+     "codeword": 41,
+     "val_images": 11,
+     "name": "horizontally",
+     "example_caption": "The letters are mounted on a flat rooftop surface, angled slightly upward for visibility."
+    },
+    {
+     "codeword": 21,
+     "val_images": 11,
+     "name": "suggesting / positioned / arranged / recent / items",
+     "example_caption": "Person is preparing for travel by organizing travel documents in their hands."
+    },
+    {
+     "codeword": 116,
+     "val_images": 11,
+     "name": "suggesting",
+     "example_caption": "Bolts and hinges suggest structural fastening, indicating past mechanical use."
+    }
+   ]
+  },
+  "C_color_texture": {
+   "axis_specificity_top5": 0.265625,
+   "chance": 0.25,
+   "name_precision_ap": 0.2888943572573649,
+   "prior_ap": 0.25551994600477196,
+   "codewords_used_val": 89,
+   "names": [
+    {
+     "codeword": 41,
+     "val_images": 21,
+     "name": "blue / contrast / soft / vibrant / yellow / sky",
+     "example_caption": "Vibrant yellow petals contrast with deep blue sky and dark moth silhouette."
+    },
+    {
+     "codeword": 7,
+     "val_images": 20,
+     "name": "contrast / blue / sky / vibrant",
+     "example_caption": "Brightly colored blocks contrast with pale sandy ground and distant gray mountains."
+    },
+    {
+     "codeword": 95,
+     "val_images": 18,
+     "name": "matte / vibrant / finish / paper / surfaces",
+     "example_caption": "Uniform off-white paper with crisp creases and matte finish under even lighting."
+    },
+    {
+     "codeword": 109,
+     "val_images": 16,
+     "name": "soft / fur / glossy / smooth / warm / tones",
+     "example_caption": "Fur displays soft white and gray tones with dark gray-black facial markings and glossy tex"
+    },
+    {
+     "codeword": 54,
+     "val_images": 15,
+     "name": "warm / sky / deep / blue / yellow / orange",
+     "example_caption": "Warm golden light contrasts with deep blue night sky and dark building silhouettes."
+    },
+    {
+     "codeword": 118,
+     "val_images": 14,
+     "name": "contrast / monochrome / high / tones / texture / image",
+     "example_caption": "Monochrome tones dominate, with high contrast between the sign's letters and the muted sky"
+    },
+    {
+     "codeword": 86,
+     "val_images": 14,
+     "name": "vibrant / earthy / brown / rough",
+     "example_caption": "Vibrant green leaves, earthy brown bark, and mossy gray rocks with soft natural lighting."
+    },
+    {
+     "codeword": 35,
+     "val_images": 13,
+     "name": "golden / brown / blue / smooth / glossy / rich",
+     "example_caption": "Rich brown chocolate, red strawberry, golden nuts, and white wafer stripes."
+    },
+    {
+     "codeword": 105,
+     "val_images": 13,
+     "name": "metallic / paint / shiny / gray / contrasts / yellow",
+     "example_caption": "Shiny metallic silver body contrasts with black interior and yellow engine bolts."
+    },
+    {
+     "codeword": 100,
+     "val_images": 12,
+     "name": "contrast / rough / weathered / textures / paint / blue",
+     "example_caption": "Peeling blue and green paint over rough, weathered wood with mossy textures."
+    },
+    {
+     "codeword": 82,
+     "val_images": 12,
+     "name": "smooth / orange / pale",
+     "example_caption": "Mottled brown and tan scales with rough, ridged texture, contrasted by smooth, pale underb"
+    },
+    {
+     "codeword": 83,
+     "val_images": 11,
+     "name": "smooth / textured / yellow / beige",
+     "example_caption": "Yellow textured fabric, white smooth plastic, and gray rough concrete surface."
+    }
+   ]
+  }
+ },
+ "centring": "captions minus their axis mean (opt); codewords minus the mean deployed codeword of their slot (val) -- the quant_gap probe's centring, on the pool",
+ "mean": {
+  "axis_specificity_top5": 0.241796875,
+  "name_precision_ap": 0.2906464400420554,
+  "prior_ap": 0.28371701069491406
+ }
+}

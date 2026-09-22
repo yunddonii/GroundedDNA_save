@@ -1,0 +1,338 @@
+{
+ "result_dir": "result/260920+flickr25k_setting1_base_s42+bs+64+e+60+proj_lr+0.001",
+ "n_opt": 4500,
+ "n_val": 500,
+ "top": 5,
+ "slots": {
+  "C_primary_object": {
+   "axis_specificity_top5": 0.2625,
+   "chance": 0.25,
+   "name_precision_ap": 0.2580036370322635,
+   "prior_ap": 0.21064077412878002,
+   "codewords_used_val": 85,
+   "names": [
+    {
+     "codeword": 18,
+     "val_images": 22,
+     "name": "",
+     "example_caption": "A transparent glass tumbler holds liquid and a yellow citrus slice, partially submerged an"
+    },
+    {
+     "codeword": 6,
+     "val_images": 16,
+     "name": "",
+     "example_caption": "A cartoon pig in a striped outfit hangs from a rope on the bag's front."
+    },
+    {
+     "codeword": 43,
+     "val_images": 16,
+     "name": "silhouette / cylindrical",
+     "example_caption": "Tall wooden windmill with large rotating blades and lit upper structure."
+    },
+    {
+     "codeword": 47,
+     "val_images": 16,
+     "name": "wearing / sunglasses",
+     "example_caption": "Person with short dark hair, wearing a gray scarf and olive jacket, looking toward camera."
+    },
+    {
+     "codeword": 24,
+     "val_images": 14,
+     "name": "woman / hair / eyes / smile",
+     "example_caption": "Woman's face partially visible, showing eyes, lips, and hand near cheek."
+    },
+    {
+     "codeword": 8,
+     "val_images": 14,
+     "name": "",
+     "example_caption": "Two dark shoes are suspended by a thin string, silhouetted against the sun."
+    },
+    {
+     "codeword": 111,
+     "val_images": 14,
+     "name": "",
+     "example_caption": "Large dark rock covered in vibrant green moss sits prominently in the center."
+    },
+    {
+     "codeword": 54,
+     "val_images": 13,
+     "name": "large / intricate / roofs",
+     "example_caption": "Large medieval-style stone building with arched windows and gabled roofs, partially under "
+    },
+    {
+     "codeword": 82,
+     "val_images": 13,
+     "name": "wearing / holding",
+     "example_caption": "Person wearing red jacket and white pants, holding a black backpack."
+    },
+    {
+     "codeword": 115,
+     "val_images": 13,
+     "name": "eyes / ears",
+     "example_caption": "Black feline with striking yellow eyes and pointed ears gazes directly at viewer."
+    },
+    {
+     "codeword": 67,
+     "val_images": 12,
+     "name": "dominates",
+     "example_caption": "Bare birch tree with white bark and drooping branches dominates left foreground."
+    },
+    {
+     "codeword": 69,
+     "val_images": 12,
+     "name": "wearing / hair / man / short / blonde",
+     "example_caption": "Silhouetted individual with dark hair, wearing hoodie, focused on handheld device."
+    }
+   ]
+  },
+  "C_secondary_object": {
+   "axis_specificity_top5": 0.2390625,
+   "chance": 0.25,
+   "name_precision_ap": 0.3397307546126999,
+   "prior_ap": 0.3923570645947547,
+   "codewords_used_val": 76,
+   "names": [
+    {
+     "codeword": 62,
+     "val_images": 17,
+     "name": "visible",
+     "example_caption": "Crowd of people walking across zebra crossing, with tall buildings lining both sides of th"
+    },
+    {
+     "codeword": 71,
+     "val_images": 17,
+     "name": "",
+     "example_caption": "Black leather background with visible stitching lines and texture."
+    },
+    {
+     "codeword": 100,
+     "val_images": 17,
+     "name": "visible / blurred / beneath",
+     "example_caption": "Smaller bird in motion, blurred and trailing behind the larger one."
+    },
+    {
+     "codeword": 45,
+     "val_images": 15,
+     "name": "",
+     "example_caption": "Metal utility pole with attached wires and insulators on right side."
+    },
+    {
+     "codeword": 75,
+     "val_images": 14,
+     "name": "",
+     "example_caption": "Air conditioning unit mounted on beige wall behind the girl."
+    },
+    {
+     "codeword": 76,
+     "val_images": 14,
+     "name": "background",
+     "example_caption": "Background features matching floral plates and a green landscape motif."
+    },
+    {
+     "codeword": 2,
+     "val_images": 12,
+     "name": "visible",
+     "example_caption": "White clouds drift above and mirror below, enhancing the tranquil water surface."
+    },
+    {
+     "codeword": 46,
+     "val_images": 12,
+     "name": "visible",
+     "example_caption": "Clear glass bowl rim visible at top, holding the candy collection tightly."
+    },
+    {
+     "codeword": 33,
+     "val_images": 12,
+     "name": "beneath / background",
+     "example_caption": "Dark textured rug beneath dog, with soft blurred background walls."
+    },
+    {
+     "codeword": 99,
+     "val_images": 11,
+     "name": "",
+     "example_caption": "Fresh raspberries, a mint leaf, and a dark chocolate sphere as garnish."
+    },
+    {
+     "codeword": 112,
+     "val_images": 10,
+     "name": "",
+     "example_caption": "Dark, textured clouds stretch across upper sky with patches of light breaking through."
+    },
+    {
+     "codeword": 84,
+     "val_images": 10,
+     "name": "left",
+     "example_caption": "Snow-laden tree branches arching over the stream, forming a natural canopy in the backgrou"
+    }
+   ]
+  },
+  "C_activity_or_relation": {
+   "axis_specificity_top5": 0.2484375,
+   "chance": 0.25,
+   "name_precision_ap": 0.24690067115776443,
+   "prior_ap": 0.27635025805134966,
+   "codewords_used_val": 87,
+   "names": [
+    {
+     "codeword": 16,
+     "val_images": 69,
+     "name": "positioned / calm",
+     "example_caption": "Dog appears calm and still, positioned in close-up with soft lighting."
+    },
+    {
+     "codeword": 73,
+     "val_images": 30,
+     "name": "positioned / suggesting",
+     "example_caption": "Cranes stand idle above containers, suggesting loading or unloading operations paused at n"
+    },
+    {
+     "codeword": 47,
+     "val_images": 15,
+     "name": "arranged / suggesting",
+     "example_caption": "Birds are arranged in scattered positions across the quilt's surface."
+    },
+    {
+     "codeword": 23,
+     "val_images": 15,
+     "name": "positioned",
+     "example_caption": "Crab partially withdrawn, positioned centrally within crevices of driftwood."
+    },
+    {
+     "codeword": 74,
+     "val_images": 15,
+     "name": "suggesting",
+     "example_caption": "Booth rests at an angle, leaning against wall, with debris and paint splatter indicating d"
+    },
+    {
+     "codeword": 80,
+     "val_images": 13,
+     "name": "suggesting / people",
+     "example_caption": "Building stands isolated on street corner, surrounded by trees and pavement."
+    },
+    {
+     "codeword": 58,
+     "val_images": 13,
+     "name": "",
+     "example_caption": "Man positioned in front of open dishwasher with wine bottles in hand, surrounded by food i"
+    },
+    {
+     "codeword": 61,
+     "val_images": 12,
+     "name": "arranged",
+     "example_caption": "City lights create a dense network of illumination across varied building heights and angl"
+    },
+    {
+     "codeword": 105,
+     "val_images": 11,
+     "name": "arranged / overlapping",
+     "example_caption": "The stencil is affixed to the wall, partially torn, with an arrow pointing upward on the m"
+    },
+    {
+     "codeword": 49,
+     "val_images": 11,
+     "name": "",
+     "example_caption": "The man carries a bag while walking past parked vehicles and a wooden fence."
+    },
+    {
+     "codeword": 30,
+     "val_images": 10,
+     "name": "",
+     "example_caption": "The tree's branches spread widely, framing the moon above while casting dark silhouettes b"
+    },
+    {
+     "codeword": 48,
+     "val_images": 10,
+     "name": "arranged / people",
+     "example_caption": "People are grouped together, standing side by side, facing the camera with raised arms."
+    }
+   ]
+  },
+  "C_color_texture": {
+   "axis_specificity_top5": 0.240625,
+   "chance": 0.25,
+   "name_precision_ap": 0.2969682736603976,
+   "prior_ap": 0.25551994600477196,
+   "codewords_used_val": 76,
+   "names": [
+    {
+     "codeword": 18,
+     "val_images": 19,
+     "name": "smooth / matte / surfaces / contrast / metallic / bright",
+     "example_caption": "Smooth white plastic casing contrasts with matte black screen and vivid red backdrop."
+    },
+    {
+     "codeword": 17,
+     "val_images": 19,
+     "name": "warm / blue / smooth / orange / hues / cool",
+     "example_caption": "Warm orange glow contrasts with deep blue water and boat's weathered paint."
+    },
+    {
+     "codeword": 22,
+     "val_images": 18,
+     "name": "sky / tones / warm / contrasts / deep",
+     "example_caption": "Warm yellow artificial lights contrast with dark asphalt and deep night sky tones."
+    },
+    {
+     "codeword": 69,
+     "val_images": 17,
+     "name": "textures / rough / muted / greens / grays / browns",
+     "example_caption": "Monochrome tones highlight rough wood grain, icy surfaces, and dry grass textures."
+    },
+    {
+     "codeword": 0,
+     "val_images": 15,
+     "name": "concrete / smooth / warm / texture / metallic / brown",
+     "example_caption": "Worn concrete steps show gray and brown stains, contrasting with denim and red accents."
+    },
+    {
+     "codeword": 63,
+     "val_images": 14,
+     "name": "textures / vibrant / textured / orange / rich",
+     "example_caption": "Vibrant orange yarn with textured crochet stitches and openwork lace design."
+    },
+    {
+     "codeword": 116,
+     "val_images": 13,
+     "name": "smooth / fabric / soft / tones / matte / gray",
+     "example_caption": "Smooth white mask contrasts with dark clothing and sunlit brownish background tones."
+    },
+    {
+     "codeword": 50,
+     "val_images": 12,
+     "name": "texture / rich / glossy / brown / creamy",
+     "example_caption": "Creamy white frosting, glossy red strawberries, and shiny chocolate with powdered sugar ac"
+    },
+    {
+     "codeword": 44,
+     "val_images": 12,
+     "name": "rough / paint / worn / walls / textures / texture",
+     "example_caption": "Worn tiles show grime and fading, walls have rough, chipped paint texture."
+    },
+    {
+     "codeword": 51,
+     "val_images": 12,
+     "name": "fur / texture / soft / smooth / beige / gray",
+     "example_caption": "Soft beige carpet, fluffy white fur with brown spots, wooden furniture texture."
+    },
+    {
+     "codeword": 19,
+     "val_images": 11,
+     "name": "textured / vibrant / surfaces / glossy / paint",
+     "example_caption": "Bold neon blues, pinks, and purples contrast with black outlines and textured spray-painte"
+    },
+    {
+     "codeword": 64,
+     "val_images": 11,
+     "name": "tones / rough / stone / surfaces / monochrome / textured",
+     "example_caption": "Monochrome tones dominate, with rough stone textures and smooth fabric surfaces contrastin"
+    }
+   ]
+  }
+ },
+ "centring": "captions minus their axis mean (opt); codewords minus the mean deployed codeword of their slot (val) -- the quant_gap probe's centring, on the pool",
+ "mean": {
+  "axis_specificity_top5": 0.24765625,
+  "name_precision_ap": 0.2854008341157813,
+  "prior_ap": 0.28371701069491406
+ }
+}
