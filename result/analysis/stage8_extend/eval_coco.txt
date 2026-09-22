@@ -1,0 +1,6 @@
+mscoco ac2 42 /data/yschoi/gdna_wt_arms/result/260922+mscoco_setting1_msc_ac2_s42+bs+64+e+60+proj_lr+0.001
+mscoco k64 42 /data/yschoi/gdna_wt_arms/result/260922+mscoco_setting1_msc_k64_s42+bs+64+e+60+proj_lr+0.001
+mscoco ac2 43 /data/yschoi/gdna_wt_arms/result/260922+mscoco_setting1_msc_ac2_s43+bs+64+e+60+proj_lr+0.001
+mscoco k64 43 /data/yschoi/gdna_wt_arms/result/260922+mscoco_setting1_msc_k64_s43+bs+64+e+60+proj_lr+0.001
+mscoco ac2 44 /data/yschoi/gdna_wt_arms/result/260922+mscoco_setting1_msc_ac2_s44+bs+64+e+60+proj_lr+0.001
+mscoco k64 44 /data/yschoi/gdna_wt_arms/result/260922+mscoco_setting1_msc_k64_s44+bs+64+e+60+proj_lr+0.001

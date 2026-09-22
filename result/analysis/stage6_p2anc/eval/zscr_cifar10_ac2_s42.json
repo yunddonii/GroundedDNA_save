@@ -1,0 +1,58 @@
+{
+ "result_dir": "/data/yschoi/gdna_wt_arms/result/260922+cifar10_setting1_cifar_ac2_s42+bs+64+e+60+proj_lr+0.001",
+ "n_opt": 4500,
+ "n_val": 500,
+ "gate": [
+  0.9900000095367432,
+  0.9900000095367432,
+  0.9900000095367432,
+  0.9900000095367432
+ ],
+ "slots": {
+  "C_primary_object": {
+   "text_path": 0.1774397978199571,
+   "text_path_shuffled": 0.19543582779052587,
+   "clip_only": 0.42273435196037007,
+   "clip_only_shuffled": 0.13521840702877613,
+   "prior_only": 0.2104813045882489,
+   "supervised_ceiling": 0.4508021282918724,
+   "text_codeword_agrees_with_image_codeword": 0.074
+  },
+  "C_secondary_object": {
+   "text_path": 0.3255876600348257,
+   "text_path_shuffled": 0.32938736986812267,
+   "clip_only": 0.37927188229840664,
+   "clip_only_shuffled": 0.29984447251132923,
+   "prior_only": 0.32958965944546087,
+   "supervised_ceiling": 0.4058334673098974,
+   "text_codeword_agrees_with_image_codeword": 0.168
+  },
+  "C_activity_or_relation": {
+   "text_path": 0.4621255642195583,
+   "text_path_shuffled": 0.46162928629173394,
+   "clip_only": 0.5027404325710005,
+   "clip_only_shuffled": 0.3905736490074075,
+   "prior_only": 0.4644203275085794,
+   "supervised_ceiling": 0.5393894410755286,
+   "text_codeword_agrees_with_image_codeword": 0.12
+  },
+  "C_color_texture": {
+   "text_path": 0.3393216659620747,
+   "text_path_shuffled": 0.3355311334562161,
+   "clip_only": 0.4733994517612444,
+   "clip_only_shuffled": 0.2759742018032876,
+   "prior_only": 0.3544916703970189,
+   "supervised_ceiling": 0.5231581368709268,
+   "text_codeword_agrees_with_image_codeword": 0.086
+  }
+ },
+ "mean_over_local_slots": {
+  "text_path": 0.32611867200910394,
+  "text_path_shuffled": 0.33049590435164966,
+  "clip_only": 0.4445365296477555,
+  "clip_only_shuffled": 0.2754026825877001,
+  "prior_only": 0.33974574048482703,
+  "supervised_ceiling": 0.4797957933870563,
+  "text_codeword_agrees_with_image_codeword": 0.11199999999999999
+ }
+}

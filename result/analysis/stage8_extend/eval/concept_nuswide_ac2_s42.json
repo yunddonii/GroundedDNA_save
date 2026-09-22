@@ -1,0 +1,42 @@
+{
+ "result_dir": "/data/yschoi/gdna_wt_arms/result/260922+nuswide_setting1_nus_ac2_s42+bs+64+e+60+proj_lr+0.001",
+ "n_opt": 9450,
+ "n_val": 1050,
+ "axes": {
+  "C_primary_object": {
+   "concept_name_reading": 0.33964916112271804,
+   "caption_concept_upper_bound": 0.4876041629527237,
+   "deployed_equals_caption_concept": 0.31333333333333335,
+   "prior_only": 0.22110893366802833,
+   "distinct_concepts_used": 55
+  },
+  "C_secondary_object": {
+   "concept_name_reading": 0.3622600446119622,
+   "caption_concept_upper_bound": 0.4926470849901123,
+   "deployed_equals_caption_concept": 0.22285714285714286,
+   "prior_only": 0.31640619297387357,
+   "distinct_concepts_used": 64
+  },
+  "C_activity_or_relation": {
+   "concept_name_reading": 0.332270291017765,
+   "caption_concept_upper_bound": 0.4010063259165841,
+   "deployed_equals_caption_concept": 0.3761904761904762,
+   "prior_only": 0.2667727709853247,
+   "distinct_concepts_used": 64
+  },
+  "C_color_texture": {
+   "concept_name_reading": 0.404470078505588,
+   "caption_concept_upper_bound": 0.5341727386810758,
+   "deployed_equals_caption_concept": 0.2180952380952381,
+   "prior_only": 0.3119580183800192,
+   "distinct_concepts_used": 61
+  }
+ },
+ "mean": {
+  "concept_name_reading": 0.3596623938145084,
+  "caption_concept_upper_bound": 0.478857578135124,
+  "deployed_equals_caption_concept": 0.2826190476190476,
+  "prior_only": 0.27906147900181144,
+  "distinct_concepts_used": 61.0
+ }
+}

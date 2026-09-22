@@ -487,6 +487,92 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-22 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] Stage 8: the tied concept codebook replicates only on Flickr25K (partly on NUS-WIDE, not on MS-COCO or CIFAR-10); the B2 caption queue makes the codebook worse; anchors' retrieval change is within seed noise on multi-label data but −.12 on CIFAR-10
+
+**Status:** 🟡 exploratory confirmation, pre-registered in `result/analysis/stage8_extend/PREREGISTRATION.md`
+(one deviation, appended before any B2 result). Records: `summary.{txt,json}`, `summary_bq.json`,
+`eval/` (concept readings); probe JSONs in `stage6_p2anc/eval/`.
+- **User decisions (2026-09-22):** A′'s retrieval cost is acceptable, so extend it; run B2; include
+  CIFAR-10.
+- **Code and worktrees:**
+  - Part 1: `150deb2` in `/data/yschoi/gdna_wt_arms`.
+  - B2: `ed911a5` in `/data/yschoi/gdna_wt_arms2`, after a queue fix. The first B2 smoke cell hit an
+    in-place autograd error at step 2 and was rerun on the fix.
+  - Entry gates `gate8_s42` and `gate8b_s42` both match base_s42 280/280.
+- **Scope:** exploration only. Audit §657–658: these paths are not admitted recipe changes for any D5
+  or main campaign.
+
+**Part 1: A′ + C** (named caption-concept codebook tied by caption-assigned EMA). The concept files
+were built from each dataset's opt rows; K64 controls were run on NUS-WIDE and MS-COCO.
+
+| dataset | arm | mAP@R | unique | dead | sup. ceiling | caption path | concept name | concept hit | M1 | code→axis |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| CIFAR-10 | base | .8611 | .332 | .012 | .4824 | .4515 | — | — | .0012 | .304 |
+| CIFAR-10 | A′ | .7928 | .506 | .095 | .4815 | .3280 | .4288 | .207 | .0063 | .368 |
+| Flickr25K | base | .7453 | .536 | .241 | .3469 | .3272 | — | — | .0065 | .308 |
+| Flickr25K | A′ | .6999 | .668 | .019 | **.3698** | .2802 | **.3479** | .296 | **.0162** | .322 |
+| NUS-WIDE | base | .7328 | .512 | .024 | .3659 | .3295 | — | — | .0025 | .361 |
+| NUS-WIDE | A′ | .6819 | .588 | .019 | .3835 | .2670 | **.3563** | .276 | **.0155** | .363 |
+| NUS-WIDE | K64 | .7336 | .440 | .008 | .3651 | .3339 | — | — | .0060 | .373 |
+| MS-COCO | base | .6396 | .358 | .004 | .4405 | .4103 | — | — | .0036 | .355 |
+| MS-COCO | A′ | .5763 | .330 | .105 | .4175 | .3095 | .3544 | .180 | −.0019 | .263 |
+| MS-COCO | K64 | .6418 | .294 | .000 | .4403 | .4072 | — | — | .0034 | .378 |
+
+**Replication verdicts** (pre-registered: ceiling ≥ base + .02 on 3/4 axes; concept name > base's
+caption path; M1 up on ≥ 2/3 seeds):
+
+| dataset | verdict | detail |
+|---|---|---|
+| Flickr25K | ✅ | all three hold |
+| NUS-WIDE | ❌ | concept name and M1 hold (M1 on 3/3); the ceiling gains only +.0176 (4/4 axes), missing the +.02 bar by .002 |
+| MS-COCO | ❌ | all three fail: ceiling −.023 on 0/4 axes, concept name .354 < .410, M1 down on 3/3, dead codewords .105 |
+| CIFAR-10 | ❌ | ceiling −.001, concept name .429 < .452; only M1 rises |
+
+- **Retrieval:** −.045 to −.068, all under the .09 flag. The K64 controls equal base on retrieval, so
+  the loss is the concept code's own.
+- **Reading of the MS-COCO failure (not tested):** the image predicts its caption concept on only 18%
+  of val images (Flickr 30%, NUS 28%), with 80-category scenes. A′ also removes MS-COCO's stronger
+  caption terms (text_code_kl and text_hash_ntxent at .10). Its base has the best caption-path reading
+  of the three multi-label datasets (.410), and A′ gives that up.
+- 🔴 **Verdict:** A′ is not a robust cross-dataset improvement. On Flickr25K (and partly NUS-WIDE) it
+  is the only arm that raises every interpretability measure. On MS-COCO it is worse on all of them.
+
+**Part 2: B2 on Flickr25K** (axis-soft local targets, τ .1, a 4,096-caption queue):
+
+| arm | mAP@R | unique | dead | sup. ceiling | caption path | M1 | code→axis |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| base | .7453 | .536 | .241 | .3469 | .3272 | .0065 | .308 |
+| B+C (in-batch) | .7518 | .558 | .240 | .3516 | .3311 | .0052 | .334 |
+| B2 (queue) | .7557 | .464 | **.492** | .3416 | .3150 | .0040 | .282 |
+
+❌ Retrieval is +.010 (3/3 seeds), but the supervised reading is lower on 3/3 seeds and code→axis is
+lower on 3/3; dead codewords double. It fails the rule (best reading .342 < .367). Stronger axis
+targets on the continuous tokens do not reach the discrete code; they crowd the codebook.
+
+**Part 3: are the anchors' retrieval losses negligible** (stage-6 numbers, Δ = anchors − base)?
+
+| dataset | mean Δ mAP@R | relative | Δ ÷ base seed SD | per-seed Δ |
+|---|---:|---:|---:|---|
+| CIFAR-10 | −.1186 | −13.8% | −8.9 | −.139 / −.091 / −.125 |
+| Flickr25K | +.0060 | +0.8% | +0.46 | −.001 / +.014 / +.005 |
+| NUS-WIDE | −.0014 | −0.2% | −0.52 | +.002 / −.011 / +.005 |
+| MS-COCO | −.0017 | −0.3% | −0.45 | +.001 / −.004 / −.002 |
+
+On the three multi-label datasets every mean change is under 1% and under half of the base's own
+seed SD, with mixed signs. Descriptively that is negligible (no test was pre-specified). On CIFAR-10
+the loss is nine seed SDs, on every seed: not negligible.
+
+**Audit §656–658.**
+- §656 is a new combined manuscript patch that needs the user's permission for `docs/paper_draft`;
+  not applied.
+- §657 flagged the stage-7 code on the shared tree. §658 accepted the conditional-key repair made
+  here (`150deb2`).
+- Both ask the user to confirm these paths are exploration. Recorded here: they are branch-only
+  exploration requested by the user, and must not enter D5 or a main campaign.
+- The D5 source decision (approved-base tree vs admitted migration) remains the user's.
+
+---
+
 ## 2026-09-22 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] Stage 6: axis-centred anchors on all four datasets. The codeword→own-axis gain holds everywhere, and retrieval is neutral on the three multi-label datasets, but CIFAR-10 loses .12 mAP@R
 
 **Status:** 🟡 exploratory, off-protocol. Records: `result/analysis/stage6_p2anc/`

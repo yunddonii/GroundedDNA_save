@@ -1,0 +1,58 @@
+{
+ "result_dir": "/data/yschoi/gdna_wt_arms/result/260922+nuswide_setting1_nus_ac2_s42+bs+64+e+60+proj_lr+0.001",
+ "n_opt": 9450,
+ "n_val": 1050,
+ "gate": [
+  0.9900000095367432,
+  0.9900000095367432,
+  0.9900000095367432,
+  0.9900000095367432
+ ],
+ "slots": {
+  "C_primary_object": {
+   "text_path": 0.20352299616398575,
+   "text_path_shuffled": 0.20902326879238475,
+   "clip_only": 0.3363859770310014,
+   "clip_only_shuffled": 0.13571558949770224,
+   "prior_only": 0.22110893366802833,
+   "supervised_ceiling": 0.36346087649321246,
+   "text_codeword_agrees_with_image_codeword": 0.035238095238095235
+  },
+  "C_secondary_object": {
+   "text_path": 0.31543146557243684,
+   "text_path_shuffled": 0.31570515087025997,
+   "clip_only": 0.36725423381280775,
+   "clip_only_shuffled": 0.24948231269600346,
+   "prior_only": 0.31640619297387357,
+   "supervised_ceiling": 0.41359507777635357,
+   "text_codeword_agrees_with_image_codeword": 0.02857142857142857
+  },
+  "C_activity_or_relation": {
+   "text_path": 0.2405299976543897,
+   "text_path_shuffled": 0.24290991400683265,
+   "clip_only": 0.33394403230636366,
+   "clip_only_shuffled": 0.20368718390617174,
+   "prior_only": 0.2667727709853247,
+   "supervised_ceiling": 0.3425924480964748,
+   "text_codeword_agrees_with_image_codeword": 0.12857142857142856
+  },
+  "C_color_texture": {
+   "text_path": 0.2839013183048476,
+   "text_path_shuffled": 0.2964172409455738,
+   "clip_only": 0.40279224780833073,
+   "clip_only_shuffled": 0.23961056520184223,
+   "prior_only": 0.3119580183800192,
+   "supervised_ceiling": 0.42781479132828,
+   "text_codeword_agrees_with_image_codeword": 0.08857142857142856
+  }
+ },
+ "mean_over_local_slots": {
+  "text_path": 0.26084644442391497,
+  "text_path_shuffled": 0.2660138936537628,
+  "clip_only": 0.3600941227396259,
+  "clip_only_shuffled": 0.2071239128254299,
+  "prior_only": 0.27906147900181144,
+  "supervised_ceiling": 0.3868657984235802,
+  "text_codeword_agrees_with_image_codeword": 0.07023809523809524
+ }
+}

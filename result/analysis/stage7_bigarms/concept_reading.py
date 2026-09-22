@@ -67,7 +67,10 @@ def main():
         caps[str(d["image_id"])] = {k: str(d["codebook_texts"].get(k, "") or "") for k in AXES}
     caps.update({"images/" + os.path.basename(k): v for k, v in list(caps.items())
                  if "images/" + os.path.basename(k) not in caps})
-    name = lambda i: "images/" + os.path.basename(str(tr[i]["image_path"]))     # noqa: E731
+    fc_ids = json.load(open(os.path.join(cache, "image_ids.json")))
+    # CIFAR-10 samples carry no image_path; their captions are keyed by the cache row id.
+    name = lambda i: ("images/" + os.path.basename(str(tr[i]["image_path"]))     # noqa: E731
+                      if "image_path" in tr[i] else str(fc_ids[int(rows[i])]))
     id_o, id_v = [name(i) for i in io], [name(i) for i in iv]
     vocab = distinctive_vocab(caps, id_o)
     rep = {"result_dir": a.result_dir, "n_opt": len(io), "n_val": len(iv), "axes": {}}
