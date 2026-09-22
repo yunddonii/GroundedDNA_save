@@ -487,6 +487,60 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-22 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] Stage 9: two more levers on top of the anchors. A weak global gate keeps everything and adds code diversity; a codon-level axis target costs retrieval and undoes the anchors' alignment. Plus TODO18 contract revision 1 and its first conforming probe
+
+**Status:** 🟡 screening, pre-registered in `result/analysis/stage9_levers/PREREGISTRATION.md`. Records:
+`summary.{txt,json}`, probes in `stage6_p2anc/eval` and `stage6_p2anc/analysis`. Code `7de5470`
+(`--text_hash_ntxent_target axis_soft`, default off; `gate9_s42` = base_s42 280/280). Flickr25K
+stage-1, seeds 42/43/44, `hash_target_mode siglip_cos`.
+
+| arm | flags on top of base | mAP@R | unique | dead | eff. slots | sup. ceiling | caption path | M1 | code→axis | local NMI |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| base | — | .7453 | .536 | .241 | 3.07 | .3469 | .3272 | .0065 | .308 | .443 |
+| anchors | `--axis_center anchors` | .7513 | .540 | .186 | 2.42 | .3460 | .3149 | .0066 | .370 | .433 |
+| weak gate alone (9/20) | `--global_gate_init_logit -3.0` | .7385 | .594 | .128 | 2.85 | — | — | — | — | — |
+| **ancsoft** | anchors + weak gate | .7512 | **.578** | **.148** | 2.48 | .3460 | .3164 | −.0002 | .382 | .439 |
+| **codsoft** | `--text_hash_ntxent_target axis_soft` (τ .2) | .7230 | .561 | .188 | 2.85 | .3477 | .3310 | .0029 | **.271** | .450 |
+| **anccod** | anchors + codsoft | .7401 | .545 | .167 | 2.64 | .3453 | .3189 | .0012 | .326 | .459 |
+
+Per-seed against anchors: ancsoft mAP@R +.001/+.006/−.007, unique +.038/+.033/+.045 (3/3 up),
+ceiling +.003/−.010/+.007. anccod mAP@R −.014/−.014/−.006 and code→axis −.051/−.030/−.053 (3/3 down).
+codsoft against base: mAP@R −.038/−.007/−.022, code→axis −.040/−.028/−.041 (3/3 down).
+
+- ❌ **Lever 4 (codon-level axis target) is a negative result.** Pulling slot m's codon toward the
+  text codons of axis-neighbour images lowers retrieval on 3/3 seeds and pushes the codewords AWAY
+  from their own axis's caption (code→axis .308 → .271; on the anchors .370 → .326). Word-level
+  readings do not move. The soft target spreads each codon over several images' text codons and
+  the codeword drifts toward the axis mean. Stage-7 B (same target on the continuous token) was
+  inert; at the codon level it is harmful.
+- 🟡 **Lever 3 (weak gate + anchors) fails the interpretability rule** (best reading .3477 < .356)
+  but is otherwise a free improvement on the anchors: same retrieval, unique codes +.04 on 3/3 seeds,
+  dead codewords .186 → .148, code→axis .382. The gate starts at .047 and stays there, so local
+  codons receive less global content; that shows up as diversity, not as readability.
+- **Verdict.** Nothing is carried to NUS/COCO. If the anchors are ever adopted, the weak gate is the
+  variant to adopt with them; it changes an initial value only.
+
+**TODO18 — contract revision 1 written and exercised.** `docs/TODO18_WEIGHT_RANDOMIZATION_CONTRACT.md`
+§10 (contract now `d2e0c0f4`) binds the user's decisions of 2026-09-22:
+- overlap = same image and slot, untouched vs randomized (audit §626 option a);
+- rows = the eight ordered §514 query rows per dataset, ID-verified against the pinned §514
+  report `8b9fcf0a`; tensor `local_routing_matrix` [8,196,4], no interpolation;
+- entropy in bits normalised by log2(196), zero mass → null;
+- top-q overlap with q = .10 (k = 20), per-image threshold, ties by patch index, IoU, chance
+  ≈ .054 recorded;
+- raw maps kept as `fixed_rows_routing.npz` in the bundle;
+- probe budget = one cell, one stage, one randomization seed, ≤ 64 rows (the audit's proposal).
+Producer: §649 candidate installed (`36e65974`, 218 tests) plus the measurement (`4b579024`,
+222 tests: entropy, top-q/ties/zero-mass, §514 binding refusals, identity mismatch). `--publish`
+stays refused. Probe `/data/yschoi/gdna_todo18_probe/rev1_flickr42_S3_1234_r64` (Flickr25K s42,
+S3_both, seed 1234, 64 rows, rc 0): with heads and codebooks randomized the fixed-row maps overlap
+the untouched maps at **IoU .032** (chance .054) and their entropy rises to **.99** normalised
+(untouched .85–.94); sham = untouched exactly; the three map digests in the npz match the payload.
+This is the signal the sanity check exists to show: the routing explanation depends on the learned
+codebooks. One cell, one seed; the 12-cell publication waits for audit review of this revision.
+
+---
+
 ## 2026-09-22 [branch arch-exp-2026-09 — analysis, no training] Stage 6b: what the axis-centred anchors change inside the code — sharper routing, codewords nearer their own axis, slightly less slot overlap; word-level readings unchanged. Decisions: A′ stopped at (a); D5 code base deferred until the model is final
 
 **Status:** 🟡 analysis of the stage-6 runs (24 runs, no new training). Records:
