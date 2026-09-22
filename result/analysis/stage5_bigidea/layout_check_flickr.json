@@ -1,0 +1,32 @@
+{
+ "concept_base_agreement_15": 0.7021029746942724,
+ "distinct_codons_per_slot_after_layout": [
+  44,
+  40,
+  44,
+  40,
+  42
+ ],
+ "current_model_per_axis": {
+  "C_primary_object": {
+   "supervised_ceiling": 0.32565946581706723,
+   "text_path": 0.29268681733043433,
+   "prior_only": 0.21064077412878002
+  },
+  "C_secondary_object": {
+   "supervised_ceiling": 0.4076870440907836,
+   "text_path": 0.3905174511643675,
+   "prior_only": 0.3923570645947547
+  },
+  "C_activity_or_relation": {
+   "supervised_ceiling": 0.3152312466999656,
+   "text_path": 0.3063935252987336,
+   "prior_only": 0.27635025805134966
+  },
+  "C_color_texture": {
+   "supervised_ceiling": 0.33910139194721856,
+   "text_path": 0.319384365006646,
+   "prior_only": 0.25551994600477196
+  }
+ }
+}

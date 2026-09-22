@@ -487,6 +487,68 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-22 [branch arch-exp-2026-09 — analysis, no training, not a paper result] Why the slots overlap: the dominant loss makes every slot identify the image alone. Two redesigns measured on frozen features: axis neighbourhoods are distinct, and a named caption-concept codebook is more readable than the trained codons
+
+**Status:** 🟡 feasibility only. No model is trained; a linear probe on frozen CLIP image features and
+k-means on cached caption embeddings are the only fitted parts. Flickr25K train split: 4,500 opt rows
+(dictionary side) and 500 val rows (held out). Records: `result/analysis/stage5_bigidea/`
+(`feasibility.py`, `layout_check.py`, JSONs). Single k-means seed and a single probe.
+
+**Cause, read from the code.** `lambda_cibhash_ntxent 1.0`, `cibhash_mode per_codebook`,
+`cibhash_ntxent_source visual_token`: each of the five pre-VQ slot tokens gets its own InfoNCE between
+two augmentations of the same image. Axis captions enter only as a per-pair temperature (alpha .3).
+So 82% of the objective asks every slot to identify the image by itself, which rewards the same
+image-level content in every slot. This matches:
+- a single codon being nearly as readable as all five;
+- the 14 failed role mechanisms;
+- the "capacity trade-off".
+
+**1. Axis-m caption neighbourhoods differ** (k = 20 nearest opt rows, per-axis-centred CLIP caption
+embeddings; random .0044):
+
+| pair | overlap |
+|---|---:|
+| local axis vs local axis | .038–.139 |
+| local axis vs image (CLIP) | .070–.158 |
+| global caption vs image | .192 |
+
+Per-slot targets built from axis captions would give each slot a different similarity structure.
+
+**2. Named concept codebook.** Per axis, 64 k-means concepts of the captions; a concept's name is its
+captions' word posterior, scored with the stage-2 reader. Held-out AP of the image's own axis words:
+
+| code | primary | secondary | activity | colour | mean |
+|---|---:|---:|---:|---:|---:|
+| trained model, supervised ceiling (3 seeds) | .326 | **.408** | .315 | .339 | .347 |
+| trained model, caption path | .293 | .391 | .306 | .319 | .327 |
+| concept, picked from the image without text (linear probe) | **.366** | .362 | **.335** | **.377** | **.360** |
+| concept, picked from its own caption (upper bound) | .418 | .492 | .376 | .472 | .439 |
+| prior only | .211 | .392 | .276 | .256 | .284 |
+
+The simple text-free concept code beats the trained codons' best reading on three axes. On
+secondary object it is worse, and below the prior.
+
+**3. Retrieval proxy.** Query val, DB opt, relevant = shares a label, full-ranking AP. The same
+procedure is used for every code; this is not the paper's mAP@R.
+
+| code | AP |
+|---|---:|
+| trained model, native base agreement | .753 ± .011 |
+| trained model, codon match | .674 |
+| CLIP image cosine | .672 |
+| concept code, codon match | .635 |
+| concept code, Hamming-aware layout | .702 |
+
+The Hamming-aware layout gives three bases from the quartiles of the centroids' top-3 principal
+components, so neighbouring concepts share bases. It leaves 40–44 distinct codons out of 64.
+
+**Consequence.** Redesigns that change what local slots are trained on (axis-defined targets, or a
+caption-concept codebook with a fixed codon layout) are supported by these numbers. Their cost is
+retrieval, estimated at −.05 on this proxy before any training. Nothing here is adopted; proposals
+and pre-registration criteria are given to the user.
+
+---
+
 ## 2026-09-22 Audit §622–§645 applied: every candidate the audit handed over is installed except the three that change the manuscript or a protocol-pinned shared module, and the two gaps it found in installed code (D5 child output, TODO18 probe mode) are closed
 
 **Status:** 🟢 execution-integrity repairs; no training except two default-path gate cells, and no
