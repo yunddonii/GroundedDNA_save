@@ -410,6 +410,8 @@ class DNACodonHashLoss(nn.Module):
         # concept cross-entropy of the named concept codebook.
         self.cibhash_local_target = str(getattr(cfg, "cibhash_local_target", "instance") or "instance")
         self.cibhash_local_target_tau = float(getattr(cfg, "cibhash_local_target_tau", 0.2))
+        self.text_hash_ntxent_target = str(getattr(cfg, "text_hash_ntxent_target", "instance") or "instance")
+        self.text_hash_ntxent_target_tau = float(getattr(cfg, "text_hash_ntxent_target_tau", 0.2))
         self._axis_mean_ema = None                  # per-axis caption mean, EMA over batches
         self.cibhash_local_queue = int(getattr(cfg, "cibhash_local_queue", 0) or 0)
         self._q_v = self._q_t = None                # (stage 8, B2) FIFO of past slot tokens / captions
@@ -2966,6 +2968,20 @@ class DNACodonHashLoss(nn.Module):
                 loss_t2i = F.cross_entropy(
                     logits_it.transpose(1, 2).reshape(M_th_eff * B, B), labels_m,
                 )
+                if self.text_hash_ntxent_target == "axis_soft":
+                    # (stage 9) codon-level axis-neighbour target: slot m's image codon should
+                    # match the text codons of images whose axis-m caption is similar, in the
+                    # proportion softmax(cos / tau_t); the own caption (cos 1) keeps the largest
+                    # share. Replaces the one-hot target on the local slots only.
+                    assert rho_cfg <= 0.0, "axis_soft target and the counterfactual branch are exclusive"
+                    ax = self._centred_axis_text(outputs.get("text_part_raw_cached"))     # [B, M, Dt]
+                    ax = ax[:, 1:, :] if (self.text_hash_ntxent_skip_global and M_th > 1) else ax
+                    tgt = torch.softmax(torch.einsum("bmd,cmd->mbc", ax, ax)
+                                        / self.text_hash_ntxent_target_tau, dim=2).detach()  # [M', B, B]
+                    lp_i2t = F.log_softmax(logits_it.float(), dim=2)
+                    lp_t2i = F.log_softmax(logits_it.transpose(1, 2).float(), dim=2)
+                    loss_i2t = -(tgt * lp_i2t).sum(dim=2).mean()
+                    loss_t2i = -(tgt * lp_t2i).sum(dim=2).mean()        # symmetric cosines: same rows
                 loss_text_hash_ntxent_add = 0.5 * (loss_i2t + loss_t2i)
             else:
                 raise ValueError(

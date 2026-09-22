@@ -2005,6 +2005,14 @@ class Config():
                                 'segment instead of only the whole hash.')
         # v176: skip cb0 (C_global) from text_hash_ntxent per_codebook.
         # Only valid in per_codebook mode. Global mode ignores this flag.
+        loss_arg.add_argument('--text_hash_ntxent_target', dest='text_hash_ntxent_target',
+            type=str, default='instance', choices=['instance', 'axis_soft'],
+            help='(stage 9) target of the per_codebook text-hash InfoNCE on the LOCAL codons: '
+                 'instance = own caption only (unchanged); axis_soft = soft target over the '
+                 'batch, softmax(cos of per-axis-centred axis-m captions / tau), so slot m\'s '
+                 'codon is pulled toward the text codons of images with similar axis-m captions.')
+        loss_arg.add_argument('--text_hash_ntxent_target_tau', dest='text_hash_ntxent_target_tau',
+            type=float, default=0.2, help='(stage 9) temperature of the axis_soft target.')
         loss_arg.add_argument('--text_hash_ntxent_skip_global',
             dest='text_hash_ntxent_skip_global',
             action='store_true', default=False,

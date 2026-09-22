@@ -2511,6 +2511,7 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.concept_label_ema = bool(getattr(args, "concept_label_ema", False))
         self._emit_cached_text = (
             str(getattr(args, "cibhash_local_target", "instance") or "instance") != "instance"
+            or str(getattr(args, "text_hash_ntxent_target", "instance") or "instance") != "instance"
             or float(getattr(args, "lambda_concept", 0.0) or 0.0) > 0.0 or self.concept_label_ema)
         if self.concept_label_ema:
             if self.concept_layout is None:
