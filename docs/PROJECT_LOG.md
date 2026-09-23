@@ -487,6 +487,67 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-23 [branch arch-exp-2026-09 — 9 cells, pre-registered] Stage 11: the weak global gate does not survive outside Flickr25K; anchors keep their axis gain on all four datasets
+
+**Status:** 🔴 weak gate DISCARDED by the pre-registered rule. Records:
+`result/analysis/stage11_ancsoft_alldata/` (PREREGISTRATION.md written and committed before the
+first cell, `cells.txt`, `eval_runs.txt`, `analysis_batch.sh`). 9 training cells
+{cifar10, nuswide, mscoco} x seeds {42,43,44}, all rc=0, in `/data/yschoi/gdna_wt_mscoco`
+(8cae54d) — the same tree and commit that produced that dataset's `base` and `p2anc` comparators.
+Each cell differs from its `p2anc` comparator in exactly two flags (tag,
+`--global_gate_init_logit 4.595 -> -3.0`), verified by parsing both command lines. Run lengths match
+the comparators exactly (log rows 21 / 6 / 41).
+
+```
+stage-1 held-out-train validation, raw base-Hamming, seeds 42/43/44, mean ± sample SD; no test run
+dataset    arm                mAP@R          unique            dead       code→axis       NMI local       eff.slots         labelAP   B1→B5
+flickr25k  base       0.7453±0.0133   0.5356±0.0175   0.2406±0.0355   0.3075±0.0065   0.4434±0.0284   3.0680±0.1061   0.7716±0.0075  0.0452
+flickr25k  p2anc      0.7513±0.0062   0.5397±0.0091   0.1859±0.0275   0.3700±0.0140   0.4331±0.0118   2.4249±0.1449   0.7736±0.0046  0.0462
+flickr25k  ancsoft    0.7512±0.0086   0.5783±0.0136   0.1484±0.0113   0.3820±0.0333   0.4394±0.0112   2.4843±0.0921   0.7731±0.0023  0.0536
+
+cifar10    base       0.8611±0.0133   0.3321±0.0174   0.0115±0.0095   0.3042±0.0090   0.6621±0.0105   1.7471±0.1215   0.9328±0.0050  0.0372
+cifar10    p2anc      0.7425±0.0161   0.4345±0.0178   0.1208±0.0420   0.3973±0.0404   0.4482±0.0244   1.3508±0.0274   0.8355±0.0139  0.1241
+cifar10    ancsoft    0.6749±0.0253   0.4370±0.0231   0.1250±0.0410   0.3772±0.0248   0.4148±0.0593   1.3880±0.0743   0.7953±0.0304  0.1680
+
+nuswide    base       0.7328±0.0027   0.5121±0.0106   0.0240±0.0018   0.3605±0.0126   0.4790±0.0122   2.2781±0.0443   0.7384±0.0067  0.0505
+nuswide    p2anc      0.7314±0.0093   0.5302±0.0037   0.0177±0.0036   0.4450±0.0205   0.4604±0.0092   1.8794±0.0653   0.7358±0.0007  0.0550
+nuswide    ancsoft    0.7245±0.0103   0.5381±0.0232   0.0333±0.0092   0.4414±0.0199   0.4785±0.0080   1.8190±0.0182   0.7327±0.0064  0.0624
+
+mscoco     base       0.6396±0.0038   0.3580±0.0093   0.0036±0.0018   0.3550±0.0165   0.6205±0.0107   3.0520±0.0681   0.6658±0.0087  0.0497
+mscoco     p2anc      0.6379±0.0050   0.3961±0.0081   0.0130±0.0033   0.4181±0.0223   0.5874±0.0012   2.5773±0.0118   0.6572±0.0003  0.0646
+mscoco     ancsoft    0.6223±0.0031   0.4049±0.0076   0.0250±0.0063   0.3929±0.0063   0.5862±0.0099   2.5497±0.0771   0.6538±0.0061  0.0633
+```
+
+**Pre-registered rule.** (1) mean mAP@R of ancsoft not below p2anc by more than .005 on any dataset,
+AND (2) mean unique code ratio higher on at least 3 of 4. **(2) passes on all four** (+.0025 CIFAR,
++.0386 Flickr, +.0079 NUS, +.0087 MS-COCO). **(1) passes only on Flickr25K** (−.0001); it fails on
+NUS (−.0069), MS-COCO (−.0156) and CIFAR (−.0676), with all 9 non-Flickr seeds negative. The
+combined rule fails, and its declared action is to discard the weak gate. Dropping CIFAR post hoc
+would not rescue it. The gate also lowers code→axis outside Flickr (7 of 9 seeds down).
+
+**Anchors, all four datasets (stage 6b + this stage's probes).** code→own-axis rises on **12/12**
+dataset-seed pairs (+.056…+.073 Flickr, +.062…+.149 CIFAR, +.073…+.094 NUS, +.030…+.102 MS-COCO)
+and routing concentrates (eff. slots 3.07→2.42 Flickr, 2.28→1.88 NUS, 3.05→2.58 MS-COCO,
+1.75→1.35 CIFAR). Local codon NMI falls slightly everywhere and collapses on CIFAR (.662→.448);
+retrieval is flat on Flickr/NUS/MS-COCO and −.1186 on CIFAR, down in all three seeds.
+
+**Independent review.** The audit reviewed this candidate the same day
+(`reaudit_recovery_20260909/anchor_recipe_review_20260923/REVIEW.md`, report `798c7de6…`). It
+rejects the weak gate on the same rule, **declines to approve anchors as a four-dataset recipe**
+(CIFAR −0.118591), and records that stage 11's fallback wording "anchors alone stay" is not an
+acceptance test for anchors. Re-verified here rather than taken on trust: the CIFAR delta, the 12/12
+code→axis claim, and the `args.txt` minus-sign defect — `_parse_args_txt` reads
+`global_gate_init_logit -3.0` back as `+3.0`, but the checkpoint carries `global_gate_logits`
+(0 missing / 0 unexpected keys on load; init +3.0 → trained −2.70…−2.35), so the probes measured
+the trained model. It is a reproducibility gap in `args.txt`, not a measurement error.
+
+**Decision taken (user, 2026-09-23).** Anchors are scoped to the multi-label datasets; CIFAR-10
+keeps the incumbent recipe and its negative result is reported with its reason. The confirmatory
+retrieval margin is one incumbent seed SD per dataset and metric. Both are fixed in
+`docs/ANCHOR_SCOPE_AND_ACCEPTANCE_2026-09-23.md` before any confirmatory evaluation.
+
+---
+
 ## 2026-09-23 [manuscript, no training] Audit §656 + §637 reporting patches installed in `docs/paper_draft/` (user-approved)
 
 **Status:** ✅ installed in the working tree only. `docs/paper_draft/` is untracked in every branch,
