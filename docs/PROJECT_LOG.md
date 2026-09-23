@@ -487,6 +487,37 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-23 [manuscript, no training] Audit §656 + §637 reporting patches installed in `docs/paper_draft/` (user-approved)
+
+**Status:** ✅ installed in the working tree only. `docs/paper_draft/` is untracked in every branch,
+so this is not captured by a commit; the pre-install originals are backed up at
+`~/gdna_backups/paper_draft_preinstall_20260923/` (`originals.tar.gz` + `originals.sha256`, 8 files).
+
+Patches (from the audit's private working dirs, digests rechecked before applying):
+- §656 `attempt2/paper_authority_candidate.patch` `542b8607…` — 1 file, +201/−117.
+- §637 `attempt1/table_reporting_candidate.patch` `6be7d47e…` — 7 table files, +68/−36.
+
+Pre-install checks done here, not taken from the ledger:
+- installed manuscript was `31b5fbdd…` as the ledger states; `git apply --check` passes for both;
+- both applied to a throwaway copy first; the result is `beed49c8…`, the ledger's candidate digest;
+- every number inside the manuscript's pipe tables is byte-identical before and after;
+- data rows of the 7 table files are unchanged (own filter, 44 TeX + 44 MD rows incl. headers);
+  the only changed row anywhere is `interp_control_a_partitions_table.tex`'s header column
+  `Winning cut` → `Winning cut (s42)`, plus comments and the caption.
+
+What the text now says differently (all claim-weakening, no new numbers):
+authority order now names MODEL_AND_PROTOCOL_SPEC + the two audits and demotes PROJECT_LOG to design
+history; the two old BIO JSONs are marked historical (L=18, GC [8,10]) and excluded as authority for
+15-base numbers; "purely unsupervised" → label-free with VLM text supervision; the bit-capacity,
+routing-mask, separate-codebook, transport-term, VQ/EMA and ten-term-gradient claims are scoped;
+§4.4.2/§4.5.4/§4.7f/§4.8b captions become "stored values, audit acceptance pending"; the §4.7f
+"controls use all 64 symbols" claim is withdrawn (6/12 winning arms have a slot below 64).
+
+Not done: no LaTeX compile (`pdflatex` absent), no rendered-figure review, no regeneration — the live
+formatter `06bba41f` still holds the superseded D5/D6 wording and would undo these edits if re-run.
+
+---
+
 ## 2026-09-22 [branch arch-exp-2026-09 — analysis, no training, negative result] Stage 10: codewords cannot be named by their nearest captions; the anchors' alignment is relative within an image, not an absolute position in caption space
 
 **Status:** 🔴 negative, no training. Records: `result/analysis/stage10_naming/` (`codeword_names.py`,
