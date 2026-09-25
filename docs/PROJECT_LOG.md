@@ -487,6 +487,51 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-25 [branch arch-exp-2026-09 — 15 cells, pre-registered] Stage 12: the anchored recipe keeps the incumbent's N on all three multi-label datasets; on CIFAR-10 its own N recovers a third of the cost
+
+**Status:** ✅ complete. Records: `result/analysis/stage12_n_reselect/` (PREREGISTRATION.md a2764e2
+and reducer `select_n.py` e2851d2, both committed before the cells finished; `selected_n.json`).
+13 selection cells + 2 CIFAR seed cells, all rc=0, in `/data/yschoi/gdna_wt_mscoco` (8cae54d).
+
+Why: every earlier arm stopped at the incumbent's N (CIFAR 19, Flickr 4, NUS 4, MS-COCO 39), chosen
+for the incumbent routing geometry. Cells = the approved stage-1 selection shape (`-e 60
+--stop_after_epoch N --lr_schedule_horizon 60 --sinkhorn_schedule_horizon N+1`, 90/10 train split,
+seed 42) with `--axis_center anchors`; each differs from its source anchored cell in the tag and the
+two schedule flags only (parsed). Rule = `scripts/phase3_select_n.py`: argmax raw base-Hamming mAP@R
+at the candidate's own terminal epoch, ties to the smallest N. No official test read.
+
+| dataset | N=4 | N=9 | N=19 | N=39 | anchored N | incumbent N |
+|---|---:|---:|---:|---:|---:|---:|
+| Flickr25K | **.758248** | .728045 | .717426 | .709083 | 4 | 4 |
+| CIFAR-10 | **.739850** | .722600 | .737200 | .701226 | **4** | 19 |
+| NUS-WIDE | **.737637** | .714769 | .703688 | .681215 | 4 | 4 |
+| MS-COCO | .632801 | .638486 | .639769 | **.640172** | 39 | 39 |
+
+Tree check: Flickr N=4 re-run in `gdna_wt_mscoco` reproduces the main-tree stage-6b cell to six
+decimals (.758248 = .758248), so the cross-tree comparisons of stages 6b/11 are not tree artefacts.
+
+**Multi-label scope (Flickr, NUS, MS-COCO): N does not move.** The stage 6b/11 comparisons were
+already at the anchored recipe's own N, and they stand: anchors − base = +.0060 Flickr, −.0014 NUS,
+−.0017 MS-COCO (3 seeds, stage-1 val). No λ or top-p screening is triggered by these numbers: the
+exploratory MS-COCO seed SD (.0038 base, .0050 anchors) is about three times the incumbent's
+official-test SD, so a −.0017 exploratory gap cannot predict the confirmatory margin either way.
+
+**CIFAR-10 (out of scope, measured to support the scope decision): N moves 19 → 4.** Seed 42 alone
+is a near-tie (.7399 vs .7372); seeds 43/44 were run at N=4 as the protocol reuses N across seeds.
+
+| CIFAR-10, 3 seeds | mAP@R | per seed |
+|---|---:|---|
+| incumbent @ its N=19 | .8611 ± .0133 | .8763 / .8520 / .8549 |
+| anchors @ N=19 (stage 6b) | .7425 ± .0161 | .7372 / .7606 / .7297 |
+| anchors @ own N=4 | .7830 ± .0387 | .7399 / .8146 / .7946 |
+
+Cost at each recipe's own N: **−.0780** (per seed −.1365 / −.0374 / −.0603), against −.1186 when
+anchors were pinned to the incumbent's N. About a third of the recorded CIFAR cost was the wrong
+stopping point; the rest remains, negative in all three seeds. The scope decision stands, and the
+CIFAR negative result is now to be quoted at CIFAR's own N (−.078), not −.119. n = 3, no test run.
+
+---
+
 ## 2026-09-23 [branch arch-exp-2026-09 — 9 cells, pre-registered] Stage 11: the weak global gate does not survive outside Flickr25K; anchors keep their axis gain on all four datasets
 
 **Status:** 🔴 weak gate DISCARDED by the pre-registered rule. Records:
