@@ -87,3 +87,12 @@ test**, and no equivalence or significance is claimed from it.
    admitted campaign. **Main, ablation and interpretability results of the incumbent cannot be
    inherited by the changed routing geometry.**
 4. Repeated use of the current validation set is exploratory evidence, not independent confirmation.
+
+## Update 2026-09-25 (stage 12) — criteria unchanged
+
+N was re-selected under the anchored recipe with the approved rule. On Flickr25K, NUS-WIDE and
+MS-COCO the anchored N equals the incumbent N (4 / 4 / 39), so the confirmatory refit uses those N
+and nothing in §2–§5 changes. On CIFAR-10 the anchored N is 4, not 19; at each recipe's own N the
+CIFAR-10 cost is **−0.0780** (per seed −.1365 / −.0374 / −.0603), not the −0.118591 quoted in §2,
+which pinned anchors to the incumbent's N. The CIFAR-10 negative result is to be reported at its
+own N. The scope decision itself is unchanged.
