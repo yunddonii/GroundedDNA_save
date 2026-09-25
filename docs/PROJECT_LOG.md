@@ -487,27 +487,29 @@ codebook) as a follow-up.
 
 ---
 
-## 2026-09-25 [TODO18, no training, no real probe] Audit §659 findings fixed: the §10.6 probe budget, the [8,196,4] map geometry and the per-slot seed reduction are now enforced
+## 2026-09-25 [TODO18, no training, no real probe] Private audit draft of 2026-09-23 fixed: the §10.6 probe budget, the [8,196,4] map geometry and the per-slot seed reduction are now enforced
 
 **Status:** ✅ fixed and tested; **no probe run, publication still closed.** The TODO18 producer,
 its four test files and the contract are untracked on every branch (main-line audited code kept as
 uncommitted state), so this commit carries only this entry; the digests below bind the bytes.
 
-Audit §659 (staged 2026-09-23, not yet installed in the ledger) found three gaps in revision 1.
+A private audit draft of 2026-09-23 (`reaudit_659_working_20260923/attempt1/report.json`; never
+installed — the installed ledger §659 is the 2026-09-25 anchor-preparation directive, and §661
+later accepted these repairs) found three gaps in revision 1.
 Each was reproduced here as a pure call before any edit: all five over-budget requests were
 accepted by `normalize_probe_scope`, a `[8,195,4]` map was accepted and labelled 14x14, and
 `_seed_summary` had no per-slot reduction and turned all-zero maps into NaN.
 
 Changes to `scripts/todo18_weight_randomization.py` (`4b579024…` → `37783bd9…`; the original is the
 audit's archive copy `reaudit_659_working_20260923/attempt1/snapshot/`):
-- **659.1 (HIGH)** `normalize_probe_scope` now enforces contract §10.6 — exactly one cell, one stage,
+- **draft item 1 (HIGH)** `normalize_probe_scope` now enforces contract §10.6 — exactly one cell, one stage,
   one randomization seed and an explicit 1..64 rows. CLI, direct executor (before its first input
   read) and writer all call it, so all three refuse. Message prefix `probe budget (contract section 10.6)`.
-- **659.2 (MEDIUM)** new `check_fixed_row_maps`: exactly a finite non-negative float32 ndarray
+- **draft item 2 (MEDIUM)** new `check_fixed_row_maps`: exactly a finite non-negative float32 ndarray
   `(8, 196, 4)`, applied in `forward_fixed_rows`, `fixed_rows_statistic` and (both inputs)
   `fixed_rows_overlap`; `patch_grid` now comes from `FIXED_ROWS_GRID`. `forward_fixed_rows` also
   requires the admission to yield rows in the §514 order (the audit's reversed-iterator weakness).
-- **659.3 (MEDIUM)** `_seed_summary` adds, per local slot, mean / sample SD over randomization seeds
+- **draft item 3 (MEDIUM)** `_seed_summary` adds, per local slot, mean / sample SD over randomization seeds
   of mean IoU and mean H_norm (§10.5). Absent values stay null, `seed_count` counts only valid
   seeds, `seeds_total` records how many there were, and the cross-slot entropy no longer takes
   `mean(empty)`.
