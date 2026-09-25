@@ -487,6 +487,56 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-25 [TODO18, no training, no real probe] Audit §659 findings fixed: the §10.6 probe budget, the [8,196,4] map geometry and the per-slot seed reduction are now enforced
+
+**Status:** ✅ fixed and tested; **no probe run, publication still closed.** The TODO18 producer,
+its four test files and the contract are untracked on every branch (main-line audited code kept as
+uncommitted state), so this commit carries only this entry; the digests below bind the bytes.
+
+Audit §659 (staged 2026-09-23, not yet installed in the ledger) found three gaps in revision 1.
+Each was reproduced here as a pure call before any edit: all five over-budget requests were
+accepted by `normalize_probe_scope`, a `[8,195,4]` map was accepted and labelled 14x14, and
+`_seed_summary` had no per-slot reduction and turned all-zero maps into NaN.
+
+Changes to `scripts/todo18_weight_randomization.py` (`4b579024…` → `37783bd9…`; the original is the
+audit's archive copy `reaudit_659_working_20260923/attempt1/snapshot/`):
+- **659.1 (HIGH)** `normalize_probe_scope` now enforces contract §10.6 — exactly one cell, one stage,
+  one randomization seed and an explicit 1..64 rows. CLI, direct executor (before its first input
+  read) and writer all call it, so all three refuse. Message prefix `probe budget (contract section 10.6)`.
+- **659.2 (MEDIUM)** new `check_fixed_row_maps`: exactly a finite non-negative float32 ndarray
+  `(8, 196, 4)`, applied in `forward_fixed_rows`, `fixed_rows_statistic` and (both inputs)
+  `fixed_rows_overlap`; `patch_grid` now comes from `FIXED_ROWS_GRID`. `forward_fixed_rows` also
+  requires the admission to yield rows in the §514 order (the audit's reversed-iterator weakness).
+- **659.3 (MEDIUM)** `_seed_summary` adds, per local slot, mean / sample SD over randomization seeds
+  of mean IoU and mean H_norm (§10.5). Absent values stay null, `seed_count` counts only valid
+  seeds, `seeds_total` records how many there were, and the cross-slot entropy no longer takes
+  `mean(empty)`.
+
+Tests. Fixtures `world` and `writer` held `rows_per_split=None`; after tightening, their negative
+tests would have been refused by the budget instead of their own check and still passed. Both
+fixtures were rebuilt inside the budget (8 rows) with positive controls
+(`test_default_payload_is_a_writable_probe`, the existing publish test), each split-count case was
+made a single perturbation of that base, and 13 stale positives that accepted whole-split or
+multi-cell/stage/seed scopes became refusal tests plus within-budget positives. New
+`tests/test_todo18_revision1_guards.py` (36 tests) drives the three boundaries as the audit did,
+each with a within-contract control. Against the **audited original** (sandbox copy, archive bytes
+`4b579024…`) it gives **31 failed / 5 passed** — every defect test fails for the audited reason and
+only the five controls pass; against the fixed producer the whole TODO18 suite is **263 passed**.
+A first sandbox attempt built the "original" from `git show HEAD:` and got an empty file, since the
+producer is untracked; all tests then ERRORed on import, which is a dead harness, not a detection.
+It was caught by the digest and redone from the archive.
+
+Real-path check: the three condition maps of the 2026-09-22 conforming probe
+(`/data/yschoi/gdna_todo18_probe/rev1_flickr42_S3_1234_r64/fixed_rows_routing.npz`) are float32
+`(8, 196, 4)` and pass the new guard, `fixed_rows_statistic` and `fixed_rows_overlap` unchanged.
+
+Digests after: producer `37783bd95e61fdff22d098b6b3937dbf2fac3c759dd46fc37dcf7a212ac5c4fe`;
+tests `probe_execution f40b0bf8…`, `probe_rows 4b27d303…`, `probe_scope 0a218975…`,
+`weight_randomization 6ee914ac…`, `revision1_guards 9c05d19a…`; contract unchanged `d2e0c0f4…`.
+The contract needs no revision: the producer now does what §10.2, §10.5 and §10.6 already say.
+
+---
+
 ## 2026-09-25 [branch arch-exp-2026-09 — 15 cells, pre-registered] Stage 12: the anchored recipe keeps the incumbent's N on all three multi-label datasets; on CIFAR-10 its own N recovers a third of the cost
 
 **Status:** ✅ complete. Records: `result/analysis/stage12_n_reselect/` (PREREGISTRATION.md a2764e2
