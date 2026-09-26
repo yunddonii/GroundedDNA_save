@@ -487,6 +487,51 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-26 [anchor confirmation v1 — preparation only, nothing executed] Audit §659 package ready for review
+
+**Status:** ✅ preparation complete; **no GPU run of any kind**. Audit §659 authorised preparation
+only (EXECUTION_NOT_AUTHORIZED, FINAL_RECIPE_NOT_APPROVED); §660/§664 clarified it. Everything lives
+on the new branch `arch-exp-2026-09-anchor-confirm` (worktree `/data/yschoi/gdna_anchor_confirm_v1`,
+head `704440c`), built on the approved P3 source `88c3a25` — none of this branch's exploration code
+is in it. Handoff for the audit: `docs/ANCHOR_CONFIRMATION_HANDOFF_v1.md` on that branch.
+
+**User decisions carried (2026-09-25/26):** multi-label scope; the final recipe chosen by a
+**train-only** rule and frozen before any official test (the earlier "anchors if the test passes"
+choice was withdrawn after §660/§664.1 confirmed it breaks train-only selection); rule = anchors
+adopted iff validation mAP@R mean >= control mean − 1 control SD **and** code→own-axis mean higher;
+N re-selected on the approved grid; the official-test 1-SD check is descriptive only.
+
+**What was built** (+2727/−38 lines, 13 files): the `--axis_center {none, anchors}` port (additive,
+gated); a typed scientific recipe — the trainer's full parsed configuration plus the exact argv,
+checked by the trainer before it claims a run, by the launcher after completion and by the reducer
+against the saved `config.pt`; a separately named launcher mode `--anchor-confirm {select,decide}`
+with ledger-pinned incumbent authorities; a reducer and a code→axis probe; a contract
+(`418091ee…`) and an authority manifest (`c1eed986…`).
+
+**Findings made while building:**
+- `build_command` without explicit top-p/JD renders the **pre-fixed-point defaults** (0.3/0.7,
+  JD 0.0), not the approved recipe; the anchor mode passes and verifies the approved one.
+- The approved commands repeat options on purpose (e.g. CIFAR `--lambda_codeword_codon_sinkhorn`
+  0.1 then 0.0); the trainer check therefore compares the exact argv instead of banning repeats.
+- This generation's control refit recipe equals each approved refit's saved `config.pt` in every
+  field except 11 sealed-input fields; all 12 approved `p3gE` selection records and the two `p3lamA`
+  seed-43/44 records pass the reducer's evidence rule, which reproduces N = 4/4/39 — the basis for
+  proposing control reuse (§664.2).
+- The worktree's committed `selected_n.json` (`f2218aa7`) is older than the approved one
+  (`2bf6133d`, only in `/data/yschoi/gdna_p3exec`); it is never read as authority.
+
+**Tests:** 476 pass (341 legacy, 135 new). Mutation battery in a throwaway worktree: 20/23 guards
+killed at first — three tests passed for the wrong reason and one guard had no test; after fixing
+them, **23/23 killed**. Two real defects were caught by tests before any run (an unimported name in
+the completion check; a rendering that lacked the sealed-input flags and would have refused every
+real cell).
+
+Open for the audit/user (contract §15): control reuse admission, CIFAR's out-of-scope statement,
+the probe as a decision endpoint, the control SD sample, stage R/T, per-dataset control arms in
+stage D, and acceptance of the reducer/probe bytes.
+
+---
+
 ## 2026-09-25 [TODO18, no training, no real probe] Private audit draft of 2026-09-23 fixed: the §10.6 probe budget, the [8,196,4] map geometry and the per-slot seed reduction are now enforced
 
 **Status:** ✅ fixed and tested; **no probe run, publication still closed.** The TODO18 producer,
