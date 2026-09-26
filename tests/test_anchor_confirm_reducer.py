@@ -342,3 +342,23 @@ def test_probe_refuses_before_building_a_model_when_the_checkpoint_bytes_differ(
 def test_probe_cli_fixes_the_image_count(tmp_path):
     assert P.main(["--record", "x", "--record-sha256", "0" * 64, "--out", str(tmp_path / "o"),
                    "--images", "256"]) == 1
+
+
+def test_retrieval_exactly_at_the_margin_passes(tmp_path):
+    """mean(anchors) == mean(none) - sd(none) is a pass (section 7.3: equality passes (i))."""
+    world, frozen, sha = decide_world(tmp_path)
+    for e in world.entries:                           # every seed of both arms scores 0.7
+        run = Path(e["record"]).parent
+        lines = (run / "log.csv").read_text().splitlines()
+        lines[-1] = lines[-1].rsplit(",", 1)[0] + ",0.7"
+        (run / "log.csv").write_text("\n".join(lines) + "\n")
+        record = json.loads(Path(e["record"]).read_text())
+        record["completion"]["log_csv_sha256"] = hashlib.sha256((run / "log.csv").read_bytes()).hexdigest()
+        record["selection"]["selection_value"] = 0.7
+        Path(e["record"]).write_text(json.dumps(record))
+        e["record_sha256"] = hashlib.sha256(Path(e["record"]).read_bytes()).hexdigest()
+    out = tmp_path / "decision.json"
+    assert decide(world, frozen, sha, out) == 0
+    decisions = json.loads(out.read_text())["decisions"]
+    assert all(d["retrieval"]["passes"] and d["retrieval"]["control_sample_sd"] == 0.0
+               for d in decisions.values())

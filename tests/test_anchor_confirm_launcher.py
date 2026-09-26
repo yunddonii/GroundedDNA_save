@@ -336,3 +336,12 @@ def test_real_plan_reproduces_the_approved_control_recipe(monkeypatch, boundarie
     out = capsys.readouterr().out
     assert out.count("identical outside the 11 sealed-input fields") == 3
     assert boundaries == []
+
+
+# ---- rendering refuses where the script would do real work -------------------------------------------
+def test_render_refuses_a_missing_whitening_file_instead_of_letting_the_script_build_it(tmp_path):
+    cmd, env, _ = M.build_command("flickr25k", 4, 0, topp=("0.6", "0.95"), joint="0.02",
+                                  anchor_arm="anchors")
+    env = dict(env, WHITEN_NPZ=str(tmp_path / "absent.npz"))
+    with pytest.raises(CellRefused, match="missing"):
+        M.render_trainer_argv(cmd, env)

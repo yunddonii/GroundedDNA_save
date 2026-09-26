@@ -226,3 +226,24 @@ def test_resolve_save_path_carries_the_recipe_digest_into_the_campaign_binding(p
     T._resolve_save_path(args)
     assert written["scientific_recipe_sha256"] == R.digest(payload)
     assert args._phase3_campaign_binding["scientific_recipe_sha256"] == R.digest(payload)
+
+
+# ---- guards that the argv-equality check would otherwise mask -------------------------------------
+@pytest.mark.parametrize("token", ["--lambda_wasser", "--axis_cent", "--lambda_wasser=0.15"])
+def test_an_abbreviated_option_cannot_be_sealed(parser, token):
+    """The plan side: argparse would resolve the prefix silently; the payload builder refuses it."""
+    argv = ["--tag", "t", token] + ([] if "=" in token else ["0.15" if "wasser" in token else "anchors"])
+    with pytest.raises(R.RecipeMismatch, match="abbreviated or unknown"):
+        R.build_payload(parser, argv)
+
+
+def test_negative_numbers_are_values_not_options(parser):
+    payload = R.build_payload(parser, ["--global_gate_init_logit", "-3.0", "--lambda_bu", "-0.001"])
+    assert payload["fields"]["global_gate_init_logit"] == -3.0 and payload["fields"]["lambda_bu"] == -0.001
+
+
+def test_a_negative_value_in_exponent_notation_is_refused_at_sealing(parser):
+    """argparse's own negative-number rule has no exponent, so `-1e-3` is read as an option and the
+    parse fails; the payload builder turns that into a refusal instead of a surprise at launch."""
+    with pytest.raises(R.RecipeMismatch, match="rejected the argv"):
+        R.build_payload(parser, ["--lambda_bu", "-1e-3"])
