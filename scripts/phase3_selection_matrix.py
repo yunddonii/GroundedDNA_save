@@ -891,10 +891,186 @@ _CHILDREN_LOCK = threading.RLock()
 _ACTIVE_CHILDREN: set[subprocess.Popen] = set()
 _CHILD_LAUNCH_BLOCKED = False
 _CAMPAIGN_LEASE_FDS: tuple[int, ...] = ()
+# Lifecycle bounds, in seconds (audit 705): how long a session may drain on its
+# own after its leader exits, the SIGTERM grace, how long SIGKILL is re-sent
+# before the survivors are reported, and the /proc poll interval.
+_DRAIN_SECONDS = 5.0
+_TERM_GRACE_SECONDS = 5.0
+_KILL_CONFIRM_SECONDS = 30.0
+_POLL_SECONDS = 0.05
+_NOT_LIVE_STATES = frozenset("ZXx")
+_SYS_PIDFD_OPEN = 434          # the same number on x86_64 and the generic table
+
+
+# A campaign child is started with start_new_session=True, so its PID is also
+# its process-group and session ID, and every descendant stays in that session
+# (none of the trainer shells calls setsid). The kernel frees a PID only when no
+# task uses it as a PID, group or session ID, so while the leader is an UNREAPED
+# zombie nothing outside this session can carry that number. The launcher
+# therefore reaps a leader only after its whole session is drained, and never
+# signals a record it has reaped: that is how ownership stays exact under PID
+# reuse. A leader's exit alone proves nothing about its descendants (audit 705).
+
+def _proc_stat(path: str) -> tuple[str, int, int] | None:
+    """(state, process group, session) of one /proc task; None once it is gone."""
+    try:
+        with open(path, "rb") as handle:
+            raw = handle.read()
+    except (FileNotFoundError, ProcessLookupError):
+        return None
+    if b")" not in raw:         # read while the task was being released
+        return None
+    fields = raw[raw.rindex(b")") + 2:].split()
+    return fields[0].decode("ascii"), int(fields[2]), int(fields[3])
+
+
+def _has_live_thread(pid: str) -> bool:
+    """A zombie thread-group leader can still have running threads."""
+    try:
+        with os.scandir(f"/proc/{pid}/task") as tasks:
+            names = [task.name for task in tasks]
+    except (FileNotFoundError, ProcessLookupError):
+        return False
+    for name in names:
+        stat = _proc_stat(f"/proc/{pid}/task/{name}/stat")
+        if stat is not None and stat[0] not in _NOT_LIVE_STATES:
+            return True
+    return False
+
+
+def _session_live_members(sid: int) -> list[tuple[int, int]]:
+    """(pid, process group) of every live process in session ``sid``.
+
+    A zombie is not live work (it holds no GPU memory or file), unless one of
+    its threads still runs."""
+    live = []
+    with os.scandir("/proc") as entries:
+        names = [entry.name for entry in entries if entry.name.isdigit()]
+    for name in names:
+        stat = _proc_stat(f"/proc/{name}/stat")
+        if stat is None or stat[2] != sid:
+            continue
+        if stat[0] in _NOT_LIVE_STATES and not _has_live_thread(name):
+            continue
+        live.append((int(name), stat[1]))
+    return live
+
+
+def _pidfd_open(pid: int) -> int:
+    """A descriptor naming exactly this process (never a later reuse of its PID)."""
+    opener = getattr(os, "pidfd_open", None)
+    if opener is not None:
+        return opener(pid)
+    import ctypes
+    libc = ctypes.CDLL(None, use_errno=True)
+    descriptor = libc.syscall(_SYS_PIDFD_OPEN, ctypes.c_int(pid), ctypes.c_uint(0))
+    if descriptor < 0:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error))
+    return descriptor
+
+
+def _signal_owned_session(proc: subprocess.Popen, signum: int) -> None:
+    """Send ``signum`` to every live process of ``proc``'s session.
+
+    Exact only while the leader is unreaped, which the lock and the returncode
+    test guarantee: a reaped record is never signalled."""
+    with _CHILDREN_LOCK:
+        if proc.returncode is not None:
+            return
+        try:
+            # The leader's own group, atomically with respect to a fork.
+            os.killpg(proc.pid, signum)
+        except ProcessLookupError:
+            pass
+        for pid, pgid in _session_live_members(proc.pid):
+            if pgid == proc.pid:
+                continue
+            # A member that moved to another group of this session.
+            try:
+                descriptor = _pidfd_open(pid)
+            except ProcessLookupError:
+                continue
+            try:
+                # Re-read after the descriptor pins the process: a PID reused
+                # between the scan and the open is not in this pinned session.
+                stat = _proc_stat(f"/proc/{pid}/stat")
+                if stat is not None and stat[2] == proc.pid:
+                    signal.pidfd_send_signal(descriptor, signum)
+            except ProcessLookupError:
+                pass
+            finally:
+                os.close(descriptor)
+
+
+def _owned_session_drained(proc: subprocess.Popen) -> bool:
+    """True once the leader has exited and no process of its session is live.
+
+    Only then is the leader reaped and the record forgotten; a live descendant
+    keeps the record registered and its leader a zombie."""
+    with _CHILDREN_LOCK:
+        if proc.returncode is None:
+            try:
+                exited = os.waitid(os.P_PID, proc.pid,
+                                   os.WEXITED | os.WNOHANG | os.WNOWAIT)
+            except ChildProcessError:
+                raise RuntimeError(
+                    f"campaign child {proc.pid} was reaped outside the launcher; "
+                    "its session can no longer be told apart from a reused PID") \
+                    from None
+            if exited is None:
+                return False
+            # Two scans: a member forked while the first scan walked /proc,
+            # under a lower PID than its cursor, is visible to the second.
+            if _session_live_members(proc.pid) or _session_live_members(proc.pid):
+                return False
+            if proc.poll() is None:
+                # Popen's wait lock is held by an interrupted frame of this very
+                # thread (a signal during a reap): the session is drained and
+                # that frame completes the reap.
+                return True
+        _ACTIVE_CHILDREN.discard(proc)
+        return True
+
+
+def _stop_owned_sessions(procs, *, grace_seconds: float | None = None,
+                         kill_seconds: float | None = None) -> list:
+    """SIGTERM every owned session, wait a bounded grace, then SIGKILL until
+    each is drained or the kill bound passes. Returns the records that are still
+    live -- a timeout is reported, never taken as proof of death."""
+    grace_seconds = _TERM_GRACE_SECONDS if grace_seconds is None else grace_seconds
+    kill_seconds = _KILL_CONFIRM_SECONDS if kill_seconds is None else kill_seconds
+    for proc in procs:
+        _signal_owned_session(proc, signal.SIGTERM)
+    pending = [proc for proc in procs if not _owned_session_drained(proc)]
+    deadline = time.monotonic() + max(0.0, float(grace_seconds))
+    while pending and time.monotonic() < deadline:
+        time.sleep(_POLL_SECONDS)
+        pending = [proc for proc in pending if not _owned_session_drained(proc)]
+    deadline = time.monotonic() + max(0.0, float(kill_seconds))
+    while pending:
+        for proc in pending:
+            _signal_owned_session(proc, signal.SIGKILL)
+        time.sleep(_POLL_SECONDS)
+        pending = [proc for proc in pending if not _owned_session_drained(proc)]
+        if time.monotonic() >= deadline:
+            break
+    return pending
+
+
+def _owned_live_sessions() -> list[int]:
+    """Leaders of the registered sessions that still have live processes."""
+    with _CHILDREN_LOCK:
+        return sorted(proc.pid for proc in tuple(_ACTIVE_CHILDREN)
+                      if not _owned_session_drained(proc))
 
 
 def _run_managed_process(command, *, cwd, env) -> subprocess.CompletedProcess:
-    """Run a campaign child in a registered, independently killable group."""
+    """Run a campaign child in a registered, independently killable session.
+
+    Returns only when the whole session is drained: descendants still live
+    after the leader exits get a bounded drain, then TERM/KILL, and the cell is
+    refused."""
     global _ACTIVE_CHILDREN
     # Python handlers always execute in the main thread.  Popen from that same
     # thread would leave a re-entrant signal window between kernel spawn and
@@ -915,46 +1091,48 @@ def _run_managed_process(command, *, cwd, env) -> subprocess.CompletedProcess:
             pass_fds=_CAMPAIGN_LEASE_FDS)
         _ACTIVE_CHILDREN.add(proc)
     try:
-        return subprocess.CompletedProcess(command, proc.wait())
-    finally:
-        with _CHILDREN_LOCK:
-            _ACTIVE_CHILDREN.discard(proc)
+        # Wait WITHOUT reaping, so the leader keeps its session number pinned.
+        os.waitid(os.P_PID, proc.pid, os.WEXITED | os.WNOWAIT)
+    except ChildProcessError:
+        with _CHILDREN_LOCK:      # a reap by campaign cleanup completes under it
+            if proc.returncode is None:
+                raise RuntimeError(
+                    f"campaign child {proc.pid} was reaped outside the launcher") \
+                    from None
+    deadline = time.monotonic() + _DRAIN_SECONDS
+    while not _owned_session_drained(proc):
+        if time.monotonic() >= deadline:
+            survivors = _stop_owned_sessions((proc,))
+            if survivors:
+                raise RuntimeError(
+                    f"campaign child session {proc.pid} still has live processes "
+                    "after SIGKILL")
+            raise CellRefused(
+                f"processes of the managed session {proc.pid} outlived its "
+                f"leader and had to be stopped: {command[:3]}")
+        time.sleep(_POLL_SECONDS)
+    if proc.returncode is None:
+        raise RuntimeError(f"campaign child {proc.pid} drained but was not reaped")
+    return subprocess.CompletedProcess(command, proc.returncode)
 
 
-def _terminate_active_children(*, grace_seconds: float = 5.0) -> None:
-    """Stop every live campaign process group, TERM then bounded KILL."""
+def _terminate_active_children(*, grace_seconds: float | None = None,
+                               kill_seconds: float | None = None) -> None:
+    """Stop every owned campaign session, TERM then bounded KILL.
+
+    Completion means every registered session is drained (no live process in
+    it), not that a leader was reaped or the registry looks empty."""
     global _CHILD_LAUNCH_BLOCKED
     with _CHILDREN_LOCK:
         _CHILD_LAUNCH_BLOCKED = True
         children = tuple(_ACTIVE_CHILDREN)
-    for proc in children:
-        if proc.poll() is None:
-            try:
-                os.killpg(proc.pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-    deadline = time.monotonic() + max(0.0, float(grace_seconds))
-    pending = [proc for proc in children if proc.poll() is None]
-    while pending and time.monotonic() < deadline:
-        # A short bounded poll keeps signal cleanup responsive without a
-        # blocking multi-second sleep.
-        time.sleep(min(0.02, max(0.0, deadline - time.monotonic())))
-        pending = [proc for proc in pending if proc.poll() is None]
-    for proc in pending:
-        try:
-            os.killpg(proc.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
-    for proc in children:
-        try:
-            proc.wait(timeout=1.0)
-        except subprocess.TimeoutExpired:
-            raise RuntimeError(
-                f"campaign child process group {proc.pid} survived SIGKILL")
-    with _CHILDREN_LOCK:
-        for proc in children:
-            if proc.poll() is not None:
-                _ACTIVE_CHILDREN.discard(proc)
+    survivors = _stop_owned_sessions(
+        children, grace_seconds=grace_seconds, kill_seconds=kill_seconds)
+    if survivors:
+        raise RuntimeError(
+            "campaign child session(s) "
+            f"{sorted(proc.pid for proc in survivors)} still have live processes "
+            "after SIGKILL; the campaign GPU leases stay held")
 
 
 def _campaign_signal_handler(signum, _frame) -> None:
@@ -992,6 +1170,11 @@ def _with_campaign_gpu_leases(args, callback):
     except RuntimeError as error:
         print(f"[phase3] REFUSED GPU lease: {error}", file=sys.stderr)
         return 2
+    # The explicit release below is gated on drained sessions; an interpreter-
+    # exit handler must not unlock a lease an owned survivor still needs (its
+    # inherited descriptor then keeps the kernel lock until it exits).
+    import atexit
+    atexit.unregister(leases.release)
     if threading.current_thread() is not threading.main_thread():
         leases.release()
         print("[phase3] REFUSED GPU lease: campaign signal supervision must "
@@ -1015,14 +1198,24 @@ def _with_campaign_gpu_leases(args, callback):
     try:
         return callback()
     finally:
-        # This ordering is the contract: no live/orphan child may outlast the
-        # host-global lease held on its physical GPU.
-        _terminate_active_children()
-        for signum, handler in previous_handlers.items():
-            signal.signal(signum, handler)
+        # This ordering is the contract: no owned process may outlast the
+        # host-global lease held on its physical GPU. The leases are released
+        # here only after every owned session is verified drained; if anything
+        # survives SIGKILL they stay held and the error propagates.
+        try:
+            _terminate_active_children()
+            live = _owned_live_sessions()
+            if live:
+                raise RuntimeError(
+                    f"campaign child sessions {live} are still live; the "
+                    "campaign GPU leases stay held")
+        finally:
+            for signum, handler in previous_handlers.items():
+                signal.signal(signum, handler)
         with _CHILDREN_LOCK:
+            # Launches stay blocked: a stream thread that outlives a signal
+            # must not start a child once the leases are gone.
             _CAMPAIGN_LEASE_FDS = ()
-            _CHILD_LAUNCH_BLOCKED = False
         leases.release()
         del args._phase3_gpu_lease_uuids
 
@@ -3302,6 +3495,13 @@ def _run_sweep(args, at_topp, *, full_plan=None,
                 assert_reservation_owner(args.namespace, reservation)
                 if anchor_mode:
                     recheck_generation((authorities or {}).get("anchor_manifest"), f"before {key}")
+                    with lock:
+                        unfinished = len(plan) - sum(
+                            1 for status, _ in results.values() if status == "ok")
+                    refusal = anchor_dispatch_space_refusal(
+                        snapshot["plan"]["result_root"], unfinished)
+                    if refusal:
+                        raise CellRefused(f"before {key}: {refusal}")
                 planned = snapshot["plan"]["cell_bindings"][key]
                 launch_binding = launch_binding_from_expected(
                     planned, snap_digest)
@@ -3685,9 +3885,12 @@ ANCHOR_CONTRACT_PATH = "docs/ANCHOR_CONFIRMATION_CONTRACT_v2.md"
 #: (trainer, model, parser, identity, split, input admission, wrappers, ...) they are the members a
 #: generation manifest must list, exactly (audit 683.2).
 ANCHOR_CLOSURE = ("scripts/anchor_confirm_decision.py", "scripts/anchor_confirm_code_axis.py",
-                  "scripts/anchor_confirm_manifest.py", ANCHOR_CONTRACT_PATH,
+                  "scripts/anchor_confirm_manifest.py", "scripts/anchor_confirm_supervisor.py",
+                  ANCHOR_CONTRACT_PATH,
                   "tests/test_anchor_confirm_port.py", "tests/test_anchor_confirm_recipe.py",
-                  "tests/test_anchor_confirm_launcher.py", "tests/test_anchor_confirm_reducer.py")
+                  "tests/test_anchor_confirm_launcher.py", "tests/test_anchor_confirm_reducer.py",
+                  "tests/test_anchor_confirm_lifecycle.py",
+                  "tests/test_anchor_confirm_supervisor.py")
 #: The audit ledger is the approval authority (audit 679.1, 683.2, 686.4). The modification agent
 #: cannot write it, and it lives outside the pinned scientific tree, so no manifest names an
 #: approval and no hash cycle arises. An operation that executes, or opens a real binary, runs only
@@ -3712,6 +3915,28 @@ REQUEST_SCHEMA = "anchor-confirm-request/1"
 #: a file that names its own approver does not (audit 672.1, 678.2). This generation runs fresh
 #: controls in stages S and D (contract section 5) and lists none.
 APPROVED_REUSE_ADMISSION_SHA256: dict = {}
+#: The storage rule of an anchor-confirmation campaign (audit 703.3), checked before EVERY cell is
+#: dispatched, after full input verification: the result filesystem must keep a 10-GiB floor free
+#: on top of 0.75 GiB for every cell not yet finished (in flight or still to run). One historical
+#: stage-1 N39 cell directory holds 0.61 GiB. scripts/anchor_confirm_supervisor.py watches the same
+#: numbers while cells run; a test holds the two files to one pair of values.
+ANCHOR_FREE_FLOOR_BYTES = 10 << 30
+ANCHOR_CELL_OUTPUT_BYTES = 3 << 28
+
+
+def anchor_dispatch_space_refusal(result_root, unfinished: int) -> str | None:
+    """Why the next cell may not be dispatched for lack of space, or None."""
+    probe = Path(result_root)
+    while not probe.exists():
+        probe = probe.parent
+    usage = os.statvfs(probe)
+    free = usage.f_bavail * usage.f_frsize
+    need = ANCHOR_FREE_FLOOR_BYTES + max(0, int(unfinished)) * ANCHOR_CELL_OUTPUT_BYTES
+    if free < need:
+        return (f"{probe} has {free / (1 << 30):.2f} GiB free, below the {need / (1 << 30):.2f} "
+                f"GiB the storage rule needs ({ANCHOR_FREE_FLOOR_BYTES >> 30} GiB floor + "
+                f"{unfinished} unfinished cells x {ANCHOR_CELL_OUTPUT_BYTES / (1 << 30):.2f} GiB)")
+    return None
 
 
 def render_trainer_argv(cmd, env) -> list:

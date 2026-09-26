@@ -1,0 +1,459 @@
+"""Operational supervisor for ONE anchor-confirmation command (audit 703-706).
+
+It supplies what the launcher and tmux_run.sh do not: a free-space floor watched
+while cells run, the S + D + probes device budget carried across stages in one
+append-only ledger, a wall-time limit per stage, and a stop that goes through the
+launcher's own supervised termination path (SIGTERM to the launcher, whose
+handler drains every owned session before it releases the GPU leases).
+
+What it never does: signal anything except the one command it started, acquire
+or test-lock a GPU lease, delete or move an artifact, or infer that a process
+died from an observation timeout. A failed observation stops dispatch.
+
+Accounting (audit 704.3). ``device_seconds`` is the sum, over attempts, of the
+attempt's process lifetime: the start is the kernel's start time of the process,
+the end is the first poll that no longer sees it (an upper bound). An attempt is
+a managed campaign child (a child session leader of the launcher -- one trainer
+on one GPU) or, for a probe, the probe process itself. It is an upper bound on
+per-attempt device occupancy, NOT measured GPU utilisation. Attempts shorter
+than one poll can be missed; ``unobserved_allowance_seconds`` charges one poll
+per planned cell for them. ``lease_gpu_seconds`` is the separate, larger idle-
+inclusive quantity: GPUs leased by the launcher (from /proc/locks) times time.
+CPU input verification before the lease is ``pre_lease_seconds``: separate time,
+not device work. The budget binds device work plus both allowances, across every
+stage in the ledger; a run without a final record makes the ledger unusable
+until the audit reconciles it.
+
+Thresholds are constants of this pinned file, so the generation manifest that
+names these bytes names them too.
+"""
+from __future__ import annotations
+
+import argparse
+import fcntl
+import hashlib
+import json
+import os
+from datetime import datetime, timezone
+from pathlib import Path
+import secrets
+import signal
+import subprocess
+import sys
+import time
+
+#: the bytes this module was imported from (audit 697)
+with open(__file__, "rb") as _source:
+    _IMPORTED_SOURCE_SHA256 = hashlib.sha256(_source.read()).hexdigest()
+
+REPO = Path(__file__).resolve().parents[1]
+SELF_PATH = "scripts/anchor_confirm_supervisor.py"
+LEDGER_SCHEMA = "anchor-confirm-ops-ledger/1"
+LEDGER_NAME = "device_budget_ledger.jsonl"
+LOCK_NAME = "supervisor.lock"
+DEFAULT_OPS_ROOT = Path("/data/yschoi/gdna_anchor_confirm_v1_ops")
+GPU_LEASE_ROOT = Path(f"/tmp/groundeddna-d6-gpu-leases-{os.getuid()}")
+
+GiB = 1 << 30
+#: the launcher's storage rule (ANCHOR_FREE_FLOOR_BYTES / ANCHOR_CELL_OUTPUT_BYTES); a test holds
+#: the two files to one pair of values
+FREE_FLOOR_BYTES = 10 << 30
+CELL_OUTPUT_BYTES = 3 << 28                    # 0.75 GiB; a historical N39 cell holds 0.61 GiB
+BUDGET_DEVICE_SECONDS = 12.5 * 3600.0          # S + D + probes (contract section 12)
+POLL_SECONDS = 1.0
+LEDGER_EVERY_SECONDS = 30.0
+#: the launcher's own cleanup is bounded by TERM 5 s + KILL 30 s plus /proc scans; three times that
+STOP_BOUND_SECONDS = 120.0
+#: stage -> (wall-time limit, most GPUs). S and D: full input verification (the old estimate is
+#: 82 min) plus the slowest stream (2.7 h for S, up to 2.9 h for D), with about 1.4x margin.
+STAGES = {
+    "stage-S-run": (6 * 3600.0, 3), "stage-S-smoke": (2 * 3600.0, 3),
+    "stage-D-run": (6 * 3600.0, 3), "stage-D-smoke": (2 * 3600.0, 3),
+    "probe": (15 * 60.0, 1),
+}
+EXIT_REFUSED, EXIT_STOPPED, EXIT_UNCLEAN = 2, 3, 4
+
+
+class Refused(RuntimeError):
+    pass
+
+
+def _sha256(path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for block in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def verify_generation(manifest_path, manifest_sha256) -> dict:
+    """This file, and every other member, at the bytes the pinned manifest lists."""
+    try:
+        raw = Path(manifest_path).read_bytes()
+    except OSError as error:
+        raise Refused(f"{manifest_path}: unreadable manifest: {error}") from None
+    if hashlib.sha256(raw).hexdigest() != manifest_sha256:
+        raise Refused(f"{manifest_path} is not the pinned manifest {manifest_sha256}")
+    try:
+        files = (json.loads(raw).get("new_generation") or {}).get("files_sha256") or {}
+    except (ValueError, AttributeError) as error:
+        raise Refused(f"{manifest_path}: malformed manifest: {error}") from None
+    if files.get(SELF_PATH) != _IMPORTED_SOURCE_SHA256:
+        raise Refused("this supervisor is not the manifest's generation")
+    drifted = sorted(rel for rel, want in files.items()
+                     if not (REPO / rel).is_file() or _sha256(REPO / rel) != want)
+    if drifted:
+        raise Refused(f"the tree is not the manifest's generation: {drifted[:6]}")
+    return files
+
+
+def boot_seconds() -> float:
+    return time.clock_gettime(time.CLOCK_BOOTTIME)
+
+
+_TICKS = os.sysconf("SC_CLK_TCK")
+
+
+def _stat(pid) -> tuple[str, int, int, int] | None:
+    """(state, ppid, session, start ticks) of one process, or None once it is gone."""
+    try:
+        with open(f"/proc/{pid}/stat", "rb") as handle:
+            raw = handle.read()
+    except (FileNotFoundError, ProcessLookupError):
+        return None
+    if b")" not in raw:         # read while the task was being released
+        return None
+    fields = raw[raw.rindex(b")") + 2:].split()
+    return fields[0].decode("ascii"), int(fields[1]), int(fields[3]), int(fields[19])
+
+
+def managed_sessions(parent: int) -> dict:
+    """{(pid, start ticks): start seconds} of the parent's child session leaders."""
+    found = {}
+    with os.scandir("/proc") as entries:
+        names = [entry.name for entry in entries if entry.name.isdigit()]
+    for name in names:
+        stat = _stat(name)
+        if stat is not None and stat[1] == parent and stat[2] == int(name):
+            found[(int(name), stat[3])] = stat[3] / _TICKS
+    return found
+
+
+def one_process(pid: int) -> dict:
+    stat = _stat(pid)
+    return {} if stat is None else {(pid, stat[3]): stat[3] / _TICKS}
+
+
+def still_live(identity) -> bool:
+    """The very process (PID and start time) is present and not a zombie."""
+    stat = _stat(identity[0])
+    return stat is not None and stat[3] == identity[1] and stat[0] not in "ZXx"
+
+
+def held_leases(owner: int, lease_root: Path) -> set:
+    """Names of the GPU lease files whose kernel flock was taken by ``owner``."""
+    files = {}
+    try:
+        with os.scandir(lease_root) as entries:
+            for entry in entries:
+                if entry.name.endswith(".lock"):
+                    st = entry.stat(follow_symlinks=False)
+                    files[(os.major(st.st_dev), os.minor(st.st_dev), st.st_ino)] = entry.name
+    except FileNotFoundError:
+        return set()
+    held = set()
+    with open("/proc/locks", encoding="ascii") as handle:
+        for line in handle:
+            parts = line.split()
+            if len(parts) < 6 or parts[1] != "FLOCK" or "->" in parts:
+                continue
+            major, minor, inode = parts[5].split(":")
+            key = (int(major, 16), int(minor, 16), int(inode))
+            if key in files and int(parts[4]) == owner:
+                held.add(files[key])
+    return held
+
+
+def free_bytes(path) -> int:
+    probe = Path(path)
+    while not probe.exists():
+        probe = probe.parent
+    usage = os.statvfs(probe)
+    return usage.f_bavail * usage.f_frsize
+
+
+class Ledger:
+    """Append-only JSON lines, fsynced; one supervised run at a time."""
+
+    def __init__(self, root: Path):
+        root.mkdir(parents=True, exist_ok=True)
+        self.path = root / LEDGER_NAME
+        self._lock = open(root / LOCK_NAME, "a")
+        try:
+            fcntl.flock(self._lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            self._lock.close()
+            raise Refused(f"another supervisor holds {root / LOCK_NAME}") from None
+
+    def prior_device_seconds(self) -> tuple[float, list]:
+        runs, finals = [], {}
+        if self.path.exists():
+            for number, line in enumerate(self.path.read_text(encoding="utf-8").splitlines(), 1):
+                record = json.loads(line)
+                if record.get("schema") != LEDGER_SCHEMA:
+                    raise Refused(f"{self.path}:{number} is not a {LEDGER_SCHEMA} record")
+                if record.get("event") == "start":
+                    runs.append(record["run_id"])
+                elif record.get("event") == "final":
+                    finals[record["run_id"]] = record
+        unfinished = [run for run in runs if run not in finals]
+        if unfinished:
+            raise Refused(f"run(s) {unfinished} in {self.path} have no final record: their device "
+                          "time is unknown; the audit must reconcile the ledger first")
+        unclean = [run for run, record in finals.items() if record.get("status") == "unclean"]
+        if unclean:
+            raise Refused(f"run(s) {unclean} in {self.path} ended with live attempts or held "
+                          "leases: their device time is not final; the audit must reconcile it")
+        return sum(float(record["charged_seconds"]) for record in finals.values()), runs
+
+    def write(self, record: dict) -> None:
+        record = {"schema": LEDGER_SCHEMA,
+                  "utc": datetime.now(timezone.utc).isoformat(timespec="seconds"), **record}
+        line = json.dumps(record, sort_keys=True, allow_nan=False) + "\n"
+        descriptor = os.open(self.path, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o644)
+        try:
+            os.write(descriptor, line.encode("utf-8"))
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+
+    def close(self) -> None:
+        self._lock.close()
+
+
+def supervise(command, *, stage, label, gpus, attempts, planned_cells, watch_path, ops_root,
+              manifest_sha256, budget_seconds=BUDGET_DEVICE_SECONDS, poll_seconds=POLL_SECONDS,
+              stop_bound_seconds=STOP_BOUND_SECONDS, wall_limit_seconds=None,
+              ledger_every=LEDGER_EVERY_SECONDS, lease_root=GPU_LEASE_ROOT,
+              free_bytes=free_bytes) -> int:
+    """Run ``command`` under the storage, budget and wall-time rules; returns an exit code."""
+    wall_limit = STAGES[stage][0] if wall_limit_seconds is None else float(wall_limit_seconds)
+    ledger = Ledger(Path(ops_root))
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + secrets.token_hex(4)
+    identity = {"run_id": run_id, "stage": stage, "label": label}
+    try:
+        prior, _runs = ledger.prior_device_seconds()
+        headroom = gpus * (poll_seconds + stop_bound_seconds)
+        allowance = planned_cells * poll_seconds
+        free = free_bytes(watch_path)
+        need = FREE_FLOOR_BYTES + planned_cells * CELL_OUTPUT_BYTES
+        refusal = None
+        if free < need:
+            refusal = (f"space: {free} bytes free under {watch_path}, below {need} "
+                       f"(floor + {planned_cells} planned cells)")
+        elif prior + allowance + headroom >= budget_seconds:
+            refusal = (f"budget: {prior:.0f} s already charged + {allowance + headroom:.0f} s "
+                       f"allowance and headroom reach the {budget_seconds:.0f} s budget")
+        ledger.write({"event": "start", **identity, "command": list(command),
+                      "command_sha256": hashlib.sha256(json.dumps(list(command)).encode()).hexdigest(),
+                      "manifest_sha256": manifest_sha256, "supervisor_sha256": _IMPORTED_SOURCE_SHA256,
+                      "prior_charged_seconds": prior, "free_bytes": free, "refused": refusal,
+                      "rules": {"free_floor_bytes": FREE_FLOOR_BYTES,
+                                "cell_output_bytes": CELL_OUTPUT_BYTES,
+                                "budget_seconds": budget_seconds, "poll_seconds": poll_seconds,
+                                "stop_bound_seconds": stop_bound_seconds,
+                                "wall_limit_seconds": wall_limit, "gpus": gpus,
+                                "planned_cells": planned_cells, "attempts": attempts}})
+        if refusal:
+            ledger.write({"event": "final", **identity, "status": "refused-before-start",
+                          "reason": refusal, "charged_seconds": 0.0, "device_seconds": 0.0})
+            print(f"[supervisor] REFUSED before start: {refusal}", file=sys.stderr)
+            return EXIT_REFUSED
+        return _run(command, ledger, identity, prior=prior, headroom=headroom,
+                    allowance=allowance, gpus=gpus, attempts=attempts, watch_path=watch_path,
+                    budget_seconds=budget_seconds, poll_seconds=poll_seconds,
+                    stop_bound_seconds=stop_bound_seconds, wall_limit=wall_limit,
+                    ledger_every=ledger_every, lease_root=Path(lease_root),
+                    free_bytes=free_bytes, ops_root=Path(ops_root))
+    finally:
+        ledger.close()
+
+
+def _run(command, ledger, identity, *, prior, headroom, allowance, gpus, attempts, watch_path,
+         budget_seconds, poll_seconds, stop_bound_seconds, wall_limit, ledger_every, lease_root,
+         free_bytes, ops_root) -> int:
+    operator, failures = [], []
+
+    def _operator_stop(signum, _frame):
+        operator.append(signal.Signals(signum).name)
+
+    def _write(record) -> None:
+        # A ledger that cannot be written is a failed observation: it stops
+        # dispatch, and it never ends the supervision of a live command.
+        try:
+            ledger.write(record)
+        except Exception as error:                  # noqa: BLE001
+            failures.append(f"ledger write failed: {error!r}")
+            print(f"[supervisor] {failures[-1]} ({record.get('event')})", file=sys.stderr)
+
+    previous = {signum: signal.signal(signum, _operator_stop)
+                for signum in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
+    log_path = ops_root / f"{identity['run_id']}.command.log"
+    try:
+        with open(log_path, "ab") as log:
+            started = boot_seconds()
+            # Its own session: terminal signals reach only this supervisor, which
+            # turns them into ONE SIGTERM to the launcher's supervised path.
+            proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=log,
+                                    stderr=subprocess.STDOUT, start_new_session=True)
+    except OSError as error:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+        _write({"event": "final", **identity, "status": "failed-to-start", "reason": repr(error),
+                "charged_seconds": 0.0, "device_seconds": 0.0})
+        print(f"[supervisor] REFUSED: cannot start {command[:2]}: {error}", file=sys.stderr)
+        return EXIT_REFUSED
+    live, done = {}, []
+    lease_gpu_seconds, first_lease, leased, last = 0.0, None, 0, started
+    stop = stop_sent = overdue_noted = None
+    last_written = started
+    try:
+        while True:
+            now = boot_seconds()
+            reason = device = free = projected = None
+            try:
+                seen = (managed_sessions(proc.pid) if attempts == "sessions"
+                        else one_process(proc.pid))
+                ended_ids = {tuple(a["id"]) for a in done}
+                for key, start in seen.items():
+                    if key not in live and key not in ended_ids:
+                        live[key] = start
+                        _write({"event": "attempt-start", **identity, "id": list(key),
+                                "start_boot": start})
+                for key in [k for k in live if k not in seen]:
+                    start = live.pop(key)
+                    done.append({"id": list(key), "start_boot": start, "end_boot": now,
+                                 "seconds": now - start})
+                    _write({"event": "attempt-end", **identity, **done[-1]})
+                device = sum(a["seconds"] for a in done) + sum(now - s for s in live.values())
+                count = len(held_leases(proc.pid, lease_root))
+                lease_gpu_seconds += max(count, leased) * (now - last)
+                if count and first_lease is None:
+                    first_lease = last              # conservative: the previous poll
+                leased, last = count, now
+                free = free_bytes(watch_path)
+                projected = prior + device + allowance + headroom
+                if operator:
+                    reason = f"operator signal {operator[0]}"
+                elif failures:
+                    reason = f"monitor failure: {failures[0]}"
+                elif free < FREE_FLOOR_BYTES + gpus * CELL_OUTPUT_BYTES:
+                    reason = (f"space: {free} bytes free, below the floor plus {gpus} in-flight "
+                              "cell outputs")
+                elif projected >= budget_seconds:
+                    reason = f"budget: projected {projected:.0f} s of {budget_seconds:.0f} s"
+                elif now - started >= wall_limit - stop_bound_seconds - poll_seconds:
+                    reason = f"wall: {now - started:.0f} s of the {wall_limit:.0f} s limit"
+            except Exception as error:              # noqa: BLE001 -- never a silent pass
+                reason = f"monitor failure: {error!r}"
+            if reason and stop is None and proc.poll() is None:
+                stop, stop_sent = reason, now
+                # Exact: the launcher is this process's own unreaped child.
+                proc.send_signal(signal.SIGTERM)
+                _write({"event": "stop", **identity, "reason": reason, "device_seconds": device,
+                        "free_bytes": free, "projected_seconds": projected,
+                        "elapsed": now - started})
+                print(f"[supervisor] STOP: {reason}; SIGTERM sent to {proc.pid}", file=sys.stderr)
+            if proc.poll() is not None:
+                break
+            if stop_sent is not None and overdue_noted is None \
+                    and now - stop_sent > stop_bound_seconds:
+                overdue_noted = now
+                _write({"event": "stop-overdue", **identity, "pid": proc.pid,
+                        "note": "still live after the stop bound; still waiting -- a timeout is "
+                                "not evidence that it exited"})
+            if now - last_written >= ledger_every:
+                last_written = now
+                _write({"event": "poll", **identity, "device_seconds": device,
+                        "in_flight": len(live), "leased_gpus": leased, "free_bytes": free,
+                        "projected_seconds": projected, "elapsed": now - started})
+            time.sleep(poll_seconds)
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+    ended = boot_seconds()
+    for key, start in list(live.items()):
+        live.pop(key)
+        done.append({"id": list(key), "start_boot": start, "end_boot": ended,
+                     "seconds": ended - start})
+    lease_gpu_seconds += leased * (ended - last)
+    orphans = [a["id"] for a in done if still_live(tuple(a["id"]))]
+    leases_after = sorted(held_leases(proc.pid, lease_root))
+    device = sum(a["seconds"] for a in done)
+    status = "unclean" if orphans or leases_after else "stopped" if stop else "exited"
+    failures_before_final = len(failures)
+    _write({
+        "event": "final", **identity, "status": status, "reason": stop,
+        "returncode": proc.returncode, "attempts": done, "device_seconds": device,
+        "unobserved_allowance_seconds": allowance, "charged_seconds": device + allowance,
+        "cumulative_charged_seconds": prior + device + allowance,
+        "lease_gpu_seconds": lease_gpu_seconds,
+        "pre_lease_seconds": None if first_lease is None else first_lease - started,
+        "wall_seconds": ended - started, "orphaned_live_attempts": orphans,
+        "leases_held_after_exit": leases_after, "monitor_failures": failures,
+        "command_log": str(log_path),
+        "accounting": "attempt process lifetimes, end at the first poll without them: an upper "
+                      "bound on device occupancy, not measured GPU utilisation"})
+    print(f"[supervisor] {status}: rc={proc.returncode} device={device / 3600:.3f} h "
+          f"lease={lease_gpu_seconds / 3600:.3f} GPU-h log={log_path}", file=sys.stderr)
+    if orphans or leases_after or len(failures) > failures_before_final:
+        return EXIT_UNCLEAN
+    if stop:
+        return EXIT_STOPPED
+    return proc.returncode
+
+
+def command_gpus(stage: str, command) -> int:
+    """The GPU count the supervised command itself names (a probe uses one)."""
+    most = STAGES[stage][1]
+    if stage == "probe":
+        return most
+    given = [command[i + 1] for i, part in enumerate(command[:-1]) if part == "--gpus"]
+    if len(given) != 1:
+        raise Refused(f"{stage} supervises a launcher that names its GPUs once with --gpus")
+    count = len([gpu for gpu in given[0].split(",") if gpu])
+    if not 1 <= count <= most:
+        raise Refused(f"{stage} runs on 1 to {most} GPUs, not {count}")
+    return count
+
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--manifest", required=True)
+    parser.add_argument("--manifest-sha256", required=True)
+    parser.add_argument("--stage", required=True, choices=sorted(STAGES))
+    parser.add_argument("--label", default="")
+    parser.add_argument("--planned-cells", type=int, required=True)
+    parser.add_argument("--watch-path", required=True)
+    parser.add_argument("--ops-root", default=str(DEFAULT_OPS_ROOT))
+    parser.add_argument("command", nargs=argparse.REMAINDER)
+    args = parser.parse_args(argv)
+    command = args.command[1:] if args.command[:1] == ["--"] else args.command
+    try:
+        if not command:
+            raise Refused("no command to supervise")
+        if args.planned_cells < 0:
+            raise Refused("--planned-cells must be >= 0")
+        verify_generation(args.manifest, args.manifest_sha256)
+        return supervise(command, stage=args.stage, label=args.label,
+                         gpus=command_gpus(args.stage, command),
+                         attempts="self" if args.stage == "probe" else "sessions",
+                         planned_cells=args.planned_cells, watch_path=args.watch_path,
+                         ops_root=args.ops_root, manifest_sha256=args.manifest_sha256)
+    except Refused as error:
+        print(f"[supervisor] REFUSED: {error}", file=sys.stderr)
+        return EXIT_REFUSED
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -939,6 +939,56 @@ def test_seals_readmitted_after_the_lease_must_still_be_the_approved_ones(sweep)
     assert "plan_snapshot" not in calls and "reserve" not in calls
 
 
+# ---- the storage rule before every dispatch (audit 703.3) ---------------------------------------------
+
+def test_no_cell_is_dispatched_when_the_result_filesystem_lacks_the_floor(sweep, monkeypatch):
+    go, calls, _ = sweep
+    monkeypatch.setattr(M, "ANCHOR_FREE_FLOOR_BYTES", 1 << 62)
+    assert go() == 1
+    assert not any(c[0] == "run_cell" for c in calls)
+    assert ("publish", "ancT_sweep_complete.json") not in calls
+
+
+def test_a_space_breach_mid_sweep_stops_every_later_dispatch(sweep, monkeypatch):
+    go, calls, _ = sweep
+    real_run_cell = M.run_cell
+
+    def run_cell(*a, **k):
+        record = real_run_cell(*a, **k)
+        if sum(1 for c in calls if c[0] == "run_cell") == 3:
+            monkeypatch.setattr(M, "ANCHOR_FREE_FLOOR_BYTES", 1 << 62)
+        return record
+
+    monkeypatch.setattr(M, "run_cell", run_cell)
+    assert go() == 1
+    dispatched = sum(1 for c in calls if c[0] == "run_cell")
+    assert 3 <= dispatched <= 5                     # at most one more already past its check per stream
+    assert ("publish", "ancT_sweep_complete.json") not in calls
+
+
+def test_the_first_dispatch_reserves_space_for_every_unfinished_cell(sweep, monkeypatch):
+    """Room for 11.5 cells of one TiB each: enough for any one stream's four, not for all twelve."""
+    go, calls, _ = sweep
+    probe = Path("/r")
+    while not probe.exists():
+        probe = probe.parent
+    usage = os.statvfs(probe)
+    monkeypatch.setattr(M, "ANCHOR_CELL_OUTPUT_BYTES", 1 << 40)
+    monkeypatch.setattr(M, "ANCHOR_FREE_FLOOR_BYTES", usage.f_bavail * usage.f_frsize - 23 * (1 << 39))
+    assert go() == 1
+    assert not any(c[0] == "run_cell" for c in calls)
+
+
+def test_the_storage_rule_counts_every_unfinished_cell(tmp_path, monkeypatch):
+    """One TiB per cell dwarfs any change of the real free space during the test."""
+    free = os.statvfs(tmp_path).f_bavail * os.statvfs(tmp_path).f_frsize
+    monkeypatch.setattr(M, "ANCHOR_CELL_OUTPUT_BYTES", 1 << 40)
+    monkeypatch.setattr(M, "ANCHOR_FREE_FLOOR_BYTES", free - 5 * (1 << 39))
+    assert M.anchor_dispatch_space_refusal(tmp_path / "not" / "yet", 2) is None
+    refusal = M.anchor_dispatch_space_refusal(tmp_path / "not" / "yet", 3)
+    assert refusal and "3 unfinished cells" in refusal and str(tmp_path) in refusal
+
+
 # ---- the protocol values (contract section 6) -----------------------------------------------------------
 def test_protocol_fields_fix_the_stage_1_horizons_and_the_smoke_shortens_them_alone():
     kw = dict(seed=43, arm="none", incumbent=INCUMBENT)

@@ -54,7 +54,7 @@ def inventory() -> dict:
     from importlib import metadata
     return {
         "artifact_kind": M.ANCHOR_MANIFEST_KIND, "version": M.ANCHOR_CONFIRM_VERSION,
-        "generation": "v2",
+        "generation": "v3",
         "note": "byte identities from JSON and text only; not approval to execute",
         "historical": {
             "approved_p3_refit_aggregate": {"path": str(M.APPROVED_P3_REFIT_AGGREGATE),
@@ -82,10 +82,15 @@ def inventory() -> dict:
                           "reason": "stages S and D train fresh controls (contract section 5); the "
                                     "v1 proposal stays as history in authority_manifest_v1.json",
                           "approved_reuse_admissions": dict(M.APPROVED_REUSE_ADMISSION_SHA256)},
-        "predecessor": {"authority_manifest_v1_sha256":
+        "predecessor": {"authority_manifest_v2_sha256":
+                        "a5f7b8436e3e81b189deedb4d1f3e99eb993bce59d8792bada12f7c1a6a1bf0a",
+                        "authority_manifest_v1_sha256":
                         "c1eed986312ba9a017cc559813ce1d0d2b2dc2fc5aba1df3f032424cbda8b94e",
                         "contract_v1_sha256":
-                        "418091eedff7ee8c09df149df6bc7027f6b4ac0d8ebbe3dd724facefa66a5a08"},
+                        "418091eedff7ee8c09df149df6bc7027f6b4ac0d8ebbe3dd724facefa66a5a08",
+                        "v3_change": "campaign child lifecycle (audit 705/706), the pre-dispatch "
+                                     "storage rule and the operational supervisor (703/704); the "
+                                     "S/D scientific design and the contract are unchanged"},
         "new_generation": {
             "worktree": str(REPO), "branch": git("rev-parse", "--abbrev-ref", "HEAD"),
             "commit": git("rev-parse", "HEAD"), "clean": True,
@@ -109,7 +114,7 @@ def main(argv=None) -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command")
     inv = sub.add_parser("inventory")
-    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v2.json"))
+    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v3.json"))
     args = parser.parse_args(argv)
     try:
         if args.command != "inventory":
