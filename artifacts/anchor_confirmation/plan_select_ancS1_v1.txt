@@ -1,0 +1,65 @@
+anchor-confirm/1: stage select, 12 cells, namespace ancS1  [NON-EXECUTABLE until audit approval]
+{
+ "approved_p3_refit_aggregate": {
+  "path": "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/p3rfB_refit_aggregate.json",
+  "sha256": "b4f3b0dff467f7c1fd4ca134edba66085115939a4097e6bb201bd13ca83452a5"
+ },
+ "approved_selected_n": {
+  "path": "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/selected_n.json",
+  "sha256": "2bf6133d8cdc7471e40a33d20f1bb19228aa770e67a999a436efb5abac6b2549"
+ },
+ "incumbent": {
+  "flickr25k": {
+   "N": 4,
+   "joint": "0.02",
+   "topp": [
+    "0.6",
+    "0.95"
+   ]
+  },
+  "mscoco": {
+   "N": 39,
+   "joint": "0.03",
+   "topp": [
+    "0.6",
+    "0.95"
+   ]
+  },
+  "nuswide": {
+   "N": 4,
+   "joint": "0.05",
+   "topp": [
+    "0.4",
+    "0.8"
+   ]
+  }
+ }
+}
+  flickr25k  N=4   seed=42 arm=anchors  topp=0.6/0.95 jd=0.02 -> ancS1_flickr_A_v4_N4_s42_AXanchors_P06095_JD002
+  flickr25k  N=9   seed=42 arm=anchors  topp=0.6/0.95 jd=0.02 -> ancS1_flickr_A_v4_N9_s42_AXanchors_P06095_JD002
+  flickr25k  N=19  seed=42 arm=anchors  topp=0.6/0.95 jd=0.02 -> ancS1_flickr_A_v4_N19_s42_AXanchors_P06095_JD002
+  flickr25k  N=39  seed=42 arm=anchors  topp=0.6/0.95 jd=0.02 -> ancS1_flickr_A_v4_N39_s42_AXanchors_P06095_JD002
+  nuswide    N=4   seed=42 arm=anchors  topp=0.4/0.8 jd=0.05 -> ancS1_nuswide_A_v4_N4_s42_AXanchors_P0408_JD005
+  nuswide    N=9   seed=42 arm=anchors  topp=0.4/0.8 jd=0.05 -> ancS1_nuswide_A_v4_N9_s42_AXanchors_P0408_JD005
+  nuswide    N=19  seed=42 arm=anchors  topp=0.4/0.8 jd=0.05 -> ancS1_nuswide_A_v4_N19_s42_AXanchors_P0408_JD005
+  nuswide    N=39  seed=42 arm=anchors  topp=0.4/0.8 jd=0.05 -> ancS1_nuswide_A_v4_N39_s42_AXanchors_P0408_JD005
+  mscoco     N=4   seed=42 arm=anchors  topp=0.6/0.95 jd=0.03 -> ancS1_mscoco_A_v5b_N4_s42_AXanchors_P06095_JD003
+  mscoco     N=9   seed=42 arm=anchors  topp=0.6/0.95 jd=0.03 -> ancS1_mscoco_A_v5b_N9_s42_AXanchors_P06095_JD003
+  mscoco     N=19  seed=42 arm=anchors  topp=0.6/0.95 jd=0.03 -> ancS1_mscoco_A_v5b_N19_s42_AXanchors_P06095_JD003
+  mscoco     N=39  seed=42 arm=anchors  topp=0.6/0.95 jd=0.03 -> ancS1_mscoco_A_v5b_N39_s42_AXanchors_P06095_JD003
+arms differ in axis_center alone at all 12 coordinates
+  flickr25k|N=4|seed=42: none 0c239e4fb4b198ff  anchors 96c5866e4b50207b
+  flickr25k|N=9|seed=42: none 0b7f9eb7f58300c5  anchors 3390a8168de33381
+  flickr25k|N=19|seed=42: none 7c44e22647e5c63c  anchors 718405b1b5187990
+  flickr25k|N=39|seed=42: none a44c9a52be9b303e  anchors 0012c3e7f9017036
+  nuswide|N=4|seed=42: none f1a944420607d286  anchors b5f6375ee34ffee4
+  nuswide|N=9|seed=42: none b21affcc7aae29e5  anchors fe8fe7e172489be0
+  nuswide|N=19|seed=42: none 96bad06f54662015  anchors 3efb9645b5a9972e
+  nuswide|N=39|seed=42: none 070c7c69de3cc156  anchors 146d0c8289b290c4
+  mscoco|N=4|seed=42: none 52a747c983c5b439  anchors a9acd4083bff1fb1
+  mscoco|N=9|seed=42: none a70279067e719822  anchors 798b93ee8daddfcb
+  mscoco|N=19|seed=42: none e7cb40db3d83bf7d  anchors cfc19b7e44bb8d16
+  mscoco|N=39|seed=42: none a17a819baee2dffb  anchors 9b6c55832b8a98ca
+incumbent refit recipe vs approved p3rfB_flickr_A_v4_refit_N4_s42_P06095_JD002.json (config d4502d42bdae): identical outside the 11 sealed-input fields
+incumbent refit recipe vs approved p3rfB_nuswide_A_v4_refit_N4_s42_P0408_JD005.json (config 27145906e34d): identical outside the 11 sealed-input fields
+incumbent refit recipe vs approved p3rfB_mscoco_A_v5b_refit_N39_s42_P06095_JD003.json (config abeade4ab95f): identical outside the 11 sealed-input fields
