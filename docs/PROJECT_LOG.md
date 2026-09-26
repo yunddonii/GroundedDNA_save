@@ -487,9 +487,11 @@ codebook) as a follow-up.
 
 ---
 
-## 2026-09-26 [anchor confirmation v1 — preparation only, nothing executed] Audit §659 package ready for review
+## 2026-09-26 [anchor confirmation v1 — preparation only, nothing executed] Audit §659 package, first version (NOT ready — see the correction below)
 
-**Status:** ✅ preparation complete; **no GPU run of any kind**. Audit §659 authorised preparation
+**Correction (same day):** the audit reviewed this version in parallel (ledger §665–§674) and found real defects — the trainer check would have refused every real cell (tokenizer-JSON normalisation, §670), plan checks do not gate `--run` and a self-pinned N record admits stage D (§671), type/presence/conflicting-flag gaps (§669), records and probes admitted on local consistency alone (§672–§673) — plus contract gaps (§665, §668). It also treats deserialising real historical `config.pt` files as a separately admitted step; this version did so in its plan output, manifest, reuse checks and one integration test. §674 asks for a per-finding response, corrected sources and a new manifest before the package is presented as ready. The first version below stays as a record.
+
+**Status:** first version built; **no GPU run of any kind**. Audit §659 authorised preparation
 only (EXECUTION_NOT_AUTHORIZED, FINAL_RECIPE_NOT_APPROVED); §660/§664 clarified it. Everything lives
 on the new branch `arch-exp-2026-09-anchor-confirm` (worktree `/data/yschoi/gdna_anchor_confirm_v1`,
 head `704440c`), built on the approved P3 source `88c3a25` — none of this branch's exploration code
