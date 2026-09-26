@@ -1016,8 +1016,8 @@ def edit_probe(evidence, index, **changes):
     ({"routing": "caption_routed"}, "train-only validation rows"),
     ({"n_images": 511, "total": 2044}, "512 images"),
     ({"total": 2047}, "512 images"),
-    ({"n_images": 511, "total": 2044, "code_picks_own_axis": 820 / 2044}, "512 images"),  # consistent otherwise
-    ({"total": 2047, "code_picks_own_axis": 820 / 2047}, "512 images"),
+    ({"n_images": 511, "total": 2044, "hits": 680, "code_picks_own_axis": 680 / 2044}, "512 images"),
+    ({"total": 2047, "hits": 680, "code_picks_own_axis": 680 / 2047}, "512 images"),   # consistent otherwise
     ({"hits": 2049}, "512 images"),
     ({"code_picks_own_axis": 0.5}, "not hits/total"),
     ({"hits": 820.0}, "not an integer"),
