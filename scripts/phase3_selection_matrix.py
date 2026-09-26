@@ -4162,9 +4162,10 @@ def _anchor_confirmation_main(args) -> int:
                      f"{'smoke' if args.smoke else 'run'}")
             selection_pin = (str(args.anchor_selection_sha256) if args.anchor_confirm == "decide"
                              else None)
-            request = anchor_execution_request(args, cells, manifest_sha256=manifest["sha256"],
+            manifest_sha = (manifest or {}).get("sha256")
+            request = anchor_execution_request(args, cells, manifest_sha256=manifest_sha,
                                                selection_sha256=selection_pin)
-            pins = {"manifest": manifest["sha256"], "request": _json_digest(request)}
+            pins = {"manifest": manifest_sha, "request": _json_digest(request)}
             if selection_pin is not None:
                 pins["selection"] = selection_pin
             approval = audit_approval(args.anchor_approval_section, scope, **pins)

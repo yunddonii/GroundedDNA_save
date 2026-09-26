@@ -499,6 +499,7 @@ def test_a_changed_request_is_not_covered_by_the_old_approval(tmp_path, monkeypa
                                                               change):
     fake_authorities(tmp_path, monkeypatch)
     monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    monkeypatch.setattr(M, "load_admission_authority", lambda path: {})   # its content is not the subject
     (tmp_path / "authority.json").write_text("{}")
     (tmp_path / "seal.json").write_text("{}")
     argv = [*BASE, "--run", *with_manifest(tmp_path)]
@@ -584,9 +585,13 @@ def test_a_manifest_of_another_tree_refuses_in_every_mode(tmp_path, monkeypatch,
 
 
 def test_decide_refuses_a_stage_s_from_another_generation(tmp_path, monkeypatch, boundaries, capsys):
+    """Every other gate is opened (the approval included), so the one-generation check is the
+    only thing between this request and the lease."""
     import scripts.anchor_confirm_decision as reducer
     fake_authorities(tmp_path, monkeypatch)
     monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    monkeypatch.setattr(M, "audit_approval", lambda section, scope, **pins: {"section": section, "scope": scope,
+                                                                         "line": "stub"})
     monkeypatch.setattr(reducer, "verify_selection", lambda path, sha: {
         "n_selected": {ds: {"anchors": 9, "none": 4} for ds in M.ANCHOR_DATASETS},
         "record": {"path": path, "sha256": sha}, "anchor_manifest_sha256": "0" * 64})
@@ -639,6 +644,9 @@ def test_decide_refuses_a_self_pinned_minimal_selection_record(tmp_path, monkeyp
 
 
 def test_run_cell_refuses_an_anchor_cell_without_a_sealed_recipe(monkeypatch, boundaries):
+    def launched(*a, **k):
+        raise AssertionError("a trainer was launched")
+    monkeypatch.setattr(M, "_run_managed_process", launched)
     with pytest.raises(CellRefused, match="sealed scientific recipe"):
         M.run_cell("flickr25k", 4, 0, namespace="ancT", topp=("0.6", "0.95"), joint="0.02",
                    anchor_arm="anchors", campaign_binding=None, scientific_recipe=None)

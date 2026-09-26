@@ -919,6 +919,8 @@ def edit_probe(evidence, index, **changes):
     ({"routing": "caption_routed"}, "train-only validation rows"),
     ({"n_images": 511, "total": 2044}, "512 images"),
     ({"total": 2047}, "512 images"),
+    ({"n_images": 511, "total": 2044, "code_picks_own_axis": 820 / 2044}, "512 images"),  # consistent otherwise
+    ({"total": 2047, "code_picks_own_axis": 820 / 2047}, "512 images"),
     ({"hits": 2049}, "512 images"),
     ({"code_picks_own_axis": 0.5}, "not hits/total"),
     ({"hits": 820.0}, "not an integer"),
@@ -954,6 +956,16 @@ def test_a_probe_coordinate_of_another_type_refuses(tmp_path, ledger, capsys):
     edit_probe(evidence, 0, coordinate=[e["dataset"], e["arm"], float(e["N"]), e["seed"]])
     assert run_decide(evidence, frozen, frozen_sha, tmp_path / "d.json") == 1
     assert "measured another coordinate" in capsys.readouterr().err
+
+
+def test_a_consistently_other_split_identity_refuses(tmp_path, ledger, capsys):
+    """Every probe declares the same foreign split identity, so the population agrees with itself
+    and only the record's admitted split identity can refuse it."""
+    evidence, frozen, frozen_sha = decide_world(tmp_path, ledger)
+    for i in range(len(evidence.entries)):
+        edit_probe(evidence, i, split_identity_sha256="e" * 64)
+    assert run_decide(evidence, frozen, frozen_sha, tmp_path / "d.json") == 1
+    assert "admitted split identity" in capsys.readouterr().err
 
 
 def test_probes_must_share_one_row_population_per_dataset(tmp_path, ledger, capsys):
