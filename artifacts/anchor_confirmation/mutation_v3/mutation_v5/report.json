@@ -1,0 +1,482 @@
+{
+ "baseline": [
+  {
+   "rc": 0,
+   "seconds": 5.9,
+   "test": "test_no_cell_is_dispatched_when_the_result_filesystem_lacks_the_floor"
+  },
+  {
+   "rc": 0,
+   "seconds": 5.6,
+   "test": "test_the_first_dispatch_reserves_space_for_every_unfinished_cell"
+  },
+  {
+   "rc": 0,
+   "seconds": 6.4,
+   "test": "test_a_leader_that_exited_first_does_not_let_the_lease_go_early"
+  },
+  {
+   "rc": 0,
+   "seconds": 6.7,
+   "test": "test_a_leftover_descendant_is_stopped_by_its_own_stream_and_the_cell_refused"
+  },
+  {
+   "rc": 0,
+   "seconds": 5.5,
+   "test": "test_a_reaped_record_is_never_signalled"
+  },
+  {
+   "rc": 0,
+   "seconds": 6.8,
+   "test": "test_a_session_that_outlives_sigkill_is_reported_within_the_bound_and_kept"
+  },
+  {
+   "rc": 0,
+   "seconds": 6.9,
+   "test": "test_a_survivor_keeps_the_lease_held_and_the_error_propagates"
+  },
+  {
+   "rc": 0,
+   "seconds": 6.4,
+   "test": "test_descendant_of_a_leader_that_exited_first_is_found_by_cleanup"
+  },
+  {
+   "rc": 0,
+   "seconds": 6.3,
+   "test": "test_term_resistant_descendant_is_killed_although_its_leader_dies_on_term"
+  },
+  {
+   "rc": 0,
+   "seconds": 4.7,
+   "test": "test_a_command_slower_than_the_stop_bound_is_waited_for_not_declared_dead"
+  },
+  {
+   "rc": 0,
+   "seconds": 0.8,
+   "test": "test_a_failed_observation_stops_dispatch"
+  },
+  {
+   "rc": 0,
+   "seconds": 1.3,
+   "test": "test_a_launcher_that_leaves_a_live_attempt_is_unclean_and_blocks_the_ledger"
+  },
+  {
+   "rc": 0,
+   "seconds": 0.4,
+   "test": "test_an_operator_signal_becomes_one_sigterm_to_the_command"
+  },
+  {
+   "rc": 0,
+   "seconds": 0.3,
+   "test": "test_an_unfinished_prior_run_and_a_second_supervisor_are_refused"
+  },
+  {
+   "rc": 0,
+   "seconds": 7.3,
+   "test": "test_budget_breach_while_a_child_lives_stops_it"
+  },
+  {
+   "rc": 0,
+   "seconds": 11.0,
+   "test": "test_failed_attempts_are_charged_and_carried_into_the_next_stage"
+  },
+  {
+   "rc": 0,
+   "seconds": 10.9,
+   "test": "test_space_breach_while_a_child_lives_stops_through_the_launchers_own_path"
+  },
+  {
+   "rc": 0,
+   "seconds": 0.5,
+   "test": "test_space_refusal_before_the_command_starts"
+  },
+  {
+   "rc": 0,
+   "seconds": 0.3,
+   "test": "test_the_generation_check"
+  }
+ ],
+ "commit": "0ea88af47a375a9bf58cade194fe41adca65fc7d",
+ "mutants": [
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "ML1 forget the record when the leader exits",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert not live(child)",
+     "declared_text": null,
+     "failing_line": "assert not live(child)",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.9,
+     "test": "test_descendant_of_a_leader_that_exited_first_is_found_by_cleanup"
+    },
+    {
+     "declared_line": "assert lease.at_release[0][\"owned_live\"] == []",
+     "declared_text": null,
+     "failing_line": "assert lease.at_release[0][\"owned_live\"] == []",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.8,
+     "test": "test_a_leader_that_exited_first_does_not_let_the_lease_go_early"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "ML2 drained as soon as the leader exited",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert not live(child)",
+     "declared_text": null,
+     "failing_line": "assert not live(child)",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.7,
+     "test": "test_term_resistant_descendant_is_killed_although_its_leader_dies_on_term"
+    },
+    {
+     "declared_line": "assert not live(child)",
+     "declared_text": null,
+     "failing_line": "assert not live(child)",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.6,
+     "test": "test_descendant_of_a_leader_that_exited_first_is_found_by_cleanup"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "ML3 no SIGKILL escalation",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "M._terminate_active_children()",
+     "declared_text": "still have live processes after SIGKILL",
+     "failing_line": "M._terminate_active_children()",
+     "intended": true,
+     "rc": 1,
+     "seconds": 11.4,
+     "test": "test_term_resistant_descendant_is_killed_although_its_leader_dies_on_term"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "ML4 a reaped record is signalled",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert sent == [(proc.pid, signal.SIGKILL)]",
+     "declared_text": null,
+     "failing_line": "assert sent == [(proc.pid, signal.SIGKILL)]",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.6,
+     "test": "test_a_reaped_record_is_never_signalled"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "ML5 survivors are not reported",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": null,
+     "declared_text": "DID NOT RAISE",
+     "failing_line": "with pytest.raises(RuntimeError, match=\"still have live processes after SIGKILL\"):",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.8,
+     "test": "test_a_session_that_outlives_sigkill_is_reported_within_the_bound_and_kept"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "ML6 the lease is released despite survivors",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": null,
+     "declared_text": "DID NOT RAISE",
+     "failing_line": "with pytest.raises(RuntimeError, match=\"still have live processes after SIGKILL\"):",
+     "intended": true,
+     "rc": 1,
+     "seconds": 7.0,
+     "test": "test_a_survivor_keeps_the_lease_held_and_the_error_propagates"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "ML7 the interpreter-exit release stays registered",
+   "result": "NOT DETECTED AS DECLARED",
+   "tests": [
+    {
+     "declared_line": "assert lease.exit_release_pending() == []",
+     "declared_text": null,
+     "failing_line": "assert lease.held and lease.exit_release_pending() == []",
+     "intended": false,
+     "rc": 1,
+     "seconds": 7.1,
+     "test": "test_a_survivor_keeps_the_lease_held_and_the_error_propagates"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "ML8 a leftover descendant is not stopped by its stream",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert not live(child)",
+     "declared_text": null,
+     "failing_line": "assert not live(child)",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.7,
+     "test": "test_a_leftover_descendant_is_stopped_by_its_own_stream_and_the_cell_refused"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "ML9 no refusal before a dispatch",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert go() == 1",
+     "declared_text": null,
+     "failing_line": "assert go() == 1",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.8,
+     "test": "test_no_cell_is_dispatched_when_the_result_filesystem_lacks_the_floor"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "ML10 only this cell is counted",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert go() == 1",
+     "declared_text": null,
+     "failing_line": "assert go() == 1",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.9,
+     "test": "test_the_first_dispatch_reserves_space_for_every_unfinished_cell"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "MS1 no space refusal before start",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert rc == S.EXIT_REFUSED and not marker.exists()",
+     "declared_text": null,
+     "failing_line": "assert rc == S.EXIT_REFUSED and not marker.exists()",
+     "intended": true,
+     "rc": 1,
+     "seconds": 0.5,
+     "test": "test_space_refusal_before_the_command_starts"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "MS2 no space stop while running",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert rc == S.EXIT_STOPPED",
+     "declared_text": null,
+     "failing_line": "assert rc == S.EXIT_STOPPED",
+     "intended": true,
+     "rc": 1,
+     "seconds": 125.9,
+     "test": "test_space_breach_while_a_child_lives_stops_through_the_launchers_own_path"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "MS3 no budget stop while running",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert rc == S.EXIT_STOPPED",
+     "declared_text": null,
+     "failing_line": "assert rc == S.EXIT_STOPPED",
+     "intended": true,
+     "rc": 1,
+     "seconds": 125.5,
+     "test": "test_budget_breach_while_a_child_lives_stops_it"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "MS4 earlier stages are not charged",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert start[\"prior_charged_seconds\"] == pytest.approx(charged)",
+     "declared_text": null,
+     "failing_line": "assert start[\"prior_charged_seconds\"] == pytest.approx(charged)",
+     "intended": true,
+     "rc": 1,
+     "seconds": 11.1,
+     "test": "test_failed_attempts_are_charged_and_carried_into_the_next_stage"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "MS5 a failed observation does not stop",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert rc == S.EXIT_STOPPED",
+     "declared_text": null,
+     "failing_line": "assert rc == S.EXIT_STOPPED",
+     "intended": true,
+     "rc": 1,
+     "seconds": 60.7,
+     "test": "test_a_failed_observation_stops_dispatch"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "MS6 death inferred at the stop bound",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert rc == S.EXIT_STOPPED and time.monotonic() - began >= 2.0",
+     "declared_text": null,
+     "failing_line": "assert rc == S.EXIT_STOPPED and time.monotonic() - began >= 2.0",
+     "intended": true,
+     "rc": 1,
+     "seconds": 3.1,
+     "test": "test_a_command_slower_than_the_stop_bound_is_waited_for_not_declared_dead"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "MS7 an unclean prior run is accepted",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": null,
+     "declared_text": "DID NOT RAISE",
+     "failing_line": "with pytest.raises(S.Refused, match=\"ended with live attempts\"):",
+     "intended": true,
+     "rc": 1,
+     "seconds": 1.6,
+     "test": "test_a_launcher_that_leaves_a_live_attempt_is_unclean_and_blocks_the_ledger"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "MS8 orphans are not checked",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert rc == S.EXIT_UNCLEAN",
+     "declared_text": null,
+     "failing_line": "assert rc == S.EXIT_UNCLEAN",
+     "intended": true,
+     "rc": 1,
+     "seconds": 1.3,
+     "test": "test_a_launcher_that_leaves_a_live_attempt_is_unclean_and_blocks_the_ledger"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "MS9 an unfinished prior run is accepted",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": null,
+     "declared_text": "DID NOT RAISE",
+     "failing_line": "with pytest.raises(S.Refused, match=\"no final record\"):",
+     "intended": true,
+     "rc": 1,
+     "seconds": 0.5,
+     "test": "test_an_unfinished_prior_run_and_a_second_supervisor_are_refused"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "MS10 the stop sends no signal",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert final(world.ops)[\"returncode\"] == -signal.SIGTERM",
+     "declared_text": null,
+     "failing_line": "assert final(world.ops)[\"returncode\"] == -signal.SIGTERM",
+     "intended": true,
+     "rc": 1,
+     "seconds": 60.6,
+     "test": "test_an_operator_signal_becomes_one_sigterm_to_the_command"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "MS11 the supervisor's own pin is not checked",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": null,
+     "declared_text": "DID NOT RAISE",
+     "failing_line": "with pytest.raises(S.Refused, match=match):",
+     "intended": true,
+     "rc": 1,
+     "seconds": 0.4,
+     "test": "test_the_generation_check"
+    }
+   ]
+  }
+ ],
+ "sandbox_restored": true,
+ "status_equal": true,
+ "stray_processes": "",
+ "tracked_after": "7d288dc4620d429196a9ed14439adb888ea8bb7fd6b10d1a2c2c6c3354cb2693",
+ "tracked_before": "7d288dc4620d429196a9ed14439adb888ea8bb7fd6b10d1a2c2c6c3354cb2693"
+}

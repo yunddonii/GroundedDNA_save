@@ -1,0 +1,87 @@
+{
+ "cases": [
+  {
+   "declared": "pass",
+   "failing_line": "self._accessor.mkdir(self, mode)",
+   "intended": false,
+   "marker": null,
+   "outcome": "fail",
+   "seconds": 6.0,
+   "test": "test_cooperative_sleeper_tree_is_drained_by_cleanup"
+  },
+  {
+   "declared": "fail",
+   "failing_line": "self._accessor.mkdir(self, mode)",
+   "intended": false,
+   "marker": "assert not live(child)",
+   "outcome": "fail",
+   "seconds": 5.6,
+   "test": "test_term_resistant_descendant_is_killed_although_its_leader_dies_on_term"
+  },
+  {
+   "declared": "fail",
+   "failing_line": "self._accessor.mkdir(self, mode)",
+   "intended": false,
+   "marker": "assert not live(child)",
+   "outcome": "fail",
+   "seconds": 5.5,
+   "test": "test_descendant_of_a_leader_that_exited_first_is_found_by_cleanup"
+  },
+  {
+   "declared": "fail",
+   "failing_line": "self._accessor.mkdir(self, mode)",
+   "intended": false,
+   "marker": "assert not live(child)",
+   "outcome": "fail",
+   "seconds": 5.5,
+   "test": "test_a_leftover_descendant_is_stopped_by_its_own_stream_and_the_cell_refused"
+  },
+  {
+   "declared": "pass",
+   "failing_line": "self._accessor.mkdir(self, mode)",
+   "intended": false,
+   "marker": null,
+   "outcome": "fail",
+   "seconds": 4.8,
+   "test": "test_cleanup_blocks_later_launches"
+  },
+  {
+   "declared": "pass",
+   "failing_line": "self._accessor.mkdir(self, mode)",
+   "intended": false,
+   "marker": null,
+   "outcome": "fail",
+   "seconds": 5.0,
+   "test": "test_a_real_sigterm_releases_the_lease_only_after_every_owned_process_died[leader:child-cooperative:stay]"
+  },
+  {
+   "declared": "fail",
+   "failing_line": "self._accessor.mkdir(self, mode)",
+   "intended": false,
+   "marker": "assert lease.at_release[0][\"owned_live\"] == []",
+   "outcome": "fail",
+   "seconds": 4.8,
+   "test": "test_a_real_sigterm_releases_the_lease_only_after_every_owned_process_died[leader:child-resist:stay]"
+  },
+  {
+   "declared": "fail",
+   "failing_line": "self._accessor.mkdir(self, mode)",
+   "intended": false,
+   "marker": "assert lease.at_release[0][\"owned_live\"] == []",
+   "outcome": "fail",
+   "seconds": 4.9,
+   "test": "test_a_leader_that_exited_first_does_not_let_the_lease_go_early"
+  }
+ ],
+ "excluded_new_api": [
+  "test_a_session_that_outlives_sigkill_is_reported_within_the_bound_and_kept",
+  "test_a_reaped_record_is_never_signalled",
+  "test_a_survivor_keeps_the_lease_held_and_the_error_propagates"
+ ],
+ "old_commit": "63654dd58d42187152cb67c22924a3351e470702",
+ "status_equal": true,
+ "stray_processes": "",
+ "test_file_sha256": "93bca9a4099e6f5aa78eb90411b3bdc6aae2217b059d11fc04945d87a43d96fc",
+ "tracked_after": "7d288dc4620d429196a9ed14439adb888ea8bb7fd6b10d1a2c2c6c3354cb2693",
+ "tracked_before": "7d288dc4620d429196a9ed14439adb888ea8bb7fd6b10d1a2c2c6c3354cb2693"
+}
