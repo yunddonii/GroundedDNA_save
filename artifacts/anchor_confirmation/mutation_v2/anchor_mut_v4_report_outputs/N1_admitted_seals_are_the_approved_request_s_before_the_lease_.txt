@@ -1,0 +1,10 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_a_seal_changed_after_its_approval_refuses_before_the_lease ________
+tests/test_anchor_confirm_launcher.py:768: in test_a_seal_changed_after_its_approval_refuses_before_the_lease
+    assert run_main(monkeypatch, *argv, *approval) == 2
+E   AssertionError: assert 0 == 2
+E    +  where 0 = run_main(<_pytest.monkeypatch.MonkeyPatch object at 0x7f07a7246e60>, *['--anchor-confirm', 'select', '--namespace', 'ancT', '--run', '--input-seal', ...], *['--anchor-approval-section', '700'])
+=========================== short test summary info ============================
+FAILED tests/test_anchor_confirm_launcher.py::test_a_seal_changed_after_its_approval_refuses_before_the_lease
+1 failed in 5.01s

@@ -1,0 +1,9 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______________ test_a_module_imported_from_other_bytes_refuses ________________
+tests/test_anchor_confirm_launcher.py:839: in test_a_module_imported_from_other_bytes_refuses
+    with pytest.raises(CellRefused, match="imported from other bytes"):
+E   Failed: DID NOT RAISE CellRefused
+=========================== short test summary info ============================
+FAILED tests/test_anchor_confirm_launcher.py::test_a_module_imported_from_other_bytes_refuses
+1 failed in 4.28s

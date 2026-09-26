@@ -1,0 +1,46 @@
+......FFFFF...................                                           [100%]
+=================================== FAILURES ===================================
+_ test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes6-512 images] _
+tests/test_anchor_confirm_reducer.py:1047: in test_a_probe_that_is_not_this_records_contract_measurement_refuses
+    assert reason in capsys.readouterr().err
+E   AssertionError: assert '512 images' in '[anchor-reducer] REFUSED: NotReducible: /tmp/pytest-of-yschoi/pytest-1801/test_a_probe_that_is_not_this_6/S/runs/flickr25k_none_9_42/probe.json: the reported ratio is not hits/total\n'
+E    +  where '[anchor-reducer] REFUSED: NotReducible: /tmp/pytest-of-yschoi/pytest-1801/test_a_probe_that_is_not_this_6/S/runs/flickr25k_none_9_42/probe.json: the reported ratio is not hits/total\n' = CaptureResult(out='[anchor-reducer] wrote /tmp/pytest-of-yschoi/pytest-1801/test_a_probe_that_is_not_this_6/n.json sha...st-1801/test_a_probe_that_is_not_this_6/S/runs/flickr25k_none_9_42/probe.json: the reported ratio is not hits/total\n').err
+E    +    where CaptureResult(out='[anchor-reducer] wrote /tmp/pytest-of-yschoi/pytest-1801/test_a_probe_that_is_not_this_6/n.json sha...st-1801/test_a_probe_that_is_not_this_6/S/runs/flickr25k_none_9_42/probe.json: the reported ratio is not hits/total\n') = readouterr()
+E    +      where readouterr = <_pytest.capture.CaptureFixture object at 0x7fc7f058b490>.readouterr
+_ test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes7-512 images] _
+tests/test_anchor_confirm_reducer.py:1047: in test_a_probe_that_is_not_this_records_contract_measurement_refuses
+    assert reason in capsys.readouterr().err
+E   AssertionError: assert '512 images' in '[anchor-reducer] REFUSED: NotReducible: /tmp/pytest-of-yschoi/pytest-1801/test_a_probe_that_is_not_this_7/S/runs/flickr25k_none_9_42/probe.json: the reported ratio is not hits/total\n'
+E    +  where '[anchor-reducer] REFUSED: NotReducible: /tmp/pytest-of-yschoi/pytest-1801/test_a_probe_that_is_not_this_7/S/runs/flickr25k_none_9_42/probe.json: the reported ratio is not hits/total\n' = CaptureResult(out='[anchor-reducer] wrote /tmp/pytest-of-yschoi/pytest-1801/test_a_probe_that_is_not_this_7/n.json sha...st-1801/test_a_probe_that_is_not_this_7/S/runs/flickr25k_none_9_42/probe.json: the reported ratio is not hits/total\n').err
+E    +    where CaptureResult(out='[anchor-reducer] wrote /tmp/pytest-of-yschoi/pytest-1801/test_a_probe_that_is_not_this_7/n.json sha...st-1801/test_a_probe_that_is_not_this_7/S/runs/flickr25k_none_9_42/probe.json: the reported ratio is not hits/total\n') = readouterr()
+E    +      where readouterr = <_pytest.capture.CaptureFixture object at 0x7fc7f0576e30>.readouterr
+_ test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes8-512 images] _
+tests/test_anchor_confirm_reducer.py:1046: in test_a_probe_that_is_not_this_records_contract_measurement_refuses
+    assert run_decide(evidence, frozen, frozen_sha, tmp_path / "d.json") == 1
+E   AssertionError: assert 0 == 1
+E    +  where 0 = run_decide(<test_anchor_confirm_reducer.Evidence object at 0x7fc7f0577850>, '/tmp/pytest-of-yschoi/pytest-1801/test_a_probe_that_is_not_this_8/n.json', 'cfccc7f33be029eecb3e5c8e0cac1ad8d462edb0512defdded545080ed5d7c5b', (PosixPath('/tmp/pytest-of-yschoi/pytest-1801/test_a_probe_that_is_not_this_8') / 'd.json'))
+----------------------------- Captured stdout call -----------------------------
+[anchor-reducer] wrote /tmp/pytest-of-yschoi/pytest-1801/test_a_probe_that_is_not_this_8/n.json sha256 cfccc7f33be029eecb3e5c8e0cac1ad8d462edb0512defdded545080ed5d7c5b
+[anchor-reducer] wrote /tmp/pytest-of-yschoi/pytest-1801/test_a_probe_that_is_not_this_8/d.json sha256 79e0622f74bdec9be9f85d132b7f681399d28191b1be33c9bc7f1ecce23bb7ae
+_ test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes9-512 images] _
+tests/test_anchor_confirm_reducer.py:1046: in test_a_probe_that_is_not_this_records_contract_measurement_refuses
+    assert run_decide(evidence, frozen, frozen_sha, tmp_path / "d.json") == 1
+E   AssertionError: assert 0 == 1
+E    +  where 0 = run_decide(<test_anchor_confirm_reducer.Evidence object at 0x7fc7f058b640>, '/tmp/pytest-of-yschoi/pytest-1801/test_a_probe_that_is_not_this_9/n.json', '63e1a3a3dfccb6dfb75e95652d487f8bf6de43a578710b797e86f2d95098764f', (PosixPath('/tmp/pytest-of-yschoi/pytest-1801/test_a_probe_that_is_not_this_9') / 'd.json'))
+----------------------------- Captured stdout call -----------------------------
+[anchor-reducer] wrote /tmp/pytest-of-yschoi/pytest-1801/test_a_probe_that_is_not_this_9/n.json sha256 63e1a3a3dfccb6dfb75e95652d487f8bf6de43a578710b797e86f2d95098764f
+[anchor-reducer] wrote /tmp/pytest-of-yschoi/pytest-1801/test_a_probe_that_is_not_this_9/d.json sha256 914b546e387a7ccb0fb4b85cc81a6eec006c2d037dcc072a964803082d84e7bd
+_ test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes10-512 images] _
+tests/test_anchor_confirm_reducer.py:1047: in test_a_probe_that_is_not_this_records_contract_measurement_refuses
+    assert reason in capsys.readouterr().err
+E   AssertionError: assert '512 images' in '[anchor-reducer] REFUSED: NotReducible: /tmp/pytest-of-yschoi/pytest-1801/test_a_probe_that_is_not_this_10/S/runs/flickr25k_none_9_42/probe.json: 3 ties do not fit -1 misses\n'
+E    +  where '[anchor-reducer] REFUSED: NotReducible: /tmp/pytest-of-yschoi/pytest-1801/test_a_probe_that_is_not_this_10/S/runs/flickr25k_none_9_42/probe.json: 3 ties do not fit -1 misses\n' = CaptureResult(out='[anchor-reducer] wrote /tmp/pytest-of-yschoi/pytest-1801/test_a_probe_that_is_not_this_10/n.json sh...hoi/pytest-1801/test_a_probe_that_is_not_this_10/S/runs/flickr25k_none_9_42/probe.json: 3 ties do not fit -1 misses\n').err
+E    +    where CaptureResult(out='[anchor-reducer] wrote /tmp/pytest-of-yschoi/pytest-1801/test_a_probe_that_is_not_this_10/n.json sh...hoi/pytest-1801/test_a_probe_that_is_not_this_10/S/runs/flickr25k_none_9_42/probe.json: 3 ties do not fit -1 misses\n') = readouterr()
+E    +      where readouterr = <_pytest.capture.CaptureFixture object at 0x7fc7f039b130>.readouterr
+=========================== short test summary info ============================
+FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes6-512 images]
+FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes7-512 images]
+FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes8-512 images]
+FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes9-512 images]
+FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes10-512 images]
+5 failed, 25 passed in 20.40s

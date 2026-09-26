@@ -1,0 +1,9 @@
+.F                                                                       [100%]
+=================================== FAILURES ===================================
+__ test_the_carried_authority_is_the_approved_bytes_while_it_is_parsed[True] ___
+tests/test_anchor_confirm_launcher.py:789: in test_the_carried_authority_is_the_approved_bytes_while_it_is_parsed
+    assert rc == 2 and "carried admission authority is not the approved" in capsys.readouterr().err
+E   assert (0 == 2)
+=========================== short test summary info ============================
+FAILED tests/test_anchor_confirm_launcher.py::test_the_carried_authority_is_the_approved_bytes_while_it_is_parsed[True]
+1 failed, 1 passed in 4.88s

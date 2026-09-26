@@ -1,0 +1,20 @@
+FF.....                                                                  [100%]
+=================================== FAILURES ===================================
+_ test_inconsistent_input_bindings_refuse_before_publication[record_seal_digest-input authority is not the campaign's admitted] _
+tests/test_anchor_confirm_reducer.py:769: in test_inconsistent_input_bindings_refuse_before_publication
+    assert run_select(world, tmp_path / "o.json") == 1
+E   AssertionError: assert 0 == 1
+E    +  where 0 = run_select(<test_anchor_confirm_reducer.World object at 0x7f77a87ce380>, (PosixPath('/tmp/pytest-of-yschoi/pytest-1781/test_inconsistent_input_bindin0') / 'o.json'))
+----------------------------- Captured stdout call -----------------------------
+[anchor-reducer] wrote /tmp/pytest-of-yschoi/pytest-1781/test_inconsistent_input_bindin0/o.json sha256 d0a54d67cb1f7fcdb0e95bc44375a0a45a82be71a2ba6fb3f536884dcf9980ab
+_ test_inconsistent_input_bindings_refuse_before_publication[record_authority_empty-input authority is not the campaign's admitted] _
+tests/test_anchor_confirm_reducer.py:769: in test_inconsistent_input_bindings_refuse_before_publication
+    assert run_select(world, tmp_path / "o.json") == 1
+E   AssertionError: assert 0 == 1
+E    +  where 0 = run_select(<test_anchor_confirm_reducer.World object at 0x7f77a87abdc0>, (PosixPath('/tmp/pytest-of-yschoi/pytest-1781/test_inconsistent_input_bindin1') / 'o.json'))
+----------------------------- Captured stdout call -----------------------------
+[anchor-reducer] wrote /tmp/pytest-of-yschoi/pytest-1781/test_inconsistent_input_bindin1/o.json sha256 a3843ee3177adcc8a528947b95fc3225a65f3a416cf2357cdbba36ca03c59d3c
+=========================== short test summary info ============================
+FAILED tests/test_anchor_confirm_reducer.py::test_inconsistent_input_bindings_refuse_before_publication[record_seal_digest-input authority is not the campaign's admitted]
+FAILED tests/test_anchor_confirm_reducer.py::test_inconsistent_input_bindings_refuse_before_publication[record_authority_empty-input authority is not the campaign's admitted]
+2 failed, 5 passed in 5.82s

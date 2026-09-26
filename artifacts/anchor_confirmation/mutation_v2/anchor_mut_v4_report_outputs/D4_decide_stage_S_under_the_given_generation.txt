@@ -1,0 +1,12 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____________ test_decide_refuses_stage_s_from_another_generation ______________
+tests/test_anchor_confirm_reducer.py:1107: in test_decide_refuses_stage_s_from_another_generation
+    assert "stage S ran under another generation manifest" in capsys.readouterr().err
+E   assert 'stage S ran under another generation manifest' in "[anchor-reducer] REFUSED: CellRefused: ledger section 900 approves stage-S-run for {'manifest': '99999999999999999999...888888', 'request': '71dde855f6d581c2b0e915986cb3ddf30a31eb4bc652bbee79b62cb829bbefa7'} (version 'anchor-confirm/1')\n"
+E    +  where "[anchor-reducer] REFUSED: CellRefused: ledger section 900 approves stage-S-run for {'manifest': '99999999999999999999...888888', 'request': '71dde855f6d581c2b0e915986cb3ddf30a31eb4bc652bbee79b62cb829bbefa7'} (version 'anchor-confirm/1')\n" = CaptureResult(out='[anchor-reducer] wrote /tmp/pytest-of-yschoi/pytest-1789/test_decide_refuses_stage_s_fr0/n.json sha...88888', 'request': '71dde855f6d581c2b0e915986cb3ddf30a31eb4bc652bbee79b62cb829bbefa7'} (version 'anchor-confirm/1')\n").err
+E    +    where CaptureResult(out='[anchor-reducer] wrote /tmp/pytest-of-yschoi/pytest-1789/test_decide_refuses_stage_s_fr0/n.json sha...88888', 'request': '71dde855f6d581c2b0e915986cb3ddf30a31eb4bc652bbee79b62cb829bbefa7'} (version 'anchor-confirm/1')\n") = readouterr()
+E    +      where readouterr = <_pytest.capture.CaptureFixture object at 0x7faef92c0b80>.readouterr
+=========================== short test summary info ============================
+FAILED tests/test_anchor_confirm_reducer.py::test_decide_refuses_stage_s_from_another_generation
+1 failed in 5.10s

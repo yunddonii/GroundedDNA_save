@@ -1,0 +1,11 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_decide_refuses_a_stage_s_from_another_generation _____________
+tests/test_anchor_confirm_launcher.py:600: in test_decide_refuses_a_stage_s_from_another_generation
+    assert run_main(monkeypatch, "--anchor-confirm", "decide", "--namespace", "ancT", "--run",
+E   AssertionError: assert 0 == 2
+E    +  where 0 = run_main(<_pytest.monkeypatch.MonkeyPatch object at 0x7fa637155450>, '--anchor-confirm', 'decide', '--namespace', 'ancT', '--run', '--anchor-selection', '/frozen.json', '--anchor-selection-sha256', ('1' * 64), *['--anchor-manifest', '/tmp/pytest-of-yschoi/pytest-1786/test_decide_refuses_a_stage_s_0/manifest.json', '--anchor-manifest-sha256', '0d6f3a81910fee5d6df784594eaa4250d2ea2d5657fb3d82e9509d9524e71121'])
+E    +    where ['--anchor-manifest', '/tmp/pytest-of-yschoi/pytest-1786/test_decide_refuses_a_stage_s_0/manifest.json', '--anchor-manifest-sha256', '0d6f3a81910fee5d6df784594eaa4250d2ea2d5657fb3d82e9509d9524e71121'] = with_manifest(PosixPath('/tmp/pytest-of-yschoi/pytest-1786/test_decide_refuses_a_stage_s_0'))
+=========================== short test summary info ============================
+FAILED tests/test_anchor_confirm_launcher.py::test_decide_refuses_a_stage_s_from_another_generation
+1 failed in 4.66s

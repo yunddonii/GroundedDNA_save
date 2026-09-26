@@ -1,0 +1,1563 @@
+{
+ "sandbox": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v3_sb",
+ "baseline": {
+  "tests/test_anchor_confirm_launcher.py::test_a_cell_off_the_approved_recipe_refuses": 0,
+  "tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval": 0,
+  "tests/test_anchor_confirm_launcher.py::test_a_changed_smoke_is_not_covered_by_the_old_approval": 0,
+  "tests/test_anchor_confirm_launcher.py::test_a_manifest_of_another_tree_refuses_in_every_mode": 0,
+  "tests/test_anchor_confirm_launcher.py::test_a_manifest_that_is_not_this_generation_refuses": 0,
+  "tests/test_anchor_confirm_launcher.py::test_a_protocol_value_off_the_contract_refuses_in_every_mode": 0,
+  "tests/test_anchor_confirm_launcher.py::test_a_substituted_contract_at_its_correct_hash_refuses": 0,
+  "tests/test_anchor_confirm_launcher.py::test_a_third_occurrence_injected_into_the_actual_composition_refuses": 0,
+  "tests/test_anchor_confirm_launcher.py::test_an_approved_execution_verifies_its_inputs_then_reaches_only_the_lease": 0,
+  "tests/test_anchor_confirm_launcher.py::test_an_input_seal_that_does_not_verify_refuses_before_any_lease": 0,
+  "tests/test_anchor_confirm_launcher.py::test_an_invalid_scientific_request_refuses_in_every_mode_before_any_boundary": 0,
+  "tests/test_anchor_confirm_launcher.py::test_arms_differ_in_the_axis_flag_and_tag_alone": 0,
+  "tests/test_anchor_confirm_launcher.py::test_both_arms_off_the_protocol_refuse_although_they_differ_in_the_axis_alone": 0,
+  "tests/test_anchor_confirm_launcher.py::test_both_historical_pins_wrong_refuses": 0,
+  "tests/test_anchor_confirm_launcher.py::test_completion_refuses_what_is_not_the_sealed_recipe": 0,
+  "tests/test_anchor_confirm_launcher.py::test_decide_refuses_a_stage_s_from_another_generation": 0,
+  "tests/test_anchor_confirm_launcher.py::test_execution_without_an_approval_refuses_before_inputs_and_leases": 0,
+  "tests/test_anchor_confirm_launcher.py::test_execution_without_the_generation_manifest_refuses": 0,
+  "tests/test_anchor_confirm_launcher.py::test_protocol_fields_fix_the_stage_1_horizons_and_the_smoke_shortens_them_alone": 0,
+  "tests/test_anchor_confirm_launcher.py::test_render_refuses_a_missing_whitening_file_instead_of_letting_the_script_build_it": 0,
+  "tests/test_anchor_confirm_launcher.py::test_render_refuses_a_script_that_is_not_the_pinned_bytes": 0,
+  "tests/test_anchor_confirm_launcher.py::test_run_cell_refuses_an_anchor_cell_without_a_sealed_recipe": 0,
+  "tests/test_anchor_confirm_launcher.py::test_the_actual_wrapper_composition_repeats_exactly_the_reviewed_overrides": 0,
+  "tests/test_anchor_confirm_launcher.py::test_the_refit_path_refuses_an_anchor_arm": 0,
+  "tests/test_anchor_confirm_port.py": 0,
+  "tests/test_anchor_confirm_recipe.py": 0,
+  "tests/test_anchor_confirm_recipe.py::test_a_bool_saved_for_a_float_field_is_a_difference": 0,
+  "tests/test_anchor_confirm_recipe.py::test_a_post_processed_field_that_is_absent_refuses": 0,
+  "tests/test_anchor_confirm_recipe.py::test_a_post_processed_value_of_another_type_refuses": 0,
+  "tests/test_anchor_confirm_recipe.py::test_a_sealed_recipe_outside_an_anchor_cell_refuses": 0,
+  "tests/test_anchor_confirm_recipe.py::test_an_anchor_cell_without_its_sealed_recipe_refuses": 0,
+  "tests/test_anchor_confirm_recipe.py::test_an_unreviewed_or_conflicting_repeat_cannot_be_sealed": 0,
+  "tests/test_anchor_confirm_recipe.py::test_any_other_override_sequence_refuses": 0,
+  "tests/test_anchor_confirm_recipe.py::test_resolve_save_path_carries_the_recipe_digest_into_the_campaign_binding": 0,
+  "tests/test_anchor_confirm_recipe.py::test_resolve_save_path_refuses_before_any_directory_or_claim": 0,
+  "tests/test_anchor_confirm_recipe.py::test_sealed_recipe_with_the_real_quoted_tokenizer_path_is_accepted": 0,
+  "tests/test_anchor_confirm_recipe.py::test_the_wrapper_literal_then_one_override_is_admitted_for_every_reviewed_destination": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_campaign_that_names_no_generation_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_campaign_under_another_generation_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_campaign_without_an_approval_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_campaign_without_its_request_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_frozen_n_record_that_its_evidence_does_not_reproduce_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_kept_control_at_the_approved_n_names_the_old_refit_only_as_conditional": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_probe_coordinate_of_another_type_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_receipt_cell_without_its_campaign_proof_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_receipt_of_another_namespace_than_its_request_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_record_outside_its_approved_request_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_record_that_is_not_train_only_terminal_evidence_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_record_the_receipt_does_not_list_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_record_without_its_completed_recipe_check_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_recorded_approval_line_that_is_not_the_ledgers_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_request_edited_after_its_approval_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_sealed_recipe_off_its_declared_digest_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_sealed_recipe_off_the_contract_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_self_pinned_reuse_admission_is_not_approval": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_smoke_approval_is_not_a_run_approval": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_snapshot_of_another_campaign_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_withdrawn_approval_line_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_an_approval_changed_after_the_run_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_an_empty_campaign_binding_on_both_sides_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_an_input_changed_after_it_was_read_refuses_the_write": 0,
+  "tests/test_anchor_confirm_reducer.py::test_config_bytes_off_their_pin_refuse_without_deserialising": 0,
+  "tests/test_anchor_confirm_reducer.py::test_decide_refuses_stage_s_from_another_generation": 0,
+  "tests/test_anchor_confirm_reducer.py::test_invalid_features_refuse_instead_of_scoring": 0,
+  "tests/test_anchor_confirm_reducer.py::test_probes_approved_for_other_records_refuse": 0,
+  "tests/test_anchor_confirm_reducer.py::test_probes_must_share_one_row_population_per_dataset": 0,
+  "tests/test_anchor_confirm_reducer.py::test_retrieval_exactly_at_the_margin_passes": 0,
+  "tests/test_anchor_confirm_reducer.py::test_select_reduces_new_evidence_to_the_argmax_n_and_writes_once": 0,
+  "tests/test_anchor_confirm_reducer.py::test_strict_hits_count_aligned_permuted_and_tied_rows": 0,
+  "tests/test_anchor_confirm_reducer.py::test_the_probe_cli_refuses_an_approval_of_another_operation": 0,
+  "tests/test_anchor_confirm_reducer.py::test_the_probe_refuses_a_coordinate_outside_the_approved_selection": 0,
+  "tests/test_anchor_confirm_reducer.py::test_the_probe_refuses_a_record_from_another_generation_before_any_binary_load": 0,
+  "tests/test_anchor_confirm_reducer.py::test_the_probe_refuses_inputs_other_than_the_records_admitted_ones": 0,
+  "tests/test_anchor_confirm_reducer.py::test_ties_go_to_the_smallest_n": 0
+ },
+ "mutants": [
+  {
+   "mutant": "R1 unreviewed repeat refused",
+   "file": "dna_utils/scientific_recipe.py",
+   "tests": [
+    "tests/test_anchor_confirm_recipe.py::test_an_unreviewed_or_conflicting_repeat_cannot_be_sealed"
+   ],
+   "expect": "DID NOT RAISE",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_recipe.py::test_an_unreviewed_or_conflicting_repeat_cannot_be_sealed[extra1-outside the reviewed]",
+    "FAILED tests/test_anchor_confirm_recipe.py::test_an_unreviewed_or_conflicting_repeat_cannot_be_sealed[extra2-outside the reviewed]",
+    "FAILED tests/test_anchor_confirm_recipe.py::test_an_unreviewed_or_conflicting_repeat_cannot_be_sealed[extra3-outside the reviewed]"
+   ],
+   "seconds": 5.2
+  },
+  {
+   "mutant": "R2 exactly two occurrences",
+   "file": "dna_utils/scientific_recipe.py",
+   "tests": [
+    "tests/test_anchor_confirm_recipe.py::test_any_other_override_sequence_refuses",
+    "tests/test_anchor_confirm_launcher.py::test_a_third_occurrence_injected_into_the_actual_composition_refuses"
+   ],
+   "expect": "DID NOT RAISE",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_recipe.py::test_any_other_override_sequence_refuses[argv0-given 3 times]",
+    "FAILED tests/test_anchor_confirm_recipe.py::test_any_other_override_sequence_refuses[argv1-given 3 times]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_third_occurrence_injected_into_the_actual_composition_refuses"
+   ],
+   "seconds": 6.1
+  },
+  {
+   "mutant": "R3 first occurrence is the wrapper literal",
+   "file": "dna_utils/scientific_recipe.py",
+   "tests": [
+    "tests/test_anchor_confirm_recipe.py::test_any_other_override_sequence_refuses"
+   ],
+   "expect": "DID NOT RAISE",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_recipe.py::test_any_other_override_sequence_refuses[argv2-not the reviewed wrapper literal]",
+    "FAILED tests/test_anchor_confirm_recipe.py::test_any_other_override_sequence_refuses[argv3-not the reviewed wrapper literal]",
+    "FAILED tests/test_anchor_confirm_recipe.py::test_any_other_override_sequence_refuses[argv4-not the reviewed wrapper literal]",
+    "FAILED tests/test_anchor_confirm_recipe.py::test_any_other_override_sequence_refuses[argv5-not the reviewed wrapper literal]",
+    "FAILED tests/test_anchor_confirm_recipe.py::test_any_other_override_sequence_refuses[argv6-not the reviewed wrapper literal]"
+   ],
+   "seconds": 5.3
+  },
+  {
+   "mutant": "R4 axis_center never repeated (named)",
+   "file": "dna_utils/scientific_recipe.py",
+   "tests": [
+    "tests/test_anchor_confirm_recipe.py::test_an_unreviewed_or_conflicting_repeat_cannot_be_sealed"
+   ],
+   "expect": "Regex pattern did not match",
+   "note": "defense in depth: another guard still refuses; detected by the reason assertion (the general repeat guard names axis_center)",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_recipe.py::test_an_unreviewed_or_conflicting_repeat_cannot_be_sealed[extra0-more than once]"
+   ],
+   "seconds": 5.5
+  },
+  {
+   "mutant": "R5 value token captured in a span",
+   "file": "dna_utils/scientific_recipe.py",
+   "tests": [
+    "tests/test_anchor_confirm_recipe.py::test_the_wrapper_literal_then_one_override_is_admitted_for_every_reviewed_destination"
+   ],
+   "expect": "not the reviewed wrapper literal",
+   "note": "positive control refused",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_recipe.py::test_the_wrapper_literal_then_one_override_is_admitted_for_every_reviewed_destination"
+   ],
+   "seconds": 5.3
+  },
+  {
+   "mutant": "R6 literals are the pinned wrappers'",
+   "file": "dna_utils/scientific_recipe.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_the_actual_wrapper_composition_repeats_exactly_the_reviewed_overrides"
+   ],
+   "expect": "not the reviewed wrapper literal",
+   "note": "actual-composition positive control refused",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_the_actual_wrapper_composition_repeats_exactly_the_reviewed_overrides[none-flickr25k]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_the_actual_wrapper_composition_repeats_exactly_the_reviewed_overrides[none-nuswide]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_the_actual_wrapper_composition_repeats_exactly_the_reviewed_overrides[none-mscoco]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_the_actual_wrapper_composition_repeats_exactly_the_reviewed_overrides[anchors-flickr25k]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_the_actual_wrapper_composition_repeats_exactly_the_reviewed_overrides[anchors-nuswide]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_the_actual_wrapper_composition_repeats_exactly_the_reviewed_overrides[anchors-mscoco]"
+   ],
+   "seconds": 6.7
+  },
+  {
+   "mutant": "R7 runtime field presence",
+   "file": "dna_utils/scientific_recipe.py",
+   "tests": [
+    "tests/test_anchor_confirm_recipe.py::test_a_post_processed_field_that_is_absent_refuses"
+   ],
+   "expect": "DID NOT RAISE",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_recipe.py::test_a_post_processed_field_that_is_absent_refuses"
+   ],
+   "seconds": 5.2
+  },
+  {
+   "mutant": "R8 runtime typed value",
+   "file": "dna_utils/scientific_recipe.py",
+   "tests": [
+    "tests/test_anchor_confirm_recipe.py::test_a_post_processed_value_of_another_type_refuses"
+   ],
+   "expect": "DID NOT RAISE",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_recipe.py::test_a_post_processed_value_of_another_type_refuses[True]",
+    "FAILED tests/test_anchor_confirm_recipe.py::test_a_post_processed_value_of_another_type_refuses[1]"
+   ],
+   "seconds": 5.3
+  },
+  {
+   "mutant": "R9 type-sensitive field comparison",
+   "file": "dna_utils/scientific_recipe.py",
+   "tests": [
+    "tests/test_anchor_confirm_recipe.py::test_a_bool_saved_for_a_float_field_is_a_difference"
+   ],
+   "expect": "AssertionError|assert \\[\\]",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_recipe.py::test_a_bool_saved_for_a_float_field_is_a_difference"
+   ],
+   "seconds": 5.2
+  },
+  {
+   "mutant": "R10 anchor cell must carry its recipe",
+   "file": "dna_utils/scientific_recipe.py",
+   "tests": [
+    "tests/test_anchor_confirm_recipe.py::test_an_anchor_cell_without_its_sealed_recipe_refuses"
+   ],
+   "expect": "DID NOT RAISE",
+   "note": "the control-arm case is accepted; the anchors case is still refused by the axis guard",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_recipe.py::test_an_anchor_cell_without_its_sealed_recipe_refuses[anchors]",
+    "FAILED tests/test_anchor_confirm_recipe.py::test_an_anchor_cell_without_its_sealed_recipe_refuses[none]"
+   ],
+   "seconds": 5.2
+  },
+  {
+   "mutant": "R11 a sealed recipe only in an anchor cell",
+   "file": "dna_utils/scientific_recipe.py",
+   "tests": [
+    "tests/test_anchor_confirm_recipe.py::test_a_sealed_recipe_outside_an_anchor_cell_refuses"
+   ],
+   "expect": "DID NOT RAISE",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_recipe.py::test_a_sealed_recipe_outside_an_anchor_cell_refuses"
+   ],
+   "seconds": 5.1
+  },
+  {
+   "mutant": "R12 rebuilt digest equals the sealed digest",
+   "file": "dna_utils/scientific_recipe.py",
+   "tests": [
+    "tests/test_anchor_confirm_recipe.py"
+   ],
+   "expect": null,
+   "note": "expected SURVIVOR, unreachable by design: exact shape + schema + argv equality + type-sensitive field equality already imply digest equality",
+   "rc": 0,
+   "outcome": "SURVIVED (declared unreachable)",
+   "failed": [],
+   "seconds": 5.6
+  },
+  {
+   "mutant": "R13 tokenizer normalisation",
+   "file": "dna_utils/scientific_recipe.py",
+   "tests": [
+    "tests/test_anchor_confirm_recipe.py::test_sealed_recipe_with_the_real_quoted_tokenizer_path_is_accepted"
+   ],
+   "expect": "clip_snapshot_tokenizers_sha256_json",
+   "note": "positive control refused",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_recipe.py::test_sealed_recipe_with_the_real_quoted_tokenizer_path_is_accepted"
+   ],
+   "seconds": 5.3
+  },
+  {
+   "mutant": "T1 trainer calls the recipe check",
+   "file": "train_siglip2.py",
+   "tests": [
+    "tests/test_anchor_confirm_recipe.py::test_resolve_save_path_refuses_before_any_directory_or_claim",
+    "tests/test_anchor_confirm_recipe.py::test_resolve_save_path_carries_the_recipe_digest_into_the_campaign_binding"
+   ],
+   "expect": "DID NOT RAISE",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_recipe.py::test_resolve_save_path_refuses_before_any_directory_or_claim[conflict]",
+    "FAILED tests/test_anchor_confirm_recipe.py::test_resolve_save_path_refuses_before_any_directory_or_claim[no_recipe]",
+    "FAILED tests/test_anchor_confirm_recipe.py::test_resolve_save_path_refuses_before_any_directory_or_claim[runtime_none]",
+    "FAILED tests/test_anchor_confirm_recipe.py::test_resolve_save_path_carries_the_recipe_digest_into_the_campaign_binding"
+   ],
+   "seconds": 5.2
+  },
+  {
+   "mutant": "L1 protocol values checked",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_protocol_value_off_the_contract_refuses_in_every_mode",
+    "tests/test_anchor_confirm_launcher.py::test_both_arms_off_the_protocol_refuse_although_they_differ_in_the_axis_alone"
+   ],
+   "expect": "assert 0 == 2|DID NOT RAISE",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_protocol_value_off_the_contract_refuses_in_every_mode[mode0]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_protocol_value_off_the_contract_refuses_in_every_mode[mode1]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_protocol_value_off_the_contract_refuses_in_every_mode[mode2]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_both_arms_off_the_protocol_refuse_although_they_differ_in_the_axis_alone[appended0-disable_text_supervision]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_both_arms_off_the_protocol_refuse_although_they_differ_in_the_axis_alone[appended1-no_routing_adaptive_topp]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_both_arms_off_the_protocol_refuse_although_they_differ_in_the_axis_alone[appended2-final_epoch_eval]"
+   ],
+   "seconds": 6.5
+  },
+  {
+   "mutant": "L2 cell carries the approved recipe",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_cell_off_the_approved_recipe_refuses"
+   ],
+   "expect": "Regex pattern did not match",
+   "note": "defense in depth: another guard still refuses; detected by the reason assertion (the protocol check names the top-p)",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_cell_off_the_approved_recipe_refuses"
+   ],
+   "seconds": 5.8
+  },
+  {
+   "mutant": "L3 unsupervised invariant in the protocol",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_the_actual_wrapper_composition_repeats_exactly_the_reviewed_overrides",
+    "tests/test_anchor_confirm_launcher.py::test_protocol_fields_fix_the_stage_1_horizons_and_the_smoke_shortens_them_alone"
+   ],
+   "expect": "jaccard|siglip_cos",
+   "note": "positive controls refuse",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_the_actual_wrapper_composition_repeats_exactly_the_reviewed_overrides[none-flickr25k]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_the_actual_wrapper_composition_repeats_exactly_the_reviewed_overrides[none-nuswide]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_the_actual_wrapper_composition_repeats_exactly_the_reviewed_overrides[none-mscoco]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_the_actual_wrapper_composition_repeats_exactly_the_reviewed_overrides[anchors-flickr25k]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_the_actual_wrapper_composition_repeats_exactly_the_reviewed_overrides[anchors-nuswide]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_the_actual_wrapper_composition_repeats_exactly_the_reviewed_overrides[anchors-mscoco]"
+   ],
+   "seconds": 6.8
+  },
+  {
+   "mutant": "L4 arms differ in axis_center alone",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_an_invalid_scientific_request_refuses_in_every_mode_before_any_boundary"
+   ],
+   "expect": "assert 0 == 2",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_an_invalid_scientific_request_refuses_in_every_mode_before_any_boundary[mode0]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_an_invalid_scientific_request_refuses_in_every_mode_before_any_boundary[mode1]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_an_invalid_scientific_request_refuses_in_every_mode_before_any_boundary[mode2]"
+   ],
+   "seconds": 6.5
+  },
+  {
+   "mutant": "L5 execution needs the manifest",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_execution_without_the_generation_manifest_refuses"
+   ],
+   "expect": "assert 0 == 2",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (other reason)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_execution_without_the_generation_manifest_refuses[mode0]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_execution_without_the_generation_manifest_refuses[mode1]"
+   ],
+   "seconds": 6.4
+  },
+  {
+   "mutant": "L6 input seals verified before any lease",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_an_approved_execution_verifies_its_inputs_then_reaches_only_the_lease",
+    "tests/test_anchor_confirm_launcher.py::test_an_input_seal_that_does_not_verify_refuses_before_any_lease"
+   ],
+   "expect": "assert 0 == 2|assert \\['_with_campaign_gpu_leases'\\]",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_an_approved_execution_verifies_its_inputs_then_reaches_only_the_lease[mode0]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_an_approved_execution_verifies_its_inputs_then_reaches_only_the_lease[mode1]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_an_input_seal_that_does_not_verify_refuses_before_any_lease[mode0]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_an_input_seal_that_does_not_verify_refuses_before_any_lease[mode1]"
+   ],
+   "seconds": 7.3
+  },
+  {
+   "mutant": "L7 manifest: tree is the generation",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_manifest_that_is_not_this_generation_refuses",
+    "tests/test_anchor_confirm_launcher.py::test_a_manifest_of_another_tree_refuses_in_every_mode"
+   ],
+   "expect": "DID NOT RAISE|assert 0 == 2",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_manifest_that_is_not_this_generation_refuses[changes1-not the manifest's generation]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_manifest_of_another_tree_refuses_in_every_mode[mode0]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_manifest_of_another_tree_refuses_in_every_mode[mode1]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_manifest_of_another_tree_refuses_in_every_mode[mode2]"
+   ],
+   "seconds": 6.6
+  },
+  {
+   "mutant": "L8 manifest: wrapper pins",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_manifest_that_is_not_this_generation_refuses"
+   ],
+   "expect": "DID NOT RAISE",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_manifest_that_is_not_this_generation_refuses[changes5-dataset-script pins]"
+   ],
+   "seconds": 5.6
+  },
+  {
+   "mutant": "L9a manifest: approved-aggregate pin (one predicate)",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_manifest_that_is_not_this_generation_refuses",
+    "tests/test_anchor_confirm_launcher.py::test_both_historical_pins_wrong_refuses"
+   ],
+   "expect": "DID NOT RAISE|Regex pattern did not match",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_manifest_that_is_not_this_generation_refuses[changes6-approved-aggregate pin]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_both_historical_pins_wrong_refuses"
+   ],
+   "seconds": 5.6
+  },
+  {
+   "mutant": "L9b manifest: selected-N pin (one predicate)",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_manifest_that_is_not_this_generation_refuses"
+   ],
+   "expect": "DID NOT RAISE",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_manifest_that_is_not_this_generation_refuses[changes7-selected-N pin]"
+   ],
+   "seconds": 5.6
+  },
+  {
+   "mutant": "L10 manifest: designated contract",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_manifest_that_is_not_this_generation_refuses",
+    "tests/test_anchor_confirm_launcher.py::test_a_substituted_contract_at_its_correct_hash_refuses"
+   ],
+   "expect": "DID NOT RAISE",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_manifest_that_is_not_this_generation_refuses[changes8-not the designated]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_manifest_that_is_not_this_generation_refuses[changes9-not the designated]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_substituted_contract_at_its_correct_hash_refuses"
+   ],
+   "seconds": 5.6
+  },
+  {
+   "mutant": "L11 manifest: exact closure",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_manifest_that_is_not_this_generation_refuses"
+   ],
+   "expect": "DID NOT RAISE|Regex pattern did not match",
+   "note": "a missing member is accepted; an extra existing file still fails the drift check",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_manifest_that_is_not_this_generation_refuses[changes2-does not list the generation closure]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_manifest_that_is_not_this_generation_refuses[changes3-does not list the generation closure]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_manifest_that_is_not_this_generation_refuses[changes4-does not list the generation closure]"
+   ],
+   "seconds": 5.6
+  },
+  {
+   "mutant": "L12 manifest: commit, branch, clean (whole condition)",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_manifest_that_is_not_this_generation_refuses"
+   ],
+   "expect": "DID NOT RAISE",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_manifest_that_is_not_this_generation_refuses[changes10-commit, branch or clean flag]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_manifest_that_is_not_this_generation_refuses[changes11-commit, branch or clean flag]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_manifest_that_is_not_this_generation_refuses[changes12-commit, branch or clean flag]"
+   ],
+   "seconds": 5.6
+  },
+  {
+   "mutant": "L13 manifest: environment",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_manifest_that_is_not_this_generation_refuses"
+   ],
+   "expect": "DID NOT RAISE",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_manifest_that_is_not_this_generation_refuses[changes13-environment]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_manifest_that_is_not_this_generation_refuses[changes14-environment]"
+   ],
+   "seconds": 5.6
+  },
+  {
+   "mutant": "L14 decide: stage S under this generation",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_decide_refuses_a_stage_s_from_another_generation"
+   ],
+   "expect": "assert 0 == 2",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (other reason)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_decide_refuses_a_stage_s_from_another_generation"
+   ],
+   "seconds": 5.9
+  },
+  {
+   "mutant": "L15 render only pinned wrapper bytes",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_render_refuses_a_script_that_is_not_the_pinned_bytes"
+   ],
+   "expect": "a process was started",
+   "note": "the independent deny guard stops the wrapper process",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_render_refuses_a_script_that_is_not_the_pinned_bytes"
+   ],
+   "seconds": 5.6
+  },
+  {
+   "mutant": "L16 missing whitening refuses before the wrapper runs",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_render_refuses_a_missing_whitening_file_instead_of_letting_the_script_build_it"
+   ],
+   "expect": "a process was started",
+   "note": "the independent deny guard stops the wrapper: no real builder can run",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_render_refuses_a_missing_whitening_file_instead_of_letting_the_script_build_it"
+   ],
+   "seconds": 5.5
+  },
+  {
+   "mutant": "L17 no anchor refit in this generation",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_the_refit_path_refuses_an_anchor_arm"
+   ],
+   "expect": "DID NOT RAISE",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_the_refit_path_refuses_an_anchor_arm"
+   ],
+   "seconds": 5.5
+  },
+  {
+   "mutant": "L18 completion: saved config is the sealed recipe",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_completion_refuses_what_is_not_the_sealed_recipe"
+   ],
+   "expect": "DID NOT RAISE",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_completion_refuses_what_is_not_the_sealed_recipe[config_value-differs from the sealed recipe]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_completion_refuses_what_is_not_the_sealed_recipe[config_type-differs from the sealed recipe]"
+   ],
+   "seconds": 6.0
+  },
+  {
+   "mutant": "L19 run_cell needs the sealed recipe",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_run_cell_refuses_an_anchor_cell_without_a_sealed_recipe"
+   ],
+   "expect": "DID NOT RAISE|Regex pattern did not match",
+   "note": "later run_cell guards may still refuse",
+   "rc": 1,
+   "outcome": "KILLED (other reason)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_run_cell_refuses_an_anchor_cell_without_a_sealed_recipe"
+   ],
+   "seconds": 4.9
+  },
+  {
+   "mutant": "L20 the tag carries the arm",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_arms_differ_in_the_axis_flag_and_tag_alone"
+   ],
+   "expect": "assert",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_arms_differ_in_the_axis_flag_and_tag_alone[flickr25k]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_arms_differ_in_the_axis_flag_and_tag_alone[nuswide]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_arms_differ_in_the_axis_flag_and_tag_alone[mscoco]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_arms_differ_in_the_axis_flag_and_tag_alone[cifar10]"
+   ],
+   "seconds": 4.8
+  },
+  {
+   "mutant": "L21 execution needs the approval",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_execution_without_an_approval_refuses_before_inputs_and_leases",
+    "tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval"
+   ],
+   "expect": "assert 0 == 2",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_execution_without_an_approval_refuses_before_inputs_and_leases[mode0]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_execution_without_an_approval_refuses_before_inputs_and_leases[mode1]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval[change0]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval[change1]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval[change2]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval[change3]"
+   ],
+   "seconds": 8.1
+  },
+  {
+   "mutant": "L22a request binds the namespace",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval"
+   ],
+   "expect": "assert 0 == 2",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval[change0]"
+   ],
+   "seconds": 7.9
+  },
+  {
+   "mutant": "L22b request binds the result root",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval"
+   ],
+   "expect": "assert 0 == 2",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval[change1]"
+   ],
+   "seconds": 7.8
+  },
+  {
+   "mutant": "L22c request binds the cells",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval",
+    "tests/test_anchor_confirm_launcher.py::test_a_changed_smoke_is_not_covered_by_the_old_approval"
+   ],
+   "expect": "assert 0 == 2",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval[change2]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_changed_smoke_is_not_covered_by_the_old_approval[change1]"
+   ],
+   "seconds": 7.8
+  },
+  {
+   "mutant": "L22d request binds the smoke horizon",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_changed_smoke_is_not_covered_by_the_old_approval"
+   ],
+   "expect": "assert 0 == 2",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_changed_smoke_is_not_covered_by_the_old_approval[change0]"
+   ],
+   "seconds": 5.8
+  },
+  {
+   "mutant": "L22e request binds the input seals",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval"
+   ],
+   "expect": "assert 0 == 2",
+   "note": "",
+   "rc": 0,
+   "outcome": "SURVIVED",
+   "failed": [],
+   "seconds": 7.0
+  },
+  {
+   "mutant": "L22f request binds the admission authority",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval"
+   ],
+   "expect": "assert 0 == 2",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (other reason)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval[change4]"
+   ],
+   "seconds": 7.1
+  },
+  {
+   "mutant": "L22g request binds the GPU count",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval"
+   ],
+   "expect": "assert 0 == 2",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval[change3]"
+   ],
+   "seconds": 7.1
+  },
+  {
+   "mutant": "D1 reuse only through source approval",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_self_pinned_reuse_admission_is_not_approval"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_self_pinned_reuse_admission_is_not_approval[claims0]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_self_pinned_reuse_admission_is_not_approval[claims1]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_self_pinned_reuse_admission_is_not_approval[claims2]"
+   ],
+   "seconds": 5.6
+  },
+  {
+   "mutant": "D2 one generation for the chain",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_campaign_under_another_generation_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_campaign_under_another_generation_refuses"
+   ],
+   "seconds": 5.9
+  },
+  {
+   "mutant": "D3 campaign names a generation",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_campaign_that_names_no_generation_refuses"
+   ],
+   "expect": "assert 'names no generation manifest' in",
+   "note": "defense in depth: another guard still refuses; detected by the reason assertion (one_generation refuses the missing digest)",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_campaign_that_names_no_generation_refuses"
+   ],
+   "seconds": 6.0
+  },
+  {
+   "mutant": "D4 decide: stage S under the given generation",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_decide_refuses_stage_s_from_another_generation"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (other reason)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_decide_refuses_stage_s_from_another_generation"
+   ],
+   "seconds": 6.4
+  },
+  {
+   "mutant": "D5 type-exact coordinate labels",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_record_that_is_not_train_only_terminal_evidence_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_record_that_is_not_train_only_terminal_evidence_refuses[float_n]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_record_that_is_not_train_only_terminal_evidence_refuses[float_seed]"
+   ],
+   "seconds": 8.0
+  },
+  {
+   "mutant": "D6 type-exact split",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_record_that_is_not_train_only_terminal_evidence_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_record_that_is_not_train_only_terminal_evidence_refuses[float_split_seed]"
+   ],
+   "seconds": 7.9
+  },
+  {
+   "mutant": "D7 old refit only conditional",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_kept_control_at_the_approved_n_names_the_old_refit_only_as_conditional"
+   ],
+   "expect": "AssertionError|assert",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_kept_control_at_the_approved_n_names_the_old_refit_only_as_conditional"
+   ],
+   "seconds": 6.4
+  },
+  {
+   "mutant": "D8 selection replay",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_frozen_n_record_that_its_evidence_does_not_reproduce_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (other reason)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_frozen_n_record_that_its_evidence_does_not_reproduce_refuses"
+   ],
+   "seconds": 6.3
+  },
+  {
+   "mutant": "D9 probe counts",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (other reason)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes6-512 images]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes7-512 images]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes8-512 images]"
+   ],
+   "seconds": 19.8
+  },
+  {
+   "mutant": "D10 probe ratio is hits/total",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes9-not hits/total]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes20-not hits/total]"
+   ],
+   "seconds": 12.6
+  },
+  {
+   "mutant": "D10b probe ratio is a float (one predicate)",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes20-not hits/total]"
+   ],
+   "seconds": 12.6
+  },
+  {
+   "mutant": "D11 one row population per dataset",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_probes_must_share_one_row_population_per_dataset"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_probes_must_share_one_row_population_per_dataset"
+   ],
+   "seconds": 4.4
+  },
+  {
+   "mutant": "D12 probe producer",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes1-produced by another probe source]"
+   ],
+   "seconds": 12.6
+  },
+  {
+   "mutant": "D13 probe measured this record (whole condition)",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes2-measured another record]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes3-measured another record]"
+   ],
+   "seconds": 22.7
+  },
+  {
+   "mutant": "D14 retrieval equality passes",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_retrieval_exactly_at_the_margin_passes"
+   ],
+   "expect": "assert",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_retrieval_exactly_at_the_margin_passes"
+   ],
+   "seconds": 4.4
+  },
+  {
+   "mutant": "D15 ties to the smallest N",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_ties_go_to_the_smallest_n"
+   ],
+   "expect": "assert",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_ties_go_to_the_smallest_n"
+   ],
+   "seconds": 4.7
+  },
+  {
+   "mutant": "D16 reverify before the write",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_an_input_changed_after_it_was_read_refuses_the_write"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_an_input_changed_after_it_was_read_refuses_the_write"
+   ],
+   "seconds": 4.2
+  },
+  {
+   "mutant": "D17 write once",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_select_reduces_new_evidence_to_the_argmax_n_and_writes_once"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_select_reduces_new_evidence_to_the_argmax_n_and_writes_once"
+   ],
+   "seconds": 5.8
+  },
+  {
+   "mutant": "D18 receipt lists the record",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_record_the_receipt_does_not_list_refuses"
+   ],
+   "expect": "assert 'no completed cell' in",
+   "note": "defense in depth: another guard still refuses; detected by the reason assertion (the record/receipt listing check refuses)",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_record_the_receipt_does_not_list_refuses"
+   ],
+   "seconds": 4.0
+  },
+  {
+   "mutant": "D19 receipt campaign binding (whole condition)",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_an_empty_campaign_binding_on_both_sides_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_an_empty_campaign_binding_on_both_sides_refuses"
+   ],
+   "seconds": 5.6
+  },
+  {
+   "mutant": "D20 receipt completion pins",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_receipt_cell_without_its_campaign_proof_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_receipt_cell_without_its_campaign_proof_refuses[completion-value2-completion pins of]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_receipt_cell_without_its_campaign_proof_refuses[completion-value3-completion pins of]"
+   ],
+   "seconds": 6.5
+  },
+  {
+   "mutant": "D21 snapshot of this campaign",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_snapshot_of_another_campaign_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_snapshot_of_another_campaign_refuses"
+   ],
+   "seconds": 6.1
+  },
+  {
+   "mutant": "D22 approval present",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_campaign_without_an_approval_refuses"
+   ],
+   "expect": "assert 'names no audit approval' in",
+   "note": "defense in depth: another guard still refuses; detected by the reason assertion (the scope check refuses the missing approval)",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_campaign_without_an_approval_refuses"
+   ],
+   "seconds": 5.9
+  },
+  {
+   "mutant": "D23 approval scope",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_smoke_approval_is_not_a_run_approval"
+   ],
+   "expect": "assert \\\"ran under approval scope",
+   "note": "defense in depth: another guard still refuses; detected by the reason assertion (the ledger has no line for the run scope)",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_smoke_approval_is_not_a_run_approval"
+   ],
+   "seconds": 5.9
+  },
+  {
+   "mutant": "D24 approval re-verified in the ledger",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_withdrawn_approval_line_refuses",
+    "tests/test_anchor_confirm_reducer.py::test_an_approval_changed_after_the_run_refuses",
+    "tests/test_anchor_confirm_reducer.py::test_a_request_edited_after_its_approval_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_withdrawn_approval_line_refuses",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_an_approval_changed_after_the_run_refuses",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_request_edited_after_its_approval_refuses"
+   ],
+   "seconds": 6.7
+  },
+  {
+   "mutant": "D25 recorded line is the ledger's",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_recorded_approval_line_that_is_not_the_ledgers_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_recorded_approval_line_that_is_not_the_ledgers_refuses"
+   ],
+   "seconds": 6.0
+  },
+  {
+   "mutant": "D26 record inside its approved request (whole condition)",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_record_outside_its_approved_request_refuses",
+    "tests/test_anchor_confirm_reducer.py::test_a_receipt_of_another_namespace_than_its_request_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_record_outside_its_approved_request_refuses[request_changes0]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_record_outside_its_approved_request_refuses[request_changes1]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_record_outside_its_approved_request_refuses[request_changes2]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_record_outside_its_approved_request_refuses[request_changes3]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_record_outside_its_approved_request_refuses[request_changes4]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_record_outside_its_approved_request_refuses[request_changes5]"
+   ],
+   "seconds": 8.0
+  },
+  {
+   "mutant": "D27 request present",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_campaign_without_its_request_refuses"
+   ],
+   "expect": "assert 'names no execution request' in",
+   "note": "defense in depth: another guard still refuses; detected by the reason assertion (the approval does not match the digest of a missing request)",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_campaign_without_its_request_refuses"
+   ],
+   "seconds": 5.9
+  },
+  {
+   "mutant": "D28 sealed recipe shape",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_sealed_recipe_off_the_contract_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_sealed_recipe_off_the_contract_refuses[change0-the sealed recipe is malformed]"
+   ],
+   "seconds": 7.1
+  },
+  {
+   "mutant": "D29 sealed recipe declared digest",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_sealed_recipe_off_its_declared_digest_refuses"
+   ],
+   "expect": "assert 'not its declared digest' in",
+   "note": "defense in depth: another guard still refuses; detected by the reason assertion (the trainer evidence names the sealed digest)",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_sealed_recipe_off_its_declared_digest_refuses"
+   ],
+   "seconds": 6.4
+  },
+  {
+   "mutant": "D30 sealed recipe protocol values",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_sealed_recipe_off_the_contract_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_sealed_recipe_off_the_contract_refuses[change1-axis_center]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_sealed_recipe_off_the_contract_refuses[change2-stop_after_epoch]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_sealed_recipe_off_the_contract_refuses[change3-hash_target_mode]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_sealed_recipe_off_the_contract_refuses[change4-routing_adaptive_topp_min]"
+   ],
+   "seconds": 7.5
+  },
+  {
+   "mutant": "D31 completed recipe check in the record (whole condition)",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_record_without_its_completed_recipe_check_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_record_without_its_completed_recipe_check_refuses[change0]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_record_without_its_completed_recipe_check_refuses[change1]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_record_without_its_completed_recipe_check_refuses[change2]"
+   ],
+   "seconds": 6.7
+  },
+  {
+   "mutant": "D32 config bytes are their pin",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_config_bytes_off_their_pin_refuse_without_deserialising"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_config_bytes_off_their_pin_refuse_without_deserialising"
+   ],
+   "seconds": 6.1
+  },
+  {
+   "mutant": "D33 probe coordinate (whole condition)",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_probe_coordinate_of_another_type_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_coordinate_of_another_type_refuses"
+   ],
+   "seconds": 5.7
+  },
+  {
+   "mutant": "D34 probe execution authority",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes19-not measured under this record's execution authority]"
+   ],
+   "seconds": 20.7
+  },
+  {
+   "mutant": "D35 probe generation",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes21-produced under another generation]"
+   ],
+   "seconds": 20.3
+  },
+  {
+   "mutant": "D36 probe approval re-verified",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses",
+    "tests/test_anchor_confirm_reducer.py::test_probes_approved_for_other_records_refuse"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes23-sections numbered 999999]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_probes_approved_for_other_records_refuse"
+   ],
+   "seconds": 13.0
+  },
+  {
+   "mutant": "D37 probe split with exact types (one predicate)",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes25-train-only validation rows]"
+   ],
+   "seconds": 19.8
+  },
+  {
+   "mutant": "D38 probe split identity (whole condition)",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (other reason)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes24-admitted split identity]"
+   ],
+   "seconds": 18.4
+  },
+  {
+   "mutant": "D39 probe caption target (whole condition)",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes15-caption target is not the record's admitted input]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes16-caption target]"
+   ],
+   "seconds": 19.0
+  },
+  {
+   "mutant": "D40 probe ties bound",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes18-ties do not fit]"
+   ],
+   "seconds": 12.7
+  },
+  {
+   "mutant": "P1 probe: record under this generation",
+   "file": "scripts/anchor_confirm_code_axis.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_the_probe_refuses_a_record_from_another_generation_before_any_binary_load"
+   ],
+   "expect": "a binary was deserialised",
+   "note": "reaches the (sentinel) binary load",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_the_probe_refuses_a_record_from_another_generation_before_any_binary_load"
+   ],
+   "seconds": 5.7
+  },
+  {
+   "mutant": "P2 probe: ties are misses",
+   "file": "scripts/anchor_confirm_code_axis.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_strict_hits_count_aligned_permuted_and_tied_rows"
+   ],
+   "expect": "assert",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_strict_hits_count_aligned_permuted_and_tied_rows"
+   ],
+   "seconds": 6.0
+  },
+  {
+   "mutant": "P3 probe: zero norm refuses",
+   "file": "scripts/anchor_confirm_code_axis.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_invalid_features_refuse_instead_of_scoring"
+   ],
+   "expect": "Regex pattern did not match",
+   "note": "defense in depth: another guard still refuses; detected by the reason assertion (non-finite similarities)",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_invalid_features_refuse_instead_of_scoring[all_zero-zero norm]"
+   ],
+   "seconds": 5.9
+  },
+  {
+   "mutant": "P4 probe: finite inputs",
+   "file": "scripts/anchor_confirm_code_axis.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_invalid_features_refuse_instead_of_scoring"
+   ],
+   "expect": "Regex pattern did not match",
+   "note": "defense in depth: another guard still refuses; detected by the reason assertion (NaN norms fail the zero-norm check)",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_invalid_features_refuse_instead_of_scoring[nan-non-finite input]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_invalid_features_refuse_instead_of_scoring[inf-non-finite input]"
+   ],
+   "seconds": 5.8
+  },
+  {
+   "mutant": "P5 probe: coordinate of the approved selection",
+   "file": "scripts/anchor_confirm_code_axis.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_the_probe_refuses_a_coordinate_outside_the_approved_selection"
+   ],
+   "expect": "a binary was deserialised",
+   "note": "reaches the (sentinel) binary load",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_the_probe_refuses_a_coordinate_outside_the_approved_selection"
+   ],
+   "seconds": 6.0
+  },
+  {
+   "mutant": "P6 probe: inputs are the record's admitted inputs",
+   "file": "scripts/anchor_confirm_code_axis.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_the_probe_refuses_inputs_other_than_the_records_admitted_ones"
+   ],
+   "expect": "a model was constructed",
+   "note": "reaches the (sentinel) model construction",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_the_probe_refuses_inputs_other_than_the_records_admitted_ones"
+   ],
+   "seconds": 6.0
+  },
+  {
+   "mutant": "P7 probe CLI: the approval check",
+   "file": "scripts/anchor_confirm_code_axis.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_the_probe_cli_refuses_an_approval_of_another_operation"
+   ],
+   "expect": "assert",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_the_probe_cli_refuses_an_approval_of_another_operation[pins0]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_the_probe_cli_refuses_an_approval_of_another_operation[pins1]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_the_probe_cli_refuses_an_approval_of_another_operation[pins2]"
+   ],
+   "seconds": 7.7
+  },
+  {
+   "mutant": "M1 model gate",
+   "file": "model_siglip2.py",
+   "tests": [
+    "tests/test_anchor_confirm_port.py"
+   ],
+   "expect": "assert|Error",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_port.py::test_the_only_centring_call_is_gated_on_anchors"
+   ],
+   "seconds": 5.0
+  }
+ ],
+ "unreachable_by_synthetic_tests": {
+  "probe `_assert_phase3_runtime_rows` after the real dataset load": "needs a real dataset and cache; covered by the trainer's own row check tests, not here"
+ },
+ "counts": {
+  "KILLED (intended)": 82,
+  "KILLED (other reason)": 8,
+  "SURVIVED": 1,
+  "SURVIVED (declared unreachable)": 1
+ },
+ "real_tree_unchanged": true,
+ "real_tree_tracked_files": 1419
+}

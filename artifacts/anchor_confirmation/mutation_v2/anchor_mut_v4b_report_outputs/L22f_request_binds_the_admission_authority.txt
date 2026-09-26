@@ -1,0 +1,12 @@
+....F.                                                                   [100%]
+=================================== FAILURES ===================================
+______ test_a_changed_request_is_not_covered_by_the_old_approval[change4] ______
+tests/test_anchor_confirm_launcher.py:514: in test_a_changed_request_is_not_covered_by_the_old_approval
+    assert "approves stage-S-run for" in capsys.readouterr().err and boundaries == []
+E   assert ('approves stage-S-run for' in "[phase3] REFUSED: the carried admission authority is not the approved request's bytes\n")
+E    +  where "[phase3] REFUSED: the carried admission authority is not the approved request's bytes\n" = CaptureResult(out='', err="[phase3] REFUSED: the carried admission authority is not the approved request's bytes\n").err
+E    +    where CaptureResult(out='', err="[phase3] REFUSED: the carried admission authority is not the approved request's bytes\n") = readouterr()
+E    +      where readouterr = <_pytest.capture.CaptureFixture object at 0x7f876f56a110>.readouterr
+=========================== short test summary info ============================
+FAILED tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval[change4]
+1 failed, 5 passed in 6.34s

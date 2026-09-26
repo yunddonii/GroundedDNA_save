@@ -1,0 +1,20 @@
+FF                                                                       [100%]
+=================================== FAILURES ===================================
+________ test_execution_without_the_generation_manifest_refuses[mode0] _________
+tests/test_anchor_confirm_launcher.py:576: in test_execution_without_the_generation_manifest_refuses
+    assert "need --anchor-manifest" in capsys.readouterr().err and boundaries == []
+E   AssertionError: assert ('need --anchor-manifest' in '[phase3] REFUSED: an approval reference is a positive ledger section number, got None\n')
+E    +  where '[phase3] REFUSED: an approval reference is a positive ledger section number, got None\n' = CaptureResult(out='', err='[phase3] REFUSED: an approval reference is a positive ledger section number, got None\n').err
+E    +    where CaptureResult(out='', err='[phase3] REFUSED: an approval reference is a positive ledger section number, got None\n') = readouterr()
+E    +      where readouterr = <_pytest.capture.CaptureFixture object at 0x7f90c3b38df0>.readouterr
+________ test_execution_without_the_generation_manifest_refuses[mode1] _________
+tests/test_anchor_confirm_launcher.py:576: in test_execution_without_the_generation_manifest_refuses
+    assert "need --anchor-manifest" in capsys.readouterr().err and boundaries == []
+E   AssertionError: assert ('need --anchor-manifest' in '[phase3] REFUSED: an approval reference is a positive ledger section number, got None\n')
+E    +  where '[phase3] REFUSED: an approval reference is a positive ledger section number, got None\n' = CaptureResult(out='', err='[phase3] REFUSED: an approval reference is a positive ledger section number, got None\n').err
+E    +    where CaptureResult(out='', err='[phase3] REFUSED: an approval reference is a positive ledger section number, got None\n') = readouterr()
+E    +      where readouterr = <_pytest.capture.CaptureFixture object at 0x7f8c847072b0>.readouterr
+=========================== short test summary info ============================
+FAILED tests/test_anchor_confirm_launcher.py::test_execution_without_the_generation_manifest_refuses[mode0]
+FAILED tests/test_anchor_confirm_launcher.py::test_execution_without_the_generation_manifest_refuses[mode1]
+2 failed in 4.60s

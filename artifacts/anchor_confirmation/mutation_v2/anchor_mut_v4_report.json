@@ -1,0 +1,421 @@
+{
+ "sandbox": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_sb",
+ "baseline": {
+  "tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval": 0,
+  "tests/test_anchor_confirm_launcher.py::test_a_generation_drifting_during_input_admission_refuses_before_the_lease": 0,
+  "tests/test_anchor_confirm_launcher.py::test_a_generation_drifting_inside_the_sweep_stops_before_its_next_boundary": 0,
+  "tests/test_anchor_confirm_launcher.py::test_a_member_changed_after_admission_refuses": 0,
+  "tests/test_anchor_confirm_launcher.py::test_a_module_imported_from_other_bytes_refuses": 0,
+  "tests/test_anchor_confirm_launcher.py::test_a_seal_changed_after_its_approval_refuses_before_the_lease": 0,
+  "tests/test_anchor_confirm_launcher.py::test_decide_refuses_a_stage_s_from_another_generation": 0,
+  "tests/test_anchor_confirm_launcher.py::test_execution_without_the_generation_manifest_refuses": 0,
+  "tests/test_anchor_confirm_launcher.py::test_run_cell_refuses_an_anchor_cell_without_a_sealed_recipe": 0,
+  "tests/test_anchor_confirm_launcher.py::test_seals_readmitted_after_the_lease_must_still_be_the_approved_ones": 0,
+  "tests/test_anchor_confirm_launcher.py::test_the_carried_authority_is_the_approved_bytes_while_it_is_parsed": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_consistently_other_split_identity_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_frozen_n_record_that_its_evidence_does_not_reproduce_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_request_approved_for_other_seals_refuses": 0,
+  "tests/test_anchor_confirm_reducer.py::test_decide_refuses_stage_s_from_another_generation": 0,
+  "tests/test_anchor_confirm_reducer.py::test_inconsistent_input_bindings_refuse_before_publication": 0,
+  "tests/test_anchor_confirm_reducer.py::test_the_probe_rechecks_its_generation_before_its_first_load": 0,
+  "tests/test_anchor_confirm_reducer.py::test_the_reducer_publishes_nothing_if_its_generation_drifts_before_publication": 0
+ },
+ "mutants": [
+  {
+   "mutant": "N1 admitted seals are the approved request's (before the lease)",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_seal_changed_after_its_approval_refuses_before_the_lease"
+   ],
+   "expect": "assert 0 == 2",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_seal_changed_after_its_approval_refuses_before_the_lease"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_report_outputs/N1_admitted_seals_are_the_approved_request_s_before_the_lease_.txt",
+   "seconds": 6.3
+  },
+  {
+   "mutant": "N2 carried authority bytes are the approved pin while parsed",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_the_carried_authority_is_the_approved_bytes_while_it_is_parsed"
+   ],
+   "expect": "assert 0 == 2",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (other reason)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_the_carried_authority_is_the_approved_bytes_while_it_is_parsed[True]"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_report_outputs/N2_carried_authority_bytes_are_the_approved_pin_while_parsed.txt",
+   "seconds": 6.6
+  },
+  {
+   "mutant": "N4 re-admitted seals after the lease are the approved request's",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_seals_readmitted_after_the_lease_must_still_be_the_approved_ones"
+   ],
+   "expect": "assert (0|1) == 2",
+   "note": "the sweep proceeds past the lease with foreign seals",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_seals_readmitted_after_the_lease_must_still_be_the_approved_ones"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_report_outputs/N4_re_admitted_seals_after_the_lease_are_the_approved_request_s.txt",
+   "seconds": 5.7
+  },
+  {
+   "mutant": "N3 generation re-verified after input admission",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_generation_drifting_during_input_admission_refuses_before_the_lease"
+   ],
+   "expect": "assert 0 == 2",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_generation_drifting_during_input_admission_refuses_before_the_lease"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_report_outputs/N3_generation_re_verified_after_input_admission.txt",
+   "seconds": 6.2
+  },
+  {
+   "mutant": "N5 generation re-verified after the lease",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_generation_drifting_inside_the_sweep_stops_before_its_next_boundary"
+   ],
+   "expect": "assert 0 == 2",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_generation_drifting_inside_the_sweep_stops_before_its_next_boundary[after the lease-2]"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_report_outputs/N5_generation_re_verified_after_the_lease.txt",
+   "seconds": 6.1
+  },
+  {
+   "mutant": "N6 generation re-verified before every cell",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_generation_drifting_inside_the_sweep_stops_before_its_next_boundary"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_generation_drifting_inside_the_sweep_stops_before_its_next_boundary[before -1]"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_report_outputs/N6_generation_re_verified_before_every_cell.txt",
+   "seconds": 5.6
+  },
+  {
+   "mutant": "N7 generation re-verified before the receipt",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_generation_drifting_inside_the_sweep_stops_before_its_next_boundary"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_generation_drifting_inside_the_sweep_stops_before_its_next_boundary[before the receipt-1]"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_report_outputs/N7_generation_re_verified_before_the_receipt.txt",
+   "seconds": 5.8
+  },
+  {
+   "mutant": "N9 recheck reads every pinned file",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_member_changed_after_admission_refuses"
+   ],
+   "expect": "DID NOT RAISE",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_member_changed_after_admission_refuses[scripts/anchor_confirm_decision.py]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_member_changed_after_admission_refuses[scripts/anchor_confirm_code_axis.py]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_member_changed_after_admission_refuses[scripts/anchor_confirm_manifest.py]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_member_changed_after_admission_refuses[docs/ANCHOR_CONFIRMATION_CONTRACT_v2.md]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_member_changed_after_admission_refuses[tests/test_anchor_confirm_reducer.py]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_member_changed_after_admission_refuses[config.py]"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_report_outputs/N9_recheck_reads_every_pinned_file.txt",
+   "seconds": 5.7
+  },
+  {
+   "mutant": "N10 recheck binds the imported bytes",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_module_imported_from_other_bytes_refuses"
+   ],
+   "expect": "DID NOT RAISE",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_module_imported_from_other_bytes_refuses"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_report_outputs/N10_recheck_binds_the_imported_bytes.txt",
+   "seconds": 5.5
+  },
+  {
+   "mutant": "N11 campaign seals are its approved request's",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_inconsistent_input_bindings_refuse_before_publication",
+    "tests/test_anchor_confirm_reducer.py::test_a_request_approved_for_other_seals_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_inconsistent_input_bindings_refuse_before_publication[snapshot_seal_digest-admitted input seals are not its approved request's]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_inconsistent_input_bindings_refuse_before_publication[snapshot_seals_missing-admitted input seals are not its approved request's]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_inconsistent_input_bindings_refuse_before_publication[snapshot_and_records_agree_on_another_seal-admitted input seals are not its approved request's]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_request_approved_for_other_seals_refuses[request_seals0]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_request_approved_for_other_seals_refuses[request_seals1]"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_report_outputs/N11_campaign_seals_are_its_approved_request_s.txt",
+   "seconds": 7.5
+  },
+  {
+   "mutant": "N12 record input authority is the admitted seal",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_inconsistent_input_bindings_refuse_before_publication"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_inconsistent_input_bindings_refuse_before_publication[record_seal_digest-input authority is not the campaign's admitted]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_inconsistent_input_bindings_refuse_before_publication[record_authority_empty-input authority is not the campaign's admitted]"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_report_outputs/N12_record_input_authority_is_the_admitted_seal.txt",
+   "seconds": 7.0
+  },
+  {
+   "mutant": "N13 launch and cell bindings carry the admitted seal",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_inconsistent_input_bindings_refuse_before_publication"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_inconsistent_input_bindings_refuse_before_publication[launch_binding_seal-launch or cell binding's input_seal_sha256]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_inconsistent_input_bindings_refuse_before_publication[cell_binding_split-launch or cell binding's split_identity_sha256]"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_report_outputs/N13_launch_and_cell_bindings_carry_the_admitted_seal.txt",
+   "seconds": 7.1
+  },
+  {
+   "mutant": "N14 reducer re-verifies its generation before publishing",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_the_reducer_publishes_nothing_if_its_generation_drifts_before_publication"
+   ],
+   "expect": "assert",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_the_reducer_publishes_nothing_if_its_generation_drifts_before_publication"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_report_outputs/N14_reducer_re_verifies_its_generation_before_publishing.txt",
+   "seconds": 6.1
+  },
+  {
+   "mutant": "N16 probe re-verifies its generation before its first load",
+   "file": "scripts/anchor_confirm_code_axis.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_the_probe_rechecks_its_generation_before_its_first_load"
+   ],
+   "expect": "a binary was deserialised",
+   "note": "reaches the (sentinel) first load",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_the_probe_rechecks_its_generation_before_its_first_load"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_report_outputs/N16_probe_re_verifies_its_generation_before_its_first_load.txt",
+   "seconds": 6.1
+  },
+  {
+   "mutant": "L5 execution needs the manifest",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_execution_without_the_generation_manifest_refuses"
+   ],
+   "expect": "assert 'need --anchor-manifest' in",
+   "note": "defense in depth: another guard still refuses; detected by the reason assertion (the approval needs the manifest digest)",
+   "rc": 1,
+   "outcome": "KILLED (other reason)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_execution_without_the_generation_manifest_refuses[mode0]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_execution_without_the_generation_manifest_refuses[mode1]"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_report_outputs/L5_execution_needs_the_manifest.txt",
+   "seconds": 6.2
+  },
+  {
+   "mutant": "L14 decide: stage S under this generation",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_decide_refuses_a_stage_s_from_another_generation"
+   ],
+   "expect": "assert 0 == 2",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_decide_refuses_a_stage_s_from_another_generation"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_report_outputs/L14_decide_stage_S_under_this_generation.txt",
+   "seconds": 5.9
+  },
+  {
+   "mutant": "L19 run_cell needs the sealed recipe",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_run_cell_refuses_an_anchor_cell_without_a_sealed_recipe"
+   ],
+   "expect": "a trainer was launched",
+   "note": "reaches the (sentinel) trainer launch",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_run_cell_refuses_an_anchor_cell_without_a_sealed_recipe"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_report_outputs/L19_run_cell_needs_the_sealed_recipe.txt",
+   "seconds": 5.5
+  },
+  {
+   "mutant": "L22e request binds the input seals",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval"
+   ],
+   "expect": "assert 0 == 2",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval[change5]"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_report_outputs/L22e_request_binds_the_input_seals.txt",
+   "seconds": 8.0
+  },
+  {
+   "mutant": "L22f request binds the admission authority",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval"
+   ],
+   "expect": "assert 0 == 2",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (other reason)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval[change4]"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_report_outputs/L22f_request_binds_the_admission_authority.txt",
+   "seconds": 7.9
+  },
+  {
+   "mutant": "D4 decide: stage S under the given generation",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_decide_refuses_stage_s_from_another_generation"
+   ],
+   "expect": "assert 'stage S ran under another generation manifest' in",
+   "note": "defense in depth: another guard still refuses; detected by the reason assertion (the stage-S records' approvals are re-verified for the decide generation)",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_decide_refuses_stage_s_from_another_generation"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_report_outputs/D4_decide_stage_S_under_the_given_generation.txt",
+   "seconds": 6.4
+  },
+  {
+   "mutant": "D8 selection replay",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_frozen_n_record_that_its_evidence_does_not_reproduce_refuses"
+   ],
+   "expect": "assert 'not what its own evidence reduces to' in",
+   "note": "defense in depth: another guard still refuses; detected by the reason assertion (the evidence membership no longer matches the tampered N)",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_frozen_n_record_that_its_evidence_does_not_reproduce_refuses"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_report_outputs/D8_selection_replay.txt",
+   "seconds": 6.3
+  },
+  {
+   "mutant": "D9 probe counts",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (other reason)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes6-512 images]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes7-512 images]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes8-512 images]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes9-512 images]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes10-512 images]"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_report_outputs/D9_probe_counts.txt",
+   "seconds": 20.6
+  },
+  {
+   "mutant": "D38 probe split identity (whole condition)",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_consistently_other_split_identity_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_consistently_other_split_identity_refuses"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4_report_outputs/D38_probe_split_identity_whole_condition_.txt",
+   "seconds": 6.8
+  }
+ ],
+ "unreachable_by_synthetic_tests": {
+  "probe recheck before publication": "after the real forward pass; synthetic tests cannot reach it",
+  "probe `_assert_phase3_runtime_rows` after the real dataset load": "needs real data"
+ },
+ "counts": {
+  "KILLED (intended)": 19,
+  "KILLED (other reason)": 4
+ },
+ "real_tree_unchanged": true,
+ "real_tree_tracked_files": 1419
+}

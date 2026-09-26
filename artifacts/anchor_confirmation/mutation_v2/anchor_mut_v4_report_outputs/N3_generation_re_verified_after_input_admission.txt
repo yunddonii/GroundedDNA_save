@@ -1,0 +1,10 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__ test_a_generation_drifting_during_input_admission_refuses_before_the_lease __
+tests/test_anchor_confirm_launcher.py:852: in test_a_generation_drifting_during_input_admission_refuses_before_the_lease
+    assert run_main(monkeypatch, *argv, *approval) == 2
+E   AssertionError: assert 0 == 2
+E    +  where 0 = run_main(<_pytest.monkeypatch.MonkeyPatch object at 0x7f05f7866e90>, *['--anchor-confirm', 'select', '--namespace', 'ancT', '--run', '--anchor-manifest', ...], *['--anchor-approval-section', '700'])
+=========================== short test summary info ============================
+FAILED tests/test_anchor_confirm_launcher.py::test_a_generation_drifting_during_input_admission_refuses_before_the_lease
+1 failed in 4.87s

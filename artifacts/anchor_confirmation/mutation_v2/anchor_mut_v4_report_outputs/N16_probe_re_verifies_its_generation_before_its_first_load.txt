@@ -1,0 +1,15 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_the_probe_rechecks_its_generation_before_its_first_load _________
+tests/test_anchor_confirm_reducer.py:1300: in test_the_probe_rechecks_its_generation_before_its_first_load
+    run_probe(path, digest, (e["dataset"], e["arm"], e["N"], e["seed"]))
+tests/test_anchor_confirm_reducer.py:1206: in run_probe
+    return P.probe(path, digest, c, manifest=MANIFESTS[MANIFEST_SHA], approval=PROBE_APPROVAL,
+scripts/anchor_confirm_code_axis.py:134: in probe
+    config = torch.load(io.BytesIO(consumed.read(run_dir / "config.pt", config_pin)), map_location="cpu",
+tests/test_anchor_confirm_reducer.py:428: in <lambda>
+    monkeypatch.setattr(torch, "load", lambda *a, **k: pytest.fail("a binary was deserialised"))
+E   Failed: a binary was deserialised
+=========================== short test summary info ============================
+FAILED tests/test_anchor_confirm_reducer.py::test_the_probe_rechecks_its_generation_before_its_first_load
+1 failed in 4.79s

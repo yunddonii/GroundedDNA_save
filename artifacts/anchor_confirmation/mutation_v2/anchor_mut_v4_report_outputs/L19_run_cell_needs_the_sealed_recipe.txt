@@ -1,0 +1,13 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_run_cell_refuses_an_anchor_cell_without_a_sealed_recipe _________
+tests/test_anchor_confirm_launcher.py:653: in test_run_cell_refuses_an_anchor_cell_without_a_sealed_recipe
+    M.run_cell("flickr25k", 4, 0, namespace="ancT", topp=("0.6", "0.95"), joint="0.02",
+scripts/phase3_selection_matrix.py:2813: in run_cell
+    proc = _run_managed_process(
+tests/test_anchor_confirm_launcher.py:650: in launched
+    raise AssertionError("a trainer was launched")
+E   AssertionError: a trainer was launched
+=========================== short test summary info ============================
+FAILED tests/test_anchor_confirm_launcher.py::test_run_cell_refuses_an_anchor_cell_without_a_sealed_recipe
+1 failed in 4.34s

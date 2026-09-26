@@ -1,0 +1,13 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______________ test_a_consistently_other_split_identity_refuses _______________
+tests/test_anchor_confirm_reducer.py:1064: in test_a_consistently_other_split_identity_refuses
+    assert run_decide(evidence, frozen, frozen_sha, tmp_path / "d.json") == 1
+E   AssertionError: assert 0 == 1
+E    +  where 0 = run_decide(<test_anchor_confirm_reducer.Evidence object at 0x7f931014f4f0>, '/tmp/pytest-of-yschoi/pytest-1792/test_a_consistently_other_spli0/n.json', '01987f91ce34ae795d3fcdbb4a2afede724235cfd15e8178e6e4a74b0691ec83', (PosixPath('/tmp/pytest-of-yschoi/pytest-1792/test_a_consistently_other_spli0') / 'd.json'))
+----------------------------- Captured stdout call -----------------------------
+[anchor-reducer] wrote /tmp/pytest-of-yschoi/pytest-1792/test_a_consistently_other_spli0/n.json sha256 01987f91ce34ae795d3fcdbb4a2afede724235cfd15e8178e6e4a74b0691ec83
+[anchor-reducer] wrote /tmp/pytest-of-yschoi/pytest-1792/test_a_consistently_other_spli0/d.json sha256 526dd5516ae2a4cae7a48f647f68a86dfc8c7853553c8bc15c765522ec40cd9a
+=========================== short test summary info ============================
+FAILED tests/test_anchor_confirm_reducer.py::test_a_consistently_other_split_identity_refuses
+1 failed in 5.38s

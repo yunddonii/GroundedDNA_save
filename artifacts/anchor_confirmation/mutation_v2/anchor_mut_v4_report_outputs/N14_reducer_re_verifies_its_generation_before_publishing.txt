@@ -1,0 +1,12 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_the_reducer_publishes_nothing_if_its_generation_drifts_before_publication _
+tests/test_anchor_confirm_reducer.py:796: in test_the_reducer_publishes_nothing_if_its_generation_drifts_before_publication
+    assert run_select(world, tmp_path / "o.json") == 1
+E   AssertionError: assert 0 == 1
+E    +  where 0 = run_select(<test_anchor_confirm_reducer.World object at 0x7f575972b880>, (PosixPath('/tmp/pytest-of-yschoi/pytest-1783/test_the_reducer_publishes_not0') / 'o.json'))
+----------------------------- Captured stdout call -----------------------------
+[anchor-reducer] wrote /tmp/pytest-of-yschoi/pytest-1783/test_the_reducer_publishes_not0/o.json sha256 1045992865899bfde90c536b4599e04bc4cc3e23a04e7e44e7090eeb221e08a5
+=========================== short test summary info ============================
+FAILED tests/test_anchor_confirm_reducer.py::test_the_reducer_publishes_nothing_if_its_generation_drifts_before_publication
+1 failed in 4.83s

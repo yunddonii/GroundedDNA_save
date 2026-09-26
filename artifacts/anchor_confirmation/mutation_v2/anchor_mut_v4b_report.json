@@ -1,0 +1,89 @@
+{
+ "sandbox": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4b_sb",
+ "baseline": {
+  "tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval": 0,
+  "tests/test_anchor_confirm_launcher.py::test_execution_without_the_generation_manifest_refuses": 0,
+  "tests/test_anchor_confirm_launcher.py::test_the_carried_authority_is_the_approved_bytes_while_it_is_parsed": 0,
+  "tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses": 0
+ },
+ "mutants": [
+  {
+   "mutant": "N2 carried authority bytes are the approved pin while parsed",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_the_carried_authority_is_the_approved_bytes_while_it_is_parsed"
+   ],
+   "expect": "assert \\(?0 == 2",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_the_carried_authority_is_the_approved_bytes_while_it_is_parsed[True]"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4b_report_outputs/N2_carried_authority_bytes_are_the_approved_pin_while_parsed.txt",
+   "seconds": 5.8
+  },
+  {
+   "mutant": "L5 execution needs the manifest",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_execution_without_the_generation_manifest_refuses"
+   ],
+   "expect": "assert \\(?'need --anchor-manifest' in",
+   "note": "defense in depth: another guard still refuses; detected by the reason assertion (the approval needs the manifest digest)",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_execution_without_the_generation_manifest_refuses[mode0]",
+    "FAILED tests/test_anchor_confirm_launcher.py::test_execution_without_the_generation_manifest_refuses[mode1]"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4b_report_outputs/L5_execution_needs_the_manifest.txt",
+   "seconds": 5.7
+  },
+  {
+   "mutant": "L22f request binds the admission authority",
+   "file": "scripts/phase3_selection_matrix.py",
+   "tests": [
+    "tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval"
+   ],
+   "expect": "assert \\(?'approves stage-S-run for' in",
+   "note": "defense in depth: another guard still refuses; detected by the reason assertion (the admission-authority bookend compares with the missing pin)",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval[change4]"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4b_report_outputs/L22f_request_binds_the_admission_authority.txt",
+   "seconds": 7.4
+  },
+  {
+   "mutant": "D9 probe counts",
+   "file": "scripts/anchor_confirm_decision.py",
+   "tests": [
+    "tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses"
+   ],
+   "expect": "assert 0 == 1",
+   "note": "",
+   "rc": 1,
+   "outcome": "KILLED (intended)",
+   "failed": [
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes6-512 images]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes7-512 images]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes8-512 images]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes9-512 images]",
+    "FAILED tests/test_anchor_confirm_reducer.py::test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes10-512 images]"
+   ],
+   "output": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/anchor_mut_v4b_report_outputs/D9_probe_counts.txt",
+   "seconds": 21.3
+  }
+ ],
+ "unreachable_by_synthetic_tests": {
+  "probe recheck before publication": "after the real forward pass; synthetic tests cannot reach it",
+  "probe `_assert_phase3_runtime_rows` after the real dataset load": "needs real data"
+ },
+ "counts": {
+  "KILLED (intended)": 4
+ },
+ "real_tree_unchanged": true,
+ "real_tree_tracked_files": 1419
+}

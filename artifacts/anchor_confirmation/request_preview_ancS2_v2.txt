@@ -1,0 +1,481 @@
+anchor-confirm/1: stage select, 24 cells, namespace ancS2  [NON-EXECUTABLE until audit approval]
+{
+ "admission_sha256": "1b6c9a2d2f60290c6c7f294a3763057fc7b8b5023536b1889d972288640e1246",
+ "anchor_approval": null,
+ "anchor_manifest": {
+  "commit": "491c3ce84ec0677f42c7bdb7ed9c136f6bece4c7",
+  "contract": {
+   "path": "docs/ANCHOR_CONFIRMATION_CONTRACT_v2.md",
+   "sha256": "26ebe2c104e89702bbc9daef0a3470d123ef6f7c5c30eefc49222cb26e29b001"
+  },
+  "files_sha256": {
+   "config.py": "13079550490016a9600e6cfc6777cf01eb67335fa7f7e01de5f0018751aa1a8b",
+   "dataloaders.py": "fa7545908664502a5a4f20fe8d3441b42d5f441653d1310dc4fbf08c1bb14e27",
+   "dna_utils/__init__.py": "b20f32c8266c4bbdd4efa88fc1ce23bb17cacd7c76fa7ddcdd04437275c082e3",
+   "dna_utils/bio_constraints.py": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+   "dna_utils/cache_provenance.py": "144f6c0e51517010898ab4d43cea1d0a06d6ca375d55e5e721550dd06453c73b",
+   "dna_utils/csv_logger.py": "68450e316bf775989f547b2593131e767e24903b3bef0893bda7a27055cb8d6f",
+   "dna_utils/dna_code_utils.py": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+   "dna_utils/extraction_validation.py": "bd126a04aac5d1b51eca0379180924d0ad9e80b8d6bae6c2784c86a12c88c8ca",
+   "dna_utils/gc_policy.py": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+   "dna_utils/gpu_lease.py": "01f1564258fc7ebe6d65226c961b579e7a88f063ce4814d89e75b490875ee976",
+   "dna_utils/run_identity.py": "a6cfe0e902e889c4ccc35ada829fbd80063811457cf04a4c06c58939ec184c9f",
+   "dna_utils/runtime_environment.py": "a78d51dbb134bcc400443a42b4c9fa46063b7bef356ab5b37b571a44f489a597",
+   "dna_utils/runtime_state.py": "cdab32494012f3f7199c7f05af81af547f5ddcbeb2131e166787dab94d26e333",
+   "dna_utils/scientific_recipe.py": "32fa32e00e8143e4a5b0ecc5b865979164a8aefa48311123020e165ef7372e98",
+   "dna_utils/text_description_processor.py": "e2028a9d007de711eebcb1b00e7a5fcb37e593d06c28231f3fa9bbf0a0541221",
+   "dna_utils/training_utils.py": "f1a6ef9a0383312e4d52e0d693656c778ea620e53e69dc61f75d2510946cddb8",
+   "dna_utils/visualization.py": "f71796319f19915371ae1ba12e25f6fa37a30429860c6d84a15aa222607c25bd",
+   "dna_utils/vlm_qwen25_descriptions.py": "3c5a865ed264612dd0ff4b9663cd6e7e27c0b4d7c1b02f5045d22c633719f39c",
+   "docs/ANCHOR_CONFIRMATION_CONTRACT_v2.md": "26ebe2c104e89702bbc9daef0a3470d123ef6f7c5c30eefc49222cb26e29b001",
+   "evaluation_siglip2.py": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+   "extraction_siglip2.py": "1d10b3b0e065179f72e477edb98a37be77890040410c6b8a6f1fafc82ed9aab6",
+   "loss_siglip2.py": "8a0275dd8504519888e68622c88a624685607ca68f05d0ae421dde7cc0a24d4b",
+   "model_siglip2.py": "9c1cc71b7b40a366439495b3bfa510020a26ef6efd6c6a464b625a9982f3f11d",
+   "models/__init__.py": "18106eb4dc331c9fbad2734a6e7bf5bc4d1870ba6cde514e9361baee10978444",
+   "models/adapters.py": "0aa62a08472ef29662480023747caf661104d70b006f14311be7ffc165c68c4a",
+   "models/cluster_attention_router.py": "2c69889d8d84b70fdf3fb2c571217da1ca06f76f0b49be8dd0d0485ffdc7c13e",
+   "models/pretrained_backbone.py": "e86953f0760c8f46649b2152b0d2e812053f549da75b9c5a97de05fbd5801b3f",
+   "models/pretrained_backbone_clip.py": "c0237e43c6fcbd3fb9221bd147648b2e42fa59df280e5919d1699f4c33d4580a",
+   "models/semantic_router.py": "200a5a0d0f93b5dd05c9a3dcd412588f51a745fafb7d37b179bcc3f1a510460b",
+   "models/text_cross_attention_router.py": "559677f2659ab1a543e1fed145891a67ffc5a7eb38ecb4f197b0cfa76e3302ec",
+   "models/text_encoder.py": "0ed8d4f6db5ce87f0f5c18ccc804a631fe0c2502ff218630c91b7217938c0a7b",
+   "models/visual_encoder.py": "9d38599dcd07377c3e4b8f89a1da4f5965515529023761c26dae587592cf8565",
+   "p0_protocol.py": "da9aee20f221e896ca2cec3371bb1568568ec831b2c7eaf4f2b0f5f68fade399",
+   "scripts/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "scripts/anchor_confirm_code_axis.py": "c05e283261f903cdc9cce46abebeaa77e0e225062962becfbcd3f6ad7e1f193b",
+   "scripts/anchor_confirm_decision.py": "fce59e7413e87d5181f38ce38c093d4ea3af7c9c22a5ff40a164e2d13f531e77",
+   "scripts/anchor_confirm_manifest.py": "147142f419e2df8c3bc1cd21f014a42093ed5598d077a7919e5b886c77faaaaa",
+   "scripts/build_text_whiten_matrix.py": "76e9332662154b1cc3579aeea343c8ec4d917d6fea2007188909cafd456338a0",
+   "scripts/eval_cell_bioproj.py": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+   "scripts/extract_train_split.py": "fcb8ea1991f2f3179c26e5fb878479538289c408070efb7b484e25a17c230370",
+   "scripts/pairwise_nmi.py": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2",
+   "scripts/phase3_launch_matrix.sh": "9ef51d79f9678ac0b2a5fb93d31ac1fe6029763628d991b3d290e6f0c5e8142e",
+   "scripts/phase3_select_n.py": "1feaa90cd76077a7f53006c8905dd5db5478a700811eaf13edd9a7eaa449009e",
+   "scripts/phase3_selection_matrix.py": "1badc49c86574137b354f698093713ddcb1cb64211b13e6dd654d0d6fef0673f",
+   "scripts/seal_cell_analysis.py": "65be44b77bf3a03a2afcee81c3bb24d3431f6d74d5e00debd878fe11a2a2e695",
+   "scripts/seal_phase3_inputs.py": "12233f8e4967c90afcab131a1061fe76abfbaed86648e1388826538a6d42f214",
+   "scripts/train_cifar10_v185_bidirTokenPrune05_ccs01_clip.sh": "a0dff871b7be004f9a614eae324c6613ca6713af591749239c7868ec6965abc9",
+   "scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh": "7850783ff03b63035018fa217b05ee7f6fcc7b2778cdbb7e76faf61df7b06726",
+   "scripts/train_mscoco_F2_sweep_clip.sh": "c4bfb0f8d172c3353b72605ab41d7c78d69b7fba3f4f0745ccaaf1fecfbad18f",
+   "scripts/train_nuswide_v185_sweep_clip.sh": "d63476d81da232ce4676394116cc050511f7d7f0b8bda637211c538c6b4764a8",
+   "tests/test_anchor_confirm_launcher.py": "9e52ac3bb9a528b05501420092ccf2a05f590d6b3950bf6c73e8f7b322e14b64",
+   "tests/test_anchor_confirm_port.py": "d2d5f9550f3ff4202c617b4823f6605fd76cda0bdb7828bbb0ffd4977c13593f",
+   "tests/test_anchor_confirm_recipe.py": "bbdaa8a313356efb8cd6525412d276ef63d5ab96645ee8ac3f92fd67d182e581",
+   "tests/test_anchor_confirm_reducer.py": "290a3f00ae456df27081507a1f6be83b5b34825101a084dcac23c0f210e6f0e4",
+   "train_siglip2.py": "d23788cb9fea109aaffc191a6208f74869367756c933e985e2c3a1246050586f",
+   "val_split.py": "95e415c6f43b714fc349c44c5d449e667429bc0f15fb4af9c4389e82ca9eecc2"
+  },
+  "path": "artifacts/anchor_confirmation/authority_manifest_v2.json",
+  "sha256": "a5f7b8436e3e81b189deedb4d1f3e99eb993bce59d8792bada12f7c1a6a1bf0a"
+ },
+ "anchor_request": null,
+ "approved_p3_refit_aggregate": {
+  "path": "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/p3rfB_refit_aggregate.json",
+  "sha256": "b4f3b0dff467f7c1fd4ca134edba66085115939a4097e6bb201bd13ca83452a5"
+ },
+ "approved_selected_n": {
+  "path": "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/selected_n.json",
+  "sha256": "2bf6133d8cdc7471e40a33d20f1bb19228aa770e67a999a436efb5abac6b2549"
+ },
+ "arm_plan": {
+  "flickr25k": [
+   "none",
+   "anchors"
+  ],
+  "mscoco": [
+   "none",
+   "anchors"
+  ],
+  "nuswide": [
+   "none",
+   "anchors"
+  ]
+ },
+ "incumbent": {
+  "flickr25k": {
+   "N": 4,
+   "joint": "0.02",
+   "topp": [
+    "0.6",
+    "0.95"
+   ]
+  },
+  "mscoco": {
+   "N": 39,
+   "joint": "0.03",
+   "topp": [
+    "0.6",
+    "0.95"
+   ]
+  },
+  "nuswide": {
+   "N": 4,
+   "joint": "0.05",
+   "topp": [
+    "0.4",
+    "0.8"
+   ]
+  }
+ }
+}
+  flickr25k  N=4   seed=42 arm=none     topp=0.6/0.95 jd=0.02 -> ancS2_flickr_A_v4_N4_s42_AXnone_P06095_JD002
+  flickr25k  N=9   seed=42 arm=none     topp=0.6/0.95 jd=0.02 -> ancS2_flickr_A_v4_N9_s42_AXnone_P06095_JD002
+  flickr25k  N=19  seed=42 arm=none     topp=0.6/0.95 jd=0.02 -> ancS2_flickr_A_v4_N19_s42_AXnone_P06095_JD002
+  flickr25k  N=39  seed=42 arm=none     topp=0.6/0.95 jd=0.02 -> ancS2_flickr_A_v4_N39_s42_AXnone_P06095_JD002
+  flickr25k  N=4   seed=42 arm=anchors  topp=0.6/0.95 jd=0.02 -> ancS2_flickr_A_v4_N4_s42_AXanchors_P06095_JD002
+  flickr25k  N=9   seed=42 arm=anchors  topp=0.6/0.95 jd=0.02 -> ancS2_flickr_A_v4_N9_s42_AXanchors_P06095_JD002
+  flickr25k  N=19  seed=42 arm=anchors  topp=0.6/0.95 jd=0.02 -> ancS2_flickr_A_v4_N19_s42_AXanchors_P06095_JD002
+  flickr25k  N=39  seed=42 arm=anchors  topp=0.6/0.95 jd=0.02 -> ancS2_flickr_A_v4_N39_s42_AXanchors_P06095_JD002
+  nuswide    N=4   seed=42 arm=none     topp=0.4/0.8 jd=0.05 -> ancS2_nuswide_A_v4_N4_s42_AXnone_P0408_JD005
+  nuswide    N=9   seed=42 arm=none     topp=0.4/0.8 jd=0.05 -> ancS2_nuswide_A_v4_N9_s42_AXnone_P0408_JD005
+  nuswide    N=19  seed=42 arm=none     topp=0.4/0.8 jd=0.05 -> ancS2_nuswide_A_v4_N19_s42_AXnone_P0408_JD005
+  nuswide    N=39  seed=42 arm=none     topp=0.4/0.8 jd=0.05 -> ancS2_nuswide_A_v4_N39_s42_AXnone_P0408_JD005
+  nuswide    N=4   seed=42 arm=anchors  topp=0.4/0.8 jd=0.05 -> ancS2_nuswide_A_v4_N4_s42_AXanchors_P0408_JD005
+  nuswide    N=9   seed=42 arm=anchors  topp=0.4/0.8 jd=0.05 -> ancS2_nuswide_A_v4_N9_s42_AXanchors_P0408_JD005
+  nuswide    N=19  seed=42 arm=anchors  topp=0.4/0.8 jd=0.05 -> ancS2_nuswide_A_v4_N19_s42_AXanchors_P0408_JD005
+  nuswide    N=39  seed=42 arm=anchors  topp=0.4/0.8 jd=0.05 -> ancS2_nuswide_A_v4_N39_s42_AXanchors_P0408_JD005
+  mscoco     N=4   seed=42 arm=none     topp=0.6/0.95 jd=0.03 -> ancS2_mscoco_A_v5b_N4_s42_AXnone_P06095_JD003
+  mscoco     N=9   seed=42 arm=none     topp=0.6/0.95 jd=0.03 -> ancS2_mscoco_A_v5b_N9_s42_AXnone_P06095_JD003
+  mscoco     N=19  seed=42 arm=none     topp=0.6/0.95 jd=0.03 -> ancS2_mscoco_A_v5b_N19_s42_AXnone_P06095_JD003
+  mscoco     N=39  seed=42 arm=none     topp=0.6/0.95 jd=0.03 -> ancS2_mscoco_A_v5b_N39_s42_AXnone_P06095_JD003
+  mscoco     N=4   seed=42 arm=anchors  topp=0.6/0.95 jd=0.03 -> ancS2_mscoco_A_v5b_N4_s42_AXanchors_P06095_JD003
+  mscoco     N=9   seed=42 arm=anchors  topp=0.6/0.95 jd=0.03 -> ancS2_mscoco_A_v5b_N9_s42_AXanchors_P06095_JD003
+  mscoco     N=19  seed=42 arm=anchors  topp=0.6/0.95 jd=0.03 -> ancS2_mscoco_A_v5b_N19_s42_AXanchors_P06095_JD003
+  mscoco     N=39  seed=42 arm=anchors  topp=0.6/0.95 jd=0.03 -> ancS2_mscoco_A_v5b_N39_s42_AXanchors_P06095_JD003
+arms differ in axis_center alone and carry the contract's protocol values at all 12 coordinates
+  flickr25k|N=4|seed=42: none f452c4f32166acbc  anchors f6211f71053316ff  reviewed overrides ['dna_distance_mode', 'epoch', 'lambda_codeword_codon_sinkhorn', 'post_eval_compositional', 'routing_adaptive_topp', 'routing_adaptive_topp_max', 'routing_adaptive_topp_min']
+  flickr25k|N=9|seed=42: none 37ec43128594d57b  anchors 0278c91b7bfefd4d  reviewed overrides ['dna_distance_mode', 'epoch', 'lambda_codeword_codon_sinkhorn', 'post_eval_compositional', 'routing_adaptive_topp', 'routing_adaptive_topp_max', 'routing_adaptive_topp_min']
+  flickr25k|N=19|seed=42: none d04b60acf7bf9f70  anchors b48eecba9383b364  reviewed overrides ['dna_distance_mode', 'epoch', 'lambda_codeword_codon_sinkhorn', 'post_eval_compositional', 'routing_adaptive_topp', 'routing_adaptive_topp_max', 'routing_adaptive_topp_min']
+  flickr25k|N=39|seed=42: none a7ea00fcac01fd8a  anchors 2f5842114a5b703b  reviewed overrides ['dna_distance_mode', 'epoch', 'lambda_codeword_codon_sinkhorn', 'post_eval_compositional', 'routing_adaptive_topp', 'routing_adaptive_topp_max', 'routing_adaptive_topp_min']
+  nuswide|N=4|seed=42: none 3ce2600a5e899308  anchors d762d9d9c96648ef  reviewed overrides ['dna_distance_mode', 'epoch', 'lambda_codeword_codon_sinkhorn', 'post_eval_compositional', 'routing_adaptive_topp', 'routing_adaptive_topp_max', 'routing_adaptive_topp_min']
+  nuswide|N=9|seed=42: none 59aedf6f529cf827  anchors 3a0c94bb6e9fed80  reviewed overrides ['dna_distance_mode', 'epoch', 'lambda_codeword_codon_sinkhorn', 'post_eval_compositional', 'routing_adaptive_topp', 'routing_adaptive_topp_max', 'routing_adaptive_topp_min']
+  nuswide|N=19|seed=42: none cb79db75321ab510  anchors f16a633c3a5de56e  reviewed overrides ['dna_distance_mode', 'epoch', 'lambda_codeword_codon_sinkhorn', 'post_eval_compositional', 'routing_adaptive_topp', 'routing_adaptive_topp_max', 'routing_adaptive_topp_min']
+  nuswide|N=39|seed=42: none 54ed9b7096ac9dd0  anchors 2e5d9a1b3b491077  reviewed overrides ['dna_distance_mode', 'epoch', 'lambda_codeword_codon_sinkhorn', 'post_eval_compositional', 'routing_adaptive_topp', 'routing_adaptive_topp_max', 'routing_adaptive_topp_min']
+  mscoco|N=4|seed=42: none 02736cfd7130e262  anchors d060af12dbb13dea  reviewed overrides ['dna_distance_mode', 'epoch', 'lambda_codeword_codon_sinkhorn', 'post_eval_compositional', 'routing_adaptive_topp', 'routing_adaptive_topp_max', 'routing_adaptive_topp_min']
+  mscoco|N=9|seed=42: none 8f5d422089d8da5e  anchors da7f4e5e40426d4e  reviewed overrides ['dna_distance_mode', 'epoch', 'lambda_codeword_codon_sinkhorn', 'post_eval_compositional', 'routing_adaptive_topp', 'routing_adaptive_topp_max', 'routing_adaptive_topp_min']
+  mscoco|N=19|seed=42: none 4b9d85590b078f1c  anchors d02c0a4d2f21252d  reviewed overrides ['dna_distance_mode', 'epoch', 'lambda_codeword_codon_sinkhorn', 'post_eval_compositional', 'routing_adaptive_topp', 'routing_adaptive_topp_max', 'routing_adaptive_topp_min']
+  mscoco|N=39|seed=42: none 2c9d58d57c5dbe58  anchors a5520376fbc97f1f  reviewed overrides ['dna_distance_mode', 'epoch', 'lambda_codeword_codon_sinkhorn', 'post_eval_compositional', 'routing_adaptive_topp', 'routing_adaptive_topp_max', 'routing_adaptive_topp_min']
+approval: --smoke/--run need an audit ledger line for their exact scope and request (probe, stage-D-run, stage-D-smoke, stage-S-run, stage-S-smoke); none is checked by --plan
+execution request that this command without --plan would need approved:
+{
+ "admission_authority": null,
+ "cells": [
+  [
+   "flickr25k",
+   "anchors",
+   4,
+   42
+  ],
+  [
+   "flickr25k",
+   "anchors",
+   9,
+   42
+  ],
+  [
+   "flickr25k",
+   "anchors",
+   19,
+   42
+  ],
+  [
+   "flickr25k",
+   "anchors",
+   39,
+   42
+  ],
+  [
+   "flickr25k",
+   "none",
+   4,
+   42
+  ],
+  [
+   "flickr25k",
+   "none",
+   9,
+   42
+  ],
+  [
+   "flickr25k",
+   "none",
+   19,
+   42
+  ],
+  [
+   "flickr25k",
+   "none",
+   39,
+   42
+  ],
+  [
+   "mscoco",
+   "anchors",
+   4,
+   42
+  ],
+  [
+   "mscoco",
+   "anchors",
+   9,
+   42
+  ],
+  [
+   "mscoco",
+   "anchors",
+   19,
+   42
+  ],
+  [
+   "mscoco",
+   "anchors",
+   39,
+   42
+  ],
+  [
+   "mscoco",
+   "none",
+   4,
+   42
+  ],
+  [
+   "mscoco",
+   "none",
+   9,
+   42
+  ],
+  [
+   "mscoco",
+   "none",
+   19,
+   42
+  ],
+  [
+   "mscoco",
+   "none",
+   39,
+   42
+  ],
+  [
+   "nuswide",
+   "anchors",
+   4,
+   42
+  ],
+  [
+   "nuswide",
+   "anchors",
+   9,
+   42
+  ],
+  [
+   "nuswide",
+   "anchors",
+   19,
+   42
+  ],
+  [
+   "nuswide",
+   "anchors",
+   39,
+   42
+  ],
+  [
+   "nuswide",
+   "none",
+   4,
+   42
+  ],
+  [
+   "nuswide",
+   "none",
+   9,
+   42
+  ],
+  [
+   "nuswide",
+   "none",
+   19,
+   42
+  ],
+  [
+   "nuswide",
+   "none",
+   39,
+   42
+  ]
+ ],
+ "declared_cells": [
+  [
+   "flickr25k",
+   "anchors",
+   4,
+   42
+  ],
+  [
+   "flickr25k",
+   "anchors",
+   9,
+   42
+  ],
+  [
+   "flickr25k",
+   "anchors",
+   19,
+   42
+  ],
+  [
+   "flickr25k",
+   "anchors",
+   39,
+   42
+  ],
+  [
+   "flickr25k",
+   "none",
+   4,
+   42
+  ],
+  [
+   "flickr25k",
+   "none",
+   9,
+   42
+  ],
+  [
+   "flickr25k",
+   "none",
+   19,
+   42
+  ],
+  [
+   "flickr25k",
+   "none",
+   39,
+   42
+  ],
+  [
+   "mscoco",
+   "anchors",
+   4,
+   42
+  ],
+  [
+   "mscoco",
+   "anchors",
+   9,
+   42
+  ],
+  [
+   "mscoco",
+   "anchors",
+   19,
+   42
+  ],
+  [
+   "mscoco",
+   "anchors",
+   39,
+   42
+  ],
+  [
+   "mscoco",
+   "none",
+   4,
+   42
+  ],
+  [
+   "mscoco",
+   "none",
+   9,
+   42
+  ],
+  [
+   "mscoco",
+   "none",
+   19,
+   42
+  ],
+  [
+   "mscoco",
+   "none",
+   39,
+   42
+  ],
+  [
+   "nuswide",
+   "anchors",
+   4,
+   42
+  ],
+  [
+   "nuswide",
+   "anchors",
+   9,
+   42
+  ],
+  [
+   "nuswide",
+   "anchors",
+   19,
+   42
+  ],
+  [
+   "nuswide",
+   "anchors",
+   39,
+   42
+  ],
+  [
+   "nuswide",
+   "none",
+   4,
+   42
+  ],
+  [
+   "nuswide",
+   "none",
+   9,
+   42
+  ],
+  [
+   "nuswide",
+   "none",
+   19,
+   42
+  ],
+  [
+   "nuswide",
+   "none",
+   39,
+   42
+  ]
+ ],
+ "epochs": null,
+ "gpu_count": 3,
+ "input_seals": {
+  "flickr25k:stage1": {
+   "path": "/data/yschoi/gdna_p3exec_seals/flickr25k.stage1.input-seal.json",
+   "sha256": "e44b363acbc03f21d5385927606ef58c0b265c3b70be1a38bb8c1a0eb0112654"
+  },
+  "mscoco:stage1": {
+   "path": "/data/yschoi/gdna_p3exec_seals/mscoco.stage1.input-seal.json",
+   "sha256": "6e9138a6809ec8fbfb05202728f892a6325714e05742b937816b58cbb9104121"
+  },
+  "nuswide:stage1": {
+   "path": "/data/yschoi/gdna_p3exec_seals/nuswide.stage1.input-seal.json",
+   "sha256": "aa1eaa5d0d6d73d2cdd4a8a0afafb6f0e88ed7a61901a45eb3cc90c253ba8ce2"
+  }
+ },
+ "manifest": "a5f7b8436e3e81b189deedb4d1f3e99eb993bce59d8792bada12f7c1a6a1bf0a",
+ "mode": "run",
+ "namespace": "ancS2",
+ "record_dir": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation",
+ "result_root": "/data/yschoi/gdna_anchor_confirm_v1_result",
+ "schema": "anchor-confirm-request/1",
+ "selection": null,
+ "stage": "select",
+ "version": "anchor-confirm/1"
+}
+execution request sha256 ee367b84cc29d6d9d61be86e083b641070150b3e160ea01992af1bd47bf00d75

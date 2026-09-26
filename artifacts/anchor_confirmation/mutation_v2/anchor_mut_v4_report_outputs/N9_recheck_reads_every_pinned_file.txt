@@ -1,0 +1,34 @@
+FFFFFF                                                                   [100%]
+=================================== FAILURES ===================================
+_ test_a_member_changed_after_admission_refuses[scripts/anchor_confirm_decision.py] _
+tests/test_anchor_confirm_launcher.py:830: in test_a_member_changed_after_admission_refuses
+    with pytest.raises(CellRefused, match="not the manifest's generation"):
+E   Failed: DID NOT RAISE CellRefused
+_ test_a_member_changed_after_admission_refuses[scripts/anchor_confirm_code_axis.py] _
+tests/test_anchor_confirm_launcher.py:830: in test_a_member_changed_after_admission_refuses
+    with pytest.raises(CellRefused, match="not the manifest's generation"):
+E   Failed: DID NOT RAISE CellRefused
+_ test_a_member_changed_after_admission_refuses[scripts/anchor_confirm_manifest.py] _
+tests/test_anchor_confirm_launcher.py:830: in test_a_member_changed_after_admission_refuses
+    with pytest.raises(CellRefused, match="not the manifest's generation"):
+E   Failed: DID NOT RAISE CellRefused
+_ test_a_member_changed_after_admission_refuses[docs/ANCHOR_CONFIRMATION_CONTRACT_v2.md] _
+tests/test_anchor_confirm_launcher.py:830: in test_a_member_changed_after_admission_refuses
+    with pytest.raises(CellRefused, match="not the manifest's generation"):
+E   Failed: DID NOT RAISE CellRefused
+_ test_a_member_changed_after_admission_refuses[tests/test_anchor_confirm_reducer.py] _
+tests/test_anchor_confirm_launcher.py:830: in test_a_member_changed_after_admission_refuses
+    with pytest.raises(CellRefused, match="not the manifest's generation"):
+E   Failed: DID NOT RAISE CellRefused
+___________ test_a_member_changed_after_admission_refuses[config.py] ___________
+tests/test_anchor_confirm_launcher.py:830: in test_a_member_changed_after_admission_refuses
+    with pytest.raises(CellRefused, match="not the manifest's generation"):
+E   Failed: DID NOT RAISE CellRefused
+=========================== short test summary info ============================
+FAILED tests/test_anchor_confirm_launcher.py::test_a_member_changed_after_admission_refuses[scripts/anchor_confirm_decision.py]
+FAILED tests/test_anchor_confirm_launcher.py::test_a_member_changed_after_admission_refuses[scripts/anchor_confirm_code_axis.py]
+FAILED tests/test_anchor_confirm_launcher.py::test_a_member_changed_after_admission_refuses[scripts/anchor_confirm_manifest.py]
+FAILED tests/test_anchor_confirm_launcher.py::test_a_member_changed_after_admission_refuses[docs/ANCHOR_CONFIRMATION_CONTRACT_v2.md]
+FAILED tests/test_anchor_confirm_launcher.py::test_a_member_changed_after_admission_refuses[tests/test_anchor_confirm_reducer.py]
+FAILED tests/test_anchor_confirm_launcher.py::test_a_member_changed_after_admission_refuses[config.py]
+6 failed in 4.52s

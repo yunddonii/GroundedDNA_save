@@ -1,0 +1,12 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____ test_a_frozen_n_record_that_its_evidence_does_not_reproduce_refuses ______
+tests/test_anchor_confirm_reducer.py:977: in test_a_frozen_n_record_that_its_evidence_does_not_reproduce_refuses
+    assert "not what its own evidence reduces to" in capsys.readouterr().err
+E   assert 'not what its own evidence reduces to' in "[anchor-reducer] REFUSED: NotReducible: evidence membership differs from the contract: missing [('flickr25k', 'anchor..., 4, 44)], extra [('flickr25k', 'anchors', 9, 42), ('flickr25k', 'anchors', 9, 43), ('flickr25k', 'anchors', 9, 44)]\n"
+E    +  where "[anchor-reducer] REFUSED: NotReducible: evidence membership differs from the contract: missing [('flickr25k', 'anchor..., 4, 44)], extra [('flickr25k', 'anchors', 9, 42), ('flickr25k', 'anchors', 9, 43), ('flickr25k', 'anchors', 9, 44)]\n" = CaptureResult(out='[anchor-reducer] wrote /tmp/pytest-of-yschoi/pytest-1790/test_a_frozen_n_record_that_it0/n.json sha... 4, 44)], extra [('flickr25k', 'anchors', 9, 42), ('flickr25k', 'anchors', 9, 43), ('flickr25k', 'anchors', 9, 44)]\n").err
+E    +    where CaptureResult(out='[anchor-reducer] wrote /tmp/pytest-of-yschoi/pytest-1790/test_a_frozen_n_record_that_it0/n.json sha... 4, 44)], extra [('flickr25k', 'anchors', 9, 42), ('flickr25k', 'anchors', 9, 43), ('flickr25k', 'anchors', 9, 44)]\n") = readouterr()
+E    +      where readouterr = <_pytest.capture.CaptureFixture object at 0x7f4c336db7c0>.readouterr
+=========================== short test summary info ============================
+FAILED tests/test_anchor_confirm_reducer.py::test_a_frozen_n_record_that_its_evidence_does_not_reproduce_refuses
+1 failed in 5.05s

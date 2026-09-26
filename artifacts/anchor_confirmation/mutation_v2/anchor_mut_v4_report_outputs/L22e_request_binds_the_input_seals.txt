@@ -1,0 +1,10 @@
+.....F                                                                   [100%]
+=================================== FAILURES ===================================
+______ test_a_changed_request_is_not_covered_by_the_old_approval[change5] ______
+tests/test_anchor_confirm_launcher.py:513: in test_a_changed_request_is_not_covered_by_the_old_approval
+    assert run_main(monkeypatch, *argv, *changed, *approval) == 2
+E   AssertionError: assert 0 == 2
+E    +  where 0 = run_main(<_pytest.monkeypatch.MonkeyPatch object at 0x7ff7c4603d00>, *['--anchor-confirm', 'select', '--namespace', 'ancT', '--run', '--anchor-manifest', ...], *['--input-seal', 'flickr25k:stage1=/tmp/pytest-of-yschoi/pytest-1787/test_a_changed_request_is_not_5/seal.json'], *['--anchor-approval-section', '700'])
+=========================== short test summary info ============================
+FAILED tests/test_anchor_confirm_launcher.py::test_a_changed_request_is_not_covered_by_the_old_approval[change5]
+1 failed, 5 passed in 6.61s

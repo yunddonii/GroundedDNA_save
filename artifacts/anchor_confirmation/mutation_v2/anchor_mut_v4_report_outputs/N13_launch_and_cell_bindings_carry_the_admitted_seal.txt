@@ -1,0 +1,20 @@
+.....FF                                                                  [100%]
+=================================== FAILURES ===================================
+_ test_inconsistent_input_bindings_refuse_before_publication[launch_binding_seal-launch or cell binding's input_seal_sha256] _
+tests/test_anchor_confirm_reducer.py:769: in test_inconsistent_input_bindings_refuse_before_publication
+    assert run_select(world, tmp_path / "o.json") == 1
+E   AssertionError: assert 0 == 1
+E    +  where 0 = run_select(<test_anchor_confirm_reducer.World object at 0x7f66f91cfbb0>, (PosixPath('/tmp/pytest-of-yschoi/pytest-1782/test_inconsistent_input_bindin5') / 'o.json'))
+----------------------------- Captured stdout call -----------------------------
+[anchor-reducer] wrote /tmp/pytest-of-yschoi/pytest-1782/test_inconsistent_input_bindin5/o.json sha256 927075997f35d75210617a6f8bb72fb831c64224410a5ffd36efd461842356f3
+_ test_inconsistent_input_bindings_refuse_before_publication[cell_binding_split-launch or cell binding's split_identity_sha256] _
+tests/test_anchor_confirm_reducer.py:769: in test_inconsistent_input_bindings_refuse_before_publication
+    assert run_select(world, tmp_path / "o.json") == 1
+E   AssertionError: assert 0 == 1
+E    +  where 0 = run_select(<test_anchor_confirm_reducer.World object at 0x7f66f9191d20>, (PosixPath('/tmp/pytest-of-yschoi/pytest-1782/test_inconsistent_input_bindin6') / 'o.json'))
+----------------------------- Captured stdout call -----------------------------
+[anchor-reducer] wrote /tmp/pytest-of-yschoi/pytest-1782/test_inconsistent_input_bindin6/o.json sha256 a4d029cadc9ed83e9bae1c872e9d470acd49feb33fc5f4982efc6f8a1c1b42ef
+=========================== short test summary info ============================
+FAILED tests/test_anchor_confirm_reducer.py::test_inconsistent_input_bindings_refuse_before_publication[launch_binding_seal-launch or cell binding's input_seal_sha256]
+FAILED tests/test_anchor_confirm_reducer.py::test_inconsistent_input_bindings_refuse_before_publication[cell_binding_split-launch or cell binding's split_identity_sha256]
+2 failed, 5 passed in 5.77s

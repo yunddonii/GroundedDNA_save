@@ -1,0 +1,44 @@
+..FFF..FF                                                                [100%]
+=================================== FAILURES ===================================
+_ test_inconsistent_input_bindings_refuse_before_publication[snapshot_seal_digest-admitted input seals are not its approved request's] _
+tests/test_anchor_confirm_reducer.py:770: in test_inconsistent_input_bindings_refuse_before_publication
+    assert reason in capsys.readouterr().err
+E   assert "admitted input seals are not its approved request's" in "[anchor-reducer] REFUSED: NotReducible: /tmp/pytest-of-yschoi/pytest-1780/test_inconsistent_input_bindin2/S/runs/flic...stage=select_seed=42_axis_center=none.json: its input authority is not the campaign's admitted flickr25k:stage1 seal\n"
+E    +  where "[anchor-reducer] REFUSED: NotReducible: /tmp/pytest-of-yschoi/pytest-1780/test_inconsistent_input_bindin2/S/runs/flic...stage=select_seed=42_axis_center=none.json: its input authority is not the campaign's admitted flickr25k:stage1 seal\n" = CaptureResult(out='', err="[anchor-reducer] REFUSED: NotReducible: /tmp/pytest-of-yschoi/pytest-1780/test_inconsistent...tage=select_seed=42_axis_center=none.json: its input authority is not the campaign's admitted flickr25k:stage1 seal\n").err
+E    +    where CaptureResult(out='', err="[anchor-reducer] REFUSED: NotReducible: /tmp/pytest-of-yschoi/pytest-1780/test_inconsistent...tage=select_seed=42_axis_center=none.json: its input authority is not the campaign's admitted flickr25k:stage1 seal\n") = readouterr()
+E    +      where readouterr = <_pytest.capture.CaptureFixture object at 0x7f456f4fffa0>.readouterr
+_ test_inconsistent_input_bindings_refuse_before_publication[snapshot_seals_missing-admitted input seals are not its approved request's] _
+tests/test_anchor_confirm_reducer.py:770: in test_inconsistent_input_bindings_refuse_before_publication
+    assert reason in capsys.readouterr().err
+E   assert "admitted input seals are not its approved request's" in "[anchor-reducer] REFUSED: NotReducible: /tmp/pytest-of-yschoi/pytest-1780/test_inconsistent_input_bindin3/S/runs/flic...stage=select_seed=42_axis_center=none.json: its input authority is not the campaign's admitted flickr25k:stage1 seal\n"
+E    +  where "[anchor-reducer] REFUSED: NotReducible: /tmp/pytest-of-yschoi/pytest-1780/test_inconsistent_input_bindin3/S/runs/flic...stage=select_seed=42_axis_center=none.json: its input authority is not the campaign's admitted flickr25k:stage1 seal\n" = CaptureResult(out='', err="[anchor-reducer] REFUSED: NotReducible: /tmp/pytest-of-yschoi/pytest-1780/test_inconsistent...tage=select_seed=42_axis_center=none.json: its input authority is not the campaign's admitted flickr25k:stage1 seal\n").err
+E    +    where CaptureResult(out='', err="[anchor-reducer] REFUSED: NotReducible: /tmp/pytest-of-yschoi/pytest-1780/test_inconsistent...tage=select_seed=42_axis_center=none.json: its input authority is not the campaign's admitted flickr25k:stage1 seal\n") = readouterr()
+E    +      where readouterr = <_pytest.capture.CaptureFixture object at 0x7f456f4ddf90>.readouterr
+_ test_inconsistent_input_bindings_refuse_before_publication[snapshot_and_records_agree_on_another_seal-admitted input seals are not its approved request's] _
+tests/test_anchor_confirm_reducer.py:770: in test_inconsistent_input_bindings_refuse_before_publication
+    assert reason in capsys.readouterr().err
+E   assert "admitted input seals are not its approved request's" in "[anchor-reducer] REFUSED: NotReducible: flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=select|seed=42|axis_center=none: its launch or cell binding's input_seal_sha256 is not the admitted seal's\n"
+E    +  where "[anchor-reducer] REFUSED: NotReducible: flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=select|seed=42|axis_center=none: its launch or cell binding's input_seal_sha256 is not the admitted seal's\n" = CaptureResult(out='', err="[anchor-reducer] REFUSED: NotReducible: flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=select|seed=42|axis_center=none: its launch or cell binding's input_seal_sha256 is not the admitted seal's\n").err
+E    +    where CaptureResult(out='', err="[anchor-reducer] REFUSED: NotReducible: flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=select|seed=42|axis_center=none: its launch or cell binding's input_seal_sha256 is not the admitted seal's\n") = readouterr()
+E    +      where readouterr = <_pytest.capture.CaptureFixture object at 0x7f456f4361a0>.readouterr
+_______ test_a_request_approved_for_other_seals_refuses[request_seals0] ________
+tests/test_anchor_confirm_reducer.py:783: in test_a_request_approved_for_other_seals_refuses
+    assert run_select(world, tmp_path / "o.json") == 1
+E   AssertionError: assert 0 == 1
+E    +  where 0 = run_select(<test_anchor_confirm_reducer.World object at 0x7f456f3d7f70>, (PosixPath('/tmp/pytest-of-yschoi/pytest-1780/test_a_request_approved_for_ot0') / 'o.json'))
+----------------------------- Captured stdout call -----------------------------
+[anchor-reducer] wrote /tmp/pytest-of-yschoi/pytest-1780/test_a_request_approved_for_ot0/o.json sha256 da20f1d4c874c0d665c52c0f7f52d04c174c0f12fee9b6b968a25522852d43f5
+_______ test_a_request_approved_for_other_seals_refuses[request_seals1] ________
+tests/test_anchor_confirm_reducer.py:783: in test_a_request_approved_for_other_seals_refuses
+    assert run_select(world, tmp_path / "o.json") == 1
+E   AssertionError: assert 0 == 1
+E    +  where 0 = run_select(<test_anchor_confirm_reducer.World object at 0x7f456f2b2860>, (PosixPath('/tmp/pytest-of-yschoi/pytest-1780/test_a_request_approved_for_ot1') / 'o.json'))
+----------------------------- Captured stdout call -----------------------------
+[anchor-reducer] wrote /tmp/pytest-of-yschoi/pytest-1780/test_a_request_approved_for_ot1/o.json sha256 0125c3005cf4718f11a1d883efcfa6278c9f09415a3cfe0f7112ff7dc6c08e96
+=========================== short test summary info ============================
+FAILED tests/test_anchor_confirm_reducer.py::test_inconsistent_input_bindings_refuse_before_publication[snapshot_seal_digest-admitted input seals are not its approved request's]
+FAILED tests/test_anchor_confirm_reducer.py::test_inconsistent_input_bindings_refuse_before_publication[snapshot_seals_missing-admitted input seals are not its approved request's]
+FAILED tests/test_anchor_confirm_reducer.py::test_inconsistent_input_bindings_refuse_before_publication[snapshot_and_records_agree_on_another_seal-admitted input seals are not its approved request's]
+FAILED tests/test_anchor_confirm_reducer.py::test_a_request_approved_for_other_seals_refuses[request_seals0]
+FAILED tests/test_anchor_confirm_reducer.py::test_a_request_approved_for_other_seals_refuses[request_seals1]
+5 failed, 4 passed in 6.24s

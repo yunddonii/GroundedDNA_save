@@ -1,0 +1,25 @@
+..F                                                                      [100%]
+=================================== FAILURES ===================================
+_ test_a_generation_drifting_inside_the_sweep_stops_before_its_next_boundary[before the receipt-1] _
+tests/test_anchor_confirm_launcher.py:924: in test_a_generation_drifting_inside_the_sweep_stops_before_its_next_boundary
+    assert go() == rc
+E   assert 0 == 1
+E    +  where 0 = <function sweep.<locals>.go at 0x7f7950e69000>()
+----------------------------- Captured stdout call -----------------------------
+[phase3] snapshot 0 sources, 0 inputs, campaign c13ae421b92f... -> /tmp/pytest-of-yschoi/pytest-1777/test_a_generation_drifting_ins2/records/ancT_snapshot_b96ca15d00ac3de8.json
+[phase3] flickr25k|N=19|P=0.6,0.95|JD=0.02|stage=select|seed=42|axis_center=anchors ok  mAP@R=0.5000 @epoch 19
+[phase3] flickr25k|N=39|P=0.6,0.95|JD=0.02|stage=select|seed=42|axis_center=anchors ok  mAP@R=0.5000 @epoch 39
+[phase3] flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=select|seed=42|axis_center=anchors ok  mAP@R=0.5000 @epoch 4
+[phase3] flickr25k|N=9|P=0.6,0.95|JD=0.02|stage=select|seed=42|axis_center=anchors ok  mAP@R=0.5000 @epoch 9
+[phase3] mscoco|N=19|P=0.6,0.95|JD=0.03|stage=select|seed=42|axis_center=anchors ok  mAP@R=0.5000 @epoch 19
+[phase3] mscoco|N=39|P=0.6,0.95|JD=0.03|stage=select|seed=42|axis_center=anchors ok  mAP@R=0.5000 @epoch 39
+[phase3] mscoco|N=4|P=0.6,0.95|JD=0.03|stage=select|seed=42|axis_center=anchors ok  mAP@R=0.5000 @epoch 4
+[phase3] mscoco|N=9|P=0.6,0.95|JD=0.03|stage=select|seed=42|axis_center=anchors ok  mAP@R=0.5000 @epoch 9
+[phase3] nuswide|N=19|P=0.4,0.8|JD=0.05|stage=select|seed=42|axis_center=anchors ok  mAP@R=0.5000 @epoch 19
+[phase3] nuswide|N=39|P=0.4,0.8|JD=0.05|stage=select|seed=42|axis_center=anchors ok  mAP@R=0.5000 @epoch 39
+[phase3] nuswide|N=4|P=0.4,0.8|JD=0.05|stage=select|seed=42|axis_center=anchors ok  mAP@R=0.5000 @epoch 4
+[phase3] nuswide|N=9|P=0.4,0.8|JD=0.05|stage=select|seed=42|axis_center=anchors ok  mAP@R=0.5000 @epoch 9
+[phase3] 12 of 12 sweep cells complete
+=========================== short test summary info ============================
+FAILED tests/test_anchor_confirm_launcher.py::test_a_generation_drifting_inside_the_sweep_stops_before_its_next_boundary[before the receipt-1]
+1 failed, 2 passed in 4.59s
