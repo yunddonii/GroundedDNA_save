@@ -487,6 +487,84 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-27 [anchor confirmation v3 — preparation only, nothing executed] Audit §702–§706: campaign cleanup now waits for every owned process before releasing a GPU lease; storage rule and resource supervisor added
+
+**Status:** ✅ repair and operational package submitted for review.
+- **No GPU run of any kind.** No full seal verification, lease, smoke, training or probe ran, and
+  no approval line exists.
+- Branch `arch-exp-2026-09-anchor-confirm` (worktree `/data/yschoi/gdna_anchor_confirm_v1`), head
+  `61a2895`, source commit `0ea88af`.
+- Generation manifest v3 `9e54bda3…` (59 files); the contract v2 `26ebe2c1…` is unchanged.
+- Operational addendum `docs/ANCHOR_CONFIRMATION_OPS_ADDENDUM_v1.md` (`b36c84ba…`); handoff
+  `docs/ANCHOR_CONFIRMATION_HANDOFF_v3.md` (`edc3f32d…`).
+- Proposed stage-S request `0c940824…`. It is the same scientific request as v2 `ee367b84…`;
+  only the manifest digest inside it changed.
+
+**What the audit found (§705/§706, reproduced by the audit with private processes):**
+- The launcher's shutdown could return while a process it had started was still alive:
+  - a descendant that ignores SIGTERM, when its leader dies;
+  - any descendant of a leader that had already exited.
+- Cleanup also released the GPU lease while that descendant still held it. `GpuLeaseSet.release`
+  unlocks the shared lock outright.
+- No real trainer is known to have escaped. The shutdown guarantee itself was broken.
+
+**Repair (`scripts/phase3_selection_matrix.py`, lifecycle block only):**
+1. The leader of each child session is waited for without being reaped (`waitid(WNOWAIT)`). While
+   it is an unreaped zombie, its PID also names its process group and session, and no other
+   process can reuse that number. This is how ownership stays exact under PID reuse.
+2. The leader is reaped only after `/proc` shows no live process left in its session.
+3. Escalation works on the live members of each session: TERM, then 5 s, then SIGKILL re-sent for
+   up to 30 s. If anything survives, it is reported, never assumed dead.
+4. A leftover after a normal exit is stopped by its own stream, and the cell is refused.
+5. The lease is released only after a final check at the call site finds no owned live process.
+   The interpreter-exit release is unregistered. Launches stay blocked after shutdown.
+
+**Operational addendum (§703/§704):**
+- **Launcher, before every dispatch.** The result filesystem must keep 10 GiB plus 0.75 GiB for
+  each unfinished cell. One historical N39 cell holds 0.61 GiB. The first S dispatch therefore
+  needs 28 GiB; `/data` had 36.3 GiB free.
+- **New supervisor** `scripts/anchor_confirm_supervisor.py`, a manifest member that uses only the
+  standard library:
+  - it polls every second for free space, a 12.5 GPU-h device budget and a wall-time limit
+    (S 6 h);
+  - one append-only ledger carries the budget across S, D and the probes, including failed and
+    partial attempts, and is never reset;
+  - it stops a run with one SIGTERM to the launcher, which then runs the repaired cleanup;
+  - it never signals anything else and never infers death from a timeout;
+  - after the launcher exits, it checks for orphaned attempts and held leases.
+- Full verification is stated as it is: hashing, semantic row checks, safe NPY/NPZ loads and
+  whitening re-derivation over about 452 GB, before any lease.
+
+**Tests (CPU only):**
+- The new file `tests/test_anchor_confirm_lifecycle.py` (11 tests) uses real private sleeper trees,
+  the real lease wrapper and the real `GpuLeaseSet` on a private lock, plus an unrelated control
+  process. It covers the three §705 cases, bounded termination and a composed lease release.
+- The new file `tests/test_anchor_confirm_supervisor.py` (12 tests) drives a synthetic launcher
+  that runs the real lifecycle.
+- Four storage-rule tests were added to `tests/test_anchor_confirm_launcher.py`.
+- Full run at `0ea88af`: **800 passed, 1 skipped** (14 files, 333 s).
+- **Differential check.** On the pre-repair launcher `1badc49`, the positive controls pass and the
+  five escape cases fail at their declared "descendant still live" assertions: **8/8 as declared**.
+- **Mutation battery v5:** 21 mutants in a detached sandbox (lifecycle, storage rule, supervisor); 20 detected as declared. ML7 (exit handler left registered) hit its intended assertion, but my declared marker text was wrong, so it was rerun alone with the marker corrected (v5b): detected.
+
+**Found while building the comparison table (a disclosure, not yet a fix):**
+- All 214 run directories of the September exploratory stages record `use_gumbel_softmax=True`, in
+  both arms (`gdna_archexp_result` and `gdna_wt_mscoco/result`). That covers the anchor-vs-base
+  stages 6–12. The approved `p3exec` runs (257) record `False`.
+- The stage-6 cell commands carry no Gumbel option; they were rebuilt by
+  `scripts/build_offprotocol_cmd.py`. Its option map keeps `--use_gumbel_softmax` (store_true,
+  default True), so a recorded `False` is dropped.
+- The same class of defect had already been found in the D5 20-base runs (audit §606/§609).
+- The confirmation campaign is not affected: it renders `--no_gumbel_softmax` and admits only
+  `use_gumbel_softmax=False`.
+- The exploratory anchor numbers (mAP@R gap −.0017 to +.0060 on the multi-label sets) were
+  therefore measured off the approved recipe.
+
+**Next:** the audit reviews v3 together with the addendum; stage S waits for a ledger line naming
+manifest `9e54bda3…` and request `0c940824…`.
+
+---
+
 ## 2026-09-26 [anchor confirmation v2 — preparation only, nothing executed] Readiness package for audit §665–§701: fresh controls, audit-ledger approvals bound to the exact request, metadata-only reduction
 
 **Status:** ✅ preparation complete and submitted for review; **no GPU run of any kind, and no approval
