@@ -256,6 +256,17 @@ def _resolve_save_path(args: Config) -> str:
     identity = RunIdentity.from_args(args)
     campaign_binding = phase3_campaign_binding_from_env(
         identity, actual_tag=user_tag)
+    # Anchor confirmation v1: the complete typed recipe the launcher sealed must be exactly what
+    # this process parsed and post-processed, checked before the run directory exists. Without the
+    # recipe variables (every legacy mode) this returns None and nothing below changes.
+    import sys as _sys
+    from dna_utils.scientific_recipe import verify_trainer_recipe
+    recipe_binding = verify_trainer_recipe(Config.build_parser(), _sys.argv[1:], args)
+    if recipe_binding is not None:
+        if campaign_binding is None:
+            raise RuntimeError("a sealed scientific recipe is only valid inside a Phase-3 "
+                               "campaign binding")
+        campaign_binding.update(recipe_binding)
     if campaign_binding is not None and not (
             bool(getattr(args, "final_epoch_eval", False))
             or bool(getattr(args, "keep_final_checkpoint", False))):
