@@ -43,6 +43,21 @@ HF = {"identity_sha256": "1" * 64, "snapshot_dir": "/hf/snap", "revision": "r1",
       "tokenizer_files_sha256": {"vocab.json": "4" * 64}}
 INPUT_AUTHORITY = {"seal_path": "/seals/x.json", "seal_file_sha256": "5" * 64,
                    "aggregate_sha256": "6" * 64, "split_identity_sha256": "7" * 64, "hf_runtime": HF}
+#: one admitted stage-1 seal authority per dataset, as verify_campaign_input_seals returns them
+AUTH = {ds: dict(INPUT_AUTHORITY, dataset=ds, stage="stage1",
+                 seal_path=f"/seals/{ds}.stage1.input-seal.json",
+                 seal_file_sha256=hashlib.sha256(f"seal {ds}".encode()).hexdigest(),
+                 authority_sha256=hashlib.sha256(f"authority {ds}".encode()).hexdigest())
+        for ds in ("flickr25k", "nuswide", "mscoco")}
+INPUT_FIELDS = ("input_seal_sha256", "input_aggregate_sha256", "input_authority_sha256",
+                "split_identity_sha256", "hf_identity_sha256")
+
+
+def input_identity(ds):
+    a = AUTH[ds]
+    return {"input_seal_sha256": a["seal_file_sha256"], "input_aggregate_sha256": a["aggregate_sha256"],
+            "input_authority_sha256": a["authority_sha256"], "split_identity_sha256": a["split_identity_sha256"],
+            "hf_identity_sha256": a["hf_runtime"]["identity_sha256"]}
 ROWS = {ds: hashlib.sha256(ds.encode()).hexdigest() for ds in INCUMBENT}
 MANIFEST_SHA, OTHER_SHA = "9" * 64, "8" * 64
 MANIFESTS = {d: {"path": f"/manifests/{d[:4]}.json", "sha256": d, "commit": "c" * 40,
@@ -74,7 +89,7 @@ def render_argv(c):
 
 def run_argv(c):
     """What the run received: the render plus the campaign's sealed input flags."""
-    return render_argv(c) + M._input_authority_flags(INPUT_AUTHORITY)
+    return render_argv(c) + M._input_authority_flags(AUTH[c[0]])
 
 
 def score_of(c):
@@ -161,11 +176,14 @@ class World:
         self.manifest_sha = manifest_sha
         approved_manifest = approved_manifest or manifest_sha or MANIFEST_SHA
         cells = sorted(list(c) for c in coordinates)
+        self.seals = {f"{ds}:stage1": AUTH[ds] for ds in sorted({c[0] for c in coordinates})}
         self.request = {"schema": M.REQUEST_SCHEMA, "version": M.ANCHOR_CONFIRM_VERSION, "stage": stage,
                         "mode": "run", "manifest": approved_manifest, "selection": selection,
                         "namespace": f"anc{stage.capitalize()}T", "record_dir": str(self.root / "records"),
                         "result_root": str(self.root / "runs"), "declared_cells": cells, "cells": cells,
-                        "epochs": None, "input_seals": {}, "admission_authority": None, "gpu_count": 3,
+                        "epochs": None, "admission_authority": None, "gpu_count": 3,
+                        "input_seals": {k: {"path": a["seal_path"], "sha256": a["seal_file_sha256"]}
+                                        for k, a in self.seals.items()},
                         **(request_changes or {})}
         scope = "stage-S-run" if stage == "select" else "stage-D-run"
         pins = {"manifest": approved_manifest, **({"selection": selection} if selection else {}),
@@ -177,7 +195,8 @@ class World:
             if not self.historical(c):
                 payload = R.build_payload(PARSER, run_argv(c), planned_arm=c[1])
                 self.bindings[cell_id(c)] = {"anchor_arm": c[1], "scientific_recipe": payload,
-                                             "expected_scientific_recipe_sha256": R.digest(payload)}
+                                             "expected_scientific_recipe_sha256": R.digest(payload),
+                                             **input_identity(c[0])}
         self.write_snapshot()
         for c in coordinates:
             self.entries.append(self.make(c))
@@ -194,7 +213,8 @@ class World:
             authorities["anchor_approval"] = self.approval
             if not getattr(self, "omit_request", False):
                 authorities["anchor_request"] = self.request
-        self.snapshot = {"plan": {"authorities": authorities, "campaign_nonce": self.snapshot_nonce,
+        self.snapshot = {"input_seals": self.seals,
+                         "plan": {"authorities": authorities, "campaign_nonce": self.snapshot_nonce,
                                   "cell_bindings": self.bindings}}
         (self.root / "snapshot.json").write_text(json.dumps(self.snapshot))
         self.snapshot_sha = M._json_digest(self.snapshot)
@@ -219,7 +239,8 @@ class World:
         (run / PHASE3_CAMPAIGN_BINDING_NAME).write_text(json.dumps(evidence))
         sidecar = {"checkpoint_epoch_zero_based": n, "extra": {"phase3_campaign": evidence}}
         (run / "model_state_dict.pth.runtime.json").write_text(json.dumps(sidecar))
-        campaign = {"cell_id": cid, "plan_snapshot_sha256": self.snapshot_sha, "campaign_nonce": self.nonce}
+        campaign = {"cell_id": cid, "plan_snapshot_sha256": self.snapshot_sha, "campaign_nonce": self.nonce,
+                    **input_identity(ds)}
         completion = {"final_checkpoint_epoch_zero_based": n, "final_checkpoint": "model_state_dict.pth",
                       "final_checkpoint_sha256": sha((run / "model_state_dict.pth").read_bytes()),
                       "log_csv_sha256": sha((run / "log.csv").read_bytes()),
@@ -228,7 +249,7 @@ class World:
         record = {"dataset": ds, "N": n, "seed": seed, "stage": "select", "selection_mode": "select",
                   "smoke": False, "is_candidate_cell": True, "val_split_ratio": 0.1, "val_split_seed": 42,
                   "run_dir": str(run), "campaign": campaign, "completion": completion,
-                  "input_authority": INPUT_AUTHORITY,
+                  "input_authority": AUTH[ds],
                   "selection": {"selection_epoch_zero_based": n, "selection_metric": "eval_mAP_at_R",
                                 "distance_mode": "base", "selection_value": score_of(c)}}
         if not historical:
@@ -345,10 +366,9 @@ class World:
                  "coordinate": [ds, arm, n, seed], "record_sha256": e["record_sha256"],
                  "checkpoint_sha256": record["completion"]["final_checkpoint_sha256"],
                  "config_pt_sha256": record["anchor_confirmation"]["config_pt_sha256"],
-                 "split": dict(D.SPLIT), "split_identity_sha256": INPUT_AUTHORITY["split_identity_sha256"],
+                 "split": dict(D.SPLIT), "split_identity_sha256": AUTH[ds]["split_identity_sha256"],
                  "routing": "deployment_no_text", "n_images": 512, "row_ids_sha256": ROWS[ds],
-                 "caption_target": {**D.CAPTION_TARGET,
-                                    "input_seal_sha256": INPUT_AUTHORITY["seal_file_sha256"]},
+                 "caption_target": {**D.CAPTION_TARGET, "input_seal_sha256": AUTH[ds]["seal_file_sha256"]},
                  "hits": hits, "total": 2048, "ties_counted_as_misses": 3,
                  "code_picks_own_axis": hits / 2048,
                  "authority": {"kind": "receipt", "receipt": e["receipt"], "cell_id": cell_id((ds, arm, n, seed)),
@@ -370,6 +390,8 @@ def fake_manifest(path, sha256):
 def stand_ins(monkeypatch):
     monkeypatch.setattr(M, "anchor_incumbent", lambda: INCUMBENT)
     monkeypatch.setattr(M, "load_anchor_manifest", fake_manifest)
+    monkeypatch.setattr(M, "recheck_generation",
+                        lambda manifest, where: fake_manifest(manifest["path"], manifest["sha256"]))
     monkeypatch.setattr(M, "APPROVED_REUSE_ADMISSION_SHA256", {})
 
 
@@ -699,6 +721,81 @@ def test_a_campaign_without_its_request_refuses(world, tmp_path, capsys):
     world.reissue_snapshot()
     assert run_select(world, tmp_path / "o.json") == 1
     assert "names no execution request" in capsys.readouterr().err
+
+
+# ---- input consistency: request, snapshot, record, bindings (audit 694, 696) ------------------------------------
+def test_the_fixture_binds_consistent_inputs(world, tmp_path):
+    out = tmp_path / "n.json"
+    assert run_select(world, out) == 0 and world.request["input_seals"]
+
+
+OTHER_SEAL = dict(AUTH["flickr25k"], seal_file_sha256="e" * 64)
+
+
+@pytest.mark.parametrize("case,reason", [
+    ("record_seal_digest", "input authority is not the campaign's admitted"),
+    ("record_authority_empty", "input authority is not the campaign's admitted"),
+    ("snapshot_seal_digest", "admitted input seals are not its approved request's"),
+    ("snapshot_seals_missing", "admitted input seals are not its approved request's"),
+    ("snapshot_and_records_agree_on_another_seal", "admitted input seals are not its approved request's"),
+    ("launch_binding_seal", "launch or cell binding's input_seal_sha256"),
+    ("cell_binding_split", "launch or cell binding's split_identity_sha256"),
+])
+def test_inconsistent_input_bindings_refuse_before_publication(world, tmp_path, capsys, case, reason):
+    """Section 696's reproduced cases, each re-issued consistently downstream so only the intended
+    cross-object mismatch can refuse."""
+    flickr = [i for i, e in enumerate(world.entries) if e["dataset"] == "flickr25k"]
+    if case == "record_seal_digest":
+        world.rewrite_record(flickr[0], **{"input_authority.seal_file_sha256": "e" * 64})
+    elif case == "record_authority_empty":
+        world.rewrite_record(flickr[0], input_authority={})
+    elif case == "snapshot_seal_digest":
+        world.seals = dict(world.seals, **{"flickr25k:stage1": OTHER_SEAL})
+        world.reissue_snapshot()
+    elif case == "snapshot_seals_missing":
+        world.seals = {}
+        world.reissue_snapshot()
+    elif case == "snapshot_and_records_agree_on_another_seal":
+        world.seals = dict(world.seals, **{"flickr25k:stage1": OTHER_SEAL})
+        world.reissue_snapshot()
+        for i in flickr:
+            world.rewrite_record(i, input_authority=OTHER_SEAL)
+    elif case == "launch_binding_seal":
+        world.rewrite_record(flickr[0], **{"campaign.input_seal_sha256": "e" * 64})
+    else:
+        cid = cell_id(tuple(world.entries[flickr[0]][k] for k in ("dataset", "arm", "N", "seed")))
+        world.bindings[cid]["split_identity_sha256"] = "e" * 64
+        world.reissue_snapshot()
+    assert run_select(world, tmp_path / "o.json") == 1
+    assert reason in capsys.readouterr().err
+    assert not (tmp_path / "o.json").exists()
+
+
+@pytest.mark.parametrize("request_seals", [
+    {},                                                                    # the approved request pins no seal
+    {"flickr25k:stage1": {"path": AUTH["flickr25k"]["seal_path"], "sha256": "e" * 64}},
+])
+def test_a_request_approved_for_other_seals_refuses(tmp_path, ledger, capsys, request_seals):
+    seals = {k: {"path": a["seal_path"], "sha256": a["seal_file_sha256"]}
+             for k, a in (("%s:stage1" % ds, AUTH[ds]) for ds in ("flickr25k", "nuswide", "mscoco"))}
+    world = World(tmp_path / "S", SELECT, ledger=ledger,
+                  request_changes={"input_seals": {**seals, **request_seals} if request_seals else {}})
+    assert run_select(world, tmp_path / "o.json") == 1
+    assert "admitted input seals are not its approved request's" in capsys.readouterr().err
+
+
+def test_the_reducer_publishes_nothing_if_its_generation_drifts_before_publication(world, tmp_path, capsys,
+                                                                                    monkeypatch):
+    calls = []
+    def recheck(manifest, where):
+        calls.append(where)
+        if "publishes" in where:
+            raise M.CellRefused(f"{where}: scripts/anchor_confirm_decision.py drifted")
+        return fake_manifest(manifest["path"], manifest["sha256"])
+    monkeypatch.setattr(M, "recheck_generation", recheck)
+    assert run_select(world, tmp_path / "o.json") == 1
+    assert calls == ["at the reducer's entry", "before the reducer publishes"]
+    assert "drifted" in capsys.readouterr().err and not (tmp_path / "o.json").exists()
 
 
 # ---- reuse authority (audit 672.1, 683.1) -----------------------------------------------------------------
@@ -1173,7 +1270,7 @@ def test_the_probe_refuses_inputs_other_than_the_records_admitted_ones(world, mo
     import train_siglip2
     pass_config_load(monkeypatch)
     monkeypatch.setattr(train_siglip2, "_phase3_input_authority_from_args",
-                        lambda args: dict(INPUT_AUTHORITY, seal_file_sha256="e" * 64))
+                        lambda args: dict(AUTH["flickr25k"], seal_file_sha256="e" * 64))
     path, digest = world.sources()
     e = world.entries[index_of(world, arm="anchors")]
     with pytest.raises(D.NotReducible, match="not the record's admitted inputs"):
@@ -1185,10 +1282,21 @@ def test_matching_inputs_let_the_probe_reach_model_construction(world, monkeypat
     model, which the sentinel stops."""
     import train_siglip2
     pass_config_load(monkeypatch)
-    monkeypatch.setattr(train_siglip2, "_phase3_input_authority_from_args", lambda args: dict(INPUT_AUTHORITY))
+    monkeypatch.setattr(train_siglip2, "_phase3_input_authority_from_args", lambda args: dict(AUTH["flickr25k"]))
     path, digest = world.sources()
     e = world.entries[index_of(world, arm="anchors")]
     with pytest.raises(pytest.fail.Exception, match="a model was constructed"):
+        run_probe(path, digest, (e["dataset"], e["arm"], e["N"], e["seed"]))
+
+
+def test_the_probe_rechecks_its_generation_before_its_first_load(world, monkeypatch, no_deserialisation):
+    def recheck(manifest, where):
+        raise M.CellRefused(f"{where}: scripts/anchor_confirm_code_axis.py drifted")
+    monkeypatch.setattr(M, "recheck_generation", recheck)
+    monkeypatch.setenv("GDNA_NUM_SEMANTIC_PARTS", "5")
+    path, digest = world.sources()
+    e = world.entries[index_of(world, arm="anchors")]
+    with pytest.raises(M.CellRefused, match="before the probe's first load"):
         run_probe(path, digest, (e["dataset"], e["arm"], e["N"], e["seed"]))
 
 

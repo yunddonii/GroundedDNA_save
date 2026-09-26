@@ -2,7 +2,7 @@
 
 **Status: NON-EXECUTABLE until the audit approves this exact generation for a named stage.**
 Prepared under audit §659, §678 and §686 (PREPARATION_AUTHORIZED; EXECUTION_NOT_AUTHORIZED;
-FINAL_RECIPE_NOT_APPROVED), revised for §665–§690. It supersedes the v1 draft
+FINAL_RECIPE_NOT_APPROVED), revised for §665–§698. It supersedes the v1 draft
 `docs/ANCHOR_CONFIRMATION_CONTRACT_v1.md` (`418091ee…`), which stays unchanged as history. The
 generation this contract describes is identified by the versioned manifest
 `artifacts/anchor_confirmation/authority_manifest_v2.json`; that manifest pins this file, so its own
@@ -276,6 +276,10 @@ description rules.
 - The reducer never deserialises a binary: `config.pt` is checked by byte identity against the pin
   of the record's completed anchor check (the typed comparison with the sealed recipe that ran
   inside the approved campaign) or of an approved reuse admission.
+- Inputs (audit §694, §696): the campaign's admitted seals (the snapshot's `input_seals`) must be
+  exactly the approved request's seal pins (coordinates, paths, file digests); each record's input
+  authority must be the admitted seal of its dataset, and its launch binding and cell binding must
+  carry that seal's digest, aggregate, authority, split identity and HF identity.
 
 ### 11.3 Approval authority
 
@@ -308,7 +312,10 @@ canonical request (JSON with sorted keys and compact separators, schema `anchor-
 
 `--plan` given together with `--run` or `--smoke` and otherwise the same arguments prints the
 request and its digest (it reads the declared seal and authority files to hash them); the audit
-approves that digest. Any changed dimension — another namespace, root, cell subset, smoke horizon
+approves that digest. The approved pins must survive admission (audit §694): the seals actually
+admitted must equal the request's pins before the lease and again when they are re-admitted after
+the lease (those are the seals the snapshot, the cells and the receipt carry), and the carried
+admission authority's bytes must equal its approved pin both before and after they are parsed. Any changed dimension — another namespace, root, cell subset, smoke horizon
 or cell, seal, authority or GPU count — is a different request and refuses under the old line.
 The plan snapshot and receipt of a campaign carry its request and approval; the reducer
 re-verifies the line in the ledger with the request's digest and requires each record's
@@ -364,10 +371,16 @@ GPU-hours on 3 GPUs.** R and T are costed again when they are proposed.
   writes, removed on exit); it reserves, records, leases and launches nothing and deserialises no
   binary. It is not a synthetic operation.
 - **Reducer** (`scripts/anchor_confirm_decision.py`): §11 authority (receipt, snapshot, approval
-  re-verified in the ledger, sealed recipe shape and protocol values, trainer evidence, sidecar,
-  anchor check, config pin), exact membership, type-exact labels, one generation for the chain, the
-  §7.1 and §7.3 rules, the §8.2 envelope; never deserialises; reads each file once and parses the
-  hashed bytes; re-verifies before a single O_EXCL write.
+  re-verified in the ledger, sealed recipe shape and protocol values, input consistency, trainer
+  evidence, sidecar, anchor check, config pin), exact membership, type-exact labels, one generation
+  for the chain, the §7.1 and §7.3 rules, the §8.2 envelope; never deserialises; reads each file
+  once and parses the hashed bytes; re-verifies before a single O_EXCL write.
+- **Generation continuity (audit §697):** the admitted generation is re-verified — all 56 files at
+  their approved bytes, and every anchor module of the process imported from its approved bytes
+  (each records the digest of the bytes it was imported from) — at the launcher's entry, after
+  input admission, after the lease, before every cell and before the receipt; at the reducer's
+  entry and before it publishes; at the probe's entry, before its first load and before it
+  publishes. A drift refuses; a new baseline is never adopted.
 - **Probe** (`scripts/anchor_confirm_code_axis.py`): §8.2.
 
 ## 14. Namespaces, roots and commands (only after approval; `GDNA_NUM_SEMANTIC_PARTS=5` exported)

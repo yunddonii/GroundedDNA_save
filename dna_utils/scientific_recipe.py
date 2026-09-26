@@ -48,6 +48,9 @@ import os
 import re
 from typing import Any, Iterable, Mapping, Optional
 
+#: the bytes this module was imported from (audit 697)
+with open(__file__, "rb") as _source:
+    _IMPORTED_SOURCE_SHA256 = hashlib.sha256(_source.read()).hexdigest()
 RECIPE_SCHEMA = "groundeddna-scientific-recipe/2"
 PAYLOAD_KEYS = ("argv", "fields", "schema")
 EXPECTED_RECIPE_DIGEST_ENV = "GDNA_PHASE3_EXPECTED_RECIPE_DIGEST"

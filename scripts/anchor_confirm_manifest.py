@@ -27,6 +27,9 @@ sys.path.insert(0, str(REPO))
 import scripts.phase3_selection_matrix as M                  # noqa: E402
 import scripts.anchor_confirm_decision as D                  # noqa: E402
 
+#: the bytes this module was imported from (audit 697)
+with open(__file__, "rb") as _source:
+    _IMPORTED_SOURCE_SHA256 = hashlib.sha256(_source.read()).hexdigest()
 CONTRACT = REPO / M.ANCHOR_CONTRACT_PATH
 P3LAM_RECEIPT = M.APPROVED_P3_REFIT_AGGREGATE.parent / "p3lamA_sweep_complete.json"
 #: Ledger section 536.1 (repeated in 561.1): the approved lambda-confirmation receipt.

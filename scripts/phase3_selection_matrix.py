@@ -54,6 +54,9 @@ import time
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
+#: the bytes this module was imported from; anchor confirmation compares it with the admitted
+#: generation at every boundary (audit 697)
+_IMPORTED_SOURCE_SHA256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 
 # All local Python/shell bytes reachable from the Phase-3 entrypoints.  Keep
 # this tuple above the first local import: the production entrypoint hashes it,
@@ -3238,6 +3241,10 @@ def _run_sweep(args, at_topp, *, full_plan=None,
                   if preverified_input_seals is None else False),
             expected=(_admission_authority if preverified_input_seals is None
                       else preverified_input_seals))
+        if anchor_mode:
+            assert_request_seals((authorities or {}).get("anchor_request"), input_seals,
+                                 "after the lease")
+            recheck_generation((authorities or {}).get("anchor_manifest"), "after the lease")
         snapshot = plan_snapshot(
             sorted({c[0] for c in full_plan}), plan=full_plan, executed=plan,
             axis=args.sweep, namespace=args.namespace,
@@ -3293,6 +3300,8 @@ def _run_sweep(args, at_topp, *, full_plan=None,
             key = _cell_key(cell)
             try:
                 assert_reservation_owner(args.namespace, reservation)
+                if anchor_mode:
+                    recheck_generation((authorities or {}).get("anchor_manifest"), f"before {key}")
                 planned = snapshot["plan"]["cell_bindings"][key]
                 launch_binding = launch_binding_from_expected(
                     planned, snap_digest)
@@ -3342,6 +3351,8 @@ def _run_sweep(args, at_topp, *, full_plan=None,
         return 1
     try:
         verify_snapshot_input_seals(snapshot, full=FINAL_BOOKEND_FULL)
+        if anchor_mode:      # (the snapshot's seals were compared with the request after the lease)
+            recheck_generation((authorities or {}).get("anchor_manifest"), "before the receipt")
     except CellRefused as error:
         print(f"[phase3] REFUSED final input-seal verification: {error}",
               file=sys.stderr)
@@ -3966,7 +3977,47 @@ def load_anchor_manifest(path, sha256) -> dict:
     if stated != here:
         raise CellRefused(f"{path}: its environment {stated} is not this process's {here}")
     return {"path": str(path), "sha256": str(sha256), "commit": generation["commit"],
-            "contract": {"path": ANCHOR_CONTRACT_PATH, "sha256": contract["sha256"]}}
+            "contract": {"path": ANCHOR_CONTRACT_PATH, "sha256": contract["sha256"]},
+            "files_sha256": dict(sorted(files.items()))}
+
+
+def recheck_generation(manifest: dict, where: str) -> dict:
+    """The admitted generation, re-verified at a boundary (audit 697): the manifest is re-read at
+    its pinned digest and every one of its files must still be its approved bytes on disk, and every
+    module of this process that recorded the digest of the bytes it was imported from must have been
+    imported from its approved bytes. A new baseline is never adopted."""
+    if not isinstance(manifest, dict) or not manifest.get("path") or not manifest.get("sha256"):
+        raise CellRefused(f"{where}: no admitted generation to re-verify")
+    try:
+        again = load_anchor_manifest(manifest["path"], manifest["sha256"])
+    except CellRefused as error:
+        raise CellRefused(f"{where}: {error}") from None
+    pins = again["files_sha256"]
+    for module in list(sys.modules.values()):
+        digest = getattr(module, "_IMPORTED_SOURCE_SHA256", None)
+        path = getattr(module, "__file__", None)
+        if digest is None or not path:
+            continue
+        try:
+            rel = str(Path(path).resolve().relative_to(REPO))
+        except ValueError:
+            continue
+        if rel in pins and digest != pins[rel]:
+            raise CellRefused(f"{where}: {rel} was imported from other bytes than the admitted "
+                              "generation's")
+    return again
+
+
+def assert_request_seals(request: dict, input_seals, where: str) -> None:
+    """The seals actually admitted are exactly the approved request's: the same coordinates, each
+    at the approved path and file digest (audit 694.2)."""
+    approved = (request or {}).get("input_seals")
+    admitted = {key: {"path": (authority or {}).get("seal_path"),
+                      "sha256": (authority or {}).get("seal_file_sha256")}
+                for key, authority in (input_seals or {}).items()}
+    if not isinstance(approved, dict) or admitted != approved:
+        raise CellRefused(f"{where}: the admitted input seals {admitted} are not the approved "
+                          f"request's {approved}")
 
 
 def _file_pin(path) -> dict:
@@ -4169,11 +4220,19 @@ def _anchor_confirmation_main(args) -> int:
             if selection_pin is not None:
                 pins["selection"] = selection_pin
             approval = audit_approval(args.anchor_approval_section, scope, **pins)
-            # Input authority before any lease or reservation (audit 671.1).
-            carried = (load_admission_authority(args.admission_authority)
-                       if getattr(args, "admission_authority", None) else None)
+            # Input authority before any lease or reservation (audit 671.1), bound to the approved
+            # request's pins (audit 694.2): the carried authority's bytes before and after it is
+            # parsed, and every admitted seal's path and digest.
+            carried = None
+            if getattr(args, "admission_authority", None):
+                before = _file_pin(args.admission_authority)
+                carried = load_admission_authority(args.admission_authority)
+                if not (before == _file_pin(args.admission_authority) == request["admission_authority"]):
+                    raise CellRefused("the carried admission authority is not the approved request's bytes")
             input_seals = verify_campaign_input_seals(
                 args.input_seal_specs, cells, full=admission_is_full(carried), expected=carried)
+            assert_request_seals(request, input_seals, "at input admission")
+            recheck_generation(manifest, "after input admission")
     except CellRefused as error:
         print(f"[phase3] REFUSED: {error}", file=sys.stderr)
         return 2

@@ -47,6 +47,9 @@ sys.path.insert(0, str(REPO))
 
 import scripts.anchor_confirm_decision as D  # noqa: E402
 
+#: the bytes this module was imported from (audit 697)
+with open(__file__, "rb") as _source:
+    _IMPORTED_SOURCE_SHA256 = hashlib.sha256(_source.read()).hexdigest()
 LOCAL_SLOTS = 4
 ZERO_NORM = 1e-12
 
@@ -126,7 +129,8 @@ def probe(sources, sources_sha256, coordinate, *, manifest: dict, approval: dict
            f"{checkpoint}: the runtime sidecar is not the terminal epoch {coordinate[2]}")
     D.need(os.environ.get("GDNA_NUM_SEMANTIC_PARTS") == "5",
            "export GDNA_NUM_SEMANTIC_PARTS=5 before python starts")
-    # first deserialisation: the pinned bytes, under the probe approval
+    # first deserialisation: the pinned bytes, under the probe approval, in the admitted generation
+    M.recheck_generation(manifest, "before the probe's first load")
     config = torch.load(io.BytesIO(consumed.read(run_dir / "config.pt", config_pin)), map_location="cpu",
                         weights_only=False)
     args = SimpleNamespace(**{k: v for k, v in config.items() if not k.startswith("__")})
@@ -236,7 +240,8 @@ def main(argv=None) -> int:
     try:
         D.need(bool(args.reuse_admission) == bool(args.reuse_admission_sha256),
                "--reuse-admission and --reuse-admission-sha256 go together")
-        manifest = D.M.load_anchor_manifest(args.manifest, args.manifest_sha256)
+        manifest = D.M.recheck_generation({"path": args.manifest, "sha256": args.manifest_sha256},
+                                          "at the probe's entry")
         D.need(type(args.approval_section) is int and args.approval_section > 0,
                "an approval reference is a positive ledger section number")
         selection = D.verify_selection(args.selection, args.selection_sha256)   # metadata only
@@ -252,6 +257,7 @@ def main(argv=None) -> int:
                         manifest=manifest, approval=approval, selection=selection,
                         reuse_path=args.reuse_admission, reuse_sha256=args.reuse_admission_sha256,
                         device=args.device)
+        D.M.recheck_generation(manifest, "before the probe publishes")
         digest = D.write_once(Path(args.out), payload)
     except (D.NotReducible, D.M.CellRefused, KeyError, ValueError, FileExistsError) as error:
         print(f"[anchor-probe] REFUSED: {type(error).__name__}: {error}", file=sys.stderr)

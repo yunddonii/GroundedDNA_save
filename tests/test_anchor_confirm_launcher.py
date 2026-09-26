@@ -14,7 +14,9 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -704,6 +706,237 @@ def test_completion_refuses_what_is_not_the_sealed_recipe(tmp_path, sealed, case
     with pytest.raises(CellRefused, match=reason):
         M.assert_anchor_recipe(run_dir, scientific_recipe=payload,
                                arm="none" if case == "arm" else "anchors")
+
+
+# ---- approved inputs survive admission (audit 694.2) -------------------------------------------------------
+def seal_files(tmp_path):
+    """Three private seal files, their CLI declarations and the authorities an admission of them
+    returns (the low-level seal verifier itself is a stand-in here)."""
+    args, authorities = [], {}
+    for ds in M.ANCHOR_DATASETS:
+        path = tmp_path / f"{ds}.stage1.input-seal.json"
+        path.write_text(json.dumps({"seal": ds}))
+        args += ["--input-seal", f"{ds}:stage1={path}"]
+        authorities[f"{ds}:stage1"] = {"seal_path": str(path.resolve()),
+                                       "seal_file_sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+    return args, authorities
+
+
+@pytest.mark.parametrize("change", ["digest", "path", "missing", "extra"])
+def test_admitted_seals_other_than_the_approved_request_refuse(change):
+    approved = {"flickr25k:stage1": {"path": "/s/f.json", "sha256": "a" * 64}}
+    admitted = {"flickr25k:stage1": {"seal_path": "/s/f.json", "seal_file_sha256": "a" * 64}}
+    M.assert_request_seals({"input_seals": approved}, admitted, "test")         # the positive control
+    if change == "digest":
+        admitted["flickr25k:stage1"]["seal_file_sha256"] = "b" * 64
+    elif change == "path":
+        admitted["flickr25k:stage1"]["seal_path"] = "/s/g.json"
+    elif change == "missing":
+        admitted = {}
+    else:
+        admitted["nuswide:stage1"] = {"seal_path": "/s/n.json", "seal_file_sha256": "c" * 64}
+    with pytest.raises(CellRefused, match="not the approved request's"):
+        M.assert_request_seals({"input_seals": approved}, admitted, "test")
+
+
+def test_approved_seals_reach_the_lease(tmp_path, monkeypatch, boundaries, capsys):
+    fake_authorities(tmp_path, monkeypatch)
+    monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    seal_args, admitted = seal_files(tmp_path)
+    monkeypatch.setattr(M, "verify_campaign_input_seals",
+                        lambda *a, **k: boundaries.append("verify_campaign_input_seals") or dict(admitted))
+    argv = [*BASE, "--run", *seal_args, *with_manifest(tmp_path)]
+    approval = approve_request(tmp_path, monkeypatch, capsys, argv)
+    assert run_main(monkeypatch, *argv, *approval) == 0
+    assert boundaries == ["verify_campaign_input_seals", "_with_campaign_gpu_leases"]
+
+
+def test_a_seal_changed_after_its_approval_refuses_before_the_lease(tmp_path, monkeypatch, boundaries, capsys):
+    """The seal file changes after the approval check and before admission (audit 694.2's case)."""
+    fake_authorities(tmp_path, monkeypatch)
+    monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    seal_args, admitted = seal_files(tmp_path)
+    def admit_changed(*a, **k):
+        boundaries.append("verify_campaign_input_seals")
+        path = Path(admitted["flickr25k:stage1"]["seal_path"])
+        path.write_text(path.read_text() + "\n")
+        return dict(admitted, **{"flickr25k:stage1": {"seal_path": str(path),
+                                 "seal_file_sha256": hashlib.sha256(path.read_bytes()).hexdigest()}})
+    monkeypatch.setattr(M, "verify_campaign_input_seals", admit_changed)
+    argv = [*BASE, "--run", *seal_args, *with_manifest(tmp_path)]
+    approval = approve_request(tmp_path, monkeypatch, capsys, argv)
+    assert run_main(monkeypatch, *argv, *approval) == 2
+    assert "not the approved request's" in capsys.readouterr().err
+    assert boundaries == ["verify_campaign_input_seals"]                    # no lease
+
+
+@pytest.mark.parametrize("changed", [False, True])
+def test_the_carried_authority_is_the_approved_bytes_while_it_is_parsed(tmp_path, monkeypatch, boundaries,
+                                                                        capsys, changed):
+    fake_authorities(tmp_path, monkeypatch)
+    monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    authority = tmp_path / "authority.json"
+    authority.write_text("{}")
+    def parse(path):
+        if changed:
+            Path(path).write_text('{"late": true}')
+        return {}
+    monkeypatch.setattr(M, "load_admission_authority", parse)
+    argv = [*BASE, "--run", "--admission-authority", str(authority), *with_manifest(tmp_path)]
+    approval = approve_request(tmp_path, monkeypatch, capsys, argv)
+    rc = run_main(monkeypatch, *argv, *approval)
+    if changed:
+        assert rc == 2 and "carried admission authority is not the approved" in capsys.readouterr().err
+        assert boundaries == []
+    else:
+        assert rc == 0 and boundaries == ["verify_campaign_input_seals", "_with_campaign_gpu_leases"]
+
+
+# ---- the admitted generation, re-verified at every boundary (audit 697) -------------------------------------
+def copy_of_the_tree(tmp_path, monkeypatch):
+    """A private copy of the 56-file generation, with REPO pointed at it and its manifest."""
+    root = tmp_path / "tree"
+    for rel in M.anchor_generation_closure():
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(REPO / rel, root / rel)
+    monkeypatch.setattr(M, "REPO", root)
+    from importlib import metadata
+    files = {rel: hashlib.sha256((root / rel).read_bytes()).hexdigest() for rel in M.anchor_generation_closure()}
+    body = {"artifact_kind": M.ANCHOR_MANIFEST_KIND, "version": M.ANCHOR_CONFIRM_VERSION,
+            "historical": {"approved_p3_refit_aggregate": {"sha256": M.APPROVED_P3_REFIT_AGGREGATE_SHA256},
+                           "approved_selected_n": {"sha256": M.APPROVED_SELECTED_N_SHA256}},
+            "new_generation": {"commit": "c" * 40, "branch": "b", "clean": True, "files_sha256": files,
+                               "dataset_scripts_sha256": dict(M.DATASET_SCRIPT_SHA256),
+                               "environment": {"python": ".".join(map(str, sys.version_info[:3])),
+                                               "torch": metadata.version("torch"), "interpreter": sys.executable}},
+            "contract": {"path": M.ANCHOR_CONTRACT_PATH, "sha256": files[M.ANCHOR_CONTRACT_PATH]}}
+    path = tmp_path / "manifest.json"
+    return root, {"path": str(path), "sha256": write_json(path, body)}
+
+
+def test_an_unchanged_generation_rechecks(tmp_path, monkeypatch):
+    root, ref = copy_of_the_tree(tmp_path, monkeypatch)
+    assert M.recheck_generation(ref, "test")["sha256"] == ref["sha256"]
+
+
+@pytest.mark.parametrize("member", ["scripts/anchor_confirm_decision.py", "scripts/anchor_confirm_code_axis.py",
+                                    "scripts/anchor_confirm_manifest.py", M.ANCHOR_CONTRACT_PATH,
+                                    "tests/test_anchor_confirm_reducer.py", "config.py"])
+def test_a_member_changed_after_admission_refuses(tmp_path, monkeypatch, member):
+    """Audit 697's anchor-only members (and a legacy one) drift after the first admission."""
+    root, ref = copy_of_the_tree(tmp_path, monkeypatch)
+    M.recheck_generation(ref, "admission")
+    (root / member).write_bytes((root / member).read_bytes() + b"\n")
+    with pytest.raises(CellRefused, match="not the manifest's generation"):
+        M.recheck_generation(ref, "later")
+
+
+def test_a_module_imported_from_other_bytes_refuses(tmp_path, monkeypatch):
+    import scripts.anchor_confirm_decision as reducer
+    path, sha = manifest(tmp_path)
+    M.recheck_generation({"path": path, "sha256": sha}, "positive")
+    monkeypatch.setattr(reducer, "_IMPORTED_SOURCE_SHA256", "0" * 64)
+    with pytest.raises(CellRefused, match="imported from other bytes"):
+        M.recheck_generation({"path": path, "sha256": sha}, "test")
+
+
+def test_a_generation_drifting_during_input_admission_refuses_before_the_lease(tmp_path, monkeypatch,
+                                                                              boundaries, capsys):
+    fake_authorities(tmp_path, monkeypatch)
+    monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    argv = [*BASE, "--run", *with_manifest(tmp_path)]
+    approval = approve_request(tmp_path, monkeypatch, capsys, argv)
+    def recheck(manifest, where):
+        raise CellRefused(f"{where}: scripts/anchor_confirm_decision.py drifted")
+    monkeypatch.setattr(M, "recheck_generation", recheck)
+    assert run_main(monkeypatch, *argv, *approval) == 2
+    assert "after input admission" in capsys.readouterr().err
+    assert boundaries == ["verify_campaign_input_seals"]                    # no lease
+
+
+@pytest.fixture
+def sweep(tmp_path, monkeypatch):
+    """The anchor-mode sweep after its lease, every side effect a recorder: seals, snapshot,
+    reservation, cells and publications."""
+    calls = []
+    records = tmp_path / "records"
+    records.mkdir()
+    monkeypatch.setattr(M, "RECORD_DIR", records)
+    cells = M.anchor_confirmation_cells("select", incumbent=INCUMBENT, arm_plan=ALL_ANCHORS)
+    keys = [M.campaign_cell_id(c[0], c[1], topp=c[2], joint=c[3], stage=c[4], seed=c[5], anchor_arm=c[7])
+            for c in cells]
+    seals = {f"{ds}:stage1": {"seal_path": f"/seals/{ds}.json", "seal_file_sha256": "5" * 64}
+             for ds in M.ANCHOR_DATASETS}
+    path, sha = manifest(tmp_path)
+    authorities = {"anchor_request": {"input_seals": {k: {"path": v["seal_path"], "sha256": v["seal_file_sha256"]}
+                                                      for k, v in seals.items()}},
+                   "anchor_manifest": {"path": path, "sha256": sha}}
+    admitted = {"seals": dict(seals)}
+    monkeypatch.setattr(M, "verify_campaign_input_seals",
+                        lambda *a, **k: calls.append("seals") or dict(admitted["seals"]))
+    def snapshot(*a, **k):
+        calls.append("plan_snapshot")
+        return {"sources": {}, "inputs": {}, "input_seals": k["input_seals"], "qwen_root": "q",
+                "source_authority_sha256": "s", "environment_sha256": "e",
+                "plan": {"result_root": "/r", "cell_bindings": {key: {} for key in keys}}}
+    monkeypatch.setattr(M, "plan_snapshot", snapshot)
+    for name in ("_assert_snapshot_gpu_leases", "assert_production_source_authority",
+                 "assert_reservation_owner", "verify_snapshot_input_seals"):
+        monkeypatch.setattr(M, name, lambda *a, **k: None)
+    monkeypatch.setattr(M, "reserve_sweep_namespace", lambda *a, **k: calls.append("reserve") or "reservation")
+    monkeypatch.setattr(M, "_publish_json_exclusive", lambda path, payload: calls.append(("publish", Path(path).name)))
+    monkeypatch.setattr(M, "launch_binding_from_expected", lambda planned, digest: {})
+    def run_cell(ds, n, gpu, **k):
+        calls.append(("run_cell", ds, n))
+        (records / f"t_{ds}_{n}.json").write_text("{}")
+        return {"tag": f"t_{ds}_{n}", "run_dir": "/r/x", "geometry": {"identity_digest": "i"}, "recipe": {},
+                "seed": k["seed"], "selection": {"selection_value": 0.5, "selection_epoch_zero_based": n},
+                "campaign": {}, "completion": {}}
+    monkeypatch.setattr(M, "run_cell", run_cell)
+    reservation = tmp_path / "reservation.json"
+    reservation.write_text("{}")
+    monkeypatch.setattr(M, "campaign_reservation_path", lambda namespace: reservation)
+    args = SimpleNamespace(only=None, sweep=None, anchor_confirm="select", plan=False, run=True, smoke=False,
+                           epochs=1, gpus="0,1,2", gpu=0, namespace="ancT", admission_authority=None,
+                           input_seal_specs={}, result_root="/r")
+    def go():
+        return M._run_sweep(args, None, full_plan=cells, authorities=authorities,
+                            preverified_input_seals=dict(seals))
+    return go, calls, admitted
+
+
+def test_an_unchanged_generation_runs_every_cell_and_publishes_its_receipt(sweep):
+    go, calls, _ = sweep
+    assert go() == 0
+    assert sum(1 for c in calls if c[0] == "run_cell") == 12
+    assert ("publish", "ancT_sweep_complete.json") in calls
+
+
+@pytest.mark.parametrize("where,rc", [("after the lease", 2), ("before ", 1), ("before the receipt", 1)])
+def test_a_generation_drifting_inside_the_sweep_stops_before_its_next_boundary(sweep, monkeypatch, where, rc):
+    go, calls, _ = sweep
+    real = M.recheck_generation
+    def recheck(manifest, at):
+        if at.startswith(where) and not (where == "before " and at == "before the receipt"):
+            raise CellRefused(f"{at}: scripts/anchor_confirm_code_axis.py drifted")
+        return real(manifest, at)
+    monkeypatch.setattr(M, "recheck_generation", recheck)
+    assert go() == rc
+    assert ("publish", "ancT_sweep_complete.json") not in calls
+    if where == "after the lease":
+        assert "plan_snapshot" not in calls and "reserve" not in calls
+    elif where == "before ":
+        assert not any(c[0] == "run_cell" for c in calls)                   # no cell dispatched
+    else:
+        assert sum(1 for c in calls if c[0] == "run_cell") == 12
+
+
+def test_seals_readmitted_after_the_lease_must_still_be_the_approved_ones(sweep):
+    go, calls, admitted = sweep
+    admitted["seals"] = dict(admitted["seals"], **{"flickr25k:stage1": {"seal_path": "/seals/flickr25k.json",
+                                                                         "seal_file_sha256": "e" * 64}})
+    assert go() == 2
+    assert "plan_snapshot" not in calls and "reserve" not in calls
 
 
 # ---- the protocol values (contract section 6) -----------------------------------------------------------

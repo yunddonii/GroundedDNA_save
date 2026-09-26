@@ -26,9 +26,13 @@ Evidence authority (audit 672.1, 679). A record counts for its coordinate only t
 Reuse is never inferred from a missing anchor block. JSON-level admission (stage, smoke, split,
 terminal epoch, membership, score) completes before any config.pt is deserialised (audit 673.1).
 
-Generation (audit 671.2, 678.2). The reducer runs only in the tree the reviewed generation manifest
-pins, and every receipt-backed record must come from a campaign whose plan snapshot names that
-manifest: one generation carries stage S, the frozen N and stage D.
+Generation (audit 671.2, 678.2, 697). The reducer runs only in the tree the reviewed generation
+manifest pins -- re-verified at entry, with the modules' import digests, and again before it
+publishes -- and every receipt-backed record must come from a campaign whose plan snapshot names
+that manifest: one generation carries stage S, the frozen N and stage D.
+
+Inputs (audit 694, 696). The approved request's seal pins, the campaign's admitted seals, each
+record's input authority and its launch/cell bindings' input identities must all agree.
 
 The reducer NEVER deserialises a binary (audit 679.2, 681): config.pt is checked by byte identity
 against its admitted pin only. Every file is read once and parsed from its hashed bytes, re-verified
@@ -54,6 +58,9 @@ sys.path.insert(0, str(REPO))
 
 import scripts.phase3_selection_matrix as M  # noqa: E402
 
+#: the bytes this module was imported from (audit 697)
+with open(__file__, "rb") as _source:
+    _IMPORTED_SOURCE_SHA256 = hashlib.sha256(_source.read()).hexdigest()
 REDUCER_VERSION = "anchor-confirm-reducer/2"
 N_SELECTION_KIND = "anchor_confirmation_n_selection"
 DECISION_KIND = "anchor_confirmation_decision"
@@ -192,6 +199,11 @@ def campaign_approval(snapshot: dict, scope: str, *, manifest_sha256: str, selec
     live = M.audit_approval(recorded.get("section"), scope, **pins)
     need(live["line"] == recorded.get("line"), "the approval line the campaign recorded is not the ledger's")
     stage = "select" if scope.startswith("stage-S") else "decide"
+    seals = snapshot.get("input_seals")
+    admitted = {key: {"path": (a or {}).get("seal_path"), "sha256": (a or {}).get("seal_file_sha256")}
+                for key, a in (seals or {}).items()} if isinstance(seals, dict) else None
+    need(bool(admitted) and admitted == request.get("input_seals"),
+         "the campaign's admitted input seals are not its approved request's")
     need(request.get("schema") == M.REQUEST_SCHEMA and request.get("stage") == stage
          and request.get("mode") == "run" and request.get("manifest") == manifest_sha256
          and request.get("selection") == (selection_sha256 if stage == "decide" else None)
@@ -282,6 +294,16 @@ def admit_metadata(consumed: Consumed, coordinate, entry: dict, *, incumbent: di
             raise NotReducible(f"{cell_id}: the sealed recipe is malformed: {error}") from None
         need(recipe_digest(payload) == binding.get("expected_scientific_recipe_sha256"),
              f"{cell_id}: the sealed recipe is not its declared digest")
+        inputs = (snapshot.get("input_seals") or {}).get(f"{ds}:stage1")
+        need(isinstance(inputs, dict) and record.get("input_authority") == inputs,
+             f"{entry['record']}: its input authority is not the campaign's admitted {ds}:stage1 seal")
+        for field, value in (("input_seal_sha256", inputs.get("seal_file_sha256")),
+                             ("input_aggregate_sha256", inputs.get("aggregate_sha256")),
+                             ("input_authority_sha256", inputs.get("authority_sha256")),
+                             ("split_identity_sha256", inputs.get("split_identity_sha256")),
+                             ("hf_identity_sha256", (inputs.get("hf_runtime") or {}).get("identity_sha256"))):
+            need(is_sha256(value) and campaign.get(field) == value and binding.get(field) == value,
+                 f"{cell_id}: its launch or cell binding's {field} is not the admitted seal's")
         want = M.anchor_protocol_fields(ds, n, seed=seed, arm=arm, incumbent=incumbent)
         wrong = sorted(k for k, v in want.items()
                        if k not in payload["fields"] or canonical(payload["fields"][k]) != canonical(v))
@@ -595,7 +617,8 @@ def main(argv=None) -> int:
     try:
         need(bool(args.reuse_admission) == bool(args.reuse_admission_sha256),
              "--reuse-admission and --reuse-admission-sha256 go together")
-        manifest = M.load_anchor_manifest(args.manifest, args.manifest_sha256)
+        manifest = M.recheck_generation({"path": args.manifest, "sha256": args.manifest_sha256},
+                                        "at the reducer's entry")
         if args.stage == "select":
             payload = reduce_select(args.sources, args.sources_sha256, args.reuse_admission,
                                     args.reuse_admission_sha256, manifest=manifest,
@@ -604,6 +627,7 @@ def main(argv=None) -> int:
             need(bool(args.selection) and bool(args.selection_sha256),
                  "decide needs --selection and --selection-sha256")
             payload = reduce_decide(args, manifest)
+        M.recheck_generation(manifest, "before the reducer publishes")
         digest = write_once(Path(args.out), payload)
     except (NotReducible, M.CellRefused, KeyError, ValueError, TypeError, FileExistsError) as error:
         print(f"[anchor-reducer] REFUSED: {type(error).__name__}: {error}", file=sys.stderr)
