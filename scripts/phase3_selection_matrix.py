@@ -37,6 +37,7 @@ import argparse
 import csv
 import hashlib
 import json
+import re
 import math
 import os
 from pathlib import Path
@@ -71,7 +72,7 @@ _BOOTSTRAP_SOURCE_PATHS = (
     "dna_utils/training_utils.py", "dna_utils/visualization.py",
     "dna_utils/vlm_qwen25_descriptions.py", "dna_utils/runtime_state.py",
     "dna_utils/runtime_environment.py", "dna_utils/gpu_lease.py",
-    "dna_utils/gc_policy.py",
+    "dna_utils/gc_policy.py", "dna_utils/scientific_recipe.py",
     "models/adapters.py", "models/cluster_attention_router.py",
     "models/__init__.py",
     "models/pretrained_backbone.py", "models/pretrained_backbone_clip.py",
@@ -254,6 +255,24 @@ LAMBDA_INCUMBENT = {
 LAMBDA_SWEEP_DATASETS = ("flickr25k",)
 LAMBDA_INCUMBENT_SEEDS = (42, 43, 44)
 LAMBDA_CAMPAIGN_KIND = "lambda_confirmation"
+#: Anchor confirmation v1 (audit sections 659-664): a separately named, versioned mode, NOT a
+#: lambda axis. It moves one recipe axis, `axis_center`, between `none` and `anchors`, on the three
+#: multi-label datasets, and runs stage-1 (train-only) cells only; a refit is a separate
+#: authorization. The incumbent authorities are pinned here from the ledger (section 285 for the
+#: aggregate, its selected-N authority, section 659.2); a caller-supplied path cannot replace them.
+ANCHOR_CONFIRM_VERSION = "anchor-confirm/1"
+ANCHOR_CAMPAIGN_KIND = "anchor_confirmation_v1"
+ANCHOR_ARMS = ("none", "anchors")
+ANCHOR_DATASETS = ("flickr25k", "nuswide", "mscoco")
+ANCHOR_DECIDE_SEEDS = (43, 44)
+APPROVED_P3_REFIT_AGGREGATE = Path(
+    "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/p3rfB_refit_aggregate.json")
+APPROVED_P3_REFIT_AGGREGATE_SHA256 = (
+    "b4f3b0dff467f7c1fd4ca134edba66085115939a4097e6bb201bd13ca83452a5")
+APPROVED_SELECTED_N = Path(
+    "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/selected_n.json")
+APPROVED_SELECTED_N_SHA256 = (
+    "2bf6133d8cdc7471e40a33d20f1bb19228aa770e67a999a436efb5abac6b2549")
 
 #: CIFAR used to be pinned here at 0.6/0.95 rather than swept. The pin's stated
 #: reason was that on a single-label dataset the codon decoding probe REWARDS
@@ -666,8 +685,12 @@ def recipe_fragment(topp=None, joint=None, overrides=()) -> str:
 
 
 def tag_for(dataset: str, n: int, *, namespace: str = NAMESPACE,
-            topp=None, joint=None, seed: int = SEED, overrides=()) -> str:
-    return (f"{namespace}_{DATASETS[dataset]['exp']}_N{n}_s{seed}"
+            topp=None, joint=None, seed: int = SEED, overrides=(),
+            anchor_arm=None) -> str:
+    # An anchor arm goes first and is present for BOTH arms (`_AXnone`, `_AXanchors`), so neither
+    # arm's tag is a substring of the other's or of a legacy tag (`*{tag}*` globs).
+    anchor = f"_AX{anchor_arm}" if anchor_arm is not None else ""
+    return (f"{namespace}_{DATASETS[dataset]['exp']}_N{n}_s{seed}{anchor}"
             f"{recipe_fragment(topp, joint, overrides)}")
 
 
@@ -756,8 +779,16 @@ def build_command(dataset: str, n: int, gpu: int, *,
                   epochs: int | None = None,
                   namespace: str = NAMESPACE,
                   stage: str = "select", seed: int = SEED,
-                  topp=None, joint=None, overrides=()) -> tuple:
+                  topp=None, joint=None, overrides=(), anchor_arm=None) -> tuple:
     spec = DATASETS[dataset]
+    if anchor_arm is not None:
+        if anchor_arm not in ANCHOR_ARMS:
+            raise CellRefused(f"axis_center={anchor_arm!r} is not an anchor-confirmation arm")
+        if stage == "refit":
+            raise CellRefused("anchor confirmation runs stage-1 cells only; a refit is a separate "
+                              "authorization")
+        if overrides:
+            raise CellRefused("an anchor-confirmation cell moves axis_center alone")
     if stage == "refit":
         if overrides:
             raise CellRefused(
@@ -768,7 +799,7 @@ def build_command(dataset: str, n: int, gpu: int, *,
         flags = _refit_flags(n, seed) + S5_FLAGS + A_FLAGS + QUIET_FLAGS
     else:
         tag = tag_for(dataset, n, namespace=namespace, topp=topp, joint=joint,
-                      seed=seed, overrides=overrides)
+                      seed=seed, overrides=overrides, anchor_arm=anchor_arm)
         flags = _stage1_flags(n, seed) + S5_FLAGS + A_FLAGS + QUIET_FLAGS
     # EXTRA_ARGS lands at the END of every trainer's command, after the
     # hardcoded window, and argparse keeps the last occurrence -- verified
@@ -786,6 +817,8 @@ def build_command(dataset: str, n: int, gpu: int, *,
         if flag not in LAMBDA_AXES:
             raise CellRefused(f"{flag!r} is not a declared lambda axis")
         flags = _override_flags(flags, {f"--{flag}": str(value)})
+    if anchor_arm is not None:
+        flags = _override_flags(flags, {"--axis_center": str(anchor_arm)})
     stop = n
     if epochs is not None:
         # Smoke: shorten everything CONSISTENTLY, by NAME. Slicing off the
@@ -1126,11 +1159,12 @@ def expected_run_identity(dataset: str, n: int, *, stage: str = "select",
 
 def campaign_cell_id(dataset: str, n: int, *, topp, joint,
                      stage: str = "select", seed: int = SEED,
-                     overrides=()) -> str:
+                     overrides=(), anchor_arm=None) -> str:
     """Stable, human-readable primary key for one planned recipe cell."""
     return (f"{dataset}|N={int(n)}|P={str(topp[0])},{str(topp[1])}|"
             f"JD={str(joint)}|stage={stage}|seed={int(seed)}"
-            + "".join(f"|{flag}={value}" for flag, value in overrides))
+            + "".join(f"|{flag}={value}" for flag, value in overrides)
+            + (f"|axis_center={anchor_arm}" if anchor_arm is not None else ""))
 
 
 def expected_cell_binding(dataset: str, n: int, *, namespace: str,
@@ -1141,7 +1175,7 @@ def expected_cell_binding(dataset: str, n: int, *, namespace: str,
                           environment_sha256: str | None = None,
                           child_environment: dict | None = None,
                           input_authority: dict | None = None,
-                          overrides=()) -> dict:
+                          overrides=(), anchor_arm=None) -> dict:
     identity = expected_run_identity(
         dataset, n, stage=stage, seed=seed, topp=topp, joint=joint,
         epochs=epochs, input_authority=input_authority, overrides=overrides)
@@ -1149,7 +1183,7 @@ def expected_cell_binding(dataset: str, n: int, *, namespace: str,
                          topp=topp, joint=joint)
            if stage == "refit" else
            tag_for(dataset, n, namespace=namespace, topp=topp, joint=joint,
-                   seed=seed, overrides=overrides))
+                   seed=seed, overrides=overrides, anchor_arm=anchor_arm))
     authority = input_authority or {}
     hf = authority.get("hf_runtime") or {}
     child_environment_sha256 = (
@@ -1158,7 +1192,7 @@ def expected_cell_binding(dataset: str, n: int, *, namespace: str,
     return {
         "cell_id": campaign_cell_id(
             dataset, n, topp=topp, joint=joint, stage=stage, seed=seed,
-            overrides=overrides),
+            overrides=overrides, anchor_arm=anchor_arm),
         "campaign_nonce": campaign_nonce,
         "dataset": dataset,
         "N": int(n),
@@ -1169,6 +1203,7 @@ def expected_cell_binding(dataset: str, n: int, *, namespace: str,
             "routing_adaptive_topp_max": str(topp[1]),
             "lambda_codon_joint": str(joint),
             **{flag: str(value) for flag, value in overrides},
+            **({"axis_center": str(anchor_arm)} if anchor_arm is not None else {}),
         },
         "lambda_overrides": {flag: str(value) for flag, value in overrides},
         "expected_tag": tag,
@@ -1185,6 +1220,10 @@ def expected_cell_binding(dataset: str, n: int, *, namespace: str,
         "hf_identity_sha256": hf.get("identity_sha256"),
         "expected_identity_digest": identity.digest,
         "expected_run_identity": identity.as_record(),
+        **(_anchor_binding_fields(dataset, n, namespace=namespace, stage=stage, seed=seed,
+                                  topp=topp, joint=joint, epochs=epochs,
+                                  anchor_arm=anchor_arm, input_authority=input_authority)
+           if anchor_arm is not None else {}),
     }
 
 
@@ -1196,6 +1235,15 @@ CAMPAIGN_LAUNCH_FIELDS = (
     "physical_gpu_index", "expected_child_environment",
     "child_environment_sha256",
 )
+
+
+def _cell_anchor_arm(cell):
+    """The `axis_center` arm of an eight-tuple anchor-confirmation cell, None for every other."""
+    if len(cell) != 8:
+        return None
+    if cell[7] not in ANCHOR_ARMS:
+        raise CellRefused(f"axis_center={cell[7]!r} is not an anchor-confirmation arm")
+    return cell[7]
 
 
 def launch_binding_from_expected(binding: dict, plan_snapshot_sha256: str) -> dict:
@@ -1221,15 +1269,19 @@ def _campaign_cell_parts(cell) -> tuple:
     if len(cell) == 4:
         dataset, n, topp, joint = cell
         return dataset, n, topp, joint, "select", SEED
-    if len(cell) in (6, 7):
+    if len(cell) in (6, 7, 8):
         dataset, n, topp, joint, stage, seed = cell[:6]
         return dataset, n, topp, joint, stage, int(seed)
     raise CellRefused(
-        f"campaign cell {cell!r} has {len(cell)} fields, expected 4, 6 or 7")
+        f"campaign cell {cell!r} has {len(cell)} fields, expected 4, 6, 7 or 8")
 
 
 def _cell_overrides(cell) -> tuple:
     """The lambda overrides of a seven-tuple cell, `()` for every other cell."""
+    if len(cell) == 8:
+        if tuple(cell[6]) != ():
+            raise CellRefused("an anchor-confirmation cell carries no lambda override")
+        return ()
     if len(cell) != 7:
         return ()
     overrides = tuple((str(flag), str(value)) for flag, value in cell[6])
@@ -1334,7 +1386,9 @@ def plan_snapshot(datasets=None, *, plan=None, executed=None, axis=None,
                  "topp": list(topp) if topp is not None else None,
                  "joint": jd, "stage": stage, "seed": seed,
                  **({"overrides": dict(_cell_overrides(row))}
-                    if _cell_overrides(row) else {})}
+                    if _cell_overrides(row) else {}),
+                 **({"anchor_arm": _cell_anchor_arm(row)}
+                    if _cell_anchor_arm(row) is not None else {})}
                 for row, (ds, n, topp, jd, stage, seed) in
                 ((row, _campaign_cell_parts(row)) for row in rows)]
 
@@ -1373,6 +1427,7 @@ def plan_snapshot(datasets=None, *, plan=None, executed=None, axis=None,
                 ds, n, namespace=namespace, campaign_nonce=campaign_nonce,
                 topp=topp, joint=jd, epochs=epochs, stage=stage, seed=seed,
                 overrides=_cell_overrides(row),
+                anchor_arm=_cell_anchor_arm(row),
                 result_root=canonical_result_root,
                 environment_sha256=environment_sha,
                 child_environment=child_environment,
@@ -2554,12 +2609,45 @@ def _run_refit_postprocess(run_dir: Path, *, dataset: str, env: dict,
             verify_snapshot(snapshot)
 
 
+def _input_authority_flags(input_authority: dict) -> list:
+    """The trainer flags that carry one sealed input authority. run_cell appends them to the
+    command, and anchor-confirmation rendering appends the same list, so the argv the trainer
+    receives is the argv the plan sealed."""
+    hf = input_authority["hf_runtime"]
+    return [
+        "--phase3_input_seal", input_authority["seal_path"],
+        "--phase3_input_seal_sha256", input_authority["seal_file_sha256"],
+        "--phase3_input_aggregate_sha256", input_authority["aggregate_sha256"],
+        "--phase3_split_identity_sha256",
+        input_authority["split_identity_sha256"],
+        "--phase3_hf_identity_sha256", hf["identity_sha256"],
+        "--clip_snapshot_dir", hf["snapshot_dir"],
+        "--clip_snapshot_revision", hf["revision"],
+        "--clip_snapshot_weight_file", hf["weight_file"],
+        "--clip_snapshot_weight_sha256", hf["weight_sha256"],
+        "--clip_snapshot_config_sha256", hf["config_sha256"],
+        "--clip_snapshot_tokenizers_sha256_json", json.dumps(
+            hf["tokenizer_files_sha256"], sort_keys=True,
+            separators=(",", ":")),
+    ]
+
+
+#: Trainer destinations that carry an input authority rather than a recipe choice; a campaign
+#: supplies them from its own sealed inputs at launch (see _input_authority_flags).
+INPUT_AUTHORITY_DESTS = (
+    "phase3_input_seal", "phase3_input_seal_sha256", "phase3_input_aggregate_sha256",
+    "phase3_split_identity_sha256", "phase3_hf_identity_sha256", "clip_snapshot_dir",
+    "clip_snapshot_revision", "clip_snapshot_weight_file", "clip_snapshot_weight_sha256",
+    "clip_snapshot_config_sha256", "clip_snapshot_tokenizers_sha256_json")
+
+
 def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
              namespace: str = NAMESPACE, stage: str = "select",
              seed: int = SEED, topp=None, joint=None,
              snapshot: dict | None = None,
              campaign_binding: dict | None = None,
-             result_root=None, overrides=None) -> dict:
+             result_root=None, overrides=None, anchor_arm=None,
+             scientific_recipe: dict | None = None) -> dict:
     """`overrides` is None for every P/JD/N/refit cell; a lambda confirmation
     cell passes a tuple (possibly empty, for an incumbent seed cell), which
     turns on the args.txt read-back of all three coefficients."""
@@ -2570,7 +2658,11 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
            if stage == "refit"
            else tag_for(dataset, n, namespace=namespace,
                         topp=topp, joint=joint, seed=seed,
-                        overrides=lambda_overrides))
+                        overrides=lambda_overrides, anchor_arm=anchor_arm))
+    if anchor_arm is not None and (campaign_binding is None
+                                   or not isinstance(scientific_recipe, dict)):
+        raise CellRefused(f"{tag}: an anchor-confirmation cell runs only inside a planned "
+                          "campaign with a sealed scientific recipe")
     existing = _existing_artifacts(tag, result_root=result_root)
     if existing:
         raise CellRefused(
@@ -2580,29 +2672,13 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
     cmd, env, _ = build_command(dataset, n, gpu, epochs=epochs,
                                 namespace=namespace, stage=stage, seed=seed,
                                 topp=topp, joint=joint,
-                                overrides=lambda_overrides)
+                                overrides=lambda_overrides, anchor_arm=anchor_arm)
     input_authority = None
     if snapshot is not None:
         input_authority = (snapshot.get("input_seals") or {}).get(
             f"{dataset}:{_seal_stage(stage)}")
     if input_authority is not None:
-        hf = input_authority["hf_runtime"]
-        input_flags = [
-            "--phase3_input_seal", input_authority["seal_path"],
-            "--phase3_input_seal_sha256", input_authority["seal_file_sha256"],
-            "--phase3_input_aggregate_sha256", input_authority["aggregate_sha256"],
-            "--phase3_split_identity_sha256",
-            input_authority["split_identity_sha256"],
-            "--phase3_hf_identity_sha256", hf["identity_sha256"],
-            "--clip_snapshot_dir", hf["snapshot_dir"],
-            "--clip_snapshot_revision", hf["revision"],
-            "--clip_snapshot_weight_file", hf["weight_file"],
-            "--clip_snapshot_weight_sha256", hf["weight_sha256"],
-            "--clip_snapshot_config_sha256", hf["config_sha256"],
-            "--clip_snapshot_tokenizers_sha256_json", json.dumps(
-                hf["tokenizer_files_sha256"], sort_keys=True,
-                separators=(",", ":")),
-        ]
+        input_flags = _input_authority_flags(input_authority)
         env["EXTRA_ARGS"] += " " + " ".join(
             shlex.quote(value) for value in input_flags)
     if campaign_binding is not None:
@@ -2672,6 +2748,13 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
             "GDNA_PHASE3_HF_IDENTITY_DIGEST":
                 campaign_binding["hf_identity_sha256"],
         })
+        if anchor_arm is not None:
+            from dna_utils.scientific_recipe import (
+                EXPECTED_RECIPE_DIGEST_ENV, EXPECTED_RECIPE_JSON_ENV, digest)
+            env[EXPECTED_RECIPE_JSON_ENV] = json.dumps(
+                scientific_recipe, sort_keys=True, separators=(",", ":"),
+                allow_nan=False)
+            env[EXPECTED_RECIPE_DIGEST_ENV] = digest(scientific_recipe)
         # Every canonical trainer shell assigns CUDA_VISIBLE_DEVICES from its
         # positional GPU argument.  Leaving that argument numeric silently
         # overwrites the UUID-bound environment above and reintroduces CUDA
@@ -2774,6 +2857,9 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
             f"{tag}: completed identity {geometry['identity_digest'][:12]}... "
             f"differs from prelaunch identity "
             f"{campaign_binding['expected_identity_digest'][:12]}...")
+    anchor_evidence = (assert_anchor_recipe(run_dir, scientific_recipe=scientific_recipe,
+                                            arm=anchor_arm)
+                       if anchor_arm is not None else None)
     if stage == "refit":
         _run_refit_postprocess(
             run_dir, dataset=dataset, env=env, snapshot=snapshot)
@@ -2852,6 +2938,8 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
         "smoke": epochs is not None,
         "is_candidate_cell": epochs is None and stage == "select",
     }
+    if anchor_evidence is not None:
+        record["anchor_confirmation"] = anchor_evidence
     RECORD_DIR.mkdir(parents=True, exist_ok=True)
     out = RECORD_DIR / f"{tag}.json"
     _publish_json_exclusive(out, record)
@@ -3083,12 +3171,16 @@ def _run_sweep(args, at_topp, *, full_plan=None,
         # select the dataset, i.e. three cells, so "a one-cell smoke" ran three
         # trainers and the description and the act disagreed.
         try:
-            plan = [_only_cell(args.only, plan, axis=args.sweep)]
+            plan = [(_anchor_only_cell(args.only, plan)
+                     if getattr(args, "anchor_confirm", None) is not None
+                     else _only_cell(args.only, plan, axis=args.sweep))]
         except CellRefused as error:
             print(f"[phase3] REFUSED --only: {error}", file=sys.stderr)
             return 2
 
-    campaign_kind = (LAMBDA_CAMPAIGN_KIND if args.sweep == "lambda"
+    anchor_mode = getattr(args, "anchor_confirm", None) is not None
+    campaign_kind = (ANCHOR_CAMPAIGN_KIND if anchor_mode
+                     else LAMBDA_CAMPAIGN_KIND if args.sweep == "lambda"
                      else f"recipe_{args.sweep}")
     if args.plan or not (args.run or args.smoke):
         print(f"{len(plan)} cells, sweeping {args.sweep} at the incumbent N")
@@ -3186,7 +3278,8 @@ def _run_sweep(args, at_topp, *, full_plan=None,
     def _cell_key(cell):
         ds, n, topp, jd, stage, seed = _campaign_cell_parts(cell)
         return campaign_cell_id(ds, n, topp=topp, joint=jd, stage=stage,
-                                seed=seed, overrides=_cell_overrides(cell))
+                                seed=seed, overrides=_cell_overrides(cell),
+                                anchor_arm=_cell_anchor_arm(cell))
 
     def _stream(dataset, cells, gpu):
         for cell in cells:
@@ -3205,7 +3298,9 @@ def _run_sweep(args, at_topp, *, full_plan=None,
                                   result_root=snapshot["plan"]["result_root"],
                                   overrides=(_cell_overrides(cell)
                                              if args.sweep == "lambda"
-                                             else None))
+                                             else None),
+                                  anchor_arm=_cell_anchor_arm(cell),
+                                  scientific_recipe=planned.get("scientific_recipe"))
             except Exception as error:                 # noqa: BLE001
                 with lock:
                     results[key] = ("failed", str(error))
@@ -3255,7 +3350,13 @@ def _run_sweep(args, at_topp, *, full_plan=None,
         # A lambda confirmation is OUTSIDE the P/JD/N fixed-point protocol: it
         # cannot define the production recipe by itself, and its reducer is
         # scripts/phase3_lambda_decision.py, not the stability state machine.
-        "fixed_point_authority": args.sweep != "lambda",
+        "fixed_point_authority": args.sweep != "lambda" and not anchor_mode,
+        **({"anchor_confirmation": {
+                "version": ANCHOR_CONFIRM_VERSION, "stage": args.anchor_confirm,
+                "arms": sorted({_cell_anchor_arm(c) for c in full_plan}),
+                "datasets": sorted({c[0] for c in full_plan}),
+                "incumbent_authorities": authorities or {}}}
+           if anchor_mode else {}),
         **({"lambda_axes": LAMBDA_AXES,
             "lambda_incumbent": {ds: LAMBDA_INCUMBENT[ds]
                                  for ds in LAMBDA_SWEEP_DATASETS},
@@ -3539,6 +3640,340 @@ def _run_exact_campaign(args, *, full_plan: list, executed_plan: list,
     return 0
 
 
+# --------------------------------------------------------------------------
+# Anchor confirmation v1 (audit sections 659-664)
+# --------------------------------------------------------------------------
+_RENDER_SHIM = ("import json, os, sys\n"
+                "with open(os.environ['GDNA_RENDER_ARGV_OUT'], 'w') as out:\n"
+                "    json.dump(sys.argv[1:], out)\n")
+ANCHOR_RECORD_DIR = REPO / "artifacts" / "anchor_confirmation"
+
+
+def render_trainer_argv(cmd, env) -> list:
+    """The exact argv the dataset script would hand the trainer.
+
+    The script runs with a capture shim in place of the interpreter (`PY`), in a scratch
+    directory: nothing trains and no run directory, reservation or GPU is touched. The scripts
+    rebuild a missing whitening file with the real interpreter, so a missing one refuses here.
+    Rendering and launch differ only in `PY`, because `build_command` gives both the same clean
+    environment."""
+    whiten = env.get("WHITEN_NPZ", "")
+    if not whiten or not Path(whiten).is_file():
+        raise CellRefused(f"cannot render {cmd[1]}: whitening file {whiten!r} is missing and "
+                          "the script would build it")
+    with tempfile.TemporaryDirectory(prefix="gdna_anchor_render_") as scratch:
+        shim = Path(scratch) / "capture_argv"
+        shim.write_text(f"#!{os.path.realpath(sys.executable)}\n{_RENDER_SHIM}")
+        shim.chmod(0o700)
+        out = Path(scratch) / "argv.json"
+        proc = subprocess.run(
+            ["bash", str(REPO / cmd[1]), *cmd[2:]], cwd=scratch,
+            env=dict(env, PY=str(shim), GDNA_RENDER_ARGV_OUT=str(out)),
+            capture_output=True, text=True, timeout=120, check=False)
+        if proc.returncode != 0 or not out.is_file():
+            raise CellRefused(f"rendering {cmd[1]} failed (rc {proc.returncode}): "
+                              f"{proc.stderr[-300:]}")
+        argv = json.loads(out.read_text(encoding="utf-8"))
+    if not argv or Path(argv[0]).name != "train_siglip2.py":
+        raise CellRefused(f"{cmd[1]} did not invoke train_siglip2.py: {argv[:2]}")
+    return argv[1:]
+
+
+def anchor_scientific_recipe(dataset: str, n: int, *, namespace: str, stage: str, seed: int,
+                             topp, joint, epochs=None, anchor_arm=None,
+                             input_authority=None) -> dict:
+    """The typed recipe payload of one cell, from its rendered argv and the trainer's parser.
+    With the cell's input authority the argv carries the same sealed-input flags run_cell adds."""
+    from config import Config
+    from dna_utils.scientific_recipe import build_payload
+    cmd, env, _ = build_command(dataset, n, 0, epochs=epochs, namespace=namespace, stage=stage,
+                                seed=seed, topp=topp, joint=joint, anchor_arm=anchor_arm)
+    if input_authority is not None:
+        env["EXTRA_ARGS"] += " " + " ".join(
+            shlex.quote(value) for value in _input_authority_flags(input_authority))
+    return build_payload(Config.build_parser(), render_trainer_argv(cmd, env))
+
+
+def _anchor_binding_fields(dataset, n, *, namespace, stage, seed, topp, joint, epochs,
+                           anchor_arm, input_authority=None) -> dict:
+    from dna_utils.scientific_recipe import digest
+    payload = anchor_scientific_recipe(dataset, n, namespace=namespace, stage=stage, seed=seed,
+                                       topp=topp, joint=joint, epochs=epochs,
+                                       anchor_arm=anchor_arm, input_authority=input_authority)
+    return {"anchor_arm": anchor_arm, "anchor_confirm_version": ANCHOR_CONFIRM_VERSION,
+            "scientific_recipe": payload,
+            "expected_scientific_recipe_sha256": digest(payload)}
+
+
+def _read_pinned_bytes(path, sha256: str, what: str) -> bytes:
+    """Read once, hash those bytes, return them; the caller parses exactly what was hashed."""
+    try:
+        raw = Path(path).read_bytes()
+    except OSError as error:
+        raise CellRefused(f"{what}: {path} is unreadable: {error}") from None
+    if hashlib.sha256(raw).hexdigest() != sha256:
+        raise CellRefused(f"{what}: {path} is not the pinned bytes {sha256[:12]}...")
+    return raw
+
+
+def anchor_incumbent() -> dict:
+    """The approved recipe and N of every in-scope dataset, from the ledger-pinned P3 refit
+    aggregate and its selected-N authority, which must agree with each other."""
+    aggregate = json.loads(_read_pinned_bytes(
+        APPROVED_P3_REFIT_AGGREGATE, APPROVED_P3_REFIT_AGGREGATE_SHA256,
+        "approved P3 refit aggregate"))
+    selected = json.loads(_read_pinned_bytes(
+        APPROVED_SELECTED_N, APPROVED_SELECTED_N_SHA256, "approved selected-N authority"))
+    out = {}
+    for ds in ANCHOR_DATASETS:
+        cell = aggregate["datasets"][ds]
+        recipe = cell["recipe"]
+        topp = (str(recipe["routing_adaptive_topp_min"]), str(recipe["routing_adaptive_topp_max"]))
+        joint = str(recipe["lambda_codon_joint"])
+        choice = selected["recipe_authority"]["choices"][ds]
+        if ([str(v) for v in choice["topp"]] != list(topp) or str(choice["joint"]) != joint
+                or int(selected["selected"][ds]["selected_N"]) != int(cell["N"])):
+            raise CellRefused(f"{ds}: the approved aggregate and selected-N authority disagree")
+        out[ds] = {"N": int(cell["N"]), "topp": topp, "joint": joint}
+    return out
+
+
+def _load_anchor_selection(path, sha256) -> dict:
+    """The frozen stage-S N record (written by the anchor reducer), pinned by digest."""
+    if not path or not sha256:
+        raise CellRefused("--anchor-confirm decide needs --anchor-selection and "
+                          "--anchor-selection-sha256")
+    record = json.loads(_read_pinned_bytes(path, str(sha256), "frozen anchor N selection"))
+    if record.get("artifact_kind") != "anchor_confirmation_n_selection" \
+            or record.get("version") != ANCHOR_CONFIRM_VERSION:
+        raise CellRefused(f"{path} is not an {ANCHOR_CONFIRM_VERSION} N-selection record")
+    return record["n_selected"]
+
+
+def anchor_confirmation_cells(stage_name: str, *, incumbent: dict, arms, selection=None) -> list:
+    """Eight-tuples `(dataset, N, topp, joint, "select", seed, (), arm)`.
+
+    `select`: every arm at every candidate N, seed 42. `decide`: every arm at its frozen N,
+    seeds 43 and 44. Both are train-only stage-1 cells (the 90/10 designated-train split)."""
+    arms = tuple(arms)
+    if not arms or len(set(arms)) != len(arms) or any(a not in ANCHOR_ARMS for a in arms):
+        raise CellRefused(f"anchor arms must be a nonempty subset of {ANCHOR_ARMS}, got {arms}")
+    cells = []
+    for ds in ANCHOR_DATASETS:
+        topp, joint = incumbent[ds]["topp"], incumbent[ds]["joint"]
+        for arm in arms:
+            if stage_name == "select":
+                cells += [(ds, n, topp, joint, "select", SEED, (), arm) for n in CANDIDATE_N]
+            elif stage_name == "decide":
+                n = ((selection or {}).get(ds) or {}).get(arm)
+                if type(n) is not int or n not in CANDIDATE_N:
+                    raise CellRefused(f"{ds}/{arm}: no frozen N in the stage-S record")
+                cells += [(ds, n, topp, joint, "select", seed, (), arm)
+                          for seed in ANCHOR_DECIDE_SEEDS]
+            else:
+                raise CellRefused(f"unknown anchor-confirmation stage {stage_name!r}")
+    return cells
+
+
+def anchor_recipe_admission(cells, *, namespace: str, epochs=None) -> dict:
+    """Render both arms of every planned coordinate: they must differ in `axis_center` alone."""
+    from dna_utils.scientific_recipe import digest, field_differences
+    report = {}
+    for cell in cells:
+        ds, n, topp, joint, stage, seed = _campaign_cell_parts(cell)
+        key = f"{ds}|N={n}|seed={seed}"
+        if key in report:
+            continue
+        payloads = {arm: anchor_scientific_recipe(ds, n, namespace=namespace, stage=stage,
+                                                  seed=seed, topp=topp, joint=joint,
+                                                  epochs=epochs, anchor_arm=arm)
+                    for arm in ANCHOR_ARMS}
+        differing = field_differences(payloads["none"]["fields"], payloads["anchors"]["fields"])
+        if differing != ["axis_center"]:
+            raise CellRefused(f"{key}: the arms differ in {differing}, not in axis_center alone")
+        report[key] = {arm: digest(payloads[arm]) for arm in ANCHOR_ARMS}
+    return report
+
+
+def anchor_incumbent_recipe_check(dataset: str, incumbent: dict) -> dict:
+    """This generation's CONTROL refit command (seed 42, approved N and recipe) against the typed
+    configuration the approved refit actually saved. The saved config.pt is reached by a digest
+    chain from the ledger-pinned aggregate: aggregate -> refit record -> query extraction
+    manifest -> config.pt. Read-only; nothing is launched."""
+    import io
+    import torch
+    from config import Config
+    from dna_utils.scientific_recipe import field_differences, fields_from_config
+    aggregate = json.loads(_read_pinned_bytes(
+        APPROVED_P3_REFIT_AGGREGATE, APPROVED_P3_REFIT_AGGREGATE_SHA256,
+        "approved P3 refit aggregate"))
+    cell = aggregate["datasets"][dataset]
+    want = cell["record_sha256"]["42"]
+    names = [p for p in APPROVED_P3_REFIT_AGGREGATE.parent.glob("p3rfB_*.json")
+             if hashlib.sha256(p.read_bytes()).hexdigest() == want]
+    if len(names) != 1:
+        raise CellRefused(f"{dataset}: {len(names)} files carry the approved seed-42 record digest")
+    record = json.loads(_read_pinned_bytes(names[0], want, f"{dataset} approved refit record"))
+    manifest = json.loads(_read_pinned_bytes(
+        Path(record["run_dir"]) / "extraction_manifest_query.json",
+        record["completion"]["extraction_manifest_sha256"]["query"],
+        f"{dataset} approved query extraction manifest"))
+    raw = _read_pinned_bytes(manifest["config_path"], manifest["config_sha256"],
+                             f"{dataset} approved config.pt")
+    parser = Config.build_parser()
+    approved = fields_from_config(torch.load(io.BytesIO(raw), map_location="cpu",
+                                             weights_only=False), parser, historical=True)
+    rendered = anchor_scientific_recipe(
+        dataset, incumbent[dataset]["N"], namespace="ancIncumbentCheck", stage="refit", seed=SEED,
+        topp=incumbent[dataset]["topp"], joint=incumbent[dataset]["joint"])["fields"]
+    differing = field_differences(rendered, approved)
+    return {"dataset": dataset, "approved_record": names[0].name,
+            "approved_config_sha256": manifest["config_sha256"],
+            # Supplied at launch from the campaign's own sealed inputs, so absent from a render
+            # without them; recorded, and admitted separately for the new campaign.
+            "approved_input_authority": {k: approved.get(k) for k in INPUT_AUTHORITY_DESTS},
+            "differences": {k: {"rendered": rendered.get(k), "approved": approved.get(k)}
+                            for k in differing if k not in INPUT_AUTHORITY_DESTS}}
+
+
+def assert_anchor_recipe(run_dir, *, scientific_recipe: dict, arm: str) -> dict:
+    """After the trainer exits: the trainer-owned evidence names the sealed recipe digest, and the
+    configuration it saved (config.pt, parsed from the bytes that were hashed) is that recipe."""
+    import io
+    import torch
+    from config import Config
+    from dna_utils.run_identity import PHASE3_CAMPAIGN_BINDING_NAME
+    from dna_utils.scientific_recipe import digest, field_differences, fields_from_config
+    run_dir = Path(run_dir)
+    expected = digest(scientific_recipe)
+    try:
+        evidence_raw = (run_dir / PHASE3_CAMPAIGN_BINDING_NAME).read_bytes()
+        config_raw = (run_dir / "config.pt").read_bytes()
+    except OSError as error:
+        raise CellRefused(f"{run_dir}: missing anchor evidence: {error}") from None
+    evidence = json.loads(evidence_raw)
+    if evidence.get("scientific_recipe_sha256") != expected \
+            or evidence.get("scientific_recipe_schema") != scientific_recipe.get("schema"):
+        raise CellRefused(f"{run_dir}: trainer evidence does not name the sealed recipe")
+    saved = fields_from_config(torch.load(io.BytesIO(config_raw), map_location="cpu",
+                                          weights_only=False), Config.build_parser())
+    differing = field_differences(saved, scientific_recipe["fields"])
+    if differing:
+        raise CellRefused(f"{run_dir}: saved config.pt differs from the sealed recipe in "
+                          f"{differing[:8]}")
+    if saved.get("axis_center") != arm:
+        raise CellRefused(f"{run_dir}: saved axis_center {saved.get('axis_center')!r} != {arm!r}")
+    return {"version": ANCHOR_CONFIRM_VERSION, "arm": arm,
+            "scientific_recipe_sha256": expected,
+            "campaign_evidence_sha256": hashlib.sha256(evidence_raw).hexdigest(),
+            "config_pt_sha256": hashlib.sha256(config_raw).hexdigest()}
+
+
+def _anchor_only_cell(spec: str, plan: list):
+    """`--only dataset:N:arm:seed` names exactly one planned anchor cell."""
+    try:
+        ds, n, arm, seed = spec.split(":")
+        n, seed = int(n), int(seed)
+    except ValueError:
+        raise CellRefused(f"--only for anchor confirmation is dataset:N:arm:seed, got {spec!r}")
+    hits = [c for c in plan if (c[0], c[1], c[7], c[5]) == (ds, n, arm, seed)]
+    if len(hits) != 1:
+        raise CellRefused(f"--only {spec!r} matches {len(hits)} planned cells")
+    return hits[0]
+
+
+def _anchor_confirmation_main(args) -> int:
+    """Anchor confirmation v1. `--plan` (or neither --run nor --smoke) renders and checks the plan
+    and writes nothing; --run/--smoke go through the ordinary sweep machinery. The contract is
+    docs/ANCHOR_CONFIRMATION_CONTRACT_v1.md; execution needs audit approval."""
+    global RECORD_DIR
+    for flag, value in (("--refit", args.refit), ("--recipe", args.recipe),
+                        ("--stability-plan", args.stability_plan), ("--at-topp", args.at_topp),
+                        ("--sweep", args.sweep)):
+        if value:
+            print(f"[phase3] REFUSED: {flag} cannot be combined with --anchor-confirm",
+                  file=sys.stderr)
+            return 2
+    if not re.fullmatch(r"anc[A-Za-z0-9]+", str(args.namespace)):
+        print("[phase3] REFUSED: an anchor-confirmation namespace must match anc[A-Za-z0-9]+",
+              file=sys.stderr)
+        return 2
+    try:
+        arms = tuple(a.strip() for a in str(args.anchor_arms).split(",") if a.strip())
+        incumbent = anchor_incumbent()
+        selection = None
+        if args.anchor_confirm == "decide":
+            selection = _load_anchor_selection(args.anchor_selection,
+                                               args.anchor_selection_sha256)
+        elif args.anchor_selection or args.anchor_selection_sha256:
+            raise CellRefused("--anchor-selection belongs to --anchor-confirm decide")
+        cells = anchor_confirmation_cells(args.anchor_confirm, incumbent=incumbent, arms=arms,
+                                          selection=selection)
+    except CellRefused as error:
+        print(f"[phase3] REFUSED: {error}", file=sys.stderr)
+        return 2
+    authorities = {
+        "approved_p3_refit_aggregate": {"path": str(APPROVED_P3_REFIT_AGGREGATE),
+                                        "sha256": APPROVED_P3_REFIT_AGGREGATE_SHA256},
+        "approved_selected_n": {"path": str(APPROVED_SELECTED_N),
+                                "sha256": APPROVED_SELECTED_N_SHA256},
+        "incumbent": {ds: {**v, "topp": list(v["topp"])} for ds, v in incumbent.items()},
+        **({"anchor_selection": {"path": str(args.anchor_selection),
+                                 "sha256": str(args.anchor_selection_sha256)}}
+           if selection is not None else {}),
+    }
+    if args.plan or not (args.run or args.smoke):
+        return _print_anchor_plan(args, cells, incumbent, authorities)
+    if args.smoke and not args.only:
+        print("[phase3] REFUSED: an anchor smoke needs --only dataset:N:arm:seed",
+              file=sys.stderr)
+        return 2
+    if args.run and args.only:
+        print("[phase3] REFUSED: --run takes the whole declared stage; --only is for --smoke",
+              file=sys.stderr)
+        return 2
+    RECORD_DIR = ANCHOR_RECORD_DIR
+    return _with_campaign_gpu_leases(
+        args, lambda: _run_sweep(args, None, full_plan=cells, authorities=authorities))
+
+
+def _print_anchor_plan(args, cells, incumbent, authorities) -> int:
+    """Print the plan and its recipe admission. Renders argv in scratch directories and reads
+    pinned JSON and the approved config.pt; writes nothing, reserves nothing, takes no GPU."""
+    print(f"{ANCHOR_CONFIRM_VERSION}: stage {args.anchor_confirm}, {len(cells)} cells, "
+          f"namespace {args.namespace}  [NON-EXECUTABLE until audit approval]")
+    print(json.dumps(authorities, indent=1, sort_keys=True))
+    for cell in cells:
+        ds, n, topp, joint, stage, seed = _campaign_cell_parts(cell)
+        print(f"  {ds:<10} N={n:<3} seed={seed} arm={cell[7]:<8} topp={topp[0]}/{topp[1]} "
+              f"jd={joint} -> {tag_for(ds, n, namespace=args.namespace, topp=topp, joint=joint, seed=seed, anchor_arm=cell[7])}")
+    try:
+        admission = anchor_recipe_admission(cells, namespace=args.namespace)
+        incumbent_checks = [anchor_incumbent_recipe_check(ds, incumbent)
+                            for ds in ANCHOR_DATASETS]
+    except CellRefused as error:
+        print(f"[phase3] REFUSED: {error}", file=sys.stderr)
+        return 2
+    print(f"arms differ in axis_center alone at all {len(admission)} coordinates")
+    for key, digests in admission.items():
+        print(f"  {key}: none {digests['none'][:16]}  anchors {digests['anchors'][:16]}")
+    undeclared = 0
+    for check in incumbent_checks:
+        diff = check["differences"]
+        print(f"incumbent refit recipe vs approved {check['approved_record']} "
+              f"(config {check['approved_config_sha256'][:12]}): "
+              f"{'identical' if not diff else sorted(diff)} outside the "
+              f"{len(INPUT_AUTHORITY_DESTS)} sealed-input fields")
+        for name, values in sorted(diff.items()):
+            print(f"    {name}: rendered {values['rendered']!r} approved {values['approved']!r}")
+        undeclared += len(diff)
+    if undeclared:
+        print("[phase3] REFUSED: this generation's control refit recipe differs from the approved "
+              "one", file=sys.stderr)
+        return 2
+    return 0
+
+
 def _lambda_confirmation_main(args) -> int:
     """`--sweep lambda`: the incumbent is the APPROVED REFIT AGGREGATE's
     per-dataset N and recipe -- the coordinates the paper's main rows were
@@ -3718,6 +4153,21 @@ def main() -> int:
               "so no global --at-topp/manual multi-namespace composition is "
               "used by the stability protocol."))
     parser.add_argument(
+        "--anchor-confirm", dest="anchor_confirm", default=None,
+        choices=("select", "decide"),
+        help=("anchor confirmation v1 (audit sections 659-664): stage `select` = train-only N "
+              "selection per arm, `decide` = seeds 43/44 at each arm's frozen N. Stage-1 cells "
+              "only; refit is a separate authorization. NON-EXECUTABLE until audit approval."))
+    parser.add_argument(
+        "--anchor-arms", dest="anchor_arms", default="anchors",
+        help="comma list from none,anchors (default: anchors; none only if control reuse is refused)")
+    parser.add_argument(
+        "--anchor-selection", dest="anchor_selection", default=None, metavar="PATH",
+        help="--anchor-confirm decide: the frozen stage-S N record written by the reducer")
+    parser.add_argument(
+        "--anchor-selection-sha256", dest="anchor_selection_sha256", default=None,
+        metavar="HEX", help="full SHA-256 the frozen stage-S N record must hash to")
+    parser.add_argument(
         "--at-topp", default=None, metavar="MIN,MAX",
         help="hold top-p here (required by --sweep joint)")
     args = parser.parse_args()
@@ -3733,6 +4183,9 @@ def main() -> int:
     except CellRefused as error:
         print(f"[phase3] REFUSED --result-root: {error}", file=sys.stderr)
         return 2
+
+    if args.anchor_confirm is not None:
+        return _anchor_confirmation_main(args)
 
     sweep_topp = None
     if args.at_topp:
