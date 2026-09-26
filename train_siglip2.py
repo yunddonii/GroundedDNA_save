@@ -80,15 +80,11 @@ def _phase3_terminal_checkpoint_only(args) -> bool:
 
 
 def _canonical_phase3_tokenizer_json(value) -> str:
-    """Undo the one literal quote layer left by unquoted EXTRA_ARGS."""
-    import json
-    raw = str(value or "")
-    if len(raw) >= 2 and raw[0] == raw[-1] == "'":
-        raw = raw[1:-1]
-    payload = json.loads(raw)
-    if not isinstance(payload, dict):
-        raise ValueError("tokenizer SHA authority must be a JSON object")
-    return json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    """Undo the one literal quote layer left by unquoted EXTRA_ARGS. One definition, shared with
+    the scientific recipe (audit section 670), so the recipe normalises this field exactly as the
+    input-authority check does."""
+    from dna_utils.scientific_recipe import canonical_tokenizer_json
+    return canonical_tokenizer_json(value)
 
 
 def _phase3_input_authority_from_args(args):
@@ -261,11 +257,9 @@ def _resolve_save_path(args: Config) -> str:
     # recipe variables (every legacy mode) this returns None and nothing below changes.
     import sys as _sys
     from dna_utils.scientific_recipe import verify_trainer_recipe
-    recipe_binding = verify_trainer_recipe(Config.build_parser(), _sys.argv[1:], args)
+    recipe_binding = verify_trainer_recipe(Config.build_parser(), _sys.argv[1:], args,
+                                           campaign_binding)
     if recipe_binding is not None:
-        if campaign_binding is None:
-            raise RuntimeError("a sealed scientific recipe is only valid inside a Phase-3 "
-                               "campaign binding")
         campaign_binding.update(recipe_binding)
     if campaign_binding is not None and not (
             bool(getattr(args, "final_epoch_eval", False))

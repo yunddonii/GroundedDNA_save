@@ -1,23 +1,19 @@
-"""Anchor confirmation v1: the launcher mode (audit section 659.4).
+"""Anchor confirmation v1: the launcher mode, v2 (audit sections 659.4, 668, 671, 677.2, 678).
 
-Covered here with synthetic inputs and every load/claim/launch boundary stubbed:
-
-* none/anchors commands for all four dataset profiles differ in the axis flag and tag alone;
-* the refit path and exploratory arms refuse; so do lambda overrides on an anchor cell;
-* the ledger-pinned incumbent authorities refuse wrong bytes and disagreement;
-* the frozen stage-S record for `decide` is pinned and typed;
-* `--plan` writes nothing, reserves nothing and launches nothing, and refused requests never
-  reach those boundaries;
-* completion refuses evidence or a saved config that is not the sealed recipe.
-
-One integration test (skipped where the approved artifacts are absent) runs the real `--plan`
-against the real approved aggregate and approved config.pt, read-only.
+No real input, config, checkpoint, model or GPU is touched. Leases, reservations, writers, process
+launch and the historical inspection are sentinels. Most tests use a stand-in renderer; the
+"actual composition" tests execute the PINNED dataset wrappers under bash with the capture shim, in
+temporary directories, with every input path pointed into tmp_path (audit 675.2 describes what that
+execution is). The one test that touches real approved artifacts is opt-in
+(GDNA_ALLOW_REAL_ARTIFACT_TESTS=1) and is not part of CPU or mutation runs (audit 673.3).
 """
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
+import re
 import sys
 
 import pytest
@@ -32,6 +28,7 @@ import dna_utils.scientific_recipe as R                     # noqa: E402
 INCUMBENT = {"flickr25k": {"N": 4, "topp": ("0.6", "0.95"), "joint": "0.02"},
              "nuswide": {"N": 4, "topp": ("0.4", "0.8"), "joint": "0.05"},
              "mscoco": {"N": 39, "topp": ("0.6", "0.95"), "joint": "0.03"}}
+ALL_ANCHORS = {ds: ("anchors",) for ds in M.ANCHOR_DATASETS}
 
 
 def extra(env):
@@ -78,6 +75,7 @@ def test_cell_ids_carry_the_arm_and_leave_legacy_ids_unchanged():
     assert "axis_center" not in legacy
     ids = {M.campaign_cell_id("flickr25k", 4, anchor_arm=a, **kw) for a in M.ANCHOR_ARMS}
     assert ids == {legacy + "|axis_center=none", legacy + "|axis_center=anchors"}
+    assert {R.anchor_arm_of(i) for i in ids} == set(M.ANCHOR_ARMS) and R.anchor_arm_of(legacy) is None
 
 
 def test_eight_tuples_are_anchor_cells_and_nothing_else_changes():
@@ -91,40 +89,44 @@ def test_eight_tuples_are_anchor_cells_and_nothing_else_changes():
         M._cell_anchor_arm(cell[:7] + ("both",))
 
 
-# ---- cells -----------------------------------------------------------------------------------------
+# ---- arm plans and cells ---------------------------------------------------------------------------
+def test_arm_plan_defaults_to_every_dataset_and_accepts_exact_pairs():
+    assert M.parse_arm_plan(None, "anchors") == ALL_ANCHORS
+    assert M.parse_arm_plan("nuswide:none,mscoco:none", "anchors") == \
+        {"nuswide": ("none",), "mscoco": ("none",)}
+
+
+@pytest.mark.parametrize("cells,arms", [("cifar10:none", "anchors"), ("nuswide:both", "anchors"),
+                                        ("nuswide:none,nuswide:none", "anchors"),
+                                        (None, "anchors,anchors"), (None, "readout"), (None, "")])
+def test_invalid_arm_plans_refuse(cells, arms):
+    with pytest.raises(CellRefused):
+        M.parse_arm_plan(cells, arms)
+
+
 def test_select_cells_cover_the_three_multi_label_datasets_and_the_grid():
-    cells = M.anchor_confirmation_cells("select", incumbent=INCUMBENT, arms=("anchors",))
+    cells = M.anchor_confirmation_cells("select", incumbent=INCUMBENT, arm_plan=ALL_ANCHORS)
     assert len(cells) == 12 and {c[0] for c in cells} == set(M.ANCHOR_DATASETS)
-    assert "cifar10" not in {c[0] for c in cells}
     assert sorted({c[1] for c in cells}) == list(M.CANDIDATE_N)
     assert {c[5] for c in cells} == {42} and {c[4] for c in cells} == {"select"}
     assert all((c[2], c[3]) == (INCUMBENT[c[0]]["topp"], INCUMBENT[c[0]]["joint"]) for c in cells)
-    assert len(M.anchor_confirmation_cells("select", incumbent=INCUMBENT, arms=M.ANCHOR_ARMS)) == 24
 
 
-def test_decide_cells_take_each_arm_at_its_frozen_n():
-    selection = {"flickr25k": {"anchors": 9}, "nuswide": {"anchors": 4}, "mscoco": {"anchors": 39}}
-    cells = M.anchor_confirmation_cells("decide", incumbent=INCUMBENT, arms=("anchors",),
-                                        selection=selection)
-    assert sorted((c[0], c[1], c[5]) for c in cells) == sorted(
-        (ds, n["anchors"], s) for ds, n in selection.items() for s in (43, 44))
-
-
-@pytest.mark.parametrize("arms,selection,match", [
-    ((), None, "nonempty"), (("anchors", "anchors"), None, "nonempty"), (("both",), None, "nonempty"),
-])
-def test_invalid_arm_lists_refuse(arms, selection, match):
-    with pytest.raises(CellRefused, match=match):
-        M.anchor_confirmation_cells("select", incumbent=INCUMBENT, arms=arms)
+def test_decide_cells_take_each_planned_arm_at_its_frozen_n():
+    frozen = {"flickr25k": {"anchors": 9, "none": 4}, "nuswide": {"anchors": 4, "none": 4},
+              "mscoco": {"anchors": 39, "none": 39}}
+    plan = {"flickr25k": ("anchors",), "nuswide": ("anchors", "none"), "mscoco": ("anchors", "none")}
+    cells = M.anchor_confirmation_cells("decide", incumbent=INCUMBENT, arm_plan=plan, selection=frozen)
+    assert len(cells) == 10                                   # 6 candidate + 4 control
+    assert all(c[1] == frozen[c[0]][c[7]] and c[5] in (43, 44) for c in cells)
 
 
 @pytest.mark.parametrize("n", [None, 5, "4", 4.0, True])
 def test_decide_refuses_a_missing_or_off_grid_frozen_n(n):
-    selection = {ds: {"anchors": 4} for ds in M.ANCHOR_DATASETS}
-    selection["mscoco"]["anchors"] = n
+    frozen = {ds: {"anchors": 4} for ds in M.ANCHOR_DATASETS}
+    frozen["mscoco"]["anchors"] = n
     with pytest.raises(CellRefused, match="no frozen N"):
-        M.anchor_confirmation_cells("decide", incumbent=INCUMBENT, arms=("anchors",),
-                                    selection=selection)
+        M.anchor_confirmation_cells("decide", incumbent=INCUMBENT, arm_plan=ALL_ANCHORS, selection=frozen)
 
 
 # ---- pinned authorities ------------------------------------------------------------------------
@@ -169,48 +171,244 @@ def test_replaced_authority_bytes_refuse(tmp_path, monkeypatch, which):
         M.anchor_incumbent()
 
 
-def test_absent_authority_refuses(tmp_path, monkeypatch):
-    agg, _ = fake_authorities(tmp_path, monkeypatch)
-    agg.unlink()
-    with pytest.raises(CellRefused, match="unreadable"):
-        M.anchor_incumbent()
-
-
 def test_disagreeing_authorities_refuse(tmp_path, monkeypatch):
     fake_authorities(tmp_path, monkeypatch, disagree=True)
     with pytest.raises(CellRefused, match="disagree"):
         M.anchor_incumbent()
 
 
-def test_frozen_selection_record_is_pinned_and_typed(tmp_path):
-    record = {"artifact_kind": "anchor_confirmation_n_selection", "version": M.ANCHOR_CONFIRM_VERSION,
-              "n_selected": {"flickr25k": {"anchors": 4}}}
-    path = tmp_path / "sel.json"
-    sha = write_json(path, record)
-    assert M._load_anchor_selection(path, sha) == record["n_selected"]
-    with pytest.raises(CellRefused, match="needs"):
-        M._load_anchor_selection(path, None)
+# ---- rendering guards (audit 671.3) -----------------------------------------------------------------
+@pytest.fixture
+def no_process(monkeypatch):
+    """An independent deny guard (audit 688.1): a refusal test must refuse before any wrapper
+    process starts, so a deleted product guard is detected here and cannot reach a real builder."""
+    started = []
+    def deny(*a, **k):
+        started.append(a[0] if a else k.get("args"))
+        raise AssertionError("a process was started")
+    monkeypatch.setattr(M.subprocess, "run", deny)
+    return started
+
+
+def test_render_refuses_a_script_that_is_not_the_pinned_bytes(monkeypatch, synthetic_paths, no_process):
+    cmd, env, _ = M.build_command("flickr25k", 4, 0, topp=("0.6", "0.95"), joint="0.02",
+                                  anchor_arm="anchors")
+    monkeypatch.setitem(M.DATASET_SCRIPT_SHA256, cmd[1], "0" * 64)
+    with pytest.raises(CellRefused, match="not a pinned dataset script"):
+        M.render_trainer_argv(cmd, env)
+    assert no_process == []
+
+
+def test_render_refuses_a_missing_whitening_file_instead_of_letting_the_script_build_it(tmp_path,
+                                                                                        synthetic_paths,
+                                                                                        no_process):
+    cmd, env, _ = M.build_command("flickr25k", 4, 0, topp=("0.6", "0.95"), joint="0.02",
+                                  anchor_arm="anchors")
+    with pytest.raises(CellRefused, match="missing"):
+        M.render_trainer_argv(cmd, dict(env, WHITEN_NPZ=str(tmp_path / "absent.npz")))
+    assert no_process == []
+
+
+def test_the_pinned_scripts_are_the_current_bytes():
+    for rel, want in M.DATASET_SCRIPT_SHA256.items():
+        assert hashlib.sha256((REPO / rel).read_bytes()).hexdigest() == want
+
+
+# ---- the generation manifest (audit 678.2, 683.2) ---------------------------------------------------------
+def manifest(tmp_path, **changes):
+    """A manifest of THIS tree: the exact generation closure, the designated contract, the process's
+    environment. `changes` set "a::b::c" keys (file names contain dots)."""
+    from importlib import metadata
+    files = {rel: hashlib.sha256((REPO / rel).read_bytes()).hexdigest() for rel in M.anchor_generation_closure()}
+    body = {"artifact_kind": M.ANCHOR_MANIFEST_KIND, "version": M.ANCHOR_CONFIRM_VERSION,
+            "historical": {"approved_p3_refit_aggregate": {"sha256": M.APPROVED_P3_REFIT_AGGREGATE_SHA256},
+                           "approved_selected_n": {"sha256": M.APPROVED_SELECTED_N_SHA256}},
+            "new_generation": {"commit": "c" * 40, "branch": "arch-exp-2026-09-anchor-confirm", "clean": True,
+                               "files_sha256": files, "dataset_scripts_sha256": dict(M.DATASET_SCRIPT_SHA256),
+                               "environment": {"python": ".".join(map(str, sys.version_info[:3])),
+                                               "torch": metadata.version("torch"),
+                                               "interpreter": sys.executable}},
+            "contract": {"path": M.ANCHOR_CONTRACT_PATH, "sha256": files[M.ANCHOR_CONTRACT_PATH]}}
+    for key, value in changes.items():
+        target = body
+        *parents, leaf = key.split("::")
+        for part in parents:
+            target = target[part]
+        if value is DELETE:
+            del target[leaf]
+        else:
+            target[leaf] = value
+    path = tmp_path / "manifest.json"
+    return str(path), write_json(path, body)
+
+
+DELETE = object()
+
+
+def test_a_manifest_of_this_tree_loads(tmp_path):
+    path, sha = manifest(tmp_path)
+    got = M.load_anchor_manifest(path, sha)
+    assert got["sha256"] == sha and got["contract"]["path"] == M.ANCHOR_CONTRACT_PATH
+
+
+def test_the_closure_covers_wrappers_input_admission_measurement_tests_and_contract():
+    closure = set(M.anchor_generation_closure())
+    assert set(M.DATASET_SCRIPT_SHA256) <= closure and M.ANCHOR_CONTRACT_PATH in closure
+    assert {"scripts/seal_phase3_inputs.py", "dna_utils/run_identity.py", "val_split.py",
+            "scripts/anchor_confirm_code_axis.py", "scripts/anchor_confirm_decision.py",
+            "tests/test_anchor_confirm_reducer.py"} <= closure
+
+
+@pytest.mark.parametrize("changes,reason", [
+    ({"artifact_kind": "anchor_confirmation_reuse_proposal"}, "is not an"),
+    ({"new_generation::files_sha256::config.py": "0" * 64}, "not the manifest's generation"),
+    ({"new_generation::files_sha256::train_siglip2.py": DELETE}, "does not list the generation closure"),
+    ({"new_generation::files_sha256::README.md": "0" * 64}, "does not list the generation closure"),
+    ({"new_generation::files_sha256::scripts/train_mscoco_F2_sweep_clip.sh": DELETE},
+     "does not list the generation closure"),                    # a wrapper cannot be left out
+    ({"new_generation::dataset_scripts_sha256": {}}, "dataset-script pins"),
+    ({"historical::approved_p3_refit_aggregate::sha256": "0" * 64}, "approved-aggregate pin"),
+    ({"historical::approved_selected_n::sha256": "0" * 64}, "selected-N pin"),
+    ({"contract::sha256": "0" * 64}, "not the designated"),
+    ({"contract::path": "config.py"}, "not the designated"),   # a listed file substituted as contract
+    ({"new_generation::commit": "not-a-commit"}, "commit, branch or clean flag"),
+    ({"new_generation::clean": False}, "commit, branch or clean flag"),
+    ({"new_generation::branch": ""}, "commit, branch or clean flag"),
+    ({"new_generation::environment::python": "2.7.18"}, "environment"),
+    ({"new_generation::environment": DELETE}, "environment"),
+])
+def test_a_manifest_that_is_not_this_generation_refuses(tmp_path, changes, reason):
+    path, sha = manifest(tmp_path, **changes)
+    with pytest.raises(CellRefused, match=reason):
+        M.load_anchor_manifest(path, sha)
+
+
+def test_both_historical_pins_wrong_refuses(tmp_path):
+    path, sha = manifest(tmp_path, **{"historical::approved_p3_refit_aggregate::sha256": "0" * 64,
+                                      "historical::approved_selected_n::sha256": "0" * 64})
+    with pytest.raises(CellRefused, match="approved-aggregate pin"):
+        M.load_anchor_manifest(path, sha)
+
+
+def test_a_substituted_contract_at_its_correct_hash_refuses(tmp_path):
+    """Audit 683.2's fixture: config.py named as the contract, at its own correct digest."""
+    path, sha = manifest(tmp_path, **{"contract::path": "config.py", "contract::sha256":
+                                      hashlib.sha256((REPO / "config.py").read_bytes()).hexdigest()})
+    with pytest.raises(CellRefused, match="not the designated"):
+        M.load_anchor_manifest(path, sha)
+
+
+def test_a_manifest_is_read_at_its_pinned_bytes(tmp_path):
+    path, _ = manifest(tmp_path)
     with pytest.raises(CellRefused, match="pinned bytes"):
-        M._load_anchor_selection(path, "0" * 64)
-    record["artifact_kind"] = "phase3_selected_n"
-    with pytest.raises(CellRefused, match="not an"):
-        M._load_anchor_selection(path, write_json(path, record))
+        M.load_anchor_manifest(path, "0" * 64)
 
 
-# ---- the entry point: refusals and a side-effect-free plan ---------------------------------------
+# ---- the approval authority: the audit ledger (audit 679.1, 683.2) -------------------------------------
+def approval_line(scope, **pins):
+    return " ".join([M.APPROVAL_TAG, f"version={M.ANCHOR_CONFIRM_VERSION}", f"scope={scope}",
+                     *(f"{k}={v}" for k, v in pins.items())])
+
+
+def ledger(tmp_path, monkeypatch, sections: dict) -> None:
+    """A synthetic ledger: {section number: [lines]}; lines are written in backticks, as markdown."""
+    text = ["# Synthetic audit ledger", ""]
+    for n, lines in sections.items():
+        text += [f"## {n}. Test decision", "", *(f"`{line}`" for line in lines), ""]
+    path = tmp_path / "ledger.md"
+    path.write_text("\n".join(text) + "\n")
+    monkeypatch.setattr(M, "AUDIT_LEDGER", path)
+
+
+A, Q = "a" * 64, "q" * 64          # a manifest digest and a request digest
+
+
+def test_an_approval_line_is_found_and_bound(tmp_path, monkeypatch):
+    ledger(tmp_path, monkeypatch, {5: ["prose", approval_line("stage-S-run", manifest=A, request=Q)]})
+    got = M.audit_approval(5, "stage-S-run", manifest=A, request=Q)
+    assert got["section"] == 5 and got["line"] == approval_line("stage-S-run", manifest=A, request=Q)
+    assert got["ledger_sha256"] == hashlib.sha256((tmp_path / "ledger.md").read_bytes()).hexdigest()
+
+
+RUN = approval_line("stage-S-run", manifest=A, request=Q)
+
+
+@pytest.mark.parametrize("sections,section,scope,pins,reason", [
+    ({5: [RUN]}, None, "stage-S-run", {"manifest": A, "request": Q}, "positive ledger section number"),
+    ({5: [RUN]}, "5", "stage-S-run", {"manifest": A, "request": Q}, "positive ledger section number"),
+    ({5: [RUN]}, True, "stage-S-run", {"manifest": A, "request": Q}, "positive ledger section number"),
+    ({5: [RUN]}, 42, "stage-S-run", {"manifest": A, "request": Q}, "has 0 sections numbered 42"),
+    ({5: []}, 5, "stage-S-run", {"manifest": A, "request": Q}, "has 0 approval lines"),
+    ({5: [RUN, RUN]}, 5, "stage-S-run", {"manifest": A, "request": Q}, "has 2 approval lines"),
+    ({5: [approval_line("stage-S-smoke", manifest=A, request=Q)]}, 5, "stage-S-run",
+     {"manifest": A, "request": Q}, "has 0 approval lines for stage-S-run"),             # wrong scope
+    ({5: [approval_line("stage-S-run", manifest="b" * 64, request=Q)]}, 5, "stage-S-run",
+     {"manifest": A, "request": Q}, "approves stage-S-run for"),                         # stale generation
+    ({5: [approval_line("stage-S-run", manifest=A, request="r" * 64)]}, 5, "stage-S-run",
+     {"manifest": A, "request": Q}, "approves stage-S-run for"),                         # another request
+    ({5: [approval_line("stage-D-run", manifest=A, selection="c" * 64, request=Q)]}, 5, "stage-D-run",
+     {"manifest": A, "selection": "d" * 64, "request": Q}, "approves stage-D-run for"),  # another frozen N
+    ({5: [approval_line("stage-D-run", manifest=A, request=Q)]}, 5, "stage-D-run",
+     {"manifest": A, "selection": A, "request": Q}, "approves stage-D-run for"),         # missing field
+    ({5: [approval_line("stage-S-run", manifest=A, request=Q, gpus="0")]}, 5, "stage-S-run",
+     {"manifest": A, "request": Q}, "approves stage-S-run for"),                         # extra field
+    ({5: [RUN.replace("anchor-confirm/1", "anchor-confirm/0")]}, 5, "stage-S-run",
+     {"manifest": A, "request": Q}, "approves stage-S-run for"),                         # another version
+    ({5: [RUN + " approved"]}, 5, "stage-S-run", {"manifest": A, "request": Q}, "malformed approval line"),
+    ({5: [RUN + " manifest=" + A]}, 5, "stage-S-run", {"manifest": A, "request": Q}, "a field repeats"),
+    ({4: [RUN], 5: []}, 5, "stage-S-run", {"manifest": A, "request": Q}, "has 0 approval lines"),
+    ({5: [RUN]}, 5, "stage-S-run", {"manifest": A}, "needs exactly"),                    # caller pins incomplete
+    ({5: [RUN]}, 5, "stage-X", {"manifest": A, "request": Q}, "needs exactly"),
+])
+def test_an_approval_that_is_not_exactly_this_operation_refuses(tmp_path, monkeypatch, sections, section,
+                                                                scope, pins, reason):
+    ledger(tmp_path, monkeypatch, sections)
+    with pytest.raises(CellRefused, match=reason):
+        M.audit_approval(section, scope, **pins)
+
+
+def test_a_duplicated_section_number_refuses(tmp_path, monkeypatch):
+    path = tmp_path / "ledger.md"
+    path.write_text(f"## 5. One\n`{RUN}`\n## 5. Two\n`{RUN}`\n")
+    monkeypatch.setattr(M, "AUDIT_LEDGER", path)
+    with pytest.raises(CellRefused, match="has 2 sections numbered 5"):
+        M.audit_approval(5, "stage-S-run", manifest=A, request=Q)
+
+
+# ---- the entry point: one admission path for plan, smoke and run (audit 671.1) ----------------------
 @pytest.fixture
 def boundaries(monkeypatch):
-    """Every boundary that reserves, writes, leases or launches records the call instead."""
+    """Every boundary that reserves, writes, leases, launches or opens a historical binary records
+    the call instead."""
     calls = []
     for name in ("_with_campaign_gpu_leases", "_run_sweep", "_run_managed_process",
                  "reserve_sweep_namespace", "_publish_json_exclusive"):
         monkeypatch.setattr(M, name, lambda *a, _n=name, **k: calls.append(_n) or 0)
+    # not a side effect, but its place in the order is asserted: before any lease (audit 671.1)
+    monkeypatch.setattr(M, "verify_campaign_input_seals",
+                        lambda *a, **k: calls.append("verify_campaign_input_seals") or {})
     return calls
 
 
+#: the shape of a pinned wrapper body: the seven reviewed literals and the recipe invariants
+WRAPPER_BODY = ["--codebook_size", "128", "-e", "60", "--routing_adaptive_topp",
+                "--routing_adaptive_topp_min", "0.3", "--routing_adaptive_topp_max", "0.7",
+                "--hash_target_mode", "siglip_cos", "--lambda_codeword_codon_sinkhorn", "0.0",
+                "--post_eval_compositional", "--dna_distance_mode", "base"]
+
+
 def fake_render(cmd, env):
-    """Stand-in for the dataset-script render: the protocol flags as the trainer argv."""
-    return ["--tag", env["TAG"], "--dataset", "Flickr25k", "--setting", "1", *extra(env)]
+    """Stand-in for the dataset-script render, without bash: a wrapper body carrying the reviewed
+    literals, the wrapper's env-driven flags, then EXTRA_ARGS."""
+    env_flags = ["--val_split_ratio", env["VAL_RATIO"], "--val_split_seed", env["VAL_SEED"],
+                 "--stop_after_epoch", env["STOP_EP"], "--num_codons_per_codebook", env["NUM_CODONS"]]
+    return ["--tag", env["TAG"], "--dataset", "Flickr25k", "--setting", "1", *WRAPPER_BODY,
+            *env_flags, *extra(env)]
+
+
+def drifting_render(cmd, env):
+    argv = fake_render(cmd, env)
+    return argv + (["--lambda_bu", "0.5"] if "anchors" in argv else [])
 
 
 def run_main(monkeypatch, *argv):
@@ -218,18 +416,207 @@ def run_main(monkeypatch, *argv):
     return M.main()
 
 
+BASE = ["--anchor-confirm", "select", "--namespace", "ancT"]
+
+
+def with_manifest(tmp_path):
+    path, sha = manifest(tmp_path)
+    return ["--anchor-manifest", path, "--anchor-manifest-sha256", sha]
+
+
+MODES = [["--plan"], ["--smoke", "--only", "flickr25k:4:anchors:42"], ["--run"]]
+
+
+def approve_request(tmp_path, monkeypatch, capsys, argv, *, manifest_sha=None, section=700):
+    """Preview the exact request with `--plan`, then write the ledger line approving that digest
+    for the scope the command implies (what the audit would do)."""
+    assert run_main(monkeypatch, *argv, "--plan") == 0
+    digest = re.search(r"execution request sha256 ([0-9a-f]{64})", capsys.readouterr().out).group(1)
+    sha = manifest_sha or argv[argv.index("--anchor-manifest-sha256") + 1]
+    scope = "stage-S-smoke" if "--smoke" in argv else "stage-S-run"
+    ledger(tmp_path, monkeypatch, {section: [approval_line(scope, manifest=sha, request=digest)]})
+    return ["--anchor-approval-section", str(section)]
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_an_invalid_scientific_request_refuses_in_every_mode_before_any_boundary(
+        tmp_path, monkeypatch, boundaries, capsys, mode):
+    fake_authorities(tmp_path, monkeypatch)
+    monkeypatch.setattr(M, "render_trainer_argv", drifting_render)
+    assert run_main(monkeypatch, *BASE, *mode, *with_manifest(tmp_path)) == 2
+    assert "not in axis_center alone" in capsys.readouterr().err
+    assert boundaries == []
+
+
+def unsupervised_breaking_render(cmd, env):
+    argv = fake_render(cmd, env)
+    i = argv.index("--hash_target_mode")
+    return argv[:i] + argv[i + 2:]                          # the parser default is the tag-supervised jaccard
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_a_protocol_value_off_the_contract_refuses_in_every_mode(tmp_path, monkeypatch, boundaries,
+                                                                  capsys, mode):
+    fake_authorities(tmp_path, monkeypatch)
+    monkeypatch.setattr(M, "render_trainer_argv", unsupervised_breaking_render)
+    assert run_main(monkeypatch, *BASE, *mode, *with_manifest(tmp_path)) == 2
+    assert "breaks the protocol in hash_target_mode='jaccard'" in capsys.readouterr().err
+    assert boundaries == []
+
+
+@pytest.mark.parametrize("mode", MODES[1:])
+def test_an_approved_execution_verifies_its_inputs_then_reaches_only_the_lease(tmp_path, monkeypatch,
+                                                                              boundaries, capsys, mode):
+    fake_authorities(tmp_path, monkeypatch)
+    monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    argv = [*BASE, *mode, *with_manifest(tmp_path)]
+    approval = approve_request(tmp_path, monkeypatch, capsys, argv)
+    assert boundaries == []                                          # the preview touched nothing
+    assert run_main(monkeypatch, *argv, *approval) == 0
+    assert boundaries == ["verify_campaign_input_seals", "_with_campaign_gpu_leases"]
+
+
+def test_the_plan_previews_the_request_it_would_need_approved(tmp_path, monkeypatch, boundaries, capsys):
+    fake_authorities(tmp_path, monkeypatch)
+    monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    assert run_main(monkeypatch, *BASE, "--run", "--plan", *with_manifest(tmp_path)) == 0
+    out = capsys.readouterr().out
+    request = json.loads(out[out.index("{", out.index("would need approved")):out.index("execution request sha256")])
+    assert request["mode"] == "run" and request["namespace"] == "ancT" and len(request["cells"]) == 12
+    assert re.search(r"execution request sha256 ([0-9a-f]{64})", out).group(1) == M._json_digest(request)
+    assert boundaries == []
+
+
+@pytest.mark.parametrize("change", [
+    ["--namespace", "ancRepeat"],                                   # a new namespace, the old approval
+    ["--result-root", "/data/elsewhere_result"],
+    ["--anchor-arms", "none,anchors"],                              # another membership (24 cells)
+    ["--gpus", "0,1"],
+    ["--admission-authority", "__TMP__/authority.json"],
+    ["--input-seal", "flickr25k:stage1=__TMP__/seal.json"],
+])
+def test_a_changed_request_is_not_covered_by_the_old_approval(tmp_path, monkeypatch, boundaries, capsys,
+                                                              change):
+    fake_authorities(tmp_path, monkeypatch)
+    monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    (tmp_path / "authority.json").write_text("{}")
+    (tmp_path / "seal.json").write_text("{}")
+    argv = [*BASE, "--run", *with_manifest(tmp_path)]
+    approval = approve_request(tmp_path, monkeypatch, capsys, argv)
+    changed = [a.replace("__TMP__", str(tmp_path)) for a in change]
+    if changed[0] == "--namespace":
+        argv[argv.index("--namespace") + 1] = changed[1]
+        changed = []
+    assert run_main(monkeypatch, *argv, *changed, *approval) == 2
+    assert "approves stage-S-run for" in capsys.readouterr().err and boundaries == []
+
+
+@pytest.mark.parametrize("change", [["--epochs", "2"], ["--only", "nuswide:4:anchors:42"]])
+def test_a_changed_smoke_is_not_covered_by_the_old_approval(tmp_path, monkeypatch, boundaries, capsys, change):
+    fake_authorities(tmp_path, monkeypatch)
+    monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    argv = [*BASE, *MODES[1], *with_manifest(tmp_path)]
+    approval = approve_request(tmp_path, monkeypatch, capsys, argv)
+    if change[0] == "--only":
+        argv[argv.index("--only") + 1] = change[1]
+        change = []
+    assert run_main(monkeypatch, *argv, *change, *approval) == 2
+    assert "approves stage-S-smoke for" in capsys.readouterr().err and boundaries == []
+
+
+@pytest.mark.parametrize("mode", MODES[1:])
+def test_execution_without_an_approval_refuses_before_inputs_and_leases(tmp_path, monkeypatch, boundaries,
+                                                                         capsys, mode):
+    fake_authorities(tmp_path, monkeypatch)
+    monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    ledger(tmp_path, monkeypatch, {})
+    assert run_main(monkeypatch, *BASE, *mode, *with_manifest(tmp_path)) == 2
+    assert "positive ledger section number" in capsys.readouterr().err and boundaries == []
+
+
+def test_a_smoke_approval_does_not_approve_a_run(tmp_path, monkeypatch, boundaries, capsys):
+    fake_authorities(tmp_path, monkeypatch)
+    monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    manifest_args = with_manifest(tmp_path)
+    smoke = approve_request(tmp_path, monkeypatch, capsys, [*BASE, *MODES[1], *manifest_args])
+    assert run_main(monkeypatch, *BASE, "--run", *manifest_args, *smoke) == 2
+    assert "has 0 approval lines for stage-S-run" in capsys.readouterr().err and boundaries == []
+
+
+def test_a_run_approval_for_another_generation_refuses(tmp_path, monkeypatch, boundaries, capsys):
+    fake_authorities(tmp_path, monkeypatch)
+    monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    argv = [*BASE, "--run", *with_manifest(tmp_path)]
+    stale = approve_request(tmp_path, monkeypatch, capsys, argv, manifest_sha="b" * 64)
+    assert run_main(monkeypatch, *argv, *stale) == 2
+    assert "approves stage-S-run for" in capsys.readouterr().err and boundaries == []
+
+
+@pytest.mark.parametrize("mode", MODES[1:])
+def test_an_input_seal_that_does_not_verify_refuses_before_any_lease(tmp_path, monkeypatch, boundaries,
+                                                                     capsys, mode):
+    fake_authorities(tmp_path, monkeypatch)
+    monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    def refuse(*a, **k):
+        raise CellRefused("input seal flickr25k:stage1 refused: synthetic")
+    monkeypatch.setattr(M, "verify_campaign_input_seals", refuse)
+    argv = [*BASE, *mode, *with_manifest(tmp_path)]
+    assert run_main(monkeypatch, *argv, *approve_request(tmp_path, monkeypatch, capsys, argv)) == 2
+    assert "input seal flickr25k:stage1 refused" in capsys.readouterr().err and boundaries == []
+
+
+@pytest.mark.parametrize("mode", MODES[1:])
+def test_execution_without_the_generation_manifest_refuses(tmp_path, monkeypatch, boundaries, capsys, mode):
+    fake_authorities(tmp_path, monkeypatch)
+    monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    assert run_main(monkeypatch, *BASE, *mode) == 2
+    assert "need --anchor-manifest" in capsys.readouterr().err and boundaries == []
+
+
+@pytest.mark.parametrize("mode", MODES)
+def test_a_manifest_of_another_tree_refuses_in_every_mode(tmp_path, monkeypatch, boundaries, capsys, mode):
+    fake_authorities(tmp_path, monkeypatch)
+    monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    path, sha = manifest(tmp_path, **{"new_generation::files_sha256::model_siglip2.py": "0" * 64})
+    assert run_main(monkeypatch, *BASE, *mode, "--anchor-manifest", path,
+                    "--anchor-manifest-sha256", sha) == 2
+    assert "not the manifest's generation" in capsys.readouterr().err and boundaries == []
+
+
+def test_decide_refuses_a_stage_s_from_another_generation(tmp_path, monkeypatch, boundaries, capsys):
+    import scripts.anchor_confirm_decision as reducer
+    fake_authorities(tmp_path, monkeypatch)
+    monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    monkeypatch.setattr(reducer, "verify_selection", lambda path, sha: {
+        "n_selected": {ds: {"anchors": 9, "none": 4} for ds in M.ANCHOR_DATASETS},
+        "record": {"path": path, "sha256": sha}, "anchor_manifest_sha256": "0" * 64})
+    assert run_main(monkeypatch, "--anchor-confirm", "decide", "--namespace", "ancT", "--run",
+                    "--anchor-selection", "/frozen.json", "--anchor-selection-sha256", "1" * 64,
+                    *with_manifest(tmp_path)) == 2
+    assert "stage S ran under another generation manifest" in capsys.readouterr().err
+    assert boundaries == []
+
+
+def test_plan_writes_reserves_launches_and_inspects_nothing(tmp_path, monkeypatch, boundaries, capsys):
+    fake_authorities(tmp_path, monkeypatch)
+    monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    before = sorted(p.name for p in tmp_path.iterdir())
+    assert run_main(monkeypatch, *BASE, "--plan") == 0
+    out = capsys.readouterr().out
+    assert "NON-EXECUTABLE" in out
+    assert "carry the contract's protocol values at all 12 coordinates" in out
+    assert "generation manifest: NOT SUPPLIED" in out
+    assert boundaries == [] and sorted(p.name for p in tmp_path.iterdir()) == before
+
+
 @pytest.mark.parametrize("argv", [
-    ["--anchor-confirm", "select", "--namespace", "ancT", "--refit"],
-    ["--anchor-confirm", "select", "--namespace", "ancT", "--sweep", "lambda"],
-    ["--anchor-confirm", "select", "--namespace", "ancT", "--at-topp", "0.6,0.95"],
-    ["--anchor-confirm", "select", "--namespace", "ancT", "--recipe", "/x"],
-    ["--anchor-confirm", "select", "--namespace", "ancT", "--stability-plan", "/x"],
+    BASE + ["--refit"], BASE + ["--sweep", "lambda"], BASE + ["--at-topp", "0.6,0.95"],
+    BASE + ["--recipe", "/x"], BASE + ["--stability-plan", "/x"],
     ["--anchor-confirm", "select", "--namespace", "p3gE", "--plan"],
-    ["--anchor-confirm", "select", "--namespace", "ancT", "--run", "--only", "flickr25k:4:anchors:42"],
-    ["--anchor-confirm", "select", "--namespace", "ancT", "--smoke"],
+    BASE + ["--anchor-arms", "anchors,both", "--plan"],
+    BASE + ["--anchor-cells", "cifar10:anchors", "--plan"],
+    BASE + ["--anchor-selection", "/x", "--plan"],
     ["--anchor-confirm", "decide", "--namespace", "ancT", "--plan"],
-    ["--anchor-confirm", "select", "--namespace", "ancT", "--anchor-selection", "/x", "--plan"],
-    ["--anchor-confirm", "select", "--namespace", "ancT", "--anchor-arms", "anchors,both", "--plan"],
 ])
 def test_refused_requests_never_reach_a_boundary(tmp_path, monkeypatch, boundaries, argv):
     fake_authorities(tmp_path, monkeypatch)
@@ -238,40 +625,17 @@ def test_refused_requests_never_reach_a_boundary(tmp_path, monkeypatch, boundari
     assert boundaries == []
 
 
-def test_plan_renders_and_checks_but_writes_reserves_and_launches_nothing(
-        tmp_path, monkeypatch, boundaries, capsys):
+def test_decide_refuses_a_self_pinned_minimal_selection_record(tmp_path, monkeypatch, boundaries, capsys):
+    """Audit 671.2: kind, version and a matching digest are not selection evidence."""
     fake_authorities(tmp_path, monkeypatch)
     monkeypatch.setattr(M, "render_trainer_argv", fake_render)
-    monkeypatch.setattr(M, "anchor_incumbent_recipe_check", lambda ds, inc: {
-        "dataset": ds, "approved_record": "r.json", "approved_config_sha256": "0" * 64,
-        "approved_input_authority": {}, "differences": {}})
-    before = sorted(p.name for p in tmp_path.iterdir())
-    assert run_main(monkeypatch, "--anchor-confirm", "select", "--namespace", "ancT", "--plan") == 0
-    out = capsys.readouterr().out
-    assert "NON-EXECUTABLE" in out and "axis_center alone at all 12 coordinates" in out
-    assert boundaries == [] and sorted(p.name for p in tmp_path.iterdir()) == before
-
-
-def test_plan_refuses_arms_that_differ_in_more_than_the_axis(tmp_path, monkeypatch, boundaries):
-    fake_authorities(tmp_path, monkeypatch)
-    def drifting(cmd, env):
-        argv = fake_render(cmd, env)
-        return argv + (["--lambda_bu", "0.5"] if "anchors" in argv else [])
-    monkeypatch.setattr(M, "render_trainer_argv", drifting)
-    assert run_main(monkeypatch, "--anchor-confirm", "select", "--namespace", "ancT", "--plan") == 2
-    assert boundaries == []
-
-
-def test_plan_refuses_a_control_recipe_that_drifted_from_the_approved_one(
-        tmp_path, monkeypatch, boundaries):
-    fake_authorities(tmp_path, monkeypatch)
-    monkeypatch.setattr(M, "render_trainer_argv", fake_render)
-    monkeypatch.setattr(M, "anchor_incumbent_recipe_check", lambda ds, inc: {
-        "dataset": ds, "approved_record": "r.json", "approved_config_sha256": "0" * 64,
-        "approved_input_authority": {},
-        "differences": {"lambda_wasserstein": {"rendered": 0.3, "approved": 0.15}}})
-    assert run_main(monkeypatch, "--anchor-confirm", "select", "--namespace", "ancT", "--plan") == 2
-    assert boundaries == []
+    fake = tmp_path / "frozen.json"
+    sha = write_json(fake, {"artifact_kind": "anchor_confirmation_n_selection",
+                            "version": M.ANCHOR_CONFIRM_VERSION,
+                            "n_selected": {ds: {"anchors": 9} for ds in M.ANCHOR_DATASETS}})
+    assert run_main(monkeypatch, "--anchor-confirm", "decide", "--namespace", "ancT", "--plan",
+                    "--anchor-selection", str(fake), "--anchor-selection-sha256", sha) == 2
+    assert "does not replay" in capsys.readouterr().err and boundaries == []
 
 
 def test_run_cell_refuses_an_anchor_cell_without_a_sealed_recipe(monkeypatch, boundaries):
@@ -286,12 +650,13 @@ def test_run_cell_refuses_an_anchor_cell_without_a_sealed_recipe(monkeypatch, bo
 def sealed():
     from config import Config
     argv = ["--tag", "t", "--dataset", "Flickr25k", "--setting", "1", "--axis_center", "anchors"]
-    return R.build_payload(Config.build_parser(), argv), argv
+    return R.build_payload(Config.build_parser(), argv, planned_arm="anchors"), argv
 
 
 def completed_run(tmp_path, payload, argv, *, evidence_digest=None, mutate=None):
     import torch
     from config import Config
+    from dna_utils.run_identity import PHASE3_CAMPAIGN_BINDING_NAME
     values = vars(Config.build_parser().parse_args(argv))
     values["setting"] = "setting" + str(values["setting"])
     values.pop("log_dir", None)
@@ -301,7 +666,6 @@ def completed_run(tmp_path, payload, argv, *, evidence_digest=None, mutate=None)
     run_dir = tmp_path / "run"
     run_dir.mkdir()
     torch.save(values, run_dir / "config.pt")
-    from dna_utils.run_identity import PHASE3_CAMPAIGN_BINDING_NAME
     (run_dir / PHASE3_CAMPAIGN_BINDING_NAME).write_text(json.dumps({
         "scientific_recipe_schema": payload["schema"],
         "scientific_recipe_sha256": evidence_digest or R.digest(payload)}))
@@ -315,33 +679,118 @@ def test_completion_accepts_the_sealed_recipe(tmp_path, sealed):
     assert got["scientific_recipe_sha256"] == R.digest(payload) and got["arm"] == "anchors"
 
 
-@pytest.mark.parametrize("case", ["evidence_digest", "config_value", "arm", "no_config"])
-def test_completion_refuses_what_is_not_the_sealed_recipe(tmp_path, sealed, case):
+@pytest.mark.parametrize("case,reason", [("evidence_digest", "does not name the sealed recipe"),
+                                         ("config_value", "differs from the sealed recipe"),
+                                         ("config_type", "differs from the sealed recipe"),
+                                         ("arm", "!= 'none'"), ("no_config", "missing anchor evidence")])
+def test_completion_refuses_what_is_not_the_sealed_recipe(tmp_path, sealed, case, reason):
     payload, argv = sealed
     kw = {"evidence_digest": "f" * 64} if case == "evidence_digest" else {}
     if case == "config_value":
         kw["mutate"] = lambda v: v.update(lambda_bu=0.5)
+    if case == "config_type":
+        kw["mutate"] = lambda v: v.update(random_seed=float(v["random_seed"]))   # 42 -> 42.0
     run_dir = completed_run(tmp_path, payload, argv, **kw)
     if case == "no_config":
         (run_dir / "config.pt").unlink()
-    with pytest.raises(CellRefused):
+    with pytest.raises(CellRefused, match=reason):
         M.assert_anchor_recipe(run_dir, scientific_recipe=payload,
                                arm="none" if case == "arm" else "anchors")
 
 
-# ---- integration against the real approved artifacts (read-only) --------------------------------
-@pytest.mark.skipif(not M.APPROVED_P3_REFIT_AGGREGATE.exists(), reason="approved artifacts absent")
-def test_real_plan_reproduces_the_approved_control_recipe(monkeypatch, boundaries, capsys):
-    assert run_main(monkeypatch, "--anchor-confirm", "select", "--namespace", "ancT", "--plan") == 0
-    out = capsys.readouterr().out
-    assert out.count("identical outside the 11 sealed-input fields") == 3
+# ---- the protocol values (contract section 6) -----------------------------------------------------------
+def test_protocol_fields_fix_the_stage_1_horizons_and_the_smoke_shortens_them_alone():
+    kw = dict(seed=43, arm="none", incumbent=INCUMBENT)
+    full = M.anchor_protocol_fields("mscoco", 39, **kw)
+    assert (full["epoch"], full["lr_schedule_horizon"], full["sinkhorn_schedule_horizon"],
+            full["stop_after_epoch"]) == (60, 60, 40, 39)
+    assert (full["routing_adaptive_topp_min"], full["routing_adaptive_topp_max"],
+            full["lambda_codon_joint"]) == (0.6, 0.95, 0.03)
+    assert full["hash_target_mode"] == "siglip_cos" and full["disable_text_supervision"] is False
+    smoke = M.anchor_protocol_fields("mscoco", 39, epochs=2, **kw)
+    assert (smoke["epoch"], smoke["lr_schedule_horizon"], smoke["sinkhorn_schedule_horizon"],
+            smoke["stop_after_epoch"]) == (2, 2, 2, 1)
+    assert {k: v for k, v in smoke.items() if k not in ("epoch", "lr_schedule_horizon",
+            "sinkhorn_schedule_horizon", "stop_after_epoch")} == \
+        {k: v for k, v in full.items() if k not in ("epoch", "lr_schedule_horizon",
+            "sinkhorn_schedule_horizon", "stop_after_epoch")}
+
+
+def test_a_cell_off_the_approved_recipe_refuses(monkeypatch):
+    monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    cell = ("flickr25k", 4, ("0.5", "0.9"), "0.02", "select", 42, (), "anchors")
+    with pytest.raises(CellRefused, match="not the approved incumbent's"):
+        M.anchor_admission([cell], namespace="ancT", incumbent=INCUMBENT)
+
+
+@pytest.mark.parametrize("appended,field", [(["--disable_text_supervision"], "disable_text_supervision"),
+                                            (["--no_routing_adaptive_topp"], "no_routing_adaptive_topp"),
+                                            (["--final_epoch_eval"], "final_epoch_eval")])
+def test_both_arms_off_the_protocol_refuse_although_they_differ_in_the_axis_alone(monkeypatch, appended, field):
+    monkeypatch.setattr(M, "render_trainer_argv", lambda cmd, env: fake_render(cmd, env) + appended)
+    cells = M.anchor_confirmation_cells("select", incumbent=INCUMBENT, arm_plan=ALL_ANCHORS)
+    with pytest.raises(CellRefused, match=f"breaks the protocol in {field}"):
+        M.anchor_admission(cells[:1], namespace="ancT", incumbent=INCUMBENT)
+
+
+# ---- the actual command composition: the pinned wrappers, rendered (audit 677.2) ----------------------
+@pytest.fixture
+def synthetic_paths(tmp_path, monkeypatch):
+    """Every input path the wrappers receive points into tmp_path; the whitening file exists (empty),
+    so no wrapper reaches its builder. Nothing under these paths is read."""
+    whiten = tmp_path / "text_whiten_optTrain_localOnly.npz"
+    whiten.write_bytes(b"")
+    monkeypatch.setattr(M, "_whitening", lambda spec, stage="select": str(whiten))
+    for ds in M.ANCHOR_DATASETS:
+        monkeypatch.setitem(M.DATASETS[ds], "cache", str(tmp_path / f"{ds}_cache"))
+        monkeypatch.setitem(M.DATASETS[ds], "qwen", str(tmp_path / f"{ds}_qwen.jsonl"))
+    return tmp_path
+
+
+@pytest.mark.parametrize("dataset", M.ANCHOR_DATASETS)
+@pytest.mark.parametrize("arm", M.ANCHOR_ARMS)
+def test_the_actual_wrapper_composition_repeats_exactly_the_reviewed_overrides(synthetic_paths, dataset, arm):
+    from config import Config
+    parser = Config.build_parser()
+    inc = INCUMBENT[dataset]
+    cmd, env, _ = M.build_command(dataset, inc["N"], 0, topp=inc["topp"], joint=inc["joint"],
+                                  seed=43, anchor_arm=arm)
+    argv = M.render_trainer_argv(cmd, env)
+    repeated = {d for d, spans in R.option_occurrences(parser, argv).items() if len(spans) > 1}
+    assert repeated == set(R.REVIEWED_OVERRIDES)          # all seven, the three routing ones included
+    admitted = R.admitted_overrides(parser, argv)
+    assert all(tuple(spans[0]) == R.REVIEWED_OVERRIDES[d] for d, spans in admitted.items())
+    fields = R.build_payload(parser, argv, planned_arm=arm)["fields"]
+    want = M.anchor_protocol_fields(dataset, inc["N"], seed=43, arm=arm, incumbent=INCUMBENT)
+    assert {k: fields[k] for k in want} == want
+
+
+def test_the_actual_composition_admits_every_stage_s_coordinate(synthetic_paths):
+    cells = M.anchor_confirmation_cells("select", incumbent=INCUMBENT, arm_plan=ALL_ANCHORS)
+    report = M.anchor_admission(cells, namespace="ancT", incumbent=INCUMBENT)
+    assert len(report) == 12
+    assert all(sorted(e["overrides"]) == sorted(R.REVIEWED_OVERRIDES) for e in report.values())
+
+
+def test_the_real_plan_path_over_the_actual_composition(tmp_path, synthetic_paths, monkeypatch,
+                                                        boundaries, capsys):
+    fake_authorities(tmp_path, monkeypatch)
+    assert run_main(monkeypatch, *BASE, "--plan") == 0
+    assert "at all 12 coordinates" in capsys.readouterr().out and boundaries == []
+
+
+def test_a_third_occurrence_injected_into_the_actual_composition_refuses(synthetic_paths):
+    cmd, env, _ = M.build_command("nuswide", 4, 0, topp=("0.4", "0.8"), joint="0.05", anchor_arm="anchors")
+    env["EXTRA_ARGS"] += " --routing_adaptive_topp_min 0.5"
+    with pytest.raises(R.RecipeMismatch, match="given 3 times"):
+        R.build_payload(__import__("config").Config.build_parser(), M.render_trainer_argv(cmd, env),
+                        planned_arm="anchors")
+
+
+# ---- opt-in, against the real approved artifacts ---------------------------------------------------
+@pytest.mark.skipif(os.environ.get("GDNA_ALLOW_REAL_ARTIFACT_TESTS") != "1",
+                    reason="real-artifact test; opt in with GDNA_ALLOW_REAL_ARTIFACT_TESTS=1")
+def test_real_plan_renders_every_coordinate(monkeypatch, boundaries, capsys):
+    assert run_main(monkeypatch, *BASE, "--plan") == 0
+    assert "at all 12 coordinates" in capsys.readouterr().out
     assert boundaries == []
-
-
-# ---- rendering refuses where the script would do real work -------------------------------------------
-def test_render_refuses_a_missing_whitening_file_instead_of_letting_the_script_build_it(tmp_path):
-    cmd, env, _ = M.build_command("flickr25k", 4, 0, topp=("0.6", "0.95"), joint="0.02",
-                                  anchor_arm="anchors")
-    env = dict(env, WHITEN_NPZ=str(tmp_path / "absent.npz"))
-    with pytest.raises(CellRefused, match="missing"):
-        M.render_trainer_argv(cmd, env)

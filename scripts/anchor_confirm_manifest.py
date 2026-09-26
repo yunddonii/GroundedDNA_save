@@ -1,26 +1,21 @@
 #!/usr/bin/env python
-"""Anchor confirmation v1: the historical-to-new authority manifest (audit section 659.2 item 3).
+"""Anchor confirmation v1: the versioned generation manifest (audit sections 659.2, 674, 678.2, 683.2).
 
-Read-only except for its one output, written once. Starting from the ledger-pinned incumbent
-constants in scripts/phase3_selection_matrix.py it records:
-
-* historical authorities with their approval sections: the P3 refit aggregate (section 285), its
-  selected-N authority and recipe authority, every refit record and the config.pt each one reaches
-  through its query extraction manifest, the p3gE selection records, the p3lamA receipt (section
-  536) and its incumbent seed records;
-* dataset / N / recipe coordinates of the incumbent;
-* the new source generation: branch, commit, a clean-tree check, and the digest of every file of
-  the launcher's executable closure plus the anchor-confirmation files;
-* the contract digest;
-* two read-only checks, re-run here: this generation's control refit recipe against each approved
-  config.pt, and the reducer's evidence rule applied to every proposed control-reuse record.
-A pin proves byte identity, not correctness or permission to execute.
+inventory -- the manifest the audit reviews: byte identities of the historical JSON authorities
+    (their full digests are this source's constants, taken from the ledger), of EVERY member of the
+    generation closure (the launcher's executable closure, which includes the pinned wrappers, the
+    input-admission, identity and split modules, plus the anchor reducer, probe, this script, the
+    four test files and the designated contract), and the environment. A missing member refuses
+    instead of being left out. It reads JSON and text only; no config.pt, checkpoint, array or
+    cache is opened. The launcher's --smoke/--run, the reducer and the probe require the tree to
+    match it; approval to run anything is a separate audit ledger line (launcher `audit_approval`).
+The historical config inspection is not part of this generation (a stage-R proposal).
+The output is written once. A pin proves byte identity, not correctness or permission to execute.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
-import json
 from pathlib import Path
 import platform
 import subprocess
@@ -32,14 +27,10 @@ sys.path.insert(0, str(REPO))
 import scripts.phase3_selection_matrix as M                  # noqa: E402
 import scripts.anchor_confirm_decision as D                  # noqa: E402
 
-CONTRACT = REPO / "docs" / "ANCHOR_CONFIRMATION_CONTRACT_v1.md"
+CONTRACT = REPO / M.ANCHOR_CONTRACT_PATH
 P3LAM_RECEIPT = M.APPROVED_P3_REFIT_AGGREGATE.parent / "p3lamA_sweep_complete.json"
-ANCHOR_FILES = ("dna_utils/scientific_recipe.py", "scripts/phase3_selection_matrix.py",
-                "scripts/anchor_confirm_decision.py", "scripts/anchor_confirm_code_axis.py",
-                "scripts/anchor_confirm_manifest.py", "train_siglip2.py", "config.py",
-                "model_siglip2.py", "docs/ANCHOR_CONFIRMATION_CONTRACT_v1.md",
-                "tests/test_anchor_confirm_port.py", "tests/test_anchor_confirm_recipe.py",
-                "tests/test_anchor_confirm_launcher.py", "tests/test_anchor_confirm_reducer.py")
+#: Ledger section 536.1 (repeated in 561.1): the approved lambda-confirmation receipt.
+P3LAM_RECEIPT_SHA256 = "5a8901b76c5e0b97e0daea5f1564bf1f1a7cf05a79212abd148f601df91894d2"
 
 
 def git(*args) -> str:
@@ -47,106 +38,80 @@ def git(*args) -> str:
                           check=True).stdout.strip()
 
 
-def build(p3lam_receipt_sha256: str) -> dict:
+def inventory() -> dict:
     consumed = D.Consumed()
     aggregate = consumed.json(M.APPROVED_P3_REFIT_AGGREGATE, M.APPROVED_P3_REFIT_AGGREGATE_SHA256)
     selected = consumed.json(M.APPROVED_SELECTED_N, M.APPROVED_SELECTED_N_SHA256)
-    incumbent = M.anchor_incumbent()
-    records_dir = M.APPROVED_P3_REFIT_AGGREGATE.parent
-
-    refit = {}
-    for ds in M.ANCHOR_DATASETS:
-        for seed, want in sorted(aggregate["datasets"][ds]["record_sha256"].items()):
-            names = [p for p in records_dir.glob("p3rfB_*.json")
-                     if hashlib.sha256(p.read_bytes()).hexdigest() == want]
-            D.need(len(names) == 1, f"{ds}/{seed}: {len(names)} refit records carry {want[:12]}")
-            record = consumed.json(names[0], want)
-            query = Path(record["run_dir"]) / "extraction_manifest_query.json"
-            manifest = consumed.json(query, record["completion"]["extraction_manifest_sha256"]["query"])
-            consumed.read(manifest["config_path"], manifest["config_sha256"])
-            refit.setdefault(ds, {})[seed] = {
-                "record": names[0].name, "record_sha256": want, "run_dir": record["run_dir"],
-                "query_extraction_manifest_sha256": record["completion"]["extraction_manifest_sha256"]["query"],
-                "config_pt_sha256": manifest["config_sha256"],
-                "final_checkpoint_sha256": record["completion"]["final_checkpoint_sha256"]}
-
-    reuse = {}
-    for ds in M.ANCHOR_DATASETS:
-        for n in M.CANDIDATE_N:
-            name = next(k for k in selected["record_sha256"]
-                        if k.startswith(f"p3gE_{M.DATASETS[ds]['exp']}_N{n}_s42"))
-            entry = {"record": str(records_dir / name), "record_sha256": selected["record_sha256"][name]}
-            reuse[f"{ds}|none|{n}|42"] = D.verify_record(consumed, (ds, "none", n, 42), entry, incumbent)
-    lam = consumed.json(P3LAM_RECEIPT, p3lam_receipt_sha256)
-    for seed in D.M.ANCHOR_DECIDE_SEEDS:
-        cell = lam["cells"][f"flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=select|seed={seed}"]
-        entry = {"record": str(records_dir / cell["record"]), "record_sha256": cell["record_sha256"]}
-        reuse[f"flickr25k|none|4|{seed}"] = D.verify_record(
-            consumed, ("flickr25k", "none", 4, seed), entry, incumbent)
-
-    incumbent_checks = {ds: M.anchor_incumbent_recipe_check(ds, incumbent)
-                        for ds in M.ANCHOR_DATASETS}
-    D.need(all(not c["differences"] for c in incumbent_checks.values()),
-           "this generation's control refit recipe differs from an approved one")
-
+    consumed.read(P3LAM_RECEIPT, P3LAM_RECEIPT_SHA256)
     status = git("status", "--porcelain")
     D.need(status == "", f"the source generation has uncommitted changes:\n{status[:400]}")
-    closure = sorted(set(M._BOOTSTRAP_SOURCE_PATHS) | set(ANCHOR_FILES))
-    import torch
-    manifest = {
-        "artifact_kind": "anchor_confirmation_authority_manifest",
-        "version": M.ANCHOR_CONFIRM_VERSION,
-        "note": "byte identities and read-only checks; not approval to execute",
+    closure = M.anchor_generation_closure()
+    absent = [rel for rel in closure if not (REPO / rel).is_file()]
+    D.need(not absent, f"closure members are absent: {absent}")
+    from importlib import metadata
+    return {
+        "artifact_kind": M.ANCHOR_MANIFEST_KIND, "version": M.ANCHOR_CONFIRM_VERSION,
+        "generation": "v2",
+        "note": "byte identities from JSON and text only; not approval to execute",
         "historical": {
             "approved_p3_refit_aggregate": {"path": str(M.APPROVED_P3_REFIT_AGGREGATE),
                                             "sha256": M.APPROVED_P3_REFIT_AGGREGATE_SHA256,
-                                            "approval": "ledger section 285 (2026-09-09)"},
+                                            "approval": "ledger section 285 (2026-09-09)",
+                                            "refit_record_sha256": {ds: aggregate["datasets"][ds]["record_sha256"]
+                                                                    for ds in M.ANCHOR_DATASETS}},
             "approved_selected_n": {"path": str(M.APPROVED_SELECTED_N),
                                     "sha256": M.APPROVED_SELECTED_N_SHA256,
                                     "namespace": selected["namespace"],
                                     "protocol_sources": selected["protocol_sources"],
                                     "records_sha256": selected["record_sha256"]},
             "recipe_authority": selected["recipe_authority"]["artifact"],
-            "refit_records": refit,
-            "lambda_campaign": {"receipt": str(P3LAM_RECEIPT), "sha256": p3lam_receipt_sha256,
-                                "approval": "ledger section 536"},
+            "lambda_campaign": {"receipt": str(P3LAM_RECEIPT), "sha256": P3LAM_RECEIPT_SHA256,
+                                "approval": "ledger section 536.1"},
             "p3_commit": "5304005cb6eaa6462a5450c30c25bc65f978af23",
             "base_commit": "88c3a25b1b309550eafc276c2ce5be7575507173",
             "not_authority": {"artifacts/phase3_selection/selected_n.json in the new worktree":
-                              "f2218aa7 -- an older committed copy; the approved bytes are "
-                              "APPROVED_SELECTED_N"},
+                              "f2218aa7 -- an older committed copy"},
         },
         "coordinates": {"datasets": list(M.ANCHOR_DATASETS), "arms": list(M.ANCHOR_ARMS),
                         "candidate_n": list(M.CANDIDATE_N), "select_seed": M.SEED,
-                        "decide_seeds": list(M.ANCHOR_DECIDE_SEEDS),
-                        "incumbent": {ds: {**v, "topp": list(v["topp"])} for ds, v in incumbent.items()}},
+                        "decide_seeds": list(M.ANCHOR_DECIDE_SEEDS)},
+        "control_reuse": {"proposed": False,
+                          "reason": "stages S and D train fresh controls (contract section 5); the "
+                                    "v1 proposal stays as history in authority_manifest_v1.json",
+                          "approved_reuse_admissions": dict(M.APPROVED_REUSE_ADMISSION_SHA256)},
+        "predecessor": {"authority_manifest_v1_sha256":
+                        "c1eed986312ba9a017cc559813ce1d0d2b2dc2fc5aba1df3f032424cbda8b94e",
+                        "contract_v1_sha256":
+                        "418091eedff7ee8c09df149df6bc7027f6b4ac0d8ebbe3dd724facefa66a5a08"},
         "new_generation": {
             "worktree": str(REPO), "branch": git("rev-parse", "--abbrev-ref", "HEAD"),
             "commit": git("rev-parse", "HEAD"), "clean": True,
-            "files_sha256": {rel: hashlib.sha256((REPO / rel).read_bytes()).hexdigest()
-                             for rel in closure if (REPO / rel).is_file()},
-            "environment": {"python": platform.python_version(), "torch": torch.__version__,
+            "files_sha256": {rel: hashlib.sha256(consumed.read(REPO / rel)).hexdigest()
+                             for rel in closure},
+            "dataset_scripts_sha256": dict(M.DATASET_SCRIPT_SHA256),
+            "environment": {"python": platform.python_version(), "torch": metadata.version("torch"),
                             "interpreter": sys.executable}},
-        "contract": {"path": str(CONTRACT.relative_to(REPO)),
+        "contract": {"path": M.ANCHOR_CONTRACT_PATH,
                      "sha256": hashlib.sha256(consumed.read(CONTRACT)).hexdigest()},
-        "evidence": {
-            "incumbent_recipe_check": incumbent_checks,
-            "control_reuse_check": {k: {kk: vv for kk, vv in v.items()} for k, v in reuse.items()},
-        },
+        "approval": {"authority": str(M.AUDIT_LEDGER), "tag": M.APPROVAL_TAG,
+                     "scopes": {k: list(v) for k, v in M.APPROVAL_SCOPES.items()},
+                     "note": "not part of this manifest: the audit writes one ledger line per "
+                             "approved operation, naming this manifest's digest"},
         "_consumed": consumed,
     }
-    return manifest
 
 
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--p3lam-receipt-sha256", required=True,
-                        help="full digest of the p3lamA receipt as the ledger (section 536) records it")
-    parser.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v1.json"))
+    sub = parser.add_subparsers(dest="command")
+    inv = sub.add_parser("inventory")
+    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v2.json"))
     args = parser.parse_args(argv)
     try:
-        payload = build(args.p3lam_receipt_sha256)
+        if args.command != "inventory":
+            parser.error("the only command is inventory")
+        payload = inventory()
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)
         digest = D.write_once(Path(args.out), payload)
     except (D.NotReducible, M.CellRefused, subprocess.CalledProcessError, FileExistsError) as error:
