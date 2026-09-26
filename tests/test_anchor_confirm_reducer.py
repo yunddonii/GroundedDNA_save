@@ -43,7 +43,7 @@ def argv_for(coordinate):
 
 def score_of(coordinate):
     ds, arm, n, seed = coordinate
-    base = {4: 0.70, 9: 0.72, 19: 0.71, 39: 0.69}[n]         # N=9 wins for every arm
+    base = {4: 0.70, 9: 0.72, 19: 0.71, 39: 0.69}.get(n, 0.5)   # N=9 wins; off-grid N scores low
     return round(base + (0.01 if arm == "anchors" else 0.0) + 0.001 * (seed - 42), 6)
 
 
@@ -153,19 +153,25 @@ def test_ties_go_to_the_smallest_n():
 
 
 # ---- select: membership --------------------------------------------------------------------------
-@pytest.mark.parametrize("case", ["missing", "extra", "duplicate", "reused_record"])
-def test_membership_must_be_exactly_the_contract(select_world, tmp_path, case):
+MEMBERSHIP = {"missing": "membership differs from the contract",
+              "extra": "membership differs from the contract",
+              "duplicate": "duplicate evidence",
+              "reused_record": "reused across coordinates"}
+
+
+@pytest.mark.parametrize("case", MEMBERSHIP)
+def test_membership_must_be_exactly_the_contract(select_world, tmp_path, capsys, case):
     entries = [dict(e) for e in select_world.entries]
     if case == "missing":
         entries.pop()
-    elif case == "extra":
-        extra = dict(entries[0], N=5)
-        entries.append(extra)
+    elif case == "extra":                    # a well-formed record of its own, off the grid
+        entries.append(select_world.make(("flickr25k", "none", 5, 42), probes=False))
     elif case == "duplicate":
         entries.append(dict(entries[0]))
     else:
         entries[1]["record"], entries[1]["record_sha256"] = entries[0]["record"], entries[0]["record_sha256"]
     assert select_args(select_world, tmp_path / "o.json", sources=select_world.sources(entries)) == 1
+    assert MEMBERSHIP[case] in capsys.readouterr().err
     assert not (tmp_path / "o.json").exists()
 
 
@@ -362,3 +368,21 @@ def test_retrieval_exactly_at_the_margin_passes(tmp_path):
     decisions = json.loads(out.read_text())["decisions"]
     assert all(d["retrieval"]["passes"] and d["retrieval"]["control_sample_sd"] == 0.0
                for d in decisions.values())
+
+
+
+def test_probe_refuses_a_config_other_than_the_one_the_anchor_evidence_pins(tmp_path, monkeypatch):
+    world = World(tmp_path, [("flickr25k", "anchors", 4, 42)])
+    e = world.entries[0]
+    run = Path(e["record"]).parent
+    (run / "model_state_dict.pth").write_bytes(b"checkpoint bytes")
+    (run / "model_state_dict.pth.runtime.json").write_text("{}")
+    world.rewrite_record(0, **{
+        "completion.final_checkpoint_sha256": hashlib.sha256(b"checkpoint bytes").hexdigest(),
+        "completion.checkpoint_runtime_sha256": hashlib.sha256(b"{}").hexdigest(),
+        "anchor_confirmation.config_pt_sha256": "0" * 64})
+    import model_siglip2
+    monkeypatch.setattr(model_siglip2, "SigLIP2SemanticOTModel",
+                        lambda *a, **k: pytest.fail("a model was built from an unpinned config"))
+    with pytest.raises(D.NotReducible, match="config.pt is not the one"):
+        P.probe(e["record"], e["record_sha256"], device="cpu", n_images=512)

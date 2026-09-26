@@ -70,25 +70,40 @@ def replace(argv, old, new):
     return out
 
 
-REFUSALS = {
-    "declared_anchors_runtime_none": lambda a: [t for i, t in enumerate(a)
-                                                if t != "--axis_center" and (i == 0 or a[i - 1] != "--axis_center")],
-    "unsupported_axis_value": lambda a: replace(a, "--axis_center", "readout"),
-    "repeat_injected_at_runtime": lambda a: a + ["--axis_center", "none"],
-    "changed_gate_sign": lambda a: replace(a, "--global_gate_init_logit", "3.0"),
-    "undeclared_feature": lambda a: a + ["--use_null_centroid"],
-    "abbreviated_option": lambda a: replace(a, "--lambda_wasserstein", "0.15")[:-2] + ["--lambda_wasser", "0.15"],
-    "declared_repeat_dropped": lambda a: a[:a.index("-e", a.index("-e") + 1)] + a[a.index("-e", a.index("-e") + 1) + 2:],
+ARGV_DIFFERS = "trainer argv differs from the sealed argv"
+REFUSALS = {   # case: (runtime argv from the sealed one, the refusal it must produce)
+    "declared_anchors_runtime_none": (lambda a: [t for i, t in enumerate(a) if t != "--axis_center"
+                                                 and (i == 0 or a[i - 1] != "--axis_center")], ARGV_DIFFERS),
+    "unsupported_axis_value": (lambda a: replace(a, "--axis_center", "readout"), "rejected the argv"),
+    "repeat_injected_at_runtime": (lambda a: a + ["--axis_center", "none"], ARGV_DIFFERS),
+    "changed_gate_sign": (lambda a: replace(a, "--global_gate_init_logit", "3.0"), ARGV_DIFFERS),
+    "undeclared_feature": (lambda a: a + ["--use_null_centroid"], ARGV_DIFFERS),
+    "abbreviated_option": (lambda a: replace(a, "--lambda_wasserstein", "0.15")[:-2]
+                           + ["--lambda_wasser", "0.15"], "abbreviated or unknown"),
+    # identical typed fields: only the exact-argv comparison can refuse this one
+    "declared_repeat_dropped": (lambda a: a[:a.index("-e", a.index("-e") + 1)]
+                                + a[a.index("-e", a.index("-e") + 1) + 2:], ARGV_DIFFERS),
 }
 
 
 @pytest.mark.parametrize("case", REFUSALS)
 def test_trainer_argv_other_than_the_sealed_one_is_refused(parser, monkeypatch, case):
     seal(monkeypatch, R.build_payload(parser, ARGV))
-    runtime = REFUSALS[case](ARGV)
+    make, reason = REFUSALS[case]
+    runtime = make(ARGV)
     assert runtime != ARGV
-    with pytest.raises(R.RecipeMismatch):
-        R.verify_trainer_recipe(parser, runtime, SimpleNamespace())
+    try:                                    # the args this runtime argv really post-processes to
+        args = post_processed(parser, runtime)
+    except SystemExit:
+        args = SimpleNamespace()
+    with pytest.raises(R.RecipeMismatch, match=reason):
+        R.verify_trainer_recipe(parser, runtime, args)
+
+
+def test_a_dropped_repeat_leaves_the_typed_fields_unchanged(parser):
+    """Why the exact argv is sealed at all: this runtime command parses to the same recipe."""
+    dropped = REFUSALS["declared_repeat_dropped"][0](ARGV)
+    assert R.build_payload(parser, dropped)["fields"] == R.build_payload(parser, ARGV)["fields"]
 
 
 def test_missing_axis_in_the_sealed_recipe_is_refused(parser, monkeypatch):
