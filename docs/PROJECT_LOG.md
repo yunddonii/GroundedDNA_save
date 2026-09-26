@@ -487,6 +487,66 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-26 [anchor confirmation v2 — preparation only, nothing executed] Readiness package for audit §665–§701: fresh controls, audit-ledger approvals bound to the exact request, metadata-only reduction
+
+**Status:** ✅ preparation complete and submitted for review; **no GPU run of any kind, and no approval
+line exists** (every execution path refuses without one). Branch `arch-exp-2026-09-anchor-confirm`
+(worktree `/data/yschoi/gdna_anchor_confirm_v1`), head `63654dd`, source commit `491c3ce`. Generation
+manifest `artifacts/anchor_confirmation/authority_manifest_v2.json` (`a5f7b843…`, 56 files); contract
+`docs/ANCHOR_CONFIRMATION_CONTRACT_v2.md` (`26ebe2c1…`); handoff `docs/ANCHOR_CONFIRMATION_HANDOFF_v2.md`
+(`92c152de…`), a per-finding response to §665–§701. The v1 contract, manifest and handoff are unchanged.
+
+**Design as submitted (what changed from v1, and why):**
+- **Fresh controls.** Stages S and D train both arms: 24 + 12 = 36 cells. The v1 plan to reuse the
+  approved `p3gE`/`p3lamA` control records is withdrawn: a fresh control differs from the candidate in
+  `axis_center` alone by construction, and no historical `config.pt` has to be opened before S/D.
+  Reuse stays possible only through a digest listed in reviewed source (none listed).
+- **One admission for plan/smoke/run**, enforcing the contract's typed protocol values for both arms at
+  every coordinate (top-p, joint, horizons, split, geometry, `hash_target_mode siglip_cos`, text path on,
+  the seven reviewed wrapper overrides as *wrapper literal first, one override last*).
+- **Approval = a line in this audit ledger** (which the modification agent cannot write) naming the
+  scope, the generation manifest and the SHA256 of the exact canonical request (cells, namespace,
+  roots, smoke horizon, input seals by file digest, carried authority, GPU count). `--plan` with the
+  execution arguments prints that digest. Snapshot and receipt carry request and approval; the reducer
+  re-verifies both per record.
+- **The reducer never deserialises** (config by byte pin against the in-campaign recipe check); the D
+  plan replays stage S from JSON, logs and pinned bytes only. The probe checks its approval, the frozen
+  N record and every byte pin before its first load, and the trainer's own input admission before any
+  model; its measurement envelope is fully typed.
+- **Inputs and source continuity:** the seals actually admitted must equal the approved request's pins
+  before and after the lease; request, snapshot, record and bindings must agree on inputs; the 56-file
+  generation and the anchor modules' import digests are re-verified after admission, after the lease,
+  before every cell, before the receipt and before the reducer/probe publish.
+
+**What the audit caught in my intermediate versions** (each fixed with intended-reason tests): a repeat
+allowlist that refused all six real commands because my tests used a stand-in argv (§677.2);
+self-authored approval labels and caller hashes accepted as authority (§679); a stage-D plan that
+deserialised configs via the replay (§681); a manifest reader that trusted whatever subset it listed
+(§683); approvals that did not bind the actual request (§689); approved seals not re-compared after
+admission (§694) or across objects (§696); anchor-only files not re-checked after the first admission
+(§697); and in my mutation harness a text-prefix mutant that left the guard live and an equivalent
+mutant (§688, §698).
+
+**Evidence:** at `491c3ce` 773 passed, 1 skipped (409 anchor, 341 legacy, 23 related). The audit's own
+guarded runs: 372 at `c81aca8`, 409 at `dcf6777`, and in-memory mutants at `491c3ce` (§695, §700, §701).
+Mutation: v3 full (92) 82 intended, 8 re-examined, 1 equivalent (L22e, corrected), 1 declared unreachable;
+v4 targeted (23) 19 intended + 4 explained (§701.2 agrees); v4b 4/4. Reports and every targeted mutant's
+full output in `artifacts/anchor_confirmation/mutation_v2/`.
+
+**Real artifacts touched:** in v1 (06:37–07:03 UTC) up to 20 historical `config.pt` deserialisations
+(plans and `verify_record`), disclosed in the handoff. In v2 none deserialised: text reads of one `p3gE`
+record and snapshot, the pinned JSON authorities, the three stage-1 seal files (hashed for the request),
+a stat of the whitening files and 24 capture-only wrapper renders per plan.
+
+**Proposed stage-S request (for approval, not run):** 24 cells, namespace `ancS2`, result root
+`/data/yschoi/gdna_anchor_confirm_v1_result`, the three stage-1 seals `p3gE` used, no carried authority
+(full seal rehash, about 82 min), 3 GPUs → request `ee367b84…`. Budget ceiling for S + D + probes
+12.5 GPU-hours. Open decisions for the audit/user (contract §15): fresh controls, the override policy
+and approval/request format, the alignment endpoint, input/environment admission, stage-S approval
+(and whether a one-cell smoke comes first); D, probes, R and T later.
+
+---
+
 ## 2026-09-26 [anchor confirmation v1 — preparation only, nothing executed] Audit §659 package, first version (NOT ready — see the correction below)
 
 **Correction (same day):** the audit reviewed this version in parallel (ledger §665–§674) and found real defects — the trainer check would have refused every real cell (tokenizer-JSON normalisation, §670), plan checks do not gate `--run` and a self-pinned N record admits stage D (§671), type/presence/conflicting-flag gaps (§669), records and probes admitted on local consistency alone (§672–§673) — plus contract gaps (§665, §668). It also treats deserialising real historical `config.pt` files as a separately admitted step; this version did so in its plan output, manifest, reuse checks and one integration test. §674 asks for a per-finding response, corrected sources and a new manifest before the package is presented as ready. The first version below stays as a record.
