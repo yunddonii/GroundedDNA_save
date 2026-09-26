@@ -84,17 +84,23 @@ per-dataset trainer script defaults. **Excluded:** the weak gate (`ancsoft`, rej
 
 Grid N ∈ {4, 9, 19, 39}, seed 42. Rule (as `scripts/phase3_select_n.py`): argmax of the retrieval
 score; ties go to the smallest N. The candidate arm needs 12 new cells. For the control arm the
-approved P3 selection evidence (N = 4 / 4 / 39) is **proposed for reuse** under §664.2, because the
-control executes the historical model/trainer bytes (§5; the port only adds lines, and the only new
-call is gated on `anchors`). If the audit does not admit that reuse, 12 new control cells run in
-this generation instead (§15, item 1).
+approved P3 selection evidence (namespace `p3gE`, N = 4 / 4 / 39) is **proposed for reuse** under
+§664.2. Evidence for the proposal, all read-only: (a) the control executes the historical
+model/trainer bytes (§5; the port only adds lines, and the only new call is gated on `anchors`);
+(b) all 12 `p3gE` records pass the reducer's evidence rule of §13 for the coordinates
+(dataset, `none`, N, 42) -- their saved typed configurations equal this generation's rendered
+control recipes outside the tag and the sealed-input fields, and their scores verify from the pinned
+logs -- and the rule reproduces N = 4 / 4 / 39. If the audit does not admit that reuse, 12 new
+control cells run in this generation instead (§15, item 1).
 
 ### 7.2 Stage D — train-only decision cells
 
 Each arm at its own selected N, seeds 43 and 44, same split and schedule (seed 42 comes from
 stage S). Candidate: 6 new cells. Control: Flickr25K seeds 43/44 at N=4 exist in the approved
-lambda campaign `p3lamA` (ledger §536) and are proposed for reuse; NUS-WIDE and MS-COCO need 4 new
-control cells. Every cell also yields the code-to-axis probe of §8.2 on the same checkpoint.
+lambda campaign `p3lamA` (receipt `5a8901b7…`, ledger §536); both records pass the same evidence
+rule for (flickr25k, `none`, 4, 43/44) and are proposed for reuse. NUS-WIDE and MS-COCO need 4 new
+control cells (seeds 43/44 at the control N). Every checkpoint of stages S and D at the frozen N
+also yields the code-to-axis probe of §8.2.
 
 ### 7.3 Decision rule, frozen now (train-only)
 
@@ -127,14 +133,19 @@ including failure; no recipe, N, scope or checkpoint substitution follows from i
 
 ### 8.2 Decision interpretability score: code-to-own-axis
 
-Deployment forward of the terminal checkpoint (eval mode, `eval_routing_mode codebook_mean`, no
-text reaches the model) on the first `min(512, n_val)` held-out rows in canonical order. For each
+Deployment forward of the terminal checkpoint (eval mode, no text reaches the model) on the first
+`min(512, n_val)` rows of the run's own validation split: the trainer's `val_split.carve_val_indices`
+with the run's typed `val_split_ratio`/`val_split_seed`, in ascending dataset index. The model is
+built from the run's saved `config.pt` (typed; never `args.txt`) and loads the checkpoint bytes the
+record pins with no missing or unexpected key (`scripts/anchor_confirm_code_axis.py`). For each
 image and local slot *m*: the slot's quantised codeword is compared by cosine (after subtracting
 the batch mean of codewords and of caption embeddings) with the same image's four axis-caption
 embeddings; the slot scores 1 if its own axis caption is the nearest. The score is the mean over
 images and the four local slots; chance is 0.25. Captions are only the target, never an input.
 This is the metric that rose on 12/12 exploratory dataset-seed pairs; it is a within-image,
-relative measure and is not evidence of globally nameable codewords (stage 10).
+relative measure and is not evidence of globally nameable codewords (stage 10). The arithmetic is
+the exploratory probe's; the row source, the model construction and the checkpoint loading are
+not, so confirmatory values are not interchangeable with the exploratory ones.
 
 ### 8.3 Reported, not decisive
 
@@ -179,6 +190,15 @@ Six GPUs; stages S and D run in about 1.5 – 3 hours of wall time with reuse ad
 
 ## 13. Typed scientific recipe, admission and reducer
 
+Evidence already produced (read-only, no run): this generation's rendered control **refit**
+recipe equals each approved refit's saved `config.pt` (Flickr25K `d4502d42…`, NUS-WIDE `27145906…`,
+MS-COCO `abeade4a…`, reached from `b4f3b0df…` by record -> query extraction manifest -> config.pt)
+in every field outside the 11 sealed-input fields `phase3_input_seal`, `phase3_input_seal_sha256`,
+`phase3_input_aggregate_sha256`, `phase3_split_identity_sha256`, `phase3_hf_identity_sha256` and the
+six `clip_snapshot_*` fields, which a campaign supplies from its own sealed inputs at launch; and at
+all 12 stage-S coordinates the two arms differ in `axis_center` alone.
+
+
 - **Recipe:** every destination of the trainer's own parser, parsed from the exact argv the
   per-dataset script would execute (rendered with a capture shim, never by running training), as
   typed canonical JSON (`groundeddna-scientific-recipe/1`), minus a short, declared list of
@@ -191,15 +211,35 @@ Six GPUs; stages S and D run in about 1.5 – 3 hours of wall time with reuse ad
 - **Arm check:** the candidate's recipe must differ from the control's in `axis_center` alone
   (plus the tag), and the control's must equal the approved incumbent recipe except for the
   declared stage fields.
-- **Reducer:** exact planned membership, one distinct verified record per coordinate, same-byte
-  parsing, train-only split and terminal-epoch/checkpoint linkage, finite scores in [0, 1];
-  refuses smoke, refit and official-test records as stage S/D evidence; writes the frozen decision
-  exclusively.
+- **Reducer** (`scripts/anchor_confirm_decision.py`): a record counts for (dataset, arm, N, seed)
+  only if it is a stage-1, train-only (`val_split_ratio` 0.1), non-smoke candidate whose terminal
+  checkpoint and selection epoch are N, whose score parses from the log bytes it pins (finite, in
+  [0, 1], equal to its own selection value), and whose saved typed configuration equals the recipe
+  this generation renders for that coordinate outside the tag and the sealed-input fields. The same
+  rule judges new and reused records. Membership is the contract's exactly (no missing, extra,
+  duplicate or reused record); every input is read once and parsed from its hashed bytes,
+  re-verified before the output is written once (O_EXCL). Probe outputs must name the checkpoint
+  and config digests of their record.
 
-## 14. Namespaces, output roots and handoff
+## 14. Namespaces, output roots, commands and handoff
 
-- Records: `/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/`.
-- Run directories: `/data/yschoi/gdna_anchor_confirm_v1_result/<namespace>/`.
+- Records: `/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/` (the launcher's
+  anchor mode writes there, never to `artifacts/phase3_selection/`).
+- Run directories: `--result-root /data/yschoi/gdna_anchor_confirm_v1_result`.
+- Commands (to be run only after approval; `GDNA_NUM_SEMANTIC_PARTS=5` exported):
+  - plan, side-effect free: `python scripts/phase3_selection_matrix.py --anchor-confirm select
+    --namespace ancS1 --plan`
+  - stage S: the same with `--run --gpus A,B,C --input-seal DATASET:select=SEAL ...
+    --result-root <root>`; a smoke, if approved, `--smoke --only flickr25k:4:anchors:42` under
+    `ancSmk1`
+  - N record: `python scripts/anchor_confirm_decision.py select --sources S --sources-sha256 H
+    --arms none,anchors --out N.json` (control coordinates point at the admitted `p3gE` records)
+  - stage D: `--anchor-confirm decide --anchor-selection N.json --anchor-selection-sha256 H
+    --anchor-arms anchors` (+ `none` for NUS-WIDE/MS-COCO only if the launcher is extended to
+    per-dataset arms; see §15 item 6)
+  - probes: `python scripts/anchor_confirm_code_axis.py --record R --record-sha256 H --out P.json`
+  - decision: `python scripts/anchor_confirm_decision.py decide --sources S --sources-sha256 H
+    --selection N.json --selection-sha256 H --out D.json`
 - Namespaces: `ancS1` (stage S), `ancD1` (stage D), `ancR1` (stage R), `ancT1` (stage T); a smoke,
   if approved, uses `ancSmk1` and never counts as evidence.
 - Handoff manifest `artifacts/anchor_confirmation/authority_manifest_v1.json`: old artifact and
@@ -218,3 +258,9 @@ Six GPUs; stages S and D run in about 1.5 – 3 hours of wall time with reuse ad
    seed 42 comes from the P3 selection matrix and seeds 43/44 from `p3lamA` or new cells — the audit
    must accept that these form one three-seed sample.
 5. **Stage R/T authorization** after the frozen decision exists.
+6. **Per-dataset control cells in stage D:** with reuse admitted, the control needs new seeds 43/44
+   on NUS-WIDE and MS-COCO but not on Flickr25K. The launcher's `--anchor-arms` applies to all three
+   datasets; running `none` everywhere would duplicate the admitted Flickr25K `p3lamA` seeds.
+   Either accept that duplication (2 extra cells) or add a per-dataset arm list before execution.
+7. **The probe and reducer as decision authorities:** their source bytes are in the handoff
+   manifest; the audit must accept them before their outputs decide anything.
