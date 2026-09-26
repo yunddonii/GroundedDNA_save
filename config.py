@@ -637,6 +637,13 @@ class Config():
                  'routing, the null column is sliced out, so patches '
                  'preferring the null get effectively rejected from codebook '
                  'updates. v56 ablation.')
+        # Anchor confirmation v1 (audit sections 659-664): the only recipe axis this
+        # source generation adds. `none` executes the historical routing path unchanged.
+        siglip2_arg.add_argument('--axis_center', dest='axis_center',
+            type=str, default='none', choices=['none', 'anchors'],
+            help='anchors = before the routing cost is computed, subtract from each local '
+                 'routing anchor the per-image mean of the active local anchors (global '
+                 'prefix untouched; no parameter, no loss term). none = unchanged.')
         siglip2_arg.add_argument('--foreground_text_mask_topk_ratio',
             dest='foreground_text_mask_topk_ratio', type=float, default=None,
             help='If set, keep only top-K%% of patches by cosine similarity to '

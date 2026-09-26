@@ -2384,6 +2384,10 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.sinkhorn_lambda_b      = getattr(args, "sinkhorn_lambda_b",      None)
         # v56: optional learnable null/background centroid
         self.use_null_centroid      = bool(getattr(args, "use_null_centroid", False))
+        # Anchor confirmation v1: axis-centred routing anchors; `none` = historical path.
+        self.axis_center            = str(getattr(args, "axis_center", "none") or "none")
+        if self.axis_center not in ("none", "anchors"):
+            raise ValueError(f"axis_center={self.axis_center!r}; this generation supports none|anchors")
         self.total_epochs           = int(getattr(args, "epoch", 60))
         # D2: the epsilon anneal has its own horizon. Using total_epochs
         # meant `-e N+1` compressed the LR cosine as well, so choosing N
@@ -2912,6 +2916,23 @@ class SigLIP2SemanticOTModel(nn.Module):
         assert normalized_entropy.shape == (B, NUM_LOCAL_PARTS)
         assert effective_support.shape == (B, NUM_LOCAL_PARTS)
         return refined, normalized_entropy, effective_support
+
+    @staticmethod
+    def _axis_center_local(x, n_global: int = 1, mask=None):
+        """Subtract, per image, the mean across the LOCAL axis columns.
+
+        Anchor confirmation v1 (ported unchanged in arithmetic from the arch-exp-3 P2 method).
+        ``x`` is [B, n_global + M_local, D]; columns before ``n_global`` are returned untouched.
+        With ``mask`` ([B, n_global + M_local]) the mean is over the active local columns only.
+        Pure representation change: no parameters, no loss term.
+        """
+        loc = x[:, n_global:, :]
+        if mask is not None:
+            w = mask[:, n_global:].to(loc.dtype).unsqueeze(-1)
+            mu = (loc * w).sum(dim=1, keepdim=True) / w.sum(dim=1, keepdim=True).clamp_min(1e-6)
+        else:
+            mu = loc.mean(dim=1, keepdim=True)
+        return torch.cat([x[:, :n_global, :], loc - mu], dim=1)
 
     def _current_sinkhorn_epsilon(self) -> Optional[float]:
         """Return the annealed Sinkhorn epsilon for the current epoch, or
@@ -4028,6 +4049,15 @@ class SigLIP2SemanticOTModel(nn.Module):
             local_centroids = local_anchor_tokens
             route_centroids = local_centroids                             # [B, 5, D]
             route_part_mask_used = None
+
+        # Anchor confirmation v1: axis-centred routing anchors. Removing the component every
+        # local anchor of this image shares leaves the transport cost with only the axis
+        # differences. `none` skips this block, so the historical path is unchanged.
+        if self.axis_center == "anchors" and route_centroids is not None:
+            _ng = 1 if route_global_text_active else 0
+            route_centroids = self._axis_center_local(
+                route_centroids, _ng, route_part_mask_used,
+            )
 
         # v184: EMA update text_prototype during training when text_part_tokens available.
         if (
