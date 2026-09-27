@@ -487,6 +487,67 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-27 [anchor confirmation v5 — preparation only, nothing executed] Audit §709–§712: the fixed four-dataset anchor model — anchors only, CIFAR-10 added, no adoption rule, 500-row probes, lambda checks required before the freeze
+
+**Status:** ✅ submitted for review.
+- **No GPU run of any kind.** No full seal verification, lease, smoke, training or probe ran, and
+  no approval line exists.
+- Branch `arch-exp-2026-09-anchor-confirm`, head `6ef8287`, source commit `2f79cb0`.
+- Manifest v5 `84e94e2f…` (59 files). Contract v3 `docs/ANCHOR_CONFIRMATION_CONTRACT_v3.md`
+  (`bd99ab0d…`), addendum `docs/ANCHOR_CONFIRMATION_OPS_ADDENDUM_v3.md` (`anchor-confirm-ops/3`,
+  `f270229e…`), handoff `docs/ANCHOR_CONFIRMATION_HANDOFF_v5.md` (`6dfcabd9…`), migration matrix
+  `docs/ANCHOR_MODEL_TODO_MIGRATION_v2.md` (`32e7b88f…`; v1 `056f79ad…` kept).
+- Stage-S request `bd3117a9…`: 16 cells, 4 GPUs, the four stage-1 seals, result root
+  `/home/yschoi/gdna_anchor4_result`.
+- Superseded, never submitted: a draft at `b0b9d6e` (manifest `16ba96c6…`, request `c87fbad3…`)
+  rendered before the §711 correction. The v4 package (manifest `5a4481f4…`, request `033b6979…`)
+  now refuses by version.
+
+**What changed (the user's decision recorded in audit §709, and the user's 2026-09-27 choices).**
+
+| Item | Generation v4 (superseded) | Generation v5 |
+|---|---|---|
+| Architecture | anchors adopted only if a train-only rule passed | `axis_center=anchors` fixed for all four datasets (an architecture decision, not a superiority claim) |
+| Datasets | Flickr25K, NUS-WIDE, MS-COCO (CIFAR-10 kept the incumbent) | + CIFAR-10 (K 64, mAP@1000) |
+| Arms run | `none` and `anchors` | `anchors` only; `none` rendered for the axis-alone check, never run |
+| Stage S / D / probes | 24 / 12 / 24 | 16 / 8 / 12 |
+| Reducer | adoption rule (`adopted = anchors if … else none`) | none: descriptive stage-D summary, 12 stage-R rows marked provisional until the freeze |
+| Probe population | 512 rows (infeasible for CIFAR-10 and Flickr25K, 500 validation rows) | first 500 validation rows, 2000 decisions; in the request, the envelope and the reducer |
+| GPUs | 3 | 4 (one stream per dataset) |
+| Result / ops roots | `/data` (99 % used) | `/home/yschoi` (364.9 GiB free) |
+| Lambda checks (TODO 13–15) | "optional" | required after S/D and before the freeze (§711.3) |
+
+- **CIFAR-10 wrapper.** It passes `--lambda_codeword_codon_sinkhorn ${CCS:-0.1}`. The 0.1 literal
+  is a reviewed alternate for that option only; the launcher's 0.0 override is still required and
+  the protocol binds 0.0. All 61 approved CIFAR-10 run directories record 0.0.
+- **Lambda lineage.** Order S → D/probes → L → F → R → T → downstream. L checks `lambda_wasserstein`
+  0.30/0.50, `lambda_bu` 0 and `lambda_text_hash_ntxent` 0.025/0.10 on the anchor model in its own
+  preregistered proposal and budget. If a lambda changes for a dataset, N is reselected for it in a
+  new generation, its D and probes are regenerated, its old records stay historical, and the
+  freeze binds one generation per dataset.
+- **Budget.** The 12.5 GPU-h ceiling is kept. Planning: S 3.50, D 0.47–3.73, probes ≈ 0.4 GPU-h
+  (≈ 4.4–7.6 total). Storage: 22 GiB free at S's first dispatch, 16 GiB at D's. Full input
+  verification: 531.69 GB over four seals.
+- **Later comparison.** The anchor model is compared with the approved `p3rfB` official-test results
+  only after R/T, descriptively. It is not a paired anchor-versus-none experiment and not a causal
+  anchor effect (§711.1).
+
+**Evidence (CPU only).**
+- The 14-file suite at `2f79cb0`: **836 passed, 1 skipped**, rc 0.
+- Mutation battery v7b: **15/15 detected as declared**, at `b0b9d6e` and at `2f79cb0`. The
+  mutants cover the arm plan, the four datasets, the GPU count, the CIFAR literal, the arm-only
+  reducer, receipt-only admission, the 500-row population and counts, the re-introduced adoption
+  rule, the fixed-architecture replay, the approval version, and the population in the request.
+- The first attempt (v7) found 14/15: one test did not isolate its check. The test was fixed and
+  given a positive control; the attempt is kept.
+- The audit independently verified the core (§711.2: 442 tests passed) and the lambda correction
+  at `2f79cb0` (§712).
+
+**Next.** The audit reviews v5. Stage S waits for a ledger line naming manifest `84e94e2f…` and
+request `bd3117a9…`.
+
+---
+
 ## 2026-09-27 [anchor confirmation v4 — preparation only, nothing executed] Audit §707–§708: the supervisor's budget accounting now charges every observation window, and a watchdog stops work when observation stalls
 
 **Status:** ✅ submitted for review.
