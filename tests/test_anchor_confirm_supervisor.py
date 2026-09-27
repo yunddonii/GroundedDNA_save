@@ -514,3 +514,23 @@ def test_the_headroom_covers_the_watchdog_and_the_stop_bound(world):
     assert world.run([PY, "-c", "pass"], budget_seconds=4.0 - 0.01, **common) == S.EXIT_REFUSED
     assert final(world.ops)["reason"].startswith("budget:")
     assert world.run([PY, "-c", "pass"], budget_seconds=4.5, **common) == 0
+
+
+def test_a_long_window_counts_against_the_budget_while_the_command_runs(world):
+    """The live projection charges the longest window seen so far, not the nominal poll."""
+    blocked = []
+
+    def free(_path):
+        blocked.append(1)
+        if len(blocked) == 3:
+            time.sleep(2.5)
+        return PLENTY
+
+    # headroom 1 x (10 + 2) = 12; ten planned cells charge 10 x the window: about 1-2 s while
+    # polls are regular, about 26 s after one 2.5-s window
+    rc = world.run([PY, "-c", "import time; time.sleep(60)"], planned_cells=10, poll_seconds=0.1,
+                   watchdog_seconds=10.0, budget_seconds=12.0 + 10.0, free_bytes=free)
+    assert rc == S.EXIT_STOPPED
+    done = final(world.ops)
+    assert done["reason"].startswith("budget:")
+    assert done["unobserved_allowance_seconds"] >= 25.0
