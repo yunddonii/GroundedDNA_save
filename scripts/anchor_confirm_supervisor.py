@@ -68,7 +68,8 @@ SELF_PATH = "scripts/anchor_confirm_supervisor.py"
 LEDGER_SCHEMA = "anchor-confirm-ops-ledger/1"
 LEDGER_NAME = "device_budget_ledger.jsonl"
 LOCK_NAME = "supervisor.lock"
-DEFAULT_OPS_ROOT = Path("/data/yschoi/gdna_anchor_confirm_v1_ops")
+#: on the root filesystem with the result root (user decision 2026-09-27: /data is 99 % used)
+DEFAULT_OPS_ROOT = Path("/home/yschoi/gdna_anchor4_ops")
 GPU_LEASE_ROOT = Path(f"/tmp/groundeddna-d6-gpu-leases-{os.getuid()}")
 
 GiB = 1 << 30
@@ -76,18 +77,20 @@ GiB = 1 << 30
 #: the two files to one pair of values
 FREE_FLOOR_BYTES = 10 << 30
 CELL_OUTPUT_BYTES = 3 << 28                    # 0.75 GiB; a historical N39 cell holds 0.61 GiB
-BUDGET_DEVICE_SECONDS = 12.5 * 3600.0          # S + D + probes (contract section 12)
+BUDGET_DEVICE_SECONDS = 12.5 * 3600.0          # S + D + probes (contract v3 section 12)
 POLL_SECONDS = 1.0
 #: no completed observation for this long stops the command (and voids the run's settlement)
 WATCHDOG_SECONDS = 10.0
 LEDGER_EVERY_SECONDS = 30.0
 #: the launcher's own cleanup is bounded by TERM 5 s + KILL 30 s plus /proc scans; three times that
 STOP_BOUND_SECONDS = 120.0
-#: stage -> (wall-time limit, most GPUs). S and D: full input verification (the old estimate is
-#: 82 min) plus the slowest stream (2.7 h for S, up to 2.9 h for D), with about 1.4x margin.
+#: stage -> (wall-time limit, most GPUs). Contract v3 runs one stream per dataset, four GPUs. S and
+#: D: full input verification of the four stage-1 seals (about 532 GB; the historical four-dataset
+#: figure is 82 min, an estimate) plus the slowest anchor stream (NUS-WIDE: 75 epochs x 1.08 min =
+#: 81 min for S; at most 2 x 40 epochs = 86 min for D), about 2.8 h, with about 1.4x margin.
 STAGES = {
-    "stage-S-run": (6 * 3600.0, 3), "stage-S-smoke": (2 * 3600.0, 3),
-    "stage-D-run": (6 * 3600.0, 3), "stage-D-smoke": (2 * 3600.0, 3),
+    "stage-S-run": (4 * 3600.0, 4), "stage-S-smoke": (2 * 3600.0, 4),
+    "stage-D-run": (4 * 3600.0, 4), "stage-D-smoke": (2 * 3600.0, 4),
     "probe": (15 * 60.0, 1),
 }
 EXIT_REFUSED, EXIT_STOPPED, EXIT_UNCLEAN, EXIT_UNRESOLVED = 2, 3, 4, 5

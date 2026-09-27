@@ -270,17 +270,47 @@ def test_the_override_may_use_an_alias_of_its_destination(parser):
 @pytest.mark.parametrize("argv,reason", [
     (COMPOSED + ["--routing_adaptive_topp_min", "0.5"], "given 3 times"),          # a third occurrence
     (ARGV + ["--epoch", "60"], "given 3 times"),                                   # third through an alias
-    (["-e", "30"] + COMPOSED[COMPOSED.index("-e") + 2:], "not the reviewed wrapper literal"),
-    (["--epoch", "60"] + COMPOSED[COMPOSED.index("-e") + 2:], "not the reviewed wrapper literal"),
+    (["-e", "30"] + COMPOSED[COMPOSED.index("-e") + 2:], "not a reviewed wrapper literal"),
+    (["--epoch", "60"] + COMPOSED[COMPOSED.index("-e") + 2:], "not a reviewed wrapper literal"),
     (["--dna_distance_mode", "codeword", "--tag", "t", "--dna_distance_mode", "base"],
-     "not the reviewed wrapper literal"),                                          # override placed first
-    (["--no-post_eval_compositional", "--post_eval_compositional"], "not the reviewed wrapper literal"),
+     "not a reviewed wrapper literal"),                                          # override placed first
+    (["--no-post_eval_compositional", "--post_eval_compositional"], "not a reviewed wrapper literal"),
     (["--routing_adaptive_topp_min=0.3", "--routing_adaptive_topp_min", "0.6"],
-     "not the reviewed wrapper literal"),                                          # inline literal form
+     "not a reviewed wrapper literal"),                                          # inline literal form
 ])
 def test_any_other_override_sequence_refuses(parser, argv, reason):
     with pytest.raises(R.RecipeMismatch, match=reason):
         R.build_payload(parser, argv)
+
+
+def test_the_cifar_wrapper_literal_is_a_reviewed_alternate_and_still_needs_the_override(parser):
+    """Contract v3 section 6: the CIFAR-10 body passes `--lambda_codeword_codon_sinkhorn 0.1`
+    (${CCS:-0.1}); followed by the launcher's 0.0 it is admitted, and the effective value is 0.0."""
+    cifar = [("0.1" if tok == "0.0" and COMPOSED[k - 1] == "--lambda_codeword_codon_sinkhorn" and
+              k < COMPOSED.index("--hash_target_mode") else tok) for k, tok in enumerate(COMPOSED)]
+    assert cifar != COMPOSED
+    admitted = R.admitted_overrides(parser, cifar)
+    assert admitted["lambda_codeword_codon_sinkhorn"] == [["--lambda_codeword_codon_sinkhorn", "0.1"],
+                                                          ["--lambda_codeword_codon_sinkhorn", "0.0"]]
+    fields = R.build_payload(parser, cifar, planned_arm="anchors")["fields"]
+    assert fields["lambda_codeword_codon_sinkhorn"] == 0.0
+
+
+@pytest.mark.parametrize("argv,reason", [
+    (["--lambda_codeword_codon_sinkhorn", "0.2", "--lambda_codeword_codon_sinkhorn", "0.0"],
+     "not a reviewed wrapper literal"),                      # no other value is an alternate
+    (["--lambda_codeword_codon_sinkhorn", "0.0", "--lambda_codeword_codon_sinkhorn", "0.1"],
+     None),                                                  # 0.1 LAST is admitted here; the protocol refuses it
+    (["--routing_adaptive_topp_min", "0.1", "--routing_adaptive_topp_min", "0.6"],
+     "not a reviewed wrapper literal"),                      # the alternate is per destination
+])
+def test_the_alternate_literal_is_narrow(parser, argv, reason):
+    if reason is None:
+        fields = R.build_payload(parser, ["--tag", "t", *argv], planned_arm=None)["fields"]
+        assert fields["lambda_codeword_codon_sinkhorn"] == 0.1          # the launcher's protocol check
+        return                                                       # (0.0) refuses this effective value
+    with pytest.raises(R.RecipeMismatch, match=reason):
+        R.admitted_overrides(parser, argv)
 
 
 def test_a_valid_candidate_control_pair_differs_in_the_axis_alone(parser):

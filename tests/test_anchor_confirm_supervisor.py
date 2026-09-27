@@ -342,10 +342,10 @@ def test_the_generation_check(tmp_path):
 
 
 def test_the_cli_takes_the_gpu_count_from_the_launcher_and_refuses_before_starting(tmp_path):
-    assert S.command_gpus("stage-S-run", ["x", "--gpus", "0,1,2", "--run"]) == 3
+    assert S.command_gpus("stage-S-run", ["x", "--gpus", "0,1,2,3", "--run"]) == 4    # one stream per dataset
     assert S.command_gpus("probe", ["x"]) == 1
     for command, match in ((["x", "--run"], "names its GPUs once"),
-                           (["x", "--gpus", "0,1,2,3"], "1 to 3 GPUs")):
+                           (["x", "--gpus", "0,1,2,3,4"], "1 to 4 GPUs")):
         with pytest.raises(S.Refused, match=match):
             S.command_gpus("stage-D-run", command)
     marker = tmp_path / "started"

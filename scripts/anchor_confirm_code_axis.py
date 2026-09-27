@@ -1,11 +1,13 @@
 #!/usr/bin/env python
-"""Code-to-own-axis probe, v2 (contract section 8.2; audit sections 665.2, 668.4, 672.2, 673).
+"""Code-to-own-axis probe, v3 (contract v3 section 8.2; audit sections 665.2, 668.4, 672.2, 673, 709).
 
-Endpoint (contract v2 section 8.2, proposed for audit acceptance): WITHIN-IMAGE CODEWORD-TO-OWN-AXIS
-TOP-1 ACCURACY (STRICT).
+Endpoint (contract v3 section 8.2): WITHIN-IMAGE CODEWORD-TO-OWN-AXIS TOP-1 ACCURACY (STRICT), of
+the fixed anchor model of all four datasets.
   rows      -- the run's own train-only validation split (the trainer's val_split.carve_val_indices
-               with val_split_ratio 0.1, seed 42), ascending dataset index, the first 512; fewer than
-               512 validation rows refuses (no smaller population is substituted). The rows' cache
+               with val_split_ratio 0.1, seed 42), ascending dataset index, the first 500 (audit
+               709.3: CIFAR-10 and Flickr25K have exactly 500 validation rows, so one population
+               policy fits all four datasets); fewer than 500 refuses and exactly 500 are measured --
+               no smaller or resampled population is substituted. The rows' cache
                identities (`trainset._feat_cache_rows`, the admitted dataset-to-cache mapping) are
                hashed into `row_ids_sha256`; every probe of a dataset must report the same digest
                and the same admitted split identity;
@@ -18,7 +20,8 @@ TOP-1 ACCURACY (STRICT).
                then L2 normalisation; a centred vector with norm <= 1e-12 refuses the measurement;
   hit       -- for image i and slot m, the own-axis cosine is STRICTLY greater than the three other
                axes' (a tie is a miss; the exploratory probe's first-index argmax is not used);
-  output    -- integer hits, ties and total (= 4 x 512) and the unrounded float ratio hits / total.
+  output    -- integer hits, ties and total (= 4 x 500 = 2000) and the unrounded float ratio hits /
+               total, with the population declaration the reducer requires.
 The arithmetic differs from the exploratory quant_gap probe in the tie rule and the row source,
 so its old values are not the same measurement.
 
@@ -50,7 +53,7 @@ import scripts.anchor_confirm_decision as D  # noqa: E402
 #: the bytes this module was imported from (audit 697)
 with open(__file__, "rb") as _source:
     _IMPORTED_SOURCE_SHA256 = hashlib.sha256(_source.read()).hexdigest()
-LOCAL_SLOTS = 4
+LOCAL_SLOTS = D.PROBE_LOCAL_SLOTS
 ZERO_NORM = 1e-12
 
 
@@ -96,7 +99,7 @@ def held_out_rows(trainset, args) -> list:
 
 
 def probe(sources, sources_sha256, coordinate, *, manifest: dict, approval: dict, selection: dict,
-          reuse_path=None, reuse_sha256=None, device: str = "cuda:0") -> dict:
+          device: str = "cuda:0") -> dict:
     """`manifest`, `approval` (with its `request_sha256`) and `selection` are verified by the caller
     before this is called."""
     import torch
@@ -104,21 +107,19 @@ def probe(sources, sources_sha256, coordinate, *, manifest: dict, approval: dict
     import scripts.phase3_selection_matrix as M
     consumed = D.Consumed()
     incumbent = M.anchor_incumbent()
-    D.need(coordinate in D.expected_coordinates("decide", arms=M.ANCHOR_ARMS,
+    D.need(coordinate in D.expected_coordinates("decide", arms=M.ANCHOR_RUN_ARMS,
                                                  frozen=selection["n_selected"]),
            f"{coordinate} is not a stage-D coordinate of the approved frozen N record")
-    reuse = D.load_reuse(consumed, reuse_path, reuse_sha256)
     listed = consumed.json(sources, sources_sha256)
     D.need(listed.get("version") == M.ANCHOR_CONFIRM_VERSION, f"{sources}: wrong sources version")
     entries = [e for e in listed.get("coordinates", [])
                if (e["dataset"], e["arm"], e["N"], e["seed"]) == coordinate]
     D.need(len(entries) == 1, f"{sources} lists {coordinate} {len(entries)} times")
-    admitted = D.admit_metadata(consumed, coordinate, entries[0], incumbent=incumbent, reuse=reuse,
+    admitted = D.admit_metadata(consumed, coordinate, entries[0], incumbent=incumbent,
                                 manifest_sha256=manifest["sha256"],
                                 selection_sha256=selection["record"]["sha256"])
-    if admitted["authority"]["kind"] == "receipt":
-        D.need(admitted["authority"]["manifest_sha256"] == manifest["sha256"],
-               f"{coordinate}: its campaign ran under another generation manifest")
+    D.need(admitted["authority"]["manifest_sha256"] == manifest["sha256"],
+           f"{coordinate}: its campaign ran under another generation manifest")
     config_pin = D.verify_config_pin(consumed, admitted)                  # bytes only, no load
     record, run_dir = admitted["record"], admitted["run_dir"]
     completion = record["completion"]
@@ -166,6 +167,7 @@ def probe(sources, sources_sha256, coordinate, *, manifest: dict, approval: dict
     except RuntimeError as error:
         raise D.NotReducible(f"{coordinate}: the rows are not the admitted split: {error}") from None
     rows = held_out_rows(trainset, args)
+    D.need(len(rows) == D.PROBE_IMAGES, f"{len(rows)} rows selected, not the contract's {D.PROBE_IMAGES}")
     cache_rows = [int(trainset._feat_cache_rows[i]) for i in rows]
     codes, captions = [], []
     with torch.no_grad():
@@ -182,6 +184,8 @@ def probe(sources, sources_sha256, coordinate, *, manifest: dict, approval: dict
             codes.append(out["quantized_tokens"][:, 1:, :].cpu())
             captions.append(model._adapt_pooled_text_for_loss(raw_text)[:, 1:, :].cpu())
     scores = strict_own_axis_hits(torch.cat(codes), torch.cat(captions))
+    D.need(scores["total"] == D.PROBE_POPULATION["decisions"],
+           f"{scores['total']} decisions, not the contract's {D.PROBE_POPULATION['decisions']}")
     return {"artifact_kind": D.PROBE_KIND, "schema": D.PROBE_SCHEMA,
             "producer_sha256": hashlib.sha256(consumed.read(Path(__file__).resolve())).hexdigest(),
             "manifest_sha256": manifest["sha256"],
@@ -191,7 +195,8 @@ def probe(sources, sources_sha256, coordinate, *, manifest: dict, approval: dict
             "checkpoint_sha256": completion["final_checkpoint_sha256"],
             "config_pt_sha256": config_pin, "split": dict(D.SPLIT),
             "split_identity_sha256": inputs["split_identity_sha256"],
-            "routing": "deployment_no_text", "n_images": len(rows),
+            "routing": "deployment_no_text", "population": dict(D.PROBE_POPULATION),
+            "n_images": len(rows),
             "row_ids_sha256": hashlib.sha256(json.dumps(cache_rows).encode()).hexdigest(),
             "caption_target": {**D.CAPTION_TARGET, "input_seal_sha256": inputs["seal_file_sha256"]},
             "hits": scores["hits"], "total": scores["total"],
@@ -205,7 +210,7 @@ def probe_records(sources, sources_sha256, selection) -> dict:
     import scripts.phase3_selection_matrix as M
     listed = D.Consumed().json(sources, sources_sha256)
     D.need(listed.get("version") == M.ANCHOR_CONFIRM_VERSION, f"{sources}: wrong sources version")
-    coords = set(D.expected_coordinates("decide", arms=M.ANCHOR_ARMS, frozen=selection["n_selected"]))
+    coords = set(D.expected_coordinates("decide", arms=M.ANCHOR_RUN_ARMS, frozen=selection["n_selected"]))
     records = {}
     for e in listed.get("coordinates", []):
         key = (e["dataset"], e["arm"], D.exact_int(e["N"], "N"), D.exact_int(e["seed"], "seed"))
@@ -231,15 +236,11 @@ def main(argv=None) -> int:
     parser.add_argument("--selection-sha256", required=True)
     parser.add_argument("--approval-section", type=int, required=True,
                         help="the audit ledger section whose `probe` line approves this")
-    parser.add_argument("--reuse-admission")
-    parser.add_argument("--reuse-admission-sha256")
-    parser.add_argument("--coordinate", required=True, help="dataset:arm:N:seed")
+    parser.add_argument("--coordinate", required=True, help="dataset:anchors:N:seed")
     parser.add_argument("--out", required=True)
     parser.add_argument("--device", default="cuda:0")
     args = parser.parse_args(argv)
     try:
-        D.need(bool(args.reuse_admission) == bool(args.reuse_admission_sha256),
-               "--reuse-admission and --reuse-admission-sha256 go together")
         manifest = D.M.recheck_generation({"path": args.manifest, "sha256": args.manifest_sha256},
                                           "at the probe's entry")
         D.need(type(args.approval_section) is int and args.approval_section > 0,
@@ -255,7 +256,6 @@ def main(argv=None) -> int:
         approval["request_sha256"] = D.M._json_digest(request)
         payload = probe(args.sources, args.sources_sha256, parse_coordinate(args.coordinate),
                         manifest=manifest, approval=approval, selection=selection,
-                        reuse_path=args.reuse_admission, reuse_sha256=args.reuse_admission_sha256,
                         device=args.device)
         D.M.recheck_generation(manifest, "before the probe publishes")
         digest = D.write_once(Path(args.out), payload)

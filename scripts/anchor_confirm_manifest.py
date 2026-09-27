@@ -54,7 +54,7 @@ def inventory() -> dict:
     from importlib import metadata
     return {
         "artifact_kind": M.ANCHOR_MANIFEST_KIND, "version": M.ANCHOR_CONFIRM_VERSION,
-        "generation": "v4",
+        "generation": "v5",
         "note": "byte identities from JSON and text only; not approval to execute",
         "historical": {
             "approved_p3_refit_aggregate": {"path": str(M.APPROVED_P3_REFIT_AGGREGATE),
@@ -78,11 +78,14 @@ def inventory() -> dict:
         "coordinates": {"datasets": list(M.ANCHOR_DATASETS), "arms": list(M.ANCHOR_ARMS),
                         "candidate_n": list(M.CANDIDATE_N), "select_seed": M.SEED,
                         "decide_seeds": list(M.ANCHOR_DECIDE_SEEDS)},
-        "control_reuse": {"proposed": False,
-                          "reason": "stages S and D train fresh controls (contract section 5); the "
-                                    "v1 proposal stays as history in authority_manifest_v1.json",
-                          "approved_reuse_admissions": dict(M.APPROVED_REUSE_ADMISSION_SHA256)},
-        "predecessor": {"authority_manifest_v3_sha256":
+        "design": {"fixed_architecture": "axis_center=anchors for all four datasets (audit 709)",
+                   "run_arms": list(M.ANCHOR_RUN_ARMS), "rendered_comparator": "none",
+                   "datasets": list(M.ANCHOR_DATASETS), "reuse": "none: every S/D cell is fresh"},
+        "predecessor": {"authority_manifest_v4_sha256":
+                        "5a4481f4898fda3df27250e0214e204495022a91546d7d78e2e1c2749e17647b",
+                        "contract_v2_sha256":
+                        "26ebe2c104e89702bbc9daef0a3470d123ef6f7c5c30eefc49222cb26e29b001",
+                        "authority_manifest_v3_sha256":
                         "9e54bda303d6c34f080e8026492ff7eec7bfe432a6e53bd34a5a6056881a9b83",
                         "authority_manifest_v2_sha256":
                         "a5f7b8436e3e81b189deedb4d1f3e99eb993bce59d8792bada12f7c1a6a1bf0a",
@@ -95,7 +98,11 @@ def inventory() -> dict:
                                      "S/D scientific design and the contract are unchanged",
                         "v4_change": "the supervisor's accounting only (audit 707.1): observation "
                                      "windows, a watchdog and an unresolved state; the launcher "
-                                     "and the S/D scientific design are unchanged"},
+                                     "and the S/D scientific design are unchanged",
+                        "v5_change": "contract v3 (audit 709): axis_center=anchors fixed for all "
+                                     "four datasets, anchor arm only, CIFAR-10 added, the "
+                                     "adoption rule removed, a 500-row probe population, four "
+                                     "GPUs; supersedes the three-dataset v2-v4 request"},
         "new_generation": {
             "worktree": str(REPO), "branch": git("rev-parse", "--abbrev-ref", "HEAD"),
             "commit": git("rev-parse", "HEAD"), "clean": True,
@@ -119,7 +126,7 @@ def main(argv=None) -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command")
     inv = sub.add_parser("inventory")
-    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v4.json"))
+    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v5.json"))
     args = parser.parse_args(argv)
     try:
         if args.command != "inventory":

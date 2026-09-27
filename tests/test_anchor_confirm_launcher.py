@@ -1,4 +1,4 @@
-"""Anchor confirmation v1: the launcher mode, v2 (audit sections 659.4, 668, 671, 677.2, 678).
+"""Anchor confirmation v2 (contract v3): the launcher mode (audit sections 659.4, 668, 671, 677.2, 678, 709).
 
 No real input, config, checkpoint, model or GPU is touched. Leases, reservations, writers, process
 launch and the historical inspection are sentinels. Most tests use a stand-in renderer; the
@@ -27,7 +27,8 @@ import scripts.phase3_selection_matrix as M                 # noqa: E402
 from scripts.phase3_selection_matrix import CellRefused     # noqa: E402
 import dna_utils.scientific_recipe as R                     # noqa: E402
 
-INCUMBENT = {"flickr25k": {"N": 4, "topp": ("0.6", "0.95"), "joint": "0.02"},
+INCUMBENT = {"cifar10": {"N": 19, "topp": ("0.3", "0.7"), "joint": "0.02"},
+             "flickr25k": {"N": 4, "topp": ("0.6", "0.95"), "joint": "0.02"},
              "nuswide": {"N": 4, "topp": ("0.4", "0.8"), "joint": "0.05"},
              "mscoco": {"N": 39, "topp": ("0.6", "0.95"), "joint": "0.03"}}
 ALL_ANCHORS = {ds: ("anchors",) for ds in M.ANCHOR_DATASETS}
@@ -92,35 +93,46 @@ def test_eight_tuples_are_anchor_cells_and_nothing_else_changes():
 
 
 # ---- arm plans and cells ---------------------------------------------------------------------------
-def test_arm_plan_defaults_to_every_dataset_and_accepts_exact_pairs():
+def test_the_arm_plan_is_the_anchor_arm_of_all_four_datasets():
+    assert M.ANCHOR_DATASETS == ("cifar10", "flickr25k", "nuswide", "mscoco")
+    assert M.ANCHOR_RUN_ARMS == ("anchors",)
     assert M.parse_arm_plan(None, "anchors") == ALL_ANCHORS
-    assert M.parse_arm_plan("nuswide:none,mscoco:none", "anchors") == \
-        {"nuswide": ("none",), "mscoco": ("none",)}
 
 
-@pytest.mark.parametrize("cells,arms", [("cifar10:none", "anchors"), ("nuswide:both", "anchors"),
-                                        ("nuswide:none,nuswide:none", "anchors"),
-                                        (None, "anchors,anchors"), (None, "readout"), (None, "")])
-def test_invalid_arm_plans_refuse(cells, arms):
-    with pytest.raises(CellRefused):
+@pytest.mark.parametrize("cells,arms,reason", [
+    ("cifar10:anchors", "anchors", "not part of contract v3"),       # a per-dataset pair list
+    ("nuswide:none,mscoco:none", "anchors", "not part of contract v3"),
+    (None, "none", "runs the arms"), (None, "none,anchors", "runs the arms"),   # a control arm
+    (None, "anchors,anchors", "runs the arms"), (None, "readout", "runs the arms"), (None, "", "runs the arms")])
+def test_invalid_arm_plans_refuse(cells, arms, reason):
+    with pytest.raises(CellRefused, match=reason):
         M.parse_arm_plan(cells, arms)
 
 
-def test_select_cells_cover_the_three_multi_label_datasets_and_the_grid():
+@pytest.mark.parametrize("plan", [
+    {ds: ("anchors",) for ds in ("flickr25k", "nuswide", "mscoco")},          # the v1 scope, CIFAR dropped
+    {**{ds: ("anchors",) for ds in M.ANCHOR_DATASETS}, "cifar10": ("none",)},   # a control arm
+    {**{ds: ("anchors",) for ds in M.ANCHOR_DATASETS}, "cifar10": ("anchors", "none")}])
+def test_a_plan_that_drops_a_dataset_or_runs_a_control_refuses(plan):
+    with pytest.raises(CellRefused, match="must run"):
+        M.anchor_confirmation_cells("select", incumbent=INCUMBENT, arm_plan=plan)
+
+
+def test_select_cells_cover_the_four_datasets_and_the_grid():
     cells = M.anchor_confirmation_cells("select", incumbent=INCUMBENT, arm_plan=ALL_ANCHORS)
-    assert len(cells) == 12 and {c[0] for c in cells} == set(M.ANCHOR_DATASETS)
+    assert len(cells) == 16 and {c[0] for c in cells} == set(M.ANCHOR_DATASETS)
+    assert {c[7] for c in cells} == {"anchors"}
     assert sorted({c[1] for c in cells}) == list(M.CANDIDATE_N)
     assert {c[5] for c in cells} == {42} and {c[4] for c in cells} == {"select"}
     assert all((c[2], c[3]) == (INCUMBENT[c[0]]["topp"], INCUMBENT[c[0]]["joint"]) for c in cells)
 
 
-def test_decide_cells_take_each_planned_arm_at_its_frozen_n():
-    frozen = {"flickr25k": {"anchors": 9, "none": 4}, "nuswide": {"anchors": 4, "none": 4},
-              "mscoco": {"anchors": 39, "none": 39}}
-    plan = {"flickr25k": ("anchors",), "nuswide": ("anchors", "none"), "mscoco": ("anchors", "none")}
-    cells = M.anchor_confirmation_cells("decide", incumbent=INCUMBENT, arm_plan=plan, selection=frozen)
-    assert len(cells) == 10                                   # 6 candidate + 4 control
-    assert all(c[1] == frozen[c[0]][c[7]] and c[5] in (43, 44) for c in cells)
+def test_decide_cells_take_the_anchor_arm_at_its_frozen_n():
+    frozen = {"cifar10": {"anchors": 4}, "flickr25k": {"anchors": 9}, "nuswide": {"anchors": 4},
+              "mscoco": {"anchors": 39}}
+    cells = M.anchor_confirmation_cells("decide", incumbent=INCUMBENT, arm_plan=ALL_ANCHORS, selection=frozen)
+    assert len(cells) == 8                                    # 4 datasets x seeds 43/44
+    assert all(c[7] == "anchors" and c[1] == frozen[c[0]]["anchors"] and c[5] in (43, 44) for c in cells)
 
 
 @pytest.mark.parametrize("n", [None, 5, "4", 4.0, True])
@@ -354,8 +366,8 @@ RUN = approval_line("stage-S-run", manifest=A, request=Q)
      {"manifest": A, "selection": A, "request": Q}, "approves stage-D-run for"),         # missing field
     ({5: [approval_line("stage-S-run", manifest=A, request=Q, gpus="0")]}, 5, "stage-S-run",
      {"manifest": A, "request": Q}, "approves stage-S-run for"),                         # extra field
-    ({5: [RUN.replace("anchor-confirm/1", "anchor-confirm/0")]}, 5, "stage-S-run",
-     {"manifest": A, "request": Q}, "approves stage-S-run for"),                         # another version
+    ({5: [RUN.replace(M.ANCHOR_CONFIRM_VERSION, "anchor-confirm/1")]}, 5, "stage-S-run",
+     {"manifest": A, "request": Q}, "approves stage-S-run for"),                         # a v1 (3-dataset) line
     ({5: [RUN + " approved"]}, 5, "stage-S-run", {"manifest": A, "request": Q}, "malformed approval line"),
     ({5: [RUN + " manifest=" + A]}, 5, "stage-S-run", {"manifest": A, "request": Q}, "a field repeats"),
     ({4: [RUN], 5: []}, 5, "stage-S-run", {"manifest": A, "request": Q}, "has 0 approval lines"),
@@ -399,12 +411,22 @@ WRAPPER_BODY = ["--codebook_size", "128", "-e", "60", "--routing_adaptive_topp",
                 "--post_eval_compositional", "--dna_distance_mode", "base"]
 
 
+def wrapper_dataset(cmd):
+    return next(ds for ds, spec in M.DATASETS.items() if spec["trainer"] == cmd[1])
+
+
 def fake_render(cmd, env):
     """Stand-in for the dataset-script render, without bash: a wrapper body carrying the reviewed
-    literals, the wrapper's env-driven flags, then EXTRA_ARGS."""
+    literals (the dataset's K; CIFAR-10's codon-Sinkhorn literal 0.1), the wrapper's env-driven
+    flags, then EXTRA_ARGS."""
+    ds = wrapper_dataset(cmd)
+    body = list(WRAPPER_BODY)
+    body[body.index("--codebook_size") + 1] = str(M.DATASETS[ds]["K"])
+    if ds == "cifar10":
+        body[body.index("--lambda_codeword_codon_sinkhorn") + 1] = "0.1"
     env_flags = ["--val_split_ratio", env["VAL_RATIO"], "--val_split_seed", env["VAL_SEED"],
                  "--stop_after_epoch", env["STOP_EP"], "--num_codons_per_codebook", env["NUM_CODONS"]]
-    return ["--tag", env["TAG"], "--dataset", "Flickr25k", "--setting", "1", *WRAPPER_BODY,
+    return ["--tag", env["TAG"], "--dataset", M.DATASETS[ds]["canon"], "--setting", "1", *body,
             *env_flags, *extra(env)]
 
 
@@ -419,6 +441,8 @@ def run_main(monkeypatch, *argv):
 
 
 BASE = ["--anchor-confirm", "select", "--namespace", "ancT"]
+#: one stream per dataset, one GPU per stream (audit 709.2)
+RUNARGS = ["--run", "--gpus", "0,1,2,3"]
 
 
 def with_manifest(tmp_path):
@@ -426,7 +450,7 @@ def with_manifest(tmp_path):
     return ["--anchor-manifest", path, "--anchor-manifest-sha256", sha]
 
 
-MODES = [["--plan"], ["--smoke", "--only", "flickr25k:4:anchors:42"], ["--run"]]
+MODES = [["--plan"], ["--smoke", "--only", "flickr25k:4:anchors:42"], RUNARGS]
 
 
 def approve_request(tmp_path, monkeypatch, capsys, argv, *, manifest_sha=None, section=700):
@@ -481,36 +505,53 @@ def test_an_approved_execution_verifies_its_inputs_then_reaches_only_the_lease(t
 def test_the_plan_previews_the_request_it_would_need_approved(tmp_path, monkeypatch, boundaries, capsys):
     fake_authorities(tmp_path, monkeypatch)
     monkeypatch.setattr(M, "render_trainer_argv", fake_render)
-    assert run_main(monkeypatch, *BASE, "--run", "--plan", *with_manifest(tmp_path)) == 0
+    assert run_main(monkeypatch, *BASE, *RUNARGS, "--plan", *with_manifest(tmp_path)) == 0
     out = capsys.readouterr().out
     request = json.loads(out[out.index("{", out.index("would need approved")):out.index("execution request sha256")])
-    assert request["mode"] == "run" and request["namespace"] == "ancT" and len(request["cells"]) == 12
+    assert request["mode"] == "run" and request["namespace"] == "ancT" and len(request["cells"]) == 16
+    assert request["version"] == "anchor-confirm/2" and request["schema"] == "anchor-confirm-request/2"
+    assert request["gpu_count"] == 4 and {c[0] for c in request["cells"]} == set(M.ANCHOR_DATASETS)
+    assert {c[1] for c in request["cells"]} == {"anchors"}
     assert re.search(r"execution request sha256 ([0-9a-f]{64})", out).group(1) == M._json_digest(request)
     assert boundaries == []
 
 
-@pytest.mark.parametrize("change", [
-    ["--namespace", "ancRepeat"],                                   # a new namespace, the old approval
-    ["--result-root", "/data/elsewhere_result"],
-    ["--anchor-arms", "none,anchors"],                              # another membership (24 cells)
-    ["--gpus", "0,1"],
-    ["--admission-authority", "__TMP__/authority.json"],
-    ["--input-seal", "flickr25k:stage1=__TMP__/seal.json"],
+@pytest.mark.parametrize("change,reason", [
+    (["--namespace", "ancRepeat"], "approves stage-S-run for"),    # a new namespace, the old approval
+    (["--result-root", "/data/elsewhere_result"], "approves stage-S-run for"),
+    (["--anchor-arms", "none,anchors"], "runs the arms"),           # a control arm cannot be planned
+    (["--gpus", "0,1,2"], "needs exactly that many distinct GPUs"),  # CIFAR's stream would be left out
+    (["--gpus", "0,1,2,2"], "needs exactly that many distinct GPUs"),
+    (["--admission-authority", "__TMP__/authority.json"], "approves stage-S-run for"),
+    (["--input-seal", "flickr25k:stage1=__TMP__/seal.json"], "approves stage-S-run for"),
 ])
 def test_a_changed_request_is_not_covered_by_the_old_approval(tmp_path, monkeypatch, boundaries, capsys,
-                                                              change):
+                                                              change, reason):
     fake_authorities(tmp_path, monkeypatch)
     monkeypatch.setattr(M, "render_trainer_argv", fake_render)
     monkeypatch.setattr(M, "load_admission_authority", lambda path: {})   # its content is not the subject
     (tmp_path / "authority.json").write_text("{}")
     (tmp_path / "seal.json").write_text("{}")
-    argv = [*BASE, "--run", *with_manifest(tmp_path)]
+    argv = [*BASE, *RUNARGS, *with_manifest(tmp_path)]
     approval = approve_request(tmp_path, monkeypatch, capsys, argv)
     changed = [a.replace("__TMP__", str(tmp_path)) for a in change]
-    if changed[0] == "--namespace":
-        argv[argv.index("--namespace") + 1] = changed[1]
+    if changed[0] in ("--namespace", "--gpus"):
+        argv[argv.index(changed[0]) + 1] = changed[1]
         changed = []
     assert run_main(monkeypatch, *argv, *changed, *approval) == 2
+    assert reason in capsys.readouterr().err and boundaries == []
+
+
+def test_the_superseded_three_dataset_request_cannot_be_approved(tmp_path, monkeypatch, boundaries, capsys):
+    """The v4 package's line (version 1, request 033b6979, manifest 5a4481f4) approves nothing now."""
+    fake_authorities(tmp_path, monkeypatch)
+    monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    ledger(tmp_path, monkeypatch, {709: [" ".join([
+        M.APPROVAL_TAG, "version=anchor-confirm/1", "scope=stage-S-run",
+        "manifest=5a4481f4898fda3df27250e0214e204495022a91546d7d78e2e1c2749e17647b",
+        "request=033b697945067d587473c81551f05e145d124ea9f69914549fd7199d333eec54"])]})
+    assert run_main(monkeypatch, *BASE, *RUNARGS, *with_manifest(tmp_path),
+                    "--anchor-approval-section", "709") == 2
     assert "approves stage-S-run for" in capsys.readouterr().err and boundaries == []
 
 
@@ -542,14 +583,14 @@ def test_a_smoke_approval_does_not_approve_a_run(tmp_path, monkeypatch, boundari
     monkeypatch.setattr(M, "render_trainer_argv", fake_render)
     manifest_args = with_manifest(tmp_path)
     smoke = approve_request(tmp_path, monkeypatch, capsys, [*BASE, *MODES[1], *manifest_args])
-    assert run_main(monkeypatch, *BASE, "--run", *manifest_args, *smoke) == 2
+    assert run_main(monkeypatch, *BASE, *RUNARGS, *manifest_args, *smoke) == 2
     assert "has 0 approval lines for stage-S-run" in capsys.readouterr().err and boundaries == []
 
 
 def test_a_run_approval_for_another_generation_refuses(tmp_path, monkeypatch, boundaries, capsys):
     fake_authorities(tmp_path, monkeypatch)
     monkeypatch.setattr(M, "render_trainer_argv", fake_render)
-    argv = [*BASE, "--run", *with_manifest(tmp_path)]
+    argv = [*BASE, *RUNARGS, *with_manifest(tmp_path)]
     stale = approve_request(tmp_path, monkeypatch, capsys, argv, manifest_sha="b" * 64)
     assert run_main(monkeypatch, *argv, *stale) == 2
     assert "approves stage-S-run for" in capsys.readouterr().err and boundaries == []
@@ -595,9 +636,9 @@ def test_decide_refuses_a_stage_s_from_another_generation(tmp_path, monkeypatch,
     monkeypatch.setattr(M, "audit_approval", lambda section, scope, **pins: {"section": section, "scope": scope,
                                                                          "line": "stub"})
     monkeypatch.setattr(reducer, "verify_selection", lambda path, sha: {
-        "n_selected": {ds: {"anchors": 9, "none": 4} for ds in M.ANCHOR_DATASETS},
+        "n_selected": {ds: {"anchors": 9} for ds in M.ANCHOR_DATASETS},
         "record": {"path": path, "sha256": sha}, "anchor_manifest_sha256": "0" * 64})
-    assert run_main(monkeypatch, "--anchor-confirm", "decide", "--namespace", "ancT", "--run",
+    assert run_main(monkeypatch, "--anchor-confirm", "decide", "--namespace", "ancT", *RUNARGS,
                     "--anchor-selection", "/frozen.json", "--anchor-selection-sha256", "1" * 64,
                     *with_manifest(tmp_path)) == 2
     assert "stage S ran under another generation manifest" in capsys.readouterr().err
@@ -611,7 +652,7 @@ def test_plan_writes_reserves_launches_and_inspects_nothing(tmp_path, monkeypatc
     assert run_main(monkeypatch, *BASE, "--plan") == 0
     out = capsys.readouterr().out
     assert "NON-EXECUTABLE" in out
-    assert "carry the contract's protocol values at all 12 coordinates" in out
+    assert "carry the contract's protocol values at all 16 coordinates" in out
     assert "generation manifest: NOT SUPPLIED" in out
     assert boundaries == [] and sorted(p.name for p in tmp_path.iterdir()) == before
 
@@ -710,7 +751,7 @@ def test_completion_refuses_what_is_not_the_sealed_recipe(tmp_path, sealed, case
 
 # ---- approved inputs survive admission (audit 694.2) -------------------------------------------------------
 def seal_files(tmp_path):
-    """Three private seal files, their CLI declarations and the authorities an admission of them
+    """One private seal file per dataset, their CLI declarations and the authorities an admission of them
     returns (the low-level seal verifier itself is a stand-in here)."""
     args, authorities = [], {}
     for ds in M.ANCHOR_DATASETS:
@@ -745,7 +786,7 @@ def test_approved_seals_reach_the_lease(tmp_path, monkeypatch, boundaries, capsy
     seal_args, admitted = seal_files(tmp_path)
     monkeypatch.setattr(M, "verify_campaign_input_seals",
                         lambda *a, **k: boundaries.append("verify_campaign_input_seals") or dict(admitted))
-    argv = [*BASE, "--run", *seal_args, *with_manifest(tmp_path)]
+    argv = [*BASE, *RUNARGS, *seal_args, *with_manifest(tmp_path)]
     approval = approve_request(tmp_path, monkeypatch, capsys, argv)
     assert run_main(monkeypatch, *argv, *approval) == 0
     assert boundaries == ["verify_campaign_input_seals", "_with_campaign_gpu_leases"]
@@ -763,7 +804,7 @@ def test_a_seal_changed_after_its_approval_refuses_before_the_lease(tmp_path, mo
         return dict(admitted, **{"flickr25k:stage1": {"seal_path": str(path),
                                  "seal_file_sha256": hashlib.sha256(path.read_bytes()).hexdigest()}})
     monkeypatch.setattr(M, "verify_campaign_input_seals", admit_changed)
-    argv = [*BASE, "--run", *seal_args, *with_manifest(tmp_path)]
+    argv = [*BASE, *RUNARGS, *seal_args, *with_manifest(tmp_path)]
     approval = approve_request(tmp_path, monkeypatch, capsys, argv)
     assert run_main(monkeypatch, *argv, *approval) == 2
     assert "not the approved request's" in capsys.readouterr().err
@@ -782,7 +823,7 @@ def test_the_carried_authority_is_the_approved_bytes_while_it_is_parsed(tmp_path
             Path(path).write_text('{"late": true}')
         return {}
     monkeypatch.setattr(M, "load_admission_authority", parse)
-    argv = [*BASE, "--run", "--admission-authority", str(authority), *with_manifest(tmp_path)]
+    argv = [*BASE, *RUNARGS, "--admission-authority", str(authority), *with_manifest(tmp_path)]
     approval = approve_request(tmp_path, monkeypatch, capsys, argv)
     rc = run_main(monkeypatch, *argv, *approval)
     if changed:
@@ -794,7 +835,7 @@ def test_the_carried_authority_is_the_approved_bytes_while_it_is_parsed(tmp_path
 
 # ---- the admitted generation, re-verified at every boundary (audit 697) -------------------------------------
 def copy_of_the_tree(tmp_path, monkeypatch):
-    """A private copy of the 56-file generation, with REPO pointed at it and its manifest."""
+    """A private copy of the generation's files, with REPO pointed at it and its manifest."""
     root = tmp_path / "tree"
     for rel in M.anchor_generation_closure():
         (root / rel).parent.mkdir(parents=True, exist_ok=True)
@@ -844,7 +885,7 @@ def test_a_generation_drifting_during_input_admission_refuses_before_the_lease(t
                                                                               boundaries, capsys):
     fake_authorities(tmp_path, monkeypatch)
     monkeypatch.setattr(M, "render_trainer_argv", fake_render)
-    argv = [*BASE, "--run", *with_manifest(tmp_path)]
+    argv = [*BASE, *RUNARGS, *with_manifest(tmp_path)]
     approval = approve_request(tmp_path, monkeypatch, capsys, argv)
     def recheck(manifest, where):
         raise CellRefused(f"{where}: scripts/anchor_confirm_decision.py drifted")
@@ -897,7 +938,7 @@ def sweep(tmp_path, monkeypatch):
     reservation.write_text("{}")
     monkeypatch.setattr(M, "campaign_reservation_path", lambda namespace: reservation)
     args = SimpleNamespace(only=None, sweep=None, anchor_confirm="select", plan=False, run=True, smoke=False,
-                           epochs=1, gpus="0,1,2", gpu=0, namespace="ancT", admission_authority=None,
+                           epochs=1, gpus="0,1,2,3", gpu=0, namespace="ancT", admission_authority=None,
                            input_seal_specs={}, result_root="/r")
     def go():
         return M._run_sweep(args, None, full_plan=cells, authorities=authorities,
@@ -908,7 +949,7 @@ def sweep(tmp_path, monkeypatch):
 def test_an_unchanged_generation_runs_every_cell_and_publishes_its_receipt(sweep):
     go, calls, _ = sweep
     assert go() == 0
-    assert sum(1 for c in calls if c[0] == "run_cell") == 12
+    assert sum(1 for c in calls if c[0] == "run_cell") == 16
     assert ("publish", "ancT_sweep_complete.json") in calls
 
 
@@ -928,7 +969,7 @@ def test_a_generation_drifting_inside_the_sweep_stops_before_its_next_boundary(s
     elif where == "before ":
         assert not any(c[0] == "run_cell" for c in calls)                   # no cell dispatched
     else:
-        assert sum(1 for c in calls if c[0] == "run_cell") == 12
+        assert sum(1 for c in calls if c[0] == "run_cell") == 16
 
 
 def test_seals_readmitted_after_the_lease_must_still_be_the_approved_ones(sweep):
@@ -955,26 +996,28 @@ def test_a_space_breach_mid_sweep_stops_every_later_dispatch(sweep, monkeypatch)
 
     def run_cell(*a, **k):
         record = real_run_cell(*a, **k)
-        if sum(1 for c in calls if c[0] == "run_cell") == 3:
+        # ">=": four streams may add calls concurrently, so the count can pass 3 between two reads
+        if sum(1 for c in calls if c[0] == "run_cell") >= 3:
             monkeypatch.setattr(M, "ANCHOR_FREE_FLOOR_BYTES", 1 << 62)
         return record
 
     monkeypatch.setattr(M, "run_cell", run_cell)
     assert go() == 1
     dispatched = sum(1 for c in calls if c[0] == "run_cell")
-    assert 3 <= dispatched <= 5                     # at most one more already past its check per stream
+    # the first three, at most one racing call and one already past its check per other stream
+    assert 3 <= dispatched <= 9 < len(M.ANCHOR_DATASETS) * len(M.CANDIDATE_N)
     assert ("publish", "ancT_sweep_complete.json") not in calls
 
 
 def test_the_first_dispatch_reserves_space_for_every_unfinished_cell(sweep, monkeypatch):
-    """Room for 11.5 cells of one TiB each: enough for any one stream's four, not for all twelve."""
+    """Room for 15.5 cells of one TiB each: enough for any one stream's four, not for all sixteen."""
     go, calls, _ = sweep
     probe = Path("/r")
     while not probe.exists():
         probe = probe.parent
     usage = os.statvfs(probe)
     monkeypatch.setattr(M, "ANCHOR_CELL_OUTPUT_BYTES", 1 << 40)
-    monkeypatch.setattr(M, "ANCHOR_FREE_FLOOR_BYTES", usage.f_bavail * usage.f_frsize - 23 * (1 << 39))
+    monkeypatch.setattr(M, "ANCHOR_FREE_FLOOR_BYTES", usage.f_bavail * usage.f_frsize - 31 * (1 << 39))
     assert go() == 1
     assert not any(c[0] == "run_cell" for c in calls)
 
@@ -1028,12 +1071,17 @@ def test_both_arms_off_the_protocol_refuse_although_they_differ_in_the_axis_alon
 @pytest.fixture
 def synthetic_paths(tmp_path, monkeypatch):
     """Every input path the wrappers receive points into tmp_path; the whitening file exists (empty),
-    so no wrapper reaches its builder. Nothing under these paths is read."""
+    so no wrapper reaches its builder, and so do the two token files the CIFAR-10 wrapper checks
+    with `[ -f ]` (empty). Nothing under these paths is read."""
     whiten = tmp_path / "text_whiten_optTrain_localOnly.npz"
     whiten.write_bytes(b"")
     monkeypatch.setattr(M, "_whitening", lambda spec, stage="select": str(whiten))
     for ds in M.ANCHOR_DATASETS:
-        monkeypatch.setitem(M.DATASETS[ds], "cache", str(tmp_path / f"{ds}_cache"))
+        cache = tmp_path / f"{ds}_cache"
+        cache.mkdir()
+        for name in ("text_tokens.f16.npy", "text_token_mask.bool.npy"):
+            (cache / name).write_bytes(b"")
+        monkeypatch.setitem(M.DATASETS[ds], "cache", str(cache))
         monkeypatch.setitem(M.DATASETS[ds], "qwen", str(tmp_path / f"{ds}_qwen.jsonl"))
     return tmp_path
 
@@ -1050,7 +1098,14 @@ def test_the_actual_wrapper_composition_repeats_exactly_the_reviewed_overrides(s
     repeated = {d for d, spans in R.option_occurrences(parser, argv).items() if len(spans) > 1}
     assert repeated == set(R.REVIEWED_OVERRIDES)          # all seven, the three routing ones included
     admitted = R.admitted_overrides(parser, argv)
-    assert all(tuple(spans[0]) == R.REVIEWED_OVERRIDES[d] for d, spans in admitted.items())
+    literal = {d: tuple(spans[0]) for d, spans in admitted.items()}
+    # the wrapper's own first occurrence: the reviewed literal, except CIFAR-10's codon-Sinkhorn
+    # literal, which its body takes from ${CCS:-0.1} (contract v3 section 6)
+    want_literal = dict(R.REVIEWED_OVERRIDES)
+    if dataset == "cifar10":
+        want_literal["lambda_codeword_codon_sinkhorn"] = ("--lambda_codeword_codon_sinkhorn", "0.1")
+    assert literal == want_literal
+    assert admitted["lambda_codeword_codon_sinkhorn"][1] == ["--lambda_codeword_codon_sinkhorn", "0.0"]
     fields = R.build_payload(parser, argv, planned_arm=arm)["fields"]
     want = M.anchor_protocol_fields(dataset, inc["N"], seed=43, arm=arm, incumbent=INCUMBENT)
     assert {k: fields[k] for k in want} == want
@@ -1059,7 +1114,7 @@ def test_the_actual_wrapper_composition_repeats_exactly_the_reviewed_overrides(s
 def test_the_actual_composition_admits_every_stage_s_coordinate(synthetic_paths):
     cells = M.anchor_confirmation_cells("select", incumbent=INCUMBENT, arm_plan=ALL_ANCHORS)
     report = M.anchor_admission(cells, namespace="ancT", incumbent=INCUMBENT)
-    assert len(report) == 12
+    assert len(report) == 16
     assert all(sorted(e["overrides"]) == sorted(R.REVIEWED_OVERRIDES) for e in report.values())
 
 
@@ -1067,7 +1122,7 @@ def test_the_real_plan_path_over_the_actual_composition(tmp_path, synthetic_path
                                                         boundaries, capsys):
     fake_authorities(tmp_path, monkeypatch)
     assert run_main(monkeypatch, *BASE, "--plan") == 0
-    assert "at all 12 coordinates" in capsys.readouterr().out and boundaries == []
+    assert "at all 16 coordinates" in capsys.readouterr().out and boundaries == []
 
 
 def test_a_third_occurrence_injected_into_the_actual_composition_refuses(synthetic_paths):
@@ -1083,5 +1138,42 @@ def test_a_third_occurrence_injected_into_the_actual_composition_refuses(synthet
                     reason="real-artifact test; opt in with GDNA_ALLOW_REAL_ARTIFACT_TESTS=1")
 def test_real_plan_renders_every_coordinate(monkeypatch, boundaries, capsys):
     assert run_main(monkeypatch, *BASE, "--plan") == 0
-    assert "at all 12 coordinates" in capsys.readouterr().out
+    assert "at all 16 coordinates" in capsys.readouterr().out
     assert boundaries == []
+
+
+# ---- dataset-specific values (audit 709.1 item 4) ---------------------------------------------------
+def test_the_dataset_specific_values_agree_across_their_sources():
+    """K, the mAP@R cutoff and the train/validation populations, per dataset, from every source the
+    campaign reads them from; CIFAR-10 is K=64 and mAP@1000, not the multi-label values."""
+    import evaluation_siglip2 as E
+    want = {"cifar10": (64, 1000, 5000), "flickr25k": (128, 5000, 5000),
+            "nuswide": (128, 5000, 10500), "mscoco": (128, 5000, 10000)}
+    for ds, (k, r, train) in want.items():
+        assert M.DATASETS[ds]["K"] == k and M.MAP_R_CUTOFF[ds] == r
+        assert E.MAP_AT_R_BY_DATASET[M.DATASETS[ds]["canon"]] == r
+        assert M.PAPER_SPLIT_ROWS[ds]["train"] == train
+        assert M.anchor_protocol_fields(ds, 4, seed=42, arm="anchors", incumbent=INCUMBENT)["codebook_size"] == k
+
+
+def test_a_one_cell_smoke_needs_one_gpu_and_a_run_four(tmp_path, monkeypatch, boundaries, capsys):
+    fake_authorities(tmp_path, monkeypatch)
+    monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    manifest_args = with_manifest(tmp_path)
+    assert run_main(monkeypatch, *BASE, *MODES[1], "--gpus", "0,1", *manifest_args, "--plan") == 2
+    assert "needs exactly that many distinct GPUs" in capsys.readouterr().err
+    assert run_main(monkeypatch, *BASE, "--run", *manifest_args, "--plan") == 2     # one default GPU
+    assert "needs exactly that many distinct GPUs" in capsys.readouterr().err and boundaries == []
+
+
+def test_an_effective_cifar_codon_sinkhorn_other_than_zero_refuses(monkeypatch):
+    """The alternate CIFAR-10 literal admits the ORDER (0.1, then the override); the protocol binds
+    the effective value: an override left at 0.1 refuses at the admission."""
+    def render(cmd, env):
+        argv = fake_render(cmd, env)
+        last = len(argv) - 1 - argv[::-1].index("--lambda_codeword_codon_sinkhorn")
+        return argv[:last + 1] + ["0.1"] + argv[last + 2:]
+    monkeypatch.setattr(M, "render_trainer_argv", render)
+    cell = ("cifar10", 4, ("0.3", "0.7"), "0.02", "select", 42, (), "anchors")
+    with pytest.raises(CellRefused, match="breaks the protocol in lambda_codeword_codon_sinkhorn"):
+        M.anchor_admission([cell], namespace="ancT", incumbent=INCUMBENT)

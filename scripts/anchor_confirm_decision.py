@@ -1,38 +1,43 @@
 #!/usr/bin/env python
-"""Anchor confirmation v1 reducer, v2 (contract sections 7, 8, 13; audit sections 668-673).
+"""Anchor confirmation reducer, v3 (contract v3 sections 7, 8, 13; audit sections 668-673, 709).
 
-select  -- evidence for every (dataset, arm, N in the grid, seed 42) -> each arm's N per dataset:
+The architecture is FIXED (audit 709, the user's decision): `axis_center=anchors` for all four
+datasets. Nothing here chooses between anchors and a control; retrieval and alignment are reported
+and never select the architecture, drop a dataset or keep an old refit. Missing or invalid evidence
+still refuses.
+
+select  -- evidence for every (dataset, anchors, N in the grid, seed 42) -> each dataset's N:
            argmax of the raw base-Hamming mAP@R at the cell's own terminal epoch, ties to the
            smallest N. Writes the frozen N record; `--anchor-confirm decide` and `decide` below
            re-verify it by replaying this reduction, never by trusting its digest alone.
-decide  -- the frozen N record (replayed) + evidence for every (dataset, arm, frozen N, seed
-           42/43/44) + one probe per record -> the train-only rule of section 7.3 per dataset,
-           and the refit requirement each decision implies (section 7.4).
+decide  -- the frozen N record (replayed) + evidence for every (dataset, anchors, frozen N, seed
+           42/43/44) + one probe per record -> per dataset the descriptive validation summary
+           (retrieval and code-to-own-axis per seed, mean, sample SD) and the stage-R membership it
+           implies: a scratch full-train anchor refit at the frozen N for seeds 42/43/44.
 
-Evidence authority (audit 672.1, 679). A record counts for its coordinate only through ONE of:
-  receipt -- a completed anchor-confirmation campaign that ran under an audit approval: the pinned
-             receipt lists the coordinate's cell id (recomputed here), the record, a complete
-             campaign binding and the completion pins; the plan snapshot it names carries the same
-             campaign nonce, the generation manifest, the approval line -- re-verified NOW in the
-             audit ledger for the stage's scope (seed 42: stage-S-run; seeds 43/44: stage-D-run,
-             naming the frozen N record) -- and the cell's sealed recipe, whose shape, digest and
-             protocol values for this coordinate are checked; the trainer evidence, the runtime
-             sidecar and the record's completed anchor check (the typed config.pt comparison that
-             ran inside the campaign, `assert_anchor_recipe`) agree with it;
-  reuse   -- a reuse-admission file whose digest the launcher's APPROVED_REUSE_ADMISSION_SHA256
-             lists (reviewed source, filled only from an audit decision) names the coordinate, the
-             record and its config.pt pin; the equivalence evidence is what the audit approved.
-             This generation lists no such file: stages S and D run fresh controls.
-Reuse is never inferred from a missing anchor block. JSON-level admission (stage, smoke, split,
-terminal epoch, membership, score) completes before any config.pt is deserialised (audit 673.1).
+Evidence authority (audit 672.1, 679). A record counts for its coordinate only through a completed
+anchor-confirmation campaign that ran under an audit approval: the pinned receipt lists the
+coordinate's cell id (recomputed here), the record, a complete campaign binding and the completion
+pins; the plan snapshot it names carries the same campaign nonce, the generation manifest, the
+approval line -- re-verified NOW in the audit ledger for the stage's scope (seed 42: stage-S-run;
+seeds 43/44: stage-D-run, naming the frozen N record) -- and the cell's sealed recipe, whose shape,
+digest and protocol values for this coordinate are checked; the trainer evidence, the runtime
+sidecar and the record's completed anchor check (the typed config.pt comparison that ran inside the
+campaign, `assert_anchor_recipe`) agree with it. Contract v3 admits no historical reuse: every
+stage-S/D record is a fresh anchor cell. JSON-level admission completes before any config.pt is
+read (audit 673.1).
 
 Generation (audit 671.2, 678.2, 697). The reducer runs only in the tree the reviewed generation
 manifest pins -- re-verified at entry, with the modules' import digests, and again before it
-publishes -- and every receipt-backed record must come from a campaign whose plan snapshot names
-that manifest: one generation carries stage S, the frozen N and stage D.
+publishes -- and every record must come from a campaign whose plan snapshot names that manifest:
+one generation carries stage S, the frozen N and stage D.
 
 Inputs (audit 694, 696). The approved request's seal pins, the campaign's admitted seals, each
 record's input authority and its launch/cell bindings' input identities must all agree.
+
+Probe population (audit 709.3). Every probe measures the first 500 rows (ascending dataset index)
+of its dataset's train-only validation split, 4 local slots each: 2000 strict decisions. CIFAR-10 and
+Flickr25K have exactly 500 validation rows; the same policy applies to all four datasets.
 
 The reducer NEVER deserialises a binary (audit 679.2, 681): config.pt is checked by byte identity
 against its admitted pin only. Every file is read once and parsed from its hashed bytes, re-verified
@@ -61,14 +66,20 @@ import scripts.phase3_selection_matrix as M  # noqa: E402
 #: the bytes this module was imported from (audit 697)
 with open(__file__, "rb") as _source:
     _IMPORTED_SOURCE_SHA256 = hashlib.sha256(_source.read()).hexdigest()
-REDUCER_VERSION = "anchor-confirm-reducer/2"
+REDUCER_VERSION = "anchor-confirm-reducer/3"
 N_SELECTION_KIND = "anchor_confirmation_n_selection"
 DECISION_KIND = "anchor_confirmation_decision"
-REUSE_KIND = "anchor_confirmation_reuse_admission"
 PROBE_KIND = "anchor_confirmation_code_axis"
-PROBE_SCHEMA = "anchor-confirm-code-axis/2"
+PROBE_SCHEMA = "anchor-confirm-code-axis/3"
 PROBE_SOURCE = REPO / "scripts" / "anchor_confirm_code_axis.py"
-PROBE_IMAGES = 512
+PROBE_IMAGES = 500
+PROBE_LOCAL_SLOTS = 4
+#: the preregistered probe population of contract v3 section 8.2 (audit 709.3)
+PROBE_POPULATION = {"rows": "first 500 of the train-only validation split, ascending dataset index",
+                    "n_images": PROBE_IMAGES, "local_slots": PROBE_LOCAL_SLOTS,
+                    "decisions": PROBE_IMAGES * PROBE_LOCAL_SLOTS}
+FIXED_ARCHITECTURE = {"axis_center": "anchors", "datasets": list(M.ANCHOR_DATASETS),
+                      "authority": "the user's decision recorded in audit section 709"}
 SPLIT = {"val_split_ratio": 0.1, "val_split_seed": 42}
 #: the completion pins a receipt cell must carry (the launcher's receipt carries these and more)
 RECEIPT_COMPLETION_KEYS = ("final_checkpoint_sha256", "log_csv_sha256", "checkpoint_runtime_sha256",
@@ -142,8 +153,8 @@ def exact_int(value, what: str) -> int:
 
 def expected_coordinates(stage: str, *, arms, frozen=None) -> list:
     arms = tuple(arms)
-    need(arms and len(set(arms)) == len(arms) and set(arms) <= set(M.ANCHOR_ARMS),
-         f"arms {arms} are not a subset of {M.ANCHOR_ARMS}")
+    need(arms == M.ANCHOR_RUN_ARMS,
+         f"arms {arms} are not the contract's {M.ANCHOR_RUN_ARMS} (the architecture is fixed)")
     if stage == "select":
         return [(ds, arm, n, M.SEED) for ds in M.ANCHOR_DATASETS for arm in arms
                 for n in M.CANDIDATE_N]
@@ -154,26 +165,6 @@ def expected_coordinates(stage: str, *, arms, frozen=None) -> list:
             need(n in M.CANDIDATE_N, f"frozen N of {ds}/{arm} is {n}, off the grid {M.CANDIDATE_N}")
             coords += [(ds, arm, n, seed) for seed in (M.SEED, *M.ANCHOR_DECIDE_SEEDS)]
     return coords
-
-
-def load_reuse(consumed: Consumed, path, want):
-    if not path:
-        return None
-    approver = M.APPROVED_REUSE_ADMISSION_SHA256.get(want)
-    need(approver is not None,
-         f"{path}: no audit-approved reuse admission with digest {str(want)[:12]}... is pinned in "
-         "this generation's source; a caller's digest or a file naming its own approver is not "
-         "approval (audit 672.1, 678.2)")
-    admission = consumed.json(path, want)
-    need(admission.get("artifact_kind") == REUSE_KIND
-         and admission.get("version") == M.ANCHOR_CONFIRM_VERSION, f"{path}: not a reuse admission")
-    entries = {}
-    for e in admission.get("coordinates", []):
-        key = (e["dataset"], e["arm"], exact_int(e["N"], "reuse N"), exact_int(e["seed"], "reuse seed"))
-        need(key not in entries, f"reuse admission lists {key} twice")
-        need(is_sha256(e.get("config_pt_sha256")), f"reuse admission gives {key} no config.pt pin")
-        entries[key] = e
-    return {"admitted_by": approver, "coordinates": entries}
 
 
 def campaign_approval(snapshot: dict, scope: str, *, manifest_sha256: str, selection_sha256,
@@ -223,7 +214,7 @@ def probe_request(manifest_sha256: str, selection_sha256: str, records: dict) ->
             "records": sorted([*c, digest] for c, digest in records.items())}
 
 
-def admit_metadata(consumed: Consumed, coordinate, entry: dict, *, incumbent: dict, reuse,
+def admit_metadata(consumed: Consumed, coordinate, entry: dict, *, incumbent: dict,
                    manifest_sha256: str, selection_sha256=None) -> dict:
     """JSON-level admission of one record; no binary artifact is opened here."""
     from dna_utils.run_identity import PHASE3_CAMPAIGN_BINDING_NAME
@@ -327,18 +318,9 @@ def admit_metadata(consumed: Consumed, coordinate, entry: dict, *, incumbent: di
         authority = {"kind": "receipt", "receipt": str(entry["receipt"]), "cell_id": cell_id,
                      "manifest_sha256": generation.get("sha256"), "approval": approval}
         config_pin = anchor["config_pt_sha256"]
-    elif source == "reuse":
-        need(reuse is not None, f"{coordinate}: historical reuse needs a pinned reuse admission")
-        admitted = reuse["coordinates"].get(coordinate)
-        need(admitted is not None and admitted["record_sha256"] == entry["record_sha256"]
-             and Path(admitted["record"]).name == Path(entry["record"]).name,
-             f"{coordinate}: the reuse admission does not list this record")
-        need("anchor_confirmation" not in record, f"{entry['record']}: a reuse record is historical")
-        need(arm == "none", f"{coordinate}: only the control arm can be historical")
-        authority = {"kind": "reuse", "admitted_by": reuse["admitted_by"]}
-        config_pin = admitted["config_pt_sha256"]
     else:
-        raise NotReducible(f"{coordinate}: evidence source must be 'receipt' or 'reuse', got {source!r}")
+        raise NotReducible(f"{coordinate}: contract v3 admits campaign receipts only (no "
+                           f"historical reuse), got source {source!r}")
     rows = list(csv.DictReader(io.StringIO(consumed.read(
         run_dir / "log.csv", completion["log_csv_sha256"]).decode("utf-8"))))
     need(bool(rows) and rows[-1].get("epoch", "").strip().isdigit()
@@ -358,7 +340,7 @@ def verify_config_pin(consumed: Consumed, admitted: dict) -> str:
     """Byte identity of the saved config.pt against its admitted pin -- and nothing more: the reducer
     never deserialises (audit 679.2, 681). The typed comparison with the sealed recipe ran inside
     the approved campaign (`assert_anchor_recipe`); the record's anchor block carries its result and
-    the receipt pins the record. An approved reuse admission carries its own pin."""
+    the receipt pins the record."""
     want = admitted["config_pt_sha256"]
     consumed.read(admitted["run_dir"] / "config.pt", want)
     return want
@@ -409,11 +391,13 @@ def verify_probe(consumed: Consumed, coordinate, entry: dict, admitted: dict, co
          and {k: caption.get(k) for k in CAPTION_TARGET} == CAPTION_TARGET
          and caption.get("input_seal_sha256") == inputs.get("seal_file_sha256"),
          f"{name}: its caption target is not the record's admitted input")
+    need(probe.get("population") == PROBE_POPULATION,
+         f"{name}: measured another population than the contract's {PROBE_POPULATION}")
     n_images = exact_int(probe.get("n_images"), "probe n_images")
     hits = exact_int(probe.get("hits"), "probe hits")
     total = exact_int(probe.get("total"), "probe total")
-    need(n_images == PROBE_IMAGES and total == 4 * n_images and 0 <= hits <= total,
-         f"{name}: counts are not {PROBE_IMAGES} images x 4 local slots")
+    need(n_images == PROBE_IMAGES and total == PROBE_LOCAL_SLOTS * n_images and 0 <= hits <= total,
+         f"{name}: counts are not {PROBE_IMAGES} images x {PROBE_LOCAL_SLOTS} local slots")
     ties = exact_int(probe.get("ties_counted_as_misses"), "probe ties")
     need(0 <= ties <= total - hits, f"{name}: {ties} ties do not fit {total - hits} misses")
     ratio = probe.get("code_picks_own_axis")
@@ -461,14 +445,13 @@ def select_n(scores: dict) -> int:
     return min(n for n, value in scores.items() if value == best)
 
 
-def reduce_select(sources, sources_sha256, reuse_path=None, reuse_sha256=None, *, manifest: dict,
-                  arms=M.ANCHOR_ARMS, consumed=None) -> dict:
+def reduce_select(sources, sources_sha256, *, manifest: dict, arms=M.ANCHOR_RUN_ARMS,
+                  consumed=None) -> dict:
     consumed = consumed or Consumed()
     incumbent = M.anchor_incumbent()
-    reuse = load_reuse(consumed, reuse_path, reuse_sha256)
     coords = expected_coordinates("select", arms=arms)
     keyed = load_sources(consumed, sources, sources_sha256, coords, with_probe=False)
-    admitted = {c: admit_metadata(consumed, c, keyed[c], incumbent=incumbent, reuse=reuse,
+    admitted = {c: admit_metadata(consumed, c, keyed[c], incumbent=incumbent,
                                   manifest_sha256=manifest["sha256"]) for c in coords}
     one_generation(admitted, manifest["sha256"])
     configs = {c: verify_config_pin(consumed, admitted[c]) for c in coords}
@@ -481,9 +464,9 @@ def reduce_select(sources, sources_sha256, reuse_path=None, reuse_sha256=None, *
     return {"artifact_kind": N_SELECTION_KIND, "version": M.ANCHOR_CONFIRM_VERSION,
             "reducer": REDUCER_VERSION, "rule": "argmax raw base-Hamming mAP@R at own terminal "
             "epoch, ties to the smallest N, seed 42", "arms": list(arms),
+            "fixed_architecture": dict(FIXED_ARCHITECTURE),
             "generation": generation_of(manifest),
             "sources": {"path": str(sources), "sha256": sources_sha256},
-            "reuse_admission": ({"path": str(reuse_path), "sha256": reuse_sha256} if reuse else None),
             "n_selected": n_selected, "scores": scores,
             "evidence": {"|".join(map(str, c)): {"authority": admitted[c]["authority"],
                                                  "record_sha256": admitted[c]["entry"]["record_sha256"],
@@ -500,12 +483,13 @@ def verify_selection(path, want, *, consumed=None) -> dict:
     need(frozen.get("artifact_kind") == N_SELECTION_KIND
          and frozen.get("version") == M.ANCHOR_CONFIRM_VERSION
          and frozen.get("reducer") == REDUCER_VERSION, f"{path}: not a {REDUCER_VERSION} N record")
-    reuse = frozen.get("reuse_admission") or {}
+    need(frozen.get("arms") == list(M.ANCHOR_RUN_ARMS)
+         and frozen.get("fixed_architecture") == FIXED_ARCHITECTURE,
+         f"{path}: not a record of the fixed four-dataset anchor model")
     generation = frozen.get("generation") or {}
     need(isinstance(generation.get("anchor_manifest_sha256"), str),
          f"{path}: names no generation manifest")
     replay = reduce_select(frozen["sources"]["path"], frozen["sources"]["sha256"],
-                           reuse.get("path"), reuse.get("sha256"),
                            manifest={"sha256": generation["anchor_manifest_sha256"],
                                      "commit": generation.get("commit"),
                                      "contract": {"sha256": generation.get("contract_sha256")}},
@@ -518,6 +502,8 @@ def verify_selection(path, want, *, consumed=None) -> dict:
 
 
 def reduce_decide(args, manifest: dict) -> dict:
+    """Descriptive stage-D summary of the fixed anchor model and the stage-R membership it implies.
+    No score selects the architecture: a poor retrieval or alignment result is reported as it is."""
     consumed = Consumed()
     incumbent = M.anchor_incumbent()
     selection = verify_selection(args.selection, args.selection_sha256, consumed=consumed)
@@ -525,12 +511,11 @@ def reduce_decide(args, manifest: dict) -> dict:
          "stage S ran under another generation manifest; one generation carries the whole chain")
     n_frozen = selection["n_selected"]
     need(set(n_frozen) == set(M.ANCHOR_DATASETS)
-         and all(set(n_frozen[ds]) == set(M.ANCHOR_ARMS) for ds in n_frozen),
-         "the frozen N record does not cover both arms of the three datasets")
-    reuse = load_reuse(consumed, args.reuse_admission, args.reuse_admission_sha256)
-    coords = expected_coordinates("decide", arms=M.ANCHOR_ARMS, frozen=n_frozen)
+         and all(set(n_frozen[ds]) == set(M.ANCHOR_RUN_ARMS) for ds in n_frozen),
+         f"the frozen N record does not cover the anchor arm of all of {M.ANCHOR_DATASETS}")
+    coords = expected_coordinates("decide", arms=M.ANCHOR_RUN_ARMS, frozen=n_frozen)
     keyed = load_sources(consumed, args.sources, args.sources_sha256, coords, with_probe=True)
-    admitted = {c: admit_metadata(consumed, c, keyed[c], incumbent=incumbent, reuse=reuse,
+    admitted = {c: admit_metadata(consumed, c, keyed[c], incumbent=incumbent,
                                   manifest_sha256=manifest["sha256"],
                                   selection_sha256=args.selection_sha256) for c in coords}
     one_generation(admitted, manifest["sha256"])
@@ -541,49 +526,35 @@ def reduce_decide(args, manifest: dict) -> dict:
                               manifest_sha256=manifest["sha256"], selection_sha256=args.selection_sha256,
                               request_sha256=request_sha256)
               for c in coords}
-    decisions = {}
+    summary, refits = {}, []
     seeds = (M.SEED, *M.ANCHOR_DECIDE_SEEDS)
+    arm = "anchors"
     for ds in M.ANCHOR_DATASETS:
         need(len({probes[c]["rows"] for c in coords if c[0] == ds}) == 1,
              f"{ds}: the probes did not measure one shared row population (rows and split identity) "
-             "across arms and seeds")
-        val = {arm: [admitted[(ds, arm, n_frozen[ds][arm], s)]["score"] for s in seeds] for arm in M.ANCHOR_ARMS}
-        axis = {arm: [probes[(ds, arm, n_frozen[ds][arm], s)]["ratio"] for s in seeds] for arm in M.ANCHOR_ARMS}
-        mean = {arm: statistics.fmean(val[arm]) for arm in M.ANCHOR_ARMS}
-        sd_control = statistics.stdev(val["none"])                    # ddof = 1; zero allowed
-        axis_mean = {arm: statistics.fmean(axis[arm]) for arm in M.ANCHOR_ARMS}
-        retrieval_ok = mean["anchors"] >= mean["none"] - sd_control       # equality passes
-        axis_ok = axis_mean["anchors"] > axis_mean["none"]                # equality fails
-        adopted = "anchors" if (retrieval_ok and axis_ok) else "none"
-        n_adopted = n_frozen[ds][adopted]
-        approved = incumbent[ds]["N"]
-        # Stage R follows from the decision and from admitted reuse only (audit 668.1); it is a
-        # separate authorization and nothing here admits the old refit.
-        if adopted == "anchors":
-            refit = {"stage_R": "scratch refit", "arm": "anchors", "N": n_adopted}
-        elif n_adopted == approved:
-            refit = {"stage_R": "old refit only if admitted, otherwise scratch refit", "arm": "none",
-                     "N": n_adopted, "old_refit": {"aggregate_sha256": M.APPROVED_P3_REFIT_AGGREGATE_SHA256,
-                                                   "N": approved},
-                     "admission": "an exact recipe/N/schedule/input/provenance match, established by "
-                                  "the separately authorized historical inspection"}
-        else:
-            refit = {"stage_R": "scratch refit", "arm": "none", "N": n_adopted,
-                     "note": f"the approved refit is N={approved}; it cannot stand in for N={n_adopted}"}
-        decisions[ds] = {
-            "adopted_axis_center": adopted, "frozen_N": n_adopted, "refit": refit,
-            "retrieval": {"per_seed": val, "mean": mean, "control_sample_sd": sd_control,
-                          "rule": "mean(anchors) >= mean(none) - sd(none), ddof=1",
-                          "passes": retrieval_ok},
+             "across seeds")
+        n = n_frozen[ds][arm]
+        val = [admitted[(ds, arm, n, s)]["score"] for s in seeds]
+        axis = [probes[(ds, arm, n, s)]["ratio"] for s in seeds]
+        summary[ds] = {
+            "axis_center": arm, "frozen_N": n,
+            "retrieval": {"per_seed": val, "mean": statistics.fmean(val),
+                          "sample_sd": statistics.stdev(val),                  # ddof = 1
+                          "metric": "raw base-Hamming mAP@R at the terminal epoch, train-only "
+                                    f"validation, R={M.MAP_R_CUTOFF[ds]}"},
             "code_to_axis": {"per_seed": axis,
-                             "hits_total": {arm: [[probes[(ds, arm, n_frozen[ds][arm], s)]["hits"],
-                                                   probes[(ds, arm, n_frozen[ds][arm], s)]["total"]]
-                                                  for s in seeds] for arm in M.ANCHOR_ARMS},
-                             "mean": axis_mean, "rule": "mean(anchors) > mean(none)", "passes": axis_ok}}
+                             "hits_total": [[probes[(ds, arm, n, s)]["hits"],
+                                             probes[(ds, arm, n, s)]["total"]] for s in seeds],
+                             "mean": statistics.fmean(axis), "sample_sd": statistics.stdev(axis)}}
+        refits += [{"dataset": ds, "axis_center": arm, "N": n, "seed": s,
+                    "refit": "scratch, full designated train split"} for s in seeds]
     return {"artifact_kind": DECISION_KIND, "version": M.ANCHOR_CONFIRM_VERSION,
             "reducer": REDUCER_VERSION, "selection": selection["record"],
-            "generation": generation_of(manifest), "decisions": decisions,
-            "note": "train-only; per dataset; n = 3; descriptive rule, no significance or equivalence test",
+            "generation": generation_of(manifest), "fixed_architecture": dict(FIXED_ARCHITECTURE),
+            "summary": summary, "stage_R_membership": refits,
+            "note": "train-only; per dataset; n = 3; descriptive -- no score selects the "
+                    "architecture, no threshold, significance or equivalence test; stage R/T are "
+                    "separate authorizations",
             "_consumed": consumed}
 
 
@@ -607,21 +578,16 @@ def main(argv=None) -> int:
     parser.add_argument("--sources-sha256", required=True)
     parser.add_argument("--manifest", required=True, help="the reviewed generation manifest")
     parser.add_argument("--manifest-sha256", required=True)
-    parser.add_argument("--reuse-admission")
-    parser.add_argument("--reuse-admission-sha256")
     parser.add_argument("--selection", help="decide: the frozen N record")
     parser.add_argument("--selection-sha256")
-    parser.add_argument("--arms", default="none,anchors", help="select: arms with evidence")
+    parser.add_argument("--arms", default="anchors", help="select: must be `anchors` (contract v3)")
     parser.add_argument("--out", required=True)
     args = parser.parse_args(argv)
     try:
-        need(bool(args.reuse_admission) == bool(args.reuse_admission_sha256),
-             "--reuse-admission and --reuse-admission-sha256 go together")
         manifest = M.recheck_generation({"path": args.manifest, "sha256": args.manifest_sha256},
                                         "at the reducer's entry")
         if args.stage == "select":
-            payload = reduce_select(args.sources, args.sources_sha256, args.reuse_admission,
-                                    args.reuse_admission_sha256, manifest=manifest,
+            payload = reduce_select(args.sources, args.sources_sha256, manifest=manifest,
                                     arms=tuple(a for a in args.arms.split(",") if a))
         else:
             need(bool(args.selection) and bool(args.selection_sha256),

@@ -75,6 +75,14 @@ REVIEWED_OVERRIDES = {
     "post_eval_compositional": ("--post_eval_compositional",),
     "dna_distance_mode": ("--dna_distance_mode", "base"),
 }
+#: Other reviewed first occurrences, per destination (contract v3 section 6, audit 709.1 item 4).
+#: The CIFAR-10 wrapper's body passes ``--lambda_codeword_codon_sinkhorn "${CCS:-0.1}"`` and the
+#: launcher sets CCS=0.1 for it; the launcher's override that must follow is 0.0, the value every
+#: approved CIFAR-10 stage-1 and refit args.txt records. The override is still required, and the
+#: protocol values bind the effective 0.0.
+REVIEWED_OVERRIDE_ALTERNATES = {
+    "lambda_codeword_codon_sinkhorn": (("--lambda_codeword_codon_sinkhorn", "0.1"),),
+}
 
 _NEGATIVE_NUMBER = re.compile(r"^-\d+$|^-\d*\.\d+$|^-\d+(\.\d*)?[eE][-+]?\d+$")
 
@@ -177,9 +185,10 @@ def admitted_overrides(parser, argv: Iterable[str]) -> dict:
               f"repeated options outside the reviewed wrapper overrides: {dest} {spans}")
         _need(len(spans) == 2, f"{dest} is given {len(spans)} times; a reviewed override is the "
                                "wrapper literal followed by exactly one launcher override")
-        _need(spans[0] == REVIEWED_OVERRIDES[dest],
-              f"{dest}: the first occurrence {list(spans[0])} is not the reviewed wrapper literal "
-              f"{list(REVIEWED_OVERRIDES[dest])}")
+        _need(spans[0] == REVIEWED_OVERRIDES[dest]
+              or spans[0] in REVIEWED_OVERRIDE_ALTERNATES.get(dest, ()),
+              f"{dest}: the first occurrence {list(spans[0])} is not a reviewed wrapper literal "
+              f"{[list(REVIEWED_OVERRIDES[dest]), *map(list, REVIEWED_OVERRIDE_ALTERNATES.get(dest, ()))]}")
         admitted[dest] = [list(span) for span in spans]
     return admitted
 

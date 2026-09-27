@@ -258,15 +258,21 @@ LAMBDA_INCUMBENT = {
 LAMBDA_SWEEP_DATASETS = ("flickr25k",)
 LAMBDA_INCUMBENT_SEEDS = (42, 43, 44)
 LAMBDA_CAMPAIGN_KIND = "lambda_confirmation"
-#: Anchor confirmation v1 (audit sections 659-664): a separately named, versioned mode, NOT a
-#: lambda axis. It moves one recipe axis, `axis_center`, between `none` and `anchors`, on the three
-#: multi-label datasets, and runs stage-1 (train-only) cells only; a refit is a separate
-#: authorization. The incumbent authorities are pinned here from the ledger (section 285 for the
-#: aggregate, its selected-N authority, section 659.2); a caller-supplied path cannot replace them.
-ANCHOR_CONFIRM_VERSION = "anchor-confirm/1"
-ANCHOR_CAMPAIGN_KIND = "anchor_confirmation_v1"
+#: Anchor confirmation (audit sections 659-664, 709): a separately named, versioned mode, NOT a
+#: lambda axis. Version 2 (contract v3) follows the user's decision recorded in audit section 709:
+#: `axis_center=anchors` is FIXED for all four datasets. Stage S selects each dataset's N on the
+#: train-only validation split and stage D measures seeds 43/44 at that N; only the anchor arm runs
+#: (ANCHOR_RUN_ARMS). The `none` arm is still RENDERED by the admission, never run, to prove that an
+#: anchor cell is the approved recipe with axis_center alone changed. Stage-1 (train-only) cells
+#: only; a refit is a separate authorization. The approved recipe authorities are pinned here from
+#: the ledger (section 285 for the aggregate, its selected-N authority, section 659.2); a
+#: caller-supplied path cannot replace them. Version 1 (three datasets, two arms, conditional
+#: adoption) is superseded and its requests and records are refused by version.
+ANCHOR_CONFIRM_VERSION = "anchor-confirm/2"
+ANCHOR_CAMPAIGN_KIND = "anchor_confirmation_v2"
 ANCHOR_ARMS = ("none", "anchors")
-ANCHOR_DATASETS = ("flickr25k", "nuswide", "mscoco")
+ANCHOR_RUN_ARMS = ("anchors",)
+ANCHOR_DATASETS = ("cifar10", "flickr25k", "nuswide", "mscoco")
 ANCHOR_DECIDE_SEEDS = (43, 44)
 APPROVED_P3_REFIT_AGGREGATE = Path(
     "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/p3rfB_refit_aggregate.json")
@@ -3880,7 +3886,7 @@ DATASET_SCRIPT_SHA256 = {
 ANCHOR_MANIFEST_KIND = "anchor_confirmation_authority_manifest"
 #: The designated scientific contract of this generation (audit 683.2). A manifest must pin THIS
 #: path; naming some other listed file as the contract refuses.
-ANCHOR_CONTRACT_PATH = "docs/ANCHOR_CONFIRMATION_CONTRACT_v2.md"
+ANCHOR_CONTRACT_PATH = "docs/ANCHOR_CONFIRMATION_CONTRACT_v3.md"
 #: The anchor generation's own files. With the executable closure `_BOOTSTRAP_SOURCE_PATHS`
 #: (trainer, model, parser, identity, split, input admission, wrappers, ...) they are the members a
 #: generation manifest must list, exactly (audit 683.2).
@@ -3895,7 +3901,7 @@ ANCHOR_CLOSURE = ("scripts/anchor_confirm_decision.py", "scripts/anchor_confirm_
 #: cannot write it, and it lives outside the pinned scientific tree, so no manifest names an
 #: approval and no hash cycle arises. An operation that executes, or opens a real binary, runs only
 #: when ONE numbered ledger section carries exactly one approval line for its scope, of the form
-#:   ANCHOR-CONFIRM-APPROVAL version=anchor-confirm/1 scope=<scope> manifest=<sha256> [key=value]
+#:   ANCHOR-CONFIRM-APPROVAL version=anchor-confirm/2 scope=<scope> manifest=<sha256> [key=value]
 #: naming exactly the scope's fields below. Until the audit writes such a line, it refuses.
 #: `request` is the digest of the operation's complete canonical request (audit 689.2): an approval
 #: covers one exact request, and any changed dimension -- cells, namespace, roots, smoke horizon,
@@ -3909,12 +3915,7 @@ APPROVAL_SCOPES = {
     "stage-D-run": ("manifest", "selection", "request"),
     "probe": ("manifest", "selection", "request"),
 }
-REQUEST_SCHEMA = "anchor-confirm-request/1"
-#: Control-reuse admissions the audit approved: file digest -> the ledger section that approved it.
-#: A reuse file counts only when its digest is listed HERE, in reviewed source; a caller's digest or
-#: a file that names its own approver does not (audit 672.1, 678.2). This generation runs fresh
-#: controls in stages S and D (contract section 5) and lists none.
-APPROVED_REUSE_ADMISSION_SHA256: dict = {}
+REQUEST_SCHEMA = "anchor-confirm-request/2"
 #: The storage rule of an anchor-confirmation campaign (audit 703.3), checked before EVERY cell is
 #: dispatched, after full input verification: the result filesystem must keep a 10-GiB floor free
 #: on top of 0.75 GiB for every cell not yet finished (in flight or still to run). One historical
@@ -4037,29 +4038,26 @@ def anchor_incumbent() -> dict:
 
 
 def parse_arm_plan(cells_text, arms_text) -> dict:
-    """dataset -> arms. `--anchor-cells ds:arm,...` names exact pairs; otherwise every in-scope
-    dataset takes `--anchor-arms` (contract section 15 item 6: per-dataset control arms)."""
+    """dataset -> arms. Contract v3 (audit 709): every one of the four datasets runs the fixed anchor
+    arm and nothing else; a per-dataset pair list, a control arm or a dropped dataset refuses."""
     if cells_text:
-        plan = {}
-        for pair in str(cells_text).split(","):
-            ds, _, arm = pair.strip().partition(":")
-            if ds not in ANCHOR_DATASETS or arm not in ANCHOR_ARMS:
-                raise CellRefused(f"--anchor-cells entry {pair!r} is not dataset:arm in scope")
-            if arm in plan.setdefault(ds, []):
-                raise CellRefused(f"--anchor-cells names {pair!r} twice")
-            plan[ds].append(arm)
-        return {ds: tuple(arms) for ds, arms in plan.items()}
+        raise CellRefused("--anchor-cells is not part of contract v3: all four datasets run the "
+                          "fixed anchor arm (audit 709)")
     arms = tuple(a.strip() for a in str(arms_text).split(",") if a.strip())
-    if not arms or len(set(arms)) != len(arms) or any(a not in ANCHOR_ARMS for a in arms):
-        raise CellRefused(f"anchor arms must be a nonempty subset of {ANCHOR_ARMS}, got {arms}")
+    if arms != ANCHOR_RUN_ARMS:
+        raise CellRefused(f"contract v3 runs the arms {ANCHOR_RUN_ARMS} only (axis_center is fixed "
+                          f"to anchors; the control is rendered, never run), got {arms}")
     return {ds: arms for ds in ANCHOR_DATASETS}
 
 
 def anchor_confirmation_cells(stage_name: str, *, incumbent: dict, arm_plan: dict,
                               selection=None) -> list:
     """Eight-tuples `(dataset, N, topp, joint, "select", seed, (), arm)`, train-only stage-1 cells.
-    `select`: every planned arm at every candidate N, seed 42. `decide`: every planned arm at its
-    frozen N (from a REPLAYED stage-S record), seeds 43 and 44."""
+    `select`: the anchor arm of all four datasets at every candidate N, seed 42. `decide`: the anchor
+    arm at its frozen N (from a REPLAYED stage-S record), seeds 43 and 44."""
+    if set(arm_plan) != set(ANCHOR_DATASETS) \
+            or any(tuple(arms) != ANCHOR_RUN_ARMS for arms in arm_plan.values()):
+        raise CellRefused(f"the arm plan must run {ANCHOR_RUN_ARMS} on all of {ANCHOR_DATASETS}")
     cells = []
     for ds in ANCHOR_DATASETS:
         topp, joint = incumbent[ds]["topp"], incumbent[ds]["joint"]
@@ -4263,6 +4261,12 @@ def anchor_execution_request(args, cells, *, manifest_sha256: str, selection_sha
         raise CellRefused("an anchor smoke needs --only dataset:N:arm:seed")
     executed = [_anchor_only_cell(args.only, cells)] if args.smoke else list(cells)
     gpus = [g for g in (args.gpus.split(",") if args.gpus else [str(args.gpu)])]
+    streams = len({c[0] for c in executed})
+    if len(gpus) != streams or len(set(gpus)) != len(gpus):
+        # The sweep runs one stream per dataset on its own GPU (audit 709.2): fewer GPUs would
+        # silently leave a dataset out, more would lease idle devices.
+        raise CellRefused(f"this request runs {streams} dataset stream(s) and needs exactly that "
+                          f"many distinct GPUs, got {gpus}")
     return {
         "schema": REQUEST_SCHEMA, "version": ANCHOR_CONFIRM_VERSION,
         "stage": args.anchor_confirm, "mode": "smoke" if args.smoke else "run",
@@ -4374,7 +4378,7 @@ def _anchor_only_cell(spec: str, plan: list):
 
 
 def _anchor_confirmation_main(args) -> int:
-    """Anchor confirmation v1. Every mode runs the same admission first -- cells, the replayed
+    """Anchor confirmation v2 (contract v3). Every mode runs the same admission first -- cells, the replayed
     stage-S selection for `decide` (JSON, logs and pinned bytes only; nothing is deserialised),
     rendered recipes, protocol values and arm checks, and the generation manifest when given --
     before any lease, reservation or dispatch. `--plan` then prints; it renders the pinned wrappers
@@ -4702,15 +4706,15 @@ def main() -> int:
     parser.add_argument(
         "--anchor-confirm", dest="anchor_confirm", default=None,
         choices=("select", "decide"),
-        help=("anchor confirmation v1 (audit sections 659-664): stage `select` = train-only N "
-              "selection per arm, `decide` = seeds 43/44 at each arm's frozen N. Stage-1 cells "
+        help=("anchor confirmation v2 (contract v3, audit 709): stage `select` = train-only N "
+              "selection of the fixed anchor model, `decide` = seeds 43/44 at the frozen N. Stage-1 cells "
               "only; refit is a separate authorization. NON-EXECUTABLE until audit approval."))
     parser.add_argument(
         "--anchor-arms", dest="anchor_arms", default="anchors",
-        help="comma list from none,anchors (default: anchors; none only if control reuse is refused)")
+        help="must be `anchors` (contract v3: the control arm is rendered for comparison, never run)")
     parser.add_argument(
         "--anchor-cells", dest="anchor_cells", default=None, metavar="DS:ARM,...",
-        help="exact dataset:arm pairs (e.g. stage-D control only where reuse is not admitted)")
+        help="refused under contract v3 (all four datasets run the anchor arm)")
     parser.add_argument(
         "--anchor-manifest", dest="anchor_manifest", default=None, metavar="PATH",
         help="the reviewed generation manifest (required by --smoke/--run)")

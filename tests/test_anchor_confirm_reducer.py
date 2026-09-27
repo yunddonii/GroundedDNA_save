@@ -1,5 +1,6 @@
-"""Anchor confirmation v1: reducer and probe, generation v2 (audit sections 665, 668, 671.2, 672, 673,
-678-683).
+"""Anchor confirmation v2 (contract v3): reducer and probe, generation v5 (audit sections 665, 668, 671.2,
+672, 673, 678-683, 709). The architecture is fixed: every coordinate is the anchor arm of one of four
+datasets; no score selects axis_center.
 
 A synthetic world mirrors the artifacts as the launcher writes them: per coordinate a run
 directory (config.pt, checkpoint bytes, log.csv, trainer evidence, runtime sidecar) and a record
@@ -7,7 +8,7 @@ whose anchor block carries the completed recipe check; per campaign a receipt (c
 complete campaign bindings and completion pins) and a plan snapshot that names the generation
 manifest and the audit approval it ran under and seals each cell's recipe with the contract's
 protocol values. A synthetic audit ledger holds the approval lines. Stage-D evidence joins the
-stage-S records at the frozen N (seed 42) with a stage-D campaign (seeds 43/44) and v2 probes. The
+stage-S records at the frozen N (seed 42) with a stage-D campaign (seeds 43/44) and v3 probes. The
 generation-manifest loader is a stand-in (the launcher suite tests the real one). Each refusal
 perturbs ONE thing of a world the positive control reduces, and asserts its reason. The reducer
 deserialises nothing; probe tests stop at a torch.load or model-construction sentinel.
@@ -19,6 +20,7 @@ import hashlib
 import json
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 
 import pytest
 import torch
@@ -33,10 +35,11 @@ import dna_utils.scientific_recipe as R                     # noqa: E402
 from dna_utils.run_identity import PHASE3_CAMPAIGN_BINDING_NAME   # noqa: E402
 from config import Config                                   # noqa: E402
 
-INCUMBENT = {"flickr25k": {"N": 4, "topp": ("0.6", "0.95"), "joint": "0.02"},
+INCUMBENT = {"cifar10": {"N": 19, "topp": ("0.3", "0.7"), "joint": "0.02"},
+             "flickr25k": {"N": 4, "topp": ("0.6", "0.95"), "joint": "0.02"},
              "nuswide": {"N": 4, "topp": ("0.4", "0.8"), "joint": "0.05"},
              "mscoco": {"N": 39, "topp": ("0.6", "0.95"), "joint": "0.03"}}
-NAMES = {"flickr25k": "Flickr25k", "nuswide": "NUSWIDE", "mscoco": "MSCOCO"}
+NAMES = {"cifar10": "CIFAR10", "flickr25k": "Flickr25k", "nuswide": "NUSWIDE", "mscoco": "MSCOCO"}
 PARSER = Config.build_parser()
 HF = {"identity_sha256": "1" * 64, "snapshot_dir": "/hf/snap", "revision": "r1",
       "weight_file": "pytorch_model.bin", "weight_sha256": "2" * 64, "config_sha256": "3" * 64,
@@ -48,7 +51,7 @@ AUTH = {ds: dict(INPUT_AUTHORITY, dataset=ds, stage="stage1",
                  seal_path=f"/seals/{ds}.stage1.input-seal.json",
                  seal_file_sha256=hashlib.sha256(f"seal {ds}".encode()).hexdigest(),
                  authority_sha256=hashlib.sha256(f"authority {ds}".encode()).hexdigest())
-        for ds in ("flickr25k", "nuswide", "mscoco")}
+        for ds in M.ANCHOR_DATASETS}
 INPUT_FIELDS = ("input_seal_sha256", "input_aggregate_sha256", "input_authority_sha256",
                 "split_identity_sha256", "hf_identity_sha256")
 
@@ -81,7 +84,7 @@ def render_argv(c):
             "--routing_adaptive_topp_max", inc["topp"][1], "--lambda_codon_joint", inc["joint"],
             "--lambda_codeword_codon_sinkhorn", "0.0", "--no-post_eval_compositional",
             "--dna_distance_mode", "base", "--num_semantic_parts", "5", "--num_codebooks", "5",
-            "--num_codons_per_codebook", "3", "--codebook_size", "128", "--no_gumbel_softmax",
+            "--num_codons_per_codebook", "3", "--codebook_size", str(M.DATASETS[ds]["K"]), "--no_gumbel_softmax",
             "--text_hash_counterfactual_weight", "0.0", "--xmodal_commit_skip_global",
             "--cibhash_dynamic_tau_skip_global", "--no_visualize", "--hash_target_mode", "siglip_cos",
             "--axis_center", arm]
@@ -163,11 +166,11 @@ def ledger(tmp_path, monkeypatch):
 
 
 class World:
-    """One campaign (receipt + snapshot) with its runs, or historical records for reuse. The
-    campaign's canonical execution request is approved in the ledger unless `approval` is given
-    (False: none); `request_changes` edit the request BEFORE it is approved."""
+    """One campaign (receipt + snapshot) with its runs. The campaign's canonical execution request
+    is approved in the ledger unless `approval` is given (False: none); `request_changes` edit the
+    request BEFORE it is approved."""
 
-    def __init__(self, root: Path, coordinates, *, ledger: Ledger, approval=None, reuse_control=False,
+    def __init__(self, root: Path, coordinates, *, ledger: Ledger, approval=None,
                  manifest_sha=MANIFEST_SHA, stage="select", selection=None, approved_manifest=None,
                  request_changes=None):
         self.root = Path(root)
@@ -181,7 +184,7 @@ class World:
                         "mode": "run", "manifest": approved_manifest, "selection": selection,
                         "namespace": f"anc{stage.capitalize()}T", "record_dir": str(self.root / "records"),
                         "result_root": str(self.root / "runs"), "declared_cells": cells, "cells": cells,
-                        "epochs": None, "admission_authority": None, "gpu_count": 3,
+                        "epochs": None, "admission_authority": None, "gpu_count": 4,
                         "input_seals": {k: {"path": a["seal_path"], "sha256": a["seal_file_sha256"]}
                                         for k, a in self.seals.items()},
                         **(request_changes or {})}
@@ -189,21 +192,16 @@ class World:
         pins = {"manifest": approved_manifest, **({"selection": selection} if selection else {}),
                 "request": M._json_digest(self.request)}
         self.approval = ledger.approve(scope, **pins) if approval is None else approval or None
-        self.reuse_control = reuse_control
-        self.entries, self.cells, self.bindings, self.reuse = [], {}, {}, []
+        self.entries, self.cells, self.bindings = [], {}, {}
         for c in coordinates:                                  # the sealed recipes first
-            if not self.historical(c):
-                payload = R.build_payload(PARSER, run_argv(c), planned_arm=c[1])
-                self.bindings[cell_id(c)] = {"anchor_arm": c[1], "scientific_recipe": payload,
-                                             "expected_scientific_recipe_sha256": R.digest(payload),
-                                             **input_identity(c[0])}
+            payload = R.build_payload(PARSER, run_argv(c), planned_arm=c[1])
+            self.bindings[cell_id(c)] = {"anchor_arm": c[1], "scientific_recipe": payload,
+                                         "expected_scientific_recipe_sha256": R.digest(payload),
+                                         **input_identity(c[0])}
         self.write_snapshot()
         for c in coordinates:
             self.entries.append(self.make(c))
         self.write_receipt()
-
-    def historical(self, c):
-        return self.reuse_control and c[1] == "none"
 
     def write_snapshot(self):
         authorities = {}
@@ -223,8 +221,7 @@ class World:
         ds, arm, n, seed = c
         run = self.root / "runs" / "_".join(map(str, c))
         run.mkdir(parents=True)
-        historical = self.historical(c)
-        torch.save(config_values(run_argv(c), historical=historical), run / "config.pt")
+        torch.save(config_values(run_argv(c), historical=False), run / "config.pt")
         config_sha = sha((run / "config.pt").read_bytes())
         (run / "model_state_dict.pth").write_bytes(str(c).encode())
         with (run / "log.csv").open("w", newline="") as handle:
@@ -234,7 +231,7 @@ class World:
                 writer.writerow([e, ""])
             writer.writerow([n, score_of(c)])
         cid = cell_id(c)
-        recipe = self.bindings[cid]["expected_scientific_recipe_sha256"] if not historical else "0" * 64
+        recipe = self.bindings[cid]["expected_scientific_recipe_sha256"]
         evidence = {"cell_id": cid, "scientific_recipe_sha256": recipe}
         (run / PHASE3_CAMPAIGN_BINDING_NAME).write_text(json.dumps(evidence))
         sidecar = {"checkpoint_epoch_zero_based": n, "extra": {"phase3_campaign": evidence}}
@@ -252,24 +249,17 @@ class World:
                   "input_authority": AUTH[ds],
                   "selection": {"selection_epoch_zero_based": n, "selection_metric": "eval_mAP_at_R",
                                 "distance_mode": "base", "selection_value": score_of(c)}}
-        if not historical:
-            record["anchor_confirmation"] = {
-                "version": M.ANCHOR_CONFIRM_VERSION, "arm": arm, "scientific_recipe_sha256": recipe,
-                "campaign_evidence_sha256": completion["phase3_campaign_evidence_sha256"],
-                "config_pt_sha256": config_sha}
+        record["anchor_confirmation"] = {
+            "version": M.ANCHOR_CONFIRM_VERSION, "arm": arm, "scientific_recipe_sha256": recipe,
+            "campaign_evidence_sha256": completion["phase3_campaign_evidence_sha256"],
+            "config_pt_sha256": config_sha}
         path = run / f"{cid.replace('|', '_')}.json"
         path.write_text(json.dumps(record))
         entry = {"dataset": ds, "arm": arm, "N": n, "seed": seed, "record": str(path),
-                 "record_sha256": sha(path.read_bytes())}
-        if historical:
-            entry["source"] = "reuse"
-            self.reuse.append({**{k: entry[k] for k in ("dataset", "arm", "N", "seed", "record",
-                                                         "record_sha256")}, "config_pt_sha256": config_sha})
-        else:
-            entry["source"] = "receipt"
-            self.cells[cid] = {"record": path.name, "record_sha256": entry["record_sha256"],
-                               "campaign": campaign,
-                               "completion": {k: completion[k] for k in D.RECEIPT_COMPLETION_KEYS}}
+                 "record_sha256": sha(path.read_bytes()), "source": "receipt"}
+        self.cells[cid] = {"record": path.name, "record_sha256": entry["record_sha256"],
+                           "campaign": campaign,
+                           "completion": {k: completion[k] for k in D.RECEIPT_COMPLETION_KEYS}}
         return entry
 
     def write_receipt(self):
@@ -319,13 +309,6 @@ class World:
                                   "anchor_confirmation.campaign_evidence_sha256": evidence_sha})
         self.reissue_snapshot()
 
-    def reuse_admission(self, **changes):
-        body = {"artifact_kind": D.REUSE_KIND, "version": M.ANCHOR_CONFIRM_VERSION, "coordinates": self.reuse}
-        body.update(changes)
-        path = self.root / "reuse.json"
-        path.write_text(json.dumps(body))
-        return str(path), sha(path.read_bytes())
-
     def sources(self, entries=None):
         path = self.root / "sources.json"
         path.write_text(json.dumps({"version": M.ANCHOR_CONFIRM_VERSION,
@@ -351,15 +334,11 @@ class World:
                 self.cells[cid]["completion"] = {k: record["completion"][k]
                                                  for k in self.cells[cid]["completion"]}
             self.write_receipt()
-        else:
-            for r in self.reuse:
-                if r["record"] == e["record"]:
-                    r["record_sha256"] = e["record_sha256"]
 
     def add_probe(self, e, approval, request_sha256, *, manifest_sha=MANIFEST_SHA):
         ds, arm, n, seed = e["dataset"], e["arm"], e["N"], e["seed"]
         record = json.loads(Path(e["record"]).read_text())
-        hits = 820 if arm == "anchors" else 680
+        hits = 800
         probe = {"artifact_kind": D.PROBE_KIND, "schema": D.PROBE_SCHEMA,
                  "producer_sha256": sha(D.PROBE_SOURCE.read_bytes()),
                  "manifest_sha256": manifest_sha, "approval": approval, "request_sha256": request_sha256,
@@ -367,10 +346,11 @@ class World:
                  "checkpoint_sha256": record["completion"]["final_checkpoint_sha256"],
                  "config_pt_sha256": record["anchor_confirmation"]["config_pt_sha256"],
                  "split": dict(D.SPLIT), "split_identity_sha256": AUTH[ds]["split_identity_sha256"],
-                 "routing": "deployment_no_text", "n_images": 512, "row_ids_sha256": ROWS[ds],
+                 "routing": "deployment_no_text", "population": dict(D.PROBE_POPULATION),
+                 "n_images": 500, "row_ids_sha256": ROWS[ds],
                  "caption_target": {**D.CAPTION_TARGET, "input_seal_sha256": AUTH[ds]["seal_file_sha256"]},
-                 "hits": hits, "total": 2048, "ties_counted_as_misses": 3,
-                 "code_picks_own_axis": hits / 2048,
+                 "hits": hits, "total": 2000, "ties_counted_as_misses": 3,
+                 "code_picks_own_axis": hits / 2000,
                  "authority": {"kind": "receipt", "receipt": e["receipt"], "cell_id": cell_id((ds, arm, n, seed)),
                                "manifest_sha256": self.manifest_sha,
                                "approval": {**self.approval, "request_sha256": M._json_digest(self.request)}}}
@@ -392,35 +372,21 @@ def stand_ins(monkeypatch):
     monkeypatch.setattr(M, "load_anchor_manifest", fake_manifest)
     monkeypatch.setattr(M, "recheck_generation",
                         lambda manifest, where: fake_manifest(manifest["path"], manifest["sha256"]))
-    monkeypatch.setattr(M, "APPROVED_REUSE_ADMISSION_SHA256", {})
 
 
-def approved(monkeypatch, admission):
-    """Approve a reuse admission the only way the reducer accepts: its digest listed in source."""
-    monkeypatch.setattr(M, "APPROVED_REUSE_ADMISSION_SHA256", {admission[1]: "ledger section 999 (test)"})
-    return admission
-
-
-def run_select(world, out, *, sources=None, reuse=None, arms="none,anchors", manifest=MANIFEST_SHA):
+def run_select(world, out, *, sources=None, arms="anchors", manifest=MANIFEST_SHA):
     path, digest = sources or world.sources()
     argv = ["select", "--sources", path, "--sources-sha256", digest, "--arms", arms, "--out", str(out),
             "--manifest", MANIFESTS.get(manifest, {"path": "/m"})["path"], "--manifest-sha256", manifest]
-    if reuse:
-        argv += ["--reuse-admission", reuse[0], "--reuse-admission-sha256", reuse[1]]
     return D.main(argv)
 
 
-SELECT = D.expected_coordinates("select", arms=M.ANCHOR_ARMS)
+SELECT = D.expected_coordinates("select", arms=M.ANCHOR_RUN_ARMS)
 
 
 @pytest.fixture
 def world(tmp_path, ledger):
     return World(tmp_path / "S", SELECT, ledger=ledger)
-
-
-@pytest.fixture
-def reuse_world(tmp_path, ledger):
-    return World(tmp_path / "S", SELECT, ledger=ledger, reuse_control=True)
 
 
 @pytest.fixture
@@ -437,7 +403,9 @@ def test_select_reduces_new_evidence_to_the_argmax_n_and_writes_once(world, tmp_
     out = tmp_path / "n.json"
     assert run_select(world, out) == 0
     result = json.loads(out.read_text())
-    assert result["n_selected"] == {ds: {"none": 9, "anchors": 9} for ds in M.ANCHOR_DATASETS}
+    assert result["n_selected"] == {ds: {"anchors": 9} for ds in M.ANCHOR_DATASETS}
+    assert result["arms"] == ["anchors"] and result["fixed_architecture"] == D.FIXED_ARCHITECTURE
+    assert len(result["evidence"]) == 16 and {k.split("|")[0] for k in result["evidence"]} == set(M.ANCHOR_DATASETS)
     assert {e["authority"]["kind"] for e in result["evidence"].values()} == {"receipt"}
     assert {e["authority"]["approval"]["scope"] for e in result["evidence"].values()} == {"stage-S-run"}
     assert run_select(world, out) == 1                                  # O_EXCL
@@ -452,12 +420,10 @@ def test_the_sealed_recipes_of_the_fixture_are_the_contracts(world):
         assert {k: binding["scientific_recipe"]["fields"][k] for k in want} == want
 
 
-def test_select_accepts_admitted_historical_control_reuse(reuse_world, tmp_path, monkeypatch):
-    out = tmp_path / "n.json"
-    assert run_select(reuse_world, out, reuse=approved(monkeypatch, reuse_world.reuse_admission())) == 0
-    kinds = {k: v["authority"]["kind"] for k, v in json.loads(out.read_text())["evidence"].items()}
-    assert {kinds[k] for k in kinds if "|none|" in k} == {"reuse"}
-    assert {kinds[k] for k in kinds if "|anchors|" in k} == {"receipt"}
+@pytest.mark.parametrize("arms", ["none,anchors", "none", "anchors,anchors"])
+def test_select_takes_the_anchor_arm_only(world, tmp_path, capsys, arms):
+    assert run_select(world, tmp_path / "o.json", arms=arms) == 1
+    assert "not the contract's ('anchors',)" in capsys.readouterr().err
 
 
 def test_ties_go_to_the_smallest_n():
@@ -517,7 +483,7 @@ def test_a_record_that_is_not_train_only_terminal_evidence_refuses(world, tmp_pa
 
 @pytest.mark.parametrize("value", ["nan", "inf", "1.5", "-0.1", ""])
 def test_a_terminal_score_that_is_not_a_proportion_refuses(world, tmp_path, capsys, value):
-    i = index_of(world, arm="none")
+    i = index_of(world, arm="anchors")
     run = Path(world.entries[i]["record"]).parent
     lines = (run / "log.csv").read_text().splitlines()
     lines[-1] = lines[-1].rsplit(",", 1)[0] + "," + value
@@ -777,7 +743,7 @@ def test_inconsistent_input_bindings_refuse_before_publication(world, tmp_path, 
 ])
 def test_a_request_approved_for_other_seals_refuses(tmp_path, ledger, capsys, request_seals):
     seals = {k: {"path": a["seal_path"], "sha256": a["seal_file_sha256"]}
-             for k, a in (("%s:stage1" % ds, AUTH[ds]) for ds in ("flickr25k", "nuswide", "mscoco"))}
+             for k, a in (("%s:stage1" % ds, AUTH[ds]) for ds in M.ANCHOR_DATASETS)}
     world = World(tmp_path / "S", SELECT, ledger=ledger,
                   request_changes={"input_seals": {**seals, **request_seals} if request_seals else {}})
     assert run_select(world, tmp_path / "o.json") == 1
@@ -798,55 +764,23 @@ def test_the_reducer_publishes_nothing_if_its_generation_drifts_before_publicati
     assert "drifted" in capsys.readouterr().err and not (tmp_path / "o.json").exists()
 
 
-# ---- reuse authority (audit 672.1, 683.1) -----------------------------------------------------------------
-def test_historical_records_without_a_reuse_admission_refuse(reuse_world, tmp_path, capsys):
-    assert run_select(reuse_world, tmp_path / "o.json") == 1
-    assert "needs a pinned reuse admission" in capsys.readouterr().err
-
-
-@pytest.mark.parametrize("claims", [{}, {"admitted_by": "ledger section 999 (test)"}, {"admitted_by": None}])
-def test_a_self_pinned_reuse_admission_is_not_approval(reuse_world, tmp_path, capsys, claims):
-    """Audit 678.2: the caller's digest plus a file naming its own approver admits nothing."""
-    assert run_select(reuse_world, tmp_path / "o.json", reuse=reuse_world.reuse_admission(**claims)) == 1
-    assert "no audit-approved reuse admission" in capsys.readouterr().err
-
-
-def test_a_reuse_admission_must_be_one(reuse_world, tmp_path, capsys, monkeypatch):
-    proposal = reuse_world.reuse_admission(artifact_kind="anchor_confirmation_reuse_proposal")
-    assert run_select(reuse_world, tmp_path / "o.json", reuse=approved(monkeypatch, proposal)) == 1
-    assert "not a reuse admission" in capsys.readouterr().err
-
-
-def test_a_coordinate_the_reuse_admission_does_not_list_refuses(reuse_world, tmp_path, capsys, monkeypatch):
-    reuse_world.reuse.pop()
-    assert run_select(reuse_world, tmp_path / "o.json",
-                      reuse=approved(monkeypatch, reuse_world.reuse_admission())) == 1
-    assert "does not list this record" in capsys.readouterr().err
-
-
-def test_a_reuse_admission_without_config_pins_refuses(reuse_world, tmp_path, capsys, monkeypatch):
-    for r in reuse_world.reuse:
-        r.pop("config_pt_sha256")
-    assert run_select(reuse_world, tmp_path / "o.json",
-                      reuse=approved(monkeypatch, reuse_world.reuse_admission())) == 1
-    assert "no config.pt pin" in capsys.readouterr().err
-
-
-def test_a_reused_config_off_its_approved_pin_refuses(reuse_world, tmp_path, capsys, monkeypatch,
-                                                      no_deserialisation):
-    run = Path(reuse_world.entries[index_of(reuse_world, arm="none")]["record"]).parent
-    (run / "config.pt").write_bytes((run / "config.pt").read_bytes() + b"\0")
-    assert run_select(reuse_world, tmp_path / "o.json",
-                      reuse=approved(monkeypatch, reuse_world.reuse_admission())) == 1
-    assert "config.pt is not the pinned bytes" in capsys.readouterr().err
-
-
-def test_reuse_is_never_inferred_from_a_missing_anchor_block(world, tmp_path, capsys):
+# ---- no historical reuse in contract v3 -------------------------------------------------------------------
+@pytest.mark.parametrize("source", ["reuse", None, "historical"])
+def test_a_record_whose_source_is_not_a_campaign_receipt_refuses(world, tmp_path, capsys, source):
     entries = [dict(e) for e in world.entries]
-    i = index_of(world, arm="none")
-    entries[i]["source"] = None
+    entries[0]["source"] = source
     assert run_select(world, tmp_path / "o.json", sources=world.sources(entries)) == 1
-    assert "must be 'receipt' or 'reuse'" in capsys.readouterr().err
+    assert "admits campaign receipts only" in capsys.readouterr().err
+
+
+def test_the_reducer_and_the_probe_take_no_reuse_admission(tmp_path, world):
+    path, digest = world.sources()
+    with pytest.raises(SystemExit):
+        D.main(["select", "--sources", path, "--sources-sha256", digest, "--out", str(tmp_path / "o"),
+                "--manifest", "m", "--manifest-sha256", MANIFEST_SHA, "--reuse-admission", "r"])
+    with pytest.raises(SystemExit):
+        P.main([*PROBE_CLI, str(tmp_path / "p"), "--approval-section", "900", "--reuse-admission", "r"])
+    assert not hasattr(D, "load_reuse") and not hasattr(M, "APPROVED_REUSE_ADMISSION_SHA256")
 
 
 # ---- one generation for the whole chain (audit 671.2, 678.2) ------------------------------------------------
@@ -933,7 +867,7 @@ def decide_world(tmp_path, ledger, *, d_manifest=MANIFEST_SHA, d_selection=None,
     assert run_select(s_world, n_path) == 0
     frozen_sha = sha(n_path.read_bytes())
     frozen = json.loads(n_path.read_text())["n_selected"]
-    coords = D.expected_coordinates("decide", arms=M.ANCHOR_ARMS, frozen=frozen)
+    coords = D.expected_coordinates("decide", arms=M.ANCHOR_RUN_ARMS, frozen=frozen)
     d_world = World(tmp_path / "D", [c for c in coords if c[3] != M.SEED], ledger=ledger,
                     manifest_sha=d_manifest, stage="decide", selection=d_selection or frozen_sha)
     evidence = Evidence(tmp_path, (s_world, d_world), coords)
@@ -954,18 +888,22 @@ def run_decide(evidence, frozen, frozen_sha, out, sources=None, manifest=MANIFES
                    "--manifest", MANIFESTS[manifest]["path"], "--manifest-sha256", manifest])
 
 
-def test_decide_replays_selection_and_applies_the_frozen_rule(tmp_path, ledger, no_deserialisation):
+def test_decide_replays_selection_and_summarises_the_fixed_anchor_model(tmp_path, ledger, no_deserialisation):
     evidence, frozen, frozen_sha = decide_world(tmp_path, ledger)
-    assert {e["seed"] for e in evidence.entries} == {42, 43, 44}
+    assert {e["seed"] for e in evidence.entries} == {42, 43, 44} and len(evidence.entries) == 12
     out = tmp_path / "decision.json"
     assert run_decide(evidence, frozen, frozen_sha, out) == 0
     result = json.loads(out.read_text())
     assert result["generation"]["anchor_manifest_sha256"] == MANIFEST_SHA
-    for ds, d in result["decisions"].items():
-        assert d["adopted_axis_center"] == "anchors" and d["frozen_N"] == 9
-        assert d["retrieval"]["passes"] and d["code_to_axis"]["passes"]
-        assert d["refit"] == {"stage_R": "scratch refit", "arm": "anchors", "N": 9}
-        assert d["code_to_axis"]["hits_total"]["anchors"] == [[820, 2048]] * 3
+    assert result["fixed_architecture"] == D.FIXED_ARCHITECTURE and set(result["summary"]) == set(M.ANCHOR_DATASETS)
+    for ds, d in result["summary"].items():
+        assert d["axis_center"] == "anchors" and d["frozen_N"] == 9
+        assert d["retrieval"]["per_seed"] == [score_of((ds, "anchors", 9, s)) for s in (42, 43, 44)]
+        assert d["code_to_axis"]["hits_total"] == [[800, 2000]] * 3
+        assert "passes" not in d["retrieval"] and "passes" not in d["code_to_axis"]   # no rule
+    assert result["stage_R_membership"] == [
+        {"dataset": ds, "axis_center": "anchors", "N": 9, "seed": s, "refit": "scratch, full designated train split"}
+        for ds in M.ANCHOR_DATASETS for s in (42, 43, 44)]
 
 
 def test_a_frozen_n_record_that_its_evidence_does_not_reproduce_refuses(tmp_path, ledger, capsys):
@@ -981,9 +919,21 @@ def test_a_self_pinned_minimal_n_record_refuses(tmp_path, ledger, capsys):
     evidence, _, _ = decide_world(tmp_path, ledger)
     fake = tmp_path / "fake.json"
     fake.write_text(json.dumps({"artifact_kind": D.N_SELECTION_KIND, "version": M.ANCHOR_CONFIRM_VERSION,
-                                "n_selected": {ds: {"none": 1, "anchors": 1} for ds in M.ANCHOR_DATASETS}}))
+                                "n_selected": {ds: {"anchors": 1} for ds in M.ANCHOR_DATASETS}}))
     assert run_decide(evidence, str(fake), sha(fake.read_bytes()), tmp_path / "d.json") == 1
-    assert "not a anchor-confirm-reducer/2 N record" in capsys.readouterr().err
+    assert "not a anchor-confirm-reducer/3 N record" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("changes", [{"arms": ["none", "anchors"]},                  # the v2 paired design
+                                     {"fixed_architecture": None},
+                                     {"fixed_architecture.datasets": ["flickr25k", "nuswide", "mscoco"]}])
+def test_an_n_record_that_is_not_of_the_fixed_four_dataset_model_refuses(tmp_path, ledger, capsys, changes):
+    evidence, frozen, _ = decide_world(tmp_path, ledger)
+    copy = tmp_path / "other.json"
+    copy.write_bytes(Path(frozen).read_bytes())
+    digest = edit_json(copy, **changes)
+    assert run_decide(evidence, str(copy), digest, tmp_path / "d.json") == 1
+    assert "not a record of the fixed four-dataset anchor model" in capsys.readouterr().err
 
 
 def test_probes_approved_for_other_records_refuse(tmp_path, ledger, capsys):
@@ -1008,19 +958,24 @@ def edit_probe(evidence, index, **changes):
 
 
 @pytest.mark.parametrize("changes,reason", [
-    ({"schema": "anchor-confirm-code-axis/1"}, "not a anchor-confirm-code-axis/2 probe"),
+    ({"schema": "anchor-confirm-code-axis/2"}, "not a anchor-confirm-code-axis/3 probe"),       # a 512-row v2 probe
     ({"producer_sha256": "0" * 64}, "produced by another probe source"),
     ({"checkpoint_sha256": "f" * 64}, "measured another record"),
     ({"config_pt_sha256": "f" * 64}, "measured another record"),
     ({"split": {"val_split_ratio": 0.2, "val_split_seed": 42}}, "train-only validation rows"),
     ({"routing": "caption_routed"}, "train-only validation rows"),
-    ({"n_images": 511, "total": 2044}, "512 images"),
-    ({"total": 2047}, "512 images"),
-    ({"n_images": 511, "total": 2044, "hits": 680, "code_picks_own_axis": 680 / 2044}, "512 images"),
-    ({"total": 2047, "hits": 680, "code_picks_own_axis": 680 / 2047}, "512 images"),   # consistent otherwise
-    ({"hits": 2049}, "512 images"),
+    ({"n_images": 499, "total": 1996}, "500 images"),
+    ({"total": 1999}, "500 images"),
+    ({"n_images": 499, "total": 1996, "hits": 680, "code_picks_own_axis": 680 / 1996}, "500 images"),
+    ({"total": 1999, "hits": 680, "code_picks_own_axis": 680 / 1999}, "500 images"),   # consistent otherwise
+    ({"n_images": 512, "total": 2048, "hits": 680, "code_picks_own_axis": 680 / 2048}, "500 images"),  # v2 count
+    ({"hits": 2001}, "500 images"),
+    ({"population": None}, "measured another population"),
+    ({"population": {**D.PROBE_POPULATION, "n_images": 512, "decisions": 2048}}, "measured another population"),
+    ({"population": {**D.PROBE_POPULATION, "rows": "a random 500 of the validation split"}},
+     "measured another population"),
     ({"code_picks_own_axis": 0.5}, "not hits/total"),
-    ({"hits": 820.0}, "not an integer"),
+    ({"hits": 800.0}, "not an integer"),
     ({"row_ids_sha256": None}, "no row-identity digest"),
     # audit 680.3: each reproduced mutation, refused for its own reason
     ({"row_ids_sha256": "z" * 64}, "no row-identity digest"),
@@ -1029,9 +984,9 @@ def edit_probe(evidence, index, **changes):
     ({"caption_target": None}, "caption target is not the record's admitted input"),
     ({"caption_target": {**D.CAPTION_TARGET, "input_seal_sha256": "e" * 64}}, "caption target"),
     ({"ties_counted_as_misses": None}, "not an integer"),
-    ({"ties_counted_as_misses": 2049}, "ties do not fit"),
+    ({"ties_counted_as_misses": 2001}, "ties do not fit"),
     ({"authority": None}, "not measured under this record's execution authority"),
-    ({"hits": 2048, "ties_counted_as_misses": 0, "code_picks_own_axis": True}, "not hits/total"),
+    ({"hits": 2000, "ties_counted_as_misses": 0, "code_picks_own_axis": True}, "not hits/total"),
     ({"manifest_sha256": OTHER_SHA}, "produced under another generation"),
     ({"approval": None}, "names no probe approval"),
     ({"approval": {"section": 999999, "scope": "probe", "line": "x"}}, "sections numbered 999999"),
@@ -1072,33 +1027,30 @@ def test_probes_must_share_one_row_population_per_dataset(tmp_path, ledger, caps
     assert "one shared row population" in capsys.readouterr().err
 
 
-def test_equal_code_to_axis_keeps_the_incumbent_and_says_whether_the_old_refit_can_stand(tmp_path, ledger):
-    evidence, frozen, frozen_sha = decide_world(tmp_path, ledger)
-    for i in range(len(evidence.entries)):
-        edit_probe(evidence, i, hits=680, code_picks_own_axis=680 / 2048)
-    out = tmp_path / "decision.json"
-    assert run_decide(evidence, frozen, frozen_sha, out) == 0
-    for ds, d in json.loads(out.read_text())["decisions"].items():
-        assert d["adopted_axis_center"] == "none" and not d["code_to_axis"]["passes"]
-        # the control won at N=9 in this world, not the approved N, so the old refit cannot stand
-        assert d["refit"]["stage_R"] == "scratch refit" and "cannot stand in" in d["refit"]["note"]
-
-
-def test_a_kept_control_at_the_approved_n_names_the_old_refit_only_as_conditional(tmp_path, ledger,
-                                                                                 monkeypatch):
-    """Audit 668.1: equal N makes the old refit a candidate, never an automatic substitute."""
-    approved_n = {ds: v["N"] for ds, v in INCUMBENT.items()}
+def test_poor_scores_are_reported_and_never_restore_the_control(tmp_path, ledger, monkeypatch):
+    """Audit 709.1 item 2: negative scores with anchors still fixed, all four datasets present."""
     monkeypatch.setattr(sys.modules[__name__], "score_of",
-                        lambda c: 0.8 if c[2] == approved_n[c[0]] else 0.5)
+                        lambda c: 0.05 if c[2] == 4 else 0.01)                 # N=4 wins, all poor
     evidence, frozen, frozen_sha = decide_world(tmp_path, ledger)
     for i in range(len(evidence.entries)):
-        edit_probe(evidence, i, hits=680, code_picks_own_axis=680 / 2048)
+        edit_probe(evidence, i, hits=0, ties_counted_as_misses=0, code_picks_own_axis=0.0)
     out = tmp_path / "decision.json"
     assert run_decide(evidence, frozen, frozen_sha, out) == 0
-    for ds, d in json.loads(out.read_text())["decisions"].items():
-        assert d["adopted_axis_center"] == "none" and d["frozen_N"] == approved_n[ds]
-        assert d["refit"]["stage_R"] == "old refit only if admitted, otherwise scratch refit"
-        assert d["refit"]["old_refit"]["N"] == approved_n[ds]
+    result = json.loads(out.read_text())
+    assert set(result["summary"]) == set(M.ANCHOR_DATASETS)
+    for ds, d in result["summary"].items():
+        assert d["axis_center"] == "anchors" and d["frozen_N"] == 4
+        assert d["code_to_axis"]["mean"] == 0.0 and d["retrieval"]["mean"] < 0.06
+    assert {r["axis_center"] for r in result["stage_R_membership"]} == {"anchors"}
+    assert len(result["stage_R_membership"]) == 12
+    assert "none" not in json.dumps(result["summary"])
+
+
+def test_the_stage_d_summary_needs_all_four_datasets(tmp_path, ledger, capsys):
+    evidence, frozen, frozen_sha = decide_world(tmp_path, ledger)
+    kept = [e for e in evidence.entries if e["dataset"] != "cifar10"]
+    assert run_decide(evidence, frozen, frozen_sha, tmp_path / "d.json", sources=evidence.sources(kept)) == 1
+    assert "membership differs from the contract" in capsys.readouterr().err
 
 
 def test_decide_refuses_stage_s_from_another_generation(tmp_path, ledger, capsys):
@@ -1111,17 +1063,6 @@ def test_decide_refuses_stage_d_records_from_another_generation(tmp_path, ledger
     evidence, frozen, frozen_sha = decide_world(tmp_path, ledger, d_manifest=OTHER_SHA)
     assert run_decide(evidence, frozen, frozen_sha, tmp_path / "d.json") == 1
     assert "approves stage-D-run for" in capsys.readouterr().err
-
-
-def test_retrieval_exactly_at_the_margin_passes(tmp_path, ledger, monkeypatch):
-    """mean(anchors) == mean(none) - sd(none): every decide cell at 0.72 gives a zero control SD
-    and equal means, so (i) passes (contract section 7.3: equality passes)."""
-    monkeypatch.setattr(sys.modules[__name__], "score_of", lambda c: 0.72 if c[2] == 9 else 0.5)
-    evidence, frozen, frozen_sha = decide_world(tmp_path, ledger)
-    out = tmp_path / "decision.json"
-    assert run_decide(evidence, frozen, frozen_sha, out) == 0
-    for d in json.loads(out.read_text())["decisions"].values():
-        assert d["retrieval"]["passes"] and d["retrieval"]["control_sample_sd"] == 0.0
 
 
 # ---- the stage-D plan is metadata-only (audit 681) ------------------------------------------------------
@@ -1145,7 +1086,7 @@ def test_the_stage_d_launcher_replays_stage_s_without_deserialising(tmp_path, le
         monkeypatch.setattr(M, name, lambda *a, _n=name, **k: calls.append(_n) or 0)
     monkeypatch.setattr(M, "anchor_scientific_recipe", rendered_payload)
     monkeypatch.setattr(sys, "argv", ["phase3_selection_matrix.py", "--anchor-confirm", "decide",
-                                      "--namespace", "ancT", "--anchor-arms", "none,anchors", *mode,
+                                      "--namespace", "ancT", "--anchor-arms", "anchors", *mode,
                                       "--anchor-selection", str(n_path),
                                       "--anchor-selection-sha256", sha(n_path.read_bytes()),
                                       "--anchor-manifest", MANIFESTS[MANIFEST_SHA]["path"],
@@ -1153,7 +1094,7 @@ def test_the_stage_d_launcher_replays_stage_s_without_deserialising(tmp_path, le
     assert M.main() == rc
     assert calls == []
     if rc == 0:
-        assert "stage decide, 12 cells" in capsys.readouterr().out
+        assert "stage decide, 8 cells" in capsys.readouterr().out
 
 
 # ---- the probe's endpoint arithmetic (audit 673.2) --------------------------------------------------
@@ -1196,8 +1137,53 @@ def test_invalid_features_refuse_instead_of_scoring(case, reason):
         P.strict_own_axis_hits(q, t)
 
 
+def test_500_images_make_2000_local_slot_decisions():
+    t = features(b=500)
+    got = P.strict_own_axis_hits(t.clone(), t)
+    assert got["total"] == 2000 == D.PROBE_POPULATION["decisions"] == 500 * D.PROBE_LOCAL_SLOTS
+
+
+# ---- the probe population: the first 500 validation rows (audit 709.3) -----------------------------
+#: designated-train rows and label layout per dataset (CIFAR-10: integer targets). The stage-1 seals
+#: record held-out validation counts of 500 / 500 / 1050 / 1000 (split_identity.counts).
+SPLIT_SHAPES = {"cifar10": (5000, None), "flickr25k": (5000, 24), "nuswide": (10500, 21), "mscoco": (10000, 80)}
+SEALED_VALIDATION = {"cifar10": 500, "flickr25k": 500, "nuswide": 1050, "mscoco": 1000}
+CONTRACT_SPLIT = SimpleNamespace(**D.SPLIT)
+
+
+def synthetic_trainset(rows, classes):
+    """Only the labels the trainer's split carve reads; no dataset, cache or model."""
+    if classes is None:
+        return SimpleNamespace(targets=[i % 10 for i in range(rows)])
+    labels = (torch.rand(rows, classes, generator=torch.Generator().manual_seed(rows)) < 0.2).int()
+    labels[:, :2] = 1                                       # multi-hot rows: the unstratified carve
+    return SimpleNamespace(img_labels=labels.numpy())
+
+
+@pytest.mark.parametrize("dataset", M.ANCHOR_DATASETS)
+def test_the_probe_takes_the_first_500_rows_of_each_datasets_validation_split(dataset):
+    trainset = synthetic_trainset(*SPLIT_SHAPES[dataset])
+    opt, val = P.validation_split(trainset, CONTRACT_SPLIT)      # the trainer's own carve
+    assert len(val) == SEALED_VALIDATION[dataset]
+    rows = P.held_out_rows(trainset, CONTRACT_SPLIT)
+    assert rows == sorted(int(i) for i in val)[:500] and len(rows) == D.PROBE_POPULATION["n_images"]
+    assert not set(rows) & {int(i) for i in opt}
+
+
+def test_a_validation_split_short_of_500_rows_refuses():
+    trainset = synthetic_trainset(4990, 24)                  # 499 validation rows
+    with pytest.raises(D.NotReducible, match="has 499 rows, fewer than the contract's 500"):
+        P.held_out_rows(trainset, CONTRACT_SPLIT)
+
+
+def test_the_probe_split_must_be_the_contracts():
+    trainset = synthetic_trainset(5000, 24)
+    with pytest.raises(D.NotReducible, match="not the contract's split"):
+        P.held_out_rows(trainset, SimpleNamespace(val_split_ratio=0.2, val_split_seed=42))
+
+
 # ---- the probe admits before it deserialises (audit 673.1, 679, 681) ---------------------------------------
-SELECTION_N4 = {"n_selected": {ds: {"none": 4, "anchors": 4} for ds in M.ANCHOR_DATASETS},
+SELECTION_N4 = {"n_selected": {ds: {"anchors": 4} for ds in M.ANCHOR_DATASETS},
                 "record": {"path": "/n.json", "sha256": "f" * 64}, "anchor_manifest_sha256": MANIFEST_SHA}
 PROBE_APPROVAL = {"section": 1, "scope": "probe", "line": "verified by main", "request_sha256": "b" * 64}
 
@@ -1284,7 +1270,7 @@ def test_matching_inputs_let_the_probe_reach_model_construction(world, monkeypat
     pass_config_load(monkeypatch)
     monkeypatch.setattr(train_siglip2, "_phase3_input_authority_from_args", lambda args: dict(AUTH["flickr25k"]))
     path, digest = world.sources()
-    e = world.entries[index_of(world, arm="anchors")]
+    e = next(e for e in world.entries if e["dataset"] == "flickr25k")      # the pinned authority's dataset
     with pytest.raises(pytest.fail.Exception, match="a model was constructed"):
         run_probe(path, digest, (e["dataset"], e["arm"], e["N"], e["seed"]))
 
@@ -1301,19 +1287,14 @@ def test_the_probe_rechecks_its_generation_before_its_first_load(world, monkeypa
 
 
 def test_the_probe_refuses_a_coordinate_its_sources_do_not_list(world, no_deserialisation):
-    path, digest = world.sources([e for e in world.entries if e["arm"] == "none"])
+    path, digest = world.sources([e for e in world.entries if e["dataset"] != "flickr25k"])
     with pytest.raises(D.NotReducible, match="lists"):
         run_probe(path, digest, ("flickr25k", "anchors", 4, 42))
 
 
-PROBE_CLI = ["--sources", "x", "--sources-sha256", "0" * 64, "--coordinate", "flickr25k:none:4:42",
+PROBE_CLI = ["--sources", "x", "--sources-sha256", "0" * 64, "--coordinate", "flickr25k:anchors:4:42",
              "--manifest", "m", "--manifest-sha256", MANIFEST_SHA, "--selection", "n.json",
              "--selection-sha256", "f" * 64, "--out"]
-
-
-def test_probe_cli_needs_both_reuse_arguments(tmp_path, no_deserialisation):
-    assert P.main([*PROBE_CLI, str(tmp_path / "o"), "--approval-section", "900",
-                   "--reuse-admission", "r"]) == 1
 
 
 @pytest.mark.parametrize("section,reason", [(999, "has 0 sections numbered 999"),
@@ -1334,7 +1315,7 @@ def probe_cli_world(tmp_path, ledger):
     return frozen, frozen_sha, path, digest, records
 
 
-def probe_cli(frozen, frozen_sha, path, digest, out, section, coordinate="flickr25k:none:9:43"):
+def probe_cli(frozen, frozen_sha, path, digest, out, section, coordinate="flickr25k:anchors:9:43"):
     return P.main(["--sources", path, "--sources-sha256", digest, "--coordinate", coordinate,
                    "--manifest", MANIFESTS[MANIFEST_SHA]["path"], "--manifest-sha256", MANIFEST_SHA,
                    "--selection", frozen, "--selection-sha256", frozen_sha, "--out", str(out),
