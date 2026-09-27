@@ -25,6 +25,7 @@ sys.path.insert(0, str(REPO))
 
 import scripts.phase3_selection_matrix as M                 # noqa: E402
 from scripts.phase3_selection_matrix import CellRefused     # noqa: E402
+REAL_VERIFY_CAMPAIGN_INPUT_SEALS = M.verify_campaign_input_seals
 import dna_utils.scientific_recipe as R                     # noqa: E402
 
 INCUMBENT = {"cifar10": {"N": 19, "topp": ("0.3", "0.7"), "joint": "0.02"},
@@ -236,7 +237,8 @@ def manifest(tmp_path, **changes):
     files = {rel: hashlib.sha256((REPO / rel).read_bytes()).hexdigest() for rel in M.anchor_generation_closure()}
     body = {"artifact_kind": M.ANCHOR_MANIFEST_KIND, "version": M.ANCHOR_CONFIRM_VERSION,
             "historical": {"approved_p3_refit_aggregate": {"sha256": M.APPROVED_P3_REFIT_AGGREGATE_SHA256},
-                           "approved_selected_n": {"sha256": M.APPROVED_SELECTED_N_SHA256}},
+                           "approved_selected_n": {"sha256": M.APPROVED_SELECTED_N_SHA256},
+                           "historical_input_verifier": M.historical_input_verifier_pins()},
             "new_generation": {"commit": "c" * 40, "branch": "arch-exp-2026-09-anchor-confirm", "clean": True,
                                "files_sha256": files, "dataset_scripts_sha256": dict(M.DATASET_SCRIPT_SHA256),
                                "environment": {"python": ".".join(map(str, sys.version_info[:3])),
@@ -270,7 +272,8 @@ def test_the_closure_covers_wrappers_input_admission_measurement_tests_and_contr
     assert set(M.DATASET_SCRIPT_SHA256) <= closure and M.ANCHOR_CONTRACT_PATH in closure
     assert {"scripts/seal_phase3_inputs.py", "dna_utils/run_identity.py", "val_split.py",
             "scripts/anchor_confirm_code_axis.py", "scripts/anchor_confirm_decision.py",
-            "tests/test_anchor_confirm_reducer.py"} <= closure
+            "tests/test_anchor_confirm_reducer.py", "tests/test_anchor_confirm_input_bridge.py",
+            "tests/test_seal_phase3_inputs.py"} <= closure
 
 
 @pytest.mark.parametrize("changes,reason", [
@@ -282,6 +285,11 @@ def test_the_closure_covers_wrappers_input_admission_measurement_tests_and_contr
      "does not list the generation closure"),                    # a wrapper cannot be left out
     ({"new_generation::dataset_scripts_sha256": {}}, "dataset-script pins"),
     ({"historical::approved_p3_refit_aggregate::sha256": "0" * 64}, "approved-aggregate pin"),
+    ({"historical::historical_input_verifier::verifier::sha256": "0" * 64},
+     "historical input-verifier pins"),                          # audit 715
+    ({"historical::historical_input_verifier::root": "/data/yschoi/elsewhere"},
+     "historical input-verifier pins"),
+    ({"historical::historical_input_verifier": DELETE}, "historical input-verifier pins"),
     ({"historical::approved_selected_n::sha256": "0" * 64}, "selected-N pin"),
     ({"contract::sha256": "0" * 64}, "not the designated"),
     ({"contract::path": "config.py"}, "not the designated"),   # a listed file substituted as contract
@@ -792,6 +800,46 @@ def test_approved_seals_reach_the_lease(tmp_path, monkeypatch, boundaries, capsy
     assert boundaries == ["verify_campaign_input_seals", "_with_campaign_gpu_leases"]
 
 
+def test_the_anchor_admission_uses_the_historical_verifier_and_records_it(tmp_path, monkeypatch,
+                                                                          boundaries, capsys):
+    """Audit 715: the full admission asks for the historical verifier, and what it did reaches the
+    campaign's authorities (the plan snapshot and receipt)."""
+    fake_authorities(tmp_path, monkeypatch)
+    monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    seal_args, admitted = seal_files(tmp_path)
+    seen, captured = {}, {}
+
+    def admit(*a, **k):
+        seen.update(k)
+        k["evidence"]["flickr25k:stage1"] = {"report": "verified"}
+        return dict(admitted)
+    monkeypatch.setattr(M, "verify_campaign_input_seals", admit)
+    monkeypatch.setattr(M, "_with_campaign_gpu_leases", lambda args, callback: callback())
+    monkeypatch.setattr(M, "_run_sweep", lambda *a, **k: captured.update(k) or 0)
+    argv = [*BASE, *RUNARGS, *seal_args, *with_manifest(tmp_path)]
+    approval = approve_request(tmp_path, monkeypatch, capsys, argv)
+    assert run_main(monkeypatch, *argv, *approval) == 0
+    assert seen.get("full") is True and seen.get("historical") is True and seen.get("expected") is None
+    assert captured["authorities"]["historical_input_admission"] == {"flickr25k:stage1": {"report": "verified"}}
+
+
+def test_a_historical_verification_refusal_stops_before_the_lease(tmp_path, monkeypatch, boundaries, capsys):
+    from scripts.seal_phase3_inputs import SealError
+    fake_authorities(tmp_path, monkeypatch)
+    monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    seal_args, _ = seal_files(tmp_path)
+
+    def refuse(path, **k):
+        raise SealError("the historical verifier refused (rc 2): drifted")
+    monkeypatch.setattr(M, "verify_campaign_input_seals", REAL_VERIFY_CAMPAIGN_INPUT_SEALS)
+    monkeypatch.setattr(M, "verify_seal_historically", refuse)
+    argv = [*BASE, *RUNARGS, *seal_args, *with_manifest(tmp_path)]
+    approval = approve_request(tmp_path, monkeypatch, capsys, argv)
+    assert run_main(monkeypatch, *argv, *approval) == 2
+    assert "refused: the historical verifier refused (rc 2)" in capsys.readouterr().err
+    assert boundaries == []
+
+
 def test_a_seal_changed_after_its_approval_refuses_before_the_lease(tmp_path, monkeypatch, boundaries, capsys):
     """The seal file changes after the approval check and before admission (audit 694.2's case)."""
     fake_authorities(tmp_path, monkeypatch)
@@ -845,7 +893,8 @@ def copy_of_the_tree(tmp_path, monkeypatch):
     files = {rel: hashlib.sha256((root / rel).read_bytes()).hexdigest() for rel in M.anchor_generation_closure()}
     body = {"artifact_kind": M.ANCHOR_MANIFEST_KIND, "version": M.ANCHOR_CONFIRM_VERSION,
             "historical": {"approved_p3_refit_aggregate": {"sha256": M.APPROVED_P3_REFIT_AGGREGATE_SHA256},
-                           "approved_selected_n": {"sha256": M.APPROVED_SELECTED_N_SHA256}},
+                           "approved_selected_n": {"sha256": M.APPROVED_SELECTED_N_SHA256},
+                           "historical_input_verifier": M.historical_input_verifier_pins()},
             "new_generation": {"commit": "c" * 40, "branch": "b", "clean": True, "files_sha256": files,
                                "dataset_scripts_sha256": dict(M.DATASET_SCRIPT_SHA256),
                                "environment": {"python": ".".join(map(str, sys.version_info[:3])),

@@ -1,13 +1,18 @@
-# Anchor Confirmation — Contract v3 (generation v5): the fixed four-dataset anchor model
+# Anchor Confirmation — Contract v3 (generation v6): the fixed four-dataset anchor model
 
 **Status: NON-EXECUTABLE until the audit approves this exact generation for a named stage.**
-Prepared under audit §709–§711 (PREPARATION_AUTHORIZED; EXECUTION_NOT_AUTHORIZED;
+Prepared under audit §709–§716 (PREPARATION_AUTHORIZED; EXECUTION_NOT_AUTHORIZED;
 FINAL_RECIPE_NOT_APPROVED). §7.6 carries the §711.3 correction: the lambda checks are required.
+Generation v6 changes only the full input check (§5, audit §715–§716) and the namespaces (§14); the
+scientific design is generation v5's.
 - It supersedes contract v2 (`docs/ANCHOR_CONFIRMATION_CONTRACT_v2.md`, `26ebe2c1…`), which stays
   unchanged as history, together with its three-dataset scope, its CIFAR-incumbent exception and its
   conditional adoption rule.
-- The generation is identified by `artifacts/anchor_confirmation/authority_manifest_v5.json`. That
+- The generation is identified by `artifacts/anchor_confirmation/authority_manifest_v6.json`. That
   manifest pins this file, so its digest is named in the handoff, not here.
+- Generation v5 (manifest `84e94e2f…`, this file at `bd99ab0d…`) was approved for stage S (§713).
+  Its one attempt (namespace `ancS5`, run `20260927T143532Z-4ada8a0d`) was refused at the full input
+  check before any lease and trained nothing (§715). It stays recorded as a failed attempt.
 - Gates are stage-specific (§7.7). Every executed operation needs its own approval line in the audit
   ledger (§11.3); the code refuses until that line exists.
 
@@ -106,9 +111,34 @@ All four datasets are in scope. None is added or dropped after any score of this
   a separate, versioned launcher mode.
 - Version boundary (audit §678): the approved aggregate and selected-N authority are consumed by the
   full digests pinned in source, never by replaying the historical campaigns.
-- The generation manifest v5 lists every source, test and contract file of the closure, the pinned
-  wrapper scripts, the historical pins and the environment. The launcher's `--smoke`/`--run`, the
-  reducer and the probe refuse unless the tree matches the manifest they are given.
+- The generation manifest v6 lists every source, test and contract file of the closure, the pinned
+  wrapper scripts, the historical pins (now including the historical input-verifier pins) and the
+  environment. The launcher's `--smoke`/`--run`, the reducer and the probe refuse unless the tree
+  matches the manifest they are given.
+- **Historical input verification (generation v6; audit §715–§716).** The four stage-1 seals were
+  built in the historical tree and record six of its sources by path, stat and content: the five
+  caption-foil producers and `val_split.py`. The seal module's full check rebuilds a seal with its
+  own tree's paths, so it passes only in that tree. For a full admission the launcher therefore
+  (`verify_seal_historically`):
+  1. checks the historical verifier `/data/yschoi/gdna_p3exec/scripts/seal_phase3_inputs.py`
+     against its pinned digest `12233f8e…` (byte-identical to this tree's copy);
+  2. checks the seal JSON: its aggregate, and its six source records at the pinned root with the
+     pinned content digests (`HISTORICAL_PRODUCER_SOURCES`);
+  3. measures the six historical files now with the seal's own record builder and requires them to
+     be exactly the sealed records (content and stat identity), so `val_split.py` is authenticated
+     before the historical verifier executes it; a changed source refuses with no child started;
+  4. requires this tree's own `val_split.py` (the trainer's split carve) to have the sealed content;
+  5. runs `python -I -B <historical verifier> verify --seal PATH` in the historical tree, as an
+     isolated child that dies with the launcher: the unchanged legacy full rehash, row checks,
+     whitening re-derivation and exact comparison;
+  6. after the child, requires the verifier bytes, the seal bytes and the six source observations to
+     be unchanged, exit code 0, and exactly the line `verified PATH AGGREGATE`;
+  7. derives the input authority itself from the seal bytes it hashed in step 2.
+
+  The root and all pins are constants of the pinned launcher, never caller input. Stats-only
+  rechecks after admission (after the lease, around every cell, in the trainer) and every
+  non-anchor check are unchanged. The four seals, their digests, the historical tree and its
+  verifier are not edited.
 
 ## 6. Split, schedule and protocol values (stages S and D)
 
@@ -250,7 +280,7 @@ before S is admitted.
 |---|---|---|
 | S smoke (optional) | this generation (manifest match), the admission, input seals | `scope=stage-S-smoke manifest=… request=…` |
 | S | this generation, the plan, this contract, the protocol values, the four input seals, the environment | `scope=stage-S-run manifest=… request=…` |
-| D | the stage-S frozen N record, replayed from the approved stage-S receipts of **the same generation** (JSON, logs and pinned bytes; nothing deserialised); the stage-D plan derived from it | `scope=stage-D-run manifest=… selection=<frozen N sha256> request=…` (smoke: `stage-D-smoke`) |
+| D | the stage-S frozen N record, replayed from the approved stage-S receipts of **the same generation** (JSON receipts, records and logs first, then the `config.pt` bytes hashed against their pins; nothing deserialised); the stage-D plan derived from it | `scope=stage-D-run manifest=… selection=<frozen N sha256> request=…` (smoke: `stage-D-smoke`) |
 | probes | the approved stage-S/D receipts, the frozen N record and the stage-D records | `scope=probe manifest=… selection=<frozen N sha256> request=…` |
 | L (TODO 13–15) | the stage-D summary of this generation; its own preregistered proposal | separate, later |
 | R, T | the final recipe freeze (§7.6 step 5) | separate, later |
@@ -348,11 +378,15 @@ superiority test is run or claimed.**
 - **Campaign approval.** The reducer re-verifies the exact approval line the campaign's plan
   snapshot names, in the ledger now: `stage-S-run` for seed 42 and `stage-D-run` naming the frozen N
   record for seeds 43/44.
-- **No deserialisation.** The reducer never deserialises a binary. `config.pt` is checked by byte
-  identity against the pin of the record's completed anchor check.
-- **Inputs** (audit §694, §696). The campaign's admitted seals must be exactly the approved
-  request's seal pins. Each record's input authority must be the admitted seal of its dataset, and
-  its launch and cell bindings must carry that seal's identities.
+- **No deserialisation, but a binary read** (audit §715.3). The reducer first admits the JSON
+  receipts, records and `log.csv` rows; it then reads and hashes each record's `config.pt` bytes
+  against the pin of its completed anchor check, without deserialising them. It is therefore not a
+  JSON/log-only step.
+- **Inputs** (audit §694, §696, §715). The campaign's admitted seals must be exactly the approved
+  request's seal pins, fully verified by the historical verifier (§5). Each record's input authority
+  must be the admitted seal of its dataset, and its launch and cell bindings must carry that seal's
+  identities. The plan snapshot records what the historical verification did
+  (`authorities.historical_input_admission`).
 
 ### 11.3 Approval authority
 
@@ -402,14 +436,16 @@ epoch) and the v2 contract's figures: CIFAR-10 0.56, Flickr25K 0.40, NUS-WIDE 1.
 | R (12 cells, full train) | 12 | 60 – 480 | ≈ 0.7 – 5.6 (+ about 11 % for the full train); costed with its proposal |
 
 - The ceiling for S + D + probes stays **12.5 GPU-hours**; the ledger charges are defined in
-  addendum v3.
+  addendum v4. The failed generation-v5 attempt charged 19.09 s (16 planned cells × its longest
+  1.19-s observation window, no device time); that charge stays in the same ledger.
 - Stage L (§7.6 step 3) and any N reselection it causes have their own budget in their own
   proposal. Planning bound for L: at most 5 alternates × 4 datasets = 20 seed-42 cells at N_S(d),
   about 1.2 GPU-h if every N_S is 4 and 9.3 GPU-h if every N_S is 39. They never draw on the S/D
   allowance.
 - The launcher runs one dataset stream per GPU (**4 GPUs**). The slowest stage-S stream (NUS-WIDE)
-  takes about 81 min after full input verification of the four stage-1 seals (about 532 GB; the
-  historical four-dataset figure is 82 min, an estimate).
+  takes about 81 min after full input verification of the four stage-1 seals (about 532 GB). The
+  v5 attempt read about 94 MB/s over four minutes, which puts the full check near 95 min (an
+  estimate, not a bound); S then fits the 4-h wall limit with about an hour to spare.
 - Storage: 16 S cells need 22 GiB free at the first dispatch, and 8 D cells need 16 GiB. The result
   root is on the root filesystem (§14).
 
@@ -425,14 +461,15 @@ epoch) and the v2 contract's figures: CIFAR-10 0.56, Flickr25K 0.40, NUS-WIDE 1.
   - `--anchor-arms` must be `anchors`, and `--anchor-cells` refuses.
   - The arm plan must cover all four datasets.
   - The request's GPU count must equal its dataset streams.
-  - The admission renders both arms at every coordinate. Everything else is as in v2.
+  - The admission renders both arms at every coordinate.
+  - A full input admission runs the historical verifier (§5). Everything else is as in v2.
 - **Reducer** (`scripts/anchor_confirm_decision.py`, `anchor-confirm-reducer/3`).
   - It has no adoption rule and no reuse path.
   - It carries the fixed-architecture declaration in the N record and the decision record, and
     requires it in the replay.
   - It uses the §8.2 population and the §7.4 stage-R membership.
 - **Probe** (`scripts/anchor_confirm_code_axis.py`): §8.2.
-- **Generation continuity** (audit §697): unchanged from v2; every file of the v5 closure is
+- **Generation continuity** (audit §697): unchanged from v2; every file of the v6 closure is
   re-verified at every boundary.
 
 ## 14. Namespaces, roots and commands (only after approval; `GDNA_NUM_SEMANTIC_PARTS=5` exported)
@@ -440,18 +477,19 @@ epoch) and the v2 contract's figures: CIFAR-10 0.56, Flickr25K 0.40, NUS-WIDE 1.
 - Records: `/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/`.
 - Run directories: `--result-root /home/yschoi/gdna_anchor4_result`.
 - Operations ledger: `/home/yschoi/gdna_anchor4_ops`.
-- Namespaces: `ancS5` (stage S), `ancD5` (stage D). A smoke, if approved, uses `ancSmk5` and is
-  never evidence.
-- **Plan:** `python scripts/phase3_selection_matrix.py --anchor-confirm select --namespace ancS5
+- Namespaces: `ancS6` (stage S), `ancD6` (stage D). A smoke, if approved, uses `ancSmk6` and is
+  never evidence. `ancS5` and its tmux record `ancS5_v5` stay the failed generation-v5 attempt.
+- The operations ledger is the same one; the failed attempt's 19.09-s charge carries forward.
+- **Plan:** `python scripts/phase3_selection_matrix.py --anchor-confirm select --namespace ancS6
   --anchor-arms anchors --plan`. Add the execution arguments to print the request digest.
 - **Stage S:** the same command with `--run --gpus A,B,C,D --input-seal cifar10:stage1=SEAL
   --input-seal flickr25k:stage1=SEAL --input-seal nuswide:stage1=SEAL --input-seal
-  mscoco:stage1=SEAL --anchor-manifest artifacts/anchor_confirmation/authority_manifest_v5.json
+  mscoco:stage1=SEAL --anchor-manifest artifacts/anchor_confirmation/authority_manifest_v6.json
   --anchor-manifest-sha256 H --anchor-approval-section <ledger section> --result-root
-  /home/yschoi/gdna_anchor4_result`, run under the supervisor of addendum v3.
+  /home/yschoi/gdna_anchor4_result`, run under the supervisor of addendum v4.
 - **N record:** `python scripts/anchor_confirm_decision.py select --sources S --sources-sha256 H
   --manifest M --manifest-sha256 H --out N.json`.
-- **Stage D:** `--anchor-confirm decide --namespace ancD5 --anchor-arms anchors --anchor-selection
+- **Stage D:** `--anchor-confirm decide --namespace ancD6 --anchor-arms anchors --anchor-selection
   N.json --anchor-selection-sha256 H ... --run`.
 - **Probes:** `python scripts/anchor_confirm_code_axis.py ... --coordinate DATASET:anchors:N:SEED
   --out P.json`.
@@ -465,8 +503,10 @@ epoch) and the v2 contract's figures: CIFAR-10 0.56, Flickr25K 0.40, NUS-WIDE 1.
    reducer semantics (§7.3) and the anchor-only design with a rendered comparator (§4).
 2. The reviewed alternate CIFAR-10 wrapper literal (§6).
 3. The 500-row probe population (§8.2).
-4. Input and environment admission for stage S (the four stage-1 seals, a full rehash, four GPUs)
-   and stage-S execution for this exact generation, within the §12 ceiling, under addendum v3.
+4. Input and environment admission for stage S (the four stage-1 seals, a full rehash by the
+   historical verifier, four GPUs) and stage-S execution for this exact generation, within the §12
+   ceiling, under addendum v4.
 5. Stage D, the probes, then R and T, each later and separately.
 6. The corrected freeze order and recipe lineage (§7.6, audit §711.3): stage L required after S/D
    and before the freeze, with its own later proposal; the consequences of a lambda change.
+7. The historical input-verification bridge (§5, audit §715–§716).

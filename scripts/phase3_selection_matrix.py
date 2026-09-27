@@ -282,6 +282,38 @@ APPROVED_SELECTED_N = Path(
     "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/selected_n.json")
 APPROVED_SELECTED_N_SHA256 = (
     "2bf6133d8cdc7471e40a33d20f1bb19228aa770e67a999a436efb5abac6b2549")
+#: Historical input verification (audit 715). The four stage-1 input seals were built in the
+#: historical tree and record six of its sources with path and stat identity: the five caption-foil
+#: producers and val_split.py. `verify_seal` rebuilds a seal with its own module's REPO, so the full
+#: check passes only in that tree; run from this worktree it refused (anchor stage S, run
+#: 20260927T143532Z-4ada8a0d). An anchor-confirmation admission therefore runs the historical tree's
+#: own verifier, pinned by digest, in an isolated child (`verify_seal_historically`). This process
+#: keeps the new generation's own checks. The root is fixed here and never taken from a caller.
+HISTORICAL_INPUT_ROOT = Path("/data/yschoi/gdna_p3exec")
+HISTORICAL_SEAL_VERIFIER = "scripts/seal_phase3_inputs.py"
+HISTORICAL_SEAL_VERIFIER_SHA256 = (
+    "12233f8e4967c90afcab131a1061fe76abfbaed86648e1388826538a6d42f214")
+#: The sealed content digest of each historical source every stage-1 seal binds.
+HISTORICAL_PRODUCER_SOURCES = {
+    "scripts/build_counterfactual_caption_foils.py":
+        "fdb319ab12c2ccfb8650ce09815e4e4150b556b8c4b85d26a33d8e494f923046",
+    "scripts/build_text_whiten_matrix.py":
+        "76e9332662154b1cc3579aeea343c8ec4d917d6fea2007188909cafd456338a0",
+    "scripts/extract_counterfactual_foil_features.py":
+        "1e70058e4118e7d5f0c868ba9750d5ad5006149320f1d681a37a54a378d68982",
+    "scripts/extract_counterfactual_foil_token_features.py":
+        "a1c38f90931fb4d1362926a0c9048ee799708784317667e900015ff82b67cad7",
+    "scripts/prepare_semantic_detail_cache.py":
+        "0fc8877c0bc7badc6ab8448e28fa666ac632d4249afe5f6d45b5fa085a58d870",
+    "val_split.py": "95e415c6f43b714fc349c44c5d449e667429bc0f15fb4af9c4389e82ca9eecc2",
+}
+
+
+def historical_input_verifier_pins() -> dict:
+    """The historical input-verification pins a generation manifest must carry (audit 715)."""
+    return {"root": str(HISTORICAL_INPUT_ROOT),
+            "verifier": {"path": HISTORICAL_SEAL_VERIFIER, "sha256": HISTORICAL_SEAL_VERIFIER_SHA256},
+            "sources_sha256": dict(HISTORICAL_PRODUCER_SOURCES)}
 
 #: CIFAR used to be pinned here at 0.6/0.95 rather than swept. The pin's stated
 #: reason was that on a single-label dataset the codon decoding probe REWARDS
@@ -511,8 +543,12 @@ def parse_input_seal_specs(values) -> dict:
 
 
 def verify_campaign_input_seals(specs: dict, plan: list, *, full: bool,
-                                expected: dict | None = None) -> dict:
-    """Verify exactly the dataset/stage seals consumed by one plan."""
+                                expected: dict | None = None, historical: bool = False,
+                                evidence: dict | None = None) -> dict:
+    """Verify exactly the dataset/stage seals consumed by one plan. `historical` (anchor
+    confirmation, audit 715): a FULL check runs the historical tree's pinned verifier in an isolated
+    child (`verify_seal_historically`) and records what it did in `evidence`; a stats-only check is
+    unchanged."""
     from scripts.seal_phase3_inputs import SealError, verify_seal_authority
 
     required = {(_campaign_cell_parts(cell)[0],
@@ -526,9 +562,13 @@ def verify_campaign_input_seals(specs: dict, plan: list, *, full: bool,
     for coord in sorted(required):
         key = f"{coord[0]}:{coord[1]}"
         try:
-            authority = verify_seal_authority(
-                specs[coord], expected=(expected or {}).get(key), full=full
-            )
+            if full and historical:
+                authority = verify_seal_historically(
+                    specs[coord], expected=(expected or {}).get(key), evidence=evidence)
+            else:
+                authority = verify_seal_authority(
+                    specs[coord], expected=(expected or {}).get(key), full=full
+                )
         except SealError as error:
             raise CellRefused(f"input seal {key} refused: {error}") from None
         if (authority.get("dataset"), authority.get("stage")) != coord:
@@ -546,6 +586,158 @@ def verify_campaign_input_seals(specs: dict, plan: list, *, full: bool,
             )
         authorities[key] = authority
     return authorities
+
+
+def _historical_sources_refusal(payload: dict) -> str | None:
+    """Why a seal's six historical source records are not the pinned ones under the pinned root,
+    or None. Checked on the seal JSON before any byte is rehashed."""
+    inputs = payload.get("inputs") if isinstance(payload.get("inputs"), dict) else {}
+    derivation = inputs.get("foil_derivation") if isinstance(inputs.get("foil_derivation"), dict) else {}
+    producers = derivation.get("producer_sources")
+    producers = producers if isinstance(producers, dict) else {}
+    protocol = inputs.get("protocol_sources") if isinstance(inputs.get("protocol_sources"), dict) else {}
+    split = inputs.get("split_identity") if isinstance(inputs.get("split_identity"), dict) else {}
+    wanted = {rel for rel in HISTORICAL_PRODUCER_SOURCES if rel != "val_split.py"}
+    if set(producers) != wanted:
+        return (f"the seal's producer sources {sorted(producers)} are not the pinned five "
+                f"{sorted(wanted)}")
+    records = {**producers, "val_split.py": protocol.get("val_split")}
+    for rel, sha in sorted(HISTORICAL_PRODUCER_SOURCES.items()):
+        record = records.get(rel) if isinstance(records.get(rel), dict) else {}
+        content = record.get("content") if isinstance(record.get("content"), dict) else {}
+        if record.get("path") != str(HISTORICAL_INPUT_ROOT / rel) or content.get("sha256") != sha:
+            return (f"the seal binds {rel} as {record.get('path')!r} ({content.get('sha256')!r}), "
+                    f"not the pinned historical source {HISTORICAL_INPUT_ROOT / rel} ({sha})")
+    source = split.get("protocol_source") if isinstance(split.get("protocol_source"), dict) else {}
+    if source != {"path": str(HISTORICAL_INPUT_ROOT / "val_split.py"),
+                  "sha256": HISTORICAL_PRODUCER_SOURCES["val_split.py"]}:
+        return f"the seal's split identity names another protocol source: {source}"
+    return None
+
+
+def _historical_source_observation(payload: dict, where: str) -> dict:
+    """The six historical source files as they are NOW, measured with the seal's own record builder
+    (content digest, lstat identity, file type) and required equal to the seal's records (audit
+    716). Small files only; it runs before any historical code can execute -- the verifier reads and
+    executes val_split.py -- and again after the child, so a change across the handoff refuses."""
+    from scripts.seal_phase3_inputs import SealError, _HashMemo, _first_difference, _seal_file
+    inputs = payload["inputs"]
+    sealed = {**inputs["foil_derivation"]["producer_sources"],
+              "val_split.py": inputs["protocol_sources"]["val_split"]}
+    memo = _HashMemo()
+    observed = {}
+    for rel in sorted(HISTORICAL_PRODUCER_SOURCES):
+        record = _seal_file(HISTORICAL_INPUT_ROOT / rel, memo)
+        if record != sealed.get(rel):
+            raise SealError(f"{where}: the historical source {HISTORICAL_INPUT_ROOT / rel} is not its "
+                            f"sealed identity: {_first_difference(sealed.get(rel), record, rel)}")
+        observed[rel] = record
+    return observed
+
+
+def _die_with_parent(parent: int):
+    """A preexec hook: the historical verifier is killed when this launcher dies (a supervisor
+    stop before any lease finds no signal handler installed), and never outlives it."""
+    def hook():
+        import ctypes
+        libc = ctypes.CDLL(None, use_errno=True)
+        if libc.prctl(1, int(signal.SIGKILL), 0, 0, 0) != 0 or os.getppid() != parent:   # PR_SET_PDEATHSIG
+            os._exit(125)
+    return hook
+
+
+def verify_seal_historically(path, *, expected: dict | None = None,
+                             evidence: dict | None = None) -> dict:
+    """Full verification of one input seal by the historical tree's own verifier (audit 715).
+
+    Before the child: the verifier's bytes are the pinned digest; the seal's JSON aggregate holds;
+    its six historical source records are the pinned ones under the pinned root; the six files
+    themselves are, now, exactly those records (content and stat identity; audit 716), so
+    val_split.py is authenticated before the verifier executes it; the new generation's own
+    val_split.py (the trainer's split carve) has the sealed content. The child is
+    `python -I -B <root>/scripts/seal_phase3_inputs.py verify --seal PATH` in the root: exactly
+    the legacy full rebuild, where the recorded paths and stats are its own tree's. After it: the
+    verifier and seal bytes are unchanged, the child exited 0 and printed exactly the line for this
+    seal and aggregate. The authority is then derived here from the seal bytes hashed before the
+    child ran; the child is a yes/no oracle and returns nothing that is trusted."""
+    from scripts.seal_phase3_inputs import (SCHEMA, SCHEMA_VERSION, SealError, _canonical_bytes,
+                                            authority_from_verified_seal)
+    seal_path = os.path.abspath(os.fspath(path))
+    verifier = HISTORICAL_INPUT_ROOT / HISTORICAL_SEAL_VERIFIER
+
+    def verifier_pin() -> str:
+        try:
+            return hashlib.sha256(verifier.read_bytes()).hexdigest()
+        except OSError as error:
+            raise SealError(f"the historical verifier {verifier} is unreadable: {error}") from None
+
+    def seal_bytes() -> bytes:
+        try:
+            return Path(seal_path).read_bytes()
+        except OSError as error:
+            raise SealError(f"cannot read seal {seal_path}: {error}") from None
+
+    if verifier_pin() != HISTORICAL_SEAL_VERIFIER_SHA256:
+        raise SealError(f"the historical verifier {verifier} is not the pinned bytes "
+                        f"{HISTORICAL_SEAL_VERIFIER_SHA256}")
+    raw = seal_bytes()
+    before = hashlib.sha256(raw).hexdigest()
+    try:
+        sealed = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as error:
+        raise SealError(f"seal {seal_path} is not JSON: {error}") from None
+    if not isinstance(sealed, dict) or sealed.get("schema") != SCHEMA \
+            or sealed.get("schema_version") != SCHEMA_VERSION:
+        raise SealError(f"seal {seal_path} is not a current input seal")
+    payload = {k: v for k, v in sealed.items() if k != "aggregate_digest"}
+    aggregate = (sealed.get("aggregate_digest") or {}).get("sha256")
+    if aggregate != hashlib.sha256(_canonical_bytes(payload)).hexdigest():
+        raise SealError(f"seal {seal_path}: its aggregate digest does not match its JSON payload")
+    refusal = _historical_sources_refusal(payload)
+    if refusal is not None:
+        raise SealError(refusal)
+    observed = _historical_source_observation(payload, "before the historical verifier")
+    own = REPO / "val_split.py"
+    if not own.is_file() or _sha(own) != HISTORICAL_PRODUCER_SOURCES["val_split.py"]:
+        raise SealError(f"this generation's {own} is not the sealed protocol source")
+    argv = [sys.executable, "-I", "-B", str(verifier), "verify", "--seal", seal_path]
+    started = time.time()
+    child = subprocess.Popen(argv, cwd=str(HISTORICAL_INPUT_ROOT), stdin=subprocess.DEVNULL,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                             preexec_fn=_die_with_parent(os.getpid()))
+    try:
+        out, err = child.communicate()
+    finally:
+        if child.poll() is None:
+            child.kill()
+            child.wait()
+    seconds = time.time() - started
+    if child.returncode != 0:
+        raise SealError(f"the historical verifier refused (rc {child.returncode}): "
+                        f"{(err or '').strip()[-600:]}")
+    if verifier_pin() != HISTORICAL_SEAL_VERIFIER_SHA256:
+        raise SealError(f"the historical verifier {verifier} changed while it ran")
+    if hashlib.sha256(seal_bytes()).hexdigest() != before:
+        raise SealError(f"seal {seal_path} changed while the historical verifier ran")
+    if _historical_source_observation(payload, "after the historical verifier") != observed:
+        raise SealError("the historical sources changed while the historical verifier ran")
+    line = f"verified {seal_path} {aggregate}"
+    if (out or "").splitlines() != [line]:
+        raise SealError(f"the historical verifier's report is not {line!r}: {(out or '')[:300]!r}")
+    authority = authority_from_verified_seal(seal_path, sealed)
+    if authority.get("seal_file_sha256") != before:
+        raise SealError(f"seal {seal_path} is not the bytes the historical verifier checked")
+    if expected is not None and dict(authority) != dict(expected):
+        raise SealError("Phase-3 input authority changed across the historical verification")
+    if evidence is not None:
+        key = f"{authority.get('dataset')}:{authority.get('stage')}"
+        evidence[key] = {"verifier": {"path": str(verifier), "sha256": HISTORICAL_SEAL_VERIFIER_SHA256},
+                         "root": str(HISTORICAL_INPUT_ROOT), "argv": argv,
+                         "seal": {"path": seal_path, "sha256": before, "aggregate_sha256": aggregate},
+                         "historical_sources": observed,
+                         "returncode": child.returncode, "report": line,
+                         "seconds": round(seconds, 3)}
+    return authority
 
 
 def admission_is_full(authority) -> bool:
@@ -3896,7 +4088,8 @@ ANCHOR_CLOSURE = ("scripts/anchor_confirm_decision.py", "scripts/anchor_confirm_
                   "tests/test_anchor_confirm_port.py", "tests/test_anchor_confirm_recipe.py",
                   "tests/test_anchor_confirm_launcher.py", "tests/test_anchor_confirm_reducer.py",
                   "tests/test_anchor_confirm_lifecycle.py",
-                  "tests/test_anchor_confirm_supervisor.py")
+                  "tests/test_anchor_confirm_supervisor.py",
+                  "tests/test_anchor_confirm_input_bridge.py", "tests/test_seal_phase3_inputs.py")
 #: The audit ledger is the approval authority (audit 679.1, 683.2, 686.4). The modification agent
 #: cannot write it, and it lives outside the pinned scientific tree, so no manifest names an
 #: approval and no hash cycle arises. An operation that executes, or opens a real binary, runs only
@@ -4183,6 +4376,8 @@ def load_anchor_manifest(path, sha256) -> dict:
         raise CellRefused(f"{path}: its approved-aggregate pin is not the ledger's")
     if (historical.get("approved_selected_n") or {}).get("sha256") != APPROVED_SELECTED_N_SHA256:
         raise CellRefused(f"{path}: its selected-N pin is not the ledger's")
+    if historical.get("historical_input_verifier") != historical_input_verifier_pins():
+        raise CellRefused(f"{path}: its historical input-verifier pins are not this launcher's")
     contract = manifest.get("contract") or {}
     if contract.get("path") != ANCHOR_CONTRACT_PATH or contract.get("sha256") != files[ANCHOR_CONTRACT_PATH]:
         raise CellRefused(f"{path}: its contract is not the designated {ANCHOR_CONTRACT_PATH} at its "
@@ -4432,6 +4627,7 @@ def _anchor_confirmation_main(args) -> int:
         epochs = args.epochs if args.smoke else None
         admission = anchor_admission(cells, namespace=args.namespace, incumbent=incumbent,
                                      epochs=epochs)
+        historical_admission: dict = {}
         if execute:
             if args.smoke and not args.only:
                 raise CellRefused("an anchor smoke needs --only dataset:N:arm:seed")
@@ -4459,7 +4655,8 @@ def _anchor_confirmation_main(args) -> int:
                 if not (before == _file_pin(args.admission_authority) == request["admission_authority"]):
                     raise CellRefused("the carried admission authority is not the approved request's bytes")
             input_seals = verify_campaign_input_seals(
-                args.input_seal_specs, cells, full=admission_is_full(carried), expected=carried)
+                args.input_seal_specs, cells, full=admission_is_full(carried), expected=carried,
+                historical=True, evidence=historical_admission)
             assert_request_seals(request, input_seals, "at input admission")
             recheck_generation(manifest, "after input admission")
     except CellRefused as error:
@@ -4477,6 +4674,7 @@ def _anchor_confirmation_main(args) -> int:
         "anchor_approval": approval,
         "anchor_request": request,
         **({"anchor_selection": selection["record"]} if selection is not None else {}),
+        **({"historical_input_admission": historical_admission} if historical_admission else {}),
     }
     if not execute:
         try:

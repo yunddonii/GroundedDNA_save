@@ -46,6 +46,10 @@ def inventory() -> dict:
     aggregate = consumed.json(M.APPROVED_P3_REFIT_AGGREGATE, M.APPROVED_P3_REFIT_AGGREGATE_SHA256)
     selected = consumed.json(M.APPROVED_SELECTED_N, M.APPROVED_SELECTED_N_SHA256)
     consumed.read(P3LAM_RECEIPT, P3LAM_RECEIPT_SHA256)
+    pins = M.historical_input_verifier_pins()          # audit 715: the historical verifier and sources
+    consumed.read(M.HISTORICAL_INPUT_ROOT / pins["verifier"]["path"], pins["verifier"]["sha256"])
+    for rel, digest in sorted(pins["sources_sha256"].items()):
+        consumed.read(M.HISTORICAL_INPUT_ROOT / rel, digest)
     status = git("status", "--porcelain")
     D.need(status == "", f"the source generation has uncommitted changes:\n{status[:400]}")
     closure = M.anchor_generation_closure()
@@ -54,7 +58,7 @@ def inventory() -> dict:
     from importlib import metadata
     return {
         "artifact_kind": M.ANCHOR_MANIFEST_KIND, "version": M.ANCHOR_CONFIRM_VERSION,
-        "generation": "v5",
+        "generation": "v6",
         "note": "byte identities from JSON and text only; not approval to execute",
         "historical": {
             "approved_p3_refit_aggregate": {"path": str(M.APPROVED_P3_REFIT_AGGREGATE),
@@ -70,6 +74,7 @@ def inventory() -> dict:
             "recipe_authority": selected["recipe_authority"]["artifact"],
             "lambda_campaign": {"receipt": str(P3LAM_RECEIPT), "sha256": P3LAM_RECEIPT_SHA256,
                                 "approval": "ledger section 536.1"},
+            "historical_input_verifier": pins,
             "p3_commit": "5304005cb6eaa6462a5450c30c25bc65f978af23",
             "base_commit": "88c3a25b1b309550eafc276c2ce5be7575507173",
             "not_authority": {"artifacts/phase3_selection/selected_n.json in the new worktree":
@@ -81,7 +86,11 @@ def inventory() -> dict:
         "design": {"fixed_architecture": "axis_center=anchors for all four datasets (audit 709)",
                    "run_arms": list(M.ANCHOR_RUN_ARMS), "rendered_comparator": "none",
                    "datasets": list(M.ANCHOR_DATASETS), "reuse": "none: every S/D cell is fresh"},
-        "predecessor": {"authority_manifest_v4_sha256":
+        "predecessor": {"authority_manifest_v5_sha256":
+                        "84e94e2f1897e9910df2aa0352e4737f87dd485f018a644b5be23c1b4e036284",
+                        "stage_s_request_v5_sha256":
+                        "bd3117a9108ee558dfb27f9b429806a62092d23736febd7c0c0f8c858e4882c7",
+                        "authority_manifest_v4_sha256":
                         "5a4481f4898fda3df27250e0214e204495022a91546d7d78e2e1c2749e17647b",
                         "contract_v2_sha256":
                         "26ebe2c104e89702bbc9daef0a3470d123ef6f7c5c30eefc49222cb26e29b001",
@@ -102,7 +111,13 @@ def inventory() -> dict:
                         "v5_change": "contract v3 (audit 709): axis_center=anchors fixed for all "
                                      "four datasets, anchor arm only, CIFAR-10 added, the "
                                      "adoption rule removed, a 500-row probe population, four "
-                                     "GPUs; supersedes the three-dataset v2-v4 request"},
+                                     "GPUs; supersedes the three-dataset v2-v4 request",
+                        "v6_change": "historical input verification (audit 715/716): the full "
+                                     "input check runs the historical tree's pinned verifier in an "
+                                     "isolated child after the six historical sources are checked "
+                                     "in place; the v5 stage-S attempt (ancS5, run "
+                                     "20260927T143532Z-4ada8a0d) was refused at that check and "
+                                     "trained nothing; the S/D design is unchanged"},
         "new_generation": {
             "worktree": str(REPO), "branch": git("rev-parse", "--abbrev-ref", "HEAD"),
             "commit": git("rev-parse", "HEAD"), "clean": True,
@@ -126,7 +141,7 @@ def main(argv=None) -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command")
     inv = sub.add_parser("inventory")
-    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v5.json"))
+    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v6.json"))
     args = parser.parse_args(argv)
     try:
         if args.command != "inventory":
