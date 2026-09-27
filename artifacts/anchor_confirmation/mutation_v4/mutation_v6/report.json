@@ -1,0 +1,200 @@
+{
+ "baseline": [
+  {
+   "rc": 0,
+   "seconds": 1.0,
+   "test": "test_a_failed_observation_stops_dispatch"
+  },
+  {
+   "rc": 0,
+   "seconds": 3.3,
+   "test": "test_a_long_window_counts_against_the_budget_while_the_command_runs"
+  },
+  {
+   "rc": 0,
+   "seconds": 2.9,
+   "test": "test_an_attempt_that_lives_between_two_observations_is_still_charged"
+  },
+  {
+   "rc": 0,
+   "seconds": 3.0,
+   "test": "test_an_observation_stalled_past_the_watchdog_stops_the_command_and_is_unresolved"
+  },
+  {
+   "rc": 0,
+   "seconds": 1.4,
+   "test": "test_more_attempts_than_planned_cells_void_the_allowance"
+  },
+  {
+   "rc": 0,
+   "seconds": 0.7,
+   "test": "test_the_headroom_covers_the_watchdog_and_the_stop_bound"
+  },
+  {
+   "rc": 0,
+   "seconds": 3.6,
+   "test": "test_the_watchdog_signals_before_the_stalled_observation_returns"
+  }
+ ],
+ "commit": "a153c1577073edc0f6a97a41617b9bb6c69e69e5",
+ "mutants": [
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "MV1 the final allowance charges the nominal poll",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert done[\"charged_seconds\"] >= lived >= 1.5",
+     "declared_text": null,
+     "failing_line": "assert done[\"charged_seconds\"] >= lived >= 1.5",
+     "intended": true,
+     "rc": 1,
+     "seconds": 3.0,
+     "test": "test_an_attempt_that_lives_between_two_observations_is_still_charged"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "MV2 the last window before the exit is not measured",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert done[\"charged_seconds\"] >= lived >= 1.5",
+     "declared_text": null,
+     "failing_line": "assert done[\"charged_seconds\"] >= lived >= 1.5",
+     "intended": true,
+     "rc": 1,
+     "seconds": 3.1,
+     "test": "test_an_attempt_that_lives_between_two_observations_is_still_charged"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "MV3 the live allowance charges the nominal poll",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert rc == S.EXIT_STOPPED",
+     "declared_text": null,
+     "failing_line": "assert rc == S.EXIT_STOPPED",
+     "intended": true,
+     "rc": 1,
+     "seconds": 60.6,
+     "test": "test_a_long_window_counts_against_the_budget_while_the_command_runs"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "MV4 the watchdog never fires",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert blocked[2] + 0.9 <= signalled < blocked[3]",
+     "declared_text": null,
+     "failing_line": "assert blocked[2] + 0.9 <= signalled < blocked[3]",
+     "intended": true,
+     "rc": 1,
+     "seconds": 3.9,
+     "test": "test_the_watchdog_signals_before_the_stalled_observation_returns"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "MV5 the watchdog's stop sends no signal",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "signalled = float(stamp.read_text())",
+     "declared_text": null,
+     "failing_line": "signalled = float(stamp.read_text())",
+     "intended": true,
+     "rc": 1,
+     "seconds": 60.7,
+     "test": "test_the_watchdog_signals_before_the_stalled_observation_returns"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "MV6 more attempts than cells are not noticed",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert rc == S.EXIT_UNRESOLVED and done[\"status\"] == \"unresolved\"",
+     "declared_text": null,
+     "failing_line": "assert rc == S.EXIT_UNRESOLVED and done[\"status\"] == \"unresolved\"",
+     "intended": true,
+     "rc": 1,
+     "seconds": 32.3,
+     "test": "test_more_attempts_than_planned_cells_void_the_allowance"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "MV7 an unresolved run is accepted as prior charge",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": null,
+     "declared_text": "DID NOT RAISE",
+     "failing_line": "with pytest.raises(S.Refused, match=\"lost observation continuity\"):",
+     "intended": true,
+     "rc": 1,
+     "seconds": 3.3,
+     "test": "test_an_observation_stalled_past_the_watchdog_stops_the_command_and_is_unresolved"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "MV8 a failed observation keeps the run settled",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert rc == S.EXIT_UNRESOLVED",
+     "declared_text": null,
+     "failing_line": "assert rc == S.EXIT_UNRESOLVED",
+     "intended": true,
+     "rc": 1,
+     "seconds": 0.9,
+     "test": "test_a_failed_observation_stops_dispatch"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "MV9 the headroom leaves out the watchdog",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert world.run([PY, \"-c\", \"pass\"], budget_seconds=4.0 - 0.01, **common) == S.EXIT_REFUSED",
+     "declared_text": null,
+     "failing_line": "assert world.run([PY, \"-c\", \"pass\"], budget_seconds=4.0 - 0.01, **common) == S.EXIT_REFUSED",
+     "intended": true,
+     "rc": 1,
+     "seconds": 0.7,
+     "test": "test_the_headroom_covers_the_watchdog_and_the_stop_bound"
+    }
+   ]
+  }
+ ],
+ "sandbox_restored": true,
+ "status_equal": true,
+ "stray_processes": "",
+ "tracked_after": "cb225746b277eb7d1a76b1a4eb25bf571c88e0b37e6ffc98fdbe2167d2c62bff",
+ "tracked_before": "cb225746b277eb7d1a76b1a4eb25bf571c88e0b37e6ffc98fdbe2167d2c62bff"
+}
