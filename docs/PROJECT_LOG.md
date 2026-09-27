@@ -487,6 +487,122 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-27 [anchor confirmation v4 — preparation only, nothing executed] Audit §707–§708: the supervisor's budget accounting now charges every observation window, and a watchdog stops work when observation stalls
+
+**Status:** ✅ submitted for review.
+- **No GPU run of any kind.** No full seal verification, lease, smoke, training or probe ran, and
+  no approval line exists.
+- Branch `arch-exp-2026-09-anchor-confirm`, head `7d740a9`, source commit `a153c15`.
+- Manifest v4 `5a4481f4…` (59 files). The launcher `253deb4f…` and the contract `26ebe2c1…` are
+  unchanged.
+- Addendum `docs/ANCHOR_CONFIRMATION_OPS_ADDENDUM_v2.md` (`anchor-confirm-ops/2`, `6bdd2460…`) and
+  handoff `docs/ANCHOR_CONFIRMATION_HANDOFF_v4.md` (`934cd51e…`).
+- Stage-S request `033b6979…`: the v3 request with only the manifest digest changed.
+
+**What the audit found (§707.1, High).**
+- The v3 supervisor charged planned cells × the 1-s poll for attempts it might miss.
+- A delayed observation lets a whole attempt start and end unseen. Delays come from a slow
+  `statvfs`, `/proc` scan, ledger write or scheduling.
+- The audit's scaled example: a 1.5-s child was charged 0.1 s, the run passed as settled, and the
+  charge would have become the next stage's prior.
+- The audit accepted the v3 lifecycle repair in scope (§707.2). It also confirmed that the orphan
+  cases are refused correctly, and confirmed delivery.
+
+**Repair (supervisor only).**
+- **Observation windows.** A window runs from one scan's START to the next scan's END, on the boot
+  clock, and includes the window before the exit.
+- **Allowance.** Planned cells × the longest window seen, charged live and in the final record. Its
+  premise is that the launcher runs one managed child per cell and never retries; more attempts
+  than cells void that premise.
+- **Watchdog.** A thread stops the command after 10 s without a completed observation. Only one
+  SIGTERM is ever sent, under the lock shared with reaping.
+- **Headroom.** GPUs × (10 s + 120 s).
+- **Loss of continuity.** A long window, a watchdog stop, a failed observation, a failed ledger
+  write or excess attempts make the run `unresolved`. The record keeps a pessimistic GPUs × wall
+  bound, and every later stage is refused until the audit reconciles it.
+
+**Evidence (CPU only).**
+- Full run at `a153c15`: **807 passed, 1 skipped** (14 files).
+- New regressions:
+  - a whole attempt between two observations: the charge is at least the child's own boot-clock
+    lifetime, with a normal-observation control;
+  - the watchdog's SIGTERM arrives during the stall, stamped by the command itself;
+  - excess attempts;
+  - a live long window crossing the budget;
+  - the headroom boundary.
+- On the v3 supervisor the same tests fail as declared (3/3); v3 charged 0.1 s for a 1.502-s child.
+- Mutation battery v6: 9/9 detected as declared.
+
+**§708 follow-ups done.**
+- The v3 entry's root list is corrected to four roots (below).
+- The Gumbel-ON label is applied (next entry).
+- `build_offprotocol_cmd.py` is recorded as needing the paired-Boolean repair and a round-trip test
+  before any new use. It is not used by the confirmation.
+
+**Next.** The audit reviews v4. Stage S waits for a ledger line naming manifest `5a4481f4…` and
+request `033b6979…`.
+
+---
+
+## 2026-09-27 [label, no training] The September exploratory runs (branch arch-exp-2026-09) trained with Gumbel ON; the approved recipe has it OFF
+
+**Status:** ✅ label applied (audit §708.4). Archived args.txt, results and summaries are unchanged.
+
+**Inventory** (audit §708.2, from args.txt text):
+
+| Root under `/data/yschoi` | Records | `use_gumbel_softmax` |
+|---|---:|---|
+| `gdna_archexp_result` | 99 | True in all |
+| `gdna_wt_mscoco/result` | 70 | True in all |
+| `gdna_wt_arms/result` | 31 | True in all |
+| `gdna_wt_arms2/result` | 14 | True in all |
+| `gdna_p3exec_result` (approved campaigns) | 257 | False in all |
+
+Among the 214 exploratory records, `axis_center` is `anchors` in 42, `none` in 123 and `readout` in
+3, and it is absent in 46. The approved comparator (the `p3rfB` aggregate `b4f3b0df…`) binds twelve
+args.txt files, all of which record False.
+
+**Cause.**
+- `scripts/build_offprotocol_cmd.py` keeps the first parser action for the destination:
+  `--use_gumbel_softmax`, a store_true flag with default True. A recorded False therefore emits
+  nothing, and True applies.
+- Audit §708.3 reproduced this with the current source. A dry run on the `p3lamA` incumbent's
+  args.txt printed no `--no_gumbel_softmax`.
+- The confirmation campaign is not affected: it renders `--no_gumbel_softmax` and admits only
+  False.
+
+**What this means.**
+- Comparisons inside the exploratory entries share Gumbel ON in both arms. They are not invalid for
+  that reason alone, but they do not establish the same effect under the approved recipe.
+- The anchor results remain exploratory Gumbel-ON findings, not confirmatory ones. These are:
+  - code→own-axis +.06 to +.08;
+  - mAP@R −.0017 to +.0060 on the multi-label sets;
+  - the CIFAR-10 −.078 (anchors at their own N).
+- Against the approved `p3gE` stage-1 cells, the stage-6 base arm differs in Gumbel only, among
+  fields both record. The remaining differences are options added after the approved code, at their
+  recorded values, and those values were not verified to be inert.
+
+**Caution for any args.txt comparison.** Every line is padded with dashes to 100 characters, so a
+negative value's minus sign merges into the padding. `codebook_freeze_after_epoch` reads `1` in
+these records but is `-1`: that is the default, and the exact stage-6 command parsed with its own
+worktree's parser gives -1. My first diff misread it.
+
+**The 2026-09-20 direct-launch entry.**
+- Its gate runs differ from the incumbent cell in `use_gumbel_softmax` (True vs False) and in
+  `lambda_bu` (0.02 vs 0.0), so "the cause is not identified" compared two recipes.
+- The current builder does emit `--lambda_bu 0.0` for that args.txt, so how the 09-20 cells lost
+  it is not reconstructed here.
+- Neither difference was tested as the cause.
+
+**Labelled entries.** A one-line label was placed under each of 19 entries: every branch
+arch-exp-2026-09 entry dated 2026-09-19 to 2026-09-25 that trained or analysed these runs (18),
+and the 2026-09-20 direct-launch entry. The design record without results was left unlabelled.
+
+**Before any new use of the builder.** Repair the paired Boolean handling and test the
+requested-to-parsed round trip (audit §708.4). Neither is done yet.
+
+---
+
 ## 2026-09-27 [anchor confirmation v3 — preparation only, nothing executed] Audit §702–§706: campaign cleanup now waits for every owned process before releasing a GPU lease; storage rule and resource supervisor added
 
 **Status:** ✅ repair and operational package submitted for review.
@@ -549,7 +665,7 @@ codebook) as a follow-up.
 
 **Found while building the comparison table (a disclosure, not yet a fix):**
 - All 214 run directories of the September exploratory stages record `use_gumbel_softmax=True`, in
-  both arms (`gdna_archexp_result` and `gdna_wt_mscoco/result`). That covers the anchor-vs-base
+  both arms, across four roots: `gdna_archexp_result` 99, `gdna_wt_mscoco/result` 70, `gdna_wt_arms/result` 31, `gdna_wt_arms2/result` 14. (Corrected 2026-09-27 per audit §708.2: the first version named only the first two roots.) That covers the anchor-vs-base
   stages 6–12. The approved `p3exec` runs (257) record `False`.
 - The stage-6 cell commands carry no Gumbel option; they were rebuilt by
   `scripts/build_offprotocol_cmd.py`. Its option map keeps `--use_gumbel_softmax` (store_true,
@@ -726,6 +842,8 @@ The contract needs no revision: the producer now does what §10.2, §10.5 and §
 
 ## 2026-09-25 [branch arch-exp-2026-09 — 15 cells, pre-registered] Stage 12: the anchored recipe keeps the incumbent's N on all three multi-label datasets; on CIFAR-10 its own N recovers a third of the cost
 
+> **Recipe label (added 2026-09-27, audit §708):** the runs in this entry trained with `use_gumbel_softmax=True`; the approved recipe uses `False`. Comparisons inside the entry share that setting, but they do not establish the same effect under the approved recipe. See the 2026-09-27 label entry.
+
 **Status:** ✅ complete. Records: `result/analysis/stage12_n_reselect/` (PREREGISTRATION.md a2764e2
 and reducer `select_n.py` e2851d2, both committed before the cells finished; `selected_n.json`).
 13 selection cells + 2 CIFAR seed cells, all rc=0, in `/data/yschoi/gdna_wt_mscoco` (8cae54d).
@@ -770,6 +888,8 @@ CIFAR negative result is now to be quoted at CIFAR's own N (−.078), not −.11
 ---
 
 ## 2026-09-23 [branch arch-exp-2026-09 — 9 cells, pre-registered] Stage 11: the weak global gate does not survive outside Flickr25K; anchors keep their axis gain on all four datasets
+
+> **Recipe label (added 2026-09-27, audit §708):** the runs in this entry trained with `use_gumbel_softmax=True`; the approved recipe uses `False`. Comparisons inside the entry share that setting, but they do not establish the same effect under the approved recipe. See the 2026-09-27 label entry.
 
 **Status:** 🔴 weak gate DISCARDED by the pre-registered rule. Records:
 `result/analysis/stage11_ancsoft_alldata/` (PREREGISTRATION.md written and committed before the
@@ -863,6 +983,8 @@ formatter `06bba41f` still holds the superseded D5/D6 wording and would undo the
 
 ## 2026-09-22 [branch arch-exp-2026-09 — analysis, no training, negative result] Stage 10: codewords cannot be named by their nearest captions; the anchors' alignment is relative within an image, not an absolute position in caption space
 
+> **Recipe label (added 2026-09-27, audit §708):** the runs analysed here trained with `use_gumbel_softmax=True`; the approved recipe uses `False`. See the 2026-09-27 label entry.
+
 **Status:** 🔴 negative, no training. Records: `result/analysis/stage10_naming/` (`codeword_names.py`,
 `out/flickr_{base,p2anc}_s4{2,3,4}.json`). Flickr25K, base and anchors, 3 seeds each; opt captions
 through the model's own text path, val images through the deployment forward.
@@ -893,6 +1015,8 @@ codeword vector has no absolute, nameable position in caption space. So:
 ---
 
 ## 2026-09-22 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] Stage 9: two more levers on top of the anchors. A weak global gate keeps everything and adds code diversity; a codon-level axis target costs retrieval and undoes the anchors' alignment. Plus TODO18 contract revision 1 and its first conforming probe
+
+> **Recipe label (added 2026-09-27, audit §708):** the runs in this entry trained with `use_gumbel_softmax=True`; the approved recipe uses `False`. Comparisons inside the entry share that setting, but they do not establish the same effect under the approved recipe. See the 2026-09-27 label entry.
 
 **Status:** 🟡 screening, pre-registered in `result/analysis/stage9_levers/PREREGISTRATION.md`. Records:
 `summary.{txt,json}`, probes in `stage6_p2anc/eval` and `stage6_p2anc/analysis`. Code `7de5470`
@@ -948,6 +1072,8 @@ codebooks. One cell, one seed; the 12-cell publication waits for audit review of
 
 ## 2026-09-22 [branch arch-exp-2026-09 — analysis, no training] Stage 6b: what the axis-centred anchors change inside the code — sharper routing, codewords nearer their own axis, slightly less slot overlap; word-level readings unchanged. Decisions: A′ stopped at (a); D5 code base deferred until the model is final
 
+> **Recipe label (added 2026-09-27, audit §708):** the runs analysed here trained with `use_gumbel_softmax=True`; the approved recipe uses `False`. See the 2026-09-27 label entry.
+
 **Status:** 🟡 analysis of the stage-6 runs (24 runs, no new training). Records:
 `result/analysis/stage6_p2anc/analysis/` (`anchor_analysis.py`, one JSON per run) and
 `analysis_summary.txt`. Deployment forward, no text; opt rows = dictionary side, val rows held out.
@@ -993,6 +1119,8 @@ component the anchors remove *is* the content.
 ---
 
 ## 2026-09-22 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] Stage 8: the tied concept codebook replicates only on Flickr25K (partly on NUS-WIDE, not on MS-COCO or CIFAR-10); the B2 caption queue makes the codebook worse; anchors' retrieval change is within seed noise on multi-label data but −.12 on CIFAR-10
+
+> **Recipe label (added 2026-09-27, audit §708):** the runs in this entry trained with `use_gumbel_softmax=True`; the approved recipe uses `False`. Comparisons inside the entry share that setting, but they do not establish the same effect under the approved recipe. See the 2026-09-27 label entry.
 
 **Status:** 🟡 exploratory confirmation, pre-registered in `result/analysis/stage8_extend/PREREGISTRATION.md`
 (one deviation, appended before any B2 result). Records: `summary.{txt,json}`, `summary_bq.json`,
@@ -1080,6 +1208,8 @@ the loss is nine seed SDs, on every seed: not negligible.
 
 ## 2026-09-22 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] Stage 6: axis-centred anchors on all four datasets. The codeword→own-axis gain holds everywhere, and retrieval is neutral on the three multi-label datasets, but CIFAR-10 loses .12 mAP@R
 
+> **Recipe label (added 2026-09-27, audit §708):** the runs in this entry trained with `use_gumbel_softmax=True`; the approved recipe uses `False`. Comparisons inside the entry share that setting, but they do not establish the same effect under the approved recipe. See the 2026-09-27 label entry.
+
 **Status:** 🟡 exploratory, off-protocol. Records: `result/analysis/stage6_p2anc/`
 (`summary.{txt,json}`, `eval/` with 72 probe JSONs, cells, `eval_one.sh`).
 - **Change under test:** `--axis_center anchors` (existing code, default off). Per image, subtract the
@@ -1132,6 +1262,8 @@ cells with `--no-post_eval_compositional`.
 ---
 
 ## 2026-09-22 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] Stage 7: giving local slots their own targets. The named caption-concept codebook, once its codewords are tied to their concepts, is the first arm to lift every interpretability measure on all seeds, at −.045 mAP@R; axis-neighbour targets are free but nearly inert in-batch
+
+> **Recipe label (added 2026-09-27, audit §708):** the runs in this entry trained with `use_gumbel_softmax=True`; the approved recipe uses `False`. Comparisons inside the entry share that setting, but they do not establish the same effect under the approved recipe. See the 2026-09-27 label entry.
 
 **Status:** 🟡 exploratory screening. Pre-registered in `result/analysis/stage7_bigarms/PREREGISTRATION.md`
 (with one appended deviation, logged before the new arm ran). Records: `summary_flickr.{txt,json}`,
@@ -1215,6 +1347,8 @@ with `--no-post_eval_compositional`.
 ---
 
 ## 2026-09-22 [branch arch-exp-2026-09 — analysis, no training, not a paper result] Why the slots overlap: the dominant loss makes every slot identify the image alone. Two redesigns measured on frozen features: axis neighbourhoods are distinct, and a named caption-concept codebook is more readable than the trained codons
+
+> **Recipe label (added 2026-09-27, audit §708):** the runs analysed here trained with `use_gumbel_softmax=True`; the approved recipe uses `False`. See the 2026-09-27 label entry.
 
 **Status:** 🟡 feasibility only. No model is trained; a linear probe on frozen CLIP image features and
 k-means on cached caption embeddings are the only fitted parts. Flickr25K train split: 4,500 opt rows
@@ -1329,6 +1463,8 @@ five D5/D6 metric differences (§631 plan: proposed, not executable).
 ---
 
 ## 2026-09-22 [branch arch-exp-2026-09 — analysis + OFF-PROTOCOL screening, not a paper result] Separate codebooks are what keep deployed codes apart; the caption reading holds on all three captioned datasets but beats a CLIP-only reader only on Flickr25K; of four loss/architecture arms only the two inert losses can go
+
+> **Recipe label (added 2026-09-27, audit §708):** the runs in this entry trained with `use_gumbel_softmax=True`; the approved recipe uses `False`. Comparisons inside the entry share that setting, but they do not establish the same effect under the approved recipe. See the 2026-09-27 label entry.
 
 **Status:** 🟡 analysis + 12 stage-1 screening cells. Records: `result/analysis/stage1_f09_decoding/a4_reeval/`,
 `result/analysis/stage2_zscr/zscr_3ds_summary.txt`, `result/analysis/stage4_arms/step2_summary.{txt,json}`.
@@ -1685,6 +1821,8 @@ They are the test debt of the uncommitted working state, recorded here, not tria
 
 ## 2026-09-21 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] Necessity ablation under the current protocol: word decodability of the code is identical without captions; what captions give is retrieval, diversity and codeword–caption alignment, and they are also what collapses the codebook
 
+> **Recipe label (added 2026-09-27, audit §708):** the runs in this entry trained with `use_gumbel_softmax=True`; the approved recipe uses `False`. Comparisons inside the entry share that setting, but they do not establish the same effect under the approved recipe. See the 2026-09-27 label entry.
+
 **Status:** 🟡 exploratory, off-protocol. Must not enter `docs/paper_draft/`. Record:
 `result/analysis/arch_exp3_20260920/RESULT.md` §"Necessity ablation"; cells `cells_notext.txt`, run
 `archexp3_notext` rc=0 113 s; probes and `diag_quantgap_notext_s*.json`. No code change:
@@ -1727,6 +1865,8 @@ loss-free lever is P2anc.
 ---
 
 ## 2026-09-21 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] The codebook can be repaired and the role still does not appear: the quantiser hypothesis is closed, and with it the last reading that was not the capacity trade-off
+
+> **Recipe label (added 2026-09-27, audit §708):** the runs in this entry trained with `use_gumbel_softmax=True`; the approved recipe uses `False`. Comparisons inside the entry share that setting, but they do not establish the same effect under the approved recipe. See the 2026-09-27 label entry.
 
 **Status:** 🟡 exploratory, off-protocol. Must not enter `docs/paper_draft/`. Record:
 `result/analysis/arch_exp3_20260920/RESULT.md` §"Priority 3, continued". Two entry gates, both
@@ -1777,6 +1917,8 @@ now centres like the quantiser when `--quant_center_local` is set.
 ---
 
 ## 2026-09-21 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] The role metric is calibrated and sound; the top-p window gain does not survive MS-COCO; the quantiser intervention fails on both endpoints; `text_code_kl` is removable on two datasets
+
+> **Recipe label (added 2026-09-27, audit §708):** the runs in this entry trained with `use_gumbel_softmax=True`; the approved recipe uses `False`. Comparisons inside the entry share that setting, but they do not establish the same effect under the approved recipe. See the 2026-09-27 label entry.
 
 **Status:** 🟡 exploratory, off-protocol. Must not enter `docs/paper_draft/`. Records:
 `result/analysis/arch_exp3_20260920/` (`RESULT.md` §Priority 1/2/3 and §P6, `m1_calibration.py` +
@@ -1879,6 +2021,8 @@ probe output is byte-identical before and after the change.
 
 ## 2026-09-21 [OFF-PROTOCOL, branch arch-exp-2026-09 — adopt-candidate, not adopted] The confidence-adaptive top-p window swept end to end: .20/.60 gives the best retrieval and the healthiest codebook of any cell in the arch-exp programs, and the optimum is interior
 
+> **Recipe label (added 2026-09-27, audit §708):** the runs in this entry trained with `use_gumbel_softmax=True`; the approved recipe uses `False`. Comparisons inside the entry share that setting, but they do not establish the same effect under the approved recipe. See the 2026-09-27 label entry.
+
 **Status:** 🟡 exploratory, off-protocol, Flickr25K only. Must not enter `docs/paper_draft/`. Record:
 `result/analysis/arch_exp3_20260920/RESULT.md` §P6, cells `cells_p6.txt`, run `archexp3_p6topp`
 rc=0 270 s, 12 probe JSONs. No code change: the delta is `--routing_adaptive_topp_min/max` only.
@@ -1915,6 +2059,8 @@ is carried forward.
 ---
 
 ## 2026-09-20 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] Six more slot-role mechanisms, none of which passes; the axis signal is reachable in the slot token and not in the codeword; and the role metric itself is now in question
+
+> **Recipe label (added 2026-09-27, audit §708):** the runs in this entry trained with `use_gumbel_softmax=True`; the approved recipe uses `False`. Comparisons inside the entry share that setting, but they do not establish the same effect under the approved recipe. See the 2026-09-27 label entry.
 
 **Status:** 🟡 exploratory, off-protocol. Must not enter `docs/paper_draft/`. Records:
 `result/analysis/arch_exp3_20260920/` (`PREREGISTRATION.md` with its decision log, `RESULT.md`,
@@ -2103,6 +2249,8 @@ mining) is deferred behind these, whatever its standing in the literature.
 
 ## 2026-09-20 A direct (non-campaign) launch of an approved recipe does not reproduce the campaign number — both modes are deterministic, they diverge from epoch 1
 
+> **Recipe label (added 2026-09-27, audit §708):** the gate runs were not the incumbent's recipe. Their args.txt record `use_gumbel_softmax=True` and `lambda_bu=0.02`; the incumbent cell records `False` and `0.0`. The rebuilt command dropped both, so "the cause is not identified" below compares two recipes. Whether either difference causes the epoch-1 divergence was not tested. See the 2026-09-27 label entry.
+
 **Status:** 🟢 active. Finding only; no approved number changes.
 
 The 2026-09-15 incumbent cell (`p3lamA_flickr_A_v4_N4_s42`, campaign mode) was re-launched with the
@@ -2168,6 +2316,8 @@ collection folder; nothing after ledger §598 (2026-09-16 16:37) has an independ
 
 ## 2026-09-20 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] Four slot-role mechanisms: none makes a slot specialise in its own axis; two remove the seed-dependent codebook collapse
 
+> **Recipe label (added 2026-09-27, audit §708):** the runs in this entry trained with `use_gumbel_softmax=True`; the approved recipe uses `False`. Comparisons inside the entry share that setting, but they do not establish the same effect under the approved recipe. See the 2026-09-27 label entry.
+
 **Status:** 🟡 exploratory, off-protocol. Must not enter `docs/paper_draft/`. Records:
 `result/analysis/arch_exp2_20260920/` (`PREREGISTRATION.md`, `RESULT.md`), code `8925504`.
 
@@ -2198,6 +2348,8 @@ conclusions stand.
 ---
 
 ## 2026-09-19 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] (A) Frozen text-initialised codebook: text init alone does nothing, freezing is harmful in every form, and freezing a RANDOM codebook beats freezing the text-initialised one
+
+> **Recipe label (added 2026-09-27, audit §708):** the runs in this entry trained with `use_gumbel_softmax=True`; the approved recipe uses `False`. Comparisons inside the entry share that setting, but they do not establish the same effect under the approved recipe. See the 2026-09-27 label entry.
 
 **Status:** 🟡 exploratory, off-protocol. Must not enter `docs/paper_draft/`. Record:
 `result/analysis/A_frozencodebook_20260919/RESULT.md`, `SMOKE_EVIDENCE.md`; code commit `a45cc45`
@@ -2235,6 +2387,8 @@ stand.
 ---
 
 ## 2026-09-19 [OFF-PROTOCOL, branch arch-exp-2026-09 — not a paper result] (B) Loss-budget rebalancing: raising `lambda_text_hash_ntxent` separates the text anchors threefold at no retrieval cost, but the routing plan does not follow; raising `lambda_wasserstein` is wrong-signed
+
+> **Recipe label (added 2026-09-27, audit §708):** the runs in this entry trained with `use_gumbel_softmax=True`; the approved recipe uses `False`. Comparisons inside the entry share that setting, but they do not establish the same effect under the approved recipe. See the 2026-09-27 label entry.
 
 **Status:** 🟡 exploratory, off-protocol. Must not enter `docs/paper_draft/`. Records:
 `result/analysis/lambda_slot_health_20260919/` (probe on the 8 existing 2026-09-15 λ cells),
