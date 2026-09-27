@@ -1,8 +1,8 @@
 # Anchor Confirmation — Contract v3 (generation v5): the fixed four-dataset anchor model
 
 **Status: NON-EXECUTABLE until the audit approves this exact generation for a named stage.**
-Prepared under audit §709–§710 (PREPARATION_AUTHORIZED; EXECUTION_NOT_AUTHORIZED;
-FINAL_RECIPE_NOT_APPROVED).
+Prepared under audit §709–§711 (PREPARATION_AUTHORIZED; EXECUTION_NOT_AUTHORIZED;
+FINAL_RECIPE_NOT_APPROVED). §7.6 carries the §711.3 correction: the lambda checks are required.
 - It supersedes contract v2 (`docs/ANCHOR_CONFIRMATION_CONTRACT_v2.md`, `26ebe2c1…`), which stays
   unchanged as history, together with its three-dataset scope, its CIFAR-incumbent exception and its
   conditional adoption rule.
@@ -23,17 +23,24 @@ datasets. This campaign asks, on **train-only validation data only**:
 The official-test result of the frozen model (stage T, later) is reported descriptively against the
 approved incumbent. It never selects the architecture, N, scope or a checkpoint.
 
+**What this campaign is not** (audit §711.1). S and D select N and validate the fixed model; they
+are not a matched anchor-versus-none experiment. Rendering the control proves a configuration
+difference, not an effect on performance. The later comparison against the approved `p3rfB`
+official-test results is descriptive. It is never presented as a fresh paired S/D experiment or as
+a causal effect of the anchors.
+
 ## 2. Recorded decisions this contract carries
 
 | Decision | Recorded | Where |
 |---|---|---|
 | `axis_center=anchors` is fixed for CIFAR-10, Flickr25K, NUS-WIDE and MS-COCO; this is an architecture decision, not a claim of superiority | user; audit §709 | audit §709.1 |
 | Stages S/D run the anchor arm only; the control (`none`) is rendered by the admission for the axis_center-alone comparison and never run | user, 2026-09-27 | §4, handoff v5 |
-| The anchor-versus-incumbent comparison is made after stages R/T, on the official test, against the approved `p3rfB` results (descriptive) | user, 2026-09-27 | §7.6 |
+| The anchor-versus-incumbent comparison is made after stages R/T, on the official test, against the approved `p3rfB` results (descriptive; not paired, not causal) | user, 2026-09-27; audit §711.1 | §1, §7.5 |
 | Run directories and the operations ledger live on the root filesystem (`/home/yschoi`), not on `/data` (99 % used) | user, 2026-09-27 | §14, addendum v3 |
 | The 12.5 GPU-hour ceiling for S + D + probes is kept | user, 2026-09-27; audit §709.2 | §12 |
 | One probe population for all four datasets: the first 500 validation rows | audit §709.3 (a feasible policy) | §8.2 |
 | N is chosen from seed 42 by the train-only rule; nothing is re-optimised on seeds 43/44 | audit §665.1 | §7.1 |
+| The TODO 13–15 lambda checks are **required** train-only work on the anchor model, after S/D and before the final recipe freeze; the anchor-only design does not waive them, and the old-model `p3lamA` evidence does not transfer | audit §711.3 | §7.6 |
 
 **Superseded, kept as history.** Contract v2's conditional rule (anchors iff retrieval within one
 control SD and a strict alignment gain), its CIFAR-incumbent policy, its three-dataset cell grid and
@@ -74,7 +81,7 @@ All four datasets are in scope. None is added or dropped after any score of this
   - the per-codon text-anchored prototype CE `codon_text_anchor`, which stays off (`False`; its
     weight 0.1 is inert).
 - `MODEL_AND_PROTOCOL_SPEC.md` does not yet define `axis_center`. The proposed amendment text is in
-  `docs/ANCHOR_MODEL_TODO_MIGRATION_v1.md` §1. The spec itself is edited only when this model is
+  `docs/ANCHOR_MODEL_TODO_MIGRATION_v2.md` §1. The spec itself is edited only when this model is
   consolidated, never silently.
 
 ### 4.2 The arm
@@ -175,11 +182,14 @@ All four datasets are in scope. None is added or dropped after any score of this
 - **No score selects the architecture.** A low retrieval or alignment value is reported as it is.
   It never adopts `none`, keeps an old refit, drops a dataset or suppresses a negative result.
 - Missing or invalid evidence still refuses the reduction (§10).
-- The decision record also lists the stage-R membership of §7.4.
+- The decision record also lists the stage-R membership of §7.4 at N_S(d). That membership is
+  provisional: it stands for a dataset whose recipe the lambda checks (§7.6 step 3) leave
+  unchanged, and the final recipe freeze decides it.
 
 ### 7.4 Stage R — scratch full-train anchor refits (separate authorization)
 
-- **12 cells:** 4 datasets × seeds 42/43/44, anchor arm, at N_S(d).
+- **12 cells:** 4 datasets × seeds 42/43/44, anchor arm, at the frozen final N of each dataset
+  (N_S(d) unless a lambda change reselected it, §7.6).
 - Settings: the full designated train split (`--val_split_ratio 0`), `-e N+1 --stop_after_epoch N`,
   and the approved refit post-processing (three-split extraction, BIO projection, NMI).
 - The twelve approved incumbent refits (`p3rfB`) are **not** the new model. They stay the
@@ -194,20 +204,45 @@ All four datasets are in scope. None is added or dropped after any score of this
 - It is reported next to the approved incumbent's means and sample SDs from `b4f3b0df…`, whatever it
   shows. Nothing is switched by it.
 
-### 7.6 Freeze order (audit §709.1 item 3, §709.5)
+### 7.6 Freeze order and recipe lineage (audit §709.1 item 3, §709.5, §711.3)
 
-1. **Stage S** selects N at the approved lambdas (§3).
-2. **Stage D** reports the seed behaviour at N_S; then come the probes and the stage-D summary.
-3. **Optional preregistered train-only lambda checks** for the anchor model (TODO 13–15), before
-   the final recipe freeze. If any lambda changes, N is selected again for the affected dataset in a
-   new stage-S request of a new generation. There is no Cartesian expansion and no test feedback.
-4. **Final recipe freeze:** anchors, N_S(d), the lambdas, recorded before any official-test access.
-5. **Stage R** (§7.4), then **stage T** (§7.5), each separately approved.
-6. **Downstream TODO items** on the frozen model, in the order and with the dependencies of
-   `docs/ANCHOR_MODEL_TODO_MIGRATION_v1.md`, each with its own budget and approval.
+1. **Stage S** selects N_S(d) at the approved lambdas (§3), seed 42.
+2. **Stage D** reports the seed behaviour at N_S(d); then the 12 probes and the stage-D summary.
+3. **Stage L: the TODO 13–15 lambda checks (required).** Train-only checks of the anchor model at
+   N_S(d), one factor at a time:
+   - TODO 13, transport (`--lambda_wasserstein`): 0.30 and 0.50 against 0.15;
+   - TODO 14, codebook balance (`--lambda_bu`): 0 against 0.02;
+   - TODO 15, text-code contrastive (`--lambda_text_hash_ntxent`): 0.025 and 0.10 against 0.05.
 
-S does not wait for items 3–6 to be implemented, but their order is fixed here before S is
-admitted.
+   They follow S/D and precede the freeze. They are not waived by the anchor-only design, and the
+   old-model `p3lamA` results (Flickr25K, ledger §536.1) are not anchor-model evidence.
+
+   They get their own preregistered proposal: the dataset scope, seeds, decision rule and budget
+   are fixed before any L score is seen. The natural template is the `p3lamA` rule: a candidate
+   replaces the value on its axis iff its seed-42 score exceeds the incumbent's seed-42 score by
+   more than max(0.002, the incumbent's seed spread), which stage D supplies for the anchor model;
+   the highest such candidate wins. The budget is separate from the §12 S/D/probe ceiling. The
+   design stays bounded (at most the five alternates above per dataset; no Cartesian grid) and
+   uses no official-test data.
+4. **If L changes a lambda of dataset d**:
+   - N is selected again for d's new recipe on seed 42 over {4, 9, 19, 39}, in a new generation
+     with its own contract, request and approval. Its cells are the affected datasets only.
+   - Stage D (seeds 43/44) and the three probes of d are regenerated at that N, from records of
+     that same generation.
+   - d's old-lambda S/D/probe records stay historical. They are not validation of the final model.
+   - Datasets whose lambdas L leaves unchanged keep this generation's records.
+   - No reduction merges records of two generations (each reducer already refuses another
+     generation's records). The freeze record (step 5) binds, per dataset, one generation's frozen
+     N record and stage-D decision record, each already single-generation.
+5. **Final recipe freeze (F)**, recorded before any R/T or official-test access. Per dataset:
+   `axis_center=anchors`, the final N, the final lambdas, and the generation whose S/D/probe
+   records validate exactly that recipe.
+6. **Stage R** (§7.4), then **stage T** (§7.5), each separately approved.
+7. **Downstream TODO items** on the frozen model after F and their actual R/T dependencies, in the
+   order of `docs/ANCHOR_MODEL_TODO_MIGRATION_v2.md`, each with its own budget and approval.
+
+S does not wait for L, R/T or downstream implementations or approvals. Their order is fixed here
+before S is admitted.
 
 ### 7.7 Stage gates (audit §668.2)
 
@@ -217,7 +252,8 @@ admitted.
 | S | this generation, the plan, this contract, the protocol values, the four input seals, the environment | `scope=stage-S-run manifest=… request=…` |
 | D | the stage-S frozen N record, replayed from the approved stage-S receipts of **the same generation** (JSON, logs and pinned bytes; nothing deserialised); the stage-D plan derived from it | `scope=stage-D-run manifest=… selection=<frozen N sha256> request=…` (smoke: `stage-D-smoke`) |
 | probes | the approved stage-S/D receipts, the frozen N record and the stage-D records | `scope=probe manifest=… selection=<frozen N sha256> request=…` |
-| R, T | the frozen stage-D summary and the recipe freeze (§7.6) | separate, later |
+| L (TODO 13–15) | the stage-D summary of this generation; its own preregistered proposal | separate, later |
+| R, T | the final recipe freeze (§7.6 step 5) | separate, later |
 
 ## 8. Endpoints
 
@@ -367,6 +403,10 @@ epoch) and the v2 contract's figures: CIFAR-10 0.56, Flickr25K 0.40, NUS-WIDE 1.
 
 - The ceiling for S + D + probes stays **12.5 GPU-hours**; the ledger charges are defined in
   addendum v3.
+- Stage L (§7.6 step 3) and any N reselection it causes have their own budget in their own
+  proposal. Planning bound for L: at most 5 alternates × 4 datasets = 20 seed-42 cells at N_S(d),
+  about 1.2 GPU-h if every N_S is 4 and 9.3 GPU-h if every N_S is 39. They never draw on the S/D
+  allowance.
 - The launcher runs one dataset stream per GPU (**4 GPUs**). The slowest stage-S stream (NUS-WIDE)
   takes about 81 min after full input verification of the four stage-1 seals (about 532 GB; the
   historical four-dataset figure is 82 min, an estimate).
@@ -428,3 +468,5 @@ epoch) and the v2 contract's figures: CIFAR-10 0.56, Flickr25K 0.40, NUS-WIDE 1.
 4. Input and environment admission for stage S (the four stage-1 seals, a full rehash, four GPUs)
    and stage-S execution for this exact generation, within the §12 ceiling, under addendum v3.
 5. Stage D, the probes, then R and T, each later and separately.
+6. The corrected freeze order and recipe lineage (§7.6, audit §711.3): stage L required after S/D
+   and before the freeze, with its own later proposal; the consequences of a lambda change.

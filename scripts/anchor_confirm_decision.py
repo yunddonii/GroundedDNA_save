@@ -557,7 +557,9 @@ def reduce_decide(args, manifest: dict) -> dict:
             "summary": summary, "stage_R_membership": refits,
             "note": "train-only; per dataset; n = 3; descriptive -- no score selects the "
                     "architecture, no threshold, significance or equivalence test; stage R/T are "
-                    "separate authorizations",
+                    "separate authorizations; the stage-R membership is provisional until the "
+                    "final recipe freeze: a lambda the required checks (TODO 13-15) change "
+                    "supersedes it for that dataset (contract v3 section 7.6)",
             "_consumed": consumed}
 
 

@@ -906,6 +906,7 @@ def test_decide_replays_selection_and_summarises_the_fixed_anchor_model(tmp_path
     assert result["stage_R_membership"] == [
         {"dataset": ds, "axis_center": "anchors", "N": 9, "seed": s, "refit": "scratch, full designated train split"}
         for ds in M.ANCHOR_DATASETS for s in (42, 43, 44)]
+    assert "provisional until the final recipe freeze" in result["note"]    # audit 711.3
 
 
 def test_a_frozen_n_record_that_its_evidence_does_not_reproduce_refuses(tmp_path, ledger, capsys):
