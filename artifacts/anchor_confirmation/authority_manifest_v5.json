@@ -1,0 +1,303 @@
+{
+ "approval": {
+  "authority": "/home/yschoi/GroundedDNA/docs/PHASE1_PHASE2_REAUDIT_2026-08-14.md",
+  "note": "not part of this manifest: the audit writes one ledger line per approved operation, naming this manifest's digest",
+  "scopes": {
+   "probe": [
+    "manifest",
+    "selection",
+    "request"
+   ],
+   "stage-D-run": [
+    "manifest",
+    "selection",
+    "request"
+   ],
+   "stage-D-smoke": [
+    "manifest",
+    "selection",
+    "request"
+   ],
+   "stage-S-run": [
+    "manifest",
+    "request"
+   ],
+   "stage-S-smoke": [
+    "manifest",
+    "request"
+   ]
+  },
+  "tag": "ANCHOR-CONFIRM-APPROVAL"
+ },
+ "artifact_kind": "anchor_confirmation_authority_manifest",
+ "consumed_sha256": {
+  "/data/yschoi/gdna_anchor_confirm_v1/config.py": "13079550490016a9600e6cfc6777cf01eb67335fa7f7e01de5f0018751aa1a8b",
+  "/data/yschoi/gdna_anchor_confirm_v1/dataloaders.py": "fa7545908664502a5a4f20fe8d3441b42d5f441653d1310dc4fbf08c1bb14e27",
+  "/data/yschoi/gdna_anchor_confirm_v1/dna_utils/__init__.py": "b20f32c8266c4bbdd4efa88fc1ce23bb17cacd7c76fa7ddcdd04437275c082e3",
+  "/data/yschoi/gdna_anchor_confirm_v1/dna_utils/bio_constraints.py": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+  "/data/yschoi/gdna_anchor_confirm_v1/dna_utils/cache_provenance.py": "144f6c0e51517010898ab4d43cea1d0a06d6ca375d55e5e721550dd06453c73b",
+  "/data/yschoi/gdna_anchor_confirm_v1/dna_utils/csv_logger.py": "68450e316bf775989f547b2593131e767e24903b3bef0893bda7a27055cb8d6f",
+  "/data/yschoi/gdna_anchor_confirm_v1/dna_utils/dna_code_utils.py": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+  "/data/yschoi/gdna_anchor_confirm_v1/dna_utils/extraction_validation.py": "bd126a04aac5d1b51eca0379180924d0ad9e80b8d6bae6c2784c86a12c88c8ca",
+  "/data/yschoi/gdna_anchor_confirm_v1/dna_utils/gc_policy.py": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+  "/data/yschoi/gdna_anchor_confirm_v1/dna_utils/gpu_lease.py": "01f1564258fc7ebe6d65226c961b579e7a88f063ce4814d89e75b490875ee976",
+  "/data/yschoi/gdna_anchor_confirm_v1/dna_utils/run_identity.py": "a6cfe0e902e889c4ccc35ada829fbd80063811457cf04a4c06c58939ec184c9f",
+  "/data/yschoi/gdna_anchor_confirm_v1/dna_utils/runtime_environment.py": "a78d51dbb134bcc400443a42b4c9fa46063b7bef356ab5b37b571a44f489a597",
+  "/data/yschoi/gdna_anchor_confirm_v1/dna_utils/runtime_state.py": "cdab32494012f3f7199c7f05af81af547f5ddcbeb2131e166787dab94d26e333",
+  "/data/yschoi/gdna_anchor_confirm_v1/dna_utils/scientific_recipe.py": "b1ed8e4fc8a5e3f0b18b2c6dc37feb1360f7599281ea761972a09374375ca8ee",
+  "/data/yschoi/gdna_anchor_confirm_v1/dna_utils/text_description_processor.py": "e2028a9d007de711eebcb1b00e7a5fcb37e593d06c28231f3fa9bbf0a0541221",
+  "/data/yschoi/gdna_anchor_confirm_v1/dna_utils/training_utils.py": "f1a6ef9a0383312e4d52e0d693656c778ea620e53e69dc61f75d2510946cddb8",
+  "/data/yschoi/gdna_anchor_confirm_v1/dna_utils/visualization.py": "f71796319f19915371ae1ba12e25f6fa37a30429860c6d84a15aa222607c25bd",
+  "/data/yschoi/gdna_anchor_confirm_v1/dna_utils/vlm_qwen25_descriptions.py": "3c5a865ed264612dd0ff4b9663cd6e7e27c0b4d7c1b02f5045d22c633719f39c",
+  "/data/yschoi/gdna_anchor_confirm_v1/docs/ANCHOR_CONFIRMATION_CONTRACT_v3.md": "bd99ab0d8810d1247cc1716246e736056592ce913f701393981b7408db626799",
+  "/data/yschoi/gdna_anchor_confirm_v1/evaluation_siglip2.py": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+  "/data/yschoi/gdna_anchor_confirm_v1/extraction_siglip2.py": "1d10b3b0e065179f72e477edb98a37be77890040410c6b8a6f1fafc82ed9aab6",
+  "/data/yschoi/gdna_anchor_confirm_v1/loss_siglip2.py": "8a0275dd8504519888e68622c88a624685607ca68f05d0ae421dde7cc0a24d4b",
+  "/data/yschoi/gdna_anchor_confirm_v1/model_siglip2.py": "9c1cc71b7b40a366439495b3bfa510020a26ef6efd6c6a464b625a9982f3f11d",
+  "/data/yschoi/gdna_anchor_confirm_v1/models/__init__.py": "18106eb4dc331c9fbad2734a6e7bf5bc4d1870ba6cde514e9361baee10978444",
+  "/data/yschoi/gdna_anchor_confirm_v1/models/adapters.py": "0aa62a08472ef29662480023747caf661104d70b006f14311be7ffc165c68c4a",
+  "/data/yschoi/gdna_anchor_confirm_v1/models/cluster_attention_router.py": "2c69889d8d84b70fdf3fb2c571217da1ca06f76f0b49be8dd0d0485ffdc7c13e",
+  "/data/yschoi/gdna_anchor_confirm_v1/models/pretrained_backbone.py": "e86953f0760c8f46649b2152b0d2e812053f549da75b9c5a97de05fbd5801b3f",
+  "/data/yschoi/gdna_anchor_confirm_v1/models/pretrained_backbone_clip.py": "c0237e43c6fcbd3fb9221bd147648b2e42fa59df280e5919d1699f4c33d4580a",
+  "/data/yschoi/gdna_anchor_confirm_v1/models/semantic_router.py": "200a5a0d0f93b5dd05c9a3dcd412588f51a745fafb7d37b179bcc3f1a510460b",
+  "/data/yschoi/gdna_anchor_confirm_v1/models/text_cross_attention_router.py": "559677f2659ab1a543e1fed145891a67ffc5a7eb38ecb4f197b0cfa76e3302ec",
+  "/data/yschoi/gdna_anchor_confirm_v1/models/text_encoder.py": "0ed8d4f6db5ce87f0f5c18ccc804a631fe0c2502ff218630c91b7217938c0a7b",
+  "/data/yschoi/gdna_anchor_confirm_v1/models/visual_encoder.py": "9d38599dcd07377c3e4b8f89a1da4f5965515529023761c26dae587592cf8565",
+  "/data/yschoi/gdna_anchor_confirm_v1/p0_protocol.py": "da9aee20f221e896ca2cec3371bb1568568ec831b2c7eaf4f2b0f5f68fade399",
+  "/data/yschoi/gdna_anchor_confirm_v1/scripts/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "/data/yschoi/gdna_anchor_confirm_v1/scripts/anchor_confirm_code_axis.py": "31537dde1cc8dd338221bb7fd49241cc0c618c0de444a2adf3500e86f708b19e",
+  "/data/yschoi/gdna_anchor_confirm_v1/scripts/anchor_confirm_decision.py": "79fbe1318a35e15ed501faec09ff9fafc9bd1fe4652938c850972e7351da3bf5",
+  "/data/yschoi/gdna_anchor_confirm_v1/scripts/anchor_confirm_manifest.py": "61b1df158de1ee9846c1eabaffc9579741c01a739ca7300616fddf0df25a4d59",
+  "/data/yschoi/gdna_anchor_confirm_v1/scripts/anchor_confirm_supervisor.py": "b5eecf58cbbc9d7d03463e4ea7a35ac107842aa6657a3b66e3770528cbdd1dd0",
+  "/data/yschoi/gdna_anchor_confirm_v1/scripts/build_text_whiten_matrix.py": "76e9332662154b1cc3579aeea343c8ec4d917d6fea2007188909cafd456338a0",
+  "/data/yschoi/gdna_anchor_confirm_v1/scripts/eval_cell_bioproj.py": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+  "/data/yschoi/gdna_anchor_confirm_v1/scripts/extract_train_split.py": "fcb8ea1991f2f3179c26e5fb878479538289c408070efb7b484e25a17c230370",
+  "/data/yschoi/gdna_anchor_confirm_v1/scripts/pairwise_nmi.py": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2",
+  "/data/yschoi/gdna_anchor_confirm_v1/scripts/phase3_launch_matrix.sh": "9ef51d79f9678ac0b2a5fb93d31ac1fe6029763628d991b3d290e6f0c5e8142e",
+  "/data/yschoi/gdna_anchor_confirm_v1/scripts/phase3_select_n.py": "1feaa90cd76077a7f53006c8905dd5db5478a700811eaf13edd9a7eaa449009e",
+  "/data/yschoi/gdna_anchor_confirm_v1/scripts/phase3_selection_matrix.py": "abd902c650286d585b755196117becb9a345950674fa4e3b597bd58baf63e9e5",
+  "/data/yschoi/gdna_anchor_confirm_v1/scripts/seal_cell_analysis.py": "65be44b77bf3a03a2afcee81c3bb24d3431f6d74d5e00debd878fe11a2a2e695",
+  "/data/yschoi/gdna_anchor_confirm_v1/scripts/seal_phase3_inputs.py": "12233f8e4967c90afcab131a1061fe76abfbaed86648e1388826538a6d42f214",
+  "/data/yschoi/gdna_anchor_confirm_v1/scripts/train_cifar10_v185_bidirTokenPrune05_ccs01_clip.sh": "a0dff871b7be004f9a614eae324c6613ca6713af591749239c7868ec6965abc9",
+  "/data/yschoi/gdna_anchor_confirm_v1/scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh": "7850783ff03b63035018fa217b05ee7f6fcc7b2778cdbb7e76faf61df7b06726",
+  "/data/yschoi/gdna_anchor_confirm_v1/scripts/train_mscoco_F2_sweep_clip.sh": "c4bfb0f8d172c3353b72605ab41d7c78d69b7fba3f4f0745ccaaf1fecfbad18f",
+  "/data/yschoi/gdna_anchor_confirm_v1/scripts/train_nuswide_v185_sweep_clip.sh": "d63476d81da232ce4676394116cc050511f7d7f0b8bda637211c538c6b4764a8",
+  "/data/yschoi/gdna_anchor_confirm_v1/tests/test_anchor_confirm_launcher.py": "e0662c4552028e8737adb6a59a4f33f625c2426f0141666972ed65a5d0a251e7",
+  "/data/yschoi/gdna_anchor_confirm_v1/tests/test_anchor_confirm_lifecycle.py": "93bca9a4099e6f5aa78eb90411b3bdc6aae2217b059d11fc04945d87a43d96fc",
+  "/data/yschoi/gdna_anchor_confirm_v1/tests/test_anchor_confirm_port.py": "d2d5f9550f3ff4202c617b4823f6605fd76cda0bdb7828bbb0ffd4977c13593f",
+  "/data/yschoi/gdna_anchor_confirm_v1/tests/test_anchor_confirm_recipe.py": "1dbcce64a3d0694114f00811ea3445cd379fbed35f59051e81d8a53b78ac1148",
+  "/data/yschoi/gdna_anchor_confirm_v1/tests/test_anchor_confirm_reducer.py": "b62635cd90a7a2a99d9b3cd0203f9bec3c194aea332da43c862815c8059097b9",
+  "/data/yschoi/gdna_anchor_confirm_v1/tests/test_anchor_confirm_supervisor.py": "1ed421d63b85b036ca2ec7650a43434d286a3cdbed5dd58165f5bb3ba2d2f561",
+  "/data/yschoi/gdna_anchor_confirm_v1/train_siglip2.py": "d23788cb9fea109aaffc191a6208f74869367756c933e985e2c3a1246050586f",
+  "/data/yschoi/gdna_anchor_confirm_v1/val_split.py": "95e415c6f43b714fc349c44c5d449e667429bc0f15fb4af9c4389e82ca9eecc2",
+  "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/p3lamA_sweep_complete.json": "5a8901b76c5e0b97e0daea5f1564bf1f1a7cf05a79212abd148f601df91894d2",
+  "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/p3rfB_refit_aggregate.json": "b4f3b0dff467f7c1fd4ca134edba66085115939a4097e6bb201bd13ca83452a5",
+  "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/selected_n.json": "2bf6133d8cdc7471e40a33d20f1bb19228aa770e67a999a436efb5abac6b2549"
+ },
+ "contract": {
+  "path": "docs/ANCHOR_CONFIRMATION_CONTRACT_v3.md",
+  "sha256": "bd99ab0d8810d1247cc1716246e736056592ce913f701393981b7408db626799"
+ },
+ "coordinates": {
+  "arms": [
+   "none",
+   "anchors"
+  ],
+  "candidate_n": [
+   4,
+   9,
+   19,
+   39
+  ],
+  "datasets": [
+   "cifar10",
+   "flickr25k",
+   "nuswide",
+   "mscoco"
+  ],
+  "decide_seeds": [
+   43,
+   44
+  ],
+  "select_seed": 42
+ },
+ "design": {
+  "datasets": [
+   "cifar10",
+   "flickr25k",
+   "nuswide",
+   "mscoco"
+  ],
+  "fixed_architecture": "axis_center=anchors for all four datasets (audit 709)",
+  "rendered_comparator": "none",
+  "reuse": "none: every S/D cell is fresh",
+  "run_arms": [
+   "anchors"
+  ]
+ },
+ "generation": "v5",
+ "historical": {
+  "approved_p3_refit_aggregate": {
+   "approval": "ledger section 285 (2026-09-09)",
+   "path": "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/p3rfB_refit_aggregate.json",
+   "refit_record_sha256": {
+    "cifar10": {
+     "42": "3d4b13c0378304111f22a04ef90a3b227e4551c3c0a711c63c181054d39cdd3a",
+     "43": "79530d77437913d6bd27e1f25fc307999d78b348fb86cbd8c161a9c8692c132b",
+     "44": "74dd15d79c06c40e64ac32c99db60e99dd2ac3344efc51aecb6defe99b7bc2c8"
+    },
+    "flickr25k": {
+     "42": "25a0ce89780aec30cd6fe175037fe6b71c277b9ee891e289488a36ad8abb27ce",
+     "43": "a7a17324ee017d01c518de6008cfa0db3017e7c9ed98046cc480b6f084f8583b",
+     "44": "e5598a736b37161c35b23be91217d4ad0bac5ddfb3833633c02afb53b0ef2db6"
+    },
+    "mscoco": {
+     "42": "5d59d04852287d6aaf9196bb02b0bce96bd34d59ee0d2dba2bcde3fc87ed6d73",
+     "43": "c032b86a699dc045f19f5ba59cd624838ba8dfffd70beb9fd0dba69924fb883f",
+     "44": "bd3c13fa667104851da8ea66b6b6e4eee1e8761677dfc81ac95dbc1398a21f9f"
+    },
+    "nuswide": {
+     "42": "9bc22afd7dd54a572ce23f84f0d7143e3cea9f06c72dadaeb8799ec99b8120ad",
+     "43": "50ee11ba431cf4b44a7187bfdd779e49dbffd71b80d87f9b8673229d3f1d02f1",
+     "44": "a8270a609c541c9b73057b7bdbfbcc2a1ed893f9de77bbd6063015f22dfa02bb"
+    }
+   },
+   "sha256": "b4f3b0dff467f7c1fd4ca134edba66085115939a4097e6bb201bd13ca83452a5"
+  },
+  "approved_selected_n": {
+   "namespace": "p3gE",
+   "path": "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/selected_n.json",
+   "protocol_sources": {
+    "config.py": "8bc54df67e92d56387eaa40fd89b3a37feca5919b56a7e1668221c3a022cfc4e",
+    "dna_utils/run_identity.py": "a6cfe0e902e889c4ccc35ada829fbd80063811457cf04a4c06c58939ec184c9f",
+    "model_siglip2.py": "749ac1bc101b06620c0f40b42fe64b5995f653a9cb8959d9f248ee430f87fc36",
+    "scripts/phase3_selection_matrix.py": "60eaefc2b8a3997627c5ab6398c2cac6231ffb0b5dc46bbb4e977174f2fc212d",
+    "train_siglip2.py": "fe7ba262296ad87ebc8cb82f70ab2a36e40b9cd4e96a62975e856e3c5c5089b8"
+   },
+   "records_sha256": {
+    "p3gE_cifar_A_v4_N19_s42_JD002.json": "1e6bc96b6fe3f48bc7eeeded555a93d7ab6ec0ec126a054704eca3c1c2350177",
+    "p3gE_cifar_A_v4_N39_s42_JD002.json": "83fbec21ac04046f3e8e42c099faaf1360d95d9cb88ed4dac641bc2f2d545385",
+    "p3gE_cifar_A_v4_N4_s42_JD002.json": "a15a6edaf38f65e958ad92383fbd134f5a8c356b83a8f72c27dbee1169a6832b",
+    "p3gE_cifar_A_v4_N9_s42_JD002.json": "fbea5a9df04941593a781d3a5222022691778cbf910edef5679a6afe22cf8295",
+    "p3gE_flickr_A_v4_N19_s42_P06095_JD002.json": "217441c787a3e6dac2185cbe5d797f7fa6ce8c9fbd1e4e4bce065c6c06d98df9",
+    "p3gE_flickr_A_v4_N39_s42_P06095_JD002.json": "9ce74016065a6a944bebbbcd8115bb9425b6ff057fa23e4a6c1c015935254c1d",
+    "p3gE_flickr_A_v4_N4_s42_P06095_JD002.json": "5ac7b57d0f6d7482e9d9e5cdb84510b282c2294466aa6af7904353409a0972b0",
+    "p3gE_flickr_A_v4_N9_s42_P06095_JD002.json": "41993a28ae2af4453eddf803d7d185b317d8516c170e00671fba412cd4f1f719",
+    "p3gE_mscoco_A_v5b_N19_s42_P06095_JD003.json": "92beb8ef96440134eaac57fffc0ef961cfc360f9c9eb75298ff64e40cbf655e6",
+    "p3gE_mscoco_A_v5b_N39_s42_P06095_JD003.json": "5e0334941bddd4c2b1837e56fcc399f25897c05a9f58a9dee18195ef63208020",
+    "p3gE_mscoco_A_v5b_N4_s42_P06095_JD003.json": "b74653652ee10d36d4a586a38f36e3b4a72275144482bd1f02b2256ab16dda00",
+    "p3gE_mscoco_A_v5b_N9_s42_P06095_JD003.json": "b7bbf3d618ed3b2eda00d65200a3219e8d9b0b56f9945c4727408ee2ae5a4d03",
+    "p3gE_nuswide_A_v4_N19_s42_P0408_JD005.json": "fad2dae9960e46c73b5c89e2298c5ad025d2ab6fe41a7b366a5d3457b34a0000",
+    "p3gE_nuswide_A_v4_N39_s42_P0408_JD005.json": "2dc9f2097e35ab04180f456e13543457ab21c0d8fbe4e0ff460d73a9fd3b4cfa",
+    "p3gE_nuswide_A_v4_N4_s42_P0408_JD005.json": "d35b2b0053a1d92e29f07e54b5c14f8441297bb17b2b88338d4e86717781d26a",
+    "p3gE_nuswide_A_v4_N9_s42_P0408_JD005.json": "81ac9a6d707f945fc1fd9c46794c5cc9f7d40acc8c444167705ec4e4d8dcafd6"
+   },
+   "sha256": "2bf6133d8cdc7471e40a33d20f1bb19228aa770e67a999a436efb5abac6b2549"
+  },
+  "base_commit": "88c3a25b1b309550eafc276c2ce5be7575507173",
+  "lambda_campaign": {
+   "approval": "ledger section 536.1",
+   "receipt": "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/p3lamA_sweep_complete.json",
+   "sha256": "5a8901b76c5e0b97e0daea5f1564bf1f1a7cf05a79212abd148f601df91894d2"
+  },
+  "not_authority": {
+   "artifacts/phase3_selection/selected_n.json in the new worktree": "f2218aa7 -- an older committed copy"
+  },
+  "p3_commit": "5304005cb6eaa6462a5450c30c25bc65f978af23",
+  "recipe_authority": {
+   "path": "/data/yschoi/gdna_p3exec_authority/phase3_recipe_stability.json",
+   "sha256": "e61748d7cf3c08dcacb91e4737b32834dfbfa42e49bfa6fd7641c0f28d774f73"
+  }
+ },
+ "new_generation": {
+  "branch": "arch-exp-2026-09-anchor-confirm",
+  "clean": true,
+  "commit": "2f79cb05354e3c5a290d4e26616dd7242d8c10dd",
+  "dataset_scripts_sha256": {
+   "scripts/train_cifar10_v185_bidirTokenPrune05_ccs01_clip.sh": "a0dff871b7be004f9a614eae324c6613ca6713af591749239c7868ec6965abc9",
+   "scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh": "7850783ff03b63035018fa217b05ee7f6fcc7b2778cdbb7e76faf61df7b06726",
+   "scripts/train_mscoco_F2_sweep_clip.sh": "c4bfb0f8d172c3353b72605ab41d7c78d69b7fba3f4f0745ccaaf1fecfbad18f",
+   "scripts/train_nuswide_v185_sweep_clip.sh": "d63476d81da232ce4676394116cc050511f7d7f0b8bda637211c538c6b4764a8"
+  },
+  "environment": {
+   "interpreter": "/home/yschoi/.conda/envs/dna_hashing/bin/python",
+   "python": "3.10.20",
+   "torch": "2.6.0+cu124"
+  },
+  "files_sha256": {
+   "config.py": "13079550490016a9600e6cfc6777cf01eb67335fa7f7e01de5f0018751aa1a8b",
+   "dataloaders.py": "fa7545908664502a5a4f20fe8d3441b42d5f441653d1310dc4fbf08c1bb14e27",
+   "dna_utils/__init__.py": "b20f32c8266c4bbdd4efa88fc1ce23bb17cacd7c76fa7ddcdd04437275c082e3",
+   "dna_utils/bio_constraints.py": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+   "dna_utils/cache_provenance.py": "144f6c0e51517010898ab4d43cea1d0a06d6ca375d55e5e721550dd06453c73b",
+   "dna_utils/csv_logger.py": "68450e316bf775989f547b2593131e767e24903b3bef0893bda7a27055cb8d6f",
+   "dna_utils/dna_code_utils.py": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+   "dna_utils/extraction_validation.py": "bd126a04aac5d1b51eca0379180924d0ad9e80b8d6bae6c2784c86a12c88c8ca",
+   "dna_utils/gc_policy.py": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+   "dna_utils/gpu_lease.py": "01f1564258fc7ebe6d65226c961b579e7a88f063ce4814d89e75b490875ee976",
+   "dna_utils/run_identity.py": "a6cfe0e902e889c4ccc35ada829fbd80063811457cf04a4c06c58939ec184c9f",
+   "dna_utils/runtime_environment.py": "a78d51dbb134bcc400443a42b4c9fa46063b7bef356ab5b37b571a44f489a597",
+   "dna_utils/runtime_state.py": "cdab32494012f3f7199c7f05af81af547f5ddcbeb2131e166787dab94d26e333",
+   "dna_utils/scientific_recipe.py": "b1ed8e4fc8a5e3f0b18b2c6dc37feb1360f7599281ea761972a09374375ca8ee",
+   "dna_utils/text_description_processor.py": "e2028a9d007de711eebcb1b00e7a5fcb37e593d06c28231f3fa9bbf0a0541221",
+   "dna_utils/training_utils.py": "f1a6ef9a0383312e4d52e0d693656c778ea620e53e69dc61f75d2510946cddb8",
+   "dna_utils/visualization.py": "f71796319f19915371ae1ba12e25f6fa37a30429860c6d84a15aa222607c25bd",
+   "dna_utils/vlm_qwen25_descriptions.py": "3c5a865ed264612dd0ff4b9663cd6e7e27c0b4d7c1b02f5045d22c633719f39c",
+   "docs/ANCHOR_CONFIRMATION_CONTRACT_v3.md": "bd99ab0d8810d1247cc1716246e736056592ce913f701393981b7408db626799",
+   "evaluation_siglip2.py": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+   "extraction_siglip2.py": "1d10b3b0e065179f72e477edb98a37be77890040410c6b8a6f1fafc82ed9aab6",
+   "loss_siglip2.py": "8a0275dd8504519888e68622c88a624685607ca68f05d0ae421dde7cc0a24d4b",
+   "model_siglip2.py": "9c1cc71b7b40a366439495b3bfa510020a26ef6efd6c6a464b625a9982f3f11d",
+   "models/__init__.py": "18106eb4dc331c9fbad2734a6e7bf5bc4d1870ba6cde514e9361baee10978444",
+   "models/adapters.py": "0aa62a08472ef29662480023747caf661104d70b006f14311be7ffc165c68c4a",
+   "models/cluster_attention_router.py": "2c69889d8d84b70fdf3fb2c571217da1ca06f76f0b49be8dd0d0485ffdc7c13e",
+   "models/pretrained_backbone.py": "e86953f0760c8f46649b2152b0d2e812053f549da75b9c5a97de05fbd5801b3f",
+   "models/pretrained_backbone_clip.py": "c0237e43c6fcbd3fb9221bd147648b2e42fa59df280e5919d1699f4c33d4580a",
+   "models/semantic_router.py": "200a5a0d0f93b5dd05c9a3dcd412588f51a745fafb7d37b179bcc3f1a510460b",
+   "models/text_cross_attention_router.py": "559677f2659ab1a543e1fed145891a67ffc5a7eb38ecb4f197b0cfa76e3302ec",
+   "models/text_encoder.py": "0ed8d4f6db5ce87f0f5c18ccc804a631fe0c2502ff218630c91b7217938c0a7b",
+   "models/visual_encoder.py": "9d38599dcd07377c3e4b8f89a1da4f5965515529023761c26dae587592cf8565",
+   "p0_protocol.py": "da9aee20f221e896ca2cec3371bb1568568ec831b2c7eaf4f2b0f5f68fade399",
+   "scripts/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "scripts/anchor_confirm_code_axis.py": "31537dde1cc8dd338221bb7fd49241cc0c618c0de444a2adf3500e86f708b19e",
+   "scripts/anchor_confirm_decision.py": "79fbe1318a35e15ed501faec09ff9fafc9bd1fe4652938c850972e7351da3bf5",
+   "scripts/anchor_confirm_manifest.py": "61b1df158de1ee9846c1eabaffc9579741c01a739ca7300616fddf0df25a4d59",
+   "scripts/anchor_confirm_supervisor.py": "b5eecf58cbbc9d7d03463e4ea7a35ac107842aa6657a3b66e3770528cbdd1dd0",
+   "scripts/build_text_whiten_matrix.py": "76e9332662154b1cc3579aeea343c8ec4d917d6fea2007188909cafd456338a0",
+   "scripts/eval_cell_bioproj.py": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+   "scripts/extract_train_split.py": "fcb8ea1991f2f3179c26e5fb878479538289c408070efb7b484e25a17c230370",
+   "scripts/pairwise_nmi.py": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2",
+   "scripts/phase3_launch_matrix.sh": "9ef51d79f9678ac0b2a5fb93d31ac1fe6029763628d991b3d290e6f0c5e8142e",
+   "scripts/phase3_select_n.py": "1feaa90cd76077a7f53006c8905dd5db5478a700811eaf13edd9a7eaa449009e",
+   "scripts/phase3_selection_matrix.py": "abd902c650286d585b755196117becb9a345950674fa4e3b597bd58baf63e9e5",
+   "scripts/seal_cell_analysis.py": "65be44b77bf3a03a2afcee81c3bb24d3431f6d74d5e00debd878fe11a2a2e695",
+   "scripts/seal_phase3_inputs.py": "12233f8e4967c90afcab131a1061fe76abfbaed86648e1388826538a6d42f214",
+   "scripts/train_cifar10_v185_bidirTokenPrune05_ccs01_clip.sh": "a0dff871b7be004f9a614eae324c6613ca6713af591749239c7868ec6965abc9",
+   "scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh": "7850783ff03b63035018fa217b05ee7f6fcc7b2778cdbb7e76faf61df7b06726",
+   "scripts/train_mscoco_F2_sweep_clip.sh": "c4bfb0f8d172c3353b72605ab41d7c78d69b7fba3f4f0745ccaaf1fecfbad18f",
+   "scripts/train_nuswide_v185_sweep_clip.sh": "d63476d81da232ce4676394116cc050511f7d7f0b8bda637211c538c6b4764a8",
+   "tests/test_anchor_confirm_launcher.py": "e0662c4552028e8737adb6a59a4f33f625c2426f0141666972ed65a5d0a251e7",
+   "tests/test_anchor_confirm_lifecycle.py": "93bca9a4099e6f5aa78eb90411b3bdc6aae2217b059d11fc04945d87a43d96fc",
+   "tests/test_anchor_confirm_port.py": "d2d5f9550f3ff4202c617b4823f6605fd76cda0bdb7828bbb0ffd4977c13593f",
+   "tests/test_anchor_confirm_recipe.py": "1dbcce64a3d0694114f00811ea3445cd379fbed35f59051e81d8a53b78ac1148",
+   "tests/test_anchor_confirm_reducer.py": "b62635cd90a7a2a99d9b3cd0203f9bec3c194aea332da43c862815c8059097b9",
+   "tests/test_anchor_confirm_supervisor.py": "1ed421d63b85b036ca2ec7650a43434d286a3cdbed5dd58165f5bb3ba2d2f561",
+   "train_siglip2.py": "d23788cb9fea109aaffc191a6208f74869367756c933e985e2c3a1246050586f",
+   "val_split.py": "95e415c6f43b714fc349c44c5d449e667429bc0f15fb4af9c4389e82ca9eecc2"
+  },
+  "worktree": "/data/yschoi/gdna_anchor_confirm_v1"
+ },
+ "note": "byte identities from JSON and text only; not approval to execute",
+ "predecessor": {
+  "authority_manifest_v1_sha256": "c1eed986312ba9a017cc559813ce1d0d2b2dc2fc5aba1df3f032424cbda8b94e",
+  "authority_manifest_v2_sha256": "a5f7b8436e3e81b189deedb4d1f3e99eb993bce59d8792bada12f7c1a6a1bf0a",
+  "authority_manifest_v3_sha256": "9e54bda303d6c34f080e8026492ff7eec7bfe432a6e53bd34a5a6056881a9b83",
+  "authority_manifest_v4_sha256": "5a4481f4898fda3df27250e0214e204495022a91546d7d78e2e1c2749e17647b",
+  "contract_v1_sha256": "418091eedff7ee8c09df149df6bc7027f6b4ac0d8ebbe3dd724facefa66a5a08",
+  "contract_v2_sha256": "26ebe2c104e89702bbc9daef0a3470d123ef6f7c5c30eefc49222cb26e29b001",
+  "v3_change": "campaign child lifecycle (audit 705/706), the pre-dispatch storage rule and the operational supervisor (703/704); the S/D scientific design and the contract are unchanged",
+  "v4_change": "the supervisor's accounting only (audit 707.1): observation windows, a watchdog and an unresolved state; the launcher and the S/D scientific design are unchanged",
+  "v5_change": "contract v3 (audit 709): axis_center=anchors fixed for all four datasets, anchor arm only, CIFAR-10 added, the adoption rule removed, a 500-row probe population, four GPUs; supersedes the three-dataset v2-v4 request"
+ },
+ "version": "anchor-confirm/2"
+}

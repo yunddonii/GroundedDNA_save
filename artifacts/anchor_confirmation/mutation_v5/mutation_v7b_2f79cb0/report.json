@@ -1,0 +1,477 @@
+{
+ "baseline": [
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.3,
+   "test": "test_a_changed_request_is_not_covered_by_the_old_approval[change3-needs exactly that many distinct GPUs]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.6,
+   "test": "test_a_one_cell_smoke_needs_one_gpu_and_a_run_four"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 4.8,
+   "test": "test_a_plan_that_drops_a_dataset_or_runs_a_control_refuses[plan0]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 4.8,
+   "test": "test_a_plan_that_drops_a_dataset_or_runs_a_control_refuses[plan1]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 4.8,
+   "test": "test_an_approval_that_is_not_exactly_this_operation_refuses[sections12-5-stage-S-run-pins12-approves stage-S-run for]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.3,
+   "test": "test_invalid_arm_plans_refuse[None-none,anchors-runs the arms]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.5,
+   "test": "test_invalid_arm_plans_refuse[None-none-runs the arms]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 4.9,
+   "test": "test_the_alternate_literal_is_narrow[argv0-not a reviewed wrapper literal]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 4.5,
+   "test": "test_the_alternate_literal_is_narrow[argv2-not a reviewed wrapper literal]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 4.5,
+   "test": "test_the_cifar_wrapper_literal_is_a_reviewed_alternate_and_still_needs_the_override"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.7,
+   "test": "test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes10-500 images]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.5,
+   "test": "test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes12-measured another population]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.5,
+   "test": "test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes14-measured another population]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.5,
+   "test": "test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes9-500 images]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.6,
+   "test": "test_a_record_whose_source_is_not_a_campaign_receipt_refuses[reuse]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.9,
+   "test": "test_a_validation_split_short_of_500_rows_refuses"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.1,
+   "test": "test_an_n_record_that_is_not_of_the_fixed_four_dataset_model_refuses[changes1]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.1,
+   "test": "test_an_n_record_that_is_not_of_the_fixed_four_dataset_model_refuses[changes2]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.2,
+   "test": "test_poor_scores_are_reported_and_never_restore_the_control"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.9,
+   "test": "test_select_takes_the_anchor_arm_only[none,anchors]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.9,
+   "test": "test_the_probe_request_names_the_population"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.9,
+   "test": "test_the_probe_takes_the_first_500_rows_of_each_datasets_validation_split[mscoco]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.0,
+   "test": "test_the_probe_takes_the_first_500_rows_of_each_datasets_validation_split[nuswide]"
+  }
+ ],
+ "commit": "2f79cb0",
+ "mutants": [
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "MX1 the launcher lets a control arm into the arm plan",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "with pytest.raises(CellRefused, match=reason):",
+     "declared_text": "DID NOT RAISE",
+     "failing_line": "with pytest.raises(CellRefused, match=reason):",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.5,
+     "test": "test_invalid_arm_plans_refuse[None-none,anchors-runs the arms]"
+    },
+    {
+     "declared_line": "with pytest.raises(CellRefused, match=reason):",
+     "declared_text": "DID NOT RAISE",
+     "failing_line": "with pytest.raises(CellRefused, match=reason):",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.9,
+     "test": "test_invalid_arm_plans_refuse[None-none-runs the arms]"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "MX2 the launcher accepts a plan without CIFAR-10 or with a control",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "with pytest.raises(CellRefused, match=\"must run\"):",
+     "declared_text": "DID NOT RAISE",
+     "failing_line": "with pytest.raises(CellRefused, match=\"must run\"):",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.7,
+     "test": "test_a_plan_that_drops_a_dataset_or_runs_a_control_refuses[plan0]"
+    },
+    {
+     "declared_line": "with pytest.raises(CellRefused, match=\"must run\"):",
+     "declared_text": "DID NOT RAISE",
+     "failing_line": "with pytest.raises(CellRefused, match=\"must run\"):",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.5,
+     "test": "test_a_plan_that_drops_a_dataset_or_runs_a_control_refuses[plan1]"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "MX3 the request's GPU count need not equal its dataset streams",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert reason in capsys.readouterr().err and boundaries == []",
+     "declared_text": null,
+     "failing_line": "assert reason in capsys.readouterr().err and boundaries == []",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.5,
+     "test": "test_a_changed_request_is_not_covered_by_the_old_approval[change3-needs exactly that many distinct GPUs]"
+    },
+    {
+     "declared_line": "assert run_main(monkeypatch, *BASE, *MODES[1], \"--gpus\", \"0,1\", *manifest_args, \"--plan\") == 2",
+     "declared_text": null,
+     "failing_line": "assert run_main(monkeypatch, *BASE, *MODES[1], \"--gpus\", \"0,1\", *manifest_args, \"--plan\") == 2",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.1,
+     "test": "test_a_one_cell_smoke_needs_one_gpu_and_a_run_four"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "dna_utils/scientific_recipe.py",
+   "mutant": "MX4 the CIFAR-10 alternate literal is not admitted",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": null,
+     "declared_text": "not a reviewed wrapper literal",
+     "failing_line": "admitted = R.admitted_overrides(parser, cifar)",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.1,
+     "test": "test_the_cifar_wrapper_literal_is_a_reviewed_alternate_and_still_needs_the_override"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "dna_utils/scientific_recipe.py",
+   "mutant": "MX5 the first-occurrence check is disabled (any wrapper literal)",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "with pytest.raises(R.RecipeMismatch, match=reason):",
+     "declared_text": "DID NOT RAISE",
+     "failing_line": "with pytest.raises(R.RecipeMismatch, match=reason):",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.1,
+     "test": "test_the_alternate_literal_is_narrow[argv0-not a reviewed wrapper literal]"
+    },
+    {
+     "declared_line": "with pytest.raises(R.RecipeMismatch, match=reason):",
+     "declared_text": "DID NOT RAISE",
+     "failing_line": "with pytest.raises(R.RecipeMismatch, match=reason):",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.1,
+     "test": "test_the_alternate_literal_is_narrow[argv2-not a reviewed wrapper literal]"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_decision.py",
+   "mutant": "MX6 the reducer takes arms other than the anchor arm",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert \"not the contract's ('anchors',)\" in capsys.readouterr().err",
+     "declared_text": null,
+     "failing_line": "assert \"not the contract's ('anchors',)\" in capsys.readouterr().err",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.0,
+     "test": "test_select_takes_the_anchor_arm_only[none,anchors]"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_decision.py",
+   "mutant": "MX7 the reducer admits a record that is not a campaign receipt",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert run_select(world, tmp_path / \"o.json\", sources=world.sources(entries)) == 1",
+     "declared_text": null,
+     "failing_line": "assert run_select(world, tmp_path / \"o.json\", sources=world.sources(entries)) == 1",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.3,
+     "test": "test_a_record_whose_source_is_not_a_campaign_receipt_refuses[reuse]"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_decision.py",
+   "mutant": "MX8 the reducer ignores the probe population",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert run_decide(evidence, frozen, frozen_sha, tmp_path / \"d.json\") == 1",
+     "declared_text": null,
+     "failing_line": "assert run_decide(evidence, frozen, frozen_sha, tmp_path / \"d.json\") == 1",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.4,
+     "test": "test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes12-measured another population]"
+    },
+    {
+     "declared_line": "assert run_decide(evidence, frozen, frozen_sha, tmp_path / \"d.json\") == 1",
+     "declared_text": null,
+     "failing_line": "assert run_decide(evidence, frozen, frozen_sha, tmp_path / \"d.json\") == 1",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.3,
+     "test": "test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes14-measured another population]"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_decision.py",
+   "mutant": "MX9 the reducer ignores the 500 x 4 counts",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert run_decide(evidence, frozen, frozen_sha, tmp_path / \"d.json\") == 1",
+     "declared_text": null,
+     "failing_line": "assert run_decide(evidence, frozen, frozen_sha, tmp_path / \"d.json\") == 1",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.2,
+     "test": "test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes9-500 images]"
+    },
+    {
+     "declared_line": "assert run_decide(evidence, frozen, frozen_sha, tmp_path / \"d.json\") == 1",
+     "declared_text": null,
+     "failing_line": "assert run_decide(evidence, frozen, frozen_sha, tmp_path / \"d.json\") == 1",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.3,
+     "test": "test_a_probe_that_is_not_this_records_contract_measurement_refuses[changes10-500 images]"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_code_axis.py",
+   "mutant": "MX10 the probe measures a validation split short of 500 rows",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "with pytest.raises(D.NotReducible, match=\"has 499 rows, fewer than the contract's 500\"):",
+     "declared_text": "DID NOT RAISE",
+     "failing_line": "with pytest.raises(D.NotReducible, match=\"has 499 rows, fewer than the contract's 500\"):",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.9,
+     "test": "test_a_validation_split_short_of_500_rows_refuses"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_decision.py",
+   "mutant": "MX11 (re-introduction) the v2 adoption rule restores the control on a poor score",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert d[\"axis_center\"] == \"anchors\" and d[\"frozen_N\"] == 4",
+     "declared_text": null,
+     "failing_line": "assert d[\"axis_center\"] == \"anchors\" and d[\"frozen_N\"] == 4",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.3,
+     "test": "test_poor_scores_are_reported_and_never_restore_the_control"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_code_axis.py",
+   "mutant": "MX12 the probe measures every validation row, not the first 500",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert rows == sorted(int(i) for i in val)[:500] and len(rows) == D.PROBE_POPULATION[\"n_images\"]",
+     "declared_text": null,
+     "failing_line": "assert rows == sorted(int(i) for i in val)[:500] and len(rows) == D.PROBE_POPULATION[\"n_images\"]",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.3,
+     "test": "test_the_probe_takes_the_first_500_rows_of_each_datasets_validation_split[nuswide]"
+    },
+    {
+     "declared_line": "assert rows == sorted(int(i) for i in val)[:500] and len(rows) == D.PROBE_POPULATION[\"n_images\"]",
+     "declared_text": null,
+     "failing_line": "assert rows == sorted(int(i) for i in val)[:500] and len(rows) == D.PROBE_POPULATION[\"n_images\"]",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.3,
+     "test": "test_the_probe_takes_the_first_500_rows_of_each_datasets_validation_split[mscoco]"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_decision.py",
+   "mutant": "MX13 the stage-D replay ignores the fixed-architecture declaration",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert run_decide(evidence, frozen, frozen_sha, tmp_path / \"d.json\") == 1",
+     "declared_text": null,
+     "failing_line": "assert run_decide(evidence, frozen, frozen_sha, tmp_path / \"d.json\") == 1",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.4,
+     "test": "test_an_n_record_that_is_not_of_the_fixed_four_dataset_model_refuses[changes1]"
+    },
+    {
+     "declared_line": "assert run_decide(evidence, frozen, frozen_sha, tmp_path / \"d.json\") == 1",
+     "declared_text": null,
+     "failing_line": "assert run_decide(evidence, frozen, frozen_sha, tmp_path / \"d.json\") == 1",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.3,
+     "test": "test_an_n_record_that_is_not_of_the_fixed_four_dataset_model_refuses[changes2]"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "MX14 an approval line of any version is accepted",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "with pytest.raises(CellRefused, match=reason):",
+     "declared_text": "DID NOT RAISE",
+     "failing_line": "with pytest.raises(CellRefused, match=reason):",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.6,
+     "test": "test_an_approval_that_is_not_exactly_this_operation_refuses[sections12-5-stage-S-run-pins12-approves stage-S-run for]"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/anchor_confirm_decision.py",
+   "mutant": "MX15 the probe request omits the population",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert request.get(\"population\") == D.PROBE_POPULATION == {",
+     "declared_text": null,
+     "failing_line": "assert request.get(\"population\") == D.PROBE_POPULATION == {",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.9,
+     "test": "test_the_probe_request_names_the_population"
+    }
+   ]
+  }
+ ],
+ "sandbox_restored": true,
+ "status_equal": true,
+ "stray_processes": "",
+ "tracked_after": "0f3c9db63ea52dbaf9c766dbea6f3700e3bc62b65d691390dadb9980817c3f51",
+ "tracked_before": "0f3c9db63ea52dbaf9c766dbea6f3700e3bc62b65d691390dadb9980817c3f51"
+}
