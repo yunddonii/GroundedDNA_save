@@ -943,6 +943,31 @@ def test_probes_approved_for_other_records_refuse(tmp_path, ledger, capsys):
     assert "approves probe for" in capsys.readouterr().err
 
 
+def test_the_probe_request_names_the_population():
+    request = D.probe_request(MANIFEST_SHA, "b" * 64, {("flickr25k", "anchors", 4, 42): "a" * 64})
+    assert request.get("population") == D.PROBE_POPULATION == {
+        "rows": "first 500 of the train-only validation split, ascending dataset index",
+        "n_images": 500, "local_slots": 4, "decisions": 2000}
+
+
+@pytest.mark.parametrize("population", [{**D.PROBE_POPULATION, "n_images": 512, "decisions": 2048},
+                                        {**D.PROBE_POPULATION, "rows": "a random 500 of the validation split"},
+                                        None])
+def test_probes_approved_for_another_population_refuse(tmp_path, ledger, capsys, monkeypatch, population):
+    """An approval of the same records with another row population does not cover these probes."""
+    real = D.probe_request
+
+    def other(*args):
+        return {**real(*args), "population": population}
+    monkeypatch.setattr(D, "probe_request", other)
+    try:
+        evidence, frozen, frozen_sha = decide_world(tmp_path, ledger)
+    finally:
+        monkeypatch.setattr(D, "probe_request", real)
+    assert run_decide(evidence, frozen, frozen_sha, tmp_path / "d.json") == 1
+    assert "approves probe for" in capsys.readouterr().err
+
+
 def test_stage_d_records_approved_for_another_frozen_n_refuse(tmp_path, ledger, capsys):
     evidence, frozen, frozen_sha = decide_world(tmp_path, ledger, d_selection="e" * 64)
     assert run_decide(evidence, frozen, frozen_sha, tmp_path / "d.json") == 1

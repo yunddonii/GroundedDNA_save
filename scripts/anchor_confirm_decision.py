@@ -208,9 +208,12 @@ def campaign_approval(snapshot: dict, scope: str, *, manifest_sha256: str, selec
 
 def probe_request(manifest_sha256: str, selection_sha256: str, records: dict) -> dict:
     """The canonical request of the probe operation one approval covers: this generation, this
-    frozen N record and exactly these stage-D records, {coordinate: record digest}."""
+    frozen N record, exactly these stage-D records ({coordinate: record digest}) and the contract's
+    row population (audit 709.3: the image count and the four-slot denominator are part of what is
+    approved)."""
     return {"schema": M.REQUEST_SCHEMA, "version": M.ANCHOR_CONFIRM_VERSION, "operation": "probe",
             "manifest": manifest_sha256, "selection": selection_sha256,
+            "population": dict(PROBE_POPULATION),
             "records": sorted([*c, digest] for c, digest in records.items())}
 
 

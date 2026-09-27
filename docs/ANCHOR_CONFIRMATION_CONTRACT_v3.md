@@ -237,7 +237,8 @@ Frozen definition (`scripts/anchor_confirm_code_axis.py`, schema **`anchor-confi
   - Fewer than 500 rows refuses. Exactly 500 are measured. There is no smaller, resampled,
     enlarged, optimization-train or official-test population.
   - The envelope carries the population declaration `{rows, n_images: 500, local_slots: 4,
-    decisions: 2000}`, and the reducer requires it exactly.
+    decisions: 2000}`, and the reducer requires it exactly. The probe request (§11.3) carries the
+    same declaration, so a probe approval names the population it covers.
   - The rows' cache identities are hashed (`row_ids_sha256`). All three probes of one dataset must
     report the same row digest and split identity.
 - **Forward:** deployment. Eval mode; no caption reaches the model. The four local slots' quantised
@@ -342,7 +343,11 @@ ANCHOR-CONFIRM-APPROVAL version=anchor-confirm/2 scope=<scope> manifest=<sha256>
 - `epochs`, `input_seals` (path and file digest), `admission_authority` and `gpu_count`.
 
 The GPU count must equal the number of dataset streams the request runs: 4 for a stage run, 1 for a
-one-cell smoke. **A version-1 (three-dataset) request, approval line or record refuses by version.**
+one-cell smoke.
+
+**The probe request** (`anchor_confirm_decision.probe_request`, same schema and version) names the
+generation manifest, the frozen N record, the 12 stage-D records `{coordinate: record digest}` and
+the §8.2 population. One `probe` approval line covers the 12 probes of that request. **A version-1 (three-dataset) request, approval line or record refuses by version.**
 A request with three GPUs, a missing dataset or a control arm cannot be formed. `--plan` together
 with the execution arguments prints the request and its digest.
 
