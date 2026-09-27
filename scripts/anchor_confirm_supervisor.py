@@ -1,4 +1,4 @@
-"""Operational supervisor for ONE anchor-confirmation command (audit 703-706).
+"""Operational supervisor for ONE anchor-confirmation command (audit 703-707).
 
 It supplies what the launcher and tmux_run.sh do not: a free-space floor watched
 while cells run, the S + D + probes device budget carried across stages in one
@@ -10,19 +10,35 @@ What it never does: signal anything except the one command it started, acquire
 or test-lock a GPU lease, delete or move an artifact, or infer that a process
 died from an observation timeout. A failed observation stops dispatch.
 
-Accounting (audit 704.3). ``device_seconds`` is the sum, over attempts, of the
-attempt's process lifetime: the start is the kernel's start time of the process,
-the end is the first poll that no longer sees it (an upper bound). An attempt is
-a managed campaign child (a child session leader of the launcher -- one trainer
-on one GPU) or, for a probe, the probe process itself. It is an upper bound on
-per-attempt device occupancy, NOT measured GPU utilisation. Attempts shorter
-than one poll can be missed; ``unobserved_allowance_seconds`` charges one poll
-per planned cell for them. ``lease_gpu_seconds`` is the separate, larger idle-
-inclusive quantity: GPUs leased by the launcher (from /proc/locks) times time.
-CPU input verification before the lease is ``pre_lease_seconds``: separate time,
-not device work. The budget binds device work plus both allowances, across every
-stage in the ledger; a run without a final record makes the ledger unusable
-until the audit reconciles it.
+Accounting (audit 704.3, 707.1). ``device_seconds`` is the sum, over attempts,
+of the attempt's process lifetime: the start is the kernel's start time of the
+process, the end is the first scan that no longer sees it (an upper bound). An
+attempt is a managed campaign child (a child session leader of the launcher --
+one trainer on one GPU) or, for a probe, the probe process itself, which cannot
+vanish before this process reaps it. It is an upper bound on per-attempt device
+occupancy, NOT measured GPU utilisation.
+
+A launcher attempt can start and end between two scans. Such an attempt lies
+inside one observation window -- from the START of one scan to the END of the
+next, measured on the boot clock, so every stat, scan, ledger write or scheduling
+delay is inside it -- and the launcher runs one managed child per stage-1 cell
+without retries, so ``unobserved_allowance_seconds`` = planned cells x the
+longest window actually observed. More attempts observed than cells planned
+voids that premise. A watchdog thread stops the command when no observation has
+completed for WATCHDOG_SECONDS, so work can outrun a stalled observation by at
+most that; the budget reserves GPUs x (WATCHDOG_SECONDS + STOP_BOUND_SECONDS).
+
+If observation continuity is lost -- a window longer than the watchdog bound, a
+watchdog stop, a failed observation or ledger write, or more attempts than cells
+-- the run is stopped and its final record is ``unresolved``: its charge is
+recorded with ``pessimistic_bound_seconds`` (GPUs x wall time), and no later
+stage starts until the audit reconciles it; the same holds for a run without a
+final record and for an ``unclean`` one (live attempts or held leases at exit).
+
+``lease_gpu_seconds`` is the separate, larger idle-inclusive quantity: GPUs
+leased by the launcher (from /proc/locks) times time. CPU input verification
+before the lease is ``pre_lease_seconds``: separate time, not device work. The
+budget binds charged work across every stage in the ledger.
 
 Thresholds are constants of this pinned file, so the generation manifest that
 names these bytes names them too.
@@ -40,6 +56,7 @@ import secrets
 import signal
 import subprocess
 import sys
+import threading
 import time
 
 #: the bytes this module was imported from (audit 697)
@@ -61,6 +78,8 @@ FREE_FLOOR_BYTES = 10 << 30
 CELL_OUTPUT_BYTES = 3 << 28                    # 0.75 GiB; a historical N39 cell holds 0.61 GiB
 BUDGET_DEVICE_SECONDS = 12.5 * 3600.0          # S + D + probes (contract section 12)
 POLL_SECONDS = 1.0
+#: no completed observation for this long stops the command (and voids the run's settlement)
+WATCHDOG_SECONDS = 10.0
 LEDGER_EVERY_SECONDS = 30.0
 #: the launcher's own cleanup is bounded by TERM 5 s + KILL 30 s plus /proc scans; three times that
 STOP_BOUND_SECONDS = 120.0
@@ -71,7 +90,7 @@ STAGES = {
     "stage-D-run": (6 * 3600.0, 3), "stage-D-smoke": (2 * 3600.0, 3),
     "probe": (15 * 60.0, 1),
 }
-EXIT_REFUSED, EXIT_STOPPED, EXIT_UNCLEAN = 2, 3, 4
+EXIT_REFUSED, EXIT_STOPPED, EXIT_UNCLEAN, EXIT_UNRESOLVED = 2, 3, 4, 5
 
 
 class Refused(RuntimeError):
@@ -214,6 +233,11 @@ class Ledger:
         if unclean:
             raise Refused(f"run(s) {unclean} in {self.path} ended with live attempts or held "
                           "leases: their device time is not final; the audit must reconcile it")
+        unresolved = [run for run, record in finals.items()
+                      if record.get("status") == "unresolved"]
+        if unresolved:
+            raise Refused(f"run(s) {unresolved} in {self.path} lost observation continuity: "
+                          "their charge is unresolved; the audit must reconcile it")
         return sum(float(record["charged_seconds"]) for record in finals.values()), runs
 
     def write(self, record: dict) -> None:
@@ -233,27 +257,31 @@ class Ledger:
 
 def supervise(command, *, stage, label, gpus, attempts, planned_cells, watch_path, ops_root,
               manifest_sha256, budget_seconds=BUDGET_DEVICE_SECONDS, poll_seconds=POLL_SECONDS,
-              stop_bound_seconds=STOP_BOUND_SECONDS, wall_limit_seconds=None,
-              ledger_every=LEDGER_EVERY_SECONDS, lease_root=GPU_LEASE_ROOT,
-              free_bytes=free_bytes) -> int:
+              watchdog_seconds=WATCHDOG_SECONDS, stop_bound_seconds=STOP_BOUND_SECONDS,
+              wall_limit_seconds=None, ledger_every=LEDGER_EVERY_SECONDS,
+              lease_root=GPU_LEASE_ROOT, free_bytes=free_bytes) -> int:
     """Run ``command`` under the storage, budget and wall-time rules; returns an exit code."""
     wall_limit = STAGES[stage][0] if wall_limit_seconds is None else float(wall_limit_seconds)
+    if not watchdog_seconds >= 2 * poll_seconds > 0:
+        raise Refused("the watchdog bound must be at least two poll intervals")
     ledger = Ledger(Path(ops_root))
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ-") + secrets.token_hex(4)
     identity = {"run_id": run_id, "stage": stage, "label": label}
     try:
         prior, _runs = ledger.prior_device_seconds()
-        headroom = gpus * (poll_seconds + stop_bound_seconds)
-        allowance = planned_cells * poll_seconds
+        # Work may outrun the last completed observation by the watchdog bound,
+        # and the launcher's own cleanup by the stop bound, on every GPU.
+        headroom = gpus * (watchdog_seconds + stop_bound_seconds)
+        least_allowance = (planned_cells * poll_seconds) if attempts == "sessions" else 0.0
         free = free_bytes(watch_path)
         need = FREE_FLOOR_BYTES + planned_cells * CELL_OUTPUT_BYTES
         refusal = None
         if free < need:
             refusal = (f"space: {free} bytes free under {watch_path}, below {need} "
                        f"(floor + {planned_cells} planned cells)")
-        elif prior + allowance + headroom >= budget_seconds:
-            refusal = (f"budget: {prior:.0f} s already charged + {allowance + headroom:.0f} s "
-                       f"allowance and headroom reach the {budget_seconds:.0f} s budget")
+        elif prior + least_allowance + headroom >= budget_seconds:
+            refusal = (f"budget: {prior:.0f} s already charged + {least_allowance + headroom:.0f} "
+                       f"s allowance and headroom reach the {budget_seconds:.0f} s budget")
         ledger.write({"event": "start", **identity, "command": list(command),
                       "command_sha256": hashlib.sha256(json.dumps(list(command)).encode()).hexdigest(),
                       "manifest_sha256": manifest_sha256, "supervisor_sha256": _IMPORTED_SOURCE_SHA256,
@@ -261,7 +289,9 @@ def supervise(command, *, stage, label, gpus, attempts, planned_cells, watch_pat
                       "rules": {"free_floor_bytes": FREE_FLOOR_BYTES,
                                 "cell_output_bytes": CELL_OUTPUT_BYTES,
                                 "budget_seconds": budget_seconds, "poll_seconds": poll_seconds,
+                                "watchdog_seconds": watchdog_seconds,
                                 "stop_bound_seconds": stop_bound_seconds,
+                                "headroom_seconds": headroom,
                                 "wall_limit_seconds": wall_limit, "gpus": gpus,
                                 "planned_cells": planned_cells, "attempts": attempts}})
         if refusal:
@@ -269,27 +299,27 @@ def supervise(command, *, stage, label, gpus, attempts, planned_cells, watch_pat
                           "reason": refusal, "charged_seconds": 0.0, "device_seconds": 0.0})
             print(f"[supervisor] REFUSED before start: {refusal}", file=sys.stderr)
             return EXIT_REFUSED
-        return _run(command, ledger, identity, prior=prior, headroom=headroom,
-                    allowance=allowance, gpus=gpus, attempts=attempts, watch_path=watch_path,
+        return _run(command, ledger, identity, prior=prior, headroom=headroom, gpus=gpus,
+                    attempts=attempts, planned_cells=planned_cells, watch_path=watch_path,
                     budget_seconds=budget_seconds, poll_seconds=poll_seconds,
-                    stop_bound_seconds=stop_bound_seconds, wall_limit=wall_limit,
-                    ledger_every=ledger_every, lease_root=Path(lease_root),
-                    free_bytes=free_bytes, ops_root=Path(ops_root))
+                    watchdog_seconds=watchdog_seconds, stop_bound_seconds=stop_bound_seconds,
+                    wall_limit=wall_limit, ledger_every=ledger_every,
+                    lease_root=Path(lease_root), free_bytes=free_bytes, ops_root=Path(ops_root))
     finally:
         ledger.close()
 
 
-def _run(command, ledger, identity, *, prior, headroom, allowance, gpus, attempts, watch_path,
-         budget_seconds, poll_seconds, stop_bound_seconds, wall_limit, ledger_every, lease_root,
-         free_bytes, ops_root) -> int:
-    operator, failures = [], []
+def _run(command, ledger, identity, *, prior, headroom, gpus, attempts, planned_cells,
+         watch_path, budget_seconds, poll_seconds, watchdog_seconds, stop_bound_seconds,
+         wall_limit, ledger_every, lease_root, free_bytes, ops_root) -> int:
+    operator, failures, continuity = [], [], []
 
     def _operator_stop(signum, _frame):
         operator.append(signal.Signals(signum).name)
 
     def _write(record) -> None:
         # A ledger that cannot be written is a failed observation: it stops
-        # dispatch, and it never ends the supervision of a live command.
+        # dispatch, voids the settlement, and never ends the supervision of a live command.
         try:
             ledger.write(record)
         except Exception as error:                  # noqa: BLE001
@@ -313,17 +343,46 @@ def _run(command, ledger, identity, *, prior, headroom, allowance, gpus, attempt
                 "charged_seconds": 0.0, "device_seconds": 0.0})
         print(f"[supervisor] REFUSED: cannot start {command[:2]}: {error}", file=sys.stderr)
         return EXIT_REFUSED
+    # The watchdog does not depend on the observation work: a stat, scan or ledger
+    # write that does not return cannot keep the command running past the bound.
+    # Reaping and signalling the command share one lock, so a signal never meets
+    # a reused PID.
+    proc_lock, halt = threading.Lock(), threading.Event()
+    watch = {"last": started, "fired": None, "stop_sent": None}
+
+    def _watchdog() -> None:
+        while not halt.wait(min(0.25, watchdog_seconds / 4)):
+            quiet = boot_seconds() - watch["last"]
+            if quiet > watchdog_seconds and watch["fired"] is None:
+                watch["fired"] = (f"watchdog: no completed observation for {quiet:.1f} s "
+                                  f"(bound {watchdog_seconds:.1f} s)")
+                with proc_lock:
+                    if proc.returncode is None and watch["stop_sent"] is None:
+                        proc.send_signal(signal.SIGTERM)
+                        watch["stop_sent"] = boot_seconds()
+
+    watcher = threading.Thread(target=_watchdog, name="supervisor-watchdog", daemon=True)
+    watcher.start()
     live, done = {}, []
     lease_gpu_seconds, first_lease, leased, last = 0.0, None, 0, started
-    stop = stop_sent = overdue_noted = None
+    stop = overdue_noted = None
+    window_start, max_window, allowance, exit_seen = started, 0.0, 0.0, None
     last_written = started
     try:
         while True:
-            now = boot_seconds()
+            scan_start = boot_seconds()
             reason = device = free = projected = None
             try:
                 seen = (managed_sessions(proc.pid) if attempts == "sessions"
                         else one_process(proc.pid))
+                now = boot_seconds()
+                # An attempt missed by this scan and the previous one lived inside
+                # (previous scan start, this scan end).
+                window, window_start = now - window_start, scan_start
+                max_window = max(max_window, window)
+                if window > watchdog_seconds:
+                    continuity.append(f"observation window {window:.1f} s exceeds the "
+                                      f"{watchdog_seconds:.1f} s bound")
                 ended_ids = {tuple(a["id"]) for a in done}
                 for key, start in seen.items():
                     if key not in live and key not in ended_ids:
@@ -335,6 +394,12 @@ def _run(command, ledger, identity, *, prior, headroom, allowance, gpus, attempt
                     done.append({"id": list(key), "start_boot": start, "end_boot": now,
                                  "seconds": now - start})
                     _write({"event": "attempt-end", **identity, **done[-1]})
+                if attempts == "sessions":
+                    allowance = planned_cells * max_window
+                    if len(done) + len(live) > planned_cells and not any(
+                            c.startswith("attempts:") for c in continuity):
+                        continuity.append(f"attempts: {len(done) + len(live)} observed for "
+                                          f"{planned_cells} planned cells")
                 device = sum(a["seconds"] for a in done) + sum(now - s for s in live.values())
                 count = len(held_leases(proc.pid, lease_root))
                 lease_gpu_seconds += max(count, leased) * (now - last)
@@ -345,6 +410,10 @@ def _run(command, ledger, identity, *, prior, headroom, allowance, gpus, attempt
                 projected = prior + device + allowance + headroom
                 if operator:
                     reason = f"operator signal {operator[0]}"
+                elif watch["fired"]:
+                    reason = watch["fired"]
+                elif continuity:
+                    reason = f"continuity lost: {continuity[0]}"
                 elif failures:
                     reason = f"monitor failure: {failures[0]}"
                 elif free < FREE_FLOOR_BYTES + gpus * CELL_OUTPUT_BYTES:
@@ -352,22 +421,33 @@ def _run(command, ledger, identity, *, prior, headroom, allowance, gpus, attempt
                               "cell outputs")
                 elif projected >= budget_seconds:
                     reason = f"budget: projected {projected:.0f} s of {budget_seconds:.0f} s"
-                elif now - started >= wall_limit - stop_bound_seconds - poll_seconds:
+                elif now - started >= wall_limit - stop_bound_seconds - watchdog_seconds:
                     reason = f"wall: {now - started:.0f} s of the {wall_limit:.0f} s limit"
             except Exception as error:              # noqa: BLE001 -- never a silent pass
+                now = boot_seconds()
+                continuity.append(f"observation failed: {error!r}")
                 reason = f"monitor failure: {error!r}"
-            if reason and stop is None and proc.poll() is None:
-                stop, stop_sent = reason, now
-                # Exact: the launcher is this process's own unreaped child.
-                proc.send_signal(signal.SIGTERM)
+            watch["last"] = boot_seconds()
+            if watch["fired"] and not any(c.startswith("watchdog") for c in continuity):
+                continuity.append(watch["fired"])
+            if reason and stop is None:
+                stop = reason
+                with proc_lock:
+                    if proc.returncode is None and watch["stop_sent"] is None:
+                        # Exact: the launcher is this process's own unreaped child.
+                        proc.send_signal(signal.SIGTERM)
+                        watch["stop_sent"] = now
                 _write({"event": "stop", **identity, "reason": reason, "device_seconds": device,
                         "free_bytes": free, "projected_seconds": projected,
                         "elapsed": now - started})
                 print(f"[supervisor] STOP: {reason}; SIGTERM sent to {proc.pid}", file=sys.stderr)
-            if proc.poll() is not None:
+            with proc_lock:
+                exited = proc.poll() is not None
+            if exited:
+                exit_seen = boot_seconds()
                 break
-            if stop_sent is not None and overdue_noted is None \
-                    and now - stop_sent > stop_bound_seconds:
+            if watch["stop_sent"] is not None and overdue_noted is None \
+                    and now - watch["stop_sent"] > stop_bound_seconds:
                 overdue_noted = now
                 _write({"event": "stop-overdue", **identity, "pid": proc.pid,
                         "note": "still live after the stop bound; still waiting -- a timeout is "
@@ -376,12 +456,25 @@ def _run(command, ledger, identity, *, prior, headroom, allowance, gpus, attempt
                 last_written = now
                 _write({"event": "poll", **identity, "device_seconds": device,
                         "in_flight": len(live), "leased_gpus": leased, "free_bytes": free,
-                        "projected_seconds": projected, "elapsed": now - started})
+                        "projected_seconds": projected, "max_window_seconds": max_window,
+                        "elapsed": now - started})
             time.sleep(poll_seconds)
     finally:
+        halt.set()
+        watcher.join()
         for signum, handler in previous.items():
             signal.signal(signum, handler)
     ended = boot_seconds()
+    # The last window: an attempt begun after the last scan ended before the exit was seen.
+    window = (ended if exit_seen is None else exit_seen) - window_start
+    max_window = max(max_window, window)
+    if window > watchdog_seconds:
+        continuity.append(f"observation window {window:.1f} s exceeds the "
+                          f"{watchdog_seconds:.1f} s bound")
+    if attempts == "sessions":
+        allowance = planned_cells * max_window
+    if watch["fired"] and not any(c.startswith("watchdog") for c in continuity):
+        continuity.append(watch["fired"])
     for key, start in list(live.items()):
         live.pop(key)
         done.append({"id": list(key), "start_boot": start, "end_boot": ended,
@@ -390,24 +483,32 @@ def _run(command, ledger, identity, *, prior, headroom, allowance, gpus, attempt
     orphans = [a["id"] for a in done if still_live(tuple(a["id"]))]
     leases_after = sorted(held_leases(proc.pid, lease_root))
     device = sum(a["seconds"] for a in done)
-    status = "unclean" if orphans or leases_after else "stopped" if stop else "exited"
+    status = ("unclean" if orphans or leases_after
+              else "unresolved" if continuity or failures
+              else "stopped" if stop else "exited")
     failures_before_final = len(failures)
     _write({
         "event": "final", **identity, "status": status, "reason": stop,
         "returncode": proc.returncode, "attempts": done, "device_seconds": device,
+        "max_observation_window_seconds": max_window,
         "unobserved_allowance_seconds": allowance, "charged_seconds": device + allowance,
         "cumulative_charged_seconds": prior + device + allowance,
-        "lease_gpu_seconds": lease_gpu_seconds,
+        "pessimistic_bound_seconds": gpus * (ended - started),
+        "continuity_lost": continuity, "lease_gpu_seconds": lease_gpu_seconds,
         "pre_lease_seconds": None if first_lease is None else first_lease - started,
         "wall_seconds": ended - started, "orphaned_live_attempts": orphans,
         "leases_held_after_exit": leases_after, "monitor_failures": failures,
         "command_log": str(log_path),
-        "accounting": "attempt process lifetimes, end at the first poll without them: an upper "
-                      "bound on device occupancy, not measured GPU utilisation"})
+        "accounting": "attempt process lifetimes (end at the first scan without them) plus "
+                      "planned cells x the longest observation window: an upper bound on device "
+                      "occupancy while continuity holds, not measured GPU utilisation"})
     print(f"[supervisor] {status}: rc={proc.returncode} device={device / 3600:.3f} h "
-          f"lease={lease_gpu_seconds / 3600:.3f} GPU-h log={log_path}", file=sys.stderr)
+          f"allowance={allowance:.1f} s lease={lease_gpu_seconds / 3600:.3f} GPU-h log={log_path}",
+          file=sys.stderr)
     if orphans or leases_after or len(failures) > failures_before_final:
         return EXIT_UNCLEAN
+    if continuity or failures:
+        return EXIT_UNRESOLVED
     if stop:
         return EXIT_STOPPED
     return proc.returncode

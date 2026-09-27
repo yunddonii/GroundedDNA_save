@@ -10,6 +10,7 @@ GPU, a trainer, a model or a dataset. An unrelated process must survive every st
 """
 from __future__ import annotations
 
+import inspect
 import json
 import os
 from pathlib import Path
@@ -28,6 +29,8 @@ import scripts.anchor_confirm_supervisor as S                     # noqa: E402
 
 PY = sys.executable
 PLENTY = 1 << 62
+#: the same file also runs against the v3 supervisor, which had no watchdog (audit 707.1)
+WATCHDOG = "watchdog_seconds" in inspect.signature(S.supervise).parameters
 
 TREE = r'''
 import os, signal, subprocess, sys, time
@@ -149,6 +152,10 @@ def world(tmp_path):
                        planned_cells=1, watch_path=str(out), ops_root=str(ops),
                        manifest_sha256="f" * 64, poll_seconds=0.2, stop_bound_seconds=2.0,
                        ledger_every=1.0, lease_root=leases, free_bytes=lambda _p: PLENTY)
+        if WATCHDOG:
+            options["watchdog_seconds"] = 2.0
+        else:                            # the v3 supervisor had no watchdog to set
+            overrides.pop("watchdog_seconds", None)
         options.update(overrides)
         return S.supervise(command, **options)
 
@@ -200,12 +207,14 @@ def test_space_breach_while_a_child_lives_stops_through_the_launchers_own_path(w
 
 
 def test_budget_breach_while_a_child_lives_stops_it(world):
-    # headroom 1 x (0.2 + 2.0) + allowance 1 x 0.2 leave 1.5 s of device time
-    rc = world.run(world.launch("leader:child-cooperative:stay"), budget_seconds=2.4 + 1.5)
+    # headroom 1 x (2.0 watchdog + 2.0 stop bound) leaves 1.8 s for the attempt and its allowance
+    budget = 4.0 + 1.8
+    rc = world.run(world.launch("leader:child-cooperative:stay"), budget_seconds=budget)
     assert rc == S.EXIT_STOPPED
     done = final(world.ops)
     assert done["reason"].startswith("budget:")
-    assert done["device_seconds"] >= 1.5
+    stop = [r for r in records(world.ops) if r["event"] == "stop"][-1]
+    assert stop["projected_seconds"] >= budget and done["device_seconds"] > 0.5
     assert all(not live(identity) for identity in world.owned)
     assert world.control.poll() is None
 
@@ -242,8 +251,11 @@ def test_a_failed_observation_stops_dispatch(world):
 
     rc = world.run([PY, "-c", "import time; time.sleep(60)"], attempts="self", stage="probe",
                    planned_cells=0, free_bytes=flaky)
-    assert rc == S.EXIT_STOPPED
-    assert final(world.ops)["reason"].startswith("monitor failure:")
+    assert rc == S.EXIT_UNRESOLVED                # what was missed while blind is unknown
+    done = final(world.ops)
+    assert done["reason"].startswith("monitor failure:") and done["status"] == "unresolved"
+    with pytest.raises(S.Refused, match="lost observation continuity"):
+        world.run([PY, "-c", "pass"], attempts="self", stage="probe", planned_cells=0)
 
 
 def test_a_command_slower_than_the_stop_bound_is_waited_for_not_declared_dead(world):
@@ -252,7 +264,7 @@ def test_a_command_slower_than_the_stop_bound_is_waited_for_not_declared_dead(wo
             "time.sleep(60)\n")
     began = time.monotonic()
     rc = world.run([PY, "-c", slow], attempts="self", stage="probe", planned_cells=0,
-                   wall_limit_seconds=2.5, stop_bound_seconds=0.5)
+                   wall_limit_seconds=2.5, stop_bound_seconds=0.5, watchdog_seconds=1.0)
     assert rc == S.EXIT_STOPPED and time.monotonic() - began >= 2.0
     events = [r["event"] for r in records(world.ops)]
     assert "stop-overdue" in events and events.index("stop-overdue") < events.index("final")
@@ -342,3 +354,163 @@ def test_the_cli_takes_the_gpu_count_from_the_launcher_and_refuses_before_starti
                  "--ops-root", str(tmp_path / "ops"), "--",
                  PY, "-c", f"open({str(marker)!r}, 'w')"])
     assert rc == S.EXIT_REFUSED and not marker.exists()
+
+
+# -- audit 707.1: an attempt between two observations, and a stalled observation ------------------
+
+#: A launcher that waits for a release, then runs managed-like children one at a time (each its
+#: own session leader) that stamp their own boot-clock start and end. Like the campaign launcher,
+#: SIGTERM stops its current child before it dies.
+GAP_LAUNCHER = r"""
+import os, signal, subprocess, sys, time
+go, stamp, runs = sys.argv[1], sys.argv[2], int(sys.argv[3])
+current = []
+
+def term(*_):
+    # Popen.wait() here would re-enter the lock held by the interrupted wait
+    # below; kill and reap by PID instead.
+    for child in current:
+        os.kill(child.pid, signal.SIGKILL)
+        try:
+            os.waitpid(child.pid, 0)
+        except ChildProcessError:
+            pass
+    signal.signal(signal.SIGTERM, signal.SIG_DFL)
+    os.kill(os.getpid(), signal.SIGTERM)
+
+signal.signal(signal.SIGTERM, term)
+signal.alarm(60)                     # a fixture never outlives a minute, whatever else fails
+while not os.path.exists(go):
+    time.sleep(0.01)
+for n in range(runs):
+    current[:] = [subprocess.Popen([sys.executable, "-c",
+        "import sys, time\n"
+        "path = sys.argv[1]\n"
+        "open(path, 'w').write(repr(time.clock_gettime(time.CLOCK_BOOTTIME)))\n"
+        "time.sleep(float(sys.argv[2]))\n"
+        "open(path, 'a').write(' ' + repr(time.clock_gettime(time.CLOCK_BOOTTIME)))\n",
+        f"{stamp}.{n}", "1.5" if runs == 1 else "0.8"], start_new_session=True)]
+    current[0].wait()
+    current.clear()
+time.sleep(0.3 if runs == 1 else 30)
+"""
+
+
+def stamped(path: Path) -> float:
+    """The child's own boot-clock lifetime (a lower bound of its process lifetime)."""
+    assert wait_for(lambda: path.exists() and len(path.read_text().split()) == 2, 10)
+    start, end = map(float, path.read_text().split())
+    return end - start
+
+
+def gap(world, block_seconds):
+    """free_bytes that releases the launcher right after the first live scan, then blocks."""
+    go = world.out / "go"
+    calls = []
+
+    def free(_path):
+        calls.append(S.boot_seconds())
+        if len(calls) == 2:              # call 1 is the pre-start check
+            go.touch()
+            time.sleep(block_seconds)
+            calls.append(S.boot_seconds())
+        return PLENTY
+
+    script = world.out / "gap_launcher.py"
+    script.write_text(GAP_LAUNCHER)
+    return free, [PY, str(script), str(go), str(world.out / "stamp")]
+
+
+def test_an_attempt_that_lives_between_two_observations_is_still_charged(world):
+    free, command = gap(world, 2.5)
+    rc = world.run(command + ["1"], planned_cells=1, poll_seconds=0.1, watchdog_seconds=10.0,
+                   free_bytes=free)
+    lived = stamped(world.out / "stamp.0")
+    done = final(world.ops)
+    assert done["attempts"] == []                       # no scan ever saw it
+    assert done["charged_seconds"] >= lived >= 1.5      # f634fc55 charged 0.1 (audit 707.1)
+    assert done["max_observation_window_seconds"] >= 2.5
+    assert rc == 0 and done["status"] == "exited"       # within the watchdog bound: a valid bound
+
+
+def test_a_normally_observed_attempt_is_charged_from_its_own_lifetime(world):
+    """Control: the same child, observed."""
+    go = world.out / "go"
+    calls = []
+
+    def free(_path):
+        calls.append(1)
+        if len(calls) == 2:
+            go.touch()
+        return PLENTY
+
+    script = world.out / "gap_launcher.py"
+    script.write_text(GAP_LAUNCHER)
+    rc = world.run([PY, str(script), str(go), str(world.out / "stamp"), "1"], planned_cells=1,
+                   poll_seconds=0.1, free_bytes=free)
+    lived = stamped(world.out / "stamp.0")
+    done = final(world.ops)
+    assert rc == 0 and done["status"] == "exited" and len(done["attempts"]) == 1
+    assert done["device_seconds"] >= lived >= 1.5
+    assert done["max_observation_window_seconds"] < 1.0
+
+
+def test_an_observation_stalled_past_the_watchdog_stops_the_command_and_is_unresolved(world):
+    free, command = gap(world, 2.5)
+    rc = world.run(command + ["1"], planned_cells=1, poll_seconds=0.1, watchdog_seconds=1.0,
+                   free_bytes=free)
+    assert (world.out / "stamp.0").exists()             # an attempt ran during the stall
+    done = final(world.ops)
+    assert rc == S.EXIT_UNRESOLVED and done["status"] == "unresolved"
+    assert done["reason"].startswith("watchdog:")
+    assert done["returncode"] == -signal.SIGTERM        # stopped while the observation hung
+    assert done["pessimistic_bound_seconds"] >= done["wall_seconds"]
+    with pytest.raises(S.Refused, match="lost observation continuity"):
+        world.run([PY, "-c", "pass"], attempts="self", stage="probe", planned_cells=0)
+
+
+def test_the_watchdog_signals_before_the_stalled_observation_returns(world):
+    """Independent timing: the command stamps the moment SIGTERM reaches it."""
+    stamp = world.out / "term"
+    command = [PY, "-c",
+               "import signal, sys, time\n"
+               "def term(*_):\n"
+               f"    open({str(stamp)!r}, 'w').write(repr(time.clock_gettime(time.CLOCK_BOOTTIME)))\n"
+               "    sys.exit(0)\n"
+               "signal.signal(signal.SIGTERM, term)\n"
+               "time.sleep(60)\n"]
+    blocked = []
+
+    def free(_path):
+        blocked.append(S.boot_seconds())
+        if len(blocked) == 3:
+            time.sleep(3.0)
+            blocked.append(S.boot_seconds())
+        return PLENTY
+
+    rc = world.run(command, attempts="self", stage="probe", planned_cells=0, poll_seconds=0.1,
+                   watchdog_seconds=1.0, free_bytes=free)
+    assert rc == S.EXIT_UNRESOLVED
+    signalled = float(stamp.read_text())
+    assert blocked[2] + 0.9 <= signalled < blocked[3]   # during the stall, after the bound
+    assert final(world.ops)["reason"].startswith("watchdog:")
+
+
+def test_more_attempts_than_planned_cells_void_the_allowance(world):
+    go = world.out / "go"
+    go.touch()
+    script = world.out / "gap_launcher.py"
+    script.write_text(GAP_LAUNCHER)
+    rc = world.run([PY, str(script), str(go), str(world.out / "stamp"), "2"], planned_cells=1,
+                   poll_seconds=0.1)
+    done = final(world.ops)
+    assert rc == S.EXIT_UNRESOLVED and done["status"] == "unresolved"
+    assert done["reason"].startswith("continuity lost: attempts: 2 observed for 1")
+
+
+def test_the_headroom_covers_the_watchdog_and_the_stop_bound(world):
+    common = dict(attempts="self", stage="probe", planned_cells=0, watchdog_seconds=2.0,
+                  stop_bound_seconds=2.0)
+    assert world.run([PY, "-c", "pass"], budget_seconds=4.0 - 0.01, **common) == S.EXIT_REFUSED
+    assert final(world.ops)["reason"].startswith("budget:")
+    assert world.run([PY, "-c", "pass"], budget_seconds=4.5, **common) == 0
