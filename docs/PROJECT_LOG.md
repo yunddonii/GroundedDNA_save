@@ -487,6 +487,57 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-27 [anchor confirmation stage S — approved launch refused at input verification; nothing trained] The four stage-1 seals pin six source files by the original tree's path, so their full check cannot pass from the anchor worktree
+
+**Status:** ❌ stopped by the launcher's own input check. Returned to the audit for review (§713.2:
+no retry, no input repair). Nothing was trained, no GPU was leased, and no result directory was
+created.
+
+**What ran.** The §713-approved stage-S request (manifest `84e94e2f…`, request `bd3117a9…`), through
+the supervisor, as ops/3 §6 with approval section 713 and GPUs 0,1,2,3.
+- tmux session `ancS5_v5`: supervisor PID 3356921, launcher PID 3356922.
+- Operations run `20260927T143532Z-4ada8a0d`, started 23:35:32 KST, exited 23:48:33 KST
+  (781.6 s, rc 2). Times are from the run's own ledger and runner log.
+- Final ledger record: `exited`, 0 attempts, 0 device seconds, no leases held, no orphans, no
+  continuity loss. Charged 19.1 s: 16 planned cells × the 1.19-s longest observation window. The
+  cumulative charge carried into later stages is 19.1 of 45,000 s.
+- Evidence (SHA256): ledger `1a2ad772…`, command log `00920e1a…`, runner log `521e35b0…`, status
+  `642b1d1f…`, runner `836a3529…`.
+
+**The refusal (verbatim).** `input seal cifar10:stage1 refused: Phase-3 input bytes/stat/inventory
+drifted: $seal.inputs.foil_derivation.producer_sources.scripts/build_counterfactual_caption_foils.py.path:
+'/data/yschoi/gdna_p3exec/scripts/…' -> '/data/yschoi/gdna_anchor_confirm_v1/scripts/…'`
+
+**Cause (read-only diagnosis).**
+- `scripts/seal_phase3_inputs.py` records six small source files as `REPO/<path>`, where REPO is
+  the tree that runs the code: five caption-foil producer scripts and `val_split.py` (seven fields
+  per seal).
+- Full verification rebuilds the whole seal and compares every field, including path, inode and
+  times.
+- All four seals were built in `/data/yschoi/gdna_p3exec`, so their full check can pass only from
+  that tree. All four seals carry the same seven tree-bound fields.
+- The six files have identical content in both trees, and the original tree's copies still match
+  their sealed inode and time. The inputs are not damaged.
+- The checker reports only the first difference, so whether the rest of the CIFAR-10 rebuild
+  matched is unknown.
+- Why nobody saw it earlier: full verification could not run before approval; the tests use
+  synthetic seals built in the same tree; the audit's §712.2 stats-only check does not rebuild
+  these records.
+
+**Options for the audit (not implemented).**
+1. A reviewed checker change in a new generation. Rebuild these six records from the paths the
+   seal names (the original files, checked by content and stat as sealed), and separately require
+   the running tree's copies to match by content. The 532-GB payload re-hash, row checks and
+   whitening re-derivation stay unchanged. Needs a test that reproduces this refusal first, then a
+   new manifest, request and approval.
+2. Re-seal the inputs from the anchor worktree. This gives new seal digests and a new request, and
+   "replacing a seal" needs explicit approval.
+
+**Next.** Wait for the audit's reconciliation. Stage S is not complete. D, probes, L, R/T are
+unchanged in status (not approved).
+
+---
+
 ## 2026-09-27 [anchor confirmation v5 — preparation only, nothing executed] Audit §709–§712: the fixed four-dataset anchor model — anchors only, CIFAR-10 added, no adoption rule, 500-row probes, lambda checks required before the freeze
 
 **Status:** ✅ submitted for review.
