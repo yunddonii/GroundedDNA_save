@@ -859,13 +859,15 @@ class Evidence:
         w.rewrite_record(next(i for i, x in enumerate(w.entries) if x is e), **changes)
 
 
-def decide_world(tmp_path, ledger, *, d_manifest=MANIFEST_SHA, d_selection=None, probe_request=None):
-    """Stage S reduced to a real frozen N record (N=9 both arms), a stage-D campaign approved for
-    it, and probes approved for exactly those records."""
+def decide_world(tmp_path, ledger, *, d_manifest=MANIFEST_SHA, d_selection=None, probe_request=None,
+                 frozen_changes=None):
+    """Stage S reduced to a real frozen N record (N=9), a stage-D campaign approved for it, and
+    probes approved for exactly those records. `frozen_changes` edit the N record BEFORE stage D and
+    the probes are approved for it, so the edit is the only thing a refusal can be about."""
     s_world = World(tmp_path / "S", SELECT, ledger=ledger)
     n_path = tmp_path / "n.json"
     assert run_select(s_world, n_path) == 0
-    frozen_sha = sha(n_path.read_bytes())
+    frozen_sha = edit_json(n_path, **frozen_changes) if frozen_changes else sha(n_path.read_bytes())
     frozen = json.loads(n_path.read_text())["n_selected"]
     coords = D.expected_coordinates("decide", arms=M.ANCHOR_RUN_ARMS, frozen=frozen)
     d_world = World(tmp_path / "D", [c for c in coords if c[3] != M.SEED], ledger=ledger,
@@ -928,12 +930,18 @@ def test_a_self_pinned_minimal_n_record_refuses(tmp_path, ledger, capsys):
                                      {"fixed_architecture": None},
                                      {"fixed_architecture.datasets": ["flickr25k", "nuswide", "mscoco"]}])
 def test_an_n_record_that_is_not_of_the_fixed_four_dataset_model_refuses(tmp_path, ledger, capsys, changes):
-    evidence, frozen, _ = decide_world(tmp_path, ledger)
-    copy = tmp_path / "other.json"
-    copy.write_bytes(Path(frozen).read_bytes())
-    digest = edit_json(copy, **changes)
-    assert run_decide(evidence, str(copy), digest, tmp_path / "d.json") == 1
+    """Stage D and the probes are approved for the edited record itself, so no approval binding can
+    stand in for the fixed-architecture check (mutation battery v7, first attempt: MX13)."""
+    evidence, frozen, frozen_sha = decide_world(tmp_path, ledger, frozen_changes=changes)
+    assert run_decide(evidence, frozen, frozen_sha, tmp_path / "d.json") == 1
     assert "not a record of the fixed four-dataset anchor model" in capsys.readouterr().err
+
+
+def test_the_edited_n_record_world_is_otherwise_reducible(tmp_path, ledger):
+    """Positive control of the fixture above: an edit that changes nothing the reducer checks
+    (the note) still reduces, so the refusals are about the architecture fields."""
+    evidence, frozen, frozen_sha = decide_world(tmp_path, ledger, frozen_changes={"note": "edited"})
+    assert run_decide(evidence, frozen, frozen_sha, tmp_path / "d.json") == 0
 
 
 def test_probes_approved_for_other_records_refuse(tmp_path, ledger, capsys):
