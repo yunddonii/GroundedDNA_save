@@ -1,0 +1,455 @@
+{
+ "baseline": [
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.2,
+   "test": "test_a_changed_new_generation_val_split_refuses_before_the_child"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.5,
+   "test": "test_a_forged_or_mutated_handoff_refuses[open(__file__, 'a').write('#')\\nprint(f'verified {seal} {agg}')\\n-changed while it ran]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.0,
+   "test": "test_a_forged_or_mutated_handoff_refuses[os.chmod(seal, 0o644)\\nopen(seal, 'a').write(' ')\\nprint(f'verified {seal} {agg}')\\n-changed while the historical verifier ran]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.0,
+   "test": "test_a_forged_or_mutated_handoff_refuses[pass\\n-report is not]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.0,
+   "test": "test_a_forged_or_mutated_handoff_refuses[print(f'verified {seal} {\"0\" * 64}')\\n-report is not]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.0,
+   "test": "test_a_forged_or_mutated_handoff_refuses[print(f'verified {seal} {agg}')\\nsys.exit(2)\\n-refused \\\\(rc 2\\\\)]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.0,
+   "test": "test_a_historical_source_changed_during_the_child_refuses_after_it[val_split.py]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.9,
+   "test": "test_a_restamped_historical_source_refuses_before_the_child[val_split.py]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.9,
+   "test": "test_a_seal_binding_another_producer_digest_refuses_before_the_child[scripts/build_counterfactual_caption_foils.py]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.9,
+   "test": "test_a_seal_binding_another_producer_digest_refuses_before_the_child[scripts/prepare_semantic_detail_cache.py]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.0,
+   "test": "test_a_seal_whose_aggregate_does_not_hold_refuses_before_the_child"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.7,
+   "test": "test_a_stale_expected_authority_refuses"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.9,
+   "test": "test_an_altered_historical_source_refuses_before_the_child[scripts/build_text_whiten_matrix.py]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.8,
+   "test": "test_an_altered_historical_source_refuses_before_the_child[val_split.py]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.0,
+   "test": "test_an_interrupted_wait_kills_the_child"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.9,
+   "test": "test_an_unpinned_verifier_refuses_before_the_child"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.5,
+   "test": "test_the_campaign_check_takes_the_bridge_only_for_a_full_anchor_admission"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 10.1,
+   "test": "test_the_child_dies_with_a_killed_launcher"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.6,
+   "test": "test_a_manifest_that_is_not_this_generation_refuses[changes7-historical input-verifier pins]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.5,
+   "test": "test_a_manifest_that_is_not_this_generation_refuses[changes8-historical input-verifier pins]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.3,
+   "test": "test_the_anchor_admission_uses_the_historical_verifier_and_records_it"
+  }
+ ],
+ "commit": "1f93db9",
+ "mutants": [
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "BX1 the verifier's pinned bytes are not checked before the child",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "M.verify_seal_historically(world[\"seal\"])",
+     "declared_text": "the historical verifier was started",
+     "failing_line": "M.verify_seal_historically(world[\"seal\"])",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.0,
+     "test": "test_an_unpinned_verifier_refuses_before_the_child"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "BX2 the seal's aggregate is not checked",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "M.verify_seal_historically(path)",
+     "declared_text": "the historical verifier was started",
+     "failing_line": "M.verify_seal_historically(path)",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.0,
+     "test": "test_a_seal_whose_aggregate_does_not_hold_refuses_before_the_child"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "BX3 the seal's six source records are not checked against the pins",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "M.verify_seal_historically(world[\"seal\"])",
+     "declared_text": "the historical verifier was started",
+     "failing_line": "M.verify_seal_historically(world[\"seal\"])",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.0,
+     "test": "test_a_seal_binding_another_producer_digest_refuses_before_the_child[scripts/build_counterfactual_caption_foils.py]"
+    },
+    {
+     "declared_line": "M.verify_seal_historically(world[\"seal\"])",
+     "declared_text": "the historical verifier was started",
+     "failing_line": "M.verify_seal_historically(world[\"seal\"])",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.9,
+     "test": "test_a_seal_binding_another_producer_digest_refuses_before_the_child[scripts/prepare_semantic_detail_cache.py]"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "BX4 the six historical files are not measured before the child (audit 716)",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "M.verify_seal_historically(world[\"seal\"])",
+     "declared_text": "the historical verifier was started",
+     "failing_line": "M.verify_seal_historically(world[\"seal\"])",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.1,
+     "test": "test_an_altered_historical_source_refuses_before_the_child[val_split.py]"
+    },
+    {
+     "declared_line": "M.verify_seal_historically(world[\"seal\"])",
+     "declared_text": "the historical verifier was started",
+     "failing_line": "M.verify_seal_historically(world[\"seal\"])",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.0,
+     "test": "test_an_altered_historical_source_refuses_before_the_child[scripts/build_text_whiten_matrix.py]"
+    },
+    {
+     "declared_line": "M.verify_seal_historically(world[\"seal\"])",
+     "declared_text": "the historical verifier was started",
+     "failing_line": "M.verify_seal_historically(world[\"seal\"])",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.0,
+     "test": "test_a_restamped_historical_source_refuses_before_the_child[val_split.py]"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "BX5 the six historical files are not re-measured after the child",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "with pytest.raises(S.SealError, match=r\"^after the historical verifier: the historical source\"):",
+     "declared_text": "DID NOT RAISE",
+     "failing_line": "with pytest.raises(S.SealError, match=r\"^after the historical verifier: the historical source\"):",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.1,
+     "test": "test_a_historical_source_changed_during_the_child_refuses_after_it[val_split.py]"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "BX6 this generation's val_split.py is not checked",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "M.verify_seal_historically(world[\"seal\"])",
+     "declared_text": "the historical verifier was started",
+     "failing_line": "M.verify_seal_historically(world[\"seal\"])",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.0,
+     "test": "test_a_changed_new_generation_val_split_refuses_before_the_child"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "BX7 a nonzero exit is not a refusal",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "with pytest.raises(S.SealError, match=reason):",
+     "declared_text": "DID NOT RAISE",
+     "failing_line": "with pytest.raises(S.SealError, match=reason):",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.2,
+     "test": "test_a_forged_or_mutated_handoff_refuses[print(f'verified {seal} {agg}')\\nsys.exit(2)\\n-refused \\\\(rc 2\\\\)]"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "BX8 the verifier's bytes are not re-checked after the child",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "with pytest.raises(S.SealError, match=reason):",
+     "declared_text": "DID NOT RAISE",
+     "failing_line": "with pytest.raises(S.SealError, match=reason):",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.0,
+     "test": "test_a_forged_or_mutated_handoff_refuses[open(__file__, 'a').write('#')\\nprint(f'verified {seal} {agg}')\\n-changed while it ran]"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "BX9 the seal's bytes are not re-checked after the child (reason change)",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "with pytest.raises(S.SealError, match=reason):",
+     "declared_text": "is not the bytes the historical verifier checked",
+     "failing_line": "with pytest.raises(S.SealError, match=reason):",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.1,
+     "test": "test_a_forged_or_mutated_handoff_refuses[os.chmod(seal, 0o644)\\nopen(seal, 'a').write(' ')\\nprint(f'verified {seal} {agg}')\\n-changed while the historical verifier ran]"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "BX10 the child's report is not checked",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "with pytest.raises(S.SealError, match=reason):",
+     "declared_text": "DID NOT RAISE",
+     "failing_line": "with pytest.raises(S.SealError, match=reason):",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.1,
+     "test": "test_a_forged_or_mutated_handoff_refuses[print(f'verified {seal} {\"0\" * 64}')\\n-report is not]"
+    },
+    {
+     "declared_line": "with pytest.raises(S.SealError, match=reason):",
+     "declared_text": "DID NOT RAISE",
+     "failing_line": "with pytest.raises(S.SealError, match=reason):",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.0,
+     "test": "test_a_forged_or_mutated_handoff_refuses[pass\\n-report is not]"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "BX11 a stale expected authority is accepted",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "with pytest.raises(S.SealError, match=\"authority changed across the historical verification\"):",
+     "declared_text": "DID NOT RAISE",
+     "failing_line": "with pytest.raises(S.SealError, match=\"authority changed across the historical verification\"):",
+     "intended": true,
+     "rc": 1,
+     "seconds": 7.0,
+     "test": "test_a_stale_expected_authority_refuses"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "BX12 the child does not die with its launcher",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert not alive(child), \"the historical verifier outlived its launcher\"",
+     "declared_text": null,
+     "failing_line": "assert not alive(child), \"the historical verifier outlived its launcher\"",
+     "intended": true,
+     "rc": 1,
+     "seconds": 20.4,
+     "test": "test_the_child_dies_with_a_killed_launcher"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "BX13 an interrupted wait leaves the child running",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert not alive(child), \"an interrupted wait left the historical verifier running\"",
+     "declared_text": null,
+     "failing_line": "assert not alive(child), \"an interrupted wait left the historical verifier running\"",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.1,
+     "test": "test_an_interrupted_wait_kills_the_child"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "BX14 the anchor admission does not ask for the historical verifier",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "assert seen.get(\"full\") is True and seen.get(\"historical\") is True and seen.get(\"expected\") is None",
+     "declared_text": null,
+     "failing_line": "assert seen.get(\"full\") is True and seen.get(\"historical\") is True and seen.get(\"expected\") is None",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.7,
+     "test": "test_the_anchor_admission_uses_the_historical_verifier_and_records_it"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "BX15 a full anchor check does not take the bridge",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "admitted = M.verify_campaign_input_seals(specs, [CELL], full=True, historical=True, evidence=evidence)",
+     "declared_text": "drifted",
+     "failing_line": "admitted = M.verify_campaign_input_seals(specs, [CELL], full=True, historical=True, evidence=evidence)",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.3,
+     "test": "test_the_campaign_check_takes_the_bridge_only_for_a_full_anchor_admission"
+    }
+   ]
+  },
+  {
+   "count": 1,
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "BX16 the manifest's historical input-verifier pins are not checked",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_line": "with pytest.raises(CellRefused, match=reason):",
+     "declared_text": "DID NOT RAISE",
+     "failing_line": "with pytest.raises(CellRefused, match=reason):",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.5,
+     "test": "test_a_manifest_that_is_not_this_generation_refuses[changes7-historical input-verifier pins]"
+    },
+    {
+     "declared_line": "with pytest.raises(CellRefused, match=reason):",
+     "declared_text": "DID NOT RAISE",
+     "failing_line": "with pytest.raises(CellRefused, match=reason):",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.5,
+     "test": "test_a_manifest_that_is_not_this_generation_refuses[changes8-historical input-verifier pins]"
+    }
+   ]
+  }
+ ],
+ "sandbox_restored": true,
+ "status_equal": true,
+ "stray_processes": "",
+ "tracked_after": "83b066219b2a10e0220400fe8254a85513c1f1711b316f8f8574a4acb555ded8",
+ "tracked_before": "83b066219b2a10e0220400fe8254a85513c1f1711b316f8f8574a4acb555ded8"
+}
