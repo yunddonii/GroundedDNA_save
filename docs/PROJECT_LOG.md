@@ -487,6 +487,50 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-28 [anchor confirmation v6 — preparation only, nothing executed] Audit §715–§719: the full input check now runs the historical tree's own seal verifier, after the six historical sources are checked in place
+
+**Status:** ✅ submitted for review.
+- **No GPU run of any kind, and no retry.** No full seal verification, lease, smoke or training
+  since the refused v5 attempt, and no approval line exists for v6.
+- Branch `arch-exp-2026-09-anchor-confirm`, head `43e9d3a`, source commit `1f93db9`.
+- Manifest v6 `a5ff2a0e…` (61 files). Contract v3 revised for v6 (`a97ed217…`), addendum
+  `docs/ANCHOR_CONFIRMATION_OPS_ADDENDUM_v4.md` (`anchor-confirm-ops/4`, `b5184154…`), handoff
+  `docs/ANCHOR_CONFIRMATION_HANDOFF_v6.md` (`87e28f2c…`).
+- Stage-S request `1625b50f…`: the v5 request with only the manifest and the namespace (`ancS6`)
+  changed; same 16 cells, 4 GPUs and four seal digests.
+- The failed v5 attempt (`ancS5`, run `20260927T143532Z-4ada8a0d`) is kept as it is, and its
+  19.09-s charge carries forward in the same operations ledger.
+
+**What changed.**
+
+| Item | v5 | v6 |
+|---|---|---|
+| Full input check | in-process `verify_seal`, which rebuilds with the running tree's paths, so it refused from the anchor worktree | `verify_seal_historically`: the historical tree's own verifier (pinned `12233f8e…`) in an isolated child, `python -I -B … verify` |
+| Before the child | — | the verifier digest; the seal aggregate; the seal's six source records at the pinned root and digests; the six real files measured with the seal's own record builder and required identical (§716); this tree's `val_split.py` |
+| After the child | — | the verifier, seal and source observations unchanged; rc 0; the exact report line; the authority derived from the bytes hashed before the child |
+| Child lifecycle | — | dies with the launcher (parent-death signal); killed on an interrupted wait; not counted as a training attempt |
+| Namespaces | `ancS5` / `ancD5` | `ancS6` / `ancD6` |
+| Seals, historical tree, legacy verifier, stats-only rechecks, S/D design | — | unchanged |
+
+- The reducer is now described accurately (§715.3): it admits the JSON receipts and logs first, then
+  hashes the `config.pt` bytes against their pins without deserialising them.
+
+**Evidence (CPU only).**
+- The 15-file suite at `1f93db9`: **891 passed, 1 skipped**, rc 0. The new file
+  `tests/test_anchor_confirm_input_bridge.py` has 50 tests. They build real small seals with a
+  verifier copy in a temporary "historical" tree and check them from this tree: the relocated
+  refusal reproduced, admission through the bridge, 13+ pre-child refusals with no child started,
+  post-child refusals, and child cleanup.
+- Mutation battery v8: **16/16 detected as declared** (BX9 is a refusal-reason change).
+- The audit checked the same bytes independently: §717 (14 pre-child cases), §718 (50 bridge tests,
+  20 launcher and manifest tests), §719 (the mutant logs, the final test delta, and the 24 real
+  small-source records matching all four seals).
+
+**Next.** The audit reviews v6. Stage S waits for a ledger line naming manifest `a5ff2a0e…` and
+request `1625b50f…`. Then run addendum v4 §6 (tmux `ancS6_v6`).
+
+---
+
 ## 2026-09-27 [anchor confirmation stage S — approved launch refused at input verification; nothing trained] The four stage-1 seals pin six source files by the original tree's path, so their full check cannot pass from the anchor worktree
 
 **Status:** ❌ stopped by the launcher's own input check. Returned to the audit for review (§713.2:
