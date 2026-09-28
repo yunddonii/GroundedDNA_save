@@ -487,6 +487,37 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-28 [anchor confirmation v7 smoke — one cell, diagnostic, not evidence] Audit §724: the approved one-cell smoke passed the trainer's environment check and completed
+
+**Status:** ✅ smoke complete, rc 0. Stage S is **not** approved by it (§724); nothing was reused from
+it.
+
+**What ran.** The §724-approved request `27928f01…` (manifest `c0612963…`), as ops/5 §6 step 1 with
+approval section 724, on GPU 0.
+- tmux `ancSmk7_v7`: supervisor PID 3603809, launcher PID 3603810.
+- Run `20260928T115641Z-4dd19fbe`: 20:56:41 → 20:59:41 KST, 180.2 s. The start record shows the
+  prior charge of 73.88978339359164 s.
+
+| Step | Result |
+|---|---|
+| Input admission | carried from the ancS6 full historical admission (`ef5a3e8d…`), stats-only, 7.5 s before the lease |
+| Child environment | the plan's and the trainer's recorded environments are identical: `LD_LIBRARY_PATH` = the CUDA/CUPTI path, the three HF variables absent, GPU UUID `GPU-4ac2ea6b…` (index 0), no errors |
+| Trainer | one attempt (PID 3604779, 161.9 s): Flickr25K, N4, anchors, seed 42, `--epochs 1`; terminal checkpoint at epoch 0; the anchor recipe check completed |
+| Cells | 1 of 1 complete; the receipt lists it; the record says `smoke: true`, not a candidate cell |
+| Settlement | `exited`, rc 0, no leases held, no orphans, no continuity loss; charged 163.25 s; **cumulative 237.14 s** of 45,000 |
+
+- The smoke's one-epoch mAP@R (.7554) is plumbing output, **not a result**.
+- Records (committed at `3efe02b`): record `0214364e…`, receipt `b33cfb70…`, snapshot `a44df515…`,
+  reservation `791c2a33…`.
+- Operations evidence: ledger `c1bc1a14…`, command log `f075f6a2…`, runner log `65063e87…`, status
+  `5b6f6e33…`.
+- Run directory: `/home/yschoi/gdna_anchor4_result/260928+flickr25k_setting1_ancSmk7_…+e+1+…/`
+  (0.61 GiB).
+
+**Next.** Stage S needs its own approval (`bf2d3f56…` carried or `495e24d0…` full).
+
+---
+
 ## 2026-09-28 [anchor confirmation v7 — preparation only, nothing executed] Audit §722–§723: trainers now start under the environment the plan attests; a one-cell smoke and reuse of the ancS6 full input check are proposed
 
 **Status:** ✅ submitted for review.
