@@ -1,0 +1,823 @@
+{
+ "new_head": "6b8d83dc02d52066d9d4b04c898902ae67d5e270",
+ "new_tree": "/data/yschoi/gdna_anchor_confirm_v1",
+ "old_commit": "6b8d83d",
+ "runs": [
+  {
+   "after_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "before_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "case": "unset",
+   "change": {},
+   "child_observed": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "child_os_environ_after_its_imports": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "dataset": "cifar10",
+   "passed_to_child": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "plan_expected": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "startup": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "tree": "unrepaired",
+   "verdict": "Phase-3 child environment differs from its plan: ['library_environment']",
+   "wrapper_rc": 0,
+   "wrapper_stderr": ""
+  },
+  {
+   "after_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "before_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "case": "unset",
+   "change": {},
+   "child_observed": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "child_os_environ_after_its_imports": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "dataset": "flickr25k",
+   "passed_to_child": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "plan_expected": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "startup": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "tree": "unrepaired",
+   "verdict": "Phase-3 child environment differs from its plan: ['library_environment']",
+   "wrapper_rc": 0,
+   "wrapper_stderr": ""
+  },
+  {
+   "after_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "before_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "case": "unset",
+   "change": {},
+   "child_observed": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "child_os_environ_after_its_imports": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "dataset": "mscoco",
+   "passed_to_child": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "plan_expected": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "startup": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "tree": "unrepaired",
+   "verdict": "Phase-3 child environment differs from its plan: ['library_environment']",
+   "wrapper_rc": 0,
+   "wrapper_stderr": ""
+  },
+  {
+   "after_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "before_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "case": "unset",
+   "change": {},
+   "child_observed": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "child_os_environ_after_its_imports": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "dataset": "nuswide",
+   "passed_to_child": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "plan_expected": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "startup": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "tree": "unrepaired",
+   "verdict": "Phase-3 child environment differs from its plan: ['library_environment']",
+   "wrapper_rc": 0,
+   "wrapper_stderr": ""
+  },
+  {
+   "after_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "before_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "case": "set",
+   "change": {},
+   "child_observed": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "child_os_environ_after_its_imports": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "dataset": "cifar10",
+   "passed_to_child": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "plan_expected": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "startup": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "tree": "unrepaired",
+   "verdict": "Phase-3 child environment differs from its plan: ['library_environment']",
+   "wrapper_rc": 0,
+   "wrapper_stderr": ""
+  },
+  {
+   "after_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "before_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "case": "set",
+   "change": {},
+   "child_observed": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "child_os_environ_after_its_imports": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "dataset": "flickr25k",
+   "passed_to_child": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "plan_expected": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "startup": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "tree": "unrepaired",
+   "verdict": "Phase-3 child environment differs from its plan: ['library_environment']",
+   "wrapper_rc": 0,
+   "wrapper_stderr": ""
+  },
+  {
+   "after_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "before_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "case": "set",
+   "change": {},
+   "child_observed": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "child_os_environ_after_its_imports": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "dataset": "mscoco",
+   "passed_to_child": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "plan_expected": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "startup": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "tree": "unrepaired",
+   "verdict": "Phase-3 child environment differs from its plan: ['library_environment']",
+   "wrapper_rc": 0,
+   "wrapper_stderr": ""
+  },
+  {
+   "after_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "before_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "case": "set",
+   "change": {},
+   "child_observed": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "child_os_environ_after_its_imports": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "dataset": "nuswide",
+   "passed_to_child": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "plan_expected": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "startup": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "tree": "unrepaired",
+   "verdict": "Phase-3 child environment differs from its plan: ['library_environment']",
+   "wrapper_rc": 0,
+   "wrapper_stderr": ""
+  },
+  {
+   "after_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "before_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "case": "unset",
+   "change": {},
+   "child_observed": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "child_os_environ_after_its_imports": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "dataset": "cifar10",
+   "passed_to_child": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "plan_expected": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "startup": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "tree": "repaired",
+   "verdict": "admitted",
+   "wrapper_rc": 0,
+   "wrapper_stderr": ""
+  },
+  {
+   "after_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "before_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "case": "unset",
+   "change": {},
+   "child_observed": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "child_os_environ_after_its_imports": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "dataset": "flickr25k",
+   "passed_to_child": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "plan_expected": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "startup": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "tree": "repaired",
+   "verdict": "admitted",
+   "wrapper_rc": 0,
+   "wrapper_stderr": ""
+  },
+  {
+   "after_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "before_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "case": "unset",
+   "change": {},
+   "child_observed": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "child_os_environ_after_its_imports": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "dataset": "mscoco",
+   "passed_to_child": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "plan_expected": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "startup": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "tree": "repaired",
+   "verdict": "admitted",
+   "wrapper_rc": 0,
+   "wrapper_stderr": ""
+  },
+  {
+   "after_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "before_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "case": "unset",
+   "change": {},
+   "child_observed": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "child_os_environ_after_its_imports": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "dataset": "nuswide",
+   "passed_to_child": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "plan_expected": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "startup": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": null,
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "tree": "repaired",
+   "verdict": "admitted",
+   "wrapper_rc": 0,
+   "wrapper_stderr": ""
+  },
+  {
+   "after_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "before_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "case": "set",
+   "change": {},
+   "child_observed": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "child_os_environ_after_its_imports": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "dataset": "cifar10",
+   "passed_to_child": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "plan_expected": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "startup": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "tree": "repaired",
+   "verdict": "admitted",
+   "wrapper_rc": 0,
+   "wrapper_stderr": ""
+  },
+  {
+   "after_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "before_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "case": "set",
+   "change": {},
+   "child_observed": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "child_os_environ_after_its_imports": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "dataset": "flickr25k",
+   "passed_to_child": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "plan_expected": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "startup": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "tree": "repaired",
+   "verdict": "admitted",
+   "wrapper_rc": 0,
+   "wrapper_stderr": ""
+  },
+  {
+   "after_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "before_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "case": "set",
+   "change": {},
+   "child_observed": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "child_os_environ_after_its_imports": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "dataset": "mscoco",
+   "passed_to_child": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "plan_expected": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "startup": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "tree": "repaired",
+   "verdict": "admitted",
+   "wrapper_rc": 0,
+   "wrapper_stderr": ""
+  },
+  {
+   "after_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "before_config_import": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "case": "set",
+   "change": {},
+   "child_observed": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "child_os_environ_after_its_imports": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/home/yschoi/.conda/envs/dna_hashing/lib/python3.10/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "dataset": "nuswide",
+   "passed_to_child": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "plan_expected": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "startup": {
+    "HF_HOME": null,
+    "HF_HUB_OFFLINE": null,
+    "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+    "TRANSFORMERS_OFFLINE": null
+   },
+   "tree": "repaired",
+   "verdict": "admitted",
+   "wrapper_rc": 0,
+   "wrapper_stderr": ""
+  }
+ ]
+}
