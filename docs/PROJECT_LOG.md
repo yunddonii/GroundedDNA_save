@@ -487,6 +487,57 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-28 [anchor confirmation v7 — preparation only, nothing executed] Audit §722–§723: trainers now start under the environment the plan attests; a one-cell smoke and reuse of the ancS6 full input check are proposed
+
+**Status:** ✅ submitted for review.
+- **Nothing ran for real**: no trainer, data, GPU, full input check, smoke or retry.
+- Branch `arch-exp-2026-09-anchor-confirm`, head `754eaed`, source commit `59477d8`.
+- Manifest v7 `c0612963…` (62 files). Contract v3 revised for v7 (`e6c4978e…`), addendum
+  `docs/ANCHOR_CONFIRMATION_OPS_ADDENDUM_v5.md` (`anchor-confirm-ops/5`, `3e2e9618…`), handoff
+  `docs/ANCHOR_CONFIRMATION_HANDOFF_v7.md` (`03ee374f…`).
+- Requests (same four seal digests):
+
+  | Request | Digest | What |
+  |---|---|---|
+  | smoke, carried (proposed first) | `27928f01…` | `flickr25k` N4 anchors seed 42, 1 epoch, 1 GPU, namespace `ancSmk7` |
+  | smoke, full | `21834192…` | the same with a full input check |
+  | stage S, carried | `bf2d3f56…` | `ancS7`, 16 cells, 4 GPUs |
+  | stage S, full | `495e24d0…` | the same with a full input check |
+
+- The two failed attempts (`ancS5`, `ancS6`) stay recorded; cumulative charge 73.88978339359164 s.
+
+**Diagnosis (§722.2; CPU only, private fixtures).** One driver reproduces the launcher → `import
+config` → `build_command` → pinned wrapper → child chain.
+
+| Launcher | LD_LIBRARY_PATH at start-up | Passed to the child | Result, 4 datasets |
+|---|---|---|---|
+| unrepaired (`6b8d83d`) | absent | cv2's folder | refused ×4, exactly the real message |
+| unrepaired | CUDA/CUPTI path (as in the real run) | cv2's folder + that path | refused ×4 |
+| repaired (`59477d8`) | absent / the CUDA path | exactly the same | admitted ×8 |
+
+**Repair (12 lines).** `build_command` takes `LD_LIBRARY_PATH`, `HF_HOME`, `HF_HUB_OFFLINE` and
+`TRANSFORMERS_OFFLINE` from the launcher's start-up values (what the plan records), and removes any
+absent at start-up. The trainer's own check is unchanged, and 5 genuine changes still refuse.
+
+**Reuse proposal.**
+- A carried admission (`--admission-authority`, the ancS6 snapshot `ef5a3e8d…` pinned by the request)
+  is now accepted only if the snapshot records the historical verifier's rc-0 full admission of
+  exactly the carried seals on the same bytes (new guard).
+- A stats-only check of the real seals passes today (metadata only).
+- The "full" alternatives remain if the audit prefers a new full check.
+
+**Evidence.**
+- 16-file suite at `59477d8`: **921 passed, 1 skipped**.
+- Mutation battery v9: **9/9 detected as declared**, including a control that disables the trainer's
+  comparator.
+- One legacy test had asserted the defective behaviour (an in-memory value reaches the child). It
+  now checks that the start-up value does.
+
+**Next.** The audit reviews v7. The smoke waits for its own `stage-S-smoke` line; stage S waits for a
+separate line after the smoke.
+
+---
+
 ## 2026-09-28 [anchor confirmation stage S, v6 attempt — inputs admitted, all four trainers refused at start; nothing trained] The launcher's cv2 import rewrites LD_LIBRARY_PATH, so every trainer sees a different library environment than its plan
 
 **Status:** ❌ stopped. Returned to the audit for review (§720: one attempt, no retry). No cell
