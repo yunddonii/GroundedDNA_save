@@ -442,7 +442,13 @@ def test_the_caller_environment_cannot_redefine_the_recipe(monkeypatch):
                         ("FINAL_EPOCH", "1")):
         monkeypatch.setenv(name, value)
     monkeypatch.setenv("PYTHONPATH", "/tmp/phase3-shadow")
-    monkeypatch.setenv("LD_LIBRARY_PATH", "/opt/cuda/test")
+    # The caller's runtime variables are its START-UP values, the ones the plan attests (audit
+    # 722/723): an import-time rewrite of this process's copy must not reach the child.
+    import scripts.phase3_selection_matrix as matrix
+    monkeypatch.setattr(matrix, "caller_environment",
+                        lambda: {"LD_LIBRARY_PATH": "/opt/cuda/test", "HF_HOME": None,
+                                 "HF_HUB_OFFLINE": None, "TRANSFORMERS_OFFLINE": None})
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/rewritten/by/an/import:/opt/cuda/test")
     _, env, _ = build_command("cifar10", 4, gpu=0)
     for name in ("WASS", "DISABLE_TEXT", "SHARE_CB", "FINAL_EPOCH"):
         assert name not in env, f"{name} leaked in from the caller"

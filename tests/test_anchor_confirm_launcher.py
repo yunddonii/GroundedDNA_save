@@ -273,7 +273,7 @@ def test_the_closure_covers_wrappers_input_admission_measurement_tests_and_contr
     assert {"scripts/seal_phase3_inputs.py", "dna_utils/run_identity.py", "val_split.py",
             "scripts/anchor_confirm_code_axis.py", "scripts/anchor_confirm_decision.py",
             "tests/test_anchor_confirm_reducer.py", "tests/test_anchor_confirm_input_bridge.py",
-            "tests/test_seal_phase3_inputs.py"} <= closure
+            "tests/test_seal_phase3_inputs.py", "tests/test_anchor_confirm_env_handoff.py"} <= closure
 
 
 @pytest.mark.parametrize("changes,reason", [
@@ -840,6 +840,120 @@ def test_a_historical_verification_refusal_stops_before_the_lease(tmp_path, monk
     assert boundaries == []
 
 
+# ---- carrying a full historical admission forward (audit 723) ----------------------------------------
+def sha256_of(path) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def carried_snapshot(tmp_path, admitted, **edits):
+    """A plan snapshot whose seals were admitted by the historical verifier: input_seals plus the
+    per-seal bridge evidence the launcher publishes. `edits` set "key:field" values in one row."""
+    evidence = {key: {"returncode": 0, "root": str(M.HISTORICAL_INPUT_ROOT),
+                      "verifier": {"path": M.HISTORICAL_SEAL_VERIFIER,
+                                   "sha256": M.HISTORICAL_SEAL_VERIFIER_SHA256},
+                      "seal": {"path": a["seal_path"], "sha256": a["seal_file_sha256"],
+                               "aggregate_sha256": a["aggregate_sha256"]},
+                      "report": f"verified {a['seal_path']} {a['aggregate_sha256']}"}
+                for key, a in admitted.items()}
+    for spec, value in edits.items():
+        key, field = spec.rsplit(":", 1)
+        row = evidence[key]
+        if field in ("seal", "aggregate_sha256", "path"):
+            row["seal"]["sha256" if field == "seal" else field] = value
+        elif field == "verifier":
+            row["verifier"]["sha256"] = value
+        elif value is DELETE:
+            evidence.pop(key)
+        else:
+            row[field] = value
+    path = tmp_path / "carried_snapshot.json"
+    path.write_text(json.dumps({"input_seals": admitted,
+                                "plan": {"authorities": {"historical_input_admission": evidence}}}))
+    return path
+
+
+def full_authorities(admitted):
+    return {k: {**v, "aggregate_sha256": "a" * 64} for k, v in admitted.items()}
+
+
+def test_a_full_historical_admission_can_be_carried(tmp_path):
+    _, admitted = seal_files(tmp_path)
+    carried = full_authorities(admitted)
+    snapshot = carried_snapshot(tmp_path, carried)
+    assert M.anchor_carried_admission_refusal(snapshot, carried, expected_sha256=sha256_of(snapshot)) is None
+
+
+@pytest.mark.parametrize("edit,reason", [
+    ({"flickr25k:stage1:returncode": 2}, "returncode"),
+    ({"flickr25k:stage1:root": "/data/yschoi/elsewhere"}, "root"),
+    ({"flickr25k:stage1:verifier": "0" * 64}, "verifier"),
+    ({"flickr25k:stage1:seal": "0" * 64}, "seal"),
+    ({"flickr25k:stage1:aggregate_sha256": "0" * 64}, "aggregate"),
+    ({"flickr25k:stage1:path": "/other/seal.json"}, "path"),
+    ({"flickr25k:stage1:report": "verified elsewhere"}, "report"),
+    ({"flickr25k:stage1:row": DELETE}, "are not exactly those"),
+])
+def test_a_carried_authority_that_is_not_a_full_historical_admission_refuses(tmp_path, edit, reason):
+    _, admitted = seal_files(tmp_path)
+    carried = full_authorities(admitted)
+    (spec, value), = edit.items()
+    key, field = spec.rsplit(":", 1)
+    path = carried_snapshot(tmp_path, carried, **{f"{key}:{field}": value})
+    refusal = M.anchor_carried_admission_refusal(path, carried, expected_sha256=sha256_of(path))
+    assert refusal is not None and reason in refusal
+
+
+def test_a_snapshot_without_historical_evidence_cannot_be_carried(tmp_path):
+    _, admitted = seal_files(tmp_path)
+    carried = full_authorities(admitted)
+    path = tmp_path / "stats_only_snapshot.json"
+    path.write_text(json.dumps({"input_seals": carried, "plan": {"authorities": {}}}))
+    refusal = M.anchor_carried_admission_refusal(path, carried, expected_sha256=sha256_of(path))
+    assert refusal is not None and "are not exactly those" in refusal
+
+
+def test_the_carried_snapshot_is_read_at_its_approved_bytes(tmp_path):
+    _, admitted = seal_files(tmp_path)
+    carried = full_authorities(admitted)
+    path = carried_snapshot(tmp_path, carried)
+    refusal = M.anchor_carried_admission_refusal(path, carried, expected_sha256="0" * 64)
+    assert refusal is not None and "changed after its approval pin" in refusal
+
+
+@pytest.mark.parametrize("with_evidence", [True, False])
+def test_the_anchor_admission_carries_only_a_full_historical_admission(tmp_path, monkeypatch, boundaries,
+                                                                       capsys, with_evidence):
+    """End to end in the launcher: an approved request naming the carried snapshot's bytes takes the
+    stats-only check against it -- or refuses before the lease when the snapshot has no historical
+    admission evidence."""
+    fake_authorities(tmp_path, monkeypatch)
+    monkeypatch.setattr(M, "render_trainer_argv", fake_render)
+    seal_args, admitted = seal_files(tmp_path)
+    carried = full_authorities(admitted)
+    if with_evidence:
+        snapshot = carried_snapshot(tmp_path, carried)
+    else:
+        snapshot = tmp_path / "stats_only_snapshot.json"
+        snapshot.write_text(json.dumps({"input_seals": carried, "plan": {"authorities": {}}}))
+    monkeypatch.setattr(M, "load_admission_authority", lambda path: dict(carried))
+    seen = {}
+
+    def admit(*a, **k):
+        seen.update(k)
+        boundaries.append("verify_campaign_input_seals")
+        return dict(admitted)
+    monkeypatch.setattr(M, "verify_campaign_input_seals", admit)
+    argv = [*BASE, *RUNARGS, *seal_args, *with_manifest(tmp_path), "--admission-authority", str(snapshot)]
+    approval = approve_request(tmp_path, monkeypatch, capsys, argv)
+    rc = run_main(monkeypatch, *argv, *approval)
+    if with_evidence:
+        assert rc == 0 and seen.get("full") is False and seen.get("expected") == carried
+        assert boundaries == ["verify_campaign_input_seals", "_with_campaign_gpu_leases"]
+    else:
+        assert rc == 2 and "not exactly those its snapshot admitted" in capsys.readouterr().err
+        assert boundaries == []
+
+
 def test_a_seal_changed_after_its_approval_refuses_before_the_lease(tmp_path, monkeypatch, boundaries, capsys):
     """The seal file changes after the approval check and before admission (audit 694.2's case)."""
     fake_authorities(tmp_path, monkeypatch)
@@ -865,7 +979,9 @@ def test_the_carried_authority_is_the_approved_bytes_while_it_is_parsed(tmp_path
     fake_authorities(tmp_path, monkeypatch)
     monkeypatch.setattr(M, "render_trainer_argv", fake_render)
     authority = tmp_path / "authority.json"
-    authority.write_text("{}")
+    # a (vacuous) full historical admission, so the carried-provenance guard (audit 723, tested on
+    # its own) passes and this test isolates the byte binding
+    authority.write_text(json.dumps({"plan": {"authorities": {"historical_input_admission": {}}}}))
     def parse(path):
         if changed:
             Path(path).write_text('{"late": true}')

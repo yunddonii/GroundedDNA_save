@@ -58,7 +58,7 @@ def inventory() -> dict:
     from importlib import metadata
     return {
         "artifact_kind": M.ANCHOR_MANIFEST_KIND, "version": M.ANCHOR_CONFIRM_VERSION,
-        "generation": "v6",
+        "generation": "v7",
         "note": "byte identities from JSON and text only; not approval to execute",
         "historical": {
             "approved_p3_refit_aggregate": {"path": str(M.APPROVED_P3_REFIT_AGGREGATE),
@@ -86,7 +86,13 @@ def inventory() -> dict:
         "design": {"fixed_architecture": "axis_center=anchors for all four datasets (audit 709)",
                    "run_arms": list(M.ANCHOR_RUN_ARMS), "rendered_comparator": "none",
                    "datasets": list(M.ANCHOR_DATASETS), "reuse": "none: every S/D cell is fresh"},
-        "predecessor": {"authority_manifest_v5_sha256":
+        "predecessor": {"authority_manifest_v6_sha256":
+                        "a5ff2a0e93acd3a0bef7ecc47a69d550b28fc7ee57c1a25aa48e7e1169f739d7",
+                        "stage_s_request_v6_sha256":
+                        "1625b50faf74b311040a8f56f1d7103b7352e2733e8c8fe9b8860ed18a44793c",
+                        "stage_s_snapshot_v6_sha256":
+                        "ef5a3e8d857a7a6cc22d1e978854c3f721470ed19f426a020873718199a2b8ff",
+                        "authority_manifest_v5_sha256":
                         "84e94e2f1897e9910df2aa0352e4737f87dd485f018a644b5be23c1b4e036284",
                         "stage_s_request_v5_sha256":
                         "bd3117a9108ee558dfb27f9b429806a62092d23736febd7c0c0f8c858e4882c7",
@@ -117,7 +123,14 @@ def inventory() -> dict:
                                      "isolated child after the six historical sources are checked "
                                      "in place; the v5 stage-S attempt (ancS5, run "
                                      "20260927T143532Z-4ada8a0d) was refused at that check and "
-                                     "trained nothing; the S/D design is unchanged"},
+                                     "trained nothing; the S/D design is unchanged",
+                        "v7_change": "child environment handoff (audit 722/723): build_command takes "
+                                     "the four attested runtime variables from the launcher's "
+                                     "start-up block (absent ones removed); a carried admission "
+                                     "must be a full historical-verifier admission; the v6 "
+                                     "attempt (ancS6, run 20260928T052252Z-35772b95) admitted all "
+                                     "four seals, then every trainer refused on library_environment "
+                                     "and nothing trained; the S/D design is unchanged"},
         "new_generation": {
             "worktree": str(REPO), "branch": git("rev-parse", "--abbrev-ref", "HEAD"),
             "commit": git("rev-parse", "HEAD"), "clean": True,
@@ -141,7 +154,7 @@ def main(argv=None) -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command")
     inv = sub.add_parser("inventory")
-    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v6.json"))
+    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v7.json"))
     args = parser.parse_args(argv)
     try:
         if args.command != "inventory":

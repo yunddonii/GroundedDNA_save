@@ -179,7 +179,7 @@ if __name__ == "__main__":
 from dna_utils.run_identity import (  # noqa: E402
     MANIFEST_NAME, RunIdentity, load_run_manifest)
 from dna_utils.runtime_environment import (  # noqa: E402
-    EnvironmentAttestationError, capture_parent_environment,
+    RUNTIME_ENV_KEYS, EnvironmentAttestationError, caller_environment, capture_parent_environment,
     expected_child_environment)
 
 PY = os.environ.get("PY", "/home/yschoi/.conda/envs/dna_hashing/bin/python")
@@ -740,6 +740,48 @@ def verify_seal_historically(path, *, expected: dict | None = None,
     return authority
 
 
+def anchor_carried_admission_refusal(path, carried: dict, *, expected_sha256: str) -> str | None:
+    """Why a carried admission authority is not a FULL historical-verifier admission, or None
+    (audit 723). An anchor campaign may carry the authority of an earlier anchor campaign's plan
+    snapshot only when that snapshot records, for exactly the carried seals, the historical
+    verifier's rc-0 report on the same seal bytes and aggregate, under the pinned verifier and
+    root. A stats-only admission cannot be carried on by another stats-only one. The snapshot is
+    parsed from the bytes whose digest the approved request names."""
+    try:
+        raw = Path(path).read_bytes()
+    except OSError as error:
+        return f"{path}: unreadable carried admission authority: {error}"
+    if hashlib.sha256(raw).hexdigest() != expected_sha256:
+        return f"{path}: the carried admission authority changed after its approval pin was read"
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as error:
+        return f"{path}: unreadable carried admission authority: {error}"
+    plan = payload.get("plan") if isinstance(payload.get("plan"), dict) else {}
+    authorities = plan.get("authorities") if isinstance(plan.get("authorities"), dict) else {}
+    evidence = authorities.get("historical_input_admission")
+    if not isinstance(evidence, dict) or not isinstance(carried, dict) or set(evidence) != set(carried):
+        return (f"{path}: the carried seals {sorted(carried or {})} are not exactly those its snapshot "
+                f"admitted through the historical verifier {sorted(evidence or {})}")
+    for key, authority in sorted(carried.items() if isinstance(carried, dict) else ()):
+        row = evidence.get(key) if isinstance(evidence, dict) else None
+        row = row if isinstance(row, dict) else {}
+        seal = row.get("seal") if isinstance(row.get("seal"), dict) else {}
+        verifier = row.get("verifier") if isinstance(row.get("verifier"), dict) else {}
+        want = {"returncode": 0, "root": str(HISTORICAL_INPUT_ROOT),
+                "verifier": HISTORICAL_SEAL_VERIFIER_SHA256,
+                "seal": authority.get("seal_file_sha256"), "path": authority.get("seal_path"),
+                "aggregate": authority.get("aggregate_sha256"),
+                "report": f"verified {authority.get('seal_path')} {authority.get('aggregate_sha256')}"}
+        got = {"returncode": row.get("returncode"), "root": row.get("root"),
+               "verifier": verifier.get("sha256"), "seal": seal.get("sha256"), "path": seal.get("path"),
+               "aggregate": seal.get("aggregate_sha256"), "report": row.get("report")}
+        if got != want:
+            wrong = sorted(k for k in want if got[k] != want[k])
+            return f"{path}: {key} was not admitted by the historical verifier on these bytes: {wrong}"
+    return None
+
+
 def admission_is_full(authority) -> bool:
     """Whether this campaign must rehash every sealed byte at admission.
 
@@ -1038,6 +1080,17 @@ def build_command(dataset: str, n: int, gpu: int, *,
     # CCS, GATE and more -- so inheriting the caller's shell would let a stale
     # export from an unrelated experiment redefine a matrix cell.
     env = {k: v for k, v in os.environ.items() if k in _ENV_PASSTHROUGH}
+    # The attested runtime variables (audit 722/723) are the launcher's START-UP values -- the
+    # mapping the plan records (`caller_environment`, read from the exec block) -- not os.environ:
+    # importing config (-> dataloaders -> cv2) rewrites LD_LIBRARY_PATH in this process's memory,
+    # and every child then started under a value no plan attested (anchor stage S, run
+    # 20260928T052252Z-35772b95). A variable absent at start-up is removed, not left behind.
+    startup = caller_environment()
+    for key in RUNTIME_ENV_KEYS:
+        if startup.get(key) is None:
+            env.pop(key, None)
+        else:
+            env[key] = startup[key]
     env.pop("PYTHONPATH", None)
     env["PY"] = os.path.realpath(sys.executable)
     for name in _RECIPE_ENV:
@@ -4089,7 +4142,8 @@ ANCHOR_CLOSURE = ("scripts/anchor_confirm_decision.py", "scripts/anchor_confirm_
                   "tests/test_anchor_confirm_launcher.py", "tests/test_anchor_confirm_reducer.py",
                   "tests/test_anchor_confirm_lifecycle.py",
                   "tests/test_anchor_confirm_supervisor.py",
-                  "tests/test_anchor_confirm_input_bridge.py", "tests/test_seal_phase3_inputs.py")
+                  "tests/test_anchor_confirm_input_bridge.py", "tests/test_seal_phase3_inputs.py",
+                  "tests/test_anchor_confirm_env_handoff.py")
 #: The audit ledger is the approval authority (audit 679.1, 683.2, 686.4). The modification agent
 #: cannot write it, and it lives outside the pinned scientific tree, so no manifest names an
 #: approval and no hash cycle arises. An operation that executes, or opens a real binary, runs only
@@ -4654,6 +4708,10 @@ def _anchor_confirmation_main(args) -> int:
                 carried = load_admission_authority(args.admission_authority)
                 if not (before == _file_pin(args.admission_authority) == request["admission_authority"]):
                     raise CellRefused("the carried admission authority is not the approved request's bytes")
+                refusal = anchor_carried_admission_refusal(args.admission_authority, carried,
+                                                           expected_sha256=before["sha256"])
+                if refusal is not None:
+                    raise CellRefused(refusal)
             input_seals = verify_campaign_input_seals(
                 args.input_seal_specs, cells, full=admission_is_full(carried), expected=carried,
                 historical=True, evidence=historical_admission)
