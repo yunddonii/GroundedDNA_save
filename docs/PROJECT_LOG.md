@@ -487,6 +487,57 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-28 [anchor confirmation stage S, v6 attempt — inputs admitted, all four trainers refused at start; nothing trained] The launcher's cv2 import rewrites LD_LIBRARY_PATH, so every trainer sees a different library environment than its plan
+
+**Status:** ❌ stopped. Returned to the audit for review (§720: one attempt, no retry). No cell
+trained and no run directory was created.
+
+**What ran.** The §720-approved request (manifest `a5ff2a0e…`, request `1625b50f…`), as ops/4 §6 with
+approval section 720, GPUs 0,1,2,3.
+- tmux `ancS6_v6`: supervisor PID 3472462, launcher PID 3472463.
+- Run `20260928T052252Z-35772b95`: started 14:22:52 KST, exited 15:41:54 KST (4742.7 s, rc 1).
+  The start record shows the carried prior charge of 19.092536613345146 s.
+
+| Step | Result |
+|---|---|
+| Full input check through the historical verifier | **passed for all four seals**, rc 0 each: CIFAR-10 529 s, Flickr25K 252 s, MS-COCO 1515 s, NUS-WIDE 2425 s (4727 s before the lease). The evidence is in the plan snapshot |
+| Leases | GPUs 0–3 leased, released after exit (none held) |
+| Trainers | 4 started at 15:41:46; all exited 1 within about 8 s with `RunCollision: Phase-3 child environment differs from its plan: ['library_environment']` |
+| Cells | 0 of 16 |
+| Settlement | `exited`, rc 1, no orphans, no continuity loss; charged 54.80 s (33.35 device + 21.45 allowance); **cumulative 73.89 s** of 45,000 |
+
+- Evidence (SHA256): snapshot `ef5a3e8d…`, reservation `dcf2e11f…` (committed at `6b8d83d`),
+  ledger `055424a8…`, command log `02340068…`, runner log `fe358c14…`, status `17815d6e…`.
+
+**Cause (read-only diagnosis, confirmed with a CPU-only import test).**
+- The trainer compares `LD_LIBRARY_PATH`, `HF_HOME`, `HF_HUB_OFFLINE` and `TRANSFORMERS_OFFLINE`, read
+  from its start-up environment, with the launcher's start-up values recorded in the plan.
+- In anchor mode the launcher imports `config` (to render and admit the commands); that pulls in
+  `cv2`, which prepends its bundled library folder to `LD_LIBRARY_PATH` in the launcher's memory.
+- The child environment is built from that in-memory copy, so every trainer starts with a
+  different value than the plan records.
+- The test: with the variable set, `import config` turns
+  `/usr/local/cuda-12.4/lib64:…` into `…/site-packages/cv2/../../lib64:/usr/local/cuda-12.4/lib64:…`.
+  With it unset, `import config` sets it to cv2's folder. So this happens either way.
+- The approved `p3exec` launcher never imported `config`, which is why its campaigns (with the
+  variable unset) did not hit this.
+- The tests missed it because they replace rendering and trainers with stand-ins. No one-cell real
+  smoke was requested before the full run.
+
+**Options for the audit (not implemented).**
+- Build the four runtime variables of the child environment from the launcher's start-up
+  environment (the value the plan records), with a regression test that imports cv2 in the
+  launcher process first.
+- Request a one-cell stage-S smoke before the next full attempt, which would exercise the trainer
+  boundary for real.
+- Use a new namespace (`ancS6` is reserved).
+- The ancS6 snapshot records a completed full admission, so a next attempt could carry it as
+  `--admission-authority` (stats-only, about 79 min saved) if the audit accepts that.
+
+**Next.** Wait for the audit's reconciliation. D, probes, L, R/T remain gated.
+
+---
+
 ## 2026-09-28 [anchor confirmation v6 — preparation only, nothing executed] Audit §715–§719: the full input check now runs the historical tree's own seal verifier, after the six historical sources are checked in place
 
 **Status:** ✅ submitted for review.
