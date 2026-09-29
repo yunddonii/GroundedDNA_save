@@ -487,6 +487,42 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-29 [anchor confirmation — frozen N record published; stage-D request prepared, not run] Audit §726: N = 4 for CIFAR-10, Flickr25K and NUS-WIDE, 39 for MS-COCO
+
+**Status:** ✅ the approved CPU N reduction ran; the D request is submitted, not executed.
+
+**Reduction (§726.3).**
+- The audit-built source list (`0cfab951…`, 16 receipt coordinates) was copied byte-for-byte.
+- The exact command ran on CPU: 12:41:31 → 12:41:37 UTC, rc 0, stderr empty. It hashed the 16
+  `config.pt` files and deserialised nothing.
+- Evidence is in `artifacts/anchor_confirmation/ancS7_reduction/`.
+
+**Frozen N record** `ancS7_selected_n.json`, SHA256 `5cda7adb…`. Reducer /3, generation v7
+(`c0612963…`, `59477d8`), rule argmax / ties to the smaller N, seed 42.
+
+| dataset | N=4 | N=9 | N=19 | N=39 | frozen N |
+|---|---:|---:|---:|---:|---:|
+| CIFAR-10 | .782328 | .761542 | .710839 | .717689 | 4 |
+| Flickr25K | .764194 | .735947 | .719277 | .706278 | 4 |
+| NUS-WIDE | .722516 | .719036 | .694194 | .684803 | 4 |
+| MS-COCO | .621615 | .626046 | .630374 | .634066 | 39 |
+
+Train-only validation, one seed, no test. It matches the audit's §726.2 cross-check.
+
+**Stage-D request (not executable).**
+- Request `6ef9d4ea…`: 8 anchor cells (seeds 43/44 at the frozen N), namespace `ancD7`, 4 GPUs, the
+  selection `5cda7adb…` and the original ancS6 carried admission (`ef5a3e8d…`).
+- Plan `1f289ae3…`: the control is rendered at all 8 coordinates, differing in `axis_center` alone.
+- Supervised command, approval line and estimates are in `docs/ANCHOR_CONFIRMATION_HANDOFF_D_v7.md`
+  (`a9e0d03d…`).
+- Estimates: prior charge 14,589.08 s; D ≲ 2.6 GPU-h; longest stream about 57 min.
+- Committed at `62ceb82`.
+
+**Next.** Stage D needs a `stage-D-run` approval naming manifest, selection and request. The 12
+probes follow D under their own approval.
+
+---
+
 ## 2026-09-29 [anchor confirmation stage S — 16 cells, approved recipe, complete] Audit §725: all 16 anchor cells trained and passed every admission and completion check
 
 **Status:** ✅ S complete, rc 0.
