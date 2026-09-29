@@ -1,0 +1,8 @@
+env -C /data/yschoi/gdna_anchor_confirm_v1 -u PYTHONPATH \
+  CUDA_VISIBLE_DEVICES= GDNA_NUM_SEMANTIC_PARTS=5 PYTHONDONTWRITEBYTECODE=1 \
+  /home/yschoi/.conda/envs/dna_hashing/bin/python scripts/anchor_confirm_decision.py select \
+  --sources artifacts/anchor_confirmation/ancS7_select_sources.json \
+  --sources-sha256 0cfab95106bfadb03e5e9750d8e5a17d7ff16523ff14b66bba1cab5519067656 \
+  --manifest artifacts/anchor_confirmation/authority_manifest_v7.json \
+  --manifest-sha256 c061296309fe41203205dff65de3a1afb843c950e93c0614dfd27a8216a90128 \
+  --arms anchors --out artifacts/anchor_confirmation/ancS7_selected_n.json
