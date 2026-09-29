@@ -487,6 +487,61 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-29 [anchor confirmation stage S — 16 cells, approved recipe, complete] Audit §725: all 16 anchor cells trained and passed every admission and completion check
+
+**Status:** ✅ S complete, rc 0.
+- First fixed-anchor results under the approved recipe (Gumbel OFF), four datasets.
+- **Stopped here, as §725 requires:** the official N record (the reducer hashes `config.pt` bytes),
+  stage D, probes, L, R/T are separately gated and not run.
+
+**What ran.** The §725-approved request `bf2d3f56…` (manifest `c0612963…`), as ops/5 §6 step 2 with
+approval section 725, GPUs 0–3.
+- tmux `ancS7_v7`: supervisor PID 3751672, launcher PID 3751673.
+- Run `20260929T110703Z-793d8a6f`: 20:07:03 → 21:24:42 KST, 4658.5 s. The start record shows the
+  prior charge of 237.1352091571316 s.
+- Input admission: carried from the ancS6 full historical admission (`ef5a3e8d…`), stats-only, 7.7 s
+  before the lease.
+
+**Terminal train-only validation mAP@R** (raw base-Hamming, stage-1 held-out validation, seed 42; each
+cell's terminal epoch = N; one seed, no test run):
+
+| dataset (R) | N=4 | N=9 | N=19 | N=39 |
+|---|---:|---:|---:|---:|
+| CIFAR-10 (1000) | **.782328** | .761542 | .710839 | .717689 |
+| Flickr25K (5000) | **.764194** | .735947 | .719277 | .706278 |
+| NUS-WIDE (5000) | **.722516** | .719036 | .694194 | .684803 |
+| MS-COCO (5000) | .621615 | .626046 | .630374 | **.634066** |
+
+- The frozen rule (argmax, ties to the smaller N) applied to these logged values points to N=4 for
+  CIFAR-10, Flickr25K and NUS-WIDE, and N=39 for MS-COCO.
+- That is an inventory reading, not the N record: the reducer that writes the frozen N record is
+  gated.
+- These are anchor-only train-only numbers. They are not a comparison with the incumbent or the
+  control, and no test was run.
+
+**Checks.**
+- All 16 records: `smoke: false`, candidate cells, arm `anchors`.
+- In every record the terminal and selection epoch equal N.
+- The expected and actual child environments are identical, with no errors, in all 16 (one GPU per
+  dataset stream: CIFAR 0, Flickr 1, MS-COCO 2, NUS 3).
+- Receipt `ancS7_sweep_complete.json` (`5915768767e3…`): 16 cells, 16 expected, 16 declared; input
+  seals semantic digest `c91b932f…` = the carried ancS6 admission.
+- Snapshot `6f2c0352…`, reservation `8a331a75…`; records committed at `b916fb7`.
+
+**Settlement.**
+- Status `exited`, rc 0; 16 attempts (228–1761 s each); no leases held, no orphans, no continuity
+  loss.
+- Charged 14,351.95 s (device 14,329.15 + allowance 22.80); **cumulative 14,589.08 s** of 45,000,
+  leaving 30,410.92 s (8.45 GPU-h) for D and the probes.
+- S cost more than its 3.50-GPU-h planning figure (3.99 GPU-h charged).
+- Evidence: ledger `3f26a466…`, command log `ed8cbf22…`, runner log `fb5e5095…`, status `5aaa7944…`.
+- Result root 11.1 GB (17 run directories, the smoke's included).
+
+**Next.** The audit reviews S. The N record (reducer), stage D (8 cells) and the 12 probes each need
+their own admission.
+
+---
+
 ## 2026-09-28 [anchor confirmation v7 smoke — one cell, diagnostic, not evidence] Audit §724: the approved one-cell smoke passed the trainer's environment check and completed
 
 **Status:** ✅ smoke complete, rc 0. Stage S is **not** approved by it (§724); nothing was reused from
