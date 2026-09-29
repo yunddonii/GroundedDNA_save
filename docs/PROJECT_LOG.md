@@ -589,6 +589,50 @@ no test run; exploratory (Gumbel-ON) checkpoints.
 
 ---
 
+## 2026-09-30 [anchor confirmation stage D — 8 cells, approved recipe, complete] Audit §727: seeds 43/44 at the frozen N trained and passed every admission and completion check
+
+**Status:** ✅ D complete, rc 0.
+- **Stopped here**, as §727 requires. The 12 probes (and with them the official stage-D summary,
+  which needs the probes), L and R/T are separately gated and not run.
+
+**What ran.** The §727-approved request `6ef9d4ea…` (manifest `c0612963…`, selection `5cda7adb…`), as
+the D handoff §3 command with approval section 727, GPUs 0–3.
+- tmux `ancD7_v7`: supervisor PID 3797367, launcher PID 3797368.
+- Run `20260929T140924Z-9b031227`: 23:09:24 → 00:06:21 KST, 3417.5 s. The start record shows the
+  prior charge of 14589.083378900774 s.
+- The frozen N record was replayed; input admission was carried from ancS6 (`ef5a3e8d…`),
+  stats-only, 7.6 s before the lease.
+
+**Terminal train-only validation mAP@R** at the frozen N (raw base-Hamming, stage-1 held-out
+validation). Seed 42 is the stage-S cell. Mean ± sample SD over 3 seeds, **descriptive, no test, not
+the official stage-D summary**:
+
+| dataset (frozen N) | seed 42 | seed 43 | seed 44 | mean ± SD |
+|---|---:|---:|---:|---:|
+| CIFAR-10 (4) | .782328 | .791536 | .737983 | .7706 ± .0286 |
+| Flickr25K (4) | .764194 | .743644 | .736002 | .7479 ± .0146 |
+| NUS-WIDE (4) | .722516 | .729214 | .724658 | .7255 ± .0034 |
+| MS-COCO (39) | .634066 | .642574 | .630188 | .6356 ± .0063 |
+
+**Checks.**
+- All 8 records: non-smoke candidate cells, arm `anchors`, terminal epoch = N.
+- The expected and actual child environments are identical, with no errors (CIFAR GPU 0, Flickr 1,
+  MS-COCO 2, NUS 3).
+- Receipt `ancD7_sweep_complete.json` (`4272eeac…`): 8 cells, 8 expected, 8 declared; input seals
+  `c91b932f…` (the carried ancS6 admission).
+- Snapshot `e383ff68…`, reservation `5a68c9b8…`; records committed at `5d79764`.
+
+**Settlement.**
+- Status `exited`, rc 0; 8 attempts (120–1723 s); no leases held, no orphans, no continuity loss.
+- Charged 4,444.49 s (device 4,433.28 + allowance 11.21); **cumulative 19,033.57 s** of 45,000,
+  leaving 25,966.43 s (7.21 GPU-h).
+- Evidence: ledger `1275c714…`, command log `f30865d1…`, runner log `5b5f62c7…`, status `f4723c48…`.
+
+**Next.** The audit reviews D. The 12 probes need their own `probe` approval (the frozen N record and
+the 12 S/D record digests, first 500 validation rows × 4 local slots). TODO 13–15 precede the freeze.
+
+---
+
 ## 2026-09-29 [anchor confirmation — frozen N record published; stage-D request prepared, not run] Audit §726: N = 4 for CIFAR-10, Flickr25K and NUS-WIDE, 39 for MS-COCO
 
 **Status:** ✅ the approved CPU N reduction ran; the D request is submitted, not executed.
