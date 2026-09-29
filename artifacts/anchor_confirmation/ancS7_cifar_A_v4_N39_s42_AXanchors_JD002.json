@@ -1,0 +1,535 @@
+{
+  "N": 39,
+  "anchor_confirmation": {
+    "arm": "anchors",
+    "campaign_evidence_sha256": "288eb79a8d1e5c6d0ccc87a05842d667cb2be9886e9b6cec702e2daad7384f74",
+    "config_pt_sha256": "1678c05684a57af07fae6621d7220db069b7034622c11fad341cdb5f8e65ea37",
+    "scientific_recipe_sha256": "916ded1ed9e9a13a693c93e2e9adf3ffadca1ede4216fa4179d804ab86ebbb0e",
+    "version": "anchor-confirm/2"
+  },
+  "campaign": {
+    "campaign_nonce": "5b3eb19b1a7ae1949d48ab63445ecd26bf25918aa554a9c1a582eb67618fc423",
+    "cell_id": "cifar10|N=39|P=0.3,0.7|JD=0.02|stage=select|seed=42|axis_center=anchors",
+    "child_environment_sha256": "97a8c53438c06d7eb85f339ea714487a9685c7550f9f994079f8d8d25a28c496",
+    "environment_sha256": "ffc46844e15301f8fd45ff012eb36e1836bc8181f7b0d8119e9f22e37c48b9f0",
+    "expected_child_environment": {
+      "cuda_visible_devices": "GPU-4ac2ea6b-1925-e1ba-5463-02827507d897",
+      "errors": [],
+      "library_environment": {
+        "HF_HOME": null,
+        "HF_HUB_OFFLINE": null,
+        "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+        "TRANSFORMERS_OFFLINE": null
+      },
+      "packages": {
+        "Pillow": {
+          "distribution": "Pillow",
+          "version": "12.1.1"
+        },
+        "PyYAML": {
+          "distribution": "PyYAML",
+          "version": "6.0.3"
+        },
+        "matplotlib": {
+          "distribution": "matplotlib",
+          "version": "3.10.9"
+        },
+        "numpy": {
+          "distribution": "numpy",
+          "version": "2.2.6"
+        },
+        "opencv": {
+          "distribution": "opencv-python",
+          "version": "4.13.0.92"
+        },
+        "pandas": {
+          "distribution": "pandas",
+          "version": "2.3.3"
+        },
+        "scipy": {
+          "distribution": "scipy",
+          "version": "1.15.3"
+        },
+        "sklearn": {
+          "distribution": "scikit-learn",
+          "version": "1.7.2"
+        },
+        "tensorboard": {
+          "distribution": "tensorboard",
+          "version": "2.20.0"
+        },
+        "timm": {
+          "distribution": "timm",
+          "version": "1.0.26"
+        },
+        "tokenizers": {
+          "distribution": "tokenizers",
+          "version": "0.22.2"
+        },
+        "torch": {
+          "distribution": "torch",
+          "version": "2.6.0+cu124"
+        },
+        "torchvision": {
+          "distribution": "torchvision",
+          "version": "0.21.0+cu124"
+        },
+        "tqdm": {
+          "distribution": "tqdm",
+          "version": "4.67.3"
+        },
+        "transformers": {
+          "distribution": "transformers",
+          "version": "5.8.0"
+        }
+      },
+      "parent_environment_sha256": "ffc46844e15301f8fd45ff012eb36e1836bc8181f7b0d8119e9f22e37c48b9f0",
+      "physical_gpu": {
+        "driver": "570.211.01",
+        "index": 0,
+        "name": "NVIDIA RTX A6000",
+        "pci_bus_id": "00000000:16:00.0",
+        "uuid": "GPU-4ac2ea6b-1925-e1ba-5463-02827507d897"
+      },
+      "python_executable": "/home/yschoi/.conda/envs/dna_hashing/bin/python3.10",
+      "python_executable_sha256": "be9ecab7de61a1ffe0bef4ab49325ba1182529de68d0522f0fbddaf9de2474aa",
+      "python_version": "3.10.20 (main, Mar 11 2026, 17:46:40) [GCC 14.3.0]",
+      "pythonpath": null,
+      "schema_version": 1,
+      "torch_runtime": {
+        "cudnn_version": 90100,
+        "torch_cuda": "12.4"
+      },
+      "torch_visible_device": {
+        "device_count": 1,
+        "logical_index": 0,
+        "name": "NVIDIA RTX A6000"
+      }
+    },
+    "expected_identity_digest": "f2ca894ddcc6be64a82405b48549dc9893a35fcb1ae4028a5b136a8d73135cd7",
+    "expected_tag": "ancS7_cifar_A_v4_N39_s42_AXanchors_JD002",
+    "hf_identity_sha256": "f00adab251f7a66c070a26abd951682314edd6d6b1a351a2b9d885e606d28fab",
+    "input_aggregate_sha256": "9259d328fc9e9640b2bb0ace9e082d74bde489863f14addd0acabdeb4f5f6d1e",
+    "input_authority_sha256": "075515979412f8a377131cb98f587046d3ab4891154f8d9c5030c59fd2549fdd",
+    "input_seal_sha256": "3e9bc7b902333663973e6b782590b018b84b7c67b11b118ece9111be6c7662fb",
+    "physical_gpu_index": 0,
+    "plan_snapshot_sha256": "23e0763089474895b5960833c7a4bafefae65a19778e200c81949905625c37a4",
+    "result_root": "/home/yschoi/gdna_anchor4_result",
+    "split_identity_sha256": "f56032620091719bba584980734f73ac9f302f94d7056e37dca132f9da57bff9"
+  },
+  "codebook_size": 64,
+  "completion": {
+    "args_txt_sha256": "67bb77a4fcad0407be136bcfa3e302f30494f3955e7e9bbc827b94e180b4106f",
+    "checkpoint_runtime_sha256": "3693509c97071f7993dc10353d3fa3bd7c7ab11d2d668b131b120af3baea23ce",
+    "final_checkpoint": "model_state_dict.pth",
+    "final_checkpoint_epoch_zero_based": 39,
+    "final_checkpoint_sha256": "f07aa6bc8b59ed531eb57414a4061c466cbc3b6c96f79e130034393a1eb032b0",
+    "log_csv_sha256": "2d6487b1161acff0e9d12d9af361897e9f62e5f1c72d2f80d6f9da25cfccdbfd",
+    "phase3_campaign": {
+      "actual_child_environment": {
+        "cuda_visible_devices": "GPU-4ac2ea6b-1925-e1ba-5463-02827507d897",
+        "errors": [],
+        "library_environment": {
+          "HF_HOME": null,
+          "HF_HUB_OFFLINE": null,
+          "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+          "TRANSFORMERS_OFFLINE": null
+        },
+        "packages": {
+          "Pillow": {
+            "distribution": "Pillow",
+            "version": "12.1.1"
+          },
+          "PyYAML": {
+            "distribution": "PyYAML",
+            "version": "6.0.3"
+          },
+          "matplotlib": {
+            "distribution": "matplotlib",
+            "version": "3.10.9"
+          },
+          "numpy": {
+            "distribution": "numpy",
+            "version": "2.2.6"
+          },
+          "opencv": {
+            "distribution": "opencv-python",
+            "version": "4.13.0.92"
+          },
+          "pandas": {
+            "distribution": "pandas",
+            "version": "2.3.3"
+          },
+          "scipy": {
+            "distribution": "scipy",
+            "version": "1.15.3"
+          },
+          "sklearn": {
+            "distribution": "scikit-learn",
+            "version": "1.7.2"
+          },
+          "tensorboard": {
+            "distribution": "tensorboard",
+            "version": "2.20.0"
+          },
+          "timm": {
+            "distribution": "timm",
+            "version": "1.0.26"
+          },
+          "tokenizers": {
+            "distribution": "tokenizers",
+            "version": "0.22.2"
+          },
+          "torch": {
+            "distribution": "torch",
+            "version": "2.6.0+cu124"
+          },
+          "torchvision": {
+            "distribution": "torchvision",
+            "version": "0.21.0+cu124"
+          },
+          "tqdm": {
+            "distribution": "tqdm",
+            "version": "4.67.3"
+          },
+          "transformers": {
+            "distribution": "transformers",
+            "version": "5.8.0"
+          }
+        },
+        "parent_environment_sha256": "ffc46844e15301f8fd45ff012eb36e1836bc8181f7b0d8119e9f22e37c48b9f0",
+        "physical_gpu": {
+          "driver": "570.211.01",
+          "index": 0,
+          "name": "NVIDIA RTX A6000",
+          "pci_bus_id": "00000000:16:00.0",
+          "uuid": "GPU-4ac2ea6b-1925-e1ba-5463-02827507d897"
+        },
+        "python_executable": "/home/yschoi/.conda/envs/dna_hashing/bin/python3.10",
+        "python_executable_sha256": "be9ecab7de61a1ffe0bef4ab49325ba1182529de68d0522f0fbddaf9de2474aa",
+        "python_version": "3.10.20 (main, Mar 11 2026, 17:46:40) [GCC 14.3.0]",
+        "pythonpath": null,
+        "schema_version": 1,
+        "torch_runtime": {
+          "cudnn_version": 90100,
+          "torch_cuda": "12.4"
+        },
+        "torch_visible_device": {
+          "device_count": 1,
+          "logical_index": 0,
+          "name": "NVIDIA RTX A6000"
+        }
+      },
+      "actual_identity_digest": "f2ca894ddcc6be64a82405b48549dc9893a35fcb1ae4028a5b136a8d73135cd7",
+      "campaign_nonce": "5b3eb19b1a7ae1949d48ab63445ecd26bf25918aa554a9c1a582eb67618fc423",
+      "cell_id": "cifar10|N=39|P=0.3,0.7|JD=0.02|stage=select|seed=42|axis_center=anchors",
+      "child_environment_sha256": "97a8c53438c06d7eb85f339ea714487a9685c7550f9f994079f8d8d25a28c496",
+      "environment_sha256": "ffc46844e15301f8fd45ff012eb36e1836bc8181f7b0d8119e9f22e37c48b9f0",
+      "expected_child_environment": {
+        "cuda_visible_devices": "GPU-4ac2ea6b-1925-e1ba-5463-02827507d897",
+        "errors": [],
+        "library_environment": {
+          "HF_HOME": null,
+          "HF_HUB_OFFLINE": null,
+          "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+          "TRANSFORMERS_OFFLINE": null
+        },
+        "packages": {
+          "Pillow": {
+            "distribution": "Pillow",
+            "version": "12.1.1"
+          },
+          "PyYAML": {
+            "distribution": "PyYAML",
+            "version": "6.0.3"
+          },
+          "matplotlib": {
+            "distribution": "matplotlib",
+            "version": "3.10.9"
+          },
+          "numpy": {
+            "distribution": "numpy",
+            "version": "2.2.6"
+          },
+          "opencv": {
+            "distribution": "opencv-python",
+            "version": "4.13.0.92"
+          },
+          "pandas": {
+            "distribution": "pandas",
+            "version": "2.3.3"
+          },
+          "scipy": {
+            "distribution": "scipy",
+            "version": "1.15.3"
+          },
+          "sklearn": {
+            "distribution": "scikit-learn",
+            "version": "1.7.2"
+          },
+          "tensorboard": {
+            "distribution": "tensorboard",
+            "version": "2.20.0"
+          },
+          "timm": {
+            "distribution": "timm",
+            "version": "1.0.26"
+          },
+          "tokenizers": {
+            "distribution": "tokenizers",
+            "version": "0.22.2"
+          },
+          "torch": {
+            "distribution": "torch",
+            "version": "2.6.0+cu124"
+          },
+          "torchvision": {
+            "distribution": "torchvision",
+            "version": "0.21.0+cu124"
+          },
+          "tqdm": {
+            "distribution": "tqdm",
+            "version": "4.67.3"
+          },
+          "transformers": {
+            "distribution": "transformers",
+            "version": "5.8.0"
+          }
+        },
+        "parent_environment_sha256": "ffc46844e15301f8fd45ff012eb36e1836bc8181f7b0d8119e9f22e37c48b9f0",
+        "physical_gpu": {
+          "driver": "570.211.01",
+          "index": 0,
+          "name": "NVIDIA RTX A6000",
+          "pci_bus_id": "00000000:16:00.0",
+          "uuid": "GPU-4ac2ea6b-1925-e1ba-5463-02827507d897"
+        },
+        "python_executable": "/home/yschoi/.conda/envs/dna_hashing/bin/python3.10",
+        "python_executable_sha256": "be9ecab7de61a1ffe0bef4ab49325ba1182529de68d0522f0fbddaf9de2474aa",
+        "python_version": "3.10.20 (main, Mar 11 2026, 17:46:40) [GCC 14.3.0]",
+        "pythonpath": null,
+        "schema_version": 1,
+        "torch_runtime": {
+          "cudnn_version": 90100,
+          "torch_cuda": "12.4"
+        },
+        "torch_visible_device": {
+          "device_count": 1,
+          "logical_index": 0,
+          "name": "NVIDIA RTX A6000"
+        }
+      },
+      "expected_identity_digest": "f2ca894ddcc6be64a82405b48549dc9893a35fcb1ae4028a5b136a8d73135cd7",
+      "expected_tag": "ancS7_cifar_A_v4_N39_s42_AXanchors_JD002",
+      "hf_identity_sha256": "f00adab251f7a66c070a26abd951682314edd6d6b1a351a2b9d885e606d28fab",
+      "input_aggregate_sha256": "9259d328fc9e9640b2bb0ace9e082d74bde489863f14addd0acabdeb4f5f6d1e",
+      "input_authority_sha256": "075515979412f8a377131cb98f587046d3ab4891154f8d9c5030c59fd2549fdd",
+      "input_seal_sha256": "3e9bc7b902333663973e6b782590b018b84b7c67b11b118ece9111be6c7662fb",
+      "physical_gpu_index": 0,
+      "plan_snapshot_sha256": "23e0763089474895b5960833c7a4bafefae65a19778e200c81949905625c37a4",
+      "result_root": "/home/yschoi/gdna_anchor4_result",
+      "schema_version": 1,
+      "scientific_recipe_schema": "groundeddna-scientific-recipe/2",
+      "scientific_recipe_sha256": "916ded1ed9e9a13a693c93e2e9adf3ffadca1ede4216fa4179d804ab86ebbb0e",
+      "split_identity_sha256": "f56032620091719bba584980734f73ac9f302f94d7056e37dca132f9da57bff9",
+      "trainer_boot_id": "33d5823a-179b-45e8-a680-fac9d0d5364b",
+      "trainer_pid": 3770257
+    },
+    "phase3_campaign_evidence_sha256": "288eb79a8d1e5c6d0ccc87a05842d667cb2be9886e9b6cec702e2daad7384f74",
+    "run_identity_sha256": "daad7700468431e8661da33106e94c2e8ebfce3388fb1cdb47ed7776bb95e246",
+    "terminal_weights_preserved": true
+  },
+  "dataset": "cifar10",
+  "environment_sha256": "ffc46844e15301f8fd45ff012eb36e1836bc8181f7b0d8119e9f22e37c48b9f0",
+  "epoch_budget": 60,
+  "geometry": {
+    "identity_digest": "f2ca894ddcc6be64a82405b48549dc9893a35fcb1ae4028a5b136a8d73135cd7",
+    "lambda_codon_joint": 0.02,
+    "num_codebooks": 5,
+    "num_codons_per_codebook": 3,
+    "num_semantic_parts": 5,
+    "routing_adaptive_topp_max": 0.7,
+    "routing_adaptive_topp_min": 0.3,
+    "text_hash_counterfactual_weight": 0.0
+  },
+  "identity_digest": "f2ca894ddcc6be64a82405b48549dc9893a35fcb1ae4028a5b136a8d73135cd7",
+  "input_authority": {
+    "aggregate_sha256": "9259d328fc9e9640b2bb0ace9e082d74bde489863f14addd0acabdeb4f5f6d1e",
+    "authority_sha256": "075515979412f8a377131cb98f587046d3ab4891154f8d9c5030c59fd2549fdd",
+    "dataset": "cifar10",
+    "hf_runtime": {
+      "checkpoint": "openai/clip-vit-base-patch16",
+      "config_file": "config.json",
+      "config_sha256": "eaf1c9089a8553c913d27ea66407f8bfc2be9989c80c9f331ddb3d63d4c5e8ad",
+      "identity_sha256": "f00adab251f7a66c070a26abd951682314edd6d6b1a351a2b9d885e606d28fab",
+      "local_files_only": true,
+      "revision": "57c216476eefef5ab752ec549e440a49ae4ae5f3",
+      "snapshot_dir": "/home/yschoi/.cache/huggingface/hub/models--openai--clip-vit-base-patch16/snapshots/57c216476eefef5ab752ec549e440a49ae4ae5f3",
+      "tokenizer_files_sha256": {
+        "merges.txt": "9fd691f7c8039210e0fced15865466c65820d09b63988b0174bfe25de299051a",
+        "special_tokens_map.json": "f8c0d6c39aee3f8431078ef6646567b0aba7f2246e9c54b8b99d55c22b707cbf",
+        "tokenizer.json": "a83e0809aa4c3af7208b2df632a7a69668c6d48775b3c3fe4e1b1199d1f8b8f4",
+        "tokenizer_config.json": "3f74b6a4d97fee70b3b96921a687fc5e3f2fb583f5f81e7c178c0c22281beade",
+        "vocab.json": "3f0c4f7d2086b61b38487075278ea9ed04edb53a03cbb045b86c27190fa8fb69"
+      },
+      "tokenizer_set_sha256": "8f33e5bf3301f4fecc65d4b2ddd1ad26c1d6c7b3272bef7cc385bcf8c080677b",
+      "weight_file": "pytorch_model.bin",
+      "weight_sha256": "ec89c7b09c749a60aae3c9cd910516f24b58214a7df060b48962d14c469cfbf0"
+    },
+    "request": {
+      "dataset": "cifar10",
+      "dataset_root": "/home/yschoi/GroundedDNA/dataset",
+      "feature_cache": "/data/yschoi/groundeddna_cache_v6prov/cifar10_clip_tokens",
+      "foil_cache": "/data/yschoi/groundeddna_cache_v6prov/cifar10_clip_tokens_foils",
+      "qwen": "/data/yschoi/dataset/deephashing/cache/cifar10_qwen_v4.jsonl",
+      "split_rows": "/data/yschoi/groundeddna_cache_v6prov/cifar10_clip_tokens/opt_train_rows.npy",
+      "stage": "stage1",
+      "whitening": "/data/yschoi/groundeddna_cache_v6prov/cifar10_clip_tokens_foils/text_whiten_optTrain_localOnly.npz"
+    },
+    "runtime_path_identities": {
+      "dataset_rows_root": {
+        "identity": {
+          "device": 2052,
+          "inode": 22296158,
+          "mode": 16893
+        },
+        "path": "/home/yschoi/GroundedDNA/dataset/CIFAR10",
+        "path_type": "directory",
+        "resolved_path": "/home/yschoi/GroundedDNA/dataset/CIFAR10"
+      },
+      "feature_cache_root": {
+        "identity": {
+          "device": 2065,
+          "inode": 207487036,
+          "mode": 16893
+        },
+        "path": "/data/yschoi/groundeddna_cache_v6prov/cifar10_clip_tokens",
+        "path_type": "directory",
+        "resolved_path": "/data/yschoi/groundeddna_cache_v6prov/cifar10_clip_tokens"
+      },
+      "qwen": {
+        "content": {
+          "algorithm": "sha256",
+          "sha256": "b02cc0be0e7aba0e4602a2daf15c7c45b259c86d9fa8fe0b27817714a9f6eefb",
+          "size": 4480563
+        },
+        "file_type": "regular",
+        "path": "/data/yschoi/dataset/deephashing/cache/cifar10_qwen_v4.jsonl",
+        "stat": {
+          "ctime_ns": 1784853128742865948,
+          "device": 2065,
+          "gid": 1004,
+          "inode": 196117613,
+          "mode": 33204,
+          "mtime_ns": 1784853128742865948,
+          "nlink": 1,
+          "size": 4480563,
+          "uid": 1003
+        }
+      },
+      "whitening": {
+        "content": {
+          "algorithm": "sha256",
+          "sha256": "4adfae15d331bf659bd19e31f54a97f2907e15d3e1cac3dbbb35871c5557d64f",
+          "size": 1053398
+        },
+        "file_type": "regular",
+        "path": "/data/yschoi/groundeddna_cache_v6prov/cifar10_clip_tokens_foils/text_whiten_optTrain_localOnly.npz",
+        "stat": {
+          "ctime_ns": 1786761283122398245,
+          "device": 2065,
+          "gid": 1004,
+          "inode": 207487192,
+          "mode": 33204,
+          "mtime_ns": 1786761283050404808,
+          "nlink": 1,
+          "size": 1053398,
+          "uid": 1003
+        }
+      }
+    },
+    "schema": "groundeddna.phase3-input-authority",
+    "schema_version": 1,
+    "seal_file_sha256": "3e9bc7b902333663973e6b782590b018b84b7c67b11b118ece9111be6c7662fb",
+    "seal_path": "/data/yschoi/gdna_p3exec_seals/cifar10.stage1.input-seal.json",
+    "split_identity": {
+      "counts": {
+        "designated_train": 5000,
+        "heldout_train_validation": 500,
+        "optimization_train": 4500
+      },
+      "digests": {
+        "dataset_to_cache_rows_sha256": "3bb05117de4e88eed61bd72c111829a0b4ce9740c51feeae56584e315ba6c43c",
+        "feature_image_ids_semantic_sha256": "6b579975a80bc7014e1f74679c81110faafee99ec6f261748c7bffdccd8f158f",
+        "optimization_cache_rows_sha256": "5d13b5a373690be4b8dd1d57a5d44ff71cafbe9c744fd53dd5b0de5415873c00",
+        "source_cache_rows_sha256": "8de19d0c4ccdaf8dd329f0b9c974796e554758e8f82c2ceb61806d2034a57b6d",
+        "train_labels_sha256": "fec6f52dac470d673b512339e21aabfa350865464900f816ca67e4332a8f77bc",
+        "validation_cache_rows_sha256": "4109afb940b49b1609f7fc58c31dd3c1c37da81eb9920e7121f9718189952ec1"
+      },
+      "split_rows_raw_sha256": "ccf3dd7d85a47aba8f56ea333c0b2417b7a34da5d2789fba0305df150ff5f63e"
+    },
+    "split_identity_sha256": "f56032620091719bba584980734f73ac9f302f94d7056e37dca132f9da57bff9",
+    "stage": "stage1"
+  },
+  "inputs": {
+    "codebook_size": 64,
+    "eval_cache": "/data/yschoi/groundeddna_cache_v6prov/cifar10_clip_tokens",
+    "feature_cache": "/data/yschoi/groundeddna_cache_v6prov/cifar10_clip_tokens",
+    "qwen": "/data/yschoi/dataset/deephashing/cache/cifar10_qwen_v4.jsonl",
+    "whitening": "/data/yschoi/groundeddna_cache_v6prov/cifar10_clip_tokens_foils/text_whiten_optTrain_localOnly.npz"
+  },
+  "is_candidate_cell": true,
+  "lr_schedule_horizon": 60,
+  "matrix": {
+    "candidate_n": [
+      4,
+      9,
+      19,
+      39
+    ],
+    "cells": 16,
+    "datasets": [
+      "cifar10",
+      "flickr25k",
+      "mscoco",
+      "nuswide"
+    ]
+  },
+  "namespace": "ancS7",
+  "plan_snapshot_sha256": "23e0763089474895b5960833c7a4bafefae65a19778e200c81949905625c37a4",
+  "protocol_sources": {
+    "config.py": "13079550490016a9600e6cfc6777cf01eb67335fa7f7e01de5f0018751aa1a8b",
+    "dna_utils/run_identity.py": "a6cfe0e902e889c4ccc35ada829fbd80063811457cf04a4c06c58939ec184c9f",
+    "model_siglip2.py": "9c1cc71b7b40a366439495b3bfa510020a26ef6efd6c6a464b625a9982f3f11d",
+    "scripts/phase3_selection_matrix.py": "2cb8343dba923514d9c3fbc0ffffd79c66058d582c35486fab51a518ba541f53",
+    "scripts/train_cifar10_v185_bidirTokenPrune05_ccs01_clip.sh": "a0dff871b7be004f9a614eae324c6613ca6713af591749239c7868ec6965abc9",
+    "train_siglip2.py": "d23788cb9fea109aaffc191a6208f74869367756c933e985e2c3a1246050586f"
+  },
+  "recipe": {
+    "lambda_codon_joint": "0.02",
+    "routing_adaptive_topp_max": "0.7",
+    "routing_adaptive_topp_min": "0.3"
+  },
+  "result_root": "/home/yschoi/gdna_anchor4_result",
+  "run_dir": "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancS7_cifar_A_v4_N39_s42_AXanchors_JD002+bs+64+e+60+proj_lr+0.001",
+  "schema_version": 1,
+  "seed": 42,
+  "selection": {
+    "distance_mode": "base",
+    "epochs_logged": 40,
+    "log_csv_sha256": "2d6487b1161acff0e9d12d9af361897e9f62e5f1c72d2f80d6f9da25cfccdbfd",
+    "map_r_cutoff": 1000,
+    "selection_epoch_zero_based": 39,
+    "selection_metric": "eval_mAP_at_R",
+    "selection_value": 0.7176889309920653
+  },
+  "selection_mode": "select",
+  "sinkhorn_schedule_horizon": 40,
+  "smoke": false,
+  "stage": "select",
+  "stop_after_epoch": 39,
+  "tag": "ancS7_cifar_A_v4_N39_s42_AXanchors_JD002",
+  "val_split_ratio": 0.1,
+  "val_split_seed": 42,
+  "wall_seconds": 1231.9
+}
