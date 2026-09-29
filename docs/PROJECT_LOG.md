@@ -487,6 +487,108 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-09-29 [branch text-diag-2026-09 — analysis, no training, CPU only] Text-path diagnostics A0/A1/A2/A3: caption-similar images share codes 4–14× more often than random pairs, but equally in every slot and equally without any text supervision
+
+**Status:** 🟡 diagnostic, exploratory. Records: `result/analysis/textdiag_2026-09-29/` on the
+separate branch `text-diag-2026-09` (worktree `/home/yschoi/gdna_textdiag`, from `eda9125`):
+`a0_caption_stats.{py,json}`, `a2a3_slot_consistency.py`, `a2a3/*.json` (18 runs), `A2A3_SUMMARY.md`.
+Nothing under `arch-exp-2026-09`, the anchor worktree, the seals or the running stage-D campaign
+was touched; all forwards ran on CPU (`nice`, no GPU).
+
+> **Recipe label:** A1–A3 use the September exploratory anchor checkpoints (`use_gumbel_softmax=True`,
+> own N: CIFAR-10/Flickr25K/NUS-WIDE N=4, MS-COCO N=39) and the Flickr25K `base` / `notext` runs. The
+> audited ancS7 checkpoints were not loaded (§727 forbids exploratory loading). Same-recipe numbers
+> for the approved model need a separate admission.
+
+**Question.** Does the text path make images with the same element in slot m receive the same
+slot-m codeword/codon ("유의미하게 관여")?
+
+**A0 — the four approved caption files** (V4: CIFAR-10, Flickr25K, NUS-WIDE; V5b: MS-COCO).
+
+| dataset | rows | local↔local CLIP text cosine | top-100 words shared, primary/secondary | color axis top-50 word coverage | object axes top-50 coverage | v4↔v5b word Jaccard (same images) |
+|---|---:|---:|---:|---:|---:|---|
+| CIFAR-10 | 6000 | .689 | 34 | .66 | .43–.45 | — |
+| Flickr25K | 5000 | .600 | 51 | .56 | .26–.27 | primary .19, secondary .17, activity .12, color .23 |
+| NUS-WIDE | 10500 | .617 | 50 | .61 | .27–.33 | — |
+| MS-COCO | 10000 | .583 | 42 | .59 | .29–.39 | primary .23, secondary .20, activity .14, color .24 |
+
+- 'none' 0 % everywhere; exact duplicate sentences ≤ 1.5 % (CIFAR) and ≤ 0.1 % elsewhere. The
+  'none' problem is historical (V3, May).
+- Object and activity captions are image-specific (top-50 content words cover 24–39 % of tokens);
+  two generations of the same image agree on 12–24 % of content words. There is no repeatable
+  concept token per axis that could anchor "same element → same code" on the text side.
+
+**A1 — the `text_code_kl` target on the validation rows** (τ_t .07, threshold .2; mean over the 4
+local slots, 3 seeds):
+
+| dataset / arm | mean confidence | share excluded (≤ .2) | text argmax = visual codeword | text top-1 mass |
+|---|---:|---:|---:|---:|
+| CIFAR-10 anchors | .526 | .006 | .093 | .351 |
+| Flickr25K anchors | .314 | .139 | .098 | .181 |
+| Flickr25K base | .414 | .014 | .152 | .260 |
+| Flickr25K notext | .026 | 1.000 | .011 | .024 |
+| MS-COCO anchors | .359 | .079 | .116 | .233 |
+| NUS-WIDE anchors | .377 | .026 | .106 | .211 |
+
+The designed target is active (6–14 % excluded, except CIFAR) but nearly flat (top-1 mass .18–.35
+over K = 64/128) and picks the image's actual codeword in 9–15 % of samples. `notext` is the sanity
+control: 100 % excluded.
+
+**A2 — code→own-axis (chance .25) and geometry**, 500 rows, 3 seeds:
+
+| dataset / arm | pre-quant slot token | codeword | eff-rank of z | cos(z, q) | codewords used / K |
+|---|---:|---:|---:|---:|---|
+| CIFAR-10 anchors | .273 ± .030 | .332 ± .051 | 16.1 | .694 | 42 / 64 |
+| Flickr25K anchors | .273 ± .017 | .370 ± .014 | 46.7 | .661 | 81 / 128 |
+| Flickr25K base | .267 ± .003 | .307 ± .007 | 32.8 | .708 | 77 / 128 |
+| Flickr25K notext | .249 ± .004 | .252 ± .004 | 45.5 | .684 | 85 / 128 |
+| MS-COCO anchors | .260 ± .010 | .418 ± .023 | 71.1 | .657 | 109 / 128 |
+| NUS-WIDE anchors | .293 ± .011 | .444 ± .018 | 43.4 | .708 | 110 / 128 |
+
+The pre-quantisation slot token is at chance on every arm; the within-image axis alignment the
+text path produces lives in the codeword (.31–.44 with text, .25 without).
+
+**A3 — cross-image slot consistency** (the property asked about). Pairs of the 500 rows whose axis-m
+captions share content (word Jaccard ≥ .25) or are in the top 2 % of caption CLIP cosine;
+lift = P(same codeword | pair) / P(same codeword | any pair), in the OWN slot and in the OTHER three
+slots on the same pairs (3-seed mean ± SD; full per-axis tables in `A2A3_SUMMARY.md`).
+
+| dataset / arm | rule | own-slot lift (4 axes) | other-slots lift (same pairs) | own − other |
+|---|---|---|---|---|
+| Flickr25K anchors | Jaccard ≥ .25 | 9.0 / 6.5 / 9.7 / 4.9 | 8.9 / 7.6 / 7.5 / 4.8 | +.1 / −1.1 / +2.2 / +.1 |
+| Flickr25K base | Jaccard ≥ .25 | 7.8 / 5.7 / 8.2 / 4.7 | 7.3 / 7.4 / 8.8 / 4.5 | +.5 / −1.7 / −.6 / +.2 |
+| Flickr25K **notext** | Jaccard ≥ .25 | 10.5 / 9.0 / 9.7 / 4.9 | 9.6 / 7.8 / 9.1 / 4.9 | +.9 / +1.2 / +.6 / −.0 |
+| CIFAR-10 anchors | Jaccard ≥ .25 | 8.1 / 3.7 / 4.4 / 4.2 | 8.3 / 4.2 / 3.9 / 4.1 | −.2 / −.5 / +.5 / +.0 |
+| NUS-WIDE anchors | Jaccard ≥ .25 | 14.6 / 5.6 / 9.9 / 4.8 | 11.6 / 6.4 / 12.4 / 4.6 | +3.0 / −.7 / −2.5 / +.2 |
+| MS-COCO anchors | Jaccard ≥ .25 | 8.6 / 13.7 / 6.5 / 3.8 | 7.9 / 11.4 / 6.3 / 3.5 | +.7 / +2.3 / +.1 / +.3 |
+
+(axes in the order primary / secondary / activity / color; the caption-cosine rule gives the same
+picture at lifts 2.5–7.9.) Base-Hamming of the own-slot codon drops by .4–1.2 of 3 bases for paired
+images on every arm, including `notext`.
+
+**Reading.**
+1. 🟢 "Similar caption → same code" holds: paired images share a codeword 4–14× more often than
+   random pairs, on every dataset.
+2. 🔴 It is **not slot-specific**: the other three slots move by the same factor (own − other within
+   the seed SD, signs mixed). A pair that shares a primary-object description shares its
+   color-texture codeword just as often. This is the image-level redundancy already measured on
+   2026-09-20 (2.97 of 4 slots per patch), seen now on the codes themselves.
+3. 🔴 It is **not caption-dependent**: the Flickr25K model trained with no text at all has the same
+   lifts (10.5 / 9.0 / 9.7 / 4.9). The consistency comes from the frozen CLIP features, not from
+   the text path. What the text path adds is the within-image axis alignment of the codeword
+   (A2: .25 → .31–.44), which A3 shows does not translate into slot-specific sharing across images.
+4. A1 shows why the designed lever is weak: the caption-derived target over the codebook is nearly
+   flat and agrees with the actual assignment for ~1 in 10 samples; A0 shows the captions carry no
+   repeatable per-axis token that such a target could lock onto.
+
+**Consequence for the claim.** With the current model, "the text path makes images with the same
+element share the slot's code" cannot be stated; the measured sharing is neither slot-specific nor
+text-caused. Any repair must first produce slot-specific, text-caused sharing on this metric with a
+text-OFF control at the final recipe (a separately proposed measurement). Descriptive, n = 3 seeds,
+no test run; exploratory (Gumbel-ON) checkpoints.
+
+---
+
 ## 2026-09-29 [anchor confirmation — frozen N record published; stage-D request prepared, not run] Audit §726: N = 4 for CIFAR-10, Flickr25K and NUS-WIDE, 39 for MS-COCO
 
 **Status:** ✅ the approved CPU N reduction ran; the D request is submitted, not executed.
