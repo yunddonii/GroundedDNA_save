@@ -487,6 +487,70 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-01 [anchor model stage L — approved six-cell Flickr25K lambda campaign, complete] Audit §739: control gate passed, five candidates ran
+
+**Status:** ✅ campaign rc 0. **Stopped for audit**, as §739 requires. The lambda reduction (the
+only official decision) is **not approved and was not run**. No winner, no recipe change.
+
+**What ran.** The §739-approved carried stage-L command under the supervisor (`stage-L-run`).
+- Request `daf99128…` (equal to the approved one), manifest `58e69ae1…`, selection `5cda7adb…`,
+  approval section 739, the carried ancS6 admission `ef5a3e8d…`, input seal `e44b363a…`.
+- tmux `ancL8_v8` on GPU 5, run `20261001T071439Z-29197940`, 16:14:39–16:27:20 KST (761 s wall).
+- Six cells, all Flickr25K, N4, seed 42, anchors, Gumbel off, epoch/LR budget 60, Sinkhorn
+  horizon 5, stop after epoch 4, namespace `ancL8`. Control first, then the five one-axis
+  candidates.
+
+**Results** (terminal row = epoch 4; raw base-Hamming mAP@R on train-only validation).
+
+| Cell | transport (W) | balance (BU) | text (TH) | mAP@R | unique code ratio |
+|---|---|---|---|---|---|
+| control (incumbent) | 0.15 | 0.02 | 0.05 | 0.7641936888306327 | 0.5291 |
+| W 0.30 | **0.30** | 0.02 | 0.05 | 0.7509178118500363 | 0.5427 |
+| W 0.50 | **0.50** | 0.02 | 0.05 | 0.7478209636840679 | 0.5500 |
+| BU 0 | 0.15 | **0** | 0.05 | 0.7587559463435585 | 0.5464 |
+| TH 0.025 | 0.15 | 0.02 | **0.025** | 0.7440719904260422 | 0.5104 |
+| TH 0.10 | 0.15 | 0.02 | **0.10** | 0.7574857133037165 | 0.5758 |
+
+- **Control gate: PASS.** The control's score equals the v7 incumbent seed-42 score
+  0.7641936888306327 exactly (no rounding), so the candidates were allowed to run.
+- **Raw observation, not a decision:** all five candidate scores are below the control's. The
+  contract rule (candidate − 0.7641936888306327 > T = 0.02819158958924184, strict, unrounded) is
+  applied only by the reduction, which needs its own approval.
+
+**Checks** (independent text/JSON script; reads JSON, CSV and `args.txt` only; computes no decision).
+- **Sealed recipes:** each candidate differs from the sealed control in its one lambda only; the
+  control differs in nothing.
+- **`args.txt` readback** equals the sealed lambdas in all six cells; axis `anchors`, epoch 60,
+  stop 4, Sinkhorn horizon 5.
+- **Records:** each anchor block's recipe digest equals the seal, and so does the trainer's
+  campaign evidence. The child environment equals the plan in all six (GPU 5, no errors).
+- **Receipt:** 6 executed cells of 6 declared; each record digest matches the receipt.
+
+| Artifact | SHA256 |
+|---|---|
+| receipt `ancL8_sweep_complete.json` | `0991f0a0…` |
+| snapshot `ancL8_snapshot_1eab97a081863d9f.json` (file bytes) | `d7c8874f…` |
+| reservation `ancL8_campaign_reservation.json` | `6101abea…` |
+| record, control | `36e2be8e…` |
+| records W0.30 / W0.50 | `8537da4f…` / `2df1d039…` |
+| record BU0 | `019d9c0d…` |
+| records TH0.025 / TH0.10 | `9fb3dd78…` / `3aaeacbf…` |
+
+Records committed at `622ade1` on `arch-exp-2026-09-anchor-lambda` (pushed).
+
+**Settlement.**
+- L ledger `/home/yschoi/gdna_anchorL_ops`: status `exited`, rc 0.
+- Charged 734.3228832110763 s (device 726.395 s + allowance 7.928 s); lease 753.6 GPU-s.
+- L cumulative 776.3320168741047 s of 3,600 s (smoke 42.009 s + this run); ledger `477e447c…`.
+- No held leases, no orphans, no continuity loss, no monitor failures; no trainer or tmux left.
+- The S/D/probe ledger is unchanged (`986bdcd1…`, 19,264.61 s).
+
+**Next.** The audit reviews the campaign. The reduction (`anchor_confirm_decision.py` stage
+`lambda`) runs only after its own approval. If it changes the Flickr recipe, that needs a new
+generation with N reselection and D/probes; a winner is never copied to other datasets.
+
+---
+
 ## 2026-10-01 [anchor model stage L — approved one-cell smoke, complete] Audit §738: the lambda-repeat path works on the real trainer
 
 **Status:** ✅ smoke rc 0. **Stopped after the smoke**, as §738 requires. The six-cell L campaign
