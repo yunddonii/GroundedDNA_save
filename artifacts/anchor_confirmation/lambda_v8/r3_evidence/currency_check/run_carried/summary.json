@@ -1,0 +1,42 @@
+{
+ "script": "scripts/phase3_selection_matrix.py",
+ "args": [
+  "--anchor-confirm",
+  "lambda",
+  "--namespace",
+  "ancL8",
+  "--anchor-arms",
+  "anchors",
+  "--anchor-selection",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_selected_n.json",
+  "--anchor-selection-sha256",
+  "5cda7adb055ed126efb0a8ec198e06d1176ccdc57e7d38fe35ff74b74a4a92ff",
+  "--result-root",
+  "/home/yschoi/gdna_anchor4_result",
+  "--input-seal",
+  "flickr25k:stage1=/data/yschoi/gdna_p3exec_seals/flickr25k.stage1.input-seal.json",
+  "--anchor-manifest",
+  "artifacts/anchor_confirmation/authority_manifest_v8r2.json",
+  "--anchor-manifest-sha256",
+  "58e69ae1a3bed5366da61a4d61a6cdd90c338d9ac7b0474fcf9b6e2e2f7f5bbc",
+  "--run",
+  "--gpus",
+  "0",
+  "--admission-authority",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS6_snapshot_acaa0374fa0780e2.json",
+  "--plan"
+ ],
+ "exit": 0,
+ "allowed_named": [
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_decision.json",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS6_snapshot_acaa0374fa0780e2.json",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_selected_n.json",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_snapshot_23e0763089474895.json",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_sweep_complete.json",
+  "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/authority_manifest_v8r2.json",
+  "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/p3rfB_refit_aggregate.json",
+  "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/selected_n.json",
+  "/data/yschoi/gdna_p3exec_seals/flickr25k.stage1.input-seal.json"
+ ],
+ "refused": []
+}
