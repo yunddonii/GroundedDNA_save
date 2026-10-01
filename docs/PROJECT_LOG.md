@@ -487,6 +487,65 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-01 [anchor model generation v8 — stage-L package prepared, nothing run] Audit §733: Flickr25K-first lambda checks, code + tests + manifest + requests
+
+**Status:** ✅ the package is prepared (branch `arch-exp-2026-09-anchor-lambda`, worktree
+`/data/yschoi/gdna_anchor_lambda_v8`, package commit `a8c46be`, pushed). No lambda training, smoke,
+preflight or GPU work ran.
+
+**Scope decision (user, 2026-10-01, answering audit §733.1):** Flickr25K first, as the TODO and the
+2026-09-14 instruction order it.
+- If Flickr25K's choice does not change, stage L ends: all four datasets keep their lambdas and
+  their v7 records.
+- If it changes, each other dataset needs its own checks, and a Flickr winner is never copied.
+
+**Design (contract `docs/ANCHOR_LAMBDA_CONTRACT_v1.md` `a33ff7f5…`).**
+- **Cells:** one Flickr25K stream at N = 4, seed 42, anchors. The continuity control (the incumbent
+  itself) runs first, then transport 0.30/0.50, balance 0, text 0.025/0.10.
+- **Rule:** a candidate qualifies iff its score − 0.7641936888306327 > 0.02819158958924184, strictly
+  and unrounded. The highest qualifier wins per axis.
+- **Control gate:** the control must equal the v7 score exactly, or the stream stops. This is a
+  diagnostic gate and proves nothing about training.
+- **v7 evidence** is read at its accepted digests, never replayed.
+
+**Package.**
+- Manifest v8 `b7b5af9e…` (64 files; source `8aad9ca`).
+- Requests:
+  - smoke carried `142e710c…` / full `f95e844d…` (namespace `ancLsmk8`);
+  - run carried `962be4b7…` / full `d6182b70…` (`ancL8`).
+- Handoff `docs/ANCHOR_LAMBDA_HANDOFF_v8.md` (`ade95ec6…`).
+- Budget: own ledger `/home/yschoi/gdna_anchorL_ops`, ceiling 3,600 s, planned ≈ 2,860 s.
+
+**Findings while building.**
+- **Recipe module needs a change (audit decision).** The pinned Flickr wrapper hardcodes
+  `--lambda_wasserstein 0.15` and `--lambda_text_hash_ntxent 0.05`, so a candidate repeats its
+  option, and the v7 repeat rule (launcher and trainer) refuses it. The v8 fix is a narrow
+  `STAGE_L_REVIEWED_OVERRIDES` table in `dna_utils/scientific_recipe.py`: one reviewed lambda
+  repeat per argv. This deviates from §733's byte-equal list and is flagged for the audit's
+  decision.
+- **Two porting defects would together have run the incumbent under each candidate's label,
+  unnoticed:** the stream passed no override in anchor mode, and the snapshot sealed no override.
+  Both are fixed and tested.
+- **A shadowed `_finite_proportion` helper** broke the refit aggregation. The full suite caught it
+  (12 failed at `9fe990c`); it is renamed, with a no-duplicate-name test.
+
+**Evidence.**
+
+| Check | Result |
+|---|---|
+| Baseline v7 suite in the new worktree | 921 passed / 1 skipped |
+| Final 17-file suite at `8aad9ca` | 1078 passed / 3 skipped (opt-in) |
+| Opt-in real-wrapper and real-v7-history tests | 2/2 passed |
+| Mutation battery v10 | 21/21 detected, all by assertion |
+
+One suite run at `30c4d6d` was interrupted by me to edit tests: pytest was killed by PID, one
+orphaned fixture sleeper was killed by its process group, and that run counts as no evidence.
+
+**Next.** The audit reviews the package: the recipe-module decision, then a `stage-L-smoke`
+approval. Stage L and its reduction follow, each separately approved.
+
+---
+
 ## 2026-10-01 [anchor model stage L — TODO 13–15 lambda proposal submitted, nothing run] Audit §731.3: preregistration of the lambda checks
 
 **Status:** ✅ proposal submitted (`docs/ANCHOR_LAMBDA_PROPOSAL_L_v1.md` `fe375fdf…`, anchor branch
