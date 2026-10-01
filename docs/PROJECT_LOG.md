@@ -487,6 +487,71 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-01 [anchor confirmation probes — 12 coordinates, approved chain, complete] Audit §730: the code-to-own-axis probe ran on every stage-D coordinate; all twelve envelopes verified
+
+**Status:** ✅ 12/12 probes rc 0.
+- **Stopped here**, as §730 requires. The stage-D summary reduction needs its own source list and
+  approval. TODO 13–15 (L), the freeze, R/T and the official test are not run.
+
+**What ran.** The §730-approved chain `probe_chain_ancP7_v7.sh` (`5874fc6d…`) ran once with approval
+section 730 on **physical GPU 5**, which had no compute process before launch and ran nothing else.
+- tmux `ancP7_v7`, 10:51:01 → 10:54:53 KST, 232 s; status rc 0.
+- Run records: `.cmd` `dd40c616…`, `.log` `ba0a4898…`, `.status` `bceceab7…` under
+  `/data/yschoi/gdna_p3exec_authority/runs/`.
+- Command:
+  `env -C /data/yschoi/gdna_anchor_confirm_v1 -u PYTHONPATH -u CUDA_VISIBLE_DEVICES GDNA_NUM_SEMANTIC_PARTS=5 bash artifacts/anchor_confirmation/probe_chain_ancP7_v7.sh 5 730`.
+- Twelve supervised probes ran in the pinned order (Flickr25K, CIFAR-10, NUS-WIDE, MS-COCO × seeds
+  42/43/44), 17.5–20.9 s each. This was the probe's first success path on real checkpoints.
+
+**Code-to-own-axis top-1 accuracy (strict).**
+- **What is measured:** whether a slot's codeword is closer to its own caption axis than to the
+  other three.
+- **Setup:** the first 500 train-only validation rows × 4 local slots = 2000 decisions per seed,
+  under the deployment forward (no caption reaches the model). Chance is 0.25 (four axes).
+- Mean ± sample SD over 3 seeds. **Descriptive; no test run; not the official stage-D summary.**
+
+| dataset (N) | seed 42 | seed 43 | seed 44 | mean ± SD | ties |
+|---|---:|---:|---:|---:|---:|
+| CIFAR-10 (4) | .3260 (652) | .3230 (646) | .3485 (697) | .3325 ± .0139 | 0 |
+| Flickr25K (4) | .3630 (726) | .3325 (665) | .4100 (820) | .3685 ± .0390 | 0 |
+| NUS-WIDE (4) | .4435 (887) | .4255 (851) | .4165 (833) | .4285 ± .0137 | 0 |
+| MS-COCO (39) | .4135 (827) | .4240 (848) | .4275 (855) | .4217 ± .0073 | 0 |
+
+Hits are in parentheses. These are not the same measurement as the exploratory quant_gap values
+(Gumbel ON, first-index argmax, other rows), so they are not comparable.
+
+**Checks.** An independent plain-JSON script with no project imports
+(`ancP7_prep/verify_probe_chain.py` `cbfc4dba…`, output `33ccf1a8…`) checked every envelope:
+- **What it matched:**
+  - coordinate, record, checkpoint and `config.pt` pins;
+  - manifest `c0612963…`, request `74885114…` and the exact §730 line;
+  - producer `31537dde…`, the population, the split identity and the caption seal;
+  - the cell id;
+  - the arithmetic `0 ≤ ties ≤ total − hits` and ratio = hits/2000.
+- **Row digests:** one per dataset across the three seeds (CIFAR `2af1054c…`, Flickr
+  `a9e5c030…`, NUS `e8616d10…`, COCO `d33f7290…`).
+- **Controls:** a wrong prior charge and a wrong approval section each make the script fail (rc 1).
+- **Approval lines:** after the run, §725, §727 and §730 still stand in the ledger as it is now
+  (`185ece7d…`; the audit had edited earlier lines during the run).
+- **Records:** the envelopes are committed at `591e858` on the anchor branch.
+
+**Settlement.**
+- 12 supervisor runs (`20261001T015101Z-fd67c43c` … `20261001T015434Z-79808079`), each `exited`
+  rc 0, allowance 0, no leases, no orphans, no continuity loss.
+- Charged 231.04 s in all. **Cumulative 19,264.613316638395 s** of 45,000 (5.35 GPU-h); the prior
+  plus the twelve charges reconciles exactly. Ops ledger `986bdcd1…`.
+
+**Not run.** The mandatory compositional analysis is not run here: §730 approves only the chain,
+and any further measurement needs its own approval.
+
+**Next.**
+- The audit reviews the probes.
+- Then the stage-D summary: a source list binding the twelve envelopes, then `anchor_confirm_decision.py
+  decide`, under its own approval.
+- Then the TODO 13–15 L proposal before the freeze.
+
+---
+
 ## 2026-10-01 [anchor confirmation — probe package prepared, not run] Audit §729: twelve-coordinate code-to-own-axis probe request submitted
 
 **Status:** ✅ the package is prepared; the probes need their own `probe` approval.
