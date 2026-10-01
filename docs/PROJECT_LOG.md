@@ -487,6 +487,41 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-01 [anchor model stage L — approved one-cell smoke, complete] Audit §738: the lambda-repeat path works on the real trainer
+
+**Status:** ✅ smoke rc 0. **Stopped after the smoke**, as §738 requires. The six-cell L campaign
+and its reduction need their own approval. A smoke is never evidence.
+
+**What ran.** The §738-approved carried smoke ran under the supervisor (`stage-L-smoke`).
+- Request `6e782793…` (equal to the approved one), manifest `58e69ae1…`, approval section 738, the
+  carried ancS6 admission `ef5a3e8d…`.
+- tmux `ancLsmk8_v8` on GPU 5, run `20261001T070503Z-7b3e4d67`, 16:05:03–16:05:58 KST (55 s).
+- One cell: Flickr25K, N4, seed 42, anchors, `lambda_wasserstein=0.30`, one epoch, namespace
+  `ancLsmk8`.
+
+**Checks.**
+- **Sealed recipe:** it differs from the sealed control in `lambda_wasserstein` alone (0.15 → 0.3).
+  The sealed argv carries the reviewed repeat (wrapper `0.15`, then override `0.30`), and the
+  trainer's own recipe check admitted it.
+- **`args.txt` readback:** `lambda_wasserstein 0.3`, `lambda_bu 0.02`, `lambda_text_hash_ntxent
+  0.05`, `axis_center anchors`, epoch 1, seed 42.
+- **Record:** the anchor block's recipe digest equals the seal (`539aed2b…`), and so does the
+  trainer evidence. The child environment equals the plan (GPU 5, no errors).
+- **Smoke score:** mAP@R 0.7602 after one epoch. It is not evidence.
+- **Records:** the record, snapshot (`41e8ad9f…`), receipt (`88fe2621…`) and reservation are
+  committed at `2362dd6` on `arch-exp-2026-09-anchor-lambda`.
+
+**Settlement.**
+- New L ledger `/home/yschoi/gdna_anchorL_ops`: status `exited`, rc 0.
+- Charged 42.009 s (device 40.751 s + allowance 1.258 s) of 3,600 s; lease 49.0 GPU-s.
+- No held leases, no orphans, no continuity loss.
+- The S/D/probe ledger is unchanged (`986bdcd1…`, 19,264.61 s).
+
+**Next.** The audit reviews the smoke. Then the six-cell L campaign (request `daf99128…`) needs its
+own approval.
+
+---
+
 ## 2026-10-01 [anchor model generation v8 — §735–§737 test isolation and harness bounds, nothing run] Final pins of the stage-L package
 
 **Status:** ✅ preparation complete (branch `arch-exp-2026-09-anchor-lambda`, `13c9e21`, pushed;
