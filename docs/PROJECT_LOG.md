@@ -487,6 +487,37 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-01 [anchor model generation v8 — §735–§737 test isolation and harness bounds, nothing run] Final pins of the stage-L package
+
+**Status:** ✅ preparation complete (branch `arch-exp-2026-09-anchor-lambda`, `13c9e21`, pushed;
+handoff `docs/ANCHOR_LAMBDA_HANDOFF_v8r3.md` `69586bd0…`). The package is still manifest r2
+`58e69ae1…` with smoke `6e782793…` / run `daf99128…`. Re-rendered under the guard at `2420d47`,
+the four requests are byte-identical. No smoke, training or GPU work ran.
+
+**What changed.**
+- **§735: the legacy tests no longer read real files.**
+  - `test_phase3_selection_matrix.py` and `test_phase3_select_n.py` now run on private synthetic
+    caches, captions and whitening files. The production identity code is unchanged; a new positive
+    control shows a mutated fixture file still changes the identity.
+  - Their child commands were replayed under a blocking guard: expected rc, 0 refused opens.
+- **§736: the v10 and v11 mutation harnesses hashed every tracked file**, including six unrelated
+  `artifacts/umrch_*` npy/npz binaries; this is disclosed. Harness v12 hashes only the reviewed
+  inventory (64 closure files + declared tests), compares the rest by git object id and stat, guards
+  itself and its pytest children, and uses a sparse sandbox without `artifacts/`.
+
+**Evidence.**
+
+| Check | Result |
+|---|---|
+| Readiness pair at `f8963b8`: unguarded | 1087 passed / 3 skipped |
+| Readiness pair: guarded | 1087 passed / 3 skipped, 0 refused opens |
+| Readiness verdict | fails unless both runs pass |
+| Battery v12 | 26/26 detected, 0 refused, inventory and checkout unchanged |
+
+**Next.** Audit review; the smoke after its own approval.
+
+---
+
 ## 2026-10-01 [anchor model generation v8 revision 2 — §734 boundary repairs prepared, nothing run] Audit §734: the four repairs, corrections and a revised package
 
 **Status:** ✅ repairs prepared (branch `arch-exp-2026-09-anchor-lambda`, commit `e078794`, pushed;
