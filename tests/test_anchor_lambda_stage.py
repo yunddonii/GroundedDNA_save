@@ -536,7 +536,8 @@ def test_the_plan_previews_the_stage_l_request_and_touches_nothing(entry, monkey
     assert request["stage"] == "lambda" and request["selection"] == M.ANCHOR_V7_SELECTION_SHA256
     assert request["cells"] == request["declared_cells"] == sorted(
         [FLICKR, "anchors", 4, 42, label] for label in LABELS)
-    assert request["gpu_count"] == 1 and request["lambda"] == M.anchor_lambda_rule(M.anchor_v7_history(INC))
+    assert request["gpu_count"] == 1
+    assert request.get("lambda") == M.anchor_lambda_rule(M.anchor_v7_history(INC))
 
 
 def test_an_approved_run_verifies_inputs_then_leases_with_the_control_gate(tmp_path, entry, monkeypatch, capsys):
