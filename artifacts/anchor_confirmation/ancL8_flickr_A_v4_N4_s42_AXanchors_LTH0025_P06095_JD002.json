@@ -1,0 +1,546 @@
+{
+  "N": 4,
+  "anchor_confirmation": {
+    "arm": "anchors",
+    "campaign_evidence_sha256": "6fe21fdc20b0ba6ba7fc005de06a605a135fd0db2905591dbceba11d51222d22",
+    "config_pt_sha256": "74f9f5625fff03ac4315e9367760026343faf35ead86342b3afb132b04c343ea",
+    "scientific_recipe_sha256": "d8c2703e0e849765bf892e11d70a6c5c93738072d41552a7c3e71898ba268a7c",
+    "version": "anchor-confirm/2"
+  },
+  "campaign": {
+    "campaign_nonce": "2854173cf4abbc9f3b205330998bc2811d815938c1ff726f094e83965bfa3e38",
+    "cell_id": "flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=select|seed=42|lambda_text_hash_ntxent=0.025|axis_center=anchors",
+    "child_environment_sha256": "1eb84c4e612099ede4fcca52381417ae705f1677644ae375df2ff1b2fb4437ec",
+    "environment_sha256": "97636ea46187f66dd47e47e860878e6ddb331974bf4344688ddc4651ec5bebac",
+    "expected_child_environment": {
+      "cuda_visible_devices": "GPU-bf4ed000-d77c-f059-2bb2-31ee39703e99",
+      "errors": [],
+      "library_environment": {
+        "HF_HOME": null,
+        "HF_HUB_OFFLINE": null,
+        "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+        "TRANSFORMERS_OFFLINE": null
+      },
+      "packages": {
+        "Pillow": {
+          "distribution": "Pillow",
+          "version": "12.1.1"
+        },
+        "PyYAML": {
+          "distribution": "PyYAML",
+          "version": "6.0.3"
+        },
+        "matplotlib": {
+          "distribution": "matplotlib",
+          "version": "3.10.9"
+        },
+        "numpy": {
+          "distribution": "numpy",
+          "version": "2.2.6"
+        },
+        "opencv": {
+          "distribution": "opencv-python",
+          "version": "4.13.0.92"
+        },
+        "pandas": {
+          "distribution": "pandas",
+          "version": "2.3.3"
+        },
+        "scipy": {
+          "distribution": "scipy",
+          "version": "1.15.3"
+        },
+        "sklearn": {
+          "distribution": "scikit-learn",
+          "version": "1.7.2"
+        },
+        "tensorboard": {
+          "distribution": "tensorboard",
+          "version": "2.20.0"
+        },
+        "timm": {
+          "distribution": "timm",
+          "version": "1.0.26"
+        },
+        "tokenizers": {
+          "distribution": "tokenizers",
+          "version": "0.22.2"
+        },
+        "torch": {
+          "distribution": "torch",
+          "version": "2.6.0+cu124"
+        },
+        "torchvision": {
+          "distribution": "torchvision",
+          "version": "0.21.0+cu124"
+        },
+        "tqdm": {
+          "distribution": "tqdm",
+          "version": "4.67.3"
+        },
+        "transformers": {
+          "distribution": "transformers",
+          "version": "5.8.0"
+        }
+      },
+      "parent_environment_sha256": "97636ea46187f66dd47e47e860878e6ddb331974bf4344688ddc4651ec5bebac",
+      "physical_gpu": {
+        "driver": "570.211.01",
+        "index": 5,
+        "name": "NVIDIA RTX A6000",
+        "pci_bus_id": "00000000:B8:00.0",
+        "uuid": "GPU-bf4ed000-d77c-f059-2bb2-31ee39703e99"
+      },
+      "python_executable": "/home/yschoi/.conda/envs/dna_hashing/bin/python3.10",
+      "python_executable_sha256": "be9ecab7de61a1ffe0bef4ab49325ba1182529de68d0522f0fbddaf9de2474aa",
+      "python_version": "3.10.20 (main, Mar 11 2026, 17:46:40) [GCC 14.3.0]",
+      "pythonpath": null,
+      "schema_version": 1,
+      "torch_runtime": {
+        "cudnn_version": 90100,
+        "torch_cuda": "12.4"
+      },
+      "torch_visible_device": {
+        "device_count": 1,
+        "logical_index": 0,
+        "name": "NVIDIA RTX A6000"
+      }
+    },
+    "expected_identity_digest": "4bf02ef1661bbd392787a7d08bd2e9114bfa36d13bffe7005211f3a952673609",
+    "expected_tag": "ancL8_flickr_A_v4_N4_s42_AXanchors_LTH0025_P06095_JD002",
+    "hf_identity_sha256": "f00adab251f7a66c070a26abd951682314edd6d6b1a351a2b9d885e606d28fab",
+    "input_aggregate_sha256": "05076871e0ce16382ec872495cf9c6ac509f593ad62ee41e90eacf736d8990e7",
+    "input_authority_sha256": "1f007ea05b61e03c8cb6befcefd01c325b6f4250014e7058045d715a5a15822d",
+    "input_seal_sha256": "e44b363acbc03f21d5385927606ef58c0b265c3b70be1a38bb8c1a0eb0112654",
+    "physical_gpu_index": 5,
+    "plan_snapshot_sha256": "1eab97a081863d9f05b88aa28bf7eb1429d651ce93445c4605505a8e05cc756f",
+    "result_root": "/home/yschoi/gdna_anchor4_result",
+    "split_identity_sha256": "9f5d955d3411ee4e5ab2fe4b93822688e36f9bde0ff34b4308b362ccdc25e07f"
+  },
+  "codebook_size": 128,
+  "completion": {
+    "args_txt_sha256": "5b52bdae5e6db42f8dc8380a353be77a71543ad0a69829403b14fe6cdd0d4970",
+    "checkpoint_runtime_sha256": "b556598b8fff762cc8c8ac80495866548ce8fc044e0637db12cc7b8a4fb1c969",
+    "final_checkpoint": "model_state_dict.pth",
+    "final_checkpoint_epoch_zero_based": 4,
+    "final_checkpoint_sha256": "0fb95d7551891517effe78dd6e9fc14454a07a59b5836988fdb2d35e0cb95dce",
+    "log_csv_sha256": "92dcb3e571145c732a8747d546d8dd76130206b30b0e8ba6b7babb81c5203391",
+    "phase3_campaign": {
+      "actual_child_environment": {
+        "cuda_visible_devices": "GPU-bf4ed000-d77c-f059-2bb2-31ee39703e99",
+        "errors": [],
+        "library_environment": {
+          "HF_HOME": null,
+          "HF_HUB_OFFLINE": null,
+          "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+          "TRANSFORMERS_OFFLINE": null
+        },
+        "packages": {
+          "Pillow": {
+            "distribution": "Pillow",
+            "version": "12.1.1"
+          },
+          "PyYAML": {
+            "distribution": "PyYAML",
+            "version": "6.0.3"
+          },
+          "matplotlib": {
+            "distribution": "matplotlib",
+            "version": "3.10.9"
+          },
+          "numpy": {
+            "distribution": "numpy",
+            "version": "2.2.6"
+          },
+          "opencv": {
+            "distribution": "opencv-python",
+            "version": "4.13.0.92"
+          },
+          "pandas": {
+            "distribution": "pandas",
+            "version": "2.3.3"
+          },
+          "scipy": {
+            "distribution": "scipy",
+            "version": "1.15.3"
+          },
+          "sklearn": {
+            "distribution": "scikit-learn",
+            "version": "1.7.2"
+          },
+          "tensorboard": {
+            "distribution": "tensorboard",
+            "version": "2.20.0"
+          },
+          "timm": {
+            "distribution": "timm",
+            "version": "1.0.26"
+          },
+          "tokenizers": {
+            "distribution": "tokenizers",
+            "version": "0.22.2"
+          },
+          "torch": {
+            "distribution": "torch",
+            "version": "2.6.0+cu124"
+          },
+          "torchvision": {
+            "distribution": "torchvision",
+            "version": "0.21.0+cu124"
+          },
+          "tqdm": {
+            "distribution": "tqdm",
+            "version": "4.67.3"
+          },
+          "transformers": {
+            "distribution": "transformers",
+            "version": "5.8.0"
+          }
+        },
+        "parent_environment_sha256": "97636ea46187f66dd47e47e860878e6ddb331974bf4344688ddc4651ec5bebac",
+        "physical_gpu": {
+          "driver": "570.211.01",
+          "index": 5,
+          "name": "NVIDIA RTX A6000",
+          "pci_bus_id": "00000000:B8:00.0",
+          "uuid": "GPU-bf4ed000-d77c-f059-2bb2-31ee39703e99"
+        },
+        "python_executable": "/home/yschoi/.conda/envs/dna_hashing/bin/python3.10",
+        "python_executable_sha256": "be9ecab7de61a1ffe0bef4ab49325ba1182529de68d0522f0fbddaf9de2474aa",
+        "python_version": "3.10.20 (main, Mar 11 2026, 17:46:40) [GCC 14.3.0]",
+        "pythonpath": null,
+        "schema_version": 1,
+        "torch_runtime": {
+          "cudnn_version": 90100,
+          "torch_cuda": "12.4"
+        },
+        "torch_visible_device": {
+          "device_count": 1,
+          "logical_index": 0,
+          "name": "NVIDIA RTX A6000"
+        }
+      },
+      "actual_identity_digest": "4bf02ef1661bbd392787a7d08bd2e9114bfa36d13bffe7005211f3a952673609",
+      "campaign_nonce": "2854173cf4abbc9f3b205330998bc2811d815938c1ff726f094e83965bfa3e38",
+      "cell_id": "flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=select|seed=42|lambda_text_hash_ntxent=0.025|axis_center=anchors",
+      "child_environment_sha256": "1eb84c4e612099ede4fcca52381417ae705f1677644ae375df2ff1b2fb4437ec",
+      "environment_sha256": "97636ea46187f66dd47e47e860878e6ddb331974bf4344688ddc4651ec5bebac",
+      "expected_child_environment": {
+        "cuda_visible_devices": "GPU-bf4ed000-d77c-f059-2bb2-31ee39703e99",
+        "errors": [],
+        "library_environment": {
+          "HF_HOME": null,
+          "HF_HUB_OFFLINE": null,
+          "LD_LIBRARY_PATH": "/usr/local/cuda-12.4/lib64:/usr/local/cuda/extras/CUPTI/:",
+          "TRANSFORMERS_OFFLINE": null
+        },
+        "packages": {
+          "Pillow": {
+            "distribution": "Pillow",
+            "version": "12.1.1"
+          },
+          "PyYAML": {
+            "distribution": "PyYAML",
+            "version": "6.0.3"
+          },
+          "matplotlib": {
+            "distribution": "matplotlib",
+            "version": "3.10.9"
+          },
+          "numpy": {
+            "distribution": "numpy",
+            "version": "2.2.6"
+          },
+          "opencv": {
+            "distribution": "opencv-python",
+            "version": "4.13.0.92"
+          },
+          "pandas": {
+            "distribution": "pandas",
+            "version": "2.3.3"
+          },
+          "scipy": {
+            "distribution": "scipy",
+            "version": "1.15.3"
+          },
+          "sklearn": {
+            "distribution": "scikit-learn",
+            "version": "1.7.2"
+          },
+          "tensorboard": {
+            "distribution": "tensorboard",
+            "version": "2.20.0"
+          },
+          "timm": {
+            "distribution": "timm",
+            "version": "1.0.26"
+          },
+          "tokenizers": {
+            "distribution": "tokenizers",
+            "version": "0.22.2"
+          },
+          "torch": {
+            "distribution": "torch",
+            "version": "2.6.0+cu124"
+          },
+          "torchvision": {
+            "distribution": "torchvision",
+            "version": "0.21.0+cu124"
+          },
+          "tqdm": {
+            "distribution": "tqdm",
+            "version": "4.67.3"
+          },
+          "transformers": {
+            "distribution": "transformers",
+            "version": "5.8.0"
+          }
+        },
+        "parent_environment_sha256": "97636ea46187f66dd47e47e860878e6ddb331974bf4344688ddc4651ec5bebac",
+        "physical_gpu": {
+          "driver": "570.211.01",
+          "index": 5,
+          "name": "NVIDIA RTX A6000",
+          "pci_bus_id": "00000000:B8:00.0",
+          "uuid": "GPU-bf4ed000-d77c-f059-2bb2-31ee39703e99"
+        },
+        "python_executable": "/home/yschoi/.conda/envs/dna_hashing/bin/python3.10",
+        "python_executable_sha256": "be9ecab7de61a1ffe0bef4ab49325ba1182529de68d0522f0fbddaf9de2474aa",
+        "python_version": "3.10.20 (main, Mar 11 2026, 17:46:40) [GCC 14.3.0]",
+        "pythonpath": null,
+        "schema_version": 1,
+        "torch_runtime": {
+          "cudnn_version": 90100,
+          "torch_cuda": "12.4"
+        },
+        "torch_visible_device": {
+          "device_count": 1,
+          "logical_index": 0,
+          "name": "NVIDIA RTX A6000"
+        }
+      },
+      "expected_identity_digest": "4bf02ef1661bbd392787a7d08bd2e9114bfa36d13bffe7005211f3a952673609",
+      "expected_tag": "ancL8_flickr_A_v4_N4_s42_AXanchors_LTH0025_P06095_JD002",
+      "hf_identity_sha256": "f00adab251f7a66c070a26abd951682314edd6d6b1a351a2b9d885e606d28fab",
+      "input_aggregate_sha256": "05076871e0ce16382ec872495cf9c6ac509f593ad62ee41e90eacf736d8990e7",
+      "input_authority_sha256": "1f007ea05b61e03c8cb6befcefd01c325b6f4250014e7058045d715a5a15822d",
+      "input_seal_sha256": "e44b363acbc03f21d5385927606ef58c0b265c3b70be1a38bb8c1a0eb0112654",
+      "physical_gpu_index": 5,
+      "plan_snapshot_sha256": "1eab97a081863d9f05b88aa28bf7eb1429d651ce93445c4605505a8e05cc756f",
+      "result_root": "/home/yschoi/gdna_anchor4_result",
+      "schema_version": 1,
+      "scientific_recipe_schema": "groundeddna-scientific-recipe/2",
+      "scientific_recipe_sha256": "d8c2703e0e849765bf892e11d70a6c5c93738072d41552a7c3e71898ba268a7c",
+      "split_identity_sha256": "9f5d955d3411ee4e5ab2fe4b93822688e36f9bde0ff34b4308b362ccdc25e07f",
+      "trainer_boot_id": "33d5823a-179b-45e8-a680-fac9d0d5364b",
+      "trainer_pid": 313813
+    },
+    "phase3_campaign_evidence_sha256": "6fe21fdc20b0ba6ba7fc005de06a605a135fd0db2905591dbceba11d51222d22",
+    "run_identity_sha256": "a7c03efc73f09c10cef2fe2b4b356338b2fd62dcf622f1ade672d5de50862f50",
+    "terminal_weights_preserved": true
+  },
+  "dataset": "flickr25k",
+  "environment_sha256": "97636ea46187f66dd47e47e860878e6ddb331974bf4344688ddc4651ec5bebac",
+  "epoch_budget": 60,
+  "geometry": {
+    "identity_digest": "4bf02ef1661bbd392787a7d08bd2e9114bfa36d13bffe7005211f3a952673609",
+    "lambda_bu": 0.02,
+    "lambda_codon_joint": 0.02,
+    "lambda_text_hash_ntxent": 0.025,
+    "lambda_wasserstein": 0.15,
+    "num_codebooks": 5,
+    "num_codons_per_codebook": 3,
+    "num_semantic_parts": 5,
+    "routing_adaptive_topp_max": 0.95,
+    "routing_adaptive_topp_min": 0.6,
+    "text_hash_counterfactual_weight": 0.0
+  },
+  "identity_digest": "4bf02ef1661bbd392787a7d08bd2e9114bfa36d13bffe7005211f3a952673609",
+  "input_authority": {
+    "aggregate_sha256": "05076871e0ce16382ec872495cf9c6ac509f593ad62ee41e90eacf736d8990e7",
+    "authority_sha256": "1f007ea05b61e03c8cb6befcefd01c325b6f4250014e7058045d715a5a15822d",
+    "dataset": "flickr25k",
+    "hf_runtime": {
+      "checkpoint": "openai/clip-vit-base-patch16",
+      "config_file": "config.json",
+      "config_sha256": "eaf1c9089a8553c913d27ea66407f8bfc2be9989c80c9f331ddb3d63d4c5e8ad",
+      "identity_sha256": "f00adab251f7a66c070a26abd951682314edd6d6b1a351a2b9d885e606d28fab",
+      "local_files_only": true,
+      "revision": "57c216476eefef5ab752ec549e440a49ae4ae5f3",
+      "snapshot_dir": "/home/yschoi/.cache/huggingface/hub/models--openai--clip-vit-base-patch16/snapshots/57c216476eefef5ab752ec549e440a49ae4ae5f3",
+      "tokenizer_files_sha256": {
+        "merges.txt": "9fd691f7c8039210e0fced15865466c65820d09b63988b0174bfe25de299051a",
+        "special_tokens_map.json": "f8c0d6c39aee3f8431078ef6646567b0aba7f2246e9c54b8b99d55c22b707cbf",
+        "tokenizer.json": "a83e0809aa4c3af7208b2df632a7a69668c6d48775b3c3fe4e1b1199d1f8b8f4",
+        "tokenizer_config.json": "3f74b6a4d97fee70b3b96921a687fc5e3f2fb583f5f81e7c178c0c22281beade",
+        "vocab.json": "3f0c4f7d2086b61b38487075278ea9ed04edb53a03cbb045b86c27190fa8fb69"
+      },
+      "tokenizer_set_sha256": "8f33e5bf3301f4fecc65d4b2ddd1ad26c1d6c7b3272bef7cc385bcf8c080677b",
+      "weight_file": "pytorch_model.bin",
+      "weight_sha256": "ec89c7b09c749a60aae3c9cd910516f24b58214a7df060b48962d14c469cfbf0"
+    },
+    "request": {
+      "dataset": "flickr25k",
+      "dataset_root": "/home/yschoi/GroundedDNA/dataset",
+      "feature_cache": "/data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens",
+      "foil_cache": "/data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens_foils",
+      "qwen": "/data/yschoi/dataset/deephashing/cache/flickr25k_qwen3_v4_trainset.jsonl",
+      "split_rows": "/data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens/opt_train_rows.npy",
+      "stage": "stage1",
+      "whitening": "/data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens_foils/text_whiten_optTrain_localOnly.npz"
+    },
+    "runtime_path_identities": {
+      "dataset_rows_root": {
+        "identity": {
+          "device": 2052,
+          "inode": 22295959,
+          "mode": 16893
+        },
+        "path": "/home/yschoi/GroundedDNA/dataset/Flickr25k",
+        "path_type": "directory",
+        "resolved_path": "/home/yschoi/GroundedDNA/dataset/Flickr25k"
+      },
+      "feature_cache_root": {
+        "identity": {
+          "device": 2065,
+          "inode": 207486977,
+          "mode": 16893
+        },
+        "path": "/data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens",
+        "path_type": "directory",
+        "resolved_path": "/data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens"
+      },
+      "qwen": {
+        "content": {
+          "algorithm": "sha256",
+          "sha256": "e01137bcc7f762da2bd6d824fa2727e9b9e3d1c584f526dee73ea8c6dacd9047",
+          "size": 4217243
+        },
+        "file_type": "regular",
+        "path": "/data/yschoi/dataset/deephashing/cache/flickr25k_qwen3_v4_trainset.jsonl",
+        "stat": {
+          "ctime_ns": 1781155242471052629,
+          "device": 2065,
+          "gid": 1004,
+          "inode": 196117109,
+          "mode": 33204,
+          "mtime_ns": 1780301803480321686,
+          "nlink": 1,
+          "size": 4217243,
+          "uid": 1003
+        }
+      },
+      "whitening": {
+        "content": {
+          "algorithm": "sha256",
+          "sha256": "f169206b5f935e7963356d700d110371920a3e7de98c67df74d64282585269b6",
+          "size": 1053398
+        },
+        "file_type": "regular",
+        "path": "/data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens_foils/text_whiten_optTrain_localOnly.npz",
+        "stat": {
+          "ctime_ns": 1786760579514542503,
+          "device": 2065,
+          "gid": 1004,
+          "inode": 207487154,
+          "mode": 33204,
+          "mtime_ns": 1786760579466546878,
+          "nlink": 1,
+          "size": 1053398,
+          "uid": 1003
+        }
+      }
+    },
+    "schema": "groundeddna.phase3-input-authority",
+    "schema_version": 1,
+    "seal_file_sha256": "e44b363acbc03f21d5385927606ef58c0b265c3b70be1a38bb8c1a0eb0112654",
+    "seal_path": "/data/yschoi/gdna_p3exec_seals/flickr25k.stage1.input-seal.json",
+    "split_identity": {
+      "counts": {
+        "designated_train": 5000,
+        "heldout_train_validation": 500,
+        "optimization_train": 4500
+      },
+      "digests": {
+        "dataset_to_cache_rows_sha256": "0ec17671307843b36e49a318529494ad519ec55ffd90737db5bddff511f0a95b",
+        "feature_image_ids_semantic_sha256": "f7bf074edd8ba185c959837b2f5e55db3614829a4fb83d250bd641c9d5c62133",
+        "optimization_cache_rows_sha256": "d6c4ef0a36239e902db2278b33fe66f8b1d5519904982a4d12ed471c91c6764a",
+        "source_cache_rows_sha256": "0ec17671307843b36e49a318529494ad519ec55ffd90737db5bddff511f0a95b",
+        "train_labels_sha256": "4b7b1b99682399b9aee16efcff3f46273ba557dd6e95f0a52dbb5bc6a22c1892",
+        "validation_cache_rows_sha256": "e6871a6fa8e5fa16ba8f0e6abe4801856e247791637228ca28390b8d587e946b"
+      },
+      "split_rows_raw_sha256": "ca71b19f7030a3e073be95200871e40565469e7aa9187a46f8c23aa5191fe3d6"
+    },
+    "split_identity_sha256": "9f5d955d3411ee4e5ab2fe4b93822688e36f9bde0ff34b4308b362ccdc25e07f",
+    "stage": "stage1"
+  },
+  "inputs": {
+    "codebook_size": 128,
+    "eval_cache": "/data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens",
+    "feature_cache": "/data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens",
+    "qwen": "/data/yschoi/dataset/deephashing/cache/flickr25k_qwen3_v4_trainset.jsonl",
+    "whitening": "/data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens_foils/text_whiten_optTrain_localOnly.npz"
+  },
+  "is_candidate_cell": true,
+  "lr_schedule_horizon": 60,
+  "matrix": {
+    "candidate_n": [
+      4,
+      9,
+      19,
+      39
+    ],
+    "cells": 16,
+    "datasets": [
+      "cifar10",
+      "flickr25k",
+      "mscoco",
+      "nuswide"
+    ]
+  },
+  "namespace": "ancL8",
+  "plan_snapshot_sha256": "1eab97a081863d9f05b88aa28bf7eb1429d651ce93445c4605505a8e05cc756f",
+  "protocol_sources": {
+    "config.py": "13079550490016a9600e6cfc6777cf01eb67335fa7f7e01de5f0018751aa1a8b",
+    "dna_utils/run_identity.py": "a6cfe0e902e889c4ccc35ada829fbd80063811457cf04a4c06c58939ec184c9f",
+    "model_siglip2.py": "9c1cc71b7b40a366439495b3bfa510020a26ef6efd6c6a464b625a9982f3f11d",
+    "scripts/phase3_selection_matrix.py": "61dafdc8bf480e10386bb762e0cddf4bd828948377dbf054ca0c0b7c9e7ef4dc",
+    "scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh": "7850783ff03b63035018fa217b05ee7f6fcc7b2778cdbb7e76faf61df7b06726",
+    "train_siglip2.py": "d23788cb9fea109aaffc191a6208f74869367756c933e985e2c3a1246050586f"
+  },
+  "recipe": {
+    "lambda_codon_joint": "0.02",
+    "lambda_effective": {
+      "lambda_bu": 0.02,
+      "lambda_text_hash_ntxent": 0.025,
+      "lambda_wasserstein": 0.15
+    },
+    "lambda_overrides": {
+      "lambda_text_hash_ntxent": "0.025"
+    },
+    "routing_adaptive_topp_max": "0.95",
+    "routing_adaptive_topp_min": "0.6"
+  },
+  "result_root": "/home/yschoi/gdna_anchor4_result",
+  "run_dir": "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_LTH0025_P06095_JD002+bs+64+e+60+proj_lr+0.001",
+  "schema_version": 1,
+  "seed": 42,
+  "selection": {
+    "distance_mode": "base",
+    "epochs_logged": 5,
+    "log_csv_sha256": "92dcb3e571145c732a8747d546d8dd76130206b30b0e8ba6b7babb81c5203391",
+    "map_r_cutoff": 5000,
+    "selection_epoch_zero_based": 4,
+    "selection_metric": "eval_mAP_at_R",
+    "selection_value": 0.7440719904260422
+  },
+  "selection_mode": "select",
+  "sinkhorn_schedule_horizon": 5,
+  "smoke": false,
+  "stage": "select",
+  "stop_after_epoch": 4,
+  "tag": "ancL8_flickr_A_v4_N4_s42_AXanchors_LTH0025_P06095_JD002",
+  "val_split_ratio": 0.1,
+  "val_split_seed": 42,
+  "wall_seconds": 125.8
+}
