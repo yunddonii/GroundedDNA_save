@@ -487,6 +487,36 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-01 [anchor model stage L — TODO 13–15 lambda proposal submitted, nothing run] Audit §731.3: preregistration of the lambda checks
+
+**Status:** ✅ proposal submitted (`docs/ANCHOR_LAMBDA_PROPOSAL_L_v1.md` `fe375fdf…`, anchor branch
+`0e81f2b`, pushed). No source changed and no lambda cell ran.
+
+**Proposed design** (fixed before any L score):
+- **Scope:** all four datasets, seed 42, at the frozen N, anchors on, one lambda at a time.
+- **Candidates for CIFAR-10, Flickr25K and NUS-WIDE** (incumbent transport 0.15 / balance 0.02 /
+  text 0.05): transport 0.30 and 0.50, balance 0, text 0.025 and 0.10.
+- **MS-COCO's approved recipe differs.** It is transport 0.05 / balance 0.02 / text 0.10, read from
+  the sealed recipes, so the contract's list does not fit it. The proposal recommends transport
+  0.15/0.30, balance 0, text 0.025/0.05 (option A), with option B as the alternative; the audit
+  decides.
+- **Rule (p3lamA template):** a candidate replaces its axis iff its seed-42 score exceeds the
+  incumbent's seed-42 score by more than max(0.002, the incumbent's D seed range); the highest
+  qualifying candidate wins per axis.
+- **Thresholds:** CIFAR .05355, Flickr .02819, NUS .00670, COCO .01239.
+- **A change triggers a fresh S/D/probes** for that dataset in a new generation.
+- **Optional continuity controls:** 4 cells (the incumbent rerun at seed 42; it must equal the v7
+  score exactly).
+- **Generation v8** runs in a new worktree. The v7 tree stays frozen, and v8 consumes the v7 N
+  record and D summary by digest, without cross-tree replay.
+- **Budget:** 4.19 GPU-h planned (4.82 with controls); proposed ceiling 6.0 GPU-h in its own ledger,
+  5-h wall limit.
+
+**Next.** The audit's decisions (§10 of the proposal). Then the v8 package, an L smoke, and stage L,
+each separately approved.
+
+---
+
 ## 2026-10-01 [anchor confirmation — official stage-D summary, CPU reduction, complete] Audit §731: the D result of the fixed anchor model at the frozen N, seeds 42/43/44
 
 **Status:** ✅ the one approved reduction ran, rc 0. It is descriptive; no score selects anything.
