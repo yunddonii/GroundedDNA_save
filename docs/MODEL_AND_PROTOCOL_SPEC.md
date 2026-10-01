@@ -16,6 +16,58 @@
 
 ---
 
+## 0. Amendment (2026-10-01): the changed model — axis-centred routing anchors, frozen recipe F
+
+*English amendment, audit §744.3. It narrows nothing below except where it says so; the rest of this
+document describes the pre-revision model of 2026-09-07 and stays as written.*
+
+**Model revision (user decision, audit §709; all four datasets).** Before the routing transport
+cost is computed, each LOCAL routing anchor has the per-image mean of the active local anchors
+subtracted (`--axis_center anchors`; `SigLIP2SemanticOTModel._axis_center_local`). The global prefix
+is unchanged. The revision adds **no parameter and no loss term**. It applies to CIFAR-10,
+Flickr25K, NUS-WIDE and MS-COCO alike. It is distinct from:
+- the codebook anchor-EMA loss `loss_anchor` (`lambda_anchor`, unchanged at 0.05);
+- the per-codon text-anchored prototype CE `codon_text_anchor` (off).
+
+`--axis_center none` is the pre-revision model; its approved results (`p3rfB`, audit ledger §285)
+remain the historical, descriptive comparator.
+
+**Frozen recipe and N (F).** The authority is the record
+`/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancF_candidate_v1.json`, SHA256
+`5165f5dc9fcfb8334270bc16aa9816d09db67b03a04abae7ff846d5235bdca1d`, **together with** its
+acceptance in audit §744.1. The file keeps its candidate name and "PREPARATION ONLY" text as
+submission history; its bytes plus that acceptance are the authority. It binds, per dataset, the
+complete 353-field typed recipe (by digest), the v7 S/D/probe/D-summary lineage and, separately,
+the v8 lambda-check decision. The table is a summary; the record governs.
+
+| Dataset | N | `lambda_wasserstein` / `lambda_bu` / `lambda_text_hash_ntxent` | adaptive top-p min/max | `lambda_codon_joint` | K | Gumbel |
+|---|---:|---|---|---:|---:|---|
+| CIFAR-10 | 4 | 0.15 / 0.02 / 0.05 | 0.3 / 0.7 | 0.02 | 64 | off |
+| Flickr25K | 4 | 0.15 / 0.02 / 0.05 | 0.6 / 0.95 | 0.02 | 128 | off |
+| NUS-WIDE | 4 | 0.15 / 0.02 / 0.05 | 0.4 / 0.8 | 0.05 | 128 | off |
+| MS-COCO | 39 | 0.05 / 0.02 / 0.10 | 0.6 / 0.95 | 0.03 | 128 | off |
+
+- **Where this differs from §1.3, §3 and §7 below** (the top-p window, `lambda_codon_joint`, N),
+  the F record governs the changed model. The values below describe the pre-revision model and are
+  historical.
+- **N** was selected on train-only validation (seed 42; grid 4/9/19/39). The lambdas were checked
+  on Flickr25K only (Flickr-first scope): no candidate qualified, so every dataset keeps its own
+  approved lambdas. Nothing was copied across datasets.
+- **Schedule.** The selection cells ran `-e 60 --lr_schedule_horizon 60
+  --sinkhorn_schedule_horizon N+1 --stop_after_epoch N` on the 90/10 train-only split. The final
+  refits use the contracted full-train mapping: `-e N+1`, LR and Sinkhorn horizons N+1, stop index
+  N, `val_split_ratio 0`, `trainOnly` whitening, refit input authority, refit mode, terminal
+  weights kept.
+
+**Status.**
+- The final refits (stage R) and the official-test evaluation (stage T) of this model are
+  **pending**. They need a separately reviewed source generation and separate approvals.
+- **No new-model measurement in this document is validated paper performance.** Old-model
+  results stay explicitly historical.
+- No result may change the fixed architecture or reopen selection after official-test access.
+
+---
+
 ## 1. 모델 아키텍처
 
 ### 1.1 백본 — 전부 동결
