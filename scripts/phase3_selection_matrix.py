@@ -4490,7 +4490,7 @@ def anchor_lambda_protocol_fields(dataset: str, n: int, *, overrides, incumbent:
                                      epochs=epochs), **lambdas}
 
 
-def _finite_proportion(value, what: str) -> float:
+def _v7_seed_score(value, what: str) -> float:
     if isinstance(value, bool) or not isinstance(value, float) \
             or not math.isfinite(value) or not 0.0 <= value <= 1.0:
         raise CellRefused(f"{what} is {value!r}, not a finite score in [0, 1]")
@@ -4538,7 +4538,7 @@ def anchor_v7_history(incumbent: dict) -> dict:
         seeds = (summary.get("retrieval") or {}).get("per_seed")
         if not isinstance(seeds, list) or len(seeds) != 1 + len(ANCHOR_DECIDE_SEEDS):
             raise CellRefused(f"{ds}: the v7 stage-D summary has no three-seed retrieval")
-        seeds = [_finite_proportion(v, f"{ds} v7 seed score") for v in seeds]
+        seeds = [_v7_seed_score(v, f"{ds} v7 seed score") for v in seeds]
         if seeds[0] != (((frozen.get("scores") or {}).get(ds) or {}).get("anchors") or {}).get(str(n)):
             raise CellRefused(f"{ds}: the v7 stage-D seed-42 score is not the frozen N record's")
         cid = campaign_cell_id(ds, n, topp=incumbent[ds]["topp"], joint=incumbent[ds]["joint"],

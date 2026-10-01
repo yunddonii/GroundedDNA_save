@@ -1085,6 +1085,48 @@ def test_an_l_stage_supervises_one_gpu():
         S.command_gpus("stage-L-run", ["x", "--gpus", "0,1"])
 
 
+# ---- the plan snapshot's seal and the request ------------------------------------------------------
+@pytest.mark.parametrize("label", LABELS)
+def test_the_snapshot_binding_seals_each_cells_own_override(v7, label):
+    """expected_cell_binding (the plan snapshot's per-cell seal the trainer is held to) carries the
+    cell's one lambda into its sealed recipe, identity and cell id. Without it a candidate whose
+    stream also dropped the override would run the incumbent recipe under a candidate label."""
+    overrides = M.anchor_lambda_overrides(FLICKR, label)
+    binding = M.expected_cell_binding(FLICKR, 4, namespace="ancLT", campaign_nonce="n" * 64, topp=TOPP,
+                                      joint=JOINT, seed=42, overrides=overrides, anchor_arm="anchors",
+                                      input_authority=AUTH)
+    fields = binding["scientific_recipe"]["fields"]
+    want = M.anchor_lambda_protocol_fields(FLICKR, 4, overrides=overrides, incumbent=INC)
+    assert {k: fields[k] for k in M.LAMBDA_AXES} == {k: want[k] for k in M.LAMBDA_AXES}
+    assert binding["cell_id"] == LWorld.cid(label) and binding["lambda_overrides"] == dict(overrides)
+    assert R.digest(binding["scientific_recipe"]) == binding["expected_scientific_recipe_sha256"]
+
+
+def test_only_a_stage_l_request_carries_the_preregistered_rule():
+    args = SimpleNamespace(anchor_confirm="select", smoke=False, only=None, gpus="0,1,2,3", gpu=0,
+                           namespace="ancT", result_root="/r", epochs=None, input_seal_specs={},
+                           admission_authority=None)
+    cells = M.anchor_confirmation_cells("select", incumbent=INC, arm_plan=LT.ALL_ANCHORS)
+    with pytest.raises(CellRefused, match="preregistered rule"):
+        M.anchor_execution_request(args, cells, manifest_sha256="a" * 64, lambda_rule={"x": 1})
+    args.anchor_confirm, args.gpus = "lambda", "0"
+    with pytest.raises(CellRefused, match="preregistered rule"):
+        M.anchor_execution_request(args, lambda_cells(), manifest_sha256="a" * 64,
+                                   selection_sha256="b" * 64, lambda_rule=None)
+
+
+@pytest.mark.parametrize("rel", ["scripts/phase3_selection_matrix.py", "scripts/anchor_confirm_decision.py",
+                                 "scripts/anchor_confirm_supervisor.py", "scripts/anchor_confirm_manifest.py",
+                                 "dna_utils/scientific_recipe.py"])
+def test_each_changed_module_defines_each_top_level_name_once(rel):
+    """A later definition silently replaces an earlier one; the first v8 draft shadowed the refit
+    aggregation's `_finite_proportion` this way (caught by the full suite, then renamed)."""
+    import ast
+    names = [n.name for n in ast.parse((REPO / rel).read_text()).body
+             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))]
+    assert sorted({n for n in names if names.count(n) > 1}) == []
+
+
 # ---- the closure: everything but the declared v8 sources is byte-equal to generation v7 -----------
 def test_the_v8_closure_extends_v7_with_the_lambda_contract_and_this_file():
     closure = set(M.anchor_generation_closure())

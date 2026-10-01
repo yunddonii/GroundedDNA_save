@@ -1028,12 +1028,15 @@ def copy_of_the_tree(tmp_path, monkeypatch):
     body = {"artifact_kind": M.ANCHOR_MANIFEST_KIND, "version": M.ANCHOR_CONFIRM_VERSION,
             "historical": {"approved_p3_refit_aggregate": {"sha256": M.APPROVED_P3_REFIT_AGGREGATE_SHA256},
                            "approved_selected_n": {"sha256": M.APPROVED_SELECTED_N_SHA256},
-                           "historical_input_verifier": M.historical_input_verifier_pins()},
+                           "historical_input_verifier": M.historical_input_verifier_pins(),
+                           "anchor_v7": M.anchor_v7_pins()},
             "new_generation": {"commit": "c" * 40, "branch": "b", "clean": True, "files_sha256": files,
                                "dataset_scripts_sha256": dict(M.DATASET_SCRIPT_SHA256),
                                "environment": {"python": ".".join(map(str, sys.version_info[:3])),
                                                "torch": metadata.version("torch"), "interpreter": sys.executable}},
-            "contract": {"path": M.ANCHOR_CONTRACT_PATH, "sha256": files[M.ANCHOR_CONTRACT_PATH]}}
+            "contract": {"path": M.ANCHOR_CONTRACT_PATH, "sha256": files[M.ANCHOR_CONTRACT_PATH]},
+            "lambda_contract": {"path": M.ANCHOR_LAMBDA_CONTRACT_PATH,
+                                "sha256": files[M.ANCHOR_LAMBDA_CONTRACT_PATH]}}
     path = tmp_path / "manifest.json"
     return root, {"path": str(path), "sha256": write_json(path, body)}
 
