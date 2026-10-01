@@ -1,0 +1,12 @@
+unbroken inputs: 0 problems
+  CAUGHT  duplicate seed                           declared=membership raised=['membership']
+  CAUGHT  Flickr lambda copied to MS-COCO          declared=table      raised=['table']
+  CAUGHT  D summary at another N                   declared=N          raised=['N']
+  CAUGHT  seed-43 recipe drift                     declared=recipe     raised=['links', 'recipe']
+  CAUGHT  L decision changed an axis               declared=lambda     raised=['lambda']
+  CAUGHT  probe of another record                  declared=probe      raised=['probe']
+  CAUGHT  record bytes changed                     declared=links      raised=['links']
+  CAUGHT  approval line gone                       declared=approval   raised=['approval']
+  CAUGHT  pinned input replaced                    declared=pins       raised=['pins']
+  CAUGHT  fixed architecture dropped a dataset     declared=generation raised=['generation']
+10/10 mutants caught by their declared check

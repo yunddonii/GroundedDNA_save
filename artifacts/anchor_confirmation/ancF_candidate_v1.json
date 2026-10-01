@@ -1,0 +1,769 @@
+{
+ "artifact_kind": "anchor_confirmation_freeze_candidate",
+ "datasets": {
+  "cifar10": {
+   "N": 4,
+   "axis_center": "anchors",
+   "lambda_authority": "the dataset's own approved values, kept under the Flickr-first L scope; no Flickr candidate was run on or copied to this dataset",
+   "lambda_codon_joint": 0.02,
+   "lambdas": {
+    "lambda_bu": 0.02,
+    "lambda_text_hash_ntxent": 0.05,
+    "lambda_wasserstein": 0.15
+   },
+   "probes": {
+    "42": {
+     "code_picks_own_axis": 0.326,
+     "hits": 652,
+     "probe": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/cifar10_anchors_N4_s42.json",
+     "probe_sha256": "c92bdb2527fd991adc5a7c5d0fe002a1d1027f86c24cd541a8655c584229fcdb",
+     "total": 2000
+    },
+    "43": {
+     "code_picks_own_axis": 0.323,
+     "hits": 646,
+     "probe": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/cifar10_anchors_N4_s43.json",
+     "probe_sha256": "944645a091dd88bcb0bb7e947487dc491a06433d97380ffc12e8aa4a88430eb6",
+     "total": 2000
+    },
+    "44": {
+     "code_picks_own_axis": 0.3485,
+     "hits": 697,
+     "probe": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/cifar10_anchors_N4_s44.json",
+     "probe_sha256": "af842d39672594460eee94c78e63f7b4763376f1907ff3ed37b9e3626668d30e",
+     "total": 2000
+    }
+   },
+   "routing_adaptive_topp": [
+    0.3,
+    0.7
+   ],
+   "seed_records": {
+    "42": {
+     "cell_id": "cifar10|N=4|P=0.3,0.7|JD=0.02|stage=select|seed=42|axis_center=anchors",
+     "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_sweep_complete.json",
+     "receipt_sha256": "5915768767e3fd12b28c3f09e1a071c26fd5cbddbbac15662c495b80c4876f6b",
+     "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_cifar_A_v4_N4_s42_AXanchors_JD002.json",
+     "record_sha256": "6e8fdfba192f50e32cbfc745feff339c680aceee0cd50691e8dc1317968453f1",
+     "scientific_recipe_sha256": "261fe18cc1b39952ab5e82dd3eef002e5432de457a0f189ca830b3ae619396d0",
+     "stage": "S",
+     "validation_mAP_at_R": 0.7823275443473103
+    },
+    "43": {
+     "cell_id": "cifar10|N=4|P=0.3,0.7|JD=0.02|stage=select|seed=43|axis_center=anchors",
+     "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_sweep_complete.json",
+     "receipt_sha256": "4272eeac4759354f94a58af13d84ab62cf78ca3457fa0d07cd379bd0ad0aa6e8",
+     "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_cifar_A_v4_N4_s43_AXanchors_JD002.json",
+     "record_sha256": "13a6fc6f53ac3fed3473f65cc3647cc8caa54f2be0bc4eb29846dac915b17238",
+     "scientific_recipe_sha256": "21caa43faa50cef3782b453ae779a466577091bbc328d8283db0f5a1f86d057d",
+     "stage": "D",
+     "validation_mAP_at_R": 0.7915364140986318
+    },
+    "44": {
+     "cell_id": "cifar10|N=4|P=0.3,0.7|JD=0.02|stage=select|seed=44|axis_center=anchors",
+     "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_sweep_complete.json",
+     "receipt_sha256": "4272eeac4759354f94a58af13d84ab62cf78ca3457fa0d07cd379bd0ad0aa6e8",
+     "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_cifar_A_v4_N4_s44_AXanchors_JD002.json",
+     "record_sha256": "db4fe4792ca634e82709d94e96bebee7479c4c0790cc5fb4771807bc103bef4b",
+     "scientific_recipe_sha256": "0f3cc60d6957f77840242efd3b5ff8405da99d248cf617cb87451a1536ce445d",
+     "stage": "D",
+     "validation_mAP_at_R": 0.7379831182678765
+    }
+   },
+   "stage_d_summary": {
+    "code_to_axis": {
+     "hits_total": [
+      [
+       652,
+       2000
+      ],
+      [
+       646,
+       2000
+      ],
+      [
+       697,
+       2000
+      ]
+     ],
+     "mean": 0.3325,
+     "per_seed": [
+      0.326,
+      0.323,
+      0.3485
+     ],
+     "sample_sd": 0.013937359864766335
+    },
+    "retrieval": {
+     "mean": 0.7706156922379396,
+     "metric": "raw base-Hamming mAP@R at the terminal epoch, train-only validation, R=1000",
+     "per_seed": [
+      0.7823275443473103,
+      0.7915364140986318,
+      0.7379831182678765
+     ],
+     "sample_sd": 0.02863327580731774
+    }
+   },
+   "use_gumbel_softmax": false,
+   "validated_recipe": {
+    "cell_id": "cifar10|N=4|P=0.3,0.7|JD=0.02|stage=select|seed=42|axis_center=anchors",
+    "field_count": 353,
+    "scientific_recipe_sha256": "261fe18cc1b39952ab5e82dd3eef002e5432de457a0f189ca830b3ae619396d0",
+    "seeds_43_44": "sealed recipes equal this one except random_seed (D snapshot cell bindings)",
+    "selection_protocol_fields": {
+     "epoch": 60,
+     "keep_final_checkpoint": true,
+     "lr_schedule_horizon": 60,
+     "selection_mode": "select",
+     "sinkhorn_schedule_horizon": 5,
+     "stop_after_epoch": 4,
+     "val_split_ratio": 0.1,
+     "val_split_seed": 42
+    },
+    "snapshot": {
+     "path": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_snapshot_23e0763089474895.json",
+     "sha256": "6f2c03527b265078584fdfe49f57b3c9091080aeca5ab637b51a6858de4cea49"
+    },
+    "source": "v7 stage-S plan snapshot, seed-42 cell binding"
+   }
+  },
+  "flickr25k": {
+   "N": 4,
+   "axis_center": "anchors",
+   "lambda_authority": "stage-L decision (Flickr-first): no candidate qualified; the approved values are kept",
+   "lambda_codon_joint": 0.02,
+   "lambdas": {
+    "lambda_bu": 0.02,
+    "lambda_text_hash_ntxent": 0.05,
+    "lambda_wasserstein": 0.15
+   },
+   "probes": {
+    "42": {
+     "code_picks_own_axis": 0.363,
+     "hits": 726,
+     "probe": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/flickr25k_anchors_N4_s42.json",
+     "probe_sha256": "878b00b98a9c2feb42e96fdadba392fe6b4909ee3de69e70ee05897a4d56803f",
+     "total": 2000
+    },
+    "43": {
+     "code_picks_own_axis": 0.3325,
+     "hits": 665,
+     "probe": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/flickr25k_anchors_N4_s43.json",
+     "probe_sha256": "cc4995ac445bc8647fa366584e8b6ee1f3a3979e6469184a68faa3ae6756c00b",
+     "total": 2000
+    },
+    "44": {
+     "code_picks_own_axis": 0.41,
+     "hits": 820,
+     "probe": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/flickr25k_anchors_N4_s44.json",
+     "probe_sha256": "1f033242ee3850f0a2a1897b8adc42fbac6c0aea31c0c449cce26ad40c1ce78e",
+     "total": 2000
+    }
+   },
+   "routing_adaptive_topp": [
+    0.6,
+    0.95
+   ],
+   "seed_records": {
+    "42": {
+     "cell_id": "flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=select|seed=42|axis_center=anchors",
+     "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_sweep_complete.json",
+     "receipt_sha256": "5915768767e3fd12b28c3f09e1a071c26fd5cbddbbac15662c495b80c4876f6b",
+     "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_flickr_A_v4_N4_s42_AXanchors_P06095_JD002.json",
+     "record_sha256": "a8da86d3df6ee998f5d83d4a82e6030c3c209c146434a7707864c1b65d907b61",
+     "scientific_recipe_sha256": "5b1ffacdf61b8bb282949d1a594d2234b9656ce800d5198e0960899a98f1957b",
+     "stage": "S",
+     "validation_mAP_at_R": 0.7641936888306327
+    },
+    "43": {
+     "cell_id": "flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=select|seed=43|axis_center=anchors",
+     "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_sweep_complete.json",
+     "receipt_sha256": "4272eeac4759354f94a58af13d84ab62cf78ca3457fa0d07cd379bd0ad0aa6e8",
+     "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_flickr_A_v4_N4_s43_AXanchors_P06095_JD002.json",
+     "record_sha256": "70214f8311d09aa5c4ec8e10385b258959eb74ab0325fe2b0a7ad57bd87bce0c",
+     "scientific_recipe_sha256": "ad1e8137ff74d6379d7e26749693efb44f79688427bb0c8cf7f9a98f4b452738",
+     "stage": "D",
+     "validation_mAP_at_R": 0.7436437784867651
+    },
+    "44": {
+     "cell_id": "flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=select|seed=44|axis_center=anchors",
+     "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_sweep_complete.json",
+     "receipt_sha256": "4272eeac4759354f94a58af13d84ab62cf78ca3457fa0d07cd379bd0ad0aa6e8",
+     "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_flickr_A_v4_N4_s44_AXanchors_P06095_JD002.json",
+     "record_sha256": "d7f7494e2c8db44cb94c87d35e96f402d885e104abd4c0e9c1da4cc86d68b298",
+     "scientific_recipe_sha256": "ec71881e7983a56cedf5fff99c9821b6d29244ed0ea08797f4c9033086f747f7",
+     "stage": "D",
+     "validation_mAP_at_R": 0.7360020992413908
+    }
+   },
+   "stage_d_summary": {
+    "code_to_axis": {
+     "hits_total": [
+      [
+       726,
+       2000
+      ],
+      [
+       665,
+       2000
+      ],
+      [
+       820,
+       2000
+      ]
+     ],
+     "mean": 0.3685,
+     "per_seed": [
+      0.363,
+      0.3325,
+      0.41
+     ],
+     "sample_sd": 0.03904164443257992
+    },
+    "retrieval": {
+     "mean": 0.7479465221862629,
+     "metric": "raw base-Hamming mAP@R at the terminal epoch, train-only validation, R=5000",
+     "per_seed": [
+      0.7641936888306327,
+      0.7436437784867651,
+      0.7360020992413908
+     ],
+     "sample_sd": 0.014580008004104042
+    }
+   },
+   "use_gumbel_softmax": false,
+   "validated_recipe": {
+    "cell_id": "flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=select|seed=42|axis_center=anchors",
+    "field_count": 353,
+    "scientific_recipe_sha256": "5b1ffacdf61b8bb282949d1a594d2234b9656ce800d5198e0960899a98f1957b",
+    "seeds_43_44": "sealed recipes equal this one except random_seed (D snapshot cell bindings)",
+    "selection_protocol_fields": {
+     "epoch": 60,
+     "keep_final_checkpoint": true,
+     "lr_schedule_horizon": 60,
+     "selection_mode": "select",
+     "sinkhorn_schedule_horizon": 5,
+     "stop_after_epoch": 4,
+     "val_split_ratio": 0.1,
+     "val_split_seed": 42
+    },
+    "snapshot": {
+     "path": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_snapshot_23e0763089474895.json",
+     "sha256": "6f2c03527b265078584fdfe49f57b3c9091080aeca5ab637b51a6858de4cea49"
+    },
+    "source": "v7 stage-S plan snapshot, seed-42 cell binding"
+   }
+  },
+  "mscoco": {
+   "N": 39,
+   "axis_center": "anchors",
+   "lambda_authority": "the dataset's own approved values, kept under the Flickr-first L scope; no Flickr candidate was run on or copied to this dataset",
+   "lambda_codon_joint": 0.03,
+   "lambdas": {
+    "lambda_bu": 0.02,
+    "lambda_text_hash_ntxent": 0.1,
+    "lambda_wasserstein": 0.05
+   },
+   "probes": {
+    "42": {
+     "code_picks_own_axis": 0.4135,
+     "hits": 827,
+     "probe": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/mscoco_anchors_N39_s42.json",
+     "probe_sha256": "a9f49b92d0741d51a0d7903e5e81c625915a31944e53969b9851007f779b866f",
+     "total": 2000
+    },
+    "43": {
+     "code_picks_own_axis": 0.424,
+     "hits": 848,
+     "probe": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/mscoco_anchors_N39_s43.json",
+     "probe_sha256": "95f0f8fa487ef4719baa7025f8786cca322ca5f9d66453bbdf4bf0c1b99a17fa",
+     "total": 2000
+    },
+    "44": {
+     "code_picks_own_axis": 0.4275,
+     "hits": 855,
+     "probe": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/mscoco_anchors_N39_s44.json",
+     "probe_sha256": "5f95b167f880188f467c4f618a6fd1d9c271867ce8780d163e6d5696775b9250",
+     "total": 2000
+    }
+   },
+   "routing_adaptive_topp": [
+    0.6,
+    0.95
+   ],
+   "seed_records": {
+    "42": {
+     "cell_id": "mscoco|N=39|P=0.6,0.95|JD=0.03|stage=select|seed=42|axis_center=anchors",
+     "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_sweep_complete.json",
+     "receipt_sha256": "5915768767e3fd12b28c3f09e1a071c26fd5cbddbbac15662c495b80c4876f6b",
+     "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_mscoco_A_v5b_N39_s42_AXanchors_P06095_JD003.json",
+     "record_sha256": "f20ebc375c373a6717d118c7e35b2386656aa346e9b223066391c7441c82c695",
+     "scientific_recipe_sha256": "0bc267cb82c44b81ed9d42a6f47036385b9b096f8a398f4a9307aebc26595518",
+     "stage": "S",
+     "validation_mAP_at_R": 0.6340656450539125
+    },
+    "43": {
+     "cell_id": "mscoco|N=39|P=0.6,0.95|JD=0.03|stage=select|seed=43|axis_center=anchors",
+     "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_sweep_complete.json",
+     "receipt_sha256": "4272eeac4759354f94a58af13d84ab62cf78ca3457fa0d07cd379bd0ad0aa6e8",
+     "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_mscoco_A_v5b_N39_s43_AXanchors_P06095_JD003.json",
+     "record_sha256": "1512c4e9c3731a45f5d9460cedde84820513f25497bf16b3aae3fb1f41ad15fa",
+     "scientific_recipe_sha256": "b4f500ee4ba7b121c4725610d8aa9b079169fd5dce1d2c325222e5c6f5522f90",
+     "stage": "D",
+     "validation_mAP_at_R": 0.6425743919820911
+    },
+    "44": {
+     "cell_id": "mscoco|N=39|P=0.6,0.95|JD=0.03|stage=select|seed=44|axis_center=anchors",
+     "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_sweep_complete.json",
+     "receipt_sha256": "4272eeac4759354f94a58af13d84ab62cf78ca3457fa0d07cd379bd0ad0aa6e8",
+     "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_mscoco_A_v5b_N39_s44_AXanchors_P06095_JD003.json",
+     "record_sha256": "c6553b5921d142ba6f139959f44432d45ecd35324e20cfccdc5657d0382b2a62",
+     "scientific_recipe_sha256": "fbe31b4f89608a7a345e04a1dd6374e5c31f17beb5cc13752286d4041c51ccc3",
+     "stage": "D",
+     "validation_mAP_at_R": 0.6301884916547547
+    }
+   },
+   "stage_d_summary": {
+    "code_to_axis": {
+     "hits_total": [
+      [
+       827,
+       2000
+      ],
+      [
+       848,
+       2000
+      ],
+      [
+       855,
+       2000
+      ]
+     ],
+     "mean": 0.42166666666666663,
+     "per_seed": [
+      0.4135,
+      0.424,
+      0.4275
+     ],
+     "sample_sd": 0.007285830998131471
+    },
+    "retrieval": {
+     "mean": 0.6356095095635861,
+     "metric": "raw base-Hamming mAP@R at the terminal epoch, train-only validation, R=5000",
+     "per_seed": [
+      0.6340656450539125,
+      0.6425743919820911,
+      0.6301884916547547
+     ],
+     "sample_sd": 0.006335634928549032
+    }
+   },
+   "use_gumbel_softmax": false,
+   "validated_recipe": {
+    "cell_id": "mscoco|N=39|P=0.6,0.95|JD=0.03|stage=select|seed=42|axis_center=anchors",
+    "field_count": 353,
+    "scientific_recipe_sha256": "0bc267cb82c44b81ed9d42a6f47036385b9b096f8a398f4a9307aebc26595518",
+    "seeds_43_44": "sealed recipes equal this one except random_seed (D snapshot cell bindings)",
+    "selection_protocol_fields": {
+     "epoch": 60,
+     "keep_final_checkpoint": true,
+     "lr_schedule_horizon": 60,
+     "selection_mode": "select",
+     "sinkhorn_schedule_horizon": 40,
+     "stop_after_epoch": 39,
+     "val_split_ratio": 0.1,
+     "val_split_seed": 42
+    },
+    "snapshot": {
+     "path": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_snapshot_23e0763089474895.json",
+     "sha256": "6f2c03527b265078584fdfe49f57b3c9091080aeca5ab637b51a6858de4cea49"
+    },
+    "source": "v7 stage-S plan snapshot, seed-42 cell binding"
+   }
+  },
+  "nuswide": {
+   "N": 4,
+   "axis_center": "anchors",
+   "lambda_authority": "the dataset's own approved values, kept under the Flickr-first L scope; no Flickr candidate was run on or copied to this dataset",
+   "lambda_codon_joint": 0.05,
+   "lambdas": {
+    "lambda_bu": 0.02,
+    "lambda_text_hash_ntxent": 0.05,
+    "lambda_wasserstein": 0.15
+   },
+   "probes": {
+    "42": {
+     "code_picks_own_axis": 0.4435,
+     "hits": 887,
+     "probe": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/nuswide_anchors_N4_s42.json",
+     "probe_sha256": "1bdb71dec8a3ea407eba70451cdd35ee3359aa9b9b5fe6c7e426db5d75e8a416",
+     "total": 2000
+    },
+    "43": {
+     "code_picks_own_axis": 0.4255,
+     "hits": 851,
+     "probe": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/nuswide_anchors_N4_s43.json",
+     "probe_sha256": "96c597838af3df5cf5a1eeb5322dcdfd74abe17800ed20ea1629f156ed887942",
+     "total": 2000
+    },
+    "44": {
+     "code_picks_own_axis": 0.4165,
+     "hits": 833,
+     "probe": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/nuswide_anchors_N4_s44.json",
+     "probe_sha256": "dec3af6cd8b9827e3b664cbc59b0da0eb091577e84e674043f163930cf908f2c",
+     "total": 2000
+    }
+   },
+   "routing_adaptive_topp": [
+    0.4,
+    0.8
+   ],
+   "seed_records": {
+    "42": {
+     "cell_id": "nuswide|N=4|P=0.4,0.8|JD=0.05|stage=select|seed=42|axis_center=anchors",
+     "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_sweep_complete.json",
+     "receipt_sha256": "5915768767e3fd12b28c3f09e1a071c26fd5cbddbbac15662c495b80c4876f6b",
+     "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_nuswide_A_v4_N4_s42_AXanchors_P0408_JD005.json",
+     "record_sha256": "ee824f7108b531c4706ff4bf6d5a5654b21785359f7fc7aebc703eca83e4af19",
+     "scientific_recipe_sha256": "6ab06af5fe7f94e2c30ea45f21dd5ec232497a6926a1cc3e8ef56e3f5cb3acd7",
+     "stage": "S",
+     "validation_mAP_at_R": 0.7225163591400635
+    },
+    "43": {
+     "cell_id": "nuswide|N=4|P=0.4,0.8|JD=0.05|stage=select|seed=43|axis_center=anchors",
+     "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_sweep_complete.json",
+     "receipt_sha256": "4272eeac4759354f94a58af13d84ab62cf78ca3457fa0d07cd379bd0ad0aa6e8",
+     "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_nuswide_A_v4_N4_s43_AXanchors_P0408_JD005.json",
+     "record_sha256": "98b51c19bc25f70a9dc265853bdd2d944d1d0e0fd3d5277540c1265e28ecf24f",
+     "scientific_recipe_sha256": "968d7c04dae4513f877c2473fb7c6456d5026b5e839bf72fa79c05bf8c1c736e",
+     "stage": "D",
+     "validation_mAP_at_R": 0.729213859084159
+    },
+    "44": {
+     "cell_id": "nuswide|N=4|P=0.4,0.8|JD=0.05|stage=select|seed=44|axis_center=anchors",
+     "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_sweep_complete.json",
+     "receipt_sha256": "4272eeac4759354f94a58af13d84ab62cf78ca3457fa0d07cd379bd0ad0aa6e8",
+     "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_nuswide_A_v4_N4_s44_AXanchors_P0408_JD005.json",
+     "record_sha256": "f6daecbcc763a502209382871cd57104a5e31cb4781b156c4839bd69a9b001a2",
+     "scientific_recipe_sha256": "ac9e0d800a0237d41bb8bf31b85d03ae2370c801e37965c36faa265e77d4b638",
+     "stage": "D",
+     "validation_mAP_at_R": 0.7246579487818497
+    }
+   },
+   "stage_d_summary": {
+    "code_to_axis": {
+     "hits_total": [
+      [
+       887,
+       2000
+      ],
+      [
+       851,
+       2000
+      ],
+      [
+       833,
+       2000
+      ]
+     ],
+     "mean": 0.42849999999999994,
+     "per_seed": [
+      0.4435,
+      0.4255,
+      0.4165
+     ],
+     "sample_sd": 0.013747727084867533
+    },
+    "retrieval": {
+     "mean": 0.7254627223353575,
+     "metric": "raw base-Hamming mAP@R at the terminal epoch, train-only validation, R=5000",
+     "per_seed": [
+      0.7225163591400635,
+      0.729213859084159,
+      0.7246579487818497
+     ],
+     "sample_sd": 0.0034205075251501657
+    }
+   },
+   "use_gumbel_softmax": false,
+   "validated_recipe": {
+    "cell_id": "nuswide|N=4|P=0.4,0.8|JD=0.05|stage=select|seed=42|axis_center=anchors",
+    "field_count": 353,
+    "scientific_recipe_sha256": "6ab06af5fe7f94e2c30ea45f21dd5ec232497a6926a1cc3e8ef56e3f5cb3acd7",
+    "seeds_43_44": "sealed recipes equal this one except random_seed (D snapshot cell bindings)",
+    "selection_protocol_fields": {
+     "epoch": 60,
+     "keep_final_checkpoint": true,
+     "lr_schedule_horizon": 60,
+     "selection_mode": "select",
+     "sinkhorn_schedule_horizon": 5,
+     "stop_after_epoch": 4,
+     "val_split_ratio": 0.1,
+     "val_split_seed": 42
+    },
+    "snapshot": {
+     "path": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_snapshot_23e0763089474895.json",
+     "sha256": "6f2c03527b265078584fdfe49f57b3c9091080aeca5ab637b51a6858de4cea49"
+    },
+    "source": "v7 stage-S plan snapshot, seed-42 cell binding"
+   }
+  }
+ },
+ "fixed_architecture": {
+  "authority": "the user's decision recorded in audit section 709",
+  "axis_center": "anchors",
+  "datasets": [
+   "cifar10",
+   "flickr25k",
+   "nuswide",
+   "mscoco"
+  ]
+ },
+ "incumbent_recipe_authorities": {
+  "approved_refit_aggregate": {
+   "path": "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/p3rfB_refit_aggregate.json",
+   "sha256": "b4f3b0dff467f7c1fd4ca134edba66085115939a4097e6bb201bd13ca83452a5"
+  },
+  "approved_selected_n": {
+   "path": "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/selected_n.json",
+   "sha256": "2bf6133d8cdc7471e40a33d20f1bb19228aa770e67a999a436efb5abac6b2549"
+  }
+ },
+ "lambda_check": {
+  "approval": {
+   "ledger": "/home/yschoi/GroundedDNA/docs/PHASE1_PHASE2_REAUDIT_2026-08-14.md",
+   "ledger_sha256": "562f42bca7a90ccb807268f050e3934a7bec147d8f110114635ecc056283234d",
+   "line": "ANCHOR-CONFIRM-APPROVAL version=anchor-confirm/2 scope=stage-L-run manifest=58e69ae1a3bed5366da61a4d61a6cdd90c338d9ac7b0474fcf9b6e2e2f7f5bbc selection=5cda7adb055ed126efb0a8ec198e06d1176ccdc57e7d38fe35ff74b74a4a92ff request=daf99128fe014dea65958ee620697bc44d9bba27bfbc1863901b2ff8114cd70a",
+   "scope": "stage-L-run",
+   "section": 739
+  },
+  "contract": {
+   "path": "/data/yschoi/gdna_anchor_lambda_v8/docs/ANCHOR_LAMBDA_CONTRACT_v1.md",
+   "sha256": "34a62bfa05600b76f316b3ad62f0da42b8aae8ae2be4fdad490647d834907dfe"
+  },
+  "decision": {
+   "path": "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_lambda_decision.json",
+   "sha256": "22014e6bc21dee508eb949a0272b2bf60b4a33ee706e8c301f716c114932f37e"
+  },
+  "generation": "v8",
+  "manifest": {
+   "path": "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/authority_manifest_v8r2.json",
+   "sha256": "58e69ae1a3bed5366da61a4d61a6cdd90c338d9ac7b0474fcf9b6e2e2f7f5bbc"
+  },
+  "proposal": {
+   "path": "/data/yschoi/gdna_anchor_confirm_v1/docs/ANCHOR_LAMBDA_PROPOSAL_L_v1.md",
+   "sha256": "fe375fdfe24b27dd59da7d0c2fdeb2bf994a5cb2953542486724a62b7c1c3a8f"
+  },
+  "receipt": {
+   "path": "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_sweep_complete.json",
+   "sha256": "0991f0a031eea624de9ff42cb96c034589e596307a0bf61c2d9710f58c24b838"
+  },
+  "reduction_permission": "audit section 741 (prose); verified in section 742",
+  "result": {
+   "changed_axes": [],
+   "recipe": {
+    "lambda_bu": 0.02,
+    "lambda_text_hash_ntxent": 0.05,
+    "lambda_wasserstein": 0.15
+   }
+  },
+  "role": "the accepted lambda-check authority; linked separately, never merged into an S/D reduction",
+  "rule": "candidate_score - incumbent_seed42 > threshold (strict, unrounded)",
+  "scope": "Flickr25K first (user decision answering audit 733.1): five one-axis candidates plus a continuity control at N4 seed 42; expand to another dataset only if Flickr's choice moves",
+  "snapshot": {
+   "path": "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_snapshot_1eab97a081863d9f.json",
+   "sha256": "d7c8874f054753fa73af3633d753571b2714a66ed024883749bcb07ae9c5ff24"
+  },
+  "sources": {
+   "path": "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_lambda_sources.json",
+   "sha256": "e0c32688fdb86ac13f3bf6ede3326f633df051b391b4f3592fd20f55e785b003"
+  },
+  "stop_rule": "no candidate qualified, so no other dataset runs stage L and no N is reselected (audit 742.1)",
+  "threshold": 0.02819158958924184
+ },
+ "not_claimed": [
+  "global hyperparameter optimality, statistical equivalence or significance",
+  "superiority of anchors over the incumbent model or over baselines",
+  "completion of stage R or T, or of any downstream TODO item",
+  "any old-model, smoke or Gumbel-ON exploratory result as evidence for this model"
+ ],
+ "prepared_under": {
+  "audit_section": 742,
+  "ledger": "/home/yschoi/GroundedDNA/docs/PHASE1_PHASE2_REAUDIT_2026-08-14.md",
+  "ledger_sha256": "d8719a7100c3e805f186dab59a43b67ea49217a389ad15926305395195ebb83a"
+ },
+ "schema": "anchor-freeze-candidate/1",
+ "status": "PREPARATION ONLY: candidate F record for audit review; not accepted; it authorizes no stage R or T, official-test access, source deployment or downstream work",
+ "todo_migration": {
+  "path": "/data/yschoi/gdna_anchor_confirm_v1/docs/ANCHOR_MODEL_TODO_MIGRATION_v2.md",
+  "sha256": "32e7b88feffa9da9e4f7d527e4819e3d617267f1220b6b1c1a7008910642833e"
+ },
+ "validation_lineage": {
+  "commit": "59477d8be2c1750139ae436af778fd324c24d35a",
+  "contract": {
+   "path": "/data/yschoi/gdna_anchor_confirm_v1/docs/ANCHOR_CONFIRMATION_CONTRACT_v3.md",
+   "sha256": "e6c4978e6d30559e01c2ee34ae2b4d39c01717557ee16c9e96f85980aa8d3efc"
+  },
+  "frozen_n_record": {
+   "path": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_selected_n.json",
+   "reduction_permission": "audit section 726.3 (prose); accepted in section 727",
+   "rule": "argmax raw base-Hamming mAP@R at own terminal epoch, ties to the smallest N, seed 42",
+   "sha256": "5cda7adb055ed126efb0a8ec198e06d1176ccdc57e7d38fe35ff74b74a4a92ff",
+   "sources": {
+    "path": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_select_sources.json",
+    "sha256": "0cfab95106bfadb03e5e9750d8e5a17d7ff16523ff14b66bba1cab5519067656"
+   }
+  },
+  "generation": "v7",
+  "manifest": {
+   "path": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/authority_manifest_v7.json",
+   "sha256": "c061296309fe41203205dff65de3a1afb843c950e93c0614dfd27a8216a90128"
+  },
+  "probes": {
+   "approval": {
+    "line": "ANCHOR-CONFIRM-APPROVAL version=anchor-confirm/2 scope=probe manifest=c061296309fe41203205dff65de3a1afb843c950e93c0614dfd27a8216a90128 selection=5cda7adb055ed126efb0a8ec198e06d1176ccdc57e7d38fe35ff74b74a4a92ff request=748851142a8734703c076bbccd52af8c383dba14ee105d29235c55c92c476c44",
+    "scope": "probe",
+    "section": 730
+   },
+   "request_sha256": "748851142a8734703c076bbccd52af8c383dba14ee105d29235c55c92c476c44",
+   "sources": {
+    "path": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probe_sources.json",
+    "sha256": "39b304e92a94f879a71bdbfdc8b2cf9bce3209e81e09bdf460d047a4ca2b8702"
+   }
+  },
+  "stage_d": {
+   "approval": {
+    "ledger": "/home/yschoi/GroundedDNA/docs/PHASE1_PHASE2_REAUDIT_2026-08-14.md",
+    "ledger_sha256": "138426ac8358fbc0398e78e24350b902ddf78aa8a9486545b4b3ea31d43886f9",
+    "line": "ANCHOR-CONFIRM-APPROVAL version=anchor-confirm/2 scope=stage-D-run manifest=c061296309fe41203205dff65de3a1afb843c950e93c0614dfd27a8216a90128 selection=5cda7adb055ed126efb0a8ec198e06d1176ccdc57e7d38fe35ff74b74a4a92ff request=6ef9d4ea9c6aa2a64f680a12a3147737b364459516cf023e5e3cee6b823367cc",
+    "scope": "stage-D-run",
+    "section": 727
+   },
+   "receipt": {
+    "path": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_sweep_complete.json",
+    "sha256": "4272eeac4759354f94a58af13d84ab62cf78ca3457fa0d07cd379bd0ad0aa6e8"
+   },
+   "request_sha256": "6ef9d4ea9c6aa2a64f680a12a3147737b364459516cf023e5e3cee6b823367cc",
+   "snapshot": {
+    "path": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_snapshot_64f311500273a3ed.json",
+    "sha256": "e383ff68ec0bb50e58e04c52b7e4c7175660a5e9a0aaeb8b356c8840e78e0451"
+   },
+   "snapshot_semantic_sha256": "64f311500273a3edce62232a608b8406fd2c2f70b3a1b8e94cacc78816aa6b9b"
+  },
+  "stage_d_summary": {
+   "path": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_decision.json",
+   "reduction_permission": "audit section 731 (prose); accepted in section 731/732",
+   "sha256": "28b10a4c850f508bacf4d9402cda8c458fe92d2bfc8b616e14a1a6ce9866cc32",
+   "sources": {
+    "path": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_decide_sources.json",
+    "sha256": "19678606b6ad530ec781b59197a284fd685b942823ec14280e6e1a6690179de2"
+   },
+   "stage_R_membership": [
+    {
+     "N": 4,
+     "axis_center": "anchors",
+     "dataset": "cifar10",
+     "refit": "scratch, full designated train split",
+     "seed": 42
+    },
+    {
+     "N": 4,
+     "axis_center": "anchors",
+     "dataset": "cifar10",
+     "refit": "scratch, full designated train split",
+     "seed": 43
+    },
+    {
+     "N": 4,
+     "axis_center": "anchors",
+     "dataset": "cifar10",
+     "refit": "scratch, full designated train split",
+     "seed": 44
+    },
+    {
+     "N": 4,
+     "axis_center": "anchors",
+     "dataset": "flickr25k",
+     "refit": "scratch, full designated train split",
+     "seed": 42
+    },
+    {
+     "N": 4,
+     "axis_center": "anchors",
+     "dataset": "flickr25k",
+     "refit": "scratch, full designated train split",
+     "seed": 43
+    },
+    {
+     "N": 4,
+     "axis_center": "anchors",
+     "dataset": "flickr25k",
+     "refit": "scratch, full designated train split",
+     "seed": 44
+    },
+    {
+     "N": 4,
+     "axis_center": "anchors",
+     "dataset": "nuswide",
+     "refit": "scratch, full designated train split",
+     "seed": 42
+    },
+    {
+     "N": 4,
+     "axis_center": "anchors",
+     "dataset": "nuswide",
+     "refit": "scratch, full designated train split",
+     "seed": 43
+    },
+    {
+     "N": 4,
+     "axis_center": "anchors",
+     "dataset": "nuswide",
+     "refit": "scratch, full designated train split",
+     "seed": 44
+    },
+    {
+     "N": 39,
+     "axis_center": "anchors",
+     "dataset": "mscoco",
+     "refit": "scratch, full designated train split",
+     "seed": 42
+    },
+    {
+     "N": 39,
+     "axis_center": "anchors",
+     "dataset": "mscoco",
+     "refit": "scratch, full designated train split",
+     "seed": 43
+    },
+    {
+     "N": 39,
+     "axis_center": "anchors",
+     "dataset": "mscoco",
+     "refit": "scratch, full designated train split",
+     "seed": 44
+    }
+   ]
+  },
+  "stage_s": {
+   "approval": {
+    "ledger": "/home/yschoi/GroundedDNA/docs/PHASE1_PHASE2_REAUDIT_2026-08-14.md",
+    "ledger_sha256": "4c4153e629e9d5f77212a252dc5c00b6390aeeaab3a292f7662da8ad0cb20add",
+    "line": "ANCHOR-CONFIRM-APPROVAL version=anchor-confirm/2 scope=stage-S-run manifest=c061296309fe41203205dff65de3a1afb843c950e93c0614dfd27a8216a90128 request=bf2d3f56e0292020b361794d1b1238613ccc9b5998b4a84795d7dd756a7741e3",
+    "scope": "stage-S-run",
+    "section": 725
+   },
+   "receipt": {
+    "path": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_sweep_complete.json",
+    "sha256": "5915768767e3fd12b28c3f09e1a071c26fd5cbddbbac15662c495b80c4876f6b"
+   },
+   "request_sha256": "bf2d3f56e0292020b361794d1b1238613ccc9b5998b4a84795d7dd756a7741e3",
+   "snapshot": {
+    "path": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_snapshot_23e0763089474895.json",
+    "sha256": "6f2c03527b265078584fdfe49f57b3c9091080aeca5ab637b51a6858de4cea49"
+   },
+   "snapshot_semantic_sha256": "23e0763089474895b5960833c7a4bafefae65a19778e200c81949905625c37a4"
+  }
+ }
+}

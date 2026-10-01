@@ -1,0 +1,3 @@
+inputs: 21 pinned files, 12 records, 12 probes; ledger d8719a7100c3
+all checks pass: membership, generation, links, N, recipe, table, probes, approvals, lambda
+dry: candidate is 31118 bytes, sha256 5165f5dc9fcfb8334270bc16aa9816d09db67b03a04abae7ff846d5235bdca1d
