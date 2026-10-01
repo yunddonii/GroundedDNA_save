@@ -1760,7 +1760,16 @@ def train_extraction(tmp_path, monkeypatch, rworld):
         def to(self, device):
             return self
     monkeypatch.setattr(X, "SigLIP2SemanticOTModel", Model)
-    monkeypatch.setattr(X, "_resume_args_flat_or_legacy", lambda args: calls.__setitem__("resume", 1))
+
+    def legacy_resume(args):
+        """What the real legacy resume leaves behind (it reads config.pt by path; this records it)."""
+        calls["resume"] = 1
+        for k, v in rworld.saved[cell["cell_id"]].items():
+            setattr(args, k, v)
+        args.save_result_path = str(run)
+        args.save_log_path = args.save_model_state_path = os.path.join(str(run), "")
+        args.device = "cpu"
+    monkeypatch.setattr(X, "_resume_args_flat_or_legacy", legacy_resume)
     import dna_utils.run_identity as RI
     import dna_utils.runtime_state as RS
     import extraction_siglip2 as EX
@@ -1829,9 +1838,9 @@ def test_composed_train_extraction_refuses_partial_pins(train_extraction):
 
 
 def test_composed_train_extraction_without_pins_is_the_legacy_path(train_extraction):
+    """No pins: the legacy resume and the checkpoint PATH, as before generation v9."""
     t = train_extraction
-    import scripts.extract_train_split as X
-    X._resume_args_flat_or_legacy  # the legacy resume (a recorder here) and the checkpoint path
-    with pytest.raises(Exception):
-        t.main({})                   # the recorder resume sets no args, so the model step fails ...
-    assert t.calls["resume"] == 1 and t.calls["loads"] == 0           # ... after the legacy resume ran
+    t.main({})
+    assert t.calls["resume"] == 1 and t.calls["loads"] == 0
+    assert t.calls["loader_source"] == str(Path(t.cell["run_dir"], t.cell["final_checkpoint"]))
+    assert t.calls["saved"] == 1

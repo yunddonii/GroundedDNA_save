@@ -10,10 +10,12 @@ the [0] case, where the overwritten reservation lets a retry run silently. Revis
 children per cell, the T boundary rechecks and the R-to-T source equality). Revision d
 (audit 756 and battery c): RX25/RX27 declare the assertions that first see their defect, and
 RX34-RX38 disable the per-cell stage-R input checks at T boundaries, inside train extraction and
-in the T entry, and the pins handed to the producers.
+in the T entry, and the pins handed to the producers. Revision d at b68c1f6 detected 37/38: RX35
+crash-killed in the train-extraction fixture (its stand-in legacy resume set no arguments). The
+mutants are unchanged at revision 5; the fixture now sets the arguments as the real resume does.
 
 v12's bounded and guarded method, unchanged except for its paths: the v9 worktree, the v9 manifest
-(artifacts/anchor_confirmation/authority_manifest_v9r4.json) and the v9 copies of bounded_tree.py and
+(artifacts/anchor_confirmation/authority_manifest_v9r5.json) and the v9 copies of bounded_tree.py and
 guarded_pytest.py under artifacts/anchor_confirmation/refit_v9/. Content hashes ONLY for the reviewed
 inventory (the manifest closure plus the declared test files); every other tracked file by git index
 object id and stat; the harness under its own open() guard (binary payloads, real-data roots and
@@ -244,7 +246,7 @@ MUTANTS = [
 
 GUARD = WT / "artifacts/anchor_confirmation/refit_v9/guarded_pytest.py"
 BOUNDED = WT / "artifacts/anchor_confirmation/refit_v9/bounded_tree.py"
-MANIFEST = WT / "artifacts/anchor_confirmation/authority_manifest_v9r4.json"
+MANIFEST = WT / "artifacts/anchor_confirmation/authority_manifest_v9r5.json"
 EXTRAS = sorted({t[0] for *_x, d in MUTANTS for t, _m in d})
 BINARY = (".npz", ".npy", ".pt", ".pth", ".safetensors", ".bin", ".ckpt", ".pkl")
 REFUSED, CHILDREN = [], []
