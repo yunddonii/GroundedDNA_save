@@ -35,7 +35,9 @@ admission checks it against the protocol. A third occurrence, a first occurrence
 reviewed literal (another value, alias or boolean form, or the override placed first), or a repeat
 of any other destination -- through the same option, an alias (``-bs``/``--batch_size``) or a
 boolean pair (``--x``/``--no-x``) -- refuses. ``axis_center`` is never repeated, and appears exactly
-once (equal to the planned arm) in an anchor-confirmation cell.
+once (equal to the planned arm) in an anchor-confirmation cell. Stage L (generation v8) adds one
+narrow table, STAGE_L_REVIEWED_OVERRIDES: one of three lambda destinations may repeat, as its
+reviewed Flickr25K wrapper literal then exactly one override, at most one such destination per argv.
 
 ``args.txt`` is display-only: its ``<key><dashes><value>`` layout cannot tell ``-3.0`` from ``3.0``.
 """
@@ -82,6 +84,17 @@ REVIEWED_OVERRIDES = {
 #: protocol values bind the effective 0.0.
 REVIEWED_OVERRIDE_ALTERNATES = {
     "lambda_codeword_codon_sinkhorn": (("--lambda_codeword_codon_sinkhorn", "0.1"),),
+}
+#: Stage L (contract L v1, generation v8; audit 731-733): a TODO 13-15 lambda candidate is appended
+#: through EXTRA_ARGS, and the pinned Flickr25K wrapper already passes `--lambda_wasserstein 0.15`
+#: and `--lambda_text_hash_ntxent 0.05` literally and `--lambda_bu "$LBU"` (rendered 0.02), so the
+#: candidate repeats its destination. Such a repeat is admitted only as exactly that wrapper literal
+#: followed by exactly one override, and for AT MOST ONE of these destinations per argv: a stage-L
+#: cell moves one lambda. Which value the override carries is the launcher's stage-L admission.
+STAGE_L_REVIEWED_OVERRIDES = {
+    "lambda_wasserstein": ("--lambda_wasserstein", "0.15"),
+    "lambda_bu": ("--lambda_bu", "0.02"),
+    "lambda_text_hash_ntxent": ("--lambda_text_hash_ntxent", "0.05"),
 }
 
 _NEGATIVE_NUMBER = re.compile(r"^-\d+$|^-\d*\.\d+$|^-\d+(\.\d*)?[eE][-+]?\d+$")
@@ -177,9 +190,18 @@ def admitted_overrides(parser, argv: Iterable[str]) -> dict:
     refuses every other repeat (see the module docstring)."""
     occurrences = option_occurrences(parser, argv)
     _need(len(occurrences.get("axis_center", [])) <= 1, "axis_center is given more than once")
-    admitted = {}
+    admitted, lambdas = {}, []
     for dest, spans in sorted(occurrences.items()):
         if len(spans) == 1:
+            continue
+        if dest in STAGE_L_REVIEWED_OVERRIDES:
+            _need(len(spans) == 2, f"{dest} is given {len(spans)} times; a stage-L lambda override is "
+                                   "the wrapper literal followed by exactly one launcher override")
+            _need(spans[0] == STAGE_L_REVIEWED_OVERRIDES[dest],
+                  f"{dest}: the first occurrence {list(spans[0])} is not the reviewed stage-L wrapper "
+                  f"literal {list(STAGE_L_REVIEWED_OVERRIDES[dest])}")
+            lambdas.append(dest)
+            admitted[dest] = [list(span) for span in spans]
             continue
         _need(dest in REVIEWED_OVERRIDES,
               f"repeated options outside the reviewed wrapper overrides: {dest} {spans}")
@@ -190,6 +212,7 @@ def admitted_overrides(parser, argv: Iterable[str]) -> dict:
               f"{dest}: the first occurrence {list(spans[0])} is not a reviewed wrapper literal "
               f"{[list(REVIEWED_OVERRIDES[dest]), *map(list, REVIEWED_OVERRIDE_ALTERNATES.get(dest, ()))]}")
         admitted[dest] = [list(span) for span in spans]
+    _need(len(lambdas) <= 1, f"a stage-L cell moves one lambda, not {lambdas}")
     return admitted
 
 

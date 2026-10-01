@@ -50,6 +50,9 @@ def inventory() -> dict:
     consumed.read(M.HISTORICAL_INPUT_ROOT / pins["verifier"]["path"], pins["verifier"]["sha256"])
     for rel, digest in sorted(pins["sources_sha256"].items()):
         consumed.read(M.HISTORICAL_INPUT_ROOT / rel, digest)
+    v7 = M.anchor_v7_pins()                           # audit 733.3: the accepted v7 digests, read
+    for key in ("selection", "decision", "stage_s_receipt"):
+        consumed.read(v7[key]["path"], v7[key]["sha256"])
     status = git("status", "--porcelain")
     D.need(status == "", f"the source generation has uncommitted changes:\n{status[:400]}")
     closure = M.anchor_generation_closure()
@@ -58,7 +61,7 @@ def inventory() -> dict:
     from importlib import metadata
     return {
         "artifact_kind": M.ANCHOR_MANIFEST_KIND, "version": M.ANCHOR_CONFIRM_VERSION,
-        "generation": "v7",
+        "generation": "v8",
         "note": "byte identities from JSON and text only; not approval to execute",
         "historical": {
             "approved_p3_refit_aggregate": {"path": str(M.APPROVED_P3_REFIT_AGGREGATE),
@@ -75,6 +78,7 @@ def inventory() -> dict:
             "lambda_campaign": {"receipt": str(P3LAM_RECEIPT), "sha256": P3LAM_RECEIPT_SHA256,
                                 "approval": "ledger section 536.1"},
             "historical_input_verifier": pins,
+            "anchor_v7": v7,
             "p3_commit": "5304005cb6eaa6462a5450c30c25bc65f978af23",
             "base_commit": "88c3a25b1b309550eafc276c2ce5be7575507173",
             "not_authority": {"artifacts/phase3_selection/selected_n.json in the new worktree":
@@ -86,7 +90,24 @@ def inventory() -> dict:
         "design": {"fixed_architecture": "axis_center=anchors for all four datasets (audit 709)",
                    "run_arms": list(M.ANCHOR_RUN_ARMS), "rendered_comparator": "none",
                    "datasets": list(M.ANCHOR_DATASETS), "reuse": "none: every S/D cell is fresh"},
-        "predecessor": {"authority_manifest_v6_sha256":
+        "lambda": {"stage": M.ANCHOR_LAMBDA_STAGE, "scope": list(M.ANCHOR_LAMBDA_SCOPE),
+                   "control": M.ANCHOR_LAMBDA_CONTROL,
+                   "candidates": {ds: ["=".join(c) for c in M.ANCHOR_LAMBDA_CANDIDATES[ds]]
+                                  for ds in M.ANCHOR_LAMBDA_SCOPE},
+                   "incumbent_lambdas": {ds: dict(M.LAMBDA_INCUMBENT[ds]) for ds in M.ANCHOR_LAMBDA_SCOPE},
+                   "scope_decision": "the user's decision recorded under audit 733.1 (2026-10-01): "
+                                     "Flickr25K first; expand only if its choice moves"},
+        "predecessor": {"authority_manifest_v7_sha256": M.ANCHOR_V7_MANIFEST_SHA256,
+                        "v8_change": "stage L (audit 731-733, contract L v1): the TODO 13-15 lambda "
+                                     "checks of the fixed anchor model, Flickr25K first, one declared "
+                                     "lambda per anchor cell at the v7 frozen N, seed 42, with a "
+                                     "continuity control first; the v7 frozen N record, stage-D summary "
+                                     "and stage-S receipt are bound by their accepted digests and never "
+                                     "replayed; launcher, reducer (lambda role), supervisor (stage-L "
+                                     "ledger and budget) and this builder change; the trainer, model, "
+                                     "data, wrappers, recipe, environment, seal and probe files are "
+                                     "byte-equal to v7",
+                        "authority_manifest_v6_sha256":
                         "a5ff2a0e93acd3a0bef7ecc47a69d550b28fc7ee57c1a25aa48e7e1169f739d7",
                         "stage_s_request_v6_sha256":
                         "1625b50faf74b311040a8f56f1d7103b7352e2733e8c8fe9b8860ed18a44793c",
@@ -141,6 +162,8 @@ def inventory() -> dict:
                             "interpreter": sys.executable}},
         "contract": {"path": M.ANCHOR_CONTRACT_PATH,
                      "sha256": hashlib.sha256(consumed.read(CONTRACT)).hexdigest()},
+        "lambda_contract": {"path": M.ANCHOR_LAMBDA_CONTRACT_PATH,
+                            "sha256": hashlib.sha256(consumed.read(REPO / M.ANCHOR_LAMBDA_CONTRACT_PATH)).hexdigest()},
         "approval": {"authority": str(M.AUDIT_LEDGER), "tag": M.APPROVAL_TAG,
                      "scopes": {k: list(v) for k, v in M.APPROVAL_SCOPES.items()},
                      "note": "not part of this manifest: the audit writes one ledger line per "
@@ -154,7 +177,7 @@ def main(argv=None) -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command")
     inv = sub.add_parser("inventory")
-    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v7.json"))
+    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v8.json"))
     args = parser.parse_args(argv)
     try:
         if args.command != "inventory":

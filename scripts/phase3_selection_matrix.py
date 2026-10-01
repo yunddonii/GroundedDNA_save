@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import functools
 import hashlib
 import json
 import re
@@ -274,6 +275,31 @@ ANCHOR_ARMS = ("none", "anchors")
 ANCHOR_RUN_ARMS = ("anchors",)
 ANCHOR_DATASETS = ("cifar10", "flickr25k", "nuswide", "mscoco")
 ANCHOR_DECIDE_SEEDS = (43, 44)
+#: Stage L (audit 731-733; docs/ANCHOR_LAMBDA_CONTRACT_v1.md): the TODO 13-15 lambda checks of the
+#: fixed anchor model, one lambda per cell, at the frozen N, seed 42. The scope is the user's
+#: decision recorded under audit 733.1 (2026-10-01): Flickr25K first; another dataset joins only
+#: if Flickr25K's choice moves, with its own checks, through a new contract and generation. Each
+#: scope dataset runs its continuity control (the incumbent recipe itself) first, then the
+#: candidates in this order; a candidate is one (lambda axis, value) and never an incumbent value.
+ANCHOR_LAMBDA_STAGE = "lambda"
+ANCHOR_LAMBDA_SCOPE = ("flickr25k",)
+ANCHOR_LAMBDA_CANDIDATES = {
+    "flickr25k": (("lambda_wasserstein", "0.30"), ("lambda_wasserstein", "0.50"),
+                  ("lambda_bu", "0"),
+                  ("lambda_text_hash_ntxent", "0.025"), ("lambda_text_hash_ntxent", "0.10")),
+}
+ANCHOR_LAMBDA_CONTROL = "incumbent"
+#: The generation-v7 evidence stage L compares against (audit 725-732), bound by the full digests
+#: the audit accepted. Generation v8 reads these files as historical metadata only: it never
+#: replays the v7 reduction or re-checks v7 approvals with v8 code (audit 733.3 item 1).
+ANCHOR_V7_RECORD_DIR = Path("/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation")
+ANCHOR_V7_MANIFEST_SHA256 = "c061296309fe41203205dff65de3a1afb843c950e93c0614dfd27a8216a90128"
+ANCHOR_V7_SELECTION = ANCHOR_V7_RECORD_DIR / "ancS7_selected_n.json"
+ANCHOR_V7_SELECTION_SHA256 = "5cda7adb055ed126efb0a8ec198e06d1176ccdc57e7d38fe35ff74b74a4a92ff"
+ANCHOR_V7_DECISION = ANCHOR_V7_RECORD_DIR / "ancP7_decision.json"
+ANCHOR_V7_DECISION_SHA256 = "28b10a4c850f508bacf4d9402cda8c458fe92d2bfc8b616e14a1a6ce9866cc32"
+ANCHOR_V7_S_RECEIPT = ANCHOR_V7_RECORD_DIR / "ancS7_sweep_complete.json"
+ANCHOR_V7_S_RECEIPT_SHA256 = "5915768767e3fd12b28c3f09e1a071c26fd5cbddbbac15662c495b80c4876f6b"
 APPROVED_P3_REFIT_AGGREGATE = Path(
     "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/p3rfB_refit_aggregate.json")
 APPROVED_P3_REFIT_AGGREGATE_SHA256 = (
@@ -1031,7 +1057,7 @@ def build_command(dataset: str, n: int, gpu: int, *,
             raise CellRefused("anchor confirmation runs stage-1 cells only; a refit is a separate "
                               "authorization")
         if overrides:
-            raise CellRefused("an anchor-confirmation cell moves axis_center alone")
+            anchor_lambda_label(dataset, overrides)      # one declared stage-L candidate, or refuse
     if stage == "refit":
         if overrides:
             raise CellRefused(
@@ -1669,7 +1695,8 @@ def expected_cell_binding(dataset: str, n: int, *, namespace: str,
         "expected_run_identity": identity.as_record(),
         **(_anchor_binding_fields(dataset, n, namespace=namespace, stage=stage, seed=seed,
                                   topp=topp, joint=joint, epochs=epochs,
-                                  anchor_arm=anchor_arm, input_authority=input_authority)
+                                  anchor_arm=anchor_arm, input_authority=input_authority,
+                                  overrides=overrides)
            if anchor_arm is not None else {}),
     }
 
@@ -1724,11 +1751,13 @@ def _campaign_cell_parts(cell) -> tuple:
 
 
 def _cell_overrides(cell) -> tuple:
-    """The lambda overrides of a seven-tuple cell, `()` for every other cell."""
+    """The lambda overrides of a seven-tuple cell, or of a stage-L anchor cell (one declared
+    candidate of its dataset); `()` for every other cell."""
     if len(cell) == 8:
-        if tuple(cell[6]) != ():
-            raise CellRefused("an anchor-confirmation cell carries no lambda override")
-        return ()
+        overrides = tuple((str(flag), str(value)) for flag, value in cell[6])
+        if overrides:
+            anchor_lambda_label(cell[0], overrides)      # one declared stage-L candidate, or refuse
+        return overrides
     if len(cell) != 7:
         return ()
     overrides = tuple((str(flag), str(value)) for flag, value in cell[6])
@@ -3605,7 +3634,11 @@ def _only_cell(spec: str, plan: list, *, axis: str) -> tuple:
 
 def _run_sweep(args, at_topp, *, full_plan=None,
                authorities: dict | None = None,
-               preverified_input_seals: dict | None = None) -> int:
+               preverified_input_seals: dict | None = None,
+               control_gate=None) -> int:
+    """`control_gate(cell, record)` (stage L) runs after each completed cell and returns a refusal
+    for a continuity control off its reference score; the dataset's stream then stops before its
+    next cell, the control's record stays published, and no receipt is written."""
     if full_plan is None:
         try:
             full_plan = sweep_cells(args.sweep, at_topp=at_topp)
@@ -3619,7 +3652,7 @@ def _run_sweep(args, at_topp, *, full_plan=None,
         # select the dataset, i.e. three cells, so "a one-cell smoke" ran three
         # trainers and the description and the act disagreed.
         try:
-            plan = [(_anchor_only_cell(args.only, plan)
+            plan = [(_anchor_only_cell(args.only, plan, stage=args.anchor_confirm)
                      if getattr(args, "anchor_confirm", None) is not None
                      else _only_cell(args.only, plan, axis=args.sweep))]
         except CellRefused as error:
@@ -3764,6 +3797,8 @@ def _run_sweep(args, at_topp, *, full_plan=None,
                                   result_root=snapshot["plan"]["result_root"],
                                   overrides=(_cell_overrides(cell)
                                              if args.sweep == "lambda"
+                                             or getattr(args, "anchor_confirm", None)
+                                             == ANCHOR_LAMBDA_STAGE
                                              else None),
                                   anchor_arm=_cell_anchor_arm(cell),
                                   scientific_recipe=planned.get("scientific_recipe"))
@@ -3776,6 +3811,10 @@ def _run_sweep(args, at_topp, *, full_plan=None,
                 return
             with lock:
                 results[key] = ("ok", record)
+            refusal = control_gate(cell, record) if control_gate is not None else None
+            if refusal:
+                print(f"[phase3] STOPPED {dataset} after {key}: {refusal}", file=sys.stderr)
+                return
 
     threads = [threading.Thread(target=_stream, args=(ds, cells, gpus[i]),
                                 daemon=False)
@@ -4132,6 +4171,8 @@ ANCHOR_MANIFEST_KIND = "anchor_confirmation_authority_manifest"
 #: The designated scientific contract of this generation (audit 683.2). A manifest must pin THIS
 #: path; naming some other listed file as the contract refuses.
 ANCHOR_CONTRACT_PATH = "docs/ANCHOR_CONFIRMATION_CONTRACT_v3.md"
+#: Stage L's own contract (generation v8): a closure member, pinned beside the designated contract.
+ANCHOR_LAMBDA_CONTRACT_PATH = "docs/ANCHOR_LAMBDA_CONTRACT_v1.md"
 #: The anchor generation's own files. With the executable closure `_BOOTSTRAP_SOURCE_PATHS`
 #: (trainer, model, parser, identity, split, input admission, wrappers, ...) they are the members a
 #: generation manifest must list, exactly (audit 683.2).
@@ -4143,7 +4184,8 @@ ANCHOR_CLOSURE = ("scripts/anchor_confirm_decision.py", "scripts/anchor_confirm_
                   "tests/test_anchor_confirm_lifecycle.py",
                   "tests/test_anchor_confirm_supervisor.py",
                   "tests/test_anchor_confirm_input_bridge.py", "tests/test_seal_phase3_inputs.py",
-                  "tests/test_anchor_confirm_env_handoff.py")
+                  "tests/test_anchor_confirm_env_handoff.py",
+                  ANCHOR_LAMBDA_CONTRACT_PATH, "tests/test_anchor_lambda_stage.py")
 #: The audit ledger is the approval authority (audit 679.1, 683.2, 686.4). The modification agent
 #: cannot write it, and it lives outside the pinned scientific tree, so no manifest names an
 #: approval and no hash cycle arises. An operation that executes, or opens a real binary, runs only
@@ -4161,6 +4203,10 @@ APPROVAL_SCOPES = {
     "stage-D-smoke": ("manifest", "selection", "request"),
     "stage-D-run": ("manifest", "selection", "request"),
     "probe": ("manifest", "selection", "request"),
+    # stage L (contract L v1): `selection` is the v7 frozen N record; the request binds the v7
+    # stage-D summary and the preregistered rule numbers
+    "stage-L-smoke": ("manifest", "selection", "request"),
+    "stage-L-run": ("manifest", "selection", "request"),
 }
 REQUEST_SCHEMA = "anchor-confirm-request/2"
 #: The storage rule of an anchor-confirmation campaign (audit 703.3), checked before EVERY cell is
@@ -4222,14 +4268,16 @@ def render_trainer_argv(cmd, env) -> list:
 
 def anchor_scientific_recipe(dataset: str, n: int, *, namespace: str, stage: str, seed: int,
                              topp, joint, epochs=None, anchor_arm=None,
-                             input_authority=None) -> dict:
+                             input_authority=None, overrides=()) -> dict:
     """The typed recipe payload of one cell, from its rendered argv and the trainer's parser.
     With the cell's input authority the argv carries the same sealed-input flags run_cell adds;
-    with an arm, the argv must set axis_center exactly once, to that arm."""
+    with an arm, the argv must set axis_center exactly once, to that arm. `overrides` is a stage-L
+    cell's one declared lambda candidate (build_command refuses anything else)."""
     from config import Config
     from dna_utils.scientific_recipe import RecipeMismatch, build_payload
     cmd, env, _ = build_command(dataset, n, 0, epochs=epochs, namespace=namespace, stage=stage,
-                                seed=seed, topp=topp, joint=joint, anchor_arm=anchor_arm)
+                                seed=seed, topp=topp, joint=joint, overrides=tuple(overrides),
+                                anchor_arm=anchor_arm)
     if input_authority is not None:
         env["EXTRA_ARGS"] += " " + " ".join(
             shlex.quote(value) for value in _input_authority_flags(input_authority))
@@ -4241,11 +4289,12 @@ def anchor_scientific_recipe(dataset: str, n: int, *, namespace: str, stage: str
 
 
 def _anchor_binding_fields(dataset, n, *, namespace, stage, seed, topp, joint, epochs,
-                           anchor_arm, input_authority=None) -> dict:
+                           anchor_arm, input_authority=None, overrides=()) -> dict:
     from dna_utils.scientific_recipe import digest
     payload = anchor_scientific_recipe(dataset, n, namespace=namespace, stage=stage, seed=seed,
                                        topp=topp, joint=joint, epochs=epochs,
-                                       anchor_arm=anchor_arm, input_authority=input_authority)
+                                       anchor_arm=anchor_arm, input_authority=input_authority,
+                                       overrides=overrides)
     return {"anchor_arm": anchor_arm, "anchor_confirm_version": ANCHOR_CONFIRM_VERSION,
             "scientific_recipe": payload,
             "expected_scientific_recipe_sha256": digest(payload)}
@@ -4299,9 +4348,12 @@ def parse_arm_plan(cells_text, arms_text) -> dict:
 
 def anchor_confirmation_cells(stage_name: str, *, incumbent: dict, arm_plan: dict,
                               selection=None) -> list:
-    """Eight-tuples `(dataset, N, topp, joint, "select", seed, (), arm)`, train-only stage-1 cells.
-    `select`: the anchor arm of all four datasets at every candidate N, seed 42. `decide`: the anchor
-    arm at its frozen N (from a REPLAYED stage-S record), seeds 43 and 44."""
+    """Eight-tuples `(dataset, N, topp, joint, "select", seed, overrides, arm)`, train-only stage-1
+    cells. `select`: the anchor arm of all four datasets at every candidate N, seed 42. `decide`: the
+    anchor arm at its frozen N (from a REPLAYED stage-S record), seeds 43 and 44. `lambda` (stage
+    L): each scope dataset at its v7 frozen N (historical metadata, not replayed), seed 42, its
+    continuity control first and then its declared candidates, one lambda each. Only stage L
+    carries an override."""
     if set(arm_plan) != set(ANCHOR_DATASETS) \
             or any(tuple(arms) != ANCHOR_RUN_ARMS for arms in arm_plan.values()):
         raise CellRefused(f"the arm plan must run {ANCHOR_RUN_ARMS} on all of {ANCHOR_DATASETS}")
@@ -4317,6 +4369,15 @@ def anchor_confirmation_cells(stage_name: str, *, incumbent: dict, arm_plan: dic
                     raise CellRefused(f"{ds}/{arm}: no frozen N in the replayed stage-S record")
                 cells += [(ds, n, topp, joint, "select", seed, (), arm)
                           for seed in ANCHOR_DECIDE_SEEDS]
+            elif stage_name == ANCHOR_LAMBDA_STAGE:
+                if ds not in ANCHOR_LAMBDA_SCOPE:
+                    continue
+                n = ((selection or {}).get(ds) or {}).get(arm)
+                if type(n) is not int or n not in CANDIDATE_N:
+                    raise CellRefused(f"{ds}/{arm}: no frozen N in the v7 stage-S record")
+                cells.append((ds, n, topp, joint, "select", SEED, (), arm))
+                cells += [(ds, n, topp, joint, "select", SEED, (candidate,), arm)
+                          for candidate in ANCHOR_LAMBDA_CANDIDATES[ds]]
             else:
                 raise CellRefused(f"unknown anchor-confirmation stage {stage_name!r}")
     if not cells:
@@ -4391,6 +4452,227 @@ def anchor_admission(cells, *, namespace: str, incumbent: dict, epochs=None) -> 
     return report
 
 
+def anchor_lambda_label(dataset: str, overrides) -> str:
+    """`incumbent` for a continuity control (no override); `flag=value` for exactly one declared
+    stage-L candidate of a scope dataset. Anything else refuses (contract L v1 section 3)."""
+    overrides = tuple((str(flag), str(value)) for flag, value in overrides)
+    if not overrides:
+        return ANCHOR_LAMBDA_CONTROL
+    if len(overrides) != 1 or dataset not in ANCHOR_LAMBDA_SCOPE \
+            or overrides[0] not in ANCHOR_LAMBDA_CANDIDATES.get(dataset, ()):
+        raise CellRefused(f"{dataset}: {list(overrides)} is not one declared stage-L lambda candidate "
+                          f"(scope {ANCHOR_LAMBDA_SCOPE}; docs/ANCHOR_LAMBDA_CONTRACT_v1.md)")
+    return "=".join(overrides[0])
+
+
+def anchor_lambda_overrides(dataset: str, label: str) -> tuple:
+    """The inverse of anchor_lambda_label: a cell label back to its override tuple."""
+    if label == ANCHOR_LAMBDA_CONTROL:
+        return ()
+    flag, sep, value = str(label).partition("=")
+    overrides = ((flag, value),)
+    if not sep or anchor_lambda_label(dataset, overrides) != label:
+        raise CellRefused(f"{dataset}: {label!r} is not a stage-L cell label")
+    return overrides
+
+
+def anchor_lambda_protocol_fields(dataset: str, n: int, *, overrides, incumbent: dict,
+                                  epochs=None) -> dict:
+    """A stage-L cell's typed protocol values: contract v3 section 6 for the anchor arm at seed 42,
+    plus the three lambda axes at the dataset's approved values with the cell's one candidate
+    applied (contract L v1 section 3)."""
+    if dataset not in ANCHOR_LAMBDA_SCOPE or dataset not in LAMBDA_INCUMBENT:
+        raise CellRefused(f"{dataset} is not in the stage-L scope {ANCHOR_LAMBDA_SCOPE}")
+    anchor_lambda_label(dataset, overrides)
+    lambdas = {flag: float(LAMBDA_INCUMBENT[dataset][flag]) for flag in LAMBDA_AXES}
+    lambdas.update({flag: float(value) for flag, value in overrides})
+    return {**anchor_protocol_fields(dataset, n, seed=SEED, arm="anchors", incumbent=incumbent,
+                                     epochs=epochs), **lambdas}
+
+
+def _finite_proportion(value, what: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, float) \
+            or not math.isfinite(value) or not 0.0 <= value <= 1.0:
+        raise CellRefused(f"{what} is {value!r}, not a finite score in [0, 1]")
+    return value
+
+
+def anchor_v7_history(incumbent: dict) -> dict:
+    """The audit-accepted generation-v7 metadata stage L compares against (contract L v1 section 2),
+    read once at the pinned digests and parsed from the hashed bytes; nothing is replayed. Per scope
+    dataset: the frozen N, the incumbent's seed-42 score and its seed range over 42/43/44 from the
+    official stage-D summary, the threshold max(0.002, range) unrounded, and the v7 stage-S seed-42
+    cell's sealed recipe fields and admitted input authority from that campaign's plan snapshot."""
+    from dna_utils.scientific_recipe import RecipeMismatch, check_payload_shape, digest
+    frozen = json.loads(_read_pinned_bytes(ANCHOR_V7_SELECTION, ANCHOR_V7_SELECTION_SHA256,
+                                           "v7 frozen N record"))
+    decision = json.loads(_read_pinned_bytes(ANCHOR_V7_DECISION, ANCHOR_V7_DECISION_SHA256,
+                                             "v7 stage-D summary"))
+    receipt = json.loads(_read_pinned_bytes(ANCHOR_V7_S_RECEIPT, ANCHOR_V7_S_RECEIPT_SHA256,
+                                            "v7 stage-S receipt"))
+    if frozen.get("artifact_kind") != "anchor_confirmation_n_selection" \
+            or (frozen.get("generation") or {}).get("anchor_manifest_sha256") != ANCHOR_V7_MANIFEST_SHA256:
+        raise CellRefused(f"{ANCHOR_V7_SELECTION}: not the v7 frozen N record")
+    if decision.get("artifact_kind") != "anchor_confirmation_decision" \
+            or (decision.get("generation") or {}).get("anchor_manifest_sha256") != ANCHOR_V7_MANIFEST_SHA256 \
+            or (decision.get("selection") or {}).get("sha256") != ANCHOR_V7_SELECTION_SHA256:
+        raise CellRefused(f"{ANCHOR_V7_DECISION}: not the v7 stage-D summary of the frozen N record")
+    if receipt.get("campaign_kind") != ANCHOR_CAMPAIGN_KIND or receipt.get("namespace") != "ancS7":
+        raise CellRefused(f"{ANCHOR_V7_S_RECEIPT}: not the v7 stage-S campaign receipt")
+    snapshot_path = ANCHOR_V7_RECORD_DIR / str(receipt.get("plan_snapshot_file"))
+    try:
+        snapshot = json.loads(snapshot_path.read_bytes())
+    except (OSError, ValueError) as error:
+        raise CellRefused(f"{snapshot_path}: unreadable v7 plan snapshot: {error}") from None
+    if _json_digest(snapshot) != receipt.get("plan_snapshot_sha256") \
+            or (((snapshot.get("plan") or {}).get("authorities") or {}).get("anchor_manifest") or {}
+                ).get("sha256") != ANCHOR_V7_MANIFEST_SHA256:
+        raise CellRefused(f"{snapshot_path}: not the v7 stage-S receipt's plan snapshot")
+    history = {}
+    for ds in ANCHOR_LAMBDA_SCOPE:
+        n = ((frozen.get("n_selected") or {}).get(ds) or {}).get("anchors")
+        summary = (decision.get("summary") or {}).get(ds) or {}
+        if type(n) is not int or n not in CANDIDATE_N or summary.get("frozen_N") != n \
+                or type(summary.get("frozen_N")) is not int:
+            raise CellRefused(f"{ds}: the v7 frozen N and stage-D summary disagree")
+        seeds = (summary.get("retrieval") or {}).get("per_seed")
+        if not isinstance(seeds, list) or len(seeds) != 1 + len(ANCHOR_DECIDE_SEEDS):
+            raise CellRefused(f"{ds}: the v7 stage-D summary has no three-seed retrieval")
+        seeds = [_finite_proportion(v, f"{ds} v7 seed score") for v in seeds]
+        if seeds[0] != (((frozen.get("scores") or {}).get(ds) or {}).get("anchors") or {}).get(str(n)):
+            raise CellRefused(f"{ds}: the v7 stage-D seed-42 score is not the frozen N record's")
+        cid = campaign_cell_id(ds, n, topp=incumbent[ds]["topp"], joint=incumbent[ds]["joint"],
+                               stage="select", seed=SEED, anchor_arm="anchors")
+        binding = ((snapshot.get("plan") or {}).get("cell_bindings") or {}).get(cid)
+        if cid not in (receipt.get("cells") or {}) or not isinstance(binding, dict):
+            raise CellRefused(f"{ds}: the v7 stage-S campaign has no completed cell {cid}")
+        payload = binding.get("scientific_recipe")
+        try:
+            check_payload_shape(payload)
+        except RecipeMismatch as error:
+            raise CellRefused(f"{cid}: the v7 sealed recipe is malformed: {error}") from None
+        if digest(payload) != binding.get("expected_scientific_recipe_sha256"):
+            raise CellRefused(f"{cid}: the v7 sealed recipe is not its declared digest")
+        seal = (snapshot.get("input_seals") or {}).get(f"{ds}:stage1")
+        if not isinstance(seal, dict):
+            raise CellRefused(f"{ds}: the v7 stage-S campaign admitted no {ds}:stage1 seal")
+        spread = max(seeds) - min(seeds)
+        history[ds] = {"N": n, "seed_scores": seeds, "incumbent_seed42": seeds[0],
+                       "seed_range": spread, "threshold": max(0.002, spread), "cell_id": cid,
+                       "fields": payload["fields"], "input_authority": seal}
+    return history
+
+
+def anchor_v7_pins() -> dict:
+    """The generation-v7 pins a v8 manifest must carry and every stage-L request binds."""
+    return {"manifest": ANCHOR_V7_MANIFEST_SHA256,
+            "selection": {"path": str(ANCHOR_V7_SELECTION), "sha256": ANCHOR_V7_SELECTION_SHA256},
+            "decision": {"path": str(ANCHOR_V7_DECISION), "sha256": ANCHOR_V7_DECISION_SHA256},
+            "stage_s_receipt": {"path": str(ANCHOR_V7_S_RECEIPT), "sha256": ANCHOR_V7_S_RECEIPT_SHA256}}
+
+
+def anchor_lambda_rule(history: dict) -> dict:
+    """The preregistered numbers of the rule (contract L v1 section 5), bound into the request so
+    an approval names them: per scope dataset the incumbent's seed-42 score, the range and the
+    threshold, unrounded, with the v7 pins they come from."""
+    return {"comparison": "candidate_score - incumbent_seed42 > threshold (strict, unrounded)",
+            "threshold": "max(0.002, max - min of the incumbent's seed-42/43/44 scores)",
+            "per_axis": "highest qualifying score wins; exact tie -> value closer to the "
+                        "incumbent, then the smaller value; no qualifier keeps the incumbent",
+            "control": "the continuity control's terminal score must equal incumbent_seed42 exactly, "
+                       "or the stream stops before any candidate and no decision is made",
+            "history": anchor_v7_pins(),
+            "datasets": {ds: {k: history[ds][k] for k in ("N", "incumbent_seed42", "seed_scores",
+                                                          "seed_range", "threshold")}
+                         for ds in sorted(history)},
+            "candidates": {ds: ["=".join(c) for c in ANCHOR_LAMBDA_CANDIDATES[ds]]
+                           for ds in sorted(history)},
+            "incumbent_lambdas": {ds: dict(LAMBDA_INCUMBENT[ds]) for ds in sorted(history)}}
+
+
+def anchor_lambda_control_refusal(history: dict, cell, record) -> str | None:
+    """The continuity-control gate (contract L v1 section 4): after a stage-L cell completes, a
+    control whose terminal score is not EXACTLY the v7 incumbent's seed-42 score returns the reason
+    its dataset's stream stops before any candidate. A diagnostic gate: a match does not prove
+    unchanged training and a mismatch says nothing about a recipe. Never raises."""
+    try:
+        if _cell_overrides(cell):
+            return None
+        want = history[cell[0]]["incumbent_seed42"]
+        got = ((record or {}).get("selection") or {}).get("selection_value")
+    except Exception as error:                     # noqa: BLE001 -- a gate that cannot judge stops
+        return f"the continuity control could not be judged: {error!r}"
+    if type(got) is not float or got != want:
+        return (f"the continuity control scored {got!r}, not the v7 incumbent seed-42 score {want!r}; "
+                "no candidate runs and no decision is made (contract L v1 section 4)")
+    return None
+
+
+def anchor_lambda_admission(cells, *, namespace: str, incumbent: dict, history: dict,
+                            epochs=None) -> dict:
+    """Stage L's one prelaunch admission (contract L v1 section 3), run by --plan, --smoke and --run
+    alike before any lease, reservation or dispatch. Per scope dataset the incumbent recipe is
+    rendered twice: run-shaped with the v7 cell's admitted input authority -- its typed fields must
+    equal the v7 stage-S seed-42 cell's sealed fields exactly -- and in this request's shape, which
+    every cell is compared with. Every cell is seed 42 at the v7 frozen N with the approved
+    top-p/joint, carries every protocol value with its exact type, and differs from the incumbent in
+    exactly its one declared lambda (in nothing, for the continuity control)."""
+    from dna_utils.scientific_recipe import admitted_overrides, canonical, digest, field_differences
+    from config import Config
+    parser = Config.build_parser()
+    report, base, seen = {}, {}, set()
+    for cell in cells:
+        ds, n, topp, joint, stage, seed = _campaign_cell_parts(cell)
+        arm, overrides = _cell_anchor_arm(cell), _cell_overrides(cell)
+        label = anchor_lambda_label(ds, overrides)
+        key = campaign_cell_id(ds, n, topp=topp, joint=joint, stage=stage, seed=seed,
+                               overrides=overrides, anchor_arm=arm)
+        if key in report:
+            raise CellRefused(f"{key}: planned twice")
+        if ds not in history or arm != "anchors" or stage != "select" or seed != SEED \
+                or n != history[ds]["N"]:
+            raise CellRefused(f"{key}: not a stage-L coordinate (scope {sorted(history)}, anchors, "
+                              f"seed {SEED}, the v7 frozen N)")
+        if (tuple(topp), str(joint)) != (tuple(incumbent[ds]["topp"]), str(incumbent[ds]["joint"])):
+            raise CellRefused(f"{key}: the cell's top-p/joint is not the approved incumbent's")
+        if ds not in base:
+            replayed = anchor_scientific_recipe(ds, n, namespace=namespace, stage=stage, seed=seed,
+                                                topp=topp, joint=joint, anchor_arm=arm,
+                                                input_authority=history[ds]["input_authority"])
+            drift = field_differences(history[ds]["fields"], replayed["fields"])
+            if drift:
+                raise CellRefused(f"{ds}: the rendered incumbent is not the v7 stage-S seed-42 cell's "
+                                  f"sealed recipe; it differs in {drift[:6]}")
+            base[ds] = anchor_scientific_recipe(ds, n, namespace=namespace, stage=stage, seed=seed,
+                                                topp=topp, joint=joint, epochs=epochs,
+                                                anchor_arm=arm)
+        payload = base[ds] if not overrides else anchor_scientific_recipe(
+            ds, n, namespace=namespace, stage=stage, seed=seed, topp=topp, joint=joint,
+            epochs=epochs, anchor_arm=arm, overrides=overrides)
+        want = anchor_lambda_protocol_fields(ds, n, overrides=overrides, incumbent=incumbent,
+                                             epochs=epochs)
+        wrong = sorted(k for k, v in want.items()
+                       if k not in payload["fields"] or canonical(payload["fields"][k]) != canonical(v))
+        if wrong:
+            raise CellRefused(f"{key}: the rendered recipe breaks the protocol in "
+                              + ", ".join(f"{k}={payload['fields'].get(k)!r} (contract {want[k]!r})"
+                                          for k in wrong[:6]))
+        differing = field_differences(base[ds]["fields"], payload["fields"])
+        expected = [overrides[0][0]] if overrides else []
+        if differing != expected:
+            raise CellRefused(f"{key}: differs from the incumbent in {differing}, not in "
+                              f"{expected or 'nothing'}")
+        seen.add((ds, label))
+        report[key] = {"label": label, "digest": digest(payload),
+                       "incumbent_digest": digest(base[ds]), "differs_in": differing,
+                       "overrides": admitted_overrides(parser, payload["argv"])}
+    for ds in history:
+        want = {(ds, ANCHOR_LAMBDA_CONTROL)} | {(ds, "=".join(c)) for c in ANCHOR_LAMBDA_CANDIDATES[ds]}
+        if not want <= seen:
+            raise CellRefused(f"{ds}: the plan lacks {sorted(want - seen)}")
+    return report
+
+
 def anchor_generation_closure() -> list:
     """Every file a generation manifest must pin: the executable closure and the anchor files."""
     return sorted(set(_BOOTSTRAP_SOURCE_PATHS) | set(ANCHOR_CLOSURE))
@@ -4432,9 +4714,15 @@ def load_anchor_manifest(path, sha256) -> dict:
         raise CellRefused(f"{path}: its selected-N pin is not the ledger's")
     if historical.get("historical_input_verifier") != historical_input_verifier_pins():
         raise CellRefused(f"{path}: its historical input-verifier pins are not this launcher's")
+    if historical.get("anchor_v7") != anchor_v7_pins():
+        raise CellRefused(f"{path}: its generation-v7 pins are not this launcher's")
     contract = manifest.get("contract") or {}
     if contract.get("path") != ANCHOR_CONTRACT_PATH or contract.get("sha256") != files[ANCHOR_CONTRACT_PATH]:
         raise CellRefused(f"{path}: its contract is not the designated {ANCHOR_CONTRACT_PATH} at its "
+                          "pinned bytes")
+    if manifest.get("lambda_contract") != {"path": ANCHOR_LAMBDA_CONTRACT_PATH,
+                                           "sha256": files[ANCHOR_LAMBDA_CONTRACT_PATH]}:
+        raise CellRefused(f"{path}: its stage-L contract is not {ANCHOR_LAMBDA_CONTRACT_PATH} at its "
                           "pinned bytes")
     if not (isinstance(generation.get("commit"), str)
             and re.fullmatch(r"[0-9a-f]{40}", generation["commit"])
@@ -4500,15 +4788,29 @@ def _file_pin(path) -> dict:
     return {"path": str(Path(path).resolve()), "sha256": hashlib.sha256(raw).hexdigest()}
 
 
-def anchor_execution_request(args, cells, *, manifest_sha256: str, selection_sha256=None) -> dict:
+def _anchor_request_cell(cell, stage) -> list:
+    """A cell as a request names it: (dataset, arm, N, seed), plus its label in stage L."""
+    named = [cell[0], cell[7], cell[1], cell[5]]
+    if stage == ANCHOR_LAMBDA_STAGE:
+        named.append(anchor_lambda_label(cell[0], _cell_overrides(cell)))
+    return named
+
+
+def anchor_execution_request(args, cells, *, manifest_sha256: str, selection_sha256=None,
+                             lambda_rule=None) -> dict:
     """The complete canonical request of one execution (audit 689.2): stage and mode, the executed
-    and declared cells as (dataset, arm, N, seed), namespace, record and result roots, the smoke
-    horizon, the input seals and carried admission authority by path and file digest, the GPU
-    count, the generation manifest and (stage D) the frozen N record. An approval names its
-    digest; the snapshot and receipt carry it; the reducer checks every record against it."""
+    and declared cells as (dataset, arm, N, seed) -- plus the cell label in stage L --, namespace,
+    record and result roots, the smoke horizon, the input seals and carried admission authority by
+    path and file digest, the GPU count, the generation manifest, (stage D, stage L) the frozen N
+    record, and (stage L) the preregistered rule with its v7 pins. An approval names its digest;
+    the snapshot and receipt carry it; the reducer checks every record against it."""
+    stage = args.anchor_confirm
     if args.smoke and not args.only:
-        raise CellRefused("an anchor smoke needs --only dataset:N:arm:seed")
-    executed = [_anchor_only_cell(args.only, cells)] if args.smoke else list(cells)
+        raise CellRefused("an anchor smoke needs --only dataset:N:arm:seed"
+                          + (":label" if stage == ANCHOR_LAMBDA_STAGE else ""))
+    if (stage == ANCHOR_LAMBDA_STAGE) != (lambda_rule is not None):
+        raise CellRefused("a stage-L request carries its preregistered rule, and only stage L does")
+    executed = [_anchor_only_cell(args.only, cells, stage=stage)] if args.smoke else list(cells)
     gpus = [g for g in (args.gpus.split(",") if args.gpus else [str(args.gpu)])]
     streams = len({c[0] for c in executed})
     if len(gpus) != streams or len(set(gpus)) != len(gpus):
@@ -4522,14 +4824,15 @@ def anchor_execution_request(args, cells, *, manifest_sha256: str, selection_sha
         "manifest": manifest_sha256, "selection": selection_sha256,
         "namespace": str(args.namespace),
         "record_dir": str(ANCHOR_RECORD_DIR), "result_root": str(Path(args.result_root).resolve()),
-        "declared_cells": sorted([c[0], c[7], c[1], c[5]] for c in cells),
-        "cells": sorted([c[0], c[7], c[1], c[5]] for c in executed),
+        "declared_cells": sorted(_anchor_request_cell(c, stage) for c in cells),
+        "cells": sorted(_anchor_request_cell(c, stage) for c in executed),
         "epochs": int(args.epochs) if args.smoke else None,
-        "input_seals": {f"{ds}:{stage}": _file_pin(path)
-                        for (ds, stage), path in sorted((args.input_seal_specs or {}).items())},
+        "input_seals": {f"{ds}:{seal_stage}": _file_pin(path)
+                        for (ds, seal_stage), path in sorted((args.input_seal_specs or {}).items())},
         "admission_authority": (_file_pin(args.admission_authority)
                                 if getattr(args, "admission_authority", None) else None),
         "gpu_count": len(gpus),
+        **({"lambda": lambda_rule} if lambda_rule is not None else {}),
     }
 
 
@@ -4613,14 +4916,20 @@ def assert_anchor_recipe(run_dir, *, scientific_recipe: dict, arm: str) -> dict:
             "config_pt_sha256": hashlib.sha256(config_raw).hexdigest()}
 
 
-def _anchor_only_cell(spec: str, plan: list):
-    """`--only dataset:N:arm:seed` names exactly one planned anchor cell."""
+def _anchor_only_cell(spec: str, plan: list, *, stage=None):
+    """`--only dataset:N:arm:seed` names exactly one planned anchor cell; in stage L
+    `--only dataset:N:arm:seed:label` (`incumbent` or `flag=value`)."""
+    labelled = stage == ANCHOR_LAMBDA_STAGE
     try:
-        ds, n, arm, seed = spec.split(":")
+        ds, n, arm, seed, *label = spec.split(":")
         n, seed = int(n), int(seed)
+        if len(label) != (1 if labelled else 0):
+            raise ValueError
     except ValueError:
-        raise CellRefused(f"--only for anchor confirmation is dataset:N:arm:seed, got {spec!r}")
-    hits = [c for c in plan if (c[0], c[1], c[7], c[5]) == (ds, n, arm, seed)]
+        raise CellRefused(f"--only for anchor confirmation is dataset:N:arm:seed"
+                          f"{':label' if labelled else ''}, got {spec!r}")
+    hits = [c for c in plan if (c[0], c[1], c[7], c[5]) == (ds, n, arm, seed)
+            and (not labelled or anchor_lambda_label(c[0], _cell_overrides(c)) == label[0])]
     if len(hits) != 1:
         raise CellRefused(f"--only {spec!r} matches {len(hits)} planned cells")
     return hits[0]
@@ -4658,8 +4967,23 @@ def _anchor_confirmation_main(args) -> int:
                               "generation this tree must be)")
         arm_plan = parse_arm_plan(args.anchor_cells, args.anchor_arms)
         incumbent = anchor_incumbent()
-        selection = None
-        if args.anchor_confirm == "decide":
+        selection = history = lambda_rule = None
+        if args.anchor_confirm == ANCHOR_LAMBDA_STAGE:
+            # Stage L binds the audit-accepted v7 records by digest and replays nothing (audit
+            # 733.3 item 1); the caller names the v7 frozen N record exactly.
+            if (str(args.anchor_selection), str(args.anchor_selection_sha256)) != \
+                    (str(ANCHOR_V7_SELECTION), ANCHOR_V7_SELECTION_SHA256):
+                raise CellRefused(f"--anchor-confirm {ANCHOR_LAMBDA_STAGE} takes the v7 frozen N record "
+                                  f"at its accepted digest: --anchor-selection {ANCHOR_V7_SELECTION} "
+                                  f"--anchor-selection-sha256 {ANCHOR_V7_SELECTION_SHA256}")
+            if manifest is not None and manifest["sha256"] == ANCHOR_V7_MANIFEST_SHA256:
+                raise CellRefused("stage L runs in a new generation, never under the v7 manifest")
+            history = anchor_v7_history(incumbent)
+            lambda_rule = anchor_lambda_rule(history)
+            selection = {"n_selected": {ds: {"anchors": history[ds]["N"]} for ds in history},
+                         "record": {"path": str(ANCHOR_V7_SELECTION),
+                                    "sha256": ANCHOR_V7_SELECTION_SHA256}}
+        elif args.anchor_confirm == "decide":
             if not args.anchor_selection or not args.anchor_selection_sha256:
                 raise CellRefused("--anchor-confirm decide needs --anchor-selection and "
                                   "--anchor-selection-sha256")
@@ -4674,13 +4998,17 @@ def _anchor_confirmation_main(args) -> int:
                                   f"({str(selection.get('anchor_manifest_sha256'))[:12]}...); one "
                                   "generation carries the whole chain")
         elif args.anchor_selection or args.anchor_selection_sha256:
-            raise CellRefused("--anchor-selection belongs to --anchor-confirm decide")
+            raise CellRefused("--anchor-selection belongs to --anchor-confirm decide or "
+                              f"{ANCHOR_LAMBDA_STAGE}")
         cells = anchor_confirmation_cells(args.anchor_confirm, incumbent=incumbent,
                                           arm_plan=arm_plan,
                                           selection=(selection or {}).get("n_selected"))
         epochs = args.epochs if args.smoke else None
-        admission = anchor_admission(cells, namespace=args.namespace, incumbent=incumbent,
-                                     epochs=epochs)
+        admission = (anchor_lambda_admission(cells, namespace=args.namespace, incumbent=incumbent,
+                                             history=history, epochs=epochs)
+                     if history is not None else
+                     anchor_admission(cells, namespace=args.namespace, incumbent=incumbent,
+                                      epochs=epochs))
         historical_admission: dict = {}
         if execute:
             if args.smoke and not args.only:
@@ -4688,13 +5016,14 @@ def _anchor_confirmation_main(args) -> int:
             if args.run and args.only:
                 raise CellRefused("--run takes the whole declared stage; --only is for --smoke")
             # The audit's approval of exactly this request, before inputs, leases or dispatch.
-            scope = (f"stage-{'S' if args.anchor_confirm == 'select' else 'D'}-"
-                     f"{'smoke' if args.smoke else 'run'}")
-            selection_pin = (str(args.anchor_selection_sha256) if args.anchor_confirm == "decide"
-                             else None)
+            letter = {"select": "S", "decide": "D", ANCHOR_LAMBDA_STAGE: "L"}[args.anchor_confirm]
+            scope = f"stage-{letter}-{'smoke' if args.smoke else 'run'}"
+            selection_pin = (str(args.anchor_selection_sha256)
+                             if args.anchor_confirm in ("decide", ANCHOR_LAMBDA_STAGE) else None)
             manifest_sha = (manifest or {}).get("sha256")
             request = anchor_execution_request(args, cells, manifest_sha256=manifest_sha,
-                                               selection_sha256=selection_pin)
+                                               selection_sha256=selection_pin,
+                                               lambda_rule=lambda_rule)
             pins = {"manifest": manifest_sha, "request": _json_digest(request)}
             if selection_pin is not None:
                 pins["selection"] = selection_pin
@@ -4732,6 +5061,7 @@ def _anchor_confirmation_main(args) -> int:
         "anchor_approval": approval,
         "anchor_request": request,
         **({"anchor_selection": selection["record"]} if selection is not None else {}),
+        **({"anchor_lambda": lambda_rule} if lambda_rule is not None else {}),
         **({"historical_input_admission": historical_admission} if historical_admission else {}),
     }
     if not execute:
@@ -4739,16 +5069,20 @@ def _anchor_confirmation_main(args) -> int:
             preview = (anchor_execution_request(
                 args, cells, manifest_sha256=manifest["sha256"],
                 selection_sha256=(str(args.anchor_selection_sha256)
-                                  if args.anchor_confirm == "decide" else None))
+                                  if args.anchor_confirm in ("decide", ANCHOR_LAMBDA_STAGE) else None),
+                lambda_rule=lambda_rule)
                 if (args.run or args.smoke) and manifest is not None else None)
         except CellRefused as error:
             print(f"[phase3] REFUSED: {error}", file=sys.stderr)
             return 2
         return _print_anchor_plan(args, cells, authorities, admission, preview)
     RECORD_DIR = ANCHOR_RECORD_DIR
+    # Stage L's continuity control is a gate of the run only: a one-epoch smoke has no reference.
+    gate = (functools.partial(anchor_lambda_control_refusal, history)
+            if history is not None and not args.smoke else None)
     return _with_campaign_gpu_leases(
         args, lambda: _run_sweep(args, None, full_plan=cells, authorities=authorities,
-                                 preverified_input_seals=input_seals))
+                                 preverified_input_seals=input_seals, control_gate=gate))
 
 
 def _print_anchor_plan(args, cells, authorities, admission, preview=None) -> int:
@@ -4761,13 +5095,23 @@ def _print_anchor_plan(args, cells, authorities, admission, preview=None) -> int
     print(json.dumps(authorities, indent=1, sort_keys=True))
     for cell in cells:
         ds, n, topp, joint, stage, seed = _campaign_cell_parts(cell)
+        overrides = _cell_overrides(cell)
         print(f"  {ds:<10} N={n:<3} seed={seed} arm={cell[7]:<8} topp={topp[0]}/{topp[1]} "
-              f"jd={joint} -> {tag_for(ds, n, namespace=args.namespace, topp=topp, joint=joint, seed=seed, anchor_arm=cell[7])}")
-    print(f"arms differ in axis_center alone and carry the contract's protocol values at all "
-          f"{len(admission)} coordinates")
-    for key, entry in admission.items():
-        print(f"  {key}: none {entry['digests']['none'][:16]}  anchors {entry['digests']['anchors'][:16]}"
-              f"  reviewed overrides {sorted(entry['overrides'])}")
+              f"jd={joint}{(' ' + anchor_lambda_label(ds, overrides)) if args.anchor_confirm == ANCHOR_LAMBDA_STAGE else ''}"
+              f" -> {tag_for(ds, n, namespace=args.namespace, topp=topp, joint=joint, seed=seed, overrides=overrides, anchor_arm=cell[7])}")
+    if args.anchor_confirm == ANCHOR_LAMBDA_STAGE:
+        print(f"stage L: the incumbent renders to the v7 stage-S seed-42 cell's sealed fields, and each "
+              f"of the {len(admission)} cells carries the protocol values and differs from it in its "
+              "one declared lambda (the continuity control in nothing)")
+        for key, entry in admission.items():
+            print(f"  {entry['label']:<32} {entry['digest'][:16]} differs in "
+                  f"{entry['differs_in'] or 'nothing'}  reviewed overrides {sorted(entry['overrides'])}")
+    else:
+        print(f"arms differ in axis_center alone and carry the contract's protocol values at all "
+              f"{len(admission)} coordinates")
+        for key, entry in admission.items():
+            print(f"  {key}: none {entry['digests']['none'][:16]}  anchors {entry['digests']['anchors'][:16]}"
+                  f"  reviewed overrides {sorted(entry['overrides'])}")
     if authorities["anchor_manifest"] is None:
         print("generation manifest: NOT SUPPLIED -- --smoke/--run refuse without it")
     print("approval: --smoke/--run need an audit ledger line for their exact scope and request "
@@ -4961,10 +5305,12 @@ def main() -> int:
               "used by the stability protocol."))
     parser.add_argument(
         "--anchor-confirm", dest="anchor_confirm", default=None,
-        choices=("select", "decide"),
+        choices=("select", "decide", ANCHOR_LAMBDA_STAGE),
         help=("anchor confirmation v2 (contract v3, audit 709): stage `select` = train-only N "
-              "selection of the fixed anchor model, `decide` = seeds 43/44 at the frozen N. Stage-1 cells "
-              "only; refit is a separate authorization. NON-EXECUTABLE until audit approval."))
+              "selection of the fixed anchor model, `decide` = seeds 43/44 at the frozen N, `lambda` "
+              "= stage L (contract L v1: the TODO 13-15 lambda checks at the v7 frozen N, seed 42, "
+              "Flickr25K first). Stage-1 cells only; refit is a separate authorization. "
+              "NON-EXECUTABLE until audit approval."))
     parser.add_argument(
         "--anchor-arms", dest="anchor_arms", default="anchors",
         help="must be `anchors` (contract v3: the control arm is rendered for comparison, never run)")
@@ -4981,7 +5327,8 @@ def main() -> int:
         metavar="N", help="--smoke/--run: the audit ledger section that approves this operation")
     parser.add_argument(
         "--anchor-selection", dest="anchor_selection", default=None, metavar="PATH",
-        help="--anchor-confirm decide: the frozen stage-S N record written by the reducer")
+        help="--anchor-confirm decide: the frozen stage-S N record written by the reducer; "
+             "--anchor-confirm lambda: the v7 frozen N record at its accepted path and digest")
     parser.add_argument(
         "--anchor-selection-sha256", dest="anchor_selection_sha256", default=None,
         metavar="HEX", help="full SHA-256 the frozen stage-S N record must hash to")

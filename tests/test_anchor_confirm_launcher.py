@@ -67,10 +67,18 @@ def test_the_refit_path_refuses_an_anchor_arm():
         M.build_command("flickr25k", 4, 0, stage="refit", anchor_arm="anchors")
 
 
-def test_an_anchor_cell_moves_axis_center_alone():
-    with pytest.raises(CellRefused, match="axis_center alone"):
-        M.build_command("flickr25k", 4, 0, anchor_arm="anchors",
-                        overrides=(("lambda_wasserstein", "0.30"),))
+@pytest.mark.parametrize("dataset,overrides", [
+    ("flickr25k", (("lambda_wasserstein", "0.15"),)),                 # the incumbent value
+    ("flickr25k", (("lambda_wasserstein", "0.40"),)),                 # an undeclared value
+    ("flickr25k", (("lambda_bu", "0"), ("lambda_wasserstein", "0.30"))),   # two lambdas
+    ("nuswide", (("lambda_wasserstein", "0.30"),)),                   # outside the stage-L scope
+    ("mscoco", (("lambda_bu", "0"),)),
+])
+def test_an_anchor_cell_moves_axis_center_alone_or_one_declared_stage_l_lambda(dataset, overrides):
+    """Generation v8: an anchor cell carries no override except one declared stage-L candidate of a
+    scope dataset (contract L v1); every other override still refuses."""
+    with pytest.raises(CellRefused, match="declared stage-L lambda candidate"):
+        M.build_command(dataset, 4, 0, anchor_arm="anchors", overrides=overrides)
 
 
 def test_cell_ids_carry_the_arm_and_leave_legacy_ids_unchanged():
@@ -87,8 +95,10 @@ def test_eight_tuples_are_anchor_cells_and_nothing_else_changes():
     assert M._campaign_cell_parts(cell) == cell[:6]
     assert M._cell_overrides(cell) == () and M._cell_anchor_arm(cell) == "anchors"
     assert M._cell_anchor_arm(cell[:7]) is None and M._cell_anchor_arm(cell[:6]) is None
-    with pytest.raises(CellRefused):
-        M._cell_overrides(cell[:6] + ((("lambda_bu", "0"),), "anchors"))
+    with pytest.raises(CellRefused, match="declared stage-L"):        # generation v8: undeclared
+        M._cell_overrides(cell[:6] + ((("lambda_bu", "0.5"),), "anchors"))
+    with pytest.raises(CellRefused, match="declared stage-L"):        # outside the stage-L scope
+        M._cell_overrides(("nuswide",) + cell[1:6] + ((("lambda_bu", "0"),), "anchors"))
     with pytest.raises(CellRefused):
         M._cell_anchor_arm(cell[:7] + ("both",))
 
@@ -238,13 +248,16 @@ def manifest(tmp_path, **changes):
     body = {"artifact_kind": M.ANCHOR_MANIFEST_KIND, "version": M.ANCHOR_CONFIRM_VERSION,
             "historical": {"approved_p3_refit_aggregate": {"sha256": M.APPROVED_P3_REFIT_AGGREGATE_SHA256},
                            "approved_selected_n": {"sha256": M.APPROVED_SELECTED_N_SHA256},
-                           "historical_input_verifier": M.historical_input_verifier_pins()},
+                           "historical_input_verifier": M.historical_input_verifier_pins(),
+                           "anchor_v7": M.anchor_v7_pins()},
             "new_generation": {"commit": "c" * 40, "branch": "arch-exp-2026-09-anchor-confirm", "clean": True,
                                "files_sha256": files, "dataset_scripts_sha256": dict(M.DATASET_SCRIPT_SHA256),
                                "environment": {"python": ".".join(map(str, sys.version_info[:3])),
                                                "torch": metadata.version("torch"),
                                                "interpreter": sys.executable}},
-            "contract": {"path": M.ANCHOR_CONTRACT_PATH, "sha256": files[M.ANCHOR_CONTRACT_PATH]}}
+            "contract": {"path": M.ANCHOR_CONTRACT_PATH, "sha256": files[M.ANCHOR_CONTRACT_PATH]},
+            "lambda_contract": {"path": M.ANCHOR_LAMBDA_CONTRACT_PATH,
+                                "sha256": files[M.ANCHOR_LAMBDA_CONTRACT_PATH]}}
     for key, value in changes.items():
         target = body
         *parents, leaf = key.split("::")
@@ -291,6 +304,11 @@ def test_the_closure_covers_wrappers_input_admission_measurement_tests_and_contr
      "historical input-verifier pins"),
     ({"historical::historical_input_verifier": DELETE}, "historical input-verifier pins"),
     ({"historical::approved_selected_n::sha256": "0" * 64}, "selected-N pin"),
+    ({"historical::anchor_v7::decision::sha256": "0" * 64}, "generation-v7 pins"),    # generation v8
+    ({"historical::anchor_v7": DELETE}, "generation-v7 pins"),
+    ({"lambda_contract::sha256": "0" * 64}, "stage-L contract"),
+    ({"lambda_contract::path": M.ANCHOR_CONTRACT_PATH}, "stage-L contract"),
+    ({"lambda_contract": DELETE}, "stage-L contract"),
     ({"contract::sha256": "0" * 64}, "not the designated"),
     ({"contract::path": "config.py"}, "not the designated"),   # a listed file substituted as contract
     ({"new_generation::commit": "not-a-commit"}, "commit, branch or clean flag"),

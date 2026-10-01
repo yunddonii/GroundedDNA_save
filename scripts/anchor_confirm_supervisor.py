@@ -78,6 +78,12 @@ GiB = 1 << 30
 FREE_FLOOR_BYTES = 10 << 30
 CELL_OUTPUT_BYTES = 3 << 28                    # 0.75 GiB; a historical N39 cell holds 0.61 GiB
 BUDGET_DEVICE_SECONDS = 12.5 * 3600.0          # S + D + probes (contract v3 section 12)
+#: Stage L (contract L v1 section 8, Flickr25K first): its own budget in its own ledger root, so the
+#: closed S/D/probe ledger is neither reused nor reset. Smoke + continuity control + five candidates,
+#: a failed attempt, the observation allowance and the stop headroom.
+L_STAGES = ("stage-L-smoke", "stage-L-run")
+L_BUDGET_DEVICE_SECONDS = 1.0 * 3600.0
+L_OPS_ROOT = Path("/home/yschoi/gdna_anchorL_ops")
 POLL_SECONDS = 1.0
 #: no completed observation for this long stops the command (and voids the run's settlement)
 WATCHDOG_SECONDS = 10.0
@@ -92,6 +98,8 @@ STAGES = {
     "stage-S-run": (4 * 3600.0, 4), "stage-S-smoke": (2 * 3600.0, 4),
     "stage-D-run": (4 * 3600.0, 4), "stage-D-smoke": (2 * 3600.0, 4),
     "probe": (15 * 60.0, 1),
+    # stage L: one Flickr25K stream (control + five N=4 cells, about 2 to 5 minutes each)
+    "stage-L-smoke": (2 * 3600.0, 1), "stage-L-run": (2 * 3600.0, 1),
 }
 EXIT_REFUSED, EXIT_STOPPED, EXIT_UNCLEAN, EXIT_UNRESOLVED = 2, 3, 4, 5
 
@@ -517,6 +525,19 @@ def _run(command, ledger, identity, *, prior, headroom, gpus, attempts, planned_
     return proc.returncode
 
 
+def stage_ledger(stage: str, ops_root) -> tuple:
+    """(ledger root, device budget) of a stage. Stage L keeps its own ledger root and budget
+    (contract L v1 section 8); the S/D/probe stages never write the L root. A crossed root refuses."""
+    is_l = stage in L_STAGES
+    root = Path(os.path.abspath(ops_root if ops_root is not None
+                                else (L_OPS_ROOT if is_l else DEFAULT_OPS_ROOT)))
+    if is_l and root != L_OPS_ROOT:
+        raise Refused(f"{stage} keeps its own ledger under {L_OPS_ROOT}, not {root}")
+    if not is_l and root == L_OPS_ROOT:
+        raise Refused(f"{stage} never writes the stage-L ledger {L_OPS_ROOT}")
+    return root, (L_BUDGET_DEVICE_SECONDS if is_l else BUDGET_DEVICE_SECONDS)
+
+
 def command_gpus(stage: str, command) -> int:
     """The GPU count the supervised command itself names (a probe uses one)."""
     most = STAGES[stage][1]
@@ -539,7 +560,8 @@ def main(argv=None) -> int:
     parser.add_argument("--label", default="")
     parser.add_argument("--planned-cells", type=int, required=True)
     parser.add_argument("--watch-path", required=True)
-    parser.add_argument("--ops-root", default=str(DEFAULT_OPS_ROOT))
+    parser.add_argument("--ops-root", default=None,
+                        help=f"default {DEFAULT_OPS_ROOT}; stage L: {L_OPS_ROOT} (its own ledger)")
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
@@ -549,11 +571,13 @@ def main(argv=None) -> int:
         if args.planned_cells < 0:
             raise Refused("--planned-cells must be >= 0")
         verify_generation(args.manifest, args.manifest_sha256)
+        ops_root, budget = stage_ledger(args.stage, args.ops_root)
         return supervise(command, stage=args.stage, label=args.label,
                          gpus=command_gpus(args.stage, command),
                          attempts="self" if args.stage == "probe" else "sessions",
                          planned_cells=args.planned_cells, watch_path=args.watch_path,
-                         ops_root=args.ops_root, manifest_sha256=args.manifest_sha256)
+                         ops_root=ops_root, manifest_sha256=args.manifest_sha256,
+                         budget_seconds=budget)
     except Refused as error:
         print(f"[supervisor] REFUSED: {error}", file=sys.stderr)
         return EXIT_REFUSED

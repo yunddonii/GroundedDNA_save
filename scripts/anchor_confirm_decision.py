@@ -14,6 +14,13 @@ decide  -- the frozen N record (replayed) + evidence for every (dataset, anchors
            42/43/44) + one probe per record -> per dataset the descriptive validation summary
            (retrieval and code-to-own-axis per seed, mean, sample SD) and the stage-R membership it
            implies: a scratch full-train anchor refit at the frozen N for seeds 42/43/44.
+lambda  -- stage L (generation v8, contract docs/ANCHOR_LAMBDA_CONTRACT_v1.md): the audit-accepted
+           v7 frozen N record and stage-D summary, read at their pinned digests as historical
+           metadata (never replayed), + this generation's stage-L campaign evidence (continuity
+           control and one-lambda candidates, seed 42) -> per scope dataset the control gate, each
+           candidate's unrounded delta against the strict threshold, the per-axis winners and the
+           reselection obligations of a changed recipe. Historical metadata and new evidence keep
+           distinct roles; the S/D admission is unchanged and admits no stage-L record.
 
 Evidence authority (audit 672.1, 679). A record counts for its coordinate only through a completed
 anchor-confirmation campaign that ran under an audit approval: the pinned receipt lists the
@@ -168,12 +175,12 @@ def expected_coordinates(stage: str, *, arms, frozen=None) -> list:
 
 
 def campaign_approval(snapshot: dict, scope: str, *, manifest_sha256: str, selection_sha256,
-                      receipt: dict, record: dict, coordinate) -> dict:
+                      receipt: dict, record: dict, coordinate, label=None, lambda_rule=None) -> dict:
     """The approval and execution request the campaign names in its plan snapshot, re-verified in
     the audit ledger now (audit 679.1, 689.2): the same line must still stand in the same section,
-    for this scope, this generation, (stage D) this frozen N record and exactly this request; and
-    the request must be the one this record ran under -- stage, mode, namespace, result root and a
-    cell equal to the record's coordinate."""
+    for this scope, this generation, (stage D, stage L) this frozen N record and exactly this
+    request; and the request must be the one this record ran under -- stage, mode, namespace, result
+    root and a cell equal to the record's coordinate (in stage L, with the cell's `label`)."""
     authorities = snapshot["plan"].get("authorities") or {}
     recorded = authorities.get("anchor_approval")
     need(isinstance(recorded, dict), "the campaign names no audit approval")
@@ -189,17 +196,25 @@ def campaign_approval(snapshot: dict, scope: str, *, manifest_sha256: str, selec
         pins["selection"] = selection_sha256
     live = M.audit_approval(recorded.get("section"), scope, **pins)
     need(live["line"] == recorded.get("line"), "the approval line the campaign recorded is not the ledger's")
-    stage = "select" if scope.startswith("stage-S") else "decide"
+    stage = ("select" if scope.startswith("stage-S") else
+             M.ANCHOR_LAMBDA_STAGE if scope.startswith("stage-L") else "decide")
+    need((label is None) == (stage != M.ANCHOR_LAMBDA_STAGE) == (lambda_rule is None),
+         f"{coordinate}: a cell label and a preregistered rule belong to stage L and to stage L only")
+    need(request.get("lambda") == lambda_rule,
+         f"{coordinate}: the campaign's request does not bind the preregistered stage-L rule")
     seals = snapshot.get("input_seals")
     admitted = {key: {"path": (a or {}).get("seal_path"), "sha256": (a or {}).get("seal_file_sha256")}
                 for key, a in (seals or {}).items()} if isinstance(seals, dict) else None
     need(bool(admitted) and admitted == request.get("input_seals"),
          "the campaign's admitted input seals are not its approved request's")
+    cells = request.get("cells") or []
+    named = (any(same_cell(cell, coordinate) for cell in cells) if label is None else
+             any(isinstance(cell, list) and len(cell) == 5 and same_cell(cell[:4], coordinate)
+                 and cell[4] == label for cell in cells))
     need(request.get("schema") == M.REQUEST_SCHEMA and request.get("stage") == stage
          and request.get("mode") == "run" and request.get("manifest") == manifest_sha256
-         and request.get("selection") == (selection_sha256 if stage == "decide" else None)
-         and request.get("namespace") == receipt.get("namespace")
-         and any(same_cell(cell, coordinate) for cell in request.get("cells") or [])
+         and request.get("selection") == (selection_sha256 if stage != "select" else None)
+         and request.get("namespace") == receipt.get("namespace") and named
          and Path(record["run_dir"]).parent == Path(str(request.get("result_root"))),
          f"{coordinate}: the campaign's approved execution request is not the one this record ran under")
     return {"section": live["section"], "scope": scope, "line": live["line"],
@@ -218,8 +233,17 @@ def probe_request(manifest_sha256: str, selection_sha256: str, records: dict) ->
 
 
 def admit_metadata(consumed: Consumed, coordinate, entry: dict, *, incumbent: dict,
-                   manifest_sha256: str, selection_sha256=None) -> dict:
-    """JSON-level admission of one record; no binary artifact is opened here."""
+                   manifest_sha256: str, selection_sha256=None, role=None, overrides=(),
+                   lambda_rule=None) -> dict:
+    """JSON-level admission of one record; no binary artifact is opened here. `role="lambda"` (stage
+    L only, `reduce_lambda`) admits a stage-L cell: its cell id carries the cell's one declared
+    candidate (`overrides`, none for the continuity control), its campaign ran under a stage-L-run
+    approval, and its sealed recipe carries the stage-L protocol values. Without a role the S/D
+    admission is unchanged, and an override refuses."""
+    need(role in (None, "lambda"), f"unknown admission role {role!r}")
+    overrides = tuple((str(f), str(v)) for f, v in overrides)
+    need(role == "lambda" or not overrides, "an S/D record carries no lambda override")
+    label = M.anchor_lambda_label(coordinate[0], overrides) if role == "lambda" else None
     from dna_utils.run_identity import PHASE3_CAMPAIGN_BINDING_NAME
     from dna_utils.scientific_recipe import RecipeMismatch, canonical, check_payload_shape
     from dna_utils.scientific_recipe import digest as recipe_digest
@@ -252,7 +276,7 @@ def admit_metadata(consumed: Consumed, coordinate, entry: dict, *, incumbent: di
              and is_sha256(receipt.get("plan_snapshot_sha256")),
              f"{entry['receipt']}: no campaign nonce or plan snapshot digest")
         cell_id = M.campaign_cell_id(ds, n, topp=incumbent[ds]["topp"], joint=incumbent[ds]["joint"],
-                                     stage="select", seed=seed, anchor_arm=arm)
+                                     stage="select", seed=seed, overrides=overrides, anchor_arm=arm)
         cell = (receipt.get("cells") or {}).get(cell_id)
         need(isinstance(cell, dict), f"{entry['receipt']}: no completed cell {cell_id}")
         cell = cell if isinstance(cell, dict) else {}
@@ -275,9 +299,12 @@ def admit_metadata(consumed: Consumed, coordinate, entry: dict, *, incumbent: di
         generation = ((snapshot["plan"].get("authorities") or {}).get("anchor_manifest") or {})
         need(is_sha256(generation.get("sha256")),
              f"{receipt['plan_snapshot_file']}: the campaign names no generation manifest")
-        approval = campaign_approval(snapshot, "stage-S-run" if seed == M.SEED else "stage-D-run",
+        scope = ("stage-L-run" if role == "lambda" else
+                 "stage-S-run" if seed == M.SEED else "stage-D-run")
+        approval = campaign_approval(snapshot, scope,
                                      manifest_sha256=manifest_sha256, selection_sha256=selection_sha256,
-                                     receipt=receipt, record=record, coordinate=coordinate)
+                                     receipt=receipt, record=record, coordinate=coordinate, label=label,
+                                     lambda_rule=lambda_rule)
         binding = snapshot["plan"]["cell_bindings"].get(cell_id)
         need(isinstance(binding, dict) and binding.get("anchor_arm") == arm,
              f"{cell_id}: the plan snapshot does not seal this arm's recipe")
@@ -298,7 +325,9 @@ def admit_metadata(consumed: Consumed, coordinate, entry: dict, *, incumbent: di
                              ("hf_identity_sha256", (inputs.get("hf_runtime") or {}).get("identity_sha256"))):
             need(is_sha256(value) and campaign.get(field) == value and binding.get(field) == value,
                  f"{cell_id}: its launch or cell binding's {field} is not the admitted seal's")
-        want = M.anchor_protocol_fields(ds, n, seed=seed, arm=arm, incumbent=incumbent)
+        want = (M.anchor_lambda_protocol_fields(ds, n, overrides=overrides, incumbent=incumbent)
+                if role == "lambda" else
+                M.anchor_protocol_fields(ds, n, seed=seed, arm=arm, incumbent=incumbent))
         wrong = sorted(k for k, v in want.items()
                        if k not in payload["fields"] or canonical(payload["fields"][k]) != canonical(v))
         need(not wrong, f"{cell_id}: the sealed recipe is not the contract's for {coordinate}: {wrong[:6]}")
@@ -336,7 +365,7 @@ def admit_metadata(consumed: Consumed, coordinate, entry: dict, *, incumbent: di
     need(score == proportion(selection["selection_value"], "record selection value"),
          f"{entry['record']}: the record's selection value is not the pinned log's")
     return {"record": record, "entry": entry, "run_dir": run_dir, "score": score,
-            "authority": authority, "config_pt_sha256": config_pin}
+            "authority": authority, "config_pt_sha256": config_pin, "sealed_fields": payload["fields"]}
 
 
 def verify_config_pin(consumed: Consumed, admitted: dict) -> str:
@@ -563,6 +592,141 @@ def reduce_decide(args, manifest: dict) -> dict:
             "_consumed": consumed}
 
 
+LAMBDA_KIND = "anchor_confirmation_lambda_decision"
+
+
+def lambda_history(consumed: Consumed, incumbent: dict) -> dict:
+    """The generation-v7 metadata stage L compares against: the launcher's reader of the
+    audit-accepted digests (contract L v1 section 2), with those same files' bytes recorded in this
+    reduction's read set. Historical metadata in its own role, never evidence of this generation."""
+    try:
+        history = M.anchor_v7_history(incumbent)
+    except M.CellRefused as error:
+        raise NotReducible(f"v7 history: {error}") from None
+    consumed.read(M.ANCHOR_V7_SELECTION, M.ANCHOR_V7_SELECTION_SHA256)
+    consumed.read(M.ANCHOR_V7_DECISION, M.ANCHOR_V7_DECISION_SHA256)
+    consumed.read(M.ANCHOR_V7_S_RECEIPT, M.ANCHOR_V7_S_RECEIPT_SHA256)
+    return history
+
+
+def lambda_coordinates(history: dict) -> list:
+    """`(dataset, "anchors", N, 42, label)` of every stage-L cell, in run order."""
+    return [(ds, "anchors", history[ds]["N"], M.SEED, label)
+            for ds in M.ANCHOR_LAMBDA_SCOPE
+            for label in (M.ANCHOR_LAMBDA_CONTROL,
+                          *("=".join(c) for c in M.ANCHOR_LAMBDA_CANDIDATES[ds]))]
+
+
+def axis_winner(qualifying: list, incumbent_value: float):
+    """The highest qualifying score wins; on an exact tie the value closer to the incumbent, then
+    the smaller value (contract L v1 section 5). `qualifying` holds (value, score) pairs."""
+    if not qualifying:
+        return None
+    from decimal import Decimal
+    def nearness(value):                       # exact decimal distance of the declared values
+        return abs(Decimal(repr(float(value))) - Decimal(repr(float(incumbent_value))))
+    return min(qualifying, key=lambda vs: (-vs[1], nearness(vs[0]), vs[0]))[0]
+
+
+def reduce_lambda(args, manifest: dict) -> dict:
+    """Stage L's decision (contract L v1 sections 4-6): the continuity control must equal the v7
+    incumbent's seed-42 score exactly; a candidate qualifies iff its score minus that score exceeds
+    the threshold max(0.002, v7 seed range), strictly and unrounded; per axis the highest qualifier
+    wins. Historical v7 metadata and new-generation evidence keep distinct roles: the v7 files are
+    read at their pinned digests, and every L record must come from this generation's stage-L
+    campaign. No score selects the architecture; a change only states its reselection obligations."""
+    consumed = Consumed()
+    incumbent = M.anchor_incumbent()
+    need(manifest["sha256"] != M.ANCHOR_V7_MANIFEST_SHA256,
+         "stage-L evidence comes from a new generation, never the v7 manifest")
+    history = lambda_history(consumed, incumbent)
+    coords = lambda_coordinates(history)
+    sources = consumed.json(args.sources, args.sources_sha256)
+    need(sources.get("version") == M.ANCHOR_CONFIRM_VERSION, f"{args.sources}: wrong sources version")
+    entries = sources.get("coordinates")
+    need(isinstance(entries, list), f"{args.sources}: no coordinate list")
+    keyed = {}
+    for entry in entries:
+        key = (entry["dataset"], entry["arm"], exact_int(entry["N"], "N"), exact_int(entry["seed"], "seed"),
+               entry.get("lambda"))
+        need(key not in keyed, f"duplicate evidence for {key}")
+        keyed[key] = entry
+    need(set(keyed) == set(coords),
+         f"stage-L evidence membership differs from the contract: missing "
+         f"{sorted(set(coords) - set(keyed))[:4]}, extra {sorted(set(keyed) - set(coords), key=str)[:4]}")
+    digests = [entry["record_sha256"] for entry in entries]
+    need(len(set(digests)) == len(digests), "one record is reused across stage-L cells")
+    admitted = {}
+    for c in coords:
+        overrides = M.anchor_lambda_overrides(c[0], c[4])
+        admitted[c] = admit_metadata(consumed, c[:4], keyed[c], incumbent=incumbent,
+                                     manifest_sha256=manifest["sha256"],
+                                     selection_sha256=M.ANCHOR_V7_SELECTION_SHA256,
+                                     role="lambda", overrides=overrides,
+                                     lambda_rule=M.anchor_lambda_rule(history))
+    one_generation(admitted, manifest["sha256"])
+    configs = {c: verify_config_pin(consumed, admitted[c]) for c in coords}
+    from dna_utils.scientific_recipe import canonical, field_differences
+    datasets = {}
+    for ds in M.ANCHOR_LAMBDA_SCOPE:
+        h = history[ds]
+        control = admitted[(ds, "anchors", h["N"], M.SEED, M.ANCHOR_LAMBDA_CONTROL)]
+        drift = field_differences(h["fields"], control["sealed_fields"])
+        need(not drift, f"{ds}: the continuity control's sealed recipe is not the v7 stage-S seed-42 "
+                        f"cell's: {drift[:6]}")
+        need(control["score"] == h["incumbent_seed42"],
+             f"{ds}: the continuity control scored {control['score']!r}, not the v7 incumbent "
+             f"seed-42 score {h['incumbent_seed42']!r}; no decision is made (contract L v1 section 4)")
+        incumbent_lambdas = {flag: float(v) for flag, v in M.LAMBDA_INCUMBENT[ds].items()}
+        candidates, qualifying = [], {flag: [] for flag in M.LAMBDA_AXES}
+        for flag, value in M.ANCHOR_LAMBDA_CANDIDATES[ds]:
+            c = (ds, "anchors", h["N"], M.SEED, f"{flag}={value}")
+            moved = field_differences(control["sealed_fields"], admitted[c]["sealed_fields"])
+            need(moved == [flag] and canonical(admitted[c]["sealed_fields"][flag]) == canonical(float(value)),
+                 f"{c}: its sealed recipe differs from the control in {moved}, not in {flag}={value}")
+            score = admitted[c]["score"]
+            delta = score - h["incumbent_seed42"]
+            qualifies = delta > h["threshold"]
+            candidates.append({"axis": flag, "value": float(value), "score": score, "delta": delta,
+                               "qualifies": qualifies, "record_sha256": admitted[c]["entry"]["record_sha256"],
+                               "config_pt_sha256": configs[c]})
+            if qualifies:
+                qualifying[flag].append((float(value), score))
+        winners = {flag: axis_winner(qualifying[flag], incumbent_lambdas[flag]) for flag in M.LAMBDA_AXES}
+        recipe = {flag: (winners[flag] if winners[flag] is not None else incumbent_lambdas[flag])
+                  for flag in M.LAMBDA_AXES}
+        changed = sorted(flag for flag in M.LAMBDA_AXES if winners[flag] is not None)
+        datasets[ds] = {
+            "N": h["N"], "incumbent_lambdas": incumbent_lambdas,
+            "incumbent_seed42": h["incumbent_seed42"], "seed_scores": h["seed_scores"],
+            "seed_range": h["seed_range"], "threshold": h["threshold"],
+            "control": {"score": control["score"], "equal_to_incumbent_seed42": True,
+                        "record_sha256": control["entry"]["record_sha256"],
+                        "config_pt_sha256": configs[(ds, "anchors", h["N"], M.SEED,
+                                                     M.ANCHOR_LAMBDA_CONTROL)]},
+            "candidates": candidates, "winners": winners, "recipe": recipe, "changed_axes": changed,
+            "obligations": ([f"reselect {ds}'s N for the new recipe on seed 42 over "
+                             f"{list(M.CANDIDATE_N)}, then stage D (seeds 43/44) and its three probes, "
+                             "in a new generation with its own contract, request and approval "
+                             "(contract v3 section 7.6 step 4)",
+                             f"{ds}'s old-lambda S/D/probe records stay historical",
+                             "each other dataset needs its OWN stage-L checks before its recipe "
+                             "changes; a Flickr25K winner is never copied (contract L v1 section 1)"]
+                            if changed else
+                            [f"keep {ds}'s approved lambdas; its v7 S/D/probe records stand for the "
+                             "freeze (contract L v1 section 1)"])}
+    return {"artifact_kind": LAMBDA_KIND, "version": M.ANCHOR_CONFIRM_VERSION,
+            "reducer": REDUCER_VERSION, "generation": generation_of(manifest),
+            "history": M.anchor_v7_pins(), "scope": list(M.ANCHOR_LAMBDA_SCOPE),
+            "fixed_architecture": dict(FIXED_ARCHITECTURE), "datasets": datasets,
+            "rule": M.anchor_lambda_rule(history),
+            "note": "train-only; seed 42; one lambda at a time; the continuity control is a "
+                    "diagnostic gate and its equality does not prove unchanged training; no "
+                    "significance, equivalence or superiority test; a changed recipe states its "
+                    "reselection obligations and is not final until the recipe freeze",
+            "_consumed": consumed}
+
+
 def write_once(path: Path, payload: dict) -> str:
     consumed = payload.pop("_consumed")
     changed = consumed.reverify()
@@ -578,12 +742,13 @@ def write_once(path: Path, payload: dict) -> str:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("stage", choices=("select", "decide"))
+    parser.add_argument("stage", choices=("select", "decide", "lambda"))
     parser.add_argument("--sources", required=True)
     parser.add_argument("--sources-sha256", required=True)
     parser.add_argument("--manifest", required=True, help="the reviewed generation manifest")
     parser.add_argument("--manifest-sha256", required=True)
-    parser.add_argument("--selection", help="decide: the frozen N record")
+    parser.add_argument("--selection", help="decide: the frozen N record (stage L binds the v7 "
+                        "record by its pinned digest and takes no --selection)")
     parser.add_argument("--selection-sha256")
     parser.add_argument("--arms", default="anchors", help="select: must be `anchors` (contract v3)")
     parser.add_argument("--out", required=True)
@@ -594,6 +759,10 @@ def main(argv=None) -> int:
         if args.stage == "select":
             payload = reduce_select(args.sources, args.sources_sha256, manifest=manifest,
                                     arms=tuple(a for a in args.arms.split(",") if a))
+        elif args.stage == "lambda":
+            need(not args.selection and not args.selection_sha256,
+                 "stage L binds the v7 frozen N record by its pinned digest; give no --selection")
+            payload = reduce_lambda(args, manifest)
         else:
             need(bool(args.selection) and bool(args.selection_sha256),
                  "decide needs --selection and --selection-sha256")
