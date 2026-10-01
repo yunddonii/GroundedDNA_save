@@ -548,7 +548,8 @@ def test_an_approved_run_verifies_inputs_then_leases_with_the_control_gate(tmp_p
     gate = entry.kwargs["control_gate"]
     control, candidate = lambda_cells()[0], lambda_cells()[1]
     assert gate(control, {"selection": {"selection_value": 0.5}}) is None
-    assert "continuity control scored" in gate(control, {"selection": {"selection_value": math.nextafter(0.5, 1)}})
+    refusal = gate(control, {"selection": {"selection_value": math.nextafter(0.5, 1)}})
+    assert refusal is not None and "continuity control scored" in refusal
     assert gate(candidate, {"selection": {"selection_value": 0.9}}) is None
     assert [M.anchor_lambda_label(c[0], M._cell_overrides(c)) for c in entry.kwargs["full_plan"]] == list(LABELS)
 
@@ -1040,9 +1041,12 @@ def test_the_reduction_reads_the_v7_files_and_deserialises_nothing(reducer):
 
 
 # ---- the S/D reducer is not opened to stage-L records ----------------------------------------------
-def test_an_s_d_admission_refuses_an_override():
+def test_an_s_d_admission_refuses_an_override(reducer, tmp_path):
+    """A real stage-S record with an override asked of the S/D admission: the role guard refuses
+    first (without it the admission would look for an overridden cell id and refuse otherwise)."""
+    s_world = RW.World(tmp_path / "S", [(FLICKR, "anchors", 4, 42)], ledger=reducer.ledger)
     with pytest.raises(D.NotReducible, match="carries no lambda override"):
-        D.admit_metadata(D.Consumed(), (FLICKR, "anchors", 4, 42), {}, incumbent=INC,
+        D.admit_metadata(D.Consumed(), (FLICKR, "anchors", 4, 42), s_world.entries[0], incumbent=INC,
                          manifest_sha256=RW.MANIFEST_SHA, overrides=(("lambda_bu", "0"),))
 
 
