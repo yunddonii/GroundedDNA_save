@@ -487,6 +487,55 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-01 [anchor confirmation — official stage-D summary, CPU reduction, complete] Audit §731: the D result of the fixed anchor model at the frozen N, seeds 42/43/44
+
+**Status:** ✅ the one approved reduction ran, rc 0. It is descriptive; no score selects anything.
+- **Stage-R membership:** 12 rows (4 datasets × seeds 42/43/44 at the frozen N). It is provisional
+  until the final freeze and carries no R/T permission.
+
+**What ran.** The exact §731.2 command, once, on CPU (`CUDA_VISIBLE_DEVICES=''`), 02:00:34 → 02:00:41
+UTC (6.9 s).
+- **Sources:** `ancP7_decide_sources.json` (`19678606…`). I built it independently from the probe
+  sources plus the twelve probe digests, and it is byte-identical to the audit's reference. It was
+  written with exclusive creation.
+- **Output:** `ancP7_decision.json` `28b10a4c850f508bacf4d9402cda8c458fe92d2bfc8b616e14a1a6ce9866cc32`;
+  stderr empty.
+- **Command record:** command, stdout, stderr, rc, start and end are in `ancP7_reduction/`
+  (`command.txt` `483a2e12…`).
+- **Read set:** 140 files: 24 `config.pt` byte checks (16 S + 8 D), no checkpoint, nothing
+  deserialised.
+
+**Official stage-D summary** (train-only validation, n = 3, mean ± sample SD with ddof 1;
+**descriptive, no test**):
+
+| dataset (frozen N) | mAP@R per seed 42/43/44 | mAP@R mean ± SD | own-axis per seed 42/43/44 | own-axis mean ± SD |
+|---|---|---:|---|---:|
+| CIFAR-10 (4) | .782328 / .791536 / .737983 | .770616 ± .028633 | .3260 / .3230 / .3485 | .332500 ± .013937 |
+| Flickr25K (4) | .764194 / .743644 / .736002 | .747947 ± .014580 | .3630 / .3325 / .4100 | .368500 ± .039042 |
+| NUS-WIDE (4) | .722516 / .729214 / .724658 | .725463 ± .003421 | .4435 / .4255 / .4165 | .428500 ± .013748 |
+| MS-COCO (39) | .634066 / .642574 / .630188 | .635610 ± .006336 | .4135 / .4240 / .4275 | .421667 ± .007286 |
+
+- **mAP@R** is raw base-Hamming at the terminal epoch: R = 1000 for CIFAR-10, 5000 for the others.
+- **Own-axis** is strict within-image code-to-own-axis top-1 accuracy, 2000 decisions per seed; chance
+  is .25.
+
+**Checks.**
+- The summary equals the audit's private arithmetic reference (`bb7164f9…`, 24 shared fields,
+  exact).
+- It also equals my independent recomputation from the records' selection values and the probe
+  envelopes (means and SDs within 1e-15).
+
+**Commits:** anchor branch `39c6770` (pushed).
+
+**Next (§731.3).**
+- The audit reviews the D result.
+- Prepare the TODO 13–15 lambda proposal (L): text and metadata only, no lambda training. Contract
+  v3 §7.6 sets its terms: axes and candidates, the selection rule, dependencies, generation and
+  historical handoff, tests, commands and a separate budget.
+- A changed lambda requires fresh S/D/probes for that dataset before the freeze.
+
+---
+
 ## 2026-10-01 [anchor confirmation probes — 12 coordinates, approved chain, complete] Audit §730: the code-to-own-axis probe ran on every stage-D coordinate; all twelve envelopes verified
 
 **Status:** ✅ 12/12 probes rc 0.
