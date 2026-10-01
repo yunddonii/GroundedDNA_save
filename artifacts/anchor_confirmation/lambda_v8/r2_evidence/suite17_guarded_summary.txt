@@ -1,0 +1,2 @@
+82 failed, 1002 passed, 3 skipped, 6 warnings in 449.57s (0:07:29)
+[guard] pytest rc 1; refused opens 85: ['/data/yschoi/groundeddna_cache_v6prov/cifar10_clip_tokens/meta.json', '/data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens/meta.json']

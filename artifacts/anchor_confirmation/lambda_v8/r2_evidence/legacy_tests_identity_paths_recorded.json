@@ -1,0 +1,54 @@
+{
+ "/data/yschoi/dataset/deephashing/cache/cifar10_qwen_v4.jsonl": {
+  "kind": "file",
+  "tests": 33
+ },
+ "/data/yschoi/dataset/deephashing/cache/flickr25k_qwen3_v4_trainset.jsonl": {
+  "kind": "file",
+  "tests": 33
+ },
+ "/data/yschoi/dataset/deephashing/cache/mscoco_qwen3_v5b_trainset.jsonl": {
+  "kind": "file",
+  "tests": 33
+ },
+ "/data/yschoi/dataset/deephashing/cache/nuswide_qwen3_v4_trainset.jsonl": {
+  "kind": "file",
+  "tests": 33
+ },
+ "/data/yschoi/groundeddna_cache_v6prov/cifar10_clip_tokens": {
+  "kind": "dir",
+  "tests": 52
+ },
+ "/data/yschoi/groundeddna_cache_v6prov/cifar10_clip_tokens_foils/text_whiten_optTrain_localOnly.npz": {
+  "kind": "file",
+  "tests": 33
+ },
+ "/data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens": {
+  "kind": "dir",
+  "tests": 33
+ },
+ "/data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens_foils/text_whiten_optTrain_localOnly.npz": {
+  "kind": "file",
+  "tests": 33
+ },
+ "/data/yschoi/groundeddna_cache_v6prov/mscoco_clip_tokens": {
+  "kind": "dir",
+  "tests": 33
+ },
+ "/data/yschoi/groundeddna_cache_v6prov/mscoco_clip_tokens_foils/text_whiten_optTrain_localOnly.npz": {
+  "kind": "file",
+  "tests": 33
+ },
+ "/data/yschoi/groundeddna_cache_v6prov/nuswide_clip_tokens": {
+  "kind": "dir",
+  "tests": 33
+ },
+ "/data/yschoi/groundeddna_cache_v6prov/nuswide_clip_tokens_foils/text_whiten_optTrain_localOnly.npz": {
+  "kind": "file",
+  "tests": 33
+ },
+ "/tmp/not_the_cache": {
+  "kind": "absent",
+  "tests": 2
+ }
+}

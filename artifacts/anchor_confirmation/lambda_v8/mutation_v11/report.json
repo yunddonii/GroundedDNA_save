@@ -1,0 +1,565 @@
+{
+ "baseline": [
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.8,
+   "test": "test_an_anchor_cell_moves_axis_center_alone_or_one_declared_stage_l_lambda[nuswide-overrides3]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.5,
+   "test": "test_eight_tuples_are_anchor_cells_and_nothing_else_changes"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.4,
+   "test": "test_a_candidate_sealed_with_a_second_change_refuses"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.0,
+   "test": "test_a_control_off_its_reference_stops_the_stream_before_any_candidate[0.5000000000000001]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.9,
+   "test": "test_a_control_off_its_reference_stops_the_stream_before_any_candidate[0.75]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.0,
+   "test": "test_a_control_off_the_v7_score_refuses_the_decision[0.5000000000000001]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.0,
+   "test": "test_a_control_whose_recipe_is_not_the_v7_cells_refuses"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.1,
+   "test": "test_a_crossed_ledger_root_refuses[stage-L-run-/home/yschoi/gdna_anchor4_ops]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.1,
+   "test": "test_a_lambda_repeat_after_another_literal_cannot_be_sealed"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.8,
+   "test": "test_a_receipt_listing_a_cell_beyond_the_six_refuses"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.9,
+   "test": "test_a_render_that_moves_a_second_field_refuses"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.2,
+   "test": "test_a_request_declaring_a_cell_beyond_the_six_refuses"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.0,
+   "test": "test_a_request_without_the_preregistered_rule_refuses"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.2,
+   "test": "test_an_approved_run_verifies_inputs_then_leases_with_the_control_gate"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.8,
+   "test": "test_an_incumbent_that_is_not_the_v7_cells_recipe_refuses"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.9,
+   "test": "test_an_off_contract_plan_refuses[<lambda>-lacks0]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.0,
+   "test": "test_an_s_d_admission_refuses_an_override"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.1,
+   "test": "test_every_cell_receives_its_own_override_and_the_campaign_completes"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 6.0,
+   "test": "test_inconsistent_v7_history_refuses[decision-<lambda>-not the frozen N record's]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.4,
+   "test": "test_the_highest_qualifier_wins_and_ties_go_to_the_value_nearer_the_incumbent"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.3,
+   "test": "test_the_plan_previews_the_stage_l_request_and_touches_nothing"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.3,
+   "test": "test_the_reduction_records_every_historical_file_it_read"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.2,
+   "test": "test_the_snapshot_binding_seals_each_cells_own_override[lambda_bu=0]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.3,
+   "test": "test_the_threshold_is_strict_on_unrounded_values"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.3,
+   "test": "test_the_v7_snapshot_changing_before_publication_refuses_and_writes_nothing"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.4,
+   "test": "test_two_complete_campaigns_cannot_be_mixed[candidates_from_another_campaign]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.4,
+   "test": "test_two_complete_campaigns_cannot_be_mixed[substituted_control]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "seconds": 5.2,
+   "test": "test_two_lambda_repeats_cannot_be_sealed[tail0-moves one lambda]"
+  }
+ ],
+ "commit": "1469669",
+ "mutants": [
+  {
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "LX1 the stream passes no override in anchor mode",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert [(label, overrides) for _, label, overrides in ran] == ",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.4,
+     "test": "test_every_cell_receives_its_own_override_and_the_campaign_completes"
+    }
+   ]
+  },
+  {
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "LX2 the plan snapshot seals no override",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert {k: fields[k] for k in M.LAMBDA_AXES} == {k: want[k] for k in M.LAMBDA_AXES}",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.2,
+     "test": "test_the_snapshot_binding_seals_each_cells_own_override[lambda_bu=0]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "LX3 the stream ignores the control gate",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert stream.go() == 1",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.5,
+     "test": "test_a_control_off_its_reference_stops_the_stream_before_any_candidate[0.75]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "LX4 the gate tolerates a near score",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert stream.go() == 1",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.2,
+     "test": "test_a_control_off_its_reference_stops_the_stream_before_any_candidate[0.5000000000000001]"
+    },
+    {
+     "declared_text": "assert refusal is not None and \"continuity control scored\" in refusal",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.1,
+     "test": "test_an_approved_run_verifies_inputs_then_leases_with_the_control_gate"
+    }
+   ]
+  },
+  {
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "LX5 the admission skips the v7 incumbent comparison",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.0,
+     "test": "test_an_incumbent_that_is_not_the_v7_cells_recipe_refuses"
+    }
+   ]
+  },
+  {
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "LX6 the admission accepts any difference from the incumbent",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.0,
+     "test": "test_a_render_that_moves_a_second_field_refuses"
+    }
+   ]
+  },
+  {
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "LX7 the admission does not require the control and every candidate",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.0,
+     "test": "test_an_off_contract_plan_refuses[<lambda>-lacks0]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "LX8 an anchor cell tuple admits any override",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.6,
+     "test": "test_eight_tuples_are_anchor_cells_and_nothing_else_changes"
+    }
+   ]
+  },
+  {
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "LX9 an anchor command admits any override",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.5,
+     "test": "test_an_anchor_cell_moves_axis_center_alone_or_one_declared_stage_l_lambda[nuswide-overrides3]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "LX10 the v7 D seed-42 score is not tied to the N record",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.0,
+     "test": "test_inconsistent_v7_history_refuses[decision-<lambda>-not the frozen N record's]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_confirm_decision.py",
+   "mutant": "LX11 the reducer threshold is not strict",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert by[(\"lambda_bu\", 0.0)][\"delta\"] == 0.25 and by[(\"lambda_bu\", 0.0)][\"qualifies\"] is False",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.0,
+     "test": "test_the_threshold_is_strict_on_unrounded_values"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_confirm_decision.py",
+   "mutant": "LX12 the reducer drops the control equality",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert rc == 1",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.0,
+     "test": "test_a_control_off_the_v7_score_refuses_the_decision[0.5000000000000001]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_confirm_decision.py",
+   "mutant": "LX13 the reducer skips the control-to-v7 recipe check",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert rc == 1 and \"continuity control's sealed recipe\" in capsys.readouterr().err",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.2,
+     "test": "test_a_control_whose_recipe_is_not_the_v7_cells_refuses"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_confirm_decision.py",
+   "mutant": "LX14 the reducer skips the one-lambda check",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert rc == 1 and",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.2,
+     "test": "test_a_candidate_sealed_with_a_second_change_refuses"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_confirm_decision.py",
+   "mutant": "LX15 the request's preregistered rule is not checked",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert rc == 1 and",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.0,
+     "test": "test_a_request_without_the_preregistered_rule_refuses"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_confirm_decision.py",
+   "mutant": "LX16 the tie order prefers the farther value",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert result[\"datasets\"][FLICKR][\"winners\"] == {\"lambda_wasserstein\": 0.3, \"lambda_bu\": None,",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.0,
+     "test": "test_the_highest_qualifier_wins_and_ties_go_to_the_value_nearer_the_incumbent"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_confirm_decision.py",
+   "mutant": "LX17 the S/D admission admits an override",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "Regex pattern did not match",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.9,
+     "test": "test_an_s_d_admission_refuses_an_override"
+    }
+   ]
+  },
+  {
+   "file": "dna_utils/scientific_recipe.py",
+   "mutant": "LX18 two lambda repeats can be sealed",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.9,
+     "test": "test_two_lambda_repeats_cannot_be_sealed[tail0-moves one lambda]"
+    }
+   ]
+  },
+  {
+   "file": "dna_utils/scientific_recipe.py",
+   "mutant": "LX19 a lambda repeat after another literal can be sealed",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.1,
+     "test": "test_a_lambda_repeat_after_another_literal_cannot_be_sealed"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "LX20 the supervisor lets stage L use another ledger root",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "seconds": 5.9,
+     "test": "test_a_crossed_ledger_root_refuses[stage-L-run-/home/yschoi/gdna_anchor4_ops]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "LX21 the request omits the preregistered rule",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert request.get(\"lambda\") == M.anchor_lambda_rule(M.anchor_v7_history(INC))",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.3,
+     "test": "test_the_plan_previews_the_stage_l_request_and_touches_nothing"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_confirm_decision.py",
+   "mutant": "LX22 the decision does not require one campaign",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert rc == 1 and \"come from 2 campaign receipts\" in capsys.readouterr().err",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.3,
+     "test": "test_two_complete_campaigns_cannot_be_mixed[candidates_from_another_campaign]"
+    },
+    {
+     "declared_text": "assert rc == 1 and \"come from 2 campaign receipts\" in capsys.readouterr().err",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.1,
+     "test": "test_two_complete_campaigns_cannot_be_mixed[substituted_control]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_confirm_decision.py",
+   "mutant": "LX23 the receipt's cell membership is not checked",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert rc == 1 and \"beyond or short of the 6 stage-L cells\" in capsys.readouterr().err",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.0,
+     "test": "test_a_receipt_listing_a_cell_beyond_the_six_refuses"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_confirm_decision.py",
+   "mutant": "LX24 the request's cell membership is not checked",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert rc == 1 and \"execute and declare exactly the stage-L cells\" in capsys.readouterr().err",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.1,
+     "test": "test_a_request_declaring_a_cell_beyond_the_six_refuses"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_confirm_decision.py",
+   "mutant": "LX25 the historical reads bypass the read-once record",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert str(snapshot) in payload[\"_consumed\"].digests",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.4,
+     "test": "test_the_v7_snapshot_changing_before_publication_refuses_and_writes_nothing"
+    },
+    {
+     "declared_text": "assert {str(M.ANCHOR_V7_SELECTION), str(M.ANCHOR_V7_DECISION), str(M.ANCHOR_V7_S_RECEIPT),",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.0,
+     "test": "test_the_reduction_records_every_historical_file_it_read"
+    }
+   ]
+  },
+  {
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "LX26 the v7 snapshot alone is read outside the reader",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert {str(M.ANCHOR_V7_SELECTION), str(M.ANCHOR_V7_DECISION), str(M.ANCHOR_V7_S_RECEIPT),",
+     "intended": true,
+     "rc": 1,
+     "seconds": 6.1,
+     "test": "test_the_reduction_records_every_historical_file_it_read"
+    }
+   ]
+  }
+ ],
+ "sandbox_restored": true,
+ "status_equal": true,
+ "stray_processes": "",
+ "tracked_after": "f6780ebd93d1ee061f04acd16bf31e564772a444b3b0369b65441d7138c38ef9",
+ "tracked_before": "f6780ebd93d1ee061f04acd16bf31e564772a444b3b0369b65441d7138c38ef9"
+}
