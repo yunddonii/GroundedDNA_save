@@ -487,6 +487,57 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-01 [anchor model stage L — official CPU reduction, complete] Audit §741: Flickr25K keeps its lambdas (no candidate qualifies)
+
+**Status:** ✅ the one approved reduction ran, rc 0. **Decision: Flickr25K's lambdas stay at
+transport 0.15 / balance 0.02 / text 0.05.** Under the Flickr-first scope, no other dataset gets a
+stage-L run. This ends the contracted L scope. It does not show the lambdas are globally optimal,
+that anchors are better, or that R/T and the downstream TODOs are done.
+
+**What ran.** The exact §741.1 command, once, on CPU (`CUDA_VISIBLE_DEVICES` empty).
+- 07:38:59.98 → 07:39:05.43 UTC (5.5 s), rc 0, stderr empty.
+- Output `ancL8_lambda_decision.json` `22014e6bc21dee508eb949a0272b2bf60b4a33ee706e8c301f716c114932f37e`
+  (exclusive create, mode 0444).
+- Command record in `ancL8_reduction/` (`command.txt` `cd982aec…`, `stdout.txt` `52bbdb0f…`).
+
+**Official result** (Flickr25K, anchors, N4, seed 42; raw base-Hamming mAP@R on train-only
+validation; T = 0.02819158958924184, the v7 seed range, strict and unrounded):
+
+| Candidate | mAP@R | Δ vs 0.7641936888306327 | qualifies (Δ > T) |
+|---|---|---|---|
+| control (incumbent) | 0.7641936888306327 | 0 (equal) | — |
+| transport 0.30 | 0.7509178118500363 | −0.013275876980596402 | no |
+| transport 0.50 | 0.7478209636840679 | −0.016372725146564737 | no |
+| balance 0 | 0.7587559463435585 | −0.005437742487074182 | no |
+| text 0.025 | 0.7440719904260422 | −0.020121698404590438 | no |
+| text 0.10 | 0.7574857133037165 | −0.0067079755269161545 | no |
+
+- Winners: none on any axis. `changed_axes` is empty.
+- The reducer's obligation text: "keep flickr25k's approved lambdas; its v7 S/D/probe records stand
+  for the freeze".
+- No significance or equivalence test was run. Δ is a seed-42 difference judged against the
+  preregistered threshold only.
+
+**Checks.**
+- **Deltas:** my recomputation from the records' selection values equals the reducer's exactly.
+- **Read set:** `consumed_sha256` lists 39 unique paths: 6 historical, sources, receipt, snapshot,
+  6 records, and 6 each of binding, sidecar, `log.csv` and `config.pt`.
+  - The 33 non-`config.pt` files re-hash to the recorded digests.
+  - The 6 `config.pt` entries equal their records' anchor pins. I did not re-read them.
+  - As §741 notes, this map lists unique paths, not every open. The manifest, closure, imports and
+    audit ledger are checked outside it.
+- **State after the run:** the tree is head-clean. Both GPU ledgers are unchanged (L `477e447c…`,
+  S/D `986bdcd1…`); no GPU process.
+
+**Commits:** anchor-lambda branch `090841a` (pushed).
+
+**Next (§741.2).** The audit verifies this output. After that comes the four-dataset F record
+(contract v3 §7.6): anchors for all four datasets, N 4/4/4/39, the approved lambdas, and each
+dataset's validating S/D/probe generation. Preparation only; F, R, T and downstream need their own
+approvals.
+
+---
+
 ## 2026-10-01 [anchor model stage L — CPU reduction submitted, nothing run] Audit §740: the campaign is accepted; the exact reduction command awaits permission
 
 **Status:** ✅ submission complete. Branch `arch-exp-2026-09-anchor-lambda`, `4c03438` (pushed). The
