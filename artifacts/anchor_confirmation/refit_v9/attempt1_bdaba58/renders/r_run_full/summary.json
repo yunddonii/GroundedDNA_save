@@ -1,0 +1,41 @@
+{
+ "script": "scripts/phase3_selection_matrix.py",
+ "args": [
+  "--anchor-confirm",
+  "refit",
+  "--anchor-manifest",
+  "artifacts/anchor_confirmation/authority_manifest_v9.json",
+  "--anchor-manifest-sha256",
+  "19acd584065d59050a4f25ead354b378fadb5d116808addc7cffd78bd1ff72fa",
+  "--result-root",
+  "/home/yschoi/gdna_anchorRT_result",
+  "--input-seal",
+  "cifar10:refit=/data/yschoi/gdna_p3exec_seals/cifar10.refit.input-seal.json",
+  "--input-seal",
+  "flickr25k:refit=/data/yschoi/gdna_p3exec_seals/flickr25k.refit.input-seal.json",
+  "--input-seal",
+  "nuswide:refit=/data/yschoi/gdna_p3exec_seals/nuswide.refit.input-seal.json",
+  "--input-seal",
+  "mscoco:refit=/data/yschoi/gdna_p3exec_seals/mscoco.refit.input-seal.json",
+  "--namespace",
+  "ancR9",
+  "--run",
+  "--gpus",
+  "0,1,2,3",
+  "--plan"
+ ],
+ "exit": 0,
+ "allowed_named": [
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_snapshot_23e0763089474895.json",
+  "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancF_candidate_v1.json",
+  "/data/yschoi/gdna_anchor_refit_v9/artifacts/anchor_confirmation/authority_manifest_v9.json",
+  "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/p3rfB_refit_aggregate.json",
+  "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/selected_n.json",
+  "/data/yschoi/gdna_p3exec_seals/cifar10.refit.input-seal.json",
+  "/data/yschoi/gdna_p3exec_seals/flickr25k.refit.input-seal.json",
+  "/data/yschoi/gdna_p3exec_seals/mscoco.refit.input-seal.json",
+  "/data/yschoi/gdna_p3exec_seals/nuswide.refit.input-seal.json",
+  "/home/yschoi/GroundedDNA/docs/PHASE1_PHASE2_REAUDIT_2026-08-14.md"
+ ],
+ "refused": []
+}

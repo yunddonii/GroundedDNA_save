@@ -1,0 +1,3 @@
+..........s                                                              [100%]
+1231 passed, 4 skipped in 491.80s (0:08:11)
+[guard] pytest rc 0; refused opens 0: []

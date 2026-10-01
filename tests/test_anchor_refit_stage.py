@@ -728,6 +728,16 @@ def test_composed_another_scope_does_not_approve_stage_r(tmp_path, rmain, monkey
     assert rmain.calls == []
 
 
+def test_composed_a_run_scope_line_does_not_approve_a_stage_r_smoke(tmp_path, rmain, monkeypatch, capsys):
+    """A stage-R-run line naming the smoke's own request digest still does not approve the smoke: the
+    scope follows the mode (battery v13 attempt 1, RX13: a stage-S scope refuses every line because it
+    carries no F pin, so it could not show this)."""
+    _, digest = preview(monkeypatch, capsys, [*rmain.base, *SMOKE])
+    extra = approve(tmp_path, monkeypatch, "stage-R-run", rmain.manifest, digest, freeze=rmain.fworld.sha)
+    assert LT.run_main(monkeypatch, *rmain.base, *SMOKE, *extra) == 2
+    assert rmain.calls == []
+
+
 def test_composed_an_approval_naming_another_f_record_refuses(tmp_path, rmain, monkeypatch, capsys):
     _, digest = preview(monkeypatch, capsys, [*rmain.base, *RUN])
     extra = approve(tmp_path, monkeypatch, "stage-R-run", rmain.manifest, digest, freeze="2" * 64)

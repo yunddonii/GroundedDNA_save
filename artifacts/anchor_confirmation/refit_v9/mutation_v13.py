@@ -1,7 +1,13 @@
-"""Mutation battery v13 (generation v9, stages R and T; audits 743-744).
+"""Mutation battery v13 (generation v9, stages R and T; audits 743-744), revision b.
+
+Attempt 1 at bdaba58 detected 22/24 as declared: RX13 (a stage-S scope) was an always-refusing
+mutant (a stage-S scope carries no F pin, so every line refuses) and is replaced by a run-scope line
+approving a smoke, with a new test; RX16 was detected by its tests but for another reason than
+declared (the [None] retry re-ran the chain and failed at record publication), so it now declares
+the [0] case, where the overwritten reservation lets a retry run silently.
 
 v12's bounded and guarded method, unchanged except for its paths: the v9 worktree, the v9 manifest
-(artifacts/anchor_confirmation/authority_manifest_v9.json) and the v9 copies of bounded_tree.py and
+(artifacts/anchor_confirmation/authority_manifest_v9r2.json) and the v9 copies of bounded_tree.py and
 guarded_pytest.py under artifacts/anchor_confirmation/refit_v9/. Content hashes ONLY for the reviewed
 inventory (the manifest closure plus the declared test files); every other tracked file by git index
 object id and stat; the harness under its own open() guard (binary payloads, real-data roots and
@@ -91,11 +97,11 @@ MUTANTS = [
      '        if False:\n',
      [((T, "test_composed_stage_r_takes_only_the_approved_refit_seals"),
        "assert LT.run_main(monkeypatch, *base, *RUN, *extra) == 2")]),
-    ("RX13 stage R is approved under a stage-S scope", RT,
+    ("RX13 a stage-R smoke is approved by a run-scope line", RT,
      "        scope = f\"stage-R-{'smoke' if args.smoke else 'run'}\"\n",
-     "        scope = f\"stage-S-{'smoke' if args.smoke else 'run'}\"\n",
-     [((T, "test_composed_another_scope_does_not_approve_stage_r[stage-S-run]"),
-       "assert LT.run_main(monkeypatch, *rmain.base, *RUN, *extra) == 2")]),
+     "        scope = \"stage-R-run\"\n",
+     [((T, "test_composed_a_run_scope_line_does_not_approve_a_stage_r_smoke"),
+       "assert LT.run_main(monkeypatch, *rmain.base, *SMOKE, *extra) == 2")]),
     ("RX14 stages R and T run under the v8 manifest", RT,
      '        if manifest["sha256"] in (M.ANCHOR_V7_MANIFEST_SHA256, ANCHOR_V8_MANIFEST_SHA256):\n',
      '        if False:\n',
@@ -108,7 +114,7 @@ MUTANTS = [
     ("RX16 the attempt reservation is not exclusive", RT,
      '        M._publish_json_exclusive(path, payload)\n',
      '        M._atomic_json(path, payload)\n',
-     [((T, "test_composed_an_attempted_cell_is_never_retried[None]"), NO_RAISE),
+     [((T, "test_composed_an_attempted_cell_is_never_retried[0]"), NO_RAISE),
       ((T, "test_composed_concurrent_attempts_reserve_once"),
        'assert sorted(status for status, _ in results) == ["ok", "refused", "refused", "refused"]')]),
     ("RX17 the attempt is not reserved before the T entry runs", RT,
@@ -161,7 +167,7 @@ MUTANTS = [
 
 GUARD = WT / "artifacts/anchor_confirmation/refit_v9/guarded_pytest.py"
 BOUNDED = WT / "artifacts/anchor_confirmation/refit_v9/bounded_tree.py"
-MANIFEST = WT / "artifacts/anchor_confirmation/authority_manifest_v9.json"
+MANIFEST = WT / "artifacts/anchor_confirmation/authority_manifest_v9r2.json"
 EXTRAS = sorted({t[0] for *_x, d in MUTANTS for t, _m in d})
 BINARY = (".npz", ".npy", ".pt", ".pth", ".safetensors", ".bin", ".ckpt", ".pkl")
 REFUSED, CHILDREN = [], []
