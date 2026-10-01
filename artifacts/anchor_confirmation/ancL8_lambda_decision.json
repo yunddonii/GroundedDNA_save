@@ -1,0 +1,215 @@
+{
+ "artifact_kind": "anchor_confirmation_lambda_decision",
+ "consumed_sha256": {
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_decision.json": "28b10a4c850f508bacf4d9402cda8c458fe92d2bfc8b616e14a1a6ce9866cc32",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_selected_n.json": "5cda7adb055ed126efb0a8ec198e06d1176ccdc57e7d38fe35ff74b74a4a92ff",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_snapshot_23e0763089474895.json": "6f2c03527b265078584fdfe49f57b3c9091080aeca5ab637b51a6858de4cea49",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_sweep_complete.json": "5915768767e3fd12b28c3f09e1a071c26fd5cbddbbac15662c495b80c4876f6b",
+  "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_flickr_A_v4_N4_s42_AXanchors_LBU0_P06095_JD002.json": "019d9c0dc48c72fb39526c21315c71bcac60a14582e49ec05c2b1ac959d069c8",
+  "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_flickr_A_v4_N4_s42_AXanchors_LTH0025_P06095_JD002.json": "9fb3dd789c23860eeb96b3129746523f502070a820388a947d96c1814ef4ec10",
+  "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_flickr_A_v4_N4_s42_AXanchors_LTH010_P06095_JD002.json": "3aaeacbfc1c542f547094002a5b1f0ee71f903be3aeb65cd93b308da98785a29",
+  "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_flickr_A_v4_N4_s42_AXanchors_LW030_P06095_JD002.json": "8537da4f4ddc9195873e7f6b29923410531fbe60db73b32247e02f6361d43504",
+  "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_flickr_A_v4_N4_s42_AXanchors_LW050_P06095_JD002.json": "2df1d039defd82ae3a54a881e6a492192d0a294ea76709c7c54730362979857d",
+  "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_flickr_A_v4_N4_s42_AXanchors_P06095_JD002.json": "36e2be8e790ab4daa9faccfe96007a8e839da40b551e02746bcd1dbe8ccdd753",
+  "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_snapshot_1eab97a081863d9f.json": "d7c8874f054753fa73af3633d753571b2714a66ed024883749bcb07ae9c5ff24",
+  "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_sweep_complete.json": "0991f0a031eea624de9ff42cb96c034589e596307a0bf61c2d9710f58c24b838",
+  "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/p3rfB_refit_aggregate.json": "b4f3b0dff467f7c1fd4ca134edba66085115939a4097e6bb201bd13ca83452a5",
+  "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/selected_n.json": "2bf6133d8cdc7471e40a33d20f1bb19228aa770e67a999a436efb5abac6b2549",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_LBU0_P06095_JD002+bs+64+e+60+proj_lr+0.001/config.pt": "eef4d7847a30be153113f53dd41c85ca07052f410a627021ec93fff3826eca9a",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_LBU0_P06095_JD002+bs+64+e+60+proj_lr+0.001/log.csv": "a2eb21c97f67c7787e86abca87c62da9bfe898f74d783a25299270c92b10b11c",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_LBU0_P06095_JD002+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "68667122bcddcbc98d801a42dd16dd67b05fab6751127aa4c85d52cacc794a64",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_LBU0_P06095_JD002+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "5eaa9e3e0c1353d4fe097683b9a7a246b50fcbc216cb30c1fe2d60445b1ea7e0",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_LTH0025_P06095_JD002+bs+64+e+60+proj_lr+0.001/config.pt": "74f9f5625fff03ac4315e9367760026343faf35ead86342b3afb132b04c343ea",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_LTH0025_P06095_JD002+bs+64+e+60+proj_lr+0.001/log.csv": "92dcb3e571145c732a8747d546d8dd76130206b30b0e8ba6b7babb81c5203391",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_LTH0025_P06095_JD002+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "b556598b8fff762cc8c8ac80495866548ce8fc044e0637db12cc7b8a4fb1c969",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_LTH0025_P06095_JD002+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "6fe21fdc20b0ba6ba7fc005de06a605a135fd0db2905591dbceba11d51222d22",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_LTH010_P06095_JD002+bs+64+e+60+proj_lr+0.001/config.pt": "e74e9ae832c554755f837e4e6c86b4e997ffb08460abe65842df0ece5410f2e5",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_LTH010_P06095_JD002+bs+64+e+60+proj_lr+0.001/log.csv": "30d62c2869346f9b6671b400431050e98dca0c6d4707089b57d3144283e1f2af",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_LTH010_P06095_JD002+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "993b1255bbe6e821d7a101d6264eb19642fbc281504709978f756cba0ecf0a9f",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_LTH010_P06095_JD002+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "bd82025b5ed216a6d85f465be3608b614723f2331196fcdae95fb44f82eb0b62",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_LW030_P06095_JD002+bs+64+e+60+proj_lr+0.001/config.pt": "f9dcb2a7817e5ed66d642677d2f45f86a345a915561b982e00e0683997c5938f",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_LW030_P06095_JD002+bs+64+e+60+proj_lr+0.001/log.csv": "7c393853518c0216627f903374c2b4a0391ce43e2bba856edf7688b372877674",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_LW030_P06095_JD002+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "8f689bfee91ba0bd57bdc93e63909dfc89aa1fa09318f45c0a7b7ede2ec87752",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_LW030_P06095_JD002+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "1d118a22b51b8d5ed4d1a3c4124f7643025c723718e70a59698f0b2502503e91",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_LW050_P06095_JD002+bs+64+e+60+proj_lr+0.001/config.pt": "82fb8a23f6c7e5e6eac0166d5ba335a1c591f1c424a91bc71971aed90223450b",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_LW050_P06095_JD002+bs+64+e+60+proj_lr+0.001/log.csv": "2f0b960678329b5efebbd554594c997cfcca70faad338886995f293f6101f473",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_LW050_P06095_JD002+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "712594582af792db5294f4986690c890d8e7a8c4ef53ea491144df2ac1c6ef0e",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_LW050_P06095_JD002+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "cf46ddb26fec80978b5da327f74c32c90dddf582fce4b685ca1d9fb419927997",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/config.pt": "c1de84a579b274b1d041c9e1212b926d6ca529be6b78a5c5f51b2042e3565753",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/log.csv": "e81da28b556c94dc96433fd867c2ccd4797b8122a4a8330f0641835f95dff727",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "52dca3f3ed4795fb735d83cce97e769bb06f34f8ad4cbd03dbf67f1b37f5051f",
+  "/home/yschoi/gdna_anchor4_result/261001+flickr25k_setting1_ancL8_flickr_A_v4_N4_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "ed62bcc469356c170e9dcbc74c9acc1c2023fe5c3bf784ea90ec96062b56edea",
+  "artifacts/anchor_confirmation/ancL8_lambda_sources.json": "e0c32688fdb86ac13f3bf6ede3326f633df051b391b4f3592fd20f55e785b003"
+ },
+ "datasets": {
+  "flickr25k": {
+   "N": 4,
+   "candidates": [
+    {
+     "axis": "lambda_wasserstein",
+     "config_pt_sha256": "f9dcb2a7817e5ed66d642677d2f45f86a345a915561b982e00e0683997c5938f",
+     "delta": -0.013275876980596402,
+     "qualifies": false,
+     "record_sha256": "8537da4f4ddc9195873e7f6b29923410531fbe60db73b32247e02f6361d43504",
+     "score": 0.7509178118500363,
+     "value": 0.3
+    },
+    {
+     "axis": "lambda_wasserstein",
+     "config_pt_sha256": "82fb8a23f6c7e5e6eac0166d5ba335a1c591f1c424a91bc71971aed90223450b",
+     "delta": -0.016372725146564737,
+     "qualifies": false,
+     "record_sha256": "2df1d039defd82ae3a54a881e6a492192d0a294ea76709c7c54730362979857d",
+     "score": 0.7478209636840679,
+     "value": 0.5
+    },
+    {
+     "axis": "lambda_bu",
+     "config_pt_sha256": "eef4d7847a30be153113f53dd41c85ca07052f410a627021ec93fff3826eca9a",
+     "delta": -0.005437742487074182,
+     "qualifies": false,
+     "record_sha256": "019d9c0dc48c72fb39526c21315c71bcac60a14582e49ec05c2b1ac959d069c8",
+     "score": 0.7587559463435585,
+     "value": 0.0
+    },
+    {
+     "axis": "lambda_text_hash_ntxent",
+     "config_pt_sha256": "74f9f5625fff03ac4315e9367760026343faf35ead86342b3afb132b04c343ea",
+     "delta": -0.020121698404590438,
+     "qualifies": false,
+     "record_sha256": "9fb3dd789c23860eeb96b3129746523f502070a820388a947d96c1814ef4ec10",
+     "score": 0.7440719904260422,
+     "value": 0.025
+    },
+    {
+     "axis": "lambda_text_hash_ntxent",
+     "config_pt_sha256": "e74e9ae832c554755f837e4e6c86b4e997ffb08460abe65842df0ece5410f2e5",
+     "delta": -0.0067079755269161545,
+     "qualifies": false,
+     "record_sha256": "3aaeacbfc1c542f547094002a5b1f0ee71f903be3aeb65cd93b308da98785a29",
+     "score": 0.7574857133037165,
+     "value": 0.1
+    }
+   ],
+   "changed_axes": [],
+   "control": {
+    "config_pt_sha256": "c1de84a579b274b1d041c9e1212b926d6ca529be6b78a5c5f51b2042e3565753",
+    "equal_to_incumbent_seed42": true,
+    "record_sha256": "36e2be8e790ab4daa9faccfe96007a8e839da40b551e02746bcd1dbe8ccdd753",
+    "score": 0.7641936888306327
+   },
+   "incumbent_lambdas": {
+    "lambda_bu": 0.02,
+    "lambda_text_hash_ntxent": 0.05,
+    "lambda_wasserstein": 0.15
+   },
+   "incumbent_seed42": 0.7641936888306327,
+   "obligations": [
+    "keep flickr25k's approved lambdas; its v7 S/D/probe records stand for the freeze (contract L v1 section 1)"
+   ],
+   "recipe": {
+    "lambda_bu": 0.02,
+    "lambda_text_hash_ntxent": 0.05,
+    "lambda_wasserstein": 0.15
+   },
+   "seed_range": 0.02819158958924184,
+   "seed_scores": [
+    0.7641936888306327,
+    0.7436437784867651,
+    0.7360020992413908
+   ],
+   "threshold": 0.02819158958924184,
+   "winners": {
+    "lambda_bu": null,
+    "lambda_text_hash_ntxent": null,
+    "lambda_wasserstein": null
+   }
+  }
+ },
+ "fixed_architecture": {
+  "authority": "the user's decision recorded in audit section 709",
+  "axis_center": "anchors",
+  "datasets": [
+   "cifar10",
+   "flickr25k",
+   "nuswide",
+   "mscoco"
+  ]
+ },
+ "generation": {
+  "anchor_manifest_sha256": "58e69ae1a3bed5366da61a4d61a6cdd90c338d9ac7b0474fcf9b6e2e2f7f5bbc",
+  "commit": "44f90fb67037126a50e6992e22df08d0e06beee8",
+  "contract_sha256": "e6c4978e6d30559e01c2ee34ae2b4d39c01717557ee16c9e96f85980aa8d3efc"
+ },
+ "history": {
+  "decision": {
+   "path": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_decision.json",
+   "sha256": "28b10a4c850f508bacf4d9402cda8c458fe92d2bfc8b616e14a1a6ce9866cc32"
+  },
+  "manifest": "c061296309fe41203205dff65de3a1afb843c950e93c0614dfd27a8216a90128",
+  "selection": {
+   "path": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_selected_n.json",
+   "sha256": "5cda7adb055ed126efb0a8ec198e06d1176ccdc57e7d38fe35ff74b74a4a92ff"
+  },
+  "stage_s_receipt": {
+   "path": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_sweep_complete.json",
+   "sha256": "5915768767e3fd12b28c3f09e1a071c26fd5cbddbbac15662c495b80c4876f6b"
+  }
+ },
+ "note": "train-only; seed 42; one lambda at a time; the continuity control is a diagnostic gate and its equality does not prove unchanged training; no significance, equivalence or superiority test; a changed recipe states its reselection obligations and is not final until the recipe freeze",
+ "reducer": "anchor-confirm-reducer/3",
+ "rule": {
+  "candidates": {
+   "flickr25k": [
+    "lambda_wasserstein=0.30",
+    "lambda_wasserstein=0.50",
+    "lambda_bu=0",
+    "lambda_text_hash_ntxent=0.025",
+    "lambda_text_hash_ntxent=0.10"
+   ]
+  },
+  "comparison": "candidate_score - incumbent_seed42 > threshold (strict, unrounded)",
+  "control": "the continuity control's terminal score must equal incumbent_seed42 exactly, or the stream stops before any candidate and no decision is made",
+  "datasets": {
+   "flickr25k": {
+    "N": 4,
+    "incumbent_seed42": 0.7641936888306327,
+    "seed_range": 0.02819158958924184,
+    "seed_scores": [
+     0.7641936888306327,
+     0.7436437784867651,
+     0.7360020992413908
+    ],
+    "threshold": 0.02819158958924184
+   }
+  },
+  "history": {
+   "decision": {
+    "path": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_decision.json",
+    "sha256": "28b10a4c850f508bacf4d9402cda8c458fe92d2bfc8b616e14a1a6ce9866cc32"
+   },
+   "manifest": "c061296309fe41203205dff65de3a1afb843c950e93c0614dfd27a8216a90128",
+   "selection": {
+    "path": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_selected_n.json",
+    "sha256": "5cda7adb055ed126efb0a8ec198e06d1176ccdc57e7d38fe35ff74b74a4a92ff"
+   },
+   "stage_s_receipt": {
+    "path": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_sweep_complete.json",
+    "sha256": "5915768767e3fd12b28c3f09e1a071c26fd5cbddbbac15662c495b80c4876f6b"
+   }
+  },
+  "incumbent_lambdas": {
+   "flickr25k": {
+    "lambda_bu": "0.02",
+    "lambda_text_hash_ntxent": "0.05",
+    "lambda_wasserstein": "0.15"
+   }
+  },
+  "per_axis": "highest qualifying score wins; exact tie -> value closer to the incumbent, then the smaller value; no qualifier keeps the incumbent",
+  "threshold": "max(0.002, max - min of the incumbent's seed-42/43/44 scores)"
+ },
+ "scope": [
+  "flickr25k"
+ ],
+ "version": "anchor-confirm/2"
+}

@@ -1,0 +1,1 @@
+[anchor-reducer] wrote artifacts/anchor_confirmation/ancL8_lambda_decision.json sha256 22014e6bc21dee508eb949a0272b2bf60b4a33ee706e8c301f716c114932f37e
