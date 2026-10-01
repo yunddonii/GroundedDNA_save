@@ -1,0 +1,1 @@
+[anchor-reducer] wrote artifacts/anchor_confirmation/ancP7_decision.json sha256 28b10a4c850f508bacf4d9402cda8c458fe92d2bfc8b616e14a1a6ce9866cc32

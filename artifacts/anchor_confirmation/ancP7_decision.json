@@ -1,0 +1,403 @@
+{
+ "artifact_kind": "anchor_confirmation_decision",
+ "consumed_sha256": {
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_cifar_A_v4_N4_s43_AXanchors_JD002.json": "13a6fc6f53ac3fed3473f65cc3647cc8caa54f2be0bc4eb29846dac915b17238",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_cifar_A_v4_N4_s44_AXanchors_JD002.json": "db4fe4792ca634e82709d94e96bebee7479c4c0790cc5fb4771807bc103bef4b",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_flickr_A_v4_N4_s43_AXanchors_P06095_JD002.json": "70214f8311d09aa5c4ec8e10385b258959eb74ab0325fe2b0a7ad57bd87bce0c",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_flickr_A_v4_N4_s44_AXanchors_P06095_JD002.json": "d7f7494e2c8db44cb94c87d35e96f402d885e104abd4c0e9c1da4cc86d68b298",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_mscoco_A_v5b_N39_s43_AXanchors_P06095_JD003.json": "1512c4e9c3731a45f5d9460cedde84820513f25497bf16b3aae3fb1f41ad15fa",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_mscoco_A_v5b_N39_s44_AXanchors_P06095_JD003.json": "c6553b5921d142ba6f139959f44432d45ecd35324e20cfccdc5657d0382b2a62",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_nuswide_A_v4_N4_s43_AXanchors_P0408_JD005.json": "98b51c19bc25f70a9dc265853bdd2d944d1d0e0fd3d5277540c1265e28ecf24f",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_nuswide_A_v4_N4_s44_AXanchors_P0408_JD005.json": "f6daecbcc763a502209382871cd57104a5e31cb4781b156c4839bd69a9b001a2",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_snapshot_64f311500273a3ed.json": "e383ff68ec0bb50e58e04c52b7e4c7175660a5e9a0aaeb8b356c8840e78e0451",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_sweep_complete.json": "4272eeac4759354f94a58af13d84ab62cf78ca3457fa0d07cd379bd0ad0aa6e8",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/cifar10_anchors_N4_s42.json": "c92bdb2527fd991adc5a7c5d0fe002a1d1027f86c24cd541a8655c584229fcdb",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/cifar10_anchors_N4_s43.json": "944645a091dd88bcb0bb7e947487dc491a06433d97380ffc12e8aa4a88430eb6",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/cifar10_anchors_N4_s44.json": "af842d39672594460eee94c78e63f7b4763376f1907ff3ed37b9e3626668d30e",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/flickr25k_anchors_N4_s42.json": "878b00b98a9c2feb42e96fdadba392fe6b4909ee3de69e70ee05897a4d56803f",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/flickr25k_anchors_N4_s43.json": "cc4995ac445bc8647fa366584e8b6ee1f3a3979e6469184a68faa3ae6756c00b",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/flickr25k_anchors_N4_s44.json": "1f033242ee3850f0a2a1897b8adc42fbac6c0aea31c0c449cce26ad40c1ce78e",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/mscoco_anchors_N39_s42.json": "a9f49b92d0741d51a0d7903e5e81c625915a31944e53969b9851007f779b866f",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/mscoco_anchors_N39_s43.json": "95f0f8fa487ef4719baa7025f8786cca322ca5f9d66453bbdf4bf0c1b99a17fa",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/mscoco_anchors_N39_s44.json": "5f95b167f880188f467c4f618a6fd1d9c271867ce8780d163e6d5696775b9250",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/nuswide_anchors_N4_s42.json": "1bdb71dec8a3ea407eba70451cdd35ee3359aa9b9b5fe6c7e426db5d75e8a416",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/nuswide_anchors_N4_s43.json": "96c597838af3df5cf5a1eeb5322dcdfd74abe17800ed20ea1629f156ed887942",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probes/nuswide_anchors_N4_s44.json": "dec3af6cd8b9827e3b664cbc59b0da0eb091577e84e674043f163930cf908f2c",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_cifar_A_v4_N19_s42_AXanchors_JD002.json": "29a48468b819a08e2f9c8800f548c55ecb719a7d3f6964c1ad0452d4f6b1bf8f",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_cifar_A_v4_N39_s42_AXanchors_JD002.json": "ee28e4b0b0d4b96f23c9032120a1e3a80769964fc0931fc4906da2311f84d292",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_cifar_A_v4_N4_s42_AXanchors_JD002.json": "6e8fdfba192f50e32cbfc745feff339c680aceee0cd50691e8dc1317968453f1",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_cifar_A_v4_N9_s42_AXanchors_JD002.json": "95617f630277730542ba8e4f7157900c6c284c28f3ed9dc9f46b4d8ec662591d",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_flickr_A_v4_N19_s42_AXanchors_P06095_JD002.json": "dd2cb5ba534e4952fd5689ea08ba8d49eaaae1d2b673f75cf24e92e8b0ec02a0",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_flickr_A_v4_N39_s42_AXanchors_P06095_JD002.json": "8c32f8d91cd587cd7bb170872a4550bfaf2ff9f56dde34c66f71254e1a6586f1",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_flickr_A_v4_N4_s42_AXanchors_P06095_JD002.json": "a8da86d3df6ee998f5d83d4a82e6030c3c209c146434a7707864c1b65d907b61",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_flickr_A_v4_N9_s42_AXanchors_P06095_JD002.json": "7b9c690d90dd6e7aeb1f4cf7510ec55351a91694ad1bd7ecc7f1b2ad9f59fbab",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_mscoco_A_v5b_N19_s42_AXanchors_P06095_JD003.json": "b666f9c088223fc3db31574ac5d6a50ec292594dd424bc3dbe996902ab962fa5",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_mscoco_A_v5b_N39_s42_AXanchors_P06095_JD003.json": "f20ebc375c373a6717d118c7e35b2386656aa346e9b223066391c7441c82c695",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_mscoco_A_v5b_N4_s42_AXanchors_P06095_JD003.json": "ccb59b19afaf3a9d0af269c0d42593b1a0e55de48a5dabd0710792d509a39e24",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_mscoco_A_v5b_N9_s42_AXanchors_P06095_JD003.json": "f35884aa71ffb60e4343385dada5613c08b1dc0a7f9430b909b51899cc2d2e6f",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_nuswide_A_v4_N19_s42_AXanchors_P0408_JD005.json": "1613d72660c4ed7b32358ea7a451293876650be006e9e3055700e0ad670636fd",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_nuswide_A_v4_N39_s42_AXanchors_P0408_JD005.json": "3300634a3f9405498354465fe46618ec67bca3d49f6be56a329ac34e6d8243d7",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_nuswide_A_v4_N4_s42_AXanchors_P0408_JD005.json": "ee824f7108b531c4706ff4bf6d5a5654b21785359f7fc7aebc703eca83e4af19",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_nuswide_A_v4_N9_s42_AXanchors_P0408_JD005.json": "2b57c8bc3edcc58b101488061da3e15433353fbdd7d19f45ba4e9ece79a3a8bf",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_snapshot_23e0763089474895.json": "6f2c03527b265078584fdfe49f57b3c9091080aeca5ab637b51a6858de4cea49",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_sweep_complete.json": "5915768767e3fd12b28c3f09e1a071c26fd5cbddbbac15662c495b80c4876f6b",
+  "/data/yschoi/gdna_anchor_confirm_v1/scripts/anchor_confirm_code_axis.py": "31537dde1cc8dd338221bb7fd49241cc0c618c0de444a2adf3500e86f708b19e",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancD7_cifar_A_v4_N4_s43_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/config.pt": "2c77e8b210f6308b71001e3e94e935c83b3fe166bfca52b11709c5bac7453d5a",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancD7_cifar_A_v4_N4_s43_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/log.csv": "3cc2edca7f89fa322827e0a9df6bbd076e99db9f52f81c39da19531b9300521d",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancD7_cifar_A_v4_N4_s43_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "a82313f43b55dd50d7a0504ef436485d410d3f9f3c2c52bc6063e8b1c94c1293",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancD7_cifar_A_v4_N4_s43_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "c65c7aa4aa2e17f2d652c4ebac6feda96b0e5fadfa46f2fe4878e9509da657b4",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancD7_cifar_A_v4_N4_s44_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/config.pt": "721ef65e75b079fe474de260f8941a373b98a1128806cecd0e5d2f7de77a7d02",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancD7_cifar_A_v4_N4_s44_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/log.csv": "be7550472ce74e92f1d013c3369314a033641badb475fb12bccea463df1a4539",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancD7_cifar_A_v4_N4_s44_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "e7ad6b47adda618ed01dce805ecd97c9476e8a9b611dffca20a55097c14d537a",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancD7_cifar_A_v4_N4_s44_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "578207e66fb9ac8430956a48d68764ccd5968aef24e1d88257ce64f245f95955",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancS7_cifar_A_v4_N19_s42_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/config.pt": "d203521abbd72efa53b940e9879dc770d09662a9c0613d73bf5ad305a5363ced",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancS7_cifar_A_v4_N19_s42_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/log.csv": "c6431acf804456423d8565f6f7431cafaa9cb89d52bd27ef4de5ea3d863e5bfb",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancS7_cifar_A_v4_N19_s42_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "d81ae6520942a4467f5b21985179091b4f3e70a7ded64010fd6bc99bf795cf86",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancS7_cifar_A_v4_N19_s42_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "ce6fa2e97a3733c35c8df29e228662f9060a75bb12153fda593a202a5c4cb67e",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancS7_cifar_A_v4_N39_s42_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/config.pt": "1678c05684a57af07fae6621d7220db069b7034622c11fad341cdb5f8e65ea37",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancS7_cifar_A_v4_N39_s42_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/log.csv": "2d6487b1161acff0e9d12d9af361897e9f62e5f1c72d2f80d6f9da25cfccdbfd",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancS7_cifar_A_v4_N39_s42_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "3693509c97071f7993dc10353d3fa3bd7c7ab11d2d668b131b120af3baea23ce",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancS7_cifar_A_v4_N39_s42_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "288eb79a8d1e5c6d0ccc87a05842d667cb2be9886e9b6cec702e2daad7384f74",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancS7_cifar_A_v4_N4_s42_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/config.pt": "2216baa95b3cb19ccc910540d18dcc05de3ffa6899c413484b4cf657f75ac21f",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancS7_cifar_A_v4_N4_s42_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/log.csv": "bafb64ffe84a6e5d5a86dcb9fa79d182fd9b2d8980bf5554ac2dd1815357210c",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancS7_cifar_A_v4_N4_s42_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "e3fdb6c6888614280c3fbdf17f106e147b40b5ee53016d69014a517708767a81",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancS7_cifar_A_v4_N4_s42_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "7f2a5b08ebe7da7dc5e5c2312425ce4d01c4a7454229070f7e64ee78f6291080",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancS7_cifar_A_v4_N9_s42_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/config.pt": "1b6dd8f3ad3092255a115d6b0de0494abdf823ac2df39fa4c35c07c0cb904cc7",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancS7_cifar_A_v4_N9_s42_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/log.csv": "bb34911f94d6ff4be7cf07cbbbf19e052feb93b6cc54a4bfd20a91d6cb04d104",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancS7_cifar_A_v4_N9_s42_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "aac0dd17c8b1f68d749bfd2ea2429b743c8cdd452ef10b2577fbb3b1ab245b16",
+  "/home/yschoi/gdna_anchor4_result/260929+cifar10_setting1_ancS7_cifar_A_v4_N9_s42_AXanchors_JD002+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "d186a84f067dfb15cea369043b8fc03b03640366690597c42e22b3a99a2e2060",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancD7_flickr_A_v4_N4_s43_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/config.pt": "31850e87791e81bf849c85097fe67e9db65dcdc396656f619b15a056083c0cb9",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancD7_flickr_A_v4_N4_s43_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/log.csv": "8fdeff3aae1f606ff4973be73a68343286585df7b732739653836e3995ec5edf",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancD7_flickr_A_v4_N4_s43_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "7db050b3faf450b943585e71663b264b8cf6025d5e272b6829e4710c8ba2c2cd",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancD7_flickr_A_v4_N4_s43_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "1ffc43c86e534fd0ea98f358be2c63f56d531a201d238dab25d3ae12409ed905",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancD7_flickr_A_v4_N4_s44_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/config.pt": "aca352157b33b6a9418179c0ee4600cb3346acc916010b820938b541e3642e39",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancD7_flickr_A_v4_N4_s44_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/log.csv": "092d76e80830d8430babf0f4cd00ae85a95cce2eef776a3faea4f64a796a8daf",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancD7_flickr_A_v4_N4_s44_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "75015fc68fbe7f8a04ad22826258820fc05876bf2cd3d19ab283b0d6013249a3",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancD7_flickr_A_v4_N4_s44_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "914b10c9f236551eafe6fdc8ab633eb83cdf3c11123f50af8adb45fe42a66778",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancS7_flickr_A_v4_N19_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/config.pt": "649fe26f390d31046024ca0e100d4e70a7bb1c1e87fb6dd4f3beb1c44fb1098a",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancS7_flickr_A_v4_N19_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/log.csv": "c8c21acd5d18d64e4e29239ac4a730ee75829defd4446a9b7d6c58f2a6c37a81",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancS7_flickr_A_v4_N19_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "a4d96f023de518ec1a4d248f7eb76bc2f549765cf2652e46a6ed898a7915d5f5",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancS7_flickr_A_v4_N19_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "8c98cd702a63e2a7ac34af78ab5b1c0191000dd307f5e008e3c8cd835853b929",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancS7_flickr_A_v4_N39_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/config.pt": "c1dea105e90492d6c0666afe576364b2d0d63d8d75b48154877604d2f0f1c3df",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancS7_flickr_A_v4_N39_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/log.csv": "08179b08d5c533729b4a29e17b80dd5358ebf16d4b4e7cc8f40567965f247007",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancS7_flickr_A_v4_N39_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "a1f5e1250504e9471dc5d934317ecde75f4dfd8157130e2a1ad96a0e7e034103",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancS7_flickr_A_v4_N39_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "ce4352298abbae7416505cba6f1a05f1813b0a9ec8f9252853b01522a97e1cfe",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancS7_flickr_A_v4_N4_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/config.pt": "b640a085fa143b0a4af7585ff456b76e7bf68af5484ad812b72b1a0a996a0296",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancS7_flickr_A_v4_N4_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/log.csv": "e81da28b556c94dc96433fd867c2ccd4797b8122a4a8330f0641835f95dff727",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancS7_flickr_A_v4_N4_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "3547aecfa160da5a0e088b1890b0d00de90a8add856d3b046921a9e62d8787da",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancS7_flickr_A_v4_N4_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "a89ca22375f8cc174b4edd0363613e0e63fba34b0c6744960a3f6273fa116855",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancS7_flickr_A_v4_N9_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/config.pt": "f3e501ea1805e3fc2f2999df9cf3b467d9a7aad2d3fb9b3dfd49aee23865f7b2",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancS7_flickr_A_v4_N9_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/log.csv": "f56b2a12850030e89ce16ae01461d81ef8a5997c028e134c6e4c67ed4d57b64d",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancS7_flickr_A_v4_N9_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "0e02dd41976bd2c7ee1e86a93e3d7b05c5303b3be1271bbb6fdffe8b2b025637",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancS7_flickr_A_v4_N9_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "23e197cabf98a48d415d545ba31e7ba1416067b35b7d2b2dfcfba792b91d3e35",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancD7_mscoco_A_v5b_N39_s43_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/config.pt": "71ba70f0b59e19bd33a023228300e8a33cf7deaef2b6087bd9ee76266ceba973",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancD7_mscoco_A_v5b_N39_s43_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/log.csv": "a9c864a885fe05cd0827625079099fdca11846785e6165521a8d0a3c3b110ce9",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancD7_mscoco_A_v5b_N39_s43_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "b39bfe3af2194f2b01fabee47a318a8dc3f012363a024481eeafc6e43c4180e7",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancD7_mscoco_A_v5b_N39_s43_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "44de1db6e9b9d90fc96cb57203473adca2052443da3dcc657604aa29d23d8a20",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancD7_mscoco_A_v5b_N39_s44_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/config.pt": "17b4b384f3323c098fec794cc15819108269ed341c08dd025daf44ef13a603a6",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancD7_mscoco_A_v5b_N39_s44_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/log.csv": "fbefed154b631b9d6ab68575631ce75bf55dcb9b1a155328e793408deafc7367",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancD7_mscoco_A_v5b_N39_s44_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "087108c5fbd8e55e87299a6181849079bdeaa9438cc537113d9f2ecb86fd131e",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancD7_mscoco_A_v5b_N39_s44_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "4ac0988f4951714c5603e6b8246985c47f83b78546781a370bac9c48c35942bc",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancS7_mscoco_A_v5b_N19_s42_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/config.pt": "b57fe33886161f37c26b6d25cc5ba4fea7e687157395bcb92bbddeb4997c7805",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancS7_mscoco_A_v5b_N19_s42_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/log.csv": "3593cec57541f1a2c26908eb2a0f3cc825db41f3d63e6048f2fb53bedc463090",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancS7_mscoco_A_v5b_N19_s42_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "0a9390140ab4839166af933405ac029447281bab5b5df5270209cd362e6d9f49",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancS7_mscoco_A_v5b_N19_s42_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "f1367c7649bb4856a835b50ef217e4d072474cb3e50fefc7f50d7fa3b60dca37",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancS7_mscoco_A_v5b_N39_s42_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/config.pt": "92a5556bf013fc62186bf1465a98210fca0035f6d689f69e10d98caa3f7714d8",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancS7_mscoco_A_v5b_N39_s42_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/log.csv": "0708c16c483af6958b3912d8cad7e3eba39b5cfeea5c222ddb554936c11b55f3",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancS7_mscoco_A_v5b_N39_s42_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "81f555c942c8e34c6763906e93e8b368d0901ec83307660fa6b1638a00dfaff2",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancS7_mscoco_A_v5b_N39_s42_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "024ea28db2fb63801e1a98f0b3196fabf54ae29c9fee1030b49926e15b4d53de",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancS7_mscoco_A_v5b_N4_s42_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/config.pt": "09da977569823b7b990039d7f8b9e33d1d0991c853fd018e75acaab228751042",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancS7_mscoco_A_v5b_N4_s42_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/log.csv": "5ab16290778ad2b869804a8efc8115580a9dba347487b2846c0fce5c8f9737a7",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancS7_mscoco_A_v5b_N4_s42_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "abff4f60c7672f83a297b90c32113eb829653322d1fb9ec4bc180831f43e656f",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancS7_mscoco_A_v5b_N4_s42_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "71f7384bc4a361b1af955368092d8ef7f43916bce2391dda9694d6e8b857656e",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancS7_mscoco_A_v5b_N9_s42_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/config.pt": "eb3deaa962c06c8abac8adf69e9904f51d99c285240cc113f50efa8052e77f40",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancS7_mscoco_A_v5b_N9_s42_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/log.csv": "e7b9e1e265919710ee9b0e681997ccadc821fff6bdae749b8ad47e98a11f3697",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancS7_mscoco_A_v5b_N9_s42_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "a20b90f28912f9f3c998bcc606ccfa28229e9727e60b86236962c1eb8c3e6d9d",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancS7_mscoco_A_v5b_N9_s42_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "034c9dd4752184aa888ad38730fd6eef90b1d9ce902dddd15454d5984c905c52",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancD7_nuswide_A_v4_N4_s43_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/config.pt": "fa0314ceeb4f46ceed435573228a56f54e449ae914152d1b56e40935cb4172a1",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancD7_nuswide_A_v4_N4_s43_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/log.csv": "68441b5b44fe7abe77c736604c1b20b791b4b17e32d6aa39fcfa963fe5fb2243",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancD7_nuswide_A_v4_N4_s43_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "997b0afa1a2e7975a54652724925d0fcee00a917e135fc436d67c8bfb1f1a816",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancD7_nuswide_A_v4_N4_s43_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "2d2d445e2ef91157783e1334109d3d7d6a8f518abfb54323bd4a76dab862b94a",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancD7_nuswide_A_v4_N4_s44_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/config.pt": "c5a001a11855bf60ea26444c87ea36cd568e98ba74dc9430a479d943ce4b9f25",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancD7_nuswide_A_v4_N4_s44_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/log.csv": "f6756f3185fb2bbf1c9974768695c30fb04f3d7993644e5d52785f9a385a8ba7",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancD7_nuswide_A_v4_N4_s44_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "b1e27e7a12a856676bf50de83d0ee50d5c4c050f5a45b9a90b789367b13c1d95",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancD7_nuswide_A_v4_N4_s44_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "696df0b00a51094ca099734d971859f067b447134c9ab031e58683851e30f897",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancS7_nuswide_A_v4_N19_s42_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/config.pt": "d24eefc8c02a8c4445cb17c4315e07b9fdc4950eb9da3bb07561af37dfad6d72",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancS7_nuswide_A_v4_N19_s42_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/log.csv": "149c0299ee10ac2e0b183b314c0d9083241e2dd47c876ec8976ed0407cece1f2",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancS7_nuswide_A_v4_N19_s42_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "35a8e826d97327cc7505b2febfaeacec5d102d42960c6e417751359e6f82f0e0",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancS7_nuswide_A_v4_N19_s42_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "324e239e154882adb8aed2304f34a82c1805f72366f12bf6fbef041e998515d6",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancS7_nuswide_A_v4_N39_s42_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/config.pt": "6bc737e98aeb6e516c9777a0ffd120cddb33d77ac961bb9b41b26fc8a8399b53",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancS7_nuswide_A_v4_N39_s42_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/log.csv": "c920a53f15a361da3b07ab6ec12d78db91e14e9a60f6d042cef60f9b71257093",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancS7_nuswide_A_v4_N39_s42_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "a645474eb6b18d7534c25041d7344ba07b0893513090ec64bc0f8c039d017be6",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancS7_nuswide_A_v4_N39_s42_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "b9f8324b6ffa94e2be8ea6d05f54ca91b2fa3438bf3e46a8dcf9b502e36a268a",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancS7_nuswide_A_v4_N4_s42_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/config.pt": "1addeab1b4d83240a59599590d60f4939b60fba527606610e6d7b51e9847e7d6",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancS7_nuswide_A_v4_N4_s42_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/log.csv": "3d98302655d25eb303d595e9ff6e1ae3358c01ca71ed14324c7f9786c3a311ce",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancS7_nuswide_A_v4_N4_s42_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "cd7f78a82063edfa37e2b27dc812a48d83ff33dd9a6a283493b6c8b926ab564f",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancS7_nuswide_A_v4_N4_s42_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "782b7227a5d46030b285bb2ea44e533d9c8e0e37267ccf24d41045433daad211",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancS7_nuswide_A_v4_N9_s42_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/config.pt": "2c8ffc30373bed844ba7efbb622f27b0cbb48eec69b9b01de088b2734f97bea1",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancS7_nuswide_A_v4_N9_s42_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/log.csv": "29ca9727e60fe309eb8543a241f7e3840f15728730f3f4e8c6b1f0b374642f3f",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancS7_nuswide_A_v4_N9_s42_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "2fa122c9a9e2bafd3a65a0cafcddd67803182c66008eaa09a4c4458df3f9dda6",
+  "/home/yschoi/gdna_anchor4_result/260929+nuswide_setting1_ancS7_nuswide_A_v4_N9_s42_AXanchors_P0408_JD005+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "83bfcd6a29d1522e7c516636d69e723479e763cf1e559a50ae98b22e8099c903",
+  "artifacts/anchor_confirmation/ancP7_decide_sources.json": "19678606b6ad530ec781b59197a284fd685b942823ec14280e6e1a6690179de2",
+  "artifacts/anchor_confirmation/ancS7_select_sources.json": "0cfab95106bfadb03e5e9750d8e5a17d7ff16523ff14b66bba1cab5519067656",
+  "artifacts/anchor_confirmation/ancS7_selected_n.json": "5cda7adb055ed126efb0a8ec198e06d1176ccdc57e7d38fe35ff74b74a4a92ff"
+ },
+ "fixed_architecture": {
+  "authority": "the user's decision recorded in audit section 709",
+  "axis_center": "anchors",
+  "datasets": [
+   "cifar10",
+   "flickr25k",
+   "nuswide",
+   "mscoco"
+  ]
+ },
+ "generation": {
+  "anchor_manifest_sha256": "c061296309fe41203205dff65de3a1afb843c950e93c0614dfd27a8216a90128",
+  "commit": "59477d8be2c1750139ae436af778fd324c24d35a",
+  "contract_sha256": "e6c4978e6d30559e01c2ee34ae2b4d39c01717557ee16c9e96f85980aa8d3efc"
+ },
+ "note": "train-only; per dataset; n = 3; descriptive -- no score selects the architecture, no threshold, significance or equivalence test; stage R/T are separate authorizations; the stage-R membership is provisional until the final recipe freeze: a lambda the required checks (TODO 13-15) change supersedes it for that dataset (contract v3 section 7.6)",
+ "reducer": "anchor-confirm-reducer/3",
+ "selection": {
+  "path": "artifacts/anchor_confirmation/ancS7_selected_n.json",
+  "sha256": "5cda7adb055ed126efb0a8ec198e06d1176ccdc57e7d38fe35ff74b74a4a92ff"
+ },
+ "stage_R_membership": [
+  {
+   "N": 4,
+   "axis_center": "anchors",
+   "dataset": "cifar10",
+   "refit": "scratch, full designated train split",
+   "seed": 42
+  },
+  {
+   "N": 4,
+   "axis_center": "anchors",
+   "dataset": "cifar10",
+   "refit": "scratch, full designated train split",
+   "seed": 43
+  },
+  {
+   "N": 4,
+   "axis_center": "anchors",
+   "dataset": "cifar10",
+   "refit": "scratch, full designated train split",
+   "seed": 44
+  },
+  {
+   "N": 4,
+   "axis_center": "anchors",
+   "dataset": "flickr25k",
+   "refit": "scratch, full designated train split",
+   "seed": 42
+  },
+  {
+   "N": 4,
+   "axis_center": "anchors",
+   "dataset": "flickr25k",
+   "refit": "scratch, full designated train split",
+   "seed": 43
+  },
+  {
+   "N": 4,
+   "axis_center": "anchors",
+   "dataset": "flickr25k",
+   "refit": "scratch, full designated train split",
+   "seed": 44
+  },
+  {
+   "N": 4,
+   "axis_center": "anchors",
+   "dataset": "nuswide",
+   "refit": "scratch, full designated train split",
+   "seed": 42
+  },
+  {
+   "N": 4,
+   "axis_center": "anchors",
+   "dataset": "nuswide",
+   "refit": "scratch, full designated train split",
+   "seed": 43
+  },
+  {
+   "N": 4,
+   "axis_center": "anchors",
+   "dataset": "nuswide",
+   "refit": "scratch, full designated train split",
+   "seed": 44
+  },
+  {
+   "N": 39,
+   "axis_center": "anchors",
+   "dataset": "mscoco",
+   "refit": "scratch, full designated train split",
+   "seed": 42
+  },
+  {
+   "N": 39,
+   "axis_center": "anchors",
+   "dataset": "mscoco",
+   "refit": "scratch, full designated train split",
+   "seed": 43
+  },
+  {
+   "N": 39,
+   "axis_center": "anchors",
+   "dataset": "mscoco",
+   "refit": "scratch, full designated train split",
+   "seed": 44
+  }
+ ],
+ "summary": {
+  "cifar10": {
+   "axis_center": "anchors",
+   "code_to_axis": {
+    "hits_total": [
+     [
+      652,
+      2000
+     ],
+     [
+      646,
+      2000
+     ],
+     [
+      697,
+      2000
+     ]
+    ],
+    "mean": 0.3325,
+    "per_seed": [
+     0.326,
+     0.323,
+     0.3485
+    ],
+    "sample_sd": 0.013937359864766335
+   },
+   "frozen_N": 4,
+   "retrieval": {
+    "mean": 0.7706156922379396,
+    "metric": "raw base-Hamming mAP@R at the terminal epoch, train-only validation, R=1000",
+    "per_seed": [
+     0.7823275443473103,
+     0.7915364140986318,
+     0.7379831182678765
+    ],
+    "sample_sd": 0.02863327580731774
+   }
+  },
+  "flickr25k": {
+   "axis_center": "anchors",
+   "code_to_axis": {
+    "hits_total": [
+     [
+      726,
+      2000
+     ],
+     [
+      665,
+      2000
+     ],
+     [
+      820,
+      2000
+     ]
+    ],
+    "mean": 0.3685,
+    "per_seed": [
+     0.363,
+     0.3325,
+     0.41
+    ],
+    "sample_sd": 0.03904164443257992
+   },
+   "frozen_N": 4,
+   "retrieval": {
+    "mean": 0.7479465221862629,
+    "metric": "raw base-Hamming mAP@R at the terminal epoch, train-only validation, R=5000",
+    "per_seed": [
+     0.7641936888306327,
+     0.7436437784867651,
+     0.7360020992413908
+    ],
+    "sample_sd": 0.014580008004104042
+   }
+  },
+  "mscoco": {
+   "axis_center": "anchors",
+   "code_to_axis": {
+    "hits_total": [
+     [
+      827,
+      2000
+     ],
+     [
+      848,
+      2000
+     ],
+     [
+      855,
+      2000
+     ]
+    ],
+    "mean": 0.42166666666666663,
+    "per_seed": [
+     0.4135,
+     0.424,
+     0.4275
+    ],
+    "sample_sd": 0.007285830998131471
+   },
+   "frozen_N": 39,
+   "retrieval": {
+    "mean": 0.6356095095635861,
+    "metric": "raw base-Hamming mAP@R at the terminal epoch, train-only validation, R=5000",
+    "per_seed": [
+     0.6340656450539125,
+     0.6425743919820911,
+     0.6301884916547547
+    ],
+    "sample_sd": 0.006335634928549032
+   }
+  },
+  "nuswide": {
+   "axis_center": "anchors",
+   "code_to_axis": {
+    "hits_total": [
+     [
+      887,
+      2000
+     ],
+     [
+      851,
+      2000
+     ],
+     [
+      833,
+      2000
+     ]
+    ],
+    "mean": 0.42849999999999994,
+    "per_seed": [
+     0.4435,
+     0.4255,
+     0.4165
+    ],
+    "sample_sd": 0.013747727084867533
+   },
+   "frozen_N": 4,
+   "retrieval": {
+    "mean": 0.7254627223353575,
+    "metric": "raw base-Hamming mAP@R at the terminal epoch, train-only validation, R=5000",
+    "per_seed": [
+     0.7225163591400635,
+     0.729213859084159,
+     0.7246579487818497
+    ],
+    "sample_sd": 0.0034205075251501657
+   }
+  }
+ },
+ "version": "anchor-confirm/2"
+}
