@@ -1,0 +1,9 @@
+{
+ "script": "scripts/phase3_selection_matrix.py",
+ "args": [
+  "--refit"
+ ],
+ "exit": 2,
+ "allowed_named": [],
+ "refused": []
+}

@@ -1,0 +1,2 @@
+[phase3] cifar10:5 is not one of the 16 cells; N must be one of [4, 9, 19, 39] and the dataset one of ['cifar10', 'flickr25k', 'mscoco', 'nuswide']
+[prep-guard] exit 2; refused 0: []

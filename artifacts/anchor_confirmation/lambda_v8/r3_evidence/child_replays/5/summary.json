@@ -1,0 +1,18 @@
+{
+ "script": "scripts/phase3_select_n.py",
+ "args": [
+  "--emit-stage-plan",
+  "bootstrap_topp",
+  "--state",
+  "initial",
+  "--round-index",
+  "0",
+  "--max-update-rounds",
+  "3",
+  "--out",
+  "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/child_emit_out.json"
+ ],
+ "exit": 0,
+ "allowed_named": [],
+ "refused": []
+}

@@ -1,0 +1,2 @@
+[phase3] --refit runs cells, so pass --run (or --smoke) with it; on its own it used to print the selection plan and exit 0
+[prep-guard] exit 2; refused 0: []

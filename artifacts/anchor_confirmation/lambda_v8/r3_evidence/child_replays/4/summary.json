@@ -1,0 +1,12 @@
+{
+ "script": "scripts/phase3_selection_matrix.py",
+ "args": [
+  "--run",
+  "--refit",
+  "--only",
+  "cifar10:4"
+ ],
+ "exit": 2,
+ "allowed_named": [],
+ "refused": []
+}
