@@ -1,0 +1,77 @@
+{
+  "coordinates": [
+    {
+      "N": 4,
+      "arm": "anchors",
+      "dataset": "flickr25k",
+      "lambda": "incumbent",
+      "receipt": "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_sweep_complete.json",
+      "receipt_sha256": "0991f0a031eea624de9ff42cb96c034589e596307a0bf61c2d9710f58c24b838",
+      "record": "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_flickr_A_v4_N4_s42_AXanchors_P06095_JD002.json",
+      "record_sha256": "36e2be8e790ab4daa9faccfe96007a8e839da40b551e02746bcd1dbe8ccdd753",
+      "seed": 42,
+      "source": "receipt"
+    },
+    {
+      "N": 4,
+      "arm": "anchors",
+      "dataset": "flickr25k",
+      "lambda": "lambda_wasserstein=0.30",
+      "receipt": "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_sweep_complete.json",
+      "receipt_sha256": "0991f0a031eea624de9ff42cb96c034589e596307a0bf61c2d9710f58c24b838",
+      "record": "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_flickr_A_v4_N4_s42_AXanchors_LW030_P06095_JD002.json",
+      "record_sha256": "8537da4f4ddc9195873e7f6b29923410531fbe60db73b32247e02f6361d43504",
+      "seed": 42,
+      "source": "receipt"
+    },
+    {
+      "N": 4,
+      "arm": "anchors",
+      "dataset": "flickr25k",
+      "lambda": "lambda_wasserstein=0.50",
+      "receipt": "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_sweep_complete.json",
+      "receipt_sha256": "0991f0a031eea624de9ff42cb96c034589e596307a0bf61c2d9710f58c24b838",
+      "record": "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_flickr_A_v4_N4_s42_AXanchors_LW050_P06095_JD002.json",
+      "record_sha256": "2df1d039defd82ae3a54a881e6a492192d0a294ea76709c7c54730362979857d",
+      "seed": 42,
+      "source": "receipt"
+    },
+    {
+      "N": 4,
+      "arm": "anchors",
+      "dataset": "flickr25k",
+      "lambda": "lambda_bu=0",
+      "receipt": "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_sweep_complete.json",
+      "receipt_sha256": "0991f0a031eea624de9ff42cb96c034589e596307a0bf61c2d9710f58c24b838",
+      "record": "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_flickr_A_v4_N4_s42_AXanchors_LBU0_P06095_JD002.json",
+      "record_sha256": "019d9c0dc48c72fb39526c21315c71bcac60a14582e49ec05c2b1ac959d069c8",
+      "seed": 42,
+      "source": "receipt"
+    },
+    {
+      "N": 4,
+      "arm": "anchors",
+      "dataset": "flickr25k",
+      "lambda": "lambda_text_hash_ntxent=0.025",
+      "receipt": "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_sweep_complete.json",
+      "receipt_sha256": "0991f0a031eea624de9ff42cb96c034589e596307a0bf61c2d9710f58c24b838",
+      "record": "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_flickr_A_v4_N4_s42_AXanchors_LTH0025_P06095_JD002.json",
+      "record_sha256": "9fb3dd789c23860eeb96b3129746523f502070a820388a947d96c1814ef4ec10",
+      "seed": 42,
+      "source": "receipt"
+    },
+    {
+      "N": 4,
+      "arm": "anchors",
+      "dataset": "flickr25k",
+      "lambda": "lambda_text_hash_ntxent=0.10",
+      "receipt": "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_sweep_complete.json",
+      "receipt_sha256": "0991f0a031eea624de9ff42cb96c034589e596307a0bf61c2d9710f58c24b838",
+      "record": "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancL8_flickr_A_v4_N4_s42_AXanchors_LTH010_P06095_JD002.json",
+      "record_sha256": "3aaeacbfc1c542f547094002a5b1f0ee71f903be3aeb65cd93b308da98785a29",
+      "seed": 42,
+      "source": "receipt"
+    }
+  ],
+  "version": "anchor-confirm/2"
+}
