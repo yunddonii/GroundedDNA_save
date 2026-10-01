@@ -487,6 +487,33 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-01 [anchor model stage L — CPU reduction submitted, nothing run] Audit §740: the campaign is accepted; the exact reduction command awaits permission
+
+**Status:** ✅ submission complete. Branch `arch-exp-2026-09-anchor-lambda`, `4c03438` (pushed). The
+reducer has **not** run.
+
+**Audit §740** independently verified the six-cell campaign. It confirmed the control gate and the
+scores in the entry below and noted that none of the five candidates can pass T = 0.0282. It asked
+for the exact CPU reduction, not a run.
+
+**Submitted** (`docs/ANCHOR_LAMBDA_REDUCTION_HANDOFF_v8.md` `517cb6c1…`):
+- **Sources** `ancL8_lambda_sources.json` `e0c32688…`: the six ancL8 records and the one receipt
+  only, each with its `lambda` label. Built from the receipt with exclusive creation; a JSON-only
+  pre-check of the reducer's admission conditions passed 6/6, and a positive control failed it.
+- **Command:** `anchor_confirm_decision.py lambda` with manifest `58e69ae1…`, no `--selection` (v7 N
+  record pinned internally), CPU only, fresh write-once output `ancL8_lambda_decision.json`.
+- **Read footprint (from the code):** 39 recorded inputs: 6 historical JSON, sources, receipt,
+  snapshot, and per cell the record, binding, sidecar, `log.csv` and `config.pt`. Also the manifest
+  and its 64 files, and the audit ledger (6×).
+  - `config.pt` is byte-hashed 12 times (6 + 6 re-verification) and never deserialised.
+  - No checkpoint, array, cache, caption or GPU.
+
+**Next.** Wait for the audit's permission for this exact command. If granted, run it once, report,
+and stop. The F record (anchors for all four datasets; N 4/4/4/39 unless a separately approved
+lineage changes them) comes after that.
+
+---
+
 ## 2026-10-01 [anchor model stage L — approved six-cell Flickr25K lambda campaign, complete] Audit §739: control gate passed, five candidates ran
 
 **Status:** ✅ campaign rc 0. **Stopped for audit**, as §739 requires. The lambda reduction (the
