@@ -1,0 +1,360 @@
+anchor-confirm/2: stage refit, 12 cells, namespace ancR9  [NON-EXECUTABLE until audit approval]
+{
+ "admission_sha256": "27e1a119c66dd92a04f87390fac3743337b65fe6f793450291e162ad13913351",
+ "anchor_approval": null,
+ "anchor_freeze": {
+  "acceptance": {
+   "ledger": "/home/yschoi/GroundedDNA/docs/PHASE1_PHASE2_REAUDIT_2026-08-14.md",
+   "section": 744
+  },
+  "path": "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancF_candidate_v1.json",
+  "recipes_sha256": {
+   "cifar10": "261fe18cc1b39952ab5e82dd3eef002e5432de457a0f189ca830b3ae619396d0",
+   "flickr25k": "5b1ffacdf61b8bb282949d1a594d2234b9656ce800d5198e0960899a98f1957b",
+   "mscoco": "0bc267cb82c44b81ed9d42a6f47036385b9b096f8a398f4a9307aebc26595518",
+   "nuswide": "6ab06af5fe7f94e2c30ea45f21dd5ec232497a6926a1cc3e8ef56e3f5cb3acd7"
+  },
+  "sha256": "5165f5dc9fcfb8334270bc16aa9816d09db67b03a04abae7ff846d5235bdca1d"
+ },
+ "anchor_manifest": {
+  "commit": "acc4e011fb6edfde14d1639afe864f970976c565",
+  "contract": {
+   "path": "docs/ANCHOR_CONFIRMATION_CONTRACT_v3.md",
+   "sha256": "e6c4978e6d30559e01c2ee34ae2b4d39c01717557ee16c9e96f85980aa8d3efc"
+  },
+  "files_sha256": {
+   "config.py": "13079550490016a9600e6cfc6777cf01eb67335fa7f7e01de5f0018751aa1a8b",
+   "dataloaders.py": "fa7545908664502a5a4f20fe8d3441b42d5f441653d1310dc4fbf08c1bb14e27",
+   "dna_utils/__init__.py": "b20f32c8266c4bbdd4efa88fc1ce23bb17cacd7c76fa7ddcdd04437275c082e3",
+   "dna_utils/bio_constraints.py": "f7863bd363ebe42989f232f550a0af837dde088abf01bada8a0c281f6f164030",
+   "dna_utils/cache_provenance.py": "144f6c0e51517010898ab4d43cea1d0a06d6ca375d55e5e721550dd06453c73b",
+   "dna_utils/csv_logger.py": "68450e316bf775989f547b2593131e767e24903b3bef0893bda7a27055cb8d6f",
+   "dna_utils/dna_code_utils.py": "fa634b9a8cf05db7160f936c24ae72b51c39a828caed64343f64ea12c9251888",
+   "dna_utils/extraction_validation.py": "bd126a04aac5d1b51eca0379180924d0ad9e80b8d6bae6c2784c86a12c88c8ca",
+   "dna_utils/gc_policy.py": "3262c0b68eee02357259068efaaa05eb4c6ce0a357e901dd764b27eb96e3b22c",
+   "dna_utils/gpu_lease.py": "01f1564258fc7ebe6d65226c961b579e7a88f063ce4814d89e75b490875ee976",
+   "dna_utils/run_identity.py": "a6cfe0e902e889c4ccc35ada829fbd80063811457cf04a4c06c58939ec184c9f",
+   "dna_utils/runtime_environment.py": "a78d51dbb134bcc400443a42b4c9fa46063b7bef356ab5b37b571a44f489a597",
+   "dna_utils/runtime_state.py": "cdab32494012f3f7199c7f05af81af547f5ddcbeb2131e166787dab94d26e333",
+   "dna_utils/scientific_recipe.py": "95ae775192b4806f604052f488a9feee089cfc9e9a144e2b0d76d7426d273cd4",
+   "dna_utils/text_description_processor.py": "e2028a9d007de711eebcb1b00e7a5fcb37e593d06c28231f3fa9bbf0a0541221",
+   "dna_utils/training_utils.py": "f1a6ef9a0383312e4d52e0d693656c778ea620e53e69dc61f75d2510946cddb8",
+   "dna_utils/visualization.py": "f71796319f19915371ae1ba12e25f6fa37a30429860c6d84a15aa222607c25bd",
+   "dna_utils/vlm_qwen25_descriptions.py": "3c5a865ed264612dd0ff4b9663cd6e7e27c0b4d7c1b02f5045d22c633719f39c",
+   "docs/ANCHOR_CONFIRMATION_CONTRACT_v3.md": "e6c4978e6d30559e01c2ee34ae2b4d39c01717557ee16c9e96f85980aa8d3efc",
+   "docs/ANCHOR_LAMBDA_CONTRACT_v1.md": "34a62bfa05600b76f316b3ad62f0da42b8aae8ae2be4fdad490647d834907dfe",
+   "docs/ANCHOR_REFIT_CONTRACT_v1.md": "6d22f391f421e18e5402b5f7b7043a089c1a24c5189d5ff74f4fce78ca42ec4a",
+   "evaluation_siglip2.py": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d",
+   "extraction_siglip2.py": "1d10b3b0e065179f72e477edb98a37be77890040410c6b8a6f1fafc82ed9aab6",
+   "loss_siglip2.py": "8a0275dd8504519888e68622c88a624685607ca68f05d0ae421dde7cc0a24d4b",
+   "model_siglip2.py": "9c1cc71b7b40a366439495b3bfa510020a26ef6efd6c6a464b625a9982f3f11d",
+   "models/__init__.py": "18106eb4dc331c9fbad2734a6e7bf5bc4d1870ba6cde514e9361baee10978444",
+   "models/adapters.py": "0aa62a08472ef29662480023747caf661104d70b006f14311be7ffc165c68c4a",
+   "models/cluster_attention_router.py": "2c69889d8d84b70fdf3fb2c571217da1ca06f76f0b49be8dd0d0485ffdc7c13e",
+   "models/pretrained_backbone.py": "e86953f0760c8f46649b2152b0d2e812053f549da75b9c5a97de05fbd5801b3f",
+   "models/pretrained_backbone_clip.py": "c0237e43c6fcbd3fb9221bd147648b2e42fa59df280e5919d1699f4c33d4580a",
+   "models/semantic_router.py": "200a5a0d0f93b5dd05c9a3dcd412588f51a745fafb7d37b179bcc3f1a510460b",
+   "models/text_cross_attention_router.py": "559677f2659ab1a543e1fed145891a67ffc5a7eb38ecb4f197b0cfa76e3302ec",
+   "models/text_encoder.py": "0ed8d4f6db5ce87f0f5c18ccc804a631fe0c2502ff218630c91b7217938c0a7b",
+   "models/visual_encoder.py": "9d38599dcd07377c3e4b8f89a1da4f5965515529023761c26dae587592cf8565",
+   "p0_protocol.py": "90c74154967dad27db2729168a09c023cd718ce711eef66cb27098a2625e3c3b",
+   "scripts/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "scripts/anchor_confirm_code_axis.py": "31537dde1cc8dd338221bb7fd49241cc0c618c0de444a2adf3500e86f708b19e",
+   "scripts/anchor_confirm_decision.py": "ae247d4a0fe7398198e0975cc81ddc0457b104b14e46faadd20d7d0f70bc7dd9",
+   "scripts/anchor_confirm_manifest.py": "f2d58f2b9f31df448449106ef597f62ba6bd4c17d371e26b01655964075c4370",
+   "scripts/anchor_confirm_supervisor.py": "df7535ef83095e869eaa844c8b0ace213abe0a37645fab74bffdd2ecc7a855bc",
+   "scripts/anchor_refit_stage.py": "77cf41be8071c176703e7d0379988a6a155adec56c96eb18476d86c0fb47c19f",
+   "scripts/anchor_terminal_test.py": "8e53fdab4893b6553177ef792abba4c26ffabdb95638a07a6f4432c171b28f7e",
+   "scripts/build_text_whiten_matrix.py": "76e9332662154b1cc3579aeea343c8ec4d917d6fea2007188909cafd456338a0",
+   "scripts/eval_cell_bioproj.py": "d03ce36be19a0031b568ba1af6a583193308bfe434ae806ceffca426b74da122",
+   "scripts/extract_train_split.py": "fcb8ea1991f2f3179c26e5fb878479538289c408070efb7b484e25a17c230370",
+   "scripts/pairwise_nmi.py": "d9016784a76a59c28f7f58185df31363540e7002a1bda3561d720616f3ed9bb2",
+   "scripts/phase3_launch_matrix.sh": "9ef51d79f9678ac0b2a5fb93d31ac1fe6029763628d991b3d290e6f0c5e8142e",
+   "scripts/phase3_select_n.py": "1feaa90cd76077a7f53006c8905dd5db5478a700811eaf13edd9a7eaa449009e",
+   "scripts/phase3_selection_matrix.py": "a8fea7483d97c8bd589d8ccaf27b5202f47408a20f41b75f250ba9f18cdf9be9",
+   "scripts/seal_cell_analysis.py": "65be44b77bf3a03a2afcee81c3bb24d3431f6d74d5e00debd878fe11a2a2e695",
+   "scripts/seal_phase3_inputs.py": "12233f8e4967c90afcab131a1061fe76abfbaed86648e1388826538a6d42f214",
+   "scripts/train_cifar10_v185_bidirTokenPrune05_ccs01_clip.sh": "a0dff871b7be004f9a614eae324c6613ca6713af591749239c7868ec6965abc9",
+   "scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh": "7850783ff03b63035018fa217b05ee7f6fcc7b2778cdbb7e76faf61df7b06726",
+   "scripts/train_mscoco_F2_sweep_clip.sh": "c4bfb0f8d172c3353b72605ab41d7c78d69b7fba3f4f0745ccaaf1fecfbad18f",
+   "scripts/train_nuswide_v185_sweep_clip.sh": "d63476d81da232ce4676394116cc050511f7d7f0b8bda637211c538c6b4764a8",
+   "terminal_official_test.py": "45de600f0a8cccfcfa29f85fe56f793f1940e07806908681805197bf9cc4960a",
+   "tests/test_anchor_confirm_env_handoff.py": "54790086c5d01d48b0729072d028d338f936c08e2894f94bc5c2198a17334b4d",
+   "tests/test_anchor_confirm_input_bridge.py": "80c78c36fbd016974e9bf143541c28074760f8de3ea0ad80375901b55674de17",
+   "tests/test_anchor_confirm_launcher.py": "da295be87e89ed02397b56c2ebc97dd46882ccd0efae85c08345214d63b4e5a9",
+   "tests/test_anchor_confirm_lifecycle.py": "93bca9a4099e6f5aa78eb90411b3bdc6aae2217b059d11fc04945d87a43d96fc",
+   "tests/test_anchor_confirm_port.py": "d2d5f9550f3ff4202c617b4823f6605fd76cda0bdb7828bbb0ffd4977c13593f",
+   "tests/test_anchor_confirm_recipe.py": "1dbcce64a3d0694114f00811ea3445cd379fbed35f59051e81d8a53b78ac1148",
+   "tests/test_anchor_confirm_reducer.py": "b62635cd90a7a2a99d9b3cd0203f9bec3c194aea332da43c862815c8059097b9",
+   "tests/test_anchor_confirm_supervisor.py": "1ed421d63b85b036ca2ec7650a43434d286a3cdbed5dd58165f5bb3ba2d2f561",
+   "tests/test_anchor_lambda_stage.py": "57af8104e9f65f63b962d48d0a133463b0ed9f311fdd7f1fd9c88ed135d6fae5",
+   "tests/test_anchor_refit_stage.py": "16af6475c760a22043267376ea7ded2cb8cca1cfc48912a73fd12f9bca99dd34",
+   "tests/test_seal_phase3_inputs.py": "0e66852f6c7573c874ffdb6d75f4e74ccbf50842a163b03f4eed213fcc475773",
+   "train_siglip2.py": "98ed13d3576a39357baffe6aaa995961796375165c3431a8d7c695ed83db068f",
+   "val_split.py": "95e415c6f43b714fc349c44c5d449e667429bc0f15fb4af9c4389e82ca9eecc2"
+  },
+  "path": "artifacts/anchor_confirmation/authority_manifest_v9r2.json",
+  "sha256": "b7e9264a7a933e3efd30125628f638bc5c5304f32ccae2055b730ad382b215f6"
+ },
+ "anchor_request": null,
+ "approved_p3_refit_aggregate": {
+  "path": "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/p3rfB_refit_aggregate.json",
+  "sha256": "b4f3b0dff467f7c1fd4ca134edba66085115939a4097e6bb201bd13ca83452a5"
+ },
+ "approved_selected_n": {
+  "path": "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/selected_n.json",
+  "sha256": "2bf6133d8cdc7471e40a33d20f1bb19228aa770e67a999a436efb5abac6b2549"
+ },
+ "incumbent": {
+  "cifar10": {
+   "N": 19,
+   "joint": "0.02",
+   "topp": [
+    "0.3",
+    "0.7"
+   ]
+  },
+  "flickr25k": {
+   "N": 4,
+   "joint": "0.02",
+   "topp": [
+    "0.6",
+    "0.95"
+   ]
+  },
+  "mscoco": {
+   "N": 39,
+   "joint": "0.03",
+   "topp": [
+    "0.6",
+    "0.95"
+   ]
+  },
+  "nuswide": {
+   "N": 4,
+   "joint": "0.05",
+   "topp": [
+    "0.4",
+    "0.8"
+   ]
+  }
+ }
+}
+  cifar10    N=4   seed=42 arm=anchors -> ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002
+  cifar10    N=4   seed=43 arm=anchors -> ancR9_cifar_A_v4_refit_N4_s43_AXanchors_JD002
+  cifar10    N=4   seed=44 arm=anchors -> ancR9_cifar_A_v4_refit_N4_s44_AXanchors_JD002
+  flickr25k  N=4   seed=42 arm=anchors -> ancR9_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002
+  flickr25k  N=4   seed=43 arm=anchors -> ancR9_flickr_A_v4_refit_N4_s43_AXanchors_P06095_JD002
+  flickr25k  N=4   seed=44 arm=anchors -> ancR9_flickr_A_v4_refit_N4_s44_AXanchors_P06095_JD002
+  nuswide    N=4   seed=42 arm=anchors -> ancR9_nuswide_A_v4_refit_N4_s42_AXanchors_P0408_JD005
+  nuswide    N=4   seed=43 arm=anchors -> ancR9_nuswide_A_v4_refit_N4_s43_AXanchors_P0408_JD005
+  nuswide    N=4   seed=44 arm=anchors -> ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005
+  mscoco     N=39  seed=42 arm=anchors -> ancR9_mscoco_A_v5b_refit_N39_s42_AXanchors_P06095_JD003
+  mscoco     N=39  seed=43 arm=anchors -> ancR9_mscoco_A_v5b_refit_N39_s43_AXanchors_P06095_JD003
+  mscoco     N=39  seed=44 arm=anchors -> ancR9_mscoco_A_v5b_refit_N39_s44_AXanchors_P06095_JD003
+each refit recipe differs from the F record's validated recipe only in the contracted refit fields; the rendered control differs in axis_center alone
+  cifar10|N=4|seed=42: f31adfb5d9dbe9a9 differs from F in ['clip_snapshot_config_sha256', 'clip_snapshot_dir', 'clip_snapshot_revision', 'clip_snapshot_tokenizers_sha256_json', 'clip_snapshot_weight_file', 'clip_snapshot_weight_sha256', 'epoch', 'final_epoch_eval', 'keep_final_checkpoint', 'lr_schedule_horizon', 'phase3_hf_identity_sha256', 'phase3_input_aggregate_sha256', 'phase3_input_seal', 'phase3_input_seal_sha256', 'phase3_split_identity_sha256', 'selection_mode', 'sinkhorn_schedule_horizon', 'text_whiten_npz', 'val_split_ratio']
+  cifar10|N=4|seed=43: 892e51d9a813ca80 differs from F in ['clip_snapshot_config_sha256', 'clip_snapshot_dir', 'clip_snapshot_revision', 'clip_snapshot_tokenizers_sha256_json', 'clip_snapshot_weight_file', 'clip_snapshot_weight_sha256', 'epoch', 'final_epoch_eval', 'keep_final_checkpoint', 'lr_schedule_horizon', 'phase3_hf_identity_sha256', 'phase3_input_aggregate_sha256', 'phase3_input_seal', 'phase3_input_seal_sha256', 'phase3_split_identity_sha256', 'random_seed', 'selection_mode', 'sinkhorn_schedule_horizon', 'text_whiten_npz', 'val_split_ratio']
+  cifar10|N=4|seed=44: c54e07a1c27bf903 differs from F in ['clip_snapshot_config_sha256', 'clip_snapshot_dir', 'clip_snapshot_revision', 'clip_snapshot_tokenizers_sha256_json', 'clip_snapshot_weight_file', 'clip_snapshot_weight_sha256', 'epoch', 'final_epoch_eval', 'keep_final_checkpoint', 'lr_schedule_horizon', 'phase3_hf_identity_sha256', 'phase3_input_aggregate_sha256', 'phase3_input_seal', 'phase3_input_seal_sha256', 'phase3_split_identity_sha256', 'random_seed', 'selection_mode', 'sinkhorn_schedule_horizon', 'text_whiten_npz', 'val_split_ratio']
+  flickr25k|N=4|seed=42: bdc35a78d911509a differs from F in ['clip_snapshot_config_sha256', 'clip_snapshot_dir', 'clip_snapshot_revision', 'clip_snapshot_tokenizers_sha256_json', 'clip_snapshot_weight_file', 'clip_snapshot_weight_sha256', 'epoch', 'final_epoch_eval', 'keep_final_checkpoint', 'lr_schedule_horizon', 'phase3_hf_identity_sha256', 'phase3_input_aggregate_sha256', 'phase3_input_seal', 'phase3_input_seal_sha256', 'phase3_split_identity_sha256', 'selection_mode', 'sinkhorn_schedule_horizon', 'text_whiten_npz', 'val_split_ratio']
+  flickr25k|N=4|seed=43: 43cfb3778b12926e differs from F in ['clip_snapshot_config_sha256', 'clip_snapshot_dir', 'clip_snapshot_revision', 'clip_snapshot_tokenizers_sha256_json', 'clip_snapshot_weight_file', 'clip_snapshot_weight_sha256', 'epoch', 'final_epoch_eval', 'keep_final_checkpoint', 'lr_schedule_horizon', 'phase3_hf_identity_sha256', 'phase3_input_aggregate_sha256', 'phase3_input_seal', 'phase3_input_seal_sha256', 'phase3_split_identity_sha256', 'random_seed', 'selection_mode', 'sinkhorn_schedule_horizon', 'text_whiten_npz', 'val_split_ratio']
+  flickr25k|N=4|seed=44: 545aa94ced15f9f2 differs from F in ['clip_snapshot_config_sha256', 'clip_snapshot_dir', 'clip_snapshot_revision', 'clip_snapshot_tokenizers_sha256_json', 'clip_snapshot_weight_file', 'clip_snapshot_weight_sha256', 'epoch', 'final_epoch_eval', 'keep_final_checkpoint', 'lr_schedule_horizon', 'phase3_hf_identity_sha256', 'phase3_input_aggregate_sha256', 'phase3_input_seal', 'phase3_input_seal_sha256', 'phase3_split_identity_sha256', 'random_seed', 'selection_mode', 'sinkhorn_schedule_horizon', 'text_whiten_npz', 'val_split_ratio']
+  nuswide|N=4|seed=42: e0b7b735d5842d39 differs from F in ['clip_snapshot_config_sha256', 'clip_snapshot_dir', 'clip_snapshot_revision', 'clip_snapshot_tokenizers_sha256_json', 'clip_snapshot_weight_file', 'clip_snapshot_weight_sha256', 'epoch', 'final_epoch_eval', 'keep_final_checkpoint', 'lr_schedule_horizon', 'phase3_hf_identity_sha256', 'phase3_input_aggregate_sha256', 'phase3_input_seal', 'phase3_input_seal_sha256', 'phase3_split_identity_sha256', 'selection_mode', 'sinkhorn_schedule_horizon', 'text_whiten_npz', 'val_split_ratio']
+  nuswide|N=4|seed=43: 099b2ef72626b590 differs from F in ['clip_snapshot_config_sha256', 'clip_snapshot_dir', 'clip_snapshot_revision', 'clip_snapshot_tokenizers_sha256_json', 'clip_snapshot_weight_file', 'clip_snapshot_weight_sha256', 'epoch', 'final_epoch_eval', 'keep_final_checkpoint', 'lr_schedule_horizon', 'phase3_hf_identity_sha256', 'phase3_input_aggregate_sha256', 'phase3_input_seal', 'phase3_input_seal_sha256', 'phase3_split_identity_sha256', 'random_seed', 'selection_mode', 'sinkhorn_schedule_horizon', 'text_whiten_npz', 'val_split_ratio']
+  nuswide|N=4|seed=44: a18e35a9179f5f1a differs from F in ['clip_snapshot_config_sha256', 'clip_snapshot_dir', 'clip_snapshot_revision', 'clip_snapshot_tokenizers_sha256_json', 'clip_snapshot_weight_file', 'clip_snapshot_weight_sha256', 'epoch', 'final_epoch_eval', 'keep_final_checkpoint', 'lr_schedule_horizon', 'phase3_hf_identity_sha256', 'phase3_input_aggregate_sha256', 'phase3_input_seal', 'phase3_input_seal_sha256', 'phase3_split_identity_sha256', 'random_seed', 'selection_mode', 'sinkhorn_schedule_horizon', 'text_whiten_npz', 'val_split_ratio']
+  mscoco|N=39|seed=42: 640d295b7bbd55a2 differs from F in ['clip_snapshot_config_sha256', 'clip_snapshot_dir', 'clip_snapshot_revision', 'clip_snapshot_tokenizers_sha256_json', 'clip_snapshot_weight_file', 'clip_snapshot_weight_sha256', 'epoch', 'final_epoch_eval', 'keep_final_checkpoint', 'lr_schedule_horizon', 'phase3_hf_identity_sha256', 'phase3_input_aggregate_sha256', 'phase3_input_seal', 'phase3_input_seal_sha256', 'phase3_split_identity_sha256', 'selection_mode', 'sinkhorn_schedule_horizon', 'text_whiten_npz', 'val_split_ratio']
+  mscoco|N=39|seed=43: bdd18363192a659b differs from F in ['clip_snapshot_config_sha256', 'clip_snapshot_dir', 'clip_snapshot_revision', 'clip_snapshot_tokenizers_sha256_json', 'clip_snapshot_weight_file', 'clip_snapshot_weight_sha256', 'epoch', 'final_epoch_eval', 'keep_final_checkpoint', 'lr_schedule_horizon', 'phase3_hf_identity_sha256', 'phase3_input_aggregate_sha256', 'phase3_input_seal', 'phase3_input_seal_sha256', 'phase3_split_identity_sha256', 'random_seed', 'selection_mode', 'sinkhorn_schedule_horizon', 'text_whiten_npz', 'val_split_ratio']
+  mscoco|N=39|seed=44: 86b46c3ada3362d9 differs from F in ['clip_snapshot_config_sha256', 'clip_snapshot_dir', 'clip_snapshot_revision', 'clip_snapshot_tokenizers_sha256_json', 'clip_snapshot_weight_file', 'clip_snapshot_weight_sha256', 'epoch', 'final_epoch_eval', 'keep_final_checkpoint', 'lr_schedule_horizon', 'phase3_hf_identity_sha256', 'phase3_input_aggregate_sha256', 'phase3_input_seal', 'phase3_input_seal_sha256', 'phase3_split_identity_sha256', 'random_seed', 'selection_mode', 'sinkhorn_schedule_horizon', 'text_whiten_npz', 'val_split_ratio']
+execution request that this command without --plan would need approved:
+{
+ "admission_authority": null,
+ "cells": [
+  [
+   "cifar10",
+   "anchors",
+   4,
+   42
+  ],
+  [
+   "cifar10",
+   "anchors",
+   4,
+   43
+  ],
+  [
+   "cifar10",
+   "anchors",
+   4,
+   44
+  ],
+  [
+   "flickr25k",
+   "anchors",
+   4,
+   42
+  ],
+  [
+   "flickr25k",
+   "anchors",
+   4,
+   43
+  ],
+  [
+   "flickr25k",
+   "anchors",
+   4,
+   44
+  ],
+  [
+   "mscoco",
+   "anchors",
+   39,
+   42
+  ],
+  [
+   "mscoco",
+   "anchors",
+   39,
+   43
+  ],
+  [
+   "mscoco",
+   "anchors",
+   39,
+   44
+  ],
+  [
+   "nuswide",
+   "anchors",
+   4,
+   42
+  ],
+  [
+   "nuswide",
+   "anchors",
+   4,
+   43
+  ],
+  [
+   "nuswide",
+   "anchors",
+   4,
+   44
+  ]
+ ],
+ "declared_cells": [
+  [
+   "cifar10",
+   "anchors",
+   4,
+   42
+  ],
+  [
+   "cifar10",
+   "anchors",
+   4,
+   43
+  ],
+  [
+   "cifar10",
+   "anchors",
+   4,
+   44
+  ],
+  [
+   "flickr25k",
+   "anchors",
+   4,
+   42
+  ],
+  [
+   "flickr25k",
+   "anchors",
+   4,
+   43
+  ],
+  [
+   "flickr25k",
+   "anchors",
+   4,
+   44
+  ],
+  [
+   "mscoco",
+   "anchors",
+   39,
+   42
+  ],
+  [
+   "mscoco",
+   "anchors",
+   39,
+   43
+  ],
+  [
+   "mscoco",
+   "anchors",
+   39,
+   44
+  ],
+  [
+   "nuswide",
+   "anchors",
+   4,
+   42
+  ],
+  [
+   "nuswide",
+   "anchors",
+   4,
+   43
+  ],
+  [
+   "nuswide",
+   "anchors",
+   4,
+   44
+  ]
+ ],
+ "epochs": null,
+ "freeze": {
+  "acceptance_section": 744,
+  "path": "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancF_candidate_v1.json",
+  "recipes_sha256": {
+   "cifar10": "261fe18cc1b39952ab5e82dd3eef002e5432de457a0f189ca830b3ae619396d0",
+   "flickr25k": "5b1ffacdf61b8bb282949d1a594d2234b9656ce800d5198e0960899a98f1957b",
+   "mscoco": "0bc267cb82c44b81ed9d42a6f47036385b9b096f8a398f4a9307aebc26595518",
+   "nuswide": "6ab06af5fe7f94e2c30ea45f21dd5ec232497a6926a1cc3e8ef56e3f5cb3acd7"
+  },
+  "sha256": "5165f5dc9fcfb8334270bc16aa9816d09db67b03a04abae7ff846d5235bdca1d"
+ },
+ "gpu_count": 4,
+ "input_seals": {
+  "cifar10:refit": {
+   "path": "/data/yschoi/gdna_p3exec_seals/cifar10.refit.input-seal.json",
+   "sha256": "943bb953f44a9d943e66944c15ec0d82bcef95d9769eea243c8b22e3993dec9f"
+  },
+  "flickr25k:refit": {
+   "path": "/data/yschoi/gdna_p3exec_seals/flickr25k.refit.input-seal.json",
+   "sha256": "71506fd19966216f2fd25f952db7e16e58d980eebc9eaa4d9a5488e63022c83c"
+  },
+  "mscoco:refit": {
+   "path": "/data/yschoi/gdna_p3exec_seals/mscoco.refit.input-seal.json",
+   "sha256": "a9d49e5db9d4b2b934a9340b69bf986fae435c7d712783c379d28ed8f0f177e4"
+  },
+  "nuswide:refit": {
+   "path": "/data/yschoi/gdna_p3exec_seals/nuswide.refit.input-seal.json",
+   "sha256": "05b7d24b7ede41c989ad3c6d510769949c5cc6d33ec843c34cc52151ee2992a4"
+  }
+ },
+ "manifest": "b7e9264a7a933e3efd30125628f638bc5c5304f32ccae2055b730ad382b215f6",
+ "mode": "run",
+ "namespace": "ancR9",
+ "record_dir": "/data/yschoi/gdna_anchor_refit_v9/artifacts/anchor_confirmation",
+ "result_root": "/home/yschoi/gdna_anchorRT_result",
+ "schema": "anchor-confirm-request/2",
+ "selection": null,
+ "stage": "refit",
+ "version": "anchor-confirm/2"
+}
+execution request sha256 b393bc2dcf8d7369ca37bc0af15d343ca52980ceb85cabfab64b14424dd06cbb
