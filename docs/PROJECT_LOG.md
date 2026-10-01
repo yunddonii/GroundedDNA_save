@@ -487,6 +487,57 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-01 [anchor model — candidate F record and R/T proposal submitted, nothing run] Audits §742–§743: the four-dataset freeze candidate
+
+**Status:** ✅ submitted for audit review. **Preparation only**: no training, loading, extraction or
+test access. Branch `arch-exp-2026-09-anchor-lambda`, `3dd1c02` (pushed). Handoff
+`docs/ANCHOR_FREEZE_F_HANDOFF_v1.md` `5530bc6e…`.
+
+**Audit §742** accepted the official L decision. Flickr25K keeps 0.15/0.02/0.05, and under the
+Flickr-first rule no other dataset runs L and no N is reselected. This closes TODO 13–15 only in
+that scope. §742 asked for a candidate F record and an R/T plan. **§743** added a rule: an
+R-only permission must never silently run the official test (T).
+
+**Candidate F record** `ancF_candidate_v1.json` `5165f5dc…`:
+
+| Dataset | N | transport / balance / text | top-p | joint | lambda authority |
+|---|---|---|---|---|---|
+| CIFAR-10 | 4 | 0.15 / 0.02 / 0.05 | 0.3/0.7 | 0.02 | own approved values (Flickr-first scope) |
+| Flickr25K | 4 | 0.15 / 0.02 / 0.05 | 0.6/0.95 | 0.02 | stage-L decision (no qualifier) |
+| NUS-WIDE | 4 | 0.15 / 0.02 / 0.05 | 0.4/0.8 | 0.05 | own approved values |
+| MS-COCO | 39 | 0.05 / 0.02 / 0.10 | 0.6/0.95 | 0.03 | own approved values (not copied from Flickr) |
+
+- **Contents per dataset:** anchors, Gumbel off, the complete typed recipe by digest (353 fields),
+  the S/D records of seeds 42/43/44, three probes and the D summary.
+- **Lineage:** v7 validates all four datasets; the v8 L decision is linked separately.
+- **Validation** (JSON/CSV/ledger text only, no `config.pt`): all checks pass. These cover
+  membership, generation, links, N, recipe equality (seeds 43/44 differ only in `random_seed`),
+  the audit's table, probes, the §725/727/730/739 approval lines, and the L decision. A self-test
+  of 10 deliberately broken copies caught all 10.
+
+**R/T plan (proposal).**
+- **Cells:** 12 new scratch full-train refits (N 4/4/4/39 × seeds 42/43/44) on the approved refit
+  input seals.
+- **Settings:** taken from the approved incumbent refit's own `args.txt`. In all four datasets,
+  the anchor S cell and the incumbent refit differ only in `axis_center`, plus the
+  selection-versus-refit protocol fields: epoch N+1, LR and Sinkhorn horizons N+1, full train,
+  `trainOnly` whitening, refit seal.
+  - Disclosed: S/D used LR horizon 60, R uses N+1, the same as the approved protocol.
+- **Today the legacy refit command runs T inside the trainer.** The wrapper's final `-ev` cannot be
+  turned off, and the trainer's terminal block extracts the official test.
+- **Proposed fix:** a new generation v9 in a new worktree, with two separately approved scopes.
+  - `stage-R-run`: a trainer gate on sealed anchor-refit bindings. Without a T authority the
+    trainer stops after the terminal checkpoint, with no test access.
+  - `stage-T-run`: the same `extract_code` path plus the unchanged post-chain, once, write-once
+    and fail-stop.
+  - Legacy behaviour unchanged. Required composed-path tests are listed.
+- **Planning reference:** the incumbent's fused R+T took 66,415 s wall in total.
+
+**Next.** The audit decides on the F candidate and the R/T design. Only then do I prepare the v9
+package, and nothing runs without its own approval.
+
+---
+
 ## 2026-10-01 [anchor model stage L — official CPU reduction, complete] Audit §741: Flickr25K keeps its lambdas (no candidate qualifies)
 
 **Status:** ✅ the one approved reduction ran, rc 0. **Decision: Flickr25K's lambdas stay at
