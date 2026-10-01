@@ -1,0 +1,29 @@
+{
+ "script": "scripts/anchor_confirm_manifest.py",
+ "args": [
+  "inventory"
+ ],
+ "exit": 0,
+ "allowed_named": [
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_decision.json",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_selected_n.json",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_sweep_complete.json",
+  "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancF_candidate_v1.json",
+  "/data/yschoi/gdna_anchor_refit_v9/artifacts/anchor_confirmation/authority_manifest_v9r4.json",
+  "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/p3lamA_sweep_complete.json",
+  "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/p3rfB_refit_aggregate.json",
+  "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/selected_n.json",
+  "/data/yschoi/gdna_p3exec/scripts/build_counterfactual_caption_foils.py",
+  "/data/yschoi/gdna_p3exec/scripts/build_text_whiten_matrix.py",
+  "/data/yschoi/gdna_p3exec/scripts/extract_counterfactual_foil_features.py",
+  "/data/yschoi/gdna_p3exec/scripts/extract_counterfactual_foil_token_features.py",
+  "/data/yschoi/gdna_p3exec/scripts/prepare_semantic_detail_cache.py",
+  "/data/yschoi/gdna_p3exec/scripts/seal_phase3_inputs.py",
+  "/data/yschoi/gdna_p3exec/val_split.py",
+  "/data/yschoi/gdna_p3exec_seals/cifar10.refit.input-seal.json",
+  "/data/yschoi/gdna_p3exec_seals/flickr25k.refit.input-seal.json",
+  "/data/yschoi/gdna_p3exec_seals/mscoco.refit.input-seal.json",
+  "/data/yschoi/gdna_p3exec_seals/nuswide.refit.input-seal.json"
+ ],
+ "refused": []
+}
