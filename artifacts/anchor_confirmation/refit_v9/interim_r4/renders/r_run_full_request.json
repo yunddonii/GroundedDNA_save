@@ -1,0 +1,192 @@
+{
+ "admission_authority": null,
+ "cells": [
+  [
+   "cifar10",
+   "anchors",
+   4,
+   42
+  ],
+  [
+   "cifar10",
+   "anchors",
+   4,
+   43
+  ],
+  [
+   "cifar10",
+   "anchors",
+   4,
+   44
+  ],
+  [
+   "flickr25k",
+   "anchors",
+   4,
+   42
+  ],
+  [
+   "flickr25k",
+   "anchors",
+   4,
+   43
+  ],
+  [
+   "flickr25k",
+   "anchors",
+   4,
+   44
+  ],
+  [
+   "mscoco",
+   "anchors",
+   39,
+   42
+  ],
+  [
+   "mscoco",
+   "anchors",
+   39,
+   43
+  ],
+  [
+   "mscoco",
+   "anchors",
+   39,
+   44
+  ],
+  [
+   "nuswide",
+   "anchors",
+   4,
+   42
+  ],
+  [
+   "nuswide",
+   "anchors",
+   4,
+   43
+  ],
+  [
+   "nuswide",
+   "anchors",
+   4,
+   44
+  ]
+ ],
+ "declared_cells": [
+  [
+   "cifar10",
+   "anchors",
+   4,
+   42
+  ],
+  [
+   "cifar10",
+   "anchors",
+   4,
+   43
+  ],
+  [
+   "cifar10",
+   "anchors",
+   4,
+   44
+  ],
+  [
+   "flickr25k",
+   "anchors",
+   4,
+   42
+  ],
+  [
+   "flickr25k",
+   "anchors",
+   4,
+   43
+  ],
+  [
+   "flickr25k",
+   "anchors",
+   4,
+   44
+  ],
+  [
+   "mscoco",
+   "anchors",
+   39,
+   42
+  ],
+  [
+   "mscoco",
+   "anchors",
+   39,
+   43
+  ],
+  [
+   "mscoco",
+   "anchors",
+   39,
+   44
+  ],
+  [
+   "nuswide",
+   "anchors",
+   4,
+   42
+  ],
+  [
+   "nuswide",
+   "anchors",
+   4,
+   43
+  ],
+  [
+   "nuswide",
+   "anchors",
+   4,
+   44
+  ]
+ ],
+ "epochs": null,
+ "freeze": {
+  "acceptance_section": 744,
+  "acceptance_sha256": "13ef776bc1485b3917253e51ee4aa99879a8f1f30f5539e0d1e224d3faaa1c56",
+  "path": "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancF_candidate_v1.json",
+  "recipes_sha256": {
+   "cifar10": "261fe18cc1b39952ab5e82dd3eef002e5432de457a0f189ca830b3ae619396d0",
+   "flickr25k": "5b1ffacdf61b8bb282949d1a594d2234b9656ce800d5198e0960899a98f1957b",
+   "mscoco": "0bc267cb82c44b81ed9d42a6f47036385b9b096f8a398f4a9307aebc26595518",
+   "nuswide": "6ab06af5fe7f94e2c30ea45f21dd5ec232497a6926a1cc3e8ef56e3f5cb3acd7"
+  },
+  "sha256": "5165f5dc9fcfb8334270bc16aa9816d09db67b03a04abae7ff846d5235bdca1d"
+ },
+ "gpu_count": 4,
+ "input_seals": {
+  "cifar10:refit": {
+   "path": "/data/yschoi/gdna_p3exec_seals/cifar10.refit.input-seal.json",
+   "sha256": "943bb953f44a9d943e66944c15ec0d82bcef95d9769eea243c8b22e3993dec9f"
+  },
+  "flickr25k:refit": {
+   "path": "/data/yschoi/gdna_p3exec_seals/flickr25k.refit.input-seal.json",
+   "sha256": "71506fd19966216f2fd25f952db7e16e58d980eebc9eaa4d9a5488e63022c83c"
+  },
+  "mscoco:refit": {
+   "path": "/data/yschoi/gdna_p3exec_seals/mscoco.refit.input-seal.json",
+   "sha256": "a9d49e5db9d4b2b934a9340b69bf986fae435c7d712783c379d28ed8f0f177e4"
+  },
+  "nuswide:refit": {
+   "path": "/data/yschoi/gdna_p3exec_seals/nuswide.refit.input-seal.json",
+   "sha256": "05b7d24b7ede41c989ad3c6d510769949c5cc6d33ec843c34cc52151ee2992a4"
+  }
+ },
+ "manifest": "0deec033e6f2935c2fe1be4abe31d432b44fd45c7f39772899c6d7a585beca8f",
+ "mode": "run",
+ "namespace": "ancR9",
+ "record_dir": "/data/yschoi/gdna_anchor_refit_v9/artifacts/anchor_confirmation",
+ "result_root": "/home/yschoi/gdna_anchorRT_result",
+ "schema": "anchor-confirm-request/2",
+ "selection": null,
+ "stage": "refit",
+ "version": "anchor-confirm/2"
+}
