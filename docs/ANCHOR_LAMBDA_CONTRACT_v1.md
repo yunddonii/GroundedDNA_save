@@ -31,6 +31,9 @@
 | Stage-S receipt (the seed-42 cell's sealed recipe) | `ancS7_sweep_complete.json` `5915768767e3fd12b28c3f09e1a071c26fd5cbddbbac15662c495b80c4876f6b` | §725–§726 |
 
 - These files live in `/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/`.
+- The reduction reads every one of them, the stage-S plan snapshot and the approved recipe
+  authorities included, once through its read-once record. It re-verifies those bytes before it
+  publishes (audit 734.2 item 2).
 - Generation v8 reads them at these digests as **historical metadata** and never replays them:
   it neither re-runs the v7 reducer nor re-checks v7 approvals with v8 code. Their historical
   verification stays in the v7 tree.
@@ -106,7 +109,9 @@ The reduction refuses and writes nothing on any of these:
 - a seed other than 42 or an N other than 4;
 - a dataset outside the scope;
 - a recipe off its declared one-lambda difference;
-- a record from another generation or campaign;
+- a record from another generation or campaign: the six cells of one decision must come from ONE
+  approved stage-L campaign -- one receipt, one approval and request, a receipt that lists exactly
+  these six cells, and a request that executes and declares exactly them (audit 734.2 item 1);
 - a stale request;
 - a mismatched or missing control;
 - historical inputs at other digests.
@@ -139,6 +144,12 @@ A re-run needs a new namespace and approval.
       lambda destinations may repeat only as its exact Flickr25K wrapper literal followed by exactly
       one override, and **at most one such destination per argv**. That is one lambda per cell, at the
       recipe level, on both the launcher and the trainer side.
+    - **Not an authorization boundary (audit 734.1).** The parser is shared and cannot tell a stage-L
+      campaign from any other run, so the table authorizes nothing by itself. The stage, dataset,
+      candidate value, typed recipe and approval are checked by the callers: the launcher's stage-L
+      admission, the sealed recipe the trainer is held to, and the reducer.
+    - **Accepted direction.** Audit §734.1 accepted this as a narrow exception to §733.3's
+      byte-equality instruction, for this v8 generation.
     - **Unchanged:** the seven reviewed overrides, their alternates and every other repeat refusal.
       An S/D argv carries no lambda repeat, so its sealing and digest are unchanged.
     - **The alternative**, editing the wrapper, was not taken: wrapper bytes are pinned.

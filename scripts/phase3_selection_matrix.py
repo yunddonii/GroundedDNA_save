@@ -4311,13 +4311,25 @@ def _read_pinned_bytes(path, sha256: str, what: str) -> bytes:
     return raw
 
 
-def anchor_incumbent() -> dict:
+def _read_bytes(path, sha256, what: str) -> bytes:
+    """The default historical reader: pinned bytes, or (no pin) the bytes as read."""
+    if sha256 is not None:
+        return _read_pinned_bytes(path, sha256, what)
+    try:
+        return Path(path).read_bytes()
+    except OSError as error:
+        raise CellRefused(f"{what}: {path} is unreadable: {error}") from None
+
+
+def anchor_incumbent(read=None) -> dict:
     """The approved recipe and N of every in-scope dataset, from the ledger-pinned P3 refit
-    aggregate and its selected-N authority, which must agree with each other."""
-    aggregate = json.loads(_read_pinned_bytes(
+    aggregate and its selected-N authority, which must agree with each other. `read(path, sha256,
+    what) -> bytes` lets a reduction route the reads through its read-once record."""
+    read = read or _read_bytes
+    aggregate = json.loads(read(
         APPROVED_P3_REFIT_AGGREGATE, APPROVED_P3_REFIT_AGGREGATE_SHA256,
         "approved P3 refit aggregate"))
-    selected = json.loads(_read_pinned_bytes(
+    selected = json.loads(read(
         APPROVED_SELECTED_N, APPROVED_SELECTED_N_SHA256, "approved selected-N authority"))
     out = {}
     for ds in ANCHOR_DATASETS:
@@ -4497,19 +4509,20 @@ def _v7_seed_score(value, what: str) -> float:
     return value
 
 
-def anchor_v7_history(incumbent: dict) -> dict:
+def anchor_v7_history(incumbent: dict, read=None) -> dict:
     """The audit-accepted generation-v7 metadata stage L compares against (contract L v1 section 2),
     read once at the pinned digests and parsed from the hashed bytes; nothing is replayed. Per scope
     dataset: the frozen N, the incumbent's seed-42 score and its seed range over 42/43/44 from the
     official stage-D summary, the threshold max(0.002, range) unrounded, and the v7 stage-S seed-42
-    cell's sealed recipe fields and admitted input authority from that campaign's plan snapshot."""
+    cell's sealed recipe fields and admitted input authority from that campaign's plan snapshot.
+    Every file is read once through `read(path, sha256, what)` (pinned bytes; the plan snapshot,
+    bound semantically by the pinned receipt, is read unpinned and its byte digest is the reader's
+    record), so a reduction can re-verify each read before it publishes."""
     from dna_utils.scientific_recipe import RecipeMismatch, check_payload_shape, digest
-    frozen = json.loads(_read_pinned_bytes(ANCHOR_V7_SELECTION, ANCHOR_V7_SELECTION_SHA256,
-                                           "v7 frozen N record"))
-    decision = json.loads(_read_pinned_bytes(ANCHOR_V7_DECISION, ANCHOR_V7_DECISION_SHA256,
-                                             "v7 stage-D summary"))
-    receipt = json.loads(_read_pinned_bytes(ANCHOR_V7_S_RECEIPT, ANCHOR_V7_S_RECEIPT_SHA256,
-                                            "v7 stage-S receipt"))
+    read = read or _read_bytes
+    frozen = json.loads(read(ANCHOR_V7_SELECTION, ANCHOR_V7_SELECTION_SHA256, "v7 frozen N record"))
+    decision = json.loads(read(ANCHOR_V7_DECISION, ANCHOR_V7_DECISION_SHA256, "v7 stage-D summary"))
+    receipt = json.loads(read(ANCHOR_V7_S_RECEIPT, ANCHOR_V7_S_RECEIPT_SHA256, "v7 stage-S receipt"))
     if frozen.get("artifact_kind") != "anchor_confirmation_n_selection" \
             or (frozen.get("generation") or {}).get("anchor_manifest_sha256") != ANCHOR_V7_MANIFEST_SHA256:
         raise CellRefused(f"{ANCHOR_V7_SELECTION}: not the v7 frozen N record")
@@ -4521,8 +4534,8 @@ def anchor_v7_history(incumbent: dict) -> dict:
         raise CellRefused(f"{ANCHOR_V7_S_RECEIPT}: not the v7 stage-S campaign receipt")
     snapshot_path = ANCHOR_V7_RECORD_DIR / str(receipt.get("plan_snapshot_file"))
     try:
-        snapshot = json.loads(snapshot_path.read_bytes())
-    except (OSError, ValueError) as error:
+        snapshot = json.loads(read(snapshot_path, None, "v7 plan snapshot"))
+    except ValueError as error:
         raise CellRefused(f"{snapshot_path}: unreadable v7 plan snapshot: {error}") from None
     if _json_digest(snapshot) != receipt.get("plan_snapshot_sha256") \
             or (((snapshot.get("plan") or {}).get("authorities") or {}).get("anchor_manifest") or {}

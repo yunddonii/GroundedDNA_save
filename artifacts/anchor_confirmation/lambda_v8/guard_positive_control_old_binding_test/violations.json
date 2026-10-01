@@ -1,0 +1,20 @@
+{
+ "pytest_rc": 1,
+ "violations": [
+  "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/lambda_v8/guarded_pytest.py",
+  "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/lambda_v8/guarded_pytest.py",
+  "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/lambda_v8/guarded_pytest.py",
+  "/data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens/meta.json",
+  "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/lambda_v8/guarded_pytest.py",
+  "/data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens/meta.json",
+  "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/lambda_v8/guarded_pytest.py",
+  "/data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens/meta.json",
+  "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/lambda_v8/guarded_pytest.py",
+  "/data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens/meta.json",
+  "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/lambda_v8/guarded_pytest.py",
+  "/data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens/meta.json",
+  "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/lambda_v8/guarded_pytest.py",
+  "/data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens/meta.json",
+  "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/lambda_v8/guarded_pytest.py"
+ ]
+}

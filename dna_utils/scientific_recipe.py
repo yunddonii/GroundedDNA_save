@@ -90,7 +90,10 @@ REVIEWED_OVERRIDE_ALTERNATES = {
 #: and `--lambda_text_hash_ntxent 0.05` literally and `--lambda_bu "$LBU"` (rendered 0.02), so the
 #: candidate repeats its destination. Such a repeat is admitted only as exactly that wrapper literal
 #: followed by exactly one override, and for AT MOST ONE of these destinations per argv: a stage-L
-#: cell moves one lambda. Which value the override carries is the launcher's stage-L admission.
+#: cell moves one lambda. The parser cannot tell a stage-L campaign from any other run, so this table
+#: authorizes nothing by itself: the stage, dataset, candidate value, typed recipe and approval are
+#: checked by its callers (the launcher's stage-L admission, the sealed recipe the trainer is held
+#: to, and the reducer).
 STAGE_L_REVIEWED_OVERRIDES = {
     "lambda_wasserstein": ("--lambda_wasserstein", "0.15"),
     "lambda_bu": ("--lambda_bu", "0.02"),

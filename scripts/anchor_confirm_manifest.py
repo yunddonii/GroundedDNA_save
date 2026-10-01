@@ -61,7 +61,7 @@ def inventory() -> dict:
     from importlib import metadata
     return {
         "artifact_kind": M.ANCHOR_MANIFEST_KIND, "version": M.ANCHOR_CONFIRM_VERSION,
-        "generation": "v8",
+        "generation": "v8", "revision": 2,
         "note": "byte identities from JSON and text only; not approval to execute",
         "historical": {
             "approved_p3_refit_aggregate": {"path": str(M.APPROVED_P3_REFIT_AGGREGATE),
@@ -98,15 +98,25 @@ def inventory() -> dict:
                    "scope_decision": "the user's decision recorded under audit 733.1 (2026-10-01): "
                                      "Flickr25K first; expand only if its choice moves"},
         "predecessor": {"authority_manifest_v7_sha256": M.ANCHOR_V7_MANIFEST_SHA256,
+                        "superseded_v8_manifest_sha256":
+                        "b7b5af9ed13473ed21773ddf824c951c6064a8cdeeb18d61c3a8a8777ab3572d",
+                        "v8_revision_2_change": "audit 734.2: one approved campaign per stage-L "
+                                                "decision; every historical read through the "
+                                                "reduction's read-once record; synthetic identity "
+                                                "artifacts in the binding test; this continuity "
+                                                "statement corrected",
                         "v8_change": "stage L (audit 731-733, contract L v1): the TODO 13-15 lambda "
                                      "checks of the fixed anchor model, Flickr25K first, one declared "
                                      "lambda per anchor cell at the v7 frozen N, seed 42, with a "
                                      "continuity control first; the v7 frozen N record, stage-D summary "
                                      "and stage-S receipt are bound by their accepted digests and never "
                                      "replayed; launcher, reducer (lambda role), supervisor (stage-L "
-                                     "ledger and budget) and this builder change; the trainer, model, "
-                                     "data, wrappers, recipe, environment, seal and probe files are "
-                                     "byte-equal to v7",
+                                     "ledger and budget) and this builder change, and the recipe "
+                                     "parser dna_utils/scientific_recipe.py gains one separate table "
+                                     "that admits a single reviewed lambda repeat per argv (the "
+                                     "audit 734.1 exception; the parser does not authenticate a "
+                                     "stage, its callers do); the trainer, model, data, wrappers, "
+                                     "environment, seal and probe files are byte-equal to v7",
                         "authority_manifest_v6_sha256":
                         "a5ff2a0e93acd3a0bef7ecc47a69d550b28fc7ee57c1a25aa48e7e1169f739d7",
                         "stage_s_request_v6_sha256":
@@ -177,7 +187,7 @@ def main(argv=None) -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command")
     inv = sub.add_parser("inventory")
-    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v8.json"))
+    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v8r2.json"))
     args = parser.parse_args(argv)
     try:
         if args.command != "inventory":

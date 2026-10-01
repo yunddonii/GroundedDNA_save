@@ -595,18 +595,24 @@ def reduce_decide(args, manifest: dict) -> dict:
 LAMBDA_KIND = "anchor_confirmation_lambda_decision"
 
 
-def lambda_history(consumed: Consumed, incumbent: dict) -> dict:
-    """The generation-v7 metadata stage L compares against: the launcher's reader of the
-    audit-accepted digests (contract L v1 section 2), with those same files' bytes recorded in this
-    reduction's read set. Historical metadata in its own role, never evidence of this generation."""
+def consumed_reader(consumed: Consumed):
+    """A launcher-side `read(path, sha256, what)` that reads through this reduction's read-once
+    record: every historical byte it returns is re-verified before the output is written."""
+    return lambda path, sha256, what: consumed.read(path, sha256)
+
+
+def lambda_history(consumed: Consumed) -> tuple:
+    """(incumbent, history): the approved recipe authorities and the generation-v7 metadata stage L
+    compares against (contract L v1 section 2), every file -- the approved aggregate and selected-N
+    record, the v7 frozen N record, D summary, S receipt and its plan snapshot -- read once through
+    this reduction's record (audit 734.2 item 2). Historical metadata in its own role, never
+    evidence of this generation."""
+    read = consumed_reader(consumed)
     try:
-        history = M.anchor_v7_history(incumbent)
+        incumbent = M.anchor_incumbent(read=read)
+        return incumbent, M.anchor_v7_history(incumbent, read=read)
     except M.CellRefused as error:
         raise NotReducible(f"v7 history: {error}") from None
-    consumed.read(M.ANCHOR_V7_SELECTION, M.ANCHOR_V7_SELECTION_SHA256)
-    consumed.read(M.ANCHOR_V7_DECISION, M.ANCHOR_V7_DECISION_SHA256)
-    consumed.read(M.ANCHOR_V7_S_RECEIPT, M.ANCHOR_V7_S_RECEIPT_SHA256)
-    return history
 
 
 def lambda_coordinates(history: dict) -> list:
@@ -615,6 +621,34 @@ def lambda_coordinates(history: dict) -> list:
             for ds in M.ANCHOR_LAMBDA_SCOPE
             for label in (M.ANCHOR_LAMBDA_CONTROL,
                           *("=".join(c) for c in M.ANCHOR_LAMBDA_CANDIDATES[ds]))]
+
+
+def one_lambda_campaign(consumed: Consumed, coords, keyed: dict, admitted: dict, incumbent: dict) -> None:
+    """All stage-L cells of the decision come from ONE approved campaign (audit 734.2 item 1): one
+    receipt (path and digest), one recorded approval and request, a receipt that lists exactly these
+    cells, and a request whose executed and declared cells are exactly these, in run mode. One
+    generation is not enough: two complete campaigns of one manifest must not be mixed."""
+    receipts = sorted({(keyed[c]["receipt"], keyed[c]["receipt_sha256"]) for c in coords})
+    need(len(receipts) == 1, f"the stage-L cells come from {len(receipts)} campaign receipts; one "
+                             f"approved campaign must carry all {len(coords)}")
+    approvals = {json.dumps(admitted[c]["authority"]["approval"], sort_keys=True) for c in coords}
+    need(len(approvals) == 1, "the stage-L cells ran under different approvals or requests")
+    (path, digest), = receipts
+    receipt = consumed.json(path, digest)
+    ids = {M.campaign_cell_id(ds, n, topp=incumbent[ds]["topp"], joint=incumbent[ds]["joint"],
+                              stage="select", seed=seed, overrides=M.anchor_lambda_overrides(ds, label),
+                              anchor_arm=arm) for ds, arm, n, seed, label in coords}
+    listed = set((receipt.get("cells") or {}))
+    need(listed == ids, f"the campaign receipt lists {sorted(listed ^ ids)[:4]} beyond or short of the "
+                        f"{len(ids)} stage-L cells")
+    snapshot = consumed.json(Path(path).parent / receipt["plan_snapshot_file"])
+    request = ((snapshot.get("plan") or {}).get("authorities") or {}).get("anchor_request") or {}
+    want = sorted([ds, arm, n, seed, label] for ds, arm, n, seed, label in coords)
+    need(request.get("mode") == "run" and request.get("cells") == want
+         and request.get("declared_cells") == want,
+         "the campaign's request does not execute and declare exactly the stage-L cells")
+    need(M._json_digest(request) == json.loads(next(iter(approvals)))["request_sha256"],
+         "the campaign's request is not the one its cells' approval names")
 
 
 def axis_winner(qualifying: list, incumbent_value: float):
@@ -636,10 +670,9 @@ def reduce_lambda(args, manifest: dict) -> dict:
     read at their pinned digests, and every L record must come from this generation's stage-L
     campaign. No score selects the architecture; a change only states its reselection obligations."""
     consumed = Consumed()
-    incumbent = M.anchor_incumbent()
     need(manifest["sha256"] != M.ANCHOR_V7_MANIFEST_SHA256,
          "stage-L evidence comes from a new generation, never the v7 manifest")
-    history = lambda_history(consumed, incumbent)
+    incumbent, history = lambda_history(consumed)
     coords = lambda_coordinates(history)
     sources = consumed.json(args.sources, args.sources_sha256)
     need(sources.get("version") == M.ANCHOR_CONFIRM_VERSION, f"{args.sources}: wrong sources version")
@@ -665,6 +698,7 @@ def reduce_lambda(args, manifest: dict) -> dict:
                                      role="lambda", overrides=overrides,
                                      lambda_rule=M.anchor_lambda_rule(history))
     one_generation(admitted, manifest["sha256"])
+    one_lambda_campaign(consumed, coords, keyed, admitted, incumbent)
     configs = {c: verify_config_pin(consumed, admitted[c]) for c in coords}
     from dna_utils.scientific_recipe import canonical, field_differences
     datasets = {}

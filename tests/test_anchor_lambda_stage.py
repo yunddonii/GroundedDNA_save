@@ -253,7 +253,7 @@ class History:
 
 @pytest.fixture
 def renders(monkeypatch):
-    monkeypatch.setattr(M, "anchor_incumbent", lambda: INC)
+    monkeypatch.setattr(M, "anchor_incumbent", lambda read=None: INC)
     monkeypatch.setattr(M, "render_trainer_argv", lambda_render)
 
 
@@ -751,7 +751,7 @@ class LWorld:
     renderer (the stand-in), records shaped as the launcher writes them."""
 
     def __init__(self, root: Path, ledger, *, scores, approval_scope="stage-L-run", rule=None,
-                 manifest_sha=RW.MANIFEST_SHA, labels=LABELS):
+                 manifest_sha=RW.MANIFEST_SHA, labels=LABELS, extra_declared=None):
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
         self.nonce = sha(str(self.root).encode())
@@ -759,10 +759,11 @@ class LWorld:
         history = M.anchor_v7_history(INC)
         self.seals = {f"{FLICKR}:stage1": AUTH}
         cells = sorted([FLICKR, "anchors", 4, 42, label] for label in self.labels)
+        declared = sorted(cells + ([extra_declared] if extra_declared else []))
         self.request = {"schema": M.REQUEST_SCHEMA, "version": M.ANCHOR_CONFIRM_VERSION, "stage": "lambda",
                         "mode": "run", "manifest": manifest_sha, "selection": M.ANCHOR_V7_SELECTION_SHA256,
                         "namespace": "ancLT", "record_dir": str(self.root / "records"),
-                        "result_root": str(self.root / "runs"), "declared_cells": cells, "cells": cells,
+                        "result_root": str(self.root / "runs"), "declared_cells": declared, "cells": cells,
                         "epochs": None, "admission_authority": None, "gpu_count": 1,
                         "input_seals": {k: {"path": a["seal_path"], "sha256": a["seal_file_sha256"]}
                                         for k, a in self.seals.items()},
@@ -1028,7 +1029,7 @@ def test_a_v7_summary_at_another_digest_refuses(reducer, monkeypatch, capsys):
     world = reducer.world()
     monkeypatch.setattr(M, "ANCHOR_V7_DECISION_SHA256", "0" * 64)
     rc, _ = run_lambda(reducer, world)
-    assert rc == 1 and "v7 history" in capsys.readouterr().err
+    assert rc == 1 and "ancP7_decision.json is not the pinned bytes" in capsys.readouterr().err
 
 
 def test_the_reduction_reads_the_v7_files_and_deserialises_nothing(reducer):
@@ -1038,6 +1039,65 @@ def test_the_reduction_reads_the_v7_files_and_deserialises_nothing(reducer):
     assert {str(M.ANCHOR_V7_SELECTION), str(M.ANCHOR_V7_DECISION), str(M.ANCHOR_V7_S_RECEIPT)} <= set(read)
     assert sum(1 for p in read if p.endswith("config.pt")) == 6
     assert not any(p.endswith(".pth") for p in read)
+
+
+# ---- one approved campaign per decision (audit 734.2 item 1) ---------------------------------------
+@pytest.mark.parametrize("mix", ["candidates_from_another_campaign", "substituted_control"])
+def test_two_complete_campaigns_cannot_be_mixed(reducer, capsys, mix):
+    """Two individually valid, approved, complete campaigns of one generation: each record admits,
+    and the decision still refuses, because one campaign must carry all six cells."""
+    a, b = reducer.world({"lambda_wasserstein=0.30": 0.9}), reducer.world()
+    entries = ([b.entries[0]] + a.entries[1:] if mix == "substituted_control"
+               else [a.entries[0]] + b.entries[1:])
+    for e in entries:                                     # every record admits on its own
+        D.admit_metadata(D.Consumed(), (FLICKR, "anchors", 4, 42), e, incumbent=INC,
+                         manifest_sha256=RW.MANIFEST_SHA, selection_sha256=M.ANCHOR_V7_SELECTION_SHA256,
+                         role="lambda", overrides=M.anchor_lambda_overrides(FLICKR, e["lambda"]),
+                         lambda_rule=M.anchor_lambda_rule(M.anchor_v7_history(INC)))
+    rc, _ = run_lambda(reducer, a, sources=a.sources(entries))
+    assert rc == 1 and "come from 2 campaign receipts" in capsys.readouterr().err
+    for world in (a, b):                                  # each campaign alone still reduces
+        assert run_lambda(reducer, world)[0] == 0
+
+
+def test_a_receipt_listing_a_cell_beyond_the_six_refuses(reducer, capsys):
+    world = reducer.world()
+    world.cells["flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=select|seed=43|axis_center=anchors"] = \
+        dict(next(iter(world.cells.values())))
+    world.write_receipt()
+    rc, _ = run_lambda(reducer, world)
+    assert rc == 1 and "beyond or short of the 6 stage-L cells" in capsys.readouterr().err
+
+
+def test_a_request_declaring_a_cell_beyond_the_six_refuses(reducer, capsys):
+    world = reducer.world(extra_declared=[FLICKR, "anchors", 4, 42, "lambda_bu=0.5"])
+    rc, _ = run_lambda(reducer, world)
+    assert rc == 1 and "execute and declare exactly the stage-L cells" in capsys.readouterr().err
+
+
+# ---- every historical read is re-verified before publication (audit 734.2 item 2) -------------------
+def test_the_v7_snapshot_changing_before_publication_refuses_and_writes_nothing(reducer, v7, monkeypatch,
+                                                                               capsys):
+    world = reducer.world()
+    snapshot = M.ANCHOR_V7_RECORD_DIR / "ancS7_snapshot_x.json"
+    real = D.write_once
+    def drift_then_write(path, payload):
+        assert str(snapshot) in payload["_consumed"].digests          # the snapshot was read once
+        snapshot.write_bytes(snapshot.read_bytes() + b" ")            # same JSON value, other bytes
+        return real(path, payload)
+    monkeypatch.setattr(D, "write_once", drift_then_write)
+    out_before = set(reducer.tmp.glob("decision_*"))
+    rc, _ = run_lambda(reducer, world)
+    assert rc == 1 and "inputs changed before the output was written" in capsys.readouterr().err
+    assert set(reducer.tmp.glob("decision_*")) == out_before
+
+
+def test_the_reduction_records_every_historical_file_it_read(reducer):
+    rc, result = run_lambda(reducer, reducer.world())
+    assert rc == 0
+    read = set(result["consumed_sha256"])
+    assert {str(M.ANCHOR_V7_SELECTION), str(M.ANCHOR_V7_DECISION), str(M.ANCHOR_V7_S_RECEIPT),
+            str(M.ANCHOR_V7_RECORD_DIR / "ancS7_snapshot_x.json")} <= read
 
 
 # ---- the S/D reducer is not opened to stage-L records ----------------------------------------------
@@ -1091,11 +1151,24 @@ def test_an_l_stage_supervises_one_gpu():
 
 
 # ---- the plan snapshot's seal and the request ------------------------------------------------------
+@pytest.fixture
+def synthetic_identity_artifacts(monkeypatch):
+    """The run identity digests its input artefacts (whitening file, cache meta.json, caption
+    cache) from disk; a synthetic stand-in keeps every path and reads nothing (audit 734.2 item 3)."""
+    from dna_utils.run_identity import RunIdentity
+    seen = []
+    def stand_in(cls, path):
+        seen.append(path)
+        return "" if path in (None, "") else f"{os.path.realpath(str(path))}#synthetic-stand-in"
+    monkeypatch.setattr(RunIdentity, "_artifact", classmethod(stand_in))
+    return seen
+
+
 @pytest.mark.parametrize("label", LABELS)
-def test_the_snapshot_binding_seals_each_cells_own_override(v7, label):
+def test_the_snapshot_binding_seals_each_cells_own_override(v7, label, synthetic_identity_artifacts):
     """expected_cell_binding (the plan snapshot's per-cell seal the trainer is held to) carries the
-    cell's one lambda into its sealed recipe, identity and cell id. Without it a candidate whose
-    stream also dropped the override would run the incumbent recipe under a candidate label."""
+    cell's one lambda into its sealed recipe, identity and cell id, and the dispatched command
+    carries the same tokens. Without both a candidate could run the incumbent under its label."""
     overrides = M.anchor_lambda_overrides(FLICKR, label)
     binding = M.expected_cell_binding(FLICKR, 4, namespace="ancLT", campaign_nonce="n" * 64, topp=TOPP,
                                       joint=JOINT, seed=42, overrides=overrides, anchor_arm="anchors",
@@ -1105,6 +1178,16 @@ def test_the_snapshot_binding_seals_each_cells_own_override(v7, label):
     assert {k: fields[k] for k in M.LAMBDA_AXES} == {k: want[k] for k in M.LAMBDA_AXES}
     assert binding["cell_id"] == LWorld.cid(label) and binding["lambda_overrides"] == dict(overrides)
     assert R.digest(binding["scientific_recipe"]) == binding["expected_scientific_recipe_sha256"]
+    assert synthetic_identity_artifacts                              # the stand-in was the path taken
+    cmd, env, _ = M.build_command(FLICKR, 4, 0, topp=TOPP, joint=JOINT, seed=42, overrides=overrides,
+                                  anchor_arm="anchors", namespace="ancLT")
+    dispatched, sealed = LT.extra(env), binding["scientific_recipe"]["argv"]
+    for flag, value in overrides:                                    # dispatch == seal, one occurrence
+        assert dispatched.count(f"--{flag}") == 1 and dispatched[dispatched.index(f"--{flag}") + 1] == value
+        last = len(sealed) - 1 - sealed[::-1].index(f"--{flag}")
+        assert sealed[last + 1] == value and sealed.count(f"--{flag}") == 2
+    if not overrides:
+        assert not any(t in dispatched for t in ("--lambda_wasserstein", "--lambda_bu", "--lambda_text_hash_ntxent"))
 
 
 def test_only_a_stage_l_request_carries_the_preregistered_rule():
