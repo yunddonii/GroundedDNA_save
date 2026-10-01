@@ -487,6 +487,78 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-01 [anchor model — generation v9 R/T package r5 submitted, nothing run] Audits §744–§756: refit (R) and official-test (T) code, tests and requests
+
+**Status:** ✅ submitted for audit review. **Preparation only**: no refit, smoke, test access, GPU
+work or downstream step. No real model, config or checkpoint was loaded.
+- **Worktree, branch:** `/data/yschoi/gdna_anchor_refit_v9`, `arch-exp-2026-09-anchor-refit` (pushed).
+- **Commits:** source `ffdf006`, manifest `586187d`, handoff `81ea828`.
+- **Handoff:** `docs/ANCHOR_REFIT_HANDOFF_v9r5.md`.
+
+**What R and T mean.**
+- **R (stage R):** 12 new full-train refits (N 4/4/4/39 × seeds 42/43/44) of the F record that
+  §744 accepted (`ancF_candidate_v1.json` `5165f5dc…`). The trainer must **not** touch the
+  official test set.
+- **T (stage T):** a separately approved step that runs the official test once per R cell, then
+  the unchanged downstream chain (train extraction, BIO, NMI, cell seal).
+
+**What v9 adds** (relative to v8 `3dd1c02`; 16 source/test files, +3,893/−160 lines):
+- **Trainer gate.** In a sealed anchor refit cell, the trainer withholds the official test, and
+  it refuses an anchor refit outside such a cell.
+  - The trainer's former terminal block moved unchanged into `terminal_official_test.py`.
+  - Legacy runs behave as before.
+- **Launcher (stage R).** The launcher admits anchor refits only through
+  `scripts/anchor_refit_stage.py`. It tags them with the arm, runs no post-chain for them and
+  requires that their run directories hold no test output.
+- **T entry, `scripts/anchor_terminal_test.py`.** Before any config, model or test access it:
+  1. checks that one attempt was reserved for this cell;
+  2. checks the request digest and the audit's approval line;
+  3. checks the checkpoint, runtime witness, campaign evidence and config bytes;
+  4. claims the cell once and for all.
+
+  It then reads `config.pt` **once**, checks every typed recipe field and builds its arguments
+  from that same object.
+- **Exact F acceptance.** Ledger §744's text must hash to `13ef776b…`. That digest is bound in
+  every R/T request.
+- **Supervisor.** It counts five managed children per T cell.
+- **Re-checks at every T step.** Between the T producers, the cell's sources, inputs, seals and
+  environment are checked again, and so are its three R files (config, checkpoint, witness).
+  - `extract_train_split.py` verifies the three files itself before loading them and again
+    before writing.
+
+**Audit trail.**
+- §746–§747 found five gaps in the first package:
+  - the T child could re-enter after a failure;
+  - the saved-config binding was weak;
+  - the F acceptance was checked loosely;
+  - the T attempt count was wrong;
+  - nothing was re-checked between producers.
+- I submitted r2 (`f51e89c`, manifest `b7e9264a…`) before reading §745–§752; §753 did not accept it.
+- §754 found that config.pt was read a second time after verification.
+- §756 required the per-cell R files to be re-checked at every T step.
+- Each finding is mapped to its source change, tests and mutants in handoff §2.
+
+**Evidence at `586187d`:**
+
+| Check | Result |
+|---|---|
+| 19-file suite, unguarded / under the open() guard | 1302 passed, 4 skipped in both; 0 refused opens; tree clean before and after |
+| Mutation battery v13 revision d (38 mutants) | 38/38 detected as declared; 0 refused opens |
+| Manifest r5 `d0de9fb3…` generated under the allow-list guard | exit 0, 0 refused |
+| R requests rendered under the guard | smoke `7c62f2db…`, run `20653239…`; 0 refused |
+
+**Interim revisions (kept as history):**
+
+| Revision | Suite pair | Battery | What failed |
+|---|---|---|---|
+| r3 `0116eed` | 1271/4 | 31/33 | two mutant–test pairings |
+| r4 `b68c1f6` | 1302/4 | 37/38 | RX35 crashed in a test fixture, not in production code; r5 fixes the fixture |
+
+**Next.** The audit reviews r5. If it approves, the first run is one exact `stage-R-smoke`: one
+Flickr25K cell, one epoch, one GPU. R-run, T-smoke and T-run each need their own approval.
+
+---
+
 ## 2026-10-01 [anchor model — candidate F record and R/T proposal submitted, nothing run] Audits §742–§743: the four-dataset freeze candidate
 
 **Status:** ✅ submitted for audit review. **Preparation only**: no training, loading, extraction or
