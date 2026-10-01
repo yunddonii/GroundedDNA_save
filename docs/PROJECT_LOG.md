@@ -487,6 +487,49 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-01 [anchor confirmation — probe package prepared, not run] Audit §729: twelve-coordinate code-to-own-axis probe request submitted
+
+**Status:** ✅ the package is prepared; the probes need their own `probe` approval.
+- No probe ran. Nothing was deserialised, no dataset was built, and no GPU was used.
+- D was accepted by §729 (cumulative 19,033.57 s). Its records, receipt and settlement are unchanged.
+
+**What was built** (anchor branch, commit `589e7cc`, pushed; handoff
+`docs/ANCHOR_CONFIRMATION_HANDOFF_P_v7.md` `0d946cb6…`):
+- **Probe sources** `ancP7_probe_sources.json` (`39b304e9…`): the twelve stage-D coordinates.
+  - These are each dataset's selected S seed-42 cell, copied unchanged from the audit's S source
+    list, and the eight D cells of receipt `4272eeac…`.
+  - Excluded: the smoke and the twelve unselected S cells.
+- **Canonical probe request** `748851142a8734703c076bbccd52af8c383dba14ee105d29235c55c92c476c44`.
+  - It is formed by the probe's own `probe_records` and the reducer's `probe_request`.
+  - It names manifest `c0612963…`, selection `5cda7adb…`, the population (first 500 validation
+    rows × 4 local slots = 2000 decisions) and the twelve record digests.
+  - An independent plain-JSON recomputation matches it, and a control with one altered digest
+    differs.
+- **Metadata check** `ancP7_prep/metadata_check.json` (`f26b69dc…`):
+  - the reducer's JSON/CSV-level admission passed for all twelve records, with the campaign
+    approvals §725 (seed 42) and §727 (seeds 43/44) re-verified;
+  - one generation; one split identity per dataset;
+  - 55 files read, all JSON or CSV.
+- **Chain wrapper** `probe_chain_ancP7_v7.sh` (`5874fc6d…`): the twelve supervised probes one at a
+  time, in the order Flickr25K, CIFAR-10, NUS-WIDE, MS-COCO.
+  - It stops at the first nonzero exit and exits with it, and it refuses an existing output
+    directory.
+  - Sandbox self-test with a stub interpreter: 11/11 scenarios pass, and 3/3 mutants are caught
+    (`exit 0`, no stop on failure, `mkdir -p`).
+- **Static comparison** of the probe's calls with the current sources found no mismatch. Its success
+  path has never run on a real checkpoint, so the cheapest coordinate goes first.
+
+**Budget and storage (submitted).**
+- Per probe: 1 GPU and a 15-minute limit; it stops at 770 s; the allowance is 0.
+- Expected 1–3 min per probe; the bound is 12 × 900 s, so cumulative ≤ 29,833.57 s of 45,000.
+- Outputs are twelve small JSON files on `/data`, which had 35.56 GiB free; the supervisor floor is
+  10 GiB at start and 10.75 GiB while running.
+
+**Next.** Wait for a `probe` line naming request `74885114…`. Then run the chain in tmux `ancP7_v7`.
+The stage-D summary reducer comes after the probes. TODO 13–15 (L) precede the freeze.
+
+---
+
 ## 2026-09-29 [branch text-diag-2026-09 — analysis, no training, CPU only] Text-path diagnostics A0/A1/A2/A3: caption-similar images share codes 4–14× more often than random pairs, but equally in every slot and equally without any text supervision
 
 **Status:** 🟡 diagnostic, exploratory. Records: `result/analysis/textdiag_2026-09-29/` on the
