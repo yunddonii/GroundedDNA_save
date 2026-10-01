@@ -3088,7 +3088,7 @@ def assert_reservation_owner(namespace: str, expected: dict) -> None:
 
 
 def _run_refit_postprocess(run_dir: Path, *, dataset: str, env: dict,
-                           snapshot: dict | None = None) -> None:
+                           snapshot: dict | None = None, boundary_check=None) -> None:
     """Produce the exact three-split, BIO and NMI evidence for a MAIN refit."""
     spec = DATASETS[dataset]
     commands = (
@@ -3113,6 +3113,9 @@ def _run_refit_postprocess(run_dir: Path, *, dataset: str, env: dict,
             # authority are re-opened between every producer. The final full
             # seal verification is campaign-wide after all cells finish.
             verify_snapshot(snapshot)
+        if boundary_check is not None:
+            # Stage T (generation v9; audit 756): the consumed stage-R cell's own inputs too.
+            boundary_check()
 
 
 def _input_authority_flags(input_authority: dict) -> list:

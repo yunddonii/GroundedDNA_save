@@ -53,7 +53,8 @@ CHANGED_IN_V8 = {"scripts/phase3_selection_matrix.py", "scripts/anchor_confirm_d
                  "dna_utils/scientific_recipe.py", "tests/test_anchor_confirm_launcher.py"}
 #: generation v9 (stages R/T) additionally changes these v7 members; its exact delta from v8 is
 #: pinned in tests/test_anchor_refit_stage.py
-CHANGED_IN_V9 = {"train_siglip2.py", "p0_protocol.py", "extraction_siglip2.py"}
+CHANGED_IN_V9 = {"train_siglip2.py", "p0_protocol.py", "extraction_siglip2.py",
+                 "scripts/extract_train_split.py"}
 
 #: generation v7 closure pins, generated from authority_manifest_v7.json (c0612963...) on disk
 V7_FILES_SHA256 = {

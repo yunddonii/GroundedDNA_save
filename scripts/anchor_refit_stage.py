@@ -537,6 +537,27 @@ def terminal_test_env(gpu_uuid: str) -> dict:
     return env
 
 
+def check_cell_inputs(cell: dict) -> None:
+    """The consumed stage-R cell's own inputs at a T boundary (audit 756): config.pt, the terminal
+    checkpoint and its runtime witness are still their pinned bytes. Scoped to this cell; the dataset,
+    source, environment and seal checks are the T snapshot's."""
+    run_dir = Path(cell["run_dir"])
+    for name, pin in (("config.pt", cell["config_pt_sha256"]),
+                      (cell["final_checkpoint"], cell["final_checkpoint_sha256"]),
+                      (f"{cell['final_checkpoint']}.runtime.json", cell["checkpoint_runtime_sha256"])):
+        if M._sha(run_dir / name) != pin:
+            raise CellRefused(f"{cell['cell_id']}: {name} is not the stage-R cell's pinned bytes; no further "
+                              "producer starts")
+
+
+def cell_input_env(env: dict, cell: dict) -> dict:
+    """The producers' environment plus the consumed cell's pins, which a producer that loads the
+    configuration or the model verifies itself before deserializing (scripts/extract_train_split.py)."""
+    return dict(env, GDNA_T_EXPECT_CONFIG_SHA256=cell["config_pt_sha256"],
+                GDNA_T_EXPECT_CHECKPOINT_SHA256=cell["final_checkpoint_sha256"],
+                GDNA_T_EXPECT_RUNTIME_SHA256=cell["checkpoint_runtime_sha256"])
+
+
 def attempt_path(namespace: str, cell: dict) -> Path:
     return M.RECORD_DIR / f"{namespace}_attempt_{cell['tag']}.json"
 
@@ -570,13 +591,11 @@ def run_terminal_test_cell(cell: dict, *, namespace: str, request: dict, approva
     the record published. A producer never starts after a failed check."""
     run_dir = Path(cell["run_dir"])
     M.verify_snapshot(snapshot)
-    sidecar = run_dir / f"{cell['final_checkpoint']}.runtime.json"
-    if M._sha(sidecar) != cell["checkpoint_runtime_sha256"]:
-        raise CellRefused(f"{cell['cell_id']}: the runtime witness changed after admission")
+    check_cell_inputs(cell)
     M.assert_official_test_withheld(run_dir)
     attempt, attempt_sha = reserve_attempt(namespace, cell=cell, request=request, approval=approval,
                                            campaign_nonce=campaign_nonce)
-    env = terminal_test_env(gpu_uuid)
+    env = cell_input_env(terminal_test_env(gpu_uuid), cell)
     started = time.time()
     proc = M._run_managed_process(
         [os.path.realpath(sys.executable), "-B", str(REPO / "scripts" / "anchor_terminal_test.py"),
@@ -586,7 +605,9 @@ def run_terminal_test_cell(cell: dict, *, namespace: str, request: dict, approva
         raise CellRefused(f"{cell['cell_id']}: the T entry exited {proc.returncode}; the attempt "
                           f"{attempt.name} stays reserved")
     M.verify_snapshot(snapshot)
-    M._run_refit_postprocess(run_dir, dataset=cell["dataset"], env=env, snapshot=snapshot)
+    check_cell_inputs(cell)                              # the entry-to-train-extraction transition
+    M._run_refit_postprocess(run_dir, dataset=cell["dataset"], env=env, snapshot=snapshot,
+                             boundary_check=lambda: check_cell_inputs(cell))
     completion = M.assert_refit_outputs(run_dir, dataset=cell["dataset"])
     if M._sha(run_dir / cell["final_checkpoint"]) != cell["final_checkpoint_sha256"]:
         raise CellRefused(f"{cell['cell_id']}: the terminal checkpoint changed during stage T")

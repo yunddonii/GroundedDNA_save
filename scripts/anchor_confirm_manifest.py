@@ -67,7 +67,7 @@ def inventory() -> dict:
     from importlib import metadata
     return {
         "artifact_kind": M.ANCHOR_MANIFEST_KIND, "version": M.ANCHOR_CONFIRM_VERSION,
-        "generation": "v9", "revision": 3,
+        "generation": "v9", "revision": 4,
         "note": "byte identities from JSON and text only; not approval to execute",
         "historical": {
             "approved_p3_refit_aggregate": {"path": str(M.APPROVED_P3_REFIT_AGGREGATE),
@@ -113,6 +113,15 @@ def inventory() -> dict:
                   "seal_fields": list(RT.REFIT_SEAL_FIELDS), "input_seals": seals,
                   "official_test_outputs": list(M.OFFICIAL_TEST_OUTPUTS), "t_chain": list(RT.T_CHAIN)},
         "predecessor": {"authority_manifest_v8r2_sha256": RT.ANCHOR_V8_MANIFEST_SHA256,
+                        "superseded_v9r3_manifest_sha256":
+                        "a97671e2d06ae3984f9dc5e3250d068a463c004feffa0d095a7ae167189bc080",
+                        "v9_revision_4_change": "audit 756 and battery c: every T boundary re-checks the "
+                                                "consumed cell's config.pt, checkpoint and runtime witness; "
+                                                "the producers receive those pins and extract_train_split "
+                                                "verifies them before deserializing (config read once, "
+                                                "weights from the verified bytes) and before writing; the T "
+                                                "entry re-checks them before and after the test; shared "
+                                                "resume regression tests; RX25/RX27 pairings corrected",
                         "superseded_v9r2_manifest_sha256":
                         "b7e9264a7a933e3efd30125628f638bc5c5304f32ccae2055b730ad382b215f6",
                         "v9_revision_3_change": "audits 746-754: the T entry claims its entry exclusively, "
@@ -233,7 +242,7 @@ def main(argv=None) -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command")
     inv = sub.add_parser("inventory")
-    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v9r3.json"))
+    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v9r4.json"))
     args = parser.parse_args(argv)
     try:
         if args.command != "inventory":

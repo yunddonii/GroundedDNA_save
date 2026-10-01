@@ -144,6 +144,13 @@ The launcher (`--anchor-confirm test --anchor-refit-receipt … --anchor-refit-r
    - at the entry-to-train-extraction transition;
    - after each of the four post-chain producers.
 
+   At each of those boundaries the launcher also re-checks the consumed cell's own stage-R inputs
+   (config.pt, the terminal checkpoint, its runtime witness) against their pins (audit §756).
+   The producers receive the same three pins. `extract_train_split.py`, the post-chain producer
+   that loads the configuration and the model, verifies them itself before any deserialization: the
+   config is read once (the verified-buffer rule) and the weights are loaded from the verified bytes.
+   It re-checks all three before it writes. Without the pins it is unchanged.
+
    A failed check starts no further producer. In order, per cell, the launcher then:
    - re-checks the runtime witness and that no test output exists;
    - **reserves the attempt** — `<ns>_attempt_<R tag>.json`, exclusive, durable, retained on

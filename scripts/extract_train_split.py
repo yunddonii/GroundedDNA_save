@@ -32,19 +32,78 @@ from extraction_siglip2 import (
 )
 from model_siglip2 import SigLIP2SemanticOTModel
 
+#: Stage T (generation v9; audit 756): the stage-T launcher names here the pinned identities of the
+#: stage-R cell this run consumes. Outside stage T none is set and nothing below changes.
+T_INPUT_PINS = {"config": "GDNA_T_EXPECT_CONFIG_SHA256",
+                "checkpoint": "GDNA_T_EXPECT_CHECKPOINT_SHA256",
+                "runtime": "GDNA_T_EXPECT_RUNTIME_SHA256"}
+
+
+def stage_t_pins():
+    """The three stage-T input pins, or None outside stage T; a partial set refuses."""
+    values = {key: os.environ.get(name) for key, name in T_INPUT_PINS.items()}
+    if not any(values.values()):
+        return None
+    if not all(values.values()):
+        raise SystemExit("[extract-train] REFUSED: incomplete stage-T input pins")
+    return values
+
+
+def _pinned_bytes(path, digest, what):
+    import hashlib
+    with open(path, "rb") as handle:
+        raw = handle.read()
+    if hashlib.sha256(raw).hexdigest() != digest:
+        raise SystemExit(f"[extract-train] REFUSED: {what} {path} is not the stage-R cell's pinned bytes")
+    return raw
+
+
+def stage_t_inputs(args, pins):
+    """Stage T: config.pt, the checkpoint and its runtime witness, each read once and verified against
+    the pins BEFORE any deserialization or model construction. The arguments are built from the
+    verified config object (the shared resume helper's flat step, never a second read; audit 754.2)
+    and the weights are loaded from the verified checkpoint bytes. Returns (checkpoint path, source)."""
+    import io
+    from dna_utils.runtime_state import CheckpointMetadata
+    from extraction_siglip2 import _apply_saved_config, _reapply_explicit_cli
+    cli = Config.get_config()
+    run = cli.config_path
+    raw_config = _pinned_bytes(os.path.join(run, "config.pt"), pins["config"], "config.pt")
+    ckpt = _find_model_checkpoint(os.path.join(run, ""))
+    raw_ckpt = _pinned_bytes(ckpt, pins["checkpoint"], "checkpoint")
+    _pinned_bytes(CheckpointMetadata.sidecar_path(ckpt), pins["runtime"], "runtime witness")
+    _apply_saved_config(args, torch.load(io.BytesIO(raw_config), map_location="cpu"), run)
+    _reapply_explicit_cli(args, cli)
+    return ckpt, io.BytesIO(raw_ckpt)
+
+
+def recheck_stage_t_inputs(ckpt, pins):
+    """Before anything is written: the three consumed files are still their pinned bytes."""
+    from dna_utils.runtime_state import CheckpointMetadata
+    run = os.path.dirname(ckpt)
+    _pinned_bytes(os.path.join(run, "config.pt"), pins["config"], "config.pt")
+    _pinned_bytes(ckpt, pins["checkpoint"], "checkpoint")
+    _pinned_bytes(CheckpointMetadata.sidecar_path(ckpt), pins["runtime"], "runtime witness")
+
 
 def main() -> None:
     set_random_seed(42)
     args = Config()
-    _resume_args_flat_or_legacy(args)
+    pins = stage_t_pins()
+    if pins is None:
+        _resume_args_flat_or_legacy(args)
+    else:
+        pinned_ckpt, ckpt_source = stage_t_inputs(args, pins)
 
     model = SigLIP2SemanticOTModel(args).to(args.device)
     ckpt = _find_model_checkpoint(args.save_model_state_path)
     if not os.path.exists(ckpt):
         raise FileNotFoundError(f"no checkpoint at {ckpt}")
+    if pins is not None and os.path.realpath(ckpt) != os.path.realpath(pinned_ckpt):
+        raise SystemExit(f"[extract-train] REFUSED: {ckpt} is not the verified checkpoint {pinned_ckpt}")
     from dna_utils.run_identity import load_model_state_dict_for_extraction
     missing, unexpected, phase3_binding = load_model_state_dict_for_extraction(
-        model, ckpt, map_location=args.device)
+        model, ckpt if pins is None else ckpt_source, map_location=args.device)
     print(f"[extract-train] loaded {ckpt} "
           f"(missing={len(missing)} unexpected={len(unexpected)} "
           f"phase3_exact={phase3_binding is not None})")
@@ -74,6 +133,8 @@ def main() -> None:
     )
     out = encode_split(model, loader, args.device, split_name="train")
 
+    if pins is not None:
+        recheck_stage_t_inputs(ckpt, pins)
     dest = os.path.join(args.save_result_path, "extract_train.npz")
     np.savez(dest, **out)
     # F01: the train split shares the resolver, so it must share the manifest --

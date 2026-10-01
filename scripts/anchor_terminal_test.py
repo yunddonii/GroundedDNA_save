@@ -207,6 +207,14 @@ def verified_configuration(run_dir: Path, cell: dict, payload: dict):
     return args, saved
 
 
+def check_consumed(run_dir: Path, cell: dict) -> None:
+    """The terminal checkpoint, its runtime witness and config.pt are still the pinned bytes."""
+    for name, pin in ((cell["final_checkpoint"], cell["final_checkpoint_sha256"]),
+                      (f"{cell['final_checkpoint']}.runtime.json", cell["checkpoint_runtime_sha256"]),
+                      ("config.pt", cell["config_pt_sha256"])):
+        need(_sha(run_dir / name) == pin, f"{name} changed after admission")
+
+
 def check_config(args, cell: dict, run_dir: Path) -> None:
     """Step 6, on the configuration the trainer saved (loaded by the shared resume helper)."""
     campaign = getattr(args, "_phase3_campaign_binding", None) or {}
@@ -244,9 +252,15 @@ def main(argv=None) -> int:
         return 2
     set_random_seed(42)      # as the train-split extraction of the same chain
     from terminal_official_test import run_official_test
+    try:
+        check_consumed(run_dir, cell)            # immediately before extract_code reads them (audit 756)
+    except (Refused, OSError) as error:
+        print(f"[anchor-T] REFUSED before the official test (entry claimed): {error}", file=sys.stderr)
+        return 2
     print(f"[anchor-T] {cell['cell_id']}: admitted; official-test extraction and raw evaluation")
     run_official_test(args, distance_mode=str(getattr(args, "dna_distance_mode", "base")),
                       codebook_size=int(getattr(args, "codebook_size", 32)))
+    check_consumed(run_dir, cell)                # unchanged throughout; a failure here exits nonzero
     print(f"[anchor-T] {cell['cell_id']}: done")
     return 0
 

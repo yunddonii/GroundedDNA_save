@@ -48,7 +48,7 @@ V8_COMMIT = "3dd1c02"            # the generation-v8 tip this branch starts from
 #: the members generation v9 changes relative to v8 r2, and the members it adds
 CHANGED_IN_V9 = {"scripts/phase3_selection_matrix.py", "scripts/anchor_confirm_supervisor.py",
                  "scripts/anchor_confirm_manifest.py", "train_siglip2.py", "p0_protocol.py",
-                 "extraction_siglip2.py",
+                 "extraction_siglip2.py", "scripts/extract_train_split.py",
                  "tests/test_anchor_confirm_launcher.py", "tests/test_anchor_lambda_stage.py"}
 ADDED_IN_V9 = {"terminal_official_test.py", "scripts/anchor_refit_stage.py", "scripts/anchor_terminal_test.py",
                "docs/ANCHOR_REFIT_CONTRACT_v1.md", "tests/test_anchor_refit_stage.py"}
@@ -1147,8 +1147,8 @@ def test_composed_a_checkpoint_changed_during_t_publishes_nothing(tcell, monkeyp
             Path(cell["run_dir"], "model_state_dict.pth").write_text("changed")
         return recording(command, **k)
     monkeypatch.setattr(M, "_run_managed_process", tamper)
-    with pytest.raises(CellRefused, match="changed during stage T"):
-        tcell.go()
+    with pytest.raises(CellRefused, match="not the stage-R cell's pinned bytes"):
+        tcell.go()                                           # now caught at the entry-to-train boundary
     assert not (tcell.world.records / f"ancT9_{cell['tag']}.json").exists()
 
 
@@ -1268,11 +1268,12 @@ def test_composed_an_admitted_entry_runs_the_terminal_function_once(entry):
 
 
 def test_composed_the_entry_reads_config_once_and_uses_that_object(entry, monkeypatch):
-    """Audit 754.2: a change made after the verified read (and restored) cannot reach the test: there is
-    no second read; the official test receives the verified values."""
+    """Audit 754.2: a change made after the verified read and restored before the next check cannot
+    reach the test: there is no second read, and the test receives the verified values."""
     import io
     import torch
-    real_load = torch.load
+    import extraction_siglip2
+    real_load, real_apply = torch.load, extraction_siglip2._apply_saved_config
     loads = []
     path = Path(entry.cell["run_dir"], "config.pt")
     original = path.read_bytes()
@@ -1281,16 +1282,51 @@ def test_composed_the_entry_reads_config_once_and_uses_that_object(entry, monkey
         obj = real_load(f, *a, **k)
         if isinstance(f, io.BytesIO):
             loads.append("config")
-            drifted = dict(entry.world.saved[entry.cell["cell_id"]], lambda_wasserstein=0.999)
-            torch.save(drifted, path)                    # changed after the read ...
+            torch.save(dict(entry.world.saved[entry.cell["cell_id"]], lambda_wasserstein=0.999), path)
+        return obj
+
+    def apply_then_restore(args, sd, config_path):
+        real_apply(args, sd, config_path)
+        path.write_bytes(original)                       # restored before the next boundary check
+    monkeypatch.setattr(torch, "load", load)
+    monkeypatch.setattr(extraction_siglip2, "_apply_saved_config", apply_then_restore)
+    assert TE.main(entry.argv) == 0
+    assert loads == ["config"]
+    assert official_calls(entry)[0][2] == 0.15           # the verified value, never the drifted one
+
+
+def test_composed_a_config_left_changed_after_the_read_refuses_before_the_test(entry, monkeypatch, capsys):
+    import io
+    import torch
+    real_load = torch.load
+    path = Path(entry.cell["run_dir"], "config.pt")
+
+    def load(f, *a, **k):
+        obj = real_load(f, *a, **k)
+        if isinstance(f, io.BytesIO):
+            torch.save(dict(entry.world.saved[entry.cell["cell_id"]], lambda_wasserstein=0.999), path)
         return obj
     monkeypatch.setattr(torch, "load", load)
-    try:
-        assert TE.main(entry.argv) == 0
-    finally:
-        path.write_bytes(original)                       # ... and restored
-    assert loads == ["config"]
-    assert official_calls(entry)[0][2] == 0.15           # the verified value, not the drifted one
+    assert TE.main(entry.argv) == 2
+    assert "config.pt changed after admission" in capsys.readouterr().err and official_calls(entry) == []
+
+
+def test_composed_a_config_changed_after_admission_refuses_before_it_is_loaded(entry, monkeypatch, capsys):
+    """Between the admission (which already pinned the bytes) and the one verified read: the read's own
+    byte pin refuses before torch.load."""
+    import torch
+    real_claim = TE.claim_entry
+    loads = []
+
+    def claim_then_change(*a, **k):
+        claimed = real_claim(*a, **k)
+        _replace_config_bytes(entry, monkeypatch)
+        return claimed
+    monkeypatch.setattr(TE, "claim_entry", claim_then_change)
+    monkeypatch.setattr(torch, "load", lambda *a, **k: loads.append(1))
+    assert TE.main(entry.argv) == 2
+    assert "config.pt is not the pinned bytes" in capsys.readouterr().err
+    assert loads == [] and official_calls(entry) == []
 
 
 def test_composed_a_persistently_changed_config_refuses_before_it_is_loaded(entry, monkeypatch):
@@ -1308,11 +1344,12 @@ def test_composed_the_same_attempt_never_enters_twice_after_a_before_output_fail
     entry.state["official_test"] = RuntimeError("failed after touching the test, before any output")
     with pytest.raises(RuntimeError):
         TE.main(entry.argv)
-    assert len(official_calls(entry)) == 1 and TE.entry_claim_path(entry.attempt).exists()
+    assert len(official_calls(entry)) == 1
     assert not any(Path(entry.cell["run_dir"], n).exists() for n in M.OFFICIAL_TEST_OUTPUTS)
     entry.state["official_test"] = None
     assert TE.main(entry.argv) == 2                          # the same attempt, unchanged bytes
     assert len(official_calls(entry)) == 1                   # no second test access
+    assert TE.entry_claim_path(entry.attempt).exists()       # the claim that refused it, retained
 
 
 def test_composed_concurrent_entries_with_the_same_attempt_reach_the_test_once(entry):
@@ -1587,3 +1624,214 @@ def test_composed_a_t_stage_observation_stalled_past_the_watchdog_is_unresolved(
                    watchdog_seconds=1.0, free_bytes=free)
     done = SUP.final(world.ops)
     assert rc == S.EXIT_UNRESOLVED and done["status"] == "unresolved" and done["reason"].startswith("watchdog:")
+
+
+# ---- the shared resume helper: unchanged for every existing caller (audits 754.2, 755) -------------
+def _v8_function(name: str):
+    """A function of generation v8's extraction_siglip2 (the bytes this branch starts from), compiled in
+    the current module's namespace, so both versions run with the same imports and helpers."""
+    import ast as _ast
+    import extraction_siglip2 as X
+    source = subprocess.run(["git", "show", f"{V8_COMMIT}:extraction_siglip2.py"], cwd=REPO,
+                            capture_output=True, text=True, check=True).stdout
+    node = next(n for n in _ast.parse(source).body if isinstance(n, _ast.FunctionDef) and n.name == name)
+    namespace = dict(vars(X))
+    exec(compile(_ast.Module(body=[node], type_ignores=[]), f"v8:{name}", "exec"), namespace)
+    return namespace[name]
+
+
+def _flat_run(tmp_path, saved):
+    import torch
+    run = tmp_path / "run"
+    run.mkdir()
+    torch.save(saved, run / "config.pt")
+    return run
+
+
+@pytest.mark.parametrize("cli", [[], ["--inference_epoch", "3"], ["--selection_mode", "train_only"]],
+                         ids=["no-flags", "inference-epoch", "selection-mode"])
+def test_composed_the_flat_resume_is_the_v8_resume(tmp_path, monkeypatch, cli):
+    from config import Config
+    import extraction_siglip2 as X
+    saved = {"lambda_wasserstein": 0.15, "num_devices": 0, "inference_epoch": None, "selection_mode": "refit",
+             "save_result_path": "/old/place", "date": "260101", "codebook_size": 128}
+    run = _flat_run(tmp_path, saved)
+    monkeypatch.setattr(sys, "argv", ["extraction_siglip2.py", "--config_path", str(run), *cli])
+    new, old = Config(), Config()
+    X._resume_args_flat_or_legacy(new)
+    _v8_function("_resume_args_flat_or_legacy")(old)
+    assert vars(new) == vars(old)
+    assert new.save_result_path == str(run) and new.lambda_wasserstein == 0.15
+
+
+def test_structural_the_shared_apply_step_is_the_v8_flat_branch():
+    """_apply_saved_config holds exactly the v8 flat branch's statements before its print and CLI
+    re-application, and the nested (legacy) branch is unchanged."""
+    import ast as _ast
+    old_src = subprocess.run(["git", "show", f"{V8_COMMIT}:extraction_siglip2.py"], cwd=REPO,
+                             capture_output=True, text=True, check=True).stdout
+    new_src = (REPO / "extraction_siglip2.py").read_text()
+
+    def function(src, name):
+        return next(n for n in _ast.parse(src).body if isinstance(n, _ast.FunctionDef) and n.name == name)
+    old_flat = function(old_src, "_resume_args_flat_or_legacy").body[-1]        # if flat ... elif nested
+    new_flat = function(new_src, "_resume_args_flat_or_legacy").body[-1]
+    apply_body = function(new_src, "_apply_saved_config").body[1:]              # after its docstring
+    dump = lambda nodes: [_ast.dump(n) for n in nodes]                          # noqa: E731
+    # v8: sd = torch.load(...); <apply statements>; print(...); _reapply_explicit_cli(args, cli)
+    assert dump(old_flat.body[1:-2]) == dump(apply_body)
+    assert dump(old_flat.body[:1]) == dump(new_flat.body[:1])                   # the same torch.load
+    assert dump(old_flat.body[-2:]) == dump(new_flat.body[-2:])                 # the same print and CLI step
+    assert dump(old_flat.orelse) == dump(new_flat.orelse)                       # nested and missing: unchanged
+
+
+# ---- audit 756: the consumed stage-R cell's own inputs at every T boundary ----------------------------
+def _change(cell, which):
+    run = Path(cell["run_dir"])
+    name = {"config": "config.pt", "checkpoint": cell["final_checkpoint"],
+            "witness": f"{cell['final_checkpoint']}.runtime.json"}[which]
+    (run / name).chmod(0o644) if (run / name).exists() else None
+    (run / name).write_bytes((run / name).read_bytes() + b" ")
+
+
+@pytest.mark.parametrize("which", ["config", "checkpoint", "witness"])
+@pytest.mark.parametrize("after", ["anchor_terminal_test.py", "extract_train_split.py", "eval_cell_bioproj.py",
+                                   "pairwise_nmi.py"])
+def test_composed_a_changed_r_artifact_stops_the_next_t_producer(tcell, monkeypatch, which, after):
+    cell = tcell.request["cells"][0]
+    recording = M._run_managed_process
+
+    def change_after(command, **k):
+        result = recording(command, **k)
+        if Path(command[2] if command[1] == "-B" else command[1]).name == after:
+            _change(cell, which)                             # persistently, right after this producer
+        return result
+    monkeypatch.setattr(M, "_run_managed_process", change_after)
+    with pytest.raises(CellRefused, match="not the stage-R cell's pinned bytes"):
+        tcell.go()
+    assert tcell.commands == CHAIN[:CHAIN.index(after) + 1]  # the next consumer never started
+    assert not (tcell.world.records / f"ancT9_{cell['tag']}.json").exists()
+
+
+@pytest.mark.parametrize("which", ["config", "checkpoint", "witness"])
+def test_composed_a_changed_r_artifact_refuses_before_the_t_entry(tcell, which):
+    cell = tcell.request["cells"][0]
+    _change(cell, which)
+    with pytest.raises(CellRefused, match="not the stage-R cell's pinned bytes"):
+        tcell.go()
+    assert tcell.commands == [] and not RT.attempt_path("ancT9", cell).exists()
+
+
+def test_composed_the_producers_receive_the_consumed_cell_s_pins(tcell, monkeypatch):
+    seen = []
+    recording = M._run_managed_process
+    monkeypatch.setattr(M, "_run_managed_process",
+                        lambda command, **k: seen.append(k["env"]) or recording(command, **k))
+    tcell.go()
+    cell = tcell.request["cells"][0]
+    want = {"GDNA_T_EXPECT_CONFIG_SHA256": cell["config_pt_sha256"],
+            "GDNA_T_EXPECT_CHECKPOINT_SHA256": cell["final_checkpoint_sha256"],
+            "GDNA_T_EXPECT_RUNTIME_SHA256": cell["checkpoint_runtime_sha256"]}
+    assert len(seen) == 5 and all({k: env.get(k) for k in want} == want for env in seen)
+
+
+# ---- audit 756: train extraction verifies the consumed inputs itself, through its main() ------------
+@pytest.fixture
+def train_extraction(tmp_path, monkeypatch, rworld):
+    """scripts/extract_train_split.main with the model, dataset, encoder and writers replaced by
+    recorders; the config/checkpoint/witness handling is the real one."""
+    import io
+    import scripts.extract_train_split as X
+    cell = admit(rworld)["cells"][0]
+    run = Path(cell["run_dir"])
+    calls = {"resume": 0, "loader_source": None, "saved": 0, "loads": 0}
+    import torch
+    real_load = torch.load
+
+    def counting_load(f, *a, **k):
+        calls["loads"] += 1
+        return real_load(f, *a, **k)
+    monkeypatch.setattr(torch, "load", counting_load)
+
+    class Model:
+        def __init__(self, args):
+            calls["lambda"] = args.lambda_wasserstein
+
+        def to(self, device):
+            return self
+    monkeypatch.setattr(X, "SigLIP2SemanticOTModel", Model)
+    monkeypatch.setattr(X, "_resume_args_flat_or_legacy", lambda args: calls.__setitem__("resume", 1))
+    import dna_utils.run_identity as RI
+    import dna_utils.runtime_state as RS
+    import extraction_siglip2 as EX
+    monkeypatch.setattr(RI, "load_model_state_dict_for_extraction",
+                        lambda model, source, map_location=None: (calls.__setitem__("loader_source", source)
+                                                                  or ([], [], None)))
+    monkeypatch.setattr(RS, "apply_inference_epoch",
+                        lambda model, ckpt, args: SimpleNamespace(epoch=0, source="s", effective_sinkhorn_epsilon=0.1))
+    monkeypatch.setattr(X, "load_dataset", lambda *a, **k: ([], None, None))
+    monkeypatch.setattr(X.torch.utils.data, "DataLoader", lambda *a, **k: [])
+    state = {"during_encode": None}
+
+    def encode(model, loader, device, split_name):
+        if state["during_encode"]:
+            state["during_encode"]()
+        return {"base_indices": X.np.zeros((2, 15), dtype=X.np.int64)}
+    monkeypatch.setattr(X, "encode_split", encode)
+    monkeypatch.setattr(X.np, "savez", lambda dest, **out: calls.__setitem__("saved", calls["saved"] + 1))
+    monkeypatch.setattr(EX, "_write_split_manifest", lambda *a, **k: "manifest")
+    monkeypatch.setattr(EX, "_write_completion_marker", lambda *a, **k: None)
+    pins = {"GDNA_T_EXPECT_CONFIG_SHA256": cell["config_pt_sha256"],
+            "GDNA_T_EXPECT_CHECKPOINT_SHA256": cell["final_checkpoint_sha256"],
+            "GDNA_T_EXPECT_RUNTIME_SHA256": cell["checkpoint_runtime_sha256"]}
+
+    def run_main(env=pins):
+        for name in pins:
+            monkeypatch.delenv(name, raising=False)
+        for name, value in env.items():
+            monkeypatch.setenv(name, value)
+        monkeypatch.setattr(sys, "argv", ["extract_train_split.py", "--config_path", str(run)])
+        X.main()
+    return SimpleNamespace(main=run_main, calls=calls, cell=cell, pins=pins, state=state, io=io)
+
+
+def test_composed_train_extraction_loads_the_verified_bytes_once(train_extraction):
+    t = train_extraction
+    t.main()
+    assert t.calls["resume"] == 0 and t.calls["loads"] == 1        # config from the verified buffer only
+    assert isinstance(t.calls["loader_source"], t.io.BytesIO)        # weights from the verified bytes
+    assert t.calls["lambda"] == 0.15 and t.calls["saved"] == 1
+
+
+@pytest.mark.parametrize("which", ["config", "checkpoint", "witness"])
+def test_composed_train_extraction_refuses_a_changed_input_before_deserializing(train_extraction, which):
+    t = train_extraction
+    _change(t.cell, which)
+    with pytest.raises(SystemExit, match="not the stage-R cell's pinned bytes"):
+        t.main()
+    assert t.calls["loads"] == 0 and t.calls["loader_source"] is None and t.calls["saved"] == 0
+
+
+@pytest.mark.parametrize("which", ["config", "checkpoint", "witness"])
+def test_composed_train_extraction_writes_nothing_after_an_input_changed_during_it(train_extraction, which):
+    t = train_extraction
+    t.state["during_encode"] = lambda: _change(t.cell, which)
+    with pytest.raises(SystemExit, match="not the stage-R cell's pinned bytes"):
+        t.main()
+    assert t.calls["saved"] == 0
+
+
+def test_composed_train_extraction_refuses_partial_pins(train_extraction):
+    t = train_extraction
+    with pytest.raises(SystemExit, match="incomplete stage-T input pins"):
+        t.main({"GDNA_T_EXPECT_CONFIG_SHA256": t.pins["GDNA_T_EXPECT_CONFIG_SHA256"]})
+    assert t.calls["loads"] == 0
+
+
+def test_composed_train_extraction_without_pins_is_the_legacy_path(train_extraction):
+    t = train_extraction
+    import scripts.extract_train_split as X
+    X._resume_args_flat_or_legacy  # the legacy resume (a recorder here) and the checkpoint path
+    with pytest.raises(Exception):
+        t.main({})                   # the recorder resume sets no args, so the model step fails ...
+    assert t.calls["resume"] == 1 and t.calls["loads"] == 0           # ... after the legacy resume ran
