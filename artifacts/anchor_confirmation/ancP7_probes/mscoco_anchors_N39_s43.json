@@ -1,0 +1,68 @@
+{
+ "approval": {
+  "line": "ANCHOR-CONFIRM-APPROVAL version=anchor-confirm/2 scope=probe manifest=c061296309fe41203205dff65de3a1afb843c950e93c0614dfd27a8216a90128 selection=5cda7adb055ed126efb0a8ec198e06d1176ccdc57e7d38fe35ff74b74a4a92ff request=748851142a8734703c076bbccd52af8c383dba14ee105d29235c55c92c476c44",
+  "scope": "probe",
+  "section": 730
+ },
+ "artifact_kind": "anchor_confirmation_code_axis",
+ "authority": {
+  "approval": {
+   "line": "ANCHOR-CONFIRM-APPROVAL version=anchor-confirm/2 scope=stage-D-run manifest=c061296309fe41203205dff65de3a1afb843c950e93c0614dfd27a8216a90128 selection=5cda7adb055ed126efb0a8ec198e06d1176ccdc57e7d38fe35ff74b74a4a92ff request=6ef9d4ea9c6aa2a64f680a12a3147737b364459516cf023e5e3cee6b823367cc",
+   "request_sha256": "6ef9d4ea9c6aa2a64f680a12a3147737b364459516cf023e5e3cee6b823367cc",
+   "scope": "stage-D-run",
+   "section": 727
+  },
+  "cell_id": "mscoco|N=39|P=0.6,0.95|JD=0.03|stage=select|seed=43|axis_center=anchors",
+  "kind": "receipt",
+  "manifest_sha256": "c061296309fe41203205dff65de3a1afb843c950e93c0614dfd27a8216a90128",
+  "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_sweep_complete.json"
+ },
+ "caption_target": {
+  "adapter": "_adapt_pooled_text_for_loss of the same checkpoint",
+  "features": "cached_text_part_raw local axes",
+  "input_seal_sha256": "6e9138a6809ec8fbfb05202728f892a6325714e05742b937816b58cbb9104121"
+ },
+ "checkpoint_sha256": "99050a65c3c81b9fac3300cda38b6bb103339b20d893ba71176f298b6596b7eb",
+ "code_picks_own_axis": 0.424,
+ "config_pt_sha256": "71ba70f0b59e19bd33a023228300e8a33cf7deaef2b6087bd9ee76266ceba973",
+ "consumed_sha256": {
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_mscoco_A_v5b_N39_s43_AXanchors_P06095_JD003.json": "1512c4e9c3731a45f5d9460cedde84820513f25497bf16b3aae3fb1f41ad15fa",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_snapshot_64f311500273a3ed.json": "e383ff68ec0bb50e58e04c52b7e4c7175660a5e9a0aaeb8b356c8840e78e0451",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_sweep_complete.json": "4272eeac4759354f94a58af13d84ab62cf78ca3457fa0d07cd379bd0ad0aa6e8",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probe_sources.json": "39b304e92a94f879a71bdbfdc8b2cf9bce3209e81e09bdf460d047a4ca2b8702",
+  "/data/yschoi/gdna_anchor_confirm_v1/scripts/anchor_confirm_code_axis.py": "31537dde1cc8dd338221bb7fd49241cc0c618c0de444a2adf3500e86f708b19e",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancD7_mscoco_A_v5b_N39_s43_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/config.pt": "71ba70f0b59e19bd33a023228300e8a33cf7deaef2b6087bd9ee76266ceba973",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancD7_mscoco_A_v5b_N39_s43_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/log.csv": "a9c864a885fe05cd0827625079099fdca11846785e6165521a8d0a3c3b110ce9",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancD7_mscoco_A_v5b_N39_s43_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/model_state_dict.pth": "99050a65c3c81b9fac3300cda38b6bb103339b20d893ba71176f298b6596b7eb",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancD7_mscoco_A_v5b_N39_s43_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "b39bfe3af2194f2b01fabee47a318a8dc3f012363a024481eeafc6e43c4180e7",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancD7_mscoco_A_v5b_N39_s43_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "44de1db6e9b9d90fc96cb57203473adca2052443da3dcc657604aa29d23d8a20"
+ },
+ "coordinate": [
+  "mscoco",
+  "anchors",
+  39,
+  43
+ ],
+ "hits": 848,
+ "manifest_sha256": "c061296309fe41203205dff65de3a1afb843c950e93c0614dfd27a8216a90128",
+ "n_images": 500,
+ "population": {
+  "decisions": 2000,
+  "local_slots": 4,
+  "n_images": 500,
+  "rows": "first 500 of the train-only validation split, ascending dataset index"
+ },
+ "producer_sha256": "31537dde1cc8dd338221bb7fd49241cc0c618c0de444a2adf3500e86f708b19e",
+ "record_sha256": "1512c4e9c3731a45f5d9460cedde84820513f25497bf16b3aae3fb1f41ad15fa",
+ "request_sha256": "748851142a8734703c076bbccd52af8c383dba14ee105d29235c55c92c476c44",
+ "routing": "deployment_no_text",
+ "row_ids_sha256": "d33f729086808d38e95014b7044d8981b501ec62220ceea472a4a0ba7e51b7be",
+ "schema": "anchor-confirm-code-axis/3",
+ "split": {
+  "val_split_ratio": 0.1,
+  "val_split_seed": 42
+ },
+ "split_identity_sha256": "2844714907e3accef9527c6462d01abd5a86c3a12dcea96245b723fbefa85812",
+ "ties_counted_as_misses": 0,
+ "total": 2000
+}

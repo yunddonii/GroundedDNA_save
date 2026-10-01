@@ -1,0 +1,29 @@
+outputs present: 12
+('flickr25k', 'anchors', 4, 42) 726/2000 ties 0 ratio 0.363000 row a9e5c030fb39 file 878b00b98a9c2feb42e96fdadba392fe6b4909ee3de69e70ee05897a4d56803f
+('flickr25k', 'anchors', 4, 43) 665/2000 ties 0 ratio 0.332500 row a9e5c030fb39 file cc4995ac445bc8647fa366584e8b6ee1f3a3979e6469184a68faa3ae6756c00b
+('flickr25k', 'anchors', 4, 44) 820/2000 ties 0 ratio 0.410000 row a9e5c030fb39 file 1f033242ee3850f0a2a1897b8adc42fbac6c0aea31c0c449cce26ad40c1ce78e
+('cifar10', 'anchors', 4, 42) 652/2000 ties 0 ratio 0.326000 row 2af1054c52cd file c92bdb2527fd991adc5a7c5d0fe002a1d1027f86c24cd541a8655c584229fcdb
+('cifar10', 'anchors', 4, 43) 646/2000 ties 0 ratio 0.323000 row 2af1054c52cd file 944645a091dd88bcb0bb7e947487dc491a06433d97380ffc12e8aa4a88430eb6
+('cifar10', 'anchors', 4, 44) 697/2000 ties 0 ratio 0.348500 row 2af1054c52cd file af842d39672594460eee94c78e63f7b4763376f1907ff3ed37b9e3626668d30e
+('nuswide', 'anchors', 4, 42) 887/2000 ties 0 ratio 0.443500 row e8616d107f28 file 1bdb71dec8a3ea407eba70451cdd35ee3359aa9b9b5fe6c7e426db5d75e8a416
+('nuswide', 'anchors', 4, 43) 851/2000 ties 0 ratio 0.425500 row e8616d107f28 file 96c597838af3df5cf5a1eeb5322dcdfd74abe17800ed20ea1629f156ed887942
+('nuswide', 'anchors', 4, 44) 833/2000 ties 0 ratio 0.416500 row e8616d107f28 file dec3af6cd8b9827e3b664cbc59b0da0eb091577e84e674043f163930cf908f2c
+('mscoco', 'anchors', 39, 42) 827/2000 ties 0 ratio 0.413500 row d33f72908680 file a9f49b92d0741d51a0d7903e5e81c625915a31944e53969b9851007f779b866f
+('mscoco', 'anchors', 39, 43) 848/2000 ties 0 ratio 0.424000 row d33f72908680 file 95f0f8fa487ef4719baa7025f8786cca322ca5f9d66453bbdf4bf0c1b99a17fa
+('mscoco', 'anchors', 39, 44) 855/2000 ties 0 ratio 0.427500 row d33f72908680 file 5f95b167f880188f467c4f618a6fd1d9c271867ce8780d163e6d5696775b9250
+ledger: 12 probe starts; ledger sha 986bdcd11052f2442b99aa3f27dd2aa0af3d8c49067470f10d94345efda7f122
+  20261001T015101Z-fd67c43c ancP7:flickr25k:anchors:4:42 prior 19033.569830 -> exited rc=0 charged 18.641 device 18.641 allowance 0.0 cumulative 19052.210953 leases [] orphans [] continuity []
+  20261001T015120Z-4020273b ancP7:flickr25k:anchors:4:43 prior 19052.210953 -> exited rc=0 charged 17.507 device 17.507 allowance 0.0 cumulative 19069.718056 leases [] orphans [] continuity []
+  20261001T015137Z-4dc47353 ancP7:flickr25k:anchors:4:44 prior 19069.718056 -> exited rc=0 charged 18.827 device 18.827 allowance 0.0 cumulative 19088.545162 leases [] orphans [] continuity []
+  20261001T015156Z-7109bf40 ancP7:cifar10:anchors:4:42 prior 19088.545162 -> exited rc=0 charged 20.635 device 20.635 allowance 0.0 cumulative 19109.180277 leases [] orphans [] continuity []
+  20261001T015217Z-cf26ccd1 ancP7:cifar10:anchors:4:43 prior 19109.180277 -> exited rc=0 charged 20.679 device 20.679 allowance 0.0 cumulative 19129.859480 leases [] orphans [] continuity []
+  20261001T015238Z-d886d5dd ancP7:cifar10:anchors:4:44 prior 19129.859480 -> exited rc=0 charged 19.829 device 19.829 allowance 0.0 cumulative 19149.688609 leases [] orphans [] continuity []
+  20261001T015258Z-9b5e8a4a ancP7:nuswide:anchors:4:42 prior 19149.688609 -> exited rc=0 charged 18.641 device 18.641 allowance 0.0 cumulative 19168.329700 leases [] orphans [] continuity []
+  20261001T015316Z-b7a565dc ancP7:nuswide:anchors:4:43 prior 19168.329700 -> exited rc=0 charged 19.739 device 19.739 allowance 0.0 cumulative 19188.068808 leases [] orphans [] continuity []
+  20261001T015336Z-55dbf1a5 ancP7:nuswide:anchors:4:44 prior 19188.068808 -> exited rc=0 charged 18.483 device 18.483 allowance 0.0 cumulative 19206.551930 leases [] orphans [] continuity []
+  20261001T015355Z-5becd9c4 ancP7:mscoco:anchors:39:42 prior 19206.551930 -> exited rc=0 charged 20.933 device 20.933 allowance 0.0 cumulative 19227.485067 leases [] orphans [] continuity []
+  20261001T015416Z-7a19fc95 ancP7:mscoco:anchors:39:43 prior 19227.485067 -> exited rc=0 charged 17.577 device 17.577 allowance 0.0 cumulative 19245.062185 leases [] orphans [] continuity []
+  20261001T015434Z-79808079 ancP7:mscoco:anchors:39:44 prior 19245.062185 -> exited rc=0 charged 19.551 device 19.551 allowance 0.0 cumulative 19264.613317 leases [] orphans [] continuity []
+sum of probe charges 231.043486; prior + sum 19264.613316638395; last cumulative 19264.613316638395
+audit ledger sha 185ece7dcd3a8b7e862ca1a45c316dd2fca18d3ca6eb71165981dae12cb61941
+no problems found

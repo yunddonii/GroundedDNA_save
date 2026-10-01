@@ -1,0 +1,68 @@
+{
+ "approval": {
+  "line": "ANCHOR-CONFIRM-APPROVAL version=anchor-confirm/2 scope=probe manifest=c061296309fe41203205dff65de3a1afb843c950e93c0614dfd27a8216a90128 selection=5cda7adb055ed126efb0a8ec198e06d1176ccdc57e7d38fe35ff74b74a4a92ff request=748851142a8734703c076bbccd52af8c383dba14ee105d29235c55c92c476c44",
+  "scope": "probe",
+  "section": 730
+ },
+ "artifact_kind": "anchor_confirmation_code_axis",
+ "authority": {
+  "approval": {
+   "line": "ANCHOR-CONFIRM-APPROVAL version=anchor-confirm/2 scope=stage-S-run manifest=c061296309fe41203205dff65de3a1afb843c950e93c0614dfd27a8216a90128 request=bf2d3f56e0292020b361794d1b1238613ccc9b5998b4a84795d7dd756a7741e3",
+   "request_sha256": "bf2d3f56e0292020b361794d1b1238613ccc9b5998b4a84795d7dd756a7741e3",
+   "scope": "stage-S-run",
+   "section": 725
+  },
+  "cell_id": "flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=select|seed=42|axis_center=anchors",
+  "kind": "receipt",
+  "manifest_sha256": "c061296309fe41203205dff65de3a1afb843c950e93c0614dfd27a8216a90128",
+  "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_sweep_complete.json"
+ },
+ "caption_target": {
+  "adapter": "_adapt_pooled_text_for_loss of the same checkpoint",
+  "features": "cached_text_part_raw local axes",
+  "input_seal_sha256": "e44b363acbc03f21d5385927606ef58c0b265c3b70be1a38bb8c1a0eb0112654"
+ },
+ "checkpoint_sha256": "3180195ab4b42fdec8cdba60f745b0597baa15242a6c291d8064e4fab64d5ccd",
+ "code_picks_own_axis": 0.363,
+ "config_pt_sha256": "b640a085fa143b0a4af7585ff456b76e7bf68af5484ad812b72b1a0a996a0296",
+ "consumed_sha256": {
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probe_sources.json": "39b304e92a94f879a71bdbfdc8b2cf9bce3209e81e09bdf460d047a4ca2b8702",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_flickr_A_v4_N4_s42_AXanchors_P06095_JD002.json": "a8da86d3df6ee998f5d83d4a82e6030c3c209c146434a7707864c1b65d907b61",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_snapshot_23e0763089474895.json": "6f2c03527b265078584fdfe49f57b3c9091080aeca5ab637b51a6858de4cea49",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_sweep_complete.json": "5915768767e3fd12b28c3f09e1a071c26fd5cbddbbac15662c495b80c4876f6b",
+  "/data/yschoi/gdna_anchor_confirm_v1/scripts/anchor_confirm_code_axis.py": "31537dde1cc8dd338221bb7fd49241cc0c618c0de444a2adf3500e86f708b19e",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancS7_flickr_A_v4_N4_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/config.pt": "b640a085fa143b0a4af7585ff456b76e7bf68af5484ad812b72b1a0a996a0296",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancS7_flickr_A_v4_N4_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/log.csv": "e81da28b556c94dc96433fd867c2ccd4797b8122a4a8330f0641835f95dff727",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancS7_flickr_A_v4_N4_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/model_state_dict.pth": "3180195ab4b42fdec8cdba60f745b0597baa15242a6c291d8064e4fab64d5ccd",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancS7_flickr_A_v4_N4_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "3547aecfa160da5a0e088b1890b0d00de90a8add856d3b046921a9e62d8787da",
+  "/home/yschoi/gdna_anchor4_result/260929+flickr25k_setting1_ancS7_flickr_A_v4_N4_s42_AXanchors_P06095_JD002+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "a89ca22375f8cc174b4edd0363613e0e63fba34b0c6744960a3f6273fa116855"
+ },
+ "coordinate": [
+  "flickr25k",
+  "anchors",
+  4,
+  42
+ ],
+ "hits": 726,
+ "manifest_sha256": "c061296309fe41203205dff65de3a1afb843c950e93c0614dfd27a8216a90128",
+ "n_images": 500,
+ "population": {
+  "decisions": 2000,
+  "local_slots": 4,
+  "n_images": 500,
+  "rows": "first 500 of the train-only validation split, ascending dataset index"
+ },
+ "producer_sha256": "31537dde1cc8dd338221bb7fd49241cc0c618c0de444a2adf3500e86f708b19e",
+ "record_sha256": "a8da86d3df6ee998f5d83d4a82e6030c3c209c146434a7707864c1b65d907b61",
+ "request_sha256": "748851142a8734703c076bbccd52af8c383dba14ee105d29235c55c92c476c44",
+ "routing": "deployment_no_text",
+ "row_ids_sha256": "a9e5c030fb39b7f31cf2298113f2c11c016850038c0e9679faba27f0f8fd90c5",
+ "schema": "anchor-confirm-code-axis/3",
+ "split": {
+  "val_split_ratio": 0.1,
+  "val_split_seed": 42
+ },
+ "split_identity_sha256": "9f5d955d3411ee4e5ab2fe4b93822688e36f9bde0ff34b4308b362ccdc25e07f",
+ "ties_counted_as_misses": 0,
+ "total": 2000
+}

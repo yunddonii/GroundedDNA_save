@@ -1,0 +1,68 @@
+{
+ "approval": {
+  "line": "ANCHOR-CONFIRM-APPROVAL version=anchor-confirm/2 scope=probe manifest=c061296309fe41203205dff65de3a1afb843c950e93c0614dfd27a8216a90128 selection=5cda7adb055ed126efb0a8ec198e06d1176ccdc57e7d38fe35ff74b74a4a92ff request=748851142a8734703c076bbccd52af8c383dba14ee105d29235c55c92c476c44",
+  "scope": "probe",
+  "section": 730
+ },
+ "artifact_kind": "anchor_confirmation_code_axis",
+ "authority": {
+  "approval": {
+   "line": "ANCHOR-CONFIRM-APPROVAL version=anchor-confirm/2 scope=stage-S-run manifest=c061296309fe41203205dff65de3a1afb843c950e93c0614dfd27a8216a90128 request=bf2d3f56e0292020b361794d1b1238613ccc9b5998b4a84795d7dd756a7741e3",
+   "request_sha256": "bf2d3f56e0292020b361794d1b1238613ccc9b5998b4a84795d7dd756a7741e3",
+   "scope": "stage-S-run",
+   "section": 725
+  },
+  "cell_id": "mscoco|N=39|P=0.6,0.95|JD=0.03|stage=select|seed=42|axis_center=anchors",
+  "kind": "receipt",
+  "manifest_sha256": "c061296309fe41203205dff65de3a1afb843c950e93c0614dfd27a8216a90128",
+  "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_sweep_complete.json"
+ },
+ "caption_target": {
+  "adapter": "_adapt_pooled_text_for_loss of the same checkpoint",
+  "features": "cached_text_part_raw local axes",
+  "input_seal_sha256": "6e9138a6809ec8fbfb05202728f892a6325714e05742b937816b58cbb9104121"
+ },
+ "checkpoint_sha256": "365c065d42972be0a28e618f8d915cf02648c4fcf59637db0357196d5eb8617a",
+ "code_picks_own_axis": 0.4135,
+ "config_pt_sha256": "92a5556bf013fc62186bf1465a98210fca0035f6d689f69e10d98caa3f7714d8",
+ "consumed_sha256": {
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancP7_probe_sources.json": "39b304e92a94f879a71bdbfdc8b2cf9bce3209e81e09bdf460d047a4ca2b8702",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_mscoco_A_v5b_N39_s42_AXanchors_P06095_JD003.json": "f20ebc375c373a6717d118c7e35b2386656aa346e9b223066391c7441c82c695",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_snapshot_23e0763089474895.json": "6f2c03527b265078584fdfe49f57b3c9091080aeca5ab637b51a6858de4cea49",
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_sweep_complete.json": "5915768767e3fd12b28c3f09e1a071c26fd5cbddbbac15662c495b80c4876f6b",
+  "/data/yschoi/gdna_anchor_confirm_v1/scripts/anchor_confirm_code_axis.py": "31537dde1cc8dd338221bb7fd49241cc0c618c0de444a2adf3500e86f708b19e",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancS7_mscoco_A_v5b_N39_s42_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/config.pt": "92a5556bf013fc62186bf1465a98210fca0035f6d689f69e10d98caa3f7714d8",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancS7_mscoco_A_v5b_N39_s42_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/log.csv": "0708c16c483af6958b3912d8cad7e3eba39b5cfeea5c222ddb554936c11b55f3",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancS7_mscoco_A_v5b_N39_s42_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/model_state_dict.pth": "365c065d42972be0a28e618f8d915cf02648c4fcf59637db0357196d5eb8617a",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancS7_mscoco_A_v5b_N39_s42_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/model_state_dict.pth.runtime.json": "81f555c942c8e34c6763906e93e8b368d0901ec83307660fa6b1638a00dfaff2",
+  "/home/yschoi/gdna_anchor4_result/260929+mscoco_setting1_ancS7_mscoco_A_v5b_N39_s42_AXanchors_P06095_JD003+bs+64+e+60+proj_lr+0.001/phase3_campaign_binding.json": "024ea28db2fb63801e1a98f0b3196fabf54ae29c9fee1030b49926e15b4d53de"
+ },
+ "coordinate": [
+  "mscoco",
+  "anchors",
+  39,
+  42
+ ],
+ "hits": 827,
+ "manifest_sha256": "c061296309fe41203205dff65de3a1afb843c950e93c0614dfd27a8216a90128",
+ "n_images": 500,
+ "population": {
+  "decisions": 2000,
+  "local_slots": 4,
+  "n_images": 500,
+  "rows": "first 500 of the train-only validation split, ascending dataset index"
+ },
+ "producer_sha256": "31537dde1cc8dd338221bb7fd49241cc0c618c0de444a2adf3500e86f708b19e",
+ "record_sha256": "f20ebc375c373a6717d118c7e35b2386656aa346e9b223066391c7441c82c695",
+ "request_sha256": "748851142a8734703c076bbccd52af8c383dba14ee105d29235c55c92c476c44",
+ "routing": "deployment_no_text",
+ "row_ids_sha256": "d33f729086808d38e95014b7044d8981b501ec62220ceea472a4a0ba7e51b7be",
+ "schema": "anchor-confirm-code-axis/3",
+ "split": {
+  "val_split_ratio": 0.1,
+  "val_split_seed": 42
+ },
+ "split_identity_sha256": "2844714907e3accef9527c6462d01abd5a86c3a12dcea96245b723fbefa85812",
+ "ties_counted_as_misses": 0,
+ "total": 2000
+}
