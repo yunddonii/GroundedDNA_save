@@ -67,6 +67,44 @@ def _raise_mid_eval_if_campaign(args, error: Exception) -> None:
         raise error
 
 
+def _official_test_allowed(args, *, p0_refit: bool) -> bool:
+    """Whether this run performs the end-of-training official-test extraction and evaluation.
+
+    A P0 stage-1 run never does (it selected on held-out train rows). Generation v9 (audits
+    743-744): an anchor stage-R cell never does either -- it ends at its terminal checkpoint, by the
+    same fail-closed policy the start-up applies, and the official test is reachable only through
+    the separately approved stage-T entry (scripts/anchor_terminal_test.py). Every other run is
+    unchanged."""
+    from p0_protocol import (
+        anchor_refit_withholds_official_test,
+        should_run_official_test_evaluation,
+    )
+
+    allowed = should_run_official_test_evaluation(
+        evaluation_requested=getattr(args, "evaluation", False),
+        val_protocol_active=getattr(args, "_val_protocol", False),
+    )
+    if (
+        getattr(args, "evaluation", False)
+        and not allowed
+    ):
+        print(
+            "[p0-stage1] SKIP official-test extraction/evaluation: "
+            "E* was selected on held-out train validation; official test is "
+            "reserved for the scratch full-train refit."
+        )
+    campaign = getattr(args, "_phase3_campaign_binding", None) or {}
+    if anchor_refit_withholds_official_test(
+            axis_center=getattr(args, "axis_center", "none"),
+            p0_refit_active=p0_refit,
+            cell_id=campaign.get("cell_id"),
+            sealed_recipe=bool(campaign.get("scientific_recipe_sha256"))):
+        allowed = False
+        print("[anchor-refit] stage R ends at the terminal checkpoint: official-test "
+              "extraction/evaluation WITHHELD (stage T is a separate approval)")
+    return allowed
+
+
 def _phase3_terminal_checkpoint_only(args) -> bool:
     """Phase-3 selects from terminal CSV evidence, never best-file bytes.
 
@@ -261,6 +299,18 @@ def _resolve_save_path(args: Config) -> str:
                                            campaign_binding)
     if recipe_binding is not None:
         campaign_binding.update(recipe_binding)
+    # Generation v9 (audits 743-744): an anchor-model P0 refit is only ever a sealed stage-R cell,
+    # and stage R never reaches the official test. Checked here, before the run directory exists,
+    # so a missing or altered stage marker refuses instead of falling through to the automatic
+    # official-test path at the end of training.
+    from p0_protocol import anchor_refit_withholds_official_test, is_p0_refit as _is_p0_refit
+    anchor_refit_withholds_official_test(
+        axis_center=getattr(args, "axis_center", "none"),
+        p0_refit_active=_is_p0_refit(
+            stop_after_epoch=getattr(args, "stop_after_epoch", None),
+            final_epoch_eval=getattr(args, "final_epoch_eval", False)),
+        cell_id=(campaign_binding or {}).get("cell_id"),
+        sealed_recipe=recipe_binding is not None)
     if campaign_binding is not None and not (
             bool(getattr(args, "final_epoch_eval", False))
             or bool(getattr(args, "keep_final_checkpoint", False))):
@@ -1547,108 +1597,13 @@ def main(args: Config):
     # E* on held-out train data and must never consume the official test split.
     # Stage 2 has no `_val_protocol` flag and therefore performs the one
     # permitted official-test extraction/evaluation after scratch refitting.
-    from p0_protocol import should_run_official_test_evaluation
-
-    _official_test_eval_allowed = should_run_official_test_evaluation(
-        evaluation_requested=getattr(args, "evaluation", False),
-        val_protocol_active=getattr(args, "_val_protocol", False),
-    )
-    if (
-        getattr(args, "evaluation", False)
-        and not _official_test_eval_allowed
-    ):
-        print(
-            "[p0-stage1] SKIP official-test extraction/evaluation: "
-            "E* was selected on held-out train validation; official test is "
-            "reserved for the scratch full-train refit."
-        )
+    _official_test_eval_allowed = _official_test_allowed(args, p0_refit=_p0_refit)
     if _official_test_eval_allowed:
-        from extraction_siglip2 import extract_code as _extract_code
-        from evaluation_siglip2 import evaluation as _evaluation
-        # Optionally swap cache for final evaluation (e.g., train on FAIRrank
-        # multi-view cache, evaluate on whole-image cache for paper-claim
-        # inference mode). Restores after eval so any post-hoc analysis still
-        # has training cache pointer if needed.
-        _eval_cache = getattr(args, "eval_cache_dir", None)
-        _saved_cache = args.siglip2_feature_cache_dir
-        _saved_whiten = getattr(args, "text_whiten_npz", None)
-        from p0_protocol import resolve_eval_text_whiten_path
-
-        _eval_whiten = resolve_eval_text_whiten_path(
-            training_text_whiten_path=_saved_whiten,
-            explicit_eval_text_whiten_path=getattr(
-                args, "eval_text_whiten_npz", None
-            ),
-        )
-        if _eval_whiten and not os.path.exists(_eval_whiten):
-            raise FileNotFoundError(
-                "FINAL extraction text-whitening matrix does not exist: "
-                f"{_eval_whiten}"
-            )
-        # AUTO-DETECT: if user did not set --eval_cache_dir, try stripping known
-        # multi-view/crop suffixes from the training cache. This ensures viz +
-        # final eval consistently use whole-image inference on any dataset that
-        # trained on a FAIRrank/localL8K3 cache with a matching whole-image
-        # sibling. User-provided --eval_cache_dir takes precedence.
-        if not _eval_cache:
-            _train_cache = str(_saved_cache).rstrip("/")
-            for _sfx in ("_FAIRrankL8K3", "_localL8K3"):
-                if _train_cache.endswith(_sfx):
-                    _candidate = _train_cache[: -len(_sfx)]
-                    if os.path.exists(_candidate):
-                        _eval_cache = _candidate
-                        print(f"[final-eval] AUTO-DETECT whole-image cache: {_train_cache} (train) -> {_eval_cache} (eval)")
-                        args.eval_cache_dir = _eval_cache
-                        break
-        if _eval_cache and os.path.exists(_eval_cache):
-            print(f"[final-eval] OVERRIDE cache: {_saved_cache} -> {_eval_cache}")
-            args.siglip2_feature_cache_dir = _eval_cache
-        args.text_whiten_npz = _eval_whiten
-        if _eval_whiten != _saved_whiten:
-            print(f"[final-eval] EXPLICIT text_whiten override: {_eval_whiten}")
-        elif _eval_cache and _saved_whiten:
-            print(
-                "[final-eval] PRESERVE training text_whiten across cache "
-                f"override: {_saved_whiten}"
-            )
-        try:
-            print("[final-eval] running extraction ...")
-            _extract_code(args)
-        except Exception as ex:
-            # A paper run whose final extraction failed has no codes to report.
-            # Swallowing this produced tables traced to a stale extraction.
-            raise RuntimeError(
-                f"[final-eval] extraction failed: {ex}. This is fatal for a "
-                f"paper run; the reported codes would come from a previous "
-                f"extraction in the same directory.") from ex
-        finally:
-            # The explicit override is scoped to extraction. Post-eval
-            # diagnostics and the in-memory training model retain the
-            # training transform contract.
-            args.text_whiten_npz = _saved_whiten
-        try:
-            print(f"[final-eval] running evaluation (distance_mode={distance_mode}) ...")
-            from evaluation_siglip2 import resolve_map_at_r as _resolve_map_at_r
-            _map_r = _resolve_map_at_r(getattr(args, "dataset", None))
-            if _map_r is not None:
-                print(f"[final-eval] paper mAP@R cutoff for {args.dataset} = {_map_r}")
-            _evaluation(
-                args.save_result_path,
-                distance_mode=distance_mode,
-                codebook_size=codebook_size_cf,
-                map_at_r=_map_r,
-                dataset_name=getattr(args, "dataset", None),
-            )
-        except Exception as ex:
-            # The extraction above is fatal for exactly this reason, and the
-            # evaluation is what turns those codes into the reported number.
-            # Printing and continuing let a run finish with rc 0 and no metric
-            # JSON at all, which downstream then reads as a completed cell.
-            raise RuntimeError(
-                f"[final-eval] evaluation failed: {ex}. This is fatal for a "
-                f"paper run: the cell would exit successfully with no metrics, "
-                f"and a reader cannot tell that from a cell that has them."
-            ) from ex
+        # The block that used to live here is terminal_official_test.run_official_test (the
+        # stage-T entry calls the same function); behaviour is unchanged for this path.
+        from terminal_official_test import run_official_test
+        run_official_test(args, distance_mode=distance_mode,
+                          codebook_size=codebook_size_cf)
         # Restore (post-eval compositional uses _cache below; keep it on eval cache too)
         # so compositional_eval reads correctly on the eval-cache features.
 

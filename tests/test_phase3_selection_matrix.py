@@ -715,17 +715,20 @@ def test_the_final_evaluation_failure_is_fatal():
     The extraction above it was already fatal for the same reason: a run that
     reports success without a number cannot be told apart from one that has it.
     """
-    source = (REPO / "train_siglip2.py").read_text()
+    # generation v9: the terminal block lives in terminal_official_test.run_official_test, which the
+    # trainer and the stage-T entry both call
+    source = (REPO / "terminal_official_test.py").read_text()
     block = source[source.index("[final-eval] running evaluation"):]
-    block = block[:block.index("# ---------- post-eval")]
     assert "raise RuntimeError" in block
     assert "continuing to viz" not in block
+    assert "run_official_test(args" in (REPO / "train_siglip2.py").read_text()
 
 
 def test_only_the_refit_is_asked_for_official_outputs():
     """Stage 1 must never extract, so it cannot be required to have."""
     source = (REPO / "scripts" / "phase3_selection_matrix.py").read_text()
-    assert 'if stage == "refit" else {}' in source
+    # generation v9: an anchor refit (stage R) is not asked either; stage T produces them
+    assert 'if stage == "refit" and not anchor_refit else {}' in source
 
 
 # ------------------- score and weights must be the same epoch (§42.5)

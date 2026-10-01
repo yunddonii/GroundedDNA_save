@@ -84,6 +84,13 @@ BUDGET_DEVICE_SECONDS = 12.5 * 3600.0          # S + D + probes (contract v3 sec
 L_STAGES = ("stage-L-smoke", "stage-L-run")
 L_BUDGET_DEVICE_SECONDS = 1.0 * 3600.0
 L_OPS_ROOT = Path("/home/yschoi/gdna_anchorL_ops")
+#: Stages R and T (generation v9, contract R/T v1 section 9): their own ledger root and one budget,
+#: so neither settled ledger (S/D/probe, L) is reused or reset. Planning reference: the twelve
+#: incumbent p3rfB refits with their fused official-test chain took 66,415 s of wall time in total;
+#: the proposed ceiling covers both smokes, R, T and that margin. A proposal, set by the audit.
+RT_STAGES = ("stage-R-smoke", "stage-R-run", "stage-T-smoke", "stage-T-run")
+RT_BUDGET_DEVICE_SECONDS = 80000.0
+RT_OPS_ROOT = Path("/home/yschoi/gdna_anchorRT_ops")
 POLL_SECONDS = 1.0
 #: no completed observation for this long stops the command (and voids the run's settlement)
 WATCHDOG_SECONDS = 10.0
@@ -100,6 +107,11 @@ STAGES = {
     "probe": (15 * 60.0, 1),
     # stage L: one Flickr25K stream (control + five N=4 cells, about 2 to 5 minutes each)
     "stage-L-smoke": (2 * 3600.0, 1), "stage-L-run": (2 * 3600.0, 1),
+    # stages R and T: one stream per dataset. The slowest incumbent stream (NUS-WIDE, R and T fused)
+    # took 24,962 s for three seeds; a smoke is one cell, and the R smoke may include the full
+    # historical verification of the refit seals.
+    "stage-R-smoke": (3 * 3600.0, 1), "stage-R-run": (8 * 3600.0, 4),
+    "stage-T-smoke": (3 * 3600.0, 1), "stage-T-run": (8 * 3600.0, 4),
 }
 EXIT_REFUSED, EXIT_STOPPED, EXIT_UNCLEAN, EXIT_UNRESOLVED = 2, 3, 4, 5
 
@@ -527,15 +539,19 @@ def _run(command, ledger, identity, *, prior, headroom, gpus, attempts, planned_
 
 def stage_ledger(stage: str, ops_root) -> tuple:
     """(ledger root, device budget) of a stage. Stage L keeps its own ledger root and budget
-    (contract L v1 section 8); the S/D/probe stages never write the L root. A crossed root refuses."""
-    is_l = stage in L_STAGES
-    root = Path(os.path.abspath(ops_root if ops_root is not None
-                                else (L_OPS_ROOT if is_l else DEFAULT_OPS_ROOT)))
-    if is_l and root != L_OPS_ROOT:
-        raise Refused(f"{stage} keeps its own ledger under {L_OPS_ROOT}, not {root}")
-    if not is_l and root == L_OPS_ROOT:
-        raise Refused(f"{stage} never writes the stage-L ledger {L_OPS_ROOT}")
-    return root, (L_BUDGET_DEVICE_SECONDS if is_l else BUDGET_DEVICE_SECONDS)
+    (contract L v1 section 8), stages R and T theirs (contract R/T v1 section 9); no stage writes
+    another group's root. A crossed root refuses."""
+    groups = ((L_STAGES, L_OPS_ROOT, L_BUDGET_DEVICE_SECONDS),
+              (RT_STAGES, RT_OPS_ROOT, RT_BUDGET_DEVICE_SECONDS))
+    own_root, budget = DEFAULT_OPS_ROOT, BUDGET_DEVICE_SECONDS
+    for stages, root_of, budget_of in groups:
+        if stage in stages:
+            own_root, budget = root_of, budget_of
+    root = Path(os.path.abspath(ops_root if ops_root is not None else own_root))
+    if root != own_root and (own_root != DEFAULT_OPS_ROOT
+                             or root in {r for _, r, _ in groups}):
+        raise Refused(f"{stage} keeps its own ledger under {own_root}, not {root}")
+    return root, budget
 
 
 def command_gpus(stage: str, command) -> int:
@@ -561,7 +577,8 @@ def main(argv=None) -> int:
     parser.add_argument("--planned-cells", type=int, required=True)
     parser.add_argument("--watch-path", required=True)
     parser.add_argument("--ops-root", default=None,
-                        help=f"default {DEFAULT_OPS_ROOT}; stage L: {L_OPS_ROOT} (its own ledger)")
+                        help=f"default {DEFAULT_OPS_ROOT}; stage L: {L_OPS_ROOT}; stages R/T: "
+                             f"{RT_OPS_ROOT} (their own ledgers)")
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args(argv)
     command = args.command[1:] if args.command[:1] == ["--"] else args.command

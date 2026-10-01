@@ -67,7 +67,7 @@ _IMPORTED_SOURCE_SHA256 = hashlib.sha256(Path(__file__).read_bytes()).hexdigest(
 _BOOTSTRAP_SOURCE_PATHS = (
     "config.py", "train_siglip2.py", "model_siglip2.py", "loss_siglip2.py",
     "dataloaders.py", "extraction_siglip2.py", "evaluation_siglip2.py",
-    "val_split.py", "p0_protocol.py",
+    "val_split.py", "p0_protocol.py", "terminal_official_test.py",
     "dna_utils/__init__.py", "dna_utils/run_identity.py",
     "dna_utils/extraction_validation.py", "dna_utils/cache_provenance.py",
     "dna_utils/bio_constraints.py", "dna_utils/csv_logger.py",
@@ -83,7 +83,8 @@ _BOOTSTRAP_SOURCE_PATHS = (
     "models/semantic_router.py", "models/text_cross_attention_router.py",
     "models/text_encoder.py", "models/visual_encoder.py",
     "scripts/__init__.py", "scripts/phase3_selection_matrix.py",
-    "scripts/phase3_select_n.py",
+    "scripts/phase3_select_n.py", "scripts/anchor_refit_stage.py",
+    "scripts/anchor_terminal_test.py",
     "scripts/seal_phase3_inputs.py",
     "scripts/build_text_whiten_matrix.py",
     "scripts/extract_train_split.py", "scripts/eval_cell_bioproj.py",
@@ -1039,8 +1040,11 @@ def _whitening(spec: dict, *, stage: str = "select") -> str:
 
 
 def refit_tag_for(dataset: str, n: int, seed: int, *,
-                  namespace: str = NAMESPACE, topp=None, joint=None) -> str:
-    return (f"{namespace}_{DATASETS[dataset]['exp']}_refit_N{n}_s{seed}"
+                  namespace: str = NAMESPACE, topp=None, joint=None, anchor_arm=None) -> str:
+    # An anchor-model refit (generation v9, stage R) carries its arm like an anchor stage-1 tag, so
+    # neither an anchor nor a legacy refit tag is a substring of the other (`*{tag}*` globs).
+    anchor = f"_AX{anchor_arm}" if anchor_arm is not None else ""
+    return (f"{namespace}_{DATASETS[dataset]['exp']}_refit_N{n}_s{seed}{anchor}"
             f"{recipe_fragment(topp, joint)}")
 
 
@@ -1053,9 +1057,12 @@ def build_command(dataset: str, n: int, gpu: int, *,
     if anchor_arm is not None:
         if anchor_arm not in ANCHOR_ARMS:
             raise CellRefused(f"axis_center={anchor_arm!r} is not an anchor-confirmation arm")
-        if stage == "refit":
-            raise CellRefused("anchor confirmation runs stage-1 cells only; a refit is a separate "
-                              "authorization")
+        # Generation v9 (audits 743-744): an anchor-model refit is a stage-R cell. Rendering it is
+        # not an authorization -- execution needs the stage-R admission, the accepted F record and
+        # the audit's stage-R approval (scripts/anchor_refit_stage.py) -- and it never carries a
+        # lambda override.
+        if stage == "refit" and overrides:
+            raise CellRefused("an anchor refit carries the frozen recipe; no lambda override")
         if overrides:
             anchor_lambda_label(dataset, overrides)      # one declared stage-L candidate, or refuse
     if stage == "refit":
@@ -1064,7 +1071,7 @@ def build_command(dataset: str, n: int, gpu: int, *,
                 "lambda overrides are defined for stage-1 confirmation cells "
                 "only; a refit at a changed lambda is a separate decision")
         tag = refit_tag_for(dataset, n, seed, namespace=namespace,
-                            topp=topp, joint=joint)
+                            topp=topp, joint=joint, anchor_arm=anchor_arm)
         flags = _refit_flags(n, seed) + S5_FLAGS + A_FLAGS + QUIET_FLAGS
     else:
         tag = tag_for(dataset, n, namespace=namespace, topp=topp, joint=joint,
@@ -1653,7 +1660,7 @@ def expected_cell_binding(dataset: str, n: int, *, namespace: str,
         dataset, n, stage=stage, seed=seed, topp=topp, joint=joint,
         epochs=epochs, input_authority=input_authority, overrides=overrides)
     tag = (refit_tag_for(dataset, n, seed, namespace=namespace,
-                         topp=topp, joint=joint)
+                         topp=topp, joint=joint, anchor_arm=anchor_arm)
            if stage == "refit" else
            tag_for(dataset, n, namespace=namespace, topp=topp, joint=joint,
                    seed=seed, overrides=overrides, anchor_arm=anchor_arm))
@@ -2275,6 +2282,29 @@ def _assert_evaluation_payload(payload: dict, *, path: Path, dataset: str,
         raise CellRefused(f"{path}: evaluation protocol/identity differs: {wrong}")
     _finite_proportion(payload, "mAP", what=path.name)
     _finite_proportion(payload, "mAP_at_R", what=path.name)
+
+
+#: Every file the official-test extraction, raw/BIO evaluation and refit post-chain write into a
+#: run directory (extraction_siglip2, evaluation_siglip2, extract_train_split, eval_cell_bioproj,
+#: pairwise_nmi, seal_cell_analysis). A stage-R run directory holds none of them; stage T creates
+#: them once.
+OFFICIAL_TEST_OUTPUTS = (
+    "extract_query.npz", "extract_db.npz", "extract_train.npz",
+    "extraction_manifest_query.json", "extraction_manifest_db.json",
+    "extraction_manifest_train.json", "extraction_complete.json",
+    "evaluation_siglip2_base.json", "evaluation_siglip2_base_bioproj.json",
+    "evaluation_siglip2_bit2.json", "analysis_complete.json", "cell_result.json",
+    "pairwise_nmi.json",
+)
+
+
+def assert_official_test_withheld(run_dir: Path) -> dict:
+    """A stage-R run directory after its trainer exits: no official-test output exists."""
+    present = sorted(name for name in OFFICIAL_TEST_OUTPUTS if (Path(run_dir) / name).exists())
+    if present:
+        raise CellRefused(f"{run_dir}: a stage-R run holds official-test outputs {present}; stage R "
+                          "never reaches the official test")
+    return {"status": "withheld", "checked_absent": list(OFFICIAL_TEST_OUTPUTS)}
 
 
 def assert_refit_outputs(run_dir: Path, *, dataset: str) -> dict:
@@ -3130,7 +3160,7 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
     result_root = _canonical_result_root(result_root)
     lambda_overrides = () if overrides is None else tuple(overrides)
     tag = (refit_tag_for(dataset, n, seed, namespace=namespace,
-                         topp=topp, joint=joint)
+                         topp=topp, joint=joint, anchor_arm=anchor_arm)
            if stage == "refit"
            else tag_for(dataset, n, namespace=namespace,
                         topp=topp, joint=joint, seed=seed,
@@ -3336,7 +3366,13 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
     anchor_evidence = (assert_anchor_recipe(run_dir, scientific_recipe=scientific_recipe,
                                             arm=anchor_arm)
                        if anchor_arm is not None else None)
-    if stage == "refit":
+    # Generation v9: an anchor-model refit is stage R, which ends at its terminal checkpoint. Its
+    # official-test extraction, evaluation and post-chain belong to the separately approved stage T
+    # (scripts/anchor_refit_stage.py), so here the run directory must hold none of their outputs.
+    anchor_refit = stage == "refit" and anchor_arm is not None
+    if anchor_refit:
+        withheld = assert_official_test_withheld(run_dir)
+    elif stage == "refit":
         _run_refit_postprocess(
             run_dir, dataset=dataset, env=env, snapshot=snapshot)
     if snapshot is not None:
@@ -3401,7 +3437,8 @@ def run_cell(dataset: str, n: int, gpu: int, *, epochs=None,
         "completion": {
             **completion,
             **(assert_refit_outputs(run_dir, dataset=dataset)
-               if stage == "refit" else {}),
+               if stage == "refit" and not anchor_refit else {}),
+            **({"official_test": withheld} if anchor_refit else {}),
         },
         "geometry": geometry,
         "selection": (
@@ -3828,6 +3865,11 @@ def _run_sweep(args, at_topp, *, full_plan=None,
         status, payload = results[key]
         if status == "ok":
             sel = payload["selection"]
+            if sel.get("selection_metric") is None:     # a refit (stage R): nothing is scored
+                print(f"[phase3] {key} ok  terminal checkpoint epoch "
+                      f"{payload['completion'].get('final_checkpoint_epoch_zero_based')}; "
+                      f"official test {payload['completion'].get('official_test', {}).get('status')}")
+                continue
             print(f"[phase3] {key} ok  mAP@R={sel['selection_value']:.4f} "
                   f"@epoch {sel['selection_epoch_zero_based']}")
         else:
@@ -4173,6 +4215,8 @@ ANCHOR_MANIFEST_KIND = "anchor_confirmation_authority_manifest"
 ANCHOR_CONTRACT_PATH = "docs/ANCHOR_CONFIRMATION_CONTRACT_v3.md"
 #: Stage L's own contract (generation v8): a closure member, pinned beside the designated contract.
 ANCHOR_LAMBDA_CONTRACT_PATH = "docs/ANCHOR_LAMBDA_CONTRACT_v1.md"
+#: Stages R and T's own contract (generation v9): a closure member, pinned beside the designated one.
+ANCHOR_REFIT_CONTRACT_PATH = "docs/ANCHOR_REFIT_CONTRACT_v1.md"
 #: The anchor generation's own files. With the executable closure `_BOOTSTRAP_SOURCE_PATHS`
 #: (trainer, model, parser, identity, split, input admission, wrappers, ...) they are the members a
 #: generation manifest must list, exactly (audit 683.2).
@@ -4185,7 +4229,8 @@ ANCHOR_CLOSURE = ("scripts/anchor_confirm_decision.py", "scripts/anchor_confirm_
                   "tests/test_anchor_confirm_supervisor.py",
                   "tests/test_anchor_confirm_input_bridge.py", "tests/test_seal_phase3_inputs.py",
                   "tests/test_anchor_confirm_env_handoff.py",
-                  ANCHOR_LAMBDA_CONTRACT_PATH, "tests/test_anchor_lambda_stage.py")
+                  ANCHOR_LAMBDA_CONTRACT_PATH, "tests/test_anchor_lambda_stage.py",
+                  ANCHOR_REFIT_CONTRACT_PATH, "tests/test_anchor_refit_stage.py")
 #: The audit ledger is the approval authority (audit 679.1, 683.2, 686.4). The modification agent
 #: cannot write it, and it lives outside the pinned scientific tree, so no manifest names an
 #: approval and no hash cycle arises. An operation that executes, or opens a real binary, runs only
@@ -4207,6 +4252,13 @@ APPROVAL_SCOPES = {
     # stage-D summary and the preregistered rule numbers
     "stage-L-smoke": ("manifest", "selection", "request"),
     "stage-L-run": ("manifest", "selection", "request"),
+    # generation v9 (audits 743-744): `freeze` is the accepted F record; stage R ends at the
+    # terminal checkpoints, and stage T -- the official test -- is a separate approval naming the
+    # completed stage-R receipt through its request
+    "stage-R-smoke": ("manifest", "freeze", "request"),
+    "stage-R-run": ("manifest", "freeze", "request"),
+    "stage-T-smoke": ("manifest", "freeze", "request"),
+    "stage-T-run": ("manifest", "freeze", "request"),
 }
 REQUEST_SCHEMA = "anchor-confirm-request/2"
 #: The storage rule of an anchor-confirmation campaign (audit 703.3), checked before EVERY cell is
@@ -4736,6 +4788,10 @@ def load_anchor_manifest(path, sha256) -> dict:
     if manifest.get("lambda_contract") != {"path": ANCHOR_LAMBDA_CONTRACT_PATH,
                                            "sha256": files[ANCHOR_LAMBDA_CONTRACT_PATH]}:
         raise CellRefused(f"{path}: its stage-L contract is not {ANCHOR_LAMBDA_CONTRACT_PATH} at its "
+                          "pinned bytes")
+    if manifest.get("refit_contract") != {"path": ANCHOR_REFIT_CONTRACT_PATH,
+                                          "sha256": files[ANCHOR_REFIT_CONTRACT_PATH]}:
+        raise CellRefused(f"{path}: its stage-R/T contract is not {ANCHOR_REFIT_CONTRACT_PATH} at its "
                           "pinned bytes")
     if not (isinstance(generation.get("commit"), str)
             and re.fullmatch(r"[0-9a-f]{40}", generation["commit"])
@@ -5318,12 +5374,15 @@ def main() -> int:
               "used by the stability protocol."))
     parser.add_argument(
         "--anchor-confirm", dest="anchor_confirm", default=None,
-        choices=("select", "decide", ANCHOR_LAMBDA_STAGE),
+        choices=("select", "decide", ANCHOR_LAMBDA_STAGE, "refit", "test"),
         help=("anchor confirmation v2 (contract v3, audit 709): stage `select` = train-only N "
               "selection of the fixed anchor model, `decide` = seeds 43/44 at the frozen N, `lambda` "
               "= stage L (contract L v1: the TODO 13-15 lambda checks at the v7 frozen N, seed 42, "
-              "Flickr25K first). Stage-1 cells only; refit is a separate authorization. "
-              "NON-EXECUTABLE until audit approval."))
+              "Flickr25K first); generation v9 (audits 743-744): `refit` = stage R, the twelve "
+              "scratch full-train anchor refits of the accepted F record, ending at the terminal "
+              "checkpoint; `test` = stage T, the one official-test extraction and evaluation of "
+              "each stage-R checkpoint (scripts/anchor_refit_stage.py). NON-EXECUTABLE until "
+              "audit approval."))
     parser.add_argument(
         "--anchor-arms", dest="anchor_arms", default="anchors",
         help="must be `anchors` (contract v3: the control arm is rendered for comparison, never run)")
@@ -5346,6 +5405,12 @@ def main() -> int:
         "--anchor-selection-sha256", dest="anchor_selection_sha256", default=None,
         metavar="HEX", help="full SHA-256 the frozen stage-S N record must hash to")
     parser.add_argument(
+        "--anchor-refit-receipt", dest="anchor_refit_receipt", default=None, metavar="PATH",
+        help="--anchor-confirm test: the completed stage-R receipt whose checkpoints stage T evaluates")
+    parser.add_argument(
+        "--anchor-refit-receipt-sha256", dest="anchor_refit_receipt_sha256", default=None,
+        metavar="HEX", help="full SHA-256 of that stage-R receipt")
+    parser.add_argument(
         "--at-topp", default=None, metavar="MIN,MAX",
         help="hold top-p here (required by --sweep joint)")
     args = parser.parse_args()
@@ -5362,6 +5427,10 @@ def main() -> int:
         print(f"[phase3] REFUSED --result-root: {error}", file=sys.stderr)
         return 2
 
+    if args.anchor_confirm in ("refit", "test"):
+        # Generation v9 (audits 743-744): stages R and T have their own admission.
+        import scripts.anchor_refit_stage as refit_stage
+        return refit_stage.main(args)
     if args.anchor_confirm is not None:
         return _anchor_confirmation_main(args)
 

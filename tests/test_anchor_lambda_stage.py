@@ -51,6 +51,9 @@ REAL = os.environ.get("GDNA_ALLOW_REAL_ARTIFACT_TESTS") == "1"
 CHANGED_IN_V8 = {"scripts/phase3_selection_matrix.py", "scripts/anchor_confirm_decision.py",
                  "scripts/anchor_confirm_supervisor.py", "scripts/anchor_confirm_manifest.py",
                  "dna_utils/scientific_recipe.py", "tests/test_anchor_confirm_launcher.py"}
+#: generation v9 (stages R/T) additionally changes these v7 members; its exact delta from v8 is
+#: pinned in tests/test_anchor_refit_stage.py
+CHANGED_IN_V9 = {"train_siglip2.py", "p0_protocol.py"}
 
 #: generation v7 closure pins, generated from authority_manifest_v7.json (c0612963...) on disk
 V7_FILES_SHA256 = {
@@ -1218,12 +1221,13 @@ def test_each_changed_module_defines_each_top_level_name_once(rel):
 # ---- the closure: everything but the declared v8 sources is byte-equal to generation v7 -----------
 def test_the_v8_closure_extends_v7_with_the_lambda_contract_and_this_file():
     closure = set(M.anchor_generation_closure())
-    assert closure == set(V7_FILES_SHA256) | {M.ANCHOR_LAMBDA_CONTRACT_PATH, "tests/test_anchor_lambda_stage.py"}
+    assert set(V7_FILES_SHA256) | {M.ANCHOR_LAMBDA_CONTRACT_PATH, "tests/test_anchor_lambda_stage.py"} <= closure
 
 
 def test_every_v7_member_but_the_declared_v8_sources_is_byte_equal():
     current = {rel: sha((REPO / rel).read_bytes()) for rel in V7_FILES_SHA256}
-    assert sorted(rel for rel, want in V7_FILES_SHA256.items() if current[rel] != want) == sorted(CHANGED_IN_V8)
+    assert sorted(rel for rel, want in V7_FILES_SHA256.items() if current[rel] != want) == \
+        sorted(CHANGED_IN_V8 | CHANGED_IN_V9)
 
 
 @pytest.mark.skipif(not REAL, reason="opt-in: reads the real v7 manifest and history (JSON only)")

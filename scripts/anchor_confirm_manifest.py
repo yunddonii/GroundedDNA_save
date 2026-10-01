@@ -26,6 +26,7 @@ sys.path.insert(0, str(REPO))
 
 import scripts.phase3_selection_matrix as M                  # noqa: E402
 import scripts.anchor_confirm_decision as D                  # noqa: E402
+import scripts.anchor_refit_stage as RT                      # noqa: E402
 
 #: the bytes this module was imported from (audit 697)
 with open(__file__, "rb") as _source:
@@ -53,6 +54,11 @@ def inventory() -> dict:
     v7 = M.anchor_v7_pins()                           # audit 733.3: the accepted v7 digests, read
     for key in ("selection", "decision", "stage_s_receipt"):
         consumed.read(v7[key]["path"], v7[key]["sha256"])
+    freeze = consumed.json(RT.ANCHOR_F_RECORD, RT.ANCHOR_F_RECORD_SHA256)   # audit 744.1, read
+    seals = {ds: {"path": str(path), "sha256": hashlib.sha256(consumed.read(path)).hexdigest()}
+             for ds, path in sorted(RT.REFIT_INPUT_SEALS.items())}
+    D.need(all(seals[ds]["sha256"] == RT.REFIT_INPUT_SEALS_SHA256[ds] for ds in seals),
+           f"the refit input seals are not the approved bytes: {seals}")
     status = git("status", "--porcelain")
     D.need(status == "", f"the source generation has uncommitted changes:\n{status[:400]}")
     closure = M.anchor_generation_closure()
@@ -61,7 +67,7 @@ def inventory() -> dict:
     from importlib import metadata
     return {
         "artifact_kind": M.ANCHOR_MANIFEST_KIND, "version": M.ANCHOR_CONFIRM_VERSION,
-        "generation": "v8", "revision": 2,
+        "generation": "v9", "revision": 1,
         "note": "byte identities from JSON and text only; not approval to execute",
         "historical": {
             "approved_p3_refit_aggregate": {"path": str(M.APPROVED_P3_REFIT_AGGREGATE),
@@ -97,7 +103,29 @@ def inventory() -> dict:
                    "incumbent_lambdas": {ds: dict(M.LAMBDA_INCUMBENT[ds]) for ds in M.ANCHOR_LAMBDA_SCOPE},
                    "scope_decision": "the user's decision recorded under audit 733.1 (2026-10-01): "
                                      "Flickr25K first; expand only if its choice moves"},
-        "predecessor": {"authority_manifest_v7_sha256": M.ANCHOR_V7_MANIFEST_SHA256,
+        "freeze": {"path": str(RT.ANCHOR_F_RECORD), "sha256": RT.ANCHOR_F_RECORD_SHA256,
+                   "acceptance": f"audit ledger section {RT.ANCHOR_F_ACCEPTANCE_SECTION}",
+                   "datasets": {ds: {k: freeze["datasets"][ds][k]
+                                     for k in ("N", "lambdas", "routing_adaptive_topp", "lambda_codon_joint")}
+                                for ds in M.ANCHOR_DATASETS}},
+        "refit": {"stages": [RT.REFIT_STAGE, RT.TEST_STAGE], "seeds": list(RT.REFIT_SEEDS),
+                  "protocol_fields": list(RT.REFIT_PROTOCOL_FIELDS),
+                  "seal_fields": list(RT.REFIT_SEAL_FIELDS), "input_seals": seals,
+                  "official_test_outputs": list(M.OFFICIAL_TEST_OUTPUTS), "t_chain": list(RT.T_CHAIN)},
+        "predecessor": {"authority_manifest_v8r2_sha256": RT.ANCHOR_V8_MANIFEST_SHA256,
+                        "v9_change": "stages R and T (audits 742-744, contract R/T v1): the anchor "
+                                     "refit of the accepted F record and its separately approved "
+                                     "official test. The trainer withholds the official test in an "
+                                     "anchor stage-R cell and refuses an anchor P0 refit outside one "
+                                     "(p0_protocol); its terminal block moves unchanged into "
+                                     "terminal_official_test.py, which the new T entry "
+                                     "scripts/anchor_terminal_test.py also calls; the launcher admits "
+                                     "anchor refits only through scripts/anchor_refit_stage.py, tags "
+                                     "them with the arm, runs no post-chain for them and requires their "
+                                     "run directories to hold no test output; the supervisor gains the "
+                                     "stage-R/T ledger. Model, data, loss, wrappers, environment, "
+                                     "seals and every S/D/L record are unchanged",
+                        "authority_manifest_v7_sha256": M.ANCHOR_V7_MANIFEST_SHA256,
                         "superseded_v8_manifest_sha256":
                         "b7b5af9ed13473ed21773ddf824c951c6064a8cdeeb18d61c3a8a8777ab3572d",
                         "v8_revision_2_change": "audit 734.2: one approved campaign per stage-L "
@@ -174,6 +202,8 @@ def inventory() -> dict:
                      "sha256": hashlib.sha256(consumed.read(CONTRACT)).hexdigest()},
         "lambda_contract": {"path": M.ANCHOR_LAMBDA_CONTRACT_PATH,
                             "sha256": hashlib.sha256(consumed.read(REPO / M.ANCHOR_LAMBDA_CONTRACT_PATH)).hexdigest()},
+        "refit_contract": {"path": M.ANCHOR_REFIT_CONTRACT_PATH,
+                           "sha256": hashlib.sha256(consumed.read(REPO / M.ANCHOR_REFIT_CONTRACT_PATH)).hexdigest()},
         "approval": {"authority": str(M.AUDIT_LEDGER), "tag": M.APPROVAL_TAG,
                      "scopes": {k: list(v) for k, v in M.APPROVAL_SCOPES.items()},
                      "note": "not part of this manifest: the audit writes one ledger line per "
@@ -187,7 +217,7 @@ def main(argv=None) -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command")
     inv = sub.add_parser("inventory")
-    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v8r2.json"))
+    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v9.json"))
     args = parser.parse_args(argv)
     try:
         if args.command != "inventory":

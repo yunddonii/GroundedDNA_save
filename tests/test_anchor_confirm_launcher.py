@@ -62,9 +62,14 @@ def test_exploratory_or_unknown_arms_refuse(arm):
         M.build_command("flickr25k", 4, 0, anchor_arm=arm)
 
 
-def test_the_refit_path_refuses_an_anchor_arm():
-    with pytest.raises(CellRefused, match="separate authorization"):
-        M.build_command("flickr25k", 4, 0, stage="refit", anchor_arm="anchors")
+def test_the_refit_path_takes_an_anchor_arm_only_without_a_lambda_override():
+    # generation v9 (audits 743-744): rendering an anchor refit is stage R's, whose authority is the
+    # stage-R admission (tests/test_anchor_refit_stage.py); it never carries a lambda override
+    cmd, env, tag = M.build_command("flickr25k", 4, 0, stage="refit", anchor_arm="anchors")
+    assert extra(env)[-2:] == ["--axis_center", "anchors"] and "_AXanchors" in tag
+    with pytest.raises(CellRefused, match="no lambda override"):
+        M.build_command("flickr25k", 4, 0, stage="refit", anchor_arm="anchors",
+                        overrides=(("lambda_bu", "0"),))
 
 
 @pytest.mark.parametrize("dataset,overrides", [
@@ -257,7 +262,9 @@ def manifest(tmp_path, **changes):
                                                "interpreter": sys.executable}},
             "contract": {"path": M.ANCHOR_CONTRACT_PATH, "sha256": files[M.ANCHOR_CONTRACT_PATH]},
             "lambda_contract": {"path": M.ANCHOR_LAMBDA_CONTRACT_PATH,
-                                "sha256": files[M.ANCHOR_LAMBDA_CONTRACT_PATH]}}
+                                "sha256": files[M.ANCHOR_LAMBDA_CONTRACT_PATH]},
+            "refit_contract": {"path": M.ANCHOR_REFIT_CONTRACT_PATH,
+                               "sha256": files[M.ANCHOR_REFIT_CONTRACT_PATH]}}
     for key, value in changes.items():
         target = body
         *parents, leaf = key.split("::")
@@ -1036,7 +1043,9 @@ def copy_of_the_tree(tmp_path, monkeypatch):
                                                "torch": metadata.version("torch"), "interpreter": sys.executable}},
             "contract": {"path": M.ANCHOR_CONTRACT_PATH, "sha256": files[M.ANCHOR_CONTRACT_PATH]},
             "lambda_contract": {"path": M.ANCHOR_LAMBDA_CONTRACT_PATH,
-                                "sha256": files[M.ANCHOR_LAMBDA_CONTRACT_PATH]}}
+                                "sha256": files[M.ANCHOR_LAMBDA_CONTRACT_PATH]},
+            "refit_contract": {"path": M.ANCHOR_REFIT_CONTRACT_PATH,
+                               "sha256": files[M.ANCHOR_REFIT_CONTRACT_PATH]}}
     path = tmp_path / "manifest.json"
     return root, {"path": str(path), "sha256": write_json(path, body)}
 
