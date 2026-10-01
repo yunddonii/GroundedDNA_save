@@ -8,6 +8,32 @@
 
 ---
 
+## Changed model (axis-centred routing anchors): stage tracking (2026-10-01)
+
+The changed model is `axis_center=anchors` on all four datasets (user decision, audit §709). The
+item-by-item migration matrix is `docs/ANCHOR_MODEL_TODO_MIGRATION_v2.md` (`32e7b88f…`) in the
+frozen worktree `/data/yschoi/gdna_anchor_confirm_v1`. Old-model completion never counts for this
+model. Only the stages below are complete, each in exactly the stated scope:
+
+| Stage | Scope and result | Evidence | Audit |
+|---|---|---|---|
+| S | 16 cells, 4 datasets × N 4/9/19/39, seed 42, train-only validation | `ancS7_sweep_complete.json` `59157687…` | §725 |
+| N record | N = 4/4/4/39 (CIFAR-10/Flickr25K/NUS-WIDE/MS-COCO) | `ancS7_selected_n.json` `5cda7adb…` | §726–§727 |
+| D | 8 cells, seeds 43/44 at the frozen N | `ancD7_sweep_complete.json` `4272eeac…` | §727 |
+| probes | 12 code-to-own-axis probes (500 validation rows × 4 local slots) | `ancP7_probe_sources.json` `39b304e9…` | §730 |
+| D summary | 3-seed descriptive summary, no test | `ancP7_decision.json` `28b10a4c…` | §731–§732 |
+| L (TODO 13–15) | Flickr25K-first lambda checks; no candidate qualified; lambdas unchanged; scope closed, no other dataset runs L | `ancL8_lambda_decision.json` `22014e6b…` (v8 tree) | §738–§742 |
+| F | recipe/N freeze for all four datasets | `ancF_candidate_v1.json` `5165f5dc…` (v8 tree) **plus** its acceptance | §744 |
+
+- **Pending for this model:** stage R (12 scratch full-train refits) and stage T (official test,
+  once per checkpoint). They need a new source generation (v9) and separate approvals.
+- **Every downstream item** (2–19, D4, D6, paper regeneration) still needs its own complete evidence
+  and approval.
+- Independent baselines keep only their previously accepted scope.
+- Spec amendment: `docs/MODEL_AND_PROTOCOL_SPEC.md` §0.
+
+---
+
 ## P0 — main table를 성립시키는 것
 
 | # | 항목 | 규모 | 상태 |
