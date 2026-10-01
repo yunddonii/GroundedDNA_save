@@ -42,6 +42,33 @@ from scripts.phase3_selection_matrix import (  # noqa: E402
 )
 
 
+
+@pytest.fixture(autouse=True)
+def _synthetic_dataset_inputs(tmp_path_factory, monkeypatch):
+    """Private synthetic dataset inputs (audit 735.2). Every dataset spec points at a fixture cache,
+    foil cache, both whitening files and a caption file under a temporary directory. The production
+    identity (RunIdentity._artifact) and plan-snapshot inventory code hash these fixture files
+    exactly as they would hash production ones, so artifact-mutation and identity checks stay
+    live, and no production cache metadata, caption or whitening file is opened. A test that needs
+    a production path names it explicitly and is outside this suite's synthetic scope."""
+    import scripts.phase3_selection_matrix as _M
+    root = tmp_path_factory.mktemp("synthetic_dataset_inputs")
+    for name, spec in _M.DATASETS.items():
+        cache, foils = root / f"{name}_clip_tokens", root / f"{name}_clip_tokens_foils"
+        cache.mkdir(exist_ok=True)
+        foils.mkdir(exist_ok=True)
+        (cache / "meta.json").write_text(json.dumps({"dataset": name, "synthetic": "feature cache"}))
+        (foils / "meta.json").write_text(json.dumps({"dataset": name, "synthetic": "foil cache"}))
+        for variant in ("optTrain", "trainOnly"):
+            (foils / f"text_whiten_{variant}_localOnly.npz").write_bytes(
+                f"synthetic {name} {variant} whitening".encode())
+        qwen = root / f"{name}_qwen.jsonl"
+        qwen.write_text(json.dumps({"dataset": name, "synthetic": "captions"}) + "\n")
+        monkeypatch.setitem(spec, "cache", str(cache))
+        monkeypatch.setitem(spec, "foils", str(foils))
+        monkeypatch.setitem(spec, "qwen", str(qwen))
+    return root
+
 @pytest.fixture(autouse=True)
 def _production_source_authority_fixture(monkeypatch):
     """Reducer fixtures model a clean committed production checkout.

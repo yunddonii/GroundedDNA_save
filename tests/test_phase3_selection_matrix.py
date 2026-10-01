@@ -44,6 +44,40 @@ from scripts.phase3_selection_matrix import (  # noqa: E402
 )
 
 
+
+#: tests that only compare the production path STRINGS of a built command (no file is opened); they
+#: keep the production specs, and the open() guard confirms they read nothing
+_PRODUCTION_PATH_STRING_TESTS = frozenset({"test_the_child_reads_the_provenance_caches"})
+
+
+@pytest.fixture(autouse=True)
+def _synthetic_dataset_inputs(tmp_path_factory, monkeypatch, request):
+    """Private synthetic dataset inputs (audit 735.2). Every dataset spec points at a fixture cache,
+    foil cache, both whitening files and a caption file under a temporary directory. The production
+    identity (RunIdentity._artifact) and plan-snapshot inventory code hash these fixture files
+    exactly as they would hash production ones, so artifact-mutation and identity checks stay
+    live, and no production cache metadata, caption or whitening file is opened. A test that needs
+    a production path names it explicitly and is outside this suite's synthetic scope."""
+    import scripts.phase3_selection_matrix as _M
+    if request.node.originalname in _PRODUCTION_PATH_STRING_TESTS:
+        return None
+    root = tmp_path_factory.mktemp("synthetic_dataset_inputs")
+    for name, spec in _M.DATASETS.items():
+        cache, foils = root / f"{name}_clip_tokens", root / f"{name}_clip_tokens_foils"
+        cache.mkdir(exist_ok=True)
+        foils.mkdir(exist_ok=True)
+        (cache / "meta.json").write_text(json.dumps({"dataset": name, "synthetic": "feature cache"}))
+        (foils / "meta.json").write_text(json.dumps({"dataset": name, "synthetic": "foil cache"}))
+        for variant in ("optTrain", "trainOnly"):
+            (foils / f"text_whiten_{variant}_localOnly.npz").write_bytes(
+                f"synthetic {name} {variant} whitening".encode())
+        qwen = root / f"{name}_qwen.jsonl"
+        qwen.write_text(json.dumps({"dataset": name, "synthetic": "captions"}) + "\n")
+        monkeypatch.setitem(spec, "cache", str(cache))
+        monkeypatch.setitem(spec, "foils", str(foils))
+        monkeypatch.setitem(spec, "qwen", str(qwen))
+    return root
+
 def _fake_input_authorities(plan):
     import scripts.phase3_selection_matrix as M
     result = {}
@@ -150,6 +184,22 @@ def test_the_s5_recipe_is_passed(dataset, n):
     assert extra[extra.index("--text_hash_counterfactual_weight") + 1] == "0.0"
     for flag in A_FLAGS:
         assert flag in extra
+
+
+@pytest.mark.parametrize("which", ["whitening", "feature_cache_meta", "captions"])
+def test_the_synthetic_inputs_are_hashed_by_the_production_identity(_synthetic_dataset_inputs, which):
+    """Positive control for the synthetic-input fixture (audit 735.2): the unchanged production
+    identity code hashes the fixture files, so a mutated input artefact still changes the
+    identity -- the fixture replaces content, never the check."""
+    from scripts.phase3_selection_matrix import DATASETS, _whitening, expected_run_identity
+    spec = DATASETS["flickr25k"]
+    target = {"whitening": Path(_whitening(spec, stage="select")),
+              "feature_cache_meta": Path(spec["cache"]) / "meta.json",
+              "captions": Path(spec["qwen"])}[which]
+    assert str(target).startswith(str(_synthetic_dataset_inputs))
+    before = expected_run_identity("flickr25k", 4).digest
+    target.write_bytes(target.read_bytes() + b" mutated")
+    assert expected_run_identity("flickr25k", 4).digest != before
 
 
 @pytest.mark.parametrize("dataset,n", cell_keys())
