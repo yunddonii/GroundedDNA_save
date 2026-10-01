@@ -1,0 +1,137 @@
+{
+  "coordinates": [
+    {
+      "N": 4,
+      "arm": "anchors",
+      "dataset": "cifar10",
+      "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_sweep_complete.json",
+      "receipt_sha256": "5915768767e3fd12b28c3f09e1a071c26fd5cbddbbac15662c495b80c4876f6b",
+      "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_cifar_A_v4_N4_s42_AXanchors_JD002.json",
+      "record_sha256": "6e8fdfba192f50e32cbfc745feff339c680aceee0cd50691e8dc1317968453f1",
+      "seed": 42,
+      "source": "receipt"
+    },
+    {
+      "N": 4,
+      "arm": "anchors",
+      "dataset": "cifar10",
+      "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_sweep_complete.json",
+      "receipt_sha256": "4272eeac4759354f94a58af13d84ab62cf78ca3457fa0d07cd379bd0ad0aa6e8",
+      "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_cifar_A_v4_N4_s43_AXanchors_JD002.json",
+      "record_sha256": "13a6fc6f53ac3fed3473f65cc3647cc8caa54f2be0bc4eb29846dac915b17238",
+      "seed": 43,
+      "source": "receipt"
+    },
+    {
+      "N": 4,
+      "arm": "anchors",
+      "dataset": "cifar10",
+      "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_sweep_complete.json",
+      "receipt_sha256": "4272eeac4759354f94a58af13d84ab62cf78ca3457fa0d07cd379bd0ad0aa6e8",
+      "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_cifar_A_v4_N4_s44_AXanchors_JD002.json",
+      "record_sha256": "db4fe4792ca634e82709d94e96bebee7479c4c0790cc5fb4771807bc103bef4b",
+      "seed": 44,
+      "source": "receipt"
+    },
+    {
+      "N": 4,
+      "arm": "anchors",
+      "dataset": "flickr25k",
+      "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_sweep_complete.json",
+      "receipt_sha256": "5915768767e3fd12b28c3f09e1a071c26fd5cbddbbac15662c495b80c4876f6b",
+      "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_flickr_A_v4_N4_s42_AXanchors_P06095_JD002.json",
+      "record_sha256": "a8da86d3df6ee998f5d83d4a82e6030c3c209c146434a7707864c1b65d907b61",
+      "seed": 42,
+      "source": "receipt"
+    },
+    {
+      "N": 4,
+      "arm": "anchors",
+      "dataset": "flickr25k",
+      "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_sweep_complete.json",
+      "receipt_sha256": "4272eeac4759354f94a58af13d84ab62cf78ca3457fa0d07cd379bd0ad0aa6e8",
+      "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_flickr_A_v4_N4_s43_AXanchors_P06095_JD002.json",
+      "record_sha256": "70214f8311d09aa5c4ec8e10385b258959eb74ab0325fe2b0a7ad57bd87bce0c",
+      "seed": 43,
+      "source": "receipt"
+    },
+    {
+      "N": 4,
+      "arm": "anchors",
+      "dataset": "flickr25k",
+      "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_sweep_complete.json",
+      "receipt_sha256": "4272eeac4759354f94a58af13d84ab62cf78ca3457fa0d07cd379bd0ad0aa6e8",
+      "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_flickr_A_v4_N4_s44_AXanchors_P06095_JD002.json",
+      "record_sha256": "d7f7494e2c8db44cb94c87d35e96f402d885e104abd4c0e9c1da4cc86d68b298",
+      "seed": 44,
+      "source": "receipt"
+    },
+    {
+      "N": 4,
+      "arm": "anchors",
+      "dataset": "nuswide",
+      "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_sweep_complete.json",
+      "receipt_sha256": "5915768767e3fd12b28c3f09e1a071c26fd5cbddbbac15662c495b80c4876f6b",
+      "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_nuswide_A_v4_N4_s42_AXanchors_P0408_JD005.json",
+      "record_sha256": "ee824f7108b531c4706ff4bf6d5a5654b21785359f7fc7aebc703eca83e4af19",
+      "seed": 42,
+      "source": "receipt"
+    },
+    {
+      "N": 4,
+      "arm": "anchors",
+      "dataset": "nuswide",
+      "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_sweep_complete.json",
+      "receipt_sha256": "4272eeac4759354f94a58af13d84ab62cf78ca3457fa0d07cd379bd0ad0aa6e8",
+      "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_nuswide_A_v4_N4_s43_AXanchors_P0408_JD005.json",
+      "record_sha256": "98b51c19bc25f70a9dc265853bdd2d944d1d0e0fd3d5277540c1265e28ecf24f",
+      "seed": 43,
+      "source": "receipt"
+    },
+    {
+      "N": 4,
+      "arm": "anchors",
+      "dataset": "nuswide",
+      "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_sweep_complete.json",
+      "receipt_sha256": "4272eeac4759354f94a58af13d84ab62cf78ca3457fa0d07cd379bd0ad0aa6e8",
+      "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_nuswide_A_v4_N4_s44_AXanchors_P0408_JD005.json",
+      "record_sha256": "f6daecbcc763a502209382871cd57104a5e31cb4781b156c4839bd69a9b001a2",
+      "seed": 44,
+      "source": "receipt"
+    },
+    {
+      "N": 39,
+      "arm": "anchors",
+      "dataset": "mscoco",
+      "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_sweep_complete.json",
+      "receipt_sha256": "5915768767e3fd12b28c3f09e1a071c26fd5cbddbbac15662c495b80c4876f6b",
+      "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_mscoco_A_v5b_N39_s42_AXanchors_P06095_JD003.json",
+      "record_sha256": "f20ebc375c373a6717d118c7e35b2386656aa346e9b223066391c7441c82c695",
+      "seed": 42,
+      "source": "receipt"
+    },
+    {
+      "N": 39,
+      "arm": "anchors",
+      "dataset": "mscoco",
+      "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_sweep_complete.json",
+      "receipt_sha256": "4272eeac4759354f94a58af13d84ab62cf78ca3457fa0d07cd379bd0ad0aa6e8",
+      "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_mscoco_A_v5b_N39_s43_AXanchors_P06095_JD003.json",
+      "record_sha256": "1512c4e9c3731a45f5d9460cedde84820513f25497bf16b3aae3fb1f41ad15fa",
+      "seed": 43,
+      "source": "receipt"
+    },
+    {
+      "N": 39,
+      "arm": "anchors",
+      "dataset": "mscoco",
+      "receipt": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_sweep_complete.json",
+      "receipt_sha256": "4272eeac4759354f94a58af13d84ab62cf78ca3457fa0d07cd379bd0ad0aa6e8",
+      "record": "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancD7_mscoco_A_v5b_N39_s44_AXanchors_P06095_JD003.json",
+      "record_sha256": "c6553b5921d142ba6f139959f44432d45ecd35324e20cfccdc5657d0382b2a62",
+      "seed": 44,
+      "source": "receipt"
+    }
+  ],
+  "version": "anchor-confirm/2"
+}

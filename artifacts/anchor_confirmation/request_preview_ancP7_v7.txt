@@ -1,0 +1,102 @@
+anchor-confirm/2: probe, 12 coordinates, population 500 rows x 4 slots  [NON-EXECUTABLE until audit approval]
+{
+ "manifest": "c061296309fe41203205dff65de3a1afb843c950e93c0614dfd27a8216a90128",
+ "operation": "probe",
+ "population": {
+  "decisions": 2000,
+  "local_slots": 4,
+  "n_images": 500,
+  "rows": "first 500 of the train-only validation split, ascending dataset index"
+ },
+ "records": [
+  [
+   "cifar10",
+   "anchors",
+   4,
+   42,
+   "6e8fdfba192f50e32cbfc745feff339c680aceee0cd50691e8dc1317968453f1"
+  ],
+  [
+   "cifar10",
+   "anchors",
+   4,
+   43,
+   "13a6fc6f53ac3fed3473f65cc3647cc8caa54f2be0bc4eb29846dac915b17238"
+  ],
+  [
+   "cifar10",
+   "anchors",
+   4,
+   44,
+   "db4fe4792ca634e82709d94e96bebee7479c4c0790cc5fb4771807bc103bef4b"
+  ],
+  [
+   "flickr25k",
+   "anchors",
+   4,
+   42,
+   "a8da86d3df6ee998f5d83d4a82e6030c3c209c146434a7707864c1b65d907b61"
+  ],
+  [
+   "flickr25k",
+   "anchors",
+   4,
+   43,
+   "70214f8311d09aa5c4ec8e10385b258959eb74ab0325fe2b0a7ad57bd87bce0c"
+  ],
+  [
+   "flickr25k",
+   "anchors",
+   4,
+   44,
+   "d7f7494e2c8db44cb94c87d35e96f402d885e104abd4c0e9c1da4cc86d68b298"
+  ],
+  [
+   "mscoco",
+   "anchors",
+   39,
+   42,
+   "f20ebc375c373a6717d118c7e35b2386656aa346e9b223066391c7441c82c695"
+  ],
+  [
+   "mscoco",
+   "anchors",
+   39,
+   43,
+   "1512c4e9c3731a45f5d9460cedde84820513f25497bf16b3aae3fb1f41ad15fa"
+  ],
+  [
+   "mscoco",
+   "anchors",
+   39,
+   44,
+   "c6553b5921d142ba6f139959f44432d45ecd35324e20cfccdc5657d0382b2a62"
+  ],
+  [
+   "nuswide",
+   "anchors",
+   4,
+   42,
+   "ee824f7108b531c4706ff4bf6d5a5654b21785359f7fc7aebc703eca83e4af19"
+  ],
+  [
+   "nuswide",
+   "anchors",
+   4,
+   43,
+   "98b51c19bc25f70a9dc265853bdd2d944d1d0e0fd3d5277540c1265e28ecf24f"
+  ],
+  [
+   "nuswide",
+   "anchors",
+   4,
+   44,
+   "f6daecbcc763a502209382871cd57104a5e31cb4781b156c4839bd69a9b001a2"
+  ]
+ ],
+ "schema": "anchor-confirm-request/2",
+ "selection": "5cda7adb055ed126efb0a8ec198e06d1176ccdc57e7d38fe35ff74b74a4a92ff",
+ "version": "anchor-confirm/2"
+}
+request sha256 748851142a8734703c076bbccd52af8c383dba14ee105d29235c55c92c476c44
+needs: ANCHOR-CONFIRM-APPROVAL version=anchor-confirm/2 scope=probe manifest=c061296309fe41203205dff65de3a1afb843c950e93c0614dfd27a8216a90128 selection=5cda7adb055ed126efb0a8ec198e06d1176ccdc57e7d38fe35ff74b74a4a92ff request=748851142a8734703c076bbccd52af8c383dba14ee105d29235c55c92c476c44
