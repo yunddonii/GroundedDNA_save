@@ -487,6 +487,49 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-01 [anchor model generation v8 revision 2 — §734 boundary repairs prepared, nothing run] Audit §734: the four repairs, corrections and a revised package
+
+**Status:** ✅ repairs prepared (branch `arch-exp-2026-09-anchor-lambda`, commit `e078794`, pushed;
+handoff `docs/ANCHOR_LAMBDA_HANDOFF_v8r2.md` `4476af58…`). No smoke, training, reduction or GPU work.
+The r1 package (manifest `b7b5af9e`) is kept as superseded evidence.
+
+**Audit §734 accepted** Flickr-first, the narrow recipe-parser exception (not an authorization
+boundary) and the 3,600-s L cap. It required four repairs, all done:
+1. **One campaign per decision.** All six cells must share one receipt, approval and request, with
+   receipt and request membership checked. A decision mixing two valid campaigns now refuses.
+2. **Every historical read is read-once tracked**, the v7 plan snapshot and approved authorities
+   included. Drift before publication now refuses.
+3. **The binding test is synthetic.** It used to hash the real Flickr caption jsonl, cache
+   meta.json and whitening npz. An independent open() guard now refuses real-data opens.
+4. **Manifest/contract statement corrected** (recipe file not byte-equal); manifest r2
+   `58e69ae1…`.
+
+**New findings (reported as corrections).**
+- **The legacy suite files read real inputs.** `test_phase3_selection_matrix.py` and
+  `test_phase3_select_n.py` (82 cases, unchanged since v7) hash real cache meta.json, caption jsonl
+  and whitening npz files through plan_snapshot/RunIdentity. Every unguarded suite run since v7
+  therefore read them.
+- **The r1 `--plan` renders ran unguarded.** The launcher's pre-import self-exec drops an audit
+  hook, and the first guarded r2 attempt lost its hook the same way (kept). The guard now refuses
+  exec and pre-sets the bundle.
+
+**Evidence.**
+
+| Check | Result |
+|---|---|
+| New file under the guard | 154 passed, 0 refused opens |
+| 17-file suite, unguarded | 1084 passed / 3 skipped |
+| 15 non-legacy files under the guard | 816 passed, 0 refused opens |
+| Battery v11 | 26/26 detected |
+| Manifest inventory and four plan renders | the enforced allow-list footprint: named JSON files only, no binary |
+
+**Requests (r2).** Smoke carried `6e782793…` / full `21e2e48a…`; run carried `daf99128…` / full
+`3505ec92…`.
+
+**Next.** Audit review; the smoke after its own approval.
+
+---
+
 ## 2026-10-01 [anchor model generation v8 — stage-L package prepared, nothing run] Audit §733: Flickr25K-first lambda checks, code + tests + manifest + requests
 
 **Status:** ✅ the package is prepared (branch `arch-exp-2026-09-anchor-lambda`, worktree
