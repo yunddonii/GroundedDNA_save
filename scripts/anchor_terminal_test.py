@@ -15,11 +15,21 @@ admission itself, from records it does not take on trust from its caller's envir
      manifest and F record, and the line is the one the reservation recorded;
   4. the tree is that generation (manifest re-verified, imported modules included);
   5. the terminal checkpoint's bytes and its runtime witness are the pinned ones, at the terminal
-     epoch, and the run directory holds no official-test output yet;
-  6. the saved configuration is this anchor stage-R cell's (axis_center, refit mode, cell id, run dir).
+     epoch the request allows; the trainer's campaign evidence is the pinned bytes, names this cell
+     and its sealed recipe, and is the witness's own; config.pt is the pinned bytes; the run
+     directory holds no official-test output yet;
+  6. it CLAIMS the entry exclusively and durably (<ns>_entry_<R tag>.json, O_EXCL; audit 746.1),
+     before any configuration, model or test access: the same attempt cannot enter twice, after a
+     failure before any output or concurrently, and the claim is never removed;
+  7. config.pt is read ONCE: its bytes are hashed against the pin, deserialized from those bytes,
+     and must carry every typed field of this cell's sealed recipe (read from the stage-R plan
+     snapshot the request's receipt binds) and this cell's campaign binding (audit 746.2); the
+     arguments are built from that same object by the shared resume helper's own flat-layout step
+     (no second read; audit 754.2), their effective scientific fields are checked again, and they
+     must be this anchor stage-R cell's (axis_center, refit mode, cell id, run dir).
 Only then does it call terminal_official_test.run_official_test -- the trainer's own terminal block:
-extract_code (query, db) and the raw evaluation. A refusal exits 2 before the test is touched; a
-failure after it exits nonzero, and the reservation stays (no retry without a new authorization).
+extract_code (query, db) and the raw evaluation. A refusal exits 2 (after step 6 the claim stays);
+a failure after the test is touched exits nonzero; no retry without a new authorization.
 """
 from __future__ import annotations
 
@@ -55,9 +65,16 @@ def _sha(path) -> str:
     return digest.hexdigest()
 
 
-def admit(run_dir: Path, attempt_path: Path, attempt_sha256: str) -> dict:
-    """Steps 1-5 of the module docstring; returns the admitted cell. Reads JSON, the ledger text and
-    the checkpoint's BYTES (hashed, not loaded)."""
+def entry_claim_path(attempt_path: Path) -> Path:
+    name = attempt_path.name
+    if "_attempt_" not in name:
+        raise Refused(f"{attempt_path}: not an attempt reservation name")
+    return attempt_path.with_name(name.replace("_attempt_", "_entry_", 1))
+
+
+def admit(run_dir: Path, attempt_path: Path, attempt_sha256: str) -> tuple:
+    """Steps 1-5 of the module docstring; returns (cell, request, attempt). Reads JSON, the ledger
+    text and the checkpoint's and config's BYTES (hashed, not loaded)."""
     import scripts.phase3_selection_matrix as M
     import scripts.anchor_refit_stage as RT
     raw = attempt_path.read_bytes()
@@ -72,6 +89,8 @@ def admit(run_dir: Path, attempt_path: Path, attempt_sha256: str) -> dict:
     need(request.get("schema") == RT.T_REQUEST_SCHEMA and request.get("stage") == RT.TEST_STAGE,
          "the attempt's request is not a stage-T request")
     need(cell in (request.get("cells") or []), "the attempt's cell is not one of its request's cells")
+    need(cell.get("config_pt_sha256") and cell.get("scientific_recipe_sha256")
+         and cell.get("phase3_campaign_evidence_sha256"), "the request does not pin this cell's identity")
     need(Path(cell.get("run_dir", "")).resolve() == run_dir.resolve(),
          f"the attempt is for {cell.get('run_dir')}, not {run_dir}")
     need(attempt_path.name == RT.attempt_path(request["namespace"], cell).name,
@@ -98,13 +117,94 @@ def admit(run_dir: Path, attempt_path: Path, attempt_sha256: str) -> dict:
     sidecar_raw = sidecar_path.read_bytes()
     need(hashlib.sha256(sidecar_raw).hexdigest() == cell["checkpoint_runtime_sha256"],
          f"{sidecar_path} is not the stage-R runtime witness")
-    need(json.loads(sidecar_raw).get("checkpoint_epoch_zero_based") == cell["terminal_epoch"],
-         "the runtime witness is not at the terminal epoch")
+    sidecar = json.loads(sidecar_raw)
+    expected_terminal = cell["N"] if request.get("mode") == "run" else \
+        int((request.get("refit_epochs") or 0)) - 1
+    need(sidecar.get("checkpoint_epoch_zero_based") == cell["terminal_epoch"] == expected_terminal,
+         f"the runtime witness is not at the terminal epoch {expected_terminal}")
+    from dna_utils.run_identity import PHASE3_CAMPAIGN_BINDING_NAME
+    evidence_raw = (run_dir / PHASE3_CAMPAIGN_BINDING_NAME).read_bytes()
+    need(hashlib.sha256(evidence_raw).hexdigest() == cell["phase3_campaign_evidence_sha256"],
+         "the trainer's campaign evidence is not the pinned bytes")
+    evidence = json.loads(evidence_raw)
+    need(evidence.get("cell_id") == cell["cell_id"]
+         and evidence.get("scientific_recipe_sha256") == cell["scientific_recipe_sha256"]
+         and (sidecar.get("extra") or {}).get("phase3_campaign") == evidence,
+         "the trainer evidence, sealed recipe and runtime witness do not bind this cell")
+    need(_sha(run_dir / "config.pt") == cell["config_pt_sha256"], "config.pt is not the pinned bytes")
     try:
         M.assert_official_test_withheld(run_dir)
     except M.CellRefused as error:
         raise Refused(str(error)) from None
-    return cell
+    return cell, request, attempt
+
+
+def claim_entry(attempt_path: Path, attempt_sha256: str, cell: dict) -> Path:
+    """Step 6: the exclusive, durable entry claim (audit 746.1). Never removed."""
+    import socket
+    import time
+    path = entry_claim_path(attempt_path)
+    payload = {"attempt": attempt_path.name, "attempt_sha256": attempt_sha256, "cell_id": cell["cell_id"],
+               "final_checkpoint_sha256": cell["final_checkpoint_sha256"],
+               "config_pt_sha256": cell["config_pt_sha256"], "pid": os.getpid(),
+               "host": socket.gethostname(), "created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    try:
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o444)
+    except FileExistsError:
+        raise Refused(f"{cell['cell_id']}: this attempt has already entered stage T ({path.name}); "
+                      "a second entry needs a new authorization") from None
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, indent=1, sort_keys=True) + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    return path
+
+
+def sealed_recipe(request: dict, cell: dict) -> dict:
+    """This cell's sealed recipe, from the stage-R plan snapshot of the request's pinned receipt."""
+    import scripts.phase3_selection_matrix as M
+    from dna_utils.scientific_recipe import digest
+    raw = Path(request["refit_receipt"]["path"]).read_bytes()
+    need(hashlib.sha256(raw).hexdigest() == request["refit_receipt"]["sha256"], "the stage-R receipt changed")
+    receipt = json.loads(raw)
+    snapshot = json.loads((Path(request["refit_receipt"]["path"]).parent
+                           / receipt["plan_snapshot_file"]).read_bytes())
+    need(M._json_digest(snapshot) == receipt["plan_snapshot_sha256"], "the stage-R snapshot is not its receipt's")
+    payload = ((snapshot.get("plan") or {}).get("cell_bindings") or {}).get(cell["cell_id"], {}).get(
+        "scientific_recipe")
+    need(isinstance(payload, dict) and digest(payload) == cell["scientific_recipe_sha256"],
+         "the sealed recipe of this cell is not the pinned one")
+    return payload
+
+
+def verified_configuration(run_dir: Path, cell: dict, payload: dict):
+    """Step 7: config.pt read ONCE, its bytes hashed against the pin, deserialized from those bytes (as
+    the shared resume helper loads it) and checked: every typed field of the sealed recipe and this
+    cell's campaign binding. Returns (args, saved): the arguments are built from THIS object by the
+    shared helper's own flat-layout step, never from a second read of the file (audit 754.2), and the
+    effective scientific fields of those arguments are checked again before they are used."""
+    import io
+    import torch
+    from config import Config
+    from dna_utils.scientific_recipe import field_differences, fields_from_config
+    from extraction_siglip2 import _apply_saved_config, _reapply_explicit_cli
+    raw = (run_dir / "config.pt").read_bytes()
+    need(hashlib.sha256(raw).hexdigest() == cell["config_pt_sha256"], "config.pt is not the pinned bytes")
+    saved = torch.load(io.BytesIO(raw), map_location="cpu")
+    parser = Config.build_parser()
+    differing = field_differences(fields_from_config(saved, parser), payload["fields"])
+    need(not differing, f"the saved configuration differs from the sealed recipe in {differing[:8]}")
+    need((saved.get("_phase3_campaign_binding") or {}).get("cell_id") == cell["cell_id"],
+         "the saved configuration's campaign binding names another cell")
+    args = Config()
+    # the shared helper's CLI is --config_path alone (as extract_train_split runs it)
+    sys.argv = [sys.argv[0], "--config_path", str(run_dir)]
+    cli = Config.get_config()
+    _apply_saved_config(args, saved, str(run_dir))
+    _reapply_explicit_cli(args, cli)
+    effective = field_differences(fields_from_config(vars(args), parser), payload["fields"])
+    need(not effective, f"the effective arguments differ from the sealed recipe in {effective[:8]}")
+    return args, saved
 
 
 def check_config(args, cell: dict, run_dir: Path) -> None:
@@ -127,21 +227,20 @@ def main(argv=None) -> int:
     cli = parser.parse_args(argv)
     run_dir = Path(cli.config_path)
     try:
-        cell = admit(run_dir, Path(cli.attempt), cli.attempt_sha256)
+        cell, request, _attempt = admit(run_dir, Path(cli.attempt), cli.attempt_sha256)
+        payload = sealed_recipe(request, cell)
+        claim_entry(Path(cli.attempt), cli.attempt_sha256, cell)
     except (Refused, OSError, ValueError, KeyError) as error:
         print(f"[anchor-T] REFUSED before the official test: {type(error).__name__}: {error}",
               file=sys.stderr)
         return 2
-    from config import Config, set_random_seed
-    from extraction_siglip2 import _resume_args_flat_or_legacy
-    args = Config()
-    # the shared resume helper reads --config_path from sys.argv (as extract_train_split does)
-    sys.argv = [sys.argv[0], "--config_path", str(run_dir)]
-    _resume_args_flat_or_legacy(args)
     try:
+        from config import set_random_seed
+        args, _saved = verified_configuration(run_dir, cell, payload)
         check_config(args, cell, run_dir)
-    except Refused as error:
-        print(f"[anchor-T] REFUSED before the official test: {error}", file=sys.stderr)
+    except (Refused, OSError, ValueError, KeyError) as error:
+        print(f"[anchor-T] REFUSED before the official test (entry claimed): {type(error).__name__}: {error}",
+              file=sys.stderr)
         return 2
     set_random_seed(42)      # as the train-split extraction of the same chain
     from terminal_official_test import run_official_test

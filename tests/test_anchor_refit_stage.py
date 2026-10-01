@@ -41,12 +41,14 @@ import test_anchor_confirm_reducer as RW                    # noqa: E402
 import test_anchor_confirm_recipe as RC                     # noqa: E402
 
 REAL = os.environ.get("GDNA_ALLOW_REAL_ARTIFACT_TESTS") == "1"
+REAL_VERIFY_SNAPSHOT = M.verify_snapshot           # before any test replaces it
 INC = LT.INCUMBENT
 FROZEN_N = {"cifar10": 4, "flickr25k": 4, "nuswide": 4, "mscoco": 39}
 V8_COMMIT = "3dd1c02"            # the generation-v8 tip this branch starts from
 #: the members generation v9 changes relative to v8 r2, and the members it adds
 CHANGED_IN_V9 = {"scripts/phase3_selection_matrix.py", "scripts/anchor_confirm_supervisor.py",
                  "scripts/anchor_confirm_manifest.py", "train_siglip2.py", "p0_protocol.py",
+                 "extraction_siglip2.py",
                  "tests/test_anchor_confirm_launcher.py", "tests/test_anchor_lambda_stage.py"}
 ADDED_IN_V9 = {"terminal_official_test.py", "scripts/anchor_refit_stage.py", "scripts/anchor_terminal_test.py",
                "docs/ANCHOR_REFIT_CONTRACT_v1.md", "tests/test_anchor_refit_stage.py"}
@@ -481,6 +483,16 @@ def refit_render(cmd, env):
     return body + argv[len(argv) - tail:] + ["-ev", "-s"]
 
 
+def acceptance_section(path, digest) -> str:
+    """The synthetic accepted section 744 every test ledger carries, byte for byte."""
+    return f"## 744. Test decision\n\nAccepted record:\n{path},\nSHA256 `{digest}`.\n"
+
+
+def with_acceptance(text: str) -> str:
+    """A ledger text from LT.ledger with its (empty) section 744 replaced by the accepted text."""
+    return text.replace("## 744. Test decision\n", acceptance_section(RT.ANCHOR_F_RECORD, RT.ANCHOR_F_RECORD_SHA256))
+
+
 class FWorld:
     """A synthetic accepted F record: its validated recipes are the stage-S seed-42 renders of the
     same stand-in wrapper, in a synthetic v7 snapshot; ledger section 744 accepts it."""
@@ -518,10 +530,12 @@ class FWorld:
         self.sha = write(path, self.record)
         monkeypatch.setattr(RT, "ANCHOR_F_RECORD", path)
         monkeypatch.setattr(RT, "ANCHOR_F_RECORD_SHA256", self.sha)
-        text = ledger_text if ledger_text is not None else (
-            f"## 744. Accepted\n\nAccepted record:\n{path},\nSHA256 `{self.sha}`.\n")
+        # the pinned acceptance is the digest of this exact accepted text (as the real pin is of the
+        # real section 744); `ledger_text` replaces what the ledger then actually says
+        accepted = acceptance_section(path, self.sha)
+        monkeypatch.setattr(RT, "ANCHOR_F_ACCEPTANCE_SHA256", sha(accepted.strip().encode()))
         ledger = root / "ledger.md"
-        ledger.write_text("# ledger\n\n" + text)
+        ledger.write_text("# ledger\n\n" + (ledger_text(path, self.sha) if ledger_text else accepted))
         monkeypatch.setattr(M, "AUDIT_LEDGER", ledger)
         self.root, self.path, self.bindings = root, path, bindings
 
@@ -539,9 +553,12 @@ def test_composed_the_f_authority_is_the_record_and_its_acceptance(fworld):
 
 
 @pytest.mark.parametrize("ledger_text,reason", [
-    ("## 744. Something else\n\nnothing accepted here\n", "does not accept"),
-    ("## 743. Accepted record: elsewhere\n", "sections numbered 744"),
-], ids=["no-acceptance", "no-section"])
+    (lambda p, d: f"## 744. Test decision\n\nAccepted record:\n{p},\nSHA256 `{d}`.\nThis acceptance is withdrawn.\n",
+     "not the exact accepted text"),                                         # changed acceptance language
+    (lambda p, d: f"## 744. Test decision\n\nAccepted record: {p} {d}\n", "not the exact accepted text"),  # tokens only
+    (lambda p, d: f"## 744. Something else\n\nnothing accepted here\n", "not the exact accepted text"),
+    (lambda p, d: f"## 743. Accepted record:\n{p},\nSHA256 `{d}`.\n", "sections numbered 744"),
+], ids=["changed-language", "token-only", "no-acceptance", "no-section"])
 def test_composed_an_f_record_without_its_acceptance_refuses(tmp_path, monkeypatch, ledger_text, reason):
     FWorld(tmp_path / "f", monkeypatch, ledger_text=ledger_text)
     with pytest.raises(CellRefused, match=reason):
@@ -691,11 +708,8 @@ def preview(monkeypatch, capsys, argv):
 def approve(tmp_path, monkeypatch, scope, manifest_sha, request_digest, *, freeze, section=750):
     LT.ledger(tmp_path, monkeypatch, {
         744: [], section: [LT.approval_line(scope, manifest=manifest_sha, freeze=freeze, request=request_digest)]})
-    # keep the F acceptance in the synthetic ledger
-    ledger = Path(M.AUDIT_LEDGER)
-    ledger.write_text(ledger.read_text().replace(
-        "## 744. Test decision\n", f"## 744. Test decision\n\nAccepted record:\n{RT.ANCHOR_F_RECORD},\n"
-                                   f"SHA256 `{RT.ANCHOR_F_RECORD_SHA256}`.\n"))
+    ledger = Path(M.AUDIT_LEDGER)           # keep the exact F acceptance in the synthetic ledger
+    ledger.write_text(with_acceptance(ledger.read_text()))
     return ["--anchor-approval-section", str(section)]
 
 
@@ -839,13 +853,26 @@ def test_composed_a_legacy_refit_still_runs_its_post_chain(rcell):
 # =============================================================================================
 # composed: stage T -- the receipt admission, the attempt, the entry, the chain
 # =============================================================================================
-class RWorld:
-    """A completed synthetic stage-R campaign: receipt, snapshot (manifest, F, request, approval,
-    cell bindings), twelve records and run directories with a checkpoint, trainer evidence and
-    runtime witness; the ledger approves the stage-R request and accepts F."""
+def r_cell_argv(n_stop: int, seed: int) -> list:
+    """The trainer argv of a synthetic stage-R cell: the recipe tests' argv as a P0 refit."""
+    return RC.ARGV + ["--selection_mode", "refit", "--stop_after_epoch", str(n_stop), "--final_epoch_eval",
+                      "--val_split_ratio", "0.0", "--random_seed", str(seed), "-ev"]
 
-    def __init__(self, root: Path, monkeypatch, fworld, manifest_sha, *, mode="run", break_cell=None):
+
+class RWorld:
+    """A completed synthetic stage-R campaign: receipt, snapshot (manifest, F, request, approval, cell
+    bindings with each cell's sealed typed recipe), records, and run directories holding a checkpoint,
+    the trainer's campaign evidence, a runtime witness and a config.pt that carries every typed field
+    of the sealed recipe; the ledger approves the stage-R request and accepts F. `break_cell` edits one
+    record; `config_edit` edits one cell's saved configuration AND repins it (a forged but
+    self-consistent world, for the typed-field check)."""
+
+    def __init__(self, root: Path, monkeypatch, fworld, manifest_sha, *, mode="run", break_cell=None,
+                 config_edit=None):
+        import torch
+        from config import Config
         from dna_utils.run_identity import PHASE3_CAMPAIGN_BINDING_NAME
+        parser = Config.build_parser()
         records = root / "records"
         records.mkdir(parents=True)
         monkeypatch.setattr(M, "ANCHOR_RECORD_DIR", records)
@@ -853,33 +880,47 @@ class RWorld:
         coords = [(ds, FROZEN_N[ds], s) for ds in M.ANCHOR_DATASETS for s in (42, 43, 44)]
         if mode == "smoke":
             coords = [("flickr25k", 4, 42)]
-        request = {"stage": "refit", "mode": mode, "freeze": {"sha256": RT.ANCHOR_F_RECORD_SHA256},
+        request = {"stage": "refit", "mode": mode, "epochs": 1 if mode == "smoke" else None,
+                   "freeze": {"sha256": RT.ANCHOR_F_RECORD_SHA256},
                    "cells": [[ds, "anchors", n, s] for ds, n, s in coords]}
         line = LT.approval_line(f"stage-R-{mode}", manifest=manifest_sha, freeze=RT.ANCHOR_F_RECORD_SHA256,
                                 request=M._json_digest(request))
         self.ledger_sections = {760: [line]}
-        bindings, cells = {}, {}
-        payload = {"argv": ["--axis_center", "anchors"], "fields": {"axis_center": "anchors"},
-                   "schema": R.RECIPE_SCHEMA}
+        bindings, cells, self.saved = {}, {}, {}
         for ds, n, seed in coords:
+            terminal = n if mode == "run" else 0
             cid = M.campaign_cell_id(ds, n, topp=INC[ds]["topp"], joint=INC[ds]["joint"], stage="refit",
                                      seed=seed, anchor_arm="anchors")
             tag = M.refit_tag_for(ds, n, seed, namespace="ancR9", topp=INC[ds]["topp"], joint=INC[ds]["joint"],
                                   anchor_arm="anchors")
             run = root / "result" / tag
             run.mkdir(parents=True)
+            argv = r_cell_argv(terminal, seed)
+            payload = R.build_payload(parser, argv, planned_arm="anchors")
+            saved = RC.saved_config(parser, argv)
+            saved["_phase3_campaign_binding"] = {"cell_id": cid}
+            if config_edit and (ds, seed) == config_edit[0]:
+                config_edit[1](saved)
+            torch.save(saved, run / "config.pt")
+            config_sha = sha((run / "config.pt").read_bytes())
+            self.saved[cid] = saved
             ckpt_sha = write(run / "model_state_dict.pth", {"weights": tag})
-            evidence_sha = write(run / PHASE3_CAMPAIGN_BINDING_NAME, {"cell_id": cid})
-            sidecar_sha = write(run / "model_state_dict.pth.runtime.json", {"checkpoint_epoch_zero_based": n})
+            evidence = {"cell_id": cid, "scientific_recipe_sha256": R.digest(payload),
+                        "scientific_recipe_schema": payload["schema"]}
+            evidence_sha = write(run / PHASE3_CAMPAIGN_BINDING_NAME, evidence)
+            sidecar_sha = write(run / "model_state_dict.pth.runtime.json",
+                                {"checkpoint_epoch_zero_based": terminal, "extra": {"phase3_campaign": evidence}})
             bindings[cid] = {"anchor_arm": "anchors", "stage": "refit", "scientific_recipe": payload,
                              "expected_scientific_recipe_sha256": R.digest(payload)}
             campaign = {"cell_id": cid}
             record = {"stage": "refit", "dataset": ds, "N": n, "seed": seed, "tag": tag, "run_dir": str(run),
                       "smoke": mode == "smoke", "campaign": campaign,
-                      "anchor_confirmation": {"scientific_recipe_sha256": R.digest(payload)},
+                      "anchor_confirmation": {"scientific_recipe_sha256": R.digest(payload),
+                                              "config_pt_sha256": config_sha,
+                                              "campaign_evidence_sha256": evidence_sha},
                       "completion": {"official_test": {"status": "withheld"},
                                      "final_checkpoint": "model_state_dict.pth",
-                                     "final_checkpoint_epoch_zero_based": n,
+                                     "final_checkpoint_epoch_zero_based": terminal,
                                      "final_checkpoint_sha256": ckpt_sha,
                                      "checkpoint_runtime_sha256": sidecar_sha,
                                      "phase3_campaign_evidence_sha256": evidence_sha}}
@@ -903,9 +944,7 @@ class RWorld:
 def full_ledger(tmp_path, monkeypatch, sections):
     LT.ledger(tmp_path, monkeypatch, {744: [], **sections})
     ledger = Path(M.AUDIT_LEDGER)
-    ledger.write_text(ledger.read_text().replace(
-        "## 744. Test decision\n", f"## 744. Test decision\n\nAccepted record:\n{RT.ANCHOR_F_RECORD},\n"
-                                   f"SHA256 `{RT.ANCHOR_F_RECORD_SHA256}`.\n"))
+    ledger.write_text(with_acceptance(ledger.read_text()))
 
 
 @pytest.fixture
@@ -924,6 +963,16 @@ def test_composed_the_t_admission_takes_exactly_the_twelve_stage_r_checkpoints(r
     refit = admit(rworld)
     assert sorted((c["dataset"], c["N"], c["seed"]) for c in refit["cells"]) == sorted(rworld.coords)
     assert refit["approval"]["scope"] == "stage-R-run"
+    assert all(c["terminal_epoch"] == c["N"] and M._is_sha256(c["config_pt_sha256"])
+               and M._is_sha256(c["scientific_recipe_sha256"]) for c in refit["cells"])
+
+
+def test_composed_a_smoke_receipt_is_admitted_at_its_one_epoch_terminal(tmp_path, monkeypatch, fworld):
+    world = RWorld(tmp_path / "rt", monkeypatch, fworld, "m" * 64, mode="smoke")
+    full_ledger(tmp_path, monkeypatch, world.ledger_sections)
+    refit = admit(world, mode="smoke")
+    assert [(c["dataset"], c["N"], c["seed"], c["terminal_epoch"]) for c in refit["cells"]] == \
+        [("flickr25k", 4, 42, 0)] and refit["epochs"] == 1
 
 
 def _present_output(record, run):
@@ -938,10 +987,22 @@ def _wrong_epoch(record, run):
     record["completion"]["final_checkpoint_epoch_zero_based"] = 3
 
 
+def _no_config_pin(record, run):
+    del record["anchor_confirmation"]["config_pt_sha256"]
+
+
+def _witness_of_another_campaign(record, run):
+    path = run / "model_state_dict.pth.runtime.json"
+    witness = json.loads(path.read_text())
+    witness["extra"]["phase3_campaign"]["cell_id"] = "another|cell"
+    record["completion"]["checkpoint_runtime_sha256"] = write(path, witness)
+
+
 @pytest.mark.parametrize("breaker,reason", [
     (_present_output, "never reaches the official test"), (_not_withheld, "test withheld"),
-    (_wrong_epoch, "terminal checkpoint witness"),
-], ids=["output-present", "not-withheld", "wrong-epoch"])
+    (_wrong_epoch, "terminal checkpoint witness"), (_no_config_pin, "terminal checkpoint witness"),
+    (_witness_of_another_campaign, "terminal checkpoint witness"),
+], ids=["output-present", "not-withheld", "wrong-epoch", "no-config-pin", "cross-cell-witness"])
 def test_composed_a_stage_r_cell_that_is_not_withheld_and_terminal_refuses(tmp_path, monkeypatch, fworld,
                                                                           breaker, reason):
     world = RWorld(tmp_path / "rt", monkeypatch, fworld, "m" * 64, break_cell=(("nuswide", 43), breaker))
@@ -958,57 +1019,68 @@ def test_composed_a_stage_r_approval_no_longer_in_the_ledger_refuses(tmp_path, m
 
 @pytest.mark.parametrize("mode,manifest_sha,reason", [
     ("smoke", "m" * 64, "not a smoke"), ("run", "o" * 64, "not a run"),
-])
+], ids=["other-mode", "other-generation"])
 def test_composed_a_receipt_of_another_mode_or_generation_refuses(rworld, mode, manifest_sha, reason):
     with pytest.raises(CellRefused, match=reason):
         admit(rworld, mode=mode, manifest_sha=manifest_sha)
 
 
-# ---- the attempt reservation and the T cell ------------------------------------------------------
+# ---- the T cell: reservation, producers and the boundary rechecks between them ---------------------
 T_REQ = {"schema": RT.T_REQUEST_SCHEMA, "stage": "test", "mode": "run", "namespace": "ancT9"}
 
 
-def t_request(world, manifest_path, manifest_sha):
-    refit = admit(world)
-    return dict(T_REQ, manifest=manifest_sha, manifest_path=manifest_path,
+def t_request(world, manifest_path, manifest_sha, mode="run"):
+    refit = admit(world, mode=mode)
+    return dict(T_REQ, mode=mode, manifest=manifest_sha, manifest_path=manifest_path,
                 freeze={"sha256": RT.ANCHOR_F_RECORD_SHA256}, cells=refit["cells"],
-                refit_receipt=refit["receipt"]), refit
-
-
-@pytest.fixture
-def tcell(tmp_path, monkeypatch, rworld):
-    """run_terminal_test_cell with the managed processes recorded (the T entry and the four post-chain
-    producers); `fail_at` makes the k-th process exit 1."""
-    path, digest = manifest(tmp_path)
-    request, refit = t_request(rworld, path, digest)
-    commands, state = [], {"fail_at": None, "attempt_seen": []}
-
-    def managed(command, **k):
-        name = Path(command[1] if command[1] != "-B" else command[2]).name
-        if name == "anchor_terminal_test.py":
-            state["attempt_seen"].append(Path(command[command.index("--attempt") + 1]).exists())
-        commands.append(name)
-        return SimpleNamespace(returncode=1 if len(commands) - 1 == state["fail_at"] else 0)
-    monkeypatch.setattr(M, "_run_managed_process", managed)
-    monkeypatch.setattr(M, "assert_refit_outputs", lambda run_dir, dataset: {"map_at_R": 0.5, "bio_map_at_R": 0.4})
-    monkeypatch.setattr(M, "verify_snapshot_input_seals", lambda snap, full: None)
-    approval = {"section": 770, "scope": "stage-T-run", "line": "L"}
-
-    def go(cell=None):
-        cell = cell or request["cells"][0]
-        return RT.run_terminal_test_cell(cell, namespace="ancT9", request=request, approval=approval,
-                                         campaign_nonce="t" * 64, gpu_uuid="GPU-x", seal_snapshot={})
-    return SimpleNamespace(go=go, commands=commands, state=state, request=request, world=rworld)
+                refit_receipt=refit["receipt"], refit_epochs=refit["epochs"]), refit
 
 
 CHAIN = ["anchor_terminal_test.py", "extract_train_split.py", "eval_cell_bioproj.py", "pairwise_nmi.py",
          "seal_cell_analysis.py"]
 
 
+@pytest.fixture
+def tcell(tmp_path, monkeypatch, rworld):
+    """run_terminal_test_cell with the managed processes recorded (the T entry and the four post-chain
+    producers) and the snapshot verifier recorded; `fail_at` makes the k-th process exit 1,
+    `drift_at` makes the k-th snapshot check refuse (as verify_snapshot does on drift)."""
+    path, digest = manifest(tmp_path)
+    request, refit = t_request(rworld, path, digest)
+    commands, state = [], {"fail_at": None, "drift_at": None, "attempt_seen": [], "checks": []}
+
+    def managed(command, **k):
+        name = Path(command[2] if command[1] == "-B" else command[1]).name
+        if name == "anchor_terminal_test.py":
+            state["attempt_seen"].append(Path(command[command.index("--attempt") + 1]).exists())
+        commands.append(name)
+        return SimpleNamespace(returncode=1 if len(commands) - 1 == state["fail_at"] else 0)
+
+    def verify(snapshot, datasets=None):
+        assert snapshot is SNAP
+        state["checks"].append(len(commands))
+        if len(state["checks"]) - 1 == state["drift_at"]:
+            raise CellRefused("environment changed while the campaign was running (injected)")
+    monkeypatch.setattr(M, "_run_managed_process", managed)
+    monkeypatch.setattr(M, "verify_snapshot", verify)
+    monkeypatch.setattr(M, "assert_refit_outputs", lambda run_dir, dataset: {"map_at_R": 0.5, "bio_map_at_R": 0.4})
+    approval = {"section": 770, "scope": "stage-T-run", "line": "L"}
+    SNAP = {"t": "snapshot"}
+
+    def go(cell=None):
+        cell = cell or request["cells"][0]
+        return RT.run_terminal_test_cell(cell, namespace="ancT9", request=request, approval=approval,
+                                         campaign_nonce="t" * 64, gpu_uuid="GPU-x", snapshot=SNAP)
+    return SimpleNamespace(go=go, commands=commands, state=state, request=request, world=rworld)
+
+
 def test_composed_a_t_cell_reserves_then_runs_the_entry_and_the_chain_in_order(tcell):
     done = tcell.go()
     assert tcell.commands == CHAIN
     assert tcell.state["attempt_seen"] == [True]            # reserved BEFORE the entry started
+    # the boundary is re-checked before the entry, at the entry-to-train transition and after every
+    # post-chain producer (the commands launched so far, at each check)
+    assert tcell.state["checks"] == [0, 1, 2, 3, 4, 5]
     assert done["map_at_R"] == 0.5
     assert (tcell.world.records / done["record"]).exists()
 
@@ -1021,6 +1093,17 @@ def test_composed_every_child_failure_stops_the_chain_and_keeps_the_attempt(tcel
     assert tcell.commands == CHAIN[:k + 1]
     cell = tcell.request["cells"][0]
     assert RT.attempt_path("ancT9", cell).exists()
+    assert not (tcell.world.records / f"ancT9_{cell['tag']}.json").exists()
+
+
+@pytest.mark.parametrize("k", range(6), ids=["before-entry", "entry-to-train", "after-train", "after-bio",
+                                              "after-nmi", "after-seal"])
+def test_composed_drift_between_producers_stops_the_next_producer(tcell, k):
+    tcell.state["drift_at"] = k
+    with pytest.raises(CellRefused, match="injected"):
+        tcell.go()
+    assert tcell.commands == CHAIN[:k]                       # nothing started after the failed check
+    cell = tcell.request["cells"][0]
     assert not (tcell.world.records / f"ancT9_{cell['tag']}.json").exists()
 
 
@@ -1057,12 +1140,12 @@ def test_composed_concurrent_attempts_reserve_once(tcell):
 
 def test_composed_a_checkpoint_changed_during_t_publishes_nothing(tcell, monkeypatch):
     cell = tcell.request["cells"][0]
-    real = M._run_managed_process
+    recording = M._run_managed_process
 
     def tamper(command, **k):
-        if Path(command[2]).name == "anchor_terminal_test.py" if command[1] == "-B" else False:
+        if Path(command[2] if command[1] == "-B" else command[1]).name == "anchor_terminal_test.py":
             Path(cell["run_dir"], "model_state_dict.pth").write_text("changed")
-        return real(command, **k)
+        return recording(command, **k)
     monkeypatch.setattr(M, "_run_managed_process", tamper)
     with pytest.raises(CellRefused, match="changed during stage T"):
         tcell.go()
@@ -1077,15 +1160,78 @@ def test_composed_an_output_already_present_refuses_before_the_attempt(tcell):
     assert not RT.attempt_path("ancT9", cell).exists() and tcell.commands == []
 
 
-# ---- the T entry: admission before any test access ----------------------------------------------
+# ---- the T boundary snapshot: R inputs unchanged, T's own environment, the unchanged verifier ------
+def _r_snapshot(sources):
+    authority = M._source_authority_bundle(sources)
+    return {"qwen_root": str(M.QWEN_ROOT), "sources": dict(sources), "inputs": {},
+            "source_authority": authority, "input_seals": None, "plan": {"declared_cells": []}}
+
+
 @pytest.fixture
-def entry(tmp_path, monkeypatch, rworld):
+def environment(monkeypatch):
+    """A recorded environment fingerprint; `flip()` changes what the next fingerprint returns."""
+    state = {"value": {"errors": [], "selected_gpus": [{"index": 0, "uuid": "GPU-a"}], "pkg": 1}}
+    monkeypatch.setattr(M, "environment_fingerprint", lambda gpus: json.loads(json.dumps(state["value"])))
+    return SimpleNamespace(flip=lambda: state["value"].update(pkg=2), state=state)
+
+
+SOURCES = {rel: sha((REPO / rel).read_bytes()) for rel in ("p0_protocol.py", "terminal_official_test.py")}
+
+
+def test_composed_the_t_boundary_is_the_unchanged_r_inputs_under_t_s_environment(environment):
+    boundary = RT.terminal_test_boundary(_r_snapshot(SOURCES), [0])
+    assert boundary["sources"] == SOURCES and boundary["environment"]["selected_gpus"][0]["uuid"] == "GPU-a"
+    M.verify_snapshot(boundary)                              # the launcher's own verifier accepts it
+    environment.flip()
+    with pytest.raises(CellRefused, match="execution environment changed"):
+        M.verify_snapshot(boundary)                          # and refuses drift between producers
+
+
+def test_composed_sources_changed_since_stage_r_refuse_before_any_t_access(environment):
+    stale = dict(SOURCES, **{"p0_protocol.py": "0" * 64})
+    with pytest.raises(CellRefused, match="changed between stage R and stage T"):
+        RT.terminal_test_boundary(_r_snapshot(stale), [0])
+
+
+def test_composed_real_verifier_drift_between_producers_stops_the_chain(tcell, monkeypatch, environment):
+    boundary = RT.terminal_test_boundary(_r_snapshot(SOURCES), [0])
+    monkeypatch.setattr(M, "verify_snapshot", REAL_VERIFY_SNAPSHOT)
+    recording = M._run_managed_process
+
+    def drift_after_train(command, **k):
+        result = recording(command, **k)
+        if Path(command[2] if command[1] == "-B" else command[1]).name == "extract_train_split.py":
+            environment.flip()                               # the environment moves after this producer
+        return result
+    monkeypatch.setattr(M, "_run_managed_process", drift_after_train)
+    cell = tcell.request["cells"][0]
+    with pytest.raises(CellRefused, match="execution environment changed"):
+        RT.run_terminal_test_cell(cell, namespace="ancT9", request=tcell.request,
+                                  approval={"section": 770, "scope": "stage-T-run", "line": "L"},
+                                  campaign_nonce="t" * 64, gpu_uuid="GPU-a", snapshot=boundary)
+    assert tcell.commands == CHAIN[:2]                       # BIO, NMI and the seal never started
+
+
+# ---- the T entry: admission, the exclusive entry claim, the full configuration binding -------------
+def _entry_world(tmp_path, monkeypatch, fworld, *, config_edit=None):
+    world = RWorld(tmp_path / "rt", monkeypatch, fworld, "m" * 64, config_edit=config_edit)
+    full_ledger(tmp_path, monkeypatch, world.ledger_sections)
     path, digest = manifest(tmp_path)
-    request, refit = t_request(rworld, path, digest)
-    req_digest = M._json_digest(request)
-    line = LT.approval_line("stage-T-run", manifest=digest, freeze=RT.ANCHOR_F_RECORD_SHA256, request=req_digest)
-    full_ledger(tmp_path, monkeypatch, {**rworld.ledger_sections, 770: [line]})
-    cell = request["cells"][0]
+    request, refit = t_request(world, path, digest)
+    line = LT.approval_line("stage-T-run", manifest=digest, freeze=RT.ANCHOR_F_RECORD_SHA256,
+                            request=M._json_digest(request))
+    full_ledger(tmp_path, monkeypatch, {**world.ledger_sections, 770: [line]})
+    return world, request, line
+
+
+@pytest.fixture
+def entry(tmp_path, monkeypatch, fworld):
+    return make_entry(tmp_path, monkeypatch, fworld)
+
+
+def make_entry(tmp_path, monkeypatch, fworld, *, config_edit=None, cell_index=0):
+    world, request, line = _entry_world(tmp_path, monkeypatch, fworld, config_edit=config_edit)
+    cell = request["cells"][cell_index]
     attempt, attempt_sha = RT.reserve_attempt("ancT9", cell=cell, request=request,
                                               approval={"section": 770, "scope": "stage-T-run", "line": line},
                                               campaign_nonce="t" * 64)
@@ -1093,23 +1239,90 @@ def entry(tmp_path, monkeypatch, rworld):
     import extraction_siglip2
     import terminal_official_test
 
-    def resume(args):
-        calls.append("resume")
-        for k, v in dict(axis_center="anchors", selection_mode="refit", final_epoch_eval=True,
-                         _phase3_campaign_binding={"cell_id": cell["cell_id"]}, save_result_path=cell["run_dir"],
-                         dna_distance_mode="base", codebook_size=128).items():
-            setattr(args, k, v)
-    monkeypatch.setattr(extraction_siglip2, "_resume_args_flat_or_legacy", resume)
-    monkeypatch.setattr(terminal_official_test, "run_official_test",
-                        lambda args, **k: calls.append(("official_test", k)))
+    def no_second_read(args):
+        raise AssertionError("the stage-T entry must not reopen config.pt through the resume helper")
+    state = {"official_test": None}
+
+    def official(args, **k):
+        calls.append(("official_test", k, args.lambda_wasserstein, args.axis_center, str(args.save_result_path)))
+        if state["official_test"]:
+            raise state["official_test"]
+    monkeypatch.setattr(extraction_siglip2, "_resume_args_flat_or_legacy", no_second_read)
+    monkeypatch.setattr(terminal_official_test, "run_official_test", official)
     argv = ["--config_path", cell["run_dir"], "--attempt", str(attempt), "--attempt-sha256", attempt_sha]
     return SimpleNamespace(argv=argv, calls=calls, cell=cell, attempt=attempt, request=request, line=line,
-                           tmp=tmp_path, world=rworld)
+                           tmp=tmp_path, world=world, state=state)
+
+
+def official_calls(entry):
+    return [c for c in entry.calls if isinstance(c, tuple)]
 
 
 def test_composed_an_admitted_entry_runs_the_terminal_function_once(entry):
     assert TE.main(entry.argv) == 0
-    assert entry.calls == ["resume", ("official_test", {"distance_mode": "base", "codebook_size": 128})]
+    saved = entry.world.saved[entry.cell["cell_id"]]
+    assert entry.calls == [("official_test", {"distance_mode": saved["dna_distance_mode"],
+                                              "codebook_size": int(saved["codebook_size"])},
+                            0.15, "anchors", entry.cell["run_dir"])]
+    assert TE.entry_claim_path(entry.attempt).exists()
+
+
+def test_composed_the_entry_reads_config_once_and_uses_that_object(entry, monkeypatch):
+    """Audit 754.2: a change made after the verified read (and restored) cannot reach the test: there is
+    no second read; the official test receives the verified values."""
+    import io
+    import torch
+    real_load = torch.load
+    loads = []
+    path = Path(entry.cell["run_dir"], "config.pt")
+    original = path.read_bytes()
+
+    def load(f, *a, **k):
+        obj = real_load(f, *a, **k)
+        if isinstance(f, io.BytesIO):
+            loads.append("config")
+            drifted = dict(entry.world.saved[entry.cell["cell_id"]], lambda_wasserstein=0.999)
+            torch.save(drifted, path)                    # changed after the read ...
+        return obj
+    monkeypatch.setattr(torch, "load", load)
+    try:
+        assert TE.main(entry.argv) == 0
+    finally:
+        path.write_bytes(original)                       # ... and restored
+    assert loads == ["config"]
+    assert official_calls(entry)[0][2] == 0.15           # the verified value, not the drifted one
+
+
+def test_composed_a_persistently_changed_config_refuses_before_it_is_loaded(entry, monkeypatch):
+    import torch
+    loads = []
+    monkeypatch.setattr(torch, "load", lambda *a, **k: loads.append(1))
+    torch_save = __import__("torch").save
+    _replace_config_bytes(entry, monkeypatch)
+    assert TE.main(entry.argv) == 2
+    assert loads == [] and official_calls(entry) == []
+    del torch_save
+
+
+def test_composed_the_same_attempt_never_enters_twice_after_a_before_output_failure(entry):
+    entry.state["official_test"] = RuntimeError("failed after touching the test, before any output")
+    with pytest.raises(RuntimeError):
+        TE.main(entry.argv)
+    assert len(official_calls(entry)) == 1 and TE.entry_claim_path(entry.attempt).exists()
+    assert not any(Path(entry.cell["run_dir"], n).exists() for n in M.OFFICIAL_TEST_OUTPUTS)
+    entry.state["official_test"] = None
+    assert TE.main(entry.argv) == 2                          # the same attempt, unchanged bytes
+    assert len(official_calls(entry)) == 1                   # no second test access
+
+
+def test_composed_concurrent_entries_with_the_same_attempt_reach_the_test_once(entry):
+    codes = []
+    threads = [threading.Thread(target=lambda: codes.append(TE.main(list(entry.argv)))) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert sorted(codes) == [0, 2, 2, 2] and len(official_calls(entry)) == 1
 
 
 def _edit_attempt(entry, change):
@@ -1120,6 +1333,13 @@ def _edit_attempt(entry, change):
     return sha(entry.attempt.read_bytes())
 
 
+def _replace_config_bytes(entry, mp):
+    path = Path(entry.cell["run_dir"], "config.pt")
+    import torch
+    saved = dict(entry.world.saved[entry.cell["cell_id"]], lambda_wasserstein=0.999)
+    torch.save(saved, path)
+
+
 @pytest.mark.parametrize("break_it,reason", [
     (lambda e, mp: e.argv.__setitem__(5, "0" * 64), "reserved attempt bytes"),
     (lambda e, mp: e.argv.__setitem__(5, _edit_attempt(e, lambda d: d["request"].update(mode="smoke"))),
@@ -1128,23 +1348,47 @@ def _edit_attempt(entry, change):
     (lambda e, mp: Path(e.cell["run_dir"], "model_state_dict.pth").write_text("other"), "not the stage-R checkpoint"),
     (lambda e, mp: Path(e.cell["run_dir"], "extract_db.npz").write_bytes(b"x"), "never reaches the official test"),
     (lambda e, mp: e.argv.__setitem__(1, str(e.world.root)), "not "),
-], ids=["attempt-bytes", "request-digest", "no-approval", "checkpoint", "output-present", "run-dir"])
+    (_replace_config_bytes, "config.pt is not the pinned bytes"),
+    (lambda e, mp: Path(e.cell["run_dir"], "phase3_campaign_binding.json").write_text("{}"),
+     "campaign evidence is not the pinned bytes"),
+], ids=["attempt-bytes", "request-digest", "no-approval", "checkpoint", "output-present", "run-dir",
+        "config-bytes", "evidence-bytes"])
 def test_composed_an_entry_without_complete_admission_refuses_before_any_load(entry, monkeypatch, break_it, reason):
     break_it(entry, monkeypatch)
     assert TE.main(entry.argv) == 2
     assert entry.calls == []                 # neither the configuration nor the test was touched
+    assert not TE.entry_claim_path(entry.attempt).exists()
 
 
-def test_composed_an_entry_whose_saved_configuration_is_not_this_cell_refuses_before_the_test(entry, monkeypatch):
+@pytest.mark.parametrize("edit,reason", [
+    (lambda saved: saved.update(lambda_wasserstein=0.999), "differs from the sealed recipe"),
+    (lambda saved: saved.update(codebook_size=64), "differs from the sealed recipe"),
+    (lambda saved: saved.update(_phase3_campaign_binding={"cell_id": "another|cell"}), "names another cell"),
+], ids=["lambda-drift", "non-summary-drift", "cross-cell-binding"])
+def test_composed_a_saved_configuration_off_the_sealed_recipe_never_reaches_the_test(tmp_path, monkeypatch, fworld,
+                                                                                     edit, reason, capsys):
+    e = make_entry(tmp_path, monkeypatch, fworld, config_edit=(("cifar10", 42), edit))
+    assert TE.main(e.argv) == 2
+    assert reason in capsys.readouterr().err
+    assert official_calls(e) == []                       # refused before the arguments and the test
+
+
+@pytest.mark.parametrize("change,reason", [
+    (lambda args: setattr(args, "axis_center", "none"), "effective arguments differ"),
+    (lambda args: setattr(args, "lambda_bu", 0.5), "effective arguments differ"),
+    (lambda args: setattr(args, "save_result_path", "/elsewhere"), "another run directory"),
+], ids=["axis", "lambda", "run-dir"])
+def test_composed_arguments_built_off_the_verified_object_refuse_before_the_test(entry, monkeypatch, capsys,
+                                                                                change, reason):
     import extraction_siglip2
-    real = extraction_siglip2._resume_args_flat_or_legacy
+    real = extraction_siglip2._apply_saved_config
 
-    def other(args):
-        real(args)
-        args.axis_center = "none"
-    monkeypatch.setattr(extraction_siglip2, "_resume_args_flat_or_legacy", other)
+    def apply(args, sd, config_path):
+        real(args, sd, config_path)
+        change(args)
+    monkeypatch.setattr(extraction_siglip2, "_apply_saved_config", apply)
     assert TE.main(entry.argv) == 2
-    assert entry.calls == ["resume"]
+    assert reason in capsys.readouterr().err and official_calls(entry) == []
 
 
 def test_composed_the_t_approval_cannot_come_from_the_caller_environment(entry, monkeypatch):
@@ -1152,6 +1396,94 @@ def test_composed_the_t_approval_cannot_come_from_the_caller_environment(entry, 
         monkeypatch.setenv(name, "1")
     full_ledger(entry.tmp, monkeypatch, entry.world.ledger_sections)       # the stage-T line gone
     assert TE.main(entry.argv) == 2 and entry.calls == []
+
+
+# ---- the supervisor: logical T cells versus their five managed producers (audit 747.1) -------------
+CHILDREN_LAUNCHER = r"""
+import os, signal, subprocess, sys, time
+runs, sleep, fail_at = int(sys.argv[1]), float(sys.argv[2]), int(sys.argv[3])
+current = []
+
+def term(*_):
+    # the launcher's own supervised path: stop the live child, then exit by the signal
+    for child in current:
+        os.kill(child.pid, signal.SIGKILL)
+        try:
+            os.waitpid(child.pid, 0)
+        except ChildProcessError:
+            pass
+    signal.signal(signal.SIGTERM, signal.SIG_DFL)
+    os.kill(os.getpid(), signal.SIGTERM)
+
+signal.signal(signal.SIGTERM, term)
+signal.alarm(60)
+for n in range(runs):
+    current[:] = [subprocess.Popen([sys.executable, "-c", f"import time, sys; time.sleep({sleep}); "
+                                    f"sys.exit({1 if n == fail_at else 0})"], start_new_session=True)]
+    code = current[0].wait()
+    current.clear()
+    if code != 0:
+        sys.exit(1)
+"""
+
+
+@pytest.fixture
+def supervised(tmp_path):
+    ops, out = tmp_path / "ops", tmp_path / "out"
+    out.mkdir()
+    script = tmp_path / "children.py"
+    script.write_text(CHILDREN_LAUNCHER)
+
+    def run(stage, cells, runs, *, sleep=0.3, fail_at=-1, poll=0.1):
+        return S.supervise([sys.executable, str(script), str(runs), str(sleep), str(fail_at)], stage=stage,
+                           label="t", gpus=1, attempts="sessions", planned_cells=cells, watch_path=str(out),
+                           ops_root=str(ops), manifest_sha256="f" * 64, budget_seconds=1e9, poll_seconds=poll,
+                           watchdog_seconds=5.0, stop_bound_seconds=2.0, ledger_every=1.0,
+                           lease_root=tmp_path, free_bytes=lambda _p: 1 << 62)
+
+    def final():
+        rows = [json.loads(line) for line in (ops / S.LEDGER_NAME).read_text().splitlines()]
+        return [r for r in rows if r["event"] == "final"][-1], [r for r in rows if r["event"] == "start"][-1]
+    return SimpleNamespace(run=run, final=final)
+
+
+def test_composed_the_t_children_per_cell_is_the_t_chain():
+    assert S.CHILDREN_PER_CELL == {"stage-T-smoke": len(RT.T_CHAIN), "stage-T-run": len(RT.T_CHAIN)}
+    assert len(RT.T_CHAIN) == len(CHAIN) == 5
+
+
+@pytest.mark.parametrize("cells", [1, 12])
+def test_composed_a_t_cell_s_five_producers_are_ordinary_supervised_work(supervised, cells):
+    rc = supervised.run("stage-T-run" if cells == 12 else "stage-T-smoke", cells, 5 * cells, sleep=0.25)
+    done, start = supervised.final()
+    assert rc == 0 and done["status"] == "exited", done.get("reason")
+    assert start["rules"]["planned_cells"] == cells and start["rules"]["planned_attempts"] == 5 * cells
+
+
+def test_composed_fast_producers_between_observations_are_still_charged(supervised):
+    rc = supervised.run("stage-T-smoke", 1, 5, sleep=0.01, poll=0.2)
+    done, _ = supervised.final()
+    assert rc == 0 and done["status"] == "exited"
+    assert done["unobserved_allowance_seconds"] >= 0.0 and done["charged_seconds"] >= done["device_seconds"]
+
+
+def test_composed_a_sixth_managed_child_of_one_t_cell_is_excess(supervised):
+    rc = supervised.run("stage-T-smoke", 1, 6, sleep=0.25)
+    done, _ = supervised.final()
+    assert rc == S.EXIT_UNRESOLVED and done["reason"].startswith("continuity lost: attempts: 6 observed for 1")
+
+
+@pytest.mark.parametrize("k", range(5))
+def test_composed_a_failing_producer_ends_the_supervised_t_command(supervised, k):
+    rc = supervised.run("stage-T-smoke", 1, 5, sleep=0.25, fail_at=k)
+    done, _ = supervised.final()
+    assert rc == 1 and done["status"] == "exited" and len(done["attempts"]) <= k + 1
+
+
+def test_composed_any_other_stage_still_allows_one_child_per_cell(supervised):
+    rc = supervised.run("stage-R-smoke", 1, 2, sleep=0.25)
+    done, _ = supervised.final()
+    assert rc == S.EXIT_UNRESOLVED and done["reason"].startswith("continuity lost: attempts: 2 observed for 1")
 
 
 # =============================================================================================
@@ -1211,3 +1543,47 @@ def test_real_the_flickr25k_wrapper_renders_a_stage_r_cell():
     assert (f["val_split_ratio"], f["selection_mode"], f["final_epoch_eval"], f["evaluation"]) == \
         (0.0, "refit", True, True)
     assert f["axis_center"] == "anchors" and f["text_whiten_npz"].endswith("trainOnly_localOnly.npz")
+
+
+# ---- the supervisor's lifecycle under stage T: leases, cleanup, missed producers, watchdog -----------
+# (the launcher-supervision harness of tests/test_anchor_confirm_supervisor.py: the real lease wrapper
+# and managed child of the campaign launcher, a private lease root, an unrelated control process)
+import test_anchor_confirm_supervisor as SUP                          # noqa: E402
+from test_anchor_confirm_supervisor import world                      # noqa: E402,F401  (fixture)
+
+
+def test_composed_a_t_stage_space_breach_stops_through_the_launchers_path_and_cleans_up(world):
+    free = {"bytes": SUP.PLENTY}
+    stopper = threading.Thread(target=lambda: (world.ready("leader"), world.ready("child"),
+                                               free.update(bytes=S.FREE_FLOOR_BYTES)))
+    stopper.start()
+    rc = world.run(world.launch("leader:child-resist:stay"), stage="stage-T-smoke",
+                   free_bytes=lambda _p: free["bytes"])
+    stopper.join(5)
+    done = SUP.final(world.ops)
+    assert rc == S.EXIT_STOPPED and done["status"] == "stopped" and done["reason"].startswith("space:")
+    assert all(not SUP.live(identity) for identity in world.owned)         # the TERM-resistant child too
+    assert done["orphaned_live_attempts"] == [] and done["leases_held_after_exit"] == []
+    assert done["lease_gpu_seconds"] > 0 and world.control.poll() is None
+    start = [r for r in SUP.records(world.ops) if r["event"] == "start"][-1]
+    assert start["rules"]["children_per_cell"] == 5 and start["rules"]["planned_attempts"] == 5
+
+
+def test_composed_a_t_producer_living_between_two_observations_is_still_charged(world):
+    free, command = SUP.gap(world, 2.5)
+    rc = world.run(command + ["1"], stage="stage-T-smoke", planned_cells=1, poll_seconds=0.1,
+                   watchdog_seconds=10.0, free_bytes=free)
+    lived = SUP.stamped(world.out / "stamp.0")
+    done = SUP.final(world.ops)
+    assert rc == 0 and done["status"] == "exited" and done["attempts"] == []   # no scan saw it
+    assert done["charged_seconds"] >= lived >= 1.5
+    # the allowance is charged per planned MANAGED attempt: five for one T cell
+    assert done["unobserved_allowance_seconds"] >= 5 * 2.5
+
+
+def test_composed_a_t_stage_observation_stalled_past_the_watchdog_is_unresolved(world):
+    free, command = SUP.gap(world, 2.5)
+    rc = world.run(command + ["1"], stage="stage-T-smoke", planned_cells=1, poll_seconds=0.1,
+                   watchdog_seconds=1.0, free_bytes=free)
+    done = SUP.final(world.ops)
+    assert rc == S.EXIT_UNRESOLVED and done["status"] == "unresolved" and done["reason"].startswith("watchdog:")

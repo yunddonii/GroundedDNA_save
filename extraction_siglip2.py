@@ -515,6 +515,23 @@ def _reapply_explicit_cli(args: Config, cli: Config) -> None:
               f"{name}={value}")
 
 
+def _apply_saved_config(args: Config, sd, config_path: str) -> None:
+    """Apply an already-loaded flat ``config.pt`` mapping to ``args``: every saved field, the run
+    directory's save paths and the device from ``num_devices``. The flat branch of
+    ``_resume_args_flat_or_legacy`` below (which then re-applies the explicit CLI flags); the stage-T
+    entry (scripts/anchor_terminal_test.py) passes the very object whose bytes and typed fields it
+    verified, so no second read of the file can stand in for it (audit 754.2)."""
+    for k, v in sd.items():
+        setattr(args, k, v)
+    args.save_result_path      = config_path
+    args.save_log_path         = os.path.join(config_path, "")
+    args.save_model_state_path = os.path.join(config_path, "")
+    nd = int(getattr(args, "num_devices", 0) or 0)
+    args.device = torch.device(
+        f"cuda:{nd}" if torch.cuda.is_available() else "cpu"
+    )
+
+
 def _resume_args_flat_or_legacy(args: Config) -> None:
     """Populate ``args`` from a saved ``config.pt``, supporting both layouts.
 
@@ -535,15 +552,7 @@ def _resume_args_flat_or_legacy(args: Config) -> None:
 
     if os.path.exists(flat_pt):
         sd = torch.load(flat_pt, map_location="cpu")
-        for k, v in sd.items():
-            setattr(args, k, v)
-        args.save_result_path      = config_path
-        args.save_log_path         = os.path.join(config_path, "")
-        args.save_model_state_path = os.path.join(config_path, "")
-        nd = int(getattr(args, "num_devices", 0) or 0)
-        args.device = torch.device(
-            f"cuda:{nd}" if torch.cuda.is_available() else "cpu"
-        )
+        _apply_saved_config(args, sd, config_path)
         print(f"[extraction] loaded flat config.pt from {flat_pt}")
         _reapply_explicit_cli(args, cli)
     elif os.path.exists(nested_pt):

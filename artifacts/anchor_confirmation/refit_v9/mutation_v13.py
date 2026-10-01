@@ -1,13 +1,16 @@
-"""Mutation battery v13 (generation v9, stages R and T; audits 743-744), revision b.
+"""Mutation battery v13 (generation v9, stages R and T; audits 743-754), revision c.
 
 Attempt 1 at bdaba58 detected 22/24 as declared: RX13 (a stage-S scope) was an always-refusing
 mutant (a stage-S scope carries no F pin, so every line refuses) and is replaced by a run-scope line
 approving a smoke, with a new test; RX16 was detected by its tests but for another reason than
 declared (the [None] retry re-ran the chain and failed at record publication), so it now declares
-the [0] case, where the overwritten reservation lets a retry run silently.
+the [0] case, where the overwritten reservation lets a retry run silently. Revision c (audits
+746-754): RX8 now removes only the exact-acceptance digest, and RX25-RX33 disable the repairs
+(the T entry claim, config byte pin, typed fields, single read, effective arguments, supervisor
+children per cell, the T boundary rechecks and the R-to-T source equality).
 
 v12's bounded and guarded method, unchanged except for its paths: the v9 worktree, the v9 manifest
-(artifacts/anchor_confirmation/authority_manifest_v9r2.json) and the v9 copies of bounded_tree.py and
+(artifacts/anchor_confirmation/authority_manifest_v9r3.json) and the v9 copies of bounded_tree.py and
 guarded_pytest.py under artifacts/anchor_confirmation/refit_v9/. Content hashes ONLY for the reviewed
 inventory (the manifest closure plus the declared test files); every other tracked file by git index
 object id and stat; the harness under its own open() guard (binary payloads, real-data roots and
@@ -75,11 +78,11 @@ MUTANTS = [
      [((T, "test_composed_a_stage_r_run_directory_holding_any_test_output_refuses[evaluation_siglip2_base.json]"),
        NO_RAISE),
       ((T, "test_composed_an_output_already_present_refuses_before_the_attempt"), NO_RAISE)]),
-    ("RX8 the F record needs no acceptance", RT,
-     '    if "Accepted record:" not in body or str(ANCHOR_F_RECORD) not in body \\\n'
-     '            or ANCHOR_F_RECORD_SHA256 not in body:\n',
-     '    if False:\n',
-     [((T, "test_composed_an_f_record_without_its_acceptance_refuses[no-acceptance]"), NO_RAISE)]),
+    ("RX8 the F acceptance is substring recognition again", RT,
+     '    if digest != ANCHOR_F_ACCEPTANCE_SHA256 or str(ANCHOR_F_RECORD) not in flat \\\n',
+     '    if str(ANCHOR_F_RECORD) not in flat \\\n',
+     [((T, "test_composed_an_f_record_without_its_acceptance_refuses[token-only]"), NO_RAISE),
+      ((T, "test_composed_an_f_record_without_its_acceptance_refuses[changed-language]"), NO_RAISE)]),
     ("RX9 the F summary is not tied to its validated recipe", RT,
      '                or any(fields.get(k) != v for k, v in entry["lambdas"].items()):\n',
      '                or False:\n',
@@ -126,7 +129,7 @@ MUTANTS = [
      [((T, "test_composed_a_t_cell_reserves_then_runs_the_entry_and_the_chain_in_order"),
        'assert tcell.state["attempt_seen"] == [True]')]),
     ("RX18 the T cell runs no post-chain", RT,
-     '    M._run_refit_postprocess(run_dir, dataset=cell["dataset"], env=env, snapshot=None)\n',
+     '    M._run_refit_postprocess(run_dir, dataset=cell["dataset"], env=env, snapshot=snapshot)\n',
      '    pass\n',
      [((T, "test_composed_a_t_cell_reserves_then_runs_the_entry_and_the_chain_in_order"),
        "assert tcell.commands == CHAIN")]),
@@ -144,7 +147,7 @@ MUTANTS = [
     ("RX21 the T entry does not check the saved configuration", TE,
      '        check_config(args, cell, run_dir)\n',
      '        pass\n',
-     [((T, "test_composed_an_entry_whose_saved_configuration_is_not_this_cell_refuses_before_the_test"),
+     [((T, "test_composed_arguments_built_off_the_verified_object_refuse_before_the_test[run-dir]"),
        "assert TE.main(entry.argv) == 2")]),
     ("RX22 the stage-R/T stages write the default ledger", S,
      '              (RT_STAGES, RT_OPS_ROOT, RT_BUDGET_DEVICE_SECONDS))\n',
@@ -161,13 +164,59 @@ MUTANTS = [
      '_refit_N{n}_s{seed}{anchor}"', '_refit_N{n}_s{seed}"',
      [((T, "test_composed_an_anchor_refit_command_is_the_legacy_refit_plus_the_arm"),
        'assert tag.endswith("_refit_N4_s43_AXanchors_P06095_JD002")')]),
+    ("RX25 the T entry does not claim its entry", TE,
+     '        claim_entry(Path(cli.attempt), cli.attempt_sha256, cell)\n',
+     '        pass\n',
+     [((T, "test_composed_the_same_attempt_never_enters_twice_after_a_before_output_failure"),
+       "assert TE.main(entry.argv) == 2"),
+      ((T, "test_composed_concurrent_entries_with_the_same_attempt_reach_the_test_once"),
+       "assert sorted(codes) == [0, 2, 2, 2]")]),
+    ("RX26 the saved configuration's typed fields are not compared", TE,
+     '    need(not differing, f"the saved configuration differs from the sealed recipe in {differing[:8]}")\n',
+     '    need(True, f"the saved configuration differs from the sealed recipe in {differing[:8]}")\n',
+     [((T, "test_composed_a_saved_configuration_off_the_sealed_recipe_never_reaches_the_test[non-summary-drift]"),
+       "assert TE.main(e.argv) == 2")]),
+    ("RX27 config.pt is deserialized without its byte pin", TE,
+     '    need(hashlib.sha256(raw).hexdigest() == cell["config_pt_sha256"], "config.pt is not the pinned bytes")\n',
+     '    need(True, "config.pt is not the pinned bytes")\n',
+     [((T, "test_composed_a_persistently_changed_config_refuses_before_it_is_loaded"),
+       "assert TE.main(entry.argv) == 2")]),
+    ("RX28 the arguments come from a second read of config.pt", TE,
+     '    _apply_saved_config(args, saved, str(run_dir))\n',
+     '    __import__("extraction_siglip2")._resume_args_flat_or_legacy(args)\n',
+     [((T, "test_composed_the_entry_reads_config_once_and_uses_that_object"),
+       "the stage-T entry must not reopen config.pt through the resume helper")]),
+    ("RX29 the effective arguments are not compared", TE,
+     '    need(not effective, f"the effective arguments differ from the sealed recipe in {effective[:8]}")\n',
+     '    need(True, f"the effective arguments differ from the sealed recipe in {effective[:8]}")\n',
+     [((T, "test_composed_arguments_built_off_the_verified_object_refuse_before_the_test[lambda]"),
+       "assert TE.main(entry.argv) == 2")]),
+    ("RX30 the supervisor counts one managed child per T cell", S,
+     '    planned_attempts = planned_cells * children_per_cell\n',
+     '    planned_attempts = planned_cells\n',
+     [((T, "test_composed_a_t_cell_s_five_producers_are_ordinary_supervised_work[1]"),
+       'assert rc == 0 and done["status"] == "exited", done.get("reason")')]),
+    ("RX31 no boundary check between the T entry and train extraction", RT,
+     '    M.verify_snapshot(snapshot)\n    M._run_refit_postprocess(',
+     '    M._run_refit_postprocess(',
+     [((T, "test_composed_drift_between_producers_stops_the_next_producer[entry-to-train]"),
+       "assert tcell.commands == CHAIN[:k]")]),
+    ("RX32 the post-chain runs without the T snapshot", RT,
+     '    M._run_refit_postprocess(run_dir, dataset=cell["dataset"], env=env, snapshot=snapshot)\n',
+     '    M._run_refit_postprocess(run_dir, dataset=cell["dataset"], env=env, snapshot=None)\n',
+     [((T, "test_composed_drift_between_producers_stops_the_next_producer[after-train]"), NO_RAISE),
+      ((T, "test_composed_real_verifier_drift_between_producers_stops_the_chain"), NO_RAISE)]),
+    ("RX33 stage T does not require the stage-R sources unchanged", RT,
+     '    if sources != r_snapshot.get("sources") or inputs != r_snapshot.get("inputs") \\\n            or {k: (v.get("head_sha256"), v.get("worktree_sha256")) for k, v in authority["entries"].items()} \\\n            != {k: (v.get("head_sha256"), v.get("worktree_sha256")) for k, v in before.items()}:\n',
+     '    if False:\n',
+     [((T, "test_composed_sources_changed_since_stage_r_refuse_before_any_t_access"), NO_RAISE)]),
 ]
 
 
 
 GUARD = WT / "artifacts/anchor_confirmation/refit_v9/guarded_pytest.py"
 BOUNDED = WT / "artifacts/anchor_confirmation/refit_v9/bounded_tree.py"
-MANIFEST = WT / "artifacts/anchor_confirmation/authority_manifest_v9r2.json"
+MANIFEST = WT / "artifacts/anchor_confirmation/authority_manifest_v9r3.json"
 EXTRAS = sorted({t[0] for *_x, d in MUTANTS for t, _m in d})
 BINARY = (".npz", ".npy", ".pt", ".pth", ".safetensors", ".bin", ".ckpt", ".pkl")
 REFUSED, CHILDREN = [], []

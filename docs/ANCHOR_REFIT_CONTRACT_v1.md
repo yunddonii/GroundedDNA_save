@@ -10,8 +10,12 @@ rendering and bounded metadata preflight only). Stage R and stage T are separate
   `/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancF_candidate_v1.json`, SHA256
   `5165f5dc9fcfb8334270bc16aa9816d09db67b03a04abae7ff846d5235bdca1d`, **together with** its
   acceptance in audit §744.1.
-  - The launcher reads the record at that digest and requires ledger section 744 to name its path
-    and digest as the accepted record.
+  - The launcher reads the record at that digest. Ledger section 744 — from its heading line to the
+    next heading, stripped — must hash to
+    `13ef776bc1485b3917253e51ee4aa99879a8f1f30f5539e0d1e224d3faaa1c56`, the corrected text audit §745
+    names, and must name the record's path and digest.
+  - Free-standing tokens or changed wording are not the acceptance (audit §746.3). The mutable ledger
+    as a whole is not pinned, and the F bytes are never edited.
   - Neither the record's filename nor its own "PREPARATION ONLY" text is approval.
   - Every stage-R/T approval line names the record as `freeze=`.
 - **The model.** `axis_center=anchors` on all four datasets (user decision, audit §709), with each
@@ -132,17 +136,36 @@ The launcher (`--anchor-confirm test --anchor-refit-receipt … --anchor-refit-r
    once), the chain and the GPU count.
 3. **Verifies the audit's `stage-T-*` line** for that request digest, then leases the GPUs,
    reserves the namespace and publishes its snapshot.
-4. **Per cell, fail-stop:**
-   - re-checks the runtime witness, no test output and the seals;
+4. **Per cell, fail-stop.** Every producer runs under a T boundary snapshot (audit §747.2). It holds
+   the stage-R campaign's sources, inputs and admitted seals, recomputed at T start and required
+   unchanged since stage R, together with THIS stage's environment and leased GPUs. The launcher's
+   unchanged `verify_snapshot` re-checks it:
+   - before the entry;
+   - at the entry-to-train-extraction transition;
+   - after each of the four post-chain producers.
+
+   A failed check starts no further producer. In order, per cell, the launcher then:
+   - re-checks the runtime witness and that no test output exists;
    - **reserves the attempt** — `<ns>_attempt_<R tag>.json`, exclusive, durable, retained on
      failure — **before any model or test construction**. A second attempt (duplicate, concurrent or
      retry) refuses even if no output exists; recovering an attempted cell needs a new authorization;
-   - runs the **T entry** `scripts/anchor_terminal_test.py`. Before the test, it re-verifies the
-     attempt bytes and request, the standing stage-T line, the generation, the checkpoint bytes and
-     runtime epoch, the absent outputs and the saved configuration (anchors, refit, cell id). Then
-     it calls `terminal_official_test.run_official_test`, the trainer's own former terminal block,
-     moved unchanged: the evaluation-cache and whitening resolution, `extract_code` (query, db) and
-     the **raw** evaluation `evaluation_siglip2_base.json` (`bio_project=False`);
+   - runs the **T entry** `scripts/anchor_terminal_test.py`. Before the test, it re-verifies:
+     - the attempt bytes and request, the standing stage-T line, and the generation;
+     - the checkpoint bytes; the runtime witness at the terminal epoch the request allows (N, or the
+       smoke's last epoch);
+     - the trainer's campaign evidence (pinned bytes, this cell, this sealed recipe, the witness's
+       own) and the config.pt bytes;
+     - that no test output exists.
+
+     It then **claims the entry exclusively and durably** (`<ns>_entry_<R tag>.json`, never removed;
+     audit §746.1). It reads config.pt **once**: it hashes the bytes, deserializes them, and requires
+     every typed field of the cell's sealed recipe (from the stage-R snapshot its receipt binds) and
+     this cell's campaign binding. It builds the arguments from that same object through the shared
+     resume helper's flat-layout step (no second read; audit §754.2) and re-checks the effective
+     fields. Only then does it call `terminal_official_test.run_official_test`, the trainer's own
+     former terminal block, moved unchanged: the evaluation-cache and whitening resolution,
+     `extract_code` (query, db) and the **raw** evaluation `evaluation_siglip2_base.json`
+     (`bio_project=False`);
    - runs the unchanged refit post-chain, in order: `extract_train_split`,
      `eval_cell_bioproj --require-train` (which reads and validates the raw file before it writes the
      post-BIO one), `pairwise_nmi`, `seal_cell_analysis`;
@@ -181,6 +204,10 @@ by itself.
   - Both settled ledgers (S/D/probe `986bdcd1…`, L `477e447c…`) are carried unchanged and are not an
     R/T allowance.
 - **Wall limits.** R run 8 h on 4 GPUs; T run 8 h on 4 GPUs; each smoke 3 h on 1 GPU.
+- **Supervision (audit §747.1).** `--planned-cells` is the logical cell count (membership and
+  storage). A T cell is five managed producers, so stage T's attempt ceiling and missed-attempt
+  allowance are cells × 5 (`CHILDREN_PER_CELL`, tied by a test to the T chain). A sixth child of a
+  T cell, or a second of any other cell, is still excess.
 - **Storage.** Unchanged rule: 10 GiB floor + 0.75 GiB per unfinished cell (an incumbent refit
   directory holds 0.64–0.77 GiB).
 - **Roots and namespaces.**

@@ -26,6 +26,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shlex
 import socket
 import sys
@@ -48,6 +49,11 @@ ANCHOR_F_RECORD = Path("/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_conf
                        "ancF_candidate_v1.json")
 ANCHOR_F_RECORD_SHA256 = "5165f5dc9fcfb8334270bc16aa9816d09db67b03a04abae7ff846d5235bdca1d"
 ANCHOR_F_ACCEPTANCE_SECTION = 744
+#: The exact accepted text (audits 745-746.3): SHA256 of ledger section 744 from its heading line to
+#: the next section heading, stripped of surrounding whitespace -- the corrected body digest stated in
+#: section 745. Any other text in that section (a token-only paragraph, changed acceptance language)
+#: is not this acceptance. The mutable ledger as a whole is NOT pinned.
+ANCHOR_F_ACCEPTANCE_SHA256 = "13ef776bc1485b3917253e51ee4aa99879a8f1f30f5539e0d1e224d3faaa1c56"
 ANCHOR_F_KIND = "anchor_confirmation_freeze_candidate"
 #: generation v8's manifest: stage R/T never run under it (nor under v7's)
 ANCHOR_V8_MANIFEST_SHA256 = "58e69ae1a3bed5366da61a4d61a6cdd90c338d9ac7b0474fcf9b6e2e2f7f5bbc"
@@ -84,6 +90,35 @@ T_CHAIN = ("scripts/anchor_terminal_test.py: extraction_siglip2.extract_code (qu
            "scripts/pairwise_nmi.py --require-train", "scripts/seal_cell_analysis.py --require-train")
 
 
+def ledger_section_text(text: str, section: int) -> str:
+    """Ledger section `section` from its own heading line to the next section heading, stripped of
+    surrounding whitespace; exactly one such heading must exist."""
+    starts = [m for m in re.finditer(r"^## (\d+)\. .*$", text, flags=re.M) if int(m.group(1)) == section]
+    if len(starts) != 1:
+        raise CellRefused(f"the audit ledger has {len(starts)} sections numbered {section}")
+    following = re.compile(r"^## ", flags=re.M).search(text, starts[0].end())
+    return text[starts[0].start():following.start() if following else len(text)].strip()
+
+
+def anchor_freeze_acceptance() -> dict:
+    """The F acceptance, bound exactly: ledger section 744's text must hash to the accepted digest and
+    name the record's path and digest."""
+    try:
+        text = M.AUDIT_LEDGER.read_text(encoding="utf-8")
+    except OSError as error:
+        raise CellRefused(f"the audit ledger is unreadable: {error}") from None
+    body = ledger_section_text(text, ANCHOR_F_ACCEPTANCE_SECTION)
+    digest = hashlib.sha256(body.encode("utf-8")).hexdigest()
+    flat = " ".join(body.split())
+    if digest != ANCHOR_F_ACCEPTANCE_SHA256 or str(ANCHOR_F_RECORD) not in flat \
+            or ANCHOR_F_RECORD_SHA256 not in flat:
+        raise CellRefused(f"ledger section {ANCHOR_F_ACCEPTANCE_SECTION} is not the exact accepted text "
+                          f"(sha256 {digest[:12]}..., want {ANCHOR_F_ACCEPTANCE_SHA256[:12]}...) naming "
+                          f"{ANCHOR_F_RECORD} at {ANCHOR_F_RECORD_SHA256[:12]}...")
+    return {"ledger": str(M.AUDIT_LEDGER), "section": ANCHOR_F_ACCEPTANCE_SECTION,
+            "section_sha256": digest}
+
+
 def _read_json(path, sha256, what, read=None):
     raw = (read or M._read_bytes)(path, sha256, what)
     try:
@@ -99,15 +134,7 @@ def anchor_freeze_authority(read=None) -> dict:
     from the v7 stage-S plan snapshot the record binds (pinned bytes) and re-digested."""
     from dna_utils.scientific_recipe import RecipeMismatch, check_payload_shape, digest
     record, _ = _read_json(ANCHOR_F_RECORD, ANCHOR_F_RECORD_SHA256, "the accepted F record", read)
-    try:
-        body = " ".join(M._ledger_section(M.AUDIT_LEDGER.read_text(encoding="utf-8"),
-                                          ANCHOR_F_ACCEPTANCE_SECTION).split())
-    except OSError as error:
-        raise CellRefused(f"the audit ledger is unreadable: {error}") from None
-    if "Accepted record:" not in body or str(ANCHOR_F_RECORD) not in body \
-            or ANCHOR_F_RECORD_SHA256 not in body:
-        raise CellRefused(f"ledger section {ANCHOR_F_ACCEPTANCE_SECTION} does not accept "
-                          f"{ANCHOR_F_RECORD} at {ANCHOR_F_RECORD_SHA256[:12]}...")
+    acceptance = anchor_freeze_acceptance()
     if record.get("artifact_kind") != ANCHOR_F_KIND \
             or record.get("fixed_architecture", {}).get("axis_center") != "anchors" \
             or record.get("fixed_architecture", {}).get("datasets") != list(M.ANCHOR_DATASETS) \
@@ -141,8 +168,7 @@ def anchor_freeze_authority(read=None) -> dict:
                    "fields": fields, "recipe_sha256": recipe["scientific_recipe_sha256"],
                    "cell_id": recipe["cell_id"]}
     return {"record": {"path": str(ANCHOR_F_RECORD), "sha256": ANCHOR_F_RECORD_SHA256},
-            "acceptance": {"ledger": str(M.AUDIT_LEDGER), "section": ANCHOR_F_ACCEPTANCE_SECTION},
-            "datasets": out}
+            "acceptance": acceptance, "datasets": out}
 
 
 def _check_freeze_against_incumbent(freeze: dict, incumbent: dict) -> None:
@@ -314,6 +340,7 @@ def refit_request(args, cells, *, manifest_sha256: str, freeze: dict) -> dict:
     each dataset's validated-recipe digest. An approval names its digest."""
     request = M.anchor_execution_request(args, cells, manifest_sha256=manifest_sha256)
     request["freeze"] = {**freeze["record"], "acceptance_section": ANCHOR_F_ACCEPTANCE_SECTION,
+                         "acceptance_sha256": ANCHOR_F_ACCEPTANCE_SHA256,
                          "recipes_sha256": {ds: e["recipe_sha256"] for ds, e in freeze["datasets"].items()}}
     return request
 
@@ -396,9 +423,16 @@ def admit_refit_receipt(path, sha256, *, manifest_sha256: str, freeze: dict, mod
         sidecar, _ = _read_json(run_dir / f"{completion.get('final_checkpoint')}.runtime.json",
                                 completion.get("checkpoint_runtime_sha256"), f"{cell_id} runtime sidecar")
         terminal = completion.get("final_checkpoint_epoch_zero_based")
+        # the terminal epoch the request allows: N for the run, the smoke horizon's last epoch for a smoke
+        expected_terminal = n if mode == "run" else int(request.get("epochs") or 0) - 1
+        anchor = record.get("anchor_confirmation") or {}
         if evidence.get("cell_id") != cell_id or sidecar.get("checkpoint_epoch_zero_based") != terminal \
-                or not isinstance(terminal, int) \
-                or not M._is_sha256(completion.get("final_checkpoint_sha256")):
+                or type(terminal) is not int or terminal != expected_terminal \
+                or (sidecar.get("extra") or {}).get("phase3_campaign") != evidence \
+                or evidence.get("scientific_recipe_sha256") != binding["expected_scientific_recipe_sha256"] \
+                or not M._is_sha256(completion.get("final_checkpoint_sha256")) \
+                or not M._is_sha256(anchor.get("config_pt_sha256")) \
+                or anchor.get("campaign_evidence_sha256") != completion.get("phase3_campaign_evidence_sha256"):
             raise CellRefused(f"{cell_id}: the trainer evidence or terminal checkpoint witness disagrees")
         M.assert_official_test_withheld(run_dir)
         cells.append({"cell_id": cell_id, "dataset": ds, "N": n, "seed": seed,
@@ -407,12 +441,16 @@ def admit_refit_receipt(path, sha256, *, manifest_sha256: str, freeze: dict, mod
                       "final_checkpoint": completion["final_checkpoint"],
                       "final_checkpoint_sha256": completion["final_checkpoint_sha256"],
                       "checkpoint_runtime_sha256": completion["checkpoint_runtime_sha256"],
+                      "phase3_campaign_evidence_sha256": completion["phase3_campaign_evidence_sha256"],
+                      "config_pt_sha256": anchor["config_pt_sha256"],
+                      "scientific_recipe_sha256": binding["expected_scientific_recipe_sha256"],
                       "terminal_epoch": terminal})
     want = sorted((ds, freeze["datasets"][ds]["N"], s) for ds in M.ANCHOR_DATASETS for s in REFIT_SEEDS)
     got = sorted((c["dataset"], c["N"], c["seed"]) for c in cells)
     if (mode == "run" and got != want) or (mode == "smoke" and len(got) != 1):
         raise CellRefused(f"{path}: the stage-R receipt holds {got}, not the {mode}'s cells")
     return {"receipt": {"path": str(path), "sha256": sha256}, "snapshot": str(snapshot_path),
+            "epochs": request.get("epochs"),
             "approval": {"section": live["section"], "scope": live["scope"], "line": live["line"]},
             "cells": cells}
 
@@ -430,11 +468,54 @@ def terminal_test_request(args, refit: dict, *, manifest: dict) -> dict:
             "mode": "smoke" if args.smoke else "run",
             "manifest": manifest["sha256"], "manifest_path": str(manifest["path"]),
             "freeze": {"path": str(ANCHOR_F_RECORD), "sha256": ANCHOR_F_RECORD_SHA256,
-                       "acceptance_section": ANCHOR_F_ACCEPTANCE_SECTION},
+                       "acceptance_section": ANCHOR_F_ACCEPTANCE_SECTION,
+                       "acceptance_sha256": ANCHOR_F_ACCEPTANCE_SHA256},
             "refit_receipt": refit["receipt"], "refit_approval": refit["approval"],
+            "refit_epochs": refit["epochs"],
             "namespace": str(args.namespace), "record_dir": str(M.ANCHOR_RECORD_DIR),
             "cells": sorted(refit["cells"], key=lambda c: c["cell_id"]),
             "outputs": list(M.OFFICIAL_TEST_OUTPUTS), "chain": list(T_CHAIN), "gpu_count": len(gpus)}
+
+
+def _snapshot_inputs_now(keys) -> dict:
+    """The digests verify_snapshot recomputes for a snapshot's `inputs` keys, by the same mapping."""
+    out = {}
+    for key in keys:
+        ds, label = key.split("/", 1)
+        spec = M.DATASETS[ds]
+        path = {"feature_cache_meta": Path(spec["cache"]) / "meta.json",
+                "foils_meta": Path(spec["foils"]) / "meta.json",
+                "whiten_select": Path(M._whitening(spec, stage="select")),
+                "whiten_refit": Path(M._whitening(spec, stage=REFIT_STAGE)),
+                "qwen": Path(spec["qwen"])}[label]
+        out[key] = M._sha(path) if path.is_file() else "#absent"
+    return out
+
+
+def terminal_test_boundary(r_snapshot: dict, gpus) -> dict:
+    """The authority every T producer runs under (audit 747.2): the stage-R campaign's sources, inputs
+    and admitted input seals -- recomputed now and required unchanged since stage R -- with THIS
+    stage's environment and leased physical GPUs. It has exactly the keys the launcher's own
+    verify_snapshot re-checks (sources, inputs, source authority, environment and GPUs, stats-only
+    seals), so the unchanged verifier runs between every two producers."""
+    if r_snapshot.get("qwen_root") != str(M.QWEN_ROOT):
+        raise CellRefused("the stage-R campaign used another Qwen root")
+    sources = {rel: (M._sha(M.REPO / rel) if (M.REPO / rel).is_file() else "#absent")
+               for rel in (r_snapshot.get("sources") or {})}
+    inputs = _snapshot_inputs_now(r_snapshot.get("inputs") or {})
+    authority = M._source_authority_bundle(sources)
+    before = (r_snapshot.get("source_authority") or {}).get("entries") or {}
+    if sources != r_snapshot.get("sources") or inputs != r_snapshot.get("inputs") \
+            or {k: (v.get("head_sha256"), v.get("worktree_sha256")) for k, v in authority["entries"].items()} \
+            != {k: (v.get("head_sha256"), v.get("worktree_sha256")) for k, v in before.items()}:
+        raise CellRefused("the sources or inputs changed between stage R and stage T")
+    environment = M.environment_fingerprint(gpus)
+    if environment.get("errors"):
+        raise CellRefused(f"the stage-T environment has errors: {environment['errors']}")
+    return {"qwen_root": str(M.QWEN_ROOT), "sources": sources, "inputs": inputs,
+            "source_authority": authority, "source_authority_sha256": M._semantic_digest(authority),
+            "environment": environment, "environment_sha256": M._semantic_digest(environment),
+            "input_seals": r_snapshot.get("input_seals")}
 
 
 def terminal_test_env(gpu_uuid: str) -> dict:
@@ -481,12 +562,14 @@ def reserve_attempt(namespace: str, *, cell: dict, request: dict, approval: dict
 
 
 def run_terminal_test_cell(cell: dict, *, namespace: str, request: dict, approval: dict,
-                           campaign_nonce: str, gpu_uuid: str, seal_snapshot: dict) -> dict:
-    """One T cell, fail-stop: re-check the stage-R outputs and (stats-only) the stage-R campaign's
-    admitted input seals, reserve, run the T entry, run the unchanged post-chain, re-check the seals,
-    check every output with the legacy refit checker, publish the record."""
+                           campaign_nonce: str, gpu_uuid: str, snapshot: dict) -> dict:
+    """One T cell, fail-stop: the T snapshot re-checked (sources, inputs, environment and GPUs,
+    stats-only seals), the stage-R outputs re-checked, the attempt reserved, the T entry run, the
+    snapshot re-checked at the entry-to-train-extraction transition, the unchanged post-chain run with
+    the snapshot re-checked after every producer, every output checked with the legacy refit checker,
+    the record published. A producer never starts after a failed check."""
     run_dir = Path(cell["run_dir"])
-    M.verify_snapshot_input_seals(seal_snapshot, full=False)
+    M.verify_snapshot(snapshot)
     sidecar = run_dir / f"{cell['final_checkpoint']}.runtime.json"
     if M._sha(sidecar) != cell["checkpoint_runtime_sha256"]:
         raise CellRefused(f"{cell['cell_id']}: the runtime witness changed after admission")
@@ -502,8 +585,8 @@ def run_terminal_test_cell(cell: dict, *, namespace: str, request: dict, approva
     if proc.returncode != 0:
         raise CellRefused(f"{cell['cell_id']}: the T entry exited {proc.returncode}; the attempt "
                           f"{attempt.name} stays reserved")
-    M._run_refit_postprocess(run_dir, dataset=cell["dataset"], env=env, snapshot=None)
-    M.verify_snapshot_input_seals(seal_snapshot, full=False)
+    M.verify_snapshot(snapshot)
+    M._run_refit_postprocess(run_dir, dataset=cell["dataset"], env=env, snapshot=snapshot)
     completion = M.assert_refit_outputs(run_dir, dataset=cell["dataset"])
     if M._sha(run_dir / cell["final_checkpoint"]) != cell["final_checkpoint_sha256"]:
         raise CellRefused(f"{cell['cell_id']}: the terminal checkpoint changed during stage T")
@@ -547,21 +630,32 @@ def _test_main(args, manifest, execute: bool) -> int:
 def _run_terminal_test(args, *, request: dict, approval: dict, manifest: dict) -> int:
     import secrets
     gpus = [int(g) for g in (args.gpus.split(",") if args.gpus else [str(args.gpu)])]
-    environment = M.environment_fingerprint(gpus)
-    uuids = [str(row["uuid"]) for row in environment.get("selected_gpus") or []]
-    held = tuple(sorted(getattr(args, "_phase3_gpu_lease_uuids", ()) or ()))
-    if len(uuids) != len(gpus) or held != tuple(sorted(uuids)):
-        print(f"[anchor-T] REFUSED: the held GPU leases {held} are not the planned GPUs {uuids}",
-              file=sys.stderr)
-        return 2
     nonce = secrets.token_hex(32)
+    receipt = json.loads(M._read_bytes(request["refit_receipt"]["path"], request["refit_receipt"]["sha256"],
+                                       "the stage-R receipt"))
+    r_snapshot = json.loads((Path(request["refit_receipt"]["path"]).parent
+                             / receipt["plan_snapshot_file"]).read_bytes())
+    if M._json_digest(r_snapshot) != receipt["plan_snapshot_sha256"]:
+        print("[anchor-T] REFUSED: the stage-R snapshot is not its receipt's", file=sys.stderr)
+        return 2
+    try:
+        boundary = terminal_test_boundary(r_snapshot, gpus)
+    except CellRefused as error:
+        print(f"[anchor-T] REFUSED: {error}", file=sys.stderr)
+        return 2
     snapshot = {"schema": T_SNAPSHOT_SCHEMA,
                 "plan": {"namespace": args.namespace, "campaign_nonce": nonce,
-                         "campaign_kind": T_CAMPAIGN_KIND, "result_root": None,
+                         "campaign_kind": T_CAMPAIGN_KIND, "result_root": r_snapshot["plan"].get("result_root"),
                          "declared_count": len(request["cells"]),
-                         "executed_count": len(request["cells"])},
+                         "executed_count": len(request["cells"]),
+                         "declared_cells": r_snapshot["plan"].get("declared_cells")},
                 "request": request, "request_sha256": M._json_digest(request), "approval": approval,
-                "environment": environment, "environment_sha256": M._semantic_digest(environment)}
+                **boundary}
+    try:
+        M._assert_snapshot_gpu_leases(snapshot, args)
+    except CellRefused as error:
+        print(f"[anchor-T] REFUSED: {error}", file=sys.stderr)
+        return 2
     snap_digest = M._json_digest(snapshot)
     snap_path = M.RECORD_DIR / f"{args.namespace}_snapshot_{snap_digest[:16]}.json"
     try:
@@ -571,10 +665,6 @@ def _run_terminal_test(args, *, request: dict, approval: dict, manifest: dict) -
     except CellRefused as error:
         print(f"[anchor-T] REFUSED: {error}", file=sys.stderr)
         return 2
-    # the stage-R campaign's admitted input seals, re-checked stats-only around every T cell
-    seal_snapshot = json.loads(Path(request["refit_receipt"]["path"]).parent.joinpath(
-        json.loads(M._read_bytes(request["refit_receipt"]["path"], request["refit_receipt"]["sha256"],
-                                 "the stage-R receipt"))["plan_snapshot_file"]).read_bytes())
     by_dataset = {}
     for cell in request["cells"]:
         by_dataset.setdefault(cell["dataset"], []).append(cell)
@@ -592,7 +682,7 @@ def _run_terminal_test(args, *, request: dict, approval: dict, manifest: dict) -
                     raise CellRefused(f"before {cell['cell_id']}: {refusal}")
                 done = run_terminal_test_cell(cell, namespace=args.namespace, request=request,
                                               approval=approval, campaign_nonce=nonce, gpu_uuid=gpu_uuid,
-                                              seal_snapshot=seal_snapshot)
+                                              snapshot=snapshot)
                 M.recheck_generation(manifest, f"after stage T of {cell['cell_id']}")
             except Exception as error:              # noqa: BLE001 -- the stream stops, fail-stop
                 with lock:
@@ -601,6 +691,11 @@ def _run_terminal_test(args, *, request: dict, approval: dict, manifest: dict) -
             with lock:
                 results[cell["cell_id"]] = ("ok", done)
 
+    uuids = [str(row["uuid"]) for row in snapshot["environment"].get("selected_gpus") or []]
+    if len(uuids) != len(by_dataset):
+        print(f"[anchor-T] REFUSED: {len(uuids)} leased GPUs for {len(by_dataset)} dataset streams",
+              file=sys.stderr)
+        return 2
     threads = [threading.Thread(target=_stream, args=(cells, uuids[i]), daemon=False)
                for i, (ds, cells) in enumerate(sorted(by_dataset.items()))]
     for t in threads:
@@ -640,7 +735,7 @@ def main(args) -> int:
             print(f"[phase3] REFUSED: {flag} cannot be combined with --anchor-confirm "
                   f"{args.anchor_confirm}", file=sys.stderr)
             return 2
-    if not __import__("re").fullmatch(r"anc[A-Za-z0-9]+", str(args.namespace)):
+    if not re.fullmatch(r"anc[A-Za-z0-9]+", str(args.namespace)):
         print("[phase3] REFUSED: an anchor namespace must match anc[A-Za-z0-9]+", file=sys.stderr)
         return 2
     execute = bool(args.run or args.smoke) and not args.plan

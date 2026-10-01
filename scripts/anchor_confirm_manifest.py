@@ -67,7 +67,7 @@ def inventory() -> dict:
     from importlib import metadata
     return {
         "artifact_kind": M.ANCHOR_MANIFEST_KIND, "version": M.ANCHOR_CONFIRM_VERSION,
-        "generation": "v9", "revision": 2,
+        "generation": "v9", "revision": 3,
         "note": "byte identities from JSON and text only; not approval to execute",
         "historical": {
             "approved_p3_refit_aggregate": {"path": str(M.APPROVED_P3_REFIT_AGGREGATE),
@@ -113,6 +113,16 @@ def inventory() -> dict:
                   "seal_fields": list(RT.REFIT_SEAL_FIELDS), "input_seals": seals,
                   "official_test_outputs": list(M.OFFICIAL_TEST_OUTPUTS), "t_chain": list(RT.T_CHAIN)},
         "predecessor": {"authority_manifest_v8r2_sha256": RT.ANCHOR_V8_MANIFEST_SHA256,
+                        "superseded_v9r2_manifest_sha256":
+                        "b7e9264a7a933e3efd30125628f638bc5c5304f32ccae2055b730ad382b215f6",
+                        "v9_revision_3_change": "audits 746-754: the T entry claims its entry exclusively, "
+                                                "binds the config bytes, full typed recipe, campaign "
+                                                "evidence and terminal epoch, and builds its arguments "
+                                                "from the one verified read (extraction_siglip2 gains "
+                                                "_apply_saved_config, its flat resume step); the F "
+                                                "acceptance is the exact section-744 digest; T producers "
+                                                "run under a boundary snapshot re-checked between them; "
+                                                "the supervisor counts five managed children per T cell",
                         "superseded_v9r1_manifest_sha256":
                         "19acd584065d59050a4f25ead354b378fadb5d116808addc7cffd78bd1ff72fa",
                         "v9_revision_2_change": "mutation battery v13 attempt 1 (bdaba58) detected 22/24 "
@@ -223,7 +233,7 @@ def main(argv=None) -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command")
     inv = sub.add_parser("inventory")
-    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v9r2.json"))
+    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v9r3.json"))
     args = parser.parse_args(argv)
     try:
         if args.command != "inventory":

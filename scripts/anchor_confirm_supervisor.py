@@ -113,6 +113,13 @@ STAGES = {
     "stage-R-smoke": (3 * 3600.0, 1), "stage-R-run": (8 * 3600.0, 4),
     "stage-T-smoke": (3 * 3600.0, 1), "stage-T-run": (8 * 3600.0, 4),
 }
+#: Managed child sessions per LOGICAL cell (audit 747.1). Every stage runs one managed process per
+#: cell except stage T, whose cell is five managed producers: the T entry (terminal query/DB
+#: extraction and raw evaluation), train extraction, BIO evaluation, NMI and the analysis seal
+#: (scripts/anchor_refit_stage.T_CHAIN; a test ties the two). --planned-cells stays the logical cell
+#: count (membership, storage); the attempt ceiling and the missed-attempt allowance use
+#: cells x children, so a sixth child of a T cell, or a second of any other cell, is still excess.
+CHILDREN_PER_CELL = {"stage-T-smoke": 5, "stage-T-run": 5}
 EXIT_REFUSED, EXIT_STOPPED, EXIT_UNCLEAN, EXIT_UNRESOLVED = 2, 3, 4, 5
 
 
@@ -285,6 +292,8 @@ def supervise(command, *, stage, label, gpus, attempts, planned_cells, watch_pat
               lease_root=GPU_LEASE_ROOT, free_bytes=free_bytes) -> int:
     """Run ``command`` under the storage, budget and wall-time rules; returns an exit code."""
     wall_limit = STAGES[stage][0] if wall_limit_seconds is None else float(wall_limit_seconds)
+    children_per_cell = CHILDREN_PER_CELL.get(stage, 1)
+    planned_attempts = planned_cells * children_per_cell
     if not watchdog_seconds >= 2 * poll_seconds > 0:
         raise Refused("the watchdog bound must be at least two poll intervals")
     ledger = Ledger(Path(ops_root))
@@ -295,7 +304,7 @@ def supervise(command, *, stage, label, gpus, attempts, planned_cells, watch_pat
         # Work may outrun the last completed observation by the watchdog bound,
         # and the launcher's own cleanup by the stop bound, on every GPU.
         headroom = gpus * (watchdog_seconds + stop_bound_seconds)
-        least_allowance = (planned_cells * poll_seconds) if attempts == "sessions" else 0.0
+        least_allowance = (planned_attempts * poll_seconds) if attempts == "sessions" else 0.0
         free = free_bytes(watch_path)
         need = FREE_FLOOR_BYTES + planned_cells * CELL_OUTPUT_BYTES
         refusal = None
@@ -316,14 +325,17 @@ def supervise(command, *, stage, label, gpus, attempts, planned_cells, watch_pat
                                 "stop_bound_seconds": stop_bound_seconds,
                                 "headroom_seconds": headroom,
                                 "wall_limit_seconds": wall_limit, "gpus": gpus,
-                                "planned_cells": planned_cells, "attempts": attempts}})
+                                "planned_cells": planned_cells,
+                                "children_per_cell": children_per_cell,
+                                "planned_attempts": planned_attempts, "attempts": attempts}})
         if refusal:
             ledger.write({"event": "final", **identity, "status": "refused-before-start",
                           "reason": refusal, "charged_seconds": 0.0, "device_seconds": 0.0})
             print(f"[supervisor] REFUSED before start: {refusal}", file=sys.stderr)
             return EXIT_REFUSED
         return _run(command, ledger, identity, prior=prior, headroom=headroom, gpus=gpus,
-                    attempts=attempts, planned_cells=planned_cells, watch_path=watch_path,
+                    attempts=attempts, planned_cells=planned_cells,
+                    planned_attempts=planned_attempts, watch_path=watch_path,
                     budget_seconds=budget_seconds, poll_seconds=poll_seconds,
                     watchdog_seconds=watchdog_seconds, stop_bound_seconds=stop_bound_seconds,
                     wall_limit=wall_limit, ledger_every=ledger_every,
@@ -332,7 +344,7 @@ def supervise(command, *, stage, label, gpus, attempts, planned_cells, watch_pat
         ledger.close()
 
 
-def _run(command, ledger, identity, *, prior, headroom, gpus, attempts, planned_cells,
+def _run(command, ledger, identity, *, prior, headroom, gpus, attempts, planned_cells, planned_attempts,
          watch_path, budget_seconds, poll_seconds, watchdog_seconds, stop_bound_seconds,
          wall_limit, ledger_every, lease_root, free_bytes, ops_root) -> int:
     operator, failures, continuity = [], [], []
@@ -418,11 +430,12 @@ def _run(command, ledger, identity, *, prior, headroom, gpus, attempts, planned_
                                  "seconds": now - start})
                     _write({"event": "attempt-end", **identity, **done[-1]})
                 if attempts == "sessions":
-                    allowance = planned_cells * max_window
-                    if len(done) + len(live) > planned_cells and not any(
+                    allowance = planned_attempts * max_window
+                    if len(done) + len(live) > planned_attempts and not any(
                             c.startswith("attempts:") for c in continuity):
                         continuity.append(f"attempts: {len(done) + len(live)} observed for "
-                                          f"{planned_cells} planned cells")
+                                          f"{planned_cells} planned cells "
+                                          f"({planned_attempts} managed attempts)")
                 device = sum(a["seconds"] for a in done) + sum(now - s for s in live.values())
                 count = len(held_leases(proc.pid, lease_root))
                 lease_gpu_seconds += max(count, leased) * (now - last)
@@ -495,7 +508,7 @@ def _run(command, ledger, identity, *, prior, headroom, gpus, attempts, planned_
         continuity.append(f"observation window {window:.1f} s exceeds the "
                           f"{watchdog_seconds:.1f} s bound")
     if attempts == "sessions":
-        allowance = planned_cells * max_window
+        allowance = planned_attempts * max_window
     if watch["fired"] and not any(c.startswith("watchdog") for c in continuity):
         continuity.append(watch["fired"])
     for key, start in list(live.items()):
