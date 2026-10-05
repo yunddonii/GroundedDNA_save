@@ -487,6 +487,79 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-05 [anchor model — approved r5 R smoke refused before training; v9 r7 package submitted] Audits §757–§761
+
+**Status:** ❌ the one approved R smoke (§758) ended at the launcher's production admission, with no
+training and no device time; not retried. ✅ Successor r7 (prepared in isolation) submitted for audit
+review. Handoff `docs/ANCHOR_REFIT_HANDOFF_v9r7.md` on `arch-exp-2026-09-anchor-refit-r6`
+(`abc6a41`, pushed; worktree `/data/yschoi/gdna_anchor_refit_v9r6`).
+
+**Audit trail.**
+- §757 verified the r5 package in scope.
+- §758 approved one exact r5 R smoke: request `7c62f2db…`, Flickr25K N4 seed 42, one epoch, one GPU,
+  full seal admission. It also accepted 80,000 device-seconds as the cumulative R/T accounting
+  envelope.
+- §759–§760 found that stage T still reopened the checkpoint and runtime witness by path after
+  checking their digests, in both the official extraction and train extraction. The repair had to
+  be prepared in a separate tree, without editing r5.
+- §761 recorded that the audit was waiting for this report.
+
+**The §758 smoke (r5).**
+
+| Item | Value |
+|---|---|
+| Run | supervisor run `20261005T110739Z-d14652fb`, tmux `ancRsmk9_v9`, GPU 5 (`GPU-bf4ed000…`) |
+| Start, end (supervisor records) | 11:07:39Z, 12:36:30Z on 2026-10-05 |
+| Wall | 5,330.2 s, of which 5,321.5 s before the GPU lease (the full seal admission) |
+| Result | launcher rc 2: "production admission requires the stdlib-only pre-import self-reexec handshake" |
+| Charge | 0 device-seconds; 1.387 s charged (observation allowance); 1.387 s of 80,000 cumulative |
+| Settlement | clean: no attempts, leases or orphans left; no record, reservation, run directory or result root |
+
+**Cause.** Run as the entrypoint, the launcher is the `__main__` module. Only that copy runs the
+pre-import handshake.
+- The new stage module `scripts/anchor_refit_stage.py` imports the launcher by name, which creates a
+  second copy whose handshake flag is False.
+- The final production check refused. It sits after the whole seal admission, so that admission
+  (about 89 minutes) was spent first.
+- It was invisible to testing: in-process tests import the launcher by name and stub that check, and
+  the guarded `--plan` renders imported it by name too.
+
+**r7 (supersedes the never-submitted r6).**
+
+| Item | Value |
+|---|---|
+| Manifest r7 | `2f24fc80bb83e2c73b17ec473c2731ade6d34a356e02414e6719fe9e9bec947c` (source `b582b7e`) |
+| R smoke request | `9ba89a14…` (`ancRsmk9r6`, full admission; the r5 admission left no record to carry) |
+| R run request | `26665ca4…` (preview) |
+
+What r7 changes:
+- **Launcher repair.** The entrypoint binds its own verified copy before the R/T dispatch (refusing if
+  another copy was imported first). The stage checks the handshake before any admission, so a
+  misbound launcher now refuses in seconds.
+- **§759–§760 repair (from r6).** Both T consumers read the checkpoint and witness once and bind them
+  at the admitted terminal epoch (`runtime_state.verified_runtime`). They load the weights from the
+  verified bytes and resolve the epoch from the verified witness. They require the effective epoch to
+  be the admitted one before any dataset access. Legacy calls are unchanged.
+- **Render tool.** The guard tool now computes the handshake bundle without importing the launcher by
+  name (`446b461`).
+
+**Evidence at `c3afb78`.**
+
+| Check | Result |
+|---|---|
+| 27-file suite (the 19 files plus 8 resolver/extraction files), unguarded and under the open() guard | 1456 passed, 11 skipped in both; 0 refused opens; tree clean |
+| Mutation battery v13 revision f | 52/52 detected as declared (56 baselines) |
+| New consumer tests on the r5 source | 14 of 18 fail (the 4 passing are the stable train control and r5's own pin checks) |
+| New launcher tests on the r6 source | all 3 fail |
+
+**Next.** The audit decides on r7. Proposed order, each step under its own approval:
+1. r7 R smoke (full admission);
+2. T smoke on that receipt;
+3. R run, carried from the r7 smoke;
+4. T run.
+
+---
+
 ## 2026-10-01 [anchor model — generation v9 R/T package r5 submitted, nothing run] Audits §744–§756: refit (R) and official-test (T) code, tests and requests
 
 **Status:** ✅ submitted for audit review. **Preparation only**: no refit, smoke, test access, GPU
