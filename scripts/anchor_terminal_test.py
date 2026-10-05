@@ -26,9 +26,14 @@ admission itself, from records it does not take on trust from its caller's envir
      snapshot the request's receipt binds) and this cell's campaign binding (audit 746.2); the
      arguments are built from that same object by the shared resume helper's own flat-layout step
      (no second read; audit 754.2), their effective scientific fields are checked again, and they
-     must be this anchor stage-R cell's (axis_center, refit mode, cell id, run dir).
+     must be this anchor stage-R cell's (axis_center, refit mode, cell id, run dir);
+  8. the terminal checkpoint and its runtime witness are read ONCE, their bytes verified against the
+     pins and bound (dna_utils.runtime_state.verified_runtime: the witness parsed from those bytes,
+     naming that checkpoint, at the admitted terminal epoch; audits 759-760).
 Only then does it call terminal_official_test.run_official_test -- the trainer's own terminal block:
-extract_code (query, db) and the raw evaluation. A refusal exits 2 (after step 6 the claim stays);
+extract_code (query, db) and the raw evaluation -- with that binding: extract_code loads the weights
+from the verified bytes and resolves the epoch from the verified witness, and the effective epoch and
+checkpoint must be the admitted ones before any dataset access. A refusal exits 2 (after step 6 the claim stays);
 a failure after the test is touched exits nonzero; no retry without a new authorization.
 """
 from __future__ import annotations
@@ -215,6 +220,20 @@ def check_consumed(run_dir: Path, cell: dict) -> None:
         need(_sha(run_dir / name) == pin, f"{name} changed after admission")
 
 
+def verified_runtime(run_dir: Path, cell: dict):
+    """Step 8 (audits 759-760): the checkpoint and its runtime witness read ONCE and bound to this
+    cell's pins and admitted terminal epoch; the official extraction consumes this object."""
+    from dna_utils.runtime_state import RuntimeBindingRefused, verified_runtime as bind
+    checkpoint = run_dir / cell["final_checkpoint"]
+    try:
+        return bind(str(checkpoint), checkpoint.read_bytes(),
+                    (run_dir / f"{cell['final_checkpoint']}.runtime.json").read_bytes(),
+                    checkpoint_sha256=cell["final_checkpoint_sha256"],
+                    witness_sha256=cell["checkpoint_runtime_sha256"], terminal_epoch=cell["terminal_epoch"])
+    except RuntimeBindingRefused as error:
+        raise Refused(str(error)) from None
+
+
 def check_config(args, cell: dict, run_dir: Path) -> None:
     """Step 6, on the configuration the trainer saved (loaded by the shared resume helper)."""
     campaign = getattr(args, "_phase3_campaign_binding", None) or {}
@@ -246,6 +265,7 @@ def main(argv=None) -> int:
         from config import set_random_seed
         args, _saved = verified_configuration(run_dir, cell, payload)
         check_config(args, cell, run_dir)
+        runtime = verified_runtime(run_dir, cell)
     except (Refused, OSError, ValueError, KeyError) as error:
         print(f"[anchor-T] REFUSED before the official test (entry claimed): {type(error).__name__}: {error}",
               file=sys.stderr)
@@ -259,7 +279,7 @@ def main(argv=None) -> int:
         return 2
     print(f"[anchor-T] {cell['cell_id']}: admitted; official-test extraction and raw evaluation")
     run_official_test(args, distance_mode=str(getattr(args, "dna_distance_mode", "base")),
-                      codebook_size=int(getattr(args, "codebook_size", 32)))
+                      codebook_size=int(getattr(args, "codebook_size", 32)), verified=runtime)
     check_consumed(run_dir, cell)                # unchanged throughout; a failure here exits nonzero
     print(f"[anchor-T] {cell['cell_id']}: done")
     return 0

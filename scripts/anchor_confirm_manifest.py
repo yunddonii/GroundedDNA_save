@@ -67,7 +67,7 @@ def inventory() -> dict:
     from importlib import metadata
     return {
         "artifact_kind": M.ANCHOR_MANIFEST_KIND, "version": M.ANCHOR_CONFIRM_VERSION,
-        "generation": "v9", "revision": 5,
+        "generation": "v9", "revision": 6,
         "note": "byte identities from JSON and text only; not approval to execute",
         "historical": {
             "approved_p3_refit_aggregate": {"path": str(M.APPROVED_P3_REFIT_AGGREGATE),
@@ -113,6 +113,20 @@ def inventory() -> dict:
                   "seal_fields": list(RT.REFIT_SEAL_FIELDS), "input_seals": seals,
                   "official_test_outputs": list(M.OFFICIAL_TEST_OUTPUTS), "t_chain": list(RT.T_CHAIN)},
         "predecessor": {"authority_manifest_v8r2_sha256": RT.ANCHOR_V8_MANIFEST_SHA256,
+                        "v9r5_manifest_sha256":
+                        "d0de9fb30ab58bfd178b4cab91be933e05e8ed2baa53c0cea8f165dc2935f2da",
+                        "v9r5_status": "accepted for one R smoke (audit 758, ancRsmk9); its receipt "
+                                       "is r5 stage-R work and is never admitted by an r6 T",
+                        "v9_revision_6_change": "audits 759-760: both stage-T consumers (the T entry's "
+                                                "official extraction and extract_train_split) read the "
+                                                "terminal checkpoint and its runtime witness once, bind "
+                                                "them at the admitted terminal epoch "
+                                                "(runtime_state.verified_runtime), load the weights from "
+                                                "the verified bytes and resolve the epoch from the "
+                                                "verified witness object, and require the effective "
+                                                "epoch and checkpoint to be the admitted ones before any "
+                                                "dataset access; producers receive the terminal-epoch "
+                                                "pin; legacy calls unchanged",
                         "superseded_v9r4_manifest_sha256":
                         "0deec033e6f2935c2fe1be4abe31d432b44fd45c7f39772899c6d7a585beca8f",
                         "v9_revision_5_change": "mutation battery v13 revision d at b68c1f6 detected 37/38: "
@@ -250,7 +264,7 @@ def main(argv=None) -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command")
     inv = sub.add_parser("inventory")
-    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v9r5.json"))
+    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v9r6.json"))
     args = parser.parse_args(argv)
     try:
         if args.command != "inventory":

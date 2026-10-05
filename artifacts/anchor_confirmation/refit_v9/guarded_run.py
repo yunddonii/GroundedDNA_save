@@ -20,7 +20,7 @@ import os
 import runpy
 import sys
 
-WORKTREE = "/data/yschoi/gdna_anchor_refit_v9/"
+WORKTREE = "/data/yschoi/gdna_anchor_refit_v9r6/"
 argv = sys.argv[1:]
 LOG_DIR = argv.pop(0)
 allowed, launcher_bundle = set(), False

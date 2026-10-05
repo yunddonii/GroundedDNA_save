@@ -32,11 +32,13 @@ from extraction_siglip2 import (
 )
 from model_siglip2 import SigLIP2SemanticOTModel
 
-#: Stage T (generation v9; audit 756): the stage-T launcher names here the pinned identities of the
-#: stage-R cell this run consumes. Outside stage T none is set and nothing below changes.
+#: Stage T (generation v9; audits 756, 759-760): the stage-T launcher names here the pinned identities
+#: of the stage-R cell this run consumes and its admitted terminal epoch. Outside stage T none is set
+#: and nothing below changes.
 T_INPUT_PINS = {"config": "GDNA_T_EXPECT_CONFIG_SHA256",
                 "checkpoint": "GDNA_T_EXPECT_CHECKPOINT_SHA256",
-                "runtime": "GDNA_T_EXPECT_RUNTIME_SHA256"}
+                "runtime": "GDNA_T_EXPECT_RUNTIME_SHA256",
+                "epoch": "GDNA_T_EXPECT_TERMINAL_EPOCH"}
 
 
 def stage_t_pins():
@@ -61,20 +63,27 @@ def _pinned_bytes(path, digest, what):
 def stage_t_inputs(args, pins):
     """Stage T: config.pt, the checkpoint and its runtime witness, each read once and verified against
     the pins BEFORE any deserialization or model construction. The arguments are built from the
-    verified config object (the shared resume helper's flat step, never a second read; audit 754.2)
-    and the weights are loaded from the verified checkpoint bytes. Returns (checkpoint path, source)."""
+    verified config object (the shared resume helper's flat step, never a second read; audit 754.2);
+    the checkpoint and witness are bound at the admitted terminal epoch (audits 759-760), so the
+    weights load from the verified bytes and the epoch resolves from the verified witness.
+    Returns (checkpoint path, dna_utils.runtime_state.VerifiedRuntime)."""
     import io
-    from dna_utils.runtime_state import CheckpointMetadata
+    from dna_utils.runtime_state import CheckpointMetadata, RuntimeBindingRefused, verified_runtime
     from extraction_siglip2 import _apply_saved_config, _reapply_explicit_cli
     cli = Config.get_config()
     run = cli.config_path
     raw_config = _pinned_bytes(os.path.join(run, "config.pt"), pins["config"], "config.pt")
     ckpt = _find_model_checkpoint(os.path.join(run, ""))
     raw_ckpt = _pinned_bytes(ckpt, pins["checkpoint"], "checkpoint")
-    _pinned_bytes(CheckpointMetadata.sidecar_path(ckpt), pins["runtime"], "runtime witness")
+    raw_witness = _pinned_bytes(CheckpointMetadata.sidecar_path(ckpt), pins["runtime"], "runtime witness")
+    try:
+        runtime = verified_runtime(ckpt, raw_ckpt, raw_witness, checkpoint_sha256=pins["checkpoint"],
+                                   witness_sha256=pins["runtime"], terminal_epoch=int(pins["epoch"]))
+    except (RuntimeBindingRefused, ValueError) as error:
+        raise SystemExit(f"[extract-train] REFUSED: {error}") from None
     _apply_saved_config(args, torch.load(io.BytesIO(raw_config), map_location="cpu"), run)
     _reapply_explicit_cli(args, cli)
-    return ckpt, io.BytesIO(raw_ckpt)
+    return ckpt, runtime
 
 
 def recheck_stage_t_inputs(ckpt, pins):
@@ -93,7 +102,7 @@ def main() -> None:
     if pins is None:
         _resume_args_flat_or_legacy(args)
     else:
-        pinned_ckpt, ckpt_source = stage_t_inputs(args, pins)
+        pinned_ckpt, runtime = stage_t_inputs(args, pins)
 
     model = SigLIP2SemanticOTModel(args).to(args.device)
     ckpt = _find_model_checkpoint(args.save_model_state_path)
@@ -102,8 +111,9 @@ def main() -> None:
     if pins is not None and os.path.realpath(ckpt) != os.path.realpath(pinned_ckpt):
         raise SystemExit(f"[extract-train] REFUSED: {ckpt} is not the verified checkpoint {pinned_ckpt}")
     from dna_utils.run_identity import load_model_state_dict_for_extraction
+    import io
     missing, unexpected, phase3_binding = load_model_state_dict_for_extraction(
-        model, ckpt if pins is None else ckpt_source, map_location=args.device)
+        model, ckpt if pins is None else io.BytesIO(runtime.checkpoint_bytes), map_location=args.device)
     print(f"[extract-train] loaded {ckpt} "
           f"(missing={len(missing)} unexpected={len(unexpected)} "
           f"phase3_exact={phase3_binding is not None})")
@@ -112,7 +122,10 @@ def main() -> None:
     # producing train and query/DB codes at different operating points.
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     from dna_utils.runtime_state import apply_inference_epoch
-    _resolved = apply_inference_epoch(model, ckpt, args)
+    if pins is None:
+        _resolved = apply_inference_epoch(model, ckpt, args)
+    else:   # the verified witness, at the admitted terminal epoch, before any dataset access
+        _resolved = apply_inference_epoch(model, ckpt, args, verified=runtime)
     print(f"[extract-train] inference epoch={_resolved.epoch} "
           f"(source={_resolved.source}) "
           f"effective_sinkhorn_epsilon={_resolved.effective_sinkhorn_epsilon}")

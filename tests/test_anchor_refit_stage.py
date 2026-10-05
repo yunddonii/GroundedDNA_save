@@ -48,7 +48,7 @@ V8_COMMIT = "3dd1c02"            # the generation-v8 tip this branch starts from
 #: the members generation v9 changes relative to v8 r2, and the members it adds
 CHANGED_IN_V9 = {"scripts/phase3_selection_matrix.py", "scripts/anchor_confirm_supervisor.py",
                  "scripts/anchor_confirm_manifest.py", "train_siglip2.py", "p0_protocol.py",
-                 "extraction_siglip2.py", "scripts/extract_train_split.py",
+                 "extraction_siglip2.py", "scripts/extract_train_split.py", "dna_utils/runtime_state.py",
                  "tests/test_anchor_confirm_launcher.py", "tests/test_anchor_lambda_stage.py"}
 ADDED_IN_V9 = {"terminal_official_test.py", "scripts/anchor_refit_stage.py", "scripts/anchor_terminal_test.py",
                "docs/ANCHOR_REFIT_CONTRACT_v1.md", "tests/test_anchor_refit_stage.py"}
@@ -194,6 +194,30 @@ def write(path: Path, obj) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(raw)
     return sha(raw)
+
+
+def save_weights(path: Path, value: float, tag: str = "t") -> str:
+    """A synthetic terminal checkpoint the real loader deserializes: one weight `w` and the cell tag."""
+    import torch
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        path.chmod(0o644)
+    torch.save({"w": torch.tensor([float(value)]), "tag": tag}, path)
+    return sha(path.read_bytes())
+
+
+def write_witness(checkpoint: Path, epoch: int, extra: dict) -> str:
+    """The runtime witness exactly as the trainer writes it (the real sidecar writer, which names the
+    checkpoint file's current digest); returns the witness digest."""
+    import dna_utils.runtime_state as RS
+    sidecar = Path(RS.CheckpointMetadata.sidecar_path(str(checkpoint)))
+    if sidecar.exists():
+        sidecar.chmod(0o644)
+    RS.write_checkpoint_metadata(str(checkpoint), checkpoint_epoch_zero_based=epoch,
+                                 training_epoch_budget=epoch + 1, stop_after_epoch=epoch,
+                                 lr_schedule_horizon=epoch + 1, sinkhorn_schedule_horizon=epoch + 1,
+                                 sinkhorn_epsilon_init=1.0, sinkhorn_epsilon_final=0.1, extra=extra)
+    return sha(sidecar.read_bytes())
 
 
 # =============================================================================================
@@ -374,6 +398,13 @@ def test_structural_the_terminal_function_is_the_v8_block_moved_unchanged():
     new_block = [line[4:] if line.strip() else "" for line in new[first:]]
     new_block = [line.replace("codebook_size=codebook_size,", "codebook_size=codebook_size_cf,")
                  for line in new_block]
+    # the one declared r6 difference (audits 759-760): the stage-T entry's verified runtime is passed
+    # through to extract_code; without it the call is the v8 call
+    passthrough = ["    if verified is None:", "        _extract_code(args)", "    else:",
+                   "        _extract_code(args, verified=verified)"]
+    at = new_block.index(passthrough[0])
+    assert new_block[at:at + 4] == passthrough
+    new_block[at:at + 4] = ["    _extract_code(args)"]
     while new_block and not new_block[-1]:
         new_block.pop()
     while old_block and not old_block[-1]:
@@ -904,12 +935,11 @@ class RWorld:
             torch.save(saved, run / "config.pt")
             config_sha = sha((run / "config.pt").read_bytes())
             self.saved[cid] = saved
-            ckpt_sha = write(run / "model_state_dict.pth", {"weights": tag})
+            ckpt_sha = save_weights(run / "model_state_dict.pth", 1.0, tag)
             evidence = {"cell_id": cid, "scientific_recipe_sha256": R.digest(payload),
                         "scientific_recipe_schema": payload["schema"]}
             evidence_sha = write(run / PHASE3_CAMPAIGN_BINDING_NAME, evidence)
-            sidecar_sha = write(run / "model_state_dict.pth.runtime.json",
-                                {"checkpoint_epoch_zero_based": terminal, "extra": {"phase3_campaign": evidence}})
+            sidecar_sha = write_witness(run / "model_state_dict.pth", terminal, {"phase3_campaign": evidence})
             bindings[cid] = {"anchor_arm": "anchors", "stage": "refit", "scientific_recipe": payload,
                              "expected_scientific_recipe_sha256": R.digest(payload)}
             campaign = {"cell_id": cid}
@@ -1244,6 +1274,7 @@ def make_entry(tmp_path, monkeypatch, fworld, *, config_edit=None, cell_index=0)
     state = {"official_test": None}
 
     def official(args, **k):
+        state["verified"] = k.pop("verified", None)
         calls.append(("official_test", k, args.lambda_wasserstein, args.axis_center, str(args.save_result_path)))
         if state["official_test"]:
             raise state["official_test"]
@@ -1265,6 +1296,9 @@ def test_composed_an_admitted_entry_runs_the_terminal_function_once(entry):
                                               "codebook_size": int(saved["codebook_size"])},
                             0.15, "anchors", entry.cell["run_dir"])]
     assert TE.entry_claim_path(entry.attempt).exists()
+    runtime = entry.state["verified"]                    # the verified weights and witness (audits 759-760)
+    assert runtime.checkpoint_sha256 == entry.cell["final_checkpoint_sha256"]
+    assert runtime.terminal_epoch == runtime.metadata.checkpoint_epoch_zero_based == entry.cell["terminal_epoch"]
 
 
 def test_composed_the_entry_reads_config_once_and_uses_that_object(entry, monkeypatch):
@@ -1731,34 +1765,93 @@ def test_composed_the_producers_receive_the_consumed_cell_s_pins(tcell, monkeypa
     cell = tcell.request["cells"][0]
     want = {"GDNA_T_EXPECT_CONFIG_SHA256": cell["config_pt_sha256"],
             "GDNA_T_EXPECT_CHECKPOINT_SHA256": cell["final_checkpoint_sha256"],
-            "GDNA_T_EXPECT_RUNTIME_SHA256": cell["checkpoint_runtime_sha256"]}
+            "GDNA_T_EXPECT_RUNTIME_SHA256": cell["checkpoint_runtime_sha256"],
+            "GDNA_T_EXPECT_TERMINAL_EPOCH": str(cell["terminal_epoch"])}
     assert len(seen) == 5 and all({k: env.get(k) for k in want} == want for env in seen)
 
 
-# ---- audit 756: train extraction verifies the consumed inputs itself, through its main() ------------
-@pytest.fixture
-def train_extraction(tmp_path, monkeypatch, rworld):
-    """scripts/extract_train_split.main with the model, dataset, encoder and writers replaced by
-    recorders; the config/checkpoint/witness handling is the real one."""
+# ---- audits 756, 759-760: train extraction binds the consumed inputs itself, through its main() -----
+class _ModelRecorder:
+    """The model double of both consumers: the weight its load_state_dict received and the epoch it was
+    set to, as encoding observes them. `on_build` runs when the model is constructed, which is after the
+    consumer verified its inputs and before it loads weights or resolves the epoch."""
+
+    def __init__(self, calls: dict, state: dict):
+        self.calls, self.state, self.w, self.epoch = calls, state, None, None
+        calls["built"] += 1
+        state["model"] = self
+        if state.get("after_build"):
+            state["after_build"]()
+
+    def to(self, device):
+        return self
+
+    def load_state_dict(self, state_dict, strict=True):
+        self.w = float(state_dict["w"][0])
+        return SimpleNamespace(missing_keys=[], unexpected_keys=[])
+
+    def set_current_epoch(self, epoch):
+        self.epoch = epoch
+
+
+def _counting_torch_load(monkeypatch, calls):
+    """torch.load, recording whether each deserialization read a verified buffer or a path."""
     import io
-    import scripts.extract_train_split as X
-    cell = admit(rworld)["cells"][0]
-    run = Path(cell["run_dir"])
-    calls = {"resume": 0, "loader_source": None, "saved": 0, "loads": 0}
     import torch
     real_load = torch.load
 
-    def counting_load(f, *a, **k):
-        calls["loads"] += 1
+    def load(f, *a, **k):
+        calls["loads"].append("buffer" if isinstance(f, io.BytesIO) else "path")
         return real_load(f, *a, **k)
-    monkeypatch.setattr(torch, "load", counting_load)
+    monkeypatch.setattr(torch, "load", load)
 
-    class Model:
+
+def _forge_weights(cell):
+    """Replace the terminal checkpoint with other weights (999); returns (path, original bytes)."""
+    path = Path(cell["run_dir"], cell["final_checkpoint"])
+    original = path.read_bytes()
+    save_weights(path, 999.0)
+    return path, original
+
+
+def _forge_witness_at_epoch_zero(cell):
+    """Replace the runtime witness with a VALID witness of the same checkpoint at epoch 0 (the
+    substitution of audits 759-760); returns (path, original bytes)."""
+    run = Path(cell["run_dir"])
+    path = run / f"{cell['final_checkpoint']}.runtime.json"
+    original = path.read_bytes()
+    write_witness(run / cell["final_checkpoint"], 0, json.loads(original)["extra"])
+    return path, original
+
+
+def _restore(forged):
+    path, original = forged
+    path.chmod(0o644)
+    path.write_bytes(original)
+
+
+FORGERS = {"checkpoint": _forge_weights, "witness": _forge_witness_at_epoch_zero}
+
+
+@pytest.fixture
+def train_extraction(tmp_path, monkeypatch, rworld):
+    """scripts/extract_train_split.main with the model, dataset, encoder and writers replaced by
+    recorders. The config, checkpoint and witness handling is the real one, and so are the shared
+    weight loader (load_model_state_dict_for_extraction deserializing a synthetic checkpoint) and the
+    runtime resolver (apply_inference_epoch on a witness written by the real sidecar writer)."""
+    import scripts.extract_train_split as X
+    import extraction_siglip2 as EX
+    cell = admit(rworld)["cells"][0]
+    run = Path(cell["run_dir"])
+    calls = {"resume": 0, "loads": [], "saved": 0, "built": 0, "dataset_at": [], "encoded": [],
+             "manifest_sha": []}
+    state = {"after_build": None, "during_encode": None, "model": None}
+    _counting_torch_load(monkeypatch, calls)
+
+    class Model(_ModelRecorder):
         def __init__(self, args):
             calls["lambda"] = args.lambda_wasserstein
-
-        def to(self, device):
-            return self
+            super().__init__(calls, state)
     monkeypatch.setattr(X, "SigLIP2SemanticOTModel", Model)
 
     def legacy_resume(args):
@@ -1770,29 +1863,27 @@ def train_extraction(tmp_path, monkeypatch, rworld):
         args.save_log_path = args.save_model_state_path = os.path.join(str(run), "")
         args.device = "cpu"
     monkeypatch.setattr(X, "_resume_args_flat_or_legacy", legacy_resume)
-    import dna_utils.run_identity as RI
-    import dna_utils.runtime_state as RS
-    import extraction_siglip2 as EX
-    monkeypatch.setattr(RI, "load_model_state_dict_for_extraction",
-                        lambda model, source, map_location=None: (calls.__setitem__("loader_source", source)
-                                                                  or ([], [], None)))
-    monkeypatch.setattr(RS, "apply_inference_epoch",
-                        lambda model, ckpt, args: SimpleNamespace(epoch=0, source="s", effective_sinkhorn_epsilon=0.1))
-    monkeypatch.setattr(X, "load_dataset", lambda *a, **k: ([], None, None))
+
+    def dataset(*a, **k):
+        calls["dataset_at"].append((state["model"].w, state["model"].epoch))
+        return [], None, None
+    monkeypatch.setattr(X, "load_dataset", dataset)
     monkeypatch.setattr(X.torch.utils.data, "DataLoader", lambda *a, **k: [])
-    state = {"during_encode": None}
 
     def encode(model, loader, device, split_name):
+        calls["encoded"].append((model.w, model.epoch))
         if state["during_encode"]:
             state["during_encode"]()
         return {"base_indices": X.np.zeros((2, 15), dtype=X.np.int64)}
     monkeypatch.setattr(X, "encode_split", encode)
     monkeypatch.setattr(X.np, "savez", lambda dest, **out: calls.__setitem__("saved", calls["saved"] + 1))
-    monkeypatch.setattr(EX, "_write_split_manifest", lambda *a, **k: "manifest")
+    monkeypatch.setattr(EX, "_write_split_manifest",
+                        lambda *a, **k: calls["manifest_sha"].append(k["resolved"].checkpoint_sha256) or "m")
     monkeypatch.setattr(EX, "_write_completion_marker", lambda *a, **k: None)
     pins = {"GDNA_T_EXPECT_CONFIG_SHA256": cell["config_pt_sha256"],
             "GDNA_T_EXPECT_CHECKPOINT_SHA256": cell["final_checkpoint_sha256"],
-            "GDNA_T_EXPECT_RUNTIME_SHA256": cell["checkpoint_runtime_sha256"]}
+            "GDNA_T_EXPECT_RUNTIME_SHA256": cell["checkpoint_runtime_sha256"],
+            "GDNA_T_EXPECT_TERMINAL_EPOCH": str(cell["terminal_epoch"])}
 
     def run_main(env=pins):
         for name in pins:
@@ -1801,15 +1892,17 @@ def train_extraction(tmp_path, monkeypatch, rworld):
             monkeypatch.setenv(name, value)
         monkeypatch.setattr(sys, "argv", ["extract_train_split.py", "--config_path", str(run)])
         X.main()
-    return SimpleNamespace(main=run_main, calls=calls, cell=cell, pins=pins, state=state, io=io)
+    return SimpleNamespace(main=run_main, calls=calls, cell=cell, pins=pins, state=state)
 
 
 def test_composed_train_extraction_loads_the_verified_bytes_once(train_extraction):
     t = train_extraction
     t.main()
-    assert t.calls["resume"] == 0 and t.calls["loads"] == 1        # config from the verified buffer only
-    assert isinstance(t.calls["loader_source"], t.io.BytesIO)        # weights from the verified bytes
+    assert t.calls["resume"] == 0 and t.calls["loads"] == ["buffer", "buffer"]   # config, weights: verified bytes
     assert t.calls["lambda"] == 0.15 and t.calls["saved"] == 1
+    epoch = t.cell["terminal_epoch"]
+    assert t.calls["dataset_at"] == [(1.0, epoch)] and t.calls["encoded"] == [(1.0, epoch)]
+    assert t.calls["manifest_sha"] == [t.cell["final_checkpoint_sha256"]]
 
 
 @pytest.mark.parametrize("which", ["config", "checkpoint", "witness"])
@@ -1818,7 +1911,7 @@ def test_composed_train_extraction_refuses_a_changed_input_before_deserializing(
     _change(t.cell, which)
     with pytest.raises(SystemExit, match="not the stage-R cell's pinned bytes"):
         t.main()
-    assert t.calls["loads"] == 0 and t.calls["loader_source"] is None and t.calls["saved"] == 0
+    assert t.calls["loads"] == [] and t.calls["built"] == 0 and t.calls["saved"] == 0
 
 
 @pytest.mark.parametrize("which", ["config", "checkpoint", "witness"])
@@ -1830,17 +1923,329 @@ def test_composed_train_extraction_writes_nothing_after_an_input_changed_during_
     assert t.calls["saved"] == 0
 
 
-def test_composed_train_extraction_refuses_partial_pins(train_extraction):
+@pytest.mark.parametrize("missing", ["GDNA_T_EXPECT_CONFIG_SHA256", "GDNA_T_EXPECT_CHECKPOINT_SHA256",
+                                     "GDNA_T_EXPECT_RUNTIME_SHA256", "GDNA_T_EXPECT_TERMINAL_EPOCH"])
+def test_composed_train_extraction_refuses_partial_pins(train_extraction, missing):
     t = train_extraction
     with pytest.raises(SystemExit, match="incomplete stage-T input pins"):
-        t.main({"GDNA_T_EXPECT_CONFIG_SHA256": t.pins["GDNA_T_EXPECT_CONFIG_SHA256"]})
-    assert t.calls["loads"] == 0
+        t.main({k: v for k, v in t.pins.items() if k != missing})
+    assert t.calls["loads"] == [] and t.calls["built"] == 0
+
+
+@pytest.mark.parametrize("which", ["checkpoint", "witness"])
+@pytest.mark.parametrize("restored", [True, False], ids=["changed-read-restored", "left-changed"])
+def test_composed_train_extraction_consumes_the_verified_weights_and_epoch(train_extraction, which, restored):
+    """Audits 759-760: a checkpoint or witness replaced after the pin check (when the model is built,
+    before weights and epoch) never reaches encoding: the weights come from the verified bytes and the
+    epoch from the verified witness, at the admitted terminal epoch. Restored before the pre-write
+    recheck, the run completes on the verified objects; left changed, it writes nothing."""
+    t = train_extraction
+    forged = []
+    t.state["after_build"] = lambda: forged.append(FORGERS[which](t.cell))
+    if restored:
+        t.state["during_encode"] = lambda: _restore(forged[0])
+        t.main()
+        assert t.calls["saved"] == 1
+    else:
+        with pytest.raises(SystemExit, match="not the stage-R cell's pinned bytes"):
+            t.main()
+        assert t.calls["saved"] == 0
+    epoch = t.cell["terminal_epoch"]
+    assert t.calls["dataset_at"] == [(1.0, epoch)] and t.calls["encoded"] == [(1.0, epoch)]
+    assert t.calls["loads"] == ["buffer", "buffer"]
+
+
+@pytest.mark.parametrize("epoch_pin,reason", [("off-by-one", "not the admitted terminal epoch"),
+                                               ("x", "invalid literal")], ids=["other-epoch", "not-a-number"])
+def test_composed_train_extraction_refuses_a_witness_off_the_admitted_epoch(train_extraction, epoch_pin, reason):
+    t = train_extraction
+    value = str(t.cell["terminal_epoch"] + 1) if epoch_pin == "off-by-one" else epoch_pin
+    with pytest.raises(SystemExit, match=reason):
+        t.main(dict(t.pins, GDNA_T_EXPECT_TERMINAL_EPOCH=value))
+    assert t.calls["loads"] == [] and t.calls["built"] == 0
 
 
 def test_composed_train_extraction_without_pins_is_the_legacy_path(train_extraction):
-    """No pins: the legacy resume and the checkpoint PATH, as before generation v9."""
+    """No pins: the legacy resume, the checkpoint loaded by its PATH and the epoch resolved from the
+    files by the real resolver, as before generation v9."""
     t = train_extraction
     t.main({})
-    assert t.calls["resume"] == 1 and t.calls["loads"] == 0
-    assert t.calls["loader_source"] == str(Path(t.cell["run_dir"], t.cell["final_checkpoint"]))
-    assert t.calls["saved"] == 1
+    assert t.calls["resume"] == 1 and t.calls["loads"] == ["path"]
+    assert t.calls["encoded"] == [(1.0, t.cell["terminal_epoch"])] and t.calls["saved"] == 1
+
+
+# ---- audits 759-760: the official extraction consumes the T entry's verified weights and witness -----
+@pytest.fixture
+def official(tmp_path, monkeypatch, fworld):
+    """The stage-T entry's main() through the REAL terminal_official_test.run_official_test,
+    extraction_siglip2.extract_code, shared weight loader and runtime resolver. Admission, the entry
+    claim and the verified configuration are real; the model, dataset, encoder, NPZ/manifest writers
+    and the raw evaluator are recorders."""
+    import extraction_siglip2 as EX
+    import evaluation_siglip2
+    world, request, line = _entry_world(tmp_path, monkeypatch, fworld)
+    cell = request["cells"][0]
+    attempt, attempt_sha = RT.reserve_attempt("ancT9", cell=cell, request=request,
+                                              approval={"section": 770, "scope": "stage-T-run", "line": line},
+                                              campaign_nonce="t" * 64)
+    monkeypatch.setattr(sys, "argv", list(sys.argv))          # the entry rewrites sys.argv
+    calls = {"loads": [], "built": 0, "dataset_at": [], "encoded": [], "manifest_sha": [], "evaluated": 0}
+    state = {"after_build": None, "after_encode": None, "model": None}
+    _counting_torch_load(monkeypatch, calls)
+    monkeypatch.setattr(EX, "SigLIP2SemanticOTModel", lambda args: _ModelRecorder(calls, state))
+
+    def no_second_read(args):
+        raise AssertionError("the stage-T entry must not reopen config.pt through the resume helper")
+    monkeypatch.setattr(EX, "_resume_args_flat_or_legacy", no_second_read)
+
+    def dataset(*a, **k):
+        calls["dataset_at"].append((state["model"].w, state["model"].epoch))
+        return None, [], []
+    monkeypatch.setattr(EX, "load_dataset", dataset)
+    monkeypatch.setattr(EX.torch.utils.data, "DataLoader", lambda *a, **k: [])
+
+    def encode(model, loader, device, split_name):
+        calls["encoded"].append((split_name, model.w, model.epoch))
+        if split_name == "query" and state["after_encode"]:
+            state["after_encode"]()
+        return {"base_indices": EX.np.zeros((2, 15), dtype=EX.np.int64)}
+    monkeypatch.setattr(EX, "encode_split", encode)
+    monkeypatch.setattr(EX, "_atomic_savez", lambda path, payload: path)
+    monkeypatch.setattr(EX, "_write_split_manifest",
+                        lambda *a, **k: calls["manifest_sha"].append(k["resolved"].checkpoint_sha256) or "m")
+    monkeypatch.setattr(EX, "_write_completion_marker", lambda *a, **k: None)
+    monkeypatch.setattr(evaluation_siglip2, "evaluation",
+                        lambda path, **k: calls.__setitem__("evaluated", calls["evaluated"] + 1))
+    argv = ["--config_path", cell["run_dir"], "--attempt", str(attempt), "--attempt-sha256", attempt_sha]
+    return SimpleNamespace(argv=argv, calls=calls, state=state, cell=cell, world=world)
+
+
+def test_composed_the_official_extraction_consumes_the_admitted_weights_and_epoch(official):
+    o = official
+    assert TE.main(o.argv) == 0
+    epoch = o.cell["terminal_epoch"]
+    assert o.calls["loads"] == ["buffer", "buffer"]          # config.pt, then the weights: verified bytes only
+    assert o.calls["dataset_at"] == [(1.0, epoch)]           # the admitted epoch before any dataset access
+    assert o.calls["encoded"] == [("db", 1.0, epoch), ("query", 1.0, epoch)]
+    assert o.calls["manifest_sha"] == [o.cell["final_checkpoint_sha256"]] * 2 and o.calls["evaluated"] == 1
+
+
+@pytest.mark.parametrize("which", ["checkpoint", "witness"])
+@pytest.mark.parametrize("restored", [True, False], ids=["changed-read-restored", "left-changed"])
+def test_composed_a_t_input_replaced_after_verification_never_reaches_the_official_encoding(official, which,
+                                                                                          restored):
+    """Audit 759's five cases, repaired: a checkpoint (weights 999) or a valid witness at epoch 0 put in
+    place after the entry's verified read is never consumed. Restored before the entry's after-check,
+    the test completes on the verified objects; left changed, the after-check refuses."""
+    o = official
+    forged = []
+    o.state["after_build"] = lambda: forged.append(FORGERS[which](o.cell))
+    if restored:
+        o.state["after_encode"] = lambda: _restore(forged[0])
+        assert TE.main(o.argv) == 0
+    else:
+        with pytest.raises(TE.Refused, match="changed after admission"):
+            TE.main(o.argv)
+    epoch = o.cell["terminal_epoch"]
+    assert o.calls["dataset_at"] == [(1.0, epoch)]
+    assert o.calls["encoded"] == [("db", 1.0, epoch), ("query", 1.0, epoch)]
+    assert o.calls["loads"] == ["buffer", "buffer"]
+
+
+@pytest.mark.parametrize("which", ["checkpoint", "witness"])
+def test_composed_a_t_input_changed_before_the_verified_read_refuses_before_any_weight_load(official, monkeypatch,
+                                                                                          capsys, which):
+    o = official
+    real = TE.check_config
+
+    def check_then_change(args, cell, run_dir):
+        real(args, cell, run_dir)
+        _change(o.cell, which)              # after admission and the claim, before the verified read
+    monkeypatch.setattr(TE, "check_config", check_then_change)
+    assert TE.main(o.argv) == 2
+    assert "is not the admitted" in capsys.readouterr().err
+    assert o.calls["built"] == 0 and o.calls["loads"] == ["buffer"] and o.calls["dataset_at"] == []
+
+
+def _saved_args(world, cell):
+    from config import Config
+    from extraction_siglip2 import _apply_saved_config
+    args = Config()
+    _apply_saved_config(args, dict(world.saved[cell["cell_id"]]), cell["run_dir"])
+    args.device = "cpu"
+    return args
+
+
+def test_composed_the_official_extraction_without_a_binding_is_unchanged(official):
+    """The trainer's legacy terminal call passes no binding: the weights load by path and the epoch
+    resolves from the files, as before r6."""
+    import extraction_siglip2 as EX
+    o = official
+    EX.extract_code(_saved_args(o.world, o.cell))
+    epoch = o.cell["terminal_epoch"]
+    assert o.calls["loads"] == ["path"] and o.calls["encoded"] == [("db", 1.0, epoch), ("query", 1.0, epoch)]
+
+
+def test_composed_the_official_extraction_refuses_a_binding_of_another_checkpoint(official, tmp_path):
+    import dataclasses
+    import extraction_siglip2 as EX
+    import dna_utils.runtime_state as RS
+    o = official
+    run = Path(o.cell["run_dir"])
+    binding = RS.verified_runtime(str(run / o.cell["final_checkpoint"]),
+                                  (run / o.cell["final_checkpoint"]).read_bytes(),
+                                  (run / f"{o.cell['final_checkpoint']}.runtime.json").read_bytes(),
+                                  checkpoint_sha256=o.cell["final_checkpoint_sha256"],
+                                  witness_sha256=o.cell["checkpoint_runtime_sha256"],
+                                  terminal_epoch=o.cell["terminal_epoch"])
+    elsewhere = dataclasses.replace(binding, checkpoint_path=str(tmp_path / "other" / "model_state_dict.pth"))
+    with pytest.raises(RS.RuntimeBindingRefused, match="is not the verified checkpoint"):
+        EX.extract_code(_saved_args(o.world, o.cell), verified=elsewhere)
+    assert o.calls["loads"] == [] and o.calls["dataset_at"] == []
+
+
+# ---- the verified runtime binding itself (dna_utils.runtime_state) ------------------------------------
+def _bound_files(tmp_path, epoch=4):
+    ckpt = tmp_path / "model_state_dict.pth"
+    ckpt_sha = save_weights(ckpt, 1.0)
+    witness_sha = write_witness(ckpt, epoch, {})
+    return ckpt, Path(str(ckpt) + ".runtime.json"), ckpt_sha, witness_sha
+
+
+@pytest.mark.parametrize("case,reason", [
+    ("checkpoint-bytes", "not the admitted checkpoint bytes"),
+    ("witness-bytes", "not the admitted runtime witness bytes"),
+    ("not-a-witness", "not a checkpoint sidecar"),
+    ("other-checkpoint", "describes another checkpoint"),
+    ("other-epoch", "not the admitted terminal epoch"),
+], ids=["checkpoint-bytes", "witness-bytes", "not-a-witness", "other-checkpoint", "other-epoch"])
+def test_predicate_the_verified_runtime_binds_both_files_and_the_terminal_epoch(tmp_path, case, reason):
+    import dna_utils.runtime_state as RS
+    ckpt, witness, ckpt_sha, witness_sha = _bound_files(tmp_path)
+    raw_ckpt, raw_witness = ckpt.read_bytes(), witness.read_bytes()
+    kwargs = {"checkpoint_sha256": ckpt_sha, "witness_sha256": witness_sha, "terminal_epoch": 4}
+    if case == "checkpoint-bytes":
+        raw_ckpt += b" "
+    elif case == "witness-bytes":
+        raw_witness += b" "
+    elif case == "not-a-witness":
+        raw_witness = json.dumps({"schema_version": 1}).encode()
+        kwargs["witness_sha256"] = sha(raw_witness)
+    elif case == "other-checkpoint":
+        raw_witness = json.dumps(dict(json.loads(raw_witness), checkpoint_sha256="0" * 64)).encode()
+        kwargs["witness_sha256"] = sha(raw_witness)
+    else:
+        kwargs["terminal_epoch"] = 3
+    with pytest.raises(RS.RuntimeBindingRefused, match=reason):
+        RS.verified_runtime(str(ckpt), raw_ckpt, raw_witness, **kwargs)
+
+
+def test_predicate_a_verified_runtime_resolves_without_reopening_either_file(tmp_path):
+    import dna_utils.runtime_state as RS
+    ckpt, witness, ckpt_sha, witness_sha = _bound_files(tmp_path)
+    binding = RS.verified_runtime(str(ckpt), ckpt.read_bytes(), witness.read_bytes(), checkpoint_sha256=ckpt_sha,
+                                  witness_sha256=witness_sha, terminal_epoch=4)
+    ckpt.unlink()
+    witness.unlink()                        # neither file exists any more: the binding is all it reads
+    model = SimpleNamespace(epoch=None)
+    model.set_current_epoch = lambda e: setattr(model, "epoch", e)
+    resolved = RS.apply_inference_epoch(model, str(ckpt), SimpleNamespace(), verified=binding)
+    assert (resolved.epoch, resolved.source, resolved.checkpoint_sha256) == (4, "checkpoint_metadata", ckpt_sha)
+    assert model.epoch == 4
+
+
+@pytest.mark.parametrize("case,reason", [
+    ("epoch", "not the admitted terminal epoch"), ("path", "is not the verified checkpoint"),
+    ("metadata", "describes another checkpoint"),
+], ids=["epoch", "path", "metadata"])
+def test_predicate_the_effective_runtime_must_be_the_admitted_one(tmp_path, case, reason):
+    """A binding not made by verified_runtime (constructed directly) is still refused at resolution."""
+    import dataclasses
+    import dna_utils.runtime_state as RS
+    ckpt, witness, ckpt_sha, witness_sha = _bound_files(tmp_path)
+    binding = RS.verified_runtime(str(ckpt), ckpt.read_bytes(), witness.read_bytes(), checkpoint_sha256=ckpt_sha,
+                                  witness_sha256=witness_sha, terminal_epoch=4)
+    off = {"epoch": lambda b: dataclasses.replace(b, terminal_epoch=5),
+           "path": lambda b: dataclasses.replace(b, checkpoint_path=str(tmp_path / "other.pth")),
+           "metadata": lambda b: dataclasses.replace(
+               b, metadata=dataclasses.replace(b.metadata, checkpoint_sha256="0" * 64))}[case](binding)
+    with pytest.raises(RS.RuntimeBindingRefused, match=reason):
+        RS.apply_inference_epoch(SimpleNamespace(set_current_epoch=lambda e: None), str(ckpt), SimpleNamespace(),
+                                 verified=off)
+
+
+# ---- the shared resolver without a binding: unchanged for every existing caller ------------------------
+def _v8_runtime_function(name: str):
+    """A function of generation v8's dna_utils/runtime_state.py (byte-identical through r5), compiled in
+    the current module's namespace."""
+    import ast as _ast
+    import dna_utils.runtime_state as RS
+    source = subprocess.run(["git", "show", f"{V8_COMMIT}:dna_utils/runtime_state.py"], cwd=REPO,
+                            capture_output=True, text=True, check=True).stdout
+    node = next(n for n in _ast.parse(source).body if isinstance(n, _ast.FunctionDef) and n.name == name)
+    namespace = dict(vars(RS))
+    exec(compile(_ast.Module(body=[node], type_ignores=[]), f"v8:{name}", "exec"), namespace)
+    return namespace[name]
+
+
+RESOLVER_CASES = {"sidecar": True, "stale-sidecar": False, "no-sidecar-static": True,
+                  "no-sidecar-annealed": False, "explicit-agrees": True, "explicit-disagrees": False}
+
+
+@pytest.mark.parametrize("case", sorted(RESOLVER_CASES))
+def test_composed_the_resolver_without_a_binding_is_the_v8_resolver(tmp_path, case):
+    import dna_utils.runtime_state as RS
+    ckpt = tmp_path / "model_state_dict.pth"
+    save_weights(ckpt, 1.0)
+    args = SimpleNamespace(sinkhorn_epsilon_init=1.0, sinkhorn_epsilon_final=0.1, inference_epoch=None, epoch=5)
+    if case in ("sidecar", "stale-sidecar", "explicit-agrees", "explicit-disagrees"):
+        write_witness(ckpt, 4, {})
+    if case == "stale-sidecar":
+        save_weights(ckpt, 2.0)                              # the sidecar now names other bytes
+    if case == "no-sidecar-static":
+        args.sinkhorn_epsilon_init = args.sinkhorn_epsilon_final = None
+    if case.startswith("explicit"):
+        args.inference_epoch = 4 if case == "explicit-agrees" else 3
+
+    def outcome(resolve):
+        try:
+            return ("ok", resolve(str(ckpt), args))
+        except Exception as error:                           # noqa: BLE001 -- compared, not swallowed
+            return (type(error).__name__, str(error))
+    new, old = outcome(RS.resolve_inference_epoch), outcome(_v8_runtime_function("resolve_inference_epoch"))
+    assert new == old
+    assert (new[0] == "ok") is RESOLVER_CASES[case]
+
+
+def test_composed_apply_without_a_binding_is_the_v8_apply(tmp_path):
+    import dna_utils.runtime_state as RS
+    ckpt = tmp_path / "model_state_dict.pth"
+    save_weights(ckpt, 1.0)
+    write_witness(ckpt, 4, {})
+    args = SimpleNamespace(sinkhorn_epsilon_init=1.0, sinkhorn_epsilon_final=0.1, inference_epoch=None, epoch=5)
+    seen = {"new": [], "old": []}
+    new = RS.apply_inference_epoch(SimpleNamespace(set_current_epoch=seen["new"].append), str(ckpt), args)
+    old = _v8_runtime_function("apply_inference_epoch")(SimpleNamespace(set_current_epoch=seen["old"].append),
+                                                        str(ckpt), args)
+    assert new == old and seen["new"] == seen["old"] == [4]
+
+
+def test_structural_the_resolver_s_unbound_branch_is_the_v8_lookup():
+    """resolve_inference_epoch: its `verified is None` branch holds exactly v8's metadata lookup and
+    stale-sidecar check, and every statement before and after is v8's."""
+    import ast as _ast
+    old_src = subprocess.run(["git", "show", f"{V8_COMMIT}:dna_utils/runtime_state.py"], cwd=REPO,
+                             capture_output=True, text=True, check=True).stdout
+    new_src = (REPO / "dna_utils" / "runtime_state.py").read_text()
+
+    def body(src):
+        node = next(n for n in _ast.parse(src).body
+                    if isinstance(n, _ast.FunctionDef) and n.name == "resolve_inference_epoch")
+        return node.body[1:]                                  # after the docstring
+    dump = lambda nodes: [_ast.dump(n) for n in nodes]        # noqa: E731
+    old, new = body(old_src), body(new_src)
+    assert dump(new[:2]) == dump(old[:2])                     # eps_i, eps_f
+    branch = new[2]
+    assert isinstance(branch, _ast.If) and _ast.unparse(branch.test) == "verified is None"
+    assert dump(branch.body) == dump(old[2:4])                # md = load(...); the stale-sidecar check
+    assert dump(new[3:]) == dump(old[4:])                     # everything after: unchanged

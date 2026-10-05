@@ -16,7 +16,7 @@ import json
 import os
 import sys
 
-WORKTREE = "/data/yschoi/gdna_anchor_refit_v9/"
+WORKTREE = "/data/yschoi/gdna_anchor_refit_v9r6/"
 LOG_DIR = sys.argv[1]
 os.makedirs(LOG_DIR, exist_ok=False)
 DENY = ("/data/yschoi/", "/home/yschoi/GroundedDNA/", "/home/yschoi/gdna_anchor4_result",

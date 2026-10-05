@@ -146,10 +146,14 @@ The launcher (`--anchor-confirm test --anchor-refit-receipt … --anchor-refit-r
 
    At each of those boundaries the launcher also re-checks the consumed cell's own stage-R inputs
    (config.pt, the terminal checkpoint, its runtime witness) against their pins (audit §756).
-   The producers receive the same three pins. `extract_train_split.py`, the post-chain producer
-   that loads the configuration and the model, verifies them itself before any deserialization: the
-   config is read once (the verified-buffer rule) and the weights are loaded from the verified bytes.
-   It re-checks all three before it writes. Without the pins it is unchanged.
+   The producers receive the same three pins and the cell's admitted terminal epoch.
+   `extract_train_split.py`, the post-chain producer that loads the configuration and the model,
+   verifies them itself before any deserialization: the config is read once (the verified-buffer
+   rule), and the checkpoint and witness are read once and bound at the admitted terminal epoch
+   (`dna_utils.runtime_state.verified_runtime`; audits §759–§760). The weights load from the verified
+   bytes and the epoch resolves from the verified witness object; neither file is reopened by path
+   before encoding, and the effective epoch and checkpoint must be the admitted ones before any
+   dataset access. It re-checks all three files before it writes. Without the pins it is unchanged.
 
    A failed check starts no further producer. In order, per cell, the launcher then:
    - re-checks the runtime witness and that no test output exists;
@@ -169,10 +173,15 @@ The launcher (`--anchor-confirm test --anchor-refit-receipt … --anchor-refit-r
      every typed field of the cell's sealed recipe (from the stage-R snapshot its receipt binds) and
      this cell's campaign binding. It builds the arguments from that same object through the shared
      resume helper's flat-layout step (no second read; audit §754.2) and re-checks the effective
-     fields. Only then does it call `terminal_official_test.run_official_test`, the trainer's own
-     former terminal block, moved unchanged: the evaluation-cache and whitening resolution,
-     `extract_code` (query, db) and the **raw** evaluation `evaluation_siglip2_base.json`
-     (`bio_project=False`);
+     fields. It reads the terminal checkpoint and its runtime witness **once** and binds them: both
+     digests are the pins, the witness (parsed from those bytes) names that checkpoint and is at the
+     admitted terminal epoch (audits §759–§760). Only then does it call
+     `terminal_official_test.run_official_test`, the trainer's own former terminal block, moved
+     unchanged except that it passes this binding to `extract_code`: the evaluation-cache and
+     whitening resolution, `extract_code` (query, db) — weights from the verified bytes, epoch from
+     the verified witness, the effective epoch and checkpoint required to be the admitted ones before
+     any dataset access — and the **raw** evaluation `evaluation_siglip2_base.json`
+     (`bio_project=False`). It re-checks the three files immediately before and after the test;
    - runs the unchanged refit post-chain, in order: `extract_train_split`,
      `eval_cell_bioproj --require-train` (which reads and validates the raw file before it writes the
      post-BIO one), `pairwise_nmi`, `seal_cell_analysis`;
@@ -195,6 +204,17 @@ block, then post-chain), now through the same function.
 Each is a separate ledger line for one exact request. No line is inherited, and no smoke escalates
 by itself.
 
+**Revision transition r5 → r6 (audit §759.2; proposal, the audit decides).** A T receipt admits
+only stage-R work of its own manifest, and that check stays. The r5 stage-R smoke (`ancRsmk9`,
+§758) is therefore the r5 diagnostic of the R path on real inputs; its receipt is never consumed by
+an r6 T, and it is not a full R campaign. Under r6, in this order, each with its own line:
+1. `stage-R-smoke` (`ancRsmk9r6`): the same one cell. Its seal admission is either carried from the
+   r5 smoke's snapshot (the same four seals and verifier, if the audit accepts that carry across
+   revisions, as v7 carried v6's) or performed in full again.
+2. `stage-T-smoke` (`ancTsmk9`) on that receipt: the repaired consumers on a real checkpoint before
+   any full campaign.
+3. `stage-R-run` (`ancR9`), carried from the r6 smoke snapshot; then `stage-T-run` (`ancT9`).
+
 ## 8. Reporting
 
 - Per cell and per dataset (mean and sample SD, n = 3): raw and post-BIO base-Hamming mAP@R on the
@@ -204,8 +224,9 @@ by itself.
 
 ## 9. Resources (proposal; the audit sets them)
 
-- **Ledger.** Its own root `/home/yschoi/gdna_anchorRT_ops`, budget 80,000 device-seconds for both
-  smokes, R and T together.
+- **Ledger.** Its own root `/home/yschoi/gdna_anchorRT_ops`, budget 80,000 device-seconds for all
+  smokes, R and T together, of both revisions (accepted by §758.2 as the maximum cumulative
+  accounting envelope, not as permission to spend it on any stage).
   - Planning reference: the twelve incumbent `p3rfB` cells, R and T fused, took 66,415 s wall in
     total. CIFAR-10 there trained to N19; here to N4.
   - Both settled ledgers (S/D/probe `986bdcd1…`, L `477e447c…`) are carried unchanged and are not an
@@ -220,7 +241,8 @@ by itself.
 - **Roots and namespaces.**
   - Result root: `/home/yschoi/gdna_anchorRT_result` (fresh).
   - Records: this tree's `artifacts/anchor_confirmation`.
-  - Namespaces: `ancRsmk9`, `ancR9`, `ancTsmk9`, `ancT9`.
+  - Namespaces: `ancRsmk9` (r5, used by §758's smoke), then under r6 `ancRsmk9r6`, `ancTsmk9`,
+    `ancR9`, `ancT9`.
 - **Failure rules.**
   - On a refusal or failure: settle the ledger and report.
   - No retry, no deletion of a run directory, attempt, reservation or record, and no repair of

@@ -551,11 +551,13 @@ def check_cell_inputs(cell: dict) -> None:
 
 
 def cell_input_env(env: dict, cell: dict) -> dict:
-    """The producers' environment plus the consumed cell's pins, which a producer that loads the
-    configuration or the model verifies itself before deserializing (scripts/extract_train_split.py)."""
+    """The producers' environment plus the consumed cell's pins and admitted terminal epoch, which a
+    producer that loads the configuration or the model verifies itself before deserializing and binds
+    through epoch resolution (scripts/extract_train_split.py; audits 756, 759-760)."""
     return dict(env, GDNA_T_EXPECT_CONFIG_SHA256=cell["config_pt_sha256"],
                 GDNA_T_EXPECT_CHECKPOINT_SHA256=cell["final_checkpoint_sha256"],
-                GDNA_T_EXPECT_RUNTIME_SHA256=cell["checkpoint_runtime_sha256"])
+                GDNA_T_EXPECT_RUNTIME_SHA256=cell["checkpoint_runtime_sha256"],
+                GDNA_T_EXPECT_TERMINAL_EPOCH=str(cell["terminal_epoch"]))
 
 
 def attempt_path(namespace: str, cell: dict) -> Path:

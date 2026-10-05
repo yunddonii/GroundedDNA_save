@@ -134,6 +134,54 @@ class CheckpointMetadata:
             return None
 
 
+class RuntimeBindingRefused(RuntimeError):
+    """A stage-T consumer's checkpoint or runtime witness is not the admitted pair."""
+
+
+@dataclass(frozen=True)
+class VerifiedRuntime:
+    """Stage T (audits 759, 760): the terminal checkpoint's bytes and its runtime witness as one
+    consumer read them ONCE and verified them against the admitted cell's pins. The consumer loads
+    the weights from ``checkpoint_bytes`` and resolves the epoch from ``metadata`` (parsed from the
+    verified witness bytes), so neither file is reopened by path before encoding and a later
+    replacement cannot supply what is consumed."""
+    checkpoint_path: str
+    checkpoint_bytes: bytes
+    checkpoint_sha256: str
+    metadata: CheckpointMetadata
+    terminal_epoch: int
+
+
+def verified_runtime(checkpoint_path: str, checkpoint_bytes: bytes, witness_bytes: bytes, *,
+                     checkpoint_sha256: str, witness_sha256: str,
+                     terminal_epoch: int) -> VerifiedRuntime:
+    """Bind one consumer's verified reads: both digests are the pins, the witness parses as this
+    schema from those bytes, describes exactly that checkpoint and is at the admitted terminal epoch."""
+    if hashlib.sha256(checkpoint_bytes).hexdigest() != checkpoint_sha256:
+        raise RuntimeBindingRefused(f"{checkpoint_path} is not the admitted checkpoint bytes")
+    if hashlib.sha256(witness_bytes).hexdigest() != witness_sha256:
+        raise RuntimeBindingRefused(f"{CheckpointMetadata.sidecar_path(checkpoint_path)} is not the "
+                                    f"admitted runtime witness bytes")
+    try:
+        d = json.loads(witness_bytes)
+        md = (CheckpointMetadata(**d)
+              if isinstance(d, dict) and d.get("schema_version") == _SCHEMA_VERSION else None)
+    except (ValueError, TypeError):
+        md = None
+    if md is None:
+        raise RuntimeBindingRefused("the admitted runtime witness is not a checkpoint sidecar of "
+                                    f"schema {_SCHEMA_VERSION}")
+    if md.checkpoint_sha256 != checkpoint_sha256:
+        raise RuntimeBindingRefused("the admitted runtime witness describes another checkpoint")
+    if md.checkpoint_epoch_zero_based != int(terminal_epoch):
+        raise RuntimeBindingRefused(f"the admitted runtime witness is at epoch "
+                                    f"{md.checkpoint_epoch_zero_based}, not the admitted terminal "
+                                    f"epoch {int(terminal_epoch)}")
+    return VerifiedRuntime(checkpoint_path=str(checkpoint_path), checkpoint_bytes=bytes(checkpoint_bytes),
+                           checkpoint_sha256=checkpoint_sha256, metadata=md,
+                           terminal_epoch=int(terminal_epoch))
+
+
 def write_checkpoint_metadata(
     checkpoint_path: str, *,
     checkpoint_epoch_zero_based: int,
@@ -204,24 +252,36 @@ class ResolvedEpoch:
     sinkhorn_annealing_enabled: bool = True
 
 
-def resolve_inference_epoch(checkpoint_path: str, args: Any) -> ResolvedEpoch:
+def resolve_inference_epoch(checkpoint_path: str, args: Any, *,
+                            verified: Optional[VerifiedRuntime] = None) -> ResolvedEpoch:
     """Priority: explicit flag -> checkpoint metadata -> fail.
 
     An explicit flag still has to agree with metadata when metadata exists; a
     disagreement means one of the two is describing a different run and guessing
     which would defeat the purpose.
+
+    With ``verified`` (stage T, audits 759-760) the metadata is the consumer's
+    verified witness object and neither file is reopened; without it, unchanged.
     """
     eps_i = getattr(args, "sinkhorn_epsilon_init", None)
     eps_f = getattr(args, "sinkhorn_epsilon_final", None)
-    md = CheckpointMetadata.load(checkpoint_path)
+    if verified is None:
+        md = CheckpointMetadata.load(checkpoint_path)
 
-    if md is not None and os.path.exists(checkpoint_path):
-        if _sha256(checkpoint_path) != md.checkpoint_sha256:
-            raise InferenceEpochUnresolved(
-                f"the sidecar at {CheckpointMetadata.sidecar_path(checkpoint_path)} "
-                f"describes a different checkpoint (sha mismatch). It is stale -- "
-                f"most likely a previous run wrote into this directory. Re-save "
-                f"the checkpoint with metadata rather than trusting it.")
+        if md is not None and os.path.exists(checkpoint_path):
+            if _sha256(checkpoint_path) != md.checkpoint_sha256:
+                raise InferenceEpochUnresolved(
+                    f"the sidecar at {CheckpointMetadata.sidecar_path(checkpoint_path)} "
+                    f"describes a different checkpoint (sha mismatch). It is stale -- "
+                    f"most likely a previous run wrote into this directory. Re-save "
+                    f"the checkpoint with metadata rather than trusting it.")
+    else:
+        if os.path.realpath(checkpoint_path) != os.path.realpath(verified.checkpoint_path):
+            raise RuntimeBindingRefused(f"{checkpoint_path} is not the verified checkpoint "
+                                        f"{verified.checkpoint_path}")
+        md = verified.metadata
+        if md.checkpoint_sha256 != verified.checkpoint_sha256:
+            raise RuntimeBindingRefused("the verified runtime witness describes another checkpoint")
 
     # Whether a SCHEDULE is in force. The sidecar wins when it exists, because
     # it describes the run that produced these weights; `args` describes the
@@ -300,13 +360,24 @@ def resolve_inference_epoch(checkpoint_path: str, args: Any) -> ResolvedEpoch:
         f"if the training epoch is known from the run log.")
 
 
-def apply_inference_epoch(model: Any, checkpoint_path: str, args: Any) -> ResolvedEpoch:
+def apply_inference_epoch(model: Any, checkpoint_path: str, args: Any, *,
+                          verified: Optional[VerifiedRuntime] = None) -> ResolvedEpoch:
     """Resolve and push the epoch into the model. Call after load_state_dict and
-    BEFORE the first forward."""
-    resolved = resolve_inference_epoch(checkpoint_path, args)
+    BEFORE the first forward. With ``verified`` the effective epoch and checkpoint
+    must be the admitted ones before this returns (before any dataset access)."""
+    if verified is None:
+        resolved = resolve_inference_epoch(checkpoint_path, args)
+    else:
+        resolved = resolve_inference_epoch(checkpoint_path, args, verified=verified)
     setter = getattr(model, "set_current_epoch", None)
     if callable(setter):
         setter(resolved.epoch)
+    if verified is not None and (resolved.epoch != verified.terminal_epoch
+                                 or resolved.checkpoint_sha256 != verified.checkpoint_sha256):
+        raise RuntimeBindingRefused(
+            f"the effective runtime (epoch {resolved.epoch}, checkpoint "
+            f"{str(resolved.checkpoint_sha256)[:12]}) is not the admitted terminal epoch "
+            f"{verified.terminal_epoch} of {verified.checkpoint_sha256[:12]}")
     return resolved
 
 

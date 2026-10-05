@@ -13,9 +13,16 @@ RX34-RX38 disable the per-cell stage-R input checks at T boundaries, inside trai
 in the T entry, and the pins handed to the producers. Revision d at b68c1f6 detected 37/38: RX35
 crash-killed in the train-extraction fixture (its stand-in legacy resume set no arguments). The
 mutants are unchanged at revision 5; the fixture now sets the arguments as the real resume does.
+Revision e (generation v9 r6, audits 759-760; at 586187d revision d detected 38/38): the paths name
+the r6 worktree and manifest; RX35 declares the r6 train fixture's load record (the real weight
+loader now runs, so the verified path is two buffer loads); RX39-RX49 disable the consumed-object
+binding: weights and epoch from the verified objects in both consumers, the pass-through from the T
+entry, the witness-to-checkpoint and terminal-epoch binding, the effective-runtime check and the
+terminal-epoch pin. RX43 is caught by the layered effective-runtime check (its declared text is that
+refusal) because the resolver mutant alone yields the forged epoch, which that check refuses.
 
 v12's bounded and guarded method, unchanged except for its paths: the v9 worktree, the v9 manifest
-(artifacts/anchor_confirmation/authority_manifest_v9r5.json) and the v9 copies of bounded_tree.py and
+(artifacts/anchor_confirmation/authority_manifest_v9r6.json) and the v9 copies of bounded_tree.py and
 guarded_pytest.py under artifacts/anchor_confirmation/refit_v9/. Content hashes ONLY for the reviewed
 inventory (the manifest closure plus the declared test files); every other tracked file by git index
 object id and stat; the harness under its own open() guard (binary payloads, real-data roots and
@@ -27,7 +34,7 @@ test fails (rc 1) with its declared text in the output and no refused open.
 import hashlib, json, os, subprocess, sys, time
 from pathlib import Path
 
-WT = Path("/data/yschoi/gdna_anchor_refit_v9")
+WT = Path("/data/yschoi/gdna_anchor_refit_v9r6")
 COMMIT, OUT = sys.argv[1], Path(sys.argv[2])
 PY = "/home/yschoi/.conda/envs/dna_hashing/bin/python"
 P0, TR, L, RT, TE, S, TOT = ("p0_protocol.py", "train_siglip2.py", "scripts/phase3_selection_matrix.py",
@@ -37,6 +44,9 @@ T = "tests/test_anchor_refit_stage.py"
 NO_RAISE = "DID NOT RAISE"
 ENTRY = "test_composed_an_entry_without_complete_admission_refuses_before_any_load"
 STARTUP = "test_composed_an_anchor_refit_without_its_stage_r_cell_refuses_before_the_run_directory"
+OFFICIAL = "test_composed_the_official_extraction_consumes_the_admitted_weights_and_epoch"
+REPLACED = "test_composed_a_t_input_replaced_after_verification_never_reaches_the_official_encoding"
+TRAIN_CONSUMES = "test_composed_train_extraction_consumes_the_verified_weights_and_epoch"
 
 MUTANTS = [
     ("RX1 a sealed stage-R cell is not withheld", P0,
@@ -226,7 +236,7 @@ MUTANTS = [
      '    if not any(values.values()):\n',
      '    if True:\n',
      [((T, "test_composed_train_extraction_loads_the_verified_bytes_once"),
-       'assert t.calls["resume"] == 0 and t.calls["loads"] == 1')]),
+       'assert t.calls["resume"] == 0 and t.calls["loads"] == ["buffer", "buffer"]')]),
     ("RX36 train extraction writes without rechecking its consumed inputs", "scripts/extract_train_split.py",
      '        recheck_stage_t_inputs(ckpt, pins)\n',
      '        pass\n',
@@ -240,13 +250,63 @@ MUTANTS = [
      '    return dict(env, GDNA_T_EXPECT_CONFIG_SHA256=cell["config_pt_sha256"],\n',
      '    return dict(env) or dict(env, GDNA_T_EXPECT_CONFIG_SHA256=cell["config_pt_sha256"],\n',
      [((T, "test_composed_the_producers_receive_the_consumed_cell_s_pins"), "assert len(seen) == 5 and all(")]),
+    ("RX39 the official extraction loads the weights by path despite a binding", "extraction_siglip2.py",
+     '                model, ckpt_path if verified is None else io.BytesIO(verified.checkpoint_bytes),\n',
+     '                model, ckpt_path,\n',
+     [((T, f"{REPLACED}[changed-read-restored-checkpoint]"), 'assert o.calls["dataset_at"] == [(1.0, epoch)]'),
+      ((T, OFFICIAL), 'assert o.calls["loads"] == ["buffer", "buffer"]')]),
+    ("RX40 the official extraction resolves the epoch from the files despite a binding", "extraction_siglip2.py",
+     '            _resolved = apply_inference_epoch(model, ckpt_path, args, verified=verified)\n',
+     '            _resolved = apply_inference_epoch(model, ckpt_path, args)\n',
+     [((T, f"{REPLACED}[changed-read-restored-witness]"), 'assert o.calls["dataset_at"] == [(1.0, epoch)]')]),
+    ("RX41 the T entry hands no binding to the official test", TE,
+     '                      codebook_size=int(getattr(args, "codebook_size", 32)), verified=runtime)\n',
+     '                      codebook_size=int(getattr(args, "codebook_size", 32)))\n',
+     [((T, OFFICIAL), 'assert o.calls["loads"] == ["buffer", "buffer"]')]),
+    ("RX42 the terminal function drops the binding", TOT,
+     '        if verified is None:\n            _extract_code(args)\n        else:\n            _extract_code(args, verified=verified)\n',
+     '        _extract_code(args)\n',
+     [((T, OFFICIAL), 'assert o.calls["loads"] == ["buffer", "buffer"]')]),
+    ("RX43 the resolver ignores the binding and reopens the witness", "dna_utils/runtime_state.py",
+     '    if verified is None:\n        md = CheckpointMetadata.load(checkpoint_path)\n',
+     '    if True:\n        md = CheckpointMetadata.load(checkpoint_path)\n',
+     [((T, f"{REPLACED}[changed-read-restored-witness]"), "is not the admitted terminal epoch"),
+      ((T, f"{TRAIN_CONSUMES}[changed-read-restored-witness]"), "is not the admitted terminal epoch")]),
+    ("RX44 the effective runtime is not checked against the admitted one", "dna_utils/runtime_state.py",
+     '    if verified is not None and (resolved.epoch != verified.terminal_epoch\n'
+     '                                 or resolved.checkpoint_sha256 != verified.checkpoint_sha256):\n',
+     '    if False:\n',
+     [((T, "test_predicate_the_effective_runtime_must_be_the_admitted_one[epoch]"), NO_RAISE)]),
+    ("RX45 the verified witness is not bound to the verified checkpoint", "dna_utils/runtime_state.py",
+     '    if md.checkpoint_sha256 != checkpoint_sha256:\n'
+     '        raise RuntimeBindingRefused("the admitted runtime witness describes another checkpoint")\n',
+     '    if False:\n'
+     '        raise RuntimeBindingRefused("the admitted runtime witness describes another checkpoint")\n',
+     [((T, "test_predicate_the_verified_runtime_binds_both_files_and_the_terminal_epoch[other-checkpoint]"),
+       NO_RAISE)]),
+    ("RX46 the verified witness need not be at the admitted terminal epoch", "dna_utils/runtime_state.py",
+     '    if md.checkpoint_epoch_zero_based != int(terminal_epoch):\n',
+     '    if False:\n',
+     [((T, "test_predicate_the_verified_runtime_binds_both_files_and_the_terminal_epoch[other-epoch]"), NO_RAISE)]),
+    ("RX47 train extraction resolves the epoch from the files despite its binding", "scripts/extract_train_split.py",
+     '        _resolved = apply_inference_epoch(model, ckpt, args, verified=runtime)\n',
+     '        _resolved = apply_inference_epoch(model, ckpt, args)\n',
+     [((T, f"{TRAIN_CONSUMES}[changed-read-restored-witness]"), 'assert t.calls["dataset_at"] == [(1.0, epoch)]')]),
+    ("RX48 the producers are not given the admitted terminal epoch", RT,
+     '                GDNA_T_EXPECT_TERMINAL_EPOCH=str(cell["terminal_epoch"]))\n',
+     '                )\n',
+     [((T, "test_composed_the_producers_receive_the_consumed_cell_s_pins"), "assert len(seen) == 5 and all(")]),
+    ("RX49 the T entry does not bind the checkpoint and witness", TE,
+     '        runtime = verified_runtime(run_dir, cell)\n',
+     '        runtime = None\n',
+     [((T, OFFICIAL), 'assert o.calls["loads"] == ["buffer", "buffer"]')]),
 ]
 
 
 
 GUARD = WT / "artifacts/anchor_confirmation/refit_v9/guarded_pytest.py"
 BOUNDED = WT / "artifacts/anchor_confirmation/refit_v9/bounded_tree.py"
-MANIFEST = WT / "artifacts/anchor_confirmation/authority_manifest_v9r5.json"
+MANIFEST = WT / "artifacts/anchor_confirmation/authority_manifest_v9r6.json"
 EXTRAS = sorted({t[0] for *_x, d in MUTANTS for t, _m in d})
 BINARY = (".npz", ".npy", ".pt", ".pth", ".safetensors", ".bin", ".ckpt", ".pkl")
 REFUSED, CHILDREN = [], []

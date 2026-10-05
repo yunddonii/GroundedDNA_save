@@ -388,15 +388,23 @@ def _write_completion_marker(out_dir: str, manifests: dict, *,
     return path
 
 
-def extract_code(args: Config) -> None:
+def extract_code(args: Config, *, verified=None) -> None:
+    """``verified`` (stage T, audits 759-760): a dna_utils.runtime_state.VerifiedRuntime. The weights
+    are then loaded from its verified bytes and the epoch resolved from its verified witness; neither
+    file is reopened by path before encoding. Without it, unchanged."""
     model = SigLIP2SemanticOTModel(args).to(args.device)
 
     ckpt_path = _find_model_checkpoint(args.save_model_state_path)
-    if os.path.exists(ckpt_path):
+    if verified is not None and os.path.realpath(ckpt_path) != os.path.realpath(verified.checkpoint_path):
+        from dna_utils.runtime_state import RuntimeBindingRefused
+        raise RuntimeBindingRefused(f"{ckpt_path} is not the verified checkpoint {verified.checkpoint_path}")
+    if verified is not None or os.path.exists(ckpt_path):
+        import io
         from dna_utils.run_identity import load_model_state_dict_for_extraction
         missing, unexpected, phase3_binding = \
             load_model_state_dict_for_extraction(
-                model, ckpt_path, map_location=args.device)
+                model, ckpt_path if verified is None else io.BytesIO(verified.checkpoint_bytes),
+                map_location=args.device)
         # Only legacy checkpoints may predate newer keys. A checkpoint carrying
         # sealed Phase-3 metadata was produced by this committed architecture
         # and the shared loader makes any mismatch fatal.
@@ -412,7 +420,10 @@ def extract_code(args: Config) -> None:
         # annealing is on and the epoch cannot be established, abort rather
         # than silently produce codes from an operating point never trained.
         from dna_utils.runtime_state import apply_inference_epoch
-        _resolved = apply_inference_epoch(model, ckpt_path, args)
+        if verified is None:
+            _resolved = apply_inference_epoch(model, ckpt_path, args)
+        else:
+            _resolved = apply_inference_epoch(model, ckpt_path, args, verified=verified)
         print(f"[extraction] inference epoch={_resolved.epoch} "
               f"(source={_resolved.source}) "
               f"effective_sinkhorn_epsilon={_resolved.effective_sinkhorn_epsilon}")

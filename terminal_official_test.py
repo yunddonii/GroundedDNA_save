@@ -12,7 +12,9 @@ the text-whitening override is scoped to extraction).
 import os
 
 
-def run_official_test(args, *, distance_mode: str, codebook_size: int) -> None:
+def run_official_test(args, *, distance_mode: str, codebook_size: int, verified=None) -> None:
+    """``verified``: the stage-T entry's dna_utils.runtime_state.VerifiedRuntime, handed to
+    extract_code (audits 759-760); the trainer's legacy call passes none and runs unchanged."""
     from extraction_siglip2 import extract_code as _extract_code
     from evaluation_siglip2 import evaluation as _evaluation
     # Optionally swap cache for final evaluation (e.g., train on FAIRrank
@@ -63,7 +65,10 @@ def run_official_test(args, *, distance_mode: str, codebook_size: int) -> None:
         )
     try:
         print("[final-eval] running extraction ...")
-        _extract_code(args)
+        if verified is None:
+            _extract_code(args)
+        else:
+            _extract_code(args, verified=verified)
     except Exception as ex:
         # A paper run whose final extraction failed has no codes to report.
         # Swallowing this produced tables traced to a stale extraction.
