@@ -20,25 +20,96 @@ analysis / 🔴 reverted or negative); tables over prose for numbers; each model
 
 ---
 
-## Current state (as of 2026-10-01)
+## Current state (as of 2026-10-05)
 
 - **Question of this line.** Does the text path make images that share an element in slot *m*
   receive the same slot-*m* codeword/codon, and if not, what change would make it so without
   growing the objective?
 - **Answer so far (exploratory checkpoints, Gumbel ON):** caption-similar images share codewords
   4–14× more often than random pairs, but **equally in every slot** and **equally without any text
-  supervision**. The sharing comes from the frozen CLIP features; the text path adds within-image
-  axis alignment of the codeword (.25 → .31–.44) that does not become slot-specific cross-image
-  sharing. The claim "텍스트 경로가 유의미하게 관여" cannot be made for the current model.
-- **Confirmed causes:** (a) the loss objective never compares axes across images (all text terms
-  align slot *m* with the same image's caption *m*); (b) the `text_code_kl` target is nearly flat
-  and agrees with the actual codeword in ~1 of 10 samples; (c) the captions carry no repeatable
-  per-axis token (two generations of the same image share 12–24 % of content words).
-- **Decided:** encoder replacement is not pursued (2026-10-01 record). Next lever = two-level
-  captions (canonical label + detail) and a structural block on slot redundancy; both need a
-  pre-registered test on the A3 metric with a text-OFF control at the final recipe.
-- **Metric of record for this line:** A3 cross-image slot consistency (own-slot lift vs other-slot
-  lift vs text-OFF), `result/analysis/textdiag_2026-09-29/a2a3_slot_consistency.py`.
+  supervision**. The claim "텍스트 경로가 유의미하게 관여" cannot be made for the current model.
+- **Plan approved 2026-10-05** (entry below): weakest intervention first. Stage 0 CPU diagnostics →
+  Stage 1 baseline + text-OFF at the approved recipe → Stage 2 dataset-specific axes and compact
+  phrases → Stage 3 cross-image text target X replacing the `text_code_kl` target → conditional
+  structural deltas → confirmation. The "text assigns membership" form (A′ family) is NOT approved
+  for training; existing A′ checkpoints are only scored on CPU as a ceiling.
+- **User decisions in force (2026-10-04):** element = axis nouns / relation words; slot specificity
+  from text supervision, separation from the multiple codebooks; one compact phrase per axis (no
+  label/detail split); text-OFF = codebook-mean routing in training; CIFAR-10 dropped.
+- **Metric of record:** A3 cross-image slot consistency (own-slot lift vs other-slot lift vs
+  text-OFF), `result/analysis/textdiag_2026-09-29/a2a3_slot_consistency.py`; A3 v2 to be written
+  (Stage 0, D0).
+
+---
+
+## 2026-10-05 [design record, no results] Approved modification plan: weakest intervention first; codebooks read as prototype banks; loss-term review (14 nominal weights, 10 real terms)
+
+**Status:** 🟢 active plan, approved by the user on 2026-10-05. No measurement in this entry. Sources
+read: `model_siglip2.py`, `loss_siglip2.py`, `config.py`, the three approved ancS7 seed-42
+`args.txt`/`log.csv` (read only; no checkpoint loaded), `docs/PROJECT_LOG.md`, CTRL-O (arXiv
+2503.21747) and ALBM (arXiv 2503.20301) as fetched. Ten read-only agents (explore → design → refute);
+deciding lines re-read directly.
+
+**Hypothesis under test.** Axis-wise text supervision makes (a) slot *m*'s code carry axis *m*'s
+element, (b) images sharing an axis-*m* element share the slot-*m* codeword/codon **in slot *m***,
+and (c) this is caused by the text.
+
+**Causes confirmed in code.**
+
+| # | fact | where |
+|---|---|---|
+| 1 | per-slot instance NT-Xent (λ 1.0–1.5, all 5 slots) asks every slot to identify the image alone | `loss_siglip2.py:1555-1596` |
+| 2 | the three text terms compare slot *m* only with the SAME image's caption *m*; caption similarity enters only as a per-pair temperature | `loss_siglip2.py:1578-1584`, `:3254-3267` |
+| 3 | codebooks are EMA buffers updated by nearest-codeword assignment of visual tokens; text never updates them | `model_siglip2.py:1180-1192` |
+| 4 | routing uses per-image caption anchors in training and one constant codebook-mean anchor at deployment | `model_siglip2.py:3807-3813` |
+| 5 | a local codon reads `q_local + σ(4.595)·sg(q_global)` (gate ≈ .99) | `model_siglip2.py:5262-5266` |
+| 6 | legacy token pruning has a constant importance (code comment), so the training anchor is the mean of an arbitrary ≈ 77 % subset of caption tokens, not the EOS-pooled vector | `model_siglip2.py:3906-3926`; approved `log.csv` keep ratio .769 |
+
+**Codebook view (user question).** Prototype bank, not VQ-VAE latent and not Slot-Attention slot:
+the contrastive loss acts on the pre-quantisation token, the code receives only commitment and EMA,
+each codebook is an online k-means of its slot's tokens, and `--router_type slot` collapsed
+(commit `ced8546`: dead .688). Consequence: meaning = membership, so text must influence membership.
+
+**Verdicts on the user's ideas.**
+
+| idea | verdict | reason |
+|---|---|---|
+| ALBM dataset-specific axes + Description → Summary → Supplement | adopt, adapted to unlabeled data | fixes the missing repeatable per-axis phrase; one field per axis |
+| CTRL-O decoder conditioning | conditional (Stage 5) | CTRL-O's own ablation: binding hits 8.1 (init) → 10.1 (+decoder) → 56.3 (+contrastive) → 61.3; literal `[slot ; caption]` input lets the decoder read the element from a caption absent at deployment |
+| ALBM visual attribute prompt learning | rejected as a first phase | published loss needs class labels; needs online CLIP or a 12-layer cache; learned text-free attention queries failed four times here (v7, v79d, v107a_attn, v146) |
+
+**Stage 3 mechanism (X).** Replace the target of `text_code_kl` (term count unchanged): the
+codeword distribution currently held by the image's axis-*m* text neighbours (top-10 by per-axis-
+centred EOS caption cosine, opt-train rows), neighbours' stored slot tokens re-assigned against the
+current codebook, usage-corrected, Euclidean-distance logits, view 1, local slots, λ .05. Controls:
+X-perm (axes permuted), X-vis (per-slot visual neighbours), S (codebook-mean routing in training).
+Earlier soft text targets failed at other levels (`bc` inert, `bq` dead .492, `codsoft` −.022 mAP).
+
+**Pre-registered rules (to be frozen per stage in `PREREGISTRATION.md`).** R(m) = log(own-slot lift /
+other-slot lift), S = mean over axes; P-A3 (S > 0 on 3/3 seeds, ≥ 3/4 axes), P-DELTA (vs own base),
+P-TXT (vs `--disable_text_supervision`), P-RET (mean val mAP@R ≥ base − .008; −.008 to −.03 is the
+user's call), P-HEALTH. Primary pair rule is lexical (held-out rows), not the training relation.
+
+**Loss-term review.** `train_loss` equals Σ λ·term within 4e-8 on all three runs.
+
+| class | terms | handling |
+|---|---|---|
+| unnecessary (zero gradient) | `anchor` .05, `cibhash_kl` .001, `codon_text_anchor` .1, `recon` 1.0; the codebook half of `vq` (description only) | set to 0 without training; confirm by `scripts/audit_loss_gradients.py` and a bit-identity pair in Stage 1 |
+| overlapping, removal candidates | `quant` ↔ entropy half of `dna`; base-balance half of `dna` ↔ `codon_joint`; visual half of `xmodal_commit` ↔ `text_code_kl` | one single-delta cell each after Stage 1 (`--lambda_quant 0`, then `--eta_base_balance 0`); text pair in Stage 3/4 |
+| keep | `cibhash_ntxent`, `text_hash_ntxent`, `xmodal_commit`, `codon_joint`, `wasserstein`, `vq` commitment (.0625), `dna` entropy, `bu`, `text_code_kl` (target replaced) | `bu` removal was already rejected at Gumbel OFF (09-15, 1 seed: .7636 → .7540, dead +.069) |
+
+**Corrections to earlier records.**
+- The 09-29 entry's "two generations of the same image agree on 12–24 % of content words" compares
+  V4 with V5b (two different prompts, greedy decoding), not two generations of one prompt.
+- "Per-slot NT-Xent is 82 % of the objective" (PL 09-22) is 54.4 % contrastive + 28.1 %
+  `text_hash_ntxent` from the 2026-08-12 gradient audit (`docs/loss_function_summary.md`).
+- The 10-01 next step "two-level captions (label + detail)" is `[reverted 2026-10-04]` (user: no
+  label/detail split).
+- Tool traps found: every caption tool imports the prompt from `/home/yschoi/GroundedDNA`;
+  `tools/qwen3_v5b_flickr25k_trainset.py` now emits `_PROMPT_V8`, which has a 500-image sample and no
+  training record.
+
+**Next:** Stage 0 (CPU): D1 scoring of 45 never-scored exploratory checkpoints started 2026-10-05.
 
 ---
 
