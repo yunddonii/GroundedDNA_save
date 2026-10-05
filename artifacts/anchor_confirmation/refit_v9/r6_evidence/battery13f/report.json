@@ -1,0 +1,3747 @@
+{
+ "baseline": [
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 8.1,
+   "test": "test_composed_a_changed_r_artifact_refuses_before_the_t_entry[witness]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.5,
+   "test": "test_composed_a_changed_r_artifact_stops_the_next_t_producer[anchor_terminal_test.py-witness]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.9,
+   "test": "test_composed_a_config_changed_after_admission_refuses_before_it_is_loaded"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 8.1,
+   "test": "test_composed_a_config_left_changed_after_the_read_refuses_before_the_test"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.3,
+   "test": "test_composed_a_corrupt_f_record_refuses[copied-lambda]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.4,
+   "test": "test_composed_a_refit_render_off_the_mapping_refuses[lambda]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 8.0,
+   "test": "test_composed_a_run_scope_line_does_not_approve_a_stage_r_smoke"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.7,
+   "test": "test_composed_a_saved_configuration_off_the_sealed_recipe_never_reaches_the_test[non-summary-drift]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.8,
+   "test": "test_composed_a_stage_1_seal_cannot_stand_in_for_the_refit_seal"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.3,
+   "test": "test_composed_a_stage_r_cell_runs_no_post_chain_and_records_the_test_withheld"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.8,
+   "test": "test_composed_a_stage_r_cell_that_is_not_withheld_and_terminal_refuses[not-withheld]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.5,
+   "test": "test_composed_a_stage_r_run_directory_holding_any_test_output_refuses[evaluation_siglip2_base.json]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.4,
+   "test": "test_composed_a_t_cell_reserves_then_runs_the_entry_and_the_chain_in_order"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 8.8,
+   "test": "test_composed_a_t_cell_s_five_producers_are_ordinary_supervised_work[1]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.6,
+   "test": "test_composed_a_t_input_replaced_after_verification_never_reaches_the_official_encoding[changed-read-restored-checkpoint]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 8.2,
+   "test": "test_composed_a_t_input_replaced_after_verification_never_reaches_the_official_encoding[changed-read-restored-witness]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.7,
+   "test": "test_composed_an_anchor_refit_command_is_the_legacy_refit_plus_the_arm"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.6,
+   "test": "test_composed_an_anchor_refit_without_its_stage_r_cell_refuses_before_the_run_directory[marker-altered]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.5,
+   "test": "test_composed_an_anchor_refit_without_its_stage_r_cell_refuses_before_the_run_directory[no-campaign]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.6,
+   "test": "test_composed_an_attempted_cell_is_never_retried[0]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.6,
+   "test": "test_composed_an_entry_without_complete_admission_refuses_before_any_load[checkpoint]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 8.1,
+   "test": "test_composed_an_entry_without_complete_admission_refuses_before_any_load[no-approval]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.4,
+   "test": "test_composed_an_f_record_without_its_acceptance_refuses[changed-language]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.6,
+   "test": "test_composed_an_f_record_without_its_acceptance_refuses[token-only]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.6,
+   "test": "test_composed_an_output_already_present_refuses_before_the_attempt"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.8,
+   "test": "test_composed_arguments_built_off_the_verified_object_refuse_before_the_test[lambda]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 8.0,
+   "test": "test_composed_arguments_built_off_the_verified_object_refuse_before_the_test[run-dir]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.7,
+   "test": "test_composed_concurrent_attempts_reserve_once"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 8.1,
+   "test": "test_composed_concurrent_entries_with_the_same_attempt_reach_the_test_once"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.6,
+   "test": "test_composed_drift_between_producers_stops_the_next_producer[after-train]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.7,
+   "test": "test_composed_drift_between_producers_stops_the_next_producer[entry-to-train]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.9,
+   "test": "test_composed_real_verifier_drift_between_producers_stops_the_chain"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.6,
+   "test": "test_composed_sources_changed_since_stage_r_refuse_before_any_t_access"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.8,
+   "test": "test_composed_stage_r_takes_only_the_approved_refit_seals"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.4,
+   "test": "test_composed_stages_r_and_t_keep_their_own_ledger[stage-R-run]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.6,
+   "test": "test_composed_stages_r_and_t_never_run_under_an_older_generation[v8]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 8.0,
+   "test": "test_composed_the_entry_reads_config_once_and_uses_that_object"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.7,
+   "test": "test_composed_the_official_extraction_consumes_the_admitted_weights_and_epoch"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.7,
+   "test": "test_composed_the_producers_receive_the_consumed_cell_s_pins"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.9,
+   "test": "test_composed_the_same_attempt_never_enters_twice_after_a_before_output_failure"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.7,
+   "test": "test_composed_the_t_approval_cannot_come_from_the_caller_environment"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.3,
+   "test": "test_composed_the_terminal_decision_withholds_a_stage_r_cell"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.5,
+   "test": "test_composed_the_terminal_function_runs_extraction_then_the_raw_evaluator"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 8.0,
+   "test": "test_composed_train_extraction_consumes_the_verified_weights_and_epoch[changed-read-restored-witness]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.7,
+   "test": "test_composed_train_extraction_loads_the_verified_bytes_once"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.7,
+   "test": "test_composed_train_extraction_writes_nothing_after_an_input_changed_during_it[config]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.2,
+   "test": "test_predicate_a_sealed_anchor_stage_r_cell_withholds_the_official_test"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.2,
+   "test": "test_predicate_an_anchor_refit_outside_a_sealed_stage_r_cell_refuses[marker-deleted]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.1,
+   "test": "test_predicate_an_anchor_refit_outside_a_sealed_stage_r_cell_refuses[not-refit]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.2,
+   "test": "test_predicate_the_effective_runtime_must_be_the_admitted_one[epoch]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.2,
+   "test": "test_predicate_the_verified_runtime_binds_both_files_and_the_terminal_epoch[other-checkpoint]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.2,
+   "test": "test_predicate_the_verified_runtime_binds_both_files_and_the_terminal_epoch[other-epoch]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 7.3,
+   "test": "test_structural_the_terminal_function_is_the_v8_block_moved_unchanged"
+  }
+ ],
+ "commit": "b7c960a",
+ "harness_children": [
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-tree"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r6",
+   "ls-files"
+  ]
+ ],
+ "harness_refused_opens": [],
+ "head_clean_after": true,
+ "head_clean_before": true,
+ "inventory": [
+  "config.py",
+  "dataloaders.py",
+  "dna_utils/__init__.py",
+  "dna_utils/bio_constraints.py",
+  "dna_utils/cache_provenance.py",
+  "dna_utils/csv_logger.py",
+  "dna_utils/dna_code_utils.py",
+  "dna_utils/extraction_validation.py",
+  "dna_utils/gc_policy.py",
+  "dna_utils/gpu_lease.py",
+  "dna_utils/run_identity.py",
+  "dna_utils/runtime_environment.py",
+  "dna_utils/runtime_state.py",
+  "dna_utils/scientific_recipe.py",
+  "dna_utils/text_description_processor.py",
+  "dna_utils/training_utils.py",
+  "dna_utils/visualization.py",
+  "dna_utils/vlm_qwen25_descriptions.py",
+  "docs/ANCHOR_CONFIRMATION_CONTRACT_v3.md",
+  "docs/ANCHOR_LAMBDA_CONTRACT_v1.md",
+  "docs/ANCHOR_REFIT_CONTRACT_v1.md",
+  "evaluation_siglip2.py",
+  "extraction_siglip2.py",
+  "loss_siglip2.py",
+  "model_siglip2.py",
+  "models/__init__.py",
+  "models/adapters.py",
+  "models/cluster_attention_router.py",
+  "models/pretrained_backbone.py",
+  "models/pretrained_backbone_clip.py",
+  "models/semantic_router.py",
+  "models/text_cross_attention_router.py",
+  "models/text_encoder.py",
+  "models/visual_encoder.py",
+  "p0_protocol.py",
+  "scripts/__init__.py",
+  "scripts/anchor_confirm_code_axis.py",
+  "scripts/anchor_confirm_decision.py",
+  "scripts/anchor_confirm_manifest.py",
+  "scripts/anchor_confirm_supervisor.py",
+  "scripts/anchor_refit_stage.py",
+  "scripts/anchor_terminal_test.py",
+  "scripts/build_text_whiten_matrix.py",
+  "scripts/eval_cell_bioproj.py",
+  "scripts/extract_train_split.py",
+  "scripts/pairwise_nmi.py",
+  "scripts/phase3_launch_matrix.sh",
+  "scripts/phase3_select_n.py",
+  "scripts/phase3_selection_matrix.py",
+  "scripts/seal_cell_analysis.py",
+  "scripts/seal_phase3_inputs.py",
+  "scripts/train_cifar10_v185_bidirTokenPrune05_ccs01_clip.sh",
+  "scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh",
+  "scripts/train_mscoco_F2_sweep_clip.sh",
+  "scripts/train_nuswide_v185_sweep_clip.sh",
+  "terminal_official_test.py",
+  "tests/test_anchor_confirm_env_handoff.py",
+  "tests/test_anchor_confirm_input_bridge.py",
+  "tests/test_anchor_confirm_launcher.py",
+  "tests/test_anchor_confirm_lifecycle.py",
+  "tests/test_anchor_confirm_port.py",
+  "tests/test_anchor_confirm_recipe.py",
+  "tests/test_anchor_confirm_reducer.py",
+  "tests/test_anchor_confirm_supervisor.py",
+  "tests/test_anchor_lambda_stage.py",
+  "tests/test_anchor_refit_stage.py",
+  "tests/test_seal_phase3_inputs.py",
+  "train_siglip2.py",
+  "val_split.py"
+ ],
+ "inventory_sha256_equal": true,
+ "mutants": [
+  {
+   "file": "p0_protocol.py",
+   "mutant": "RX1 a sealed stage-R cell is not withheld",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert P0.anchor_refit_withholds_official_test(",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.3,
+     "test": "test_predicate_a_sealed_anchor_stage_r_cell_withholds_the_official_test"
+    },
+    {
+     "declared_text": "assert T._official_test_allowed(decision_args(), p0_refit=True) is False",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.4,
+     "test": "test_composed_the_terminal_decision_withholds_a_stage_r_cell"
+    }
+   ]
+  },
+  {
+   "file": "p0_protocol.py",
+   "mutant": "RX2 an anchor P0 refit outside a stage-R cell falls through",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.2,
+     "test": "test_predicate_an_anchor_refit_outside_a_sealed_stage_r_cell_refuses[marker-deleted]"
+    },
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.7,
+     "test": "test_composed_an_anchor_refit_without_its_stage_r_cell_refuses_before_the_run_directory[marker-altered]"
+    },
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.4,
+     "test": "test_composed_an_anchor_refit_without_its_stage_r_cell_refuses_before_the_run_directory[no-campaign]"
+    }
+   ]
+  },
+  {
+   "file": "p0_protocol.py",
+   "mutant": "RX3 a stage-R cell need not be a P0 refit",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.3,
+     "test": "test_predicate_an_anchor_refit_outside_a_sealed_stage_r_cell_refuses[not-refit]"
+    }
+   ]
+  },
+  {
+   "file": "train_siglip2.py",
+   "mutant": "RX4 the trainer start-up does not apply the policy",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.3,
+     "test": "test_composed_an_anchor_refit_without_its_stage_r_cell_refuses_before_the_run_directory[marker-altered]"
+    },
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.3,
+     "test": "test_composed_an_anchor_refit_without_its_stage_r_cell_refuses_before_the_run_directory[no-campaign]"
+    }
+   ]
+  },
+  {
+   "file": "train_siglip2.py",
+   "mutant": "RX5 the terminal decision ignores the stage-R policy",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert T._official_test_allowed(decision_args(), p0_refit=True) is False",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.4,
+     "test": "test_composed_the_terminal_decision_withholds_a_stage_r_cell"
+    }
+   ]
+  },
+  {
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "RX6 a stage-R cell runs the legacy post-chain",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert \"postprocess\" not in rcell.calls",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.2,
+     "test": "test_composed_a_stage_r_cell_runs_no_post_chain_and_records_the_test_withheld"
+    }
+   ]
+  },
+  {
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "RX7 a run directory holding test outputs passes as withheld",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.3,
+     "test": "test_composed_a_stage_r_run_directory_holding_any_test_output_refuses[evaluation_siglip2_base.json]"
+    },
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.8,
+     "test": "test_composed_an_output_already_present_refuses_before_the_attempt"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RX8 the F acceptance is substring recognition again",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.5,
+     "test": "test_composed_an_f_record_without_its_acceptance_refuses[token-only]"
+    },
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.5,
+     "test": "test_composed_an_f_record_without_its_acceptance_refuses[changed-language]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RX9 the F summary is not tied to its validated recipe",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.3,
+     "test": "test_composed_a_corrupt_f_record_refuses[copied-lambda]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RX10 a refit recipe may move any field",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.4,
+     "test": "test_composed_a_refit_render_off_the_mapping_refuses[lambda]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RX11 any seal authority stands in for the refit seal",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.6,
+     "test": "test_composed_a_stage_1_seal_cannot_stand_in_for_the_refit_seal"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RX12 stage R takes any input seal files",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert LT.run_main(monkeypatch, *base, *RUN, *extra) == 2",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.9,
+     "test": "test_composed_stage_r_takes_only_the_approved_refit_seals"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RX13 a stage-R smoke is approved by a run-scope line",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert LT.run_main(monkeypatch, *rmain.base, *SMOKE, *extra) == 2",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 8.0,
+     "test": "test_composed_a_run_scope_line_does_not_approve_a_stage_r_smoke"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RX14 stages R and T run under the v8 manifest",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert LT.run_main(monkeypatch, *rmain.base, *RUN, \"--plan\") == 2",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.6,
+     "test": "test_composed_stages_r_and_t_never_run_under_an_older_generation[v8]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RX15 the T admission accepts a stage-R cell whose test was not withheld",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.5,
+     "test": "test_composed_a_stage_r_cell_that_is_not_withheld_and_terminal_refuses[not-withheld]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RX16 the attempt reservation is not exclusive",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.4,
+     "test": "test_composed_an_attempted_cell_is_never_retried[0]"
+    },
+    {
+     "declared_text": "assert sorted(status for status, _ in results) == [\"ok\", \"refused\", \"refused\", \"refused\"]",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.6,
+     "test": "test_composed_concurrent_attempts_reserve_once"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RX17 the attempt is not reserved before the T entry runs",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert tcell.state[\"attempt_seen\"] == [True]",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.7,
+     "test": "test_composed_a_t_cell_reserves_then_runs_the_entry_and_the_chain_in_order"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RX18 the T cell runs no post-chain",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert tcell.commands == CHAIN",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.6,
+     "test": "test_composed_a_t_cell_reserves_then_runs_the_entry_and_the_chain_in_order"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_terminal_test.py",
+   "mutant": "RX19 the T entry does not need the ledger approval",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert TE.main(entry.argv) == 2",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.7,
+     "test": "test_composed_an_entry_without_complete_admission_refuses_before_any_load[no-approval]"
+    },
+    {
+     "declared_text": "assert TE.main(entry.argv) == 2 and entry.calls == []",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.9,
+     "test": "test_composed_the_t_approval_cannot_come_from_the_caller_environment"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_terminal_test.py",
+   "mutant": "RX20 the T entry does not hash the checkpoint",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert TE.main(entry.argv) == 2",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.9,
+     "test": "test_composed_an_entry_without_complete_admission_refuses_before_any_load[checkpoint]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_terminal_test.py",
+   "mutant": "RX21 the T entry does not check the saved configuration",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert TE.main(entry.argv) == 2",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 8.1,
+     "test": "test_composed_arguments_built_off_the_verified_object_refuse_before_the_test[run-dir]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "RX22 the stage-R/T stages write the default ledger",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert S.stage_ledger(stage, None) == (S.RT_OPS_ROOT, S.RT_BUDGET_DEVICE_SECONDS)",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.5,
+     "test": "test_composed_stages_r_and_t_keep_their_own_ledger[stage-R-run]"
+    }
+   ]
+  },
+  {
+   "file": "terminal_official_test.py",
+   "mutant": "RX23 the raw evaluation is replaced by the post-BIO one",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert calls[1][2] == {\"distance_mode\": \"base\"",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.6,
+     "test": "test_composed_the_terminal_function_runs_extraction_then_the_raw_evaluator"
+    },
+    {
+     "declared_text": "assert new_block == old_block",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.6,
+     "test": "test_structural_the_terminal_function_is_the_v8_block_moved_unchanged"
+    }
+   ]
+  },
+  {
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "RX24 an anchor refit tag loses its arm",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert tag.endswith(\"_refit_N4_s43_AXanchors_P06095_JD002\")",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.4,
+     "test": "test_composed_an_anchor_refit_command_is_the_legacy_refit_plus_the_arm"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_terminal_test.py",
+   "mutant": "RX25 the T entry does not claim its entry",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert TE.main(entry.argv) == 2                          # the same attempt, unchanged bytes",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.9,
+     "test": "test_composed_the_same_attempt_never_enters_twice_after_a_before_output_failure"
+    },
+    {
+     "declared_text": "assert sorted(codes) == [0, 2, 2, 2]",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 8.3,
+     "test": "test_composed_concurrent_entries_with_the_same_attempt_reach_the_test_once"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_terminal_test.py",
+   "mutant": "RX26 the saved configuration's typed fields are not compared",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert TE.main(e.argv) == 2",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.9,
+     "test": "test_composed_a_saved_configuration_off_the_sealed_recipe_never_reaches_the_test[non-summary-drift]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_terminal_test.py",
+   "mutant": "RX27 config.pt is deserialized without its byte pin",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert TE.main(entry.argv) == 2",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.8,
+     "test": "test_composed_a_config_changed_after_admission_refuses_before_it_is_loaded"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_terminal_test.py",
+   "mutant": "RX28 the arguments come from a second read of config.pt",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "the stage-T entry must not reopen config.pt through the resume helper",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 8.0,
+     "test": "test_composed_the_entry_reads_config_once_and_uses_that_object"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_terminal_test.py",
+   "mutant": "RX29 the effective arguments are not compared",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert TE.main(entry.argv) == 2",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 8.0,
+     "test": "test_composed_arguments_built_off_the_verified_object_refuse_before_the_test[lambda]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "RX30 the supervisor counts one managed child per T cell",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert rc == 0 and done[\"status\"] == \"exited\", done.get(\"reason\")",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 8.2,
+     "test": "test_composed_a_t_cell_s_five_producers_are_ordinary_supervised_work[1]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RX31 no boundary check between the T entry and train extraction",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert tcell.commands == CHAIN[:k]",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.6,
+     "test": "test_composed_drift_between_producers_stops_the_next_producer[entry-to-train]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RX32 the post-chain runs without the T snapshot",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.4,
+     "test": "test_composed_drift_between_producers_stops_the_next_producer[after-train]"
+    },
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.8,
+     "test": "test_composed_real_verifier_drift_between_producers_stops_the_chain"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RX33 stage T does not require the stage-R sources unchanged",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.4,
+     "test": "test_composed_sources_changed_since_stage_r_refuse_before_any_t_access"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RX34 the consumed stage-R cell's inputs are not rechecked at T boundaries",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.7,
+     "test": "test_composed_a_changed_r_artifact_stops_the_next_t_producer[anchor_terminal_test.py-witness]"
+    },
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.8,
+     "test": "test_composed_a_changed_r_artifact_refuses_before_the_t_entry[witness]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/extract_train_split.py",
+   "mutant": "RX35 train extraction ignores the stage-T pins",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert t.calls[\"resume\"] == 0 and t.calls[\"loads\"] == [\"buffer\", \"buffer\"]",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.7,
+     "test": "test_composed_train_extraction_loads_the_verified_bytes_once"
+    }
+   ]
+  },
+  {
+   "file": "scripts/extract_train_split.py",
+   "mutant": "RX36 train extraction writes without rechecking its consumed inputs",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.9,
+     "test": "test_composed_train_extraction_writes_nothing_after_an_input_changed_during_it[config]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_terminal_test.py",
+   "mutant": "RX37 the T entry does not recheck the consumed files before the test",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert TE.main(entry.argv) == 2",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.9,
+     "test": "test_composed_a_config_left_changed_after_the_read_refuses_before_the_test"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RX38 the producers are not given the consumed cell's pins",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert len(seen) == 5 and all(",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.7,
+     "test": "test_composed_the_producers_receive_the_consumed_cell_s_pins"
+    }
+   ]
+  },
+  {
+   "file": "extraction_siglip2.py",
+   "mutant": "RX39 the official extraction loads the weights by path despite a binding",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert o.calls[\"dataset_at\"] == [(1.0, epoch)]",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.9,
+     "test": "test_composed_a_t_input_replaced_after_verification_never_reaches_the_official_encoding[changed-read-restored-checkpoint]"
+    },
+    {
+     "declared_text": "assert o.calls[\"loads\"] == [\"buffer\", \"buffer\"]",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 8.2,
+     "test": "test_composed_the_official_extraction_consumes_the_admitted_weights_and_epoch"
+    }
+   ]
+  },
+  {
+   "file": "extraction_siglip2.py",
+   "mutant": "RX40 the official extraction resolves the epoch from the files despite a binding",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert o.calls[\"dataset_at\"] == [(1.0, epoch)]",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 8.1,
+     "test": "test_composed_a_t_input_replaced_after_verification_never_reaches_the_official_encoding[changed-read-restored-witness]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_terminal_test.py",
+   "mutant": "RX41 the T entry hands no binding to the official test",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert o.calls[\"loads\"] == [\"buffer\", \"buffer\"]",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 8.1,
+     "test": "test_composed_the_official_extraction_consumes_the_admitted_weights_and_epoch"
+    }
+   ]
+  },
+  {
+   "file": "terminal_official_test.py",
+   "mutant": "RX42 the terminal function drops the binding",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert o.calls[\"loads\"] == [\"buffer\", \"buffer\"]",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.7,
+     "test": "test_composed_the_official_extraction_consumes_the_admitted_weights_and_epoch"
+    }
+   ]
+  },
+  {
+   "file": "dna_utils/runtime_state.py",
+   "mutant": "RX43 the resolver ignores the binding and reopens the witness",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "is not the admitted terminal epoch",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.8,
+     "test": "test_composed_a_t_input_replaced_after_verification_never_reaches_the_official_encoding[changed-read-restored-witness]"
+    },
+    {
+     "declared_text": "is not the admitted terminal epoch",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 8.1,
+     "test": "test_composed_train_extraction_consumes_the_verified_weights_and_epoch[changed-read-restored-witness]"
+    }
+   ]
+  },
+  {
+   "file": "dna_utils/runtime_state.py",
+   "mutant": "RX44 the effective runtime is not checked against the admitted one",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 8.0,
+     "test": "test_predicate_the_effective_runtime_must_be_the_admitted_one[epoch]"
+    }
+   ]
+  },
+  {
+   "file": "dna_utils/runtime_state.py",
+   "mutant": "RX45 the verified witness is not bound to the verified checkpoint",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.9,
+     "test": "test_predicate_the_verified_runtime_binds_both_files_and_the_terminal_epoch[other-checkpoint]"
+    }
+   ]
+  },
+  {
+   "file": "dna_utils/runtime_state.py",
+   "mutant": "RX46 the verified witness need not be at the admitted terminal epoch",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.4,
+     "test": "test_predicate_the_verified_runtime_binds_both_files_and_the_terminal_epoch[other-epoch]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/extract_train_split.py",
+   "mutant": "RX47 train extraction resolves the epoch from the files despite its binding",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert t.calls[\"dataset_at\"] == [(1.0, epoch)]",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 8.0,
+     "test": "test_composed_train_extraction_consumes_the_verified_weights_and_epoch[changed-read-restored-witness]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RX48 the producers are not given the admitted terminal epoch",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert len(seen) == 5 and all(",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.9,
+     "test": "test_composed_the_producers_receive_the_consumed_cell_s_pins"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_terminal_test.py",
+   "mutant": "RX49 the T entry does not bind the checkpoint and witness",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert o.calls[\"loads\"] == [\"buffer\", \"buffer\"]",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 7.9,
+     "test": "test_composed_the_official_extraction_consumes_the_admitted_weights_and_epoch"
+    }
+   ]
+  }
+ ],
+ "other_tracked_identity_and_stat_equal": true,
+ "sandbox_has_artifacts": false,
+ "sandbox_restored": true,
+ "sandbox_top_level": [
+  ".git",
+  ".gitignore",
+  "README.md",
+  "baseline",
+  "compositional_eval.py",
+  "config.py",
+  "dataloaders.py",
+  "dataset",
+  "dna_utils",
+  "docs",
+  "evaluation_siglip2.py",
+  "extract_bert_text_features.py",
+  "extract_clip_features.py",
+  "extract_clip_features_cifar10.py",
+  "extract_clip_local_crops.py",
+  "extract_clip_text_features.py",
+  "extract_clip_text_phrase_features.py",
+  "extract_clip_text_token_features.py",
+  "extract_clip_text_tokens_cifar10.py",
+  "extract_siglip2_features.py",
+  "extract_siglip2_text_features.py",
+  "extraction_siglip2.py",
+  "hashing.yml",
+  "img_vis.ipynb",
+  "interpret_compositional_code.py",
+  "loss_siglip2.py",
+  "model_siglip2.py",
+  "models",
+  "p0_protocol.py",
+  "preprocess_qwen_codebook_texts.py",
+  "pytest.ini",
+  "requirements.txt",
+  "result_diagnostic",
+  "scripts",
+  "terminal_official_test.py",
+  "tests",
+  "tools",
+  "train_siglip2.py",
+  "val_split.py"
+ ],
+ "stray_processes": ""
+}
