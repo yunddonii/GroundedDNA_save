@@ -9,8 +9,9 @@ named with --allow. Refused, with PermissionError, and recorded: every other pat
 (the pinned wrapper is rendered by a bash child whose argv capture shim runs this same interpreter).
 A process image replacement (os.exec*) would drop this hook, so it is refused and recorded; child
 processes are recorded with their argv. The launcher re-executes itself at its pre-import boundary
-(GDNA_PHASE3_PREIMPORT_SOURCE_BUNDLE); with --launcher-bundle the guard imports the launcher once,
-puts the same bundle the re-executed child would receive into the environment, and the script then
+(GDNA_PHASE3_PREIMPORT_SOURCE_BUNDLE); with --launcher-bundle the guard loads the launcher file once
+under a throwaway module name (never as scripts.phase3_selection_matrix; generation v9 r7), puts the
+same bundle the re-executed child would receive into the environment, and the script then
 verifies it in this process instead of re-executing. (A first attempt without this lost the hook at
 that exec: the four 2026-10-01 15:14 plan renders were NOT guarded after the exec.)
 Usage: guarded_run.py <log-dir> [--allow PATH]... [--launcher-bundle] -- <script.py> <args...>
@@ -81,11 +82,19 @@ def hook(event, args):
 
 sys.addaudithook(hook)
 if launcher_bundle:
+    # The bundle is computed from the launcher FILE under a throwaway module name, as the real parent
+    # process computes it before its exec: registering `scripts.phase3_selection_matrix` here would put
+    # a second launcher instance next to the `__main__` one (generation v9 r7 refuses that; before r7
+    # it hid the r5 R smoke's defect from these renders).
     sys.path.insert(0, WORKTREE.rstrip("/"))
-    import importlib
-    launcher = importlib.import_module("scripts.phase3_selection_matrix")
-    os.environ[launcher._BOOTSTRAP_ENV] = json.dumps(launcher._BOOTSTRAP_PREIMPORT_BUNDLE,
-                                                     sort_keys=True, separators=(",", ":"))
+    import importlib.util
+    _spec = importlib.util.spec_from_file_location("_guarded_run_bundle_probe", os.path.abspath(script))
+    _probe = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_probe)
+    os.environ[_probe._BOOTSTRAP_ENV] = json.dumps(_probe._BOOTSTRAP_PREIMPORT_BUNDLE,
+                                                   sort_keys=True, separators=(",", ":"))
+    assert "scripts.phase3_selection_matrix" not in sys.modules, "the bundle probe registered the launcher"
+    del _probe, _spec
 sys.argv = [script, *script_args]
 code = 0
 try:
