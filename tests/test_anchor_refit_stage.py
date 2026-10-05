@@ -705,6 +705,8 @@ def rmain(tmp_path, monkeypatch, fworld):
                         lambda *a, **k: calls.append("verify_campaign_input_seals") or dict(seals))
     monkeypatch.setattr(M, "_with_campaign_gpu_leases",
                         lambda args, fn: calls.append("_with_campaign_gpu_leases") or fn())
+    # the in-process stand-in for the entrypoint's verified pre-import handshake (r7 checks it first)
+    monkeypatch.setattr(M, "_BOOTSTRAP_PREIMPORT_VERIFIED", True)
 
     def run_sweep(*a, **k):
         calls.append("_run_sweep")
@@ -2249,3 +2251,97 @@ def test_structural_the_resolver_s_unbound_branch_is_the_v8_lookup():
     assert isinstance(branch, _ast.If) and _ast.unparse(branch.test) == "verified is None"
     assert dump(branch.body) == dump(old[2:4])                # md = load(...); the stale-sidecar check
     assert dump(new[3:]) == dump(old[4:])                     # everything after: unchanged
+
+
+# ---- generation v9 r7: the stage-R/T dispatch keeps the handshake-verified launcher instance ---------
+#: Run in a child exactly as the launcher's self-exec child runs: this file as __main__, the pre-import
+#: bundle in the environment, PYTHONPATH unset. An open() guard in the child refuses real-data roots and
+#: binary payloads (the pytest guard does not cover children). Prints which launcher instance the
+#: stage-R/T module holds after the dispatch.
+ENTRY_PROBE = r'''
+import importlib.util, json, os, runpy, sys
+wt, result_root, first = sys.argv[1], sys.argv[2], sys.argv[3]
+refused = []
+def hook(event, args):
+    if event != "open" or not args or isinstance(args[0], int):
+        return
+    try:
+        path = os.path.abspath(os.fsdecode(args[0]))
+    except (TypeError, ValueError):
+        return
+    safe = path.startswith(("/tmp/", sys.prefix + "/", sys.base_prefix + "/", wt + "/", "/proc/", "/dev/"))
+    if (path.startswith(("/data/", "/home/")) and not safe) or (
+            path.endswith((".npz", ".npy", ".pt", ".pth", ".safetensors", ".bin", ".ckpt", ".pkl"))
+            and not path.startswith((sys.prefix + "/", sys.base_prefix + "/"))):
+        refused.append(path)
+        raise PermissionError(f"entry probe refused an open: {path}")
+sys.addaudithook(hook)
+os.chdir(wt)
+sys.path.insert(0, wt)
+launcher = os.path.join(wt, "scripts", "phase3_selection_matrix.py")
+spec = importlib.util.spec_from_file_location("_bundle_probe", launcher)
+probe = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(probe)
+os.environ["GDNA_PHASE3_PREIMPORT_SOURCE_BUNDLE"] = json.dumps(
+    probe._BOOTSTRAP_PREIMPORT_BUNDLE, sort_keys=True, separators=(",", ":"))
+del probe
+if first == "launcher-imported-first":
+    import scripts.phase3_selection_matrix  # noqa: F401
+sys.argv = [launcher, "--anchor-confirm", "refit", "--namespace", "ancProbe", "--smoke",
+            "--result-root", result_root]
+rc = None
+try:
+    runpy.run_path(launcher, run_name="__main__")
+except SystemExit as stop:
+    rc = stop.code
+stage = sys.modules.get("scripts.anchor_refit_stage")
+held = getattr(stage, "M", None)
+print("PROBE " + json.dumps({"rc": rc, "refused": refused,
+                             "stage_launcher_name": getattr(held, "__name__", None),
+                             "stage_launcher_verified": getattr(held, "_BOOTSTRAP_PREIMPORT_VERIFIED", None)}))
+'''
+
+
+def _entry_probe(tmp_path, first="nothing-imported-first"):
+    script = tmp_path / "entry_probe.py"
+    script.write_text(ENTRY_PROBE)
+    env = {k: v for k, v in os.environ.items() if k not in ("PYTHONPATH", "GDNA_PHASE3_PREIMPORT_SOURCE_BUNDLE")}
+    env.update(CUDA_VISIBLE_DEVICES="", GDNA_NUM_SEMANTIC_PARTS="5")
+    done = subprocess.run([sys.executable, str(script), str(REPO), str(tmp_path / "result"), first],
+                          cwd=str(tmp_path), env=env, capture_output=True, text=True, timeout=600)
+    line = next(line for line in done.stdout.splitlines() if line.startswith("PROBE "))
+    return json.loads(line[len("PROBE "):]), done.stderr
+
+
+def test_composed_the_entrypoint_hands_the_stage_its_verified_launcher_instance(tmp_path):
+    """The r5 R smoke (2026-10-05) refused at production admission after its full seal admission: the
+    stage module had imported a second launcher instance without the handshake. Run as the entrypoint,
+    the stage now holds the entrypoint instance, passes the early handshake check and refuses only at
+    the next admission step (here: no manifest given)."""
+    probe, stderr = _entry_probe(tmp_path)
+    assert probe["refused"] == []
+    assert probe["stage_launcher_name"] == "__main__" and probe["stage_launcher_verified"] is True
+    assert probe["rc"] == 2 and "needs --anchor-manifest" in stderr
+    assert "pre-import self-reexec handshake" not in stderr
+
+
+def test_composed_a_launcher_instance_imported_before_the_dispatch_refuses(tmp_path):
+    probe, stderr = _entry_probe(tmp_path, first="launcher-imported-first")
+    assert probe["refused"] == [] and probe["rc"] == 2
+    assert "another instance of this launcher was imported" in stderr
+    assert probe["stage_launcher_name"] is None                  # the stage module was never imported
+
+
+def test_composed_a_launcher_without_the_handshake_refuses_before_admission(rmain, monkeypatch, capsys):
+    """In-process (a plain import never runs the handshake): an executing stage-R command refuses
+    before the generation manifest or any seal is read."""
+    monkeypatch.setattr(M, "_BOOTSTRAP_PREIMPORT_VERIFIED", False)
+    loads = []
+
+    def load(*a, **k):
+        loads.append(a)
+        raise CellRefused("the generation manifest was read (stand-in)")
+    monkeypatch.setattr(M, "load_anchor_manifest", load)
+    assert LT.run_main(monkeypatch, *rmain.base, *SMOKE) == 2
+    assert "pre-import self-reexec handshake" in capsys.readouterr().err
+    assert loads == [] and rmain.calls == []

@@ -2009,6 +2009,37 @@ def verify_snapshot(snapshot: dict, *, datasets=None) -> None:
         verify_snapshot_input_seals(snapshot, full=False)
 
 
+def assert_preimport_handshake() -> None:
+    """Refuse unless THIS launcher instance ran the stdlib-only pre-import self-exec handshake. The
+    stage-R/T admission checks it before its seal admission (generation v9 r7), so a launcher instance
+    without the handshake refuses in seconds; the r5 R smoke refused only at production admission,
+    after its full seal admission."""
+    if not _BOOTSTRAP_PREIMPORT_VERIFIED:
+        raise CellRefused(
+            "production admission requires the stdlib-only pre-import "
+            "self-reexec handshake; invoke this file as its entrypoint")
+
+
+def _bind_entrypoint_instance() -> None:
+    """Run as the entrypoint, this file is ``__main__``; a later ``import
+    scripts.phase3_selection_matrix`` (as scripts/anchor_refit_stage.py does) would build a SECOND
+    instance that never ran the pre-import handshake, and its production admission refuses (the r5 R
+    smoke, 2026-10-05). Bind that name to this instance before the stage module is imported; refuse if
+    another instance, or a stage module holding one, was imported first. A plain import is unchanged."""
+    if __name__ != "__main__":
+        return
+    this = sys.modules[__name__]
+    bound = sys.modules.get("scripts.phase3_selection_matrix")
+    stage = sys.modules.get("scripts.anchor_refit_stage")
+    if (bound is not None and bound is not this) or \
+            (stage is not None and getattr(stage, "M", None) is not this):
+        raise CellRefused("another instance of this launcher was imported before the stage-R/T "
+                          "dispatch; it never ran the pre-import handshake")
+    sys.modules["scripts.phase3_selection_matrix"] = this
+    import scripts
+    scripts.phase3_selection_matrix = this
+
+
 def assert_production_source_authority(snapshot: dict) -> None:
     """Admission gate: executed imports, HEAD blobs and worktree must agree."""
     verify_snapshot(snapshot)
@@ -5431,7 +5462,13 @@ def main() -> int:
         return 2
 
     if args.anchor_confirm in ("refit", "test"):
-        # Generation v9 (audits 743-744): stages R and T have their own admission.
+        # Generation v9 (audits 743-744): stages R and T have their own admission. That module imports
+        # this launcher by name, so it must receive THIS (handshake-verified) instance (r7).
+        try:
+            _bind_entrypoint_instance()
+        except CellRefused as error:
+            print(f"[phase3] REFUSED: {error}", file=sys.stderr)
+            return 2
         import scripts.anchor_refit_stage as refit_stage
         return refit_stage.main(args)
     if args.anchor_confirm is not None:

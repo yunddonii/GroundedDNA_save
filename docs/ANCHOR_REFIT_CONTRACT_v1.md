@@ -189,6 +189,13 @@ The launcher (`--anchor-confirm test --anchor-refit-receipt … --anchor-refit-r
      publishes the T record.
 5. **The T receipt** `<ns>_test_complete.json` is written only when every cell completed.
 
+**The launcher instance (r7).** Run as the entrypoint, the launcher is `__main__` and is the only
+instance that ran the stdlib-only pre-import self-exec handshake. Before it dispatches
+`--anchor-confirm refit|test` it binds the module name `scripts.phase3_selection_matrix` to itself
+(refusing if another instance, or a stage module holding one, was imported first), and the stage
+module checks the handshake before any admission. The r5 R smoke (§758) refused at production
+admission after its full seal admission because the stage module had imported a second instance.
+
 **Legacy behavior is unchanged.** A model without anchors keeps the fused refit (trainer terminal
 block, then post-chain), now through the same function.
 

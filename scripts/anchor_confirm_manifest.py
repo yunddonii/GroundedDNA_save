@@ -67,7 +67,7 @@ def inventory() -> dict:
     from importlib import metadata
     return {
         "artifact_kind": M.ANCHOR_MANIFEST_KIND, "version": M.ANCHOR_CONFIRM_VERSION,
-        "generation": "v9", "revision": 6,
+        "generation": "v9", "revision": 7,
         "note": "byte identities from JSON and text only; not approval to execute",
         "historical": {
             "approved_p3_refit_aggregate": {"path": str(M.APPROVED_P3_REFIT_AGGREGATE),
@@ -117,6 +117,16 @@ def inventory() -> dict:
                         "d0de9fb30ab58bfd178b4cab91be933e05e8ed2baa53c0cea8f165dc2935f2da",
                         "v9r5_status": "accepted for one R smoke (audit 758, ancRsmk9); its receipt "
                                        "is r5 stage-R work and is never admitted by an r6 T",
+                        "superseded_v9r6_manifest_sha256":
+                        "9d6c19970336fc07e72902338d09bcaa1f99f23a885ef562a1ed679a02c07305",
+                        "v9_revision_7_change": "the r5 R smoke (audit 758, 2026-10-05) refused at "
+                                                "production admission after its full seal admission: "
+                                                "scripts/anchor_refit_stage.py imported a second launcher "
+                                                "instance that never ran the pre-import handshake. The "
+                                                "entrypoint now binds its own instance before the "
+                                                "stage-R/T dispatch (refusing if another was imported "
+                                                "first), and the stage checks the handshake before any "
+                                                "admission; r6 (never submitted) otherwise unchanged",
                         "v9_revision_6_change": "audits 759-760: both stage-T consumers (the T entry's "
                                                 "official extraction and extract_train_split) read the "
                                                 "terminal checkpoint and its runtime witness once, bind "
@@ -264,7 +274,7 @@ def main(argv=None) -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command")
     inv = sub.add_parser("inventory")
-    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v9r6.json"))
+    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v9r7.json"))
     args = parser.parse_args(argv)
     try:
         if args.command != "inventory":

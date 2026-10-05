@@ -763,6 +763,8 @@ def main(args) -> int:
         return 2
     execute = bool(args.run or args.smoke) and not args.plan
     try:
+        if execute:
+            M.assert_preimport_handshake()   # before any admission: the verified launcher instance (r7)
         if bool(args.anchor_manifest) != bool(args.anchor_manifest_sha256):
             raise CellRefused("--anchor-manifest and --anchor-manifest-sha256 go together")
         if not args.anchor_manifest:

@@ -20,9 +20,12 @@ binding: weights and epoch from the verified objects in both consumers, the pass
 entry, the witness-to-checkpoint and terminal-epoch binding, the effective-runtime check and the
 terminal-epoch pin. RX43 is caught by the layered effective-runtime check (its declared text is that
 refusal) because the resolver mutant alone yields the forged epoch, which that check refuses.
+Revision f (generation v9 r7; at b7c960a revision e detected 49/49): RX50-RX52 disable the r7
+launcher-instance repair (the binding of the entrypoint instance before the stage-R/T dispatch, the
+stage's early handshake check, the refusal of an instance imported first).
 
 v12's bounded and guarded method, unchanged except for its paths: the v9 worktree, the v9 manifest
-(artifacts/anchor_confirmation/authority_manifest_v9r6.json) and the v9 copies of bounded_tree.py and
+(artifacts/anchor_confirmation/authority_manifest_v9r7.json) and the v9 copies of bounded_tree.py and
 guarded_pytest.py under artifacts/anchor_confirmation/refit_v9/. Content hashes ONLY for the reviewed
 inventory (the manifest closure plus the declared test files); every other tracked file by git index
 object id and stat; the harness under its own open() guard (binary payloads, real-data roots and
@@ -300,13 +303,28 @@ MUTANTS = [
      '        runtime = verified_runtime(run_dir, cell)\n',
      '        runtime = None\n',
      [((T, OFFICIAL), 'assert o.calls["loads"] == ["buffer", "buffer"]')]),
+    ("RX50 the entrypoint does not bind its verified instance before the stage-R/T dispatch", L,
+     '    sys.modules["scripts.phase3_selection_matrix"] = this\n    import scripts\n    scripts.phase3_selection_matrix = this\n',
+     '    return\n',
+     [((T, "test_composed_the_entrypoint_hands_the_stage_its_verified_launcher_instance"),
+       'assert probe["stage_launcher_name"] == "__main__"')]),
+    ("RX51 the stage-R/T admission does not check the handshake first", RT,
+     '        if execute:\n            M.assert_preimport_handshake()',
+     '        if False:\n            M.assert_preimport_handshake()',
+     [((T, "test_composed_a_launcher_without_the_handshake_refuses_before_admission"),
+       'assert "pre-import self-reexec handshake" in capsys.readouterr().err')]),
+    ("RX52 a launcher instance imported before the dispatch is accepted", L,
+     '    if (bound is not None and bound is not this) or \\\n            (stage is not None and getattr(stage, "M", None) is not this):\n',
+     '    if False:\n',
+     [((T, "test_composed_a_launcher_instance_imported_before_the_dispatch_refuses"),
+       'assert "another instance of this launcher was imported" in stderr')]),
 ]
 
 
 
 GUARD = WT / "artifacts/anchor_confirmation/refit_v9/guarded_pytest.py"
 BOUNDED = WT / "artifacts/anchor_confirmation/refit_v9/bounded_tree.py"
-MANIFEST = WT / "artifacts/anchor_confirmation/authority_manifest_v9r6.json"
+MANIFEST = WT / "artifacts/anchor_confirmation/authority_manifest_v9r7.json"
 EXTRAS = sorted({t[0] for *_x, d in MUTANTS for t, _m in d})
 BINARY = (".npz", ".npy", ".pt", ".pth", ".safetensors", ".bin", ".ckpt", ".pkl")
 REFUSED, CHILDREN = [], []
