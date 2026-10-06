@@ -1,0 +1,13 @@
+total 640008
+drwxrwxr-x 4 yschoi yschoi      4096 Oct  6 15:23 .
+drwxrwxr-x 3 yschoi yschoi      4096 Oct  6 15:22 ..
+-rw-rw-r-- 1 yschoi yschoi     47159 Oct  6 15:22 args.txt
+-rw-rw-r-- 1 yschoi yschoi     26588 Oct  6 15:23 config.pt
+-rw-rw-r-- 1 yschoi yschoi     20307 Oct  6 15:23 criterion_state_dict.pth
+-rw-rw-r-- 1 yschoi yschoi      1797 Oct  6 15:23 log.csv
+-rw-rw-r-- 1 yschoi yschoi 655219200 Oct  6 15:23 model_state_dict.pth
+-rw-rw-r-- 1 yschoi yschoi      8363 Oct  6 15:23 model_state_dict.pth.runtime.json
+-r--r--r-- 1 yschoi yschoi      6712 Oct  6 15:22 phase3_campaign_binding.json
+-rw-rw-r-- 1 yschoi yschoi      2945 Oct  6 15:22 run_identity.json
+drwxrwxr-x 2 yschoi yschoi      4096 Oct  6 15:22 train
+drwxrwxr-x 2 yschoi yschoi      4096 Oct  6 15:22 val
