@@ -146,6 +146,8 @@ env -C /data/yschoi/gdna_anchor_refit_v9r6 -u PYTHONPATH -u CUDA_VISIBLE_DEVICES
 - All six are idle now.
 - The launcher runs one dataset stream per GPU, with the three seeds in sequence; the snapshot
   records the exact mapping.
+- **Actual mapping** (recorded after the run, §781): CIFAR-10→GPU0, Flickr25K→GPU1, MS-COCO→GPU2,
+  NUS-WIDE→GPU3, in the launcher's sorted dataset order. That is not the order of the table in §2.
 - If any named GPU is busy at launch, I wait or return for review. I do not substitute another
   device unless the approval names one.
 
@@ -166,7 +168,7 @@ env -C /data/yschoi/gdna_anchor_refit_v9r6 -u PYTHONPATH -u CUDA_VISIBLE_DEVICES
 |---|---|
 | Ledger | the same append-only R/T ledger (now `56e371f7…`, 3 starts/3 finals); cumulative **514.225 s** of the 80,000-s envelope; no reset, no cross-charge |
 | Supervision | `stage-R-run`: **12 logical cells, 12 managed trainer attempts** (one per cell), 4 GPUs (one per dataset stream) |
-| Limits | wall 28,800 s (8 h) including admission; poll 1 s, watchdog 10 s, stop bound 120 s, headroom 130 GPU-s |
+| Limits | wall 28,800 s (8 h) including admission; poll 1 s, watchdog 10 s, stop bound 120 s; stop headroom **520 GPU-s** = 4 GPUs × (10 + 120) s, as the unchanged supervisor computes it (§780 correction: the 130 GPU-s first written here is the one-GPU figure) |
 | Storage | floor 10 GiB + 12 × 0.75 GiB = 19 GiB; free now 375,959,592,960 B |
 | Expected size | about 8 GB of run directories (an R-only cell holds about 0.65 GB, mostly the 655 MB checkpoint) |
 | Admission | stats-only on the carried authority (seconds) plus the bound-mode recipe recheck; no full re-verification |
