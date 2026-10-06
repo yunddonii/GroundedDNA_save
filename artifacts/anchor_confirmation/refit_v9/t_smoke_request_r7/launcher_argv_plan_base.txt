@@ -1,0 +1,16 @@
+scripts/phase3_selection_matrix.py
+--anchor-confirm
+test
+--anchor-manifest
+/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/authority_manifest_v9r7.json
+--anchor-manifest-sha256
+2f24fc80bb83e2c73b17ec473c2731ade6d34a356e02414e6719fe9e9bec947c
+--anchor-refit-receipt
+/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/ancRsmk9r6_sweep_complete.json
+--anchor-refit-receipt-sha256
+796e70d1b54a4f02e58e0a222fb1ee1261e34504857c5ff27e09296c86e4b0a3
+--namespace
+ancTsmk9
+--smoke
+--gpus
+0

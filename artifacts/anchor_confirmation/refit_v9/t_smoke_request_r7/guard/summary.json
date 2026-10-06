@@ -1,0 +1,36 @@
+{
+ "script": "scripts/phase3_selection_matrix.py",
+ "args": [
+  "--anchor-confirm",
+  "test",
+  "--anchor-manifest",
+  "/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/authority_manifest_v9r7.json",
+  "--anchor-manifest-sha256",
+  "2f24fc80bb83e2c73b17ec473c2731ade6d34a356e02414e6719fe9e9bec947c",
+  "--anchor-refit-receipt",
+  "/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/ancRsmk9r6_sweep_complete.json",
+  "--anchor-refit-receipt-sha256",
+  "796e70d1b54a4f02e58e0a222fb1ee1261e34504857c5ff27e09296c86e4b0a3",
+  "--namespace",
+  "ancTsmk9",
+  "--smoke",
+  "--gpus",
+  "0",
+  "--plan"
+ ],
+ "exit": 0,
+ "allowed_named": [
+  "/data/yschoi/gdna_anchor_confirm_v1/artifacts/anchor_confirmation/ancS7_snapshot_23e0763089474895.json",
+  "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancF_candidate_v1.json",
+  "/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/ancRsmk9r6_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002.json",
+  "/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/ancRsmk9r6_snapshot_aa7476e79f15a159.json",
+  "/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/ancRsmk9r6_sweep_complete.json",
+  "/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/authority_manifest_v9r7.json",
+  "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/p3rfB_refit_aggregate.json",
+  "/data/yschoi/gdna_p3exec/artifacts/phase3_selection/selected_n.json",
+  "/home/yschoi/GroundedDNA/docs/PHASE1_PHASE2_REAUDIT_2026-08-14.md",
+  "/home/yschoi/gdna_anchorRT_result/261006+flickr25k_setting1_ancRsmk9r6_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002+bs+64+e+1+proj_lr+0.001/model_state_dict.pth.runtime.json",
+  "/home/yschoi/gdna_anchorRT_result/261006+flickr25k_setting1_ancRsmk9r6_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002+bs+64+e+1+proj_lr+0.001/phase3_campaign_binding.json"
+ ],
+ "refused": []
+}
