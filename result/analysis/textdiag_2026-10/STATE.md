@@ -18,3 +18,4 @@ Plan: `/home/yschoi/.claude/plans/hidden-tinkering-pine.md` (approved 2026-10-05
 ## Next (in order)
 1. D0: write `a3_v2.py` (reference caption file + reference text cache, all validation rows, lexical pair rule, bootstrap CIs, codeword + codon level, oracle-mixing calibration); positive control before any use.
 3. Stage 1 prep: build_cmd.py (off-protocol command from approved args.txt: strip seal/authority flags, add --no_gumbel_softmax), one-cell smoke on an idle GPU (nvidia-smi first), then B0/OFF/H2 cells (Flickr first). Write PREREGISTRATION.md for Stage 1 before the first cell. Score with a3_v2 on ALL validation rows.
+NOTE: run_queue.sh skip pattern (*+tag+*) never matches -> fix to *_tag+* AFTER the queues finish (bash reads a running script incrementally)
