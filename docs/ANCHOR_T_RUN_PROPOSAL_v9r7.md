@@ -111,36 +111,41 @@ env -C /data/yschoi/gdna_anchor_refit_v9r6 -u PYTHONPATH -u CUDA_VISIBLE_DEVICES
   --anchor-manifest-sha256 2f24fc80bb83e2c73b17ec473c2731ade6d34a356e02414e6719fe9e9bec947c \
   --anchor-refit-receipt /data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/ancR9_sweep_complete.json \
   --anchor-refit-receipt-sha256 2897aa880dddd07cbb0aeb49ef090b7e5ccc06e6e9b540922a9ca77a30d81d4a \
-  --namespace ancT9 --run --gpus 2,3,4,5 --anchor-approval-section <SECTION>
+  --namespace ancT9 --run --gpus 0,1,2,3 --anchor-approval-section <SECTION>
 ```
 
 - This is the render's argument list without `--plan`, with the approval section added.
 - There is no `--only`, extra cell or override.
 - The GPU indices do not enter the request; only `gpu_count` 4 does.
 
-**Devices: four distinct physical GPUs, coordinated with the separate session.**
+**Devices: four distinct physical GPUs, chosen by the user after §786.**
+
+The user chose GPUs 0–3 for full T and GPUs 4–5 for the text-path session, for the duration of the
+pending and running full T. This replaces this proposal's earlier default (T on GPUs 2–5).
 
 | GPU | UUID |
 |---|---|
+| 0 | `GPU-4ac2ea6b-1925-e1ba-5463-02827507d897` |
+| 1 | `GPU-47b162a4-5db7-e986-03ea-181752d39fd5` |
 | 2 | `GPU-65da79f2-d9fe-007d-c5dd-7f3599156777` |
 | 3 | `GPU-c1b4c38b-bf2f-40c3-a1b7-2107d7d0cfed` |
-| 4 | `GPU-09e3ce04-0bce-569f-5cc8-e58957758b82` |
-| 5 | `GPU-bf4ed000-d77c-f059-2bb2-31ee39703e99` |
 
-- **Availability now:** at preparation all six GPUs are idle (11 MiB, no compute process). The
-  separate text-path session's `td1_*` jobs have ended (no tmux session).
-- **The split:**
-  - That session's resume file (read only) says its next cells take an idle GPU at launch.
-  - The proposed partition for the duration of full T is: **GPUs 2–5 for T, GPUs 0–1 for the
-    text-path session.**
-  - The user decides the partition (§783) and may change it.
+- **Decision record:** `/home/yschoi/anchor_rt_session_state/coordination/gpu_partition_full_T.json`.
+- **Delivery (the user's choice):** a direct cross-session message to the live text-path session
+  "텍스트 경로 수정 (질문용)", msg `20957ede…`. It asks that session to keep the text-path line to
+  GPUs 4–5, to pass the split to its worker session, and to reply.
+- **Receipt (recorded in the same file):** that session replied that the text-path line will use only
+  GPUs 4–5, pinned by UUID, and nothing on GPUs 0–3 until `ancT9` settles. It wrote this as a binding
+  "GPU constraint" block at the top of the text-path resume file
+  `/home/yschoi/gdna_textdiag/result/analysis/textdiag_2026-10/STATE.md`, which its worker reads
+  before any launch. I read that block back and recorded the file digest at the check.
 - **At launch:**
   - The four named UUIDs must be present with no compute process.
   - The launcher takes its exclusive host leases.
   - If any named device is busy, I wait or return for review. I never substitute another device.
-- **Dataset → GPU:** one dataset stream per GPU, in the launcher's sorted order. Following the R
-  mapping, that would be CIFAR-10→2, Flickr25K→3, MS-COCO→4, NUS-WIDE→5; the T snapshot records the
-  actual mapping.
+- **Dataset → GPU:** CIFAR-10→0, Flickr25K→1, MS-COCO→2, NUS-WIDE→3 (the launcher's sorted order,
+  as in R). The T snapshot records the actual mapping.
+- The request digest does not change, because it binds `gpu_count` 4, not indices.
 
 **Gate in the same command as the launch** (fail closed on any unavailable observation):
 - the tree is clean at its submitted HEAD;

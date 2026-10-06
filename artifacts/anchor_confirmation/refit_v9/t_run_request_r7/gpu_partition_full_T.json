@@ -1,0 +1,58 @@
+{
+ "schema": "gpu-partition/1",
+ "recorded_utc": "2026-10-06T13:53:16Z",
+ "source": "user answer to AskUserQuestion in the anchor R/T (audit-handoff) session dad53253, after audit section 786",
+ "decision": {
+  "anchor_full_T": {
+   "gpus": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "uuids": [
+    "GPU-4ac2ea6b-1925-e1ba-5463-02827507d897",
+    "GPU-47b162a4-5db7-e986-03ea-181752d39fd5",
+    "GPU-65da79f2-d9fe-007d-c5dd-7f3599156777",
+    "GPU-c1b4c38b-bf2f-40c3-a1b7-2107d7d0cfed"
+   ]
+  },
+  "text_path_session": {
+   "gpus": [
+    4,
+    5
+   ],
+   "uuids": [
+    "GPU-09e3ce04-0bce-569f-5cc8-e58957758b82",
+    "GPU-bf4ed000-d77c-f059-2bb2-31ee39703e99"
+   ]
+  },
+  "duration": "from the stage-T-run approval/launch until the anchor full-T campaign (ancT9) settles"
+ },
+ "delivery": "user chose: direct message to the text-path session (SendMessage); receipt to be recorded here",
+ "question_options": [
+  "T: 2-5 / text: 0-1 (recommended)",
+  "T: 0-3 / text: 4-5 (CHOSEN)",
+  "pause text session"
+ ],
+ "note": "Supersedes the proposal default (T on GPUs 2-5). The request digest a74b68e1 does not depend on GPU indices (gpu_count 4 only).",
+ "delivery_log": [
+  {
+   "utc": "2026-10-06T13:54:27Z",
+   "via": "SendMessage",
+   "to": "텍스트 경로 수정 (질문용) [532210] (live text-path session; the td1 worker session f99d6c76 \"텍스트 경로 수정\" is not listed live)",
+   "msg_id": "20957ede-2dd8-4b09-bc99-23ade193973b",
+   "status": "delivered and answered"
+  }
+ ],
+ "receipt": {
+  "received_utc": "2026-10-06T13:55:26Z",
+  "via": "cross-session reply from \"텍스트 경로 수정 (질문용)\" (forked question session of the text-path worker f99d6c76 line)",
+  "text": "Receipt confirmed: the text-path line will use only GPUs 4 and 5 (GPU-09e3ce04-0bce-569f-5cc8-e58957758b82, GPU-bf4ed000-d77c-f059-2bb2-31ee39703e99), pinned by UUID, and nothing on GPUs 0-3 until the anchor full-T campaign (ancT9) settles. Recorded at the top of /home/yschoi/gdna_textdiag/result/analysis/textdiag_2026-10/STATE.md (the text-path resume file, read first on every reconnect); index-to-UUID mapping checked against nvidia-smi. No text-path GPU job is running now. Sent from a forked question session of the text-path worker (f99d6c76 line); the worker reads the same STATE.md before any launch.",
+  "verified_in_text_path_state": {
+   "path": "/home/yschoi/gdna_textdiag/result/analysis/textdiag_2026-10/STATE.md",
+   "file_sha256_at_check": "5762b97c518656bf76b6ebccf5ee07789f003b112bd9ce5a40b418d0934aaa5b",
+   "binding_block": "## GPU constraint (binding; recorded 2026-10-06 from anchor session groundeddna-29, user decision after audit §786)\n- Until the anchor full-T campaign (namespace ancT9, tmux ancT9_v9r7) settles: the text-path line uses **GPUs 4 and 5 ONLY**\n  (GPU-09e3ce04-0bce-569f-5cc8-e58957758b82, GPU-bf4ed000-d77c-f059-2bb2-31ee39703e99). Never GPUs 0-3, even if idle.\n- Pin by UUID (CUDA_VISIBLE_DEVICES=<uuid>) and re-check `nvidia-smi --query-gpu=index,uuid` before every launch.\n- Record: /home/yschoi/anchor_rt_session_state/coordination/gpu_partition_full_T.json. Lift only when that campaign has settled."
+  }
+ }
+}
