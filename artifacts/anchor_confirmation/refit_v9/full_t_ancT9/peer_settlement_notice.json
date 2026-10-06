@@ -1,0 +1,80 @@
+{
+ "schema": "gpu-partition/1",
+ "recorded_utc": "2026-10-06T13:53:16Z",
+ "source": "user answer to AskUserQuestion in the anchor R/T (audit-handoff) session dad53253, after audit section 786",
+ "decision": {
+  "anchor_full_T": {
+   "gpus": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "uuids": [
+    "GPU-4ac2ea6b-1925-e1ba-5463-02827507d897",
+    "GPU-47b162a4-5db7-e986-03ea-181752d39fd5",
+    "GPU-65da79f2-d9fe-007d-c5dd-7f3599156777",
+    "GPU-c1b4c38b-bf2f-40c3-a1b7-2107d7d0cfed"
+   ]
+  },
+  "text_path_session": {
+   "gpus": [
+    4,
+    5
+   ],
+   "uuids": [
+    "GPU-09e3ce04-0bce-569f-5cc8-e58957758b82",
+    "GPU-bf4ed000-d77c-f059-2bb2-31ee39703e99"
+   ]
+  },
+  "duration": "from the stage-T-run approval/launch until the anchor full-T campaign (ancT9) settles"
+ },
+ "delivery": "user chose: direct message to the text-path session (SendMessage); receipt to be recorded here",
+ "question_options": [
+  "T: 2-5 / text: 0-1 (recommended)",
+  "T: 0-3 / text: 4-5 (CHOSEN)",
+  "pause text session"
+ ],
+ "note": "Supersedes the proposal default (T on GPUs 2-5). The request digest a74b68e1 does not depend on GPU indices (gpu_count 4 only).",
+ "delivery_log": [
+  {
+   "utc": "2026-10-06T13:54:27Z",
+   "via": "SendMessage",
+   "to": "\ud14d\uc2a4\ud2b8 \uacbd\ub85c \uc218\uc815 (\uc9c8\ubb38\uc6a9) [532210] (live text-path session; the td1 worker session f99d6c76 \"\ud14d\uc2a4\ud2b8 \uacbd\ub85c \uc218\uc815\" is not listed live)",
+   "msg_id": "20957ede-2dd8-4b09-bc99-23ade193973b",
+   "status": "delivered and answered"
+  },
+  {
+   "utc": "2026-10-06T20:57:42Z",
+   "via": "SendMessage",
+   "to": "groundeddna-05 [811a6d] (only live peer listed; message self-identifies its intended recipient, the text-path session)",
+   "msg_id": "3ce3e0c9-404d-420b-b125-c3e998e570e1",
+   "status": "delivered and answered",
+   "purpose": "settlement notice: constraint may be lifted"
+  }
+ ],
+ "receipt": {
+  "received_utc": "2026-10-06T13:55:26Z",
+  "via": "cross-session reply from \"\ud14d\uc2a4\ud2b8 \uacbd\ub85c \uc218\uc815 (\uc9c8\ubb38\uc6a9)\" (forked question session of the text-path worker f99d6c76 line)",
+  "text": "Receipt confirmed: the text-path line will use only GPUs 4 and 5 (GPU-09e3ce04-0bce-569f-5cc8-e58957758b82, GPU-bf4ed000-d77c-f059-2bb2-31ee39703e99), pinned by UUID, and nothing on GPUs 0-3 until the anchor full-T campaign (ancT9) settles. Recorded at the top of /home/yschoi/gdna_textdiag/result/analysis/textdiag_2026-10/STATE.md (the text-path resume file, read first on every reconnect); index-to-UUID mapping checked against nvidia-smi. No text-path GPU job is running now. Sent from a forked question session of the text-path worker (f99d6c76 line); the worker reads the same STATE.md before any launch.",
+  "verified_in_text_path_state": {
+   "path": "/home/yschoi/gdna_textdiag/result/analysis/textdiag_2026-10/STATE.md",
+   "file_sha256_at_check": "5762b97c518656bf76b6ebccf5ee07789f003b112bd9ce5a40b418d0934aaa5b",
+   "binding_block": "## GPU constraint (binding; recorded 2026-10-06 from anchor session groundeddna-29, user decision after audit \u00a7786)\n- Until the anchor full-T campaign (namespace ancT9, tmux ancT9_v9r7) settles: the text-path line uses **GPUs 4 and 5 ONLY**\n  (GPU-09e3ce04-0bce-569f-5cc8-e58957758b82, GPU-bf4ed000-d77c-f059-2bb2-31ee39703e99). Never GPUs 0-3, even if idle.\n- Pin by UUID (CUDA_VISIBLE_DEVICES=<uuid>) and re-check `nvidia-smi --query-gpu=index,uuid` before every launch.\n- Record: /home/yschoi/anchor_rt_session_state/coordination/gpu_partition_full_T.json. Lift only when that campaign has settled."
+  }
+ },
+ "settled": {
+  "utc_recorded": "2026-10-06T20:57:42Z",
+  "campaign": "ancT9",
+  "run_id": "20261006T145139Z-b08e4ae2",
+  "settlement": "final ledger event status=stopped (budget), 2026-10-06T20:50:12Z; no leases held after exit, no orphans; GPUs 0-5 no compute process at check",
+  "audit": "\u00a7795 (stop + settlement verified; notify the text-path peer that the temporary constraint may be lifted; do not reserve GPUs)",
+  "constraint": "LIFTED as of settlement; the anchor line reserves no GPU; any future anchor run needs new audit approval and new coordination",
+  "receipt": {
+   "received_utc_detected": "2026-10-06T20:58:11Z",
+   "via": "cross-session reply from groundeddna-05 (text-path session, worktree /home/yschoi/gdna_textdiag)",
+   "text": "received: constraint lifted (text-path session, worktree /home/yschoi/gdna_textdiag). Verified here: nvidia-smi shows GPUs 0-5 idle with no compute process at 2026-10-07 KST; the binding record gpu_partition_full_T.json read. I will keep checking nvidia-smi before every launch and will not reserve any GPU. For the record: my Stage 1 queues ran on GPUs 0/1/3/4/5 from 2026-10-06 12:22Z to 13:16Z, before the partition was recorded at 13:53Z; the only text-path GPU job since then was an evaluation-caption run on GPUs 4-5 (started 2026-10-06 16:02Z).",
+   "note": "12:22Z-13:16Z use of GPUs 0/1/3/4/5 falls under the earlier \u00a7783 partition during full R (GPU2 reserved for the R MS-COCO stream); not part of the full-T window (14:51Z-20:50Z)."
+  }
+ }
+}
