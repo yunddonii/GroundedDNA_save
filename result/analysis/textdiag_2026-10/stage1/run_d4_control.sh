@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -u; cd /home/yschoi/gdna_textdiag || exit 90
+P=/home/yschoi/.conda/envs/dna_hashing/bin/python; D=result/analysis/textdiag_2026-10
+nice -n 10 env -u PYTHONPATH OMP_NUM_THREADS=8 CUDA_VISIBLE_DEVICES= GDNA_NUM_SEMANTIC_PARTS=5 $P $D/d4_caption_swap_control.py --out $D/stage1/d4_control_B0.json /home/yschoi/gdna_textdiag/result/261006+flickr25k_setting1_td1_flickr_B0_s42+bs+64+e+60+proj_lr+0.001 /home/yschoi/gdna_textdiag/result/261006+flickr25k_setting1_td1_flickr_B0_s43+bs+64+e+60+proj_lr+0.001 /home/yschoi/gdna_textdiag/result/261006+flickr25k_setting1_td1_flickr_B0_s44+bs+64+e+60+proj_lr+0.001  > $D/stage1/logs/d4_control_B0.log 2>&1; r1=$?
+nice -n 10 env -u PYTHONPATH OMP_NUM_THREADS=8 CUDA_VISIBLE_DEVICES= GDNA_NUM_SEMANTIC_PARTS=5 $P $D/d4_caption_swap_control.py --force_text --out $D/stage1/d4_control_OFF.json /home/yschoi/gdna_textdiag/result/261006+flickr25k_setting1_td1_flickr_OFF_s42+bs+64+e+60+proj_lr+0.001 /home/yschoi/gdna_textdiag/result/261006+flickr25k_setting1_td1_flickr_OFF_s43+bs+64+e+60+proj_lr+0.001 /home/yschoi/gdna_textdiag/result/261006+flickr25k_setting1_td1_flickr_OFF_s44+bs+64+e+60+proj_lr+0.001  > $D/stage1/logs/d4_control_OFF.log 2>&1; r2=$?
+echo "rc B0=$r1 OFF=$r2"; [ $r1 -eq 0 ] && [ $r2 -eq 0 ]; exit $?
