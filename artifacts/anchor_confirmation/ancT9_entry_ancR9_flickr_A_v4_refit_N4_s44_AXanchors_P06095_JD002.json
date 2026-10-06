@@ -1,0 +1,10 @@
+{
+ "attempt": "ancT9_attempt_ancR9_flickr_A_v4_refit_N4_s44_AXanchors_P06095_JD002.json",
+ "attempt_sha256": "2ec8d12af554b2626067fda1babca186b03f40835424425253d270dd76de3a7e",
+ "cell_id": "flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=refit|seed=44|axis_center=anchors",
+ "config_pt_sha256": "d15643e5ec90d2783ffe680928e519f99ed728edc8b44d194ea3f3f1ee0aabdb",
+ "created_utc": "2026-10-06T18:55:54Z",
+ "final_checkpoint_sha256": "0de91ec2688ae8f5760fd472cb1c18d3606b82d7247163256c878d73db099bc6",
+ "host": "ailab-hs",
+ "pid": 1987901
+}

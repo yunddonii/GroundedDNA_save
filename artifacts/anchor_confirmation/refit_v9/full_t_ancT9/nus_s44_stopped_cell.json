@@ -1,0 +1,103 @@
+{
+ "cell_id": "nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=44|axis_center=anchors",
+ "status": "stopped before any T output (supervisor budget stop 2026-10-06T20:50:07Z)",
+ "attempt": {
+  "file": "ancT9_attempt_ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005.json",
+  "sha256": "d626f950bcdc5a9131c317c23ecbe766e12913fc425c1c6a5d1d4cf66ac44143",
+  "created_utc": "2026-10-06T20:41:35Z"
+ },
+ "entry": {
+  "file": "ancT9_entry_ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005.json",
+  "sha256": "7689d689c7cfe582ff559266ad837f6a0e89ed0799020a8437860923cb3a3f78",
+  "created_utc": "2026-10-06T20:41:40Z",
+  "pid": 2006624,
+  "binds_attempt_bytes": true
+ },
+ "t_record": "absent",
+ "contract_outputs_present": [],
+ "run_dir": "/home/yschoi/gdna_anchorRT_result/261006+nuswide_setting1_ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005+bs+64+e+5+proj_lr+0.001",
+ "run_dir_listing": {
+  "args.txt": {
+   "bytes": 47100,
+   "mtime": 1791288030.2898824
+  },
+  "config.pt": {
+   "bytes": 26524,
+   "mtime": 1791288249.3498983
+  },
+  "criterion_state_dict.pth": {
+   "bytes": 20307,
+   "mtime": 1791288248.541972
+  },
+  "log.csv": {
+   "bytes": 3882,
+   "mtime": 1791288247.3980763
+  },
+  "model_state_dict.pth": {
+   "bytes": 655219200,
+   "mtime": 1791288248.541972
+  },
+  "model_state_dict.pth.runtime.json": {
+   "bytes": 8341,
+   "mtime": 1791288249.3458986
+  },
+  "phase3_campaign_binding.json": {
+   "bytes": 6704,
+   "mtime": 1791288030.2858827
+  },
+  "run_identity.json": {
+   "bytes": 2932,
+   "mtime": 1791288030.281883
+  },
+  "train": {
+   "bytes": 4096,
+   "mtime": 1791288033.6935718
+  },
+  "val": {
+   "bytes": 4096,
+   "mtime": 1791288033.6935718
+  }
+ },
+ "r_pins_now": {
+  "model_state_dict.pth": {
+   "now": "7c852680611a6596b524cd253cdcde584362afd496ab4dbb30b49d7319aab117",
+   "request": "7c852680611a6596b524cd253cdcde584362afd496ab4dbb30b49d7319aab117",
+   "full_r_summary": "7c852680611a6596b524cd253cdcde584362afd496ab4dbb30b49d7319aab117"
+  },
+  "model_state_dict.pth.runtime.json": {
+   "now": "1166f9ace992b4481d0175373f35de6bed9f1c2caf65b40aa5ef8be07a8e7258",
+   "request": "1166f9ace992b4481d0175373f35de6bed9f1c2caf65b40aa5ef8be07a8e7258",
+   "full_r_summary": "1166f9ace992b4481d0175373f35de6bed9f1c2caf65b40aa5ef8be07a8e7258"
+  },
+  "config.pt": {
+   "now": "7e63262c0f19eb4f0205f2d6d0e31261a6e5424f1ff6cb7364c67bac39a93de3",
+   "request": "7e63262c0f19eb4f0205f2d6d0e31261a6e5424f1ff6cb7364c67bac39a93de3",
+   "full_r_summary": "7e63262c0f19eb4f0205f2d6d0e31261a6e5424f1ff6cb7364c67bac39a93de3"
+  }
+ },
+ "note": "the reserved attempt is spent; this cell is not an untouched cell (audit \u00a7794)",
+ "log_facts": {
+  "command_log": "20261006T145139Z-b08e4ae2.command.log",
+  "command_log_sha256": "831c7575adfe3c1dd617ab1680dac3ae2771b97e9f3c2b4c307fdda48ccbf100",
+  "admitted_line": [
+   5662
+  ],
+  "checkpoint_loaded_line": [
+   5669
+  ],
+  "encoding_db_line_after_load": [
+   5678
+  ],
+  "encoding_query_line_after_load": [],
+  "last_progress": "extract[db] 140/757 (log tail)",
+  "producer_boundaries": {
+   "1_T_entry(query/DB extraction + raw evaluation)": "INTERRUPTED: admitted, checkpoint loaded, DB extraction at batch 140/757; query extraction not started in the log; no raw evaluation; nothing written",
+   "2_train_extraction": "NOT STARTED",
+   "3_BIO_evaluation": "NOT STARTED",
+   "4_NMI": "NOT STARTED",
+   "5_analysis_seal": "NOT STARTED"
+  },
+  "line_numbering": "newline-delimited (as grep -n); progress bars use carriage returns within lines",
+  "total_lines": 5687
+ }
+}

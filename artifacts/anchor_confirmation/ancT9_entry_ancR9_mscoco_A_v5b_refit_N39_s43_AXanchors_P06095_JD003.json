@@ -1,0 +1,10 @@
+{
+ "attempt": "ancT9_attempt_ancR9_mscoco_A_v5b_refit_N39_s43_AXanchors_P06095_JD003.json",
+ "attempt_sha256": "6479c832242665bfcce0de7ba83a920821a3422171b11286a4676d57ab646f77",
+ "cell_id": "mscoco|N=39|P=0.6,0.95|JD=0.03|stage=refit|seed=43|axis_center=anchors",
+ "config_pt_sha256": "08a2dda601d6217a129addf7d1d0384242a86a2d1a7d5a073dfbc466081a54c1",
+ "created_utc": "2026-10-06T16:59:55Z",
+ "final_checkpoint_sha256": "9979a34ed75b94a554a307832b80886f5fb45c167181f5d3305d6a9e3f5e6e21",
+ "host": "ailab-hs",
+ "pid": 1963147
+}

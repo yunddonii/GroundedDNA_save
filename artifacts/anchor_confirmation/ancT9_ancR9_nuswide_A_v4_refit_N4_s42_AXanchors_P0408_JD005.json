@@ -1,0 +1,86 @@
+{
+  "attempt": {
+    "file": "ancT9_attempt_ancR9_nuswide_A_v4_refit_N4_s42_AXanchors_P0408_JD005.json",
+    "sha256": "6b7099176803e6bf29d891fa74f2ab5c2ba3e85460d08924659df9a6fd6c2af5"
+  },
+  "campaign_nonce": "f6234d0efc0bc527f718c3cba408cc43382d090e205ac54b7529127bddbfcfc0",
+  "cell": {
+    "N": 4,
+    "cell_id": "nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=42|axis_center=anchors",
+    "checkpoint_runtime_sha256": "11092b13d203ea90d10c68ffb2acb4bf12776b2b58dfd6fae1e753fd3959cb4d",
+    "config_pt_sha256": "eaee9134e177a19f82206e136125ebbc3bf7415564eefbef2c1d623b81fe273b",
+    "dataset": "nuswide",
+    "final_checkpoint": "model_state_dict.pth",
+    "final_checkpoint_sha256": "d1318bfdadc74490bb0cfab87d4c3b1de4dc8e38d956858d1fde3e0b5d14fec2",
+    "phase3_campaign_evidence_sha256": "51146eb929a86cc72cf7242ad11ebd8396b404cd3ec2f871ffc2a1e1b7fa8d40",
+    "record": "/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/ancR9_nuswide_A_v4_refit_N4_s42_AXanchors_P0408_JD005.json",
+    "record_sha256": "9b24aefc6341f120fbe409302776661672dcdbfcecf380143d70f3cf5fe5a9a7",
+    "run_dir": "/home/yschoi/gdna_anchorRT_result/261006+nuswide_setting1_ancR9_nuswide_A_v4_refit_N4_s42_AXanchors_P0408_JD005+bs+64+e+5+proj_lr+0.001",
+    "scientific_recipe_sha256": "e8df2579ba2b75bb2fa347e01a70f7ada06d9999c661f802d18eebb5f041e827",
+    "seed": 42,
+    "tag": "ancR9_nuswide_A_v4_refit_N4_s42_AXanchors_P0408_JD005",
+    "terminal_epoch": 4
+  },
+  "completion": {
+    "analysis_complete_sha256": "96001440d70866f93a2c6dd1e0bac98378f13054697502bc899d7af6013b4497",
+    "analysis_metrics": {
+      "dna_unique_db": 0.20721195040622709,
+      "full_map_bioproj": 0.6010636927232473,
+      "full_map_pre_projection": 0.6084485753148248,
+      "map_at_R_bioproj": 0.8192154087229033,
+      "mean_off_diag_nmi": 0.5241247853868496
+    },
+    "analysis_protocol": {
+      "bio_max_homopolymer_run": 3,
+      "codebook_size": 128,
+      "dataset": "NUSWIDE",
+      "gc_count_max_inclusive": 9,
+      "gc_count_min_inclusive": 6,
+      "gc_max_frac": 0.6,
+      "gc_min_frac": 0.4,
+      "gc_policy_version": "gc-40-60-inclusive-v1",
+      "map_r_cutoff": 5000,
+      "nmi_average_method": "arithmetic",
+      "sklearn_version": "1.7.2",
+      "total_bases": 15
+    },
+    "bio_evaluation_sha256": "9b13f95a479f7354d1cbd8b10beb9689dacf991592e24ddd8febf24731b6bdde",
+    "bio_map": 0.6010636927232473,
+    "bio_map_at_R": 0.8192154087229033,
+    "cell_result_sha256": "5397ddd6b3aff862989bffa8051cd9e420fed3310ef197c81e68e9875fa9670d",
+    "checkpoint_exact_load": true,
+    "evaluation_sha256": "f18bc1855c396511a045ee80623617d53629438296a9e626de2433a11ce5e2a0",
+    "extraction_complete_sha256": "73e4e8d590e68479d0c31d454831b8d0cc69510029c4ea58bdaed7b6b13608f9",
+    "extraction_manifest_sha256": {
+      "db": "7166ace56c6e1c288ed79d2d54131163c62a7ff765deacc1876dd7a2200bf601",
+      "query": "e6cfd99d331615a680ec0ce360ffa7185cd07d110bfba7b65b61ac9665b4eef9",
+      "train": "1c9e41d543df7b4545673c59cb1830a35890debce0c77f01b742edd65a62c013"
+    },
+    "extraction_validated": true,
+    "label_zero_positive_rows": {
+      "db": 0,
+      "query": 0,
+      "train": 0
+    },
+    "map": 0.6084485753148248,
+    "map_R_cutoff": 5000,
+    "map_at_R": 0.8243874663534587,
+    "mean_off_diag_nmi": 0.5241247853868496,
+    "npz_sha256": {
+      "db": "268a9fdfeca09c3f591cf4d988e1ccb3e3f932edde34c376bb6bdc81c02ec52b",
+      "query": "d64ff128d8c1427bbd49bf1d1a2301cc08612e855822829fc37cc12e3088521b",
+      "train": "cb1a9392d015ea1ca7af207231fa3d9c9dc0a062a18f598ee233ff6fc23d7d46"
+    },
+    "pairwise_nmi_sha256": "2b9cd36f0b5bfacf8b9da1ba5c06223e9842b67b987076a42d98df0703a74d5f",
+    "required_splits": [
+      "db",
+      "query",
+      "train"
+    ]
+  },
+  "namespace": "ancT9",
+  "request_sha256": "a74b68e1db10c0d71d911ce491a25a2fa97dda6258c88d9f2c063223e1b40612",
+  "schema": "anchor-terminal-test-record/1",
+  "stage": "test",
+  "wall_seconds": 14626.8
+}

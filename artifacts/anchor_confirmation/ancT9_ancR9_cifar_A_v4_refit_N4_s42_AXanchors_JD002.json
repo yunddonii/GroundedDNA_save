@@ -1,0 +1,86 @@
+{
+  "attempt": {
+    "file": "ancT9_attempt_ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002.json",
+    "sha256": "791274a8f12ada59a0426ff88800c3f8854a4f0aa67cfa3719ce55bc0a0e5743"
+  },
+  "campaign_nonce": "f6234d0efc0bc527f718c3cba408cc43382d090e205ac54b7529127bddbfcfc0",
+  "cell": {
+    "N": 4,
+    "cell_id": "cifar10|N=4|P=0.3,0.7|JD=0.02|stage=refit|seed=42|axis_center=anchors",
+    "checkpoint_runtime_sha256": "b12ec041210ad7c1009978a53f04df5c772b7ae4561107eab5d1e2814e0b9e04",
+    "config_pt_sha256": "069230337fbd5720483debd6a40bbb21d0771fdaad4d5d2c3594aabf0123b0a6",
+    "dataset": "cifar10",
+    "final_checkpoint": "model_state_dict.pth",
+    "final_checkpoint_sha256": "304bcfc9f6041d287d612803be4188ef7531591415db7a4a3190fa536c43b93f",
+    "phase3_campaign_evidence_sha256": "a01ac014bbe7cb4bbcf834755084500eabfff8e2efa9c09bb7cd74a7a2bd9cf5",
+    "record": "/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002.json",
+    "record_sha256": "3e490eaaa82eefb6b0ec49d4adf833eb852d4436d62551138e39b8312bbcbac2",
+    "run_dir": "/home/yschoi/gdna_anchorRT_result/261006+cifar10_setting1_ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002+bs+64+e+5+proj_lr+0.001",
+    "scientific_recipe_sha256": "4535ba2f477075e4015be1c0b5e074c00aa06bb72bf8d5449d69f34d59611bcc",
+    "seed": 42,
+    "tag": "ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002",
+    "terminal_epoch": 4
+  },
+  "completion": {
+    "analysis_complete_sha256": "e8ff9178f475f62be6324d3fd3a54b459a8a3cbb750334bc7b7ebb23b80f6377",
+    "analysis_metrics": {
+      "dna_unique_db": 0.05864406779661017,
+      "full_map_bioproj": 0.780195419015877,
+      "full_map_pre_projection": 0.7785856977426215,
+      "map_at_R_bioproj": 0.8677347491705909,
+      "mean_off_diag_nmi": 0.5879006321535443
+    },
+    "analysis_protocol": {
+      "bio_max_homopolymer_run": 3,
+      "codebook_size": 64,
+      "dataset": "CIFAR10",
+      "gc_count_max_inclusive": 9,
+      "gc_count_min_inclusive": 6,
+      "gc_max_frac": 0.6,
+      "gc_min_frac": 0.4,
+      "gc_policy_version": "gc-40-60-inclusive-v1",
+      "map_r_cutoff": 1000,
+      "nmi_average_method": "arithmetic",
+      "sklearn_version": "1.7.2",
+      "total_bases": 15
+    },
+    "bio_evaluation_sha256": "047dfd7e9d51ba3646a10d1c6ff6cfc1c5305825bc5ddec61a553b82af949304",
+    "bio_map": 0.780195419015877,
+    "bio_map_at_R": 0.8677347491705909,
+    "cell_result_sha256": "04289d2cb23bfb4c0e32c6022a0f9cbb0e609f816a648c64740689d6658da056",
+    "checkpoint_exact_load": true,
+    "evaluation_sha256": "997cda149cbccb4c89cdf98856cd5cd89ce85f18926920dca736f5649c4dcfdd",
+    "extraction_complete_sha256": "700fe651c0e4668d96fc68b81af87ef4028b046638c4c9f974277c97fa5b3f79",
+    "extraction_manifest_sha256": {
+      "db": "265f9a774017c12b76a2ff9c2023676810b64648b6100f40235c0c6f3f3c4950",
+      "query": "49560447b32b2bd88e0b3ea7596a15e0d088793c80251844a160c93135e54986",
+      "train": "8fa9db20fbe1438a566ffa6fed69cbceac93e51ff5def8521bf15a85a433834c"
+    },
+    "extraction_validated": true,
+    "label_zero_positive_rows": {
+      "db": 0,
+      "query": 0,
+      "train": 0
+    },
+    "map": 0.7785856977426215,
+    "map_R_cutoff": 1000,
+    "map_at_R": 0.8672595202697765,
+    "mean_off_diag_nmi": 0.5879006321535443,
+    "npz_sha256": {
+      "db": "62863b98e32d826ef0bd45e4164f54c2a492bdd0464f8ed3265dd8bd8c9a07c4",
+      "query": "51c83577c2ec072834c7025cccc46061dab83d208d3d9646b41edab89a758752",
+      "train": "5ea8069e59e20510dce0df2c2297596f703a21a71ee9a8f0a0cbbca69b2036ed"
+    },
+    "pairwise_nmi_sha256": "f499ab8d511e76862e81402e90c951303e38abfc68920baebc743ebfed123dc7",
+    "required_splits": [
+      "db",
+      "query",
+      "train"
+    ]
+  },
+  "namespace": "ancT9",
+  "request_sha256": "a74b68e1db10c0d71d911ce491a25a2fa97dda6258c88d9f2c063223e1b40612",
+  "schema": "anchor-terminal-test-record/1",
+  "stage": "test",
+  "wall_seconds": 5625.5
+}

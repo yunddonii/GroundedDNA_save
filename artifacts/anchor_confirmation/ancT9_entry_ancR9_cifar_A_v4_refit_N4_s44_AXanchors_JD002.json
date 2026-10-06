@@ -1,0 +1,10 @@
+{
+ "attempt": "ancT9_attempt_ancR9_cifar_A_v4_refit_N4_s44_AXanchors_JD002.json",
+ "attempt_sha256": "4d1bd40b717f0f951c51475e8141c0a3e7891e74b65f0dd52b7cd73725aed494",
+ "cell_id": "cifar10|N=4|P=0.3,0.7|JD=0.02|stage=refit|seed=44|axis_center=anchors",
+ "config_pt_sha256": "8847960e32c1869b0e97d92b97749840bf9efcb06f0adbf81feb25c7e4b6eeb9",
+ "created_utc": "2026-10-06T17:51:39Z",
+ "final_checkpoint_sha256": "24ffa3ce58471d8cc8f1fd0940a218ca840305d1ff44915f09c42fabd5104068",
+ "host": "ailab-hs",
+ "pid": 1972754
+}

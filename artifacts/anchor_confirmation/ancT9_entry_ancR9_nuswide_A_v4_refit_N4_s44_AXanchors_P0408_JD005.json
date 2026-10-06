@@ -1,0 +1,10 @@
+{
+ "attempt": "ancT9_attempt_ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005.json",
+ "attempt_sha256": "d626f950bcdc5a9131c317c23ecbe766e12913fc425c1c6a5d1d4cf66ac44143",
+ "cell_id": "nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=44|axis_center=anchors",
+ "config_pt_sha256": "7e63262c0f19eb4f0205f2d6d0e31261a6e5424f1ff6cb7364c67bac39a93de3",
+ "created_utc": "2026-10-06T20:41:40Z",
+ "final_checkpoint_sha256": "7c852680611a6596b524cd253cdcde584362afd496ab4dbb30b49d7319aab117",
+ "host": "ailab-hs",
+ "pid": 2006624
+}

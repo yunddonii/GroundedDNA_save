@@ -1,0 +1,612 @@
+{
+ "run_id": "20261006T145139Z-b08e4ae2",
+ "stage": "stage-T-run",
+ "start": {
+  "command": [
+   "/home/yschoi/.conda/envs/dna_hashing/bin/python",
+   "scripts/phase3_selection_matrix.py",
+   "--anchor-confirm",
+   "test",
+   "--anchor-manifest",
+   "/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/authority_manifest_v9r7.json",
+   "--anchor-manifest-sha256",
+   "2f24fc80bb83e2c73b17ec473c2731ade6d34a356e02414e6719fe9e9bec947c",
+   "--anchor-refit-receipt",
+   "/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/ancR9_sweep_complete.json",
+   "--anchor-refit-receipt-sha256",
+   "2897aa880dddd07cbb0aeb49ef090b7e5ccc06e6e9b540922a9ca77a30d81d4a",
+   "--namespace",
+   "ancT9",
+   "--run",
+   "--gpus",
+   "0,1,2,3",
+   "--anchor-approval-section",
+   "788"
+  ],
+  "command_sha256": "28a21a8c903423138cc54188a5722fb8103ba5859ca87e5e911046f8470c9aa9",
+  "event": "start",
+  "free_bytes": 339112640512,
+  "label": "",
+  "manifest_sha256": "2f24fc80bb83e2c73b17ec473c2731ade6d34a356e02414e6719fe9e9bec947c",
+  "prior_charged_seconds": 7280.510054702871,
+  "refused": null,
+  "rules": {
+   "attempts": "sessions",
+   "budget_seconds": 80000.0,
+   "cell_output_bytes": 805306368,
+   "children_per_cell": 5,
+   "free_floor_bytes": 10737418240,
+   "gpus": 4,
+   "headroom_seconds": 520.0,
+   "planned_attempts": 60,
+   "planned_cells": 12,
+   "poll_seconds": 1.0,
+   "stop_bound_seconds": 120.0,
+   "wall_limit_seconds": 28800.0,
+   "watchdog_seconds": 10.0
+  },
+  "run_id": "20261006T145139Z-b08e4ae2",
+  "schema": "anchor-confirm-ops-ledger/1",
+  "stage": "stage-T-run",
+  "supervisor_sha256": "cccc78fc02a302a634f676929895a58cf497b10c71331cf99099c4a81ce1aa8b",
+  "utc": "2026-10-06T14:51:39+00:00"
+ },
+ "stop": {
+  "device_seconds": 72108.69064246863,
+  "elapsed": 21507.61571236048,
+  "event": "stop",
+  "free_bytes": 337967812608,
+  "label": "",
+  "projected_seconds": 80001.06752548646,
+  "reason": "budget: projected 80001 s of 80000 s",
+  "run_id": "20261006T145139Z-b08e4ae2",
+  "schema": "anchor-confirm-ops-ledger/1",
+  "stage": "stage-T-run",
+  "utc": "2026-10-06T20:50:07+00:00"
+ },
+ "final": {
+  "accounting": "attempt process lifetimes (end at the first scan without them) plus planned cells x the longest observation window: an upper bound on device occupancy while continuity holds, not measured GPU utilisation",
+  "attempts": [
+   {
+    "end_boot": 5242832.702418533,
+    "id": [
+     1936453,
+     523847180
+    ],
+    "seconds": 4360.90241853334,
+    "start_boot": 5238471.8
+   },
+   {
+    "end_boot": 5243349.480944269,
+    "id": [
+     1936432,
+     523847159
+    ],
+    "seconds": 4877.890944269486,
+    "start_boot": 5238471.59
+   },
+   {
+    "end_boot": 5243757.414480488,
+    "id": [
+     1950420,
+     524337534
+    ],
+    "seconds": 382.07448048796505,
+    "start_boot": 5243375.34
+   },
+   {
+    "end_boot": 5243910.381795641,
+    "id": [
+     1952458,
+     524378585
+    ],
+    "seconds": 124.53179564140737,
+    "start_boot": 5243785.85
+   },
+   {
+    "end_boot": 5243935.526432255,
+    "id": [
+     1953206,
+     524392405
+    ],
+    "seconds": 11.476432255469263,
+    "start_boot": 5243924.05
+   },
+   {
+    "end_boot": 5243957.472427884,
+    "id": [
+     1953493,
+     524393738
+    ],
+    "seconds": 20.092427884228528,
+    "start_boot": 5243937.38
+   },
+   {
+    "end_boot": 5244643.092185171,
+    "id": [
+     1936459,
+     523847183
+    ],
+    "seconds": 6171.2621851712465,
+    "start_boot": 5238471.83
+   },
+   {
+    "end_boot": 5245336.919133754,
+    "id": [
+     1957696,
+     524467248
+    ],
+    "seconds": 664.4391337540001,
+    "start_boot": 5244672.48
+   },
+   {
+    "end_boot": 5245732.524361441,
+    "id": [
+     1960264,
+     524534698
+    ],
+    "seconds": 385.54436144046485,
+    "start_boot": 5245346.98
+   },
+   {
+    "end_boot": 5245747.737952318,
+    "id": [
+     1961259,
+     524573352
+    ],
+    "seconds": 14.217952318489552,
+    "start_boot": 5245733.52
+   },
+   {
+    "end_boot": 5245769.418480139,
+    "id": [
+     1961533,
+     524574849
+    ],
+    "seconds": 20.928480139002204,
+    "start_boot": 5245748.49
+   },
+   {
+    "end_boot": 5246085.841236499,
+    "id": [
+     1948778,
+     524289965
+    ],
+    "seconds": 3186.1912364987656,
+    "start_boot": 5242899.65
+   },
+   {
+    "end_boot": 5246166.667888369,
+    "id": [
+     1962803,
+     524610638
+    ],
+    "seconds": 60.28788836952299,
+    "start_boot": 5246106.38
+   },
+   {
+    "end_boot": 5246179.689612585,
+    "id": [
+     1963653,
+     524616856
+    ],
+    "seconds": 11.129612585529685,
+    "start_boot": 5246168.56
+   },
+   {
+    "end_boot": 5246197.115635608,
+    "id": [
+     1963979,
+     524618146
+    ],
+    "seconds": 15.655635608360171,
+    "start_boot": 5246181.46
+   },
+   {
+    "end_boot": 5248551.06161612,
+    "id": [
+     1954632,
+     524413368
+    ],
+    "seconds": 4417.381616120227,
+    "start_boot": 5244133.68
+   },
+   {
+    "end_boot": 5248927.6040811,
+    "id": [
+     1970176,
+     524858208
+    ],
+    "seconds": 345.5240810997784,
+    "start_boot": 5248582.08
+   },
+   {
+    "end_boot": 5249074.311778036,
+    "id": [
+     1971269,
+     524892875
+    ],
+    "seconds": 145.5617780359462,
+    "start_boot": 5248928.75
+   },
+   {
+    "end_boot": 5249086.259810304,
+    "id": [
+     1971771,
+     524907477
+    ],
+    "seconds": 11.48981030471623,
+    "start_boot": 5249074.77
+   },
+   {
+    "end_boot": 5249109.077428848,
+    "id": [
+     1972029,
+     524908808
+    ],
+    "seconds": 20.99742884747684,
+    "start_boot": 5249088.08
+   },
+   {
+    "end_boot": 5250955.407060931,
+    "id": [
+     1936460,
+     523847183
+    ],
+    "seconds": 12483.577060931362,
+    "start_boot": 5238471.83
+   },
+   {
+    "end_boot": 5251175.74943542,
+    "id": [
+     1963147,
+     524615135
+    ],
+    "seconds": 5024.399435420521,
+    "start_boot": 5246151.35
+   },
+   {
+    "end_boot": 5251743.762382164,
+    "id": [
+     1977232,
+     525101057
+    ],
+    "seconds": 733.1923821633682,
+    "start_boot": 5251010.57
+   },
+   {
+    "end_boot": 5251789.476532603,
+    "id": [
+     1978081,
+     525118220
+    ],
+    "seconds": 607.2765326024964,
+    "start_boot": 5251182.2
+   },
+   {
+    "end_boot": 5252117.241233508,
+    "id": [
+     1980097,
+     525179617
+    ],
+    "seconds": 321.0712335081771,
+    "start_boot": 5251796.17
+   },
+   {
+    "end_boot": 5252152.738692433,
+    "id": [
+     1980998,
+     525213969
+    ],
+    "seconds": 13.048692432232201,
+    "start_boot": 5252139.69
+   },
+   {
+    "end_boot": 5252177.152890799,
+    "id": [
+     1981323,
+     525215419
+    ],
+    "seconds": 22.962890798226,
+    "start_boot": 5252154.19
+   },
+   {
+    "end_boot": 5252194.750832723,
+    "id": [
+     1979812,
+     525177041
+    ],
+    "seconds": 424.34083272330463,
+    "start_boot": 5251770.41
+   },
+   {
+    "end_boot": 5252210.476063261,
+    "id": [
+     1981743,
+     525219644
+    ],
+    "seconds": 14.036063260398805,
+    "start_boot": 5252196.44
+   },
+   {
+    "end_boot": 5252233.933276667,
+    "id": [
+     1982001,
+     525221224
+    ],
+    "seconds": 21.693276667036116,
+    "start_boot": 5252212.24
+   },
+   {
+    "end_boot": 5252246.423481239,
+    "id": [
+     1964531,
+     524625595
+    ],
+    "seconds": 5990.47348123882,
+    "start_boot": 5246255.95
+   },
+   {
+    "end_boot": 5252425.421772888,
+    "id": [
+     1972754,
+     524925535
+    ],
+    "seconds": 3170.071772888303,
+    "start_boot": 5249255.35
+   },
+   {
+    "end_boot": 5252425.421772888,
+    "id": [
+     1982528,
+     525224843
+    ],
+    "seconds": 176.9917728882283,
+    "start_boot": 5252248.43
+   },
+   {
+    "end_boot": 5252463.766272932,
+    "id": [
+     1983494,
+     525242644
+    ],
+    "seconds": 37.32627293188125,
+    "start_boot": 5252426.44
+   },
+   {
+    "end_boot": 5252808.568373134,
+    "id": [
+     1983558,
+     525242668
+    ],
+    "seconds": 381.88837313465774,
+    "start_boot": 5252426.68
+   },
+   {
+    "end_boot": 5252817.283030366,
+    "id": [
+     1984197,
+     525249889
+    ],
+    "seconds": 318.393030365929,
+    "start_boot": 5252498.89
+   },
+   {
+    "end_boot": 5252831.674144857,
+    "id": [
+     1985232,
+     525281884
+    ],
+    "seconds": 12.834144856780767,
+    "start_boot": 5252818.84
+   },
+   {
+    "end_boot": 5252833.032154739,
+    "id": [
+     1985359,
+     525281923
+    ],
+    "seconds": 13.80215473845601,
+    "start_boot": 5252819.23
+   },
+   {
+    "end_boot": 5252854.169244471,
+    "id": [
+     1985859,
+     525283414
+    ],
+    "seconds": 20.02924447134137,
+    "start_boot": 5252834.14
+   },
+   {
+    "end_boot": 5252855.260886105,
+    "id": [
+     1985732,
+     525283359
+    ],
+    "seconds": 21.670886104926467,
+    "start_boot": 5252833.59
+   },
+   {
+    "end_boot": 5256489.711842147,
+    "id": [
+     1987901,
+     525311110
+    ],
+    "seconds": 3378.6118421470746,
+    "start_boot": 5253111.1
+   },
+   {
+    "end_boot": 5257335.748213336,
+    "id": [
+     1986356,
+     525286479
+    ],
+    "seconds": 4470.958213335834,
+    "start_boot": 5252864.79
+   },
+   {
+    "end_boot": 5257780.354144709,
+    "id": [
+     1998859,
+     525733681
+    ],
+    "seconds": 443.54414470959455,
+    "start_boot": 5257336.81
+   },
+   {
+    "end_boot": 5258075.559819374,
+    "id": [
+     2000229,
+     525778165
+    ],
+    "seconds": 293.90981937386096,
+    "start_boot": 5257781.65
+   },
+   {
+    "end_boot": 5258090.920857921,
+    "id": [
+     2001081,
+     525807747
+    ],
+    "seconds": 13.450857921503484,
+    "start_boot": 5258077.47
+   },
+   {
+    "end_boot": 5258111.975766565,
+    "id": [
+     2001337,
+     525809198
+    ],
+    "seconds": 19.995766564272344,
+    "start_boot": 5258091.98
+   },
+   {
+    "end_boot": 5258385.77557991,
+    "id": [
+     1996803,
+     525652718
+    ],
+    "seconds": 1858.595579910092,
+    "start_boot": 5256527.18
+   },
+   {
+    "end_boot": 5258456.737244375,
+    "id": [
+     2002317,
+     525838691
+    ],
+    "seconds": 69.82724437490106,
+    "start_boot": 5258386.91
+   },
+   {
+    "end_boot": 5258470.966177855,
+    "id": [
+     2002752,
+     525845842
+    ],
+    "seconds": 12.546177854761481,
+    "start_boot": 5258458.42
+   },
+   {
+    "end_boot": 5258493.085037676,
+    "id": [
+     2003010,
+     525847210
+    ],
+    "seconds": 20.98503767605871,
+    "start_boot": 5258472.1
+   },
+   {
+    "end_boot": 5258499.554644547,
+    "id": [
+     1987414,
+     525310175
+    ],
+    "seconds": 5397.804644547403,
+    "start_boot": 5253101.75
+   },
+   {
+    "end_boot": 5258637.506366601,
+    "id": [
+     2003453,
+     525850058
+    ],
+    "seconds": 136.9263666011393,
+    "start_boot": 5258500.58
+   },
+   {
+    "end_boot": 5259028.921912074,
+    "id": [
+     2004154,
+     525863845
+    ],
+    "seconds": 390.4719120739028,
+    "start_boot": 5258638.45
+   },
+   {
+    "end_boot": 5259043.936635266,
+    "id": [
+     2005239,
+     525903062
+    ],
+    "seconds": 13.316635265946388,
+    "start_boot": 5259030.62
+   },
+   {
+    "end_boot": 5259064.252986033,
+    "id": [
+     2005513,
+     525904509
+    ],
+    "seconds": 19.1629860335961,
+    "start_boot": 5259045.09
+   },
+   {
+    "end_boot": 5259970.492885196,
+    "id": [
+     2006624,
+     525945749
+    ],
+    "seconds": 513.0028851954266,
+    "start_boot": 5259457.49
+   }
+  ],
+  "charged_seconds": 72201.6361753922,
+  "command_log": "/home/yschoi/gdna_anchorRT_ops/20261006T145139Z-b08e4ae2.command.log",
+  "continuity_lost": [],
+  "cumulative_charged_seconds": 79482.14623009507,
+  "device_seconds": 72109.76934707724,
+  "event": "final",
+  "label": "",
+  "lease_gpu_seconds": 86012.95535903051,
+  "leases_held_after_exit": [],
+  "max_observation_window_seconds": 1.5311138052493334,
+  "monitor_failures": [],
+  "orphaned_live_attempts": [],
+  "pessimistic_bound_seconds": 86051.97629620135,
+  "pre_lease_seconds": 5.455577211454511,
+  "reason": "budget: projected 80001 s of 80000 s",
+  "returncode": 143,
+  "run_id": "20261006T145139Z-b08e4ae2",
+  "schema": "anchor-confirm-ops-ledger/1",
+  "stage": "stage-T-run",
+  "status": "stopped",
+  "unobserved_allowance_seconds": 91.86682831496,
+  "utc": "2026-10-06T20:50:12+00:00",
+  "wall_seconds": 21512.994074050337
+ },
+ "attempt_starts": 56,
+ "attempt_ends": 56,
+ "polls": 704,
+ "checks": {
+  "allowance_equals_planned_attempts_x_max_window": true,
+  "charged_equals_device_plus_allowance": true,
+  "cumulative_equals_prior_plus_charged": true,
+  "no_leases_after_exit": true,
+  "no_orphans": true,
+  "no_continuity_loss": true,
+  "no_monitor_failures": true,
+  "ledger_lines_after_final": 0
+ }
+}
