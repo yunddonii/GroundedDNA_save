@@ -23,8 +23,15 @@ Plan: `/home/yschoi/.claude/plans/hidden-tinkering-pine.md` (approved 2026-10-05
 ## Done (Stage 1)
 - 22 cells + scoring + controls + H1 check; MODI 2026-10-07 entry; B1 = H2 (10-term recipe). Thresholds: T Flickr ≈ .21 (provisional), NUS .15, COCO .18.
 
+## In progress
+- Flickr 2,000-row rescoring (500 val + 1,500 eval-DB rows): tmux td1_score2000 -> stage1/a3v2_2000/, summary A3V2_2000_SUMMARY.md. Then: re-fix Flickr T, add a paragraph to the MODI 2026-10-07 Stage 1 entry.
+
+## Done 2026-10-07
+- Evaluation-only V4 captions for 1,500 Flickr DB images: cache_eval/flickr25k_qwen3_v4_evaldb1500.jsonl (+ evaldb_sample.json; 0 train overlap, 0 parse failures). Reference text cache cache_eval/ref_text_flickr_v4_plus_evaldb (6,500 has_text rows; text_part not committed, rebuild with extract_clip_text_features.py from cache_eval/flickr25k_v4_train_plus_evaldb.jsonl).
+- Peer notice (anchor session, audit §795): GPU partition lifted; receipt sent 2026-10-07. Always nvidia-smi before launch.
+
 ## Next
-1. USER DECISION: caption 1,500 Flickr DB images as evaluation-only labels (≈ 40 GPU-min) -- needed before any Flickr P-DELTA judgement.
+1. USER DECISIONS pending (asked 2026-10-07): Stage 2 (a) use dataset label vocabulary as concept material? (b) caption length ~10-15 words? Then rewrite plan Stage 2 per the user's 4-step flow (dataset survey -> VLM concepts -> VLM groups into 4 attributes -> short captions).
 2. Stage 3 N1 (TD) implementation: text dropout + two-path consistency replacing xmodal_commit; flag design, entry gate (defaults reproduce B1 s42 log.csv), unit tests, one-cell smoke; PREREGISTRATION for Stage 3.
 3. Fix run_queue.sh skip pattern (queues finished).
 - D2 DONE 2026-10-06 (d2/*.json for flickr v4/v5b, nus v4, coco v4/v5b; script d2_text_neighbours.py) -- not yet logged in MODI; log together with D0.
