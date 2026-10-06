@@ -487,6 +487,52 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-06 [anchor model — r7 full stage-R request submitted, nothing run] Audits §777–§779: twelve refits, carried admission
+
+**Status:** ✅ submitted for audit approval. **Preparation only:** no training, no payload verifier, no
+checkpoint or config load. Proposal `docs/ANCHOR_R_RUN_PROPOSAL_v9r7.md` on
+`arch-exp-2026-09-anchor-refit-r6` (`1105ee3`, with the correction `2610361`; pushed).
+
+**Audit trail.**
+- §777 accepted the T smoke in diagnostic scope and asked for this proposal.
+- §778 verified the T archive.
+- §779 rendered an independent reference of the same request.
+
+**The request.** `2aa9bf99b5cb4b5ee73a4a4ac78767d62b297e0950f590bbbcac7b705afd179d`. It is identical,
+field by field, to the audit's §779 reference.
+- Namespace `ancR9`, run mode.
+- Twelve cells: CIFAR-10, Flickr25K, NUS-WIDE and MS-COCO × seeds 42/43/44, all anchors, N 4/4/4/39.
+- The F lambdas, top-p and joint values unchanged.
+- The four approved refit seals.
+- Carried admission from the r7 R-smoke snapshot, bound by its bytes (`e134c9ba…`).
+
+**Checks done during preparation** (under the open() guard, 0 refused opens):
+- **Carried-admission predicate:** accepted all four historical-verifier records, so admission will be
+  stats-only.
+- **Stats-only seal check:** passed for 252 sealed file records, without reading any content.
+- **Bound-mode recipe comparison for all 12 cells**, with the admitted seals, as execution repeats it:
+  each cell differs from the F record only in the contracted refit fields (12, or 13 with
+  `random_seed` for seeds 43/44); the CLIP identity is equal; 0 fields fall outside the contract.
+
+**Proposed run.**
+
+| Item | Plan |
+|---|---|
+| tmux, stage | `ancR9_v9r7`, `stage-R-run` |
+| Cells and attempts | 12 logical cells, 12 managed trainer attempts |
+| GPUs | 4 (GPU 0–3, named by UUID), one dataset stream per GPU |
+| Wall limit | 8 h |
+| Ledger | the same cumulative R/T ledger, 514.225 s of 80,000 used |
+| Estimate | 7.3k–15.6k device-seconds; about 1.7 h wall, bounded by the MS-COCO N39 stream |
+| Storage | floor 19 GiB; about 8 GB to be written; 376 GB free |
+
+The 13 official-test names are the R exclusion set. A later full T requires 12 of them, with the bit2
+evaluation verified absent (§776).
+
+**Next.** Run only on an exact `stage-R-run` approval line. Full T is a separate gate after that.
+
+---
+
 ## 2026-10-06 [anchor model — stage-T smoke (r7) complete; diagnostic only] Audits §773–§776: the repaired T path runs end to end on a real checkpoint
 
 **Status:** ✅ the one T smoke that §773 approved completed cleanly. It is a diagnostic of the T path on
