@@ -487,6 +487,117 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-06 [anchor model — full stage T (r7) stopped by the budget rule: 11 of 12 cells complete] Audits §788–§795
+
+**Status:** ⚠️ the single full stage-T attempt approved in §788 ran and was stopped by its GPU-time
+budget. 11 of 12 cells are complete; NUS-WIDE seed 44 was interrupted. The campaign is **not
+complete** and has no `ancT9` receipt. §795 accepts the stop and the settlement only, not full-T
+completion and not paper use.
+
+- **Records:** on `arch-exp-2026-09-anchor-refit-r6` (`76e05fe`, pushed); evidence in
+  `artifacts/anchor_confirmation/refit_v9/full_t_ancT9/`.
+- **Next:** a separate, non-executable recovery proposal for NUS-WIDE seed 44 only.
+
+**Audit trail.**
+- §788 approved ONE full T: request `a74b68e1…`, GPUs 0–3 by UUID.
+- §789 verified the start.
+- §790–§794 verified the cell metadata as cells finished: 1, 3, 4, 8, then 11 cells.
+- §795 verified the budget stop and the settlement.
+
+**The run.**
+
+| Item | Value |
+|---|---|
+| Supervisor run | `20261006T145139Z-b08e4ae2`, tmux `ancT9_v9r7` |
+| Command | equal, token for token, to the audit's approved argv (42 tokens) |
+| Device mapping | CIFAR-10 → GPU0, Flickr25K → GPU1, MS-COCO → GPU2, NUS-WIDE → GPU3 |
+| Stop | `budget: projected 80001 s of 80000 s` at 2026-10-06T20:50:07Z; launcher SIGTERM → rc 143; tmux rc 3, 21,514 s |
+| Complete cells | 11 of 12, each with its 12 required outputs and no bit2 evaluation |
+| Bindings | T record ↔ attempt ↔ entry ↔ approved request; R checkpoint, runtime and config pins unchanged |
+| Collector | `collect_full_t_evidence.py`, read-only: 0 problems; caught all six injected faults on scratch copies |
+
+**NUS-WIDE seed 44.**
+- Its single-use attempt and entry exist.
+- The T entry was admitted, loaded the checkpoint and reached DB extraction batch 140/757, then was
+  stopped.
+- No query encoding and no raw evaluation ran. Train extraction, BIO evaluation, NMI and the seal
+  never started.
+- None of the 13 contract outputs exists. The official-test path was nevertheless opened, so it is
+  not an untouched cell (§794–§795).
+
+**Settlement.**
+
+| Item | Value |
+|---|---|
+| Device time | 72,109.77 s |
+| Allowance | 91.87 s = 60 planned attempts × 1.5311 s |
+| Charge | 72,201.64 s |
+| R/T cumulative | 79,482.15 s of 80,000 (517.85 s unspent) |
+| Attempts | 56 managed: 55 producers for 11 cells, plus the interrupted entry |
+| Leftovers | no held lease, orphan, continuity loss or monitor failure |
+
+- After the stop, GPUs 0–5 showed no compute process.
+- The text-path session (`groundeddna-05`) confirmed in writing that the temporary GPUs 4–5 constraint
+  is lifted (receipt in `coordination/gpu_partition_full_T.json`).
+
+**Official-test metrics (descriptive).** No statistical test was run. These numbers do not reopen F
+(selection is frozen), and the audit has not recomputed them; they are not yet paper results.
+- R is the mAP@R cutoff: 1000 for CIFAR-10, 5000 for the others.
+- "BIO" means after the DNA constraint projection (GC 40–60 %, homopolymer ≤ 3); 0 projection
+  failures in every cell.
+- NMI is the mean off-diagonal pairwise NMI of the 5 codebooks on the DB split.
+
+| Dataset (R) | seed | raw mAP@R | BIO mAP@R | raw mAP (full) | BIO mAP (full) | raw P@1 | NMI | DNA unique DB (BIO) | wall s |
+|---|---|---|---|---|---|---|---|---|---|
+| CIFAR-10 (1000) | 42 | 0.8673 | 0.8677 | 0.7786 | 0.7802 | 0.8720 | 0.5879 | 0.0586 | 5,626 |
+| CIFAR-10 (1000) | 43 | 0.8670 | 0.8569 | 0.7925 | 0.7678 | 0.8730 | 0.6270 | 0.0650 | 5,115 |
+| CIFAR-10 (1000) | 44 | 0.8776 | 0.8760 | 0.7754 | 0.7665 | 0.9020 | 0.6000 | 0.0802 | 3,850 |
+| Flickr25K (5000) | 42 | 0.8515 | 0.8476 | 0.7414 | 0.7388 | 0.9195 | 0.5039 | 0.3244 | 7,781 |
+| Flickr25K (5000) | 43 | 0.8442 | 0.8358 | 0.7324 | 0.7230 | 0.9300 | 0.4964 | 0.3055 | 6,852 |
+| Flickr25K (5000) | 44 | 0.8502 | 0.8469 | 0.7462 | 0.7396 | 0.9270 | 0.4574 | 0.3554 | 5,456 |
+| MS-COCO (5000) | 42 | 0.8248 | 0.8171 | 0.5957 | 0.5837 | 0.9136 | 0.6196 | 0.1747 | 7,677 |
+| MS-COCO (5000) | 43 | 0.8223 | 0.8164 | 0.5952 | 0.5897 | 0.9208 | 0.6182 | 0.1976 | 6,710 |
+| MS-COCO (5000) | 44 | 0.8315 | 0.8282 | 0.5992 | 0.5958 | 0.9178 | 0.6208 | 0.1795 | 5,529 |
+| NUS-WIDE (5000) | 42 | 0.8244 | 0.8192 | 0.6084 | 0.6011 | 0.8629 | 0.5241 | 0.2072 | 14,627 |
+| NUS-WIDE (5000) | 43 | 0.8319 | 0.8249 | 0.6207 | 0.6051 | 0.8533 | 0.5173 | 0.1876 | 6,353 |
+| NUS-WIDE | 44 | — | — | — | — | — | — | — | stopped |
+
+Mean ± SD over the complete seeds:
+
+| Dataset | seeds | raw mAP@R | BIO mAP@R | raw P@1 | NMI | DNA unique DB (BIO) |
+|---|---|---|---|---|---|---|
+| CIFAR-10 | 3 | 0.8706 ± 0.0061 | 0.8669 ± 0.0096 | 0.8823 ± 0.0170 | 0.6050 ± 0.0200 | 0.0679 ± 0.0111 |
+| Flickr25K | 3 | 0.8486 ± 0.0039 | 0.8434 ± 0.0066 | 0.9255 ± 0.0054 | 0.4859 ± 0.0250 | 0.3284 ± 0.0252 |
+| MS-COCO | 3 | 0.8262 ± 0.0047 | 0.8205 ± 0.0066 | 0.9174 ± 0.0036 | 0.6195 ± 0.0013 | 0.1839 ± 0.0121 |
+| NUS-WIDE | 2 | 0.8281 ± 0.0053 | 0.8220 ± 0.0040 | 0.8581 ± 0.0067 | 0.5207 ± 0.0048 | 0.1974 ± 0.0138 |
+
+**Compositional analysis.** Only the pairwise NMI above exists; it is produced inside the T chain.
+- Not computed: the drop test, the B0/B1/B2 lift and the grids.
+- Why: §795 forbids array evaluation of these outputs before the recovery review, and test-once
+  applies.
+- They need their own approval later.
+
+**What went wrong.**
+- **The resource plan was wrong by about 4–5×.** The proposal estimated 8k–17k device-s from the
+  T smoke; the run used 72.1k.
+  - The smoke ran one dataset alone with its feature cache already in page cache.
+  - The full run read four datasets' caches at once from `/data`. That is one rotational HDD, which
+    sat at 100 % busy and about 44 MB/s, all of it this run's own reads. The caches far exceed the
+    roughly 220 GB page cache.
+- **Speed recovered as streams finished:** NUS-WIDE seed 42 took 14,627 s, seed 43 took 6,353 s.
+- Saved as memory `feedback_estimate_io_bound_stages_cold.md`.
+
+**Next.**
+- The recovery proposal for NUS-WIDE seed 44 only. It must state:
+  - the interrupted versus unstarted producer boundaries;
+  - the budget increment and cumulative accounting;
+  - the immutable input/R/F bindings;
+  - a receipt lineage that carries the 11 cells without re-evaluating them;
+  - the test-once question, since the entry was attempted.
+- No retry, budget increase or execution is granted until that review.
+
+---
+
 ## 2026-10-06 [anchor model — full-T GPU split settled with the text-path session; fresh launch checks pass, nothing run] Audits §786–§787
 
 **Status:** ✅ the resource condition that §786–§787 left open is resolved. The full-T request is
