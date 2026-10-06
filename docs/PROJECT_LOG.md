@@ -487,6 +487,55 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-06 [anchor model — stage-T smoke (r7) complete; diagnostic only] Audits §773–§776: the repaired T path runs end to end on a real checkpoint
+
+**Status:** ✅ the one T smoke that §773 approved completed cleanly. It is a diagnostic of the T path on
+the one-epoch R-smoke checkpoint. Its numbers are **not paper evidence** and must not be used to
+reselect architecture, N, lambdas, seeds or the F recipe. Records on
+`arch-exp-2026-09-anchor-refit-r6` (`e137e80`, pushed).
+
+**Audit trail.**
+- §773 approved ONE T smoke (request `8ad639cc…`, GPU 5 only, the audit's exact argv).
+- §774 waited for my receipt.
+- §775 verified the receipt and the live start.
+- §776 corrected the output count: 12 required outputs, plus a verified absence of
+  `evaluation_siglip2_bit2.json`. That file is not produced for `distance_mode=base`, and it is absent
+  in every approved p3rfB refit as well.
+
+**The run.**
+
+| Item | Value |
+|---|---|
+| Supervisor run | `20261006T112109Z-dcc5739d`, tmux `ancTsmk9_v9r7` |
+| GPU | GPU 5 (RTX A6000 `GPU-bf4ed000…`) |
+| Command | equal, token for token, to the audit's `approved_argv.json` |
+| Producers | the five managed ones, in seconds: T entry (query/DB extraction + raw evaluation) 294.8; train extraction 21.6; BIO 84.4; NMI 11.0; analysis seal 17.5 |
+| Records | attempt `2ab59a6d…`, exclusive entry claim, T record `2df50eea…`, snapshot `986757d5…`, receipt `ancTsmk9_test_complete.json` |
+| R files | checkpoint, config and runtime witness re-hashed: unchanged |
+| Outputs | the 12 required outputs created once in the R-smoke run directory (identities in `output_identities.json`); bit2 confirmed absent |
+| Supervisor final | rc 0; wall 537.1 s (5.4 s before the lease); device 429.3 s |
+| Charge | 436.35 s; R/T cumulative 514.22 s of 80,000 |
+| Settlement | clean: no held lease, orphan, continuity loss or monitor failure |
+
+**Diagnostic values** (Flickr25K, one-epoch checkpoint, official split, 15 bases):
+
+| Metric | Value |
+|---|---|
+| mAP@5000 raw | 0.8258 |
+| mAP@5000 post-BIO | 0.8181 |
+| full mAP raw / post-BIO | 0.7255 / 0.7203 |
+| mean off-diagonal NMI | 0.526 |
+| DNA unique on DB | 0.111 |
+
+No test was run on these values and no comparison is made; they only show that the path works.
+
+**Next.**
+- The audit reviews this T smoke.
+- Only then do I prepare a full-R proposal: the twelve refits, carried from the r7 R-smoke snapshot.
+  It needs its own approval, and full T is a separate gate after that.
+
+---
+
 ## 2026-10-06 [anchor model — r7 stage-T smoke request submitted, nothing run] Audits §768–§772
 
 **Status:** ✅ submitted for audit approval. **Preparation only:** no T, no checkpoint or config load,
