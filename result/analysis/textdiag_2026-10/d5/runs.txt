@@ -1,0 +1,9 @@
+/data/yschoi/gdna_archexp_result/260920+flickr25k_setting1_p2anc_s42+bs+64+e+60+proj_lr+0.001
+/data/yschoi/gdna_archexp_result/260920+flickr25k_setting1_p2anc_s43+bs+64+e+60+proj_lr+0.001
+/data/yschoi/gdna_archexp_result/260920+flickr25k_setting1_p2anc_s44+bs+64+e+60+proj_lr+0.001
+/data/yschoi/gdna_wt_mscoco/result/260922+mscoco_setting1_msc_p2anc_s42+bs+64+e+60+proj_lr+0.001
+/data/yschoi/gdna_wt_mscoco/result/260922+mscoco_setting1_msc_p2anc_s43+bs+64+e+60+proj_lr+0.001
+/data/yschoi/gdna_wt_mscoco/result/260922+mscoco_setting1_msc_p2anc_s44+bs+64+e+60+proj_lr+0.001
+/data/yschoi/gdna_wt_mscoco/result/260922+nuswide_setting1_nus_p2anc_s42+bs+64+e+60+proj_lr+0.001
+/data/yschoi/gdna_wt_mscoco/result/260922+nuswide_setting1_nus_p2anc_s43+bs+64+e+60+proj_lr+0.001
+/data/yschoi/gdna_wt_mscoco/result/260922+nuswide_setting1_nus_p2anc_s44+bs+64+e+60+proj_lr+0.001
