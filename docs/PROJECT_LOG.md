@@ -487,6 +487,47 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-06 [anchor model — full-T GPU split settled with the text-path session; fresh launch checks pass, nothing run] Audits §786–§787
+
+**Status:** ✅ the resource condition that §786–§787 left open is resolved. The full-T request is
+unchanged (`a74b68e1…`) and waits for its own approval line.
+
+**The decision.** After §786 the user chose:
+- anchor full T on **GPUs 0–3**, by UUID;
+- the text-path line on **GPUs 4–5 only**, until `ancT9` settles.
+
+This replaces the proposal's earlier default (T on GPUs 2–5). The command's `--gpus` becomes
+0,1,2,3. The request does not change, because it binds `gpu_count` 4, not indices. Proposal update
+`e50a56a` (`arch-exp-2026-09-anchor-refit-r6`).
+
+**Delivery and receipt** (the user chose a direct message):
+- I sent a cross-session message to the live text-path session.
+- It replied with its receipt and recorded a binding "GPU constraint" block at the top of the
+  text-path resume file, which its worker reads before every launch.
+- I read the block back and digested it.
+- Record: `/home/yschoi/anchor_rt_session_state/coordination/gpu_partition_full_T.json`.
+
+**Fresh launch checks** (13:55Z, `coordination/fresh_checks_full_T.json`): all pass.
+
+| Check | Result |
+|---|---|
+| Tree | HEAD `e50a56a`, clean |
+| Digests | manifest, F, R receipt and request match |
+| GPUs 0–3 | present with the named UUIDs, no compute process |
+| GPU leases | no lease held (read-only `lslocks`) |
+| Namespace | tmux `ancT9_v9r7` confirmed absent; no `ancT9` record |
+| R run directories | no T output in any of the 12 |
+| Space | 339 GB free (floor 19 GiB) |
+| Ledger | `31d3d386…`, 4/4 settled, cumulative 7,280.51 s |
+
+**Mistake disclosed.** My first lease probe briefly took and released each lease lock. A concurrent
+launcher could have seen a device as busy at that instant; nothing was running. I replaced it with
+read-only `lslocks`, recorded the method note, and told the text-path session.
+
+**Next.** Run full T once on an exact `stage-T-run` approval line, on GPUs 0–3 only.
+
+---
+
 ## 2026-10-06 [anchor model — r7 full stage-T request submitted, nothing run] Audit §785
 
 **Status:** ✅ submitted for audit approval. **Preparation only:** no weight or config load, forward
