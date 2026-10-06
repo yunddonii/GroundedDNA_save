@@ -1,0 +1,243 @@
+{
+ "result_dir": "/home/yschoi/GroundedDNA/result/260921+nuswide_setting1_nus_notext_s43+bs+64+e+60+proj_lr+0.001",
+ "dataset": "NUSWIDE",
+ "axis_center": "none",
+ "text_supervision_disabled": true,
+ "model_module": "/home/yschoi/gdna_textdiag/model_siglip2.py",
+ "module_provenance": {
+  "model_siglip2": {
+   "file": "/home/yschoi/gdna_textdiag/model_siglip2.py",
+   "sha256": "303e3f7b1f7e9ce961a0f9d18eb73b9c3278bfc9cf8a9de0dd561a03d54a00fa"
+  },
+  "dataloaders": {
+   "file": "/home/yschoi/gdna_textdiag/dataloaders.py",
+   "sha256": "fa7545908664502a5a4f20fe8d3441b42d5f441653d1310dc4fbf08c1bb14e27"
+  },
+  "dna_utils.runtime_state": {
+   "file": "/home/yschoi/gdna_textdiag/dna_utils/runtime_state.py",
+   "sha256": "cdab32494012f3f7199c7f05af81af547f5ddcbeb2131e166787dab94d26e333"
+  }
+ },
+ "rows": 500,
+ "captions_matched": 500,
+ "caption_file": "/data/yschoi/dataset/deephashing/cache/nuswide_qwen3_v4_trainset.jsonl",
+ "A1_text_code_kl_target": {
+  "tau_t": 0.07,
+  "conf_threshold": 0.2,
+  "C_primary_object": {
+   "mean_confidence": 0.0271,
+   "share_below_threshold": 1.0,
+   "text_argmax_equals_visual_codeword": 0.008,
+   "text_top1_mass_mean": 0.0253
+  },
+  "C_secondary_object": {
+   "mean_confidence": 0.0266,
+   "share_below_threshold": 1.0,
+   "text_argmax_equals_visual_codeword": 0.006,
+   "text_top1_mass_mean": 0.0251
+  },
+  "C_activity_or_relation": {
+   "mean_confidence": 0.0291,
+   "share_below_threshold": 1.0,
+   "text_argmax_equals_visual_codeword": 0.01,
+   "text_top1_mass_mean": 0.0264
+  },
+  "C_color_texture": {
+   "mean_confidence": 0.0278,
+   "share_below_threshold": 1.0,
+   "text_argmax_equals_visual_codeword": 0.006,
+   "text_top1_mass_mean": 0.0259
+  }
+ },
+ "A2": {
+  "pre_quantisation_slot_token": {
+   "code_picks_own_axis": 0.2435,
+   "axis_picks_own_code": 0.2345,
+   "chance": 0.25
+  },
+  "quantised_codeword": {
+   "code_picks_own_axis": 0.249,
+   "axis_picks_own_code": 0.23,
+   "chance": 0.25
+  },
+  "per_slot": {
+   "C_primary_object": {
+    "eff_rank_z": 55.34,
+    "cos_z_q_mean": 0.7265,
+    "codewords_used": 123,
+    "K": 128,
+    "prototype_vs_codeword_cos_mean": 0.8637,
+    "usage_entropy_norm": 0.9541
+   },
+   "C_secondary_object": {
+    "eff_rank_z": 56.05,
+    "cos_z_q_mean": 0.7318,
+    "codewords_used": 122,
+    "K": 128,
+    "prototype_vs_codeword_cos_mean": 0.8746,
+    "usage_entropy_norm": 0.9544
+   },
+   "C_activity_or_relation": {
+    "eff_rank_z": 56.21,
+    "cos_z_q_mean": 0.7221,
+    "codewords_used": 121,
+    "K": 128,
+    "prototype_vs_codeword_cos_mean": 0.8677,
+    "usage_entropy_norm": 0.9512
+   },
+   "C_color_texture": {
+    "eff_rank_z": 55.13,
+    "cos_z_q_mean": 0.7259,
+    "codewords_used": 124,
+    "K": 128,
+    "prototype_vs_codeword_cos_mean": 0.8612,
+    "usage_entropy_norm": 0.9513
+   }
+  }
+ },
+ "A3": {
+  "rows": 500,
+  "captions_matched": 500,
+  "baseline_all_pairs": {
+   "C_primary_object": {
+    "pairs": 124750,
+    "p_same_codeword": 0.0093,
+    "mean_base_hamming": 2.2464
+   },
+   "C_secondary_object": {
+    "pairs": 124750,
+    "p_same_codeword": 0.0093,
+    "mean_base_hamming": 2.2488
+   },
+   "C_activity_or_relation": {
+    "pairs": 124750,
+    "p_same_codeword": 0.0095,
+    "mean_base_hamming": 2.2482
+   },
+   "C_color_texture": {
+    "pairs": 124750,
+    "p_same_codeword": 0.0097,
+    "mean_base_hamming": 2.2486
+   }
+  },
+  "rules": {
+   "C_primary_object": {
+    "jaccard>=0.15": {
+     "pairs": 782,
+     "p_same_codeword": 0.1061,
+     "mean_base_hamming": 1.555,
+     "lift_same_codeword": 11.409,
+     "hamming_delta_vs_all_pairs": -0.6914,
+     "other_slots_p_same_codeword_mean": 0.1027,
+     "other_slots_lift_mean": 10.804
+    },
+    "jaccard>=0.25": {
+     "pairs": 182,
+     "p_same_codeword": 0.1374,
+     "mean_base_hamming": 1.3352,
+     "lift_same_codeword": 14.774,
+     "hamming_delta_vs_all_pairs": -0.9112,
+     "other_slots_p_same_codeword_mean": 0.1776,
+     "other_slots_lift_mean": 18.708
+    },
+    "caption_cos_top2pct(>= 0.681)": {
+     "pairs": 2495,
+     "p_same_codeword": 0.0766,
+     "mean_base_hamming": 1.7222,
+     "lift_same_codeword": 8.237,
+     "hamming_delta_vs_all_pairs": -0.5242,
+     "other_slots_p_same_codeword_mean": 0.079,
+     "other_slots_lift_mean": 8.313
+    }
+   },
+   "C_secondary_object": {
+    "jaccard>=0.15": {
+     "pairs": 1611,
+     "p_same_codeword": 0.0403,
+     "mean_base_hamming": 1.9628,
+     "lift_same_codeword": 4.333,
+     "hamming_delta_vs_all_pairs": -0.286,
+     "other_slots_p_same_codeword_mean": 0.0451,
+     "other_slots_lift_mean": 4.755
+    },
+    "jaccard>=0.25": {
+     "pairs": 265,
+     "p_same_codeword": 0.0528,
+     "mean_base_hamming": 1.883,
+     "lift_same_codeword": 5.677,
+     "hamming_delta_vs_all_pairs": -0.3658,
+     "other_slots_p_same_codeword_mean": 0.0817,
+     "other_slots_lift_mean": 8.6
+    },
+    "caption_cos_top2pct(>= 0.731)": {
+     "pairs": 2495,
+     "p_same_codeword": 0.0481,
+     "mean_base_hamming": 1.9094,
+     "lift_same_codeword": 5.172,
+     "hamming_delta_vs_all_pairs": -0.3394,
+     "other_slots_p_same_codeword_mean": 0.0516,
+     "other_slots_lift_mean": 5.424
+    }
+   },
+   "C_activity_or_relation": {
+    "jaccard>=0.15": {
+     "pairs": 990,
+     "p_same_codeword": 0.0838,
+     "mean_base_hamming": 1.8515,
+     "lift_same_codeword": 8.821,
+     "hamming_delta_vs_all_pairs": -0.3967,
+     "other_slots_p_same_codeword_mean": 0.0815,
+     "other_slots_lift_mean": 8.635
+    },
+    "jaccard>=0.25": {
+     "pairs": 161,
+     "p_same_codeword": 0.1304,
+     "mean_base_hamming": 1.6273,
+     "lift_same_codeword": 13.726,
+     "hamming_delta_vs_all_pairs": -0.6209,
+     "other_slots_p_same_codeword_mean": 0.145,
+     "other_slots_lift_mean": 15.367
+    },
+    "caption_cos_top2pct(>= 0.765)": {
+     "pairs": 2495,
+     "p_same_codeword": 0.081,
+     "mean_base_hamming": 1.808,
+     "lift_same_codeword": 8.526,
+     "hamming_delta_vs_all_pairs": -0.4402,
+     "other_slots_p_same_codeword_mean": 0.0822,
+     "other_slots_lift_mean": 8.714
+    }
+   },
+   "C_color_texture": {
+    "jaccard>=0.15": {
+     "pairs": 14745,
+     "p_same_codeword": 0.0257,
+     "mean_base_hamming": 2.111,
+     "lift_same_codeword": 2.649,
+     "hamming_delta_vs_all_pairs": -0.1376,
+     "other_slots_p_same_codeword_mean": 0.024,
+     "other_slots_lift_mean": 2.562
+    },
+    "jaccard>=0.25": {
+     "pairs": 2526,
+     "p_same_codeword": 0.0471,
+     "mean_base_hamming": 1.9727,
+     "lift_same_codeword": 4.856,
+     "hamming_delta_vs_all_pairs": -0.2759,
+     "other_slots_p_same_codeword_mean": 0.0424,
+     "other_slots_lift_mean": 4.525
+    },
+    "caption_cos_top2pct(>= 0.787)": {
+     "pairs": 2495,
+     "p_same_codeword": 0.0421,
+     "mean_base_hamming": 1.9928,
+     "lift_same_codeword": 4.34,
+     "hamming_delta_vs_all_pairs": -0.2558,
+     "other_slots_p_same_codeword_mean": 0.0376,
+     "other_slots_lift_mean": 4.012
+    }
+   }
+  }
+ },
+ "note": "deployment forward; captions only as labels/targets; exploratory checkpoints unless stated"
+}

@@ -42,6 +42,54 @@ analysis / 🔴 reverted or negative); tables over prose for numbers; each model
 
 ---
 
+## 2026-10-05 [analysis, no training, CPU only] D1: 45 never-scored exploratory checkpoints on the A1/A2/A3 instrument — the constructed-membership form (ac2) moves own−other lift by only ≈ +.5 (Flickr) / +1 to +1.7 (NUS) and not at all on MS-COCO
+
+**Status:** 🟡 diagnostic, exploratory (Gumbel ON checkpoints of 2026-09-22; own N; not the approved
+recipe). Records: `result/analysis/textdiag_2026-10/d1/` (`runs.txt`, `run_batch.sh`, `a2a3/*.json`
+and logs for 45 runs), tmux `textdiag_d1b` (rc 0, 1,629 s, end 2026-10-05 20:35). Instrument =
+the unchanged 09-29 script (500 validation rows, own cache captions); CIFAR-10 excluded.
+
+**own − other lift** (own-slot lift minus the mean lift of the other three slots on the same pairs,
+averaged over the four axes; Jaccard ≥ .25 rule / caption-cosine top-2 % rule; 3-seed mean, per-seed
+signs in brackets). The 09-29 arms are repeated for comparison.
+
+| dataset | arm | A2 codeword→own-axis | own − other (Jaccard) | own − other (cosine) |
+|---|---|---:|---:|---:|
+| Flickr25K | base (09-29) | .307 | −.42 (−/−/−) | −.10 (−/+/−) |
+| Flickr25K | anchors (09-29) | .370 | +.34 (−/+/+) | +.15 (+/+/+) |
+| Flickr25K | notext (09-29) | .252 | +.68 (+/+/−) | −.03 (−/+/+) |
+| Flickr25K | **ac2** (A′) | .32 | +.62 (+/+/+) | **+.56 (+/+/+)** |
+| Flickr25K | ancsoft | .38 | +.65 | +.13 |
+| Flickr25K | bc / bq / codsoft | .33 / .28 / .27 | +.35 / +.54 / −.04 | +.16 / +.12 / −.01 |
+| Flickr25K | k64 / p1b / p5prequ | .29 / .30 / .45 | −.04 / −.03 / +.63 | +.01 / +.19 / +.17 |
+| NUS-WIDE | anchors (09-29) | .444 | +.00 (+/−/−) | +.04 (−/+/+) |
+| NUS-WIDE | notext | .24 | +.10 (+/−/+) | −.21 (−/−/−) |
+| NUS-WIDE | **ac2** | .36 | **+1.74 (+/+/+)** | **+.77 (+/+/+)** |
+| NUS-WIDE | k64 | .37 | +.33 | +.16 |
+| MS-COCO | anchors (09-29) | .418 | +.85 (−/+/+) | +.19 (−/+/+) |
+| MS-COCO | notext | .24 | −.06 | +.02 |
+| MS-COCO | **ac2** | .26 | −.32 (+/−/−) | **−.26 (−/−/−)** |
+| MS-COCO | k64 | .38 | +.29 | −.03 |
+
+**Reading.**
+1. The constructed form (text clusters assign EMA membership) is the only arm with own − other
+   positive on 3/3 seeds under both rules on Flickr25K and NUS-WIDE. The size is small: ≈ +.5 on
+   lifts of 7–10 (Flickr), +.8 to +1.7 on NUS. On MS-COCO it is negative on 3/3 seeds, matching the
+   stage-8 verdict that A′ fails there.
+2. `bq` lowers every lift (own 3.3–4.8): the queue target crowded the codebook (dead .49) rather
+   than organising it. `codsoft` and `k64` are at zero. `p5prequ` raises A2 (.45) but halves the
+   lifts.
+3. This is the ceiling the plan's Stage 0 asked for: with text assigning membership directly, the
+   architecture can hold a slot-specific signal, but a weak one. Whether +.5 is above the noise of
+   the instrument is exactly what A3 v2 (D0: bootstrap intervals, lexical pair rule, all validation
+   rows) must decide; the plan's stop condition ("ac2 does not move A3 AND S_probe is at noise") is
+   not triggered on Flickr/NUS and is open on MS-COCO pending D3.
+
+Descriptive, n = 3 seeds, no test run. Nothing under `arch-exp-2026-09`, the anchor worktrees or any
+running campaign was touched; no GPU.
+
+---
+
 ## 2026-10-05 [design record, no results] Approved modification plan: weakest intervention first; codebooks read as prototype banks; loss-term review (14 nominal weights, 10 real terms)
 
 **Status:** 🟢 active plan, approved by the user on 2026-10-05. No measurement in this entry. Sources
