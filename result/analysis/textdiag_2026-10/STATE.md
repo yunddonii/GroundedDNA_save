@@ -18,6 +18,15 @@ Plan: `/home/yschoi/.claude/plans/hidden-tinkering-pine.md` (approved 2026-10-05
 - 2026-10-05 D1: 45 checkpoints scored (`d1/a2a3/*.json`, tmux `textdiag_d1b` rc 0). Logged in MODI (2026-10-05 D1 entry).
 
 ## In progress
+- (none; Stage 1 complete and logged 2026-10-07)
+
+## Done (Stage 1)
+- 22 cells + scoring + controls + H1 check; MODI 2026-10-07 entry; B1 = H2 (10-term recipe). Thresholds: T Flickr ≈ .21 (provisional), NUS .15, COCO .18.
+
+## Next
+1. USER DECISION: caption 1,500 Flickr DB images as evaluation-only labels (≈ 40 GPU-min) -- needed before any Flickr P-DELTA judgement.
+2. Stage 3 N1 (TD) implementation: text dropout + two-path consistency replacing xmodal_commit; flag design, entry gate (defaults reproduce B1 s42 log.csv), unit tests, one-cell smoke; PREREGISTRATION for Stage 3.
+3. Fix run_queue.sh skip pattern (queues finished).
 - D2 DONE 2026-10-06 (d2/*.json for flickr v4/v5b, nus v4, coco v4/v5b; script d2_text_neighbours.py) -- not yet logged in MODI; log together with D0.
 - D0 DONE: a3_v2.py smoke-tested (ac2, p2anc; vectorised bootstrap 14 s/run). Batch over 63 checkpoints running: tmux `textdiag_d0`, out `result/analysis/textdiag_2026-10/d0/a3v2/`, status `/data/yschoi/gdna_p3exec_authority/runs/textdiag_d0.status`. When done: aggregate (S, CI, calibration threshold per dataset), log D0 in MODI, update Done.
 

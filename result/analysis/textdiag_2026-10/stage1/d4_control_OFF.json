@@ -1,0 +1,152 @@
+{
+ "261006+flickr25k_setting1_td1_flickr_OFF_s42+bs+64+e+60+proj_lr+0.001": {
+  "run": "/home/yschoi/gdna_textdiag/result/261006+flickr25k_setting1_td1_flickr_OFF_s42+bs+64+e+60+proj_lr+0.001",
+  "dataset": "Flickr25k",
+  "rows": 500,
+  "text_off_run": true,
+  "forced_text": true,
+  "use_gumbel_softmax": false,
+  "mode_A": "text",
+  "mode_A_shuffled": "text",
+  "mode_B": "codebook_mean",
+  "caption_routed_own": {
+   "value": 0.0159,
+   "axes": 4,
+   "positive_axes": 3,
+   "ci95": [
+    -0.0899,
+    0.1146
+   ]
+  },
+  "caption_routed_shuffled": {
+   "value": 0.0053,
+   "axes": 4,
+   "positive_axes": 3,
+   "ci95": [
+    -0.1087,
+    0.1079
+   ]
+  },
+  "deployed": {
+   "value": -0.0021,
+   "axes": 4,
+   "positive_axes": 2,
+   "ci95": [
+    -0.1151,
+    0.1074
+   ]
+  },
+  "p_same_codeword_own_vs_deployed": [
+   0.838,
+   0.87,
+   0.844,
+   0.856
+  ],
+  "p_same_codeword_own_vs_shuffled": [
+   0.92,
+   0.922,
+   0.912,
+   0.922
+  ]
+ },
+ "261006+flickr25k_setting1_td1_flickr_OFF_s43+bs+64+e+60+proj_lr+0.001": {
+  "run": "/home/yschoi/gdna_textdiag/result/261006+flickr25k_setting1_td1_flickr_OFF_s43+bs+64+e+60+proj_lr+0.001",
+  "dataset": "Flickr25k",
+  "rows": 500,
+  "text_off_run": true,
+  "forced_text": true,
+  "use_gumbel_softmax": false,
+  "mode_A": "text",
+  "mode_A_shuffled": "text",
+  "mode_B": "codebook_mean",
+  "caption_routed_own": {
+   "value": -0.0563,
+   "axes": 4,
+   "positive_axes": 2,
+   "ci95": [
+    -0.186,
+    0.0541
+   ]
+  },
+  "caption_routed_shuffled": {
+   "value": -0.0285,
+   "axes": 4,
+   "positive_axes": 1,
+   "ci95": [
+    -0.1602,
+    0.0884
+   ]
+  },
+  "deployed": {
+   "value": -0.0182,
+   "axes": 4,
+   "positive_axes": 1,
+   "ci95": [
+    -0.1308,
+    0.0849
+   ]
+  },
+  "p_same_codeword_own_vs_deployed": [
+   0.888,
+   0.858,
+   0.844,
+   0.842
+  ],
+  "p_same_codeword_own_vs_shuffled": [
+   0.926,
+   0.928,
+   0.926,
+   0.924
+  ]
+ },
+ "261006+flickr25k_setting1_td1_flickr_OFF_s44+bs+64+e+60+proj_lr+0.001": {
+  "run": "/home/yschoi/gdna_textdiag/result/261006+flickr25k_setting1_td1_flickr_OFF_s44+bs+64+e+60+proj_lr+0.001",
+  "dataset": "Flickr25k",
+  "rows": 500,
+  "text_off_run": true,
+  "forced_text": true,
+  "use_gumbel_softmax": false,
+  "mode_A": "text",
+  "mode_A_shuffled": "text",
+  "mode_B": "codebook_mean",
+  "caption_routed_own": {
+   "value": -0.0042,
+   "axes": 4,
+   "positive_axes": 2,
+   "ci95": [
+    -0.1361,
+    0.1202
+   ]
+  },
+  "caption_routed_shuffled": {
+   "value": -0.0161,
+   "axes": 4,
+   "positive_axes": 2,
+   "ci95": [
+    -0.1402,
+    0.109
+   ]
+  },
+  "deployed": {
+   "value": -0.0515,
+   "axes": 4,
+   "positive_axes": 2,
+   "ci95": [
+    -0.1848,
+    0.078
+   ]
+  },
+  "p_same_codeword_own_vs_deployed": [
+   0.858,
+   0.858,
+   0.84,
+   0.886
+  ],
+  "p_same_codeword_own_vs_shuffled": [
+   0.914,
+   0.944,
+   0.928,
+   0.928
+  ]
+ }
+}

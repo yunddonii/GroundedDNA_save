@@ -7,7 +7,7 @@ cd /home/yschoi/gdna_textdiag || exit 90
 rc_all=0
 for f in "$@"; do
   tag=$(basename "$f" .cmd)
-  if ls -d result/*"+$tag+"* >/dev/null 2>&1 && [ -s "$(ls -d result/*"+$tag+"*/log.csv 2>/dev/null | head -1)" ] && [ -f "$(ls -d result/*"+$tag+"* | head -1)/model_state_dict.pth" ]; then
+  if ls -d result/*"_${tag}+"* >/dev/null 2>&1 && [ -s "$(ls -d result/*"_${tag}+"*/log.csv 2>/dev/null | head -1)" ] && [ -f "$(ls -d result/*"_${tag}+"* | head -1)/model_state_dict.pth" ]; then
     echo "$tag skip (exists)"; continue
   fi
   echo "=== $tag start $(date)"

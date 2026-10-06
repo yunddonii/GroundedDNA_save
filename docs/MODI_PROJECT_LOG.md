@@ -42,6 +42,101 @@ analysis / 🔴 reverted or negative); tables over prose for numbers; each model
 
 ---
 
+## 2026-10-07 [OFF-PROTOCOL exploration, branch text-diag-2026-09 — not a paper result] Stage 1: baseline, text-OFF and two clean-ups at the approved recipe. Text keeps retrieval (OFF −.013 / −.032 / −.054) and gives a small codon-level slot signal (B0 − OFF > 0 on 9/9 seed–dataset cells) but nothing at the codeword level; the caption-input dependence of D4 is confirmed at the approved recipe; H1 bit-identical; H2 passes
+
+**Status:** 🟡 exploratory, pre-registered (`result/analysis/textdiag_2026-10/stage1/PREREGISTRATION.md`).
+Commands rebuilt from the approved ancS7 seed-42 `args.txt` by `build_cmd.py` (seal/authority keys
+dropped, `--no_gumbel_softmax` explicit), launched directly on idle GPUs 0/1/3/4/5 (tmux `td1_q*`);
+22 cells, all rc 0, 2026-10-06 21:20–22:16. Results `result/261006+*_td1_*`; scoring
+`stage1/{a3v2,d4d6,d4_control_*.json,h1_bit_identity.json,A3V2_SUMMARY.md}`. Gate: the seed-42 Flickr
+B0 cell reproduces the campaign run's last-epoch val mAP@R (.76419 vs .764194). Seeds 42/43/44,
+`hash_target_mode siglip_cos`, 5 slots, N = 4/4/39. Descriptive, no test.
+
+**Retrieval and codebook health** (last-epoch validation mAP@R; paired Δ = arm − B0, same seed):
+
+| dataset | arm | mAP@R per seed | mean ± SD | paired Δ | dead | unique |
+|---|---|---|---:|---|---:|---:|
+| Flickr25K | B0 | .7642 / .7436 / .7360 | .7479 ± .0146 | — | .182 | .540 |
+| Flickr25K | OFF | .7395 / .7323 / .7336 | .7351 ± .0038 | −.025 / −.011 / −.002 | .151 | .459 |
+| Flickr25K | H1 (4 inert λ → 0, s42) | .7642 | — | +.0000 (bit-identical) | .158 | .529 |
+| Flickr25K | H2 (no token pruning) | .7569 / .7474 / .7405 | .7483 ± .0083 | −.007 / +.004 / +.005 | .157 | .558 |
+| NUS-WIDE | B0 | .7225 / .7292 / .7247 | .7255 ± .0034 | — | .020 | .522 |
+| NUS-WIDE | OFF | .6950 / .6985 / .6874 | .6936 ± .0057 | −.028 / −.031 / −.037 | .000 | .486 |
+| MS-COCO | B0 | .6341 / .6426 / .6302 | .6356 ± .0063 | — | .020 | .393 |
+| MS-COCO | OFF | .5825 / .5765 / .5855 | .5815 ± .0046 | −.052 / −.066 / −.045 | .000 | .300 |
+
+- **H1 passes** (`h1_bit_identity.json`): 1,250 parameter tensors `torch.equal` to B0 s42; every shared
+  `log.csv` column identical; `train_loss` lower by exactly .05 × `train_loss_anchor` (.04918 = .04918).
+  The 10-term recipe (`--lambda_anchor 0 --lambda_cibhash_kl 0 --lambda_codon_text_anchor 0 --lambda_recon 0`)
+  is the base of every later cell.
+- **H2 passes P-RET and P-HEALTH** (mean +.0003, no seed below −.008; dead .182 → .157; unique
+  .540 → .558). **B1 = H2.**
+- Text-OFF costs retrieval on every seed of every dataset (−.013 / −.032 / −.054) and lowers unique
+  codes (.540 → .459, .522 → .486, .393 → .300): the text path is a retrieval contribution even before
+  any interpretability claim.
+
+**A3 v2 on the deployed codes** (lexical rule, all validation rows, S with per-seed CIs in
+`A3V2_SUMMARY.md`; B0 − OFF paired by seed):
+
+| dataset | level | S(B0) per seed | S(OFF) per seed | B0 − OFF |
+|---|---|---|---|---|
+| Flickr25K | codeword | +.06 / +.01 / −.02 | −.00 / −.02 / −.05 | +.06 / +.03 / +.03 |
+| Flickr25K | codeword, H2 | +.09 / +.01 / −.06 | — | — |
+| Flickr25K | **codon** | **+.13 / +.08 / +.01** | +.09 / +.07 / −.11 | +.04 / +.01 / +.12 |
+| Flickr25K | codon, H2 | **+.14 / +.13 / +.12** (CI > 0 on 2/3) | — | vs OFF +.05 / +.06 / +.23 |
+| NUS-WIDE | codeword | +.04 / −.01 / +.04 | +.03 / −.01 / −.01 | +.01 / −.00 / +.06 |
+| NUS-WIDE | **codon** | **+.10 / +.05 / +.08** (CI > 0 on 2/3) | −.01 / −.02 / +.02 | +.11 / +.06 / +.06 |
+| MS-COCO | codeword | −.06 / +.01 / +.02 | −.02 / −.01 / −.06 | −.03 / +.02 / +.08 |
+| MS-COCO | **codon** | +.03 / +.04 / +.08 | −.01 / −.03 / +.03 | +.04 / +.07 / +.05 |
+
+- Codeword level: every cell within its CI of 0; no slot-specific sharing in the deployed codewords,
+  with or without text (as on the exploratory checkpoints).
+- **Codon level: B0 − OFF is positive on 9 of 9 seed–dataset cells** (+.01 to +.12; Flickr H2 − OFF
+  +.05 to +.23), the only consistent text-vs-no-text difference on A3 so far. It is small (≤ S_probe)
+  and single cells are inside their CIs; n = 3 seeds per dataset, no test. Working hypothesis (not
+  tested): the text supervision that reaches the deployed code sits in the **codon heads**
+  (`text_hash_ntxent`, 28 % of the gradient, is the only text term on the codon path), not in the
+  codeword assignment.
+- Calibration at these row counts: the first mixing fraction whose CI excludes 0 is f = .5 on Flickr
+  (S ≈ .47; f = .4 gives +.21 [−.03, +.39]), f = .3 on NUS (+.15 [+.02, +.25]), f = .4 on MS-COCO
+  (+.18 [+.07, +.26]). **With 500 Flickr rows the smallest detectable S (≈ .2–.5) exceeds S_probe
+  (.13)**: no realistic Flickr effect can pass P-DELTA until the evaluation sample is enlarged
+  (plan: caption a fixed 1,500-image DB sample as evaluation labels). Thresholds T are therefore
+  fixed per dataset as max(2 × SD_seed[S(OFF)], detectable S) = Flickr ≈ .21 (provisional until the
+  larger sample), NUS .15, COCO .18.
+
+**D4 at the approved recipe** (`stage1/d4d6`, `stage1/d4_control_*.json`; Flickr/NUS/COCO B0, Flickr
+H2 and OFF, 3 seeds):
+
+| cell | S caption-routed (own captions) | S caption-routed (ANOTHER image's captions) | S deployed | P(same codeword, train vs deploy) |
+|---|---|---|---|---|
+| Flickr B0 | +.15 / +.17 / +.08 (CI > 0 on 2/3) | −.01 / −.06 / −.04 | +.06 / +.01 / −.02 | .57–.70 |
+| Flickr H2 | +.19 / +.20 / +.12 | — | +.09 / +.01 / −.06 | .56–.65 |
+| NUS B0 | +.13 / +.16 / +.13 (3/3) | — | +.04 / −.01 / +.04 | .57–.61 |
+| COCO B0 | +.18 / +.21 / +.16 (3/3) | — | −.06 / +.01 / +.02 | .54–.56 |
+| Flickr OFF, routed with captions through its untrained adapter | +.02 / −.06 / −.00 | +.01 / −.03 / −.02 | −.00 / −.02 / −.05 | .91–.94 |
+
+- Confirmed at the approved recipe: the caption-routed codes carry S ≈ S_probe; the deployed codes do
+  not; **swapping in another image's captions removes the signal, and a model that never learned
+  from text shows none when given captions.** The signal is carried by *this image's caption as an
+  input* through the learned text adapter. Nothing in training ever applies a loss to the
+  deployment-routed token (codebook-mean anchors), and 30–46 % of codewords differ between the two
+  routings. Corrects the 2026-10-06 reading "the deployment lookup discards it" (see the correction
+  note on that entry).
+- D6 at the approved recipe: legacy pruning keeps .62–.66 of caption tokens, the adapted anchor has
+  cosine .49–.70 to the EOS-pooled anchor, 15–25 % of codewords change; without pruning the
+  caption-routed S rises on Flickr (+.22/+.19/+.11 vs +.15/+.17/+.08) and falls on NUS/COCO. H2 is
+  adopted on P-RET/P-HEALTH, not on this.
+
+**Consequences.** (1) B1 = H2 with the 10-term recipe. (2) Stage 3 as revised on 2026-10-07: teach
+the deployment path inside the shared embedding space (TD / S, then cross-modal contrastive N2),
+no offline structure; judge on the deployed codes' S and report the caption-routed S beside it.
+(3) Evaluation-sample expansion is a precondition for Flickr (user decision: caption 1,500 DB images
+as evaluation-only labels, ≈ 40 GPU-min). (4) The codon-level B0 > OFF pattern is the first candidate
+for a text-caused effect and is re-measured on every later arm.
+
+---
+
 ## 2026-10-06 [analysis, no training, CPU only] Stage 0 complete (D0/D2/D3/D4/D5/D6): the deployed codes carry no detectable slot-specific signal at 500–1,050 rows; the training-time text-routed codes do (S .14–.24 on 12/12 seed–dataset cells), and the deployment lookup discards it
 
 **Status:** 🟡 diagnostic, exploratory checkpoints (Gumbel ON, own N; 2026-09-20/22 arms); V4/V5b
@@ -130,6 +225,13 @@ overlap .04–.05, text vs visual neighbours .08–.09; cosine argmax = Euclidea
 pruned vs EOS-pooled .64–.72 (COCO .45; per-slot minima negative); codewords change on 21–32 % of rows;
 S of the caption-routed codes without pruning ≥ with pruning on Flickr (+.25/+.20/+.19 vs +.23/+.22/+.19
 base; anchors +.18/+.21/+.12 vs +.14/+.20/+.14), ≈ equal on NUS, lower on COCO (ratio 1.0 there).
+
+> **Correction (2026-10-07).** The D4 reading "the deployment lookup discards it" is replaced by the
+> caption-swap control (fork session 2026-10-06 on the exploratory checkpoints; recorded re-run on the
+> Stage 1 cells, `stage1/d4_control_*.json`): the caption-routed S vanishes when another image's
+> captions are routed (−.01/−.06/−.04) and is absent for a text-OFF model given captions
+> (+.02/−.06/−.00). The caption-routed S comes from *this image's caption being present as an input*;
+> the deployment-routed token is never trained. Stage 3 was revised accordingly (plan 2026-10-07).
 
 **Consequences for the plan.**
 1. Stage 1 must add **evaluation rows**: at 500 rows only a ≥ 40 % role is visible. Score on all
