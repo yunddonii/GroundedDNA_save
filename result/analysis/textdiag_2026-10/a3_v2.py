@@ -144,6 +144,9 @@ def main():
     ap.add_argument("--caption_file", default=None, help="reference caption jsonl (default: the run's own)")
     ap.add_argument("--reference_text_cache", default=None, help="dir with text_part.f16.npy + image_ids.json (default: the run's own cache)")
     ap.add_argument("--n", type=int, default=0, help="0 = all held-out validation rows")
+    ap.add_argument("--extra_rows_from_caption_file", action="store_true",
+                    help="also score every image of --caption_file that is NOT a training row (e.g. evaluation-only database captions); "
+                         "their visual features are read from the run's feature cache by image_id")
     ap.add_argument("--cos_top_frac", type=float, default=0.02)
     ap.add_argument("--max_df", type=float, default=0.20, help="an element word used by more than this share of rows does not define a pair")
     ap.add_argument("--boot", type=int, default=1000)
@@ -194,6 +197,16 @@ def main():
     keep = [k for k, c in enumerate(caps) if c is not None]
     if len(keep) < len(caps):
         idx = [idx[k] for k in keep]; cache_rows = [cache_rows[k] for k in keep]; ids = [ids[k] for k in keep]; caps = [caps[k] for k in keep]
+    n_val = len(idx)
+    extra_rows = []
+    if a.extra_rows_from_caption_file:
+        pos = {str(v): k for k, v in enumerate(image_ids)}
+        for iid, c in captions.items():
+            r = pos.get(iid)
+            if r is None or r in allr or r in set(cache_rows):
+                continue
+            extra_rows.append(r); ids.append(iid); caps.append(c); cache_rows.append(r)
+        print(f"rows: {n_val} validation + {len(extra_rows)} extra (non-training) from the caption file")
     ref_dir = a.reference_text_cache or cache
     ref_ids = json.load(open(os.path.join(ref_dir, "image_ids.json")))
     ref_pos = {str(v): k for k, v in enumerate(ref_ids)}
@@ -202,11 +215,20 @@ def main():
 
     # ---- deployment forward
     idx_cb, bases = [], []
+    vt_np = np.load(os.path.join(cache, "visual_tokens.f16.npy"), mmap_mode="r")
+    vg_np = np.load(os.path.join(cache, "visual_global.f16.npy"), mmap_mode="r")
+    def _batch(k0, k1):
+        vts, vgs = [], []
+        for k in range(k0, k1):
+            if k < n_val:
+                s = tr[idx[k]]; vts.append(s["cached_visual_tokens_raw"]); vgs.append(s["cached_visual_global"])
+            else:   # same fp16 -> fp32 conversion as _SigLIP2FeatureCache.get
+                r = cache_rows[k]
+                vts.append(torch.from_numpy(np.asarray(vt_np[r], dtype=np.float32))); vgs.append(torch.from_numpy(np.asarray(vg_np[r], dtype=np.float32)))
+        return torch.stack(vts), torch.stack(vgs)
     with torch.no_grad():
-        for s0 in range(0, len(idx), 50):
-            smp = [tr[i] for i in idx[s0:s0 + 50]]
-            vt = torch.stack([s["cached_visual_tokens_raw"] for s in smp])
-            vg = torch.stack([s["cached_visual_global"] for s in smp])
+        for s0 in range(0, len(ids), 50):
+            vt, vg = _batch(s0, min(s0 + 50, len(ids)))
             o = model(pixel_values=None, part_input_ids=None, part_attention_mask=None, return_routing=True,
                       cached_visual_tokens_raw=vt, cached_visual_global=vg, cached_text_part_raw=None, cached_has_text=None)
             idx_cb.append(o["codebook_indices"][:, 1:].cpu()); bases.append(o["base_indices_per_codebook"][:, 1:].cpu())
@@ -262,7 +284,7 @@ def main():
     res = {"result_dir": a.result_dir, "dataset": args.dataset, "axis_center": getattr(args, "axis_center", None),
            "text_supervision_disabled": bool(getattr(args, "disable_text_supervision", False)),
            "use_gumbel_softmax": bool(getattr(args, "use_gumbel_softmax", False)),
-           "rows": N, "caption_file": cap_file, "caption_sha256": hashlib.sha256(open(cap_file, "rb").read()).hexdigest(),
+           "rows": N, "rows_validation": n_val, "rows_extra": len(extra_rows), "caption_file": cap_file, "caption_sha256": hashlib.sha256(open(cap_file, "rb").read()).hexdigest(),
            "reference_text_cache": ref_dir, "module_provenance": provenance,
            "pair_rule": {"max_df": a.max_df, "cos_top_frac": a.cos_top_frac, "min_shared_colour": a.min_shared_colour, "boot": a.boot,
                          "elements_per_row_mean": {ax: round(float(np.mean([len(s) for s in E[ax]])), 2) for ax in AXES[1:]},

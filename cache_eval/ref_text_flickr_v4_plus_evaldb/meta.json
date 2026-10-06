@@ -1,0 +1,73 @@
+{
+  "N": 25000,
+  "num_tokens": 196,
+  "H_v": 768,
+  "D_proj": 512,
+  "dtype": "float16",
+  "backbone": "openai/clip-vit-base-patch16",
+  "tokenizer": "openai/clip-vit-base-patch16",
+  "text_max_length": 64,
+  "n_failed_image_decode": 0,
+  "failed_image_indices": [],
+  "save_aug_views": 2,
+  "augmentation_seed": 42,
+  "text_part_source": "clip",
+  "qwen_cache": "flickr25k_v4_train_plus_evaldb.jsonl",
+  "image_normalize_mean": [
+    0.48145466,
+    0.4578275,
+    0.40821073
+  ],
+  "image_normalize_std": [
+    0.26862954,
+    0.26130258,
+    0.27577711
+  ],
+  "cls_token_stripped": true,
+  "backbone_family": "clip",
+  "hf_provenance": {
+    "checkpoint": "openai/clip-vit-base-patch16",
+    "model_revision": "57c216476eefef5ab752ec549e440a49ae4ae5f3",
+    "transformers_version": "5.8.0",
+    "model_weight_file": "/home/yschoi/.cache/huggingface/hub/models--openai--clip-vit-base-patch16/blobs/ec89c7b09c749a60aae3c9cd910516f24b58214a7df060b48962d14c469cfbf0",
+    "model_weight_sha256": "ec89c7b09c749a60aae3c9cd910516f24b58214a7df060b48962d14c469cfbf0",
+    "tokenizer_files_sha256": {
+      "/home/yschoi/.cache/huggingface/hub/models--openai--clip-vit-base-patch16/blobs/580c79c6862f31d1f9bd08dd1a415ba0d0502cd9": "a83e0809aa4c3af7208b2df632a7a69668c6d48775b3c3fe4e1b1199d1f8b8f4",
+      "/home/yschoi/.cache/huggingface/hub/models--openai--clip-vit-base-patch16/blobs/a104224724ffb0721da7bee21ab59081b10fccef": "3f74b6a4d97fee70b3b96921a687fc5e3f2fb583f5f81e7c178c0c22281beade",
+      "/home/yschoi/.cache/huggingface/hub/models--openai--clip-vit-base-patch16/blobs/4297ea6a8d2bae1fea8f48b45e257814dcb11f69": "3f0c4f7d2086b61b38487075278ea9ed04edb53a03cbb045b86c27190fa8fb69",
+      "/home/yschoi/.cache/huggingface/hub/models--openai--clip-vit-base-patch16/blobs/76e821f1b6f0a9709293c3b6b51ed90980b3166b": "9fd691f7c8039210e0fced15865466c65820d09b63988b0174bfe25de299051a",
+      "/home/yschoi/.cache/huggingface/hub/models--openai--clip-vit-base-patch16/blobs/9bfb42aa97dcd61e89f279ccaee988bccb4fabae": "f8c0d6c39aee3f8431078ef6646567b0aba7f2246e9c54b8b99d55c22b707cbf"
+    }
+  },
+  "canonical_transform": {
+    "resize": [
+      224,
+      224
+    ],
+    "interpolation": "bilinear",
+    "crop": false,
+    "normalization": "openai_clip"
+  },
+  "augmentation_transform": {
+    "random_resized_crop": {
+      "size": 224,
+      "scale": [
+        0.5,
+        1.0
+      ],
+      "interpolation": "bilinear"
+    },
+    "horizontal_flip_probability": 0.5,
+    "color_jitter": [
+      0.4,
+      0.4,
+      0.4,
+      0.1
+    ],
+    "color_jitter_probability": 0.8,
+    "grayscale_probability": 0.2,
+    "normalization": "openai_clip",
+    "gaussian_blur": false
+  },
+  "text_encoder": "openai/clip-vit-base-patch16"
+}
