@@ -487,6 +487,40 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-06 [anchor model — r7 full stage-T request submitted, nothing run] Audit §785
+
+**Status:** ✅ submitted for audit approval. **Preparation only:** no weight or config load, forward
+pass or test access. Proposal `docs/ANCHOR_T_RUN_PROPOSAL_v9r7.md` on
+`arch-exp-2026-09-anchor-refit-r6` (`b84ecb4`, pushed).
+
+**Audit trail.** §785 verified the full R campaign (receipt `2897aa88…`, cumulative 7,280.51 s) and
+asked for this proposal and an archive digest manifest. The manifest of the 15 R records is in
+`refit_v9/full_r_ancR9/records_manifest.sha256`.
+
+**The request.** `a74b68e1db10c0d71d911ce491a25a2fa97dda6258c88d9f2c063223e1b40612`.
+- Namespace `ancT9`, run mode, the 12 `ancR9` cells.
+- Five producers per cell; `gpu_count` 4.
+- The per-cell checkpoint, runtime and config pins equal the R records.
+- Rendered from metadata under the open() guard: 0 refused opens, 44 allow-listed JSON/ledger files.
+
+**Proposed run.**
+
+| Item | Plan |
+|---|---|
+| tmux, stage | `ancT9_v9r7`, `stage-T-run` |
+| Cells and attempts | 12 logical cells, 60 managed producers |
+| GPUs | GPU 2–5 by UUID; GPU 0–1 left to the separate text-path session during T (the user may change the split) |
+| Limits | 8 h wall; stop headroom 520 GPU-s |
+| Ledger | the same cumulative R/T ledger |
+| Output contract | per §776: 12 required outputs per cell; the bit2 evaluation verified absent |
+
+**Next.**
+- Run only on an exact `stage-T-run` approval line.
+- The resulting official-test values are the new model's first. They will be reported descriptively,
+  with no pre-specified test, and they do not reopen F.
+
+---
+
 ## 2026-10-06 [anchor model — full stage R (r7) complete: twelve refits, official test withheld] Audits §780–§784
 
 **Status:** ✅ the one full stage-R attempt that §780 approved completed cleanly. **No test result
