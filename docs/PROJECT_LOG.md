@@ -487,6 +487,39 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-06 [anchor model — r7 stage-T smoke request submitted, nothing run] Audits §768–§772
+
+**Status:** ✅ submitted for audit approval. **Preparation only:** no T, no checkpoint or config load,
+no test-split access. Proposal `docs/ANCHOR_T_SMOKE_PROPOSAL_v9r7.md` on
+`arch-exp-2026-09-anchor-refit-r6` (`d4d010f`, pushed).
+
+**Audit trail.**
+- §768 verified the r7 R smoke's records and settlement.
+- §769 verified the resume-hook repair and the R archive.
+- §770 rendered an independent T-smoke preview.
+- §771 records the user's reaffirmed decision: anchors fixed for all four datasets.
+- §772 asked for this submission.
+
+**The request.** `8ad639cc7c1eaa28fb83925416b2d35a4bd21ee339b3803fc4e3e18de9d8f748`. It is identical,
+field by field, to the audit's §770 preview.
+- Namespace `ancTsmk9`, smoke mode.
+- One cell: Flickr25K / anchors / N4 / seed 42 at terminal epoch 0.
+- Inputs: R receipt `796e70d1…`, r7 manifest `2f24fc80…`, F `5165f5dc…`.
+- Five producers, 13 single-use outputs.
+- Rendered from metadata under the open() guard: 0 refused opens; 11 allow-listed JSON/ledger files.
+
+**Proposed run.**
+- tmux `ancTsmk9_v9r7`, supervisor stage `stage-T-smoke`.
+- One logical cell, five managed producer attempts, one idle GPU chosen at launch.
+- Limits: wall 10,800 s; poll/watchdog/stop 1/10/120 s; headroom 130 s.
+- Ledger: the same cumulative R/T ledger, 77.873 s of 80,000 used.
+- At submission: all six GPUs idle, 375.7 GB free, no `ancTsmk9` session or record.
+
+**Next.** Run only on an exact `stage-T-smoke` approval line, then report. Full R and full T remain
+separate gates.
+
+---
+
 ## 2026-10-06 [anchor model — stage-R smoke (r7) complete, official test withheld] Audits §762–§767: the repaired R path runs end to end on real inputs
 
 **Status:** ✅ the one stage-R smoke that §763 approved completed cleanly. It is a diagnostic only: no
