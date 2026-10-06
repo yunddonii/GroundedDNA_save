@@ -1,0 +1,840 @@
+{
+ "cache_dir": "/data/yschoi/groundeddna_cache_v6prov/mscoco_clip_tokens",
+ "caption_file": "/data/yschoi/dataset/deephashing/cache/mscoco_qwen3_v5b_trainset.jsonl",
+ "rows": 9000,
+ "visual_global_file": "visual_global.f16.npy",
+ "rows_without_element": {
+  "C_primary_object": 0.0,
+  "C_secondary_object": 0.002,
+  "C_activity_or_relation": 0.233,
+  "C_color_texture": 0.0
+ },
+ "elements_per_row_mean": {
+  "C_primary_object": 5.44,
+  "C_secondary_object": 4.45,
+  "C_activity_or_relation": 1.32,
+  "C_color_texture": 5.11
+ },
+ "k": {
+  "5": {
+   "C_primary_object": {
+    "own_axis_share": 0.9435,
+    "pairs_scored": 45000,
+    "random_share": 0.15,
+    "other_axis_share": {
+     "C_secondary_object": 0.4849,
+     "C_activity_or_relation": 0.6038,
+     "C_color_texture": 0.4591
+    },
+    "other_axis_share_mean": 0.5159,
+    "image_nbr_share": 0.6655,
+    "ratio_vs_other": 1.829,
+    "ratio_vs_image": 1.418,
+    "ratio_vs_random": 6.291,
+    "knn_overlap_with_other_axes": {
+     "C_secondary_object": 0.0286,
+     "C_activity_or_relation": 0.0422,
+     "C_color_texture": 0.0259
+    },
+    "knn_overlap_with_image": 0.0605,
+    "top_shared": [
+     [
+      "upright",
+      4219
+     ],
+     [
+      "hair",
+      3368
+     ],
+     [
+      "shirt",
+      3267
+     ],
+     [
+      "athlete",
+      2622
+     ],
+     [
+      "slender",
+      2592
+     ],
+     [
+      "rectangular",
+      2297
+     ],
+     [
+      "figure",
+      2047
+     ],
+     [
+      "sturdy",
+      2005
+     ]
+    ]
+   },
+   "C_secondary_object": {
+    "own_axis_share": 0.834,
+    "pairs_scored": 44764,
+    "random_share": 0.0559,
+    "other_axis_share": {
+     "C_primary_object": 0.3153,
+     "C_activity_or_relation": 0.3886,
+     "C_color_texture": 0.2599
+    },
+    "other_axis_share_mean": 0.3213,
+    "image_nbr_share": 0.4319,
+    "ratio_vs_other": 2.596,
+    "ratio_vs_image": 1.931,
+    "ratio_vs_random": 14.911,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0286,
+     "C_activity_or_relation": 0.0388,
+     "C_color_texture": 0.0208
+    },
+    "knn_overlap_with_image": 0.0496,
+    "top_shared": [
+     [
+      "held",
+      1943
+     ],
+     [
+      "beneath",
+      1286
+     ],
+     [
+      "hand",
+      1202
+     ],
+     [
+      "plate",
+      1199
+     ],
+     [
+      "pole",
+      1109
+     ],
+     [
+      "feet",
+      1038
+     ],
+     [
+      "skateboard",
+      915
+     ],
+     [
+      "sign",
+      903
+     ]
+    ]
+   },
+   "C_activity_or_relation": {
+    "own_axis_share": 0.471,
+    "pairs_scored": 28817,
+    "random_share": 0.0418,
+    "other_axis_share": {
+     "C_primary_object": 0.165,
+     "C_secondary_object": 0.1654,
+     "C_color_texture": 0.1205
+    },
+    "other_axis_share_mean": 0.1503,
+    "image_nbr_share": 0.2066,
+    "ratio_vs_other": 3.134,
+    "ratio_vs_image": 2.28,
+    "ratio_vs_random": 11.272,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0422,
+     "C_secondary_object": 0.0388,
+     "C_color_texture": 0.0184
+    },
+    "knn_overlap_with_image": 0.0614,
+    "top_shared": [
+     [
+      "facing",
+      1018
+     ],
+     [
+      "resting",
+      880
+     ],
+     [
+      "moving",
+      827
+     ],
+     [
+      "holding",
+      539
+     ],
+     [
+      "leaning",
+      523
+     ],
+     [
+      "smiling",
+      522
+     ],
+     [
+      "walking",
+      488
+     ],
+     [
+      "jumping",
+      463
+     ]
+    ]
+   },
+   "C_color_texture": {
+    "own_axis_share": 0.9882,
+    "pairs_scored": 45000,
+    "random_share": 0.8268,
+    "other_axis_share": {
+     "C_primary_object": 0.9065,
+     "C_secondary_object": 0.8944,
+     "C_activity_or_relation": 0.903
+    },
+    "other_axis_share_mean": 0.9013,
+    "image_nbr_share": 0.9338,
+    "ratio_vs_other": 1.096,
+    "ratio_vs_image": 1.058,
+    "ratio_vs_random": 1.195,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0259,
+     "C_secondary_object": 0.0208,
+     "C_activity_or_relation": 0.0184
+    },
+    "knn_overlap_with_image": 0.0395,
+    "top_shared": [
+     [
+      "matte",
+      30638
+     ],
+     [
+      "glossy",
+      11450
+     ],
+     [
+      "white",
+      9533
+     ],
+     [
+      "red",
+      6904
+     ],
+     [
+      "green",
+      6705
+     ],
+     [
+      "fabric",
+      5872
+     ],
+     [
+      "black",
+      5660
+     ],
+     [
+      "blue",
+      4926
+     ]
+    ]
+   }
+  },
+  "10": {
+   "C_primary_object": {
+    "own_axis_share": 0.9282,
+    "pairs_scored": 90000,
+    "random_share": 0.15,
+    "other_axis_share": {
+     "C_secondary_object": 0.467,
+     "C_activity_or_relation": 0.5825,
+     "C_color_texture": 0.4355
+    },
+    "other_axis_share_mean": 0.495,
+    "image_nbr_share": 0.6454,
+    "ratio_vs_other": 1.875,
+    "ratio_vs_image": 1.438,
+    "ratio_vs_random": 6.189,
+    "knn_overlap_with_other_axes": {
+     "C_secondary_object": 0.0402,
+     "C_activity_or_relation": 0.0586,
+     "C_color_texture": 0.0367
+    },
+    "knn_overlap_with_image": 0.0837,
+    "top_shared": [
+     [
+      "upright",
+      8013
+     ],
+     [
+      "hair",
+      6551
+     ],
+     [
+      "shirt",
+      6358
+     ],
+     [
+      "athlete",
+      5111
+     ],
+     [
+      "slender",
+      4919
+     ],
+     [
+      "rectangular",
+      4349
+     ],
+     [
+      "figure",
+      3885
+     ],
+     [
+      "sturdy",
+      3839
+     ]
+    ]
+   },
+   "C_secondary_object": {
+    "own_axis_share": 0.7989,
+    "pairs_scored": 89517,
+    "random_share": 0.0559,
+    "other_axis_share": {
+     "C_primary_object": 0.2998,
+     "C_activity_or_relation": 0.3676,
+     "C_color_texture": 0.242
+    },
+    "other_axis_share_mean": 0.3031,
+    "image_nbr_share": 0.4122,
+    "ratio_vs_other": 2.635,
+    "ratio_vs_image": 1.938,
+    "ratio_vs_random": 14.283,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0402,
+     "C_activity_or_relation": 0.0542,
+     "C_color_texture": 0.0291
+    },
+    "knn_overlap_with_image": 0.0677,
+    "top_shared": [
+     [
+      "held",
+      3662
+     ],
+     [
+      "beneath",
+      2431
+     ],
+     [
+      "plate",
+      2319
+     ],
+     [
+      "hand",
+      2204
+     ],
+     [
+      "pole",
+      2131
+     ],
+     [
+      "feet",
+      2026
+     ],
+     [
+      "skateboard",
+      1819
+     ],
+     [
+      "racket",
+      1743
+     ]
+    ]
+   },
+   "C_activity_or_relation": {
+    "own_axis_share": 0.4271,
+    "pairs_scored": 56859,
+    "random_share": 0.0418,
+    "other_axis_share": {
+     "C_primary_object": 0.1557,
+     "C_secondary_object": 0.1528,
+     "C_color_texture": 0.1139
+    },
+    "other_axis_share_mean": 0.1408,
+    "image_nbr_share": 0.1939,
+    "ratio_vs_other": 3.034,
+    "ratio_vs_image": 2.203,
+    "ratio_vs_random": 10.223,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0586,
+     "C_secondary_object": 0.0542,
+     "C_color_texture": 0.0279
+    },
+    "knn_overlap_with_image": 0.0827,
+    "top_shared": [
+     [
+      "facing",
+      1853
+     ],
+     [
+      "resting",
+      1587
+     ],
+     [
+      "moving",
+      1463
+     ],
+     [
+      "holding",
+      999
+     ],
+     [
+      "smiling",
+      947
+     ],
+     [
+      "walking",
+      907
+     ],
+     [
+      "leaning",
+      898
+     ],
+     [
+      "rests",
+      848
+     ]
+    ]
+   },
+   "C_color_texture": {
+    "own_axis_share": 0.9861,
+    "pairs_scored": 90000,
+    "random_share": 0.8268,
+    "other_axis_share": {
+     "C_primary_object": 0.9047,
+     "C_secondary_object": 0.8919,
+     "C_activity_or_relation": 0.8995
+    },
+    "other_axis_share_mean": 0.8987,
+    "image_nbr_share": 0.9296,
+    "ratio_vs_other": 1.097,
+    "ratio_vs_image": 1.061,
+    "ratio_vs_random": 1.193,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0367,
+     "C_secondary_object": 0.0291,
+     "C_activity_or_relation": 0.0279
+    },
+    "knn_overlap_with_image": 0.0551,
+    "top_shared": [
+     [
+      "matte",
+      60681
+     ],
+     [
+      "glossy",
+      22339
+     ],
+     [
+      "white",
+      18552
+     ],
+     [
+      "red",
+      13505
+     ],
+     [
+      "green",
+      13155
+     ],
+     [
+      "fabric",
+      11152
+     ],
+     [
+      "black",
+      10794
+     ],
+     [
+      "blue",
+      9553
+     ]
+    ]
+   }
+  },
+  "20": {
+   "C_primary_object": {
+    "own_axis_share": 0.9058,
+    "pairs_scored": 180000,
+    "random_share": 0.15,
+    "other_axis_share": {
+     "C_secondary_object": 0.4464,
+     "C_activity_or_relation": 0.5573,
+     "C_color_texture": 0.4113
+    },
+    "other_axis_share_mean": 0.4717,
+    "image_nbr_share": 0.6212,
+    "ratio_vs_other": 1.921,
+    "ratio_vs_image": 1.458,
+    "ratio_vs_random": 6.04,
+    "knn_overlap_with_other_axes": {
+     "C_secondary_object": 0.0583,
+     "C_activity_or_relation": 0.0834,
+     "C_color_texture": 0.0526
+    },
+    "knn_overlap_with_image": 0.1177,
+    "top_shared": [
+     [
+      "upright",
+      14977
+     ],
+     [
+      "hair",
+      12667
+     ],
+     [
+      "shirt",
+      12329
+     ],
+     [
+      "athlete",
+      10008
+     ],
+     [
+      "slender",
+      9383
+     ],
+     [
+      "rectangular",
+      8166
+     ],
+     [
+      "figure",
+      7318
+     ],
+     [
+      "sturdy",
+      7289
+     ]
+    ]
+   },
+   "C_secondary_object": {
+    "own_axis_share": 0.754,
+    "pairs_scored": 178981,
+    "random_share": 0.0559,
+    "other_axis_share": {
+     "C_primary_object": 0.2839,
+     "C_activity_or_relation": 0.3432,
+     "C_color_texture": 0.2222
+    },
+    "other_axis_share_mean": 0.2831,
+    "image_nbr_share": 0.3875,
+    "ratio_vs_other": 2.663,
+    "ratio_vs_image": 1.946,
+    "ratio_vs_random": 13.48,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0583,
+     "C_activity_or_relation": 0.0757,
+     "C_color_texture": 0.0412
+    },
+    "knn_overlap_with_image": 0.0938,
+    "top_shared": [
+     [
+      "held",
+      6752
+     ],
+     [
+      "beneath",
+      4578
+     ],
+     [
+      "plate",
+      4427
+     ],
+     [
+      "pole",
+      4104
+     ],
+     [
+      "hand",
+      3935
+     ],
+     [
+      "feet",
+      3853
+     ],
+     [
+      "skateboard",
+      3625
+     ],
+     [
+      "racket",
+      3418
+     ]
+    ]
+   },
+   "C_activity_or_relation": {
+    "own_axis_share": 0.3769,
+    "pairs_scored": 112965,
+    "random_share": 0.0418,
+    "other_axis_share": {
+     "C_primary_object": 0.1478,
+     "C_secondary_object": 0.1399,
+     "C_color_texture": 0.1054
+    },
+    "other_axis_share_mean": 0.131,
+    "image_nbr_share": 0.1769,
+    "ratio_vs_other": 2.876,
+    "ratio_vs_image": 2.131,
+    "ratio_vs_random": 9.02,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0834,
+     "C_secondary_object": 0.0757,
+     "C_color_texture": 0.0417
+    },
+    "knn_overlap_with_image": 0.1118,
+    "top_shared": [
+     [
+      "facing",
+      3411
+     ],
+     [
+      "resting",
+      2802
+     ],
+     [
+      "moving",
+      2653
+     ],
+     [
+      "holding",
+      1829
+     ],
+     [
+      "smiling",
+      1730
+     ],
+     [
+      "walking",
+      1596
+     ],
+     [
+      "leaning",
+      1595
+     ],
+     [
+      "rests",
+      1516
+     ]
+    ]
+   },
+   "C_color_texture": {
+    "own_axis_share": 0.983,
+    "pairs_scored": 180000,
+    "random_share": 0.8268,
+    "other_axis_share": {
+     "C_primary_object": 0.9017,
+     "C_secondary_object": 0.8889,
+     "C_activity_or_relation": 0.8948
+    },
+    "other_axis_share_mean": 0.8951,
+    "image_nbr_share": 0.9231,
+    "ratio_vs_other": 1.098,
+    "ratio_vs_image": 1.065,
+    "ratio_vs_random": 1.189,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0526,
+     "C_secondary_object": 0.0412,
+     "C_activity_or_relation": 0.0417
+    },
+    "knn_overlap_with_image": 0.0742,
+    "top_shared": [
+     [
+      "matte",
+      120367
+     ],
+     [
+      "glossy",
+      43701
+     ],
+     [
+      "white",
+      36016
+     ],
+     [
+      "red",
+      26397
+     ],
+     [
+      "green",
+      25597
+     ],
+     [
+      "fabric",
+      21039
+     ],
+     [
+      "black",
+      20641
+     ],
+     [
+      "blue",
+      18254
+     ]
+    ]
+   }
+  }
+ },
+ "random_pairs": {
+  "C_primary_object": {
+   "share": 0.15,
+   "pairs": 199973,
+   "top_shared": [
+    [
+     "upright",
+     5359
+    ],
+    [
+     "hair",
+     2633
+    ],
+    [
+     "shirt",
+     2339
+    ],
+    [
+     "posture",
+     2157
+    ],
+    [
+     "head",
+     1703
+    ],
+    [
+     "slender",
+     1618
+    ],
+    [
+     "figure",
+     1340
+    ],
+    [
+     "stance",
+     1211
+    ]
+   ]
+  },
+  "C_secondary_object": {
+   "share": 0.0559,
+   "pairs": 199007,
+   "top_shared": [
+    [
+     "beneath",
+     1014
+    ],
+    [
+     "held",
+     983
+    ],
+    [
+     "hand",
+     676
+    ],
+    [
+     "edge",
+     569
+    ],
+    [
+     "plate",
+     413
+    ],
+    [
+     "surface",
+     318
+    ],
+    [
+     "pole",
+     260
+    ],
+    [
+     "smaller",
+     249
+    ]
+   ]
+  },
+  "C_activity_or_relation": {
+   "share": 0.0418,
+   "pairs": 117445,
+   "top_shared": [
+    [
+     "facing",
+     1084
+    ],
+    [
+     "moving",
+     571
+    ],
+    [
+     "resting",
+     497
+    ],
+    [
+     "holding",
+     448
+    ],
+    [
+     "leaning",
+     282
+    ],
+    [
+     "rests",
+     234
+    ],
+    [
+     "leans",
+     148
+    ],
+    [
+     "stand",
+     147
+    ]
+   ]
+  },
+  "C_color_texture": {
+   "share": 0.8268,
+   "pairs": 199986,
+   "top_shared": [
+    [
+     "matte",
+     124782
+    ],
+    [
+     "glossy",
+     33287
+    ],
+    [
+     "white",
+     19431
+    ],
+    [
+     "fabric",
+     8718
+    ],
+    [
+     "soft",
+     7336
+    ],
+    [
+     "green",
+     7117
+    ],
+    [
+     "black",
+     6857
+    ],
+    [
+     "red",
+     6611
+    ]
+   ]
+  }
+ }
+}

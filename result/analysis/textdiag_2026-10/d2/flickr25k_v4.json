@@ -1,0 +1,840 @@
+{
+ "cache_dir": "/data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens",
+ "caption_file": "/data/yschoi/dataset/deephashing/cache/flickr25k_qwen3_v4_trainset.jsonl",
+ "rows": 4500,
+ "visual_global_file": "visual_global.f16.npy",
+ "rows_without_element": {
+  "C_primary_object": 0.0,
+  "C_secondary_object": 0.001,
+  "C_activity_or_relation": 0.345,
+  "C_color_texture": 0.004
+ },
+ "elements_per_row_mean": {
+  "C_primary_object": 4.99,
+  "C_secondary_object": 4.78,
+  "C_activity_or_relation": 0.96,
+  "C_color_texture": 4.51
+ },
+ "k": {
+  "5": {
+   "C_primary_object": {
+    "own_axis_share": 0.7212,
+    "pairs_scored": 22492,
+    "random_share": 0.0629,
+    "other_axis_share": {
+     "C_secondary_object": 0.2073,
+     "C_activity_or_relation": 0.424,
+     "C_color_texture": 0.2304
+    },
+    "other_axis_share_mean": 0.2872,
+    "image_nbr_share": 0.4446,
+    "ratio_vs_other": 2.511,
+    "ratio_vs_image": 1.622,
+    "ratio_vs_random": 11.463,
+    "knn_overlap_with_other_axes": {
+     "C_secondary_object": 0.0282,
+     "C_activity_or_relation": 0.102,
+     "C_color_texture": 0.0421
+    },
+    "knn_overlap_with_image": 0.13,
+    "top_shared": [
+     [
+      "hair",
+      1984
+     ],
+     [
+      "woman",
+      1187
+     ],
+     [
+      "tree",
+      585
+     ],
+     [
+      "person",
+      560
+     ],
+     [
+      "petal",
+      534
+     ],
+     [
+      "water",
+      497
+     ],
+     [
+      "window",
+      454
+     ],
+     [
+      "shirt",
+      408
+     ]
+    ]
+   },
+   "C_secondary_object": {
+    "own_axis_share": 0.6648,
+    "pairs_scored": 22465,
+    "random_share": 0.0637,
+    "other_axis_share": {
+     "C_primary_object": 0.2001,
+     "C_activity_or_relation": 0.2486,
+     "C_color_texture": 0.1758
+    },
+    "other_axis_share_mean": 0.2082,
+    "image_nbr_share": 0.2585,
+    "ratio_vs_other": 3.193,
+    "ratio_vs_image": 2.572,
+    "ratio_vs_random": 10.434,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0282,
+     "C_activity_or_relation": 0.0394,
+     "C_color_texture": 0.0197
+    },
+    "knn_overlap_with_image": 0.045,
+    "top_shared": [
+     [
+      "tree",
+      1261
+     ],
+     [
+      "wall",
+      1195
+     ],
+     [
+      "window",
+      520
+     ],
+     [
+      "water",
+      447
+     ],
+     [
+      "surface",
+      405
+     ],
+     [
+      "line",
+      393
+     ],
+     [
+      "horizon",
+      379
+     ],
+     [
+      "frame",
+      349
+     ]
+    ]
+   },
+   "C_activity_or_relation": {
+    "own_axis_share": 0.2844,
+    "pairs_scored": 10305,
+    "random_share": 0.0302,
+    "other_axis_share": {
+     "C_primary_object": 0.1179,
+     "C_secondary_object": 0.0861,
+     "C_color_texture": 0.0692
+    },
+    "other_axis_share_mean": 0.0911,
+    "image_nbr_share": 0.1344,
+    "ratio_vs_other": 3.123,
+    "ratio_vs_image": 2.116,
+    "ratio_vs_random": 9.406,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.102,
+     "C_secondary_object": 0.0394,
+     "C_color_texture": 0.027
+    },
+    "knn_overlap_with_image": 0.1024,
+    "top_shared": [
+     [
+      "facing",
+      473
+     ],
+     [
+      "building",
+      401
+     ],
+     [
+      "casting",
+      267
+     ],
+     [
+      "stand",
+      140
+     ],
+     [
+      "looking",
+      106
+     ],
+     [
+      "resting",
+      105
+     ],
+     [
+      "walking",
+      81
+     ],
+     [
+      "leans",
+      80
+     ]
+    ]
+   },
+   "C_color_texture": {
+    "own_axis_share": 0.9345,
+    "pairs_scored": 22332,
+    "random_share": 0.478,
+    "other_axis_share": {
+     "C_primary_object": 0.6849,
+     "C_secondary_object": 0.6388,
+     "C_activity_or_relation": 0.6376
+    },
+    "other_axis_share_mean": 0.6538,
+    "image_nbr_share": 0.7117,
+    "ratio_vs_other": 1.429,
+    "ratio_vs_image": 1.313,
+    "ratio_vs_random": 1.955,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0421,
+     "C_secondary_object": 0.0197,
+     "C_activity_or_relation": 0.027
+    },
+    "knn_overlap_with_image": 0.0484,
+    "top_shared": [
+     [
+      "blue",
+      3861
+     ],
+     [
+      "green",
+      3797
+     ],
+     [
+      "white",
+      3612
+     ],
+     [
+      "red",
+      3258
+     ],
+     [
+      "smooth",
+      2386
+     ],
+     [
+      "yellow",
+      2179
+     ],
+     [
+      "soft",
+      2091
+     ],
+     [
+      "warm",
+      1999
+     ]
+    ]
+   }
+  },
+  "10": {
+   "C_primary_object": {
+    "own_axis_share": 0.6608,
+    "pairs_scored": 44984,
+    "random_share": 0.0629,
+    "other_axis_share": {
+     "C_secondary_object": 0.1947,
+     "C_activity_or_relation": 0.3861,
+     "C_color_texture": 0.2101
+    },
+    "other_axis_share_mean": 0.2636,
+    "image_nbr_share": 0.4028,
+    "ratio_vs_other": 2.506,
+    "ratio_vs_image": 1.64,
+    "ratio_vs_random": 10.503,
+    "knn_overlap_with_other_axes": {
+     "C_secondary_object": 0.0364,
+     "C_activity_or_relation": 0.1207,
+     "C_color_texture": 0.0534
+    },
+    "knn_overlap_with_image": 0.1446,
+    "top_shared": [
+     [
+      "hair",
+      3852
+     ],
+     [
+      "woman",
+      2300
+     ],
+     [
+      "tree",
+      1118
+     ],
+     [
+      "petal",
+      1059
+     ],
+     [
+      "person",
+      1049
+     ],
+     [
+      "water",
+      894
+     ],
+     [
+      "window",
+      844
+     ],
+     [
+      "shirt",
+      778
+     ]
+    ]
+   },
+   "C_secondary_object": {
+    "own_axis_share": 0.6154,
+    "pairs_scored": 44938,
+    "random_share": 0.0637,
+    "other_axis_share": {
+     "C_primary_object": 0.1852,
+     "C_activity_or_relation": 0.2286,
+     "C_color_texture": 0.164
+    },
+    "other_axis_share_mean": 0.1926,
+    "image_nbr_share": 0.2376,
+    "ratio_vs_other": 3.195,
+    "ratio_vs_image": 2.59,
+    "ratio_vs_random": 9.66,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0364,
+     "C_activity_or_relation": 0.051,
+     "C_color_texture": 0.0276
+    },
+    "knn_overlap_with_image": 0.0562,
+    "top_shared": [
+     [
+      "tree",
+      2414
+     ],
+     [
+      "wall",
+      2284
+     ],
+     [
+      "window",
+      1013
+     ],
+     [
+      "water",
+      824
+     ],
+     [
+      "horizon",
+      761
+     ],
+     [
+      "line",
+      750
+     ],
+     [
+      "surface",
+      749
+     ],
+     [
+      "leave",
+      680
+     ]
+    ]
+   },
+   "C_activity_or_relation": {
+    "own_axis_share": 0.2502,
+    "pairs_scored": 20469,
+    "random_share": 0.0302,
+    "other_axis_share": {
+     "C_primary_object": 0.1087,
+     "C_secondary_object": 0.0792,
+     "C_color_texture": 0.0668
+    },
+    "other_axis_share_mean": 0.0849,
+    "image_nbr_share": 0.1192,
+    "ratio_vs_other": 2.947,
+    "ratio_vs_image": 2.098,
+    "ratio_vs_random": 8.274,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.1207,
+     "C_secondary_object": 0.051,
+     "C_color_texture": 0.0351
+    },
+    "knn_overlap_with_image": 0.1241,
+    "top_shared": [
+     [
+      "facing",
+      870
+     ],
+     [
+      "building",
+      755
+     ],
+     [
+      "casting",
+      485
+     ],
+     [
+      "stand",
+      258
+     ],
+     [
+      "resting",
+      189
+     ],
+     [
+      "looking",
+      180
+     ],
+     [
+      "walking",
+      162
+     ],
+     [
+      "leans",
+      133
+     ]
+    ]
+   },
+   "C_color_texture": {
+    "own_axis_share": 0.9243,
+    "pairs_scored": 44648,
+    "random_share": 0.478,
+    "other_axis_share": {
+     "C_primary_object": 0.6719,
+     "C_secondary_object": 0.6283,
+     "C_activity_or_relation": 0.6225
+    },
+    "other_axis_share_mean": 0.6409,
+    "image_nbr_share": 0.6935,
+    "ratio_vs_other": 1.442,
+    "ratio_vs_image": 1.333,
+    "ratio_vs_random": 1.934,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0534,
+     "C_secondary_object": 0.0276,
+     "C_activity_or_relation": 0.0351
+    },
+    "knn_overlap_with_image": 0.0601,
+    "top_shared": [
+     [
+      "blue",
+      7442
+     ],
+     [
+      "green",
+      7428
+     ],
+     [
+      "white",
+      6875
+     ],
+     [
+      "red",
+      6391
+     ],
+     [
+      "smooth",
+      4570
+     ],
+     [
+      "yellow",
+      4224
+     ],
+     [
+      "soft",
+      4034
+     ],
+     [
+      "warm",
+      3835
+     ]
+    ]
+   }
+  },
+  "20": {
+   "C_primary_object": {
+    "own_axis_share": 0.597,
+    "pairs_scored": 89961,
+    "random_share": 0.0629,
+    "other_axis_share": {
+     "C_secondary_object": 0.1813,
+     "C_activity_or_relation": 0.3436,
+     "C_color_texture": 0.1919
+    },
+    "other_axis_share_mean": 0.2389,
+    "image_nbr_share": 0.3588,
+    "ratio_vs_other": 2.499,
+    "ratio_vs_image": 1.664,
+    "ratio_vs_random": 9.489,
+    "knn_overlap_with_other_axes": {
+     "C_secondary_object": 0.0465,
+     "C_activity_or_relation": 0.1388,
+     "C_color_texture": 0.0681
+    },
+    "knn_overlap_with_image": 0.158,
+    "top_shared": [
+     [
+      "hair",
+      7518
+     ],
+     [
+      "woman",
+      4506
+     ],
+     [
+      "tree",
+      2116
+     ],
+     [
+      "petal",
+      2034
+     ],
+     [
+      "person",
+      1941
+     ],
+     [
+      "water",
+      1621
+     ],
+     [
+      "window",
+      1561
+     ],
+     [
+      "shirt",
+      1463
+     ]
+    ]
+   },
+   "C_secondary_object": {
+    "own_axis_share": 0.5533,
+    "pairs_scored": 89884,
+    "random_share": 0.0637,
+    "other_axis_share": {
+     "C_primary_object": 0.1681,
+     "C_activity_or_relation": 0.2077,
+     "C_color_texture": 0.1511
+    },
+    "other_axis_share_mean": 0.1756,
+    "image_nbr_share": 0.2184,
+    "ratio_vs_other": 3.15,
+    "ratio_vs_image": 2.533,
+    "ratio_vs_random": 8.685,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0465,
+     "C_activity_or_relation": 0.0646,
+     "C_color_texture": 0.038
+    },
+    "knn_overlap_with_image": 0.0702,
+    "top_shared": [
+     [
+      "tree",
+      4633
+     ],
+     [
+      "wall",
+      4377
+     ],
+     [
+      "window",
+      1853
+     ],
+     [
+      "water",
+      1516
+     ],
+     [
+      "horizon",
+      1449
+     ],
+     [
+      "surface",
+      1406
+     ],
+     [
+      "line",
+      1329
+     ],
+     [
+      "leave",
+      1292
+     ]
+    ]
+   },
+   "C_activity_or_relation": {
+    "own_axis_share": 0.2214,
+    "pairs_scored": 40424,
+    "random_share": 0.0302,
+    "other_axis_share": {
+     "C_primary_object": 0.098,
+     "C_secondary_object": 0.0722,
+     "C_color_texture": 0.0603
+    },
+    "other_axis_share_mean": 0.0768,
+    "image_nbr_share": 0.106,
+    "ratio_vs_other": 2.882,
+    "ratio_vs_image": 2.09,
+    "ratio_vs_random": 7.323,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.1388,
+     "C_secondary_object": 0.0646,
+     "C_color_texture": 0.048
+    },
+    "knn_overlap_with_image": 0.1406,
+    "top_shared": [
+     [
+      "facing",
+      1576
+     ],
+     [
+      "building",
+      1360
+     ],
+     [
+      "casting",
+      885
+     ],
+     [
+      "stand",
+      454
+     ],
+     [
+      "resting",
+      330
+     ],
+     [
+      "looking",
+      323
+     ],
+     [
+      "walking",
+      287
+     ],
+     [
+      "leans",
+      217
+     ]
+    ]
+   },
+   "C_color_texture": {
+    "own_axis_share": 0.9139,
+    "pairs_scored": 89281,
+    "random_share": 0.478,
+    "other_axis_share": {
+     "C_primary_object": 0.66,
+     "C_secondary_object": 0.6177,
+     "C_activity_or_relation": 0.609
+    },
+    "other_axis_share_mean": 0.6289,
+    "image_nbr_share": 0.6765,
+    "ratio_vs_other": 1.453,
+    "ratio_vs_image": 1.351,
+    "ratio_vs_random": 1.912,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0681,
+     "C_secondary_object": 0.038,
+     "C_activity_or_relation": 0.048
+    },
+    "knn_overlap_with_image": 0.0737,
+    "top_shared": [
+     [
+      "blue",
+      14420
+     ],
+     [
+      "green",
+      14297
+     ],
+     [
+      "white",
+      13063
+     ],
+     [
+      "red",
+      12362
+     ],
+     [
+      "smooth",
+      8849
+     ],
+     [
+      "yellow",
+      8024
+     ],
+     [
+      "soft",
+      7752
+     ],
+     [
+      "warm",
+      7411
+     ]
+    ]
+   }
+  }
+ },
+ "random_pairs": {
+  "C_primary_object": {
+   "share": 0.0629,
+   "pairs": 199854,
+   "top_shared": [
+    [
+     "hair",
+     3003
+    ],
+    [
+     "woman",
+     1054
+    ],
+    [
+     "person",
+     792
+    ],
+    [
+     "surface",
+     471
+    ],
+    [
+     "water",
+     387
+    ],
+    [
+     "head",
+     374
+    ],
+    [
+     "hand",
+     364
+    ],
+    [
+     "shirt",
+     323
+    ]
+   ]
+  },
+  "C_secondary_object": {
+   "share": 0.0637,
+   "pairs": 199690,
+   "top_shared": [
+    [
+     "wall",
+     1848
+    ],
+    [
+     "tree",
+     1405
+    ],
+    [
+     "surface",
+     828
+    ],
+    [
+     "frame",
+     723
+    ],
+    [
+     "line",
+     661
+    ],
+    [
+     "water",
+     487
+    ],
+    [
+     "window",
+     369
+    ],
+    [
+     "beneath",
+     303
+    ]
+   ]
+  },
+  "C_activity_or_relation": {
+   "share": 0.0302,
+   "pairs": 85853,
+   "top_shared": [
+    [
+     "facing",
+     953
+    ],
+    [
+     "building",
+     273
+    ],
+    [
+     "stand",
+     188
+    ],
+    [
+     "casting",
+     161
+    ],
+    [
+     "looking",
+     103
+    ],
+    [
+     "resting",
+     90
+    ],
+    [
+     "holding",
+     77
+    ],
+    [
+     "leans",
+     58
+    ]
+   ]
+  },
+  "C_color_texture": {
+   "share": 0.478,
+   "pairs": 198385,
+   "top_shared": [
+    [
+     "white",
+     16668
+    ],
+    [
+     "smooth",
+     10919
+    ],
+    [
+     "blue",
+     10273
+    ],
+    [
+     "green",
+     10125
+    ],
+    [
+     "dark",
+     8684
+    ],
+    [
+     "soft",
+     8429
+    ],
+    [
+     "red",
+     7446
+    ],
+    [
+     "warm",
+     5450
+    ]
+   ]
+  }
+ }
+}

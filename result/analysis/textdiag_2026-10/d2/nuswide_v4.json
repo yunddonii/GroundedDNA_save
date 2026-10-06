@@ -1,0 +1,840 @@
+{
+ "cache_dir": "/data/yschoi/groundeddna_cache_v6prov/nuswide_clip_tokens",
+ "caption_file": "/data/yschoi/dataset/deephashing/cache/nuswide_qwen3_v4_trainset.jsonl",
+ "rows": 9450,
+ "visual_global_file": "visual_global.f16.npy",
+ "rows_without_element": {
+  "C_primary_object": 0.0,
+  "C_secondary_object": 0.0,
+  "C_activity_or_relation": 0.381,
+  "C_color_texture": 0.002
+ },
+ "elements_per_row_mean": {
+  "C_primary_object": 5.14,
+  "C_secondary_object": 5.11,
+  "C_activity_or_relation": 0.87,
+  "C_color_texture": 4.55
+ },
+ "k": {
+  "5": {
+   "C_primary_object": {
+    "own_axis_share": 0.8618,
+    "pairs_scored": 47250,
+    "random_share": 0.0832,
+    "other_axis_share": {
+     "C_secondary_object": 0.2913,
+     "C_activity_or_relation": 0.5766,
+     "C_color_texture": 0.3391
+    },
+    "other_axis_share_mean": 0.4023,
+    "image_nbr_share": 0.5784,
+    "ratio_vs_other": 2.142,
+    "ratio_vs_image": 1.49,
+    "ratio_vs_random": 10.353,
+    "knn_overlap_with_other_axes": {
+     "C_secondary_object": 0.0229,
+     "C_activity_or_relation": 0.0925,
+     "C_color_texture": 0.0351
+    },
+    "knn_overlap_with_image": 0.107,
+    "top_shared": [
+     [
+      "water",
+      4021
+     ],
+     [
+      "tree",
+      3789
+     ],
+     [
+      "petal",
+      1774
+     ],
+     [
+      "horizon",
+      1593
+     ],
+     [
+      "window",
+      1503
+     ],
+     [
+      "dominate",
+      1500
+     ],
+     [
+      "roof",
+      1405
+     ],
+     [
+      "mountain",
+      1296
+     ]
+    ]
+   },
+   "C_secondary_object": {
+    "own_axis_share": 0.8248,
+    "pairs_scored": 47193,
+    "random_share": 0.131,
+    "other_axis_share": {
+     "C_primary_object": 0.3148,
+     "C_activity_or_relation": 0.3562,
+     "C_color_texture": 0.2952
+    },
+    "other_axis_share_mean": 0.3221,
+    "image_nbr_share": 0.4027,
+    "ratio_vs_other": 2.561,
+    "ratio_vs_image": 2.048,
+    "ratio_vs_random": 6.294,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0229,
+     "C_activity_or_relation": 0.0298,
+     "C_color_texture": 0.0158
+    },
+    "knn_overlap_with_image": 0.0374,
+    "top_shared": [
+     [
+      "tree",
+      6404
+     ],
+     [
+      "water",
+      3858
+     ],
+     [
+      "horizon",
+      2680
+     ],
+     [
+      "line",
+      2485
+     ],
+     [
+      "cloud",
+      1744
+     ],
+     [
+      "mountain",
+      1554
+     ],
+     [
+      "surface",
+      1383
+     ],
+     [
+      "rock",
+      1236
+     ]
+    ]
+   },
+   "C_activity_or_relation": {
+    "own_axis_share": 0.3508,
+    "pairs_scored": 20188,
+    "random_share": 0.0302,
+    "other_axis_share": {
+     "C_primary_object": 0.1471,
+     "C_secondary_object": 0.0952,
+     "C_color_texture": 0.0853
+    },
+    "other_axis_share_mean": 0.1092,
+    "image_nbr_share": 0.1536,
+    "ratio_vs_other": 3.212,
+    "ratio_vs_image": 2.284,
+    "ratio_vs_random": 11.599,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0925,
+     "C_secondary_object": 0.0298,
+     "C_color_texture": 0.0253
+    },
+    "knn_overlap_with_image": 0.088,
+    "top_shared": [
+     [
+      "building",
+      1198
+     ],
+     [
+      "casting",
+      708
+     ],
+     [
+      "facing",
+      603
+     ],
+     [
+      "stand",
+      450
+     ],
+     [
+      "parked",
+      327
+     ],
+     [
+      "illuminating",
+      253
+     ],
+     [
+      "point",
+      166
+     ],
+     [
+      "emphasizing",
+      139
+     ]
+    ]
+   },
+   "C_color_texture": {
+    "own_axis_share": 0.968,
+    "pairs_scored": 47015,
+    "random_share": 0.5492,
+    "other_axis_share": {
+     "C_primary_object": 0.7735,
+     "C_secondary_object": 0.7249,
+     "C_activity_or_relation": 0.7261
+    },
+    "other_axis_share_mean": 0.7415,
+    "image_nbr_share": 0.8171,
+    "ratio_vs_other": 1.305,
+    "ratio_vs_image": 1.185,
+    "ratio_vs_random": 1.763,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0351,
+     "C_secondary_object": 0.0158,
+     "C_activity_or_relation": 0.0253
+    },
+    "knn_overlap_with_image": 0.0436,
+    "top_shared": [
+     [
+      "blue",
+      13290
+     ],
+     [
+      "green",
+      12425
+     ],
+     [
+      "white",
+      9877
+     ],
+     [
+      "orange",
+      7216
+     ],
+     [
+      "gray",
+      6636
+     ],
+     [
+      "yellow",
+      5778
+     ],
+     [
+      "red",
+      5380
+     ],
+     [
+      "smooth",
+      5082
+     ]
+    ]
+   }
+  },
+  "10": {
+   "C_primary_object": {
+    "own_axis_share": 0.8274,
+    "pairs_scored": 94500,
+    "random_share": 0.0832,
+    "other_axis_share": {
+     "C_secondary_object": 0.2724,
+     "C_activity_or_relation": 0.545,
+     "C_color_texture": 0.3178
+    },
+    "other_axis_share_mean": 0.3784,
+    "image_nbr_share": 0.5432,
+    "ratio_vs_other": 2.187,
+    "ratio_vs_image": 1.523,
+    "ratio_vs_random": 9.94,
+    "knn_overlap_with_other_axes": {
+     "C_secondary_object": 0.0292,
+     "C_activity_or_relation": 0.1186,
+     "C_color_texture": 0.0454
+    },
+    "knn_overlap_with_image": 0.1304,
+    "top_shared": [
+     [
+      "water",
+      7576
+     ],
+     [
+      "tree",
+      7512
+     ],
+     [
+      "petal",
+      3505
+     ],
+     [
+      "horizon",
+      2997
+     ],
+     [
+      "window",
+      2899
+     ],
+     [
+      "dominate",
+      2813
+     ],
+     [
+      "roof",
+      2710
+     ],
+     [
+      "mountain",
+      2533
+     ]
+    ]
+   },
+   "C_secondary_object": {
+    "own_axis_share": 0.7903,
+    "pairs_scored": 94387,
+    "random_share": 0.131,
+    "other_axis_share": {
+     "C_primary_object": 0.3022,
+     "C_activity_or_relation": 0.3398,
+     "C_color_texture": 0.2829
+    },
+    "other_axis_share_mean": 0.3083,
+    "image_nbr_share": 0.3828,
+    "ratio_vs_other": 2.564,
+    "ratio_vs_image": 2.065,
+    "ratio_vs_random": 6.031,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0292,
+     "C_activity_or_relation": 0.0379,
+     "C_color_texture": 0.0205
+    },
+    "knn_overlap_with_image": 0.046,
+    "top_shared": [
+     [
+      "tree",
+      12567
+     ],
+     [
+      "water",
+      7524
+     ],
+     [
+      "horizon",
+      5294
+     ],
+     [
+      "line",
+      4629
+     ],
+     [
+      "cloud",
+      3385
+     ],
+     [
+      "mountain",
+      2970
+     ],
+     [
+      "surface",
+      2656
+     ],
+     [
+      "rock",
+      2389
+     ]
+    ]
+   },
+   "C_activity_or_relation": {
+    "own_axis_share": 0.3172,
+    "pairs_scored": 39909,
+    "random_share": 0.0302,
+    "other_axis_share": {
+     "C_primary_object": 0.138,
+     "C_secondary_object": 0.0872,
+     "C_color_texture": 0.081
+    },
+    "other_axis_share_mean": 0.1021,
+    "image_nbr_share": 0.1395,
+    "ratio_vs_other": 3.108,
+    "ratio_vs_image": 2.275,
+    "ratio_vs_random": 10.49,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.1186,
+     "C_secondary_object": 0.0379,
+     "C_color_texture": 0.0327
+    },
+    "knn_overlap_with_image": 0.1088,
+    "top_shared": [
+     [
+      "building",
+      2279
+     ],
+     [
+      "casting",
+      1323
+     ],
+     [
+      "facing",
+      1191
+     ],
+     [
+      "stand",
+      788
+     ],
+     [
+      "parked",
+      608
+     ],
+     [
+      "illuminating",
+      414
+     ],
+     [
+      "point",
+      286
+     ],
+     [
+      "shimmering",
+      260
+     ]
+    ]
+   },
+   "C_color_texture": {
+    "own_axis_share": 0.9627,
+    "pairs_scored": 94019,
+    "random_share": 0.5492,
+    "other_axis_share": {
+     "C_primary_object": 0.7638,
+     "C_secondary_object": 0.7173,
+     "C_activity_or_relation": 0.7205
+    },
+    "other_axis_share_mean": 0.7339,
+    "image_nbr_share": 0.8014,
+    "ratio_vs_other": 1.312,
+    "ratio_vs_image": 1.201,
+    "ratio_vs_random": 1.753,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0454,
+     "C_secondary_object": 0.0205,
+     "C_activity_or_relation": 0.0327
+    },
+    "knn_overlap_with_image": 0.0542,
+    "top_shared": [
+     [
+      "blue",
+      25990
+     ],
+     [
+      "green",
+      24359
+     ],
+     [
+      "white",
+      19204
+     ],
+     [
+      "orange",
+      14238
+     ],
+     [
+      "gray",
+      12682
+     ],
+     [
+      "yellow",
+      11126
+     ],
+     [
+      "red",
+      10557
+     ],
+     [
+      "smooth",
+      9741
+     ]
+    ]
+   }
+  },
+  "20": {
+   "C_primary_object": {
+    "own_axis_share": 0.7803,
+    "pairs_scored": 189000,
+    "random_share": 0.0832,
+    "other_axis_share": {
+     "C_secondary_object": 0.2526,
+     "C_activity_or_relation": 0.5047,
+     "C_color_texture": 0.2931
+    },
+    "other_axis_share_mean": 0.3501,
+    "image_nbr_share": 0.5008,
+    "ratio_vs_other": 2.229,
+    "ratio_vs_image": 1.558,
+    "ratio_vs_random": 9.374,
+    "knn_overlap_with_other_axes": {
+     "C_secondary_object": 0.0371,
+     "C_activity_or_relation": 0.139,
+     "C_color_texture": 0.0572
+    },
+    "knn_overlap_with_image": 0.1506,
+    "top_shared": [
+     [
+      "tree",
+      14916
+     ],
+     [
+      "water",
+      14380
+     ],
+     [
+      "petal",
+      6929
+     ],
+     [
+      "horizon",
+      5687
+     ],
+     [
+      "window",
+      5412
+     ],
+     [
+      "dominate",
+      5179
+     ],
+     [
+      "roof",
+      5176
+     ],
+     [
+      "mountain",
+      4903
+     ]
+    ]
+   },
+   "C_secondary_object": {
+    "own_axis_share": 0.748,
+    "pairs_scored": 188775,
+    "random_share": 0.131,
+    "other_axis_share": {
+     "C_primary_object": 0.2865,
+     "C_activity_or_relation": 0.3225,
+     "C_color_texture": 0.2709
+    },
+    "other_axis_share_mean": 0.2933,
+    "image_nbr_share": 0.3647,
+    "ratio_vs_other": 2.55,
+    "ratio_vs_image": 2.051,
+    "ratio_vs_random": 5.708,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0371,
+     "C_activity_or_relation": 0.0478,
+     "C_color_texture": 0.0282
+    },
+    "knn_overlap_with_image": 0.0579,
+    "top_shared": [
+     [
+      "tree",
+      24610
+     ],
+     [
+      "water",
+      14506
+     ],
+     [
+      "horizon",
+      10298
+     ],
+     [
+      "line",
+      8655
+     ],
+     [
+      "cloud",
+      6511
+     ],
+     [
+      "mountain",
+      5682
+     ],
+     [
+      "surface",
+      5039
+     ],
+     [
+      "rock",
+      4556
+     ]
+    ]
+   },
+   "C_activity_or_relation": {
+    "own_axis_share": 0.2821,
+    "pairs_scored": 78846,
+    "random_share": 0.0302,
+    "other_axis_share": {
+     "C_primary_object": 0.129,
+     "C_secondary_object": 0.0803,
+     "C_color_texture": 0.0758
+    },
+    "other_axis_share_mean": 0.095,
+    "image_nbr_share": 0.1267,
+    "ratio_vs_other": 2.968,
+    "ratio_vs_image": 2.227,
+    "ratio_vs_random": 9.326,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.139,
+     "C_secondary_object": 0.0478,
+     "C_color_texture": 0.0413
+    },
+    "knn_overlap_with_image": 0.1271,
+    "top_shared": [
+     [
+      "building",
+      4234
+     ],
+     [
+      "casting",
+      2487
+     ],
+     [
+      "facing",
+      2247
+     ],
+     [
+      "stand",
+      1380
+     ],
+     [
+      "parked",
+      1141
+     ],
+     [
+      "illuminating",
+      681
+     ],
+     [
+      "shimmering",
+      482
+     ],
+     [
+      "point",
+      462
+     ]
+    ]
+   },
+   "C_color_texture": {
+    "own_axis_share": 0.9566,
+    "pairs_scored": 188002,
+    "random_share": 0.5492,
+    "other_axis_share": {
+     "C_primary_object": 0.7524,
+     "C_secondary_object": 0.7069,
+     "C_activity_or_relation": 0.7109
+    },
+    "other_axis_share_mean": 0.7234,
+    "image_nbr_share": 0.7859,
+    "ratio_vs_other": 1.322,
+    "ratio_vs_image": 1.217,
+    "ratio_vs_random": 1.742,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0572,
+     "C_secondary_object": 0.0282,
+     "C_activity_or_relation": 0.0413
+    },
+    "knn_overlap_with_image": 0.0665,
+    "top_shared": [
+     [
+      "blue",
+      50703
+     ],
+     [
+      "green",
+      47660
+     ],
+     [
+      "white",
+      37108
+     ],
+     [
+      "orange",
+      27999
+     ],
+     [
+      "gray",
+      24276
+     ],
+     [
+      "yellow",
+      21364
+     ],
+     [
+      "red",
+      20404
+     ],
+     [
+      "warm",
+      18799
+     ]
+    ]
+   }
+  }
+ },
+ "random_pairs": {
+  "C_primary_object": {
+   "share": 0.0832,
+   "pairs": 199983,
+   "top_shared": [
+    [
+     "water",
+     3921
+    ],
+    [
+     "tree",
+     1728
+    ],
+    [
+     "surface",
+     801
+    ],
+    [
+     "dominate",
+     663
+    ],
+    [
+     "horizon",
+     562
+    ],
+    [
+     "window",
+     533
+    ],
+    [
+     "edge",
+     447
+    ],
+    [
+     "structure",
+     431
+    ]
+   ]
+  },
+  "C_secondary_object": {
+   "share": 0.131,
+   "pairs": 199810,
+   "top_shared": [
+    [
+     "tree",
+     7046
+    ],
+    [
+     "water",
+     3741
+    ],
+    [
+     "line",
+     2795
+    ],
+    [
+     "horizon",
+     1694
+    ],
+    [
+     "frame",
+     943
+    ],
+    [
+     "surface",
+     890
+    ],
+    [
+     "edge",
+     844
+    ],
+    [
+     "dense",
+     613
+    ]
+   ]
+  },
+  "C_activity_or_relation": {
+   "share": 0.0302,
+   "pairs": 76677,
+   "top_shared": [
+    [
+     "facing",
+     494
+    ],
+    [
+     "building",
+     465
+    ],
+    [
+     "stand",
+     368
+    ],
+    [
+     "casting",
+     237
+    ],
+    [
+     "moving",
+     55
+    ],
+    [
+     "parked",
+     47
+    ],
+    [
+     "framing",
+     41
+    ],
+    [
+     "reflecting",
+     38
+    ]
+   ]
+  },
+  "C_color_texture": {
+   "share": 0.5492,
+   "pairs": 199125,
+   "top_shared": [
+    [
+     "blue",
+     23435
+    ],
+    [
+     "green",
+     19634
+    ],
+    [
+     "white",
+     19055
+    ],
+    [
+     "gray",
+     10977
+    ],
+    [
+     "dark",
+     10450
+    ],
+    [
+     "smooth",
+     9967
+    ],
+    [
+     "soft",
+     7540
+    ],
+    [
+     "orange",
+     6293
+    ]
+   ]
+  }
+ }
+}

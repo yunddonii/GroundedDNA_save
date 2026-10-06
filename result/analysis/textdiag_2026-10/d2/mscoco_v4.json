@@ -1,0 +1,840 @@
+{
+ "cache_dir": "/data/yschoi/groundeddna_cache_v6prov/mscoco_clip_tokens",
+ "caption_file": "/data/yschoi/dataset/deephashing/cache/mscoco_qwen3_v4_trainset.jsonl",
+ "rows": 9000,
+ "visual_global_file": "visual_global.f16.npy",
+ "rows_without_element": {
+  "C_primary_object": 0.001,
+  "C_secondary_object": 0.001,
+  "C_activity_or_relation": 0.287,
+  "C_color_texture": 0.002
+ },
+ "elements_per_row_mean": {
+  "C_primary_object": 4.78,
+  "C_secondary_object": 4.73,
+  "C_activity_or_relation": 1.1,
+  "C_color_texture": 4.6
+ },
+ "k": {
+  "5": {
+   "C_primary_object": {
+    "own_axis_share": 0.7107,
+    "pairs_scored": 44909,
+    "random_share": 0.0658,
+    "other_axis_share": {
+     "C_secondary_object": 0.4521,
+     "C_activity_or_relation": 0.5445,
+     "C_color_texture": 0.4004
+    },
+    "other_axis_share_mean": 0.4657,
+    "image_nbr_share": 0.6446,
+    "ratio_vs_other": 1.526,
+    "ratio_vs_image": 1.103,
+    "ratio_vs_random": 10.802,
+    "knn_overlap_with_other_axes": {
+     "C_secondary_object": 0.0286,
+     "C_activity_or_relation": 0.0422,
+     "C_color_texture": 0.0259
+    },
+    "knn_overlap_with_image": 0.0605,
+    "top_shared": [
+     [
+      "shirt",
+      2721
+     ],
+     [
+      "hair",
+      1666
+     ],
+     [
+      "woman",
+      1450
+     ],
+     [
+      "person",
+      1180
+     ],
+     [
+      "coat",
+      1001
+     ],
+     [
+      "jacket",
+      965
+     ],
+     [
+      "helmet",
+      878
+     ],
+     [
+      "horse",
+      869
+     ]
+    ]
+   },
+   "C_secondary_object": {
+    "own_axis_share": 0.4166,
+    "pairs_scored": 44911,
+    "random_share": 0.0511,
+    "other_axis_share": {
+     "C_primary_object": 0.2469,
+     "C_activity_or_relation": 0.3005,
+     "C_color_texture": 0.2299
+    },
+    "other_axis_share_mean": 0.2591,
+    "image_nbr_share": 0.3774,
+    "ratio_vs_other": 1.608,
+    "ratio_vs_image": 1.104,
+    "ratio_vs_random": 8.148,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0286,
+     "C_activity_or_relation": 0.0388,
+     "C_color_texture": 0.0208
+    },
+    "knn_overlap_with_image": 0.0496,
+    "top_shared": [
+     [
+      "tree",
+      1038
+     ],
+     [
+      "plate",
+      873
+     ],
+     [
+      "sign",
+      665
+     ],
+     [
+      "fence",
+      616
+     ],
+     [
+      "catcher",
+      486
+     ],
+     [
+      "table",
+      472
+     ],
+     [
+      "gear",
+      437
+     ],
+     [
+      "wall",
+      418
+     ]
+    ]
+   },
+   "C_activity_or_relation": {
+    "own_axis_share": 0.1823,
+    "pairs_scored": 23906,
+    "random_share": 0.0242,
+    "other_axis_share": {
+     "C_primary_object": 0.1122,
+     "C_secondary_object": 0.1178,
+     "C_color_texture": 0.0819
+    },
+    "other_axis_share_mean": 0.104,
+    "image_nbr_share": 0.1543,
+    "ratio_vs_other": 1.754,
+    "ratio_vs_image": 1.182,
+    "ratio_vs_random": 7.533,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0422,
+     "C_secondary_object": 0.0388,
+     "C_color_texture": 0.0184
+    },
+    "knn_overlap_with_image": 0.0614,
+    "top_shared": [
+     [
+      "facing",
+      342
+     ],
+     [
+      "parked",
+      255
+     ],
+     [
+      "holding",
+      217
+     ],
+     [
+      "stand",
+      172
+     ],
+     [
+      "grazing",
+      167
+     ],
+     [
+      "moving",
+      163
+     ],
+     [
+      "leans",
+      162
+     ],
+     [
+      "walking",
+      158
+     ]
+    ]
+   },
+   "C_color_texture": {
+    "own_axis_share": 0.8714,
+    "pairs_scored": 44851,
+    "random_share": 0.5575,
+    "other_axis_share": {
+     "C_primary_object": 0.7314,
+     "C_secondary_object": 0.725,
+     "C_activity_or_relation": 0.7184
+    },
+    "other_axis_share_mean": 0.7249,
+    "image_nbr_share": 0.8133,
+    "ratio_vs_other": 1.202,
+    "ratio_vs_image": 1.071,
+    "ratio_vs_random": 1.563,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0259,
+     "C_secondary_object": 0.0208,
+     "C_activity_or_relation": 0.0184
+    },
+    "knn_overlap_with_image": 0.0395,
+    "top_shared": [
+     [
+      "white",
+      10765
+     ],
+     [
+      "green",
+      9498
+     ],
+     [
+      "red",
+      6366
+     ],
+     [
+      "blue",
+      5499
+     ],
+     [
+      "brown",
+      3526
+     ],
+     [
+      "gray",
+      3279
+     ],
+     [
+      "yellow",
+      2700
+     ],
+     [
+      "dark",
+      2613
+     ]
+    ]
+   }
+  },
+  "10": {
+   "C_primary_object": {
+    "own_axis_share": 0.6874,
+    "pairs_scored": 89813,
+    "random_share": 0.0658,
+    "other_axis_share": {
+     "C_secondary_object": 0.4339,
+     "C_activity_or_relation": 0.5205,
+     "C_color_texture": 0.3729
+    },
+    "other_axis_share_mean": 0.4424,
+    "image_nbr_share": 0.6176,
+    "ratio_vs_other": 1.554,
+    "ratio_vs_image": 1.113,
+    "ratio_vs_random": 10.448,
+    "knn_overlap_with_other_axes": {
+     "C_secondary_object": 0.0402,
+     "C_activity_or_relation": 0.0586,
+     "C_color_texture": 0.0367
+    },
+    "knn_overlap_with_image": 0.0837,
+    "top_shared": [
+     [
+      "shirt",
+      5327
+     ],
+     [
+      "hair",
+      3241
+     ],
+     [
+      "woman",
+      2739
+     ],
+     [
+      "person",
+      2274
+     ],
+     [
+      "coat",
+      2001
+     ],
+     [
+      "jacket",
+      1854
+     ],
+     [
+      "helmet",
+      1704
+     ],
+     [
+      "horse",
+      1683
+     ]
+    ]
+   },
+   "C_secondary_object": {
+    "own_axis_share": 0.3978,
+    "pairs_scored": 89818,
+    "random_share": 0.0511,
+    "other_axis_share": {
+     "C_primary_object": 0.2362,
+     "C_activity_or_relation": 0.2847,
+     "C_color_texture": 0.2169
+    },
+    "other_axis_share_mean": 0.2459,
+    "image_nbr_share": 0.3582,
+    "ratio_vs_other": 1.617,
+    "ratio_vs_image": 1.111,
+    "ratio_vs_random": 7.78,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0402,
+     "C_activity_or_relation": 0.0542,
+     "C_color_texture": 0.0291
+    },
+    "knn_overlap_with_image": 0.0677,
+    "top_shared": [
+     [
+      "tree",
+      2089
+     ],
+     [
+      "plate",
+      1690
+     ],
+     [
+      "sign",
+      1289
+     ],
+     [
+      "fence",
+      1215
+     ],
+     [
+      "catcher",
+      953
+     ],
+     [
+      "table",
+      920
+     ],
+     [
+      "gear",
+      875
+     ],
+     [
+      "water",
+      788
+     ]
+    ]
+   },
+   "C_activity_or_relation": {
+    "own_axis_share": 0.1704,
+    "pairs_scored": 47553,
+    "random_share": 0.0242,
+    "other_axis_share": {
+     "C_primary_object": 0.1063,
+     "C_secondary_object": 0.1134,
+     "C_color_texture": 0.0799
+    },
+    "other_axis_share_mean": 0.0999,
+    "image_nbr_share": 0.1427,
+    "ratio_vs_other": 1.706,
+    "ratio_vs_image": 1.194,
+    "ratio_vs_random": 7.04,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0586,
+     "C_secondary_object": 0.0542,
+     "C_color_texture": 0.0279
+    },
+    "knn_overlap_with_image": 0.0827,
+    "top_shared": [
+     [
+      "facing",
+      624
+     ],
+     [
+      "parked",
+      466
+     ],
+     [
+      "holding",
+      417
+     ],
+     [
+      "grazing",
+      321
+     ],
+     [
+      "stand",
+      318
+     ],
+     [
+      "moving",
+      308
+     ],
+     [
+      "leans",
+      303
+     ],
+     [
+      "walking",
+      303
+     ]
+    ]
+   },
+   "C_color_texture": {
+    "own_axis_share": 0.8623,
+    "pairs_scored": 89696,
+    "random_share": 0.5575,
+    "other_axis_share": {
+     "C_primary_object": 0.7259,
+     "C_secondary_object": 0.7162,
+     "C_activity_or_relation": 0.7111
+    },
+    "other_axis_share_mean": 0.7177,
+    "image_nbr_share": 0.8046,
+    "ratio_vs_other": 1.201,
+    "ratio_vs_image": 1.072,
+    "ratio_vs_random": 1.547,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0367,
+     "C_secondary_object": 0.0291,
+     "C_activity_or_relation": 0.0279
+    },
+    "knn_overlap_with_image": 0.0551,
+    "top_shared": [
+     [
+      "white",
+      21264
+     ],
+     [
+      "green",
+      18810
+     ],
+     [
+      "red",
+      12546
+     ],
+     [
+      "blue",
+      10936
+     ],
+     [
+      "brown",
+      6830
+     ],
+     [
+      "gray",
+      6438
+     ],
+     [
+      "yellow",
+      5248
+     ],
+     [
+      "dark",
+      5013
+     ]
+    ]
+   }
+  },
+  "20": {
+   "C_primary_object": {
+    "own_axis_share": 0.6568,
+    "pairs_scored": 179650,
+    "random_share": 0.0658,
+    "other_axis_share": {
+     "C_secondary_object": 0.4099,
+     "C_activity_or_relation": 0.4904,
+     "C_color_texture": 0.3425
+    },
+    "other_axis_share_mean": 0.4143,
+    "image_nbr_share": 0.5848,
+    "ratio_vs_other": 1.585,
+    "ratio_vs_image": 1.123,
+    "ratio_vs_random": 9.983,
+    "knn_overlap_with_other_axes": {
+     "C_secondary_object": 0.0583,
+     "C_activity_or_relation": 0.0834,
+     "C_color_texture": 0.0526
+    },
+    "knn_overlap_with_image": 0.1177,
+    "top_shared": [
+     [
+      "shirt",
+      10462
+     ],
+     [
+      "hair",
+      6165
+     ],
+     [
+      "woman",
+      5275
+     ],
+     [
+      "person",
+      4263
+     ],
+     [
+      "coat",
+      3948
+     ],
+     [
+      "jacket",
+      3520
+     ],
+     [
+      "helmet",
+      3333
+     ],
+     [
+      "horse",
+      3228
+     ]
+    ]
+   },
+   "C_secondary_object": {
+    "own_axis_share": 0.3733,
+    "pairs_scored": 179637,
+    "random_share": 0.0511,
+    "other_axis_share": {
+     "C_primary_object": 0.2264,
+     "C_activity_or_relation": 0.2681,
+     "C_color_texture": 0.2005
+    },
+    "other_axis_share_mean": 0.2317,
+    "image_nbr_share": 0.3349,
+    "ratio_vs_other": 1.611,
+    "ratio_vs_image": 1.115,
+    "ratio_vs_random": 7.301,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0583,
+     "C_activity_or_relation": 0.0757,
+     "C_color_texture": 0.0412
+    },
+    "knn_overlap_with_image": 0.0938,
+    "top_shared": [
+     [
+      "tree",
+      4127
+     ],
+     [
+      "plate",
+      3288
+     ],
+     [
+      "sign",
+      2574
+     ],
+     [
+      "fence",
+      2329
+     ],
+     [
+      "catcher",
+      1924
+     ],
+     [
+      "table",
+      1785
+     ],
+     [
+      "gear",
+      1779
+     ],
+     [
+      "water",
+      1525
+     ]
+    ]
+   },
+   "C_activity_or_relation": {
+    "own_axis_share": 0.1561,
+    "pairs_scored": 94624,
+    "random_share": 0.0242,
+    "other_axis_share": {
+     "C_primary_object": 0.0998,
+     "C_secondary_object": 0.1052,
+     "C_color_texture": 0.0737
+    },
+    "other_axis_share_mean": 0.0929,
+    "image_nbr_share": 0.1299,
+    "ratio_vs_other": 1.681,
+    "ratio_vs_image": 1.202,
+    "ratio_vs_random": 6.451,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0834,
+     "C_secondary_object": 0.0757,
+     "C_color_texture": 0.0417
+    },
+    "knn_overlap_with_image": 0.1118,
+    "top_shared": [
+     [
+      "facing",
+      1177
+     ],
+     [
+      "parked",
+      867
+     ],
+     [
+      "holding",
+      767
+     ],
+     [
+      "moving",
+      620
+     ],
+     [
+      "walking",
+      599
+     ],
+     [
+      "grazing",
+      582
+     ],
+     [
+      "stand",
+      546
+     ],
+     [
+      "leans",
+      540
+     ]
+    ]
+   },
+   "C_color_texture": {
+    "own_axis_share": 0.8523,
+    "pairs_scored": 179365,
+    "random_share": 0.5575,
+    "other_axis_share": {
+     "C_primary_object": 0.7182,
+     "C_secondary_object": 0.7063,
+     "C_activity_or_relation": 0.7034
+    },
+    "other_axis_share_mean": 0.7093,
+    "image_nbr_share": 0.7913,
+    "ratio_vs_other": 1.202,
+    "ratio_vs_image": 1.077,
+    "ratio_vs_random": 1.529,
+    "knn_overlap_with_other_axes": {
+     "C_primary_object": 0.0526,
+     "C_secondary_object": 0.0412,
+     "C_activity_or_relation": 0.0417
+    },
+    "knn_overlap_with_image": 0.0742,
+    "top_shared": [
+     [
+      "white",
+      41883
+     ],
+     [
+      "green",
+      37062
+     ],
+     [
+      "red",
+      24845
+     ],
+     [
+      "blue",
+      21370
+     ],
+     [
+      "brown",
+      13252
+     ],
+     [
+      "gray",
+      12366
+     ],
+     [
+      "yellow",
+      10179
+     ],
+     [
+      "dark",
+      9811
+     ]
+    ]
+   }
+  }
+ },
+ "random_pairs": {
+  "C_primary_object": {
+   "share": 0.0658,
+   "pairs": 199593,
+   "top_shared": [
+    [
+     "shirt",
+     2555
+    ],
+    [
+     "hair",
+     1341
+    ],
+    [
+     "person",
+     1052
+    ],
+    [
+     "woman",
+     727
+    ],
+    [
+     "jacket",
+     438
+    ],
+    [
+     "upright",
+     414
+    ],
+    [
+     "coat",
+     310
+    ],
+    [
+     "pant",
+     284
+    ]
+   ]
+  },
+  "C_secondary_object": {
+   "share": 0.0511,
+   "pairs": 199506,
+   "top_shared": [
+    [
+     "tree",
+     1420
+    ],
+    [
+     "wall",
+     715
+    ],
+    [
+     "sign",
+     463
+    ],
+    [
+     "plate",
+     440
+    ],
+    [
+     "table",
+     400
+    ],
+    [
+     "fence",
+     397
+    ],
+    [
+     "line",
+     315
+    ],
+    [
+     "window",
+     287
+    ]
+   ]
+  },
+  "C_activity_or_relation": {
+   "share": 0.0242,
+   "pairs": 101717,
+   "top_shared": [
+    [
+     "facing",
+     419
+    ],
+    [
+     "holding",
+     231
+    ],
+    [
+     "stand",
+     216
+    ],
+    [
+     "parked",
+     126
+    ],
+    [
+     "setting",
+     116
+    ],
+    [
+     "moving",
+     104
+    ],
+    [
+     "walking",
+     86
+    ],
+    [
+     "building",
+     74
+    ]
+   ]
+  },
+  "C_color_texture": {
+   "share": 0.5575,
+   "pairs": 199302,
+   "top_shared": [
+    [
+     "white",
+     34267
+    ],
+    [
+     "green",
+     24658
+    ],
+    [
+     "blue",
+     11863
+    ],
+    [
+     "red",
+     11556
+    ],
+    [
+     "gray",
+     7950
+    ],
+    [
+     "dark",
+     7878
+    ],
+    [
+     "brown",
+     6776
+    ],
+    [
+     "black",
+     5009
+    ]
+   ]
+  }
+ }
+}

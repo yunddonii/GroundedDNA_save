@@ -12,10 +12,10 @@ Plan: `/home/yschoi/.claude/plans/hidden-tinkering-pine.md` (approved 2026-10-05
 - 2026-10-05 D1: 45 checkpoints scored (`d1/a2a3/*.json`, tmux `textdiag_d1b` rc 0). Logged in MODI (2026-10-05 D1 entry).
 
 ## In progress
+- D2 DONE 2026-10-06 (d2/*.json for flickr v4/v5b, nus v4, coco v4/v5b; script d2_text_neighbours.py) -- not yet logged in MODI; log together with D0.
 - D0: a3_v2.py smoke-tested (ac2, p2anc; vectorised bootstrap 14 s/run). Batch over 63 checkpoints running: tmux `textdiag_d0`, out `result/analysis/textdiag_2026-10/d0/a3v2/`, status `/data/yschoi/gdna_p3exec_authority/runs/textdiag_d0.status`. When done: aggregate (S, CI, calibration threshold per dataset), log D0 in MODI, update Done.
 
 ## Next (in order)
 1. D0: write `a3_v2.py` (reference caption file + reference text cache, all validation rows, lexical pair rule, bootstrap CIs, codeword + codon level, oracle-mixing calibration); positive control before any use.
-2. D2: decision-1 assumption test on V4/V5b captions (per-axis element extractors; text neighbours vs random / other-axis / image neighbours).
 3. D3: ceilings S_oracle, S_probe (reuse `stage5_bigidea/feasibility.py`).
 4. D4, D6, D5(final-checkpoint part). Then Stage 1 (needs idle GPUs; nvidia-smi first).
