@@ -91,6 +91,22 @@ from dna_utils.run_identity import (
     write_phase3_campaign_binding, write_run_manifest)
 from dna_utils.runtime_state import write_checkpoint_metadata
 
+# A synthetic hardware observation (audit 811): this CPU-only stub sees no CUDA device, so its torch view of
+# the one visible device is DERIVED from the GPU inventory row that CUDA_VISIBLE_DEVICES names (the same
+# nvidia-smi query the parent fingerprints) -- never copied from the expected plan -- and the real child
+# attestation below still compares every field. STUB_DEVICE_MISMATCH makes the observation disagree.
+import subprocess
+_rows = [row.split(", ") for row in subprocess.run(
+    ["nvidia-smi", "--query-gpu=index,uuid,name,pci.bus_id,driver_version", "--format=csv,noheader,nounits"],
+    capture_output=True, text=True).stdout.splitlines()]
+_name = next((row[2] for row in _rows
+              if len(row) >= 3 and row[1] == os.environ.get("CUDA_VISIBLE_DEVICES")), None)
+_count = 1 if _name else 0
+if os.environ.get("STUB_DEVICE_MISMATCH") == "1":
+    _count = 2
+torch.cuda.device_count = lambda: _count
+torch.cuda.get_device_name = lambda index=0: _name
+
 run, n, budget = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
 topp_min, topp_max, jd = (float(sys.argv[4]), float(sys.argv[5]),
                           float(sys.argv[6]))
@@ -209,10 +225,11 @@ def sandbox(tmp_path):
     return tmp_path
 
 
-def _launch(sandbox: Path, *extra: str, trainer_fails: bool = False):
+def _launch(sandbox: Path, *extra: str, trainer_fails: bool = False, device_mismatch: bool = False):
     """Run the REAL launcher, with DATASETS pointed at the stub."""
     patch = sandbox / "scripts" / "run_stub.py"
-    fail = ('env["STUB_TRAINER_FAILS"] = "1"' if trainer_fails else "pass")
+    fail = ('env["STUB_TRAINER_FAILS"] = "1"' if trainer_fails else
+            'env["STUB_DEVICE_MISMATCH"] = "1"' if device_mismatch else "pass")
     patch.write_text(f'''
 import os, sys
 sys.path.insert(0, {str(sandbox)!r})
@@ -323,6 +340,18 @@ def test_a_failing_trainer_leaves_no_record(sandbox):
                    trainer_fails=True)
     assert proc.returncode == 1
     assert "stub trainer failed" in proc.stderr
+    assert not [p for p in (sandbox / "artifacts" / "phase3_selection").glob("*.json")
+                if "_cifar_A_v4_" in p.name]
+
+
+def test_a_child_device_observation_off_the_plan_refuses_before_publication(sandbox):
+    """Audit 811: the child attestation is real -- a device observation that disagrees with the sealed plan
+    refuses before any record is published."""
+    proc = _launch(sandbox, "--smoke", "--epochs", "5", "--only",
+                   "cifar10:4", "--gpu", "0", device_mismatch=True)
+    assert proc.returncode != 0
+    assert "differs from its plan" in proc.stdout + proc.stderr
+    assert "torch_visible_device" in proc.stdout + proc.stderr
     assert not [p for p in (sandbox / "artifacts" / "phase3_selection").glob("*.json")
                 if "_cifar_A_v4_" in p.name]
 
