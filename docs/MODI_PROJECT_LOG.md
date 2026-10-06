@@ -42,6 +42,111 @@ analysis / 🔴 reverted or negative); tables over prose for numbers; each model
 
 ---
 
+## 2026-10-06 [analysis, no training, CPU only] Stage 0 complete (D0/D2/D3/D4/D5/D6): the deployed codes carry no detectable slot-specific signal at 500–1,050 rows; the training-time text-routed codes do (S .14–.24 on 12/12 seed–dataset cells), and the deployment lookup discards it
+
+**Status:** 🟡 diagnostic, exploratory checkpoints (Gumbel ON, own N; 2026-09-20/22 arms); V4/V5b
+captions. Records: `result/analysis/textdiag_2026-10/` — `a3_v2.py` (instrument), `d0/a3v2/*.json` +
+`d0/A3V2_SUMMARY.md` (60 runs), `d2/*.json` (5 caption sets), `d3/*.json` (3 datasets), `d4d6/*.json`
+(12 runs), `d5/*.json` (9 runs); tmux `textdiag_d0/d3/d4d6/d5`, all rc 0. CPU only; nothing under the
+anchor worktrees or any campaign touched. Descriptive, n = 3 seeds, no test run.
+
+**D0 — the instrument (A3 v2).** Same reference captions and text cache for every arm; all validation
+rows (Flickr 500, NUS 1,050, COCO 1,000); primary pair rule = lexical "shared element" (object axes:
+noun-like word; colour axis: ≥ 2 colour/material words; relation axis: verb-like word; a word used by
+> 20 % of rows does not define a pair); statistic R(m) = log(lift_own / lift_other), S = mean over the
+four axes; image bootstrap (1,000) for CIs; codeword and codon level. **Calibration:** the slot-m code
+of a fraction f of rows replaced by an oracle (k-means id of the row's axis-m caption):
+
+| rows | f = .1 | .2 | .3 | .4 | .5 | 1.0 |
+|---|---:|---:|---:|---:|---:|---:|
+| Flickr 500 | +.05 [−.11,+.17] | +.09 [−.06,+.25] | +.17 [−.05,+.31] | **+.33 [+.13,+.57]** | +.41 | +.94 |
+| COCO 1,000 | +.05 | +.10 | +.10 [−.02,+.15] | **+.21 [+.10,+.28]** | +.38 | +.81 |
+| NUS 1,050 | +.02 | +.04 | +.12 [+.00,+.22] | **+.23 [+.12,+.35]** | +.47 | +.89 |
+
+A role carried by fewer than ≈ 40 % of images (Flickr) / ≈ 30 % (NUS, COCO) is invisible at these row
+counts; f = 0 reproduces the plain reading; f = 1 is the positive control. The 09-29 Jaccard rule
+(66–136 pairs on object axes) is retired: its D1 "+.5 lift" readings do not survive the new rule.
+
+**D0 — readings, S (3-seed mean; seeds with CI excluding 0 / 3):**
+
+| dataset | arm | codeword, lexical | codeword, caption-cosine (training relation) | **codon, lexical** |
+|---|---|---:|---:|---:|
+| Flickr | notext | +.00 (0) | −.02 (0) | **−.06** (2 negative) |
+| Flickr | base | +.02 (1) | −.06 (0) | +.08 (1) |
+| Flickr | anchors (p2anc) | +.05 (0) | +.02 (0) | **+.12 (2)** |
+| Flickr | ac2 (A′) | +.06 (0) | +.13 (2) | +.06 (0) |
+| Flickr | bc / bq / codsoft / k64 / p1b / p5prequ | +.06 / +.04 / +.02 / −.02 / +.01 / +.00 | +.02 / +.05 / −.03 / −.07 / +.03 / +.09 | +.12 / +.11 / +.09 / +.07 / +.12 / +.08 |
+| NUS | notext | −.02 (0) | −.03 (0) | −.01 (0) |
+| NUS | anchors | +.02 (0) | −.01 (0) | **+.11 (2)** |
+| NUS | ac2 | **+.10 (2)** | +.14 (2) | +.10 (2) |
+| COCO | notext | +.01 (0) | +.02 (0) | −.02 (0) |
+| COCO | anchors | +.04 (1) | +.02 (0) | +.04 (1) |
+| COCO | ac2 | −.00 (0) | −.01 (0) | −.00 (0) |
+
+Reading: at the codeword level no arm is separable from zero on 3/3 seeds; the constructed form (ac2)
+reaches +.10 only on NUS. At the **codon** level the anchors arm is +.11/+.12 on Flickr and NUS (2/3
+seeds each) while the text-OFF arm is ≤ 0 — the first text-vs-no-text difference seen on A3, small and
+to be re-measured at the approved recipe (Stage 1).
+
+**D2 — decision-1 assumption on the approved captions** (opt rows; P(text k-NN pair shares an
+axis element), k = 10; comparison sets random / other-axis neighbours / CLIP image neighbours):
+
+| dataset (captions) | primary | secondary | relation | colour | verdict |
+|---|---|---|---|---|---|
+| Flickr (V4) | .66 (×2.5 other, ×1.6 image) | .62 (×3.2, ×2.6) | .25 (×3.0, ×2.1) | .92 (random .48) | object axes pass; relation low; colour uninformative |
+| NUS (V4) | .83 (×2.2, ×1.5) | .79 (×2.6, ×2.1) | .32 | .96 (random .55) | same |
+| COCO (V5b) | .93 (×1.9, ×1.4) | .80 (×2.6, ×1.9) | .43 | .99 (random .83) | same; V5b adjectives dominate ("upright", "matte") |
+| COCO (V4) | .69 (×1.6, **×1.1**) | .40 (×1.6, ×1.1) | .17 | .86 | fails the image-neighbour margin |
+
+Text neighbours do share object nouns; 35–38 % of rows have no verb-like word (extractor limit + captions);
+colour words are shared by half of all random pairs. Text and image neighbourhoods overlap only
+.05–.15, and axis neighbourhoods overlap .03–.08.
+
+**D3 — ceilings (no model):** S_oracle (code = own text cluster) .97 / .94 / .83 (Flickr / NUS / COCO);
+**S_probe (linear probe CLIP global → text cluster) .13 [−.03,.28] / .29 [.21,.37] / .20 [.14,.26]**;
+probe top-1 to 128 clusters .14–.45. One visual k-means for all slots gives S = 0 by construction.
+Any text-free deployed code is bounded by S_probe; the plan's T = max(2·SD, detectable S) will sit near it.
+
+**D4 — training routing vs deployment routing** (same validation images; training-mode forward with the
+captions, EMA and revival off, vs the deployment forward):
+
+| dataset | arm | P(same codeword) 4 axes | plan column cos | S train-routed (3 seeds) | S deployed |
+|---|---|---|---|---|---|
+| Flickr | base | .60/.52/.61/.64 | .60–.68 | **+.23 +.22 +.19** (3/3 CI > 0) | −.08 +.03 +.12 |
+| Flickr | anchors | .60/.65/.66/.67 | .52–.57 | +.14 +.20 +.14 (2/3) | +.06 +.06 +.03 (0/3) |
+| NUS | anchors | .56–.59 | .41–.44 | +.18 +.16 +.15 (3/3) | +.03 +.08 −.06 |
+| COCO | anchors | .53–.56 | .47–.49 | +.14 +.17 +.24 (3/3) | −.01 +.04 +.11 |
+
+The caption-routed codes DO carry slot-specific sharing (11/12 cells with CI > 0, S ≈ S_probe); the
+deployed codes do not. Only 52–67 % of codewords survive the switch to codebook-mean anchors; pre-quant
+slot tokens of different slots have cosine .70–.84 in both modes.
+
+**D5 — the X target on existing anchors checkpoints** (opt rows, caption-routed tokens, k = 10):
+top-vote share .30–.53 (visual-graph control .66–.79); vote mode ≠ own codeword 47–77 % of rows; the
+modes cover 84–128 of the used codewords (no narrowing: H_mode ≥ .94·H_usage); axis neighbourhoods
+overlap .04–.05, text vs visual neighbours .08–.09; cosine argmax = Euclidean argmin on .84–.89.
+
+**D6 — legacy pruning:** keep ratio .64 (COCO 1.0, i.e. mean over all tokens); adapted anchor cosine
+pruned vs EOS-pooled .64–.72 (COCO .45; per-slot minima negative); codewords change on 21–32 % of rows;
+S of the caption-routed codes without pruning ≥ with pruning on Flickr (+.25/+.20/+.19 vs +.23/+.22/+.19
+base; anchors +.18/+.21/+.12 vs +.14/+.20/+.14), ≈ equal on NUS, lower on COCO (ratio 1.0 there).
+
+**Consequences for the plan.**
+1. Stage 1 must add **evaluation rows**: at 500 rows only a ≥ 40 % role is visible. Score on all
+   validation rows and, for Flickr, caption a fixed 1,500-image database sample as evaluation labels
+   (Stage 2 generation budget); otherwise P-A3 cannot distinguish S_probe-sized effects from 0.
+2. The S arm (codebook-mean routing in training, text as supervision only) moves from "attribution
+   control" to **co-primary with X**: D4 shows the loss of signal happens at the train/deploy routing
+   switch, not in the losses.
+3. H2 (EOS anchor instead of noise-keyed token mean) stays as a cheap Stage-1 delta (D6: it changes a
+   quarter of the codewords for no stated reason).
+4. The 2026-10-05 D1 reading (own − other +.5 on ac2) is superseded: under the fixed lexical rule it is
+   +.06 [CI incl. 0] on Flickr, +.10 (2/3) on NUS, 0 on COCO.
+5. Decision 1 holds for object axes on V4/V5b; the relation axis is weak (user decision point in
+   Stage 2); the colour axis needs a different pair definition or a different axis.
+
+---
+
 ## 2026-10-05 [analysis, no training, CPU only] D1: 45 never-scored exploratory checkpoints on the A1/A2/A3 instrument — the constructed-membership form (ac2) moves own−other lift by only ≈ +.5 (Flickr) / +1 to +1.7 (NUS) and not at all on MS-COCO
 
 **Status:** 🟡 diagnostic, exploratory (Gumbel ON checkpoints of 2026-09-22; own N; not the approved

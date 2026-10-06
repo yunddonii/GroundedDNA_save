@@ -28,8 +28,10 @@ def main(d, out_md):
                 S = [r[lvl][rule]["S"] for r in rs if r[lvl][rule]["S"]]
                 if not S:
                     continue
-                L.append(f"| {ds} | {arm} | {len(S)} | {' / '.join(f'{s['value']:+.3f}' for s in S)} | {np.mean([s['value'] for s in S]):+.3f} | "
-                         f"{' / '.join(f'[{s['ci95'][0]:+.2f},{s['ci95'][1]:+.2f}]' for s in S)} | {' / '.join(str(s['positive_axes']) for s in S)} |")
+                per_seed = " / ".join("%+.3f" % s["value"] for s in S)
+                cis = " / ".join("[%+.2f,%+.2f]" % (s["ci95"][0], s["ci95"][1]) for s in S)
+                pos = " / ".join(str(s["positive_axes"]) for s in S)
+                L.append("| %s | %s | %d | %s | %+.3f | %s | %s |" % (ds, arm, len(S), per_seed, np.mean([s["value"] for s in S]), cis, pos))
             L.append("")
     L += ["## Calibration (codeword, lexical): S when a fraction f of rows carries the oracle code (3-seed mean; CI of seed 1)", "",
           "| dataset | arm | " + " | ".join(f"f={f}" for f in ("0.0", "0.1", "0.2", "0.3", "0.4", "0.5", "0.7", "1.0")) + " |", "|---|---|" + "---|" * 8]
@@ -39,7 +41,7 @@ def main(d, out_md):
         for f in ("0.0", "0.1", "0.2", "0.3", "0.4", "0.5", "0.7", "1.0"):
             v = [c[f]["value"] for c in cal if c.get(f)]
             ci = next((c[f]["ci95"] for c in cal if c.get(f)), None)
-            cells.append(f"{np.mean(v):+.2f} [{ci[0]:+.2f},{ci[1]:+.2f}]" if v and ci else "—")
+            cells.append(("%+.2f [%+.2f,%+.2f]" % (np.mean(v), ci[0], ci[1])) if v and ci else "—")
         L.append(f"| {ds} | {arm} | " + " | ".join(cells) + " |")
     open(out_md, "w").write("\n".join(L) + "\n"); print("\n".join(L))
 

@@ -1,0 +1,162 @@
+{
+ "result_dir": "/data/yschoi/gdna_wt_mscoco/result/260922+mscoco_setting1_msc_p2anc_s42+bs+64+e+60+proj_lr+0.001",
+ "dataset": "MSCOCO",
+ "rows": 9000,
+ "k": 10,
+ "K": 128,
+ "routing_mode": "text",
+ "axes": {
+  "C_primary_object": {
+   "p_cos_argmax_equals_euclid_argmin": 0.8723,
+   "p_euclid_argmin_equals_model_codeword": 1.0,
+   "text_graph": {
+    "top_vote_share_mean": 0.5234,
+    "top_vote_share_q25_q50_q75": [
+     0.3,
+     0.5,
+     0.7
+    ],
+    "p_mode_equals_own": 0.4717,
+    "distinct_codewords_used": 128,
+    "distinct_codewords_as_mode": 128,
+    "entropy_usage_nats": 4.729,
+    "entropy_mode_nats": 4.626,
+    "log_K": 4.852
+   },
+   "visual_graph_control": {
+    "top_vote_share_mean": 0.7818,
+    "top_vote_share_q25_q50_q75": [
+     0.6,
+     0.8,
+     1.0
+    ],
+    "p_mode_equals_own": 0.7956,
+    "distinct_codewords_used": 128,
+    "distinct_codewords_as_mode": 128,
+    "entropy_usage_nats": 4.729,
+    "entropy_mode_nats": 4.708,
+    "log_K": 4.852
+   },
+   "knn_overlap_text_vs_other_axes": {
+    "C_secondary_object": 0.0402,
+    "C_activity_or_relation": 0.0586,
+    "C_color_texture": 0.0367
+   },
+   "knn_overlap_text_vs_visual_same_slot": 0.097
+  },
+  "C_secondary_object": {
+   "p_cos_argmax_equals_euclid_argmin": 0.8964,
+   "p_euclid_argmin_equals_model_codeword": 1.0,
+   "text_graph": {
+    "top_vote_share_mean": 0.4456,
+    "top_vote_share_q25_q50_q75": [
+     0.3,
+     0.4,
+     0.6
+    ],
+    "p_mode_equals_own": 0.3877,
+    "distinct_codewords_used": 128,
+    "distinct_codewords_as_mode": 128,
+    "entropy_usage_nats": 4.741,
+    "entropy_mode_nats": 4.614,
+    "log_K": 4.852
+   },
+   "visual_graph_control": {
+    "top_vote_share_mean": 0.79,
+    "top_vote_share_q25_q50_q75": [
+     0.6,
+     0.9,
+     1.0
+    ],
+    "p_mode_equals_own": 0.8118,
+    "distinct_codewords_used": 128,
+    "distinct_codewords_as_mode": 128,
+    "entropy_usage_nats": 4.741,
+    "entropy_mode_nats": 4.733,
+    "log_K": 4.852
+   },
+   "knn_overlap_text_vs_other_axes": {
+    "C_primary_object": 0.0402,
+    "C_activity_or_relation": 0.0542,
+    "C_color_texture": 0.0291
+   },
+   "knn_overlap_text_vs_visual_same_slot": 0.0759
+  },
+  "C_activity_or_relation": {
+   "p_cos_argmax_equals_euclid_argmin": 0.8831,
+   "p_euclid_argmin_equals_model_codeword": 1.0,
+   "text_graph": {
+    "top_vote_share_mean": 0.4771,
+    "top_vote_share_q25_q50_q75": [
+     0.3,
+     0.4,
+     0.6
+    ],
+    "p_mode_equals_own": 0.4238,
+    "distinct_codewords_used": 128,
+    "distinct_codewords_as_mode": 127,
+    "entropy_usage_nats": 4.72,
+    "entropy_mode_nats": 4.574,
+    "log_K": 4.852
+   },
+   "visual_graph_control": {
+    "top_vote_share_mean": 0.786,
+    "top_vote_share_q25_q50_q75": [
+     0.6,
+     0.8,
+     1.0
+    ],
+    "p_mode_equals_own": 0.8022,
+    "distinct_codewords_used": 128,
+    "distinct_codewords_as_mode": 128,
+    "entropy_usage_nats": 4.72,
+    "entropy_mode_nats": 4.696,
+    "log_K": 4.852
+   },
+   "knn_overlap_text_vs_other_axes": {
+    "C_primary_object": 0.0586,
+    "C_secondary_object": 0.0542,
+    "C_color_texture": 0.0279
+   },
+   "knn_overlap_text_vs_visual_same_slot": 0.0861
+  },
+  "C_color_texture": {
+   "p_cos_argmax_equals_euclid_argmin": 0.8787,
+   "p_euclid_argmin_equals_model_codeword": 1.0,
+   "text_graph": {
+    "top_vote_share_mean": 0.3836,
+    "top_vote_share_q25_q50_q75": [
+     0.2,
+     0.3,
+     0.5
+    ],
+    "p_mode_equals_own": 0.3347,
+    "distinct_codewords_used": 128,
+    "distinct_codewords_as_mode": 128,
+    "entropy_usage_nats": 4.753,
+    "entropy_mode_nats": 4.548,
+    "log_K": 4.852
+   },
+   "visual_graph_control": {
+    "top_vote_share_mean": 0.7727,
+    "top_vote_share_q25_q50_q75": [
+     0.6,
+     0.8,
+     1.0
+    ],
+    "p_mode_equals_own": 0.7861,
+    "distinct_codewords_used": 128,
+    "distinct_codewords_as_mode": 128,
+    "entropy_usage_nats": 4.753,
+    "entropy_mode_nats": 4.72,
+    "log_K": 4.852
+   },
+   "knn_overlap_text_vs_other_axes": {
+    "C_primary_object": 0.0367,
+    "C_secondary_object": 0.0291,
+    "C_activity_or_relation": 0.0279
+   },
+   "knn_overlap_text_vs_visual_same_slot": 0.0593
+  }
+ }
+}
