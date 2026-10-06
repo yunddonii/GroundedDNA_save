@@ -1,0 +1,102 @@
+{
+  "approval": {
+    "ledger": "/home/yschoi/GroundedDNA/docs/PHASE1_PHASE2_REAUDIT_2026-08-14.md",
+    "ledger_sha256": "8a79cb42293fae0dbc0d4dc0e39b5c6bfec084f454e58a6b929cbf1e165b9a93",
+    "line": "ANCHOR-CONFIRM-APPROVAL version=anchor-confirm/2 scope=stage-T-smoke manifest=2f24fc80bb83e2c73b17ec473c2731ade6d34a356e02414e6719fe9e9bec947c freeze=5165f5dc9fcfb8334270bc16aa9816d09db67b03a04abae7ff846d5235bdca1d request=8ad639cc7c1eaa28fb83925416b2d35a4bd21ee339b3803fc4e3e18de9d8f748",
+    "scope": "stage-T-smoke",
+    "section": 773
+  },
+  "campaign_nonce": "34a3873dcd198009a7d573e74e5b61d7e93cda8baa32d24938eabb4227d8d5d8",
+  "cell": {
+    "N": 4,
+    "cell_id": "flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=refit|seed=42|axis_center=anchors",
+    "checkpoint_runtime_sha256": "d22bd0f2c883f74e61a2d3ae657f4f7cc3205e5cee0ff8e124668b335f1b3e9c",
+    "config_pt_sha256": "c1a3bc2ad74ecc09cac754d46395f1d210e329d07ccd00193912611d15354ff8",
+    "dataset": "flickr25k",
+    "final_checkpoint": "model_state_dict.pth",
+    "final_checkpoint_sha256": "748824223785a6c356f77af078f49a5343e40b0cdb1802bf63c05afeafcd0f9a",
+    "phase3_campaign_evidence_sha256": "6a0b446b93a01a9c218c4315c6843d689465b3a4abd8e50648446ec7a2e99aeb",
+    "record": "/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/ancRsmk9r6_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002.json",
+    "record_sha256": "8a02eb3b27fc9d626d1146476f826b823da86d058f64430c25d15147d4f42257",
+    "run_dir": "/home/yschoi/gdna_anchorRT_result/261006+flickr25k_setting1_ancRsmk9r6_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002+bs+64+e+1+proj_lr+0.001",
+    "scientific_recipe_sha256": "a58e4c8afb1cb02475b6154a5eb9bfa596365a4e80a8f41faed34ac001f00d02",
+    "seed": 42,
+    "tag": "ancRsmk9r6_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002",
+    "terminal_epoch": 0
+  },
+  "created_utc": "2026-10-06T11:21:18Z",
+  "namespace": "ancTsmk9",
+  "owner_boot_id": "33d5823a-179b-45e8-a680-fac9d0d5364b",
+  "owner_host": "ailab-hs",
+  "owner_pid": 1854059,
+  "request": {
+    "cells": [
+      {
+        "N": 4,
+        "cell_id": "flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=refit|seed=42|axis_center=anchors",
+        "checkpoint_runtime_sha256": "d22bd0f2c883f74e61a2d3ae657f4f7cc3205e5cee0ff8e124668b335f1b3e9c",
+        "config_pt_sha256": "c1a3bc2ad74ecc09cac754d46395f1d210e329d07ccd00193912611d15354ff8",
+        "dataset": "flickr25k",
+        "final_checkpoint": "model_state_dict.pth",
+        "final_checkpoint_sha256": "748824223785a6c356f77af078f49a5343e40b0cdb1802bf63c05afeafcd0f9a",
+        "phase3_campaign_evidence_sha256": "6a0b446b93a01a9c218c4315c6843d689465b3a4abd8e50648446ec7a2e99aeb",
+        "record": "/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/ancRsmk9r6_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002.json",
+        "record_sha256": "8a02eb3b27fc9d626d1146476f826b823da86d058f64430c25d15147d4f42257",
+        "run_dir": "/home/yschoi/gdna_anchorRT_result/261006+flickr25k_setting1_ancRsmk9r6_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002+bs+64+e+1+proj_lr+0.001",
+        "scientific_recipe_sha256": "a58e4c8afb1cb02475b6154a5eb9bfa596365a4e80a8f41faed34ac001f00d02",
+        "seed": 42,
+        "tag": "ancRsmk9r6_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002",
+        "terminal_epoch": 0
+      }
+    ],
+    "chain": [
+      "scripts/anchor_terminal_test.py: extraction_siglip2.extract_code (query, db) + evaluation_siglip2.evaluation (raw, bio_project=False)",
+      "scripts/extract_train_split.py",
+      "scripts/eval_cell_bioproj.py --require-train",
+      "scripts/pairwise_nmi.py --require-train",
+      "scripts/seal_cell_analysis.py --require-train"
+    ],
+    "freeze": {
+      "acceptance_section": 744,
+      "acceptance_sha256": "13ef776bc1485b3917253e51ee4aa99879a8f1f30f5539e0d1e224d3faaa1c56",
+      "path": "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancF_candidate_v1.json",
+      "sha256": "5165f5dc9fcfb8334270bc16aa9816d09db67b03a04abae7ff846d5235bdca1d"
+    },
+    "gpu_count": 1,
+    "manifest": "2f24fc80bb83e2c73b17ec473c2731ade6d34a356e02414e6719fe9e9bec947c",
+    "manifest_path": "/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/authority_manifest_v9r7.json",
+    "mode": "smoke",
+    "namespace": "ancTsmk9",
+    "outputs": [
+      "extract_query.npz",
+      "extract_db.npz",
+      "extract_train.npz",
+      "extraction_manifest_query.json",
+      "extraction_manifest_db.json",
+      "extraction_manifest_train.json",
+      "extraction_complete.json",
+      "evaluation_siglip2_base.json",
+      "evaluation_siglip2_base_bioproj.json",
+      "evaluation_siglip2_bit2.json",
+      "analysis_complete.json",
+      "cell_result.json",
+      "pairwise_nmi.json"
+    ],
+    "record_dir": "/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation",
+    "refit_approval": {
+      "line": "ANCHOR-CONFIRM-APPROVAL version=anchor-confirm/2 scope=stage-R-smoke manifest=2f24fc80bb83e2c73b17ec473c2731ade6d34a356e02414e6719fe9e9bec947c freeze=5165f5dc9fcfb8334270bc16aa9816d09db67b03a04abae7ff846d5235bdca1d request=9ba89a144c28459a2ea108ab772f6979e26abc3b4c2daae6052c3ac4550bb414",
+      "scope": "stage-R-smoke",
+      "section": 763
+    },
+    "refit_epochs": 1,
+    "refit_receipt": {
+      "path": "/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/ancRsmk9r6_sweep_complete.json",
+      "sha256": "796e70d1b54a4f02e58e0a222fb1ee1261e34504857c5ff27e09296c86e4b0a3"
+    },
+    "schema": "anchor-terminal-test-request/1",
+    "stage": "test",
+    "version": "anchor-confirm/2"
+  },
+  "request_sha256": "8ad639cc7c1eaa28fb83925416b2d35a4bd21ee339b3803fc4e3e18de9d8f748",
+  "schema": "anchor-terminal-test-attempt/1"
+}

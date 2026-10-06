@@ -1,0 +1,27 @@
+{
+  "campaign_kind": "anchor_terminal_test",
+  "campaign_nonce": "34a3873dcd198009a7d573e74e5b61d7e93cda8baa32d24938eabb4227d8d5d8",
+  "campaign_reservation_file": "ancTsmk9_campaign_reservation.json",
+  "campaign_reservation_sha256": "425ea7c1a2bdbe6fbe801015cc9b6c07bd2cf73ad4d92ce3b04370240d1ce4b7",
+  "cell_count": 1,
+  "cells": {
+    "flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=refit|seed=42|axis_center=anchors": {
+      "attempt_sha256": "2ab59a6ded236d7b08a9fc29ab562c2fa583101ad27c350d2cb1c0c036225f1c",
+      "bio_map_at_R": 0.8181086475118398,
+      "map_at_R": 0.8258194559264543,
+      "record": "ancTsmk9_ancRsmk9r6_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002.json",
+      "record_sha256": "2df50eea6635af581909c1c26e605d95ed2f191a8b6172f5942b94cbfb0802ea"
+    }
+  },
+  "expected_cells": 1,
+  "namespace": "ancTsmk9",
+  "plan_snapshot_file": "ancTsmk9_snapshot_986757d5a0a1d392.json",
+  "plan_snapshot_sha256": "986757d5a0a1d392c949f1f7da3c527af17283c8780bfac39fb36ce2c7c8daed",
+  "refit_receipt": {
+    "path": "/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/ancRsmk9r6_sweep_complete.json",
+    "sha256": "796e70d1b54a4f02e58e0a222fb1ee1261e34504857c5ff27e09296c86e4b0a3"
+  },
+  "request_sha256": "8ad639cc7c1eaa28fb83925416b2d35a4bd21ee339b3803fc4e3e18de9d8f748",
+  "schema": "anchor-terminal-test-record/1",
+  "stage": "test"
+}

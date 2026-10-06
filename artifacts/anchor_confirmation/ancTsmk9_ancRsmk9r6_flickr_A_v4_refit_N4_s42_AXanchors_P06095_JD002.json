@@ -1,0 +1,86 @@
+{
+  "attempt": {
+    "file": "ancTsmk9_attempt_ancRsmk9r6_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002.json",
+    "sha256": "2ab59a6ded236d7b08a9fc29ab562c2fa583101ad27c350d2cb1c0c036225f1c"
+  },
+  "campaign_nonce": "34a3873dcd198009a7d573e74e5b61d7e93cda8baa32d24938eabb4227d8d5d8",
+  "cell": {
+    "N": 4,
+    "cell_id": "flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=refit|seed=42|axis_center=anchors",
+    "checkpoint_runtime_sha256": "d22bd0f2c883f74e61a2d3ae657f4f7cc3205e5cee0ff8e124668b335f1b3e9c",
+    "config_pt_sha256": "c1a3bc2ad74ecc09cac754d46395f1d210e329d07ccd00193912611d15354ff8",
+    "dataset": "flickr25k",
+    "final_checkpoint": "model_state_dict.pth",
+    "final_checkpoint_sha256": "748824223785a6c356f77af078f49a5343e40b0cdb1802bf63c05afeafcd0f9a",
+    "phase3_campaign_evidence_sha256": "6a0b446b93a01a9c218c4315c6843d689465b3a4abd8e50648446ec7a2e99aeb",
+    "record": "/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/ancRsmk9r6_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002.json",
+    "record_sha256": "8a02eb3b27fc9d626d1146476f826b823da86d058f64430c25d15147d4f42257",
+    "run_dir": "/home/yschoi/gdna_anchorRT_result/261006+flickr25k_setting1_ancRsmk9r6_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002+bs+64+e+1+proj_lr+0.001",
+    "scientific_recipe_sha256": "a58e4c8afb1cb02475b6154a5eb9bfa596365a4e80a8f41faed34ac001f00d02",
+    "seed": 42,
+    "tag": "ancRsmk9r6_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002",
+    "terminal_epoch": 0
+  },
+  "completion": {
+    "analysis_complete_sha256": "a6043922213fd38657e42a95fc17a4028b86d5132860d87db3fa362c68f9b785",
+    "analysis_metrics": {
+      "dna_unique_db": 0.11130434782608696,
+      "full_map_bioproj": 0.7203455538936445,
+      "full_map_pre_projection": 0.7254682266118136,
+      "map_at_R_bioproj": 0.8181086475118398,
+      "mean_off_diag_nmi": 0.5256123501378532
+    },
+    "analysis_protocol": {
+      "bio_max_homopolymer_run": 3,
+      "codebook_size": 128,
+      "dataset": "Flickr25k",
+      "gc_count_max_inclusive": 9,
+      "gc_count_min_inclusive": 6,
+      "gc_max_frac": 0.6,
+      "gc_min_frac": 0.4,
+      "gc_policy_version": "gc-40-60-inclusive-v1",
+      "map_r_cutoff": 5000,
+      "nmi_average_method": "arithmetic",
+      "sklearn_version": "1.7.2",
+      "total_bases": 15
+    },
+    "bio_evaluation_sha256": "cb99bef24a220d214f0694aa5933c8fd7e30f8be697cf3d5223828bfb2a3ffb4",
+    "bio_map": 0.7203455538936445,
+    "bio_map_at_R": 0.8181086475118398,
+    "cell_result_sha256": "e0c64159d93292b4879403ddc1453bdf3e249ea52579bf359e1907775cffdb10",
+    "checkpoint_exact_load": true,
+    "evaluation_sha256": "a41294ea6d221ae71481353d1b77d5668cba8f1cdd70b7b4f2cf92311add37fe",
+    "extraction_complete_sha256": "b4fe446b938487023081e6809d78eda054185736deaa7dc68020986b263bf57f",
+    "extraction_manifest_sha256": {
+      "db": "e6f7b934168b555a257b619f58e1e0353dbbe830fb93fe09e0cb99ff4347d692",
+      "query": "fa03798977b2cb3e7d8605c330f9c8d04ac441fcb5df642d33a92ce62ab256be",
+      "train": "8329b2cc4014aadd31b407151a5404e3e2bfb02a28c669c9ad03b1818252a28a"
+    },
+    "extraction_validated": true,
+    "label_zero_positive_rows": {
+      "db": 377,
+      "query": 42,
+      "train": 81
+    },
+    "map": 0.7254682266118136,
+    "map_R_cutoff": 5000,
+    "map_at_R": 0.8258194559264543,
+    "mean_off_diag_nmi": 0.5256123501378532,
+    "npz_sha256": {
+      "db": "ca0761c8de57346f5065a3b5508d056531ee9695031a0ee533da1514c9015169",
+      "query": "06f2782358012af6e3357bc45056e6d79122bb2cf312e162fd54028c3c7c63cf",
+      "train": "573f027428c1d81717c4e4d2eea9ea4a43da94ff64633b0e50b580285e66bd4f"
+    },
+    "pairwise_nmi_sha256": "e65b9ab9c0a5885468d6d6e3d3f614f53914434f5c70f66614eaf194cdfa150b",
+    "required_splits": [
+      "db",
+      "query",
+      "train"
+    ]
+  },
+  "namespace": "ancTsmk9",
+  "request_sha256": "8ad639cc7c1eaa28fb83925416b2d35a4bd21ee339b3803fc4e3e18de9d8f748",
+  "schema": "anchor-terminal-test-record/1",
+  "stage": "test",
+  "wall_seconds": 525.9
+}

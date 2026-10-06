@@ -1,0 +1,19 @@
+{
+  "campaign_kind": "anchor_terminal_test",
+  "campaign_nonce": "34a3873dcd198009a7d573e74e5b61d7e93cda8baa32d24938eabb4227d8d5d8",
+  "declared_cells": 1,
+  "environment_sha256": "97636ea46187f66dd47e47e860878e6ddb331974bf4344688ddc4651ec5bebac",
+  "executed_cells": 1,
+  "head_commit": "d4d010f72b8d9a04750bf49be61a4016aefc8fd5",
+  "input_seals_sha256": "acf6c23635d3be39652ca7cff559023c395670200d7dc6b548834ecf6424026c",
+  "namespace": "ancTsmk9",
+  "owner_boot_id": "33d5823a-179b-45e8-a680-fac9d0d5364b",
+  "owner_host": "ailab-hs",
+  "owner_pid": 1854059,
+  "plan_digest": "986757d5a0a1d392c949f1f7da3c527af17283c8780bfac39fb36ce2c7c8daed",
+  "plan_snapshot_file": "ancTsmk9_snapshot_986757d5a0a1d392.json",
+  "qwen_root": "/data/yschoi/dataset/deephashing/cache",
+  "result_root": "/home/yschoi/gdna_anchorRT_result",
+  "schema_version": 1,
+  "source_authority_sha256": "f45a71775a93a58d3f9dc68f65d406017d5b1d7d367ec2267478b09882c4cea0"
+}
