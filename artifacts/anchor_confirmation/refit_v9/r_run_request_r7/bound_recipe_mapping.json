@@ -1,0 +1,1054 @@
+{
+ "cifar10|N=4|seed=42": {
+  "recipe_digest": "4535ba2f477075e4015be1c0b5e074c00aa06bb72bf8d5449d69f34d59611bcc",
+  "differs_from_f": [
+   "epoch",
+   "final_epoch_eval",
+   "keep_final_checkpoint",
+   "lr_schedule_horizon",
+   "phase3_input_aggregate_sha256",
+   "phase3_input_seal",
+   "phase3_input_seal_sha256",
+   "phase3_split_identity_sha256",
+   "selection_mode",
+   "sinkhorn_schedule_horizon",
+   "text_whiten_npz",
+   "val_split_ratio"
+  ],
+  "input_authority_compared": true,
+  "admitted_overrides": {
+   "dna_distance_mode": [
+    [
+     "--dna_distance_mode",
+     "base"
+    ],
+    [
+     "--dna_distance_mode",
+     "base"
+    ]
+   ],
+   "epoch": [
+    [
+     "-e",
+     "60"
+    ],
+    [
+     "-e",
+     "5"
+    ]
+   ],
+   "lambda_codeword_codon_sinkhorn": [
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.1"
+    ],
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.0"
+    ]
+   ],
+   "post_eval_compositional": [
+    [
+     "--post_eval_compositional"
+    ],
+    [
+     "--no-post_eval_compositional"
+    ]
+   ],
+   "routing_adaptive_topp": [
+    [
+     "--routing_adaptive_topp"
+    ],
+    [
+     "--routing_adaptive_topp"
+    ]
+   ],
+   "routing_adaptive_topp_max": [
+    [
+     "--routing_adaptive_topp_max",
+     "0.7"
+    ],
+    [
+     "--routing_adaptive_topp_max",
+     "0.7"
+    ]
+   ],
+   "routing_adaptive_topp_min": [
+    [
+     "--routing_adaptive_topp_min",
+     "0.3"
+    ],
+    [
+     "--routing_adaptive_topp_min",
+     "0.3"
+    ]
+   ]
+  },
+  "outside_contract": []
+ },
+ "cifar10|N=4|seed=43": {
+  "recipe_digest": "b3f13cd84dff24ed603dce1ab609137ad5a51d90b87948d01cb1341dee472d76",
+  "differs_from_f": [
+   "epoch",
+   "final_epoch_eval",
+   "keep_final_checkpoint",
+   "lr_schedule_horizon",
+   "phase3_input_aggregate_sha256",
+   "phase3_input_seal",
+   "phase3_input_seal_sha256",
+   "phase3_split_identity_sha256",
+   "random_seed",
+   "selection_mode",
+   "sinkhorn_schedule_horizon",
+   "text_whiten_npz",
+   "val_split_ratio"
+  ],
+  "input_authority_compared": true,
+  "admitted_overrides": {
+   "dna_distance_mode": [
+    [
+     "--dna_distance_mode",
+     "base"
+    ],
+    [
+     "--dna_distance_mode",
+     "base"
+    ]
+   ],
+   "epoch": [
+    [
+     "-e",
+     "60"
+    ],
+    [
+     "-e",
+     "5"
+    ]
+   ],
+   "lambda_codeword_codon_sinkhorn": [
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.1"
+    ],
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.0"
+    ]
+   ],
+   "post_eval_compositional": [
+    [
+     "--post_eval_compositional"
+    ],
+    [
+     "--no-post_eval_compositional"
+    ]
+   ],
+   "routing_adaptive_topp": [
+    [
+     "--routing_adaptive_topp"
+    ],
+    [
+     "--routing_adaptive_topp"
+    ]
+   ],
+   "routing_adaptive_topp_max": [
+    [
+     "--routing_adaptive_topp_max",
+     "0.7"
+    ],
+    [
+     "--routing_adaptive_topp_max",
+     "0.7"
+    ]
+   ],
+   "routing_adaptive_topp_min": [
+    [
+     "--routing_adaptive_topp_min",
+     "0.3"
+    ],
+    [
+     "--routing_adaptive_topp_min",
+     "0.3"
+    ]
+   ]
+  },
+  "outside_contract": []
+ },
+ "cifar10|N=4|seed=44": {
+  "recipe_digest": "7b91164ddc75fa11c4abe56da0b181bbbfc15b6aeec1eee1722073b5599c2fc7",
+  "differs_from_f": [
+   "epoch",
+   "final_epoch_eval",
+   "keep_final_checkpoint",
+   "lr_schedule_horizon",
+   "phase3_input_aggregate_sha256",
+   "phase3_input_seal",
+   "phase3_input_seal_sha256",
+   "phase3_split_identity_sha256",
+   "random_seed",
+   "selection_mode",
+   "sinkhorn_schedule_horizon",
+   "text_whiten_npz",
+   "val_split_ratio"
+  ],
+  "input_authority_compared": true,
+  "admitted_overrides": {
+   "dna_distance_mode": [
+    [
+     "--dna_distance_mode",
+     "base"
+    ],
+    [
+     "--dna_distance_mode",
+     "base"
+    ]
+   ],
+   "epoch": [
+    [
+     "-e",
+     "60"
+    ],
+    [
+     "-e",
+     "5"
+    ]
+   ],
+   "lambda_codeword_codon_sinkhorn": [
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.1"
+    ],
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.0"
+    ]
+   ],
+   "post_eval_compositional": [
+    [
+     "--post_eval_compositional"
+    ],
+    [
+     "--no-post_eval_compositional"
+    ]
+   ],
+   "routing_adaptive_topp": [
+    [
+     "--routing_adaptive_topp"
+    ],
+    [
+     "--routing_adaptive_topp"
+    ]
+   ],
+   "routing_adaptive_topp_max": [
+    [
+     "--routing_adaptive_topp_max",
+     "0.7"
+    ],
+    [
+     "--routing_adaptive_topp_max",
+     "0.7"
+    ]
+   ],
+   "routing_adaptive_topp_min": [
+    [
+     "--routing_adaptive_topp_min",
+     "0.3"
+    ],
+    [
+     "--routing_adaptive_topp_min",
+     "0.3"
+    ]
+   ]
+  },
+  "outside_contract": []
+ },
+ "flickr25k|N=4|seed=42": {
+  "recipe_digest": "9bbeea8069c82216e7e6d238da374426aa9573ab753a39a5095d69c17b15ddef",
+  "differs_from_f": [
+   "epoch",
+   "final_epoch_eval",
+   "keep_final_checkpoint",
+   "lr_schedule_horizon",
+   "phase3_input_aggregate_sha256",
+   "phase3_input_seal",
+   "phase3_input_seal_sha256",
+   "phase3_split_identity_sha256",
+   "selection_mode",
+   "sinkhorn_schedule_horizon",
+   "text_whiten_npz",
+   "val_split_ratio"
+  ],
+  "input_authority_compared": true,
+  "admitted_overrides": {
+   "dna_distance_mode": [
+    [
+     "--dna_distance_mode",
+     "base"
+    ],
+    [
+     "--dna_distance_mode",
+     "base"
+    ]
+   ],
+   "epoch": [
+    [
+     "-e",
+     "60"
+    ],
+    [
+     "-e",
+     "5"
+    ]
+   ],
+   "lambda_codeword_codon_sinkhorn": [
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.0"
+    ],
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.0"
+    ]
+   ],
+   "post_eval_compositional": [
+    [
+     "--post_eval_compositional"
+    ],
+    [
+     "--no-post_eval_compositional"
+    ]
+   ],
+   "routing_adaptive_topp": [
+    [
+     "--routing_adaptive_topp"
+    ],
+    [
+     "--routing_adaptive_topp"
+    ]
+   ],
+   "routing_adaptive_topp_max": [
+    [
+     "--routing_adaptive_topp_max",
+     "0.7"
+    ],
+    [
+     "--routing_adaptive_topp_max",
+     "0.95"
+    ]
+   ],
+   "routing_adaptive_topp_min": [
+    [
+     "--routing_adaptive_topp_min",
+     "0.3"
+    ],
+    [
+     "--routing_adaptive_topp_min",
+     "0.6"
+    ]
+   ]
+  },
+  "outside_contract": []
+ },
+ "flickr25k|N=4|seed=43": {
+  "recipe_digest": "d3d5b216730592f1b04e956df63faecf5c5b19f1f13341552b8c773434866efb",
+  "differs_from_f": [
+   "epoch",
+   "final_epoch_eval",
+   "keep_final_checkpoint",
+   "lr_schedule_horizon",
+   "phase3_input_aggregate_sha256",
+   "phase3_input_seal",
+   "phase3_input_seal_sha256",
+   "phase3_split_identity_sha256",
+   "random_seed",
+   "selection_mode",
+   "sinkhorn_schedule_horizon",
+   "text_whiten_npz",
+   "val_split_ratio"
+  ],
+  "input_authority_compared": true,
+  "admitted_overrides": {
+   "dna_distance_mode": [
+    [
+     "--dna_distance_mode",
+     "base"
+    ],
+    [
+     "--dna_distance_mode",
+     "base"
+    ]
+   ],
+   "epoch": [
+    [
+     "-e",
+     "60"
+    ],
+    [
+     "-e",
+     "5"
+    ]
+   ],
+   "lambda_codeword_codon_sinkhorn": [
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.0"
+    ],
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.0"
+    ]
+   ],
+   "post_eval_compositional": [
+    [
+     "--post_eval_compositional"
+    ],
+    [
+     "--no-post_eval_compositional"
+    ]
+   ],
+   "routing_adaptive_topp": [
+    [
+     "--routing_adaptive_topp"
+    ],
+    [
+     "--routing_adaptive_topp"
+    ]
+   ],
+   "routing_adaptive_topp_max": [
+    [
+     "--routing_adaptive_topp_max",
+     "0.7"
+    ],
+    [
+     "--routing_adaptive_topp_max",
+     "0.95"
+    ]
+   ],
+   "routing_adaptive_topp_min": [
+    [
+     "--routing_adaptive_topp_min",
+     "0.3"
+    ],
+    [
+     "--routing_adaptive_topp_min",
+     "0.6"
+    ]
+   ]
+  },
+  "outside_contract": []
+ },
+ "flickr25k|N=4|seed=44": {
+  "recipe_digest": "3425d7a382de6a1ce924fddd306359b99146f351b7ee029d83aab918c21b8201",
+  "differs_from_f": [
+   "epoch",
+   "final_epoch_eval",
+   "keep_final_checkpoint",
+   "lr_schedule_horizon",
+   "phase3_input_aggregate_sha256",
+   "phase3_input_seal",
+   "phase3_input_seal_sha256",
+   "phase3_split_identity_sha256",
+   "random_seed",
+   "selection_mode",
+   "sinkhorn_schedule_horizon",
+   "text_whiten_npz",
+   "val_split_ratio"
+  ],
+  "input_authority_compared": true,
+  "admitted_overrides": {
+   "dna_distance_mode": [
+    [
+     "--dna_distance_mode",
+     "base"
+    ],
+    [
+     "--dna_distance_mode",
+     "base"
+    ]
+   ],
+   "epoch": [
+    [
+     "-e",
+     "60"
+    ],
+    [
+     "-e",
+     "5"
+    ]
+   ],
+   "lambda_codeword_codon_sinkhorn": [
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.0"
+    ],
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.0"
+    ]
+   ],
+   "post_eval_compositional": [
+    [
+     "--post_eval_compositional"
+    ],
+    [
+     "--no-post_eval_compositional"
+    ]
+   ],
+   "routing_adaptive_topp": [
+    [
+     "--routing_adaptive_topp"
+    ],
+    [
+     "--routing_adaptive_topp"
+    ]
+   ],
+   "routing_adaptive_topp_max": [
+    [
+     "--routing_adaptive_topp_max",
+     "0.7"
+    ],
+    [
+     "--routing_adaptive_topp_max",
+     "0.95"
+    ]
+   ],
+   "routing_adaptive_topp_min": [
+    [
+     "--routing_adaptive_topp_min",
+     "0.3"
+    ],
+    [
+     "--routing_adaptive_topp_min",
+     "0.6"
+    ]
+   ]
+  },
+  "outside_contract": []
+ },
+ "nuswide|N=4|seed=42": {
+  "recipe_digest": "e8df2579ba2b75bb2fa347e01a70f7ada06d9999c661f802d18eebb5f041e827",
+  "differs_from_f": [
+   "epoch",
+   "final_epoch_eval",
+   "keep_final_checkpoint",
+   "lr_schedule_horizon",
+   "phase3_input_aggregate_sha256",
+   "phase3_input_seal",
+   "phase3_input_seal_sha256",
+   "phase3_split_identity_sha256",
+   "selection_mode",
+   "sinkhorn_schedule_horizon",
+   "text_whiten_npz",
+   "val_split_ratio"
+  ],
+  "input_authority_compared": true,
+  "admitted_overrides": {
+   "dna_distance_mode": [
+    [
+     "--dna_distance_mode",
+     "base"
+    ],
+    [
+     "--dna_distance_mode",
+     "base"
+    ]
+   ],
+   "epoch": [
+    [
+     "-e",
+     "60"
+    ],
+    [
+     "-e",
+     "5"
+    ]
+   ],
+   "lambda_codeword_codon_sinkhorn": [
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.0"
+    ],
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.0"
+    ]
+   ],
+   "post_eval_compositional": [
+    [
+     "--post_eval_compositional"
+    ],
+    [
+     "--no-post_eval_compositional"
+    ]
+   ],
+   "routing_adaptive_topp": [
+    [
+     "--routing_adaptive_topp"
+    ],
+    [
+     "--routing_adaptive_topp"
+    ]
+   ],
+   "routing_adaptive_topp_max": [
+    [
+     "--routing_adaptive_topp_max",
+     "0.7"
+    ],
+    [
+     "--routing_adaptive_topp_max",
+     "0.8"
+    ]
+   ],
+   "routing_adaptive_topp_min": [
+    [
+     "--routing_adaptive_topp_min",
+     "0.3"
+    ],
+    [
+     "--routing_adaptive_topp_min",
+     "0.4"
+    ]
+   ]
+  },
+  "outside_contract": []
+ },
+ "nuswide|N=4|seed=43": {
+  "recipe_digest": "f614eafb7ccfcc278f3e6d3c5f2ffda2f04b3bde2477c5d2d7c4c0a34e3b1195",
+  "differs_from_f": [
+   "epoch",
+   "final_epoch_eval",
+   "keep_final_checkpoint",
+   "lr_schedule_horizon",
+   "phase3_input_aggregate_sha256",
+   "phase3_input_seal",
+   "phase3_input_seal_sha256",
+   "phase3_split_identity_sha256",
+   "random_seed",
+   "selection_mode",
+   "sinkhorn_schedule_horizon",
+   "text_whiten_npz",
+   "val_split_ratio"
+  ],
+  "input_authority_compared": true,
+  "admitted_overrides": {
+   "dna_distance_mode": [
+    [
+     "--dna_distance_mode",
+     "base"
+    ],
+    [
+     "--dna_distance_mode",
+     "base"
+    ]
+   ],
+   "epoch": [
+    [
+     "-e",
+     "60"
+    ],
+    [
+     "-e",
+     "5"
+    ]
+   ],
+   "lambda_codeword_codon_sinkhorn": [
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.0"
+    ],
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.0"
+    ]
+   ],
+   "post_eval_compositional": [
+    [
+     "--post_eval_compositional"
+    ],
+    [
+     "--no-post_eval_compositional"
+    ]
+   ],
+   "routing_adaptive_topp": [
+    [
+     "--routing_adaptive_topp"
+    ],
+    [
+     "--routing_adaptive_topp"
+    ]
+   ],
+   "routing_adaptive_topp_max": [
+    [
+     "--routing_adaptive_topp_max",
+     "0.7"
+    ],
+    [
+     "--routing_adaptive_topp_max",
+     "0.8"
+    ]
+   ],
+   "routing_adaptive_topp_min": [
+    [
+     "--routing_adaptive_topp_min",
+     "0.3"
+    ],
+    [
+     "--routing_adaptive_topp_min",
+     "0.4"
+    ]
+   ]
+  },
+  "outside_contract": []
+ },
+ "nuswide|N=4|seed=44": {
+  "recipe_digest": "8e9d0a77003f25ae0934964c86a242cb129fc1998d45a75b6fe2511d9e885d50",
+  "differs_from_f": [
+   "epoch",
+   "final_epoch_eval",
+   "keep_final_checkpoint",
+   "lr_schedule_horizon",
+   "phase3_input_aggregate_sha256",
+   "phase3_input_seal",
+   "phase3_input_seal_sha256",
+   "phase3_split_identity_sha256",
+   "random_seed",
+   "selection_mode",
+   "sinkhorn_schedule_horizon",
+   "text_whiten_npz",
+   "val_split_ratio"
+  ],
+  "input_authority_compared": true,
+  "admitted_overrides": {
+   "dna_distance_mode": [
+    [
+     "--dna_distance_mode",
+     "base"
+    ],
+    [
+     "--dna_distance_mode",
+     "base"
+    ]
+   ],
+   "epoch": [
+    [
+     "-e",
+     "60"
+    ],
+    [
+     "-e",
+     "5"
+    ]
+   ],
+   "lambda_codeword_codon_sinkhorn": [
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.0"
+    ],
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.0"
+    ]
+   ],
+   "post_eval_compositional": [
+    [
+     "--post_eval_compositional"
+    ],
+    [
+     "--no-post_eval_compositional"
+    ]
+   ],
+   "routing_adaptive_topp": [
+    [
+     "--routing_adaptive_topp"
+    ],
+    [
+     "--routing_adaptive_topp"
+    ]
+   ],
+   "routing_adaptive_topp_max": [
+    [
+     "--routing_adaptive_topp_max",
+     "0.7"
+    ],
+    [
+     "--routing_adaptive_topp_max",
+     "0.8"
+    ]
+   ],
+   "routing_adaptive_topp_min": [
+    [
+     "--routing_adaptive_topp_min",
+     "0.3"
+    ],
+    [
+     "--routing_adaptive_topp_min",
+     "0.4"
+    ]
+   ]
+  },
+  "outside_contract": []
+ },
+ "mscoco|N=39|seed=42": {
+  "recipe_digest": "e78dc8521685d966c4cac4ce939f96302adba5ac78f0d903d3512cd4a9834566",
+  "differs_from_f": [
+   "epoch",
+   "final_epoch_eval",
+   "keep_final_checkpoint",
+   "lr_schedule_horizon",
+   "phase3_input_aggregate_sha256",
+   "phase3_input_seal",
+   "phase3_input_seal_sha256",
+   "phase3_split_identity_sha256",
+   "selection_mode",
+   "sinkhorn_schedule_horizon",
+   "text_whiten_npz",
+   "val_split_ratio"
+  ],
+  "input_authority_compared": true,
+  "admitted_overrides": {
+   "dna_distance_mode": [
+    [
+     "--dna_distance_mode",
+     "base"
+    ],
+    [
+     "--dna_distance_mode",
+     "base"
+    ]
+   ],
+   "epoch": [
+    [
+     "-e",
+     "60"
+    ],
+    [
+     "-e",
+     "40"
+    ]
+   ],
+   "lambda_codeword_codon_sinkhorn": [
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.0"
+    ],
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.0"
+    ]
+   ],
+   "post_eval_compositional": [
+    [
+     "--post_eval_compositional"
+    ],
+    [
+     "--no-post_eval_compositional"
+    ]
+   ],
+   "routing_adaptive_topp": [
+    [
+     "--routing_adaptive_topp"
+    ],
+    [
+     "--routing_adaptive_topp"
+    ]
+   ],
+   "routing_adaptive_topp_max": [
+    [
+     "--routing_adaptive_topp_max",
+     "0.7"
+    ],
+    [
+     "--routing_adaptive_topp_max",
+     "0.95"
+    ]
+   ],
+   "routing_adaptive_topp_min": [
+    [
+     "--routing_adaptive_topp_min",
+     "0.3"
+    ],
+    [
+     "--routing_adaptive_topp_min",
+     "0.6"
+    ]
+   ]
+  },
+  "outside_contract": []
+ },
+ "mscoco|N=39|seed=43": {
+  "recipe_digest": "a3bb7a509510be2a94d8950fd050d264891f269460bd29cffea436e0941ce2d7",
+  "differs_from_f": [
+   "epoch",
+   "final_epoch_eval",
+   "keep_final_checkpoint",
+   "lr_schedule_horizon",
+   "phase3_input_aggregate_sha256",
+   "phase3_input_seal",
+   "phase3_input_seal_sha256",
+   "phase3_split_identity_sha256",
+   "random_seed",
+   "selection_mode",
+   "sinkhorn_schedule_horizon",
+   "text_whiten_npz",
+   "val_split_ratio"
+  ],
+  "input_authority_compared": true,
+  "admitted_overrides": {
+   "dna_distance_mode": [
+    [
+     "--dna_distance_mode",
+     "base"
+    ],
+    [
+     "--dna_distance_mode",
+     "base"
+    ]
+   ],
+   "epoch": [
+    [
+     "-e",
+     "60"
+    ],
+    [
+     "-e",
+     "40"
+    ]
+   ],
+   "lambda_codeword_codon_sinkhorn": [
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.0"
+    ],
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.0"
+    ]
+   ],
+   "post_eval_compositional": [
+    [
+     "--post_eval_compositional"
+    ],
+    [
+     "--no-post_eval_compositional"
+    ]
+   ],
+   "routing_adaptive_topp": [
+    [
+     "--routing_adaptive_topp"
+    ],
+    [
+     "--routing_adaptive_topp"
+    ]
+   ],
+   "routing_adaptive_topp_max": [
+    [
+     "--routing_adaptive_topp_max",
+     "0.7"
+    ],
+    [
+     "--routing_adaptive_topp_max",
+     "0.95"
+    ]
+   ],
+   "routing_adaptive_topp_min": [
+    [
+     "--routing_adaptive_topp_min",
+     "0.3"
+    ],
+    [
+     "--routing_adaptive_topp_min",
+     "0.6"
+    ]
+   ]
+  },
+  "outside_contract": []
+ },
+ "mscoco|N=39|seed=44": {
+  "recipe_digest": "a08dc774ae414e62faca316e5c0e060dbec5852bb477682eacfaff5eb11ea99c",
+  "differs_from_f": [
+   "epoch",
+   "final_epoch_eval",
+   "keep_final_checkpoint",
+   "lr_schedule_horizon",
+   "phase3_input_aggregate_sha256",
+   "phase3_input_seal",
+   "phase3_input_seal_sha256",
+   "phase3_split_identity_sha256",
+   "random_seed",
+   "selection_mode",
+   "sinkhorn_schedule_horizon",
+   "text_whiten_npz",
+   "val_split_ratio"
+  ],
+  "input_authority_compared": true,
+  "admitted_overrides": {
+   "dna_distance_mode": [
+    [
+     "--dna_distance_mode",
+     "base"
+    ],
+    [
+     "--dna_distance_mode",
+     "base"
+    ]
+   ],
+   "epoch": [
+    [
+     "-e",
+     "60"
+    ],
+    [
+     "-e",
+     "40"
+    ]
+   ],
+   "lambda_codeword_codon_sinkhorn": [
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.0"
+    ],
+    [
+     "--lambda_codeword_codon_sinkhorn",
+     "0.0"
+    ]
+   ],
+   "post_eval_compositional": [
+    [
+     "--post_eval_compositional"
+    ],
+    [
+     "--no-post_eval_compositional"
+    ]
+   ],
+   "routing_adaptive_topp": [
+    [
+     "--routing_adaptive_topp"
+    ],
+    [
+     "--routing_adaptive_topp"
+    ]
+   ],
+   "routing_adaptive_topp_max": [
+    [
+     "--routing_adaptive_topp_max",
+     "0.7"
+    ],
+    [
+     "--routing_adaptive_topp_max",
+     "0.95"
+    ]
+   ],
+   "routing_adaptive_topp_min": [
+    [
+     "--routing_adaptive_topp_min",
+     "0.3"
+    ],
+    [
+     "--routing_adaptive_topp_min",
+     "0.6"
+    ]
+   ]
+  },
+  "outside_contract": []
+ }
+}

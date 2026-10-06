@@ -1,0 +1,40 @@
+{
+ "snapshot_file_pin": {
+  "path": "/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/ancRsmk9r6_snapshot_aa7476e79f15a159.json",
+  "sha256": "e134c9ba56fe6cda9e0051b2250e2a977e34980a18cee52a92188e164d725d8b"
+ },
+ "carried_keys": [
+  "cifar10:refit",
+  "flickr25k:refit",
+  "mscoco:refit",
+  "nuswide:refit"
+ ],
+ "carried_refusal": null,
+ "full_admission": false,
+ "stats_only_seconds": 0.02,
+ "cells": 12,
+ "seals": {
+  "cifar10:refit": {
+   "seal_file_sha256": "943bb953f44a9d943e66944c15ec0d82bcef95d9769eea243c8b22e3993dec9f",
+   "aggregate_sha256": "34250092bf9395595730c13fbd3553fe97fdac5a6979e8ed7d1c080d2910156a",
+   "mode": null
+  },
+  "flickr25k:refit": {
+   "seal_file_sha256": "71506fd19966216f2fd25f952db7e16e58d980eebc9eaa4d9a5488e63022c83c",
+   "aggregate_sha256": "6843555a68b9e99bfd4b455818f89ec8d836f4acb6fb7cd201c79c308f481998",
+   "mode": null
+  },
+  "mscoco:refit": {
+   "seal_file_sha256": "a9d49e5db9d4b2b934a9340b69bf986fae435c7d712783c379d28ed8f0f177e4",
+   "aggregate_sha256": "ddda7dffa9a256616ef834a2087a23b506c3b7169162f9fdc44ae0c55778947a",
+   "mode": null
+  },
+  "nuswide:refit": {
+   "seal_file_sha256": "05b7d24b7ede41c989ad3c6d510769949c5cc6d33ec843c34cc52151ee2992a4",
+   "aggregate_sha256": "c3e03dccd65ccc506d39fa27f18c62d93576d1d7ef83f65e04c0dcc0a0924137",
+   "mode": null
+  }
+ },
+ "historical_evidence_keys": []
+}
+BOUND 12 cells; any outside contract: False ; distinct differing-field lists: [('epoch', 'final_epoch_eval', 'keep_final_checkpoint', 'lr_schedule_horizon', 'phase3_input_aggregate_sha256', 'phase3_input_seal', 'phase3_input_seal_sha256', 'phase3_split_identity_sha256', 'selection_mode', 'sinkhorn_schedule_horizon', 'text_whiten_npz', 'val_split_ratio'), ('epoch', 'final_epoch_eval', 'keep_final_checkpoint', 'lr_schedule_horizon', 'phase3_input_aggregate_sha256', 'phase3_input_seal', 'phase3_input_seal_sha256', 'phase3_split_identity_sha256', 'random_seed', 'selection_mode', 'sinkhorn_schedule_horizon', 'text_whiten_npz', 'val_split_ratio')]
