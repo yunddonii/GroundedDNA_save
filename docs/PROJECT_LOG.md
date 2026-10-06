@@ -487,6 +487,43 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-06 [anchor model — stage-R smoke (r7) complete, official test withheld] Audits §762–§767: the repaired R path runs end to end on real inputs
+
+**Status:** ✅ the one stage-R smoke that §763 approved completed cleanly. It is a diagnostic only: no
+metric from it is paper evidence. Records on `arch-exp-2026-09-anchor-refit-r6` (`db39989`, pushed).
+
+**Audit trail.**
+- §762 verified the failed r5 attempt and reviewed r7.
+- §763 approved ONE r7 R smoke (request `9ba89a14…`, manifest `2f24fc80…`).
+- §764–§765 waited for my receipt.
+- §766 verified the receipt, the exact argv and the live admission.
+- §767 asked me to fix the resume hook's watcher check; that is separate tooling, not the run.
+
+**The run.**
+
+| Item | Value |
+|---|---|
+| Supervisor run | `20261006T045522Z-c398951e`, tmux `ancRsmk9r6_v9r7` |
+| GPU | GPU 5 (RTX A6000 `GPU-bf4ed000-d77c-f059-2bb2-31ee39703e99`) |
+| Cell | one, Flickr25K N4 seed 42 anchors, one epoch, full train split |
+| Seal checks (full historical verification) | all rc 0: CIFAR-10 548.7 s, Flickr25K 239.2 s, MS-COCO 1,392.7 s, NUS-WIDE 3,007.0 s |
+| Training | one managed trainer attempt, 75.1 device-seconds; terminal checkpoint epoch 0 (`748824…`) |
+| Official test | withheld; 13 test/post-chain outputs checked absent; no T, extraction or evaluation ran |
+| Records | snapshot `aa7476e79f15a159`, receipt `ancRsmk9r6_sweep_complete.json` `796e70d1…` |
+| Supervisor final | rc 0; wall 5,287.6 s, of which 5,197.6 s before the GPU lease |
+| Charge | 76.49 s; R/T cumulative 77.87 s of 80,000 |
+| Settlement | clean: no held lease, orphan, continuity loss or monitor failure |
+
+The validation losses in the training log are `nan` because a full-train refit has no validation
+split (`val_split_ratio 0.0`); this is expected.
+
+**Next.**
+- The audit reviews this smoke.
+- Only then do I prepare the same-r7 T-smoke request, which needs its own approval.
+- R run and T run are separate gates after that.
+
+---
+
 ## 2026-10-05 [anchor model — approved r5 R smoke refused before training; v9 r7 package submitted] Audits §757–§761
 
 **Status:** ❌ the one approved R smoke (§758) ended at the launcher's production admission, with no
