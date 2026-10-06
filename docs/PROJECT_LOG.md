@@ -487,6 +487,66 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-06 [anchor model — full stage R (r7) complete: twelve refits, official test withheld] Audits §780–§784
+
+**Status:** ✅ the one full stage-R attempt that §780 approved completed cleanly. **No test result
+exists yet:** stage T is a separate proposal and approval. Records on
+`arch-exp-2026-09-anchor-refit-r6` (`cd08c64`, pushed).
+
+**Audit trail.**
+- §780 approved ONE full R: request `2aa9bf99…`, GPUs 0–3 by UUID, stop headroom corrected to
+  520 GPU-s.
+- §781 verified the start.
+- §782–§784 verified cells as they finished.
+- §783 recorded the user's GPU partition: GPU2 reserved for the R MS-COCO stream; GPUs 0/1/3/4/5 to
+  the separate text-path (`td1`) session.
+
+**The run.**
+
+| Item | Value |
+|---|---|
+| Supervisor run | `20261006T115225Z-216b629c`, tmux `ancR9_v9r7` |
+| Command | equal, token for token, to the audit's approved argv |
+| Admission | carried from the r7 R-smoke snapshot: stats-only, 9.7 s before the lease |
+| Device mapping | CIFAR-10 → GPU0, Flickr25K → GPU1, MS-COCO → GPU2, NUS-WIDE → GPU3 |
+| Cells | 12 of 12, each stopped at its terminal epoch N (4, or 39 for MS-COCO) |
+
+Wall seconds per cell:
+
+| Dataset | seed 42 | seed 43 | seed 44 |
+|---|---|---|---|
+| CIFAR-10 N4 | 157 | 144 | 150 |
+| Flickr25K N4 | 121 | 123 | 120 |
+| NUS-WIDE N4 | 233 | 229 | 229 |
+| MS-COCO N39 | 1,735 | 1,849 | 1,698 |
+
+- **Integrity:** in every cell, the checkpoint and runtime-witness digests were re-hashed and equal
+  the records. All 13 official-test exclusion names are absent in all 12 run directories.
+- **Receipt:** `ancR9_sweep_complete.json` over 12 cells.
+
+**Settlement.**
+
+| Item | Value |
+|---|---|
+| Wall | 5,305.4 s |
+| Managed attempts | 12 |
+| Device time | 6,749.1 s |
+| Charge | 6,766.29 s |
+| R/T cumulative | 7,280.51 s of 80,000 |
+| Leftovers | no held lease, orphan, continuity loss or monitor failure |
+
+The proposal's deferred documentation-only correction (headroom 520 GPU-s = 4 × 130; actual GPU
+mapping) went in with the records.
+
+**Next.**
+- The audit verifies the terminal R evidence.
+- Then I prepare the full-T proposal: 12 cells, each with the 12 required outputs and the bit2
+  evaluation verified absent. It must use freshly coordinated devices, since GPUs 0/1/3/4/5 are
+  shared with the `td1` session.
+- It needs its own approval.
+
+---
+
 ## 2026-10-06 [anchor model — r7 full stage-R request submitted, nothing run] Audits §777–§779: twelve refits, carried admission
 
 **Status:** ✅ submitted for audit approval. **Preparation only:** no training, no payload verifier, no
