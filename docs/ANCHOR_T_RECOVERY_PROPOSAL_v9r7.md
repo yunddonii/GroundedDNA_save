@@ -184,3 +184,44 @@ digest.
 
 **From the user:** whether the paper should carry NUS-WIDE with two seeds (option B) if the audit
 declines option A.
+
+## 7. Errata after §797 (2026-10-07)
+
+The text above stays as reviewed (SHA256 `a01450e2…`). These corrections supersede it where they
+differ.
+
+1. **The budget shapes are not equivalent.** "Both give the same cumulative bound" in §4 item 4 was
+   wrong.
+
+   | Shape | Cumulative maximum | Additional seconds allowed |
+   |---|---|---|
+   | (i) Separate fixed recovery ledger, 15,000 device-s | 79,482.14623009507 + 15,000 = **94,482.14623009507** (not 95,000) | 15,000 |
+   | (ii) Raise the R/T constant to 95,000 | 95,000 | 15,517.85376990493 |
+
+   r8 implements shape (i), pending the user's decision. The new ledger binds the settled R/T ledger's
+   digest and its 79,482.14623009507 s charge, and never rewrites it.
+2. **The exception wording.** The recovery is the recovery of a predetermined missing cell after a
+   resource failure. It is **not** proof that no test information exists:
+   - the interrupted entry opened the official-test path (DB batch 140/757);
+   - the eleven other results are already visible.
+
+   F, N, the λ values, the checkpoint, inputs, seed, inference epoch and ranking policy never change,
+   and none of the eleven evaluations is repeated.
+3. **The I/O explanation and the time forecast are estimates.** The 5,000–7,000 s forecast is not a
+   completion guarantee. The four process and disk samples (16:32–16:36 UTC, in
+   `anchor_rt_session_state/recovery_prep/full_t_io_observations.json`) are bounded historical
+   observations:
+   - the process counters span all disks;
+   - the samples are not simultaneous;
+   - the first process sample also shows 61.9 MB/s of git reads, which came from `/home` (`sda`).
+
+   They do not establish exclusive causation, whole-run rates or the recovery's duration.
+4. **The design corrections of §797.2 items 1–6** are implemented in the separate r8 preparation tree
+   (`/data/yschoi/gdna_anchor_refit_v9r8`, `docs/ANCHOR_T_RECOVERY_CONTRACT_v1.md`):
+   - historical r7 authority versus executing r8 sources, with an exact allowlist;
+   - exact membership of the carried eleven and the recovered one;
+   - one shared, race-safe recovery claim that the T entry verifies itself;
+   - the separate ledger;
+   - the wording above.
+
+   §800's final carry and lineage closure before the combined receipt is implemented there as well.
