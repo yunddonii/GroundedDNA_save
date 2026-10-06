@@ -1,4 +1,4 @@
-# Anchor model — r7 full stage R: exact request, command and resource plan (audits §776–§777)
+# Anchor model — r7 full stage R: exact request, command and resource plan (audits §776–§779)
 
 **PREPARATION ONLY. Nothing has been executed for full R.**
 - Rendering and previews read source, JSON and text only, under the named-open guard.
@@ -19,6 +19,10 @@
 - The one-epoch smokes are not reused as training results.
 - §758, §763 and §773 are spent.
 - Full T and all downstream work are later, separate gates.
+- **§778** verified the T archive (`e137e80`).
+- **§779** rendered an independent reference for this request: semantic SHA256 `2aa9bf99…`, with the
+  snapshot bound by its byte digest `e134c9ba…`, not by its semantic digest. It also exercised the
+  carry-record predicate.
 
 ## 2. The request
 
@@ -32,8 +36,9 @@
 | Carried admission | `admission_authority` = `ancRsmk9r6_snapshot_aa7476e79f15a159.json`. File bytes SHA256 `e134c9ba56fe6cda9e0051b2250e2a977e34980a18cee52a92188e164d725d8b`; semantic SHA256 `aa7476e7…` (the §777 identity) |
 | Result root / records | `/home/yschoi/gdna_anchorRT_result` / the r7 tree's `artifacts/anchor_confirmation` |
 
-Against the earlier full-admission preview (`26665ca4…`, `r7_evidence/renders/`), the request
-differs only in `admission_authority`.
+**Against the audit's §779 reference** (`full_r_metadata/request.json`): identical digest, and every
+field equal. Against the earlier full-admission preview (`26665ca4…`, `r7_evidence/renders/`), the
+request differs only in `admission_authority`.
 
 **F values per dataset:**
 
@@ -91,7 +96,7 @@ that mode. They are not differences.
 
 | Check | Result |
 |---|---|
-| **Request render** (`guarded_run.py --launcher-bundle`, `--plan`) | exit 0, **0 refused**; 11 named opens of 11 allow-listed files (the r7 manifest, R-smoke snapshot, F record, v7 `ancS7` snapshot, p3rfB aggregate, selected_n, audit ledger, four refit seal JSONs); 245 source opens; 230 git children |
+| **Request render** (`guarded_run.py --launcher-bundle`, `--plan`) | exit 0, **0 refused**; 11 named opens of 11 allow-listed files (the r7 manifest, R-smoke snapshot, F record, v7 `ancS7` snapshot, p3rfB aggregate, selected_n, audit ledger, four refit seal JSONs); 245 source opens; 230 child invocations: 206 git source queries and 24 pinned wrapper renders (12 coordinates × 2 arms, through the argv-capture shim in temporary directories; the `none` arm is a recipe comparison only). Matches §779 |
 | **Carried-admission preview** (`carried_admission_preview.py`, the launcher's own functions) | exit 0, 0 refused |
 | — `anchor_carried_admission_refusal` | `None`: the snapshot records the pinned historical verifier's rc-0 report for exactly the four seals on these bytes |
 | — `admission_is_full` | False |
