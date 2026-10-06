@@ -264,7 +264,9 @@ def manifest(tmp_path, **changes):
             "lambda_contract": {"path": M.ANCHOR_LAMBDA_CONTRACT_PATH,
                                 "sha256": files[M.ANCHOR_LAMBDA_CONTRACT_PATH]},
             "refit_contract": {"path": M.ANCHOR_REFIT_CONTRACT_PATH,
-                               "sha256": files[M.ANCHOR_REFIT_CONTRACT_PATH]}}
+                               "sha256": files[M.ANCHOR_REFIT_CONTRACT_PATH]},
+            "recovery_contract": {"path": M.ANCHOR_RECOVERY_CONTRACT_PATH,
+                                  "sha256": files[M.ANCHOR_RECOVERY_CONTRACT_PATH]}}
     for key, value in changes.items():
         target = body
         *parents, leaf = key.split("::")
@@ -1045,7 +1047,9 @@ def copy_of_the_tree(tmp_path, monkeypatch):
             "lambda_contract": {"path": M.ANCHOR_LAMBDA_CONTRACT_PATH,
                                 "sha256": files[M.ANCHOR_LAMBDA_CONTRACT_PATH]},
             "refit_contract": {"path": M.ANCHOR_REFIT_CONTRACT_PATH,
-                               "sha256": files[M.ANCHOR_REFIT_CONTRACT_PATH]}}
+                               "sha256": files[M.ANCHOR_REFIT_CONTRACT_PATH]},
+            "recovery_contract": {"path": M.ANCHOR_RECOVERY_CONTRACT_PATH,
+                                  "sha256": files[M.ANCHOR_RECOVERY_CONTRACT_PATH]}}
     path = tmp_path / "manifest.json"
     return root, {"path": str(path), "sha256": write_json(path, body)}
 

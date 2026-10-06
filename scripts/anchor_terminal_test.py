@@ -13,7 +13,11 @@ admission itself, from records it does not take on trust from its caller's envir
      checkpoint and runtime witness);
   3. the audit ledger still carries the stage-T approval line for exactly that request, generation
      manifest and F record, and the line is the one the reservation recorded;
-  4. the tree is that generation (manifest re-verified, imported modules included);
+  4. the tree is that generation (manifest re-verified, imported modules included); for the one
+     generation-r8 recovery (audit 797; scope stage-T-recovery only), the recovery authority as well:
+     the pinned lineage of the stopped campaign re-admitted from its records, the request's lineage
+     part equal to that admission, and the lineage's one recovery claim naming this request, approval
+     line, namespace, record root and attempt (anchor_refit_stage.verify_recovery_authority);
   5. the terminal checkpoint's bytes and its runtime witness are the pinned ones, at the terminal
      epoch the request allows; the trainer's campaign evidence is the pinned bytes, names this cell
      and its sealed recipe, and is the witness's own; config.pt is the pinned bytes; the run
@@ -91,8 +95,14 @@ def admit(run_dir: Path, attempt_path: Path, attempt_sha256: str) -> tuple:
          f"{attempt_path}: an attempt reservation lives in the anchor record directory")
     request, cell = attempt.get("request") or {}, attempt.get("cell") or {}
     need(M._json_digest(request) == attempt.get("request_sha256"), "the attempt's request is not its digest")
-    need(request.get("schema") == RT.T_REQUEST_SCHEMA and request.get("stage") == RT.TEST_STAGE,
-         "the attempt's request is not a stage-T request")
+    need(request.get("schema") in (RT.T_REQUEST_SCHEMA, RT.T_RECOVERY_REQUEST_SCHEMA)
+         and request.get("stage") == RT.TEST_STAGE, "the attempt's request is not a stage-T request")
+    # generation v9 r8: the one recovery of the stopped campaign's interrupted cell (audit 797) is its own
+    # schema, mode and approval scope; neither is ever accepted for the other
+    recovery = request.get("schema") == RT.T_RECOVERY_REQUEST_SCHEMA
+    need(recovery == (request.get("mode") == RT.RECOVERY_MODE)
+         and (not recovery or len(request.get("cells") or []) == 1),
+         "the attempt's request mixes the stage-T and recovery forms")
     need(cell in (request.get("cells") or []), "the attempt's cell is not one of its request's cells")
     need(cell.get("config_pt_sha256") and cell.get("scientific_recipe_sha256")
          and cell.get("phase3_campaign_evidence_sha256"), "the request does not pin this cell's identity")
@@ -100,7 +110,7 @@ def admit(run_dir: Path, attempt_path: Path, attempt_sha256: str) -> tuple:
          f"the attempt is for {cell.get('run_dir')}, not {run_dir}")
     need(attempt_path.name == RT.attempt_path(request["namespace"], cell).name,
          "the attempt reservation is not named for its cell")
-    scope = f"stage-T-{request.get('mode')}"
+    scope = RT.RECOVERY_SCOPE if recovery else f"stage-T-{request.get('mode')}"
     try:
         live = M.audit_approval((attempt.get("approval") or {}).get("section"), scope,
                                 manifest=request.get("manifest"), freeze=RT.ANCHOR_F_RECORD_SHA256,
@@ -114,6 +124,9 @@ def admit(run_dir: Path, attempt_path: Path, attempt_sha256: str) -> tuple:
     try:
         M.recheck_generation({"path": request["manifest_path"], "sha256": request["manifest"]},
                              "in the stage-T entry")
+        if recovery:
+            # the recovery authority proven here from records, not taken from the parent (audit 797.2)
+            RT.verify_recovery_authority(attempt_path, attempt, request)
     except M.CellRefused as error:
         raise Refused(str(error)) from None
     checkpoint = run_dir / cell["final_checkpoint"]
@@ -123,7 +136,7 @@ def admit(run_dir: Path, attempt_path: Path, attempt_sha256: str) -> tuple:
     need(hashlib.sha256(sidecar_raw).hexdigest() == cell["checkpoint_runtime_sha256"],
          f"{sidecar_path} is not the stage-R runtime witness")
     sidecar = json.loads(sidecar_raw)
-    expected_terminal = cell["N"] if request.get("mode") == "run" else \
+    expected_terminal = cell["N"] if request.get("mode") in ("run", RT.RECOVERY_MODE) else \
         int((request.get("refit_epochs") or 0)) - 1
     need(sidecar.get("checkpoint_epoch_zero_based") == cell["terminal_epoch"] == expected_terminal,
          f"the runtime witness is not at the terminal epoch {expected_terminal}")

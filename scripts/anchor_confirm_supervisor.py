@@ -91,6 +91,16 @@ L_OPS_ROOT = Path("/home/yschoi/gdna_anchorL_ops")
 RT_STAGES = ("stage-R-smoke", "stage-R-run", "stage-T-smoke", "stage-T-run")
 RT_BUDGET_DEVICE_SECONDS = 80000.0
 RT_OPS_ROOT = Path("/home/yschoi/gdna_anchorRT_ops")
+#: Generation v9 r8 (audit 797.2 item 4, shape (i)): the ONE stage-T recovery keeps its own fixed ledger
+#: and budget, and the settled R/T ledger is never appended, reset or rewritten. Every recovery start
+#: binds that parent ledger's exact bytes and its cumulative charge (the stopped full T's final), so the
+#: cumulative maximum over R, T and the recovery is 79,482.14623009507 + 15,000 = 94,482.14623009507 s.
+REC_STAGES = ("stage-T-recovery",)
+REC_BUDGET_DEVICE_SECONDS = 15000.0
+REC_OPS_ROOT = Path("/home/yschoi/gdna_anchorRTrec_ops")
+REC_PARENT_LEDGER = RT_OPS_ROOT / LEDGER_NAME
+REC_PARENT_LEDGER_SHA256 = "316915141fdfa215940014dbeb5efb63ba2b9e98bb84b49146cab69a96fd25bf"
+REC_PARENT_CHARGED_SECONDS = 79482.14623009507
 POLL_SECONDS = 1.0
 #: no completed observation for this long stops the command (and voids the run's settlement)
 WATCHDOG_SECONDS = 10.0
@@ -112,6 +122,8 @@ STAGES = {
     # historical verification of the refit seals.
     "stage-R-smoke": (3 * 3600.0, 1), "stage-R-run": (8 * 3600.0, 4),
     "stage-T-smoke": (3 * 3600.0, 1), "stage-T-run": (8 * 3600.0, 4),
+    # the r8 recovery: one stage-T cell on one GPU, the stage-T-run wall limit
+    "stage-T-recovery": (8 * 3600.0, 1),
 }
 #: Managed child sessions per LOGICAL cell (audit 747.1). Every stage runs one managed process per
 #: cell except stage T, whose cell is five managed producers: the T entry (terminal query/DB
@@ -119,7 +131,7 @@ STAGES = {
 #: (scripts/anchor_refit_stage.T_CHAIN; a test ties the two). --planned-cells stays the logical cell
 #: count (membership, storage); the attempt ceiling and the missed-attempt allowance use
 #: cells x children, so a sixth child of a T cell, or a second of any other cell, is still excess.
-CHILDREN_PER_CELL = {"stage-T-smoke": 5, "stage-T-run": 5}
+CHILDREN_PER_CELL = {"stage-T-smoke": 5, "stage-T-run": 5, "stage-T-recovery": 5}
 EXIT_REFUSED, EXIT_STOPPED, EXIT_UNCLEAN, EXIT_UNRESOLVED = 2, 3, 4, 5
 
 
@@ -285,6 +297,30 @@ class Ledger:
         self._lock.close()
 
 
+def parent_settlement(path=None) -> dict:
+    """The settled R/T ledger a recovery start binds (audit 797.2 item 4): its exact bytes, ending in a
+    final record whose cumulative charge is the pinned one, every run in it settled. It is read, never
+    locked or written."""
+    path = Path(REC_PARENT_LEDGER if path is None else path)
+    try:
+        raw = path.read_bytes()
+    except OSError as error:
+        raise Refused(f"the settled R/T ledger {path} is unreadable: {error}") from None
+    digest = hashlib.sha256(raw).hexdigest()
+    if digest != REC_PARENT_LEDGER_SHA256:
+        raise Refused(f"the settled R/T ledger is not its pinned bytes ({digest[:12]}...)")
+    rows = [json.loads(line) for line in raw.decode("utf-8").splitlines()]
+    starts = {r["run_id"] for r in rows if r.get("event") == "start"}
+    finals = {r["run_id"]: r for r in rows if r.get("event") == "final"}
+    last = rows[-1] if rows else {}
+    if not rows or last.get("event") != "final" or starts != set(finals) \
+            or last.get("cumulative_charged_seconds") != REC_PARENT_CHARGED_SECONDS \
+            or abs(sum(float(r["charged_seconds"]) for r in finals.values()) - REC_PARENT_CHARGED_SECONDS) > 1e-6:
+        raise Refused("the settled R/T ledger does not end settled at its pinned cumulative charge")
+    return {"ledger": str(path), "sha256": digest, "charged_seconds": REC_PARENT_CHARGED_SECONDS,
+            "last_run_id": last.get("run_id")}
+
+
 def supervise(command, *, stage, label, gpus, attempts, planned_cells, watch_path, ops_root,
               manifest_sha256, budget_seconds=BUDGET_DEVICE_SECONDS, poll_seconds=POLL_SECONDS,
               watchdog_seconds=WATCHDOG_SECONDS, stop_bound_seconds=STOP_BOUND_SECONDS,
@@ -305,10 +341,17 @@ def supervise(command, *, stage, label, gpus, attempts, planned_cells, watch_pat
         # and the launcher's own cleanup by the stop bound, on every GPU.
         headroom = gpus * (watchdog_seconds + stop_bound_seconds)
         least_allowance = (planned_attempts * poll_seconds) if attempts == "sessions" else 0.0
+        parent, refusal = None, None
+        if stage in REC_STAGES:
+            try:
+                parent = parent_settlement()
+            except Refused as error:
+                refusal = f"parent: {error}"
         free = free_bytes(watch_path)
         need = FREE_FLOOR_BYTES + planned_cells * CELL_OUTPUT_BYTES
-        refusal = None
-        if free < need:
+        if refusal:
+            pass
+        elif free < need:
             refusal = (f"space: {free} bytes free under {watch_path}, below {need} "
                        f"(floor + {planned_cells} planned cells)")
         elif prior + least_allowance + headroom >= budget_seconds:
@@ -318,6 +361,7 @@ def supervise(command, *, stage, label, gpus, attempts, planned_cells, watch_pat
                       "command_sha256": hashlib.sha256(json.dumps(list(command)).encode()).hexdigest(),
                       "manifest_sha256": manifest_sha256, "supervisor_sha256": _IMPORTED_SOURCE_SHA256,
                       "prior_charged_seconds": prior, "free_bytes": free, "refused": refusal,
+                      **({"parent": parent} if stage in REC_STAGES else {}),
                       "rules": {"free_floor_bytes": FREE_FLOOR_BYTES,
                                 "cell_output_bytes": CELL_OUTPUT_BYTES,
                                 "budget_seconds": budget_seconds, "poll_seconds": poll_seconds,
@@ -339,14 +383,15 @@ def supervise(command, *, stage, label, gpus, attempts, planned_cells, watch_pat
                     budget_seconds=budget_seconds, poll_seconds=poll_seconds,
                     watchdog_seconds=watchdog_seconds, stop_bound_seconds=stop_bound_seconds,
                     wall_limit=wall_limit, ledger_every=ledger_every,
-                    lease_root=Path(lease_root), free_bytes=free_bytes, ops_root=Path(ops_root))
+                    lease_root=Path(lease_root), free_bytes=free_bytes, ops_root=Path(ops_root),
+                    parent=parent)
     finally:
         ledger.close()
 
 
 def _run(command, ledger, identity, *, prior, headroom, gpus, attempts, planned_cells, planned_attempts,
          watch_path, budget_seconds, poll_seconds, watchdog_seconds, stop_bound_seconds,
-         wall_limit, ledger_every, lease_root, free_bytes, ops_root) -> int:
+         wall_limit, ledger_every, lease_root, free_bytes, ops_root, parent=None) -> int:
     operator, failures, continuity = [], [], []
 
     def _operator_stop(signum, _frame):
@@ -529,6 +574,9 @@ def _run(command, ledger, identity, *, prior, headroom, gpus, attempts, planned_
         "max_observation_window_seconds": max_window,
         "unobserved_allowance_seconds": allowance, "charged_seconds": device + allowance,
         "cumulative_charged_seconds": prior + device + allowance,
+        **({"parent_charged_seconds": parent["charged_seconds"],
+            "cumulative_including_parent_seconds": parent["charged_seconds"] + prior + device + allowance}
+           if parent else {}),
         "pessimistic_bound_seconds": gpus * (ended - started),
         "continuity_lost": continuity, "lease_gpu_seconds": lease_gpu_seconds,
         "pre_lease_seconds": None if first_lease is None else first_lease - started,
@@ -555,7 +603,8 @@ def stage_ledger(stage: str, ops_root) -> tuple:
     (contract L v1 section 8), stages R and T theirs (contract R/T v1 section 9); no stage writes
     another group's root. A crossed root refuses."""
     groups = ((L_STAGES, L_OPS_ROOT, L_BUDGET_DEVICE_SECONDS),
-              (RT_STAGES, RT_OPS_ROOT, RT_BUDGET_DEVICE_SECONDS))
+              (RT_STAGES, RT_OPS_ROOT, RT_BUDGET_DEVICE_SECONDS),
+              (REC_STAGES, REC_OPS_ROOT, REC_BUDGET_DEVICE_SECONDS))
     own_root, budget = DEFAULT_OPS_ROOT, BUDGET_DEVICE_SECONDS
     for stages, root_of, budget_of in groups:
         if stage in stages:

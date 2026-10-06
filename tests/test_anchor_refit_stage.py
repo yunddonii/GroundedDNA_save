@@ -1521,7 +1521,8 @@ def supervised(tmp_path):
 
 
 def test_composed_the_t_children_per_cell_is_the_t_chain():
-    assert S.CHILDREN_PER_CELL == {"stage-T-smoke": len(RT.T_CHAIN), "stage-T-run": len(RT.T_CHAIN)}
+    assert S.CHILDREN_PER_CELL == {"stage-T-smoke": len(RT.T_CHAIN), "stage-T-run": len(RT.T_CHAIN),
+                                   "stage-T-recovery": len(RT.T_CHAIN)}       # r8: the one recovery
     assert len(RT.T_CHAIN) == len(CHAIN) == 5
 
 
@@ -1590,7 +1591,8 @@ def test_composed_a_manifest_without_the_refit_contract_refuses(tmp_path):
 
 
 def test_structural_the_v9_closure_is_v8_plus_the_declared_additions():
-    assert set(M.anchor_generation_closure()) == set(V8_FILES_SHA256) | ADDED_IN_V9
+    # r8 adds the recovery contract and its test file (tests/test_anchor_t_recovery.py), nothing else
+    assert set(M.anchor_generation_closure()) == set(V8_FILES_SHA256) | ADDED_IN_V9 | set(RT.RECOVERY_ADDED_CLOSURE)
 
 
 def test_structural_every_v8_member_but_the_declared_v9_sources_is_byte_equal():

@@ -59,6 +59,9 @@ def inventory() -> dict:
              for ds, path in sorted(RT.REFIT_INPUT_SEALS.items())}
     D.need(all(seals[ds]["sha256"] == RT.REFIT_INPUT_SEALS_SHA256[ds] for ds in seals),
            f"the refit input seals are not the approved bytes: {seals}")
+    lineage_sha = hashlib.sha256(consumed.read(RT.RECOVERY_LINEAGE)).hexdigest()   # r8: the recovery lineage
+    D.need(lineage_sha == RT.RECOVERY_LINEAGE_SHA256,
+           f"the recovery lineage is not the bytes the stage module pins: {lineage_sha}")
     status = git("status", "--porcelain")
     D.need(status == "", f"the source generation has uncommitted changes:\n{status[:400]}")
     closure = M.anchor_generation_closure()
@@ -67,7 +70,7 @@ def inventory() -> dict:
     from importlib import metadata
     return {
         "artifact_kind": M.ANCHOR_MANIFEST_KIND, "version": M.ANCHOR_CONFIRM_VERSION,
-        "generation": "v9", "revision": 7,
+        "generation": "v9", "revision": 8,
         "note": "byte identities from JSON and text only; not approval to execute",
         "historical": {
             "approved_p3_refit_aggregate": {"path": str(M.APPROVED_P3_REFIT_AGGREGATE),
@@ -113,6 +116,24 @@ def inventory() -> dict:
                   "seal_fields": list(RT.REFIT_SEAL_FIELDS), "input_seals": seals,
                   "official_test_outputs": list(M.OFFICIAL_TEST_OUTPUTS), "t_chain": list(RT.T_CHAIN)},
         "predecessor": {"authority_manifest_v8r2_sha256": RT.ANCHOR_V8_MANIFEST_SHA256,
+                        "v9r7_manifest_sha256": RT.R7_MANIFEST_SHA256,
+                        "v9r7_status": "the generation of the stage-R campaign ancR9 (audit 780) and the "
+                                       "stopped full-T campaign ancT9 (audit 788, budget stop settled in "
+                                       "audit 795); the historical authority the r8 recovery verifies",
+                        "v9_revision_8_change": "audits 795-797: the one recovery of the stopped full-T "
+                                                "campaign's interrupted cell (NUS-WIDE seed 44). The "
+                                                "launcher gains --anchor-confirm recover and the scope "
+                                                "stage-T-recovery; scripts/anchor_refit_stage.py admits "
+                                                "the stopped campaign from its pinned lineage (r7 "
+                                                "historical authority, the eleven completed cells carried "
+                                                "by their records, the settled ledger), consumes one "
+                                                "shared recovery claim, crosses the exact r7->r8 "
+                                                "control-plane allowlist at the T boundary and writes a "
+                                                "recovery receipt; the T entry verifies the recovery "
+                                                "authority itself; the supervisor gains the separate "
+                                                "recovery ledger bound to the settled R/T ledger. Model, "
+                                                "data, loss, trainer, extraction, evaluation, NMI, seal, "
+                                                "wrappers, inputs, F and every R/T record are unchanged",
                         "v9r5_manifest_sha256":
                         "d0de9fb30ab58bfd178b4cab91be933e05e8ed2baa53c0cea8f165dc2935f2da",
                         "v9r5_status": "accepted for one R smoke (audit 758, ancRsmk9); its receipt "
@@ -261,6 +282,14 @@ def inventory() -> dict:
                             "sha256": hashlib.sha256(consumed.read(REPO / M.ANCHOR_LAMBDA_CONTRACT_PATH)).hexdigest()},
         "refit_contract": {"path": M.ANCHOR_REFIT_CONTRACT_PATH,
                            "sha256": hashlib.sha256(consumed.read(REPO / M.ANCHOR_REFIT_CONTRACT_PATH)).hexdigest()},
+        "recovery_contract": {"path": M.ANCHOR_RECOVERY_CONTRACT_PATH,
+                              "sha256": hashlib.sha256(consumed.read(REPO / M.ANCHOR_RECOVERY_CONTRACT_PATH)).hexdigest()},
+        "recovery": {"lineage": {"path": str(RT.RECOVERY_LINEAGE), "sha256": lineage_sha},
+                     "lineage_pin_in_source": RT.RECOVERY_LINEAGE_SHA256,
+                     "claim_root": str(RT.RECOVERY_CLAIM_ROOT), "scope": RT.RECOVERY_SCOPE,
+                     "changed_sources": list(RT.RECOVERY_CHANGED_SOURCES),
+                     "changed_closure": list(RT.RECOVERY_CHANGED_CLOSURE),
+                     "added_closure": list(RT.RECOVERY_ADDED_CLOSURE)},
         "approval": {"authority": str(M.AUDIT_LEDGER), "tag": M.APPROVAL_TAG,
                      "scopes": {k: list(v) for k, v in M.APPROVAL_SCOPES.items()},
                      "note": "not part of this manifest: the audit writes one ledger line per "
@@ -274,7 +303,7 @@ def main(argv=None) -> int:
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command")
     inv = sub.add_parser("inventory")
-    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v9r7.json"))
+    inv.add_argument("--out", default=str(M.ANCHOR_RECORD_DIR / "authority_manifest_v9r8.json"))
     args = parser.parse_args(argv)
     try:
         if args.command != "inventory":

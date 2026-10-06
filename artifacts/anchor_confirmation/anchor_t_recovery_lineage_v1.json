@@ -1,0 +1,226 @@
+{
+ "carried": {
+  "cifar10|N=4|P=0.3,0.7|JD=0.02|stage=refit|seed=42|axis_center=anchors": {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002.json",
+    "sha256": "791274a8f12ada59a0426ff88800c3f8854a4f0aa67cfa3719ce55bc0a0e5743"
+   },
+   "entry": {
+    "file": "ancT9_entry_ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002.json",
+    "sha256": "5aeea04ad52e61e4d0c0aa709fc8d0324a48fc2e4dd64ba024b770711460992e"
+   },
+   "record": {
+    "file": "ancT9_ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002.json",
+    "sha256": "b11879ebe64e0026a4147e64d7b567d1bc7e381cc056cf23b3714e888286d3a2"
+   },
+   "tag": "ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002"
+  },
+  "cifar10|N=4|P=0.3,0.7|JD=0.02|stage=refit|seed=43|axis_center=anchors": {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_cifar_A_v4_refit_N4_s43_AXanchors_JD002.json",
+    "sha256": "3f8c18985757d839e479794f87e624e67ed500da0fd5d8450a418457d44ccf7e"
+   },
+   "entry": {
+    "file": "ancT9_entry_ancR9_cifar_A_v4_refit_N4_s43_AXanchors_JD002.json",
+    "sha256": "094344882f8fe70c18a9f7c12d26960d88884ef6333f52d979acacc8c4a6b05a"
+   },
+   "record": {
+    "file": "ancT9_ancR9_cifar_A_v4_refit_N4_s43_AXanchors_JD002.json",
+    "sha256": "89dde2f90c95d06e8a5cf841683e65adbd59965e7c3f3dde22d28d0af97c33ae"
+   },
+   "tag": "ancR9_cifar_A_v4_refit_N4_s43_AXanchors_JD002"
+  },
+  "cifar10|N=4|P=0.3,0.7|JD=0.02|stage=refit|seed=44|axis_center=anchors": {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_cifar_A_v4_refit_N4_s44_AXanchors_JD002.json",
+    "sha256": "4d1bd40b717f0f951c51475e8141c0a3e7891e74b65f0dd52b7cd73725aed494"
+   },
+   "entry": {
+    "file": "ancT9_entry_ancR9_cifar_A_v4_refit_N4_s44_AXanchors_JD002.json",
+    "sha256": "1434980af70be180c6096802c427c9fa89dae77e0f62e58e869bf46155b1e570"
+   },
+   "record": {
+    "file": "ancT9_ancR9_cifar_A_v4_refit_N4_s44_AXanchors_JD002.json",
+    "sha256": "639b2bac963c633c1eb1018e05fe8f95821b2383d8ba37b99af8c737ac7d2b92"
+   },
+   "tag": "ancR9_cifar_A_v4_refit_N4_s44_AXanchors_JD002"
+  },
+  "flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=refit|seed=42|axis_center=anchors": {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002.json",
+    "sha256": "54fd258dd07f8a360fbe52fcbe036329bec11f289ffebe102b9269a41cd7ccad"
+   },
+   "entry": {
+    "file": "ancT9_entry_ancR9_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002.json",
+    "sha256": "e22024be34951b214305d290912af6c2418d74d72ce5316876a7d037c589c617"
+   },
+   "record": {
+    "file": "ancT9_ancR9_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002.json",
+    "sha256": "1ec67d8757635d21730288ee6541ea73101a9114f57c760b2b852de52e1f7d14"
+   },
+   "tag": "ancR9_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002"
+  },
+  "flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=refit|seed=43|axis_center=anchors": {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_flickr_A_v4_refit_N4_s43_AXanchors_P06095_JD002.json",
+    "sha256": "a8937ae7eb5b3ca75aab2f354ba46cc059a7dece193d5a6e3fd6eb534ed1b1cd"
+   },
+   "entry": {
+    "file": "ancT9_entry_ancR9_flickr_A_v4_refit_N4_s43_AXanchors_P06095_JD002.json",
+    "sha256": "2b16b5cf13859098279328c5c34246849a3a6b7409f334b0dcf5718039e475bd"
+   },
+   "record": {
+    "file": "ancT9_ancR9_flickr_A_v4_refit_N4_s43_AXanchors_P06095_JD002.json",
+    "sha256": "4f3b23420fc13e8d2987013fc7ffe89cd08e0a5ec6f1f09820e1f16d1bb5b251"
+   },
+   "tag": "ancR9_flickr_A_v4_refit_N4_s43_AXanchors_P06095_JD002"
+  },
+  "flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=refit|seed=44|axis_center=anchors": {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_flickr_A_v4_refit_N4_s44_AXanchors_P06095_JD002.json",
+    "sha256": "2ec8d12af554b2626067fda1babca186b03f40835424425253d270dd76de3a7e"
+   },
+   "entry": {
+    "file": "ancT9_entry_ancR9_flickr_A_v4_refit_N4_s44_AXanchors_P06095_JD002.json",
+    "sha256": "ac42f04164e1d79cd6e760737cb03f27f399d1177c62feae8d08ffdc4b8d2add"
+   },
+   "record": {
+    "file": "ancT9_ancR9_flickr_A_v4_refit_N4_s44_AXanchors_P06095_JD002.json",
+    "sha256": "85cc1802a957e3a2a4c1697cc526c543fc251ba674dc699d0e91266bf3f30577"
+   },
+   "tag": "ancR9_flickr_A_v4_refit_N4_s44_AXanchors_P06095_JD002"
+  },
+  "mscoco|N=39|P=0.6,0.95|JD=0.03|stage=refit|seed=42|axis_center=anchors": {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_mscoco_A_v5b_refit_N39_s42_AXanchors_P06095_JD003.json",
+    "sha256": "f83403d0b80ff3da27043a5b558b9a33616b62663bde641effbea9b8f5b8db2b"
+   },
+   "entry": {
+    "file": "ancT9_entry_ancR9_mscoco_A_v5b_refit_N39_s42_AXanchors_P06095_JD003.json",
+    "sha256": "c691f7435342fcffd711f552693118b23fb7fdaa12b6ead39b567a3ceb304270"
+   },
+   "record": {
+    "file": "ancT9_ancR9_mscoco_A_v5b_refit_N39_s42_AXanchors_P06095_JD003.json",
+    "sha256": "e58cff75fdca32137da8c0c188b19b38249894799f9a70042459c1445114f72b"
+   },
+   "tag": "ancR9_mscoco_A_v5b_refit_N39_s42_AXanchors_P06095_JD003"
+  },
+  "mscoco|N=39|P=0.6,0.95|JD=0.03|stage=refit|seed=43|axis_center=anchors": {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_mscoco_A_v5b_refit_N39_s43_AXanchors_P06095_JD003.json",
+    "sha256": "6479c832242665bfcce0de7ba83a920821a3422171b11286a4676d57ab646f77"
+   },
+   "entry": {
+    "file": "ancT9_entry_ancR9_mscoco_A_v5b_refit_N39_s43_AXanchors_P06095_JD003.json",
+    "sha256": "f21e6d615b6df087a82454754f0b5d93728d18cfbe600c6ce67a045649315a31"
+   },
+   "record": {
+    "file": "ancT9_ancR9_mscoco_A_v5b_refit_N39_s43_AXanchors_P06095_JD003.json",
+    "sha256": "f333c485ce5b96f69e3f03fec844beb40450855cedb996c03717d9561c634ec6"
+   },
+   "tag": "ancR9_mscoco_A_v5b_refit_N39_s43_AXanchors_P06095_JD003"
+  },
+  "mscoco|N=39|P=0.6,0.95|JD=0.03|stage=refit|seed=44|axis_center=anchors": {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_mscoco_A_v5b_refit_N39_s44_AXanchors_P06095_JD003.json",
+    "sha256": "31ba4271c596b9f070d997b4626d41e9c60c242a12cfa5cf6795b2f888c2550d"
+   },
+   "entry": {
+    "file": "ancT9_entry_ancR9_mscoco_A_v5b_refit_N39_s44_AXanchors_P06095_JD003.json",
+    "sha256": "824432ffc06286200d5a7a14e1487762f4ab3289c9d2b85d4e079747442c65c0"
+   },
+   "record": {
+    "file": "ancT9_ancR9_mscoco_A_v5b_refit_N39_s44_AXanchors_P06095_JD003.json",
+    "sha256": "bf44cac7cb1ae8ef3c4a1b399b05934fbe018371ec889662142b976df219939b"
+   },
+   "tag": "ancR9_mscoco_A_v5b_refit_N39_s44_AXanchors_P06095_JD003"
+  },
+  "nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=42|axis_center=anchors": {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_nuswide_A_v4_refit_N4_s42_AXanchors_P0408_JD005.json",
+    "sha256": "6b7099176803e6bf29d891fa74f2ab5c2ba3e85460d08924659df9a6fd6c2af5"
+   },
+   "entry": {
+    "file": "ancT9_entry_ancR9_nuswide_A_v4_refit_N4_s42_AXanchors_P0408_JD005.json",
+    "sha256": "c738b83056c080fd7a11934bd91246e8f853f558f5120233f909c2f6287c2be9"
+   },
+   "record": {
+    "file": "ancT9_ancR9_nuswide_A_v4_refit_N4_s42_AXanchors_P0408_JD005.json",
+    "sha256": "6e8a7cf5ba1b75b2c57ae0d4288acecb81cab232ca1c4533a17a568dde5b6129"
+   },
+   "tag": "ancR9_nuswide_A_v4_refit_N4_s42_AXanchors_P0408_JD005"
+  },
+  "nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=43|axis_center=anchors": {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_nuswide_A_v4_refit_N4_s43_AXanchors_P0408_JD005.json",
+    "sha256": "b332b94638f79b168755d7d67e9ba5c8b3723d1f1ded1f50f470dc5fafdb768c"
+   },
+   "entry": {
+    "file": "ancT9_entry_ancR9_nuswide_A_v4_refit_N4_s43_AXanchors_P0408_JD005.json",
+    "sha256": "b1a9e993c83602d2187849ec2d1c1016a3ca2755753da073f4c9e10e47f97652"
+   },
+   "record": {
+    "file": "ancT9_ancR9_nuswide_A_v4_refit_N4_s43_AXanchors_P0408_JD005.json",
+    "sha256": "7152f64b3956d059f391616a848e93490daa7c7114bf69a073c87a67fe62d1c0"
+   },
+   "tag": "ancR9_nuswide_A_v4_refit_N4_s43_AXanchors_P0408_JD005"
+  }
+ },
+ "historical_manifest": {
+  "path": "/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/authority_manifest_v9r7.json",
+  "sha256": "2f24fc80bb83e2c73b17ec473c2731ade6d34a356e02414e6719fe9e9bec947c"
+ },
+ "historical_record_dir": "/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation",
+ "note": "the stopped full-T campaign the r8 recovery admits; every member is re-verified on disk",
+ "recovery_cell": {
+  "attempt": {
+   "file": "ancT9_attempt_ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005.json",
+   "sha256": "d626f950bcdc5a9131c317c23ecbe766e12913fc425c1c6a5d1d4cf66ac44143"
+  },
+  "cell_id": "nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=44|axis_center=anchors",
+  "entry": {
+   "file": "ancT9_entry_ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005.json",
+   "sha256": "7689d689c7cfe582ff559266ad837f6a0e89ed0799020a8437860923cb3a3f78"
+  },
+  "tag": "ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005"
+ },
+ "refit_receipt": {
+  "file": "ancR9_sweep_complete.json",
+  "sha256": "2897aa880dddd07cbb0aeb49ef090b7e5ccc06e6e9b540922a9ca77a30d81d4a"
+ },
+ "schema": "anchor-t-recovery-lineage/1",
+ "stopped": {
+  "approval": {
+   "line": "ANCHOR-CONFIRM-APPROVAL version=anchor-confirm/2 scope=stage-T-run manifest=2f24fc80bb83e2c73b17ec473c2731ade6d34a356e02414e6719fe9e9bec947c freeze=5165f5dc9fcfb8334270bc16aa9816d09db67b03a04abae7ff846d5235bdca1d request=a74b68e1db10c0d71d911ce491a25a2fa97dda6258c88d9f2c063223e1b40612",
+   "scope": "stage-T-run",
+   "section": 788
+  },
+  "campaign_nonce": "f6234d0efc0bc527f718c3cba408cc43382d090e205ac54b7529127bddbfcfc0",
+  "namespace": "ancT9",
+  "receipt_absent": "ancT9_test_complete.json",
+  "request_sha256": "a74b68e1db10c0d71d911ce491a25a2fa97dda6258c88d9f2c063223e1b40612",
+  "reservation": {
+   "file": "ancT9_campaign_reservation.json",
+   "sha256": "83462894cdc4317134562191473e5fcd4ccec9ae755481aa93ef2dbd2285a6cb"
+  },
+  "settlement": {
+   "charged_seconds": 72201.6361753922,
+   "cumulative_charged_seconds": 79482.14623009507,
+   "final_line_sha256": "ab122e44ef7d3b4d3c68d02630c96561535748182776d99f2f10fbf6f5388ba1",
+   "final_returncode": 143,
+   "final_status": "stopped",
+   "ledger": "/home/yschoi/gdna_anchorRT_ops/device_budget_ledger.jsonl",
+   "ledger_lines": 1401,
+   "ledger_sha256": "316915141fdfa215940014dbeb5efb63ba2b9e98bb84b49146cab69a96fd25bf",
+   "run_id": "20261006T145139Z-b08e4ae2",
+   "start_line_sha256": "2c7d8088decbaf3061327ab9e6b0e366c96be0159bfaa46640895b7935d57248",
+   "stop_line_sha256": "e0012cf19cb5aac9b79642193472f7ad09fc80a4089d65eb383e3bb8a6515667",
+   "stop_reason": "budget: projected 80001 s of 80000 s"
+  },
+  "snapshot": {
+   "file": "ancT9_snapshot_da40a183d4ca9c85.json",
+   "semantic_sha256": "da40a183d4ca9c8547094ca13d14697dbefca6cfce7d20e9ab92f45f446955e2",
+   "sha256": "b6eb8a5eee6635f087da240049367afcb1e24ff454e037f4358ccf3cdd41fa32"
+  }
+ }
+}

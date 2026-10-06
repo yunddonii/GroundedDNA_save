@@ -4251,6 +4251,8 @@ ANCHOR_CONTRACT_PATH = "docs/ANCHOR_CONFIRMATION_CONTRACT_v3.md"
 ANCHOR_LAMBDA_CONTRACT_PATH = "docs/ANCHOR_LAMBDA_CONTRACT_v1.md"
 #: Stages R and T's own contract (generation v9): a closure member, pinned beside the designated one.
 ANCHOR_REFIT_CONTRACT_PATH = "docs/ANCHOR_REFIT_CONTRACT_v1.md"
+#: The stage-T recovery contract (generation v9 r8, audit 797): a closure member, pinned beside the others.
+ANCHOR_RECOVERY_CONTRACT_PATH = "docs/ANCHOR_T_RECOVERY_CONTRACT_v1.md"
 #: The anchor generation's own files. With the executable closure `_BOOTSTRAP_SOURCE_PATHS`
 #: (trainer, model, parser, identity, split, input admission, wrappers, ...) they are the members a
 #: generation manifest must list, exactly (audit 683.2).
@@ -4264,7 +4266,8 @@ ANCHOR_CLOSURE = ("scripts/anchor_confirm_decision.py", "scripts/anchor_confirm_
                   "tests/test_anchor_confirm_input_bridge.py", "tests/test_seal_phase3_inputs.py",
                   "tests/test_anchor_confirm_env_handoff.py",
                   ANCHOR_LAMBDA_CONTRACT_PATH, "tests/test_anchor_lambda_stage.py",
-                  ANCHOR_REFIT_CONTRACT_PATH, "tests/test_anchor_refit_stage.py")
+                  ANCHOR_REFIT_CONTRACT_PATH, "tests/test_anchor_refit_stage.py",
+                  ANCHOR_RECOVERY_CONTRACT_PATH, "tests/test_anchor_t_recovery.py")
 #: The audit ledger is the approval authority (audit 679.1, 683.2, 686.4). The modification agent
 #: cannot write it, and it lives outside the pinned scientific tree, so no manifest names an
 #: approval and no hash cycle arises. An operation that executes, or opens a real binary, runs only
@@ -4293,6 +4296,8 @@ APPROVAL_SCOPES = {
     "stage-R-run": ("manifest", "freeze", "request"),
     "stage-T-smoke": ("manifest", "freeze", "request"),
     "stage-T-run": ("manifest", "freeze", "request"),
+    # generation v9 r8 (audit 797): the one recovery of the stopped full-T campaign's interrupted cell
+    "stage-T-recovery": ("manifest", "freeze", "request"),
 }
 REQUEST_SCHEMA = "anchor-confirm-request/2"
 #: The storage rule of an anchor-confirmation campaign (audit 703.3), checked before EVERY cell is
@@ -4827,6 +4832,10 @@ def load_anchor_manifest(path, sha256) -> dict:
                                           "sha256": files[ANCHOR_REFIT_CONTRACT_PATH]}:
         raise CellRefused(f"{path}: its stage-R/T contract is not {ANCHOR_REFIT_CONTRACT_PATH} at its "
                           "pinned bytes")
+    if manifest.get("recovery_contract") != {"path": ANCHOR_RECOVERY_CONTRACT_PATH,
+                                             "sha256": files[ANCHOR_RECOVERY_CONTRACT_PATH]}:
+        raise CellRefused(f"{path}: its stage-T recovery contract is not {ANCHOR_RECOVERY_CONTRACT_PATH} "
+                          "at its pinned bytes")
     if not (isinstance(generation.get("commit"), str)
             and re.fullmatch(r"[0-9a-f]{40}", generation["commit"])
             and isinstance(generation.get("branch"), str) and generation["branch"]
@@ -5408,14 +5417,16 @@ def main() -> int:
               "used by the stability protocol."))
     parser.add_argument(
         "--anchor-confirm", dest="anchor_confirm", default=None,
-        choices=("select", "decide", ANCHOR_LAMBDA_STAGE, "refit", "test"),
+        choices=("select", "decide", ANCHOR_LAMBDA_STAGE, "refit", "test", "recover"),
         help=("anchor confirmation v2 (contract v3, audit 709): stage `select` = train-only N "
               "selection of the fixed anchor model, `decide` = seeds 43/44 at the frozen N, `lambda` "
               "= stage L (contract L v1: the TODO 13-15 lambda checks at the v7 frozen N, seed 42, "
               "Flickr25K first); generation v9 (audits 743-744): `refit` = stage R, the twelve "
               "scratch full-train anchor refits of the accepted F record, ending at the terminal "
               "checkpoint; `test` = stage T, the one official-test extraction and evaluation of "
-              "each stage-R checkpoint (scripts/anchor_refit_stage.py). NON-EXECUTABLE until "
+              "each stage-R checkpoint (scripts/anchor_refit_stage.py); generation v9 r8 (audit 797): "
+              "`recover` = the one recovery of the stopped full-T campaign's interrupted cell, the "
+              "other eleven carried (docs/ANCHOR_T_RECOVERY_CONTRACT_v1.md). NON-EXECUTABLE until "
               "audit approval."))
     parser.add_argument(
         "--anchor-arms", dest="anchor_arms", default="anchors",
@@ -5461,8 +5472,8 @@ def main() -> int:
         print(f"[phase3] REFUSED --result-root: {error}", file=sys.stderr)
         return 2
 
-    if args.anchor_confirm in ("refit", "test"):
-        # Generation v9 (audits 743-744): stages R and T have their own admission. That module imports
+    if args.anchor_confirm in ("refit", "test", "recover"):
+        # Generation v9 (audits 743-744): stages R and T have their own admission (and r8's recovery). That module imports
         # this launcher by name, so it must receive THIS (handshake-verified) instance (r7).
         try:
             _bind_entrypoint_instance()

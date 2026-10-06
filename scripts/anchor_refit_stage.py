@@ -367,14 +367,17 @@ def _print_plan(args, cells, authorities, admission, preview=None) -> int:
 
 # ----------------------------------------------------------------------------------------------- T
 
-def admit_refit_receipt(path, sha256, *, manifest_sha256: str, freeze: dict, mode: str) -> dict:
+def admit_refit_receipt(path, sha256, *, manifest_sha256: str, freeze: dict, mode: str,
+                        carried_cells=frozenset()) -> dict:
     """The completed stage-R campaign stage T evaluates, from JSON metadata only (no checkpoint byte
     is read here; the T entry hashes each checkpoint before it loads it): the receipt at its digest;
     its snapshot (semantic digest), generation manifest, F authority and stage-R approval, re-verified
     in the ledger now; and per cell the record, its campaign binding and completion pins, the trainer
     evidence and runtime sidecar at their pinned digests (terminal epoch), the sealed recipe, and a
     run directory that still holds no official-test output. `mode` run: exactly the twelve F cells;
-    smoke: one."""
+    smoke: one. `carried_cells` (the r8 recovery only, audit 797.2 item 2): those cells already hold
+    their stage-T outputs, which must be exactly the required twelve with bit2 absent; every other
+    cell is checked as before."""
     from dna_utils.run_identity import PHASE3_CAMPAIGN_BINDING_NAME
     from dna_utils.scientific_recipe import digest
     receipt, _ = _read_json(path, sha256, "the stage-R receipt")
@@ -434,7 +437,10 @@ def admit_refit_receipt(path, sha256, *, manifest_sha256: str, freeze: dict, mod
                 or not M._is_sha256(anchor.get("config_pt_sha256")) \
                 or anchor.get("campaign_evidence_sha256") != completion.get("phase3_campaign_evidence_sha256"):
             raise CellRefused(f"{cell_id}: the trainer evidence or terminal checkpoint witness disagrees")
-        M.assert_official_test_withheld(run_dir)
+        if cell_id in carried_cells:
+            assert_carried_outputs(run_dir)
+        else:
+            M.assert_official_test_withheld(run_dir)
         cells.append({"cell_id": cell_id, "dataset": ds, "N": n, "seed": seed,
                       "tag": record["tag"], "run_dir": str(run_dir),
                       "record": str(record_path), "record_sha256": record_sha,
@@ -585,16 +591,19 @@ def reserve_attempt(namespace: str, *, cell: dict, request: dict, approval: dict
 
 
 def run_terminal_test_cell(cell: dict, *, namespace: str, request: dict, approval: dict,
-                           campaign_nonce: str, gpu_uuid: str, snapshot: dict) -> dict:
+                           campaign_nonce: str, gpu_uuid: str, snapshot: dict, before_attempt=None) -> dict:
     """One T cell, fail-stop: the T snapshot re-checked (sources, inputs, environment and GPUs,
     stats-only seals), the stage-R outputs re-checked, the attempt reserved, the T entry run, the
     snapshot re-checked at the entry-to-train-extraction transition, the unchanged post-chain run with
     the snapshot re-checked after every producer, every output checked with the legacy refit checker,
-    the record published. A producer never starts after a failed check."""
+    the record published. A producer never starts after a failed check. `before_attempt` (the r8
+    recovery only) consumes the lineage's one recovery claim between those checks and the attempt."""
     run_dir = Path(cell["run_dir"])
     M.verify_snapshot(snapshot)
     check_cell_inputs(cell)
     M.assert_official_test_withheld(run_dir)
+    if before_attempt is not None:
+        before_attempt()
     attempt, attempt_sha = reserve_attempt(namespace, cell=cell, request=request, approval=approval,
                                            campaign_nonce=campaign_nonce)
     env = cell_input_env(terminal_test_env(gpu_uuid), cell)
@@ -748,8 +757,586 @@ def _run_terminal_test(args, *, request: dict, approval: dict, manifest: dict) -
     return 0
 
 
+# --------------------------------------------------------------------------------------- recovery
+# Generation v9 r8 (audits 795-797; docs/ANCHOR_T_RECOVERY_CONTRACT_v1.md): the ONE recovery of the
+# stage-T cell the r7 campaign `ancT9` left unfinished at its budget stop (NUS-WIDE seed 44,
+# 2026-10-06T20:50:07Z). It is not a resume flag or a generic subset: the stopped campaign is pinned
+# member by member in the lineage file below, the eleven completed cells are CARRIED by their records
+# (never evaluated again), and only the pinned cell runs, once, under a claim that no second namespace,
+# record root or worktree can take again. The historical authority (F, the stage-R receipt and both
+# approvals) is verified against generation r7; the executing sources are r8's, and the sources that
+# differ from stage R are exactly the reviewed control-plane allowlist.
+RECOVERY_STAGE = "recover"
+RECOVERY_MODE = "recovery"
+RECOVERY_SCOPE = "stage-T-recovery"
+#: the pinned lineage of the stopped campaign (built from JSON and the settled ledger only)
+RECOVERY_LINEAGE = REPO / "artifacts" / "anchor_confirmation" / "anchor_t_recovery_lineage_v1.json"
+RECOVERY_LINEAGE_SHA256 = "b767601961c489c469c8822988dcb66b9dc525f4539ef428456a2f8545ce8bda"
+RECOVERY_LINEAGE_SCHEMA = "anchor-t-recovery-lineage/1"
+T_RECOVERY_REQUEST_SCHEMA = "anchor-terminal-test-recovery-request/1"
+T_RECOVERY_SNAPSHOT_SCHEMA = "anchor-terminal-test-recovery-snapshot/1"
+T_RECOVERY_RECEIPT_SCHEMA = "anchor-terminal-test-recovery-receipt/1"
+T_RECOVERY_CLAIM_SCHEMA = "anchor-terminal-test-recovery-claim/1"
+T_RECOVERY_RECEIPT_SUFFIX = "_recovery_complete.json"
+#: one persistent claim per interrupted lineage, outside every worktree, record root and namespace
+#: (audit 797.2 item 3): its name is the lineage key alone
+RECOVERY_CLAIM_ROOT = Path("/home/yschoi/gdna_anchorRT_recovery_claims")
+#: generation r7, under which stage R and the stopped campaign ran (historical authority only)
+R7_MANIFEST_SHA256 = "2f24fc80bb83e2c73b17ec473c2731ade6d34a356e02414e6719fe9e9bec947c"
+#: the exact stage-R snapshot sources r8 changes (control plane only; audit 797.2 item 1)
+RECOVERY_CHANGED_SOURCES = ("scripts/anchor_refit_stage.py", "scripts/anchor_terminal_test.py",
+                            "scripts/phase3_selection_matrix.py")
+#: the exact generation-closure members r8 changes and adds relative to the r7 manifest
+RECOVERY_CHANGED_CLOSURE = RECOVERY_CHANGED_SOURCES + (
+    "scripts/anchor_confirm_manifest.py", "scripts/anchor_confirm_supervisor.py",
+    "tests/test_anchor_confirm_launcher.py", "tests/test_anchor_refit_stage.py")
+RECOVERY_ADDED_CLOSURE = ("docs/ANCHOR_T_RECOVERY_CONTRACT_v1.md", "tests/test_anchor_t_recovery.py")
+#: the T record's completion digests, by the output each one binds
+CARRIED_BINDINGS = (("evaluation_sha256", "evaluation_siglip2_base.json"),
+                    ("bio_evaluation_sha256", "evaluation_siglip2_base_bioproj.json"),
+                    ("cell_result_sha256", "cell_result.json"),
+                    ("analysis_complete_sha256", "analysis_complete.json"),
+                    ("extraction_complete_sha256", "extraction_complete.json"),
+                    ("pairwise_nmi_sha256", "pairwise_nmi.json"))
+BIT2_OUTPUT = "evaluation_siglip2_bit2.json"
+
+
+def assert_carried_outputs(run_dir: Path) -> list:
+    """A carried cell's run directory (stat only): the twelve required stage-T outputs exist and the
+    bit2 evaluation does not (audit 776)."""
+    required = [name for name in M.OFFICIAL_TEST_OUTPUTS if name != BIT2_OUTPUT]
+    missing = [name for name in required if not (Path(run_dir) / name).is_file()]
+    if missing or (Path(run_dir) / BIT2_OUTPUT).exists():
+        raise CellRefused(f"{run_dir}: a carried stage-T cell must hold exactly the twelve required "
+                          f"outputs with bit2 absent; missing {missing}")
+    return required
+
+
+def recovery_lineage(read=None) -> dict:
+    """The pinned lineage file at its digest (JSON only)."""
+    lineage, _ = _read_json(RECOVERY_LINEAGE, RECOVERY_LINEAGE_SHA256, "the recovery lineage", read)
+    if lineage.get("schema") != RECOVERY_LINEAGE_SCHEMA:
+        raise CellRefused(f"{RECOVERY_LINEAGE}: not a {RECOVERY_LINEAGE_SCHEMA} file")
+    return lineage
+
+
+def recovery_claim_key(lineage: dict) -> str:
+    """The key of the interrupted lineage alone -- no namespace, root or caller in it."""
+    stopped, cell = lineage["stopped"], lineage["recovery_cell"]
+    return M._json_digest({"run_id": stopped["settlement"]["run_id"],
+                           "stopped_request_sha256": stopped["request_sha256"],
+                           "cell_id": cell["cell_id"], "attempt_sha256": cell["attempt"]["sha256"],
+                           "entry_sha256": cell["entry"]["sha256"]})
+
+
+def recovery_claim_path(key: str) -> Path:
+    return RECOVERY_CLAIM_ROOT / f"{key}.json"
+
+
+def historical_generation(lineage: dict) -> dict:
+    """The r7 manifest's closure pins, read from its pinned bytes. It is never loaded as this tree's
+    generation: it is the authority the historical approvals name."""
+    hist = lineage["historical_manifest"]
+    if hist.get("sha256") != R7_MANIFEST_SHA256:
+        raise CellRefused("the recovery's historical generation is not r7")
+    manifest = json.loads(M._read_bytes(hist["path"], hist["sha256"], "the r7 generation manifest"))
+    files = (manifest.get("new_generation") or {}).get("files_sha256") or {}
+    if not files:
+        raise CellRefused("the r7 generation manifest lists no files")
+    return {"path": hist["path"], "sha256": hist["sha256"], "files_sha256": files}
+
+
+def generation_transition(manifest: dict, historical: dict) -> dict:
+    """The r7 -> r8 closure transition is exactly the reviewed one: these members changed, these were
+    added, none was removed, and every other member is its r7 bytes."""
+    if manifest["sha256"] == R7_MANIFEST_SHA256:
+        raise CellRefused("the recovery executes under r8, never under the r7 generation it recovers")
+    old, new = historical["files_sha256"], manifest["files_sha256"]
+    changed = sorted(rel for rel in set(old) & set(new) if old[rel] != new[rel])
+    added, removed = sorted(set(new) - set(old)), sorted(set(old) - set(new))
+    if changed != sorted(RECOVERY_CHANGED_CLOSURE) or added != sorted(RECOVERY_ADDED_CLOSURE) or removed:
+        raise CellRefused(f"the r7 -> r8 transition is not the reviewed one: changed {changed}, added "
+                          f"{added}, removed {removed}")
+    return {"from": historical["sha256"], "to": manifest["sha256"], "changed": changed, "added": added}
+
+
+def verify_settlement(settlement: dict) -> dict:
+    """The stopped campaign's settlement, exactly (audit 797.2 items 2 and 4): the whole settled R/T
+    ledger at its digest and line count; this run's start, stop and final lines at their digests and in
+    that order; the final the ledger's last line; a budget stop with a clean termination (status
+    stopped, no held lease, orphan, continuity loss or monitor failure) and the known charges."""
+    raw = M._read_bytes(settlement["ledger"], settlement["ledger_sha256"], "the settled R/T ledger")
+    lines = raw.decode("utf-8").splitlines()
+    if len(lines) != settlement["ledger_lines"]:
+        raise CellRefused("the settled R/T ledger does not have its pinned line count")
+    rows = [json.loads(line) for line in lines]
+    events = [(i, row["event"]) for i, row in enumerate(rows)
+              if row.get("run_id") == settlement["run_id"] and row.get("event") in ("start", "stop", "final")]
+    if [kind for _, kind in events] != ["start", "stop", "final"] or events[-1][0] != len(rows) - 1:
+        raise CellRefused("the stopped run is not exactly one start, stop and final, ending the ledger")
+    for i, kind in events:
+        if hashlib.sha256(lines[i].encode("utf-8")).hexdigest() != settlement[f"{kind}_line_sha256"]:
+            raise CellRefused(f"the stopped run's {kind} line is not its pinned bytes")
+    stop, final = rows[events[1][0]], rows[events[2][0]]
+    reason = settlement["stop_reason"]
+    if not str(reason).startswith("budget: ") or stop.get("reason") != reason \
+            or final.get("reason") != reason or settlement["final_status"] != "stopped" \
+            or final.get("status") != "stopped" \
+            or final.get("returncode") != settlement["final_returncode"] \
+            or final.get("leases_held_after_exit") != [] or final.get("orphaned_live_attempts") != [] \
+            or final.get("continuity_lost") != [] or final.get("monitor_failures") != [] \
+            or final.get("charged_seconds") != settlement["charged_seconds"] \
+            or final.get("cumulative_charged_seconds") != settlement["cumulative_charged_seconds"]:
+        raise CellRefused("the stopped run's settlement is not the audited clean budget stop")
+    return {"ledger": settlement["ledger"], "ledger_sha256": settlement["ledger_sha256"],
+            "run_id": settlement["run_id"], "final_line_sha256": settlement["final_line_sha256"],
+            "cumulative_charged_seconds": settlement["cumulative_charged_seconds"]}
+
+
+def _pinned(record_dir: Path, pin: dict, what: str) -> dict:
+    return _read_json(Path(record_dir) / pin["file"], pin["sha256"], what)[0]
+
+
+def admit_stopped_campaign(lineage: dict, *, freeze: dict) -> dict:
+    """Before execution: the immutable lineage (verify_stopped_lineage) AND the recovered cell's run
+    directory still holding no official-test output (the pre-execution target absence)."""
+    admitted = verify_stopped_lineage(lineage, freeze=freeze, target_executed=False)
+    M.assert_official_test_withheld(Path(admitted["cell"]["run_dir"]))
+    return admitted
+
+
+def verify_stopped_lineage(lineage: dict, *, freeze: dict, target_executed: bool) -> dict:
+    """The stopped campaign's immutable lineage, from JSON, the ledger and stat only (audit 797.2 items
+    1-2): the stage-R receipt under r7 with the eleven carried cells holding exactly their twelve outputs
+    (and, once `target_executed`, the recovered cell too; before, it must hold none); the stopped
+    snapshot, request, reservation and approval (re-verified in the ledger, against r7); its settlement;
+    exact membership (the carried set is the twelve minus the recovered cell); every carried record,
+    attempt and entry at its pin and bound to the stopped request; the recovered cell's attempt and
+    entry at their pins, no stage-T record and no attempt in another namespace of the historical record
+    directory; the stopped campaign's receipt absent. Run before execution and again before the
+    combined receipt is published (audit 800)."""
+    rec_dir = Path(lineage["historical_record_dir"])
+    stopped, recovery, carried = lineage["stopped"], lineage["recovery_cell"], lineage["carried"]
+    snapshot = _pinned(rec_dir, stopped["snapshot"], "the stopped stage-T snapshot")
+    request = snapshot.get("request") or {}
+    if M._json_digest(snapshot) != stopped["snapshot"]["semantic_sha256"] \
+            or snapshot.get("schema") != T_SNAPSHOT_SCHEMA \
+            or M._json_digest(request) != stopped["request_sha256"] \
+            or snapshot.get("request_sha256") != stopped["request_sha256"] \
+            or request.get("schema") != T_REQUEST_SCHEMA or request.get("mode") != "run" \
+            or request.get("namespace") != stopped["namespace"] \
+            or request.get("manifest") != R7_MANIFEST_SHA256 \
+            or (request.get("freeze") or {}).get("sha256") != ANCHOR_F_RECORD_SHA256 \
+            or (snapshot.get("plan") or {}).get("campaign_nonce") != stopped["campaign_nonce"]:
+        raise CellRefused("the stopped stage-T snapshot is not the pinned r7 run request")
+    reservation = _pinned(rec_dir, stopped["reservation"], "the stopped campaign's reservation")
+    if reservation.get("namespace") != stopped["namespace"] \
+            or reservation.get("plan_digest") != stopped["snapshot"]["semantic_sha256"] \
+            or reservation.get("plan_snapshot_file") != stopped["snapshot"]["file"] \
+            or reservation.get("campaign_nonce") != stopped["campaign_nonce"]:
+        raise CellRefused("the stopped campaign's reservation does not bind its snapshot")
+    approval = stopped["approval"]
+    live = M.audit_approval(approval["section"], "stage-T-run", manifest=R7_MANIFEST_SHA256,
+                            freeze=ANCHOR_F_RECORD_SHA256, request=stopped["request_sha256"])
+    if not (live["line"] == approval["line"] == (snapshot.get("approval") or {}).get("line")):
+        raise CellRefused("the stopped campaign's stage-T approval is not the ledger's line")
+    if (rec_dir / f"{stopped['namespace']}{T_RECEIPT_SUFFIX}").exists():
+        raise CellRefused("the stopped campaign has a receipt: it is not a stopped campaign")
+    settlement = verify_settlement(stopped["settlement"])
+    cells = {c["cell_id"]: c for c in request.get("cells") or []}
+    if len(cells) != len(request.get("cells") or []) or len(cells) != 12:
+        raise CellRefused("the stopped request does not name twelve distinct cells")
+    if recovery["cell_id"] in carried or set(carried) | {recovery["cell_id"]} != set(cells):
+        raise CellRefused("the carried cells are not exactly the stopped request's twelve minus the "
+                          "recovered one")
+    receipt = lineage["refit_receipt"]
+    holding = frozenset(carried) | (frozenset({recovery["cell_id"]}) if target_executed else frozenset())
+    refit = admit_refit_receipt(rec_dir / receipt["file"], receipt["sha256"], manifest_sha256=R7_MANIFEST_SHA256,
+                                freeze=freeze, mode="run", carried_cells=holding)
+    if sorted(refit["cells"], key=lambda c: c["cell_id"]) != sorted(cells.values(), key=lambda c: c["cell_id"]) \
+            or request.get("refit_receipt") != refit["receipt"]:
+        raise CellRefused("the stage-R receipt no longer admits the stopped request's cells")
+    nonce, ns = stopped["campaign_nonce"], stopped["namespace"]
+    carried_out = []
+    for cell_id in sorted(carried):
+        pins, cell = carried[cell_id], cells[cell_id]
+        if pins.get("tag") != cell["tag"]:
+            raise CellRefused(f"{cell_id}: the carried pins name another cell tag")
+        attempt = _pinned(rec_dir, pins["attempt"], f"{cell_id} stopped attempt")
+        entry = _pinned(rec_dir, pins["entry"], f"{cell_id} stopped entry claim")
+        record = _pinned(rec_dir, pins["record"], f"{cell_id} stage-T record")
+        names = (f"{ns}_attempt_{cell['tag']}.json", f"{ns}_entry_{cell['tag']}.json", f"{ns}_{cell['tag']}.json")
+        if (pins["attempt"]["file"], pins["entry"]["file"], pins["record"]["file"]) != names \
+                or attempt.get("request_sha256") != stopped["request_sha256"] \
+                or attempt.get("campaign_nonce") != nonce or attempt.get("cell") != cell \
+                or entry.get("attempt_sha256") != pins["attempt"]["sha256"] or entry.get("cell_id") != cell_id \
+                or record.get("schema") != T_RECORD_SCHEMA or record.get("namespace") != ns \
+                or record.get("request_sha256") != stopped["request_sha256"] \
+                or record.get("campaign_nonce") != nonce or record.get("cell") != cell \
+                or record.get("attempt") != {"file": pins["attempt"]["file"], "sha256": pins["attempt"]["sha256"]}:
+            raise CellRefused(f"{cell_id}: the carried record, attempt and entry are not one stopped-campaign "
+                              "lineage")
+        carried_out.append({"cell_id": cell_id, "run_dir": cell["run_dir"], "record": pins["record"],
+                            "attempt": pins["attempt"], "entry": pins["entry"],
+                            "completion": record.get("completion") or {}})
+    cell = cells[recovery["cell_id"]]
+    attempt = _pinned(rec_dir, recovery["attempt"], "the recovered cell's stopped attempt")
+    entry = _pinned(rec_dir, recovery["entry"], "the recovered cell's stopped entry claim")
+    if recovery.get("tag") != cell["tag"] \
+            or (recovery["attempt"]["file"], recovery["entry"]["file"]) != (f"{ns}_attempt_{cell['tag']}.json",
+                                                                           f"{ns}_entry_{cell['tag']}.json") \
+            or attempt.get("request_sha256") != stopped["request_sha256"] or attempt.get("cell") != cell \
+            or attempt.get("campaign_nonce") != nonce \
+            or entry.get("attempt_sha256") != recovery["attempt"]["sha256"] \
+            or entry.get("cell_id") != recovery["cell_id"]:
+        raise CellRefused("the recovered cell's stopped attempt and entry are not its lineage")
+    if (rec_dir / f"{ns}_{cell['tag']}.json").exists():
+        raise CellRefused("the recovered cell has a stage-T record: it is not the interrupted cell")
+    others = sorted(p.name for p in rec_dir.glob(f"*_attempt_{cell['tag']}.json")
+                    if p.name != recovery["attempt"]["file"])
+    if others:
+        raise CellRefused(f"the recovered cell was attempted in another namespace: {others}")
+    return {"request": request, "snapshot": snapshot, "settlement": settlement, "refit": refit,
+            "cell": cell, "carried": carried_out}
+
+
+def assert_record_outputs(run_dir: Path, completion: dict, cell_id: str) -> None:
+    """A stage-T cell's twelve outputs are the bytes its record's completion binds (hashed, never
+    deserialized) and bit2 is absent."""
+    assert_carried_outputs(run_dir)
+    want = {name: completion.get(key) for key, name in CARRIED_BINDINGS}
+    for split in ("query", "db", "train"):
+        want[f"extraction_manifest_{split}.json"] = (completion.get("extraction_manifest_sha256") or {}).get(split)
+        want[f"extract_{split}.npz"] = (completion.get("npz_sha256") or {}).get(split)
+    if sorted(want) != sorted(n for n in M.OFFICIAL_TEST_OUTPUTS if n != BIT2_OUTPUT):
+        raise CellRefused(f"{cell_id}: the stage-T record does not bind all twelve outputs")
+    wrong = sorted(name for name, pin in want.items() if not M._is_sha256(pin) or M._sha(Path(run_dir) / name) != pin)
+    if wrong:
+        raise CellRefused(f"{cell_id}: outputs are not the bytes its stage-T record binds: {wrong}")
+
+
+def verify_carried_payloads(admitted: dict) -> None:
+    """At the execution boundary only (after approval; audit 797.3), and again before the combined
+    receipt (audit 800): every carried cell's twelve outputs are the bytes its stage-T record binds."""
+    for carried in admitted["carried"]:
+        try:
+            assert_record_outputs(Path(carried["run_dir"]), carried["completion"], carried["cell_id"])
+        except CellRefused as error:
+            raise CellRefused(f"carried outputs are not the bytes its stage-T record binds: {error}") from None
+
+
+def final_recovery_closure(request: dict, *, freeze: dict, claim: dict, executed: dict, approval: dict,
+                           campaign_nonce: str) -> dict:
+    """Audits 800-801: fail-closed, immediately before the combined receipt is published. The pinned
+    lineage is re-verified with the recovered cell now executed (the eleven carried records, attempts
+    and entries at their pins and bindings, their outputs present with bit2 absent and at their recorded
+    bytes; the stopped snapshot, reservation, approval and settled ledger), the request's lineage part
+    is still what that lineage determines, the claim is the bytes consumed, and the new cell's own chain
+    is re-read from its files: the record at its digest, the attempt it names at that digest (its exact
+    name in this record root, schema, namespace, nonce, request, approval and cell), the exclusive entry
+    claim binding that attempt and cell, and the twelve outputs at the bytes the record binds. Metadata
+    only: nothing is admitted, claimed or loaded again. The receipt binds what this returns."""
+    lineage = recovery_lineage()
+    admitted = verify_stopped_lineage(lineage, freeze=freeze, target_executed=True)
+    block = recovery_lineage_block(admitted, lineage)
+    if {k: request.get(k) for k in block} != block:
+        raise CellRefused("the recovery request's lineage is no longer the pinned stopped campaign's")
+    verify_carried_payloads(admitted)
+    claim_path = recovery_claim_path(request["claim_key"])
+    if not claim_path.is_file() or M._sha(claim_path) != claim.get("sha256"):
+        raise CellRefused("the recovery claim is not the bytes this campaign consumed")
+    cell = request["cells"][0]
+    root = Path(request["record_dir"])
+    if root.resolve() != Path(M.RECORD_DIR).resolve():
+        raise CellRefused("the recovery wrote another record root than its request names")
+    record_name = f"{request['namespace']}_{cell['tag']}.json"
+    if executed["record"] != record_name:
+        raise CellRefused("the recovered cell's record is not its contracted name")
+    record, record_sha = _read_json(root / record_name, executed["record_sha256"],
+                                    "the recovered cell's stage-T record")
+    attempt_name = attempt_path(request["namespace"], cell).name
+    if record.get("schema") != T_RECORD_SCHEMA or record.get("stage") != TEST_STAGE \
+            or record.get("namespace") != request["namespace"] or record.get("campaign_nonce") != campaign_nonce \
+            or record.get("request_sha256") != M._json_digest(request) or record.get("cell") != cell \
+            or record.get("attempt") != {"file": attempt_name, "sha256": executed["attempt_sha256"]}:
+        raise CellRefused("the recovered cell's record does not bind this recovery and its attempt")
+    attempt, attempt_sha = _read_json(root / attempt_name, executed["attempt_sha256"],
+                                      "the recovered cell's attempt reservation")
+    if attempt.get("schema") != T_ATTEMPT_SCHEMA or attempt.get("namespace") != request["namespace"] \
+            or attempt.get("campaign_nonce") != campaign_nonce or attempt.get("request") != request \
+            or attempt.get("request_sha256") != M._json_digest(request) or attempt.get("cell") != cell \
+            or attempt.get("approval") != approval:
+        raise CellRefused("the recovered cell's attempt does not bind this recovery")
+    entry_name = attempt_name.replace("_attempt_", "_entry_", 1)
+    entry, entry_sha = _read_json(root / entry_name, None, "the recovered cell's entry claim")
+    if entry.get("attempt") != attempt_name or entry.get("attempt_sha256") != attempt_sha \
+            or entry.get("cell_id") != cell["cell_id"] \
+            or entry.get("final_checkpoint_sha256") != cell["final_checkpoint_sha256"] \
+            or entry.get("config_pt_sha256") != cell["config_pt_sha256"]:
+        raise CellRefused("the recovered cell's entry claim does not bind its attempt and cell")
+    assert_record_outputs(Path(cell["run_dir"]), record.get("completion") or {}, cell["cell_id"])
+    return {"carried": {c["cell_id"]: {"record": c["record"], "attempt": c["attempt"], "entry": c["entry"]}
+                        for c in admitted["carried"]},
+            "settlement": admitted["settlement"], "claim_sha256": claim["sha256"],
+            "executed": {"record": {"file": record_name, "sha256": record_sha},
+                         "attempt": {"file": attempt_name, "sha256": attempt_sha},
+                         "entry": {"file": entry_name, "sha256": entry_sha}}}
+
+
+def recovery_lineage_block(admitted: dict, lineage: dict) -> dict:
+    """The part of the recovery request the lineage alone determines; the T entry recomputes it."""
+    stopped, recovery = lineage["stopped"], lineage["recovery_cell"]
+    return {"historical_manifest": lineage["historical_manifest"],
+            "lineage": {"path": str(RECOVERY_LINEAGE), "sha256": RECOVERY_LINEAGE_SHA256},
+            "refit_receipt": admitted["request"]["refit_receipt"],
+            "refit_approval": admitted["request"]["refit_approval"],
+            "refit_epochs": admitted["request"]["refit_epochs"],
+            "stopped": {"namespace": stopped["namespace"], "request_sha256": stopped["request_sha256"],
+                        "snapshot": stopped["snapshot"], "reservation": stopped["reservation"],
+                        "approval": stopped["approval"], "settlement": admitted["settlement"]},
+            "recovery_of": {"cell_id": recovery["cell_id"], "attempt": recovery["attempt"],
+                            "entry": recovery["entry"]},
+            "carried": [{k: c[k] for k in ("cell_id", "record", "attempt", "entry")} for c in admitted["carried"]],
+            "cells": [admitted["cell"]],
+            "claim_root": str(RECOVERY_CLAIM_ROOT), "claim_key": recovery_claim_key(lineage)}
+
+
+def recovery_request(args, admitted: dict, *, manifest: dict, lineage: dict, transition: dict) -> dict:
+    """The recovery request: one cell on one GPU, the executing r8 generation and its reviewed
+    transition from r7, the pinned lineage, the namespace and record root it writes, and the claim it
+    consumes. An approval line of scope stage-T-recovery names its digest."""
+    gpus = [g for g in (args.gpus.split(",") if args.gpus else [str(args.gpu)])]
+    if len(gpus) != 1:
+        raise CellRefused(f"the recovery runs one cell on exactly one GPU, got {gpus}")
+    if str(args.namespace) == lineage["stopped"]["namespace"]:
+        raise CellRefused("the recovery writes a new namespace, never the stopped campaign's")
+    return {"schema": T_RECOVERY_REQUEST_SCHEMA, "version": M.ANCHOR_CONFIRM_VERSION, "stage": TEST_STAGE,
+            "mode": RECOVERY_MODE, "manifest": manifest["sha256"], "manifest_path": str(manifest["path"]),
+            "source_transition": {**transition,
+                                  "changed_sources": {rel: manifest["files_sha256"][rel]
+                                                      for rel in RECOVERY_CHANGED_SOURCES}},
+            "freeze": {"path": str(ANCHOR_F_RECORD), "sha256": ANCHOR_F_RECORD_SHA256,
+                       "acceptance_section": ANCHOR_F_ACCEPTANCE_SECTION,
+                       "acceptance_sha256": ANCHOR_F_ACCEPTANCE_SHA256},
+            **recovery_lineage_block(admitted, lineage),
+            "namespace": str(args.namespace), "record_dir": str(M.ANCHOR_RECORD_DIR),
+            "outputs": list(M.OFFICIAL_TEST_OUTPUTS), "chain": list(T_CHAIN), "gpu_count": 1}
+
+
+def recovery_claim_payload(request: dict, approval: dict) -> dict:
+    """What the one recovery claim binds: the lineage key, the approved request and line, the namespace,
+    the record root and the attempt name it authorizes (the T entry checks every field)."""
+    return {"schema": T_RECOVERY_CLAIM_SCHEMA, "claim_key": request["claim_key"],
+            "request_sha256": M._json_digest(request),
+            "approval": {"section": approval["section"], "scope": approval["scope"], "line": approval["line"]},
+            "namespace": request["namespace"], "record_dir": request["record_dir"],
+            "attempt": attempt_path(request["namespace"], request["cells"][0]).name,
+            "lineage": request["lineage"]}
+
+
+def consume_recovery_claim(request: dict, approval: dict) -> tuple:
+    """Atomically consume the lineage's ONE recovery authorization, before the attempt is reserved
+    and before any test access (audit 797.2 item 3). The claim is O_EXCL in a root outside every
+    worktree, keyed by the interrupted lineage alone, so a concurrent caller, a second namespace, an
+    alternate record root or another worktree refuses; it is never removed, also after a failure."""
+    if request["claim_root"] != str(RECOVERY_CLAIM_ROOT):
+        raise CellRefused("the request names another recovery claim root")
+    path = recovery_claim_path(request["claim_key"])
+    payload = {**recovery_claim_payload(request, approval),
+               "created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "owner_pid": os.getpid(),
+               "owner_host": socket.gethostname(), "owner_boot_id": M._boot_id()}
+    RECOVERY_CLAIM_ROOT.mkdir(parents=True, exist_ok=True)
+    try:
+        M._publish_json_exclusive(path, payload)
+    except CellRefused:
+        raise CellRefused(f"the interrupted lineage's one recovery is already claimed ({path.name}); "
+                          "another recovery needs a new authorization") from None
+    return path, M._sha(path)
+
+
+def verify_recovery_authority(attempt_path: Path, attempt: dict, request: dict) -> dict:
+    """The T entry's own proof of the recovery authority, before any configuration, model or test
+    construction (audit 797.2 item 3): the pinned lineage re-admitted from its records (JSON, ledger
+    and stat), the request's lineage part equal to what that admission determines, and the one
+    recovery claim present, naming this request, approval line, namespace, record root and attempt."""
+    lineage = recovery_lineage()
+    freeze = anchor_freeze_authority()
+    admitted = admit_stopped_campaign(lineage, freeze=freeze)
+    block = recovery_lineage_block(admitted, lineage)
+    if {k: request.get(k) for k in block} != block:
+        raise CellRefused("the recovery request's lineage is not the pinned stopped campaign's")
+    try:
+        claim = json.loads(recovery_claim_path(block["claim_key"]).read_bytes())
+    except (OSError, ValueError) as error:
+        raise CellRefused(f"the lineage's recovery claim is absent or unreadable: {error}") from None
+    want = recovery_claim_payload(request, attempt.get("approval") or {})
+    if {k: claim.get(k) for k in want} != want or attempt_path.name != want["attempt"]:
+        raise CellRefused("the recovery claim does not authorize this request, namespace, record root and "
+                          "attempt")
+    return claim
+
+
+def recovery_boundary(r_snapshot: dict, gpus, *, manifest: dict, historical: dict) -> dict:
+    """terminal_test_boundary across the reviewed r7 -> r8 transition (audit 797.2 item 1): every
+    stage-R source is its stage-R bytes except EXACTLY the allowlisted control-plane sources, each of
+    which must be its r7 bytes in the stage-R snapshot and its r8 bytes now (clean in HEAD); the
+    stage-R inputs unchanged; this run's own environment and leased GPU."""
+    if r_snapshot.get("qwen_root") != str(M.QWEN_ROOT):
+        raise CellRefused("the stage-R campaign used another Qwen root")
+    before = r_snapshot.get("sources") or {}
+    if not set(RECOVERY_CHANGED_SOURCES) <= set(before):
+        raise CellRefused("the allowlisted sources are not stage-R sources")
+    sources = {rel: (M._sha(M.REPO / rel) if (M.REPO / rel).is_file() else "#absent") for rel in before}
+    changed = sorted(rel for rel in before if sources[rel] != before[rel])
+    if changed != sorted(RECOVERY_CHANGED_SOURCES):
+        raise CellRefused(f"the sources that differ from stage R are {changed}, not exactly the reviewed "
+                          f"allowlist {sorted(RECOVERY_CHANGED_SOURCES)}")
+    authority = M._source_authority_bundle(sources)
+    entries = (r_snapshot.get("source_authority") or {}).get("entries") or {}
+    for rel in before:
+        now = authority["entries"][rel]
+        if rel in RECOVERY_CHANGED_SOURCES:
+            if before[rel] != historical["files_sha256"].get(rel) or sources[rel] != manifest["files_sha256"].get(rel) \
+                    or not now.get("clean") or now.get("worktree_sha256") != sources[rel]:
+                raise CellRefused(f"{rel}: not its r7 bytes at stage R and its committed r8 bytes now")
+        elif (now.get("head_sha256"), now.get("worktree_sha256")) != \
+                ((entries.get(rel) or {}).get("head_sha256"), (entries.get(rel) or {}).get("worktree_sha256")):
+            raise CellRefused(f"{rel}: its source authority changed between stage R and the recovery")
+    inputs = _snapshot_inputs_now(r_snapshot.get("inputs") or {})
+    if inputs != r_snapshot.get("inputs"):
+        raise CellRefused("the inputs changed between stage R and the recovery")
+    environment = M.environment_fingerprint(gpus)
+    if environment.get("errors"):
+        raise CellRefused(f"the recovery environment has errors: {environment['errors']}")
+    return {"qwen_root": str(M.QWEN_ROOT), "sources": sources, "inputs": inputs,
+            "source_authority": authority, "source_authority_sha256": M._semantic_digest(authority),
+            "environment": environment, "environment_sha256": M._semantic_digest(environment),
+            "input_seals": r_snapshot.get("input_seals")}
+
+
+def _recovery_main(args, manifest, execute: bool) -> int:
+    if args.smoke or args.only:
+        raise CellRefused("the recovery is one fixed cell: --run only, no --smoke or --only")
+    if args.anchor_refit_receipt or args.anchor_refit_receipt_sha256:
+        raise CellRefused("the recovery takes its stage-R receipt from the pinned lineage, not the command")
+    lineage = recovery_lineage()
+    freeze = anchor_freeze_authority()
+    _check_freeze_against_incumbent(freeze, M.anchor_incumbent())
+    historical = historical_generation(lineage)
+    transition = generation_transition(manifest, historical)
+    admitted = admit_stopped_campaign(lineage, freeze=freeze)
+    request = recovery_request(args, admitted, manifest=manifest, lineage=lineage, transition=transition)
+    digest = M._json_digest(request)
+    if not execute:
+        print(f"{M.ANCHOR_CONFIRM_VERSION}: stage-T recovery of {request['recovery_of']['cell_id']} "
+              f"({len(request['carried'])} cells carried), namespace {args.namespace}  "
+              "[NON-EXECUTABLE until audit approval]")
+        print("execution request that this command without --plan would need approved:")
+        print(json.dumps(request, indent=1, sort_keys=True))
+        print(f"execution request sha256 {digest}")
+        return 0
+    approval = M.audit_approval(args.anchor_approval_section, RECOVERY_SCOPE, manifest=manifest["sha256"],
+                                freeze=ANCHOR_F_RECORD_SHA256, request=digest)
+    verify_carried_payloads(admitted)
+    M.recheck_generation(manifest, "after the recovery admission")
+    M.RECORD_DIR = M.ANCHOR_RECORD_DIR
+    return M._with_campaign_gpu_leases(
+        args, lambda: _run_recovery(args, request=request, approval=approval, manifest=manifest,
+                                    admitted=admitted, historical=historical))
+
+
+def _run_recovery(args, *, request: dict, approval: dict, manifest: dict, admitted: dict,
+                  historical: dict) -> int:
+    import secrets
+    gpus = [int(g) for g in (args.gpus.split(",") if args.gpus else [str(args.gpu)])]
+    nonce = secrets.token_hex(32)
+    receipt = json.loads(M._read_bytes(request["refit_receipt"]["path"], request["refit_receipt"]["sha256"],
+                                       "the stage-R receipt"))
+    r_snapshot = json.loads((Path(request["refit_receipt"]["path"]).parent
+                             / receipt["plan_snapshot_file"]).read_bytes())
+    if M._json_digest(r_snapshot) != receipt["plan_snapshot_sha256"]:
+        print("[anchor-T] REFUSED: the stage-R snapshot is not its receipt's", file=sys.stderr)
+        return 2
+    try:
+        boundary = recovery_boundary(r_snapshot, gpus, manifest=manifest, historical=historical)
+    except CellRefused as error:
+        print(f"[anchor-T] REFUSED: {error}", file=sys.stderr)
+        return 2
+    snapshot = {"schema": T_RECOVERY_SNAPSHOT_SCHEMA,
+                "plan": {"namespace": args.namespace, "campaign_nonce": nonce,
+                         "campaign_kind": T_CAMPAIGN_KIND, "result_root": r_snapshot["plan"].get("result_root"),
+                         "declared_count": 1, "executed_count": 1,
+                         "declared_cells": r_snapshot["plan"].get("declared_cells"),
+                         "recovery_of": request["recovery_of"]},
+                "request": request, "request_sha256": M._json_digest(request), "approval": approval,
+                **boundary}
+    try:
+        M._assert_snapshot_gpu_leases(snapshot, args)
+        snap_digest = M._json_digest(snapshot)
+        snap_path = M.RECORD_DIR / f"{args.namespace}_snapshot_{snap_digest[:16]}.json"
+        reservation = M.reserve_sweep_namespace(args.namespace, snapshot=snapshot, plan_digest=snap_digest,
+                                                campaign_nonce=nonce, snapshot_file=snap_path.name)
+        M._publish_json_exclusive(snap_path, snapshot)
+    except CellRefused as error:
+        print(f"[anchor-T] REFUSED: {error}", file=sys.stderr)
+        return 2
+    cell = request["cells"][0]
+    uuid = str(snapshot["environment"]["selected_gpus"][0]["uuid"])
+    claim = {}
+    try:
+        M.assert_reservation_owner(args.namespace, reservation)
+        M.recheck_generation(manifest, f"before the recovery of {cell['cell_id']}")
+        refusal = M.anchor_dispatch_space_refusal(str(Path(cell["run_dir"]).parent), 1)
+        if refusal:
+            raise CellRefused(f"before {cell['cell_id']}: {refusal}")
+
+        def claim_once():
+            claim["path"], claim["sha256"] = consume_recovery_claim(request, approval)
+        done = run_terminal_test_cell(cell, namespace=args.namespace, request=request, approval=approval,
+                                      campaign_nonce=nonce, gpu_uuid=uuid, snapshot=snapshot,
+                                      before_attempt=claim_once)
+        M.recheck_generation(manifest, f"after the recovery of {cell['cell_id']}")
+        M.assert_reservation_owner(args.namespace, reservation)
+        closure = final_recovery_closure(request, freeze=anchor_freeze_authority(), claim=claim, executed=done,
+                                         approval=approval, campaign_nonce=nonce)
+    except Exception as error:                          # noqa: BLE001 -- fail-stop, no receipt
+        print(f"[anchor-T] {cell['cell_id']} failed: {error}; no receipt", file=sys.stderr)
+        return 1
+    hist_dir = Path(request["refit_receipt"]["path"]).parent
+    cells = {cid: {"origin": "carried", "namespace": request["stopped"]["namespace"],
+                   "record_dir": str(hist_dir), "record": c["record"]["file"],
+                   "record_sha256": c["record"]["sha256"], "attempt_sha256": c["attempt"]["sha256"],
+                   "entry_sha256": c["entry"]["sha256"]}
+             for cid, c in closure["carried"].items()}
+    executed = closure["executed"]
+    cells[cell["cell_id"]] = {"origin": "executed", "namespace": args.namespace,
+                              "record_dir": str(M.RECORD_DIR), "record": executed["record"]["file"],
+                              "record_sha256": executed["record"]["sha256"],
+                              "attempt_sha256": executed["attempt"]["sha256"],
+                              "entry_sha256": executed["entry"]["sha256"],
+                              "map_at_R": done.get("map_at_R"), "bio_map_at_R": done.get("bio_map_at_R")}
+    receipt = {"schema": T_RECOVERY_RECEIPT_SCHEMA, "campaign_kind": T_CAMPAIGN_KIND, "stage": TEST_STAGE,
+               "mode": RECOVERY_MODE, "namespace": args.namespace, "campaign_nonce": nonce,
+               "plan_snapshot_file": snap_path.name, "plan_snapshot_sha256": snap_digest,
+               "campaign_reservation_file": M.campaign_reservation_path(args.namespace).name,
+               "campaign_reservation_sha256": M._sha(M.campaign_reservation_path(args.namespace)),
+               "request_sha256": M._json_digest(request), "refit_receipt": request["refit_receipt"],
+               "lineage": request["lineage"], "stopped": request["stopped"],
+               "recovery_of": request["recovery_of"],
+               "recovery_claim": {"file": Path(claim["path"]).name, "root": request["claim_root"],
+                                  "sha256": closure["claim_sha256"]},
+               "final_closure": {"settlement": closure["settlement"], "executed": executed},
+               "expected_cells": len(cells), "cell_count": len(cells), "cells": cells}
+    if len(cells) != 12:
+        print("[anchor-T] the recovery does not complete twelve cells; no receipt", file=sys.stderr)
+        return 1
+    M._publish_json_exclusive(M.RECORD_DIR / f"{args.namespace}{T_RECOVERY_RECEIPT_SUFFIX}", receipt)
+    print(f"[anchor-T] recovery complete: 1 executed + {len(cells) - 1} carried stage-T cells")
+    return 0
+
+
 def main(args) -> int:
-    """`--anchor-confirm refit|test`: the admission runs first in every mode; --plan prints the
+    """`--anchor-confirm refit|test|recover`: the admission runs first in every mode; --plan prints the
     request; --smoke/--run need the generation manifest and the audit's approval line."""
     for flag, value in (("--refit", args.refit), ("--recipe", args.recipe),
                         ("--stability-plan", args.stability_plan), ("--at-topp", args.at_topp),
@@ -777,6 +1364,8 @@ def main(args) -> int:
             if args.anchor_refit_receipt or args.anchor_refit_receipt_sha256:
                 raise CellRefused("--anchor-refit-receipt belongs to --anchor-confirm test")
             return _refit_main(args, manifest, execute)
+        if args.anchor_confirm == RECOVERY_STAGE:
+            return _recovery_main(args, manifest, execute)
         return _test_main(args, manifest, execute)
     except CellRefused as error:
         print(f"[phase3] REFUSED: {error}", file=sys.stderr)
