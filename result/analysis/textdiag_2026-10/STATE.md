@@ -3,6 +3,12 @@
 Read this first after any session restart. Branch `text-diag-2026-09`, worktree `/home/yschoi/gdna_textdiag`.
 Plan: `/home/yschoi/.claude/plans/hidden-tinkering-pine.md` (approved 2026-10-05). Log: `docs/MODI_PROJECT_LOG.md`.
 
+## GPU constraint (binding; recorded 2026-10-06 from anchor session groundeddna-29, user decision after audit §786)
+- Until the anchor full-T campaign (namespace ancT9, tmux ancT9_v9r7) settles: the text-path line uses **GPUs 4 and 5 ONLY**
+  (GPU-09e3ce04-0bce-569f-5cc8-e58957758b82, GPU-bf4ed000-d77c-f059-2bb2-31ee39703e99). Never GPUs 0-3, even if idle.
+- Pin by UUID (CUDA_VISIBLE_DEVICES=<uuid>) and re-check `nvidia-smi --query-gpu=index,uuid` before every launch.
+- Record: /home/yschoi/anchor_rt_session_state/coordination/gpu_partition_full_T.json. Lift only when that campaign has settled.
+
 ## How to check running work
 - Long jobs run in tmux via `/data/yschoi/gdna_p3exec_authority/bin/tmux_run.sh <name> <cmd> <args...>` (separate argv).
 - Status files: `/data/yschoi/gdna_p3exec_authority/runs/<name>.status` (written at exit: rc, seconds, end). `tmux ls | grep textdiag` shows live sessions.
