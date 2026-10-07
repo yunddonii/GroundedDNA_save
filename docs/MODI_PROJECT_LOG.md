@@ -42,6 +42,49 @@ analysis / 🔴 reverted or negative); tables over prose for numbers; each model
 
 ---
 
+## 2026-10-08 [design record + pilot of the attribute step, no training] Stage 2 step 2 cannot be done by the 8B VLM as "concept abstraction": it copies phrases; replaced by a non-VLM exact dedupe + direct attribute grouping on phrase samples. Attribute sets per dataset below (NOT yet confirmed by the user; chains not relaunched)
+
+**Branch** `text-diag-2026-09`, worktree `/home/yschoi/gdna_textdiag`. Tools: `tools/stage2_attributes_from_phrases.py` (46a9c5d, 5e01a76), runner `cache_eval/stage2_alt_run.sh`; outputs `cache_eval/stage2_alt/<ds>/` (`phrases_dedup.json`, `attributes_shuffle{0,1,2}.json`, `attributes.json`); tmux `stage2_alt2` (Flickr, NUS; 2026-10-08 00:54–01:00Z, GPU 1) and `stage2_alt3` (COCO; 01:02–01:05Z, GPU 1). Qwen3-VL-8B-Instruct, greedy decoding, text-only input.
+
+### 1. Why step 2 (VLM concept list) was dropped
+Step 1 (survey: free phrases per image, 1,000 + 500 images per dataset) is complete and unchanged. Step 2 as designed ("read the phrases and write the collection's concepts") was tried in four forms (cumulative list; two-level per-batch extraction + consolidation, batches of 80 then 25 images; v3 names-only lists with regex fallback, commit abb290e). In every form the text-only model **copied the input phrases** instead of abstracting them: 70–100 % of returned "concepts" were verbatim survey phrases, consolidation passed 444 → 403 strings through, long replies overflowed 4,096–6,144 tokens (NUS produced one 26 k-character line, COCO malformed JSON). The step added nothing a sort-and-dedupe does not, so step 2 is now **exact-match dedupe of the survey phrases (lower-cased, whitespace-normalised), no VLM**. This changes the approved 4-step flow at step 2 only; steps 1, 3 (attributes) and 4 (captions) and their prompt wordings are unchanged.
+
+### 2. Step 3 as run: PROMPT_ATTRIBUTES on random phrase samples
+Input = 300 phrases sampled uniformly from the deduplicated pool (seeds 0, 1, 2); the three groupings are then merged by PROMPT_ATTRIBUTES_MERGE when they differ (they always did). Two execution fixes, both to the OUTPUT-SIZE clause only, selection criteria unchanged: (i) "the concepts that belong to it" → "up to 8 of the listed concepts that belong to it" (with 300 phrases the model enumerated every phrase and looped past 3,072 tokens on all three datasets); (ii) a shuffle whose reply still overflows is retried with the first 150, then 100 phrases of the same permutation (needed once: COCO shuffle 1). Prompt sha256s and full texts are stored in `attributes.json`.
+
+| dataset | survey images | phrase tokens | unique phrases | shuffle 0 | shuffle 1 | shuffle 2 | merged (final candidate) |
+|---|---|---|---|---|---|---|---|
+| flickr25k | 1477 | 17557 | 11992 | Lighting and Atmosphere / Composition and Framing / Subject and Focus / Color and Pattern | Lighting and Atmosphere / Composition and Framing / Subject and Action / Texture and Detail | Color Palette and Tone / Surface Texture and Material / Lighting and Shadow Direction / Composition and Framing | **Lighting and Atmosphere / Composition and Framing / Subject and Action / Texture and Detail** |
+| nuswide | 1499 | 17789 | 9461 | Lighting Conditions / Color Palette / Surface Texture / Composition and Framing | Lighting Condition / Composition and Framing / Surface and Texture / Subject and Focus | Lighting and Atmosphere / Composition and Framing / Color and Texture / Subject and Activity | **Lighting and Atmosphere / Color Palette / Surface and Texture / Subject and Activity** |
+| mscoco | 1479 | 17631 | 11188 | Lighting and Atmosphere / Color Palette and Dominant Hues / Surface Texture and Material / Object and Scene Composition | Color Dominance / Surface Texture and Material / Subject Type and Action / Environmental Context and Setting (150 phrases, retry) | Subject Focus / Color Palette / Surface Texture / Environmental Context | **Lighting and Mood / Color Dominance / Surface Texture and Material / Subject and Action** |
+
+**Merged definitions**
+
+- flickr25k:
+  - *Lighting and Atmosphere* — Describes the quality, source, and mood of illumination, including natural or artificial light, ambient glow, and atmospheric effects.
+  - *Composition and Framing* — Describes the spatial arrangement, perspective, and structural elements that define how the image is framed or oriented.
+  - *Subject and Action* — Describes the primary subject or activity depicted, including human or animal figures and their behaviors.
+  - *Texture and Detail* — Describes surface qualities, patterns, and fine visual elements that add tactile or intricate visual interest.
+- nuswide:
+  - *Lighting and Atmosphere* — Describes the overall illumination, time of day, weather, or atmospheric conditions present in the image.
+  - *Color Palette* — Describes the dominant or notable color tones present in the image, including saturated hues or monochromatic schemes.
+  - *Surface and Texture* — Describes the physical properties and visual feel of surfaces, such as wetness, roughness, or material type.
+  - *Subject and Activity* — Describes the primary living or inanimate subjects and their actions or states within the image.
+- mscoco:
+  - *Lighting and Mood* — Describes the quality, source, and emotional tone of illumination in the scene.
+  - *Color Dominance* — The primary color scheme or hue that defines the visual tone and contrast of the image.
+  - *Surface Texture and Material* — Describes the tactile or visual quality of surfaces, including material composition and physical state.
+  - *Subject and Action* — The primary living subject or object and its state of motion, behavior, or compositional role.
+
+### 3. Observations (facts, not a verdict)
+1. **The model groups by descriptive modality, not by content.** On all three datasets the attributes are lighting, colour, surface/texture and (in some shuffles) subject or composition. This happens although the sampled inputs are mostly object phrases (e.g. Flickr shuffle 0 saw "squirrel", "white dress", "biplane flying in sky", "yellow umbrella", …). The prompt's requirement "a kind of visual information that can be described for most images and whose description differs from image to image" is satisfied trivially by lighting/colour/texture (every photo has them), which plausibly drives this choice. Relation words appear nowhere; "Composition and Framing" (Flickr merged, NUS/COCO shuffles) is a camera-side attribute.
+2. **The attribute set is sample-dependent.** A subject/object attribute appears in 2/3 Flickr shuffles, 2/3 NUS shuffles, 3/3 COCO shuffles; colour appears in 1/3 Flickr, 3/3 NUS, 3/3 COCO; composition in 3/3 Flickr, 3/3 NUS, 1/3 COCO. The merge call then decides which four survive. The merged sets of NUS and COCO agree (lighting / colour / surface / subject+action); Flickr differs (composition instead of colour).
+3. The `agreement` field (membership Jaccard) in `attributes.json` is uninformative under the 8-example clause (different samples, 8 examples each) and is labelled so; `n_assigned` likewise.
+4. Survey pools are dominated by background/sky/lighting phrases (top phrases: "dark background", "black and white", "blue sky", "cloudy sky"; NUS "blue sky" 174, "horizon line" 150; COCO "trees in background" 64). Reported for information only; no frequency was used to choose anything (user rule 2026-10-07).
+
+### 4. Status
+No caption was generated under these attributes; the dataset chains (`tools/stage2_run_dataset.sh`) remain stopped at the concepts step and were not rewired. Pending user decisions: (a) accept the structural change at step 2 (non-VLM dedupe), (b) accept the merged attribute sets as the VLM's decision, or spend one of the two allowed wording revisions of PROMPT_ATTRIBUTES, or something else. Rule ③ (attributes are never edited after generation) is respected: nothing above was hand-edited.
+
 ## 2026-10-07 [design record, no results] Stage 2 caption redesign: four VLM prompts fixed after a history review (PROJECT_LOG prompt issues V1–V9) and a literature review; user decisions (a) no relation-avoidance wording, (b) field length "about 5 to 10 words", no length A/B
 
 **Status:** 🟢 approved design (user, 2026-10-07). Principle: the VLM decides concepts and axes; the
