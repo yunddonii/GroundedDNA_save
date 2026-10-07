@@ -221,3 +221,57 @@ There is one recovery attempt. On a refusal, drift, a producer failure or a reso
 3. return to the audit.
 
 No retry, deletion, namespace substitution or partial continuation follows.
+
+## Generation r9: the worker dispatch and the explicit exception (audits 839–841)
+
+**What happened in r8.** The one r8 recovery (namespace `ancT9r`, request `d34f505b…`, approval §830, window
+§838) failed before its T entry:
+- `_run_recovery` launched the cell's managed children from the main thread, which the launcher refuses;
+- it settled `exited`, rc 1, attempts [], 5.704555157572031 s charged;
+- it had consumed the lineage claim and reserved its attempt;
+- before refusing, it had hashed the eleven carried cells' outputs and the target's checkpoint and config.
+
+**r9 changes exactly this:**
+
+1. **Worker dispatch.** The recovery's one cell runs in one non-daemon worker thread, from the space check
+   to the final closure; the main thread only joins. Every other rule is unchanged:
+   - the managed-child main-thread guard and session registry;
+   - leases and drain;
+   - the claim-before-attempt order;
+   - the closure and the receipt.
+
+   A worker that ends without a closure publishes no receipt.
+2. **One explicit exception, not a rename.** `anchor_t_recovery_exception_v1.json`, pinned in the stage
+   source, binds the failed attempt next to the stopped campaign:
+   - its consumed claim, attempt, reservation and snapshot (bytes and semantics);
+   - its two supervisor rows as the unchanged prefix of the append-only recovery ledger (exited, rc 1,
+     no attempts, the known charge);
+   - no later row of that run.
+
+   **Absence is observed, not pinned.** The failed attempt's entry, record and receipt are checked by
+   lstat: a link, even a dangling one, refuses, and so does an observation error.
+
+   **Rechecks:** at admission, immediately before the claim, in the T entry, and before publication.
+3. **The exception claim.** Its key is the digest of the failed run ID, the failed claim's and attempt's
+   digests, and the cell ID, with no namespace, root, generation or caller in it. It sits in the same claim
+   root, O_EXCL, and is never removed.
+   - The consumed claim must still exist at its bytes.
+   - A new namespace is required; the stopped campaign's (`ancT9`) and the failed recovery's (`ancT9r`)
+     refuse.
+4. **The request** is schema `anchor-terminal-test-recovery-request/2`, with `exception_of` (the failed
+   block and the exception artifact's pin) and the exception claim key.
+   - Schema 1 is refused, because the r8 recovery is spent.
+   - The receipt records `stopped`, `exception_of`, the eleven carried cells and the one executed cell.
+5. **Accounting.**
+   - **Same ledger:** the supervisor stage stays `stage-T-recovery`, with the same ops root, ledger and
+     15,000 s stage budget.
+   - **The failed charge stays counted:** the failed run's final stays in that ledger, so its 5.70 s counts
+     as the prior charge. Nothing is rewritten, refilled or double-counted.
+   - **Remaining:** at most about 14,994.30 s before allowance and headroom, under the unchanged
+     94,482.14623009507 s ceiling.
+
+**Not authorized by this contract.** Executing it needs:
+- the user's exception;
+- a tested r9 generation and its exact request;
+- a fresh peer GPU and disk agreement;
+- an exact audit approval line of scope `stage-T-recovery` naming that request.

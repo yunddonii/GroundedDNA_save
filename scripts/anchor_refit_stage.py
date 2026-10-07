@@ -773,7 +773,7 @@ RECOVERY_SCOPE = "stage-T-recovery"
 RECOVERY_LINEAGE = REPO / "artifacts" / "anchor_confirmation" / "anchor_t_recovery_lineage_v1.json"
 RECOVERY_LINEAGE_SHA256 = "b767601961c489c469c8822988dcb66b9dc525f4539ef428456a2f8545ce8bda"
 RECOVERY_LINEAGE_SCHEMA = "anchor-t-recovery-lineage/1"
-T_RECOVERY_REQUEST_SCHEMA = "anchor-terminal-test-recovery-request/1"
+T_RECOVERY_REQUEST_SCHEMA = "anchor-terminal-test-recovery-request/2"     # r9: schema 1 (r8) is spent
 T_RECOVERY_SNAPSHOT_SCHEMA = "anchor-terminal-test-recovery-snapshot/1"
 T_RECOVERY_RECEIPT_SCHEMA = "anchor-terminal-test-recovery-receipt/1"
 T_RECOVERY_CLAIM_SCHEMA = "anchor-terminal-test-recovery-claim/1"
@@ -781,6 +781,14 @@ T_RECOVERY_RECEIPT_SUFFIX = "_recovery_complete.json"
 #: one persistent claim per interrupted lineage, outside every worktree, record root and namespace
 #: (audit 797.2 item 3): its name is the lineage key alone
 RECOVERY_CLAIM_ROOT = Path("/home/yschoi/gdna_anchorRT_recovery_claims")
+# Generation v9 r9 (audits 839-841; the exception section of docs/ANCHOR_T_RECOVERY_CONTRACT_v1.md): the r8
+# recovery's one attempt (namespace ancT9r) failed before its T entry, at the managed-child main-thread
+# guard, after consuming the lineage claim. r9 runs the cell in a worker thread and admits ONE more recovery
+# only as an explicit exception that binds the failed attempt's evidence (pinned below, from JSON and the
+# ledger only) next to the stopped campaign; its claim key is derived from that failed evidence alone.
+RECOVERY_EXCEPTION = REPO / "artifacts" / "anchor_confirmation" / "anchor_t_recovery_exception_v1.json"
+RECOVERY_EXCEPTION_SHA256 = "25320aa63ebcb55b0a22c72432efffa543df66b6e288074b03849090c4f26d70"
+RECOVERY_EXCEPTION_SCHEMA = "anchor-t-recovery-exception/1"
 #: generation r7, under which stage R and the stopped campaign ran (historical authority only)
 R7_MANIFEST_SHA256 = "2f24fc80bb83e2c73b17ec473c2731ade6d34a356e02414e6719fe9e9bec947c"
 #: the exact stage-R snapshot sources r8 changes (control plane only; audit 797.2 item 1)
@@ -831,6 +839,109 @@ def recovery_claim_key(lineage: dict) -> str:
 
 def recovery_claim_path(key: str) -> Path:
     return RECOVERY_CLAIM_ROOT / f"{key}.json"
+
+
+def recovery_exception(read=None) -> dict:
+    """The pinned exception artifact (JSON only) of the failed r8 recovery."""
+    exception, _ = _read_json(RECOVERY_EXCEPTION, RECOVERY_EXCEPTION_SHA256, "the recovery exception", read)
+    if exception.get("schema") != RECOVERY_EXCEPTION_SCHEMA:
+        raise CellRefused(f"{RECOVERY_EXCEPTION}: not a {RECOVERY_EXCEPTION_SCHEMA} file")
+    return exception
+
+
+def exception_claim_key(failed: dict, cell_id: str) -> str:
+    """The ONE exception's claim key: the failed attempt's evidence alone -- no namespace, root, generation
+    or caller -- so every alternate route to a second recovery derives the same key (audit 841.2)."""
+    return M._json_digest({"failed_run_id": failed["run_id"], "failed_claim_sha256": failed["claim"]["sha256"],
+                           "failed_attempt_sha256": failed["attempt"]["sha256"], "cell_id": cell_id})
+
+
+def _observed_absent(path: Path, what: str) -> None:
+    """Checked absence by lstat (audit 841.3): a link counts as present even when dangling, and an
+    observation error refuses instead of reading as absence."""
+    try:
+        os.lstat(path)
+    except FileNotFoundError:
+        return
+    except OSError as error:
+        raise CellRefused(f"{what}: {path} cannot be observed ({type(error).__name__}); absence is not assumed") \
+            from None
+    raise CellRefused(f"{what}: {path} exists (a link counts, even a dangling one)")
+
+
+def verify_failed_recovery(exception: dict, lineage: dict) -> dict:
+    """The failed r8 recovery, exactly (audit 841): its consumed claim, attempt, reservation and snapshot at
+    their pins and bound to one another, the lineage's interrupted cell and the failed request; its two
+    supervisor rows as the unchanged prefix of the append-only recovery ledger (exited, rc 1, no attempts,
+    the known charge), with no later row of that run; and the lstat-checked absence of its entry, record and
+    receipt. Run at admission, immediately before the exception claim, in the T entry and before
+    publication. Returns the request's `exception_of` block."""
+    rec = lineage["recovery_cell"]
+    cell_id = rec["cell_id"]
+    if exception.get("cell_id") != cell_id or exception.get("namespace") == lineage["stopped"]["namespace"]:
+        raise CellRefused("the exception does not name the stopped campaign's interrupted cell under its own namespace")
+    consumed = recovery_claim_key(lineage)
+    claim_pin = exception["claim"]
+    if claim_pin.get("key") != consumed or Path(claim_pin["path"]) != recovery_claim_path(consumed):
+        raise CellRefused("the exception does not name the lineage's consumed claim in the claim root")
+    claim, _ = _read_json(claim_pin["path"], claim_pin["sha256"], "the consumed recovery claim")
+    attempt, _ = _read_json(exception["attempt"]["path"], exception["attempt"]["sha256"],
+                            "the failed recovery's attempt")
+    reservation, _ = _read_json(exception["reservation"]["path"], exception["reservation"]["sha256"],
+                                "the failed recovery's reservation")
+    snapshot, _ = _read_json(exception["snapshot"]["path"], exception["snapshot"]["sha256"],
+                             "the failed recovery's snapshot")
+    rdir, ns, request_sha = Path(exception["record_dir"]), exception["namespace"], exception["request_sha256"]
+    approval = exception["approval"]
+    attempt_name = Path(exception["attempt"]["path"]).name
+    if any(Path(exception[k]["path"]).parent != rdir for k in ("attempt", "reservation", "snapshot")) \
+            or attempt_name != f"{ns}_attempt_{rec['tag']}.json" \
+            or claim.get("claim_key") != consumed or claim.get("request_sha256") != request_sha \
+            or claim.get("namespace") != ns or claim.get("attempt") != attempt_name \
+            or claim.get("approval") != approval or claim.get("record_dir") != str(rdir) \
+            or attempt.get("request_sha256") != request_sha or M._json_digest(attempt.get("request")) != request_sha \
+            or attempt.get("namespace") != ns or attempt.get("campaign_nonce") != exception["campaign_nonce"] \
+            or (attempt.get("cell") or {}).get("cell_id") != cell_id \
+            or {k: (attempt.get("approval") or {}).get(k) for k in ("section", "scope", "line")} != approval \
+            or approval.get("scope") != RECOVERY_SCOPE \
+            or M._json_digest(snapshot) != exception["snapshot"]["semantic_sha256"] \
+            or (snapshot.get("plan") or {}).get("campaign_nonce") != exception["campaign_nonce"] \
+            or reservation.get("plan_digest") != exception["snapshot"]["semantic_sha256"] \
+            or reservation.get("namespace") != ns or reservation.get("campaign_nonce") != exception["campaign_nonce"]:
+        raise CellRefused("the failed recovery's claim, attempt, reservation and snapshot are not one failed attempt")
+    ledger = exception["ledger"]
+    try:
+        raw = Path(ledger["path"]).read_bytes()
+    except OSError as error:
+        raise CellRefused(f"the recovery ledger cannot be read ({type(error).__name__})") from None
+    lines = raw.split(b"\n")
+    head, rows_n = lines[:ledger["rows"]], ledger["rows"]
+    if len(lines) <= rows_n or lines[-1] != b"" \
+            or [hashlib.sha256(line).hexdigest() for line in head] != ledger["line_sha256"] \
+            or hashlib.sha256(b"".join(line + b"\n" for line in head)).hexdigest() != ledger["prefix_sha256"]:
+        raise CellRefused("the recovery ledger does not begin with the failed run's pinned rows")
+    try:
+        rows = [json.loads(line) for line in lines[:-1]]
+    except ValueError:
+        raise CellRefused("the recovery ledger is not JSON lines") from None
+    start, final = rows[0], rows[rows_n - 1]
+    if start.get("event") != "start" or start.get("run_id") != exception["run_id"] \
+            or final.get("event") != "final" or final.get("run_id") != exception["run_id"] \
+            or final.get("status") != "exited" or final.get("returncode") != 1 or final.get("attempts") != [] \
+            or final.get("charged_seconds") != ledger["charged_seconds"] \
+            or (start.get("parent") or {}).get("sha256") != ledger["parent_sha256"] \
+            or any(row.get("run_id") == exception["run_id"] for row in rows[rows_n:]):
+        raise CellRefused("the failed run's settlement is not the audited pre-entry failure")
+    for name in exception["absent"]:
+        _observed_absent(rdir / name, "the failed recovery")
+    return {"namespace": ns, "run_id": exception["run_id"], "request_sha256": request_sha, "approval": approval,
+            "window_section": exception["window_section"], "record_dir": str(rdir),
+            "claim": {"path": claim_pin["path"], "sha256": claim_pin["sha256"]},
+            "attempt": dict(exception["attempt"]), "reservation": dict(exception["reservation"]),
+            "snapshot": {"path": exception["snapshot"]["path"], "sha256": exception["snapshot"]["sha256"]},
+            "ledger": {"path": ledger["path"], "prefix_sha256": ledger["prefix_sha256"],
+                       "charged_seconds": ledger["charged_seconds"]},
+            "exception": {"path": str(RECOVERY_EXCEPTION), "sha256": RECOVERY_EXCEPTION_SHA256}}
 
 
 def historical_generation(lineage: dict) -> dict:
@@ -1038,9 +1149,11 @@ def final_recovery_closure(request: dict, *, freeze: dict, claim: dict, executed
     only: nothing is admitted, claimed or loaded again. The receipt binds what this returns."""
     lineage = recovery_lineage()
     admitted = verify_stopped_lineage(lineage, freeze=freeze, target_executed=True)
-    block = recovery_lineage_block(admitted, lineage)
+    failed = verify_failed_recovery(recovery_exception(), lineage)      # audit 841.3: publication recheck
+    block = recovery_lineage_block(admitted, lineage, failed)
     if {k: request.get(k) for k in block} != block:
-        raise CellRefused("the recovery request's lineage is no longer the pinned stopped campaign's")
+        raise CellRefused("the recovery request's lineage is no longer the pinned stopped campaign's and failed "
+                          "attempt's")
     verify_carried_payloads(admitted)
     claim_path = recovery_claim_path(request["claim_key"])
     if not claim_path.is_file() or M._sha(claim_path) != claim.get("sha256"):
@@ -1077,14 +1190,15 @@ def final_recovery_closure(request: dict, *, freeze: dict, claim: dict, executed
     assert_record_outputs(Path(cell["run_dir"]), record.get("completion") or {}, cell["cell_id"])
     return {"carried": {c["cell_id"]: {"record": c["record"], "attempt": c["attempt"], "entry": c["entry"]}
                         for c in admitted["carried"]},
-            "settlement": admitted["settlement"], "claim_sha256": claim["sha256"],
+            "settlement": admitted["settlement"], "claim_sha256": claim["sha256"], "exception_of": failed,
             "executed": {"record": {"file": record_name, "sha256": record_sha},
                          "attempt": {"file": attempt_name, "sha256": attempt_sha},
                          "entry": {"file": entry_name, "sha256": entry_sha}}}
 
 
-def recovery_lineage_block(admitted: dict, lineage: dict) -> dict:
-    """The part of the recovery request the lineage alone determines; the T entry recomputes it."""
+def recovery_lineage_block(admitted: dict, lineage: dict, failed: dict) -> dict:
+    """The part of the recovery request the lineage and the failed r8 attempt determine; the T entry
+    recomputes it. r9: the claim is the exception's, keyed by the failed evidence (audit 841.2)."""
     stopped, recovery = lineage["stopped"], lineage["recovery_cell"]
     return {"historical_manifest": lineage["historical_manifest"],
             "lineage": {"path": str(RECOVERY_LINEAGE), "sha256": RECOVERY_LINEAGE_SHA256},
@@ -1098,18 +1212,22 @@ def recovery_lineage_block(admitted: dict, lineage: dict) -> dict:
                             "entry": recovery["entry"]},
             "carried": [{k: c[k] for k in ("cell_id", "record", "attempt", "entry")} for c in admitted["carried"]],
             "cells": [admitted["cell"]],
-            "claim_root": str(RECOVERY_CLAIM_ROOT), "claim_key": recovery_claim_key(lineage)}
+            "exception_of": failed,
+            "claim_root": str(RECOVERY_CLAIM_ROOT),
+            "claim_key": exception_claim_key(failed, recovery["cell_id"])}
 
 
-def recovery_request(args, admitted: dict, *, manifest: dict, lineage: dict, transition: dict) -> dict:
+def recovery_request(args, admitted: dict, *, manifest: dict, lineage: dict, transition: dict,
+                     failed: dict) -> dict:
     """The recovery request: one cell on one GPU, the executing r8 generation and its reviewed
     transition from r7, the pinned lineage, the namespace and record root it writes, and the claim it
     consumes. An approval line of scope stage-T-recovery names its digest."""
     gpus = [g for g in (args.gpus.split(",") if args.gpus else [str(args.gpu)])]
     if len(gpus) != 1:
         raise CellRefused(f"the recovery runs one cell on exactly one GPU, got {gpus}")
-    if str(args.namespace) == lineage["stopped"]["namespace"]:
-        raise CellRefused("the recovery writes a new namespace, never the stopped campaign's")
+    if str(args.namespace) in (lineage["stopped"]["namespace"], failed["namespace"]):
+        raise CellRefused("the recovery writes a new namespace, never the stopped campaign's or the failed "
+                          "recovery's")
     return {"schema": T_RECOVERY_REQUEST_SCHEMA, "version": M.ANCHOR_CONFIRM_VERSION, "stage": TEST_STAGE,
             "mode": RECOVERY_MODE, "manifest": manifest["sha256"], "manifest_path": str(manifest["path"]),
             "source_transition": {**transition,
@@ -1118,7 +1236,7 @@ def recovery_request(args, admitted: dict, *, manifest: dict, lineage: dict, tra
             "freeze": {"path": str(ANCHOR_F_RECORD), "sha256": ANCHOR_F_RECORD_SHA256,
                        "acceptance_section": ANCHOR_F_ACCEPTANCE_SECTION,
                        "acceptance_sha256": ANCHOR_F_ACCEPTANCE_SHA256},
-            **recovery_lineage_block(admitted, lineage),
+            **recovery_lineage_block(admitted, lineage, failed),
             "namespace": str(args.namespace), "record_dir": str(M.ANCHOR_RECORD_DIR),
             "outputs": list(M.OFFICIAL_TEST_OUTPUTS), "chain": list(T_CHAIN), "gpu_count": 1}
 
@@ -1162,9 +1280,10 @@ def verify_recovery_authority(attempt_path: Path, attempt: dict, request: dict) 
     lineage = recovery_lineage()
     freeze = anchor_freeze_authority()
     admitted = admit_stopped_campaign(lineage, freeze=freeze)
-    block = recovery_lineage_block(admitted, lineage)
+    failed = verify_failed_recovery(recovery_exception(), lineage)      # audit 841.3: entry recheck
+    block = recovery_lineage_block(admitted, lineage, failed)
     if {k: request.get(k) for k in block} != block:
-        raise CellRefused("the recovery request's lineage is not the pinned stopped campaign's")
+        raise CellRefused("the recovery request's lineage is not the pinned stopped campaign's and failed attempt's")
     try:
         claim = json.loads(recovery_claim_path(block["claim_key"]).read_bytes())
     except (OSError, ValueError) as error:
@@ -1225,7 +1344,9 @@ def _recovery_main(args, manifest, execute: bool) -> int:
     historical = historical_generation(lineage)
     transition = generation_transition(manifest, historical)
     admitted = admit_stopped_campaign(lineage, freeze=freeze)
-    request = recovery_request(args, admitted, manifest=manifest, lineage=lineage, transition=transition)
+    failed = verify_failed_recovery(recovery_exception(), lineage)      # audit 841: the explicit exception
+    request = recovery_request(args, admitted, manifest=manifest, lineage=lineage, transition=transition,
+                               failed=failed)
     digest = M._json_digest(request)
     if not execute:
         print(f"{M.ANCHOR_CONFIRM_VERSION}: stage-T recovery of {request['recovery_of']['cell_id']} "
@@ -1297,6 +1418,11 @@ def _run_recovery(args, *, request: dict, approval: dict, manifest: dict, admitt
                 raise CellRefused(f"before {cell['cell_id']}: {refusal}")
 
             def claim_once():
+                # audit 841.2-3: the failed attempt re-verified, and its consumed claim present, immediately
+                # before the ONE exception claim is taken
+                lineage_now = recovery_lineage()
+                if verify_failed_recovery(recovery_exception(), lineage_now) != request["exception_of"]:
+                    raise CellRefused("the failed recovery changed after admission")
                 claim["path"], claim["sha256"] = consume_recovery_claim(request, approval)
             done = run_terminal_test_cell(cell, namespace=args.namespace, request=request, approval=approval,
                                           campaign_nonce=nonce, gpu_uuid=uuid, snapshot=snapshot,
@@ -1337,7 +1463,7 @@ def _run_recovery(args, *, request: dict, approval: dict, manifest: dict, admitt
                "campaign_reservation_sha256": M._sha(M.campaign_reservation_path(args.namespace)),
                "request_sha256": M._json_digest(request), "refit_receipt": request["refit_receipt"],
                "lineage": request["lineage"], "stopped": request["stopped"],
-               "recovery_of": request["recovery_of"],
+               "recovery_of": request["recovery_of"], "exception_of": request["exception_of"],
                "recovery_claim": {"file": Path(claim["path"]).name, "root": request["claim_root"],
                                   "sha256": closure["claim_sha256"]},
                "final_closure": {"settlement": closure["settlement"], "executed": executed},

@@ -90,32 +90,30 @@ prior run.
 
 The failed attempt is never presented as an execution of the cell.
 
-## 6. Source closure (declared, §841.5)
+## 6. Source closure (as implemented; §841.5)
 
-**Changed relative to r8 S:**
-- `scripts/anchor_refit_stage.py`: the worker dispatch, plus the exception admission, claim, request,
-  authority and closure;
-- `scripts/anchor_terminal_test.py`: schema 2 in the recovery form check;
-- `scripts/anchor_confirm_manifest.py`: the r9 generation's transition and closure lists;
-- `tests/test_anchor_t_recovery.py`.
+| Kind | Members |
+|---|---|
+| Changed vs S `04e7fe8` | `scripts/anchor_refit_stage.py` (worker dispatch + exception admission/claim/request/authority/closure), `scripts/anchor_confirm_manifest.py` (binds the exception artifact's pin), `docs/ANCHOR_T_RECOVERY_CONTRACT_v1.md` (the r9 section is appended; the designated contract path is unchanged, so the launcher's closure list is unchanged), `tests/test_anchor_t_recovery.py` |
+| Unchanged | `scripts/anchor_terminal_test.py` (the entry takes the recovery schema from the stage constant, now `/2`), `scripts/phase3_selection_matrix.py` (the guard, the closure list), `scripts/anchor_confirm_supervisor.py` |
+| Added outside the closure | `artifacts/anchor_confirmation/anchor_t_recovery_exception_v1.json` (`25320aa6…`, pinned in the stage source), `artifacts/anchor_confirmation/refit_v9/t_recovery_prep/build_exception.py`, these two design/proposal documents |
 
-**Added:**
-- `docs/ANCHOR_T_RECOVERY_EXCEPTION_CONTRACT_v1.md` (this design, finalised);
-- the exception artifact and its builder under `refit_v9/t_recovery_prep/`.
+**Transition from r7.** The r7 → r9 closure transition keeps the reviewed sets: 7 changed, 2 added, 0
+removed. Every r9 change falls inside members that already differ from r7.
 
-**Unchanged:** `scripts/phase3_selection_matrix.py` (the guard) and `scripts/anchor_confirm_supervisor.py`.
+**Tests** (`tests/test_anchor_t_recovery.py`, synthetic, OS sandbox):
 
-**Tests (synthetic only, in the OS sandbox):**
-- predecessor drift: each pin, the ledger line, the reappearance of an absent file, a dangling link, an
-  lstat error;
-- duplicate and racing exception claims;
-- an alternate namespace or root deriving the same key;
-- `ancT9`/`ancT9r` namespace reuse;
-- charge carry-forward: the supervisor refuses when 5.70 s + allowance + headroom would pass the budget,
-  and never sees a fresh ledger;
-- the publication recheck;
-- a schema-1 request refused;
-- the real-dispatch path end to end with the exception (synthetic child).
+| Area | Cases |
+|---|---|
+| Failed-attempt drift at admission | 13 forms: each pin, a ledger line, a missing ledger, an appended failed-run row, a present entry or record, a dangling receipt link, an lstat error, another cell, a non-consumed key |
+| Namespaces | `ancT9`/`ancT9r` refused |
+| Request | binds both histories; the exception key ignores namespace, root and generation |
+| Rechecks | immediately before the claim (no claim, no attempt); in the T entry; during the cell (consumed claim, failed entry, dangling link, appended row) with no receipt |
+| Schema | a schema-1 request is refused by the entry |
+| Accounting | carry-forward in the append-only ledger (prefix kept, prior 5.70 s, cumulative); the carried charge pushes a tight budget into refusal |
+| Concurrency | concurrent namespaces claim the exception once |
+| Repeat | a second namespace after a completed exception is refused at admission |
+| Real dispatch | the real-dispatch cases now run through the exception path |
 
 ## 7. Before any approved launch (not part of this preparation)
 

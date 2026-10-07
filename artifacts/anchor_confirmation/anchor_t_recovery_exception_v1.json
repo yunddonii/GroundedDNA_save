@@ -1,0 +1,51 @@
+{
+ "absent": [
+  "ancT9r_entry_ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005.json",
+  "ancT9r_ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005.json",
+  "ancT9r_recovery_complete.json"
+ ],
+ "approval": {
+  "line": "ANCHOR-CONFIRM-APPROVAL version=anchor-confirm/2 scope=stage-T-recovery manifest=3537e297c0429c8ab5b02428651025903765a48c3c126eea172f30c37955c9f8 freeze=5165f5dc9fcfb8334270bc16aa9816d09db67b03a04abae7ff846d5235bdca1d request=d34f505b90db1ef02dce74bd0326350053a6708315f505c0c881fe89a91ad666",
+  "scope": "stage-T-recovery",
+  "section": 830
+ },
+ "attempt": {
+  "path": "/data/yschoi/gdna_anchor_refit_v9r8/artifacts/anchor_confirmation/ancT9r_attempt_ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005.json",
+  "sha256": "1add29fbf0f51f1a2eaa707b78adda3a54078580ed61cacadee5279a39ca3716"
+ },
+ "campaign_nonce": "e8e17d87e4fc48e135ab62c7af8cd3352bd6df8137d805b203d93a27ac85f61f",
+ "cell_id": "nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=44|axis_center=anchors",
+ "claim": {
+  "key": "dc4a8bc061c5d286d74e21b158091710c165737403e1c85e957f810740f92c6d",
+  "path": "/home/yschoi/gdna_anchorRT_recovery_claims/dc4a8bc061c5d286d74e21b158091710c165737403e1c85e957f810740f92c6d.json",
+  "sha256": "7de249310b4b3fecab94404aab279a51eff8d822fc2889f8115047e9559b9ba5"
+ },
+ "ledger": {
+  "charged_seconds": 5.704555157572031,
+  "cumulative_including_parent_seconds": 79487.85078525264,
+  "line_sha256": [
+   "6734c7f26f500c3ea976ae32f27e8bf47ab9f6b4e75c7a17a0f84f07c2a6cb93",
+   "bb8c106c5149a7510373f0dbd9b9a562239825466f14719bfd6cb9c1805f2a22"
+  ],
+  "parent_sha256": "316915141fdfa215940014dbeb5efb63ba2b9e98bb84b49146cab69a96fd25bf",
+  "path": "/home/yschoi/gdna_anchorRTrec_ops/device_budget_ledger.jsonl",
+  "prefix_sha256": "593d327fd93de206d88734478dd4ec1e076e8ed8bb6dd633ed62fb7914ad13e0",
+  "rows": 2
+ },
+ "namespace": "ancT9r",
+ "note": "the failed r8 recovery of the stopped campaign's interrupted cell (audits 838-839): settled exited rc 1 before its T entry; it hashed the eleven carried cells' outputs and the target checkpoint/config before the dispatch guard refused; no T-entry producer, outputs, record or receipt. Absences are re-observed by lstat, never pinned.",
+ "record_dir": "/data/yschoi/gdna_anchor_refit_v9r8/artifacts/anchor_confirmation",
+ "request_sha256": "d34f505b90db1ef02dce74bd0326350053a6708315f505c0c881fe89a91ad666",
+ "reservation": {
+  "path": "/data/yschoi/gdna_anchor_refit_v9r8/artifacts/anchor_confirmation/ancT9r_campaign_reservation.json",
+  "sha256": "6dffbab0c4bc8e434863e870d228463c51a06a2c710169567d4e7a63dd5bd8fc"
+ },
+ "run_id": "20261007T061117Z-12e14ceb",
+ "schema": "anchor-t-recovery-exception/1",
+ "snapshot": {
+  "path": "/data/yschoi/gdna_anchor_refit_v9r8/artifacts/anchor_confirmation/ancT9r_snapshot_7205adea6c6238e4.json",
+  "semantic_sha256": "7205adea6c6238e47871abef9273b3d00f877bdad4a37db8228e9694249bb693",
+  "sha256": "07708b36170e43a4c211dcdfaa7b8d7e291002d46e8813b42193b3b4743426c0"
+ },
+ "window_section": 838
+}

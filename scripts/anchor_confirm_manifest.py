@@ -59,6 +59,9 @@ def inventory() -> dict:
              for ds, path in sorted(RT.REFIT_INPUT_SEALS.items())}
     D.need(all(seals[ds]["sha256"] == RT.REFIT_INPUT_SEALS_SHA256[ds] for ds in seals),
            f"the refit input seals are not the approved bytes: {seals}")
+    exception_sha = hashlib.sha256(consumed.read(RT.RECOVERY_EXCEPTION)).hexdigest()   # r9: the exception
+    D.need(exception_sha == RT.RECOVERY_EXCEPTION_SHA256,
+           f"the recovery exception is not the bytes the stage module pins: {exception_sha}")
     lineage_sha = hashlib.sha256(consumed.read(RT.RECOVERY_LINEAGE)).hexdigest()   # r8: the recovery lineage
     D.need(lineage_sha == RT.RECOVERY_LINEAGE_SHA256,
            f"the recovery lineage is not the bytes the stage module pins: {lineage_sha}")
@@ -286,6 +289,7 @@ def inventory() -> dict:
                               "sha256": hashlib.sha256(consumed.read(REPO / M.ANCHOR_RECOVERY_CONTRACT_PATH)).hexdigest()},
         "recovery": {"lineage": {"path": str(RT.RECOVERY_LINEAGE), "sha256": lineage_sha},
                      "lineage_pin_in_source": RT.RECOVERY_LINEAGE_SHA256,
+                     "exception": {"path": str(RT.RECOVERY_EXCEPTION), "sha256": exception_sha},
                      "claim_root": str(RT.RECOVERY_CLAIM_ROOT), "scope": RT.RECOVERY_SCOPE,
                      "changed_sources": list(RT.RECOVERY_CHANGED_SOURCES),
                      "changed_closure": list(RT.RECOVERY_CHANGED_CLOSURE),

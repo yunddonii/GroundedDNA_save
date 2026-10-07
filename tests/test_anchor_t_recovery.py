@@ -35,9 +35,11 @@ import test_anchor_confirm_launcher as LT                   # noqa: E402
 import test_anchor_refit_stage as AR                        # noqa: E402
 from test_anchor_refit_stage import fworld                  # noqa: E402,F401  (fixture)
 
-NS, NEW_NS, NONCE = "ancT9", "ancT9r", "t" * 64
+NS, NEW_NS, NONCE = "ancT9", "ancT9s", "t" * 64
 RUN_ID = "20261006T145139Z-b08e4ae2"
 RECOVERED = ("nuswide", 44)
+FAILED_NS, FAILED_RUN, FAILED_NONCE = "ancT9r", "20261007T061117Z-12e14ceb", "f" * 64
+FAILED_CHARGE = 5.704555157572031
 BIT2 = RT.BIT2_OUTPUT
 REQUIRED = [n for n in M.OFFICIAL_TEST_OUTPUTS if n != BIT2]
 #: the launcher's REAL managed-child launcher, captured before any fixture replaces it (audit 839)
@@ -55,6 +57,14 @@ def write(path: Path, obj) -> str:
 
 def jline(obj) -> str:
     return json.dumps(obj, sort_keys=True)
+
+
+def new_claims() -> list:
+    """Claims in the claim root other than the failed r8 recovery's consumed one."""
+    if not RT.RECOVERY_CLAIM_ROOT.is_dir():
+        return []
+    consumed = getattr(RT, "_TEST_CONSUMED_CLAIM", None)
+    return sorted(p.name for p in RT.RECOVERY_CLAIM_ROOT.glob("*.json") if p.name != consumed)
 
 
 @pytest.fixture(autouse=True)
@@ -155,6 +165,85 @@ class StoppedWorld:
         monkeypatch.setattr(M, "ANCHOR_RECORD_DIR", self.records)
         monkeypatch.setattr(M, "RECORD_DIR", self.records)
         self.manifest_path, self.manifest_sha = AR.manifest(tmp_path)
+        self._failed_recovery(root)
+
+    def _failed_recovery(self, root):
+        """The failed r8 recovery (audits 838-839): its consumed claim, attempt, reservation, snapshot and two
+        settled supervisor rows, no entry, record or receipt; and the exception artifact that pins them."""
+        self.failed_dir = root / "r8failed"
+        self.failed_dir.mkdir()
+        tag, cid = self.recovered["tag"], self.recovered["cell_id"]
+        self.failed_request = {"schema": "anchor-terminal-test-recovery-request/1", "mode": RT.RECOVERY_MODE,
+                               "namespace": FAILED_NS, "cells": [self.recovered]}
+        fsha = M._json_digest(self.failed_request)
+        line = LT.approval_line(RT.RECOVERY_SCOPE, manifest="3" * 64, freeze=RT.ANCHOR_F_RECORD_SHA256, request=fsha)
+        approval = {"section": 830, "scope": RT.RECOVERY_SCOPE, "line": line}
+        attempt_name = f"{FAILED_NS}_attempt_{tag}.json"
+        attempt = {"schema": RT.T_ATTEMPT_SCHEMA, "namespace": FAILED_NS, "campaign_nonce": FAILED_NONCE,
+                   "request": self.failed_request, "request_sha256": fsha, "cell": self.recovered,
+                   "approval": {**approval, "ledger": "/x/ledger.md", "ledger_sha256": "e" * 64}}
+        snapshot = {"schema": RT.T_RECOVERY_SNAPSHOT_SCHEMA, "plan": {"namespace": FAILED_NS,
+                                                                      "campaign_nonce": FAILED_NONCE},
+                    "request": self.failed_request, "request_sha256": fsha}
+        snap_name = f"{FAILED_NS}_snapshot_{M._json_digest(snapshot)[:16]}.json"
+        reservation = {"schema_version": 1, "namespace": FAILED_NS, "campaign_nonce": FAILED_NONCE,
+                       "plan_digest": M._json_digest(snapshot), "plan_snapshot_file": snap_name}
+        key = RT.recovery_claim_key(self.lineage)
+        claim = {"schema": RT.T_RECOVERY_CLAIM_SCHEMA, "claim_key": key, "request_sha256": fsha,
+                 "approval": approval, "namespace": FAILED_NS, "record_dir": str(self.failed_dir),
+                 "attempt": attempt_name, "lineage": {"path": str(RT.RECOVERY_LINEAGE),
+                                                       "sha256": RT.RECOVERY_LINEAGE_SHA256}}
+        RT.RECOVERY_CLAIM_ROOT.mkdir(parents=True, exist_ok=True)
+        claim_path = RT.recovery_claim_path(key)
+        self.mp.setattr(RT, "_TEST_CONSUMED_CLAIM", claim_path.name, raising=False)
+        pins = {"claim": {"key": key, "path": str(claim_path), "sha256": write(claim_path, claim)},
+                "attempt": {"path": str(self.failed_dir / attempt_name),
+                            "sha256": write(self.failed_dir / attempt_name, attempt)},
+                "reservation": {"path": str(self.failed_dir / f"{FAILED_NS}_campaign_reservation.json"),
+                                "sha256": write(self.failed_dir / f"{FAILED_NS}_campaign_reservation.json",
+                                                reservation)},
+                "snapshot": {"path": str(self.failed_dir / snap_name),
+                             "sha256": write(self.failed_dir / snap_name, snapshot),
+                             "semantic_sha256": M._json_digest(snapshot)}}
+        self.failed_ledger = root / "failed_recops" / "device_budget_ledger.jsonl"
+        rows = [{"schema": S.LEDGER_SCHEMA, "event": "start", "run_id": FAILED_RUN, "stage": RT.RECOVERY_SCOPE,
+                 "parent": {"sha256": "p" * 64}},
+                {"schema": S.LEDGER_SCHEMA, "event": "final", "run_id": FAILED_RUN, "stage": RT.RECOVERY_SCOPE,
+                 "status": "exited", "returncode": 1, "attempts": [], "charged_seconds": FAILED_CHARGE}]
+        lines = [jline(r).encode() for r in rows]
+        self.failed_ledger.parent.mkdir(parents=True)
+        self.failed_ledger.write_bytes(b"".join(line + b"\n" for line in lines))
+        self.exception = {"schema": RT.RECOVERY_EXCEPTION_SCHEMA, "cell_id": cid, "namespace": FAILED_NS,
+                          "record_dir": str(self.failed_dir), "request_sha256": fsha, "approval": approval,
+                          "window_section": 838, "run_id": FAILED_RUN, "campaign_nonce": FAILED_NONCE,
+                          "ledger": {"path": str(self.failed_ledger), "rows": 2,
+                                     "prefix_sha256": sha(self.failed_ledger.read_bytes()),
+                                     "line_sha256": [sha(line) for line in lines],
+                                     "charged_seconds": FAILED_CHARGE, "parent_sha256": "p" * 64},
+                          **pins,
+                          "absent": [f"{FAILED_NS}_entry_{tag}.json", f"{FAILED_NS}_{tag}.json",
+                                     f"{FAILED_NS}_recovery_complete.json"]}
+        self._pin_exception()
+        self._key()
+
+    def _pin_exception(self):
+        path = self.tmp / "w" / "exception.json"
+        path.unlink(missing_ok=True)
+        self.mp.setattr(RT, "RECOVERY_EXCEPTION", path)
+        self.mp.setattr(RT, "RECOVERY_EXCEPTION_SHA256", write(path, self.exception))
+
+    def reexception(self, mutate):
+        """Change the exception artifact AND repin it, so a later semantic check (not the pin) must refuse."""
+        mutate(self.exception)
+        self._pin_exception()
+
+    def consumed_claim(self) -> Path:
+        return Path(self.exception["claim"]["path"])
+
+    def _key(self):
+        """The exception claim key, computed once from the world as built (tests then change files)."""
+        self.failed_block = RT.verify_failed_recovery(RT.recovery_exception(), RT.recovery_lineage())
+        self.exception_key = RT.exception_claim_key(self.failed_block, self.recovered["cell_id"])
 
     @staticmethod
     def _output(path: Path, text: str) -> bytes:
@@ -576,10 +665,10 @@ def test_composed_the_plan_previews_one_cell_and_touches_nothing(campaign, world
     assert request["schema"] == RT.T_RECOVERY_REQUEST_SCHEMA and request["mode"] == "recovery"
     assert request["cells"] == [world.recovered] and request["gpu_count"] == 1
     assert len(request["carried"]) == 11 and request["recovery_of"]["cell_id"] == world.recovered["cell_id"]
-    assert request["claim_key"] == RT.recovery_claim_key(world.lineage)
+    assert request["claim_key"] == world.exception_key
     assert request["source_transition"]["changed"] == sorted(RT.RECOVERY_CHANGED_CLOSURE)
     assert request["stopped"]["settlement"]["cumulative_charged_seconds"] == 79482.14623009507
-    assert campaign.state["events"] == [] and not RT.RECOVERY_CLAIM_ROOT.exists()
+    assert campaign.state["events"] == [] and new_claims() == []
     assert not world.records.exists() or not any(world.records.iterdir())
 
 
@@ -598,7 +687,7 @@ def test_composed_an_approved_recovery_runs_one_cell_and_writes_the_lineage_rece
     # payloads verified before any lease; the claim exists BEFORE the attempt and the entry
     assert st["events"][:3] == ["payloads", "leases", "boundary"] and st["events"].count("payloads") == 2
     entry = [e for e in st["events"] if isinstance(e, tuple)][0]
-    assert entry[1] == [f"{RT.recovery_claim_key(world.lineage)}.json"]
+    assert entry[1] == sorted([f"{RT.recovery_claim_key(world.lineage)}.json", f"{world.exception_key}.json"])
     assert entry[2] == [f"{NEW_NS}_attempt_{world.recovered['tag']}.json"]
     receipt = json.loads((world.records / f"{NEW_NS}{RT.T_RECOVERY_RECEIPT_SUFFIX}").read_text())
     origins = {cid: c["origin"] for cid, c in receipt["cells"].items()}
@@ -622,7 +711,7 @@ def test_composed_only_a_recovery_line_for_this_exact_request_approves(campaign,
         extra = campaign.approve(digest, manifest=world.r7_sha)
     assert campaign.run(*extra) == 2
     assert "approval" in capsys.readouterr().err or True
-    assert campaign.state["events"] == [] and not RT.RECOVERY_CLAIM_ROOT.exists()
+    assert campaign.state["events"] == [] and new_claims() == []
 
 
 def test_composed_a_carried_payload_off_its_record_refuses_before_any_lease_or_claim(campaign, world, capsys):
@@ -631,7 +720,7 @@ def test_composed_a_carried_payload_off_its_record_refuses_before_any_lease_or_c
     (run / "extract_db.npz").write_bytes(b"changed")
     assert campaign.run(*campaign.approve(digest)) == 2
     assert "carried outputs are not the bytes" in capsys.readouterr().err
-    assert campaign.state["events"] == ["payloads"] and not RT.RECOVERY_CLAIM_ROOT.exists()
+    assert campaign.state["events"] == ["payloads"] and new_claims() == []
 
 
 @pytest.mark.parametrize("k", [None, 0, 2])
@@ -641,7 +730,7 @@ def test_composed_the_lineage_is_recovered_once_even_after_a_failure(campaign, w
     first = campaign.run(*campaign.approve(digest))
     assert first == (0 if k is None else 1)
     seen = len(campaign.state["commands"])
-    claim = RT.recovery_claim_path(RT.recovery_claim_key(world.lineage))
+    claim = RT.recovery_claim_path(world.exception_key)
     assert claim.exists() and RT.attempt_path(NEW_NS, world.recovered).exists()
     campaign.state["fail_at"] = None
     capsys.readouterr()
@@ -665,7 +754,7 @@ def test_composed_the_lineage_is_recovered_once_even_after_a_failure(campaign, w
 
 def test_composed_concurrent_namespaces_claim_the_lineage_once(campaign, world):
     claims, results = [], []
-    request = {"claim_root": str(RT.RECOVERY_CLAIM_ROOT), "claim_key": RT.recovery_claim_key(world.lineage),
+    request = {"claim_root": str(RT.RECOVERY_CLAIM_ROOT), "claim_key": world.exception_key,
                "cells": [world.recovered], "record_dir": str(world.records), "lineage": {"path": "l", "sha256": "s"}}
     approval = {"section": 800, "scope": RT.RECOVERY_SCOPE, "line": "L"}
 
@@ -681,7 +770,7 @@ def test_composed_concurrent_namespaces_claim_the_lineage_once(campaign, world):
     for t in threads:
         t.join()
     assert sorted(results) == ["ok"] + ["refused"] * 5
-    assert len(list(RT.RECOVERY_CLAIM_ROOT.glob("*.json"))) == 1
+    assert len(new_claims()) == 1
 
 
 def test_composed_an_alternate_record_root_cannot_claim_again(campaign, world, monkeypatch, tmp_path):
@@ -707,7 +796,7 @@ def test_composed_drift_between_producers_stops_the_recovery_without_a_receipt(c
     assert campaign.state["commands"] == CHAIN[:k]
     assert not (world.records / f"{NEW_NS}{RT.T_RECOVERY_RECEIPT_SUFFIX}").exists()
     # the claim is consumed after the pre-attempt check and is never removed afterwards
-    assert RT.recovery_claim_path(RT.recovery_claim_key(world.lineage)).exists() == (k > 0)
+    assert RT.recovery_claim_path(world.exception_key).exists() == (k > 0)
 
 
 def _carried_run(world, k=5):
@@ -752,16 +841,38 @@ def _edit_stopped_reservation(world):
 
 
 def _edit_the_claim(world):
-    path = next(RT.RECOVERY_CLAIM_ROOT.glob("*.json"))
+    path = RT.recovery_claim_path(world.exception_key)          # the exception claim this run took
     path.chmod(0o644)
     path.write_bytes(path.read_bytes() + b" ")
 
 
+def _edit_the_consumed_claim(world):
+    path = world.consumed_claim()                                # the failed r8 recovery's claim (audit 841.3)
+    path.chmod(0o644)
+    path.write_bytes(path.read_bytes() + b" ")
+
+
+def _failed_entry_appears(world):
+    (world.failed_dir / world.exception["absent"][0]).write_text("{}")
+
+
+def _failed_receipt_dangling_link(world):
+    (world.failed_dir / world.exception["absent"][2]).symlink_to(world.failed_dir / "nowhere")
+
+
+def _failed_run_row_appended(world):
+    with world.failed_ledger.open("a") as handle:
+        handle.write(jline({"schema": S.LEDGER_SCHEMA, "event": "final", "run_id": FAILED_RUN}) + "\n")
+
+
 @pytest.mark.parametrize("during", [_edit_carried_json, _edit_carried_binary, _remove_carried_output,
                                     _add_carried_bit2, _edit_carried_record, _edit_carried_entry,
-                                    _append_settled_ledger, _edit_stopped_reservation, _edit_the_claim],
+                                    _append_settled_ledger, _edit_stopped_reservation, _edit_the_claim,
+                                    _edit_the_consumed_claim, _failed_entry_appears, _failed_receipt_dangling_link,
+                                    _failed_run_row_appended],
                          ids=["carried-json", "carried-binary", "carried-missing", "carried-new-bit2",
-                              "carried-record", "carried-entry", "settled-ledger", "stopped-reservation", "claim"])
+                              "carried-record", "carried-entry", "settled-ledger", "stopped-reservation", "claim",
+                              "consumed-claim", "failed-entry", "failed-receipt-link", "failed-run-row"])
 def test_composed_drift_during_the_recovered_cell_publishes_no_combined_receipt(campaign, world, during):
     """Audit 800: the final carry/lineage closure runs AFTER the new cell, immediately before publication."""
     _, digest = campaign.plan()
@@ -770,7 +881,7 @@ def test_composed_drift_during_the_recovered_cell_publishes_no_combined_receipt(
     assert campaign.state["commands"] == CHAIN                       # the cell itself completed
     assert (world.records / f"{NEW_NS}_{world.recovered['tag']}.json").exists()         # kept, not deleted
     assert not (world.records / f"{NEW_NS}{RT.T_RECOVERY_RECEIPT_SUFFIX}").exists()
-    assert RT.recovery_claim_path(RT.recovery_claim_key(world.lineage)).exists()
+    assert RT.recovery_claim_path(world.exception_key).exists()
 
 
 def _new_attempt(world):
@@ -815,7 +926,7 @@ def test_composed_a_new_cell_chain_off_its_files_publishes_no_combined_receipt(c
     assert campaign.state["commands"] == CHAIN
     assert (world.records / f"{NEW_NS}_{world.recovered['tag']}.json").exists()
     assert not (world.records / f"{NEW_NS}{RT.T_RECOVERY_RECEIPT_SUFFIX}").exists()
-    assert RT.recovery_claim_path(RT.recovery_claim_key(world.lineage)).exists()
+    assert RT.recovery_claim_path(world.exception_key).exists()
 
 
 def test_composed_the_receipt_binds_the_bytes_the_final_closure_verified(campaign, world):
@@ -826,7 +937,7 @@ def test_composed_the_receipt_binds_the_bytes_the_final_closure_verified(campaig
         got = receipt["cells"][cid]
         assert (got["record_sha256"], got["attempt_sha256"], got["entry_sha256"]) == \
             (pins["record"]["sha256"], pins["attempt"]["sha256"], pins["entry"]["sha256"])
-    claim = RT.recovery_claim_path(RT.recovery_claim_key(world.lineage))
+    claim = RT.recovery_claim_path(world.exception_key)
     assert receipt["recovery_claim"]["sha256"] == M._sha(claim)
     executed = receipt["cells"][world.recovered["cell_id"]]
     tag = world.recovered["tag"]
@@ -1079,12 +1190,12 @@ def test_composed_the_recorded_stopped_line_must_be_the_ledger_s(world):
 
 
 def test_composed_a_request_naming_another_claim_root_refuses(world):
-    request = {"claim_root": "/elsewhere", "claim_key": RT.recovery_claim_key(world.lineage),
+    request = {"claim_root": "/elsewhere", "claim_key": world.exception_key,
                "cells": [world.recovered], "record_dir": str(world.records), "namespace": NEW_NS,
                "lineage": {"path": "l", "sha256": "s"}}
     with pytest.raises(CellRefused, match="another recovery claim root"):
         RT.consume_recovery_claim(request, {"section": 800, "scope": RT.RECOVERY_SCOPE, "line": "L"})
-    assert not RT.RECOVERY_CLAIM_ROOT.exists()
+    assert new_claims() == []
 
 
 def test_composed_a_changed_source_authority_outside_the_allowlist_refuses(boundary, monkeypatch):
@@ -1190,7 +1301,8 @@ def test_real_dispatch_the_recovery_launches_its_children_from_a_worker_thread(r
     starts = real_dispatch.starts()
     entries = [s for s in starts if s["kind"] == "entry"]
     assert len(entries) == 1                                        # the synthetic entry started once
-    assert entries[0]["claims"] == [f"{RT.recovery_claim_key(world.lineage)}.json"]   # claim before the entry
+    assert entries[0]["claims"] == sorted([f"{RT.recovery_claim_key(world.lineage)}.json",
+                                          f"{world.exception_key}.json"])        # claim before the entry
     assert [s["name"] for s in starts] == CHAIN
     assert (world.records / f"{NEW_NS}{RT.T_RECOVERY_RECEIPT_SUFFIX}").is_file()
 
@@ -1237,3 +1349,165 @@ def test_real_dispatch_the_main_thread_is_still_refused(real_dispatch):
         _REAL_MANAGED([sys.executable, "-B", str(real_dispatch.child), "post", str(real_dispatch.marker),
                        str(RT.RECOVERY_CLAIM_ROOT), "control"], cwd=str(Path(RT.REPO)), env=dict())
     assert real_dispatch.starts() == []
+
+
+# =============================================================================================
+# audits 839-841: the explicit exception for one more recovery after the failed r8 attempt
+# =============================================================================================
+def _plan_refuses(world, monkeypatch, capsys, *, ns=NEW_NS):
+    rc = LT.run_main(monkeypatch, *world.argv("--run", "--gpus", "3", "--plan", ns=ns))
+    return rc, capsys.readouterr().err
+
+
+def _rewrite(path: Path, data: bytes):
+    path.chmod(0o644)
+    path.write_bytes(data)
+
+
+@pytest.mark.parametrize("drift", ["consumed-claim", "attempt", "reservation", "snapshot", "ledger-line",
+                                   "ledger-missing", "ledger-run-row", "entry-present", "record-present",
+                                   "receipt-dangling-link", "lstat-error", "other-cell", "claim-not-consumed-key"])
+def test_exception_admission_refuses_a_changed_or_inconsistent_failed_attempt(world, monkeypatch, capsys, drift):
+    ex = world.exception
+    if drift in ("consumed-claim", "attempt", "reservation", "snapshot"):
+        key = {"consumed-claim": "claim"}.get(drift, drift)
+        path = Path(ex[key]["path"])
+        _rewrite(path, path.read_bytes() + b" ")
+    elif drift == "ledger-line":
+        data = world.failed_ledger.read_bytes().replace(b'"returncode": 1', b'"returncode": 0')
+        world.failed_ledger.write_bytes(data)
+    elif drift == "ledger-missing":
+        world.failed_ledger.unlink()
+    elif drift == "ledger-run-row":
+        with world.failed_ledger.open("a") as handle:
+            handle.write(jline({"schema": S.LEDGER_SCHEMA, "event": "final", "run_id": FAILED_RUN}) + "\n")
+    elif drift == "entry-present":
+        (world.failed_dir / ex["absent"][0]).write_text("{}")
+    elif drift == "record-present":
+        (world.failed_dir / ex["absent"][1]).write_text("{}")
+    elif drift == "receipt-dangling-link":
+        (world.failed_dir / ex["absent"][2]).symlink_to(world.failed_dir / "nowhere")
+    elif drift == "lstat-error":
+        real = RT.os.lstat
+        target = str(world.failed_dir / ex["absent"][1])
+
+        def lstat(path, *a, **k):
+            if str(path) == target:
+                raise PermissionError(13, "denied")
+            return real(path, *a, **k)
+        monkeypatch.setattr(RT.os, "lstat", lstat)
+    elif drift == "other-cell":
+        world.reexception(lambda e: e.update(cell_id="flickr25k|N=4|other"))
+    elif drift == "claim-not-consumed-key":
+        world.reexception(lambda e: e["claim"].update(key="0" * 64))
+    rc, err = _plan_refuses(world, monkeypatch, capsys)
+    assert rc == 2 and new_claims() == []
+    want = {"lstat-error": "cannot be observed", "receipt-dangling-link": "a link counts",
+            "entry-present": "exists", "record-present": "exists", "ledger-missing": "recovery ledger cannot be read",
+            "ledger-line": "pinned rows", "ledger-run-row": "pre-entry failure",
+            "other-cell": "interrupted cell", "claim-not-consumed-key": "consumed claim"}.get(drift, "pinned bytes")
+    assert want in err, err
+
+
+@pytest.mark.parametrize("ns", ["ancT9", FAILED_NS])
+def test_exception_never_reuses_the_stopped_or_the_failed_namespace(world, monkeypatch, capsys, ns):
+    rc, err = _plan_refuses(world, monkeypatch, capsys, ns=ns)
+    assert rc == 2 and "never the stopped campaign's or the failed recovery's" in err
+
+
+def test_exception_request_binds_both_histories_and_the_exception_key(campaign, world):
+    request, _ = campaign.plan()
+    assert request["schema"] == "anchor-terminal-test-recovery-request/2"
+    assert request["exception_of"]["run_id"] == FAILED_RUN and request["exception_of"]["namespace"] == FAILED_NS
+    assert request["exception_of"]["ledger"]["charged_seconds"] == FAILED_CHARGE
+    assert request["recovery_of"]["cell_id"] == world.recovered["cell_id"]
+    assert request["claim_key"] == world.exception_key != RT.recovery_claim_key(world.lineage)
+    assert request["exception_of"]["exception"]["sha256"] == RT.RECOVERY_EXCEPTION_SHA256
+
+
+def test_exception_claim_key_ignores_namespace_root_and_generation(world):
+    block = dict(world.failed_block)
+    other = dict(block, namespace="elsewhere", record_dir="/other/root", exception={"path": "x", "sha256": "y"})
+    assert RT.exception_claim_key(block, world.recovered["cell_id"]) == \
+        RT.exception_claim_key(other, world.recovered["cell_id"])
+
+
+def test_exception_a_second_namespace_after_a_completed_exception_refuses(campaign, world, monkeypatch, capsys):
+    """After the one exception ran, another namespace is refused already at admission (the target holds
+    outputs); the claim-level refusal is covered by the concurrent-namespace test with the same key."""
+    _, digest = campaign.plan()
+    assert campaign.run(*campaign.approve(digest)) == 0
+    assert new_claims() == [f"{world.exception_key}.json"]
+    capsys.readouterr()
+    rc, err = _plan_refuses(world, monkeypatch, capsys, ns="ancT9t")
+    assert rc == 2 and new_claims() == [f"{world.exception_key}.json"]
+
+
+def test_exception_the_failed_attempt_is_rechecked_immediately_before_the_claim(campaign, world, monkeypatch, capsys):
+    _, digest = campaign.plan()
+    stub = RT.recovery_boundary                          # the campaign fixture's boundary, run after admission
+
+    def boundary_then_drift(*a, **k):
+        out = stub(*a, **k)
+        (world.failed_dir / world.exception["absent"][0]).write_text("{}")   # the failed entry appears
+        return out
+    monkeypatch.setattr(RT, "recovery_boundary", boundary_then_drift)
+    assert campaign.run(*campaign.approve(digest)) == 1
+    assert "the failed recovery" in capsys.readouterr().err
+    assert new_claims() == [] and not list(world.records.glob(f"{NEW_NS}_attempt_*.json"))
+
+
+def test_exception_receipt_records_both_histories(campaign, world):
+    _, digest = campaign.plan()
+    assert campaign.run(*campaign.approve(digest)) == 0
+    receipt = json.loads((world.records / f"{NEW_NS}{RT.T_RECOVERY_RECEIPT_SUFFIX}").read_text())
+    assert receipt["exception_of"]["run_id"] == FAILED_RUN and receipt["stopped"]["namespace"] == NS
+    assert receipt["recovery_claim"]["file"] == f"{world.exception_key}.json"
+
+
+def test_exception_entry_refuses_a_schema_one_request(rentry, world, monkeypatch, capsys):
+    old = dict(rentry.request, schema="anchor-terminal-test-recovery-request/1")
+    rc, calls, loads, attempt = _enter(world, monkeypatch, old, rentry.approval, claim=False)
+    assert rc == 2 and calls == [] and loads == []
+    assert "not a stage-T request" in capsys.readouterr().err
+
+
+def test_exception_entry_rechecks_the_failed_attempt(rentry, world, monkeypatch, capsys):
+    (world.failed_dir / world.exception["absent"][1]).write_text("{}")      # the failed record appears
+    rc, calls, loads, attempt = _enter(world, monkeypatch, rentry.request, rentry.approval)
+    assert rc == 2 and calls == [] and loads == [] and not TE.entry_claim_path(attempt).exists()
+    assert "the failed recovery" in capsys.readouterr().err
+
+
+def _failed_rows(ops: Path):
+    ops.mkdir(parents=True, exist_ok=True)
+    rows = [{"schema": S.LEDGER_SCHEMA, "event": "start", "run_id": FAILED_RUN, "stage": "stage-T-recovery"},
+            {"schema": S.LEDGER_SCHEMA, "event": "final", "run_id": FAILED_RUN, "stage": "stage-T-recovery",
+             "status": "exited", "returncode": 1, "attempts": [], "charged_seconds": FAILED_CHARGE}]
+    data = "".join(jline(r) + "\n" for r in rows).encode()
+    (ops / S.LEDGER_NAME).write_bytes(data)
+    return data
+
+
+def test_exception_the_failed_charge_is_carried_in_the_append_only_ledger(rsupervised, tmp_path):
+    prefix = _failed_rows(tmp_path / "recops")
+    assert rsupervised.run(5) == 0
+    raw = (tmp_path / "recops" / S.LEDGER_NAME).read_bytes()
+    assert raw.startswith(prefix)                                        # history never rewritten
+    start = [r for r in rsupervised.rows() if r["event"] == "start"][-1]
+    final = [r for r in rsupervised.rows() if r["event"] == "final"][-1]
+    assert start["prior_charged_seconds"] == pytest.approx(FAILED_CHARGE)
+    assert final["cumulative_charged_seconds"] == pytest.approx(FAILED_CHARGE + final["charged_seconds"])
+    assert final["cumulative_including_parent_seconds"] == pytest.approx(
+        79482.14623009507 + FAILED_CHARGE + final["charged_seconds"])
+
+
+def test_exception_the_carried_charge_counts_against_the_budget(rsupervised, tmp_path):
+    # headroom 1 x (5 + 2) s and allowance 5 x 0.1 s: 7.5 s fit a 13 s budget, 7.5 + 5.70 s do not
+    assert rsupervised.run(5, budget=13.0) == 0                        # control: no prior charge
+    ops = tmp_path / "recops"
+    (ops / S.LEDGER_NAME).unlink()
+    _failed_rows(ops)
+    assert rsupervised.run(5, budget=13.0) == S.EXIT_REFUSED
+    final = [r for r in rsupervised.rows() if r["event"] == "final"][-1]
+    assert final["status"] == "refused-before-start" and final["reason"].startswith("budget:")
