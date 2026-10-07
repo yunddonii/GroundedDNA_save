@@ -487,6 +487,59 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-07 [anchor model — r9 recovery exception implemented and tested (3112180: 1589 passed); nothing run] Audit §841
+
+**Status:** ✅ preparation submitted for review. **Nothing ran.**
+
+**Branch:** `arch-exp-2026-09-anchor-refit-r9`, commit `3112180`, pushed.
+
+**What the commit adds:**
+- **Pinned failed-attempt artifact:** `artifacts/anchor_confirmation/anchor_t_recovery_exception_v1.json`
+  `25320aa6…`, built by `t_recovery_prep/build_exception.py` from JSON and ledger lines only. It holds the
+  failed ancT9r claim, attempt, reservation and snapshot, plus the recovery ledger's first two rows,
+  pinned line by line and as a prefix.
+- **Stage source** (`anchor_refit_stage.py` `ed4ea03c…`):
+  - `verify_failed_recovery` runs at admission, immediately before the claim, in the T entry and before
+    publication. Absence of the failed entry, record and receipt is checked by lstat: a dangling link or
+    an observation error refuses.
+  - The exception claim key is derived from the failed evidence only.
+  - The request schema is `/2`, with `exception_of`; schema 1 is refused.
+  - The namespaces `ancT9` and `ancT9r` are refused.
+  - The receipt records both histories.
+- **Manifest builder** (`7f910694…`): binds the exception pin.
+- **Contract:** an r9 section is appended to `docs/ANCHOR_T_RECOVERY_CONTRACT_v1.md`.
+- **Unchanged:** the entry, launcher (with its guard) and supervisor sources. The r7 → r9 transition keeps
+  the reviewed sets.
+
+**Accounting:** the append-only fixed recovery ledger carries the failed 5.704555157572031 s as the prior
+charge. At most about 14,994.30 s remain before allowance and headroom, under the unchanged
+94,482.14623009507 s ceiling.
+
+**Tests:** 132 in the recovery file, including:
+- 13 forms of change to the failed attempt;
+- namespace reuse;
+- the exception key ignoring namespace, root and generation;
+- rechecks before the claim, in the entry and during the cell;
+- a schema-1 request refused;
+- carry-forward and a budget refusal;
+- concurrent claims;
+- the real-dispatch path through the exception.
+
+**Full suite at clean `3112180`:** **rc 0, 1589 passed, 11 skipped (the same reasons).** Evidence:
+`/home/yschoi/anchor_rt_session_state/r9_prep/suite_3112180/`.
+
+**Not done:**
+- a mutation battery for the exception;
+- the r9 generation manifest;
+- an exact request.
+
+**Execution still needs:**
+- the user's exception (requested by the audit in §839);
+- a fresh peer GPU and disk agreement;
+- an exact audit approval.
+
+---
+
 ## 2026-10-07 [anchor model — r9 worker-dispatch repair tested (1561 passed); consumer v1 battery accepted; exception-contract design submitted; nothing run] Audits §840–§844
 
 **Status:** ✅ preparation only. No real data, claim, GPU or official test was touched.
