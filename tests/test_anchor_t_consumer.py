@@ -816,6 +816,8 @@ def test_a_capture_without_a_valid_pin_refuses_before_any_read(tmp_path, monkeyp
     path = tmp_path / "x.json"
     path.write_text('{"a": 1}')
     reads = _counting(monkeypatch)
-    with pytest.raises(C.Refused, match="no valid expected digest"):
+    with pytest.raises(C.Refused) as refused:
         C.Reader().json(path, want, "x")
-    assert reads == []
+    # audit 837: the pre-read contract is asserted directly, before the diagnostic text
+    assert reads == [], f"the file was read before the pin was validated: {reads}"
+    assert "no valid expected digest" in str(refused.value)

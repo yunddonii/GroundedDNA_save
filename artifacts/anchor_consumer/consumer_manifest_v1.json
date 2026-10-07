@@ -17,9 +17,9 @@
   "scripts/anchor_t_consumer.py": "2539da57dceea28bcfeb313a412219abe77ef5c302925b762b4b87e5ac42fa38",
   "scripts/make_anchor_bioproj_table.py": "5373da6904f25d17e11b112c9b6abce717444ca26a84376be06f0b5757caa8ff",
   "scripts/make_anchor_nmi_table.py": "c29caaef6fc2fd2384e9d595ffcc1d487150dbab8805b7b0934e0f80b2caddc9",
-  "tests/test_anchor_t_consumer.py": "d076c2632042334c52ce9de547eb1c695b2d13ddb92d3031f662e0ccf7c02202"
+  "tests/test_anchor_t_consumer.py": "0dadd8f0e5429437a233d1a502c26a498d28b3f9f1677db6dcf91d43fdc25fcd"
  },
- "generation": "consumer v1 (proposal v2; audits 798, 824, 831, 833, 834, 835)",
+ "generation": "consumer v1 (proposal v2; audits 798, 824, 831, 833, 834, 835, 836, 837)",
  "historical_producer_authority": {
   "r7_manifest_sha256": "2f24fc80bb83e2c73b17ec473c2731ade6d34a356e02414e6719fe9e9bec947c",
   "r8_manifest_sha256": "3537e297c0429c8ab5b02428651025903765a48c3c126eea172f30c37955c9f8"
