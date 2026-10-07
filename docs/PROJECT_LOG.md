@@ -487,6 +487,46 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-07 [anchor model — peer /data reads done; fresh read-only packet 13/13 submitted for the launch decision; consumer v1 committed; nothing run] Audits §833–§837
+
+**Status:** ✅ packet submitted. **Nothing ran:** no invocation, claim, ops root or lease. The §830
+permission is unused, and the §832 window is void (§833).
+
+- **Peer completion:** the text-path session sent "td3 /data reads done 2026-10-07 06:03Z", with no `/data`
+  reads planned for at least 4 h and GPU 0 still reserved until 17:00Z.
+- **Fresh read-only check:** the reviewed v3 helper, run once at 06:04Z, passed **13/13**, including:
+  - sdb 0.0 % busy;
+  - GPU 0 idle and unleased;
+  - source S clean with 71 pins;
+  - the exact request;
+  - every target output absent.
+- **Process observation:** from 05:34Z to 06:04Z, no 10-second window reached 20 % busy (the maximum was
+  3.1 %). The peer's trainers read at most 0.52 MB/s. After 06:03Z the maximum was 0.8 %.
+  - The 05:28Z refusal burst came before observation started, so its attribution is a timing inference.
+- **Packet:** `/home/yschoi/anchor_rt_session_state/launch_readiness/POST_DONE_PACKET_20261007.md`
+  `86a9b6475035ebfaed4ce99bd0afa8ce82100ff7e61dfe648b4000b9eea3883e`; report `d4fe6c73…`.
+- **Requested:** one invocation of the unchanged §830 wrapper, in a window the audit names.
+
+**Consumer v1** (§833 allowance; §834–§837 applied or noted):
+- **Commit:** `f7e1e71` on `arch-exp-2026-09-anchor-consumer`, five additions from S:
+  - `scripts/anchor_t_consumer.py`;
+  - two formatters, for TODO2 (BIO projection) and TODO8 (NMI);
+  - a test file;
+  - a source manifest.
+- **What it requires:**
+  - a pinned input manifest, which is null for now, so every real run refuses;
+  - immutable approved section extracts;
+  - the recovery's own supervisor settlement, with exact rules, argv, command digest and arithmetic;
+  - per-cell lineage, metric input bindings and the full-DB denominator from `PAPER_SPLIT_ROWS`;
+  - required 64-hex pins, with single capture.
+- **Tests:** 153 synthetic tests pass in the OS sandbox at the clean commit (§836 verified this in scope).
+  The development failures are kept as history.
+- **Mutation battery:** 29 mutants; the observation pass is running. §837 requires the final pass to:
+  - classify the refusal-order cases (CM1, CM25, CM29) honestly;
+  - bind each run to its imported module hashes.
+
+---
+
 ## 2026-10-07 [anchor model — §832 launch window held because of a known peer /data conflict; downstream proposal v2 submitted; nothing run] Audits §831–§832
 
 **Status:** ✅ hold recorded, and proposal v2 submitted. **Nothing ran:** no invocation, claim, ops root
