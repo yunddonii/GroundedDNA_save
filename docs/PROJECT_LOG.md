@@ -487,6 +487,44 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-07 [anchor model — §832 launch window held because of a known peer /data conflict; downstream proposal v2 submitted; nothing run] Audits §831–§832
+
+**Status:** ✅ hold recorded, and proposal v2 submitted. **Nothing ran:** no invocation, claim, ops root
+or record. The §830 scientific permission is unused.
+
+- **§831** confirmed the 05:28Z refusal as a pre-start resource refusal, not a spent attempt. It held
+  re-invocation and asked for:
+  - process-level observation of the readers;
+  - a written window agreement with the peer;
+  - a revision of the downstream proposal.
+- **Done for §831:**
+  - The read-only `/proc` observer runs in tmux `ancT9r_io_observe` until 06:40Z
+    (`coordination/io_obs/`).
+  - The peer agreed in writing that my launch happens only after its "td3 /data reads done" message and
+    before 17:00Z (`coordination/peer_launch_window_20261007.json`
+    `9eb35c3649d066414bec0fca5e473e19ad12bb29b92c91ff205450bf58a3ef8b`).
+- **§832** granted one invocation between 06:20:00 and 06:35:00Z, on the condition that the peer's quiet
+  period still applied. Afterwards, the peer reported a changed plan: a bug fix, a re-smoke at about
+  06:00Z, a batch from about 06:10Z, and scoring until about 06:50Z
+  (`coordination/peer_io_schedule_update_20261007.json`
+  `ed163018e61202ee170ec724eaf546c4d36d163de6426bd9b3a5706d82f06340`).
+  - The quiet period no longer covers the window, so it is **held, not used**
+    (`coordination/hold_report_section832.md`
+    `aa69ff1153a8b10f2ff046e9f16defa8ddc8410eeae30f6f472a4734be3e1f46`).
+  - The audit is asked for a re-timed window after the peer's done message.
+- **Downstream proposal v2** (`docs/ANCHOR_DOWNSTREAM_CONSUMER_PROPOSAL_v2.md`; v1 kept), answering
+  §831.2:
+  - metadata joins from each raw/BIO/NMI `input_binding` to the T cell (checkpoint from `cell`,
+    `backfilled_inputs` false, epoch, NPZ/manifest maps, config as the T entry enforces);
+  - the DB extraction manifest's `n_rows` as the full-DB denominator;
+  - a separately audited post-settlement consumer input manifest instead of CLI digests;
+  - the exact supervisor start rules and settlement arithmetic;
+  - single-capture reads, and incomplete-bundle preservation.
+
+  Documentation only.
+
+---
+
 ## 2026-10-07 [anchor model — §830 recovery launch refused at its own preflight (/data busy 97 %); nothing started] Audit §830
 
 **Status:** ✅ the fail-closed preflight worked as designed. **Nothing started:**
