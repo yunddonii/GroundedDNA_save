@@ -30,6 +30,9 @@ Plan: `/home/yschoi/.claude/plans/hidden-tinkering-pine.md` (approved 2026-10-05
 - Evaluation-only V4 captions for 1,500 Flickr DB images: cache_eval/flickr25k_qwen3_v4_evaldb1500.jsonl (+ evaldb_sample.json; 0 train overlap, 0 parse failures). Reference text cache cache_eval/ref_text_flickr_v4_plus_evaldb (6,500 has_text rows; text_part not committed, rebuild with extract_clip_text_features.py from cache_eval/flickr25k_v4_train_plus_evaldb.jsonl).
 - Peer notice (anchor session, audit §795): GPU partition lifted; receipt sent 2026-10-07. Always nvidia-smi before launch.
 
+## GPU constraint
+- 2026-10-07 ~05:30Z: agreed with anchor session groundeddna-29 to leave GPU 0 (GPU-4ac2ea6b...) for one recovery run, <= 8 h after its launch, lapses if not launched within 12 h of receipt; release message will follow. Use GPUs 1-5 only until the release (or lapse). Plan: no heavy /data reads of NUS caches in that window (Flickr-only cells, VLM captioning reads images from /home).
+
 ## Next
 1. USER DECISIONS pending (asked 2026-10-07): Stage 2 (a) use dataset label vocabulary as concept material? (b) caption length ~10-15 words? Then rewrite plan Stage 2 per the user's 4-step flow (dataset survey -> VLM concepts -> VLM groups into 4 attributes -> short captions).
 2. Stage 3 N1 (TD) implementation: text dropout + two-path consistency replacing xmodal_commit; flag design, entry gate (defaults reproduce B1 s42 log.csv), unit tests, one-cell smoke; PREREGISTRATION for Stage 3.
