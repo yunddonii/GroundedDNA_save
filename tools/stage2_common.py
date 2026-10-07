@@ -199,12 +199,38 @@ def done_ids(paths: Iterable) -> set:
 
 
 # --------------------------------------------------------------------------- VLM
+def _lenient_json_candidates(text: str):
+    """Repairs for the bracket typos Qwen3-VL makes on ~2 % of replies (seen 2026-10-07: the
+    object closed with ']]' instead of ']}', or the final '}' missing). Only the ending is touched."""
+    t = text.strip()
+    yield t
+    if t.endswith("]]"):
+        yield t[:-2] + "]}"
+    if t.endswith("]"):
+        yield t + "}"
+    if t.endswith('"'):
+        yield t + "]}"
+    i, j = t.find("{"), t.rfind("}")
+    if i >= 0 and j > i:
+        yield t[i:j + 1]
+        if t[i:j + 1].endswith("]]}"):
+            yield t[i:j + 1][:-3] + "]}"
+
+
 def parse_json_object(raw: str) -> dict:
     from dna_utils.vlm_qwen25_descriptions import _strip_code_fences
-    d = json.loads(_strip_code_fences(raw))
-    if not isinstance(d, dict):
-        raise ValueError(f"top-level JSON is {type(d).__name__}, not an object")
-    return d
+    text = _strip_code_fences(raw)
+    err = None
+    for cand in _lenient_json_candidates(text):
+        try:
+            d = json.loads(cand)
+        except Exception as e:          # noqa: BLE001 - try the next repair
+            err = err or e
+            continue
+        if not isinstance(d, dict):
+            raise ValueError(f"top-level JSON is {type(d).__name__}, not an object")
+        return d
+    raise err if err is not None else ValueError("empty reply")
 
 
 def load_vlm(model_id: str = MODEL_ID):

@@ -410,3 +410,19 @@ def test_validator_load_captions_schema_check(tmp_path):
     p.write_text("".join(json.dumps(r) + "\n" for r in (good, bad, bad2, fail)))
     ok, failed, unmatched = val.load_captions([str(p)], ATTRIBUTES)
     assert list(ok) == ["a"] and failed == ["d"] and unmatched == ["b", "c"]
+
+
+def test_parse_json_object_repairs_bracket_typos():
+    import sys, os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "tools"))
+    from stage2_common import parse_json_object
+    good = '{"phrases": ["a", "b"]}'
+    assert parse_json_object(good) == {"phrases": ["a", "b"]}
+    assert parse_json_object('{"phrases": ["a", "b"]]') == {"phrases": ["a", "b"]}        # ']]' typo (seen on NUS-WIDE)
+    assert parse_json_object('{"phrases": ["a", "b"]') == {"phrases": ["a", "b"]}         # missing '}'
+    assert parse_json_object('```json\n{"phrases": ["a"]]\n```') == {"phrases": ["a"]}
+    import pytest
+    with pytest.raises(Exception):
+        parse_json_object('{"phrases": ["a", "b"')                                        # unrecoverable
+    with pytest.raises(ValueError):
+        parse_json_object('["a", "b"]')                                                   # not an object
