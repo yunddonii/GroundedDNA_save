@@ -269,17 +269,27 @@ def generate_images(proc, mdl, chat: str, paths: Sequence[str], max_new_tokens: 
     return proc.batch_decode(out[:, inp.input_ids.shape[1]:], skip_special_tokens=True)
 
 
-def make_text_generator(proc, mdl, max_new_tokens: int) -> Callable[[str], str]:
-    """prompt -> decoded greedy completion (text-only chat, no image)."""
+def make_text_generator(proc, mdl, max_new_tokens: int, repetition_penalty: float = 1.0) -> Callable[..., str]:
+    """prompt -> decoded greedy completion (text-only chat, no image).
+
+    ``gen(prompt, repetition_penalty=1.1)`` overrides the default penalty for one call (the concept
+    step's single retry of a degenerate reply).  After every call ``gen.last_n_tokens`` and
+    ``gen.last_hit_cap`` (generation stopped at max_new_tokens) describe the reply."""
     import torch
 
-    def gen(prompt: str) -> str:
+    def gen(prompt: str, repetition_penalty: Optional[float] = None) -> str:
+        rp = repetition_penalty if repetition_penalty is not None else gen.default_repetition_penalty
         chat = text_chat(proc, prompt)
         inp = proc(text=[chat], return_tensors="pt", padding=True).to(mdl.device)
         with torch.no_grad():
-            out = mdl.generate(**inp, max_new_tokens=max_new_tokens, do_sample=False)
+            out = mdl.generate(**inp, max_new_tokens=max_new_tokens, do_sample=False, repetition_penalty=float(rp))
+        n_new = int(out.shape[1] - inp.input_ids.shape[1])
+        gen.last_n_tokens, gen.last_hit_cap = n_new, n_new >= max_new_tokens
         return proc.batch_decode(out[:, inp.input_ids.shape[1]:], skip_special_tokens=True)[0]
 
+    gen.default_repetition_penalty = float(repetition_penalty)
+    gen.max_new_tokens = int(max_new_tokens)
+    gen.last_n_tokens, gen.last_hit_cap = 0, False
     return gen
 
 

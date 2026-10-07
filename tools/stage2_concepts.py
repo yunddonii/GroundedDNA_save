@@ -2,35 +2,43 @@
 
 Input: the survey shards of one dataset (``<in_dir>/survey.shard*.jsonl``; rows with ``_parse_error``
 are ignored).  Output (all in ``--out_dir``):
-    concepts_shuffle{0,1,2}.json   step 2a per phrase-order shuffle: one concept list PER MINI-BATCH
-                                   (PROMPT_CONCEPTS_BATCH, no cumulative input) and their union
-                                   de-duplicated by lowercased name (resume unit)
+    concepts_shuffle{0,1,2}.json   step 2a per phrase-order shuffle: one FLAT NAME LIST per mini-batch
+                                   (PROMPT_CONCEPTS_BATCH), per-batch parse_mode (strict|regex),
+                                   retried_batches, skipped_batches, and the union de-duplicated by
+                                   lowercased name (resume unit)
     concepts_consolidated.json     PROMPT_CONCEPTS_CONSOLIDATE over the union of the three shuffle
-                                   unions; chunks of CONSOLIDATE_CHUNK when the union is larger, then
-                                   the chunk outputs are consolidated once more (re-chunked while they
-                                   still exceed the chunk size, at most MAX_CONSOLIDATE_LEVELS levels)
-    concepts.json                  per-shuffle sizes, agreement between the three shuffle unions,
-                                   consolidation levels, working list = the consolidated list
+                                   unions; chunks of CONSOLIDATE_CHUNK names when the union is larger,
+                                   then the chunk outputs are consolidated once more (re-chunked while
+                                   they still exceed the chunk size, at most MAX_CONSOLIDATE_LEVELS)
+    concepts.json                  per-shuffle sizes / parse-mode counts / retries / skips, agreement
+                                   between the three shuffle unions, consolidation levels, working list
     concepts_visual.json           working list after PROMPT_VISUAL_CHECK, dropped concepts recorded
     attributes_shuffle{0,1,2}.json PROMPT_ATTRIBUTES on three concept-order shuffles
     attributes.json                final 4 attributes + positional key_map to the legacy slot keys
 
-Why two levels (2026-10-07): the earlier cumulative design (PROMPT_CONCEPTS_UPDATE, kept unused in
-stage2_prompts.py) made the model restate the whole list every batch; on NUS-WIDE the reply overran
-max_new_tokens and was cut mid-string, on Flickr25k the count oscillated 69 -> 46 -> 81.  Per-batch
-extraction + consolidation (X-Cluster) bounds every reply to one batch's or one chunk's concepts.
+Concepts are plain strings (names only) everywhere since 2026-10-07 (third revision): the earlier
+{name, examples} objects made the model summarise images (Flickr: one "concept" per image), loop
+(NUS-WIDE: one 26k-character line) or emit malformed JSON mid-object (MS-COCO).
 
-Strict parsing: a reply whose JSON does not close (after the ending-only repairs in
-``stage2_common.parse_json_object``) or lacks the expected list raises ParseFailure -- no silent skip.
-Concepts are sent to the model with at most RENDER_MAX_EXAMPLES examples each; files keep them all.
-Downstream files (visual check, attribute shuffles) record the sha of the list they were built from
-and are recomputed when that list changed, so stale files from an earlier method are never reused.
-All model calls go through one ``gen(prompt) -> str`` callable so tests drive the steps with a stub.
-Every JSON output is written to a sibling temp file and renamed into place.
+Reply handling for the two name-list prompts (``parse_flat_concepts``):
+  strict  ``parse_json_object`` succeeds and has a "concepts" list;
+  regex   otherwise every double-quoted string after the word "concepts" is taken, in order, de-duplicated,
+          accepted only if >= 1 string and the reply ended with "]" / "}" or hit the length cap;
+  degenerate (ParseFailure): any string longer than 60 characters, or the same string >= 3 times in a row.
+A failed batch is retried ONCE with repetition_penalty 1.1; if it still fails the batch is skipped and
+recorded in ``skipped_batches``; the pass fails hard only when more than SKIP_FRAC_MAX of its batches
+were skipped.  Consolidation chunks use the same retry; a chunk that still fails passes its input
+through unconsolidated (``skipped_chunks``).
+Downstream files (consolidation, visual check, attribute shuffles) record the sha of the list they were
+built from and are recomputed when that list changed, so stale files are never reused.
+All model calls go through one ``gen(prompt, **kw) -> str`` callable (``gen.last_hit_cap`` optional) so
+tests drive the steps with a stub.  Every JSON output is written to a sibling temp file and renamed.
 
 Usage:
     CUDA_VISIBLE_DEVICES=1 python tools/stage2_concepts.py --dataset Flickr25k \
         --in_dir cache_eval/stage2/flickr25k --out_dir cache_eval/stage2/flickr25k
+    smoke (one shuffle, first 6 batches, stops after consolidation):
+        ... --shuffles 1 --smoke_batches 6 --out_dir cache_eval/stage2_smoke/flickr25k
 """
 from __future__ import annotations
 
@@ -39,28 +47,34 @@ import glob
 import hashlib
 import json
 import os
+import re
 import sys
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Sequence
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from stage2_common import LEGACY_LOCAL_KEYS, MODEL_ID, DatasetSpec, parse_json_object, read_rows  # noqa: E402
 from stage2_prompts import (PROMPT_ATTRIBUTES, PROMPT_ATTRIBUTES_MERGE, PROMPT_CONCEPTS_BATCH,  # noqa: E402
-                            PROMPT_CONCEPTS_CONSOLIDATE, PROMPT_CONCEPTS_UPDATE, PROMPT_SURVEY,
-                            PROMPT_VERSION, PROMPT_VISUAL_CHECK, sha256_of)
+                            PROMPT_CONCEPTS_CONSOLIDATE, PROMPT_SURVEY, PROMPT_VERSION, PROMPT_VISUAL_CHECK,
+                            sha256_of)
 
 AGREE_MIN_JACCARD = 0.6
 VISUAL_CHECK_CHUNK = 100
 CONSOLIDATE_CHUNK = 150
 MAX_CONSOLIDATE_LEVELS = 3
-RENDER_MAX_EXAMPLES = 2
-STEP2A_METHOD = "per_batch_extraction+consolidation"
+MAX_NEW_TOKENS = 3072
+RETRY_REPETITION_PENALTY = 1.1
+SKIP_FRAC_MAX = 0.10
+DEGENERATE_MAX_CHARS = 60
+DEGENERATE_REPEATS = 3
+STEP2A_METHOD = "per_batch_extraction+consolidation/flat_names"
 PROMPT_SHAS = {k: sha256_of(v) for k, v in {
-    "survey": PROMPT_SURVEY, "concepts_update": PROMPT_CONCEPTS_UPDATE, "concepts_batch": PROMPT_CONCEPTS_BATCH,
+    "survey": PROMPT_SURVEY, "concepts_batch": PROMPT_CONCEPTS_BATCH,
     "concepts_consolidate": PROMPT_CONCEPTS_CONSOLIDATE, "visual_check": PROMPT_VISUAL_CHECK,
     "attributes": PROMPT_ATTRIBUTES, "attributes_merge": PROMPT_ATTRIBUTES_MERGE}.items()}
+_QUOTED = re.compile(r'"((?:[^"\\]|\\.)*)"')
 
 
 class ParseFailure(RuntimeError):
@@ -86,43 +100,106 @@ def atomic_json_dump(obj, path) -> None:
     os.replace(tmp, path)
 
 
-def list_sha(items: Sequence[dict]) -> str:
-    """Order-free digest of a concept list by lowercased names (used to detect stale downstream files)."""
-    return hashlib.sha256(json.dumps(sorted(_lc(c["name"]) for c in items)).encode("utf-8")).hexdigest()
+def list_sha(names: Sequence[str]) -> str:
+    """Order- and case-free digest of a name list (used to detect stale downstream files)."""
+    return hashlib.sha256(json.dumps(sorted(_lc(n) for n in names)).encode("utf-8")).hexdigest()
 
 
-def norm_concepts(items) -> List[dict]:
-    """[{name, examples[]}] with trimmed strings; items without a name are dropped."""
-    out = []
-    for it in items:
-        if isinstance(it, str):
-            it = {"name": it, "examples": []}
-        if not isinstance(it, dict) or not str(it.get("name", "")).strip():
-            continue
-        ex = it.get("examples") or []
-        if not isinstance(ex, list):
-            ex = [ex]
-        out.append({"name": str(it["name"]).strip(), "examples": [str(e).strip() for e in ex if str(e).strip()]})
+def dedupe_names(names: Sequence[str]) -> List[str]:
+    """Keep the first spelling of every lowercased name, in order; blanks dropped."""
+    seen, out = set(), []
+    for n in names:
+        n = " ".join(str(n).split())
+        k = _lc(n)
+        if n and k not in seen:
+            seen.add(k); out.append(n)
     return out
 
 
-def dedupe_by_name(items: Sequence[dict]) -> List[dict]:
-    seen: Dict[str, dict] = {}
-    order = []
+def jaccard(a: set, b: set) -> float:
+    return len(a & b) / len(a | b) if (a | b) else 1.0
+
+
+def render_concepts(names: Sequence[str]) -> str:
+    """Model-facing rendering: a JSON list of names."""
+    return json.dumps(list(names), ensure_ascii=False)
+
+
+# --------------------------------------------------------------------------- flat-list parsing
+def _names_from_items(items) -> List[str]:
+    out = []
     for it in items:
-        k = _lc(it["name"])
-        if k in seen:
-            for e in it["examples"]:
-                if _lc(e) not in {_lc(x) for x in seen[k]["examples"]}:
-                    seen[k]["examples"].append(e)
-        else:
-            seen[k] = {"name": it["name"], "examples": list(it["examples"])}
-            order.append(k)
-    return [seen[k] for k in order]
+        if isinstance(it, dict):                      # tolerate the old {name, examples} schema
+            it = it.get("name", "")
+        if isinstance(it, (str, int, float)) and str(it).strip():
+            out.append(str(it).strip())
+    return out
+
+
+def _check_degenerate(names: Sequence[str]) -> None:
+    long = [n for n in names if len(n) > DEGENERATE_MAX_CHARS]
+    if long:
+        raise ParseFailure(f"degenerate reply: string longer than {DEGENERATE_MAX_CHARS} chars: {long[0][:80]!r}")
+    run, prev = 1, None
+    for n in names:
+        k = _lc(n)
+        run = run + 1 if k == prev else 1
+        if run >= DEGENERATE_REPEATS:
+            raise ParseFailure(f"degenerate reply: {n!r} repeated {DEGENERATE_REPEATS}+ times in a row")
+        prev = k
+
+
+def parse_flat_concepts(raw: str, hit_cap: bool = False) -> Tuple[List[str], str]:
+    """-> (de-duplicated names, parse_mode 'strict'|'regex'); ParseFailure on an unusable or degenerate reply."""
+    text = raw.strip()
+    mode = "strict"
+    try:
+        d = parse_json_object(raw)
+        lst = d.get("concepts")
+        if not isinstance(lst, list):
+            raise ValueError('no "concepts" list')
+        names = _names_from_items(lst)
+    except Exception as strict_err:  # noqa: BLE001
+        key = re.search(r'"?concepts"?\s*:?', text)          # skip the key token incl. its quotes and colon
+        if key is None:
+            raise ParseFailure(f'reply has no "concepts" key ({strict_err}); head={text[:200]!r}')
+        tail = text[key.end():]
+        names = []
+        for m in _QUOTED.finditer(tail):
+            try:
+                s = json.loads('"' + m.group(1) + '"')
+            except Exception:  # noqa: BLE001
+                s = m.group(1)
+            if s.strip():
+                names.append(s.strip())
+        if not names:
+            raise ParseFailure(f"regex fallback found no strings ({strict_err}); head={text[:200]!r}")
+        if not (text.endswith("]") or text.endswith("}") or hit_cap):
+            raise ParseFailure(f"reply did not close and did not hit the length cap ({strict_err}); tail={text[-120:]!r}")
+        mode = "regex"
+    _check_degenerate(names)
+    names = dedupe_names(names)
+    if not names:
+        raise ParseFailure("reply has an empty concept list")
+    return names, mode
+
+
+def call_concepts(gen: Callable[..., str], prompt: str, label: str, log=print) -> Tuple[Optional[List[str]], dict]:
+    """One call, then ONE retry with repetition_penalty on ParseFailure.  Returns (names|None, info)."""
+    errors = []
+    for attempt in (1, 2):
+        try:
+            raw = gen(prompt) if attempt == 1 else gen(prompt, repetition_penalty=RETRY_REPETITION_PENALTY)
+            names, mode = parse_flat_concepts(raw, hit_cap=bool(getattr(gen, "last_hit_cap", False)))
+            return names, {"parse_mode": mode, "retried": attempt == 2, "errors": errors}
+        except ParseFailure as e:
+            errors.append(str(e)[:300])
+            log(f"  {label}: attempt {attempt} failed: {str(e)[:160]}")
+    return None, {"parse_mode": "failed", "retried": True, "errors": errors}
 
 
 def strict_list(raw: str, field: str) -> list:
-    """Parse a reply and return its ``field`` list; raise ParseFailure otherwise (fail hard)."""
+    """Parse a reply and return its ``field`` list; raise ParseFailure otherwise (visual check / attributes)."""
     try:
         d = parse_json_object(raw)
     except Exception as e:  # noqa: BLE001
@@ -132,88 +209,104 @@ def strict_list(raw: str, field: str) -> list:
     return d[field]
 
 
-def jaccard(a: set, b: set) -> float:
-    return len(a & b) / len(a | b) if (a | b) else 1.0
-
-
-def render_concepts(items: Sequence[dict], max_examples: Optional[int] = RENDER_MAX_EXAMPLES) -> str:
-    """Model-facing rendering: JSON list with at most ``max_examples`` examples per concept."""
-    return json.dumps([{"name": c["name"], "examples": c["examples"][:max_examples] if max_examples is not None
-                        else c["examples"]} for c in items], ensure_ascii=False, indent=0)
-
-
-def _concept_reply(gen: Callable[[str], str], prompt: str) -> List[dict]:
-    return dedupe_by_name(norm_concepts(strict_list(gen(prompt), "concepts")))
-
-
 # --------------------------------------------------------------------------- step 2a (i): per-batch extraction
-def concepts_batch_pass(gen: Callable[[str], str], survey: Dict[str, List[str]], seed: int,
-                        batch_images: int, log=print) -> dict:
+def concepts_batch_pass(gen: Callable[..., str], survey: Dict[str, List[str]], seed: int,
+                        batch_images: int, log=print, max_batches: Optional[int] = None) -> dict:
     """One seeded shuffle of the images; every mini-batch is extracted independently (no cumulative
-    input).  Returns the per-batch lists and their union de-duplicated by lowercased name."""
+    input).  Failed batches are retried once, then skipped; > SKIP_FRAC_MAX skipped batches raises."""
     ids = sorted(survey)
     order = np.random.default_rng(seed).permutation(len(ids))
-    n_batches = (len(ids) + batch_images - 1) // batch_images
-    batch_lists = []
-    for b in range(0, len(ids), batch_images):
+    starts = list(range(0, len(ids), batch_images))
+    if max_batches is not None:
+        starts = starts[:max_batches]
+    batch_lists, skipped, retried = [], [], []
+    for bi, b in enumerate(starts):
         batch = [ids[i] for i in order[b:b + batch_images]]
         lines = "\n".join(", ".join(survey[i]) for i in batch)
-        lst = _concept_reply(gen, PROMPT_CONCEPTS_BATCH.replace("<PHRASES>", lines))
-        batch_lists.append({"batch": b // batch_images, "image_ids": batch, "concepts": lst})
-        log(f"  shuffle {seed} batch {b // batch_images + 1}/{n_batches}: {len(lst)} concepts "
-            f"(union so far {len(dedupe_by_name([c for bl in batch_lists for c in bl['concepts']]))})")
-    union = dedupe_by_name([c for bl in batch_lists for c in bl["concepts"]])
+        names, info = call_concepts(gen, PROMPT_CONCEPTS_BATCH.replace("<PHRASES>", lines),
+                                    f"shuffle {seed} batch {bi + 1}/{len(starts)}", log)
+        if info["retried"]:
+            retried.append(bi)
+        if names is None:
+            skipped.append({"batch": bi, "errors": info["errors"]})
+            log(f"  shuffle {seed} batch {bi + 1}/{len(starts)}: SKIPPED after retry")
+            continue
+        batch_lists.append({"batch": bi, "image_ids": batch, "concepts": names, "parse_mode": info["parse_mode"],
+                            "retried": info["retried"]})
+        union_n = len(dedupe_names([c for bl in batch_lists for c in bl["concepts"]]))
+        log(f"  shuffle {seed} batch {bi + 1}/{len(starts)}: {len(names)} concepts [{info['parse_mode']}"
+            f"{', retried' if info['retried'] else ''}] (union so far {union_n})")
+    if len(skipped) > SKIP_FRAC_MAX * len(starts):
+        raise ParseFailure(f"shuffle {seed}: {len(skipped)}/{len(starts)} batches skipped (> {SKIP_FRAC_MAX:.0%}); "
+                           f"first errors: {skipped[0]['errors']}")
+    union = dedupe_names([c for bl in batch_lists for c in bl["concepts"]])
+    modes = {}
+    for bl in batch_lists:
+        modes[bl["parse_mode"]] = modes.get(bl["parse_mode"], 0) + 1
     return {"method": STEP2A_METHOD, "seed": seed, "n_images": len(ids), "batch_images": batch_images,
-            "counts_per_batch": [len(bl["concepts"]) for bl in batch_lists], "batch_lists": batch_lists,
-            "union": union, "union_size": len(union), "prompt_sha256": PROMPT_SHAS["concepts_batch"]}
+            "n_batches": len(starts), "counts_per_batch": [len(bl["concepts"]) for bl in batch_lists],
+            "parse_mode_counts": modes, "retried_batches": retried, "skipped_batches": skipped,
+            "batch_lists": batch_lists, "union": union, "union_size": len(union),
+            "prompt_sha256": PROMPT_SHAS["concepts_batch"]}
 
 
 # --------------------------------------------------------------------------- step 2a (ii): consolidation
-def consolidate(gen: Callable[[str], str], concepts: Sequence[dict], chunk: int = CONSOLIDATE_CHUNK,
+def consolidate(gen: Callable[..., str], names: Sequence[str], chunk: int = CONSOLIDATE_CHUNK,
                 max_levels: int = MAX_CONSOLIDATE_LEVELS, log=print) -> dict:
-    """PROMPT_CONCEPTS_CONSOLIDATE with bounded output per call: a list of at most ``chunk`` concepts
-    is consolidated in one call; a larger list is consolidated in chunks of ``chunk`` and the merged
-    chunk outputs are consolidated once more (re-chunked while they still exceed ``chunk``; stops
-    after ``max_levels`` levels or when a level no longer shrinks the list)."""
-    cur = dedupe_by_name(concepts)
-    levels = []
+    """PROMPT_CONCEPTS_CONSOLIDATE with bounded output per call: a list of at most ``chunk`` names is
+    consolidated in one call; a larger list is consolidated in chunks of ``chunk`` and the merged chunk
+    outputs are consolidated once more (re-chunked while they still exceed ``chunk``; stops after
+    ``max_levels`` levels or when a level no longer shrinks the list).  A chunk whose reply fails after
+    the retry passes through unconsolidated and is recorded in ``skipped_chunks``."""
+    cur = dedupe_names(names)
+    levels, skipped, retried = [], [], []
+
+    def one(part: Sequence[str], label: str) -> List[str]:
+        out, info = call_concepts(gen, PROMPT_CONCEPTS_CONSOLIDATE.replace("<CONCEPTS>", render_concepts(part)), label, log)
+        if info["retried"]:
+            retried.append(label)
+        if out is None:
+            skipped.append({"chunk": label, "n": len(part), "errors": info["errors"]})
+            log(f"  {label}: SKIPPED after retry; {len(part)} names pass through unconsolidated")
+            return list(part)
+        return out
+
     for level in range(1, max_levels + 1):
         if len(cur) <= chunk:
-            out = _concept_reply(gen, PROMPT_CONCEPTS_CONSOLIDATE.replace("<CONCEPTS>", render_concepts(cur)))
+            out = one(cur, f"consolidate L{level} single")
             levels.append({"level": level, "n_in": len(cur), "n_chunks": 1, "chunk_sizes_out": [len(out)], "n_out": len(out),
                            "final": True})
             log(f"  consolidate level {level}: {len(cur)} -> {len(out)} (single call)")
-            return {"concepts": out, "levels": levels, "chunk": chunk, "stopped": "single_call"}
+            return {"concepts": out, "levels": levels, "chunk": chunk, "stopped": "single_call",
+                    "retried_chunks": retried, "skipped_chunks": skipped}
         chunks = [cur[i:i + chunk] for i in range(0, len(cur), chunk)]
-        outs = [_concept_reply(gen, PROMPT_CONCEPTS_CONSOLIDATE.replace("<CONCEPTS>", render_concepts(ch)))
-                for ch in chunks]
-        merged = dedupe_by_name([c for o in outs for c in o])
+        outs = [one(ch, f"consolidate L{level} chunk {ci + 1}/{len(chunks)}") for ci, ch in enumerate(chunks)]
+        merged = dedupe_names([c for o in outs for c in o])
         levels.append({"level": level, "n_in": len(cur), "n_chunks": len(chunks), "chunk_sizes_out": [len(o) for o in outs],
                        "n_out": len(merged), "final": False})
         log(f"  consolidate level {level}: {len(cur)} -> {len(merged)} in {len(chunks)} chunks of <= {chunk}")
         if len(merged) >= len(cur):
             log("  consolidation stopped: the level did not shrink the list")
-            return {"concepts": merged, "levels": levels, "chunk": chunk, "stopped": "not_shrinking"}
+            return {"concepts": merged, "levels": levels, "chunk": chunk, "stopped": "not_shrinking",
+                    "retried_chunks": retried, "skipped_chunks": skipped}
         cur = merged
     log(f"  consolidation stopped after {max_levels} levels with {len(cur)} concepts (> chunk {chunk})")
-    return {"concepts": cur, "levels": levels, "chunk": chunk, "stopped": "max_levels"}
+    return {"concepts": cur, "levels": levels, "chunk": chunk, "stopped": "max_levels",
+            "retried_chunks": retried, "skipped_chunks": skipped}
 
 
-def agreement_report(lists: Sequence[Sequence[dict]]) -> dict:
-    names = [set(_lc(c["name"]) for c in L) for L in lists]
-    loose = [set(_lc(c["name"]) for c in L) | set(_lc(e) for c in L for e in c["examples"]) for L in lists]
+def agreement_report(lists: Sequence[Sequence[str]]) -> dict:
+    names = [set(_lc(c) for c in L) for L in lists]
     pair = {}
     for i in range(len(lists)):
         for j in range(i + 1, len(lists)):
-            pair[f"{i}-{j}"] = {"jaccard_names": jaccard(names[i], names[j]),
-                                "jaccard_names_plus_examples": jaccard(loose[i], loose[j])}
+            pair[f"{i}-{j}"] = {"jaccard_names": jaccard(names[i], names[j])}
     return {"sizes": [len(L) for L in lists], "pairwise": pair,
-            "mean_jaccard_names": float(np.mean([p["jaccard_names"] for p in pair.values()])) if pair else 1.0,
-            "mean_jaccard_names_plus_examples": float(np.mean([p["jaccard_names_plus_examples"] for p in pair.values()])) if pair else 1.0}
+            "mean_jaccard_names": float(np.mean([p["jaccard_names"] for p in pair.values()])) if pair else 1.0}
 
 
 # --------------------------------------------------------------------------- step 2b
-def visual_check(gen: Callable[[str], str], concepts: Sequence[dict], chunk: int = VISUAL_CHECK_CHUNK) -> dict:
+def visual_check(gen: Callable[..., str], concepts: Sequence[str], chunk: int = VISUAL_CHECK_CHUNK) -> dict:
     verdict: Dict[str, bool] = {}
     for s in range(0, len(concepts), chunk):
         part = concepts[s:s + chunk]
@@ -226,13 +319,13 @@ def visual_check(gen: Callable[[str], str], concepts: Sequence[dict], chunk: int
                 verdict[_lc(it["name"])] = bool(v)
     kept, dropped, unanswered = [], [], []
     for c in concepts:
-        v = verdict.get(_lc(c["name"]))
+        v = verdict.get(_lc(c))
         if v is None:
-            unanswered.append(c["name"]); kept.append(c)
+            unanswered.append(c); kept.append(c)
         elif v:
             kept.append(c)
         else:
-            dropped.append(c["name"])
+            dropped.append(c)
     return {"concepts": kept, "dropped_not_visible": dropped, "unanswered_kept": unanswered}
 
 
@@ -306,7 +399,7 @@ def key_map_by_position(attrs: Sequence[dict]) -> Dict[str, str]:
     return {a["key"]: legacy for a, legacy in zip(attrs, LEGACY_LOCAL_KEYS)}
 
 
-def attributes_step(gen: Callable[[str], str], concepts: Sequence[dict], out_dir, shuffles: int = 3, log=print) -> dict:
+def attributes_step(gen: Callable[..., str], concepts: Sequence[str], out_dir, shuffles: int = 3, log=print) -> dict:
     src_sha = list_sha(concepts)
     groupings = []
     for s in range(shuffles):
@@ -340,8 +433,11 @@ def attributes_step(gen: Callable[[str], str], concepts: Sequence[dict], out_dir
 
 
 # --------------------------------------------------------------------------- driver
-def run_all(gen: Callable[[str], str], survey: Dict[str, List[str]], out_dir, batch_images: int = 80,
-            shuffles: int = 3, dataset: str = "", log=print, consolidate_chunk: int = CONSOLIDATE_CHUNK) -> dict:
+def run_all(gen: Callable[..., str], survey: Dict[str, List[str]], out_dir, batch_images: int = 25,
+            shuffles: int = 3, dataset: str = "", log=print, consolidate_chunk: int = CONSOLIDATE_CHUNK,
+            smoke_batches: Optional[int] = None) -> dict:
+    """Steps 2a -> 2b -> 3.  ``smoke_batches`` limits every shuffle to its first N batches and stops
+    after consolidation (returns the concepts.json payload instead of attributes)."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     # 2a (i): per-batch extraction, one file per shuffle (resume unit)
@@ -350,14 +446,15 @@ def run_all(gen: Callable[[str], str], survey: Dict[str, List[str]], out_dir, ba
         p = out_dir / f"concepts_shuffle{s}.json"
         if p.exists():
             r = json.load(open(p))
-            if r.get("method") == STEP2A_METHOD and "union" in r:
+            if r.get("method") == STEP2A_METHOD and "union" in r and r.get("smoke_batches") == smoke_batches:
                 passes.append(r); log(f"  shuffle {s}: reusing {p}"); continue
-            log(f"  shuffle {s}: {p} is from an earlier method; recomputing")
-        r = concepts_batch_pass(gen, survey, s, batch_images, log)
+            log(f"  shuffle {s}: {p} is from an earlier method or setting; recomputing")
+        r = concepts_batch_pass(gen, survey, s, batch_images, log, max_batches=smoke_batches)
+        r["smoke_batches"] = smoke_batches
         atomic_json_dump(r, p)
         passes.append(r)
     unions = [r["union"] for r in passes]
-    union_all = dedupe_by_name([c for u in unions for c in u])
+    union_all = dedupe_names([c for u in unions for c in u])
     union_sha = list_sha(union_all)
     # 2a (ii): consolidation over the union of the shuffle unions
     cons_p = out_dir / "concepts_consolidated.json"
@@ -372,19 +469,28 @@ def run_all(gen: Callable[[str], str], survey: Dict[str, List[str]], out_dir, ba
         atomic_json_dump(cons, cons_p)
     working = cons["concepts"]
     concepts_json = {"dataset": dataset, "method": STEP2A_METHOD, "n_images": len(survey), "batch_images": batch_images,
-                     "shuffles": [{"seed": r["seed"], "n_union": r["union_size"], "counts_per_batch": r["counts_per_batch"],
+                     "smoke_batches": smoke_batches,
+                     "shuffles": [{"seed": r["seed"], "n_batches": r["n_batches"], "n_union": r["union_size"],
+                                   "counts_per_batch": r["counts_per_batch"], "parse_mode_counts": r["parse_mode_counts"],
+                                   "retried_batches": r["retried_batches"], "skipped_batches": r["skipped_batches"],
                                    "union": r["union"]} for r in passes],
                      "agreement": agreement_report(unions),
-                     "n_union_all": len(union_all), "consolidation": {k: cons[k] for k in ("levels", "chunk", "stopped")},
+                     "n_union_all": len(union_all),
+                     "consolidation": {k: cons[k] for k in ("levels", "chunk", "stopped", "retried_chunks", "skipped_chunks")},
                      "n_consolidated": len(working),
-                     "working_list_rule": "per-batch extraction (PROMPT_CONCEPTS_BATCH, 3 shuffles) -> union of all batch "
-                                          "lists de-duplicated by lowercased name (examples merged) -> "
-                                          "PROMPT_CONCEPTS_CONSOLIDATE (chunked when > chunk); working = consolidated list",
+                     "working_list_rule": "per-batch extraction (PROMPT_CONCEPTS_BATCH, flat names) -> union of all batch "
+                                          "lists de-duplicated by lowercased name -> PROMPT_CONCEPTS_CONSOLIDATE "
+                                          "(chunked when > chunk); working = consolidated list",
                      "working": working, "prompt_sha256s": {k: PROMPT_SHAS[k] for k in ("concepts_batch", "concepts_consolidate")},
                      "vlm": MODEL_ID}
     atomic_json_dump(concepts_json, out_dir / "concepts.json")
     log(f"step 2a: per-shuffle unions {[len(u) for u in unions]}, union of unions {len(union_all)}, consolidated "
-        f"{len(working)}; agreement {concepts_json['agreement']}")
+        f"{len(working)}; parse modes {[r['parse_mode_counts'] for r in passes]}, retried "
+        f"{[r['retried_batches'] for r in passes]}, skipped {[len(r['skipped_batches']) for r in passes]}; "
+        f"agreement {concepts_json['agreement']}")
+    if smoke_batches is not None:
+        log(f"smoke: stopping after consolidation; {len(working)} concepts: {working[:15]}")
+        return concepts_json
     # 2b
     working_sha = list_sha(working)
     vis_p = out_dir / "concepts_visual.json"
@@ -422,10 +528,12 @@ def main(argv=None):
     ap.add_argument("--dataset", required=True)
     ap.add_argument("--in_dir", required=True)
     ap.add_argument("--out_dir", required=True)
-    ap.add_argument("--batch_images", type=int, default=80)
+    ap.add_argument("--batch_images", type=int, default=25)
     ap.add_argument("--shuffles", type=int, default=3)
-    ap.add_argument("--max_new_tokens", type=int, default=4096)
+    ap.add_argument("--max_new_tokens", type=int, default=MAX_NEW_TOKENS)
     ap.add_argument("--consolidate_chunk", type=int, default=CONSOLIDATE_CHUNK)
+    ap.add_argument("--smoke_batches", type=int, default=None,
+                    help="limit every shuffle to its first N batches and stop after consolidation (smoke test)")
     a = ap.parse_args(argv)
     spec = DatasetSpec(a.dataset)
     survey = load_survey(a.in_dir)
@@ -434,7 +542,7 @@ def main(argv=None):
     proc, mdl = load_vlm()
     gen = make_text_generator(proc, mdl, a.max_new_tokens)
     run_all(gen, survey, a.out_dir, a.batch_images, a.shuffles, spec.loader,
-            log=lambda m: print(m, flush=True), consolidate_chunk=a.consolidate_chunk)
+            log=lambda m: print(m, flush=True), consolidate_chunk=a.consolidate_chunk, smoke_batches=a.smoke_batches)
     return 0
 
 

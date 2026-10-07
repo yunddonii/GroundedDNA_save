@@ -23,8 +23,10 @@ import stage2_validate as val  # noqa: E402
 PINNED_SHA256 = {
     "survey": "3ecd7904a754852af844a14029f7c046fbc57e188f423e6820f02dc52e99b65e",
     "concepts_update": "63af48a3eba5c582ed91d16a44ac05ae8becac4dd7dc0d769f996e8d5932f7d0",   # kept, unused
-    "concepts_batch": "595b6e8f25a0a80e26f74d4c7714d1a3e23edfed129f68145ba059f696ca4377",
-    "concepts_consolidate": "2667d9cb76ce5e97dfdd6162d09fbb910f109b774155c3e1eedf20870aa2c8e0",
+    "concepts_batch_v1": "595b6e8f25a0a80e26f74d4c7714d1a3e23edfed129f68145ba059f696ca4377",      # kept, unused
+    "concepts_consolidate_v1": "2667d9cb76ce5e97dfdd6162d09fbb910f109b774155c3e1eedf20870aa2c8e0",  # kept, unused
+    "concepts_batch": "7a21a3ce6d5432af1d046cd5fa853197c0758f8d74227d42ceaa5596d71c937a",
+    "concepts_consolidate": "18ff3bf7f0bd148acc4c261c10428ebad1dcacc50d87f5ac8410171a81678e49",
     "visual_check": "94750a24415d7ead6a60c7a345500469327ffb0b7cc18938baef692bbd51cc0a",
     "attributes": "842795fa73153fbc8c9a7326a55640269f693557f9dd822b63933a908a22e251",
     "attributes_merge": "8b9f24c40e5d8cbf9fc055487c1888ee00c2b9857f18610b7764bfee08520147",
@@ -52,6 +54,12 @@ def test_prompt_constants_are_pinned():
     assert "<PHRASES>" in pr.PROMPT_CONCEPTS_UPDATE and "<CONCEPTS>" in pr.PROMPT_CONCEPTS_UPDATE
     assert pr.PROMPT_CONCEPTS_BATCH.endswith("Phrases:\n<PHRASES>") and "<CONCEPTS>" not in pr.PROMPT_CONCEPTS_BATCH
     assert pr.PROMPT_CONCEPTS_CONSOLIDATE.endswith("Concepts:\n<CONCEPTS>") and "<PHRASES>" not in pr.PROMPT_CONCEPTS_CONSOLIDATE
+    clar = ("A concept names something that can recur across many images in the collection, not a description "
+            "of one image; keep each concept to one to three words.")
+    for p in (pr.PROMPT_CONCEPTS_BATCH, pr.PROMPT_CONCEPTS_CONSOLIDATE):
+        first_stop = p.index(". ") + 2
+        assert p[first_stop:].startswith(clar)                                   # right after the first sentence
+        assert '{"concepts": ["...", "..."]}' in p and "examples" not in p.split("Output ONLY")[1]
     assert pr.PROMPT_CAPTIONS_TEMPLATE.endswith("- <A4>: <D4>")
     assert set(PINNED_SHA256) == set(pr.ALL_PROMPTS)
 
@@ -192,22 +200,23 @@ def _stub_gen(diverge_shuffle=False, merge_ok=True):
     """Answers each prompt type by sniffing its unique wording."""
     attr_calls = [0]
 
-    def gen(prompt):
+    def gen(prompt, **kw):
         assert "Concepts found so far" not in prompt                   # the cumulative prompt is never sent
+        assert "examples" not in prompt.split("Output ONLY")[-1]        # flat lists only
         if prompt.startswith(pr.PROMPT_CONCEPTS_BATCH[:60]):            # per-batch extraction
             lines = prompt.split("Phrases:\n")[1].splitlines()
             idx = [re.search(r"phrase (\d+) a", ln).group(1) for ln in lines]
-            new = [{"name": f"concept {i}", "examples": [f"ex{i}", f"ex{i}b", f"ex{i}c"]} for i in idx]
-            return json.dumps({"concepts": new + [{"name": "Concept 0", "examples": ["dup"]}]})
+            return json.dumps({"concepts": [f"concept {i}" for i in idx] + ["Concept 0"]})
         if prompt.startswith(pr.PROMPT_CONCEPTS_CONSOLIDATE[:60]):     # consolidation: identity
             items = json.loads(prompt.split("Concepts:\n")[1])
-            assert all(len(c["examples"]) <= 2 for c in items)           # at most 2 examples are sent
+            assert all(isinstance(c, str) for c in items)
             return json.dumps({"concepts": items})
         if prompt.startswith("For each concept below"):
             items = json.loads(prompt.split("Concepts:\n")[1])
-            return json.dumps({"concepts": [{"name": c["name"], "visible": c["name"] != "concept 1"} for c in items]})
+            return json.dumps({"concepts": [{"name": c, "visible": c != "concept 1"} for c in items]})
         if prompt.startswith("Below is a list of visual concepts"):
-            items = [c["name"] for c in json.loads(prompt.split("Concepts:\n")[1])]
+            items = json.loads(prompt.split("Concepts:\n")[1])
+            assert all(isinstance(c, str) for c in items)
             attr_calls[0] += 1
             names = ["Subject", "Place", "Colours", "Activity"]
             if diverge_shuffle and attr_calls[0] == 2:                 # shuffle 1 names its groups differently
@@ -237,32 +246,36 @@ def test_concepts_pipeline_with_stub_model(tmp_path):
     assert all(sum(s["counts_per_batch"]) == 14 and max(s["counts_per_batch"]) <= 6 for s in cj["shuffles"])
     assert all(s["n_union"] == 12 for s in cj["shuffles"])                         # 12 images -> 12 concepts after dedupe
     assert cj["n_union_all"] == 12 and cj["n_consolidated"] == 12 and len(cj["working"]) == 12
-    assert len({c["name"].lower() for c in cj["working"]}) == len(cj["working"])   # de-duplicated by lowercased name
-    c0 = next(c for c in cj["working"] if c["name"].lower() == "concept 0")
-    assert "dup" in c0["examples"] and "ex0" in c0["examples"]                      # examples merged across duplicates
+    assert all(isinstance(c, str) for c in cj["working"])                           # names only
+    assert len({c.lower() for c in cj["working"]}) == len(cj["working"])           # de-duplicated by lowercased name
+    assert "concept 0" in {c.lower() for c in cj["working"]}
     assert cj["agreement"]["sizes"] == [12, 12, 12] and cj["agreement"]["mean_jaccard_names"] == 1.0
     assert "consolidat" in cj["working_list_rule"] and cj["consolidation"]["levels"][0]["n_chunks"] == 1
+    assert cj["consolidation"]["retried_chunks"] == [] and cj["consolidation"]["skipped_chunks"] == []
     assert set(cj["prompt_sha256s"]) == {"concepts_batch", "concepts_consolidate"}
+    for s in cj["shuffles"]:
+        assert s["parse_mode_counts"] == {"strict": 3} and s["retried_batches"] == [] and s["skipped_batches"] == []
     sh0 = json.load(open(tmp_path / "concepts_shuffle0.json"))
     assert sh0["method"] == con.STEP2A_METHOD and len(sh0["batch_lists"]) == 3 and sh0["union_size"] == 12
-    assert all(len(bl["image_ids"]) in (5, 2) for bl in sh0["batch_lists"])
+    assert all(len(bl["image_ids"]) in (5, 2) and bl["parse_mode"] == "strict" for bl in sh0["batch_lists"])
     assert json.load(open(tmp_path / "concepts_consolidated.json"))["stopped"] == "single_call"
     vis = json.load(open(tmp_path / "concepts_visual.json"))
-    assert vis["dropped_not_visible"] == ["concept 1"] and all(c["name"] != "concept 1" for c in vis["concepts"])
+    assert vis["dropped_not_visible"] == ["concept 1"] and "concept 1" not in vis["concepts"]
     assert [a["key"] for a in attrs["attributes"]] == ["Subject", "Place", "Colours", "Activity"]
     assert attrs["source"] == "shuffle0" and attrs["agreement"]["agree"] is True
     assert attrs["key_map"] == {"Subject": "C_primary_object", "Place": "C_secondary_object",
                                 "Colours": "C_activity_or_relation", "Activity": "C_color_texture"}
     aj = json.load(open(tmp_path / "attributes.json"))
     assert aj["key_map"] == attrs["key_map"] and set(aj["prompt_sha256s"]) >= {
-        "attributes", "attributes_merge", "visual_check", "concepts_batch", "concepts_consolidate", "concepts_update"}
+        "attributes", "attributes_merge", "visual_check", "concepts_batch", "concepts_consolidate"}
+    assert aj["prompt_sha256s"]["concepts_batch"] == PINNED_SHA256["concepts_batch"]
     assert all((tmp_path / f"attributes_shuffle{s}.json").exists() for s in range(3))
     assert any("ATTRIBUTES" in m for m in logs)
     assert not list(tmp_path.glob("*.tmp*"))                                        # atomic writes left no temp files
     # resume: a second run reuses every file and never calls the model
     calls = []
-    def counting(prompt):
-        calls.append(prompt); return _stub_gen()(prompt)
+    def counting(prompt, **kw):
+        calls.append(prompt); return _stub_gen()(prompt, **kw)
     con.run_all(counting, _survey(), tmp_path, batch_images=5, shuffles=3, log=lambda m: None)
     assert calls == []
     # stale downstream files (built from a different list) are recomputed, not reused
@@ -276,6 +289,13 @@ def test_concepts_pipeline_with_stub_model(tmp_path):
     con.run_all(counting, _survey(), tmp_path, batch_images=5, shuffles=3, log=lambda m: None)
     assert sum(c.startswith(pr.PROMPT_CONCEPTS_BATCH[:60]) for c in calls) == 3           # only shuffle 1 redone
     assert json.load(open(sh))["method"] == con.STEP2A_METHOD
+    # smoke mode: first N batches of one shuffle, stops after consolidation, own files (setting recorded)
+    calls.clear()
+    out = con.run_all(counting, _survey(), tmp_path / "smoke", batch_images=5, shuffles=1, smoke_batches=2, log=lambda m: None)
+    assert out["n_consolidated"] == 10 and out["shuffles"][0]["n_batches"] == 2 and out["smoke_batches"] == 2
+    assert sum(c.startswith(pr.PROMPT_CONCEPTS_BATCH[:60]) for c in calls) == 2
+    assert not any(c.startswith("For each concept") for c in calls) and not (tmp_path / "smoke" / "attributes.json").exists()
+    assert json.load(open(tmp_path / "smoke" / "concepts_shuffle0.json"))["smoke_batches"] == 2
 
 
 def test_concepts_disagreement_triggers_merge(tmp_path):
@@ -286,32 +306,112 @@ def test_concepts_disagreement_triggers_merge(tmp_path):
         con.run_all(_stub_gen(diverge_shuffle=True, merge_ok=False), _survey(), tmp_path / "b", batch_images=5, shuffles=3, log=lambda m: None)
 
 
-CUT_MID_STRING = '{"concepts": [{"name": "a", "examples": ["b"]}, {"name": "wet cobbl'    # NUS-WIDE failure mode
+CUT_MID_STRING = '{"concepts": ["red car", "wet road", "wet cobbl'                       # NUS-WIDE failure mode
 
 
-def test_concepts_fail_hard_on_unclosed_json():
-    with pytest.raises(con.ParseFailure, match="not a closed JSON object"):
-        con.concepts_batch_pass(lambda p: CUT_MID_STRING, _survey(), 0, 5, log=lambda m: None)
-    with pytest.raises(con.ParseFailure, match="not a closed JSON object"):
-        con.consolidate(lambda p: CUT_MID_STRING, [{"name": "a", "examples": []}], log=lambda m: None)
-    with pytest.raises(con.ParseFailure, match='lacks a "concepts" list'):
-        con.concepts_batch_pass(lambda p: '{"items": []}', _survey(), 0, 5, log=lambda m: None)
+# --------------------------------------------------------------------------- flat-list parsing and degeneracy
+def test_parse_flat_concepts_strict_and_regex_fallback():
+    assert con.parse_flat_concepts('{"concepts": ["Red car", "red car", "wet road"]}') == (["Red car", "wet road"], "strict")
+    assert con.parse_flat_concepts('```json\n{"concepts": ["a", "b"]}\n```')[1] == "strict"
+    assert con.parse_flat_concepts('{"concepts": [{"name": "a", "examples": ["x"]}, "b"]}') == (["a", "b"], "strict")
+    # MS-COCO failure mode: malformed JSON mid-object (missing comma) -> regex fallback, reply closed
+    names, mode = con.parse_flat_concepts('{"concepts": ["red car", "wet road" "blue sky", "red car"]}')
+    assert (names, mode) == (["red car", "wet road", "blue sky"], "regex")
+    # unterminated last string: accepted only when the length cap was hit; the cut string is dropped
+    assert con.parse_flat_concepts(CUT_MID_STRING, hit_cap=True) == (["red car", "wet road"], "regex")
+    with pytest.raises(con.ParseFailure, match="did not close"):
+        con.parse_flat_concepts(CUT_MID_STRING, hit_cap=False)
+    with pytest.raises(con.ParseFailure, match='no "concepts" key'):
+        con.parse_flat_concepts('{"items": ["a"]}')
+    with pytest.raises(con.ParseFailure, match="no strings"):
+        con.parse_flat_concepts('{"concepts": [')
+    with pytest.raises(con.ParseFailure, match="empty"):
+        con.parse_flat_concepts('{"concepts": []}')
+
+
+def test_parse_flat_concepts_degenerate_detectors():
+    with pytest.raises(con.ParseFailure, match="longer than 60"):                   # one 26k-character line (NUS-WIDE)
+        con.parse_flat_concepts('{"concepts": ["' + "wet road, " * 2600 + '"]}')
+    with pytest.raises(con.ParseFailure, match="longer than 60"):
+        con.parse_flat_concepts('{"concepts": ["ok", "' + "x" * 61 + '"]}')
+    assert con.parse_flat_concepts('{"concepts": ["' + "x" * 60 + '"]}')[1] == "strict"
+    with pytest.raises(con.ParseFailure, match="repeated 3"):                       # greedy repetition loop
+        con.parse_flat_concepts('{"concepts": ["sky", "tree", "Tree", "tree", "car"]}')
+    assert con.parse_flat_concepts('{"concepts": ["tree", "tree", "car", "tree"]}')[0] == ["tree", "car"]  # 2 in a row is fine
+    with pytest.raises(con.ParseFailure, match="repeated 3"):
+        con.parse_flat_concepts('{"concepts": ["a", "b", "b", "b", "c', hit_cap=True)  # detector also runs on regex mode
+
+
+def _failing_then(ok_reply, fail_batches, fail_twice=()):
+    """Stub: batch prompts whose first phrase index is in fail_batches get a degenerate reply on attempt 1,
+    and again on attempt 2 when in fail_twice; records the repetition_penalty of every call."""
+    calls = []
+
+    def gen(prompt, **kw):
+        calls.append(kw.get("repetition_penalty"))
+        if prompt.startswith(pr.PROMPT_CONCEPTS_BATCH[:60]):
+            first = int(re.search(r"phrase (\d+) a", prompt.split("Phrases:\n")[1]).group(1))
+            if first in fail_batches and (kw.get("repetition_penalty") is None or first in fail_twice):
+                return '{"concepts": ["x", "x", "x", "x"]}'
+        return ok_reply
+    gen.calls = calls
+    return gen
+
+
+def _survey_ordered(n):
+    """Survey whose seed-0 shuffle is identity-free for the test: we key failures on the first phrase of a batch."""
+    return {f"images/im{i:03d}.jpg": [f"phrase {i} a"] for i in range(n)}
+
+
+def test_batch_retry_with_repetition_penalty_then_skip(tmp_path):
+    survey = _survey_ordered(50)                                                     # 10 batches of 5
+    ids = sorted(survey)
+    order = np.random.default_rng(0).permutation(len(ids))
+    firsts = [int(re.search(r"im(\d+)", ids[order[b]]).group(1)) for b in range(0, 50, 5)]
+    # batch 0 fails once and recovers on the retry; batch 1 fails twice and is skipped (1/10 = 10 %, not > 10 %)
+    gen = _failing_then('{"concepts": ["sky", "tree"]}', fail_batches={firsts[0], firsts[1]}, fail_twice={firsts[1]})
+    r = con.concepts_batch_pass(gen, survey, 0, 5, log=lambda m: None)
+    assert r["retried_batches"] == [0, 1] and [s["batch"] for s in r["skipped_batches"]] == [1]
+    assert len(r["skipped_batches"][0]["errors"]) == 2 and "repeated 3" in r["skipped_batches"][0]["errors"][0]
+    assert len(r["batch_lists"]) == 9 and r["batch_lists"][0]["retried"] and not r["batch_lists"][1]["retried"]
+    assert r["parse_mode_counts"] == {"strict": 9} and r["union"] == ["sky", "tree"] and r["n_batches"] == 10
+    assert gen.calls.count(con.RETRY_REPETITION_PENALTY) == 2 and gen.calls.count(None) == 10
+    assert gen.calls[0] is None and gen.calls[1] == 1.1                              # retry immediately follows
+    # 2 skipped of 10 (20 %) -> fail hard
+    gen = _failing_then('{"concepts": ["sky"]}', fail_batches={firsts[2], firsts[5]}, fail_twice={firsts[2], firsts[5]})
+    with pytest.raises(con.ParseFailure, match=r"2/10 batches skipped"):
+        con.concepts_batch_pass(gen, survey, 0, 5, log=lambda m: None)
+    # a run where the retry fixes everything has no skips and reports which batches needed it
+    gen = _failing_then('{"concepts": ["sky"]}', fail_batches=set(firsts))
+    r = con.concepts_batch_pass(gen, survey, 0, 5, log=lambda m: None)
+    assert r["retried_batches"] == list(range(10)) and r["skipped_batches"] == []
+    # run_all surfaces the fail-hard and never writes a shuffle file for it
+    gen = _failing_then('{"concepts": ["sky"]}', fail_batches=set(firsts), fail_twice=set(firsts))
+    with pytest.raises(con.ParseFailure):
+        con.run_all(gen, survey, tmp_path, batch_images=5, shuffles=1, log=lambda m: None)
+    assert not (tmp_path / "concepts_shuffle0.json").exists()
+
+
+def test_consolidation_skips_a_chunk_after_retry():
+    bad = lambda p, **kw: CUT_MID_STRING  # noqa: E731
+    r = con.consolidate(bad, ["a", "b", "c"], log=lambda m: None)
+    assert r["concepts"] == ["a", "b", "c"] and len(r["skipped_chunks"]) == 1 and r["retried_chunks"] == ["consolidate L1 single"]
     assert not hasattr(con, "concepts_update_pass")                                # the cumulative step is gone
-    # the ending-only repair still applies (a closed object with a bracket typo is accepted)
-    r = con.concepts_batch_pass(lambda p: '{"concepts": [{"name": "a", "examples": ["b"]}]]', _survey(3), 0, 5, log=lambda m: None)
-    assert r["union"] == [{"name": "a", "examples": ["b"]}]
+    # the ending-only repair still applies (a closed object with a bracket typo is accepted, strict mode)
+    good = con.parse_flat_concepts('{"concepts": ["a", "b"]]')
+    assert good == (["a", "b"], "strict")
 
 
 def _n_concepts(n):
-    return [{"name": f"c{i}", "examples": [f"e{i}", f"f{i}", f"g{i}"]} for i in range(n)]
+    return [f"c{i}" for i in range(n)]
 
 
 def test_consolidation_is_chunked_above_150():
     calls = []
 
-    def halving(prompt):                                                            # each call returns the first half
+    def halving(prompt, **kw):                                                      # each call returns the first half
         items = json.loads(prompt.split("Concepts:\n")[1])
-        assert len(items) <= 150 and all(len(c["examples"]) <= 2 for c in items)
+        assert len(items) <= 150 and all(isinstance(c, str) for c in items)
         calls.append(len(items))
         return json.dumps({"concepts": items[: max(1, len(items) // 2)]})
 
@@ -325,7 +425,7 @@ def test_consolidation_is_chunked_above_150():
     assert calls == [100] and len(r["concepts"]) == 50 and r["levels"][0]["n_chunks"] == 1
     # a level that does not shrink stops the recursion with the merged list (bounded calls)
     calls.clear()
-    identity = lambda p: json.dumps({"concepts": json.loads(p.split("Concepts:\n")[1])})  # noqa: E731
+    identity = lambda p, **kw: json.dumps({"concepts": json.loads(p.split("Concepts:\n")[1])})  # noqa: E731
     r = con.consolidate(identity, _n_concepts(200), log=lambda m: None)
     assert r["stopped"] == "not_shrinking" and len(r["concepts"]) == 200 and len(r["levels"]) == 1
     # chunk size is a parameter (run_all passes it through)
@@ -334,12 +434,10 @@ def test_consolidation_is_chunked_above_150():
     assert calls[:3] == [3, 3, 1]
 
 
-def test_consolidation_examples_capped_and_files_keep_all():
-    rendered = json.loads(con.render_concepts(_n_concepts(2)))
-    assert all(len(c["examples"]) == 2 for c in rendered)
-    assert json.loads(con.render_concepts(_n_concepts(1), max_examples=None))[0]["examples"] == ["e0", "f0", "g0"]
-    assert con.list_sha([{"name": "B", "examples": []}, {"name": "a", "examples": ["x"]}]) == \
-        con.list_sha([{"name": "a", "examples": []}, {"name": "b", "examples": []}])   # order- and case-free
+def test_names_only_helpers():
+    assert json.loads(con.render_concepts(["a b", "c"])) == ["a b", "c"]
+    assert con.dedupe_names(["Red  car", "red car", " ", "sky", "SKY"]) == ["Red car", "sky"]
+    assert con.list_sha(["B", "a"]) == con.list_sha(["a", "b"]) != con.list_sha(["a"])   # order- and case-free
 
 
 def test_grouping_agreement_rule():

@@ -5,11 +5,15 @@ The prompt texts below are fixed verbatim; every output row of the Stage-2 tools
 ``tests/test_stage2_tools.py`` pins the digests.  Do not edit the texts in place -- a new wording is a
 new constant (and a new prompt_version).
 
-Step 2a history: ``PROMPT_CONCEPTS_UPDATE`` (cumulative list restated every batch) is kept for the
-record but is UNUSED since 2026-10-07: in production the restated list overran max_new_tokens on
-NUS-WIDE (reply cut mid-string) and oscillated on Flickr25k (69 -> 46 -> 81).  Step 2a now uses the
-two-level X-Cluster procedure: ``PROMPT_CONCEPTS_BATCH`` per mini-batch, then
-``PROMPT_CONCEPTS_CONSOLIDATE`` over the union (chunked when large).
+Step 2a history (all 2026-10-07):
+  * ``PROMPT_CONCEPTS_UPDATE`` (cumulative list restated every batch) -- UNUSED: the restated list
+    overran max_new_tokens on NUS-WIDE (reply cut mid-string) and oscillated on Flickr25k (69 -> 46 -> 81).
+  * ``PROMPT_CONCEPTS_BATCH_V1`` / ``PROMPT_CONCEPTS_CONSOLIDATE_V1`` ({name, examples} objects) --
+    UNUSED: Flickr returned one "concept" per image (summaries, not concepts; union 633 after 18
+    batches), NUS-WIDE fell into a greedy repetition loop (one 26k-character line), MS-COCO produced
+    malformed JSON mid-object that an ending-only repair cannot fix.
+  * ``PROMPT_CONCEPTS_BATCH`` / ``PROMPT_CONCEPTS_CONSOLIDATE`` (current): flat string lists, names
+    only, with the clarification sentence "A concept names something that can recur ...".
 
 Placeholders: ``<PHRASES>``, ``<CONCEPTS>``, ``<G1>``..``<G3>`` (text steps) and ``<A1>``..``<A4>``,
 ``<D1>``..``<D4>`` (caption step; attribute key names and definitions from attributes.json).
@@ -45,12 +49,24 @@ Phrases:
 Concepts found so far:
 <CONCEPTS>"""
 
-PROMPT_CONCEPTS_BATCH = """Below are phrases describing images from one photo collection, one line per image. From these, list the visual concepts that are useful for telling the images in this collection apart. Keep concepts that are visible in the image itself; drop concepts that are not visual, that mean the same thing as another concept (when two concepts differ only in wording, keep one name and list the other as an example), or that apply to nearly every image in the collection or to almost none. Output ONLY a JSON object: {"concepts": [{"name": "...", "examples": ["...", "..."]}]}.
+# UNUSED since 2026-10-07 (kept for the record; see module docstring).
+PROMPT_CONCEPTS_BATCH_V1 = """Below are phrases describing images from one photo collection, one line per image. From these, list the visual concepts that are useful for telling the images in this collection apart. Keep concepts that are visible in the image itself; drop concepts that are not visual, that mean the same thing as another concept (when two concepts differ only in wording, keep one name and list the other as an example), or that apply to nearly every image in the collection or to almost none. Output ONLY a JSON object: {"concepts": [{"name": "...", "examples": ["...", "..."]}]}.
 
 Phrases:
 <PHRASES>"""
 
-PROMPT_CONCEPTS_CONSOLIDATE = """Below is a list of visual concepts collected from one photo collection in several passes; it contains duplicates and noise. Consolidate it: merge concepts that mean the same thing (keep one name, list the others as examples), drop concepts that are not visual, and drop concepts that apply to nearly every image in the collection or to almost none. Output ONLY a JSON object: {"concepts": [{"name": "...", "examples": ["...", "..."]}]}.
+# UNUSED since 2026-10-07 (kept for the record; see module docstring).
+PROMPT_CONCEPTS_CONSOLIDATE_V1 = """Below is a list of visual concepts collected from one photo collection in several passes; it contains duplicates and noise. Consolidate it: merge concepts that mean the same thing (keep one name, list the others as examples), drop concepts that are not visual, and drop concepts that apply to nearly every image in the collection or to almost none. Output ONLY a JSON object: {"concepts": [{"name": "...", "examples": ["...", "..."]}]}.
+
+Concepts:
+<CONCEPTS>"""
+
+PROMPT_CONCEPTS_BATCH = """Below are phrases describing images from one photo collection, one line per image. A concept names something that can recur across many images in the collection, not a description of one image; keep each concept to one to three words. From these, list the visual concepts that are useful for telling the images in this collection apart. Keep concepts that are visible in the image itself; drop concepts that are not visual, that mean the same thing as another concept (when two concepts differ only in wording, keep one name and list the other as an example), or that apply to nearly every image in the collection or to almost none. Output ONLY a JSON object: {"concepts": ["...", "..."]}.
+
+Phrases:
+<PHRASES>"""
+
+PROMPT_CONCEPTS_CONSOLIDATE = """Below is a list of visual concepts collected from one photo collection in several passes; it contains duplicates and noise. A concept names something that can recur across many images in the collection, not a description of one image; keep each concept to one to three words. Consolidate it: merge concepts that mean the same thing (keep one name, list the others as examples), drop concepts that are not visual, and drop concepts that apply to nearly every image in the collection or to almost none. Output ONLY a JSON object: {"concepts": ["...", "..."]}.
 
 Concepts:
 <CONCEPTS>"""
@@ -122,6 +138,8 @@ Attributes:
 ALL_PROMPTS = {
     "survey": PROMPT_SURVEY,
     "concepts_update": PROMPT_CONCEPTS_UPDATE,
+    "concepts_batch_v1": PROMPT_CONCEPTS_BATCH_V1,
+    "concepts_consolidate_v1": PROMPT_CONCEPTS_CONSOLIDATE_V1,
     "concepts_batch": PROMPT_CONCEPTS_BATCH,
     "concepts_consolidate": PROMPT_CONCEPTS_CONSOLIDATE,
     "visual_check": PROMPT_VISUAL_CHECK,
@@ -155,4 +173,4 @@ def build_caption_prompt(attributes: list) -> str:
 
 if __name__ == "__main__":
     for name, p in ALL_PROMPTS.items():
-        print(f"{name:22s} {sha256_of(p)}")
+        print(f"{name:26s} {sha256_of(p)}")
