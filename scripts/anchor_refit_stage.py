@@ -1282,26 +1282,41 @@ def _run_recovery(args, *, request: dict, approval: dict, manifest: dict, admitt
         return 2
     cell = request["cells"][0]
     uuid = str(snapshot["environment"]["selected_gpus"][0]["uuid"])
-    claim = {}
-    try:
-        M.assert_reservation_owner(args.namespace, reservation)
-        M.recheck_generation(manifest, f"before the recovery of {cell['cell_id']}")
-        refusal = M.anchor_dispatch_space_refusal(str(Path(cell["run_dir"]).parent), 1)
-        if refusal:
-            raise CellRefused(f"before {cell['cell_id']}: {refusal}")
+    claim, outcome = {}, {}
 
-        def claim_once():
-            claim["path"], claim["sha256"] = consume_recovery_claim(request, approval)
-        done = run_terminal_test_cell(cell, namespace=args.namespace, request=request, approval=approval,
-                                      campaign_nonce=nonce, gpu_uuid=uuid, snapshot=snapshot,
-                                      before_attempt=claim_once)
-        M.recheck_generation(manifest, f"after the recovery of {cell['cell_id']}")
-        M.assert_reservation_owner(args.namespace, reservation)
-        closure = final_recovery_closure(request, freeze=anchor_freeze_authority(), claim=claim, executed=done,
-                                         approval=approval, campaign_nonce=nonce)
-    except Exception as error:                          # noqa: BLE001 -- fail-stop, no receipt
-        print(f"[anchor-T] {cell['cell_id']} failed: {error}; no receipt", file=sys.stderr)
+    def _recovery_worker():
+        # Audit 839: managed campaign children launch only from a worker thread
+        # (phase3_selection_matrix._run_managed_process refuses the main thread so a signal handler cannot
+        # race child registration). Stage T runs its cells in _stream threads; the recovery's one cell runs
+        # here, in one worker, from the space check to the final closure; the main thread only joins.
+        try:
+            M.assert_reservation_owner(args.namespace, reservation)
+            M.recheck_generation(manifest, f"before the recovery of {cell['cell_id']}")
+            refusal = M.anchor_dispatch_space_refusal(str(Path(cell["run_dir"]).parent), 1)
+            if refusal:
+                raise CellRefused(f"before {cell['cell_id']}: {refusal}")
+
+            def claim_once():
+                claim["path"], claim["sha256"] = consume_recovery_claim(request, approval)
+            done = run_terminal_test_cell(cell, namespace=args.namespace, request=request, approval=approval,
+                                          campaign_nonce=nonce, gpu_uuid=uuid, snapshot=snapshot,
+                                          before_attempt=claim_once)
+            M.recheck_generation(manifest, f"after the recovery of {cell['cell_id']}")
+            M.assert_reservation_owner(args.namespace, reservation)
+            outcome["closure"] = final_recovery_closure(request, freeze=anchor_freeze_authority(), claim=claim,
+                                                        executed=done, approval=approval, campaign_nonce=nonce)
+            outcome["done"] = done
+        except Exception as error:                      # noqa: BLE001 -- fail-stop, no receipt
+            outcome["error"] = error
+
+    worker = threading.Thread(target=_recovery_worker, name=f"{args.namespace}-recovery", daemon=False)
+    worker.start()
+    worker.join()
+    if "closure" not in outcome:                        # a failure, or a worker that ended without a closure
+        reason = outcome.get("error", "the recovery worker ended without a final closure")
+        print(f"[anchor-T] {cell['cell_id']} failed: {reason}; no receipt", file=sys.stderr)
         return 1
+    done, closure = outcome["done"], outcome["closure"]
     hist_dir = Path(request["refit_receipt"]["path"]).parent
     cells = {cid: {"origin": "carried", "namespace": request["stopped"]["namespace"],
                    "record_dir": str(hist_dir), "record": c["record"]["file"],
