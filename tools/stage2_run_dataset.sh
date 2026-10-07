@@ -68,7 +68,7 @@ step_survey_extra() {
 }
 step_concepts() {
   one concepts "$GA" "$PY" tools/stage2_concepts.py --dataset "$DS" --in_dir "$OUT" --out_dir "$OUT" \
-      --batch_images 80 --shuffles 3 --max_new_tokens 4096 || return 1
+      --batch_images 25 --shuffles 3 --max_new_tokens 6144 || return 1
   [ -s "$OUT/attributes.json" ] || { echo "attributes.json missing"; return 1; }
   env -u PYTHONPATH "$PY" -c "import json; a=json.load(open('$OUT/attributes.json')); print('ATTRIBUTES', json.dumps([(x['key'], x['definition']) for x in a['attributes']])); print('key_map', a['key_map'])" | tee -a "$LOG/run.log"
 }
