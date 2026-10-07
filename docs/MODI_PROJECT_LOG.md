@@ -128,6 +128,32 @@ H2 and OFF, 3 seeds):
   caption-routed S rises on Flickr (+.22/+.19/+.11 vs +.15/+.17/+.08) and falls on NUS/COCO. H2 is
   adopted on P-RET/P-HEALTH, not on this.
 
+**Addendum 2026-10-07 — Flickr re-scored on 2,000 rows** (500 validation + 1,500 evaluation-only
+database images captioned with V4 on 2026-10-07, `cache_eval/`; 0 training overlap; reference text
+cache `cache_eval/ref_text_flickr_v4_plus_evaldb`; `stage1/a3v2_2000/`, `A3V2_2000_SUMMARY.md`).
+CI half-width falls from ±.13 to ±.04; the calibration now separates f = .3 from f = 0 (+.09), so
+**T(Flickr) = .10** (max of 2 × SD_seed[S(OFF)] = .02 and the detectable step ≈ .09).
+
+| arm | codeword S per seed | codon S per seed | codon, axis-exclusive | codon S − OFF (paired) |
+|---|---|---|---|---|
+| OFF | +.005 / +.010 / −.010 | +.016 / +.009 / −.057 | −.005 / +.028 / −.090 | — |
+| B0 | **+.109** / −.022 / −.051 | +.096 / +.005 / −.067 | +.122 / −.004 / −.113 | +.08 / −.00 / −.01 |
+| **H2 (= B1)** | +.083 / −.005 / −.021 | **+.161 / +.196 / +.109** (CI > 0 on 3/3) | **+.220 / +.250 / +.161** | **+.145 / +.187 / +.166** |
+
+- OFF is a clean zero at 2,000 rows (every CI within ±.05 of 0).
+- B0's codeword reading is seed-unstable and lives in the primary-object axis: R(primary) = +.41 /
+  −.17 / −.82 by seed. The legacy token pruning (noise-keyed anchors) is the suspected cause; not tested.
+- **H2 (EOS-pooled anchors) shows a consistent codon-level effect:** S .11–.20 on 3/3 seeds with CIs
+  excluding 0, H2 − OFF ≥ .145 on every seed, driven by the primary-object axis (codon R +.40 / +.41
+  / +.53) with secondary/activity positive and colour mixed. This is the first text-vs-no-text
+  difference on A3 that clears T. It was **not pre-registered as a test** (Stage 1 listed B0 − OFF as
+  "reported, not judged" and did not list H2 on A3), so it is recorded as a descriptive finding; B1
+  = H2 is the base that every Stage 3 arm must now beat (P-DELTA), and the Stage 3 pre-registration
+  will include "deployed codon S of B1 vs OFF" as a formal replication on NUS/COCO with their own
+  H2 cells.
+- Codeword-level S of H2 is small (+.02 mean): the slot-specific signal sits in the codon mapping,
+  consistent with the codon-head hypothesis above.
+
 **Consequences.** (1) B1 = H2 with the 10-term recipe. (2) Stage 3 as revised on 2026-10-07: teach
 the deployment path inside the shared embedding space (TD / S, then cross-modal contrastive N2),
 no offline structure; judge on the deployed codes' S and report the caption-routed S beside it.
