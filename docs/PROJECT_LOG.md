@@ -487,6 +487,62 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-07 [anchor model — r8 recovery of the one interrupted full-T cell (NUS-WIDE seed 44) submitted, nothing run] Audits §796–§821
+
+**Status:** ✅ submitted for audit review. **Non-executable:** no claim, budget, GPU or real payload was
+used.
+- **Records:** on `arch-exp-2026-09-anchor-refit-r8` (worktree `/data/yschoi/gdna_anchor_refit_v9r8`).
+  - Tested commit `3fd0117`; submission commit `4a5f5fe`, which changes only documentation and evidence
+    relative to `3fd0117`. Both pushed.
+- **Execution waits on two gates:**
+  1. the user's decision on the added 15,000 device-s budget and the one-attempt exception;
+  2. an audit approval line of scope `stage-T-recovery` naming request
+     `d34f505b90db1ef02dce74bd0326350053a6708315f505c0c881fe89a91ad666`.
+
+**What r8 does** (contract `docs/ANCHOR_T_RECOVERY_CONTRACT_v1.md`; manifest `3537e297…`):
+- **One cell only:** `--anchor-confirm recover` admits exactly the stopped campaign `ancT9`'s one
+  unfinished cell. It reads the pinned lineage file: 37 records plus the settled R/T ledger. The 11
+  completed cells are carried by their records and never re-evaluated.
+- **Historical versus executing authority:** the old approvals (F, the R receipt, §788) are checked
+  against the r7 generation. The r8 sources may differ from stage R only in exactly 3 control-plane
+  files; the scientific code is unchanged.
+- **One-time claim:** a single O_EXCL lineage claim outside every worktree is taken before the attempt.
+  The T entry re-verifies the lineage and the claim itself before loading anything.
+- **Final closure before publication:** the 11 carried cells and the new cell's record, attempt, entry
+  and outputs are re-read and re-hashed before a combined recovery receipt is written. No `ancT9`
+  receipt is ever created.
+- **Budget:** the supervisor gives the recovery its own 15,000 device-s ledger, bound to the settled R/T
+  ledger (79,482.15 s). The cumulative ceiling is 94,482.15 s.
+
+**Evidence** (`refit_v9/t_recovery_final/`, with SHA256SUMS):
+
+| Check | Result |
+|---|---|
+| Final test suite at `3fd0117` (28 files, OS sandbox, nothing deselected) | 1556 passed, 11 skipped (reasons recorded), rc 0 |
+| Sandbox boundary controls | 32/32 |
+| Mutation battery v14 at `3fd0117` | baseline 54/54; 47/47 mutants detected as declared (59 case executions); harness refused 0 |
+| Metadata-only request render | `d34f505b…`; 84 named JSON + source, 0 refused |
+
+**How the test boundary changed:**
+- The Python audit-hook guard (v1–v3) was replaced by an OS sandbox (bubblewrap), because audits
+  §802–§808 kept finding gaps in the child-process exceptions. §810 verified the sandbox independently.
+- In the sandbox only the read-only source, the interpreter, a source-only git store and a private
+  `/tmp` exist: no live data, results, ledgers or claims, no network and no GPU.
+
+**What went wrong on the way:**
+- **First battery:** at `efd6c31` it ended rc 1, catching 41 of 47 as declared. Six declared failure
+  markers were wrong, not missed defects (§815–§816). The battery was re-run fresh after the fix: 47/47.
+  - RY26 is detected only through refusal ordering: a later approval check still refuses the mixed
+    request (§816, §821).
+- **Launcher e2e tests:** 4 legacy tests had been deselected in the sandbox. §811 required a fixture
+  repair instead. The stub now derives its device observation from the synthetic GPU inventory, and a
+  new mismatch-refusal test was added.
+
+**Queued (not done):** §798, the anchor consumer/aggregate proposal for the 12-cell lineage; §820, the
+D5/D6 diagnostic discrepancies.
+
+---
+
 ## 2026-10-06 [anchor model — full stage T (r7) stopped by the budget rule: 11 of 12 cells complete] Audits §788–§795
 
 **Status:** ⚠️ the single full stage-T attempt approved in §788 ran and was stopped by its GPU-time
