@@ -1,0 +1,15 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________ test_composed_the_recovery_is_one_gpu_and_five_producers ___________
+
+    def test_composed_the_recovery_is_one_gpu_and_five_producers():
+        assert S.command_gpus("stage-T-recovery", ["--gpus", "3"]) == 1
+        with pytest.raises(S.Refused):
+            S.command_gpus("stage-T-recovery", ["--gpus", "2,3"])
+>       assert S.CHILDREN_PER_CELL["stage-T-recovery"] == len(RT.T_CHAIN) == 5
+E       KeyError: 'stage-T-recovery'
+
+tests/test_anchor_t_recovery.py:957: KeyError
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_the_recovery_is_one_gpu_and_five_producers
+1 failed in 5.76s

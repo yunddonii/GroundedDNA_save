@@ -1,0 +1,18 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_composed_the_stopped_snapshot_of_another_generation_refuses _______
+
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7fad02396920>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fad02395f60>
+
+    def test_composed_the_stopped_snapshot_of_another_generation_refuses(world, monkeypatch):
+        monkeypatch.setattr(RT, "R7_MANIFEST_SHA256", "0" * 64)
+>       with pytest.raises(CellRefused, match="not the pinned r7 run request"):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'not the pinned r7 run request'
+E         Actual message: "ledger section 788 approves stage-T-run for {'manifest': '3226a8de88df21facb1b90b65bb9f17891f6ec22c5f4ea52f162c0cccad796f9', 'freeze': '5efe885727525df5625398b2e43b9dbee2bb418a2ea9430f39e971501bbf50a5', 'request': '333de550b9b04baac92fe137d04d8071c21484e7e0f336b760899a0d925d42fa'}, not for {'manifest': '0000000000000000000000000000000000000000000000000000000000000000', 'freeze': '5efe885727525df5625398b2e43b9dbee2bb418a2ea9430f39e971501bbf50a5', 'request': '333de550b9b04baac92fe137d04d8071c21484e7e0f336b760899a0d925d42fa'} (version 'anchor-confirm/2')"
+
+tests/test_anchor_t_recovery.py:369: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_the_stopped_snapshot_of_another_generation_refuses
+1 failed in 5.95s

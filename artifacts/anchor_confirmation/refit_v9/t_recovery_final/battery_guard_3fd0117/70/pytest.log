@@ -1,0 +1,15 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____________ test_composed_a_settlement_line_off_its_pin_refuses ______________
+
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7fc7151ac070>
+
+    def test_composed_a_settlement_line_off_its_pin_refuses(world):
+        world.relineage(lambda lin: lin["stopped"]["settlement"].update(final_line_sha256="0" * 64))
+>       with pytest.raises(CellRefused, match="line is not its pinned bytes"):
+E       Failed: DID NOT RAISE CellRefused
+
+tests/test_anchor_t_recovery.py:1106: Failed
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_a_settlement_line_off_its_pin_refuses
+1 failed in 6.06s

@@ -1,0 +1,21 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_composed_a_carried_run_directory_off_the_output_contract_refuses[missing] _
+
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7efb45d9e2c0>
+change = 'missing'
+
+    @pytest.mark.parametrize("change", ["missing", "bit2"])
+    def test_composed_a_carried_run_directory_off_the_output_contract_refuses(world, change):
+        run = Path(world.cells[sorted(world.lineage["carried"])[0]]["run_dir"])
+        if change == "missing":
+            (run / "pairwise_nmi.json").unlink()
+        else:
+            (run / BIT2).write_text("{}")
+>       with pytest.raises(CellRefused, match="exactly the twelve required outputs"):
+E       Failed: DID NOT RAISE CellRefused
+
+tests/test_anchor_t_recovery.py:298: Failed
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_a_carried_run_directory_off_the_output_contract_refuses[missing]
+1 failed in 6.25s

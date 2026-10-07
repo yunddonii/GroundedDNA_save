@@ -1,0 +1,23 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_composed_membership_is_exactly_the_twelve_minus_the_recovered_cell[crossed-tag] _
+
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7f04f4615d50>
+mutate = <function _carried_tag_of_another_cell at 0x7f00ada1e680>
+reason = 'another cell tag'
+
+    @pytest.mark.parametrize("mutate,reason", [
+        (_drop_one_carried, "twelve minus the recovered one"),
+        (_carry_the_recovered_cell_too, "twelve minus the recovered one"),
+        (_foreign_cell, "twelve minus the recovered one"),
+        (_carried_tag_of_another_cell, "another cell tag"),
+    ], ids=["missing-carried", "duplicate-recovered", "foreign-seed", "crossed-tag"])
+    def test_composed_membership_is_exactly_the_twelve_minus_the_recovered_cell(world, mutate, reason):
+        world.relineage(mutate)
+>       with pytest.raises(CellRefused, match=reason):
+E       Failed: DID NOT RAISE CellRefused
+
+tests/test_anchor_t_recovery.py:262: Failed
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_membership_is_exactly_the_twelve_minus_the_recovered_cell[crossed-tag]
+1 failed in 6.26s

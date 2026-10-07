@@ -1,0 +1,3998 @@
+{
+ "baseline": 54,
+ "excluded_by_name": [
+  "store.git",
+  "tmp",
+  "worktree_gitdir"
+ ],
+ "executions": 113,
+ "mtime_order_non_decreasing": true,
+ "mutant_cases": 59,
+ "named_files": [
+  "result.json",
+  "probe.json",
+  "bwrap.json",
+  "git_store.json",
+  "pytest.log"
+ ],
+ "pinned_module_digests_at_3fd0117": {
+  "scripts/anchor_confirm_manifest.py": "6bc597d385a5fb7ae8bfd2068ff9158468724605d0f777a737f2506ecaf1bbfd",
+  "scripts/anchor_confirm_supervisor.py": "4732a99eaced36f655ff6fb3204580ef85036ea35a7ea13f85373bf4d72c0f6c",
+  "scripts/anchor_refit_stage.py": "3ddaa422f9dc333ace0e3a037429f577bde8914549aa10d927e08044727e8842",
+  "scripts/anchor_terminal_test.py": "99068bab4318c0cefd866102ab96a67d3a3aed4ec1123743d585e2e07d2bc3d1",
+  "scripts/phase3_selection_matrix.py": "d80924365656f5286ce834a89525c2cca8a77349b2d3b093e7ec33ea68222c9e"
+ },
+ "problems": [],
+ "records": [
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 1,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "ac010026e6994228aeeeb4abdeab466e14c8a0236fdcc7670e80746a2a063440",
+    "git_store.json": "168cf6dbf63c7ffcfc5e233f6d9ef2c0504e32fac81dbc978428820cf2c1555e",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "bb80a7ec276c43aa4a2dcb73146ecb26e6719ea60b2cd73559d8aa72deb94799",
+    "result.json": "dce46659369aa53fe506ef92facfe346dde69cc82aaafacdcc4f227826fea02e"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_a_carried_entry_not_binding_its_attempt_refuses"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 2,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "2fb4dfa5f5ac2fca5d5870801e9c8b8bed05ea90478096ab72befec92ee63570",
+    "git_store.json": "729c56fb7157a2185914d1b587b3e7e88b72445051609b7e5e6025dd79cc9c24",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "2531872c137c7fe7b0148ca74df9860c25afb888341ea109a6fccd7a0a4ffd65",
+    "result.json": "bd09b249886b758b744ef7d95be7708f582626bc908cd61af91d7e3fb8e3a89c"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_a_carried_payload_off_its_record_refuses_before_any_lease_or_claim"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 3,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "dc6b53a460d009b7f2962922fb23744ab6074c6b9c44f91324df7a65e5aa3653",
+    "git_store.json": "6f0787130eec64292919fe3e02c6cc1d0b80c80f8e031e7b5d85b2e76f912ea2",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "3f2b633bb76472826ad0643c05701b4aad6c08738a74eabb2bf14b6eb4e1a18c",
+    "result.json": "97ceb0313e6cff1262515036bd66a9d7e886876ac31bc5ace799304754a45e26"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_a_carried_record_off_the_stopped_lineage_refuses[record-request]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 4,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "4ec6665dae352579f27666938a41359269db655e2af670f2ae3e44a3f5032394",
+    "git_store.json": "16b936ad94ea967a0a6063b8f986f4f2b69a4a7a91c3945d0e98422b8d22487d",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "224a108321a9b74b42b0bc56e4aa6bece37e35072bd184603dd5879f050c8d58",
+    "result.json": "4c299f02a913858aacd5bae2ef28849346960dc9ba19e4ea32fca76d22d99f1e"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_a_carried_run_directory_off_the_output_contract_refuses[bit2]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 5,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "d8f09bb6c1f637880bfb4993f3ac63d1dc36c85296793d560b4d0a72f5a01cca",
+    "git_store.json": "5910148a08432391aa8c0d803769aca4c97403d8bbc48bfe9b7f2870ca3c854e",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "b59b51e393fae3f7cc06e32fa6624aeb05bcd5de5da0b9ae370611a493cca813",
+    "result.json": "ae3722a532c3517b895c85d681aea254a165c282b03f0eef6f553ea1b4fe84bb"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_a_carried_run_directory_off_the_output_contract_refuses[missing]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 6,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "8f052433721188808bb8b2c08f74d5654e14a53e403da4f366a73ae10409c6fa",
+    "git_store.json": "f373ecaf6144390aaa6fcbb645fac0eeb6738378a21664e03b41e6bf82c15cb0",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "51be19df48f13ff370210f9da4c42e8829ef0ec9c6a4613f0d84f65af8e68742",
+    "result.json": "1cbae35b185b85fdddf8e61d17c90e33904699e0ac857231ac36476425527d52"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_a_changed_or_unsettled_parent_refuses_before_start[other-charge]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 7,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "60f26663d1bb33e913c228714abe36334a6c57883b42a5453fa76eee7e4663a7",
+    "git_store.json": "b918227ea4a494225f5ae8dbffdacfbb786ad9c3271c0f125499ffd9da09afba",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "51be19df48f13ff370210f9da4c42e8829ef0ec9c6a4613f0d84f65af8e68742",
+    "result.json": "1cbae35b185b85fdddf8e61d17c90e33904699e0ac857231ac36476425527d52"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_a_changed_or_unsettled_parent_refuses_before_start[reformatted]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 8,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "467d236753119ae3d5f9a81b90d8b9fae4891a8df2414760e7dfe7e972dc241f",
+    "git_store.json": "edf73fa37a8e13a61798c1b496f9da7f0754a744383e6c09eea5cdef346f710e",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "89085e03d3d752c56d0443b5ca0a834adcbe1453e360b41789d082a0a29bb024",
+    "result.json": "ba6cdc46f3c321e28a4c93544ef36b089c655376375a9784f9b5605139798a3a"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_a_changed_or_unsettled_parent_refuses_before_start[unsettled]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 9,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "2347ee8fdb2fa94d6486d6704525cd43359035e051a986328ccd100347c799f5",
+    "git_store.json": "3c2d8a97a3989d9af386b2892f955d093d001fae05f2269f2977b3bbd118df36",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "6fbd6952a1b0233360e3bc16d9e67e7f3a40388ccdbe33f77b034416c740fcd2",
+    "result.json": "81660ffa75f2345dd1d8390d17b364447effb1db1dcfb75ab09609e51f94e270"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_a_changed_source_authority_outside_the_allowlist_refuses"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 10,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "18440a7017bb38f0866c70ec0b421929d61cdae796241c84704b8cfe0d7b7945",
+    "git_store.json": "da5e093aa79633c2b70534e926c60326a5db68b4af88e5803f47fd23a7fdaa9d",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "d08123dbba3dcd9988449566185452ab22fb07e945da79aa99c364130b59ed0a",
+    "result.json": "af776f090b252d92798bbad83ad91479185e83d73564b19caa3e3df4ec3b4381"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_a_changed_source_outside_the_allowlist_refuses"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 11,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "e7d3674449abb8cacc8cfa6b621c354399db0a7aa022bd6ccaa4fa913f844885",
+    "git_store.json": "7badad72e83bcce4d2c851dd3de30691f49dab41fa13a6b204b3a7f68269c0ce",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "55037a6485b829190f42abaee701e9bc42e9257a175d7196772ebf8fa0618a3a",
+    "result.json": "2d38677be94cdc10a92508fcf8d7bf8ee4ba13d7761efbe653d10122e7d59314"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_a_claim_for_another_namespace_or_line_refuses_the_entry[other-approval]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 12,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "0d6af66cbd9711cb21ea8a14fb4ee0b3f2b741a60b252567e56e236f9c95c9d8",
+    "git_store.json": "fc15bc257a8c01d3ac52ac6a5c959db4edc59b05ab5d99a111c886374a80450a",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "bd208c6e19d7a0d24adf821371c74bcad804826588fccca00c701861e01e4747",
+    "result.json": "60c6486775977541523719a6ffcccb2eeca5137086984306e298390a7c536b41"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_a_claim_for_another_namespace_or_line_refuses_the_entry[other-namespace]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 13,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "f39c7463568b38b87b9bf541854d84b7f36f372d009710cb41ca62fa0ede1d5c",
+    "git_store.json": "e172dc4a1931766e7e80ea202b4286d8e7a784c4f07dafa74ed5e649e6d699f7",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "3f2b633bb76472826ad0643c05701b4aad6c08738a74eabb2bf14b6eb4e1a18c",
+    "result.json": "97ceb0313e6cff1262515036bd66a9d7e886876ac31bc5ace799304754a45e26"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_a_counterfeit_lineage_in_an_approved_request_refuses_the_entry"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 14,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "aba67f6974d6f365118b8b4b60ac1149cd4f25fdb35763106bfee8b02ab8b4d2",
+    "git_store.json": "e93823585773c3872a52662a16bec8fa84b7912f036c56b21bc99192cd19b2da",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "5326666fcf7ae915ac8c2cc6052467c094eb3ce41cb3736cfc760bce07d58462",
+    "result.json": "2d07e91a4e4295a0e9a9f926c5c5db34c3995504308bff6c181a84445e87dc4d"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_a_manifest_without_the_recovery_contract_refuses"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 15,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "c1516cbaf056cea80fcf373d8408dff22a4fb639f2078de98e1233720db47369",
+    "git_store.json": "764cf4554e623f1cd6cb4392a5c61dfecd98558e89d4315b333ee304aeb16b27",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "0d56238764d6c7d4246c6337f680a9bbd6bb274512b4a068f55316b1339de8ed",
+    "result.json": "03ebc678ec8aec5e661d49349a5dbfc29b3d1f8f28b3f02a75c90797c3ce6200"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_a_new_cell_chain_off_its_files_publishes_no_combined_receipt[new-attempt-changed]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 16,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "4e6f9a35228c1c76f553a0261315d0f200c41b8b94cab911a43deb1825978341",
+    "git_store.json": "aa0a32a0b6c00b39237df99276a95540c3e366863d37e48a4eaa70ed2e521286",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "8a31a9414fe415ea48d232bb69a907d4656e55c55ea6da31f3ff0e57ee5cb74d",
+    "result.json": "191a674ec77931015f5a2664ce7552f56c48e715438c17788e2b6dbc262c8836"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_a_new_cell_chain_off_its_files_publishes_no_combined_receipt[new-attempt-missing]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 17,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "f55359ab3676933ace6ba0aed92661c18ef915a0ad4e5ceb243d3a540c9e556e",
+    "git_store.json": "a5b71dc0b5a01335dbf175ff6290bb488535115c7f614ee02827e1822509c36d",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "6ea838fdb95b377f0b924e15a590a104ad4ff95efb8447ee16342e950bf7d319",
+    "result.json": "63c8fda9c8b125a764c2facd336da3670ae3cdd14a9c26959418bf7fd08ceeb2"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_a_new_cell_chain_off_its_files_publishes_no_combined_receipt[new-entry-mismatched]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 18,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "2ac86e1d422bbbed192a89d144c6c15dc2d205f6c692dee3fa82fecb7b00fd8a",
+    "git_store.json": "6851ece8f7baee3bb1f94b1f7850e124f78567325e4c36673ee4a7a9a8594076",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "224a108321a9b74b42b0bc56e4aa6bece37e35072bd184603dd5879f050c8d58",
+    "result.json": "4c299f02a913858aacd5bae2ef28849346960dc9ba19e4ea32fca76d22d99f1e"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_a_new_cell_chain_off_its_files_publishes_no_combined_receipt[new-entry-missing]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 19,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "2d33196b58c380b735cd7f8c5c0014d02fc2047bd13a86c10d3ea3c8f60c298b",
+    "git_store.json": "9b292998a5516b3c1cf1b16e9f8343116af54c66b4c2708ec227dd4b806dab58",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "ad8539b2f19914d15649c5d1ffdf21064d68c36738cc06a2732deea9149ccf0c",
+    "result.json": "0dfd5d8b05336a8957896461e3260d64210abdf255eb3dbd44c66c775940eeb4"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_a_new_record_off_its_outputs_publishes_no_receipt"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 20,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "7ec4336392ba194404f24397d437ad9f6cdce89576a86c42578a54406bbc6f7f",
+    "git_store.json": "27e974d18476c93a25c62a9cac9f95559a6a8f31b0404b776c2e533aac140c7b",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "dfe4cbf12da42f4944ac32f4f81390b64951568a448ab54562b158666d0437b8",
+    "result.json": "ebe29687d824b93c59f141aee167b92b6f1c0ac3a9cfc4568408ac39109b6f65"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_a_request_naming_another_claim_root_refuses"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 21,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "e75f3afed7897766f6195bd495121ca330e64fd5a70b813e07d8ae6d5d71fa5b",
+    "git_store.json": "20e44ff33ed507d2d786419fbb6cbe458cea80ddf59f41da0930acd5adaf38e3",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "d17a795189925d12cc1bc6f3da9e912519aa74e15050b03a8a26d5a9f0b63e69",
+    "result.json": "f9fcc03530c14d2ce07e5f67caf264d2deb0d1cc943642e1c2eda261da3810b2"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_a_reservation_not_binding_its_snapshot_refuses"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 22,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "e39efb4f3ebf5db56b799a85309f6cf45583870ad8c1e929ee314c0a73c2f330",
+    "git_store.json": "15fcd6c887afab6564d91266fdb81aa76cf9844e6160d2b1d1cf423438ca1419",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "d08123dbba3dcd9988449566185452ab22fb07e945da79aa99c364130b59ed0a",
+    "result.json": "af776f090b252d92798bbad83ad91479185e83d73564b19caa3e3df4ec3b4381"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_a_settlement_line_off_its_pin_refuses"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 23,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "4aa7a4c648132f7e3cffb967c2061a34ae0a4585b422e2b82a903bdb0b0de3bc",
+    "git_store.json": "2353d20d0f72eea8d7a39b8a723ba3c25ad76587eea71641c1c212b4d32078e0",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "140d5328d6d82404f8ef20eff7bf4381c7518a3cd4c60c7e90c927a6ca89d22a",
+    "result.json": "5b68d64f4087166b113a12442c1367e1a56909df979199b28ba80f866df40795"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_a_stopped_campaign_with_a_receipt_refuses"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 24,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "1ecfb0faba1c7b769d896a51792b73fefe2bc4827fb707903dbd14d95b81ba58",
+    "git_store.json": "34521d0520441b6684fed756da424c444dd34f99589b8be88aefea3006cc2490",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "273fb7482d38aa3f7fa2816aa6395f925aacc0af6a3cd2d28120aabe56b76788",
+    "result.json": "4aa07ba1b70a7ddf8c835581d1c3105c704025a124b043e4ee38b9ec31caa6f8"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_an_allowlisted_source_off_its_r7_or_r8_bytes_refuses"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 25,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "72bfd52bd5c49eeec3e70efef9d28715827b47655c52d09091f3c568777dccad",
+    "git_store.json": "52a825877cf6a012bbd504c54173d8e2dca0f4d504c8bc8b1fde05696f7bb09f",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "716782509880fffed32fd0e326d4419b446a4a6273eb323f7df28fb6a5ac5bd5",
+    "result.json": "424ecd321c440d0951063087429cbc4c977ee4e7dbcb67ce73ab08f64d9a40b5"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_an_approved_recovery_runs_one_cell_and_writes_the_lineage_receipt"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 26,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "fe533a65cc8ed3dbeaf94529e1df8c40351f0a3dd71e82498150b5214638c2c0",
+    "git_store.json": "ee6511989671e5846c1479eef37a8f98296f312a22fca4542efb58b910b752a4",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "e19d7e90c78d5ec9272bd8109a36ab1d3bf6a7f689894f8749995b93f502cec4",
+    "result.json": "42b1643524a10566d6c96097a24165679b53deaab9b745614474884b264e1bb8"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_an_authorized_recovery_entry_runs_the_terminal_function_once"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 27,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "0a7f0b08779868caa3bbf1d07b5326da3c7d7a8ad0611519b43da403c8296b49",
+    "git_store.json": "6ad4a8deac045c1d54e31fb575dd23339fdd6dd7061de84ca855ac4d8dde5534",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "224a108321a9b74b42b0bc56e4aa6bece37e35072bd184603dd5879f050c8d58",
+    "result.json": "4c299f02a913858aacd5bae2ef28849346960dc9ba19e4ea32fca76d22d99f1e"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_an_entry_without_the_claim_refuses_before_any_load"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 28,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "5099c69ca022d51578f51db0b7c04cdd75908813510c02984fd7ada46eb8ddea",
+    "git_store.json": "70f6f1f3d7516755a08419d09b55df86c5de6d2ff2a9e5a630d0f1ca9d959a87",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "51be19df48f13ff370210f9da4c42e8829ef0ec9c6a4613f0d84f65af8e68742",
+    "result.json": "1cbae35b185b85fdddf8e61d17c90e33904699e0ac857231ac36476425527d52"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_an_uncommitted_allowlisted_source_refuses"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 29,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "cf9a67814b1674413f41142326df08b54d44958953516bfc3c08ebb6886c1fff",
+    "git_store.json": "f3bfed9bea71b28693b53f8abb2a7ea1ae924fc1d13eaf522e9769cd08111001",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "afc72383c4f0a0f27659a89a5b76412f14ba4e8c16bbd69d52e88ea6d364dd77",
+    "result.json": "c36031a85e5d3a5013863c2778908b3f46571bf6f253fe1c8f4a9ff5563a3e6b"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_any_other_transition_refuses[extra-change]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 30,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "4556816fe3e199af801a332abb52fac668a5b30d8ff8d27d097ec9943fd8fd86",
+    "git_store.json": "f4d48eccbce66a656a2251aa638cfd2bbdc648df27e4426714922c3c03f18066",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "ba0d9c8fb02c0dc8feb9d89b0613fe7e71d4ec619c28ff667bc99b2ca6af4188",
+    "result.json": "642d92a5329ca20d39668f83fc66e7a5e4046b3f4e24389dbc276b5184378174"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_any_other_transition_refuses[same-generation]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 31,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "925c6749831ebbde824ceb1d7a8b3f63f6ed9e0afd753c415c3a90ff170ff85c",
+    "git_store.json": "684601b170f9e22622b568189796779e7d3f969300a767b840ad250b062d47cb",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "1f5e98900ab30d2980609c2122d429480ca91ffcf9bac5e48cbeaff40e2a1161",
+    "result.json": "64f57c2846047ab775e6950d0fa06dedf570058e91c4dbdf21570cd33edf874c"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_drift_during_the_recovered_cell_publishes_no_combined_receipt[carried-binary]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 32,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "12702687b088f806f14aa9a3383cb799fd47e520ea8249e448016d18df8c1ccc",
+    "git_store.json": "0b1410fb3a315171bfcf37d1ec1121b0a9c9b52c00b7ae30f94cb531720844c2",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "140d5328d6d82404f8ef20eff7bf4381c7518a3cd4c60c7e90c927a6ca89d22a",
+    "result.json": "5b68d64f4087166b113a12442c1367e1a56909df979199b28ba80f866df40795"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_drift_during_the_recovered_cell_publishes_no_combined_receipt[carried-json]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 33,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "5c6e24a637e0478b49da5f03bcb29b39b4c8bd175cf66d84ab2ae3fa7dd6fab2",
+    "git_store.json": "9a46488ad287d97a8a1a554588b4c2a08fa0d25b1fdfb6b5df5044562c217a22",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "a23fc12d084996ecfe431dacd5ca2be50498b9eb9a12d5d321700f4ac5556bdb",
+    "result.json": "7680f7eb083ca7ac45d8b09e4d95e37365866b3431904995eeedda0bfc13e854"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_drift_during_the_recovered_cell_publishes_no_combined_receipt[claim]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 34,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "e03709a6007c8ff3c1995d2f22f1a7d18648e5668287eece1452b22d37abeb39",
+    "git_store.json": "1dccc6aa645247ca1190ed9546bd5ade2cd45607330dee87b05c9a718947781e",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "b1e37e4e81df90b915d1fe522d2aeb6d790011c4b2658728c9aedddccbde0fcf",
+    "result.json": "8755bba9d1bb1a6b9ed3cb290e095e46bfc7a9b487e53445d4707c07a59afc5b"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_membership_is_exactly_the_twelve_minus_the_recovered_cell[crossed-tag]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 35,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "bbcbd69c65eca79e5492bd242074498c8090d50dd5ecd60ad8671854c45e5e29",
+    "git_store.json": "c85ae8de11449afc391f575135a9ce9f082872a06d9a6655894b9daf007faf76",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "51225f57e0dcfd2744e3168812fc930c338434fcf7f5561ced336a7fd24842bd",
+    "result.json": "3f3474f84b39a47b301cfa3c390256509146eafadf76b6d83262c6101f0440f7"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_membership_is_exactly_the_twelve_minus_the_recovered_cell[missing-carried]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 36,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "9532e94f5899448d3869d078ae786c2acb033341bdb9573ed295860f9bcd7ffc",
+    "git_store.json": "cadf727d94f8419a6ebc9409edbfcbeb3ab472c8db8ebf7dbe3e520317aea24c",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "7fc32e52e0eea461ffa825e3730515c780be2f7fcb0ba04ad2c1355ae9c8a9e9",
+    "result.json": "282686434d312f99dd40b45279f762ddaa435c610af0c59b7abb4f921acae059"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_only_a_recovery_line_for_this_exact_request_approves[stage-T-run]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 37,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "5a08d9718fa911169ecba01b9169bb2f4a4d3859c61024aeed00613fc9766fc8",
+    "git_store.json": "5fca5e47ef03b9a9a6ae1a45ded69efe405b8359e5eeed89ff2bed6a560e22e6",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "27d21c00fbb3397fce3ec813fbf30e34734624d49e35f33fba7b2d31d357a71f",
+    "result.json": "8e033bfb96b4bbe1058e25187d8230589ef7ff8281c6b30f9aae3ea27f477713"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_the_lineage_is_recovered_once_even_after_a_failure[0]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 38,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "59d42c09106ef7471b552ac45e49b72684a6a67b475935048d4021fda1b56f14",
+    "git_store.json": "bb0aab45a4f1965980e0be2f24fb9d2e9072e7b75ffde091c93e0275bc0e0e8f",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "51225f57e0dcfd2744e3168812fc930c338434fcf7f5561ced336a7fd24842bd",
+    "result.json": "3f3474f84b39a47b301cfa3c390256509146eafadf76b6d83262c6101f0440f7"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_the_plan_previews_one_cell_and_touches_nothing"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 39,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "27dbd707ed0097127e24cb27bd066ed4cfa2c8f33cf16876ec0d77afe092154b",
+    "git_store.json": "2f2932080ac65b3a915632c5a0551f5220a2ef28580bc268b2a111549d610781",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "a3519a6529045a3552e7bcf42ab716d716fdc89fb09480f78a524e7440afad1d",
+    "result.json": "da88669e823215e5a94108ab4a582e6d3d9b56e3ebd5d90d9192f970751ff0f8"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_the_plan_refuses_a_transition_other_than_the_declared_one"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 40,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "f02787932f88933bd89aa67bbac68e21a125e1d8954a4baa81c8ce60b21dcaa2",
+    "git_store.json": "23414029d309cecf4aa3db8fe6d3d3f3362568334cc32028dd5d7ff7ad3952b4",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "d17a795189925d12cc1bc6f3da9e912519aa74e15050b03a8a26d5a9f0b63e69",
+    "result.json": "f9fcc03530c14d2ce07e5f67caf264d2deb0d1cc943642e1c2eda261da3810b2"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_the_recorded_stopped_line_must_be_the_ledger_s"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 41,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "3f32d0c3b04e66689fa5543d27edfdc01b86e2f5d1bd94219f883c8dace58340",
+    "git_store.json": "0e5b2fcde486abc5fee72c8cd3f3b5c6e6f362b261429456823420f8aa533d16",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "273fb7482d38aa3f7fa2816aa6395f925aacc0af6a3cd2d28120aabe56b76788",
+    "result.json": "4aa07ba1b70a7ddf8c835581d1c3105c704025a124b043e4ee38b9ec31caa6f8"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_the_recovered_cell_attempted_in_another_namespace_refuses"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 42,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "cfe1c56c3a2901d2a6b624f5de19c9a6ceb6e5e1ddbd714bacb37e3e73afbba4",
+    "git_store.json": "f232989cae2f49d63efea83746123876d756a3c1969c7abb8423a3fe7bda760b",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "89085e03d3d752c56d0443b5ca0a834adcbe1453e360b41789d082a0a29bb024",
+    "result.json": "ba6cdc46f3c321e28a4c93544ef36b089c655376375a9784f9b5605139798a3a"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_the_recovered_cell_with_a_stage_t_record_refuses"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 43,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "25ba73c5af6d42de5afa43e5b18c0c77ad9a97eebc8052e50f476f75787bb57e",
+    "git_store.json": "bd47f02c392e1460eca7932d5dda3058fded4bb0f7702d896144f7e4b616c536",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "9ad5f31eebb9204c2c34f70ebd9f5ef6de8bc91e8097893eb9bccf6b7b1ae63a",
+    "result.json": "bd751441ff7d9473d59351f55df920ff0e8ec62b310ee45949c70867b917f239"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_the_recovery_is_one_gpu_and_five_producers"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 44,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "a10b8c950a3efa8a25185dbf7cb54273a5bb0cfe5bef7b990c1485cdeee5fb5b",
+    "git_store.json": "87c190910f91fe599a001383bf90849598f626c6b4c054b9ad3528cefc96005e",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "afea4defcfc24c7d55612fd30a884b2da8c9c5f12b011ce52f2565807a307fb1",
+    "result.json": "e928184fadd9b8bc4573d603b39e2dba548bf51d7f87c53c8745cc43ad070cfd"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_the_recovery_keeps_its_own_ledger_and_budget"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 45,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "07dd43162fc2c1539fc0839bfb98956880be83bec110de478a9d7b5627a386ea",
+    "git_store.json": "b5b00ec9b15e3685d167dd782fa089a5d343902668d343e100465ee760bf0dd4",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "bb2a38164262bf4ca527b4464e0643f1a742c472f988bc9bd5cc227267c7a754",
+    "result.json": "b6b4020f5d30616b0e515a9264519db6d435f07ab3e6dfa7fc8332f7916cc435"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_the_recovery_takes_no_receipt_smoke_or_cell_selection"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 46,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "152f6544fce90074af54c4165ce0d4ff00e6c587dbcd7c02695a1049e83740e7",
+    "git_store.json": "1c5ca8f641562299294dd79bf6036f0c438ef3f5a8a0cb4c7fe275323c24438a",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "b83a114867471138951aaf65c690b041ffb3c18e377f31b9398e8f088f455e11",
+    "result.json": "ff2e38084d8513db51af1a9c060c110de110345a6fbf8b9a40966228a7430705"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_the_request_is_one_gpu_and_a_new_namespace[stopped-namespace]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 47,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "a17215fff43aad4acfb5cfd380eebb7ddb5f0b6166da2eb96a58a5d0faa76c26",
+    "git_store.json": "eabc5b0c9bb71ec17b1c592e5bded8ed10fd86e39dbd8f5b01f1636f2312120a",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "3e1e89e8f81abee974408783c9f919d529f621b9718d4269d9a2703e22f478f6",
+    "result.json": "12d528d6bc8a4e714f4abf3ff8975812f99c73a0036f3b6ec5ea419134d37fec"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_the_request_is_one_gpu_and_a_new_namespace[two-gpus]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 48,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "73d44d07294ace5fa54cf96ccd1d1c9f921559ca9b51e8d08ccff69b9dc59ee5",
+    "git_store.json": "5ea1648357a9b72cca3f11872069ea719d4031c23c2f5c8f0afc1e7fb2a94add",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "aef778179cf0f20494c08370cc258d6d25128874757c4a7d8cb975cac80f7846",
+    "result.json": "e689878f5c39b0a88d0ab96473a115106c5175eb785af7f10dfa8aaebbd32cbe"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_the_settlement_must_be_the_audited_clean_budget_stop[charge-reset]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 49,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "9a0743dc91f9d7758213af9d9b83fad52a81826dbc8c17cf906487a12ece2256",
+    "git_store.json": "c834d1d97be4f27b9f06397724d94f8ccce6ff94be97762b1614b04994b822e7",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "3505c63614e0e7a148de9b04c6f41b033d99179a5f2761e50bb62432044da326",
+    "result.json": "12083f63af71514df9c553b43b8699fed2427fa6aa2022ee692172cf18839842"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_the_settlement_must_be_the_audited_clean_budget_stop[line-after-final]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 50,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "679564f19942d951e692d746bdfd28853057d42e302db33b89ec9344c02ba455",
+    "git_store.json": "46cd40183d91f799a2ef3e13ef98e751538458dd30ff6149c4f159d5e14b4ca1",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "273fb7482d38aa3f7fa2816aa6395f925aacc0af6a3cd2d28120aabe56b76788",
+    "result.json": "4aa07ba1b70a7ddf8c835581d1c3105c704025a124b043e4ee38b9ec31caa6f8"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_the_settlement_must_be_the_audited_clean_budget_stop[unclean]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 51,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "f9ac64614a5aff65660cc1a2e83b076a499d94281ea4e85eee2c7ec26a64f315",
+    "git_store.json": "7866077df2b9a5c4828c9255ce306cb3b4308923f72ed4065cf3eccc53d50090",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "b1e37e4e81df90b915d1fe522d2aeb6d790011c4b2658728c9aedddccbde0fcf",
+    "result.json": "8755bba9d1bb1a6b9ed3cb290e095e46bfc7a9b487e53445d4707c07a59afc5b"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_the_settlement_must_be_the_audited_clean_budget_stop[wall-stop]"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 52,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "08f356f56130be05d50c96619c421a2ea9bbc150b73aae6b594efd1ae8dbefba",
+    "git_store.json": "6750860914651a99c91b3f27394e490bc32d91d6f9054b4233d8e6abd1f3659a",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "dfe4cbf12da42f4944ac32f4f81390b64951568a448ab54562b158666d0437b8",
+    "result.json": "ebe29687d824b93c59f141aee167b92b6f1c0ac3a9cfc4568408ac39109b6f65"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_the_stage_t_form_with_the_recovery_mode_refuses"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 53,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "b182d36930bfccb210291b9ac6a6ae183b87f527a5290b1d4244030bc8db5c81",
+    "git_store.json": "2bc95135b4379ef74168a12b3b4f65686210fc8a422abff995b03fcfdaba3d91",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "f860ff5001c472ce4163615044c8694983f09c4570c5aefa57d6e89665937d10",
+    "result.json": "cc3c9fdca7f75c17543724589a8aeaf9507e1c2f7ae800ffb76b869da2c6d18f"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_composed_the_stopped_snapshot_of_another_generation_refuses"
+  },
+  {
+   "archived_log": null,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 54,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "4e9a6581cf13b2f27a18c8c50c2fa762758a722bfb1615df84ae72adcc3c375e",
+    "git_store.json": "029c0075eceff7062474f9d5d4d9e13e624ff01190ee2e5c6b8fcade47eee8a6",
+    "probe.json": "8fb14f170af0cce7d58912ca770fa0f93520829620827760c90337bc55c1acb4",
+    "pytest.log": "ebaa2822029cd09f399adcb5d04a8cf836751f217a60605e790f13e60d34da61",
+    "result.json": "dbf77c15fad427f61ddb2ce81b9cd2601a59c78b59f6e2f952206741c09d3bed"
+   },
+   "module_digests_off_3fd0117": [],
+   "mutant": null,
+   "mutated_file": null,
+   "phase": "baseline",
+   "pytest_rc": 0,
+   "report_rc": 0,
+   "test": "test_structural_the_recovery_scope_binds_the_f_record"
+  },
+  {
+   "archived_log": "logs/00_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 55,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "644559e1c9283b84cce911db3494d5705fd2eb473c66e48deab8d29391348aa3",
+    "git_store.json": "9f3c159a48c2ef83e5d299c604b86d907654b31d3d4fef2e93dbfb5caab277e4",
+    "probe.json": "8741fc9b14042b07d94fc2429ce8949cca7ad91933de72387bc02c78797ed6a4",
+    "pytest.log": "fa887cddfdcd1704e1f139540a51bbd8fa68f488372294263f01a840054974e6",
+    "result.json": "3bb8416eaecc7c9e153712262cdd0463d2c4f07d735d477e0606a283497230d4"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY1 carried cells skip the output-contract check",
+   "mutant_number": 0,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_carried_run_directory_off_the_output_contract_refuses[missing]"
+  },
+  {
+   "archived_log": "logs/00_1.log",
+   "case": 1,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 56,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "cb64005c81313aa880d6fa77340b61c5325fb9ac8ed6258103b9f27d29f25b15",
+    "git_store.json": "1f87b3df7da7e7b6e233e19dd0804e9c52085a5f5a718456a8e555d88f2f2f13",
+    "probe.json": "8741fc9b14042b07d94fc2429ce8949cca7ad91933de72387bc02c78797ed6a4",
+    "pytest.log": "e33060557aaa0e0c1ad84a0e05e9f503cfe135424868e01076dbd8be3a269bf4",
+    "result.json": "8f0a63aaacc6565c1e7e5974dcc55aa9c1fe470aa3732c858f8d56b7c323c4e5"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY1 carried cells skip the output-contract check",
+   "mutant_number": 0,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_carried_run_directory_off_the_output_contract_refuses[bit2]"
+  },
+  {
+   "archived_log": "logs/01_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 57,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "fd46951cc257227495af6301350f69afe0548bcd22c13e6b98e8af98264ef4c3",
+    "git_store.json": "c57a8ab35f9eed5870fea4f87fe67dcfaef3a53391edf40faccd28be092e6db2",
+    "probe.json": "9acc814ff21702aef8da470a6aa79f40ccfc23baafaeb4ad11f33aa0fe7566ca",
+    "pytest.log": "5b282d87f9e394ef6073db9f77a5cc94c960c02315631b5648969b035b0db484",
+    "result.json": "7188b67d16a78565552102511f648ca7ddb7da0a0db42321d1f71cb61bb46ccf"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY2 the carried output contract is not enforced",
+   "mutant_number": 1,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_carried_run_directory_off_the_output_contract_refuses[missing]"
+  },
+  {
+   "archived_log": "logs/01_1.log",
+   "case": 1,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 58,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "fa2c72d3b99d86eda8100803006c7db1822dd555c9f0fd5c16f18eb9d1dd4f9f",
+    "git_store.json": "e7e2102361edcae9942967f5f9b0666dadcdc638bd034be61fc58173293e05cf",
+    "probe.json": "9acc814ff21702aef8da470a6aa79f40ccfc23baafaeb4ad11f33aa0fe7566ca",
+    "pytest.log": "b4ca22a73f88c8f4a83d928a3fea6c47a3a0b53ceb9ac008953e14a693bd20e8",
+    "result.json": "16ea0aafbaa05e0e8f292ca417c8d2aa75f64a6a4d22661a3961321be846b865"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY2 the carried output contract is not enforced",
+   "mutant_number": 1,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_carried_run_directory_off_the_output_contract_refuses[bit2]"
+  },
+  {
+   "archived_log": "logs/02_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 59,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "cde1048abd9fab706503c5ae0be8570bfb243163577357517aef2e05e10b3120",
+    "git_store.json": "5dca388498ba4f80bf1505eeaf95ad90ad59b4bfe6a3f8289cfabe0288ad1959",
+    "probe.json": "b603f6be822e113ef93fc4b3d75f2271690a9c12279a1bf5626048f62502230f",
+    "pytest.log": "05da204e1fa54d9bcc7fbb4017b8399e991bd86c2a8e4f41d81dbcd53781b96d",
+    "result.json": "7dae71b885a78af353e36d7c686496f6613e5eb29aa857c8b687de1b9a48310d"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY3 membership is not exact",
+   "mutant_number": 2,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_membership_is_exactly_the_twelve_minus_the_recovered_cell[missing-carried]"
+  },
+  {
+   "archived_log": "logs/03_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 60,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "dd9848fa3959b1442ad84dc632e6047930680c74128ba0999d0a1a745da6cd24",
+    "git_store.json": "d8e895ae6c0334a44f041068bdb931b466287d39daacf99e654731fd87e14f5a",
+    "probe.json": "415e11c9b28de2b59e606c277179aa487a398c73ed3e91efa81b1febe991af1e",
+    "pytest.log": "c71debc7f29bef7ee5ea7043bbd1a4d5d09b03c9f4cce582e2516ec1246030bb",
+    "result.json": "4b652608dbd4b6b15def620eaceb9178e294a04423210de31f84e290bdd2dad0"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY4 the carried pins may name another cell tag",
+   "mutant_number": 3,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_membership_is_exactly_the_twelve_minus_the_recovered_cell[crossed-tag]"
+  },
+  {
+   "archived_log": "logs/04_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 61,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "5056ccbbe860d192c408952ec06de760662dc1c773be5aec88315ca684725517",
+    "git_store.json": "c676e4701a125219beb482097ba908f8c546f03b9cb080c964fb12fef0a30fd4",
+    "probe.json": "adae61ac256bac9ed5d86ea62fb4381d43c48c324bef9ca8e2cefe663e9e81dd",
+    "pytest.log": "15e27e9b6a5cff9d856d3bff8118b346a1d423087c273950c0db524cdcdd79fa",
+    "result.json": "e75ce69f38c05a69e855901e37ce7d8a12f7adfa8073d9d0d0ccc0775beed774"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY5 a carried record, attempt and entry need not be one lineage",
+   "mutant_number": 4,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_carried_record_off_the_stopped_lineage_refuses[record-request]"
+  },
+  {
+   "archived_log": "logs/04_1.log",
+   "case": 1,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 62,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "da4691c1e8a74e5ae580983f2a220bc4d6cf25a923379cc88e60c14615283342",
+    "git_store.json": "4f8fce842a26dee99a7147c2d1ec64356f51ade77c8c225eb2909c0651d8b102",
+    "probe.json": "adae61ac256bac9ed5d86ea62fb4381d43c48c324bef9ca8e2cefe663e9e81dd",
+    "pytest.log": "e835067bd4ce03614e973209452201e67d62f3fc70338852183ddf3b8bbc9c5c",
+    "result.json": "947f0cee5cff9bf6e761e3fa0186e9bae14967719789c097d0fa74f24ace7377"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY5 a carried record, attempt and entry need not be one lineage",
+   "mutant_number": 4,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_carried_entry_not_binding_its_attempt_refuses"
+  },
+  {
+   "archived_log": "logs/05_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 63,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "09a0718aa3c7d385ea869ddd580eacfacab90cdb111c439e9fba6c4d535f900b",
+    "git_store.json": "2d7f1bd35a8704f31518eff88bea73a867eed9b358206780c06a97999b658fdb",
+    "probe.json": "840330a5d55e669920a78f6869e85ab4c9e05323efa8eac5bd3c86195a2206a0",
+    "pytest.log": "cc4df160eb8a892d2392b62f4cb537949652915d9b72efe186654f8c1bd27381",
+    "result.json": "3035283324c156d4cc238156900d64e86c3d696284631cec5e3af2fbd8f184f3"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY6 the recovered cell may already have a stage-T record",
+   "mutant_number": 5,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_the_recovered_cell_with_a_stage_t_record_refuses"
+  },
+  {
+   "archived_log": "logs/06_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 64,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "a4bfdca0c28dae5706afed31ab94cf760c8fa0079d4dd9dee2e0f337446f5a4d",
+    "git_store.json": "7bee55b0c0e8ff0f26e378d51ceaf7ff45068949df63b3a81370f4ab863a522e",
+    "probe.json": "0f524a20c4c6f39a752ad623520af9029250c69fb2e62971a5b85be18aed488c",
+    "pytest.log": "23c61d2ccd799a552442246d045676d0ecf2db0a4a3b35d8c1c5f509fa931761",
+    "result.json": "c4a0dd8070d15cec0cfe1babdf06f4460caa15ec0645fba1445623f5920292e0"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY7 the recovered cell may have been attempted in another namespace",
+   "mutant_number": 6,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_the_recovered_cell_attempted_in_another_namespace_refuses"
+  },
+  {
+   "archived_log": "logs/07_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 65,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "097386a438998558b6b8dbdcd29e64751c610517b932083ccd61da43db55bc01",
+    "git_store.json": "25dde33255b7a3c39249f03bb5a03c1c74be04461bef5b24be6c43cae29ce650",
+    "probe.json": "ce1d522197628a39244f6d0f1918b6b4026776b415a2d56ffd51732cb1be4741",
+    "pytest.log": "a85e1dbc0ac02c92c899d78a42be2386b9ba12a14b702b2de66e49e10490af41",
+    "result.json": "d72785e1aa468a2bd90115386453de7dc94159ec4956c081630fc816ed779853"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY8 a stopped campaign may have a receipt",
+   "mutant_number": 7,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_stopped_campaign_with_a_receipt_refuses"
+  },
+  {
+   "archived_log": "logs/08_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 66,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "2a1016d0c95100518cc6af987181f464fa1d8de9b00dd2b39a9df7bb060de9d7",
+    "git_store.json": "f7fe1867a011c849f0fc064fe9fa5c869b486f945ecef13fb0404863de210fb8",
+    "probe.json": "e6521686bdefbadf5b867ea12f0c9ba0fb9d8b43d53057915e17727d13692b25",
+    "pytest.log": "304654f88d4236a7ab51973b2695d5dc733d1c249cbf53acac1ff660a37e777c",
+    "result.json": "42ec2f6fcb57647b2ba48d8ba3b7b60bf65e52da5dbdde777ac5e8e932443a95"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY9 the settlement need not be the clean budget stop",
+   "mutant_number": 8,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_the_settlement_must_be_the_audited_clean_budget_stop[unclean]"
+  },
+  {
+   "archived_log": "logs/08_1.log",
+   "case": 1,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 67,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "9e4a5af063a039c98204e6439161b9eaa00d3e6945b24b09556dc4c67379028f",
+    "git_store.json": "c6ef4930ad735b2a02229f9db98dc9a49ea3a01a16e37ab23baf37ff99e77108",
+    "probe.json": "e6521686bdefbadf5b867ea12f0c9ba0fb9d8b43d53057915e17727d13692b25",
+    "pytest.log": "c8d5272214a3a3c42dc025efa2abd22e62734b33f3f8d3d617bb54f0128ae68f",
+    "result.json": "194b36f292748974a732e78cbf119851131adf0ed07fc53ecae98f7976fb83ff"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY9 the settlement need not be the clean budget stop",
+   "mutant_number": 8,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_the_settlement_must_be_the_audited_clean_budget_stop[wall-stop]"
+  },
+  {
+   "archived_log": "logs/08_2.log",
+   "case": 2,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 68,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "238a694de930c850ee1994a7da93c4e5d39a1e782d8d054b76a5ff7fb12d82d3",
+    "git_store.json": "c3adb5eb4b4d41a8002162ec003b32c3cd000e67aea40483137da37d57c9a209",
+    "probe.json": "e6521686bdefbadf5b867ea12f0c9ba0fb9d8b43d53057915e17727d13692b25",
+    "pytest.log": "df8398a0c8c39b48a26b79ef52b6a6e3cc428aee918aee76a95161d182d98108",
+    "result.json": "3e83fd0970b0f69192d94011ebb7d0e9d0a75b1ae6816d44b7a30da7456b211a"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY9 the settlement need not be the clean budget stop",
+   "mutant_number": 8,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_the_settlement_must_be_the_audited_clean_budget_stop[charge-reset]"
+  },
+  {
+   "archived_log": "logs/09_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 69,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "eb0cc0f09bdae7c881fec648b60798ee25905d105766d51618bcc758b2d951c7",
+    "git_store.json": "c4b9007aa7bf521f77135bbef0dd83a3b27bc3efc08411a8fb465b25a6bf00a1",
+    "probe.json": "be96ff3198f58f324d066939873e2b46621c718f7922ea072b935b18a8390814",
+    "pytest.log": "cba71502bdbf8070da9a1ebb7740ebe0bb1dd750689a2d5b983335a76f67de9a",
+    "result.json": "03299d1453c3755fa747cab800551bec03405c0ec19884fa37bcfad72b507edb"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY10 the stopped run need not end the ledger",
+   "mutant_number": 9,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_the_settlement_must_be_the_audited_clean_budget_stop[line-after-final]"
+  },
+  {
+   "archived_log": "logs/10_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 70,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "37f38a3d763f59f643f17dfc01df8625c5e94b24c9df9712f80240cf3a5a3bbf",
+    "git_store.json": "21b08e6516b84159c8721de251c2b147d2bad547f9a99b7e0c756d1890fb82f3",
+    "probe.json": "f457ef95852af4cf14a5f41509b2557f8591c9b1d654fa4494b3a870664b5644",
+    "pytest.log": "87ac07a2375ca14ef92443f9a3e5716888a410dc08ae5f8801e16db85598b6be",
+    "result.json": "c41f3a1178a547527ce659d414df6d59b7061e3f24e2f670eb7dfeaa51b6282d"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY11 the settlement lines need not be their pinned bytes",
+   "mutant_number": 10,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_settlement_line_off_its_pin_refuses"
+  },
+  {
+   "archived_log": "logs/11_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 71,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "db6e8ade58c7ad419834f11373dd10449b04de57938b1963dbf766bc11f1bff9",
+    "git_store.json": "fb86ad6a808ae912e88025cbd05eda7118a63b12ec0bb06c6947d41567df78a0",
+    "probe.json": "595c461cddd0e2899639729517a80f68f8c8274c32e9b3c6418a252bca6b2967",
+    "pytest.log": "b3e0a074bc7f9e4e43a85cc9e9b68b4f2d9f7906e0ceb45d8a035c030b4460e4",
+    "result.json": "eb14425b3831f1a97b72c69506c407fe7eb1fc2f8e0b54bb40a118ece143ee28"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY12 the stopped snapshot need not be the r7 run request",
+   "mutant_number": 11,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_the_stopped_snapshot_of_another_generation_refuses"
+  },
+  {
+   "archived_log": "logs/12_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 72,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "dfd83f74b5364e00a72b6db43a0de5da04a0692c2a45c0df4e98c7f4560596c6",
+    "git_store.json": "45df87f58fc1ec3f69f1894fb571a58d5b622164be594088f87ec803143f2535",
+    "probe.json": "2709f0581411e1889cf9dff5bfe95596714d7d3e22e7402d2aad408ea3a109f5",
+    "pytest.log": "af44a48304bd9c015180c93db963024656d86380733b54d518c3ce95908db755",
+    "result.json": "0aad6b4066c184fc8a6663604e84f8cb43978fa51b64d192ce2f1664f614b68a"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY13 the reservation need not bind its snapshot",
+   "mutant_number": 12,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_reservation_not_binding_its_snapshot_refuses"
+  },
+  {
+   "archived_log": "logs/13_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 73,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "bdff70676d488ad31ceb791444f66853a1341a0677a95ed4bedf89d69e9242c8",
+    "git_store.json": "a736c356e0227017c6be95f8bd65bc78def581541654d8fdf697b37dffbfd783",
+    "probe.json": "226831c2c272080c49f12bce92f238fb3474c3c74d679f7d7490d3c48430ec8f",
+    "pytest.log": "3b31cceebe4dc2724a87881f28b3038546b2f7fc5e884215c2b3c938750dc0e3",
+    "result.json": "2a7bd4e2aa580a9e856f71a73320f14e4c807cd52762adcf0f50b84845632368"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY14 the recorded stopped line need not be the ledger's",
+   "mutant_number": 13,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_the_recorded_stopped_line_must_be_the_ledger_s"
+  },
+  {
+   "archived_log": "logs/14_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 74,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "e5790a5bba3be9cc06ed69c21cefe5842f4f1ffc3a3b9393e6e5e9daf16f4008",
+    "git_store.json": "987b2c0289a820c663553a55b02c212af315e8acde0a8803bb578d8377ad2b01",
+    "probe.json": "cf356acec3cd8db49cd0ca0c3c5e3d42a4c0ef886ad81e3df54ca70a2118ae02",
+    "pytest.log": "693f95fbdbb5e24e0c639494b4ee8822534205b6af5c273fada0b2b4111bcbe4",
+    "result.json": "bed1dc306ea398b773087d0934ddc0ff31f97894caf5ac63378c43e49dff5d04"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY15 any r7 -> r8 transition is accepted",
+   "mutant_number": 14,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_any_other_transition_refuses[extra-change]"
+  },
+  {
+   "archived_log": "logs/14_1.log",
+   "case": 1,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 75,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "9ae282cc798498f43b18ab907d8be95695522b8deee971585a5a63f81fff3496",
+    "git_store.json": "50432f9fe7f8cb4dafcc49975dd4309a6bd4698c2f4dc17570c2d33f0145ba2f",
+    "probe.json": "cf356acec3cd8db49cd0ca0c3c5e3d42a4c0ef886ad81e3df54ca70a2118ae02",
+    "pytest.log": "461c72627a843826845ead89e590d5da07411d3bfe80761962eec57c902e79df",
+    "result.json": "12422a884a455f694c6f260dae73e26a7b0008bd1b5e5c8c7bd0ce6a7b156a48"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY15 any r7 -> r8 transition is accepted",
+   "mutant_number": 14,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_the_plan_refuses_a_transition_other_than_the_declared_one"
+  },
+  {
+   "archived_log": "logs/15_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 76,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "ae0a462a11db39ea8136638b3c07c1dd713c23ba14eb117da399f513a096899a",
+    "git_store.json": "e555a96fdade82739bc30928c85aeb61c0e71f32b6e9f72df8809de7a5dbb166",
+    "probe.json": "4ad6eaa559ab52a805cd2810cb7aeb5af5629877f1b48a5a0360255012d99c92",
+    "pytest.log": "b64f1d567b0e2ad34cf492385f32fd7738933d250b4768ad321b78f55c49c6e6",
+    "result.json": "c308b085499b04eb7b8d8db6753ff5871860f1d09233fd956cd3cc2740767289"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY16 the recovery may execute under r7",
+   "mutant_number": 15,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_any_other_transition_refuses[same-generation]"
+  },
+  {
+   "archived_log": "logs/16_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 77,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "d4c02b68085d838eddb295a8e8af50e3ea06825de1ecd927115e5c6c20ddc118",
+    "git_store.json": "e5a14a1eb5af9d8abfa9f9738da2953390e8e22e3cb3b719790e01a407a7f21b",
+    "probe.json": "59912361da88ea93bf794e90179079484eb4618762afec56ff139edff915c944",
+    "pytest.log": "d649f4aec68dddbabc94eec29cbd53362d17db8e5a4afc472a8721e8395ed91f",
+    "result.json": "22ad9440ed5b8fb8495eb744b2248db8b09c30a91ac4c3837b68da3f90547313"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY17 the boundary allowlist is not exact",
+   "mutant_number": 16,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_changed_source_outside_the_allowlist_refuses"
+  },
+  {
+   "archived_log": "logs/17_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 78,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "c32951454c14bc2b380cd34883fd4c4b0523ae80c18f59d00d4c3e2bcb3c69de",
+    "git_store.json": "72c71e8d78f104b72ae91bd1653ae8f982d74b51d0197abf503d177433f91950",
+    "probe.json": "83e71ca6f6bbb8acd8c88bc5b40e9b2c37cdf198e7c5dcc58c243ed832dc410e",
+    "pytest.log": "ab10544d6e7788ae51b63ebd980b1f9cf83b80b7f8006f853342b4bd45f9eba8",
+    "result.json": "e359e9f4aac35a66d4932c7cea8dbc99ef67a6aac08bb981ba824dd5bed1821f"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY18 an allowlisted source need not be its r7 and committed r8 bytes",
+   "mutant_number": 17,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_an_allowlisted_source_off_its_r7_or_r8_bytes_refuses"
+  },
+  {
+   "archived_log": "logs/17_1.log",
+   "case": 1,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 79,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "04e2f8a8541c681494d85faaa76bf5cd505adaf9484587b78417c2a38c0e5215",
+    "git_store.json": "d593da58a00d86db4b76e99eff70cdbb754f71d8772add01e72535514a2af41d",
+    "probe.json": "83e71ca6f6bbb8acd8c88bc5b40e9b2c37cdf198e7c5dcc58c243ed832dc410e",
+    "pytest.log": "1d98ddf614ed394e46050e566274fb9693763ac354bef37ef56f6715081aea93",
+    "result.json": "cf9d977d38c6b1a2d6bb2c6c5cc805503bcdef5208b64a95e2fc466dea017855"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY18 an allowlisted source need not be its r7 and committed r8 bytes",
+   "mutant_number": 17,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_an_uncommitted_allowlisted_source_refuses"
+  },
+  {
+   "archived_log": "logs/18_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 80,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "24631631233428bc2a44d51b86a88a75b638286c432759687c50f93fe646b9ba",
+    "git_store.json": "24913669042392de6302965348e06faf99297f065ea05af5ea8cea02572d9abe",
+    "probe.json": "7e1c374ea0dfa22621637c91de8e3134cd02250c1c1e34c1e7483f6b12dd31b2",
+    "pytest.log": "b153b871455576b0090b5542fc8f6458c90ef87f66f78ba16030e3c340086791",
+    "result.json": "4c5216ffd69844de1ec93231973969805399172ff49c47cec333046411828e9a"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY19 the source authority outside the allowlist may change",
+   "mutant_number": 18,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_changed_source_authority_outside_the_allowlist_refuses"
+  },
+  {
+   "archived_log": "logs/19_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 81,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "ce8c1fa81506ffca8491adf84ea75702c921409e8be41bda3f4e5f71c8ed696e",
+    "git_store.json": "7b137ff37cdb84522c397a859420891d8b89c2232f1bb56adbff33273af1336e",
+    "probe.json": "95017bdf1b735b0f4c42d79a7bc95381ceee7227c35e896a7dd493180096f7e0",
+    "pytest.log": "9cb5651fa79203903d022acf7556a85d73edc68a0032443e9faa7c3c08f81659",
+    "result.json": "36c8aeb7566984973f518fbd3d00fa99ca66f53b4a406e39b32cb23ba52f68eb"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY20 the recovery claim is not exclusive",
+   "mutant_number": 19,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_the_lineage_is_recovered_once_even_after_a_failure[0]"
+  },
+  {
+   "archived_log": "logs/20_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 82,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "ca60c79537d0428e98dcf67d498cada7690915889bea31d983c7289981f2534e",
+    "git_store.json": "7bee45cf24a674da7b88ffe0e9b25bf7563094ec8d25524e9088581bda6a6220",
+    "probe.json": "f325f1d5e1a1bea5da9471981b50e61226dd6aa439dc0e3754f35c55549dd258",
+    "pytest.log": "5040902e8c47fbcafe5082b0e7b56df3bf8cd1a26d7d2a6e89547f69f155dbd7",
+    "result.json": "740c812a554786704b313917cb639dddd8f41678c994d1535f3df731298ec57b"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY21 a request may name another claim root",
+   "mutant_number": 20,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_request_naming_another_claim_root_refuses"
+  },
+  {
+   "archived_log": "logs/21_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 83,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "f6124717fd866431662e0cb14755e5763ca340809a365135846afb328442532c",
+    "git_store.json": "486b0e81a7547527d9c9f4661cbdd300af111f8a7d41dedc7f6ca0546ed21980",
+    "probe.json": "ff0ba9e75d8474de818fdf537e4dcca4c9816646b9166d6e8241994eca6ab58c",
+    "pytest.log": "f20be9302fb6c7c3172e95fcaa25497fe6d2c5531504eece50de9c532afb99df",
+    "result.json": "e31801e846c62ca8d5459a7006a83a45d8157f49becd7373d5a8165e3c40fc1e"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY22 the claim is not consumed before the attempt",
+   "mutant_number": 21,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_an_approved_recovery_runs_one_cell_and_writes_the_lineage_receipt"
+  },
+  {
+   "archived_log": "logs/22_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 84,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "02af5de5d328fd26b17c1d4e32e9ae697f3d4221e40ceb5f8bccbdc734274059",
+    "git_store.json": "23e3d29f9d55a825d757cebf93ae5b8b17f6d47102ac1dae5fc6b5e4cc61496b",
+    "probe.json": "f63e8ff47f98a10976f876bcfaad59b25f9b0b6a67b5efe882c52ba67855dcce",
+    "pytest.log": "22b1a83fd7f6fc3b79bd1edb2b49442e01207313c946c826420fa0dc82e3b83d",
+    "result.json": "dff916b1bc942bef0d34fe7405e9a0cbdb92abb89b77b04c28a8c61ccd121fd7"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_terminal_test.py"
+   ],
+   "mutant": "RY23 the T entry does not verify the recovery authority",
+   "mutant_number": 22,
+   "mutated_file": "scripts/anchor_terminal_test.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_an_entry_without_the_claim_refuses_before_any_load"
+  },
+  {
+   "archived_log": "logs/22_1.log",
+   "case": 1,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 85,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "5a9faae94f871b04bfcfec09fec8d8e9789406d95fd8bbb02564c173ee6a6241",
+    "git_store.json": "27a3cd0657a97803a23844ea4be1de4f14f542d7e9333e239fe3a9571eec83e0",
+    "probe.json": "f63e8ff47f98a10976f876bcfaad59b25f9b0b6a67b5efe882c52ba67855dcce",
+    "pytest.log": "46cde9d75b7a60376a8ff18df159dee657517d6d823e9e5962bafbaf4df07bbc",
+    "result.json": "1963ab2ab13fbf848790e0ff2f519b4daeda21c5d06123d4e1ef1d2430420aae"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_terminal_test.py"
+   ],
+   "mutant": "RY23 the T entry does not verify the recovery authority",
+   "mutant_number": 22,
+   "mutated_file": "scripts/anchor_terminal_test.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_counterfeit_lineage_in_an_approved_request_refuses_the_entry"
+  },
+  {
+   "archived_log": "logs/23_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 86,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "10625f5de35a8c55a47c8a8ef0d063d2b7d80fc9d77ff29f765e34d38f41bcd8",
+    "git_store.json": "aa0f6f6a68b11e9c8e14ff72b876bbf0ce84b7afc56a992d29e4809d0a8123d6",
+    "probe.json": "8b43da378e4f530704b2bd4531a36208c1505fcaebcafda053c494163d1dbaba",
+    "pytest.log": "d50a4235355718656d213fc1c59073ddfb5865f57237580d15cf3996182c01c1",
+    "result.json": "aada080b81f6ecf4b88cd79db58d1fb83699b4c1b21e6ab9e4f5fb9ec52901d1"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY24 the entry accepts a request lineage off the pinned campaign",
+   "mutant_number": 23,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_counterfeit_lineage_in_an_approved_request_refuses_the_entry"
+  },
+  {
+   "archived_log": "logs/24_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 87,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "5e45315beebfd1869676f719b17752012847cfce3126d5a6546ae702d2196af7",
+    "git_store.json": "03b2e933e4e96753f6665a8cd8717e519a45d07e38eb40838f62f1ecd947400e",
+    "probe.json": "3a08f2e4c1192117734d66054ed70c5fa90441b61fa19069960b67a84a382511",
+    "pytest.log": "d5d2f49a7803fb2613c2be9e624c734bb3fb8560f523701beeaa2da07868b332",
+    "result.json": "54e69803a6650beb59659d58feda7122fa387a22c3348acbd6d5c720bc309eec"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY25 the entry accepts a claim for another namespace or record root",
+   "mutant_number": 24,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_claim_for_another_namespace_or_line_refuses_the_entry[other-namespace]"
+  },
+  {
+   "archived_log": "logs/24_1.log",
+   "case": 1,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 88,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "6dc5054b904029d80596ad42ba50825511e0893323466997519c32673755db13",
+    "git_store.json": "82e2cbb1a1a7998847dee89c8c8e6d6043cbe5bdc6b83de974eeef0a96157496",
+    "probe.json": "3a08f2e4c1192117734d66054ed70c5fa90441b61fa19069960b67a84a382511",
+    "pytest.log": "3d1be6d5b21d665245c16bf6c0a336e08c2e3ad38ca9dc61da078202292c3182",
+    "result.json": "ccc4ed136f2f8a14dba8a318b3f9408ad2b5671b8cd1459f76920192096b0c62"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY25 the entry accepts a claim for another namespace or record root",
+   "mutant_number": 24,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_claim_for_another_namespace_or_line_refuses_the_entry[other-approval]"
+  },
+  {
+   "archived_log": "logs/25_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 89,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "e4985738d0e88f8b45f36640ac079d299024315c9eda3946987db3ce2c125c96",
+    "git_store.json": "1dbca7af5beae36dc3df90aa4912ccd94b96f1d808147510697b1c2603555e91",
+    "probe.json": "a0947fc602143780ab5f2de38da4e450c34507b3c5ab21ba9dd2f52a7a5e908a",
+    "pytest.log": "b17782854ced7a5e1b85375dac02ddf7b42cce3b99246c03506df8815defd9ff",
+    "result.json": "006dd73b8f962b21bcbc6589ecb63e5153fee65134705a4842ff642d73c8cafd"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_terminal_test.py"
+   ],
+   "mutant": "RY26 the entry accepts the stage-T form in the recovery mode",
+   "mutant_number": 25,
+   "mutated_file": "scripts/anchor_terminal_test.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_the_stage_t_form_with_the_recovery_mode_refuses"
+  },
+  {
+   "archived_log": "logs/26_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 90,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "e576675f0372c2c25002588341aa227f27dd872af39a7b6096ebb9dd65abaae9",
+    "git_store.json": "56590ebc156604e6451a66daa246ad5ee50062606148a723582d624fecc48aca",
+    "probe.json": "9437bd4ef26629f2ec6448f74f662474a69badde7eafebe97b44c70d899520a6",
+    "pytest.log": "192d6c3ef35d2609816829580c0d112f9b5178659abe57237b41b8dba7687bc6",
+    "result.json": "a593b440c37bc31e9bf49a243a1e0d9b884338b018d1a81cc9932c532d35b7f2"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_terminal_test.py"
+   ],
+   "mutant": "RY27 the recovery entry expects a smoke horizon",
+   "mutant_number": 26,
+   "mutated_file": "scripts/anchor_terminal_test.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_an_authorized_recovery_entry_runs_the_terminal_function_once"
+  },
+  {
+   "archived_log": "logs/27_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 91,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "b35b7ffd7305925d22cd604ca2bc1cf37263031448ec30628b333e3379f84682",
+    "git_store.json": "6f9076a383c3eafbd3dc68e20da301ffe40fbe211b95d906c885e26be6f9c1a1",
+    "probe.json": "38a4ecf79acad6958e2a5ad5764b0c2b8f09cb6a5b87198b8187a700ff6a6fea",
+    "pytest.log": "9fb524d70ae71c5e2f28ae4b7c13020504d09d0cf6cf46c2183fa9d52b68bd1f",
+    "result.json": "b3c22a5c5512199784bc32a05a059e6d52e65ecd71d4b2e97693eca8a202a1e3"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY28 a stage-T-run line approves the recovery",
+   "mutant_number": 27,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_only_a_recovery_line_for_this_exact_request_approves[stage-T-run]"
+  },
+  {
+   "archived_log": "logs/28_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 92,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "e3da5d4454a98525d1ccc6456344a9c9ec05d3bf1b1515b35a8d2f8680da8b0c",
+    "git_store.json": "0e075243b7aa50572a58bd8196430ea05082a554cff35a11072d4096cd8b3d72",
+    "probe.json": "169da785203fe3b29ac17427b86257d86920257e8da1b5b2416e543278ec88ae",
+    "pytest.log": "551bea40591167d2e070c785be02e27edad3af66388222097043350db33bc5ea",
+    "result.json": "1573861309da59652ad7fb2a43d229bdf7e1ffc8ef9bc60a60faccaaa10281c0"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY29 carried payloads are not verified before the leases",
+   "mutant_number": 28,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_carried_payload_off_its_record_refuses_before_any_lease_or_claim"
+  },
+  {
+   "archived_log": "logs/29_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 93,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "4eb61cebd466ab2d40004a7675f9a4734cff676f1de3f598f511ca564125fa74",
+    "git_store.json": "643d1f58e5c196a1e893bcd0eaeef78b5ae7f732ce49b8585599eb7878a43ab5",
+    "probe.json": "77849977d0c68f43bf95b0cf29d11027814d475753c35c391a9a7a3d7078b87f",
+    "pytest.log": "1dc17624e3b84bd8899f01e4a9cac2566dc63271f2adf689ec7c5789386b33fa",
+    "result.json": "2721da1806242380b4c2ded5d0d52911e78355db35e42c8765c5f926d322db37"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY30 the final closure does not re-verify the carried payloads",
+   "mutant_number": 29,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_drift_during_the_recovered_cell_publishes_no_combined_receipt[carried-binary]"
+  },
+  {
+   "archived_log": "logs/29_1.log",
+   "case": 1,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 94,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "0614fd39e684fdb0a30e2c1fd5be495a69828d2bd44c0470553acf9ce529ac2c",
+    "git_store.json": "ee826ce8a7372a060b937278b857c5825911587a2ff3e9f48919a8305eaacb5e",
+    "probe.json": "77849977d0c68f43bf95b0cf29d11027814d475753c35c391a9a7a3d7078b87f",
+    "pytest.log": "78d2bdd73d2c3988d8c2b289d96c0fcdc112b826dd45fb636264d9569c35fcd5",
+    "result.json": "6a3971385a8fac70a9d2be518c1630462009db58ed3b0ef4be2d4c8b95104b25"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY30 the final closure does not re-verify the carried payloads",
+   "mutant_number": 29,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_drift_during_the_recovered_cell_publishes_no_combined_receipt[carried-json]"
+  },
+  {
+   "archived_log": "logs/30_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 95,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "aa1c7dfcddb49a88483e496fbda2e6fa06381cc16e258f49b2283bf7fbabe751",
+    "git_store.json": "fff12f7effd3132415d0af502a631e7e7cf42bb6a157c98f3c2e0b548406fa0b",
+    "probe.json": "28a91abd78ff08dce3a0781fa2a9f308a86d4247b918c2afe32a710eaad3076b",
+    "pytest.log": "26b6070e72b2a861bdf0bc0991b209e14560148ae3ff3991d8c739d2c3ecf1a4",
+    "result.json": "e4b4bf304bfac979867a9379aa0e6859a8ec7b637d5972274da1b613b6fd24ae"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY31 the final closure does not re-check the claim bytes",
+   "mutant_number": 30,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_drift_during_the_recovered_cell_publishes_no_combined_receipt[claim]"
+  },
+  {
+   "archived_log": "logs/31_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 96,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "b326969612a31324706bc984f3bb927baf0d1077d337b08b497cb48d758112d4",
+    "git_store.json": "e0ccdee6f5b0966e9e440d0d118261dd2bf0c2f0916dc1fc0a792c4e42173f55",
+    "probe.json": "38e40ea4a45cae46708f97ab78a40c533860a078f1fa1ea5e441cb9c52f5610d",
+    "pytest.log": "9c7c0674ded7793452c6750c706d193f385c2b10cbff3aa0a5de5d4cc378aac0",
+    "result.json": "6d74b3bce6a2167608e5c7a86f10835c5869a6a5ad88ad29d2617205b7427ffc"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY32 the final closure does not check the new cell's outputs",
+   "mutant_number": 31,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_new_record_off_its_outputs_publishes_no_receipt"
+  },
+  {
+   "archived_log": "logs/32_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 97,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "c5399d460a6c2db3d9ec789204352fb24edfa295e79bfb248035b0f40acfeca3",
+    "git_store.json": "71a0e94ee7460551f807a2cd1de8e612123154977839953a3d2eb4d12a51947a",
+    "probe.json": "55c888da80fade14fe98a84aab9f801f1f992fdd77ad60af1f0befe114c976c8",
+    "pytest.log": "c661c846b366c8583d04161bc843c6aa1e057d8b1222ba8db598563d2c28acb3",
+    "result.json": "b8e2d020b2bcf195c7406b2683f2935279359553f847c38ebfe78e2c3f26ffc9"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY33 the final closure treats the executed cell as untouched",
+   "mutant_number": 32,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_an_approved_recovery_runs_one_cell_and_writes_the_lineage_receipt"
+  },
+  {
+   "archived_log": "logs/33_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 98,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "283960f14f325f452fc169b683f8e8ee74c8ceac775c794f7c3e4f3a9f7eac97",
+    "git_store.json": "722cabd591ef2ce1e4641a7c185edd3e8a5d704cedd687854dda6e6ba1a3d640",
+    "probe.json": "f81e4aa42b531605ff9ad0799158955f36c2e4f9ed24541e68f512b86f431737",
+    "pytest.log": "6bdb610530cc9df8053f1e219898a46fa8443a1b1130d3bd15d9890fbc144ee5",
+    "result.json": "6977f4b8f259c35d06dad73a4f2c1760119a6ccd80fe084e902053c9116b6a68"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_confirm_supervisor.py"
+   ],
+   "mutant": "RY34 the supervisor does not bind the parent ledger",
+   "mutant_number": 33,
+   "mutated_file": "scripts/anchor_confirm_supervisor.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_changed_or_unsettled_parent_refuses_before_start[unsettled]"
+  },
+  {
+   "archived_log": "logs/34_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 99,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "977b42b9e5b28d058ad5c7b0007f0a10707d3c1a66b7978f6a3c818398d53ec2",
+    "git_store.json": "8d844446e2a17379416d01f505ad14f269c84719be3d6a8a8d3ee222deb23ea3",
+    "probe.json": "404e003cd217d696730020fdad7b8e6570e1c1cae6aacecee0d35e90a8ea95da",
+    "pytest.log": "06a5c25fcd53489b4d2986ba2cef73d67be76bd4bec9e2de520ef9ce25b3dd5b",
+    "result.json": "682958fa2d5a3f04b5e45f4ee3f48d94cd86ede43192c4086f4fb05025a7f7ed"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_confirm_supervisor.py"
+   ],
+   "mutant": "RY35 the parent ledger need not be its pinned bytes",
+   "mutant_number": 34,
+   "mutated_file": "scripts/anchor_confirm_supervisor.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_changed_or_unsettled_parent_refuses_before_start[reformatted]"
+  },
+  {
+   "archived_log": "logs/35_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 100,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "9abc71df8b21eefda12aa62dd5c60d4f3200db724e73c9c9d61ea8a1bee43fd1",
+    "git_store.json": "1f86631d5c786bb6e1fefdb3ed95da65632680c1439a26d600a8033070048953",
+    "probe.json": "131717e226fceffa987ea5762df5c1c975daad475f771ef03fbba2a7975ed89d",
+    "pytest.log": "3b891d1b35dc6ec87a5daa46e705b3bb069ce7fa9dc7481a16bfdd067645b15c",
+    "result.json": "e4ea5dc3f63ee30d33950c245e113b36918b7318dd38648e9bf3955030a01820"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_confirm_supervisor.py"
+   ],
+   "mutant": "RY36 the parent ledger need not end settled at its charge",
+   "mutant_number": 35,
+   "mutated_file": "scripts/anchor_confirm_supervisor.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_changed_or_unsettled_parent_refuses_before_start[unsettled]"
+  },
+  {
+   "archived_log": "logs/35_1.log",
+   "case": 1,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 101,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "3f6c1a184c652f097363de4628fc1553fdfa75d61b812fd9da6b3c3da81d02d9",
+    "git_store.json": "eaa352d7737a51ea648c4042517a7ff54d6a625606748c03e6fc7c9a32831882",
+    "probe.json": "131717e226fceffa987ea5762df5c1c975daad475f771ef03fbba2a7975ed89d",
+    "pytest.log": "c5e8f3911d6c1e2603e0e3ebb8657ccb4e2ae55c2b225b24713587dc64bfdd2e",
+    "result.json": "b155e4e83c72517701bd0efcb7413de6f30887d9f404ec71bb59a60ca6a0551c"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_confirm_supervisor.py"
+   ],
+   "mutant": "RY36 the parent ledger need not end settled at its charge",
+   "mutant_number": 35,
+   "mutated_file": "scripts/anchor_confirm_supervisor.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_changed_or_unsettled_parent_refuses_before_start[other-charge]"
+  },
+  {
+   "archived_log": "logs/36_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 102,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "05ad7b3e994f3ccc33181547aa8861b7888d4c8e12b11cb7a8fe13e44e42ef35",
+    "git_store.json": "ec8f5988b0a0e20ef690205d5b2b119fa759afa0474b9a4c762037c679022364",
+    "probe.json": "09aa45b0f479fd66c26e81eeb0c589086babeb139c9a4888cf574b90252f49e7",
+    "pytest.log": "7daf636595cc216700e6890c756d4737eef9c627909fd4fa23de0554efb7aa62",
+    "result.json": "e4483086f44b7673ef6d54880ddb5f798ac07dab660efd006a37afab48e886c9"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_confirm_supervisor.py"
+   ],
+   "mutant": "RY37 the recovery has no ledger group of its own",
+   "mutant_number": 36,
+   "mutated_file": "scripts/anchor_confirm_supervisor.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_the_recovery_keeps_its_own_ledger_and_budget"
+  },
+  {
+   "archived_log": "logs/37_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 103,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "779d75da90332e5eab328522f9df4e4b28851010159580424fac3517f30777c2",
+    "git_store.json": "2ee230bb49a996d46df4a071baf04f5bd12f085d124327bef5f22ca398262f84",
+    "probe.json": "f874e4395b6d08fd5ad8d4e5a35764d4e4c35800f50be6aede3d5a5f818337e9",
+    "pytest.log": "0e4ed98df91724d4ba15435f61d17342ca1139f91e5eda98cd48a22141d31c33",
+    "result.json": "9bb3f535ff3b8a70f6822232e5ddb4ae0924e9219b5266dbcf7e79667bb28a23"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_confirm_supervisor.py"
+   ],
+   "mutant": "RY38 the recovered cell's producers are counted as one",
+   "mutant_number": 37,
+   "mutated_file": "scripts/anchor_confirm_supervisor.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_the_recovery_is_one_gpu_and_five_producers"
+  },
+  {
+   "archived_log": "logs/38_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 104,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "45752025af3cf165bec36c81c1aa8a7ee09aede40a08309c609ee7f1768d9f3b",
+    "git_store.json": "9f9fdfd331308fcceb1f0b8f0f23591943ddcdfea78ebece7b9f9d797ac8a299",
+    "probe.json": "769f32e9921e515f2bb7e167bd941b6203ea821efef9efbc2adfd1e875bad57f",
+    "pytest.log": "51e4cc6fb795b2a54baf94ef3592dc35a9e74cdb4a779972de59560e680c921f",
+    "result.json": "8efeededbc66de3ce62a92ac85138e2b368de7be7d8c0c2f1a2faa6e416edc52"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY39 the recovery may use more than one GPU",
+   "mutant_number": 38,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_the_request_is_one_gpu_and_a_new_namespace[two-gpus]"
+  },
+  {
+   "archived_log": "logs/39_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 105,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "0edbac9ce452656db3e86942a6e74ba8934940a5438ee971fa0411548ed005b8",
+    "git_store.json": "752dab1cb5c04929953a626ff4716ad0cd854370f75a7d8632a6a01814817ff5",
+    "probe.json": "0cae2dca79ace3c10f9024ea4fe7e053310e5c262290442b92a95f2f03c018ae",
+    "pytest.log": "019270897b590e412e6a2be771ab138116275ed7882d122eb527f8bacccb5522",
+    "result.json": "f61a9c6ac6ee8f5b64a717368206643f3d6ce80268d60cd0029e72ddf8164744"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY40 the recovery may write the stopped namespace",
+   "mutant_number": 39,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_the_request_is_one_gpu_and_a_new_namespace[stopped-namespace]"
+  },
+  {
+   "archived_log": "logs/40_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 106,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "4dba3ea6cf3241ad4a6addd6fe51f02310ec6dd7ba27a3219981f3d6eb5c42a5",
+    "git_store.json": "3d09023d4ef8a3dd7df475e8c40ff1c5bbba2b156b23db336136c433adc06c5f",
+    "probe.json": "fb3ffc6c6bd44b860dc45ef904557c5f193259e2a7a203d0914728ffdce4bfd4",
+    "pytest.log": "7e565812eae717b5b528be1839e873c91205036e2cd11f4d9d0985cadbd6c7b6",
+    "result.json": "c44124746f01cc8a9eeab3b22cffa954416261dbc34da7ceaa8e7d960b5ede4a"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY41 the recovery takes a stage-R receipt from the command",
+   "mutant_number": 40,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_the_recovery_takes_no_receipt_smoke_or_cell_selection"
+  },
+  {
+   "archived_log": "logs/41_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 107,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "7297e8861122c51f112a0755896ab925746c2b68882df4f48eb7d32cd4084a80",
+    "git_store.json": "5b08b629fca5c0d5da6da3952d90e89967e98b7199110d01ce44675a52173864",
+    "probe.json": "5f0aa51677cbf5f3a3f22250cc0351c8f37cedf7c34d3b4ea0053ffd8beaedfb",
+    "pytest.log": "3a27b918e3a413d21d6c11617c8f41c84ab63f78885235f08cce72ad459f80f3",
+    "result.json": "f0640ccd5cc2891af0e6a0156b560b74f09cb7a3c62c2a9b2787517d35c42f0e"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/phase3_selection_matrix.py"
+   ],
+   "mutant": "RY42 the recovery has no approval scope",
+   "mutant_number": 41,
+   "mutated_file": "scripts/phase3_selection_matrix.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_structural_the_recovery_scope_binds_the_f_record"
+  },
+  {
+   "archived_log": "logs/42_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 108,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "30cfc64fd5e63dcee5b6c550db095c01d9262c8d36987f41633697b649a93269",
+    "git_store.json": "6e55e9aab8666e2796b3e730eb53f021d153248711618a20381d87e9e6d8c21f",
+    "probe.json": "044790da8298ef82a9d62d13388cd28c2bc6b28cbd1a10e4d2d631758ebb8e01",
+    "pytest.log": "b434f9c439a34595fb96f77d038adcafa80d1470cb7211280305634e3570d444",
+    "result.json": "84a55be4620f6cfcbcf55b039519ccc0c940475fcaae0e9fb462849ad04b9351"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/phase3_selection_matrix.py"
+   ],
+   "mutant": "RY43 the launcher does not dispatch the recovery to the stage",
+   "mutant_number": 42,
+   "mutated_file": "scripts/phase3_selection_matrix.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_the_plan_previews_one_cell_and_touches_nothing"
+  },
+  {
+   "archived_log": "logs/43_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 109,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "724a2c4182fae747f9d0d0db2bf6a37a864e4de74ff781d4db8f84954b0fd09e",
+    "git_store.json": "431f19084ce8741220bc6094a069d312febf9c1ca707ea42b0dc5cedadceb6cb",
+    "probe.json": "880ad786df1378af8021e76944d5b2338db8e9d5115a13f3daeea0dbacfa5d9e",
+    "pytest.log": "123e3cc343f87203f5399c8d042c5a063327cf30955b43a03f3a9d3d8c9458cc",
+    "result.json": "6e7445f02a9df8b5b73df9571f5c44e2806c11a5c6de72cd1dfee21308b4d2e5"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/phase3_selection_matrix.py"
+   ],
+   "mutant": "RY44 a manifest may omit the recovery contract",
+   "mutant_number": 43,
+   "mutated_file": "scripts/phase3_selection_matrix.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_manifest_without_the_recovery_contract_refuses"
+  },
+  {
+   "archived_log": "logs/44_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 110,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "62ddd18c2a820374fba6dd795d9729b55506fafcb90b02f8d033e2980177a1cb",
+    "git_store.json": "ce32fa9b4c741502b6b6d2ae17c64c9299d8e3a8b3aa721ce53c434a7f627ecb",
+    "probe.json": "606fdaca78105cf2b043a9037c7f9948fe374596296c20ec652dcb95aee21f8d",
+    "pytest.log": "561fe057fa8be46168a728f14069d3c50ca029aea054f0828d7f0c3ae312fbc8",
+    "result.json": "9df49daa00f18c28f2b8ea9d2324a73609341b56c14902f854196590310d4e26"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY45 the publication trusts the recorded attempt digest instead of the attempt file",
+   "mutant_number": 44,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_new_cell_chain_off_its_files_publishes_no_combined_receipt[new-attempt-changed]"
+  },
+  {
+   "archived_log": "logs/44_1.log",
+   "case": 1,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 111,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "ff7525dc1151c2e65f3c7c1c89ece9bba6d2477c3a39477c21a250e5887664a2",
+    "git_store.json": "0afffcba31db75370d5e94ae54d9dfb21e667917dad3cc3f17d45331808a482a",
+    "probe.json": "606fdaca78105cf2b043a9037c7f9948fe374596296c20ec652dcb95aee21f8d",
+    "pytest.log": "752ec31f36516afa6effadfcc308d9caa6e7b02e77e77e750a21a4bc17f9a2bd",
+    "result.json": "66a75eabd4f48747f825614bf666d5726d60ad2081329b117f7e54539b384862"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY45 the publication trusts the recorded attempt digest instead of the attempt file",
+   "mutant_number": 44,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_new_cell_chain_off_its_files_publishes_no_combined_receipt[new-attempt-missing]"
+  },
+  {
+   "archived_log": "logs/45_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 112,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "22089ce6e8762df8e679ceb8edee1563141d16091191a79c1124f56d63967623",
+    "git_store.json": "610a9a8424b689c8cb648646797b9940237265b727cd9c07341bfa7c0b23fcc5",
+    "probe.json": "c6a05fa1197be48aa744cb73974652c78d64f5eaab00993758286e680d138038",
+    "pytest.log": "194b3af68616d30a683fcdf3cc365a6242af2beca5a7c0b5af1c2e9ed8b34ee8",
+    "result.json": "39b8c3f765abdfb3769d8b3804003736c8b98405db7102f28aba7f961014c1b6"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY46 the new entry claim need not bind its attempt and cell",
+   "mutant_number": 45,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_new_cell_chain_off_its_files_publishes_no_combined_receipt[new-entry-mismatched]"
+  },
+  {
+   "archived_log": "logs/46_0.log",
+   "case": 0,
+   "checks": {
+    "boundary": true,
+    "modules": true,
+    "order": true,
+    "pytest_log_nonempty": true,
+    "rc": true,
+    "runner": true,
+    "tree_clean_iff_baseline": true,
+    "tree_head": true
+   },
+   "counter": 113,
+   "excluded_entries": [
+    "store.git",
+    "tmp",
+    "worktree_gitdir"
+   ],
+   "files": {
+    "bwrap.json": "267e89abbafc2f6a6f8f0e5badb8339c3e47c4e966b5d229950353bbe7919a88",
+    "git_store.json": "eec2c4623d9c0b3fad695cb5b3c81e2124f4131dcd6e3fe14de9e4ce355d7a6d",
+    "probe.json": "cd12fd69fa6952af5f9da4f0df1131c13bd75b6469d31de8719cca400ea4ae81",
+    "pytest.log": "d4912159ca4e11a67b9fcd85a8574d016874076a0b98fdf656411858e2f305ea",
+    "result.json": "939c11d5ca1d91dc7c3ccc02c31adfac62d3c00284dc72e6da2de0568761f765"
+   },
+   "module_digests_off_3fd0117": [
+    "scripts/anchor_refit_stage.py"
+   ],
+   "mutant": "RY47 the new entry claim is not read",
+   "mutant_number": 46,
+   "mutated_file": "scripts/anchor_refit_stage.py",
+   "phase": "mutant",
+   "pytest_rc": 1,
+   "report_rc": 1,
+   "test": "test_composed_a_new_cell_chain_off_its_files_publishes_no_combined_receipt[new-entry-missing]"
+  }
+ ],
+ "report_sha256": "5e6571f5a8ea1f722b597fcd86fe89734cf14dc8ef2ee2afd78a729bfbb5522a",
+ "runner_sha256": "a684299cde9c27bf7cd717a6d50bd3ce26e70fa9678596af710a5351f9a86732",
+ "script_sha256": "5e73dde3d7ed0fac45fc0ebecc8c0ea2793ffb9ed225fcbba017efe897092b9d",
+ "source_root": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/battery14_3fd0117",
+ "tested_commit": "3fd0117ae06642283f4ee185f073dd37800a6a70"
+}

@@ -1,0 +1,43 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_____ test_composed_the_lineage_is_recovered_once_even_after_a_failure[0] ______
+
+campaign = namespace(state={'commands': ['anchor_terminal_test.py', 'anchor_terminal_test.py', 'extract_train_split.py', 'eval_ce...unction campaign.<locals>.run at 0x7fd7b9ccecb0>, world=<test_anchor_t_recovery.StoppedWorld object at 0x7fd7b9f01ae0>)
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7fd7b9f01ae0>
+capsys = <_pytest.capture.CaptureFixture object at 0x7fd7b9f012d0>, k = 0
+
+    @pytest.mark.parametrize("k", [None, 0, 2])
+    def test_composed_the_lineage_is_recovered_once_even_after_a_failure(campaign, world, capsys, k):
+        _, digest = campaign.plan()
+        campaign.state["fail_at"] = k
+        first = campaign.run(*campaign.approve(digest))
+        assert first == (0 if k is None else 1)
+        seen = len(campaign.state["commands"])
+        claim = RT.recovery_claim_path(RT.recovery_claim_key(world.lineage))
+        assert claim.exists() and RT.attempt_path(NEW_NS, world.recovered).exists()
+        campaign.state["fail_at"] = None
+        capsys.readouterr()
+        # again, in the same namespace and in another: refused before any process starts -- at the admission
+        # once the cell holds outputs (k None, 2), else (the entry failed before any output) at the claim
+        if k == 0:
+            assert campaign.run(*campaign.approve(digest)) == 2          # the namespace is already reserved
+        else:
+            assert campaign.run("--plan") == 2                           # the cell holds outputs: admission refuses
+        rc = LT.run_main(campaign.state["mp"], *world.argv("--run", "--gpus", "3", "--plan", ns="ancT9q"))
+        err = capsys.readouterr().err
+        if k == 0:
+            assert rc == 0
+            _, other = campaign.plan(ns="ancT9q")
+>           assert campaign.run(*campaign.approve(other), ns="ancT9q") == 1
+E           AssertionError: assert 0 == 1
+E            +  where 0 = <function campaign.<locals>.run at 0x7fd7b9ccecb0>(*['--anchor-approval-section', '800'], ns='ancT9q')
+E            +    where <function campaign.<locals>.run at 0x7fd7b9ccecb0> = namespace(state={'commands': ['anchor_terminal_test.py', 'anchor_terminal_test.py', 'extract_train_split.py', 'eval_ce...unction campaign.<locals>.run at 0x7fd7b9ccecb0>, world=<test_anchor_t_recovery.StoppedWorld object at 0x7fd7b9f01ae0>).run
+E            +    and   ['--anchor-approval-section', '800'] = <function campaign.<locals>.approve at 0x7fd7b9ccf910>('b4257f9302b5045c6178bf51c623ca66985996c0b2d6e65037acf30910adb31a')
+E            +      where <function campaign.<locals>.approve at 0x7fd7b9ccf910> = namespace(state={'commands': ['anchor_terminal_test.py', 'anchor_terminal_test.py', 'extract_train_split.py', 'eval_ce...unction campaign.<locals>.run at 0x7fd7b9ccecb0>, world=<test_anchor_t_recovery.StoppedWorld object at 0x7fd7b9f01ae0>).approve
+
+tests/test_anchor_t_recovery.py:657: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[anchor-T] recovery complete: 1 executed + 11 carried stage-T cells
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_the_lineage_is_recovered_once_even_after_a_failure[0]
+1 failed in 6.26s

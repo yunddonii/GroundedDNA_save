@@ -1,10 +1,17 @@
-# Anchor model — r8 stage-T recovery: source, tests, mutation evidence and the exact request (audits 797–821)
+# Anchor model — r8 stage-T recovery: source, tests, mutation evidence and the exact request (audits 797–822)
 
 **NON-EXECUTABLE.**
 - Nothing below has run against real data.
 - No claim, budget or GPU was used.
 - Execution needs two things: the user's decision on the added 15,000 device-s budget and the one-attempt
   exception, then an audit line of scope `stage-T-recovery` naming the request digest in §6.
+
+**Revision (audit 822).** First submitted at `4a5f5fe`. This revision changes only records and wording:
+- §5: the 113 per-execution boundary records of the battery are now archived (`battery_guard_3fd0117/`).
+- §6: the read footprint is given by format, and the guard's parent-only limit is stated.
+- §7 and §9: the launch is bound to the exact audited submission HEAD, with `3fd0117` kept as the tested identity.
+
+No source, test, declaration, harness, runner, helper or manifest changed; nothing was rerun.
 
 ## 1. Receipt
 
@@ -21,6 +28,8 @@
 - **§819** accepted the final suite within its scope and recorded the skip limits.
 - **§820** queued the D5/D6 diagnostic item, which this submission does not touch.
 - **§821** accepted the fresh battery within its scope, keeping RY26's refusal-ordering limitation.
+- **§822** verified the source bridge, the 84 archive members and the request. It required three
+  archive and wording corrections, which this revision makes (§5, §6, §7, §9).
 
 ## 2. Source identity
 
@@ -111,6 +120,36 @@ launcher, stage, entry, supervisor and manifest modules import from inside the t
 
   The harness is `mutation_v14.py` `32d6040d…`; the declarations are `mutants_v14.py` `ae06e17c…`.
   Evidence is in `refit_v9/t_recovery_final/final_3fd0117/battery`, including all logs, with SHA256SUMS.
+- **Per-execution boundary records (§822).** The battery kept one record directory for each of its 113
+  executions (54 baseline + 59 mutant cases) in a temporary root.
+  - **What is archived:** for each execution, its five named files: `result.json`, `probe.json`,
+    `bwrap.json`, `git_store.json` and `pytest.log`, copied byte for byte into
+    `t_recovery_final/battery_guard_3fd0117/<counter>/`.
+  - **What is left out, by name:** the sandbox git object stores, the private `/tmp` and the worktree git
+    directories.
+  - **Archiver:** `t_recovery_final/archive_battery_guard_records.py` (`5e73dde3…`).
+  - **Hashes:** `INDEX.json` `56d4f335…` and `SHA256SUMS` `da3b3411…`, listing the 566 other files.
+  - **Ignored files:** the `pytest.log` files there are tracked despite the `*.log` ignore rule.
+  - **Counter order** follows `mutation_v14.main()`: counters 1–54 are the baseline tests in report order,
+    and counters 55–113 are the mutant cases in order. The archiver checks every record against that order:
+    - the run's own report is byte-identical to the archived one;
+    - each record names HEAD `3fd0117` and runner `a684299c…`;
+    - each record's rc equals the report's rc;
+    - the boundary probe shows no network, no GPU device, a read-only tree and the live roots absent;
+    - five module identities are inside the sandbox, at the `3fd0117` bytes, except exactly the one mutated
+      file of a mutant case;
+    - a baseline tree is clean and a mutant tree is not;
+    - each mutant case's archived log ends with that execution's `pytest.log`;
+    - record times are in counter order.
+
+    Result: 113 records, 0 problems.
+  - **Positive control** (`battery_guard_3fd0117_control/control_report.json`): a scratch copy with five
+    tamperings (a module digest, HEAD, an extra directory, a log tail, an rc). The archiver reported every
+    one and exited 1.
+  - **Limit:** a baseline record's content cannot tell which of the 54 tests it ran (each says `1 passed`).
+    Its test name rests on the counter order alone, supported by the record times.
+  - **Not archived:** the superseded `efd6c31` battery's per-execution records. Its aggregate and logs
+    stay in `battery_efd6c31/`.
 - **History:** the first run at `efd6c31` ended rc 1 (§817).
   - It detected 41/47 as declared; 51/59 cases matched their declared diagnostic.
   - The other six were wrong declared markers, not missed defects (§815–§816).
@@ -130,12 +169,20 @@ launcher, stage, entry, supervisor and manifest modules import from inside the t
 
 - **Render:** under the named-open guard, the launcher's own `--plan` with
   `--anchor-confirm recover --namespace ancT9r --run --gpus 0`, r8 manifest `3537e297…`.
-- **Reads:** exactly the 84 allow-listed JSON files, opened by name (lineage, both manifests, stage-R
-  receipt/snapshot/records, the 12 run directories' campaign binding and runtime sidecar, stopped
-  snapshot/reservation/attempts/entries/records, the settled ledger, F and its v7 snapshot, the approved
-  aggregates, the audit ledger), plus source files.
-- **Other evidence:** output presence by `stat` only; 206 git children (source `rev-parse`/`show`);
-  0 refused.
+- **Reads:** exactly the 84 allow-listed files, opened by name, plus separately allowed source reads.
+  - **82 JSON files:** lineage, both manifests, stage-R receipt/snapshot/records, the 12 run directories'
+    campaign binding and runtime sidecar, stopped snapshot/reservation/attempts/entries/records, F and its
+    v7 snapshot, and the approved aggregates.
+  - **1 Markdown file:** the audit ledger.
+  - **1 JSONL file:** the settled R/T device-budget ledger.
+- **Other evidence:** output presence by `stat` only; 206 git children (104 `rev-parse`, 102 `show`, all
+  on named source); 0 refused.
+- **Limit of this guard:**
+  - The named-open guard is a Python audit hook in the rendering (parent) process only. It refuses and logs
+    that process's opens. For children it records only their argv; it does not enforce their opens.
+  - So the 84 named reads are the observed footprint of the parent. The children are known only by their
+    command lines: git `rev-parse` and `show` of named source paths.
+  - This is not a measured child-I/O footprint and not a general subprocess isolation guarantee.
 - **Request SHA256: `d34f505b90db1ef02dce74bd0326350053a6708315f505c0c881fe89a91ad666`** (re-rendered at `3fd0117`:
   identical request, 0 refused; evidence in `final_3fd0117/render`).
 - **What it names:** schema `anchor-terminal-test-recovery-request/1`, mode `recovery`; one cell (NUS-WIDE
@@ -173,7 +220,7 @@ Run in tmux `ancT9r_v9r8`, one attempt.
 | Duration (estimate only) | NUS-WIDE cells took 14,627 s (beside three other streams) and 6,353 s (beside two). No completion guarantee (§799) |
 | GPU | one physical GPU chosen at launch. Before the launch, agree with the text-path session (§796) the index and UUID, ownership, duration (≤ 8 h) and release at settlement, with a written receipt. All six GPUs were idle when this was written; nothing is reserved |
 | `/data` | at launch, measure `/data` read load (`/proc/diskstats`, per-process I/O). If another session reads heavily, report the conflict for coordination and wait; never stop or slow a peer |
-| Same-command gates | tree clean at `3fd0117`; manifest digest; tmux absent; the chosen GPU idle by UUID; leases via `lslocks` only; no `ancT9r_*` record and no recovery claim yet; the settled R/T ledger at `31691514…`; the recovered run directory still without outputs |
+| Same-command gates | tree clean at the exact audited submission HEAD `S` (the commit at which the audit verifies this revision; `3fd0117` stays the tested identity, and no reset to it); `git diff --name-status 3fd0117 S` lists only additions (`A`), all within `docs/ANCHOR_T_RECOVERY_SUBMISSION_v9r8.md` and `artifacts/anchor_confirmation/refit_v9/t_recovery_final/`; all 71 manifest members re-hashed equal to their pins; manifest digest; tmux absent; the chosen GPU idle by UUID; leases via `lslocks` only; no `ancT9r_*` record and no recovery claim yet; the settled R/T ledger at `31691514…`; the recovered run directory still without outputs |
 | Failure rule | one attempt. On any refusal, drift, producer failure or resource stop: preserve every claim, record and partial output, settle, and return. No retry |
 
 ## 8. Limits
@@ -190,8 +237,12 @@ Run in tmux `ancT9r_v9r8`, one attempt.
 
 All tests, controls, the battery and the render above ran at `3fd0117` (clean).
 
-**What the submission commit adds:** only this document, `docs/ANCHOR_T_RECOVERY_SUBMISSION_v9r8.md`,
-and evidence files under `artifacts/anchor_confirmation/refit_v9/t_recovery_final/`.
+**What the submission commits add:** both `4a5f5fe` and the §822 revision add only two kinds of path:
+- this document, `docs/ANCHOR_T_RECOVERY_SUBMISSION_v9r8.md`;
+- evidence files under `artifacts/anchor_confirmation/refit_v9/t_recovery_final/`.
+
+The revision adds the archiver, `battery_guard_3fd0117/` and `battery_guard_3fd0117_control/`.
+Relative to `3fd0117`, every path is an addition.
 
 **What it leaves unchanged** (check with `git diff --stat 3fd0117 <submission commit>`):
 - production sources;
@@ -205,6 +256,7 @@ and evidence files under `artifacts/anchor_confirmation/refit_v9/t_recovery_fina
 none is relabelled as a run at the submission commit.
 
 **What is tracked and what is not:**
-- **Tracked:** reports, results, probes, commands, statuses and the SHA256SUMS lists.
+- **Tracked:** reports, results, probes, commands, statuses and the SHA256SUMS lists. Also the 113
+  `pytest.log` files under `battery_guard_3fd0117/`, force-added for the §822 archive.
 - **Ignored by `.gitignore` but kept on disk:** the `*.log` files (pytest logs, battery case logs,
   consoles). Their identities are in the tracked SHA256SUMS of each archive folder.

@@ -1,0 +1,15 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_composed_the_recorded_stopped_line_must_be_the_ledger_s _________
+
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7f35890f4070>
+
+    def test_composed_the_recorded_stopped_line_must_be_the_ledger_s(world):
+        world.relineage(lambda lin: lin["stopped"]["approval"].update(line="ANCHOR-CONFIRM-APPROVAL forged"))
+>       with pytest.raises(CellRefused, match="not the ledger's line"):
+E       Failed: DID NOT RAISE CellRefused
+
+tests/test_anchor_t_recovery.py:1075: Failed
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_the_recorded_stopped_line_must_be_the_ledger_s
+1 failed in 5.98s

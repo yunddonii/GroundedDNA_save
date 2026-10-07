@@ -1,0 +1,23 @@
+{
+ "archiver_sha256": "5e73dde3d7ed0fac45fc0ebecc8c0ea2793ffb9ed225fcbba017efe897092b9d",
+ "expected": "each tampered counter reported; exit 1",
+ "fixture": "a scratch copy of only the five named files of all 113 executions plus report.json, then five tamperings",
+ "note": "the mtime-order problem is a side effect of editing three files in place; it shows that check is live too",
+ "observed_exit": 1,
+ "observed_problems": [
+  "3: failed ['modules']",
+  "7: failed ['tree_head']",
+  "9: extra ['unexpected_dir'] missing/non-regular []",
+  "60: failed ['order']",
+  "80: failed ['rc']",
+  "result.json mtimes are not non-decreasing in counter order"
+ ],
+ "purpose": "positive control for archive_battery_guard_records.py (audit 822): the archiver must report tampered records",
+ "tamperings": {
+  "3": "result.json: anchor_refit_stage.py digest changed in its last hex digit",
+  "60": "pytest.log: one line appended (mutant case; its archived case log no longer ends with it)",
+  "7": "result.json: tree_head changed in its last hex digit",
+  "80": "result.json: pytest_rc 1 -> 0 (mutant case)",
+  "9": "an extra directory beside the five named files"
+ }
+}

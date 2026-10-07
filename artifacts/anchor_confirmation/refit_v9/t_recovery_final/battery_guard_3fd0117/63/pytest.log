@@ -1,0 +1,15 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________ test_composed_the_recovered_cell_with_a_stage_t_record_refuses ________
+
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7fd92c6fa920>
+
+    def test_composed_the_recovered_cell_with_a_stage_t_record_refuses(world):
+        write(world.hist / f"{NS}_{world.recovered['tag']}.json", {"forged": True})
+>       with pytest.raises(CellRefused, match="has a stage-T record"):
+E       Failed: DID NOT RAISE CellRefused
+
+tests/test_anchor_t_recovery.py:268: Failed
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_the_recovered_cell_with_a_stage_t_record_refuses
+1 failed in 6.11s

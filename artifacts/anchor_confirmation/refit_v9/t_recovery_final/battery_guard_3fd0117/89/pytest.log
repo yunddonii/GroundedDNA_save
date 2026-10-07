@@ -1,0 +1,24 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________ test_composed_the_stage_t_form_with_the_recovery_mode_refuses _________
+
+rentry = namespace(request={'carried': [{'attempt': {'file': 'ancT9_attempt_ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002.json'...adacdad3e126a176216fe7e7e3e4f3dee405e5c1a52d request=3e1e5572e12619b7d85da0b10177de6e8faf2e654876a2255af2039d7c4be313')
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7ffa2b739ae0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7ffa2b73a0b0>
+capsys = <_pytest.capture.CaptureFixture object at 0x7ffa2b7392a0>
+
+    def test_composed_the_stage_t_form_with_the_recovery_mode_refuses(rentry, world, monkeypatch, capsys):
+        mixed = dict(rentry.request, schema=RT.T_REQUEST_SCHEMA)
+        rc, calls, loads, _ = _enter(world, monkeypatch, mixed, rentry.approval, claim=False)
+>       assert rc == 2 and calls == [] and "mixes the stage-T and recovery forms" in capsys.readouterr().err
+E       assert (2 == 2 and [] == []
+E         
+E         Use -v to get more diff and 'mixes the stage-T and recovery forms' in "[anchor-T] REFUSED before the official test: Refused: no standing stage-T approval for this request: ledger section 8...c1a52d', 'request': 'eb1746affb53a22ea241d09365c26af28cb0466234966101dc5b15a7ad141f5c'} (version 'anchor-confirm/2')\n")
+E        +  where "[anchor-T] REFUSED before the official test: Refused: no standing stage-T approval for this request: ledger section 8...c1a52d', 'request': 'eb1746affb53a22ea241d09365c26af28cb0466234966101dc5b15a7ad141f5c'} (version 'anchor-confirm/2')\n" = CaptureResult(out='', err="[anchor-T] REFUSED before the official test: Refused: no standing stage-T approval for this...1a52d', 'request': 'eb1746affb53a22ea241d09365c26af28cb0466234966101dc5b15a7ad141f5c'} (version 'anchor-confirm/2')\n").err
+E        +    where CaptureResult(out='', err="[anchor-T] REFUSED before the official test: Refused: no standing stage-T approval for this...1a52d', 'request': 'eb1746affb53a22ea241d09365c26af28cb0466234966101dc5b15a7ad141f5c'} (version 'anchor-confirm/2')\n") = readouterr()
+E        +      where readouterr = <_pytest.capture.CaptureFixture object at 0x7ffa2b7392a0>.readouterr
+
+tests/test_anchor_t_recovery.py:916: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_the_stage_t_form_with_the_recovery_mode_refuses
+1 failed in 6.10s

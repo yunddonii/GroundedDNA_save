@@ -1,0 +1,19 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__ test_composed_an_authorized_recovery_entry_runs_the_terminal_function_once __
+
+rentry = namespace(request={'carried': [{'attempt': {'file': 'ancT9_attempt_ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002.json'...9725053e144d6c62ccf1354b339f4bdd02e3b99972b6 request=68cac38ab4ac530445a8906b7b7c2ed9efc0efd2c05d187a5117cd0a918d7405')
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7f8e24cf9ab0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f8e24cfa050>
+
+    def test_composed_an_authorized_recovery_entry_runs_the_terminal_function_once(rentry, world, monkeypatch):
+        rc, calls, _, attempt = _enter(world, monkeypatch, rentry.request, rentry.approval)
+>       assert rc == 0 and calls == ["official_test"] and TE.entry_claim_path(attempt).exists()
+E       assert (2 == 0)
+
+tests/test_anchor_t_recovery.py:885: AssertionError
+----------------------------- Captured stderr call -----------------------------
+[anchor-T] REFUSED before the official test: Refused: the runtime witness is not at the terminal epoch -1
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_an_authorized_recovery_entry_runs_the_terminal_function_once
+1 failed in 6.06s

@@ -1,0 +1,1923 @@
+{
+ "blobs_excluded": 636,
+ "commits": [
+  "3fd0117ae06642283f4ee185f073dd37800a6a70",
+  "3dd1c02211e23cb80cc5540c9d2c76c97ff8e98e",
+  "88c3a25b1b309550eafc276c2ce5be7575507173"
+ ],
+ "excluded_paths": {
+  "0094608dc5db9488d4acb3508bfbb7ba9e961e4a": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/prep_guard/prep2_plan_smoke_full/children.jsonl"
+  ],
+  "017350a1f1968c0a4c06af52c7a91e122eb4811b": [
+   "artifacts/anchor_confirmation/refit_v9/attempt1_bdaba58/renders/r_smoke_full/children.jsonl"
+  ],
+  "01c07eccca0e51e36723c91e4e6c584a5802adfc": [
+   "artifacts/anchor_confirmation/ancR9_snapshot_93c4c856593c3374.json"
+  ],
+  "02113ca53e04c56653cfbe45da87ec3d715fa8ab": [
+   "artifacts/anchor_confirmation/anchor_t_recovery_lineage_v1.json"
+  ],
+  "028586ae8024ab0be03477a73d0388a586b0bede": [
+   "artifacts/anchor_confirmation/ancT9_entry_ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002.json"
+  ],
+  "03048252041973c93f03232b041575d92dc3a3f5": [
+   "artifacts/anchor_confirmation/ancL8_flickr_A_v4_N4_s42_AXanchors_LTH0025_P06095_JD002.json"
+  ],
+  "03209f9dc3fc9ba2ab95511db624e9f8c19b6406": [
+   "artifacts/semantic_detail_ablation/flickr25k_qwen3_v4_trainset.foils.jsonl"
+  ],
+  "032bda4f0b10d0bcdb0af2f6939736c33579a3c7": [
+   "artifacts/anchor_confirmation/ancT9_entry_ancR9_flickr_A_v4_refit_N4_s44_AXanchors_P06095_JD002.json"
+  ],
+  "03c83dd1c902a4cc0126a29c49c2f2c12e4d2d49": [
+   "artifacts/anchor_confirmation/refit_v9/r5_evidence/suitepair/console.status"
+  ],
+  "0404aa972c3a2d68c144758ac053a53c6281996b": [
+   "artifacts/semantic_detail_heldout/codon_decoding/flickr_A_raw.json"
+  ],
+  "043dd94787fcaba07b5445c2e504b9db09e20cb1": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report_outputs/N10_recheck_binds_the_imported_bytes.txt"
+  ],
+  "04e380ee5018d5ac6d413d0b8642f86d84cfb550": [
+   "artifacts/anchor_confirmation/refit_v9/t_recovery_prep/guarded_pytest_r8.py"
+  ],
+  "04e3edfe3a6fcd98089f3776c50d3ab6c6735eab": [
+   "artifacts/anchor_confirmation/refit_v9/r2_evidence/renders/r_smoke_full/summary.json"
+  ],
+  "051b389a9e8717815bddff9c7a86dfef09b19529": [
+   "artifacts/anchor_confirmation/refit_v9/t_run_request_r7/launcher_argv_plan_base.txt"
+  ],
+  "05b1bc8a108af31dabe41bd66c90a925ac292ac8": [
+   "artifacts/anchor_confirmation/lambda_v8/r3_evidence/child_replays/5/summary.json"
+  ],
+  "06a45e313faf155e9e0d24e3762358d63f074ffe": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/prep_guard/prep_manifest_r2/opened.jsonl"
+  ],
+  "073e28989a90f2f5236fa5a9e7ddb0f25138730f": [
+   "artifacts/anchor_confirmation/ancT9_entry_ancR9_nuswide_A_v4_refit_N4_s42_AXanchors_P0408_JD005.json"
+  ],
+  "075b3aa7a9327f36aefdc71fdbaea8790eb01e0f": [
+   "artifacts/anchor_confirmation/ancP7_prep/build_probe_package.py"
+  ],
+  "076e9f548121472eda7c8713f42a8fd7f9d55367": [
+   "artifacts/anchor_confirmation/refit_v9/full_t_ancT9/device_budget_ledger.jsonl"
+  ],
+  "07afd3e60bfacf7105ae921a3387ef94f8bffd30": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report_outputs/N11_campaign_seals_are_its_approved_request_s.txt"
+  ],
+  "090ef71f1ea7e5b07a1688a63a9f60595c0b57c3": [
+   "artifacts/anchor_confirmation/mutation_v4/differential_707.py"
+  ],
+  "093c562b6b06c28886f36847f6c22aff898738ad": [
+   "artifacts/anchor_confirmation/mutation_v6/mutation_v8_frozen.py"
+  ],
+  "09c02d29fb9d22fa5402600d10f02319089b28d2": [
+   "artifacts/anchor_confirmation/lambda_v8/r3_evidence/child_replays/2/summary.json"
+  ],
+  "0a2f1fa6994e50264da660c9ffadf896e420003f": [
+   "artifacts/anchor_confirmation/ancRsmk9r6_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002.json"
+  ],
+  "0a31d0efbaa32d8f2d505997e53887b35438111a": [
+   "artifacts/anchor_confirmation/ancD7_flickr_A_v4_N4_s44_AXanchors_P06095_JD002.json"
+  ],
+  "0a61dcd9b42466a684b8d2ad5e576a4c560e7dba": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r4/suitepair/console.status"
+  ],
+  "0aebb602830ccbb72ac9b1cb66cac3ab047ef3d0": [
+   "artifacts/semantic_detail_multidataset/nuswide.foils.jsonl.meta.json"
+  ],
+  "0b1419d6398c1f62cdb4a8dab797baa3aa11ee2f": [
+   "artifacts/semantic_detail_multidataset/p0/nuswide_ABC_K128L4_p0.json"
+  ],
+  "0b609ea53a88f548370d0475893a4ec9fe15fe15": [
+   "artifacts/semantic_detail_multidataset/p0/cifar10_A_K128L4_p0.json"
+  ],
+  "0c3dcc9b34aa1a644d167d59cf74a15b3cba967e": [
+   "artifacts/anchor_confirmation/mutation_v3/differential_705/report.json"
+  ],
+  "0c9919cff3455fc51642a408d74976f48e38f02d": [
+   "artifacts/anchor_confirmation/refit_v9/r7_smoke_ancRsmk9r6/tmux_ancRsmk9r6_v9r7.cmd"
+  ],
+  "0cb10dd69d4194de5b256d3211373983a745a326": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report.json"
+  ],
+  "0cc45edfa4c246e4e51a5a7213e3885d29d6ecc8": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r3/battery13c/report.json"
+  ],
+  "0cc5d81018952c195250bbeacb3e4fbbef610955": [
+   "artifacts/anchor_confirmation/request_preview_ancS7_v7_carried.txt"
+  ],
+  "0e176b1207f8fec6c828caf4f096d986276cfe5c": [
+   "artifacts/anchor_confirmation/refit_v9/mutation_v14.py"
+  ],
+  "0e3a64d991d3187e7babce4fc64c5d16061d5733": [
+   "artifacts/phase3_selection/phase3sel_flickr_A_v4_N9_s42.json"
+  ],
+  "0e6517184092637378ab02b1cfd484a7a1b32e80": [
+   "artifacts/anchor_confirmation/refit_v9/r6_evidence/battery13f/report.json"
+  ],
+  "0f59953f9eee52bc4d532d3f9e6aa4e0d27620a0": [
+   "artifacts/anchor_confirmation/refit_v9/r5_evidence/renders/r_run_full/opened.jsonl"
+  ],
+  "0f71bb34080720e72260153ad88f5c2e319a3a71": [
+   "artifacts/anchor_confirmation/ancP7_probes/mscoco_anchors_N39_s43.json"
+  ],
+  "100ed2b0569bcbd55ecbe0e203e4ebb32db7b38e": [
+   "artifacts/anchor_confirmation/mutation_v4/differential_707/report.json"
+  ],
+  "103055c0cb6b503665a33fb67848c6661ecde03a": [
+   "artifacts/phase3_selection/phase3sel_flickr_A_v4_N19_s42.json"
+  ],
+  "111a0a7b3a0f90af162999649b6bf28242bf03be": [
+   "artifacts/anchor_confirmation/refit_v9/r6_evidence/suitepair/verdict.json"
+  ],
+  "117af966bad2425f3be18b4b04bba262e267acd6": [
+   "artifacts/semantic_detail_heldout/codon_decoding/nuswide_A_bio.json"
+  ],
+  "11fdaa308fa21ff2c18fd66c1a6177499330a5f9": [
+   "artifacts/anchor_confirmation/authority_manifest_v9.json"
+  ],
+  "12472767bb8d2378bc2f42b36b3564b5d63a5475": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/prep_guard/prep2_plan_smoke_carried/children.jsonl"
+  ],
+  "124995a4bfa671d23ebae645d5dd7eb809b710bb": [
+   "artifacts/anchor_confirmation/ancTsmk9_campaign_reservation.json"
+  ],
+  "1258bae61460bca96889feca79f00c1dee6d4479": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4b_report_outputs/L22f_request_binds_the_admission_authority.txt"
+  ],
+  "125a019f7c5739c1426af852b0b9f7359b30fb1c": [
+   "artifacts/semantic_detail_multidataset/p0/aggregate_a_ab_abc.json"
+  ],
+  "126c5dd048d888083cb88776a2852addc28140be": [
+   "artifacts/anchor_confirmation/refit_v9/t_recovery_prep/full_t_io_observations.json"
+  ],
+  "12a08b08c52a9de9998a45e09f34116b573b9a53": [
+   "artifacts/anchor_confirmation/lambda_v8/guarded_pytest.py"
+  ],
+  "12eee1c186cf02df38a6a1bc0857c92feb3644df": [
+   "artifacts/anchor_confirmation/refit_v9/t_smoke_request_r7/t_smoke_request.json"
+  ],
+  "1310c02e0d49023fb1c66a0bb86e9af2b0e19c5b": [
+   "artifacts/anchor_confirmation/ancL8_reduction/start.txt"
+  ],
+  "147128513f85b1453aecd59f0497e600b82b0b73": [
+   "artifacts/anchor_confirmation/ancS6_snapshot_acaa0374fa0780e2.json"
+  ],
+  "14e92c7122c44567529f78634823c1a765ac1e4c": [
+   "artifacts/anchor_confirmation/refit_v9/full_r_ancR9/SHA256SUMS"
+  ],
+  "15001b173d52fb33fc58dab565d6a3558c502a03": [
+   "artifacts/anchor_confirmation/refit_v9/t_recovery_prep/README.md"
+  ],
+  "167b540c27f38b0903b33bfef14b92bee1c8ed10": [
+   "artifacts/anchor_confirmation/ancS7_cifar_A_v4_N9_s42_AXanchors_JD002.json"
+  ],
+  "17775a2002e41ad5ee50ebbae49c9a699d877214": [
+   "artifacts/anchor_confirmation/request_preview_ancL8_v8_run_carried.txt"
+  ],
+  "17cbee646da0f6a7c3976955cef3304fc38597eb": [
+   "artifacts/anchor_confirmation/ancT9_campaign_reservation.json"
+  ],
+  "18eed65feecc188efc92271bfbab80c727a9d4a5": [
+   "artifacts/anchor_confirmation/ancP7_probes/cifar10_anchors_N4_s44.json"
+  ],
+  "18fd0b0426a90c9c1e1647a3caa8a4c444884015": [
+   "artifacts/anchor_confirmation/ancR9_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002.json"
+  ],
+  "1918d38f90133593b831ba71f14822db024b21d9": [
+   "artifacts/anchor_confirmation/ancSmk7_sweep_complete.json"
+  ],
+  "19752ed0a948e13d266cd8e84b4d1e5215043ee3": [
+   "artifacts/anchor_confirmation/refit_v9/t_recovery_final/battery_efd6c31/tmux.status"
+  ],
+  "1988aff500501d96ba5b6328c8bf12b1bbc024c2": [
+   "artifacts/anchor_confirmation/refit_v9/r_run_request_r7/protocol_values.json"
+  ],
+  "19bbdf0211c213858cb556c3ef0062609a873b37": [
+   "artifacts/anchor_confirmation/refit_v9/attempt1_bdaba58/renders/r_run_full/children.jsonl"
+  ],
+  "19d0a04847ce458bcee621564b0a7cd8b314f068": [
+   "artifacts/umrch_flickr25k_terms.txt"
+  ],
+  "1a14efbe5a331172104876658be86abffdcdbc96": [
+   "artifacts/anchor_confirmation/refit_v9/prep_manifest_v9r4/opened.jsonl"
+  ],
+  "1a22f37ba39a3f44b547c1c50c7f01864c4fa3a6": [
+   "artifacts/anchor_confirmation/refit_v9/r_run_request_r7/guard_values/opened.jsonl"
+  ],
+  "1a4ce3e7e64d01c22035b6844f6e5544d6b416dc": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mutation_v4b.py"
+  ],
+  "1a6ee48d23a89c594bd29f92bdcb5ee0d84998d8": [
+   "artifacts/anchor_confirmation/mutation_v4/mutation_v6_frozen.py"
+  ],
+  "1b3977f77216906d09133a30571d23dd6e43e892": [
+   "artifacts/anchor_confirmation/lambda_v8/r3_evidence/currency_check/run_full/children.jsonl"
+  ],
+  "1b3bd48eb305dd8edde4dcdea79831b78a64f7ac": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r3/suitepair/console.status"
+  ],
+  "1b81a0c9ab30ab3432e6de6cee26646664c05bb1": [
+   "artifacts/anchor_confirmation/refit_v9/r5_evidence/suitepair/suite_guarded_tail.txt"
+  ],
+  "1be07607291a091de60f4d7b6b5eac80f480ddeb": [
+   "artifacts/semantic_detail_heldout/minimal_pair/nuswide.pairs.jsonl"
+  ],
+  "1bf9da2028dd484db90cdd7df66be953325a60a8": [
+   "artifacts/anchor_confirmation/refit_v9/guarded_pytest.py"
+  ],
+  "1cf9aeb2086e091497b6fdaef621c54867d1b27b": [
+   "artifacts/anchor_confirmation/ancP7_probes/cifar10_anchors_N4_s43.json"
+  ],
+  "1e0f895da0ca9afc5e52ea968f47d55c585d3445": [
+   "artifacts/anchor_confirmation/ancRsmk9r6_snapshot_aa7476e79f15a159.json"
+  ],
+  "1ed114a1df4e3927d5f9af034835a22e4c729c17": [
+   "artifacts/semantic_detail_multidataset/cifar10.foils.jsonl.meta.json"
+  ],
+  "1f88bcb49e7988526e2fc1340644553975794df1": [
+   "artifacts/umrch_nuswide_terms.txt"
+  ],
+  "1fdf786fb709999625a5a4137d38bc1398e742bd": [
+   "artifacts/anchor_confirmation/ancSmk7_campaign_reservation.json"
+  ],
+  "204b10f017cf4d969ce9f0728f6cc2a96b557040": [
+   "artifacts/anchor_confirmation/plan_select_ancS1_v1.txt"
+  ],
+  "2077983dbcc9c377793da5a34815c064a6f13b67": [
+   "artifacts/anchor_confirmation/mutation_v7/mutation_v9_frozen.py"
+  ],
+  "20f4216a03a0ae5f99611c43b2feef7dbc123b28": [
+   "artifacts/anchor_confirmation/ancS7_reduction/stdout.txt"
+  ],
+  "212b138c24846f2278d57774bd0f9a53146ab3f5": [
+   "artifacts/anchor_confirmation/ancT9_attempt_ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005.json"
+  ],
+  "216e8fa0ef30860cc75c17d2d8cf32e0b15c0502": [
+   "dataset/CUB_200/attributes/class_attribute_labels_continuous.txt"
+  ],
+  "218ea6057f6c609d92fc903be17688672ee58075": [
+   "artifacts/anchor_confirmation/refit_v9/r2_evidence/suitepair/suite_unguarded_tail.txt"
+  ],
+  "21c4451fbd6265779b9ee50bd66b3e43db287e68": [
+   "artifacts/anchor_confirmation/authority_manifest_v9r2.json"
+  ],
+  "2229ce3a2c3f4488acde32621789c693a522d7dc": [
+   "artifacts/anchor_confirmation/ancR9_nuswide_A_v4_refit_N4_s42_AXanchors_P0408_JD005.json"
+  ],
+  "23fe78f3eccb921a0966a826f2a9fc391ac79780": [
+   "artifacts/anchor_confirmation/refit_v9/t_run_request_r7/SHA256SUMS"
+  ],
+  "24a1ec1b29be12cb254498ce54e7234402e8515b": [
+   "artifacts/anchor_confirmation/request_preview_ancS5_v5.txt"
+  ],
+  "25c91b2b3be166785c1365a833c930ae424f578d": [
+   "artifacts/semantic_detail_multidataset/p0/flickr_AB_K128L4_p0.json"
+  ],
+  "263ef85da747259d3e940477d3b4956331b444ab": [
+   "artifacts/anchor_confirmation/refit_v9/prep_manifest_v9r7/opened.jsonl"
+  ],
+  "2650b11d2ef7735832de2d2973bd551362f181eb": [
+   "artifacts/anchor_confirmation/refit_v9/t_recovery_prep/guard_controls/test_sandbox_v4_controls.py"
+  ],
+  "26cf27a235a1f1baa5df52e4a1097e73c6dc5d91": [
+   "artifacts/anchor_confirmation/plan_decide_ancD7_v7.txt"
+  ],
+  "27b42aa03bde32be41d6542af882c3f7615d149d": [
+   "artifacts/anchor_confirmation/authority_manifest_v9r3.json"
+  ],
+  "27df8f29e017a0f31f8dd46a0cd54bb365f8b205": [
+   "artifacts/anchor_confirmation/mutation_v4/mutation_v6/report.json"
+  ],
+  "28621db25a2df61ae14eecd315d7aebfb4e9a299": [
+   "artifacts/anchor_confirmation/ancL8_snapshot_1eab97a081863d9f.json"
+  ],
+  "286e1dbfd591282f89d4d6cca40eb43a041e2262": [
+   "artifacts/anchor_confirmation/ancS7_cifar_A_v4_N4_s42_AXanchors_JD002.json"
+  ],
+  "28fe2dec7a0e20681662c23af2455cf6f701d61c": [
+   "artifacts/anchor_confirmation/ancL8_flickr_A_v4_N4_s42_AXanchors_LW050_P06095_JD002.json"
+  ],
+  "29bfbb7693a2bb733cc81643cc274978f2591830": [
+   "artifacts/anchor_confirmation/ancRsmk9r6_sweep_complete.json"
+  ],
+  "2a1b6f7157c9b02bbedc96e451e143288734ae39": [
+   "artifacts/anchor_confirmation/ancS7_flickr_A_v4_N39_s42_AXanchors_P06095_JD002.json"
+  ],
+  "2ae85d84aad6d3e8a1e5aaa2d7d1e8638d74dfe5": [
+   "artifacts/anchor_confirmation/ancS7_sweep_complete.json"
+  ],
+  "2b1c5856c13f01d98c583a46b85eac19ebb29ce3": [
+   "artifacts/anchor_confirmation/ancS7_mscoco_A_v5b_N19_s42_AXanchors_P06095_JD003.json"
+  ],
+  "2b1cfd9a7bdf6da74ce18fcda830b0cecfa342e4": [
+   "artifacts/semantic_detail_heldout/codon_decoding/mscoco_AB_raw.json"
+  ],
+  "2b4957e65df33de5830c6d019928f0a33ba67276": [
+   "artifacts/anchor_confirmation/refit_v9/r6_evidence/fails_on_r5/README.txt"
+  ],
+  "2b5063dde185bf010bb34c1c120c68a6cd732e08": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/plan_attempt1_guard_lost_at_exec/request_preview_ancL8_v8r2_run_full.txt"
+  ],
+  "2bdef528520be4525afb9b0eed7a45e13ceda15b": [
+   "artifacts/anchor_confirmation/lambda_v8/mutation_v10_frozen.py"
+  ],
+  "2c4a278e6f8bd8dbd5784576538e82f09419b672": [
+   "artifacts/anchor_confirmation/refit_v9/full_t_ancT9/free_space_after.txt"
+  ],
+  "2c4aa4b9872d5f06b694e531e4c3afb0d0a652db": [
+   "artifacts/anchor_confirmation/ancR9_sweep_complete.json"
+  ],
+  "2cf1d77c22798e90907f0571bb398b65f15154aa": [
+   "dataset/CUB_200/attributes/image_attribute_labels.txt"
+  ],
+  "2cf3a69e6b5e199126be2c58944f4097f1d092c0": [
+   "artifacts/anchor_confirmation/ancT9_ancR9_cifar_A_v4_refit_N4_s43_AXanchors_JD002.json"
+  ],
+  "2da09dd6c0e357da79bfaafcbeae0401d823ef79": [
+   "artifacts/semantic_detail_multidataset/p0/cifar10_AB_K128L4_p0.json"
+  ],
+  "2dab9f907b74faddae7ab5d7a1da095e0f58adfb": [
+   "artifacts/anchor_confirmation/refit_v9/r6_evidence/renders/r_smoke_full_request.json"
+  ],
+  "2dc8d9e8fd477fc01d45f8ca6ed0b01a6033a1d5": [
+   "artifacts/anchor_confirmation/refit_v9/r2_evidence/renders/r_smoke_full.out"
+  ],
+  "2dd6e597034af741ce74f86a88ec9d49954381c8": [
+   "artifacts/anchor_confirmation/refit_v9/attempt1_bdaba58/suitepair/suite_unguarded_tail.txt"
+  ],
+  "2e362027d1f042314974c1b4577445c8b737417d": [
+   "artifacts/semantic_detail_multidataset/p0/flickr_A_K128L4_p0.json"
+  ],
+  "2e61db558023952ce19bfabb2ef9bcaab9a840c0": [
+   "artifacts/anchor_confirmation/ancR9_flickr_A_v4_refit_N4_s44_AXanchors_P06095_JD002.json"
+  ],
+  "2ec53d8e3cb51137793e3a3729dd95c01846cda6": [
+   "artifacts/anchor_confirmation/ancTsmk9_snapshot_986757d5a0a1d392.json"
+  ],
+  "2f57c00608c791d7f889ca44be37673fb648cb91": [
+   "artifacts/anchor_confirmation/refit_v9/t_recovery_prep/sandboxed_pytest_r8.py"
+  ],
+  "30217499d0880611c0d9fda2d9bf221a24d606ed": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report_outputs/L14_decide_stage_S_under_this_generation.txt"
+  ],
+  "3024cbc6255498887b959e65dafba9e80e3d7da6": [
+   "artifacts/anchor_confirmation/refit_v9/r_run_request_r7/bound_recipe_mapping.json"
+  ],
+  "30bf635effe49451fa1a01ffae27bc23c85459bd": [
+   "artifacts/anchor_confirmation/refit_v9/prep_manifest_v9r5/opened.jsonl"
+  ],
+  "318a8c779d0ad5182ac3eab581ffd3f870053635": [
+   "artifacts/anchor_confirmation/refit_v9/r6_evidence/renders/r_smoke_full/summary.json"
+  ],
+  "31b89f989250e772022e9a03070509b40c7c77c1": [
+   "artifacts/anchor_confirmation/ancT9_attempt_ancR9_mscoco_A_v5b_refit_N39_s43_AXanchors_P06095_JD003.json"
+  ],
+  "31c2bedda5e4690d4bec82348082f5e2c75dd1b9": [
+   "artifacts/anchor_confirmation/ancP7_probes/nuswide_anchors_N4_s42.json"
+  ],
+  "324f805908977ffdb079daa81197212481d469f0": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/suite17_guarded_summary.txt"
+  ],
+  "32d8ac07f56832d57fdc02a23d25b12f4f014428": [
+   "dataset/Flickr25k/setting1/train.txt"
+  ],
+  "32faaa1e2956a8e413acfc369a55b1d798656582": [
+   "artifacts/anchor_confirmation/refit_v9/t_smoke_request_r7/guard/summary.json"
+  ],
+  "331aa1ed1729b02e999148530c0a08f1ffb64bc0": [
+   "artifacts/anchor_confirmation/ancS7_selected_n.json"
+  ],
+  "333c881efcfba43c083c6330707845131abc0842": [
+   "artifacts/anchor_confirmation/ancSmk7_snapshot_205621405ed38bac.json"
+  ],
+  "33a2446946666eeec88372b3614fb8e75659d777": [
+   "result_diagnostic/QUARANTINE_notes/eval_only_markers_20260814/README.md"
+  ],
+  "33f688ca0e16bbd3bde3c832e8bb719dafc6fb9a": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/suite15_guarded_summary.txt"
+  ],
+  "344e1150cedc8b4d8e9ab9d842f5985c6cb4b2c9": [
+   "artifacts/anchor_confirmation/probe_chain_ancP7_v7.sh"
+  ],
+  "347988559d3dfbd2cdb72ec049955b1373879ca5": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/suite17_unguarded_summary.txt"
+  ],
+  "3486982d7aea590e1b01c10c3ee8e4e757ae300a": [
+   "artifacts/anchor_confirmation/ancF_candidate_v1.json"
+  ],
+  "34898dd7bd4ec38693b62f9589101863af1ed945": [
+   "artifacts/anchor_confirmation/ancS7_reduction/end_utc"
+  ],
+  "34afc3b8776df1c27567d795e7aca61f4dd11f60": [
+   "artifacts/anchor_confirmation/refit_v9/t_run_request_r7/gpu_partition_full_T.json"
+  ],
+  "35799caea4a6e06e1916cafc6da281d0d9a4ff26": [
+   "artifacts/anchor_confirmation/refit_v9/full_t_ancT9/t_cells_evidence.json"
+  ],
+  "35a824e9b828a325b2d0df31771acf1dabf73e73": [
+   "artifacts/anchor_confirmation/refit_v9/r2_evidence/suitepair/verdict.json"
+  ],
+  "35d46af27299c80173ed4a68d262f03ab9fa1507": [
+   "artifacts/anchor_confirmation/ancT9_attempt_ancR9_mscoco_A_v5b_refit_N39_s44_AXanchors_P06095_JD003.json"
+  ],
+  "361a2185188246f1164f204c694ac2f4b10bde98": [
+   "artifacts/anchor_confirmation/refit_v9/prep_manifest_v9r5/summary.json"
+  ],
+  "36b13b7d23f4e91f17be44045f9573d7b68814d0": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r4/renders/r_run_full_request.json"
+  ],
+  "36d51042b8dfe45ae7c18f61ee7245ba59474828": [
+   "artifacts/anchor_confirmation/refit_v9/r6_evidence/renders/r_run_full.out"
+  ],
+  "36f5b983633fdc3698a746b31175e2d420005521": [
+   "artifacts/semantic_detail_heldout/minimal_pair/cifar10.json"
+  ],
+  "3787b02b68dbf4cc4fa4968801a4652faae31806": [
+   "artifacts/anchor_confirmation/lambda_v8/r3_evidence/suite_pair2/guarded_summary.txt"
+  ],
+  "37c8a04b6eed7f7bd8f4e6033c5e8f0fbada40ac": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r4/renders/r_smoke_full/summary.json"
+  ],
+  "38853a2d1d5703bdfe1ad0bbcc0f57280cd1052b": [
+   "artifacts/anchor_confirmation/lambda_v8/r3_evidence/child_replays/3/stderr.txt"
+  ],
+  "38c44ae28543d36c54e5222db7de444d77f81096": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r4/renders/r_smoke_full.out"
+  ],
+  "394ac0e123ba95ed8ca152d6db96b4f1dd8e2d0a": [
+   "artifacts/anchor_confirmation/refit_v9/prep_manifest_v9r2/opened.jsonl"
+  ],
+  "39b8acf4bde3228543833afbbe29437d8baa4462": [
+   "artifacts/semantic_detail_heldout/codon_decoding/mscoco_AB_bio.json"
+  ],
+  "39eeda4e1b304f2d4f4d7c9c51a5877d32bb9827": [
+   "artifacts/anchor_confirmation/lambda_v8/mutation_v11/report.json"
+  ],
+  "3a046b025c9993627637a78d5f0c31d03d0ee272": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report_outputs/N13_launch_and_cell_bindings_carry_the_admitted_seal.txt"
+  ],
+  "3acf1e2367e8b5e23fa918e849face09ca25e085": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report_outputs/N1_admitted_seals_are_the_approved_request_s_before_the_lease_.txt"
+  ],
+  "3b530b81d859e4f6af12ba94f27c45957b82c8c5": [
+   "artifacts/anchor_confirmation/ancD7_cifar_A_v4_N4_s44_AXanchors_JD002.json"
+  ],
+  "3bc7ce9f940f313e8cc564e6d95cce671fa034a1": [
+   "artifacts/anchor_confirmation/ancTsmk9_entry_ancRsmk9r6_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002.json"
+  ],
+  "3c437aeda25a32bc65215f9820ef34078aef20a1": [
+   "artifacts/anchor_confirmation/authority_manifest_v9r7.json"
+  ],
+  "3c7209598c35ac1f9b1d7c7018d8a374191979a3": [
+   "artifacts/semantic_detail_heldout/codon_decoding/mscoco_A_bio.json"
+  ],
+  "3c8bf5fbd1d22bdaee8695561cf9079757366030": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r3/battery13c/console.status"
+  ],
+  "3d31265974fd4e715a55471784798b66d91bf605": [
+   "artifacts/anchor_confirmation/request_preview_ancLsmk8_v8_smoke_carried.txt"
+  ],
+  "3dbce6e1d31b121585d415de12cd08ca418c4479": [
+   "artifacts/anchor_confirmation/ancR9_cifar_A_v4_refit_N4_s43_AXanchors_JD002.json"
+  ],
+  "3dd4efe563b4ac5436f843c473d58e327acdb334": [
+   "artifacts/anchor_confirmation/ancS7_nuswide_A_v4_N4_s42_AXanchors_P0408_JD005.json"
+  ],
+  "3df26f749fd5ba462594d90af4f207076e3c9a9d": [
+   "artifacts/semantic_detail_heldout/minimal_pair/mscoco.json"
+  ],
+  "3e2203a8ac4e1cad719145a4571129287cbd37d1": [
+   "dataset/CUB_200/setting1/database.txt"
+  ],
+  "3ea5e7941358a0e149049ebaeb564f4806057922": [
+   "artifacts/anchor_confirmation/refit_v9/full_t_ancT9/README.md"
+  ],
+  "3ec44ee06a9cd7d34a96f9d52fb2048ed910c024": [
+   "artifacts/anchor_confirmation/ancR9_nuswide_A_v4_refit_N4_s43_AXanchors_P0408_JD005.json"
+  ],
+  "3f274916f99df0effb43078ed397bc3cc6532b75": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r4/suitepair/suite_unguarded_tail.txt"
+  ],
+  "3f29c079f900fe691548e170ec54f4a253407b87": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r4/renders/r_run_full.out"
+  ],
+  "3f6efd2d6ab1345c7f41ae58be30477d7c39ec2f": [
+   "artifacts/anchor_confirmation/ancLsmk8_sweep_complete.json"
+  ],
+  "3fac2dd7fe021e699ecad230286235bcb5691c67": [
+   "artifacts/anchor_confirmation/refit_v9/prep_manifest_v9r2/summary.json"
+  ],
+  "3fea3739fd6d4918a328d68d8d574f01858bf425": [
+   "artifacts/phase3_selection/phase3sel_nuswide_A_v4_N4_s42.json"
+  ],
+  "40a569a474b0c1f6594d799748db2b8ef25bd134": [
+   "artifacts/anchor_confirmation/refit_v9/prep_manifest_v9r3/summary.json"
+  ],
+  "411951437b293503cb620f9419a9322ccf63cb1d": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mutation_v3.py"
+  ],
+  "414b5824abb7ef563d2a2161254e773c14748468": [
+   "artifacts/anchor_confirmation/ancS7_flickr_A_v4_N9_s42_AXanchors_P06095_JD002.json"
+  ],
+  "418571b6795c69338971f9284d9a7c355ae368bf": [
+   "artifacts/anchor_confirmation/ancT9_attempt_ancR9_mscoco_A_v5b_refit_N39_s42_AXanchors_P06095_JD003.json"
+  ],
+  "42620d2e7c70bff5b025d98df855b48fcb3d5a3a": [
+   "artifacts/semantic_detail_heldout/codon_decoding/mscoco_ABC_bio.json"
+  ],
+  "429b29d9a090caad48940e626fd2d3eecf8f58f0": [
+   "artifacts/semantic_detail_heldout/codon_decoding/nuswide_ABC_raw.json"
+  ],
+  "42c7109c5bc8f93b1af14347109b7b5a95815a94": [
+   "artifacts/anchor_confirmation/refit_v9/full_r_ancR9/device_budget_ledger.jsonl"
+  ],
+  "42ddd831c5672cb6ba193f1dc43c53f6317bf604": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/plan_attempt1_guard_lost_at_exec/guardlog_run_carried/opened.jsonl"
+  ],
+  "42e2946d41bf9d9a53cd42dfefd4afbc372393bf": [
+   "artifacts/phase3_selection/phase3sel_mscoco_A_v5b_N19_s42.json"
+  ],
+  "42e308f757c8ea64a0e7aa2a1f08cd132c7abe4f": [
+   "artifacts/anchor_confirmation/refit_v9/r7_smoke_ancRsmk9r6/terminal_checkpoint.sha256"
+  ],
+  "4431122bd193fec0f3de81269c5b5475e2d0a77e": [
+   "artifacts/anchor_confirmation/authority_manifest_v2.json"
+  ],
+  "446caa51af2fbfe66c3a68bd1b0186729cf1b67e": [
+   "artifacts/anchor_confirmation/refit_v9/r2_evidence/renders/r_run_full_request.json"
+  ],
+  "447de44a512646ca2c465efc401b96c9d53be5b7": [
+   "artifacts/anchor_confirmation/ancP7_probes/flickr25k_anchors_N4_s43.json"
+  ],
+  "451e27f29c4d095775c9f6f8b7ae9ff1f3fc7298": [
+   "artifacts/anchor_confirmation/mutation_v5/mutation_v7b/report.json"
+  ],
+  "452557a1c5ac00c3ec7cd12bf63c2afcb7d97cb3": [
+   "artifacts/anchor_confirmation/ancT9_ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002.json"
+  ],
+  "45759b6b893296dfdf95332464aef1b87184fafb": [
+   "artifacts/anchor_confirmation/refit_v9/r6_evidence/suitepair/suite_unguarded_tail.txt"
+  ],
+  "45fa86febc85b163304230bcdffab89b1468ea1d": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r4/renders/r_smoke_full_request.json"
+  ],
+  "460befb9b99530d70544a3341da98a4da87e3a7c": [
+   "artifacts/anchor_confirmation/ancT9_ancR9_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002.json"
+  ],
+  "46d20dabd71ec8e10df07c64b23046409a62c960": [
+   "result_diagnostic/phase3_smoke_20260828/README.md"
+  ],
+  "46e807080259460ab7c996fc74ccc42b4d3a6c6b": [
+   "artifacts/anchor_confirmation/lambda_v8/guard_positive_control_old_binding_test/violations.json"
+  ],
+  "46f7efe4880e766fcb953a4ba1ee0003acbab5ef": [
+   "artifacts/anchor_confirmation/refit_v9/r_run_request_r7/protocol_values.py"
+  ],
+  "4738df8c049cde04f5907373e4f244d315ccfefe": [
+   "artifacts/anchor_confirmation/ancL8_sweep_complete.json"
+  ],
+  "479afea44f31fe01785bbae15a13fcc505d8f6d2": [
+   "artifacts/umrch_flickr25k_vision_adapter.npz"
+  ],
+  "47ffcf08698f6a38f0191a8fbbf2918376e25894": [
+   "artifacts/semantic_detail_multidataset/p0/flickr_ABC_K128L4_p0.json"
+  ],
+  "48178c7bb65ded47c00658edd97c94fc66ea462a": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/prep_guard/prep2_plan_smoke_full/summary.json"
+  ],
+  "48cbcce1b0cb461f5a5e945601b9e5bc253ff97d": [
+   "artifacts/semantic_detail_ablation/flickr25k_qwen3_v4_trainset.foils.jsonl.meta.json"
+  ],
+  "498fecf505b0b753e13c07ab663145f7e46ed030": [
+   "artifacts/phase3_selection/phase3sel_flickr_A_v4_N39_s42.json"
+  ],
+  "49e45e3936672c8a83d861674a96f571390ee08e": [
+   "artifacts/anchor_confirmation/refit_v9/t_recovery_final/battery_efd6c31/report.json"
+  ],
+  "4af81f28d4393251ef4926ddc390759e1d80f06f": [
+   "dataset/CUB_200/classes.txt"
+  ],
+  "4bd3376396a7ddb4d32b1ceb543df238e3cdf936": [
+   "artifacts/anchor_confirmation/lambda_v8/r3_evidence/child_replays/3/summary.json"
+  ],
+  "4c178d03f0acd0f7354def2b24855233932488d5": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report_outputs/N4_re_admitted_seals_after_the_lease_are_the_approved_request_s.txt"
+  ],
+  "4c3bed89a1ff039efbd950ede87b0d40cbabf5ed": [
+   "artifacts/anchor_confirmation/ancT9_ancR9_flickr_A_v4_refit_N4_s44_AXanchors_P06095_JD002.json"
+  ],
+  "4c71fe37324657b4f9d38ec94ee8342c78d7e86b": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/prep_guard/prep2_plan_smoke_carried/summary.json"
+  ],
+  "4cf21df5bc05527929a6e91bd156084fb14807c5": [
+   "artifacts/anchor_confirmation/request_preview_ancSmk7_v7_full.txt"
+  ],
+  "4d56c441eb9eb138a03f394491586fe94dc6ff1f": [
+   "artifacts/anchor_confirmation/refit_v9/t_recovery_prep/guard_site/gdna_guard_policy.py"
+  ],
+  "4de8910e89f73e0ec783afbbc4bd848628326516": [
+   "artifacts/anchor_confirmation/refit_v9/full_r_ancR9/records_manifest.sha256"
+  ],
+  "4e84e1b841788c5e1372ca219ea377c2aca6fdda": [
+   "artifacts/anchor_confirmation/lambda_v8/bounded_tree.py"
+  ],
+  "4eeac832cc219b7a2ad48772854202b6ea23ce25": [
+   "artifacts/anchor_confirmation/refit_v9/attempt1_bdaba58/renders/r_run_full/opened.jsonl"
+  ],
+  "4f059e1c6c733a48870987e3f6c6fc138bb700c8": [
+   "artifacts/anchor_confirmation/ancD7_mscoco_A_v5b_N39_s43_AXanchors_P06095_JD003.json"
+  ],
+  "4f3705cc977b5585e37c92f1e9c11229a754f6c6": [
+   "artifacts/anchor_confirmation/refit_v9/r7_evidence/suitepair/suite_unguarded_tail.txt"
+  ],
+  "4ff1b139e16ba2e70854c1c2e20ed5046850b398": [
+   "artifacts/anchor_confirmation/ancL8_flickr_A_v4_N4_s42_AXanchors_P06095_JD002.json"
+  ],
+  "50ffe6b87ba4e934ad2193abff500d9743a81570": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report_outputs/N16_probe_re_verifies_its_generation_before_its_first_load.txt"
+  ],
+  "511d0a10a0a5f8912ee62000f9e73c0f50867ef8": [
+   "artifacts/anchor_confirmation/refit_v9/r2_evidence/suitepair/suite_guarded_tail.txt"
+  ],
+  "515013acb8a3590c1595e2f597639421811672c5": [
+   "artifacts/anchor_confirmation/refit_v9/full_t_ancT9/t_metrics_descriptive.md"
+  ],
+  "5251b795797d2f61a2031fb458ff69571de713d7": [
+   "artifacts/anchor_confirmation/env_handoff_v7/diagnosis_59477d8.json"
+  ],
+  "525f5bb98eb4c2e613efa82816439f036aae7ec5": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/prep_guard/prep2_plan_run_full/summary.json"
+  ],
+  "5266d677f57df52d7e042c3aa1b892cf92af97fc": [
+   "artifacts/semantic_detail_multidataset/p0/aggregate.json"
+  ],
+  "52bc67ec60b11afaf6b76c2c0ac0b4f990f0c1a3": [
+   "artifacts/anchor_confirmation/ancSmk7_flickr_A_v4_N4_s42_AXanchors_P06095_JD002.json"
+  ],
+  "52f459234d32ba1c709b6f0afd60168749037885": [
+   "artifacts/anchor_confirmation/ancT9_entry_ancR9_mscoco_A_v5b_refit_N39_s43_AXanchors_P06095_JD003.json"
+  ],
+  "532cc26fb15ae6945e4c1822ed03834b5e95a1b0": [
+   "artifacts/anchor_confirmation/refit_v9/r5_evidence/battery13e/report.json"
+  ],
+  "5399823f24e498dac3e0ccabc71fd03cec4e0236": [
+   "artifacts/anchor_confirmation/ancT9_ancR9_nuswide_A_v4_refit_N4_s42_AXanchors_P0408_JD005.json"
+  ],
+  "53b6dec088332f0b45c0904456015aacfe865ef9": [
+   "artifacts/anchor_confirmation/ancTsmk9_attempt_ancRsmk9r6_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002.json"
+  ],
+  "53bac11b1dc13bd10248ca25d2608ebae968165c": [
+   "artifacts/phase3_selection/phase3sel_cifar_A_v4_N19_s42.json"
+  ],
+  "53c1ea5a47f640ce8bedaed7395338a5fb0ae91b": [
+   "artifacts/anchor_confirmation/ancT9_attempt_ancR9_nuswide_A_v4_refit_N4_s43_AXanchors_P0408_JD005.json"
+  ],
+  "54126ac3fa211be2002815e9562e43f6701aed03": [
+   "artifacts/anchor_confirmation/ancP7_probes/nuswide_anchors_N4_s43.json"
+  ],
+  "547ca438eeba6d9c8b4c722d97d2754bd50eeefb": [
+   "artifacts/anchor_confirmation/ancR9_mscoco_A_v5b_refit_N39_s44_AXanchors_P06095_JD003.json"
+  ],
+  "54a09256a31af372bb58ba8b35acf69d638c8f24": [
+   "artifacts/anchor_confirmation/refit_v9/r_run_request_r7/r_run_request.json"
+  ],
+  "54d3ee5163b300084566184ae6f1e16f8505a048": [
+   "artifacts/anchor_confirmation/lambda_v8/r3_evidence/child_replays/1/opened.jsonl"
+  ],
+  "54e8beeadab854857cc41c051617fb589d6f923b": [
+   "artifacts/anchor_confirmation/refit_v9/r7_smoke_ancRsmk9r6/device_budget_ledger.jsonl"
+  ],
+  "551e82173e6509ff02dee87b49cc6294df548567": [
+   "artifacts/anchor_confirmation/refit_v9/t_smoke_ancTsmk9/output_identities.json"
+  ],
+  "559b802cfe359e01200dd5048b863c6ebe0da9b6": [
+   "dataset/Flickr25k/setting1/img.txt"
+  ],
+  "55abb5c2122bce2180131643cf0b9400907285f0": [
+   "artifacts/anchor_confirmation/ancS7_flickr_A_v4_N4_s42_AXanchors_P06095_JD002.json"
+  ],
+  "55b6b9aab47829bb91621bc213b8a1d094b185d4": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r4/suitepair/verdict.json"
+  ],
+  "569a4c7d857c8d31d47518871f1ed2309ece265a": [
+   "artifacts/umrch_flickr25k_manifest.json"
+  ],
+  "569bbf1819e46e6f36ed231a3084317315a1f2ea": [
+   "artifacts/anchor_confirmation/refit_v9/prep_manifest_v9/opened.jsonl"
+  ],
+  "572b26a5b02cba74f3a8be5042083eed70decc9f": [
+   "artifacts/anchor_confirmation/ancL8_reduction/command.txt"
+  ],
+  "573541ac9702dd3969c9bc859d2b91ec1f7e6e56": [
+   "artifacts/anchor_confirmation/ancL8_reduction/rc.txt"
+  ],
+  "57de8798e25e7161dcbb552f2f0be24772ac7a8e": [
+   "artifacts/anchor_confirmation/refit_v9/r5_smoke_ancRsmk9/device_budget_ledger.jsonl"
+  ],
+  "5842d40a90be9a3cc9de61a8e72e6db30497cd2d": [
+   "artifacts/umrch_mscoco_embeddings.npy"
+  ],
+  "5926671f4f1f48a72b8817c0fc7f3fee9105f748": [
+   "artifacts/anchor_confirmation/ancL8_campaign_reservation.json"
+  ],
+  "598f4ce9a7e2367ce910f17965dba4c9c295696c": [
+   "artifacts/anchor_confirmation/ancP7_prep/verify_probe_chain.py"
+  ],
+  "5a6508d54eab26d0063a702fd633ce45df683de1": [
+   "artifacts/anchor_confirmation/refit_v9/r6_evidence/suitepair/suite_guarded_tail.txt"
+  ],
+  "5ae461a4a589f51590fd34ddd5adb5fa3c29a999": [
+   "artifacts/anchor_confirmation/ancLsmk8_flickr_A_v4_N4_s42_AXanchors_LW030_P06095_JD002.json"
+  ],
+  "5af4d1235f486ff0abffa6c18bf30a79b27d65d7": [
+   "artifacts/anchor_confirmation/refit_v9/t_recovery_prep/guard_controls/test_guard_v3_controls.py"
+  ],
+  "5b58182d10114ebee1b80ed16e45237c3a0b5003": [
+   "artifacts/anchor_confirmation/lambda_v8/r3_evidence/child_replays/1/children.jsonl"
+  ],
+  "5b9a298f72c86b00c35f219440eb977e48b073a3": [
+   "artifacts/anchor_confirmation/refit_v9/r7_evidence/renders/r_smoke_full/summary.json"
+  ],
+  "5c4fa6c110d23cbf51c06f1ef4e7c99511aa7154": [
+   "artifacts/anchor_confirmation/refit_v9/r_run_request_r7/SHA256SUMS"
+  ],
+  "5ce34966e4bdee557d4374cf716dd6ca0bf1e6e5": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report_outputs/L22f_request_binds_the_admission_authority.txt"
+  ],
+  "5fdc8284ca60d11800523e58f5f4df9364af5604": [
+   "artifacts/anchor_confirmation/ancS7_select_sources.json"
+  ],
+  "60d0e48884231ed3de8792301109b9e50f1f90d9": [
+   "artifacts/anchor_confirmation/refit_v9/r2_evidence/renders/r_run_full.out"
+  ],
+  "60f161617bf8a0730528166ccf624ed9de2c22c7": [
+   "artifacts/semantic_detail_multidataset/p0/nuswide_A_K128L4_p0.json"
+  ],
+  "610f13e2dbaf251a051e2817f5fc88f5526f2a70": [
+   "artifacts/anchor_confirmation/ancP7_probes/mscoco_anchors_N39_s44.json"
+  ],
+  "613f1430ff6ffe3f024a93c8d0ded12659b5e2f0": [
+   "dataset/dataset_txt.ipynb"
+  ],
+  "6155b4b6bfd7f8e3c6004fe2a1036f540d912c42": [
+   "artifacts/anchor_confirmation/lambda_v8/r3_evidence/currency_check/smoke_carried/children.jsonl"
+  ],
+  "617de2f71bff3ed30e44aba99f57a463eed9f4c4": [
+   "artifacts/anchor_confirmation/refit_v9/t_recovery_prep/mutants_v14.py"
+  ],
+  "62537034ae05b0ddca2fec18a246d44b2a92ac5c": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/prep_guard/prep2_plan_run_full/children.jsonl"
+  ],
+  "62bcbc1f322c0b5695d4bebca28532113d991046": [
+   "artifacts/anchor_confirmation/mutation_v5/mutation_v7b_2f79cb0/report.json"
+  ],
+  "63aa45c94baf2ba14bd3e77fedf9f691b2b8e999": [
+   "dataset/NUSWIDE/setting1/train_10500_paths.txt"
+  ],
+  "649329b28a30a8a241db7d3770abe8868556f8a2": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4b_report_outputs/D9_probe_counts.txt"
+  ],
+  "64fcf878ece0dc1930c435ee46dc2526424c2333": [
+   "artifacts/anchor_confirmation/ancT9_snapshot_da40a183d4ca9c85.json"
+  ],
+  "6508b62f357012c3e49c46edc716e4b555081732": [
+   "dataset/CUB_200/image_class_labels.txt"
+  ],
+  "65373d0bd341058c28453b53951230a60129f394": [
+   "artifacts/semantic_detail_heldout/minimal_pair/flickr.pairs.jsonl"
+  ],
+  "6593e02e87cf13f032a9fa609d19a2b995bbc7b2": [
+   "artifacts/anchor_confirmation/refit_v9/r7_evidence/renders/r_run_full.out"
+  ],
+  "65d758deee5df1bc70445051eab0c42fa5595191": [
+   "dataset/NUSWIDE/setting1/test.txt"
+  ],
+  "668f39bf0d5a27d18d01dfd0b813bff15639c85f": [
+   "artifacts/anchor_confirmation/request_preview_ancS2_v2.txt"
+  ],
+  "674309f24a6e483865e971bd1797c97a5e2b616b": [
+   "artifacts/anchor_confirmation/refit_v9/r2_evidence/battery13b/report.json"
+  ],
+  "67901b7f534f8127f64437b2fc166b392d1406a7": [
+   "artifacts/anchor_confirmation/refit_v9/full_t_ancT9/SHA256SUMS"
+  ],
+  "67b32223b28c6618a2b2cc80065ae6199d94a973": [
+   "artifacts/phase3_selection/phase3sel_cifar_A_v4_N39_s42.json"
+  ],
+  "6898be1f0b49efe5ee8bc7a974c41187556643e9": [
+   "artifacts/anchor_confirmation/authority_manifest_v6.json"
+  ],
+  "6931c5efd2da0e3ead643db022f2226ee1759c61": [
+   "artifacts/anchor_confirmation/authority_manifest_v9r4.json"
+  ],
+  "699ddd20cd107dc8c288d83c86f629b41005a92a": [
+   "artifacts/anchor_confirmation/request_preview_ancS6_v6.txt"
+  ],
+  "69d76b2c473bc0d4ddc13358a1dab104a8decde9": [
+   "artifacts/anchor_confirmation/ancS7_flickr_A_v4_N19_s42_AXanchors_P06095_JD002.json"
+  ],
+  "6ad6b0819013904b7e1efcfc83deb3b691cba389": [
+   "artifacts/anchor_confirmation/refit_v9/attempt1_bdaba58/renders/r_run_full.out"
+  ],
+  "6b7c72414080454512208207a4a37fa4b10fbdb5": [
+   "artifacts/anchor_confirmation/env_handoff_v7/diagnose_env_handoff.py"
+  ],
+  "6bd75a1e4b2f53489b62f00c4e71b717a1f2e93a": [
+   "artifacts/anchor_confirmation/lambda_v8/r3_evidence/child_replays/5/opened.jsonl"
+  ],
+  "6c42a17f483a8975f95691f36cdb2f52a50fe611": [
+   "dataset/ImageNet100/setting1/test.txt"
+  ],
+  "6cf82db6ec12c5275e3fffb0b68792da02214935": [
+   "artifacts/anchor_confirmation/lambda_v8/r3_evidence/battery12/report.json"
+  ],
+  "6d097063384ee717b89b5f1dd79240c4b213256b": [
+   "artifacts/anchor_confirmation/ancP7_decision.json"
+  ],
+  "6d418132011aae4e77218a52b96d66f5b148e3ed": [
+   "artifacts/semantic_detail_multidataset/mscoco.foils.jsonl.meta.json"
+  ],
+  "6d61235330784f10bff51a045386494f6f6357df": [
+   "artifacts/anchor_confirmation/ancT9_entry_ancR9_flickr_A_v4_refit_N4_s43_AXanchors_P06095_JD002.json"
+  ],
+  "6e37a2da83f28fbb46c69d91d3617a63184fe7cc": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report_outputs/L5_execution_needs_the_manifest.txt"
+  ],
+  "6e3d13daa65d610264fcf53175eeb09b9dd9b47a": [
+   "artifacts/anchor_confirmation/refit_v9/t_smoke_request_r7/t_smoke.out"
+  ],
+  "6ec907d5d6570647bf07b909d0f3ab01e8012242": [
+   "artifacts/anchor_confirmation/refit_v9/r6_evidence/renders/r_smoke_full.out"
+  ],
+  "6ee4b71049646d6f5b94204b6c6d0e5e69b93950": [
+   "artifacts/phase3_selection/phase3sel_cifar_A_v4_N9_s42.json"
+  ],
+  "6ef7cd39b739b8b51618600eb4cbf43da0f183e7": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/record_identity_plugin.py"
+  ],
+  "6f6403d4b0e0ccbfc782b40b977e5f0b9b423803": [
+   "artifacts/anchor_confirmation/mutation_v5/mutation_v7_frozen.py"
+  ],
+  "6f7a503724d3042a4870192ddb073a805bb3e75f": [
+   "artifacts/semantic_detail_heldout/codon_decoding/flickr_A_bio.json"
+  ],
+  "6f9b91f071f6d99111538cc63c8fe08ed06ef964": [
+   "artifacts/anchor_confirmation/refit_v9/r2_evidence/renders/common_args.txt"
+  ],
+  "6fcd1885bc7a5d5ee1cdd1b6291c929481813bae": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4b_report_outputs/N2_carried_authority_bytes_are_the_approved_pin_while_parsed.txt"
+  ],
+  "706174beac263437a83312697c6bea283e2aebd5": [
+   "artifacts/anchor_confirmation/mutation_v3/differential_705.py"
+  ],
+  "708484fcbe121fff04c0f62eaab4c2ca117b7c0c": [
+   "artifacts/anchor_confirmation/refit_v9/r6_evidence/suitepair/console.status"
+  ],
+  "709cc2f18f35ddc452ec410b6f9a82e0b9c320fb": [
+   "artifacts/anchor_confirmation/plan_select_ancS7_v7.txt"
+  ],
+  "714c95f32524f963eb85c2f7bbfdb6a3e39aaa6e": [
+   "artifacts/anchor_confirmation/refit_v9/attempt1_bdaba58/renders/r_smoke_full/summary.json"
+  ],
+  "717a3d4c3f1e3a5fbfdfb1b5c2fda865c39fe5b2": [
+   "artifacts/anchor_confirmation/refit_v9/r_run_request_r7/plan_mode_recipe_mapping.json"
+  ],
+  "729d59e0c2a0e5ac77bacdd8345ffc5e5a73cfb4": [
+   "artifacts/anchor_confirmation/request_preview_ancL8_v8_run_full.txt"
+  ],
+  "72e8ad037e85f9fc1e3849d721c7f6605eb5c4dc": [
+   "artifacts/semantic_detail_heldout/codon_decoding/mscoco_A_raw.json"
+  ],
+  "7314cb8ef3a23522c1f77947fdd3ce8bfe8359e0": [
+   "dataset/CUB_200/bounding_boxes.txt"
+  ],
+  "732ec5fa7f66811ef078117e093bda27408ed48b": [
+   "artifacts/anchor_confirmation/lambda_v8/suite_pair_v2.sh"
+  ],
+  "734dba1aec0154b018db1d41d0bb34ef4fea5141": [
+   "artifacts/anchor_confirmation/refit_v9/r5_smoke_ancRsmk9/tmux_ancRsmk9_v9.status"
+  ],
+  "74d671c20424e54dd4822b71a834bf680b74040a": [
+   "artifacts/anchor_confirmation/refit_v9/r7_evidence/refused_render_before_tool_fix/r_run_full.err"
+  ],
+  "7653c6abb029fd7ebff5ade3aeb9779fe879f7f7": [
+   "artifacts/umrch_flickr25k_embeddings.npy"
+  ],
+  "76c02347292fb2e150c9682daadb074ef86af501": [
+   "artifacts/phase3_selection/phase3sel_nuswide_A_v4_N19_s42.json"
+  ],
+  "77a1de3f643cac090936123e6a2a41abbcd64333": [
+   "artifacts/anchor_confirmation/ancT9_attempt_ancR9_nuswide_A_v4_refit_N4_s42_AXanchors_P0408_JD005.json"
+  ],
+  "787745cb07a4995002ad2ffbe8963cf63002ea99": [
+   "artifacts/phase3_selection/phase3sel_cifar_A_v4_N4_s42.json"
+  ],
+  "78aaf9f4fab2aa29b3ce01ae7921bd0a0946dd30": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/prep_guard/guarded_run.py"
+  ],
+  "78d537ddde668412493b00f3a4ee94a1960d3292": [
+   "artifacts/anchor_confirmation/request_preview_ancS2_v3.txt"
+  ],
+  "79209ca429864ee11e5e093a5ddb5b4747acd908": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/plan_attempt1_guard_lost_at_exec/request_preview_ancLsmk8_v8r2_smoke_full.txt"
+  ],
+  "792b2f247c9643ae0a7d0653eee732542968ec10": [
+   "artifacts/anchor_confirmation/ancTsmk9_ancRsmk9r6_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002.json"
+  ],
+  "7a29d96c0f6a30d45b348a8635ffa8814a7f930a": [
+   "artifacts/anchor_confirmation/lambda_v8/mutation_v12_frozen.py"
+  ],
+  "7a385adf4fe6843a918ba9d895a0c9c419849f92": [
+   "dataset/CUB_200/images.txt"
+  ],
+  "7aaf49a1d5d80a14c23e8b88f4e98f32f310399c": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/prep_guard/prep_manifest_r2/summary.json"
+  ],
+  "7ac4e4578b36f8107f0fe2a487a1d8e8e4265474": [
+   "artifacts/anchor_confirmation/refit_v9/full_r_ancR9/tmux_ancR9_v9r7.cmd"
+  ],
+  "7acce2d50d907f4e398227cbdea2e800ea29578a": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r4/renders/r_run_full/opened.jsonl"
+  ],
+  "7b368f6ace49ac7aef01dc6850a3b765000f98e8": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/legacy_tests_identity_paths_recorded.json"
+  ],
+  "7ba67f1410e14db38fdf82755ec7b048f0205401": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report_outputs/D8_selection_replay.txt"
+  ],
+  "7bb54d91e15009751d8266c3784a97c34dbea6b4": [
+   "artifacts/anchor_confirmation/f_v1/check.txt"
+  ],
+  "7be359a66006afad5e3d357204926c59c589ca0f": [
+   "dataset/CIFAR10/setting1/train_image_ids.txt"
+  ],
+  "7c55d90b4f7eeea17afbb69e809733de2e77be5b": [
+   "artifacts/anchor_confirmation/refit_v9/r5_evidence/renders/r_smoke_full_request.json"
+  ],
+  "7c899b1cfe0cd1e0689298ba4649a2948d337229": [
+   "artifacts/anchor_confirmation/mutation_v7/mutation_v9/report.json"
+  ],
+  "7d86d61ca6423990a1046ac1608471cb88c4b604": [
+   "artifacts/anchor_confirmation/ancTsmk9_test_complete.json"
+  ],
+  "7e043b68b06a7bdcb6a292313a0816d078cffe5e": [
+   "artifacts/anchor_confirmation/refit_v9/r5_evidence/suitepair/suite_unguarded_tail.txt"
+  ],
+  "7e256e53f2a90fbad1611a39773ab563bd2ced34": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report_outputs/N12_record_input_authority_is_the_admitted_seal.txt"
+  ],
+  "7e5d3d060535d7ca1d5d6f8dd68e8ddd9be9d948": [
+   "artifacts/anchor_confirmation/ancT9_attempt_ancR9_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002.json"
+  ],
+  "7ed33460c0023cdc2d08a2b4197c6dd2484aa51e": [
+   "artifacts/semantic_detail_heldout/minimal_pair/nuswide.json"
+  ],
+  "7f527e80ff2f646c00fd4dffa2f275fbe077e16e": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r4/battery13d/console.status"
+  ],
+  "7f69cd6838972b8cb5757a563fb419d6853df688": [
+   "dataset/MSCOCO/setting1/test.txt"
+  ],
+  "7f75d6b46fa83916f6a25a5097e5ebaf7de06450": [
+   "artifacts/anchor_confirmation/refit_v9/full_t_ancT9/records_manifest.sha256"
+  ],
+  "7f97a561e5477b6d60dfdb8fb31890a4c40290d7": [
+   "artifacts/phase3_selection/phase3sel_flickr_A_v4_N4_s42.json"
+  ],
+  "7f9a51a30a281ffa07ca5b3886c721df788c3ed1": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/prep_guard/prep2_plan_run_carried/opened.jsonl"
+  ],
+  "7fe889f586d21fa45dbe919d420fe8dfbd8e8c61": [
+   "artifacts/anchor_confirmation/authority_manifest_v5.json"
+  ],
+  "80309fd21b6af7bb149c34c9c910a4b17df1cf1d": [
+   "artifacts/anchor_confirmation/refit_v9/r6_evidence/renders/r_run_full/summary.json"
+  ],
+  "809e573a7d81e8aff056d18c9e0f142a9d79e7e6": [
+   "artifacts/anchor_confirmation/refit_v9/t_smoke_request_r7/guard/opened.jsonl"
+  ],
+  "80b95018da96b03e8dc9c36ca95919f6ce3d4052": [
+   "artifacts/anchor_confirmation/ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005.json"
+  ],
+  "8147d5fe38b4b0d6cb9772a2c59dc02ab2b30bb2": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report_outputs/N7_generation_re_verified_before_the_receipt.txt"
+  ],
+  "81a0a8f4b0cef9b1912cb50f6c0aeae36688398f": [
+   "artifacts/anchor_confirmation/ancS7_campaign_reservation.json"
+  ],
+  "81e7bb4175d5c4e771d6918457144b19d0b53bb2": [
+   "artifacts/anchor_confirmation/refit_v9/full_t_ancT9/approved_argv_as_used.json"
+  ],
+  "8219ea3735c7ca28d49f1ed50e43c6b9609e820c": [
+   "artifacts/phase3_selection/phase3sel_nuswide_A_v4_N39_s42.json"
+  ],
+  "825abbebd2ed168766d3fba1915284ea515e6707": [
+   "artifacts/anchor_confirmation/ancD7_flickr_A_v4_N4_s43_AXanchors_P06095_JD002.json"
+  ],
+  "827473dc1cc245a507a8d562c4bdb1c8529cf961": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report_outputs/N5_generation_re_verified_after_the_lease.txt"
+  ],
+  "82a81c0b412fe36f46ffb0b16866d04ecd916373": [
+   "artifacts/anchor_confirmation/ancP7_prep/verify_probe_chain.out"
+  ],
+  "840b6e795845c1e04e19112d0d980f5528cbc953": [
+   "artifacts/anchor_confirmation/f_v1/self_test.txt"
+  ],
+  "84145af7c33b99ae6802915ac11c4fec21c38bc6": [
+   "artifacts/anchor_confirmation/refit_v9/r2_evidence/renders/r_smoke_full/children.jsonl"
+  ],
+  "8544d026a116f15435e9a4a4f892de75d6abdb4b": [
+   "artifacts/anchor_confirmation/ancD7_cifar_A_v4_N4_s43_AXanchors_JD002.json"
+  ],
+  "857cb881ea659bde86b8526429822ed826af3c3d": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/suite15_guarded_violations.json"
+  ],
+  "86579b0a9eb03eaeb7592b0606e9420444aa419f": [
+   "artifacts/semantic_detail_factorial/factorial_summary.json"
+  ],
+  "86a3b2010cffed8d413369f8ddbe85bb4f934f64": [
+   "artifacts/anchor_confirmation/refit_v9/attempt1_bdaba58/suitepair/suite_guarded_tail.txt"
+  ],
+  "87228645b1b957812a1e411f49f5487ca0f6d031": [
+   "artifacts/anchor_confirmation/ancR9_flickr_A_v4_refit_N4_s43_AXanchors_P06095_JD002.json"
+  ],
+  "8729fe819ffa6e5fe0b26955a9da5ead3a7712ee": [
+   "artifacts/anchor_confirmation/plan_select_ancS6_v6.txt"
+  ],
+  "87d5073608e4a90d0f64fd15e4f5dcacaf95301d": [
+   "artifacts/anchor_confirmation/ancL8_reduction/end.txt"
+  ],
+  "88429114e2b23fd7d49d52ce7613e4519aef5366": [
+   "artifacts/anchor_confirmation/ancP7_reduction/start.txt"
+  ],
+  "88f01f1818423dd6f4ace9b6ba3ed4f1c1fe6cf2": [
+   "artifacts/anchor_confirmation/refit_v9/r7_evidence/renders/r_run_full/opened.jsonl"
+  ],
+  "895104a43f17e0589387f8bbc3ad302dfbe5a994": [
+   "artifacts/anchor_confirmation/refit_v9/t_smoke_ancTsmk9/approved_argv_as_used.json"
+  ],
+  "89a0451d0c9cfb98e11fc46622b8dec7dd9e477f": [
+   "artifacts/anchor_confirmation/mutation_v3/mutation_v5b/report.json"
+  ],
+  "8ae3d3a116fe8995d3637a18b3cef0c9d06cc7a6": [
+   "artifacts/anchor_confirmation/refit_v9/prep_manifest_v9r6/opened.jsonl"
+  ],
+  "8aeb78bf3dd17d635304eb3713f81a1e59ae8194": [
+   "artifacts/semantic_detail_heldout/minimal_pair/flickr.json"
+  ],
+  "8b298e1a654a5b9f6728d606236a26cf6251912a": [
+   "artifacts/anchor_confirmation/refit_v9/r_run_request_r7/carried_preview.out"
+  ],
+  "8bde51f2f380932c04284419164af4bcf18acc47": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report_outputs/D4_decide_stage_S_under_the_given_generation.txt"
+  ],
+  "8d7083bee6fdfe0cee9bee5ebd947a66d343e29c": [
+   "artifacts/anchor_confirmation/refit_v9/t_smoke_request_r7/launcher_argv_plan_base.txt"
+  ],
+  "8d80db37fe77125eafb1c75d98554c8100d6392a": [
+   "artifacts/anchor_confirmation/refit_v9/t_run_request_r7/guard/children.jsonl"
+  ],
+  "8d976cd7c5d35aeca02889662df630e16c22c9a6": [
+   "artifacts/semantic_detail_heldout/codon_decoding/nuswide_A_raw.json"
+  ],
+  "8d9fba9d5d0dbbb0051e44d57d386d2382f1ca01": [
+   "dataset/ImageNet100/setting1/database.txt"
+  ],
+  "8f60ac77b05fb207912e587e46f3165c2639023e": [
+   "artifacts/anchor_confirmation/ancS7_cifar_A_v4_N39_s42_AXanchors_JD002.json"
+  ],
+  "8fcb6f31e17f4e675b2e7d51b90fc1d705c7d652": [
+   "dataset/download.sh"
+  ],
+  "90851b733dedacb67818e1ee19f6b8e209332df7": [
+   "artifacts/anchor_confirmation/refit_v9/r6_evidence/renders/common_args.txt"
+  ],
+  "908b6e8f9f52a4fa0b55292116ec345bb437a729": [
+   "artifacts/anchor_confirmation/refit_v9/full_t_ancT9/tmux_ancT9_v9r7.status"
+  ],
+  "909affece9e66ba3ac4e693d09fef3fdfc3cb92a": [
+   "dataset/CUB_200/parts/part_click_locs.txt"
+  ],
+  "90d67e388a2aa02deb23aeebf306ff0ac6088451": [
+   "artifacts/anchor_confirmation/authority_manifest_v7.json"
+  ],
+  "91efdc85345c16dea1f56973ba3b824f6787992b": [
+   "artifacts/anchor_confirmation/refit_v9/full_r_ancR9/approved_argv_as_used.json"
+  ],
+  "92a409920d3b40bd78bde3f60b54a7858ffa621e": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r3/suitepair/suite_guarded_tail.txt"
+  ],
+  "9332b2234e3540f90e618da5d42bf3861d46586e": [
+   "artifacts/anchor_confirmation/env_handoff_v7/diagnosis.json"
+  ],
+  "941cb4e1392266f6a6c09b1fdc5f79503b2e5df6": [
+   "artifacts/umrch_mscoco_terms.txt"
+  ],
+  "945c5e09ec1472e485f68543e093417d2736f1d6": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r4/renders/r_run_full/summary.json"
+  ],
+  "948130acc8886c263c295541d9ad2f4f33029112": [
+   "artifacts/semantic_detail_multidataset/cifar10_v4.foils.jsonl.meta.json"
+  ],
+  "95243e37ba41584dd190766856a077da3826d6be": [
+   "artifacts/anchor_confirmation/authority_manifest_v8.json"
+  ],
+  "95491d18919c13aa1740d396e50ad58f5cc0f3d6": [
+   "artifacts/anchor_confirmation/ancLsmk8_campaign_reservation.json"
+  ],
+  "9600e78b3c5b7cdcbebf05a2ace8b963f2b1de96": [
+   "artifacts/anchor_confirmation/lambda_v8/guard_positive_control_old_binding_test/opened.jsonl"
+  ],
+  "96774a9f14d6a562a463c2ac8ef825bc4ac3c3ff": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r4/renders/common_args.txt"
+  ],
+  "96d9e350f36bb96323a7ba9b7b1812558b12296c": [
+   "artifacts/phase3_selection/selected_n.json"
+  ],
+  "96fd968ae7fa413770f5d55c2b429a0ef6253048": [
+   "artifacts/anchor_confirmation/refit_v9/r7_evidence/suitepair/console.status"
+  ],
+  "970d5b3a00ca351e283afc3a4c6158ebeaef628a": [
+   "artifacts/anchor_confirmation/request_preview_ancP7_v7.txt"
+  ],
+  "97a0b01bd6301e651331a566dceb1c9d70983860": [
+   "artifacts/anchor_confirmation/ancT9_attempt_ancR9_cifar_A_v4_refit_N4_s44_AXanchors_JD002.json"
+  ],
+  "97b6cca3b6418289c5665caf64aeb360577ea9d5": [
+   "artifacts/anchor_confirmation/lambda_v8/mutation_v10/report.json"
+  ],
+  "97db3865ae0fa6983a01af23c239bc50c176f71a": [
+   "artifacts/anchor_confirmation/mutation_v3/differential_705_attempt1_setup_failure/report.json"
+  ],
+  "97e01c16ba3da503c42d22a590464041a9024c43": [
+   "artifacts/anchor_confirmation/ancS7_nuswide_A_v4_N39_s42_AXanchors_P0408_JD005.json"
+  ],
+  "986fd8b6c0691ac46d1c3d755221dde99e169cf0": [
+   "artifacts/anchor_confirmation/mutation_v5/mutation_v7/report.json"
+  ],
+  "98a211c33078120026d878c883d4a9586040c401": [
+   "artifacts/anchor_confirmation/f_v1/build_f_candidate.py"
+  ],
+  "98cfe35f4d92dd06fb18e886308e1731b6b65a7b": [
+   "artifacts/anchor_confirmation/refit_v9/full_r_ancR9/tmux_ancR9_v9r7.status"
+  ],
+  "99036f9156e111259338f38cf6a72b08000847f3": [
+   "dataset/NUSWIDE/setting1/past/test.txt"
+  ],
+  "99228834fe3b5e867ece9b99d1c2538a9731bc78": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report_outputs/L19_run_cell_needs_the_sealed_recipe.txt"
+  ],
+  "99698ed80b782d062b26f6692ba4376721c0c95a": [
+   "artifacts/anchor_confirmation/ancT9_ancR9_cifar_A_v4_refit_N4_s44_AXanchors_JD002.json"
+  ],
+  "9971a93ef5f792a4c9d8cb6bf1872835708b53a7": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report_outputs/N9_recheck_reads_every_pinned_file.txt"
+  ],
+  "997925f1cd6a84b530fe28f2e75e2d1a49733e18": [
+   "artifacts/anchor_confirmation/refit_v9/r2_evidence/renders/r_run_full/children.jsonl"
+  ],
+  "99e5647be2ca7976b58625d576ac918d840dd4ff": [
+   "artifacts/anchor_confirmation/refit_v9/r_run_request_r7/guard_carried_preview/summary.json"
+  ],
+  "9a0c77eaf5eb2933be865e9a77a47994f2396f11": [
+   "artifacts/anchor_confirmation/ancS7_nuswide_A_v4_N9_s42_AXanchors_P0408_JD005.json"
+  ],
+  "9a6b9d850dbbf4f7f40c8d51dd3f9ea8ff69ebc1": [
+   "artifacts/anchor_confirmation/ancD7_snapshot_64f311500273a3ed.json"
+  ],
+  "9a7101ae9b499cd478d7d79d9c818ed1b945046d": [
+   "result_diagnostic/smoke_18base_20260827/README.md"
+  ],
+  "9ad6a3a27d699b9e5ca7060b865b90f28d5b97a6": [
+   "artifacts/anchor_confirmation/mutation_v5/mutation_v7b_frozen.py"
+  ],
+  "9cc3070c8a2605eb16255302b9543b84698feb83": [
+   "artifacts/anchor_confirmation/refit_v9/r5_evidence/suitepair/verdict.json"
+  ],
+  "9d54d12d65b2a58a142d40da8a1d6ac066a66185": [
+   "artifacts/anchor_confirmation/refit_v9/r_run_request_r7/guard_values/summary.json"
+  ],
+  "9d5c95b7b1f6ecadb46dd60ca96b0c78f7860acc": [
+   "artifacts/anchor_confirmation/refit_v9/r7_evidence/renders/r_smoke_full.out"
+  ],
+  "9e63acad280dd00e38f0158532443625cb6e49f5": [
+   "artifacts/anchor_confirmation/refit_v9/r_run_request_r7/launcher_args_plan_base.txt"
+  ],
+  "9e81faec6f3adb1e8500870f906e0fa4cf45f049": [
+   "artifacts/anchor_confirmation/refit_v9/r2_evidence/renders/r_run_full/opened.jsonl"
+  ],
+  "9e9a70d0f5e165c06519912f6b5d8a35345da140": [
+   "artifacts/anchor_confirmation/ancS7_snapshot_23e0763089474895.json"
+  ],
+  "9f9c6ca61b87509291a648bd96d0337cb6af9664": [
+   "artifacts/anchor_confirmation/refit_v9/r5_evidence/renders/r_run_full_request.json"
+  ],
+  "9fa2d6df470c9107cb7afc8b6fdb435cddfe4898": [
+   "artifacts/anchor_confirmation/refit_v9/r7_evidence/renders/r_run_full/children.jsonl"
+  ],
+  "9feb44a5d360dd1988fdb0073d65acd1f0b6856a": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mutation_v4.py"
+  ],
+  "a05376e4389e902ff70bf02522ffe007d9346053": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report_outputs/D38_probe_split_identity_whole_condition_.txt"
+  ],
+  "a0ffef5f9a870cffb05f16aa5833b691f8aa3d94": [
+   "artifacts/anchor_confirmation/ancP7_probes/flickr25k_anchors_N4_s44.json"
+  ],
+  "a182e7a45fa3ac723667a88934fdbf0b495c0abf": [
+   "artifacts/anchor_confirmation/ancD7_nuswide_A_v4_N4_s44_AXanchors_P0408_JD005.json"
+  ],
+  "a1c7583d770fb08fcd9d9382f95cf15732c200f1": [
+   "artifacts/anchor_confirmation/ancL8_flickr_A_v4_N4_s42_AXanchors_LBU0_P06095_JD002.json"
+  ],
+  "a2ba7c59460f17f8ba44d50c3dcb53ff97ec9fda": [
+   "artifacts/anchor_confirmation/refit_v9/r5_evidence/renders/r_run_full/summary.json"
+  ],
+  "a2ffa8c8cb1e075f69144aedce251fa13ad67940": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/suite17_guarded_violations.json"
+  ],
+  "a38dd1a208712636e82c56ac34f4c8401ab86c0c": [
+   "artifacts/anchor_confirmation/refit_v9/prep_manifest_v9/children.jsonl"
+  ],
+  "a424d0f3700aafe247d6b6d12086418ba3f2b9a9": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r4/battery13d/report.json"
+  ],
+  "a46c3c09df352b8e416641aa066a2388329494ac": [
+   "artifacts/anchor_confirmation/refit_v9/full_t_ancT9/settlement.json"
+  ],
+  "a502f3358f6384a8fff28a0afcfe72464771546e": [
+   "artifacts/anchor_confirmation/ancRsmk9r6_campaign_reservation.json"
+  ],
+  "a5c689d724fd53a80e6bed4f1e9c38e832d8dfca": [
+   "artifacts/anchor_confirmation/refit_v9/full_t_ancT9/nus_s44_stopped_cell.json"
+  ],
+  "a5ed7eb27c9be4e23069fd8d198f3a02fbbb9625": [
+   "artifacts/anchor_confirmation/refit_v9/r7_evidence/suitepair/verdict.json"
+  ],
+  "a63e13eedc6cd1cf3f80c4b8ea820f38e3b60b50": [
+   "artifacts/anchor_confirmation/ancT9_entry_ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005.json"
+  ],
+  "a64a87deb74be6b76da719ed18c2dec92663aa0a": [
+   "artifacts/phase3_selection/phase3sel_mscoco_A_v5b_N39_s42.json"
+  ],
+  "a652682614204be2078cd6e67c9f868030af6f64": [
+   "artifacts/anchor_confirmation/refit_v9/t_smoke_ancTsmk9/tmux_ancTsmk9_v9r7.status"
+  ],
+  "a6718575f684d39b290c798b7f02fd46638022e9": [
+   "artifacts/anchor_confirmation/request_preview_ancLsmk8_v8_smoke_full.txt"
+  ],
+  "a6fccb630226ebfc19755026905cd860e959780d": [
+   "artifacts/anchor_confirmation/ancL8_reduction/stdout.txt"
+  ],
+  "a764e17012c2971b83b0763448bb5b9c07b40407": [
+   "artifacts/anchor_confirmation/refit_v9/r7_evidence/renders/r_run_full/summary.json"
+  ],
+  "a7e567f5fa35c937bda30ea1f5a445f657fe189f": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r3/suitepair/verdict.json"
+  ],
+  "a8d62662a73412fef8bb7dd6de4983cc4bf0f4fa": [
+   "artifacts/anchor_confirmation/request_preview_ancS2_v4.txt"
+  ],
+  "a919e82a2bca4aa0546954e79e1e6ccbf7bb3144": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r3/renders/r_smoke_full/summary.json"
+  ],
+  "a9aa70008459b5a4fb3b39ae1eacb2c66898e645": [
+   "artifacts/anchor_confirmation/ancT9_entry_ancR9_mscoco_A_v5b_refit_N39_s42_AXanchors_P06095_JD003.json"
+  ],
+  "a9b040db19c31232419b6d5f9db6fa865e436e9c": [
+   "artifacts/anchor_confirmation/ancP7_reduction/end.txt"
+  ],
+  "a9c69240da2cec18cab88e577d69131b4448b280": [
+   "artifacts/semantic_detail_ablation/screen_manifest.json"
+  ],
+  "aa31ae294b17dc4ac7a895b515277495438aca8f": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v3_report.json"
+  ],
+  "aa5a57e45a551854fd6cd82fcc7b8e91d3940d59": [
+   "artifacts/anchor_confirmation/ancT9_entry_ancR9_cifar_A_v4_refit_N4_s43_AXanchors_JD002.json"
+  ],
+  "aa72b4b4052f150d5cc4c8bf7d5d6f30f228dbc7": [
+   "dataset/MSCOCO/setting1/train.txt"
+  ],
+  "aacab9778165763d1983594ff8871c90621a6d6c": [
+   "dataset/MSCOCO/setting1/database.txt"
+  ],
+  "aacf78b92aa0fbc82bc20ae0cc5500b60b6e2ff3": [
+   "artifacts/anchor_confirmation/ancS7_reduction/start_utc"
+  ],
+  "aad93861b9726c8c64b5ca90518fad8940877e1e": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r3/renders/r_smoke_full.out"
+  ],
+  "abc054047e08c1a089e034d390bf439fceaec10d": [
+   "artifacts/anchor_confirmation/ancL8_flickr_A_v4_N4_s42_AXanchors_LTH010_P06095_JD002.json"
+  ],
+  "ac7c8691df04c93e90ba3c01359dc7f75088f778": [
+   "artifacts/anchor_confirmation/refit_v9/r6_evidence/renders/r_run_full/opened.jsonl"
+  ],
+  "aca66fd6a64f9677fdbf756a6084ecfc21f0d8cc": [
+   "artifacts/anchor_confirmation/ancT9_ancR9_nuswide_A_v4_refit_N4_s43_AXanchors_P0408_JD005.json"
+  ],
+  "acb84f5163ba986ecafded89e9cc250f12f92721": [
+   "artifacts/phase3_selection/phase3sel_mscoco_A_v5b_N4_s42.json"
+  ],
+  "ad947a5fcbb0e07af7e3e876b123527f88f35201": [
+   "artifacts/anchor_confirmation/refit_v9/r7_evidence/renders/r_run_full_request.json"
+  ],
+  "adb0213936da8ddf53a970c0f6f166462beb34c3": [
+   "artifacts/anchor_confirmation/refit_v9/r5_evidence/renders/r_run_full/children.jsonl"
+  ],
+  "adb585f739643e92fef812c51bad06e174e0af1e": [
+   "artifacts/anchor_confirmation/ancS7_mscoco_A_v5b_N4_s42_AXanchors_P06095_JD003.json"
+  ],
+  "ae3fa9e567f75df2a124e1c05b246f0bb79fd70c": [
+   "artifacts/anchor_confirmation/refit_v9/attempt1_bdaba58/renders/r_smoke_full.out"
+  ],
+  "aea0baf5f7f1295fb7551d82c513435a6b399dfd": [
+   "artifacts/anchor_confirmation/refit_v9/prep_manifest_v9/summary.json"
+  ],
+  "afe0a104c885cc159b4b9413a28f0db435add00c": [
+   "dataset/Flickr25k/setting1/targets.txt"
+  ],
+  "b00dccf04a8669acf639acad2c5df583630490fb": [
+   "artifacts/anchor_confirmation/refit_v9/t_smoke_request_r7/SHA256SUMS"
+  ],
+  "b0189a669b37d20de15c25e5d6f19bd3a9cee27e": [
+   "dataset/Flickr25k/setting1/test.txt"
+  ],
+  "b0c74e4653989aa8b39b97151dd6a75a7062f146": [
+   "artifacts/anchor_confirmation/refit_v9/r_run_request_r7/guard_render/opened.jsonl"
+  ],
+  "b0c7bc051af6182c604ad19ebbd29969e1155e35": [
+   "artifacts/anchor_confirmation/ancL8_lambda_decision.json"
+  ],
+  "b1d4b675ee779621f9804ea25fc38aff3b870117": [
+   "artifacts/anchor_confirmation/lambda_v8/r3_evidence/child_replays/5/children.jsonl"
+  ],
+  "b240d0af15b89e63fc01dcb2b601a48b81e0503c": [
+   "artifacts/anchor_confirmation/refit_v9/t_recovery_final/battery_efd6c31/battery_command.sh"
+  ],
+  "b2481e5befa2764b4a48e7c97cf0094edf01f217": [
+   "artifacts/semantic_detail_multidataset/nuswide.foils.jsonl"
+  ],
+  "b24b2ec463f565398e09187ec749419c36602d88": [
+   "dataset/CUB_200/train_test_split.txt"
+  ],
+  "b291e089fe0c712501690d72da107f3190e9224b": [
+   "dataset/ImageNet100/setting1/train.txt"
+  ],
+  "b2a7cc18bb252d486a955e833da43e601a71baf2": [
+   "artifacts/anchor_confirmation/ancP7_probes/mscoco_anchors_N39_s42.json"
+  ],
+  "b5139812a2ca3f96aa489f270c781ec3b936fb35": [
+   "artifacts/semantic_detail_multidataset/p0/nuswide_AB_K128L4_p0.json"
+  ],
+  "b5cd1ee0c40da5e028d2ee9f572aeae3c003e4ea": [
+   "artifacts/anchor_confirmation/refit_v9/r2_evidence/renders/r_smoke_full_request.json"
+  ],
+  "b64fe7248039f15392c3b5c89007f16531b080ae": [
+   "artifacts/anchor_confirmation/ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002.json"
+  ],
+  "b660906c805454b26d5f4f14cfbe797fd991bc53": [
+   "artifacts/anchor_confirmation/refit_v9/r7_evidence/renders/common_args.txt"
+  ],
+  "b6991c4977a456de8998a64ef84f7b8c88442868": [
+   "artifacts/anchor_confirmation/lambda_v8/r3_evidence/suite_pair2/verdict.json"
+  ],
+  "b7d914b1b7553fe8d54328cd70ae198621de03ef": [
+   "artifacts/anchor_confirmation/ancT9_entry_ancR9_cifar_A_v4_refit_N4_s44_AXanchors_JD002.json"
+  ],
+  "b7e1d0ad95a90f1d38f66abdec53f9e537601a15": [
+   "artifacts/anchor_confirmation/refit_v9/r_run_request_r7/guard_carried_preview/children.jsonl"
+  ],
+  "b8fda409e35fd8eb8259d967dce7103a4fd54a00": [
+   "artifacts/anchor_confirmation/refit_v9/r6_evidence/battery13f/console.status"
+  ],
+  "b90764abe9a810b9d8a6c1774a908166c7229300": [
+   "artifacts/anchor_confirmation/request_preview_ancD7_v7_carried.txt"
+  ],
+  "b9379e37f9c5607545b3bf195672eb5c4d9cf54a": [
+   "artifacts/anchor_confirmation/refit_v9/t_smoke_ancTsmk9/SHA256SUMS"
+  ],
+  "b93acd861491f099632abbe0c3dc9e8b46790ebf": [
+   "artifacts/anchor_confirmation/lambda_v8/r3_evidence/child_replays/4/stderr.txt"
+  ],
+  "b9bedb126a5ef39180ff7e49676418e69569511a": [
+   "artifacts/anchor_confirmation/refit_v9/r5_evidence/renders/r_smoke_full/summary.json"
+  ],
+  "bad06391cfae512dff4bd9e8fddd6a0c4ba521f9": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report_outputs/N6_generation_re_verified_before_every_cell.txt"
+  ],
+  "bbd5b1cdbc83fc2f03c561c807f8c7c04db6ba13": [
+   "artifacts/anchor_confirmation/authority_manifest_v3.json"
+  ],
+  "bc9755c105ec70013d7f2577e12a7f3742b15f50": [
+   "artifacts/anchor_confirmation/refit_v9/r_run_request_r7/guard_render/summary.json"
+  ],
+  "bccac6be15b5ab06f0b43dd921a36dec2599631d": [
+   "artifacts/semantic_detail_heldout/codon_decoding/mscoco_ABC_raw.json"
+  ],
+  "bd51230e620e42974a4634443bb88eadd64bd1a2": [
+   "artifacts/umrch_mscoco_manifest.json"
+  ],
+  "bdc0fe336c448aa488a9ef4e94379799f9d87a3f": [
+   "artifacts/anchor_confirmation/refit_v9/t_recovery_prep/build_lineage.py"
+  ],
+  "bded01cdd51402f9aee517002090f31e626df69b": [
+   "dataset/CUB_200/parts/parts.txt"
+  ],
+  "be59b27e8e6bcbb4f7b5beab45622124ffca13a1": [
+   "artifacts/anchor_confirmation/ancT9_ancR9_mscoco_A_v5b_refit_N39_s43_AXanchors_P06095_JD003.json"
+  ],
+  "be6396a06e2bbeb59951d0c783a4926c04e94fa9": [
+   "artifacts/anchor_confirmation/authority_manifest_v9r6.json"
+  ],
+  "c09e0d0a234f6c548d5060ed860d83a3c6694939": [
+   "artifacts/anchor_confirmation/refit_v9/r7_evidence/renders/r_smoke_full_request.json"
+  ],
+  "c0bca08484836037be32af43d4257e3a4c15b29d": [
+   "artifacts/anchor_confirmation/lambda_v8/r3_evidence/currency_check/run_carried/children.jsonl"
+  ],
+  "c116808d997ee388d15820d674417de7a7fe7b01": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r4/suitepair/suite_guarded_tail.txt"
+  ],
+  "c170b92d96719e0e1eb2426becd045f7684a6436": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r3/renders/r_smoke_full/children.jsonl"
+  ],
+  "c1999b96f84851ebed40fc95af0f95d4ef1a39b8": [
+   "artifacts/semantic_detail_heldout/codon_decoding/nuswide_AB_raw.json"
+  ],
+  "c200a8f246b4da3c5dec55c1682c7481c598dd21": [
+   "dataset/CUB_200/README"
+  ],
+  "c2b5732d609bde947d2bc4b9b99628bef9718b27": [
+   "artifacts/anchor_confirmation/ancT9_attempt_ancR9_flickr_A_v4_refit_N4_s44_AXanchors_P06095_JD002.json"
+  ],
+  "c41855db9a15faf0202216446014f5f976e236bf": [
+   "dataset/NUSWIDE/setting1/past/database.txt"
+  ],
+  "c42e5f71f84baeef3a01da02d4fb61d38d4e6dcd": [
+   "artifacts/anchor_confirmation/lambda_v8/r3_evidence/child_replays/1/summary.json"
+  ],
+  "c460de22d53461e6a20dd14b5d69ab5af8adbf19": [
+   "artifacts/anchor_confirmation/ancP7_prep/metadata_check.json"
+  ],
+  "c4b1a50cdc4374697f975c07c0ef1afc4dba02e6": [
+   "artifacts/anchor_confirmation/ancR9_mscoco_A_v5b_refit_N39_s43_AXanchors_P06095_JD003.json"
+  ],
+  "c4fb118098a7af76de48aa9409d16d4b2eea54db": [
+   "artifacts/anchor_confirmation/refit_v9/r7_smoke_ancRsmk9r6/tmux_ancRsmk9r6_v9r7.status"
+  ],
+  "c5619c2555cab53ba486dc25601eebbb1b103ec4": [
+   "artifacts/anchor_confirmation/refit_v9/t_run_request_r7/guard/summary.json"
+  ],
+  "c58ca7878d542243c278601ddcd243c34ffbee40": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report_outputs/D9_probe_counts.txt"
+  ],
+  "c5b96993fa403271aca6db9c85626e2672ce07a1": [
+   "artifacts/anchor_confirmation/refit_v9/r6_evidence/renders/r_run_full/children.jsonl"
+  ],
+  "c731fa7dbd648284ba598aebbbc09abe2bcd7660": [
+   "artifacts/anchor_confirmation/refit_v9/t_smoke_ancTsmk9/device_budget_ledger.jsonl"
+  ],
+  "c7857af32a3a14ea10fee1f398e5c57ee7c05f16": [
+   "artifacts/anchor_confirmation/ancS7_cifar_A_v4_N19_s42_AXanchors_JD002.json"
+  ],
+  "c7b8ab84c80c43f0466a043afec82ec196ff5887": [
+   "artifacts/anchor_confirmation/refit_v9/attempt1_bdaba58/renders/r_run_full/summary.json"
+  ],
+  "c7d5942af7c8843201f8698ace35177b0bcdeaff": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report_outputs/N3_generation_re_verified_after_input_admission.txt"
+  ],
+  "c8107baa76fae364859eece807810d5d30834c92": [
+   "artifacts/anchor_confirmation/refit_v9/r5_smoke_ancRsmk9/SHA256SUMS"
+  ],
+  "c8268452032ad8814856e30f8ef3e4675d864b88": [
+   "artifacts/anchor_confirmation/refit_v9/t_recovery_prep/guard_site/sitecustomize.py"
+  ],
+  "c84a78bd23235b033cb90500614d1ec7d95d5553": [
+   "artifacts/anchor_confirmation/lambda_v8/r3_evidence/child_replays/1/stderr.txt"
+  ],
+  "c850e2512b2832e22585269f8e90975be7167a5a": [
+   "artifacts/anchor_confirmation/ancR9_mscoco_A_v5b_refit_N39_s42_AXanchors_P06095_JD003.json"
+  ],
+  "c90f62d7c828e0c049f04d127baf64e6df220c17": [
+   "artifacts/anchor_confirmation/refit_v9/r7_smoke_ancRsmk9r6/run_dir_listing.txt"
+  ],
+  "c9317ed33b7a225ede8d2e0108827d952ea060e6": [
+   "artifacts/anchor_confirmation/ancP7_probes/nuswide_anchors_N4_s44.json"
+  ],
+  "c9614fe833ce171c3d674579ae2ca8accbb2300f": [
+   "artifacts/phase3_selection/phase3sel_mscoco_A_v5b_N9_s42.json"
+  ],
+  "c9828737596a46a2eb77a3418f53310bc00a427a": [
+   "artifacts/anchor_confirmation/mutation_v3/mutation_v5/report.json"
+  ],
+  "ca5960956c3bb5e6ab5b10d4d7e2718968b2dc7a": [
+   "dataset/CUB_200/setting1/test.txt"
+  ],
+  "cacf9070f50c002d75271b4fa23c309c42c1f35a": [
+   "artifacts/anchor_confirmation/refit_v9/r7_smoke_ancRsmk9r6/free_space_after.txt"
+  ],
+  "cb1235018229a92405336851cf6a4f696b156217": [
+   "artifacts/anchor_confirmation/ancT9_ancR9_mscoco_A_v5b_refit_N39_s42_AXanchors_P06095_JD003.json"
+  ],
+  "cbcc2fe8e445b5dcaac61af6c9d632a0b6d64087": [
+   "artifacts/anchor_confirmation/ancP7_prep/chain_selftest.sh"
+  ],
+  "cbd004279e533e77e4397d497a32b2350de17e4e": [
+   "artifacts/anchor_confirmation/plan_select_ancS5_v5.txt"
+  ],
+  "cc4e41ed6fefc003302d2a08f68a8ddda1edd0d6": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/plan_attempt1_guard_lost_at_exec/request_preview_ancL8_v8r2_run_carried.txt"
+  ],
+  "cdde7d64fead62a97341492f1581de5ca84a467f": [
+   "artifacts/anchor_confirmation/refit_v9/r5_evidence/renders/common_args.txt"
+  ],
+  "cdea0c95246c558800d8c95a8e17b31fd88471fe": [
+   "artifacts/anchor_confirmation/refit_v9/t_run_request_r7/guard/opened.jsonl"
+  ],
+  "ce0772c6c56191d31152bcf10c23e09e6f0502fe": [
+   "artifacts/umrch_nuswide_manifest.json"
+  ],
+  "cea57f79cb43de4195aaad41d714cfe5330c8ade": [
+   "artifacts/anchor_confirmation/ancP7_reduction/command.txt"
+  ],
+  "cee636c1353e4f35ffed0a81fcffa80fcd9e19ff": [
+   "artifacts/anchor_confirmation/refit_v9/r2_evidence/renders/r_run_full/summary.json"
+  ],
+  "d0344fed0f8f4e6eed336268cc945309407ff247": [
+   "artifacts/semantic_detail_heldout/codon_decoding/nuswide_AB_bio.json"
+  ],
+  "d05206839a308f92a929058e74cb74f6d8f43ef0": [
+   "artifacts/anchor_confirmation/authority_manifest_v9r8.json"
+  ],
+  "d07c9599615f79eed13e90b6c9074dc778b15694": [
+   "artifacts/anchor_confirmation/lambda_v8/r3_evidence/child_replays/4/summary.json"
+  ],
+  "d0cc0b51c553ce449cc151770e4dd3b38469606e": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report_outputs/L22e_request_binds_the_input_seals.txt"
+  ],
+  "d19d6103c56f2e62da9def0e797e3eadc28baba3": [
+   "result_diagnostic/phase3_matrix_aborted_20260829/README.md"
+  ],
+  "d1c7c6726679b058eef51057a36ab5df740f30a0": [
+   "artifacts/anchor_confirmation/plan_select_ancS2_v4.txt"
+  ],
+  "d2dcc780b09f4ff0d73c0463bd98a8630d829190": [
+   "artifacts/anchor_confirmation/refit_v9/r7_evidence/suitepair/suite_guarded_tail.txt"
+  ],
+  "d2eef82a352e615d0863aef8e5be08ba80fc2d23": [
+   "artifacts/semantic_detail_multidataset/p0/aggregate.md"
+  ],
+  "d3a8326079ac867d5aee68b60db54cce81e6f142": [
+   "artifacts/anchor_confirmation/authority_manifest_v9r5.json"
+  ],
+  "d3ba92a82ae8f87dd6d80e556b79fc46ed20ce4a": [
+   "artifacts/anchor_confirmation/refit_v9/mutation_v13.py"
+  ],
+  "d3db1da8c2081b13624ad5456e2e803465bc649e": [
+   "dataset/Flickr25k/setting1/database.txt"
+  ],
+  "d409124bf21310f238921421eee54483fe867b85": [
+   "artifacts/semantic_detail_factorial/factorial_manifest.json"
+  ],
+  "d45a3590870c4c12b38dd51a472d14f56411da1c": [
+   "artifacts/anchor_confirmation/request_preview_ancSmk7_v7_carried.txt"
+  ],
+  "d46315d38c5a89751e58bbc437a5241e5c06a57f": [
+   "artifacts/anchor_confirmation/refit_v9/r5_evidence/renders/r_smoke_full/children.jsonl"
+  ],
+  "d4b0811d0f532268747f491d518743f6727eeb8b": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r4/renders/r_smoke_full/children.jsonl"
+  ],
+  "d4c92907368a7d2cbb3d8fbf3fb5a35aaa137c67": [
+   "artifacts/semantic_detail_heldout/minimal_pair/mscoco.pairs.jsonl"
+  ],
+  "d4f10e01c15301e591929af2b37f20627eb98ea4": [
+   "artifacts/semantic_detail_multidataset/cifar10.foils.jsonl"
+  ],
+  "d577fd20e63ecc53ac287cecf93e0962486e39ed": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report_outputs/N2_carried_authority_bytes_are_the_approved_pin_while_parsed.txt"
+  ],
+  "d5cfe180242cbcc1d67d0d0ce47835595d32a023": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r4/renders/r_run_full/children.jsonl"
+  ],
+  "d5f79e4715d755411438779f7142bc1e9df07ea8": [
+   "artifacts/anchor_confirmation/refit_v9/prep_manifest_v9r7/summary.json"
+  ],
+  "d608cf8e3a9c3f05838ed95cc6c6c39579ff5f74": [
+   "artifacts/anchor_confirmation/ancR9_campaign_reservation.json"
+  ],
+  "d68942634033ed517d95e615ffa098c15a132693": [
+   "artifacts/anchor_confirmation/ancP7_decide_sources.json"
+  ],
+  "d7361700d730cf8e74ac73720d1e39256242013c": [
+   "artifacts/anchor_confirmation/ancP7_probes/cifar10_anchors_N4_s42.json"
+  ],
+  "d747be2499472b881a4d48852c082278f09fc88f": [
+   "artifacts/anchor_confirmation/refit_v9/full_r_ancR9/free_space_after.txt"
+  ],
+  "d75502b536ee00f9e0c293ef825bde478daf4c87": [
+   "dataset/NUSWIDE/setting1/train.txt"
+  ],
+  "d87083856ec778f4bafd4cbcb1d110c932d7448d": [
+   "artifacts/anchor_confirmation/refit_v9/full_t_ancT9/tmux_ancT9_v9r7.cmd"
+  ],
+  "d8b4a071210c9fc450466ecc0c6a4fa3a0a6b3b1": [
+   "artifacts/anchor_confirmation/mutation_v3/mutation_v5b_frozen.py"
+  ],
+  "d8c0e55a9d2eccd7e7829619576ee59b14cd835b": [
+   "artifacts/anchor_confirmation/ancR9_cifar_A_v4_refit_N4_s44_AXanchors_JD002.json"
+  ],
+  "d8c26566fa070a431ede86d0e8113e290d51a6ea": [
+   "artifacts/anchor_confirmation/refit_v9/full_r_ancR9/cells_summary.json"
+  ],
+  "d8c340839aef7fabf565475c8616af2776e0ddb7": [
+   "artifacts/semantic_detail_heldout/codon_decoding/flickr_ABC_raw.json"
+  ],
+  "d8e72e9926b3324fa6c57d936b11878d0162d9ea": [
+   "artifacts/anchor_confirmation/mutation_v6/mutation_v8/report.json"
+  ],
+  "d8ea78036d975bb3d5c5fec90427bcece77a1a21": [
+   "artifacts/anchor_confirmation/refit_v9/r6_evidence/renders/r_smoke_full/children.jsonl"
+  ],
+  "d95a85beec2ff3cb7530a6c4010ac19898607ec7": [
+   "artifacts/semantic_detail_multidataset/cifar10_v4.foils.jsonl"
+  ],
+  "da37d1de43f8d33d0a483ebd803e01f7ae15e9f7": [
+   "artifacts/semantic_detail_multidataset/p0/mscoco_AB_K128L4_p0.json"
+  ],
+  "dabbf8e1225a98233ef8fb5c0c6ac1bdcf5103dd": [
+   "artifacts/anchor_confirmation/refit_v9/r5_evidence/renders/r_run_full.out"
+  ],
+  "daece37f5995add3737f6b388e7f5ba89f65ee5d": [
+   "artifacts/anchor_confirmation/ancS7_mscoco_A_v5b_N9_s42_AXanchors_P06095_JD003.json"
+  ],
+  "db74cb5fc9f30c6b2bcc3e4e433c56a08e001920": [
+   "artifacts/anchor_confirmation/ancS7_mscoco_A_v5b_N39_s42_AXanchors_P06095_JD003.json"
+  ],
+  "dcb6c1e0d7e2cf1def3392262a822db100a91adc": [
+   "artifacts/anchor_confirmation/authority_manifest_v4.json"
+  ],
+  "de18c3706246ecf990cad76e1d2662a7f36a6d7f": [
+   "artifacts/anchor_confirmation/refit_v9/guarded_run.py"
+  ],
+  "de5a716db3ab7334371d52e8d07f0e51eea9e212": [
+   "artifacts/anchor_confirmation/refit_v9/r7_smoke_ancRsmk9r6/SHA256SUMS"
+  ],
+  "dea7643a27160ccfe6d45e871a2f75ac5dfd9424": [
+   "dataset/CUB_200/parts/part_locs.txt"
+  ],
+  "ded0d420d51bf09605dfeb595142c96f1f7d1b60": [
+   "artifacts/anchor_confirmation/refit_v9/full_t_ancT9/peer_settlement_notice.json"
+  ],
+  "def857d2413ec3841dd83a8c5d16a39f78870abb": [
+   "artifacts/anchor_confirmation/request_preview_ancS7_v7_full.txt"
+  ],
+  "df4dede33fe4a31245631b194395e690c7580a02": [
+   "artifacts/anchor_confirmation/refit_v9/r_run_request_r7/guard_carried_preview/opened.jsonl"
+  ],
+  "df96b275d8e19a05bc4a594058d20eb80c140e63": [
+   "artifacts/anchor_confirmation/ancT9_entry_ancR9_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002.json"
+  ],
+  "dfe9a659f50bc70033e3a90993baa0b627c2779c": [
+   "artifacts/anchor_confirmation/ancLsmk8_snapshot_41e8ad9fc9504c6f.json"
+  ],
+  "e0429ac1bd4e18edaa46ebbfb1a99889cf725d90": [
+   "artifacts/anchor_confirmation/refit_v9/r7_smoke_ancRsmk9r6/run_dir_small_files.sha256"
+  ],
+  "e18aceaf8796f7af89a947521591d353ae3cd818": [
+   "artifacts/anchor_confirmation/lambda_v8/mutation_v11_frozen.py"
+  ],
+  "e2171e9a352c4a26e1edbea571d2442a2bb72a80": [
+   "artifacts/anchor_confirmation/refit_v9/prep_manifest_v9r6/children.jsonl"
+  ],
+  "e22cc0c9b1854ae86ae85dedcfd312ec340ca994": [
+   "artifacts/anchor_confirmation/ancS6_campaign_reservation.json"
+  ],
+  "e25daf625cde8dea435cec375b8d4175dc2f2cc7": [
+   "artifacts/anchor_confirmation/authority_manifest_v1.json"
+  ],
+  "e26fcc2a2d7280f8c79735fb948e2696e990aa08": [
+   "artifacts/semantic_detail_multidataset/p0/aggregate_a_ab_abc.md"
+  ],
+  "e2bf2d0027fa39763c5dbdeca8ab0fa541c49f9e": [
+   "artifacts/anchor_confirmation/refit_v9/r7_evidence/battery13g/report.json"
+  ],
+  "e3a246775fe6b297c20d2070304ebfdccbe83a39": [
+   "artifacts/anchor_confirmation/ancP7_reduction/stdout.txt"
+  ],
+  "e5d8459af12501e1d7a6ad454ea2a9c0abc410ea": [
+   "artifacts/semantic_detail_multidataset/p0/mscoco_A_K128L4_p0.json"
+  ],
+  "e5fb44e94465a3e36ce59fad3ddc63f58801f991": [
+   "artifacts/anchor_confirmation/ancT9_attempt_ancR9_cifar_A_v4_refit_N4_s43_AXanchors_JD002.json"
+  ],
+  "e6520ebc2d3269b0170b8a92a3eb30ead26414fa": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/prep_guard/prep2_plan_run_full/opened.jsonl"
+  ],
+  "e68a06e90a8547277b45795d31efb05ec46c21e7": [
+   "artifacts/semantic_detail_heldout/codon_decoding/nuswide_ABC_bio.json"
+  ],
+  "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391": [
+   "artifacts/anchor_confirmation/ancL8_reduction/stderr.txt"
+  ],
+  "e708291f6d595e3bdbaf03bc6e1886afbbad9aa6": [
+   "artifacts/anchor_confirmation/lambda_v8/r3_evidence/child_replays/2/stderr.txt"
+  ],
+  "e791e580e19dfc9d9996072e2f599e48555168c7": [
+   "artifacts/anchor_confirmation/refit_v9/attempt1_bdaba58/battery13/report.json"
+  ],
+  "e79aa99017c04c318b6c7eb576f55bdc7ccaa6ef": [
+   "artifacts/anchor_confirmation/ancD7_campaign_reservation.json"
+  ],
+  "e7dac32469455cf9a949699d57da3dd1612ec718": [
+   "artifacts/anchor_confirmation/ancD7_nuswide_A_v4_N4_s43_AXanchors_P0408_JD005.json"
+  ],
+  "e7e0f4369918145242dd471b3cdb97df7bda7392": [
+   "artifacts/anchor_confirmation/lambda_v8/r3_evidence/currency_check/smoke_full/children.jsonl"
+  ],
+  "e90aa969a17ec35f8e6651659073371367f94f34": [
+   "artifacts/anchor_confirmation/refit_v9/full_t_ancT9/collect_full_t_evidence.py"
+  ],
+  "e93ad5f622273b5edd496d1b4dedab36e0c908e3": [
+   "artifacts/anchor_confirmation/ancT9_attempt_ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002.json"
+  ],
+  "e9b1f147b8ceac9100c52959f80114545670d92c": [
+   "artifacts/anchor_confirmation/authority_manifest_v8r2.json"
+  ],
+  "ea1af7b74d8e3c9c3bb6bc0f2b403eef1280d604": [
+   "artifacts/anchor_confirmation/plan_select_ancS2_v3.txt"
+  ],
+  "ea6fb5725861e51b1113e0573669f9061ef60fcc": [
+   "artifacts/semantic_detail_multidataset/p0/cifar10_ABC_K128L4_p0.json"
+  ],
+  "eaf28523043901761d5cc48ae47ad20b36284371": [
+   "artifacts/semantic_detail_heldout/codon_decoding/flickr_AB_raw.json"
+  ],
+  "eb3aad825c61b8580276b7dff94a647b0cbde201": [
+   "artifacts/anchor_confirmation/refit_v9/r_run_request_r7/carried_admission_preview.py"
+  ],
+  "eb5ecf5bd3cf75b8c13e1d1b3cb6226f94e5d6a9": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r3/suitepair/suite_unguarded_tail.txt"
+  ],
+  "eb970e5c351d0a3f58df2f2bbcd2010d515cdc45": [
+   "artifacts/anchor_confirmation/plan_select_ancS2_v2.txt"
+  ],
+  "ec0ef7818c4d7d6c66d57e731e7d0a8d9d6e0edc": [
+   "artifacts/anchor_confirmation/mutation_v3/mutation_v5_frozen.py"
+  ],
+  "ed05584a17c41e10185b16c822d7f6bdbefbec22": [
+   "artifacts/anchor_confirmation/refit_v9/prep_manifest_v9r6/summary.json"
+  ],
+  "ed955a75bf42cf6e01046a028b33795a959a2d58": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4_report_outputs/N14_reducer_re_verifies_its_generation_before_publishing.txt"
+  ],
+  "edc57fbbae88579bf459969f19723ac2b68335cd": [
+   "artifacts/anchor_confirmation/ancL8_flickr_A_v4_N4_s42_AXanchors_LW030_P06095_JD002.json"
+  ],
+  "ee103707cd71bd38dfcbc0fe0da46ebcab7a1b3a": [
+   "artifacts/anchor_confirmation/ancP7_probe_sources.json"
+  ],
+  "ee1ef0e1a71484b908f54f042f0acab9df0d8f94": [
+   "artifacts/anchor_confirmation/refit_v9/t_run_request_r7/t_run_request.json"
+  ],
+  "ee93e41d299cd692b862226dd6df04e9af379a7a": [
+   "artifacts/anchor_confirmation/ancD7_sweep_complete.json"
+  ],
+  "ef65681ed0e285e75652a21f5a3efe3ea6f159dd": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4b_report.json"
+  ],
+  "ef91bddd67f9b91d8a2af514f54885f62accea85": [
+   "artifacts/anchor_confirmation/refit_v9/t_smoke_ancTsmk9/free_space_after.txt"
+  ],
+  "efb5d94fc64178a9c7cd31ea8abc5ded62d9f462": [
+   "artifacts/anchor_confirmation/ancT9_entry_ancR9_mscoco_A_v5b_refit_N39_s44_AXanchors_P06095_JD003.json"
+  ],
+  "efc8ac8a15e94584fb2333c00e4c0911744c666a": [
+   "artifacts/phase3_selection/phase3sel_nuswide_A_v4_N9_s42.json"
+  ],
+  "f08e851a9718308d3b03c6f8b9cb16032be153e4": [
+   "artifacts/anchor_confirmation/refit_v9/r_run_request_r7/guard_render/children.jsonl"
+  ],
+  "f14c264f027662ab9eb93c2353fce4873d3f88d6": [
+   "artifacts/semantic_detail_heldout/codon_decoding/flickr_AB_bio.json"
+  ],
+  "f1a1d801c3bde50e64df5125cb40b73b7d90b19b": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/plan_attempt1_guard_lost_at_exec/request_preview_ancLsmk8_v8r2_smoke_carried.txt"
+  ],
+  "f1e3af8a14535228f666a57345a5635ae6a33e6b": [
+   "dataset/NUSWIDE/setting1/database.txt"
+  ],
+  "f27476ad1bfb3798d9ee694744686327f6ad1b25": [
+   "artifacts/anchor_confirmation/lambda_v8/r3_evidence/suite_pair2/head_clean.json"
+  ],
+  "f2c4211a1362ee34e51dc3b5d686b07fe53ae0b4": [
+   "artifacts/anchor_confirmation/refit_v9/prep_manifest_v9r4/summary.json"
+  ],
+  "f2d34497332df6cb7667815a432007c0562622a7": [
+   "artifacts/anchor_confirmation/refit_v9/r5_evidence/renders/r_smoke_full.out"
+  ],
+  "f2e47fc3c0bc76fd13807ec58e0437a4316a7c86": [
+   "artifacts/anchor_confirmation/ancD7_mscoco_A_v5b_N39_s44_AXanchors_P06095_JD003.json"
+  ],
+  "f4312269739fe7945fb8c068933f13a8f5bc6cfd": [
+   "artifacts/anchor_confirmation/refit_v9/attempt1_bdaba58/suitepair/verdict.json"
+  ],
+  "f4590fcac83bfb406c07e5a1b939e6aa10917c48": [
+   "artifacts/semantic_detail_multidataset/p0/mscoco_ABC_K128L4_p0.json"
+  ],
+  "f49c8194c56c5bce90d014708c18d9323548592e": [
+   "artifacts/semantic_detail_multidataset/mscoco.foils.jsonl"
+  ],
+  "f4a5912f9993234f45265dd0771e9e82690140fb": [
+   "artifacts/anchor_confirmation/ancT9_entry_ancR9_nuswide_A_v4_refit_N4_s43_AXanchors_P0408_JD005.json"
+  ],
+  "f4ac80a48d59e969b22310f3f6da35c875905baf": [
+   "artifacts/anchor_confirmation/mutation_v2/anchor_mut_v4b_report_outputs/L5_execution_needs_the_manifest.txt"
+  ],
+  "f4d898d14cbed7abf3d87ab96164bec2d0bc2ac9": [
+   "artifacts/anchor_confirmation/ancT9_ancR9_flickr_A_v4_refit_N4_s43_AXanchors_P06095_JD002.json"
+  ],
+  "f4dcc9a05e51c5b0192866147642347cf7d69243": [
+   "dataset/CUB_200/attributes/certainties.txt"
+  ],
+  "f4f0e007c7aa0a1744fd0bc44ed2b564f6c13c93": [
+   "artifacts/anchor_confirmation/ancT9_attempt_ancR9_flickr_A_v4_refit_N4_s43_AXanchors_P06095_JD002.json"
+  ],
+  "f4f4506afd7d56d4a3937ecc984633d2ad3527ee": [
+   "artifacts/anchor_confirmation/refit_v9/r7_evidence/renders/r_smoke_full/children.jsonl"
+  ],
+  "f654b3d767a4621779eaf574152e675a87f4ff7b": [
+   "artifacts/anchor_confirmation/refit_v9/r5_evidence/battery13e/console.status"
+  ],
+  "f80af0ba8b0c0341065d214d11cba5b2a112f297": [
+   "artifacts/anchor_confirmation/ancP7_probes/flickr25k_anchors_N4_s42.json"
+  ],
+  "f8c820ae7fd21905225d74894ecb5b7c8f0ee83a": [
+   "artifacts/anchor_confirmation/refit_v9/r7_evidence/battery13g/console.status"
+  ],
+  "f8fdd9c61e850bdbf6e29307012fd1b436eb6485": [
+   "artifacts/anchor_confirmation/ancL8_lambda_sources.json"
+  ],
+  "f9286884b4ec3b49ac3f8d4f2dfe8118e156b006": [
+   "artifacts/anchor_confirmation/refit_v9/r6_evidence/renders/r_run_full_request.json"
+  ],
+  "f98ed85ef36557849b2670290af20ebf227e7600": [
+   "artifacts/anchor_confirmation/ancT9_ancR9_mscoco_A_v5b_refit_N39_s44_AXanchors_P06095_JD003.json"
+  ],
+  "fa21319f40853e49a9117c819b8e738681f13bd7": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/prep_guard/prep2_plan_run_carried/children.jsonl"
+  ],
+  "fa33736912dbc688c3bb16118e495ec83fb5494c": [
+   "artifacts/anchor_confirmation/ancS7_reduction/command.txt"
+  ],
+  "fa34a21141372dd30269f3a7eb69fd0eac2ee505": [
+   "artifacts/anchor_confirmation/refit_v9/r_run_request_r7/r_run.out"
+  ],
+  "fa68e1b92901a132e48b2371455a5fcd1e932011": [
+   "artifacts/anchor_confirmation/refit_v9/t_smoke_ancTsmk9/tmux_ancTsmk9_v9r7.cmd"
+  ],
+  "fabcf4fdba0730fb13d86fc5262a3319ece3e87d": [
+   "artifacts/anchor_confirmation/refit_v9/r5_smoke_ancRsmk9/tmux_ancRsmk9_v9.cmd"
+  ],
+  "fc192f67a266c327607e75db6183ada4777cd4f9": [
+   "artifacts/semantic_detail_heldout/codon_decoding/flickr_ABC_bio.json"
+  ],
+  "fc5a9f7c8f5caa65fb4c6d402ec0f395cf5335ff": [
+   "artifacts/semantic_detail_heldout/minimal_pair/cifar10.pairs.jsonl"
+  ],
+  "fc9a89212f0df6cb4347507db684f31bb52dd78a": [
+   "artifacts/anchor_confirmation/refit_v9/suite_pair_v3.sh"
+  ],
+  "fdb932e48c075e87674cebed20b352d63e0a6377": [
+   "artifacts/anchor_confirmation/refit_v9/t_run_request_r7/t_run.out"
+  ],
+  "fdcf051aaf517238df02c34996d4a4531b83932d": [
+   "artifacts/anchor_confirmation/ancS7_nuswide_A_v4_N19_s42_AXanchors_P0408_JD005.json"
+  ],
+  "fe29325d26c6f5ad6cd61adebc7166c9cb0632fa": [
+   "artifacts/anchor_confirmation/refit_v9/prep_manifest_v9r3/opened.jsonl"
+  ],
+  "fe53008ea2f5e8b692e24a7256f7be0de09867ed": [
+   "artifacts/anchor_confirmation/lambda_v8/r2_evidence/prep_guard/prep2_plan_run_carried/summary.json"
+  ],
+  "feba5dd8e9e09eb11f86c44e94e195c6f7af3024": [
+   "artifacts/anchor_confirmation/lambda_v8/r3_evidence/suite_pair2/unguarded_summary.txt"
+  ],
+  "ff788e827a565f89c81c0d24cc4bc9668240bc46": [
+   "artifacts/umrch_nuswide_embeddings.npy"
+  ],
+  "ffa6fb561e729d7fd9ed030f6bd699058f446448": [
+   "artifacts/anchor_confirmation/refit_v9/interim_r3/renders/r_smoke_full/opened.jsonl"
+  ]
+ },
+ "gitdir": "/home/yschoi/GroundedDNA/.git/worktrees/sandbox",
+ "head": "3fd0117ae06642283f4ee185f073dd37800a6a70",
+ "objects_kept": 1536,
+ "replica": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/battery14_3fd0117/guard/55/worktree_gitdir",
+ "store": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/battery14_3fd0117/guard/55/store.git"
+}

@@ -1,0 +1,15 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________ test_composed_a_stopped_campaign_with_a_receipt_refuses ____________
+
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7efe56e12710>
+
+    def test_composed_a_stopped_campaign_with_a_receipt_refuses(world):
+        write(world.hist / f"{NS}_test_complete.json", {})
+>       with pytest.raises(CellRefused, match="has a receipt"):
+E       Failed: DID NOT RAISE CellRefused
+
+tests/test_anchor_t_recovery.py:287: Failed
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_a_stopped_campaign_with_a_receipt_refuses
+1 failed in 5.50s

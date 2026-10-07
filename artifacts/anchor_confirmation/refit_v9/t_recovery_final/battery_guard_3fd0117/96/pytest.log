@@ -1,0 +1,23 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_composed_a_new_record_off_its_outputs_publishes_no_receipt ________
+
+campaign = namespace(state={'commands': ['anchor_terminal_test.py', 'extract_train_split.py', 'eval_cell_bioproj.py', 'pairwise_n...unction campaign.<locals>.run at 0x7f077e4aacb0>, world=<test_anchor_t_recovery.StoppedWorld object at 0x7f0bc4b49990>)
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7f0bc4b49990>
+
+    def test_composed_a_new_record_off_its_outputs_publishes_no_receipt(campaign, world):
+        _, digest = campaign.plan()
+        campaign.state["forge_new_completion"] = True
+>       assert campaign.run(*campaign.approve(digest)) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = <function campaign.<locals>.run at 0x7f077e4aacb0>(*['--anchor-approval-section', '800'])
+E        +    where <function campaign.<locals>.run at 0x7f077e4aacb0> = namespace(state={'commands': ['anchor_terminal_test.py', 'extract_train_split.py', 'eval_cell_bioproj.py', 'pairwise_n...unction campaign.<locals>.run at 0x7f077e4aacb0>, world=<test_anchor_t_recovery.StoppedWorld object at 0x7f0bc4b49990>).run
+E        +    and   ['--anchor-approval-section', '800'] = <function campaign.<locals>.approve at 0x7f077e4ab910>('2ed4526cc8902802b7ec57c4f3ead5006a4c9c21f844bc2b6ce3adc36302e705')
+E        +      where <function campaign.<locals>.approve at 0x7f077e4ab910> = namespace(state={'commands': ['anchor_terminal_test.py', 'extract_train_split.py', 'eval_cell_bioproj.py', 'pairwise_n...unction campaign.<locals>.run at 0x7f077e4aacb0>, world=<test_anchor_t_recovery.StoppedWorld object at 0x7f0bc4b49990>).approve
+
+tests/test_anchor_t_recovery.py:1113: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[anchor-T] recovery complete: 1 executed + 11 carried stage-T cells
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_a_new_record_off_its_outputs_publishes_no_receipt
+1 failed in 6.10s

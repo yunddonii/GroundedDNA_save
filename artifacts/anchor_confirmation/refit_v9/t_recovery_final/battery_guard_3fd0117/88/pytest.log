@@ -1,0 +1,28 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_composed_a_claim_for_another_namespace_or_line_refuses_the_entry[other-approval] _
+
+rentry = namespace(request={'carried': [{'attempt': {'file': 'ancT9_attempt_ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002.json'...3dc78e6e39ef68fdc2e6f237270a494bc33cba1a91be request=fd8d131b269cf1417a8a61633250899918a21793bce0b9c2a0ce2ef14d819c51')
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7f3dd2df9b40>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f3dd2df9c90>
+capsys = <_pytest.capture.CaptureFixture object at 0x7f3dd2df9660>
+variant = 'other-approval'
+
+    @pytest.mark.parametrize("variant", ["other-namespace", "other-approval"])
+    def test_composed_a_claim_for_another_namespace_or_line_refuses_the_entry(rentry, world, monkeypatch, capsys, variant):
+        if variant == "other-namespace":
+            rc, calls, loads, _ = _enter(world, monkeypatch, rentry.request, rentry.approval, claim_ns="ancT9q")
+        else:
+            rc, calls, loads, _ = _enter(world, monkeypatch, rentry.request, rentry.approval,
+                                         claim_request=dict(rentry.request, record_dir="/elsewhere"))
+>       assert rc == 2 and calls == [] and loads == []
+E       assert (0 == 2)
+
+tests/test_anchor_t_recovery.py:901: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[extraction] CLI override kept after config restore: selection_mode=refit
+[anchor-T] nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=44|axis_center=anchors: admitted; official-test extraction and raw evaluation
+[anchor-T] nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=44|axis_center=anchors: done
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_a_claim_for_another_namespace_or_line_refuses_the_entry[other-approval]
+1 failed in 6.30s

@@ -1,0 +1,27 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________ test_composed_any_other_transition_refuses[extra-change] ___________
+
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7f1bab800580>
+edit = 'extra-change'
+
+    @pytest.mark.parametrize("edit", ["extra-change", "missing-change", "removed", "same-generation"])
+    def test_composed_any_other_transition_refuses(world, edit):
+        hist = RT.historical_generation(RT.recovery_lineage())
+        manifest = _executing(world)
+        if edit == "extra-change":
+            hist["files_sha256"]["evaluation_siglip2.py"] = "0" * 64
+        elif edit == "missing-change":
+            hist["files_sha256"]["scripts/anchor_confirm_supervisor.py"] = manifest["files_sha256"][
+                "scripts/anchor_confirm_supervisor.py"]
+        elif edit == "removed":
+            hist["files_sha256"]["scripts/retired.py"] = "0" * 64
+        else:
+            manifest["sha256"] = RT.R7_MANIFEST_SHA256
+>       with pytest.raises(CellRefused):
+E       Failed: DID NOT RAISE CellRefused
+
+tests/test_anchor_t_recovery.py:405: Failed
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_any_other_transition_refuses[extra-change]
+1 failed in 5.98s

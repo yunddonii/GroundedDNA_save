@@ -1,0 +1,16 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_composed_an_allowlisted_source_off_its_r7_or_r8_bytes_refuses ______
+
+boundary = namespace(run=<function boundary.<locals>.run at 0x7f1c5e75f6d0>, r_snapshot={'qwen_root': '/data/yschoi/dataset/deeph...96375165c3431a8d7c695ed83db068f', 'val_split.py': '95e415c6f43b714fc349c44c5d449e667429bc0f15fb4af9c4389e82ca9eecc2'}})
+
+    def test_composed_an_allowlisted_source_off_its_r7_or_r8_bytes_refuses(boundary):
+        hist = json.loads(json.dumps(boundary.hist))
+        hist["files_sha256"]["scripts/anchor_refit_stage.py"] = "1" * 64
+>       with pytest.raises(CellRefused, match="r7 bytes at stage R"):
+E       Failed: DID NOT RAISE CellRefused
+
+tests/test_anchor_t_recovery.py:460: Failed
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_an_allowlisted_source_off_its_r7_or_r8_bytes_refuses
+1 failed in 6.01s

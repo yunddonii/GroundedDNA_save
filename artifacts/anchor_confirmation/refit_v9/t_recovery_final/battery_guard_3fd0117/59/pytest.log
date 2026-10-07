@@ -1,0 +1,25 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_composed_membership_is_exactly_the_twelve_minus_the_recovered_cell[missing-carried] _
+
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7f1b5f416bc0>
+mutate = <function _drop_one_carried at 0x7f1b5f3e64d0>
+reason = 'twelve minus the recovered one'
+
+    @pytest.mark.parametrize("mutate,reason", [
+        (_drop_one_carried, "twelve minus the recovered one"),
+        (_carry_the_recovered_cell_too, "twelve minus the recovered one"),
+        (_foreign_cell, "twelve minus the recovered one"),
+        (_carried_tag_of_another_cell, "another cell tag"),
+    ], ids=["missing-carried", "duplicate-recovered", "foreign-seed", "crossed-tag"])
+    def test_composed_membership_is_exactly_the_twelve_minus_the_recovered_cell(world, mutate, reason):
+        world.relineage(mutate)
+>       with pytest.raises(CellRefused, match=reason):
+E       AssertionError: Regex pattern did not match.
+E         Expected regex: 'twelve minus the recovered one'
+E         Actual message: "/tmp/basetemp/test_composed_membership_is_ex0/w/rt/result/ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002: a stage-R run holds official-test outputs ['analysis_complete.json', 'cell_result.json', 'evaluation_siglip2_base.json', 'evaluation_siglip2_base_bioproj.json', 'extract_db.npz', 'extract_query.npz', 'extract_train.npz', 'extraction_complete.json', 'extraction_manifest_db.json', 'extraction_manifest_query.json', 'extraction_manifest_train.json', 'pairwise_nmi.json']; stage R never reaches the official test"
+
+tests/test_anchor_t_recovery.py:262: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_membership_is_exactly_the_twelve_minus_the_recovered_cell[missing-carried]
+1 failed in 6.27s

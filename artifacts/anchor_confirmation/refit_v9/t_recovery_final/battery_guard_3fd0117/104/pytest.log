@@ -1,0 +1,327 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+______ test_composed_the_request_is_one_gpu_and_a_new_namespace[two-gpus] ______
+
+campaign = namespace(state={'commands': [], 'events': [], 'fail_at': None, 'drift_at': None, 'checks': 0, 'during': None, 'mp': <...unction campaign.<locals>.run at 0x7f1d4a212c20>, world=<test_anchor_t_recovery.StoppedWorld object at 0x7f1d4a29fa30>)
+capsys = <_pytest.capture.CaptureFixture object at 0x7f1d4a29e230>, gpus = '2,3'
+ns = 'ancT9r', reason = 'exactly one GPU'
+
+    @pytest.mark.parametrize("gpus,ns,reason", [("2,3", NEW_NS, "exactly one GPU"), ("3", NS, "new namespace")],
+                             ids=["two-gpus", "stopped-namespace"])
+    def test_composed_the_request_is_one_gpu_and_a_new_namespace(campaign, capsys, gpus, ns, reason):
+>       assert campaign.run("--plan", ns=ns, gpus=gpus) == 2
+E       AssertionError: assert 0 == 2
+E        +  where 0 = <function campaign.<locals>.run at 0x7f1d4a212c20>('--plan', ns='ancT9r', gpus='2,3')
+E        +    where <function campaign.<locals>.run at 0x7f1d4a212c20> = namespace(state={'commands': [], 'events': [], 'fail_at': None, 'drift_at': None, 'checks': 0, 'during': None, 'mp': <...unction campaign.<locals>.run at 0x7f1d4a212c20>, world=<test_anchor_t_recovery.StoppedWorld object at 0x7f1d4a29fa30>).run
+
+tests/test_anchor_t_recovery.py:587: AssertionError
+----------------------------- Captured stdout call -----------------------------
+anchor-confirm/2: stage-T recovery of nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=44|axis_center=anchors (11 cells carried), namespace ancT9r  [NON-EXECUTABLE until audit approval]
+execution request that this command without --plan would need approved:
+{
+ "carried": [
+  {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002.json",
+    "sha256": "c0512701fb73693aa50d1d951570a7be7452aed67af78400b9600c0c015b2631"
+   },
+   "cell_id": "cifar10|N=4|P=0.3,0.7|JD=0.02|stage=refit|seed=42|axis_center=anchors",
+   "entry": {
+    "file": "ancT9_entry_ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002.json",
+    "sha256": "9dd7522fa723815751908dffd5b7d49e706864a4744bbe2f200cb719d4e4789d"
+   },
+   "record": {
+    "file": "ancT9_ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002.json",
+    "sha256": "2ca016089302d8c4a5d18f25930ffdb0744026844cf108317e747baaeecb2433"
+   }
+  },
+  {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_cifar_A_v4_refit_N4_s43_AXanchors_JD002.json",
+    "sha256": "f4abdba2185f43e6db32a50c82eb482dd943646280d6ee39a01692bfae03ac39"
+   },
+   "cell_id": "cifar10|N=4|P=0.3,0.7|JD=0.02|stage=refit|seed=43|axis_center=anchors",
+   "entry": {
+    "file": "ancT9_entry_ancR9_cifar_A_v4_refit_N4_s43_AXanchors_JD002.json",
+    "sha256": "18499e97c0fe31cf95de3aed96aacf4e45fe96b86daf18dab18f9df71ebf3e29"
+   },
+   "record": {
+    "file": "ancT9_ancR9_cifar_A_v4_refit_N4_s43_AXanchors_JD002.json",
+    "sha256": "7a7bc11b96898fef4069bc2179b08dd61128fdc69c30bea58d1d7bbf02fae813"
+   }
+  },
+  {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_cifar_A_v4_refit_N4_s44_AXanchors_JD002.json",
+    "sha256": "cf4f2cac27b8b3d06ab40571f8cd2f82f17edb20edbdcab70b5a045969446cca"
+   },
+   "cell_id": "cifar10|N=4|P=0.3,0.7|JD=0.02|stage=refit|seed=44|axis_center=anchors",
+   "entry": {
+    "file": "ancT9_entry_ancR9_cifar_A_v4_refit_N4_s44_AXanchors_JD002.json",
+    "sha256": "c1d69821ebaaf956cd6fbd1511cb528d0918510e42ed9fb942f155e8b2ae2db5"
+   },
+   "record": {
+    "file": "ancT9_ancR9_cifar_A_v4_refit_N4_s44_AXanchors_JD002.json",
+    "sha256": "bba2d988fcb99ebd93f7b60209795c31ac0c231e3f4d90b6ffd6e129eabbaada"
+   }
+  },
+  {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002.json",
+    "sha256": "58f9e43fc75fb74056be97ad51b5ae7d6bc8f706fcce203d0822001a7ea03bca"
+   },
+   "cell_id": "flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=refit|seed=42|axis_center=anchors",
+   "entry": {
+    "file": "ancT9_entry_ancR9_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002.json",
+    "sha256": "e6cb9b6d0655338a9067a967975a8ad4052bb8831c1733e19157949b5846f50f"
+   },
+   "record": {
+    "file": "ancT9_ancR9_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002.json",
+    "sha256": "a25a82e695604a127d7527b04e8a1d9f6cc7109b7ea20b9b953af60485683b1a"
+   }
+  },
+  {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_flickr_A_v4_refit_N4_s43_AXanchors_P06095_JD002.json",
+    "sha256": "5d01cdfc0a4a399d6ad0b5924549473aacb425862c4027fe500b978830ed6fb5"
+   },
+   "cell_id": "flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=refit|seed=43|axis_center=anchors",
+   "entry": {
+    "file": "ancT9_entry_ancR9_flickr_A_v4_refit_N4_s43_AXanchors_P06095_JD002.json",
+    "sha256": "5f29f08261b62094bb505068d62334993a33301a489d712836c15595226fcec2"
+   },
+   "record": {
+    "file": "ancT9_ancR9_flickr_A_v4_refit_N4_s43_AXanchors_P06095_JD002.json",
+    "sha256": "a1a55326258ce9e1f8bcb17cef285e1324c1bba5f1d170596776fe2f40373965"
+   }
+  },
+  {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_flickr_A_v4_refit_N4_s44_AXanchors_P06095_JD002.json",
+    "sha256": "43cbb9f26ce631c61027465ae68a4e52663d4ba2cc241d32c1ce656950d23cd7"
+   },
+   "cell_id": "flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=refit|seed=44|axis_center=anchors",
+   "entry": {
+    "file": "ancT9_entry_ancR9_flickr_A_v4_refit_N4_s44_AXanchors_P06095_JD002.json",
+    "sha256": "24f6225952dbd085e7ef4a811d8f62263a1f2f4700b42d0ba60011dfff02b220"
+   },
+   "record": {
+    "file": "ancT9_ancR9_flickr_A_v4_refit_N4_s44_AXanchors_P06095_JD002.json",
+    "sha256": "8a4c3153cf1fd3aebae089d5cd042820bdc5b0b16dee8ccacec2806f745944d0"
+   }
+  },
+  {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_mscoco_A_v5b_refit_N39_s42_AXanchors_P06095_JD003.json",
+    "sha256": "b624afc1f25c8e01544418dfaf9f9cc53659349517243c4e1a7db8bccdc8b616"
+   },
+   "cell_id": "mscoco|N=39|P=0.6,0.95|JD=0.03|stage=refit|seed=42|axis_center=anchors",
+   "entry": {
+    "file": "ancT9_entry_ancR9_mscoco_A_v5b_refit_N39_s42_AXanchors_P06095_JD003.json",
+    "sha256": "e65307c2da9c3801297d9df636df1c444134ba1ece35707e144560982da9f659"
+   },
+   "record": {
+    "file": "ancT9_ancR9_mscoco_A_v5b_refit_N39_s42_AXanchors_P06095_JD003.json",
+    "sha256": "7e8306e7dab93a00981e7215b2d26c55e66cc76cd6b6c66b4b6de2d9c002cbf6"
+   }
+  },
+  {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_mscoco_A_v5b_refit_N39_s43_AXanchors_P06095_JD003.json",
+    "sha256": "39ba61d27e6d196c5791dfb7bb542e10b58e48cfb64dc2aaf197d5c50a7993b4"
+   },
+   "cell_id": "mscoco|N=39|P=0.6,0.95|JD=0.03|stage=refit|seed=43|axis_center=anchors",
+   "entry": {
+    "file": "ancT9_entry_ancR9_mscoco_A_v5b_refit_N39_s43_AXanchors_P06095_JD003.json",
+    "sha256": "1496a93a1425b7e491bf4ebbe570f29f4e8ec13b34d659b05ff1c3e5c780230f"
+   },
+   "record": {
+    "file": "ancT9_ancR9_mscoco_A_v5b_refit_N39_s43_AXanchors_P06095_JD003.json",
+    "sha256": "640be0959ecc1197fba49a7d55913a5129617e11541b140b173fc34804c50d5a"
+   }
+  },
+  {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_mscoco_A_v5b_refit_N39_s44_AXanchors_P06095_JD003.json",
+    "sha256": "ba1ef8873f3e3045de3df523cdb79842488216974cb579ea5399c374672a1e2c"
+   },
+   "cell_id": "mscoco|N=39|P=0.6,0.95|JD=0.03|stage=refit|seed=44|axis_center=anchors",
+   "entry": {
+    "file": "ancT9_entry_ancR9_mscoco_A_v5b_refit_N39_s44_AXanchors_P06095_JD003.json",
+    "sha256": "0565567d1f51c3b77fef0ea8d3d31e9b1093f64542ab5676741eca07931b72fc"
+   },
+   "record": {
+    "file": "ancT9_ancR9_mscoco_A_v5b_refit_N39_s44_AXanchors_P06095_JD003.json",
+    "sha256": "c0332343a57c8ef44486c915cf7a1c196c2a717523845280bb729221438c438c"
+   }
+  },
+  {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_nuswide_A_v4_refit_N4_s42_AXanchors_P0408_JD005.json",
+    "sha256": "85a9e374045c2bd971645f9dc762be4dc5f2d9535895128051174ffd81bb2091"
+   },
+   "cell_id": "nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=42|axis_center=anchors",
+   "entry": {
+    "file": "ancT9_entry_ancR9_nuswide_A_v4_refit_N4_s42_AXanchors_P0408_JD005.json",
+    "sha256": "2b0393448c0cfab629cae7b1f8991a249392169aa8233c2d8557be2576acff3d"
+   },
+   "record": {
+    "file": "ancT9_ancR9_nuswide_A_v4_refit_N4_s42_AXanchors_P0408_JD005.json",
+    "sha256": "838219728ab521255a9cc2b5d5f8ca104eab191fa12c92407943f97f0a3beb09"
+   }
+  },
+  {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_nuswide_A_v4_refit_N4_s43_AXanchors_P0408_JD005.json",
+    "sha256": "d0ae9e03800bcf02fe0b8558c83b61e43a21fba56bacf45a02035cae519e2aa1"
+   },
+   "cell_id": "nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=43|axis_center=anchors",
+   "entry": {
+    "file": "ancT9_entry_ancR9_nuswide_A_v4_refit_N4_s43_AXanchors_P0408_JD005.json",
+    "sha256": "17dca01b1d44703ce305cc96daf0a1e19b5cbbf31512f1d8cd75a827c7c6e02d"
+   },
+   "record": {
+    "file": "ancT9_ancR9_nuswide_A_v4_refit_N4_s43_AXanchors_P0408_JD005.json",
+    "sha256": "36e5e8e7a91a334ac6b585e3e66238ee90c93940cd7dc3339c2e49e866a74f46"
+   }
+  }
+ ],
+ "cells": [
+  {
+   "N": 4,
+   "cell_id": "nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=44|axis_center=anchors",
+   "checkpoint_runtime_sha256": "b4a72dfa9b7a08ca3d6dfae7eeacf3a5412c675e7624557cf67ac4cf859796fe",
+   "config_pt_sha256": "4ac4c0a6bd58e54fadc20daf017a677b978ef0f2e55b7bcf372f6e3e4c1fe5ce",
+   "dataset": "nuswide",
+   "final_checkpoint": "model_state_dict.pth",
+   "final_checkpoint_sha256": "1c91897c2b5042462d150b1bbde75cf7aa7e4def37d56bfac9dc95fcfb8f36b1",
+   "phase3_campaign_evidence_sha256": "b5d0e94810855151f771b2bdcb44015aed1b60853fbc46ec47ce54a6b1aef66c",
+   "record": "/tmp/basetemp/test_composed_the_request_is_o0/w/rt/records/ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005.json",
+   "record_sha256": "d125f44adf7a1fc01785ed98a26ac030716f059f35e438983692e996b7db9d05",
+   "run_dir": "/tmp/basetemp/test_composed_the_request_is_o0/w/rt/result/ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005",
+   "scientific_recipe_sha256": "eccbe99e75397da8c0bc3fedf054669b19f4300df4b050f04e561a7af669f4af",
+   "seed": 44,
+   "tag": "ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005",
+   "terminal_epoch": 4
+  }
+ ],
+ "chain": [
+  "scripts/anchor_terminal_test.py: extraction_siglip2.extract_code (query, db) + evaluation_siglip2.evaluation (raw, bio_project=False)",
+  "scripts/extract_train_split.py",
+  "scripts/eval_cell_bioproj.py --require-train",
+  "scripts/pairwise_nmi.py --require-train",
+  "scripts/seal_cell_analysis.py --require-train"
+ ],
+ "claim_key": "34722eabfc2cfa6e578fd4b010e5ea286e6c0fc8805cef2868898f18f375052d",
+ "claim_root": "/tmp/basetemp/test_composed_the_request_is_o0/claims",
+ "freeze": {
+  "acceptance_section": 744,
+  "acceptance_sha256": "d9f68f3b66c664f9b337e7c5da0488f8d6ee7e307d7518f93ffe8a3184ce8a5b",
+  "path": "/tmp/basetemp/test_composed_the_request_is_o0/f/ancF_candidate_v1.json",
+  "sha256": "c714b84dfe08fa2bb4b24244904d7220275904c249cdb14b9df7457e7658ce6b"
+ },
+ "gpu_count": 1,
+ "historical_manifest": {
+  "path": "/tmp/basetemp/test_composed_the_request_is_o0/w/authority_manifest_v9r7.json",
+  "sha256": "3226a8de88df21facb1b90b65bb9f17891f6ec22c5f4ea52f162c0cccad796f9"
+ },
+ "lineage": {
+  "path": "/tmp/basetemp/test_composed_the_request_is_o0/w/lineage.json",
+  "sha256": "447188a63051ef20d64e19127659792a542f42d671ca7afc59d92d22ee57cebd"
+ },
+ "manifest": "4f010073d74afb2d5b99d7bc353c58a12c06b343d43d76ccd44800c0e19c9b27",
+ "manifest_path": "/tmp/basetemp/test_composed_the_request_is_o0/manifest.json",
+ "mode": "recovery",
+ "namespace": "ancT9r",
+ "outputs": [
+  "extract_query.npz",
+  "extract_db.npz",
+  "extract_train.npz",
+  "extraction_manifest_query.json",
+  "extraction_manifest_db.json",
+  "extraction_manifest_train.json",
+  "extraction_complete.json",
+  "evaluation_siglip2_base.json",
+  "evaluation_siglip2_base_bioproj.json",
+  "evaluation_siglip2_bit2.json",
+  "analysis_complete.json",
+  "cell_result.json",
+  "pairwise_nmi.json"
+ ],
+ "record_dir": "/tmp/basetemp/test_composed_the_request_is_o0/w/r8records",
+ "recovery_of": {
+  "attempt": {
+   "file": "ancT9_attempt_ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005.json",
+   "sha256": "5a83247beb9f100ea94bc98696b72cdec83191a3d20abc8fc7c2707fc919fb89"
+  },
+  "cell_id": "nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=44|axis_center=anchors",
+  "entry": {
+   "file": "ancT9_entry_ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005.json",
+   "sha256": "2c2432521083b25ba2fa2e9b80d6167d287d99c1f101062cb60e347d67a06e38"
+  }
+ },
+ "refit_approval": {
+  "line": "ANCHOR-CONFIRM-APPROVAL version=anchor-confirm/2 scope=stage-R-run manifest=3226a8de88df21facb1b90b65bb9f17891f6ec22c5f4ea52f162c0cccad796f9 freeze=c714b84dfe08fa2bb4b24244904d7220275904c249cdb14b9df7457e7658ce6b request=c79e2f0bfa68834d813c4a3820e9efe5639b9c50bb23e1280c146ab91a72c8ae",
+  "scope": "stage-R-run",
+  "section": 760
+ },
+ "refit_epochs": null,
+ "refit_receipt": {
+  "path": "/tmp/basetemp/test_composed_the_request_is_o0/w/rt/records/ancR9_sweep_complete.json",
+  "sha256": "a6b57a313da55214c72c566cec6e9e860ed843c8bf93c4d4a9d3f868e44a41ee"
+ },
+ "schema": "anchor-terminal-test-recovery-request/1",
+ "source_transition": {
+  "added": [
+   "docs/ANCHOR_T_RECOVERY_CONTRACT_v1.md",
+   "tests/test_anchor_t_recovery.py"
+  ],
+  "changed": [
+   "scripts/anchor_confirm_manifest.py",
+   "scripts/anchor_confirm_supervisor.py",
+   "scripts/anchor_refit_stage.py",
+   "scripts/anchor_terminal_test.py",
+   "scripts/phase3_selection_matrix.py",
+   "tests/test_anchor_confirm_launcher.py",
+   "tests/test_anchor_refit_stage.py"
+  ],
+  "changed_sources": {
+   "scripts/anchor_refit_stage.py": "bdff87a110ae57be95743d244be49cf8feb20cec37270c52d38dab2d38ecc712",
+   "scripts/anchor_terminal_test.py": "99068bab4318c0cefd866102ab96a67d3a3aed4ec1123743d585e2e07d2bc3d1",
+   "scripts/phase3_selection_matrix.py": "d80924365656f5286ce834a89525c2cca8a77349b2d3b093e7ec33ea68222c9e"
+  },
+  "from": "3226a8de88df21facb1b90b65bb9f17891f6ec22c5f4ea52f162c0cccad796f9",
+  "to": "4f010073d74afb2d5b99d7bc353c58a12c06b343d43d76ccd44800c0e19c9b27"
+ },
+ "stage": "test",
+ "stopped": {
+  "approval": {
+   "line": "ANCHOR-CONFIRM-APPROVAL version=anchor-confirm/2 scope=stage-T-run manifest=3226a8de88df21facb1b90b65bb9f17891f6ec22c5f4ea52f162c0cccad796f9 freeze=c714b84dfe08fa2bb4b24244904d7220275904c249cdb14b9df7457e7658ce6b request=d1503afb3b7e808f8faab9920ce1096dc4fd6cb87e03952e6133ea70314f4f85",
+   "scope": "stage-T-run",
+   "section": 788
+  },
+  "namespace": "ancT9",
+  "request_sha256": "d1503afb3b7e808f8faab9920ce1096dc4fd6cb87e03952e6133ea70314f4f85",
+  "reservation": {
+   "file": "ancT9_campaign_reservation.json",
+   "sha256": "4a3f9f8e0aca47c6ea51fa075add39a6bc3d793b9915d88e6cd48763a74a4b11"
+  },
+  "settlement": {
+   "cumulative_charged_seconds": 79482.14623009507,
+   "final_line_sha256": "31e89aac150e61ad7c55b5aa5aa8a96ef317fe1280f0d837e94de4a0e91c9640",
+   "ledger": "/tmp/basetemp/test_composed_the_request_is_o0/w/ops/device_budget_ledger.jsonl",
+   "ledger_sha256": "42a956c29cc821312706f4111fec63dee7ec0597ea5330d30a54a7d229d445a8",
+   "run_id": "20261006T145139Z-b08e4ae2"
+  },
+  "snapshot": {
+   "file": "ancT9_snapshot_c5e9cee7db6686e8.json",
+   "semantic_sha256": "c5e9cee7db6686e80917350cc84c9052552062c7854774013b12a59bd2277149",
+   "sha256": "be9fe985a9860efe535243e28c4b9fbde96ecf083203e650fb90b7010c17864c"
+  }
+ },
+ "version": "anchor-confirm/2"
+}
+execution request sha256 324ea019e9ffc003affc9a8eff418c48f08daa1e9a4ddd2565ad47545e7a841b
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_the_request_is_one_gpu_and_a_new_namespace[two-gpus]
+1 failed in 6.02s

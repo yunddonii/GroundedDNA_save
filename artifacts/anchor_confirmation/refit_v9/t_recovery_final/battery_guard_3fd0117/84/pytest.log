@@ -1,0 +1,22 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_______ test_composed_an_entry_without_the_claim_refuses_before_any_load _______
+
+rentry = namespace(request={'carried': [{'attempt': {'file': 'ancT9_attempt_ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002.json'...4a1979d3b59812c53aae13f0cd6caec681f085a1b88a request=9cae3b47dfb9159c96884a318cf08017c188dda3e9b21303681aae29a1f2b854')
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7fc85bd355d0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc85bd34670>
+capsys = <_pytest.capture.CaptureFixture object at 0x7fc85bd35450>
+
+    def test_composed_an_entry_without_the_claim_refuses_before_any_load(rentry, world, monkeypatch, capsys):
+        rc, calls, loads, attempt = _enter(world, monkeypatch, rentry.request, rentry.approval, claim=False)
+>       assert rc == 2 and calls == [] and loads == [] and not TE.entry_claim_path(attempt).exists()
+E       assert (0 == 2)
+
+tests/test_anchor_t_recovery.py:890: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[extraction] CLI override kept after config restore: selection_mode=refit
+[anchor-T] nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=44|axis_center=anchors: admitted; official-test extraction and raw evaluation
+[anchor-T] nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=44|axis_center=anchors: done
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_an_entry_without_the_claim_refuses_before_any_load
+1 failed in 6.46s

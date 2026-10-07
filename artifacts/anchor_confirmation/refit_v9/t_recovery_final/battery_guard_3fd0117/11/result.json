@@ -1,0 +1,62 @@
+{
+ "probe": {
+  "absent": {
+   "/data/yschoi/dataset": true,
+   "/data/yschoi/gdna_anchor_refit_v9r6": true,
+   "/data/yschoi/groundeddna_cache_v6prov": true,
+   "/dev/nvidia0": true,
+   "/dev/nvidiactl": true,
+   "/home/yschoi/.cache": true,
+   "/home/yschoi/GroundedDNA/docs": true,
+   "/home/yschoi/gdna_anchorRT_ops": true,
+   "/home/yschoi/gdna_anchorRT_recovery_claims": true,
+   "/home/yschoi/gdna_anchorRT_result": true,
+   "/home/yschoi/gdna_anchorRTrec_ops": true
+  },
+  "module_identities": {
+   "scripts.anchor_confirm_manifest": {
+    "file": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/battery14_3fd0117/sandbox/scripts/anchor_confirm_manifest.py",
+    "inside_tree": true,
+    "sha256": "6bc597d385a5fb7ae8bfd2068ff9158468724605d0f777a737f2506ecaf1bbfd"
+   },
+   "scripts.anchor_confirm_supervisor": {
+    "file": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/battery14_3fd0117/sandbox/scripts/anchor_confirm_supervisor.py",
+    "inside_tree": true,
+    "sha256": "4732a99eaced36f655ff6fb3204580ef85036ea35a7ea13f85373bf4d72c0f6c"
+   },
+   "scripts.anchor_refit_stage": {
+    "file": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/battery14_3fd0117/sandbox/scripts/anchor_refit_stage.py",
+    "inside_tree": true,
+    "sha256": "3ddaa422f9dc333ace0e3a037429f577bde8914549aa10d927e08044727e8842"
+   },
+   "scripts.anchor_terminal_test": {
+    "file": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/battery14_3fd0117/sandbox/scripts/anchor_terminal_test.py",
+    "inside_tree": true,
+    "sha256": "99068bab4318c0cefd866102ab96a67d3a3aed4ec1123743d585e2e07d2bc3d1"
+   },
+   "scripts.phase3_selection_matrix": {
+    "file": "/tmp/claude-1003/-home-yschoi-GroundedDNA/dad53253-2628-45a2-849e-bb4f82a11b67/scratchpad/battery14_3fd0117/sandbox/scripts/phase3_selection_matrix.py",
+    "inside_tree": true,
+    "sha256": "d80924365656f5286ce834a89525c2cca8a77349b2d3b093e7ec33ea68222c9e"
+   }
+  },
+  "network": false,
+  "network_error": "OSError",
+  "nvidia_devices": [],
+  "tmp_is_private": "/tmp",
+  "tree_writable": false,
+  "tree_write_error": "OSError",
+  "visible_data_entries": [],
+  "visible_home_entries": [
+   ".conda",
+   "GroundedDNA"
+  ]
+ },
+ "pytest_rc": 0,
+ "runner_sha256": "a684299cde9c27bf7cd717a6d50bd3ce26e70fa9678596af710a5351f9a86732",
+ "summary": [
+  "1 passed in 6.27s"
+ ],
+ "tree_head": "3fd0117ae06642283f4ee185f073dd37800a6a70",
+ "tree_status_clean": true
+}

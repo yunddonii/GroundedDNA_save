@@ -1,0 +1,30 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_composed_drift_during_the_recovered_cell_publishes_no_combined_receipt[carried-binary] _
+
+campaign = namespace(state={'commands': ['anchor_terminal_test.py', 'extract_train_split.py', 'eval_cell_bioproj.py', 'pairwise_n...unction campaign.<locals>.run at 0x7fc1dd886cb0>, world=<test_anchor_t_recovery.StoppedWorld object at 0x7fc1dd9bdc00>)
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7fc1dd9bdc00>
+during = <function _edit_carried_binary at 0x7fc1dd8500d0>
+
+    @pytest.mark.parametrize("during", [_edit_carried_json, _edit_carried_binary, _remove_carried_output,
+                                        _add_carried_bit2, _edit_carried_record, _edit_carried_entry,
+                                        _append_settled_ledger, _edit_stopped_reservation, _edit_the_claim],
+                             ids=["carried-json", "carried-binary", "carried-missing", "carried-new-bit2",
+                                  "carried-record", "carried-entry", "settled-ledger", "stopped-reservation", "claim"])
+    def test_composed_drift_during_the_recovered_cell_publishes_no_combined_receipt(campaign, world, during):
+        """Audit 800: the final carry/lineage closure runs AFTER the new cell, immediately before publication."""
+        _, digest = campaign.plan()
+        campaign.state["during"] = during
+>       assert campaign.run(*campaign.approve(digest)) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = <function campaign.<locals>.run at 0x7fc1dd886cb0>(*['--anchor-approval-section', '800'])
+E        +    where <function campaign.<locals>.run at 0x7fc1dd886cb0> = namespace(state={'commands': ['anchor_terminal_test.py', 'extract_train_split.py', 'eval_cell_bioproj.py', 'pairwise_n...unction campaign.<locals>.run at 0x7fc1dd886cb0>, world=<test_anchor_t_recovery.StoppedWorld object at 0x7fc1dd9bdc00>).run
+E        +    and   ['--anchor-approval-section', '800'] = <function campaign.<locals>.approve at 0x7fc1dd887910>('f552222c0615ec8d1d076d5011f7c81d32741b3b3ebf94bc7066cf796d8204f3')
+E        +      where <function campaign.<locals>.approve at 0x7fc1dd887910> = namespace(state={'commands': ['anchor_terminal_test.py', 'extract_train_split.py', 'eval_cell_bioproj.py', 'pairwise_n...unction campaign.<locals>.run at 0x7fc1dd886cb0>, world=<test_anchor_t_recovery.StoppedWorld object at 0x7fc1dd9bdc00>).approve
+
+tests/test_anchor_t_recovery.py:767: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[anchor-T] recovery complete: 1 executed + 11 carried stage-T cells
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_drift_during_the_recovered_cell_publishes_no_combined_receipt[carried-binary]
+1 failed in 5.43s

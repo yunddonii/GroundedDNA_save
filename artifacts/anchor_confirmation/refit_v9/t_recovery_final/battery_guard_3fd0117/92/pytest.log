@@ -1,0 +1,25 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_composed_a_carried_payload_off_its_record_refuses_before_any_lease_or_claim _
+
+campaign = namespace(state={'commands': ['anchor_terminal_test.py', 'extract_train_split.py', 'eval_cell_bioproj.py', 'pairwise_n...unction campaign.<locals>.run at 0x7fbd4c896b90>, world=<test_anchor_t_recovery.StoppedWorld object at 0x7fbd4c95b8b0>)
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7fbd4c95b8b0>
+capsys = <_pytest.capture.CaptureFixture object at 0x7fbd4c959e40>
+
+    def test_composed_a_carried_payload_off_its_record_refuses_before_any_lease_or_claim(campaign, world, capsys):
+        _, digest = campaign.plan()
+        run = Path(world.cells[sorted(world.lineage["carried"])[3]]["run_dir"])
+        (run / "extract_db.npz").write_bytes(b"changed")
+>       assert campaign.run(*campaign.approve(digest)) == 2
+E       AssertionError: assert 1 == 2
+E        +  where 1 = <function campaign.<locals>.run at 0x7fbd4c896b90>(*['--anchor-approval-section', '800'])
+E        +    where <function campaign.<locals>.run at 0x7fbd4c896b90> = namespace(state={'commands': ['anchor_terminal_test.py', 'extract_train_split.py', 'eval_cell_bioproj.py', 'pairwise_n...unction campaign.<locals>.run at 0x7fbd4c896b90>, world=<test_anchor_t_recovery.StoppedWorld object at 0x7fbd4c95b8b0>).run
+E        +    and   ['--anchor-approval-section', '800'] = <function campaign.<locals>.approve at 0x7fbd4c8977f0>('4f76571582e456f69e79f56423ac2fb0dd8d636dd751bcd3ee4f9efb401b3689')
+E        +      where <function campaign.<locals>.approve at 0x7fbd4c8977f0> = namespace(state={'commands': ['anchor_terminal_test.py', 'extract_train_split.py', 'eval_cell_bioproj.py', 'pairwise_n...unction campaign.<locals>.run at 0x7fbd4c896b90>, world=<test_anchor_t_recovery.StoppedWorld object at 0x7fbd4c95b8b0>).approve
+
+tests/test_anchor_t_recovery.py:630: AssertionError
+----------------------------- Captured stderr call -----------------------------
+[anchor-T] nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=44|axis_center=anchors failed: carried outputs are not the bytes its stage-T record binds: flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=refit|seed=42|axis_center=anchors: outputs are not the bytes its stage-T record binds: ['extract_db.npz']; no receipt
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_a_carried_payload_off_its_record_refuses_before_any_lease_or_claim
+1 failed in 5.40s

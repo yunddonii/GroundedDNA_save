@@ -1,0 +1,29 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_composed_only_a_recovery_line_for_this_exact_request_approves[stage-T-run] _
+
+campaign = namespace(state={'commands': ['anchor_terminal_test.py', 'extract_train_split.py', 'eval_cell_bioproj.py', 'pairwise_n...unction campaign.<locals>.run at 0x7f4a7a6d6b90>, world=<test_anchor_t_recovery.StoppedWorld object at 0x7f4ec0dd1ab0>)
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7f4ec0dd1ab0>
+capsys = <_pytest.capture.CaptureFixture object at 0x7f4ec0dd12a0>
+scope_or_digest = 'stage-T-run'
+
+    @pytest.mark.parametrize("scope_or_digest", ["stage-T-run", "other-request", "r7-manifest"])
+    def test_composed_only_a_recovery_line_for_this_exact_request_approves(campaign, world, capsys, scope_or_digest):
+        _, digest = campaign.plan()
+        if scope_or_digest == "stage-T-run":
+            extra = campaign.approve(digest, scope="stage-T-run")
+        elif scope_or_digest == "other-request":
+            extra = campaign.approve("0" * 64)
+        else:
+            extra = campaign.approve(digest, manifest=world.r7_sha)
+>       assert campaign.run(*extra) == 2
+E       AssertionError: assert 0 == 2
+E        +  where 0 = <function campaign.<locals>.run at 0x7f4a7a6d6b90>(*['--anchor-approval-section', '800'])
+E        +    where <function campaign.<locals>.run at 0x7f4a7a6d6b90> = namespace(state={'commands': ['anchor_terminal_test.py', 'extract_train_split.py', 'eval_cell_bioproj.py', 'pairwise_n...unction campaign.<locals>.run at 0x7f4a7a6d6b90>, world=<test_anchor_t_recovery.StoppedWorld object at 0x7f4ec0dd1ab0>).run
+
+tests/test_anchor_t_recovery.py:621: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[anchor-T] recovery complete: 1 executed + 11 carried stage-T cells
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_only_a_recovery_line_for_this_exact_request_approves[stage-T-run]
+1 failed in 6.08s

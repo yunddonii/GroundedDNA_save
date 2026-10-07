@@ -1,0 +1,31 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_composed_a_counterfeit_lineage_in_an_approved_request_refuses_the_entry _
+
+rentry = namespace(request={'carried': [{'attempt': {'file': 'ancT9_attempt_ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002.json'...0e18c128d58404a5a82e478356ebeace94551f2edde8 request=40579db82cc494af24719b198d85ac3c5e6737748de0292a635fabbd3dd6d6bb')
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7fbc704fd7b0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fbc704fc640>
+capsys = <_pytest.capture.CaptureFixture object at 0x7fbc704fd870>
+tmp_path = PosixPath('/tmp/basetemp/test_composed_a_counterfeit_li0')
+
+    def test_composed_a_counterfeit_lineage_in_an_approved_request_refuses_the_entry(rentry, world, monkeypatch, capsys,
+                                                                                    tmp_path):
+        forged = json.loads(json.dumps(rentry.request))
+        forged["carried"] = forged["carried"][1:]                 # one carried cell silently dropped
+        digest = M._json_digest(forged)
+        line = LT.approval_line(RT.RECOVERY_SCOPE, manifest=world.manifest_sha, freeze=RT.ANCHOR_F_RECORD_SHA256,
+                                request=digest)
+        AR.full_ledger(tmp_path, monkeypatch, {**world.sections, 801: [line]})
+        approval = {"section": 801, "scope": RT.RECOVERY_SCOPE, "line": line}
+        rc, calls, loads, _ = _enter(world, monkeypatch, forged, approval)
+>       assert rc == 2 and calls == [] and loads == []
+E       assert (0 == 2)
+
+tests/test_anchor_t_recovery.py:929: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[extraction] CLI override kept after config restore: selection_mode=refit
+[anchor-T] nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=44|axis_center=anchors: admitted; official-test extraction and raw evaluation
+[anchor-T] nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=44|axis_center=anchors: done
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_a_counterfeit_lineage_in_an_approved_request_refuses_the_entry
+1 failed in 6.31s

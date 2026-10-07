@@ -1,0 +1,37 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_composed_a_changed_or_unsettled_parent_refuses_before_start[unsettled] __
+
+rsupervised = namespace(run=<function rsupervised.<locals>.run at 0x7f6bd2c78dc0>, rows=<function rsupervised.<locals>.rows at 0x7f6bd2c78d30>, parent=PosixPath('/tmp/basetemp/test_composed_a_changed_or_uns0/parent.jsonl'))
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7f6bd2ce20b0>
+edit = 'unsettled'
+
+    @pytest.mark.parametrize("edit", ["appended", "reformatted", "unsettled", "other-charge"])
+    def test_composed_a_changed_or_unsettled_parent_refuses_before_start(rsupervised, monkeypatch, edit):
+        path = rsupervised.parent
+        if edit == "appended":
+            with path.open("a") as handle:
+                handle.write(jline({"schema": S.LEDGER_SCHEMA, "event": "start", "run_id": "z"}) + "\n")
+        elif edit == "reformatted":             # the same records in other bytes: refused at the pin alone
+            rows = [json.loads(line) for line in path.read_text().splitlines()]
+            path.write_text("".join(json.dumps(r, separators=(",", ":")) + "\n" for r in rows))
+        else:
+            rows = [json.loads(line) for line in path.read_text().splitlines()]
+            if edit == "unsettled":
+                rows.append({"schema": S.LEDGER_SCHEMA, "event": "start", "run_id": "z"})
+            else:
+                rows[-1]["cumulative_charged_seconds"] = 1.0
+            path.write_text("".join(jline(r) + "\n" for r in rows))
+            monkeypatch.setattr(S, "REC_PARENT_LEDGER_SHA256", sha(path.read_bytes()))   # repinned: the content refuses
+>       assert rsupervised.run(5) == S.EXIT_REFUSED
+E       AssertionError: assert 0 == 2
+E        +  where 0 = <function rsupervised.<locals>.run at 0x7f6bd2c78dc0>(5)
+E        +    where <function rsupervised.<locals>.run at 0x7f6bd2c78dc0> = namespace(run=<function rsupervised.<locals>.run at 0x7f6bd2c78dc0>, rows=<function rsupervised.<locals>.rows at 0x7f6bd2c78d30>, parent=PosixPath('/tmp/basetemp/test_composed_a_changed_or_uns0/parent.jsonl')).run
+E        +  and   2 = S.EXIT_REFUSED
+
+tests/test_anchor_t_recovery.py:1021: AssertionError
+----------------------------- Captured stderr call -----------------------------
+[supervisor] exited: rc=0 device=0.000 h allowance=0.7 s lease=0.000 GPU-h log=/tmp/basetemp/test_composed_a_changed_or_uns0/recops/20261007T000821Z-e02bec93.command.log
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_a_changed_or_unsettled_parent_refuses_before_start[unsettled]
+1 failed in 7.20s

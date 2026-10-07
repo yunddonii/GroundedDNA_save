@@ -1,0 +1,15 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________ test_composed_a_manifest_without_the_recovery_contract_refuses ________
+
+tmp_path = PosixPath('/tmp/basetemp/test_composed_a_manifest_witho0')
+
+    def test_composed_a_manifest_without_the_recovery_contract_refuses(tmp_path):
+        path, digest = LT.manifest(tmp_path, recovery_contract=LT.DELETE)
+>       with pytest.raises(CellRefused, match="stage-T recovery contract"):
+E       Failed: DID NOT RAISE CellRefused
+
+tests/test_anchor_t_recovery.py:1062: Failed
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_a_manifest_without_the_recovery_contract_refuses
+1 failed in 5.80s

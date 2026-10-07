@@ -1,0 +1,20 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____ test_composed_a_changed_source_authority_outside_the_allowlist_refuses ____
+
+boundary = namespace(run=<function boundary.<locals>.run at 0x7fac6945f6d0>, r_snapshot={'qwen_root': '/data/yschoi/dataset/deeph...96375165c3431a8d7c695ed83db068f', 'val_split.py': '95e415c6f43b714fc349c44c5d449e667429bc0f15fb4af9c4389e82ca9eecc2'}})
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fac695b85e0>
+
+    def test_composed_a_changed_source_authority_outside_the_allowlist_refuses(boundary, monkeypatch):
+        def moved(sources):
+            got = _bundle()(sources)
+            got["entries"]["p0_protocol.py"]["head_sha256"] = "0" * 64
+            return got
+        monkeypatch.setattr(M, "_source_authority_bundle", moved)
+>       with pytest.raises(CellRefused, match="source authority changed"):
+E       Failed: DID NOT RAISE CellRefused
+
+tests/test_anchor_t_recovery.py:1094: Failed
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_a_changed_source_authority_outside_the_allowlist_refuses
+1 failed in 6.00s

@@ -1,0 +1,15 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_composed_the_recovery_keeps_its_own_ledger_and_budget __________
+
+    def test_composed_the_recovery_keeps_its_own_ledger_and_budget():
+>       assert S.stage_ledger("stage-T-recovery", None) == (S.REC_OPS_ROOT, 15000.0)
+E       AssertionError: assert (PosixPath('/...ps'), 45000.0) == (PosixPath('/...ps'), 15000.0)
+E         
+E         At index 0 diff: PosixPath('/home/yschoi/gdna_anchor4_ops') != PosixPath('/tmp/basetemp/test_composed_the_recovery_kee0/recops')
+E         Use -v to get more diff
+
+tests/test_anchor_t_recovery.py:945: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_the_recovery_keeps_its_own_ledger_and_budget
+1 failed in 5.77s

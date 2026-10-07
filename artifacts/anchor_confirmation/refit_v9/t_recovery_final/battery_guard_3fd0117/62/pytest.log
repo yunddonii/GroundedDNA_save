@@ -1,0 +1,15 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+________ test_composed_a_carried_entry_not_binding_its_attempt_refuses _________
+
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7f09a6498580>
+
+    def test_composed_a_carried_entry_not_binding_its_attempt_refuses(world):
+        world.repin_file(world.carried_pins()["entry"], lambda e: e.update(attempt_sha256="0" * 64))
+>       with pytest.raises(CellRefused, match="not one stopped-campaign lineage"):
+E       Failed: DID NOT RAISE CellRefused
+
+tests/test_anchor_t_recovery.py:324: Failed
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_a_carried_entry_not_binding_its_attempt_refuses
+1 failed in 6.34s

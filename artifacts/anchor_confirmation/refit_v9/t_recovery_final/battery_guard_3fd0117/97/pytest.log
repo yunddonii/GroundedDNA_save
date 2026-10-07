@@ -1,0 +1,22 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_composed_an_approved_recovery_runs_one_cell_and_writes_the_lineage_receipt _
+
+campaign = namespace(state={'commands': ['anchor_terminal_test.py', 'extract_train_split.py', 'eval_cell_bioproj.py', 'pairwise_n...unction campaign.<locals>.run at 0x7f06d62f2b90>, world=<test_anchor_t_recovery.StoppedWorld object at 0x7f06d6509ba0>)
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7f06d6509ba0>
+
+    def test_composed_an_approved_recovery_runs_one_cell_and_writes_the_lineage_receipt(campaign, world):
+        _, digest = campaign.plan()
+>       assert campaign.run(*campaign.approve(digest)) == 0
+E       AssertionError: assert 1 == 0
+E        +  where 1 = <function campaign.<locals>.run at 0x7f06d62f2b90>(*['--anchor-approval-section', '800'])
+E        +    where <function campaign.<locals>.run at 0x7f06d62f2b90> = namespace(state={'commands': ['anchor_terminal_test.py', 'extract_train_split.py', 'eval_cell_bioproj.py', 'pairwise_n...unction campaign.<locals>.run at 0x7f06d62f2b90>, world=<test_anchor_t_recovery.StoppedWorld object at 0x7f06d6509ba0>).run
+E        +    and   ['--anchor-approval-section', '800'] = <function campaign.<locals>.approve at 0x7f06d62f37f0>('eed4885d6144331c36f1f73f22f1b843554c3ebf4170b2014cc97c7f9e6cb1f7')
+E        +      where <function campaign.<locals>.approve at 0x7f06d62f37f0> = namespace(state={'commands': ['anchor_terminal_test.py', 'extract_train_split.py', 'eval_cell_bioproj.py', 'pairwise_n...unction campaign.<locals>.run at 0x7f06d62f2b90>, world=<test_anchor_t_recovery.StoppedWorld object at 0x7f06d6509ba0>).approve
+
+tests/test_anchor_t_recovery.py:593: AssertionError
+----------------------------- Captured stderr call -----------------------------
+[anchor-T] nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=44|axis_center=anchors failed: /tmp/basetemp/test_composed_an_approved_reco0/w/rt/result/ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005: a stage-R run holds official-test outputs ['analysis_complete.json', 'cell_result.json', 'evaluation_siglip2_base.json', 'evaluation_siglip2_base_bioproj.json', 'extract_db.npz', 'extract_query.npz', 'extract_train.npz', 'extraction_complete.json', 'extraction_manifest_db.json', 'extraction_manifest_query.json', 'extraction_manifest_train.json', 'pairwise_nmi.json']; stage R never reaches the official test; no receipt
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_an_approved_recovery_runs_one_cell_and_writes_the_lineage_receipt
+1 failed in 6.12s

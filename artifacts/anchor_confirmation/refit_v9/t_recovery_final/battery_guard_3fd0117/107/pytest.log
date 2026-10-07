@@ -1,0 +1,12 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+____________ test_structural_the_recovery_scope_binds_the_f_record _____________
+
+    def test_structural_the_recovery_scope_binds_the_f_record():
+>       assert M.APPROVAL_SCOPES[RT.RECOVERY_SCOPE] == ("manifest", "freeze", "request")
+E       KeyError: 'stage-T-recovery'
+
+tests/test_anchor_t_recovery.py:1057: KeyError
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_structural_the_recovery_scope_binds_the_f_record
+1 failed in 5.83s

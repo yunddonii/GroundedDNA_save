@@ -1,0 +1,29 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_ test_composed_a_new_cell_chain_off_its_files_publishes_no_combined_receipt[new-attempt-changed] _
+
+campaign = namespace(state={'commands': ['anchor_terminal_test.py', 'extract_train_split.py', 'eval_cell_bioproj.py', 'pairwise_n...unction campaign.<locals>.run at 0x7f5c41cf6cb0>, world=<test_anchor_t_recovery.StoppedWorld object at 0x7f5c41efdc00>)
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7f5c41efdc00>
+during = <function _change_new_attempt at 0x7f5c41d94700>
+
+    @pytest.mark.parametrize("during", [_change_new_attempt, _remove_new_attempt, _remove_new_entry_claim,
+                                        _mismatch_new_entry_claim],
+                             ids=["new-attempt-changed", "new-attempt-missing", "new-entry-missing",
+                                  "new-entry-mismatched"])
+    def test_composed_a_new_cell_chain_off_its_files_publishes_no_combined_receipt(campaign, world, during):
+        """Audit 801: the recovered cell's own attempt and entry claim are re-read at the publication boundary."""
+        _, digest = campaign.plan()
+        campaign.state["during"] = during
+>       assert campaign.run(*campaign.approve(digest)) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = <function campaign.<locals>.run at 0x7f5c41cf6cb0>(*['--anchor-approval-section', '800'])
+E        +    where <function campaign.<locals>.run at 0x7f5c41cf6cb0> = namespace(state={'commands': ['anchor_terminal_test.py', 'extract_train_split.py', 'eval_cell_bioproj.py', 'pairwise_n...unction campaign.<locals>.run at 0x7f5c41cf6cb0>, world=<test_anchor_t_recovery.StoppedWorld object at 0x7f5c41efdc00>).run
+E        +    and   ['--anchor-approval-section', '800'] = <function campaign.<locals>.approve at 0x7f5c41cf7910>('3f21f47be5754c0ca6150a8bab17ca8316d33f6f122c1993512ced74732e9a70')
+E        +      where <function campaign.<locals>.approve at 0x7f5c41cf7910> = namespace(state={'commands': ['anchor_terminal_test.py', 'extract_train_split.py', 'eval_cell_bioproj.py', 'pairwise_n...unction campaign.<locals>.run at 0x7f5c41cf6cb0>, world=<test_anchor_t_recovery.StoppedWorld object at 0x7f5c41efdc00>).approve
+
+tests/test_anchor_t_recovery.py:812: AssertionError
+----------------------------- Captured stdout call -----------------------------
+[anchor-T] recovery complete: 1 executed + 11 carried stage-T cells
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_a_new_cell_chain_off_its_files_publishes_no_combined_receipt[new-attempt-changed]
+1 failed in 6.40s

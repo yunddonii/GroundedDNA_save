@@ -1,0 +1,15 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_composed_a_reservation_not_binding_its_snapshot_refuses _________
+
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7fd99052a0e0>
+
+    def test_composed_a_reservation_not_binding_its_snapshot_refuses(world):
+        world.repin_file(world.lineage["stopped"]["reservation"], lambda r: r.update(plan_digest="0" * 64))
+>       with pytest.raises(CellRefused, match="does not bind its snapshot"):
+E       Failed: DID NOT RAISE CellRefused
+
+tests/test_anchor_t_recovery.py:1069: Failed
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_a_reservation_not_binding_its_snapshot_refuses
+1 failed in 5.98s

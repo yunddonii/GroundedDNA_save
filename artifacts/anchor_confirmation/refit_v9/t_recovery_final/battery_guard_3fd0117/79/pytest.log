@@ -1,0 +1,16 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___________ test_composed_an_uncommitted_allowlisted_source_refuses ____________
+
+boundary = namespace(run=<function boundary.<locals>.run at 0x7fc50fc877f0>, r_snapshot={'qwen_root': '/data/yschoi/dataset/deeph...96375165c3431a8d7c695ed83db068f', 'val_split.py': '95e415c6f43b714fc349c44c5d449e667429bc0f15fb4af9c4389e82ca9eecc2'}})
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fc50fdb9d20>
+
+    def test_composed_an_uncommitted_allowlisted_source_refuses(boundary, monkeypatch):
+        monkeypatch.setattr(M, "_source_authority_bundle", _bundle(clean=False))
+>       with pytest.raises(CellRefused, match="committed r8 bytes"):
+E       Failed: DID NOT RAISE CellRefused
+
+tests/test_anchor_t_recovery.py:470: Failed
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_an_uncommitted_allowlisted_source_refuses
+1 failed in 6.04s

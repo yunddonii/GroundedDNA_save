@@ -1,0 +1,15 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+___ test_composed_the_recovered_cell_attempted_in_another_namespace_refuses ____
+
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7ff031125e10>
+
+    def test_composed_the_recovered_cell_attempted_in_another_namespace_refuses(world):
+        write(world.hist / f"ancOther_attempt_{world.recovered['tag']}.json", {})
+>       with pytest.raises(CellRefused, match="another namespace"):
+E       Failed: DID NOT RAISE CellRefused
+
+tests/test_anchor_t_recovery.py:274: Failed
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_the_recovered_cell_attempted_in_another_namespace_refuses
+1 failed in 5.36s

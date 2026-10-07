@@ -1,0 +1,17 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+__________ test_composed_a_request_naming_another_claim_root_refuses ___________
+
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7f20f13be6e0>
+
+    def test_composed_a_request_naming_another_claim_root_refuses(world):
+        request = {"claim_root": "/elsewhere", "claim_key": RT.recovery_claim_key(world.lineage),
+                   "cells": [world.recovered], "record_dir": str(world.records), "namespace": NEW_NS,
+                   "lineage": {"path": "l", "sha256": "s"}}
+>       with pytest.raises(CellRefused, match="another recovery claim root"):
+E       Failed: DID NOT RAISE CellRefused
+
+tests/test_anchor_t_recovery.py:1083: Failed
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_a_request_naming_another_claim_root_refuses
+1 failed in 5.37s

@@ -1,0 +1,32 @@
+F                                                                        [100%]
+=================================== FAILURES ===================================
+_________ test_composed_the_plan_previews_one_cell_and_touches_nothing _________
+
+campaign = namespace(state={'commands': [], 'events': [], 'fail_at': None, 'drift_at': None, 'checks': 0, 'during': None, 'mp': <...unction campaign.<locals>.run at 0x7fb394166d40>, world=<test_anchor_t_recovery.StoppedWorld object at 0x7fb3943b5ba0>)
+world = <test_anchor_t_recovery.StoppedWorld object at 0x7fb3943b5ba0>
+
+    def test_composed_the_plan_previews_one_cell_and_touches_nothing(campaign, world):
+>       request, _ = campaign.plan()
+
+tests/test_anchor_t_recovery.py:573: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/test_anchor_t_recovery.py:547: in plan
+    return AR.preview(monkeypatch, _Capsys.current, world.argv("--run", "--gpus", gpus, ns=ns))
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x7fb3943b5c90>
+capsys = <_pytest.capture.CaptureFixture object at 0x7fb3943b5660>
+argv = ['--anchor-confirm', 'recover', '--namespace', 'ancT9r', '--anchor-manifest', '/tmp/basetemp/test_composed_the_plan_preview0/manifest.json', ...]
+
+    def preview(monkeypatch, capsys, argv):
+>       assert LT.run_main(monkeypatch, *argv, "--plan") == 0
+E       AssertionError: assert 2 == 0
+E        +  where 2 = <function run_main at 0x7fb7dae5f640>(<_pytest.monkeypatch.MonkeyPatch object at 0x7fb3943b5c90>, *['--anchor-confirm', 'recover', '--namespace', 'ancT9r', '--anchor-manifest', '/tmp/basetemp/test_composed_the_plan_preview0/manifest.json', ...], '--plan')
+E        +    where <function run_main at 0x7fb7dae5f640> = LT.run_main
+
+tests/test_anchor_refit_stage.py:735: AssertionError
+----------------------------- Captured stderr call -----------------------------
+[phase3] REFUSED: unknown anchor-confirmation stage 'recover'
+=========================== short test summary info ============================
+FAILED tests/test_anchor_t_recovery.py::test_composed_the_plan_previews_one_cell_and_touches_nothing
+1 failed in 6.51s
