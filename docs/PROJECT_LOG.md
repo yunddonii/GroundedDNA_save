@@ -487,6 +487,44 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-07 [anchor model — correction to the failed-recovery entry (74c937b); audit §839 findings and the next allowed work] Audit §839
+
+**Correction:** the entry below (`74c937b`) says "No official-test access". That is **wrong**.
+
+**Supported wording:** no new T-entry producer was launched and no new target outputs were written.
+
+**What ran before the main-thread guard refused:**
+- `verify_carried_payloads` (`anchor_refit_stage.py:1240`) re-hashed the eleven carried cells' bound
+  outputs;
+- `check_cell_inputs` (`:603`) hashed the target checkpoint, config and runtime witness.
+
+Zero producer device time is not zero payload I/O.
+
+**§839 verified:**
+- settlement `exited` rc 1, attempts [], device 0 s;
+- charge 5.704555157572031 s;
+- cumulative including the parent 79,487.85078525264 s;
+- remaining under the unchanged ceiling: about 14,994.30 s, not a fresh 15,000;
+- claim, attempt, reservation, snapshot and ledgers preserved;
+- full T 11/12.
+
+**Root cause, confirmed by §839:**
+- The recovery fixture replaced `_run_managed_process` with a stand-in (`tests/test_anchor_t_recovery.py:507-527`).
+- So the passing suite and the 47-mutant battery do not validate this path.
+
+**Allowed next (§839.3):**
+- A worker-dispatch repair, a contract proposal and a failing-before/fixed-after integration regression
+  through the real recovery entry path, in a new worktree.
+  - The managed-child guard and session, lease and drain behaviour are kept.
+  - Only the scientific work is replaced, by a tiny synthetic child.
+- No real smoke and no second attempt are authorized.
+- The audit requested a conditional user exception for one more attempt, within the existing ceiling. It
+  is pending, and the modification session does not ask it again.
+
+**Corrected record:** `FAILURE_REPORT.md` `b5a77dbc67e940a4e64a53aa7060daf724a26a8719470772ffbcacffc9424eca`.
+
+---
+
 ## 2026-10-07 [anchor model — the one recovery attempt FAILED before the test entry (main-thread dispatch defect); permission spent; full T stays 11/12] Audit §838
 
 **Status:** ❌ failed and settled. **No official-test access, no GPU work, no outputs.** Nothing was retried,
