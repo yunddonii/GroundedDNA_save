@@ -1,0 +1,31 @@
+{
+ "base_commit_S": "04e7fe871cf9fc19a3e9ed6b713038686ff31830",
+ "branch": "arch-exp-2026-09-anchor-consumer",
+ "constant_authorities": {
+  "contract": "docs/ANCHOR_DOWNSTREAM_CONSUMER_PROPOSAL_v2.md on arch-exp-2026-09 (16f92b1d...), accepted for preparation in audit 833",
+  "full_db_rows_and_r_cutoff": {
+   "audit": 834,
+   "sha256": "d80924365656f5286ce834a89525c2cca8a77349b2d3b093e7ec33ea68222c9e",
+   "source": "scripts/phase3_selection_matrix.py PAPER_SPLIT_ROWS[*]['db'], MAP_R_CUTOFF"
+  },
+  "supervisor_source": {
+   "sha256": "4732a99eaced36f655ff6fb3204580ef85036ea35a7ea13f85373bf4d72c0f6c",
+   "source": "scripts/anchor_confirm_supervisor.py"
+  }
+ },
+ "files_sha256": {
+  "scripts/anchor_t_consumer.py": "2539da57dceea28bcfeb313a412219abe77ef5c302925b762b4b87e5ac42fa38",
+  "scripts/make_anchor_bioproj_table.py": "5373da6904f25d17e11b112c9b6abce717444ca26a84376be06f0b5757caa8ff",
+  "scripts/make_anchor_nmi_table.py": "c29caaef6fc2fd2384e9d595ffcc1d487150dbab8805b7b0934e0f80b2caddc9",
+  "tests/test_anchor_t_consumer.py": "d076c2632042334c52ce9de547eb1c695b2d13ddb92d3031f662e0ccf7c02202"
+ },
+ "generation": "consumer v1 (proposal v2; audits 798, 824, 831, 833, 834, 835)",
+ "historical_producer_authority": {
+  "r7_manifest_sha256": "2f24fc80bb83e2c73b17ec473c2731ade6d34a356e02414e6719fe9e9bec947c",
+  "r8_manifest_sha256": "3537e297c0429c8ab5b02428651025903765a48c3c126eea172f30c37955c9f8"
+ },
+ "imports": "the consumer imports no producer module; the formatters import only scripts.anchor_t_consumer",
+ "inputs_sha256": null,
+ "note": "no reviewed consumer input manifest is pinned: every real run refuses until a post-settlement manifest is reviewed and pinned in a later generation; not approval to format live data",
+ "schema": "anchor-consumer-source-manifest/1"
+}
