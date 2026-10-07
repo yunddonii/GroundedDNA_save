@@ -100,6 +100,29 @@ training too; the text path and every text loss stay on.
 - **Verdict:** S fails P-DELTA (codon S below B1) and P-HEALTH (unique); it passes P-RET and P-TXT.
   Next: N2 (cross-modal contrastive on the deployment-routed slot token) on top of S and of B1.
 
+**Arm N2 (`--lambda_text_preq_contrastive 0.05` replacing `text_code_kl`; the v174-α term, text_m ↔
+pre-VQ slot token InfoNCE, in-batch; cells `td3_SN2_s42-44` on S and `td3_BN2_s42-44` on B1,
+2026-10-07 06:27Z):**
+
+| arm | mAP@R Δ vs B1 | dead | unique | deployed codon S | deployed codeword S |
+|---|---|---|---|---|---|
+| BN2 (B1 + N2) | +.000 / +.007 / −.000 | .12–.15 | **.58–.59** | +.041 / +.011 / +.112 (B1 +.161/+.196/+.109) | +.001 / −.028 / +.091 |
+| SN2 (S + N2) | +.003 / +.009 / +.010 | .11–.19 | .44–.48 | +.020 / +.054 / −.007 (S +.050/+.060/+.103) | +.007 / +.030 / −.000 |
+
+- No collapse this time (the v174-α CUB failure does not recur at λ .05 on Flickr); retrieval and
+  codebook health are fine (BN2 even raises unique codes to .58).
+- But the codon-level S **falls** relative to each base on 2/3 seeds (BN2 − B1: −.12 / −.19 / +.00;
+  SN2 − S: −.03 / −.01 / −.11). Replacing `text_code_kl` with an in-batch cross-modal contrastive term
+  removes part of the codon effect — `text_code_kl` (judged "removable" for mAP on 2026-09-20) is not
+  removable for A3. Both arms fail P-DELTA.
+
+**Stage-3 standing (2026-10-07 07:00Z).** Five arms (TD, TDXM, TDXM5, S, N2×2) all leave the deployed
+codon S at or below B1's +.11–.20; the two that teach the deployment path most directly (S, TDXM5)
+improve retrieval or agreement but not the slot signal. B1's codon effect depends on the caption-anchor
+routing during training, on `xmodal_commit` and on `text_code_kl` together. The pre-registered
+replication of "B1 vs OFF codon S" on NUS-WIDE and MS-COCO (own H2 cells) is the next step; Stage 2
+(captions) waits for the user's caption-length decision.
+
 
 ---
 
