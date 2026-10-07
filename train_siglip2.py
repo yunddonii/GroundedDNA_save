@@ -615,7 +615,7 @@ def _validate_path_consistency_args(args) -> None:
     """
     lam = float(getattr(args, "lambda_path_consistency", 0.0))
     p   = float(getattr(args, "text_dropout_p", 0.0))
-    tau = float(getattr(args, "path_consistency_tau", 0.1))
+    tau = float(getattr(args, "path_consistency_tau", 0.5))
     if tau <= 0.0:
         raise ValueError(
             f"--path_consistency_tau must be > 0 (got {tau})"

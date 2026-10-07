@@ -51,26 +51,40 @@ def _labels(batch: int) -> torch.Tensor:
     return torch.arange(batch) % 2
 
 
+def _standardise(row):
+    """Per-row standardisation over the kept entries, unbiased std, as
+    _loss_concept does (`(d - mean) / std.clamp_min(1e-6)`)."""
+    mean = sum(row) / len(row)
+    var = sum((x - mean) ** 2 for x in row) / max(len(row) - 1, 1)
+    std = max(math.sqrt(var), 1e-6)
+    return [(x - mean) / std for x in row]
+
+
 def _hand_kl(d_text, d_notext, tau, slots, active=None) -> float:
     """Pure-python KL(p_text || p_notext), mean over batch x slots.
 
     `active` is either None, a [M][K] list (shared over the batch) or a
-    [B][M][K] list (per sample); non-finite teacher distances are always
-    excluded from the support, mirroring the loss.
+    [B][M][K] list (per sample); non-finite distances on EITHER path are
+    always excluded from the support, and each path is standardised over
+    the kept entries with its own mean/std before the temperature,
+    mirroring the loss.
     """
     total, count = 0.0, 0
     for b in range(len(d_text)):
         for m in slots:
             def _on(k):
-                if not math.isfinite(d_text[b][m][k]):
+                if not (math.isfinite(d_text[b][m][k])
+                        and math.isfinite(d_notext[b][m][k])):
                     return False
                 if active is None:
                     return True
                 row = active[b][m] if isinstance(active[0][0], list) else active[m]
                 return bool(row[k])
             keep = [k for k in range(len(d_text[b][m])) if _on(k)]
-            lt = [-d_text[b][m][k] / tau for k in keep]
-            ln = [-d_notext[b][m][k] / tau for k in keep]
+            zt = _standardise([d_text[b][m][k] for k in keep])
+            zn = _standardise([d_notext[b][m][k] for k in keep])
+            lt = [-z / tau for z in zt]
+            ln = [-z / tau for z in zn]
             zt = sum(math.exp(x) for x in lt)
             zn = sum(math.exp(x) for x in ln)
             pt = [math.exp(x) / zt for x in lt]
@@ -85,7 +99,7 @@ def _hand_kl(d_text, d_notext, tau, slots, active=None) -> float:
 def test_parser_declares_the_new_flags_with_the_stated_defaults():
     args = _args()
     assert args.lambda_path_consistency == 0.0
-    assert args.path_consistency_tau == 0.1
+    assert args.path_consistency_tau == 0.5          # = concept_tau default
     assert args.path_consistency_include_global is False
     assert args.text_dropout_p == 0.0
     on = _args("--lambda_path_consistency", "0.05", "--path_consistency_tau", "0.5",
@@ -253,6 +267,32 @@ def test_plus_inf_combined_with_explicit_active_mask():
     expected = _hand_kl(d_text.tolist(), d_notext.tolist(), tau, slots=[1, 2],
                         active=active.tolist())
     assert float(term) == pytest.approx(expected, rel=1e-5)
+
+
+def test_raw_scale_distances_are_standardised_per_row():
+    """Smoke 2026-10-07 regression: raw squared-Euclidean distances are
+    O(100), which made -d/tau one-hot and the KL explode (589 at epoch 0).
+    The term must be invariant to a per-row affine rescale of the distances
+    and stay O(1) at tau 0.5 for random O(100) inputs."""
+    M, K = 3, 128
+    args = _args("--lambda_path_consistency", "0.05", "--num_codebooks", str(M))
+    assert args.path_consistency_tau == 0.5
+    out = _outputs(M, batch=4, codebook_size=K)
+    d_text = out["codebook_distances"]
+    d_notext = torch.rand(4, M, K, generator=torch.Generator().manual_seed(11))
+    base = DNACodonHashLoss(args)(out, labels=_labels(4),
+                                  outputs_notext={"codebook_distances": d_notext})
+    # the same rows, scaled to O(100) with a different offset per path
+    out_big = dict(out, codebook_distances=d_text * 300.0 + 120.0)
+    big = DNACodonHashLoss(args)(out_big, labels=_labels(4),
+                                 outputs_notext={"codebook_distances": d_notext * 250.0 + 80.0})
+    t0, t1 = float(base["path_consistency"]), float(big["path_consistency"])
+    assert t0 > 0.0
+    assert t1 == pytest.approx(t0, rel=1e-4)
+    assert t1 < 5.0                        # O(1), not hundreds
+    expected = _hand_kl((d_text * 300.0 + 120.0).tolist(),
+                        (d_notext * 250.0 + 80.0).tolist(), 0.5, slots=[1, 2])
+    assert t1 == pytest.approx(expected, rel=1e-4)
 
 
 def test_shape_mismatch_is_refused():

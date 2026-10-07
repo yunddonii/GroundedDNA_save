@@ -309,7 +309,7 @@ class DNACodonHashLoss(nn.Module):
         # caption-routed codeword assignment distribution (teacher, detached)
         # and the deployment-routed (no-text) one, both from codebook_distances.
         self.lambda_path_consistency         = float(getattr(cfg, "lambda_path_consistency", 0.0))
-        self.path_consistency_tau            = float(getattr(cfg, "path_consistency_tau", 0.1))
+        self.path_consistency_tau            = float(getattr(cfg, "path_consistency_tau", 0.5))
         self.path_consistency_include_global = bool(getattr(cfg, "path_consistency_include_global", False))
         # v123: per-(codebook, codeword) text prototypes. The EMA prototype
         # is updated from text tokens assigned to each visual codeword, then
@@ -3094,20 +3094,35 @@ class DNACodonHashLoss(nn.Module):
                 )
             start_m = 0 if self.path_consistency_include_global else 1
             tau_pc = max(float(self.path_consistency_tau), 1e-6)
-            d_text_pc = distances[:, start_m:, :]                      # [B, M', K]
-            logits_t = (-d_text_pc / tau_pc).detach()                  # teacher
-            logits_n = -d_notext[:, start_m:, :] / tau_pc              # student
+            d_text_pc   = distances[:, start_m:, :].float()            # [B, M', K]
+            d_notext_pc = d_notext[:, start_m:, :].float()             # [B, M', K]
             # Inactive codewords: the quantizer fills their distances with
             # +inf (model_siglip2.py `distances.masked_fill(inactive, inf)`),
             # so `-inf / tau` would make log_softmax produce NaN. Build the
-            # mask from the teacher's non-finite entries, OR'ed with the
-            # explicit active mask when the model provides one, and apply it
-            # to BOTH logits so the two distributions share a support.
-            inactive_pc = ~torch.isfinite(d_text_pc)                   # [B, M', K]
+            # mask from the non-finite entries of either path, OR'ed with
+            # the explicit active mask when the model provides one, and apply
+            # it to BOTH logits so the two distributions share a support.
+            inactive_pc = ~torch.isfinite(d_text_pc) | ~torch.isfinite(d_notext_pc)
             active_pc = outputs.get("codebook_active_mask")           # [M, K] bool | None
             if active_pc is not None:
-                inactive_from_mask = ~active_pc.to(device=logits_t.device, dtype=torch.bool)
+                inactive_from_mask = ~active_pc.to(device=d_text_pc.device, dtype=torch.bool)
                 inactive_pc = inactive_pc | inactive_from_mask[start_m:, :].unsqueeze(0)
+            # Raw squared-Euclidean distances are O(100), so -d/tau would put
+            # the logits in the thousands and make both distributions one-hot
+            # (smoke 2026-10-07: term 589 at epoch 0, codebook collapsed).
+            # Standardise per (sample, slot) over the ACTIVE codewords only,
+            # exactly as _loss_concept does (unbiased std, clamp_min 1e-6),
+            # each path with its own mean/std, and only then apply tau.
+            def _standardise_pc(d: torch.Tensor) -> torch.Tensor:
+                keep = (~inactive_pc).to(d.dtype)                       # [B, M', K]
+                n = keep.sum(-1, keepdim=True)
+                d0 = d.masked_fill(inactive_pc, 0.0)                    # kill +inf first
+                mean = d0.sum(-1, keepdim=True) / n.clamp_min(1.0)
+                var = (((d0 - mean) ** 2) * keep).sum(-1, keepdim=True) \
+                      / (n - 1.0).clamp_min(1.0)
+                return (d0 - mean) / var.sqrt().clamp_min(1e-6)
+            logits_t = (-_standardise_pc(d_text_pc) / tau_pc).detach()  # teacher
+            logits_n = -_standardise_pc(d_notext_pc) / tau_pc           # student
             logits_t = logits_t.masked_fill(inactive_pc, -1e9)
             logits_n = logits_n.masked_fill(inactive_pc, -1e9)
             log_p_t = F.log_softmax(logits_t, dim=-1)

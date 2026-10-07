@@ -1840,8 +1840,10 @@ class Config():
         # no-text forward on the same view-1 visual inputs (routing_mode
         # "codebook_mean" = deployment routing) and distil the caption-routed
         # codeword assignment distribution into it:
-        #   KL( softmax(-d_text/tau).detach() || softmax(-d_notext/tau) )
-        # over codebook_distances, mean over batch and included slots.
+        #   KL( softmax(-z_text/tau).detach() || softmax(-z_notext/tau) )
+        # where z = codebook_distances standardised per (sample, slot) over
+        # the active codewords (as _loss_concept does); mean over batch and
+        # included slots.
         # Default 0.0 disables (bit-identical to the legacy path).
         loss_arg.add_argument('--lambda_path_consistency',
             dest='lambda_path_consistency', type=float, default=0.0,
@@ -1850,9 +1852,10 @@ class Config():
                  'deployment-routed no-text forward). 0.0 disables (default). '
                  'Incompatible with --disable_text_supervision.')
         loss_arg.add_argument('--path_consistency_tau',
-            dest='path_consistency_tau', type=float, default=0.1,
-            help='TD (2026-10-07): softmax temperature applied to '
-                 '-codebook_distances on both paths. Default 0.1.')
+            dest='path_consistency_tau', type=float, default=0.5,
+            help='TD (2026-10-07): temperature on per-row standardised '
+                 'negative codeword distances (both paths). Default 0.5 '
+                 '(= concept_tau default).')
         loss_arg.add_argument('--path_consistency_include_global',
             dest='path_consistency_include_global',
             action='store_true', default=False,
