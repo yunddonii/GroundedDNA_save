@@ -487,6 +487,44 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-07 [anchor model — the one recovery attempt FAILED before the test entry (main-thread dispatch defect); permission spent; full T stays 11/12] Audit §838
+
+**Status:** ❌ failed and settled. **No official-test access, no GPU work, no outputs.** Nothing was retried,
+and everything is preserved.
+
+- **What ran:** §838 allowed one invocation of the §830 wrapper before 06:25Z. I notified the peer, then
+  issued the exact command once at 06:10:59Z.
+  - All 13 live gates passed, and the exact line was found.
+  - The supervisor started run `20261007T061117Z-12e14ceb` at 06:11:17Z.
+- **What happened:** the launcher consumed the lineage claim and reserved the `ancT9r` attempt (06:11:27Z).
+  It then refused to launch the T entry: "managed campaign children must launch from a worker thread".
+- **Settlement:** at 06:11:29Z the supervisor recorded `exited`, rc 1:
+  - attempts [], device 0 s, charged 5.70 s (allowance only);
+  - cumulative including the parent 79,487.85 s;
+  - no leases, orphans or continuity loss.
+- **GPU 0:** released to the peer.
+- **Root cause:** the r8 recovery path calls `run_terminal_test_cell` from the main thread
+  (`anchor_refit_stage.py:1295`). The managed-child guard (`phase3_selection_matrix.py:1364–1366`) requires
+  a worker thread, which the full-T path provides (`:705–731`, `_stream` threads).
+  - The synthetic recovery tests never drove that real dispatch path, and no real one-cell smoke of the
+    recovery path was run.
+- **Preserved:** the recovery ledger, command log, claim, attempt, reservation, snapshot, tmux status/log
+  and launch report.
+  - The cell record, entry, receipt and all 13 outputs are absent.
+  - The parent ledger is unchanged.
+  - **Evidence:** `/home/yschoi/anchor_rt_session_state/recovery_attempt_20261007/`
+    - `evidence.json` `55cbc3d3…`
+    - `FAILURE_REPORT.md` `154cc991…`
+- **Consequence:** the lineage claim is consumed, so r8 refuses any second recovery. Full T stays 11/12,
+  with NUS-WIDE seed 44 missing. Any new attempt needs all of:
+  - a new user decision;
+  - a code fix (worker-thread dispatch);
+  - a new generation and contract for the spent claim and attempt;
+  - a real one-cell smoke;
+  - a new audit approval.
+
+---
+
 ## 2026-10-07 [anchor model — peer /data reads done; fresh read-only packet 13/13 submitted for the launch decision; consumer v1 committed; nothing run] Audits §833–§837
 
 **Status:** ✅ packet submitted. **Nothing ran:** no invocation, claim, ops root or lease. The §830
