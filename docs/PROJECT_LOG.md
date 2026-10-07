@@ -487,6 +487,35 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-07 [anchor model — r8 recovery submission revised for audit §822: records and wording only, nothing run] Audit §822
+
+**Status:** ✅ revision committed and pushed. **Non-executable:** no rerun, no source change, no claim,
+budget or GPU used.
+- **Where:** revision commit `04e7fe8` on `arch-exp-2026-09-anchor-refit-r8`.
+  - The tested identity stays `3fd0117`.
+  - Relative to it, all 594 paths are additions, all inside the submission doc or
+    `refit_v9/t_recovery_final/`.
+  - All 71 manifest members still match their pins (`3537e297…`).
+
+**What §822 asked for, and what was done:**
+
+| §822 item | Done |
+|---|---|
+| Keep the battery's per-execution records (113 runs) durably | Byte-for-byte copy of each run's five named files to `t_recovery_final/battery_guard_3fd0117/` (`INDEX.json` `56d4f335…`, `SHA256SUMS` `da3b3411…`). Sandbox git stores and private `/tmp` are left out. The archiver (`5e73dde3…`) cross-checks run order, HEAD, rc, sandbox probe and module digests: 113 records, 0 problems. Its positive control caught all five deliberate tamperings |
+| Bind the launch to the exact submission commit | §7's same-command gate now requires the exact audited submission HEAD, an additions-only diff from `3fd0117`, and all 71 manifest members at their pins. No reset to `3fd0117` |
+| Correct the read footprint of the request render | 84 named reads = 82 JSON + 1 audit Markdown + 1 JSONL budget ledger. The guard is a hook in the parent process only: it records children's command lines but does not enforce their file opens |
+
+**Corrections:**
+- The previous entry's "84 named JSON + source" is wrong. The correct breakdown is in the table above.
+- A baseline run's record cannot show which test it ran; its test name rests on run order alone.
+
+**Execution still waits on:**
+1. the user's decision on the added 15,000 device-s and the one-attempt exception;
+2. an audit approval line of scope `stage-T-recovery` for request `d34f505b…`;
+3. a fresh GPU agreement with the text-path session.
+
+---
+
 ## 2026-10-07 [anchor model — r8 recovery of the one interrupted full-T cell (NUS-WIDE seed 44) submitted, nothing run] Audits §796–§821
 
 **Status:** ✅ submitted for audit review. **Non-executable:** no claim, budget, GPU or real payload was
