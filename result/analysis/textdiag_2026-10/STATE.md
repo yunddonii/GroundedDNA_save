@@ -18,7 +18,7 @@ Plan: `/home/yschoi/.claude/plans/hidden-tinkering-pine.md` (approved 2026-10-05
 - 2026-10-05 D1: 45 checkpoints scored (`d1/a2a3/*.json`, tmux `textdiag_d1b` rc 0). Logged in MODI (2026-10-05 D1 entry).
 
 ## In progress
-- Stage 3 N1 (TD): code committed 498cc4a; gate PASS (td3_gate_H2_s42 bit-identical to td1_flickr_H2_s42, stage3/gate_bit_identity.json). Smoke td3_TD_s42 FAILED: path_consistency term 589 -> 29 (raw squared distances / tau 0.1), codebook collapsed (dead .76, mAP .680). Fix in progress: z-score distances per row before tau (as _loss_concept), tau default 0.5. Then: re-smoke on GPU 1, batch of td3_TD_s42-44 + td3_B1_s42-44 via stage3/launch_batch_staggered.sh (60 s stagger, GPUs 1-5), score 2,000 rows + d4d6, then SEND 'td3 /data reads done <UTC>' to the anchor session.
+- Stage 3 N1 (TD): code committed 498cc4a; gate PASS (td3_gate_H2_s42 bit-identical to td1_flickr_H2_s42, stage3/gate_bit_identity.json). Smoke td3_TD_s42 FAILED: path_consistency term 589 -> 29 (raw squared distances / tau 0.1), codebook collapsed (dead .76, mAP .680). Fix committed f0dd43e (z-scored distances, tau .5). Re-smoke td3_TDv2_s42 PASSED (term .13-.38, mAP .7416 vs B1 .7569, dead .091, uniq .508) = TD seed 42. B1 cells are NOT re-run (gate proved default-flag bit-identity; td1_flickr_H2_s4x serve as B1). Running: td3_TD_s43 (GPU 2), td3_TD_s44 (GPU 3) via stage3/launch_batch_staggered.sh (60 s stagger, GPUs 1-5), score 2,000 rows + d4d6, then SEND 'td3 /data reads done <UTC>' to the anchor session.
 - NOTE: tmux .status files use lowercase rc=; waiters must grep '^rc='.
 - (none; Stage 1 complete and logged 2026-10-07)
 
