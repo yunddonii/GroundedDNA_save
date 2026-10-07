@@ -543,6 +543,25 @@ class Config():
         siglip2_arg.add_argument('--text_prototype_ema_decay',
             dest='text_prototype_ema_decay', type=float, default=0.999,
             help='v184: EMA decay for text_prototype tracker during training.')
+        # (2026-10-07) TRAINING routing centroid source. The text path (text
+        # adapter, text-side quantisation, every text loss) is NOT affected by
+        # this flag; only what the router sees as centroids changes.
+        siglip2_arg.add_argument('--train_routing_mode',
+            dest='train_routing_mode',
+            choices=['text', 'codebook_mean'],
+            default='text',
+            help='Training routing centroid source. text (default, legacy): '
+                 'the caption-adapted local text tokens drive the Sinkhorn '
+                 'router whenever training and real text are present. '
+                 'codebook_mean: route with the codebook-mean anchors during '
+                 'training too (exactly the deployment routing) while the '
+                 'text path and text losses stay active. Refused together '
+                 'with --disable_text_supervision and with routing features '
+                 'that need text centroids (--route_global_text, '
+                 '--bidirectional_token_prune, --routing_text_evidence_*, '
+                 '--routing_token_ot_*, --foreground_text_mask_topk_ratio, '
+                 '--routing_cls_verified_consensus_mask, '
+                 '--text_transform_routing_only, --router_type cross_attn).')
         siglip2_arg.add_argument('--routing_perplexity_topk',
             dest='routing_perplexity_topk', action='store_true', default=False,
             help='v84a: per-patch top-k routing where k = ceil(M^H_norm). '

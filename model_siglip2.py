@@ -29,6 +29,9 @@ Routing-mode rule (forward()):
         routing_mode = "text"            -> text-guided OT routing
     else:
         routing_mode = "codebook_mean"   -> codebook mean anchor OT routing
+    (2026-10-07) --train_routing_mode codebook_mean keeps the text path
+    (adapter, text-side quantisation, text losses) on the first branch's
+    condition but routes with the codebook-mean anchors in training too.
 
 What's OUT of scope this stage (do NOT add here):
     codon head, tanh/sign hash head, DNA encoding, Hamming loss,
@@ -1692,6 +1695,68 @@ class DualHashProj(nn.Module):
 # Top-level model
 # =====================================================================
 
+def train_routing_mode_conflicts(args) -> List[str]:
+    """(2026-10-07) Flags that cannot be honoured under
+    ``--train_routing_mode codebook_mean``.
+
+    Under "codebook_mean" the router must see exactly the deployment inputs
+    (codebook-mean anchors, no caption-derived mask or cost bias). Every flag
+    listed here injects caption-derived tensors INTO THE ROUTER during
+    training (centroids, visual row mask, cost bias or router queries), so
+    the combination would be neither "text routing" nor "deployment
+    routing". Returns one human-readable reason per conflicting flag; empty
+    when the combination is valid. Shared by the model constructor and the
+    trainer's startup validator so both refuse the same set.
+    """
+    reasons: List[str] = []
+    if float(getattr(args, "routing_text_evidence_beta", 0.0) or 0.0) > 0.0:
+        reasons.append(
+            "--routing_text_evidence_beta > 0 (text-evidence cost bias on the router)"
+        )
+    if float(getattr(args, "routing_text_evidence_penalty", 0.0) or 0.0) > 0.0:
+        reasons.append(
+            "--routing_text_evidence_penalty > 0 (text-evidence candidate penalty on the router)"
+        )
+    if bool(getattr(args, "routing_token_ot_evidence", False)) or (
+        float(getattr(args, "routing_token_ot_beta", 0.0) or 0.0) > 0.0
+    ):
+        reasons.append(
+            "--routing_token_ot_evidence / --routing_token_ot_beta > 0 "
+            "(token-level text-to-visual cost bias; requires text routing)"
+        )
+    if bool(getattr(args, "route_global_text", False)):
+        reasons.append(
+            "--route_global_text (routes the slot-0 caption token as a centroid)"
+        )
+    if bool(getattr(args, "bidirectional_token_prune", False)):
+        reasons.append(
+            "--bidirectional_token_prune (its visual keep mask is consumed only "
+            "by the router: row mask, slot cost bias, prune-only routing matrix; "
+            "a caption-pruned router is not the deployment routing)"
+        )
+    _fg = getattr(args, "foreground_text_mask_topk_ratio", None)
+    if _fg is not None and 0.0 < float(_fg) < 1.0:
+        reasons.append(
+            "--foreground_text_mask_topk_ratio in (0, 1) (caption-cosine visual "
+            "row mask applied before the router)"
+        )
+    if bool(getattr(args, "routing_cls_verified_consensus_mask", False)):
+        reasons.append(
+            "--routing_cls_verified_consensus_mask (training mask uses the raw "
+            "caption slots; the router would still see text)"
+        )
+    if bool(getattr(args, "text_transform_routing_only", False)):
+        reasons.append(
+            "--text_transform_routing_only (selects the ROUTING centroid source; "
+            "there is no text routing centroid under codebook_mean)"
+        )
+    if str(getattr(args, "router_type", "sinkhorn")) == "cross_attn":
+        reasons.append(
+            "--router_type cross_attn (training queries are text_part_tokens)"
+        )
+    return reasons
+
+
 class SigLIP2SemanticOTModel(nn.Module):
     """SigLIP2 dual-encoder + visual/text adapters + Sinkhorn router + codebooks.
 
@@ -1982,6 +2047,29 @@ class SigLIP2SemanticOTModel(nn.Module):
         self.eval_routing_mode: str = str(
             getattr(args, "eval_routing_mode", "codebook_mean")
         )
+        # (2026-10-07) TRAINING routing centroid source. "text" (default) keeps
+        # the legacy rule (caption-adapted local text tokens drive the router
+        # whenever training AND real text is present). "codebook_mean" routes
+        # with the codebook-mean anchors during training as well, i.e. exactly
+        # the deployment routing, while the text path (adapter, text-side
+        # quantisation, every text loss) stays active. See
+        # `train_routing_mode_conflicts` for the flag combinations that cannot
+        # be honoured under "codebook_mean".
+        self.train_routing_mode: str = str(
+            getattr(args, "train_routing_mode", "text")
+        )
+        if self.train_routing_mode not in ("text", "codebook_mean"):
+            raise ValueError(
+                "train_routing_mode must be 'text' or 'codebook_mean', "
+                f"got {self.train_routing_mode!r}"
+            )
+        if self.train_routing_mode == "codebook_mean":
+            _trm_conflicts = train_routing_mode_conflicts(args)
+            if _trm_conflicts:
+                raise ValueError(
+                    "--train_routing_mode codebook_mean cannot be combined with "
+                    + "; ".join(_trm_conflicts)
+                )
         self.text_prototype_ema_decay: float = float(
             getattr(args, "text_prototype_ema_decay", 0.999)
         )
@@ -3725,6 +3813,10 @@ class SigLIP2SemanticOTModel(nn.Module):
                 routing_mode = "codebook_mean"
                 local centroids = quantizer.get_codebook_mean_anchors(exclude_global=True)
                                   expanded to [B, 5, D]
+            (2026-10-07) with --train_routing_mode codebook_mean the first
+            condition still produces text_part_tokens (text path on) but the
+            router takes the second branch, so routing_mode == "codebook_mean"
+            and text_part_tokens is not None at the same time.
 
         ``visual_tokens`` is the SigLIP2 vision tower output AFTER VisualAdapter.
         SigLIP2 has no [CLS] token, so every position is a patch token; we do
@@ -3804,22 +3896,35 @@ class SigLIP2SemanticOTModel(nn.Module):
             # the text path is never taken.
             if getattr(self, "disable_text_supervision", False):
                 has_real_text = False
-            use_text_routing = bool(self.training and has_real_text)
-            routing_mode = "text" if use_text_routing else "codebook_mean"
+            # (2026-10-07) Two gates that used to be one (`use_text_routing`):
+            #   compute_text_path : the text adapter / text-side quantisation /
+            #                       every text loss input is produced (same
+            #                       condition as before: training AND text).
+            #   route_with_text   : the ROUTER sees the caption-adapted local
+            #                       text tokens as centroids. Under
+            #                       --train_routing_mode codebook_mean this is
+            #                       False while compute_text_path stays True,
+            #                       so training routes exactly as deployment
+            #                       (codebook-mean anchors) and text is only a
+            #                       supervision target.
+            compute_text_path = bool(self.training and has_real_text)
+            route_with_text = compute_text_path and self.train_routing_mode == "text"
+            routing_mode = "text" if route_with_text else "codebook_mean"
             feats = {
                 "visual_tokens_raw": cached_visual_tokens_raw,
                 "visual_global":     cached_visual_global,
-                "text_part_raw":     cached_text_part_raw if use_text_routing else None,
+                "text_part_raw":     cached_text_part_raw if compute_text_path else None,
             }
         else:
-            use_text_routing = bool(self.training and (part_input_ids is not None))
-            routing_mode = "text" if use_text_routing else "codebook_mean"
+            compute_text_path = bool(self.training and (part_input_ids is not None))
+            route_with_text = compute_text_path and self.train_routing_mode == "text"
+            routing_mode = "text" if route_with_text else "codebook_mean"
 
             # 0) encode (text path only when actually used)
             feats = self.feature_extraction(
                 pixel_values=pixel_values,
-                part_input_ids=part_input_ids if use_text_routing else None,
-                part_attention_mask=part_attention_mask if use_text_routing else None,
+                part_input_ids=part_input_ids if compute_text_path else None,
+                part_attention_mask=part_attention_mask if compute_text_path else None,
                 visual_attention_mask=visual_attention_mask,
             )
 
@@ -3845,7 +3950,7 @@ class SigLIP2SemanticOTModel(nn.Module):
         _bi_visual_keep_ratio_per_slot: Optional[torch.Tensor] = None # [B, M_local]
         _bi_visual_union_keep_ratio: Optional[torch.Tensor] = None    # [B]
         _bi_text_keep_ratio_per_slot: Optional[torch.Tensor] = None   # [B, M_local]
-        if use_text_routing and feats["text_part_raw"] is not None:
+        if compute_text_path and feats["text_part_raw"] is not None:
             # v185: bidirectional token pruning. If enabled, OVERRIDE
             # feats["text_part_raw"] with a mean-pool over kept text tokens
             # BEFORE the whiten/adapter path so ALL downstream text embeddings
@@ -4172,14 +4277,18 @@ class SigLIP2SemanticOTModel(nn.Module):
         # v119: optionally include the slot-0 global caption as a routed
         # C_0 centroid. Legacy mode still routes only C_1..C_5.
         local_anchor_tokens: Optional[torch.Tensor] = None
-        route_global_text_active = bool(self.route_global_text and use_text_routing)
+        route_global_text_active = bool(self.route_global_text and route_with_text)
         # v141: cluster_attn router always emits M=NUM_SEMANTIC_PARTS=6
         # cluster tokens (cluster 0 plays the role of the global / "C_0"
         # part). Force the global+local routing path so downstream code
         # consumes all 6 tokens from the cluster_attn output.
         if self.router_type == "cluster_attn":
             route_global_text_active = True
-        if use_text_routing:
+        # (2026-10-07) routing centroid source follows route_with_text, NOT
+        # compute_text_path: under --train_routing_mode codebook_mean the
+        # else-branch (deployment anchors) is taken while text_part_tokens
+        # above were still produced for the losses.
+        if route_with_text:
             local_centroids   = (
                 local_text_tokens_for_routing
                 if local_text_tokens_for_routing is not None
@@ -4240,6 +4349,10 @@ class SigLIP2SemanticOTModel(nn.Module):
             )
 
         # v184: EMA update text_prototype during training when text_part_tokens available.
+        # (2026-10-07) Deliberately keyed on the TEXT PATH (text_part_tokens),
+        # not on route_with_text: the tracker is a trainset statistic of the
+        # adapted caption tokens consumed only by --eval_routing_mode
+        # text_prototype at inference; it never enters the training router.
         if (
             self.training
             and text_part_tokens is not None
@@ -4585,7 +4698,7 @@ class SigLIP2SemanticOTModel(nn.Module):
             if (
                 cur_text_evidence_beta > 0.0
                 or cur_text_evidence_penalty > 0.0
-                or (cur_token_ot_beta > 0.0 and use_text_routing)
+                or (cur_token_ot_beta > 0.0 and route_with_text)
             ):
                 # v176/v177: soft evidence bias for Sinkhorn routing.
                 # visual_tokens_for_routing: [B, N, D]
@@ -4595,7 +4708,7 @@ class SigLIP2SemanticOTModel(nn.Module):
                 _t_ev = F.normalize(route_centroids_aug, dim=-1)
                 sim_ev = torch.einsum("bnd,bmd->bnm", _v_ev, _t_ev)
                 evidence_cost_bias = cur_text_evidence_beta * sim_ev
-                if cur_token_ot_beta > 0.0 and use_text_routing:
+                if cur_token_ot_beta > 0.0 and route_with_text:
                     if cached_text_tokens is None:
                         raise RuntimeError(
                             "[model_siglip2] --routing_token_ot_evidence requires "
@@ -5017,7 +5130,10 @@ class SigLIP2SemanticOTModel(nn.Module):
             routing_matrix = ca_out["routing_matrix"]
             local_semantic_visual_tokens = semantic_visual_tokens[:, 1:, :]
 
-        if self.soft_visual_grounded_text_pool and use_text_routing:
+        # (2026-10-07) The two grounded text-pooling refinements below rewrite
+        # text_part_tokens FOR THE LOSSES from the (already computed) routing
+        # matrix; they do not feed the router, so they follow compute_text_path.
+        if self.soft_visual_grounded_text_pool and compute_text_path:
             if cached_text_tokens is None:
                 raise ValueError(
                     "--soft_visual_grounded_text_pool requires cached text tokens"
@@ -5041,7 +5157,7 @@ class SigLIP2SemanticOTModel(nn.Module):
             out["local_text_tokens"] = local_text_tokens
             out["soft_grounded_text_attention_entropy"] = attention_entropy
 
-        if self.cosine_visual_grounded_text_pool and use_text_routing:
+        if self.cosine_visual_grounded_text_pool and compute_text_path:
             if cached_text_tokens is None:
                 raise ValueError(
                     "--cosine_visual_grounded_text_pool requires cached text tokens"

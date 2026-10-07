@@ -39,7 +39,7 @@ from tqdm import tqdm
 from dataloaders import load_dataset
 from config import set_random_seed, Config
 
-from model_siglip2 import SigLIP2SemanticOTModel
+from model_siglip2 import SigLIP2SemanticOTModel, train_routing_mode_conflicts
 from loss_siglip2  import DNACodonHashLoss
 # All training-side utilities live under `dna_utils` so that this script does
 # NOT depend on legacy `utils.py` (which transitively pulls in DWKM /
@@ -646,6 +646,48 @@ def _validate_path_consistency_args(args) -> None:
 _refuse_path_consistency_without_text = _validate_path_consistency_args
 
 
+def _validate_train_routing_mode_args(args) -> None:
+    """(2026-10-07) startup validator for --train_routing_mode. Runs right
+    after _validate_path_consistency_args, i.e. before the seed, the model,
+    any checkpoint load or any DataLoader. The default ("text") always passes.
+
+    Refused combinations under --train_routing_mode codebook_mean (ValueError):
+      * --disable_text_supervision: text routing is already off in that
+        ablation, so the flag would be a no-op; refuse rather than let a
+        run record a routing mode it did not need.
+      * any flag returned by model_siglip2.train_routing_mode_conflicts: the
+        text-only routing features (--routing_text_evidence_*,
+        --routing_token_ot_*, --route_global_text, --bidirectional_token_prune,
+        --foreground_text_mask_topk_ratio, --routing_cls_verified_consensus_mask,
+        --text_transform_routing_only, --router_type cross_attn) all feed
+        caption-derived tensors INTO the router, so the run would be neither
+        text routing nor deployment routing. --bidirectional_token_prune is
+        in that set because its visual keep mask has no consumer outside the
+        router (row mask, slot cost bias, prune-only routing matrix); its
+        text-side re-pooling cannot be kept on its own without changing what
+        "codebook_mean" routing means.
+    """
+    mode = str(getattr(args, "train_routing_mode", "text"))
+    if mode not in ("text", "codebook_mean"):
+        raise ValueError(
+            f"--train_routing_mode must be 'text' or 'codebook_mean' (got {mode!r})"
+        )
+    if mode == "text":
+        return
+    if bool(getattr(args, "disable_text_supervision", False)):
+        raise ValueError(
+            "--train_routing_mode codebook_mean is pointless with "
+            "--disable_text_supervision (that ablation already routes with "
+            "codebook-mean anchors and has no text path); drop one of the two"
+        )
+    conflicts = train_routing_mode_conflicts(args)
+    if conflicts:
+        raise ValueError(
+            "--train_routing_mode codebook_mean cannot be combined with "
+            + "; ".join(conflicts)
+        )
+
+
 def _td_should_run(train: bool, using_cache: bool, lam: float, p: float,
                    gen: "torch.Generator") -> bool:
     """TD (2026-10-07): per-step gate for the extra no-text student forward.
@@ -669,6 +711,9 @@ def main(args: Config):
     # TD (2026-10-07): refuse bad path-consistency flag combinations before
     # the seed, the model, any checkpoint load or any DataLoader exists.
     _validate_path_consistency_args(args)
+    # (2026-10-07) refuse --train_routing_mode codebook_mean with flags that
+    # would still push caption-derived tensors into the router.
+    _validate_train_routing_mode_args(args)
 
     # Seed before constructing the model, loaders, optimizer, or any auxiliary
     # clustering state. Keeping this inside main also covers programmatic
