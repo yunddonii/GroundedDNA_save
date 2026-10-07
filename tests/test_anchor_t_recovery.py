@@ -1147,6 +1147,11 @@ def real_dispatch(campaign, world, tmp_path, monkeypatch):
     Only the scientific work is substituted: every producer command becomes one tiny private synthetic
     child (the entry child performs the real entry claim and writes the outputs; post-chain children only
     record their start). The dispatching thread of every launch is recorded."""
+    # the real launcher keeps process-wide child-registry state; other test files can leave it in a shutdown
+    # (blocked launches, lease descriptors). Start from a fresh launcher's state, restored after the test.
+    monkeypatch.setattr(M, "_CHILD_LAUNCH_BLOCKED", False)
+    monkeypatch.setattr(M, "_CAMPAIGN_LEASE_FDS", ())
+    monkeypatch.setattr(M, "_ACTIVE_CHILDREN", set())
     child = tmp_path / "synthetic_child.py"
     child.write_text(_SYNTHETIC_CHILD)
     marker = tmp_path / "child_starts.jsonl"
@@ -1171,7 +1176,9 @@ def real_dispatch(campaign, world, tmp_path, monkeypatch):
 
     def starts():
         return [json.loads(line) for line in marker.read_text().splitlines()] if marker.exists() else []
-    return SimpleNamespace(campaign=campaign, state=state, starts=starts)
+    yield SimpleNamespace(campaign=campaign, state=state, starts=starts, child=child, marker=marker)
+    # the fresh registry must be drained by the real launcher itself: no synthetic child is hidden
+    assert M._owned_live_sessions() == [], "a synthetic child session outlived its test"
 
 
 def test_real_dispatch_the_recovery_launches_its_children_from_a_worker_thread(real_dispatch, world):
@@ -1211,3 +1218,22 @@ def test_real_dispatch_an_exception_in_the_worker_publishes_no_receipt(real_disp
     assert campaign.run(*campaign.approve(digest)) == 1
     assert "injected closure failure" in capsys.readouterr().err
     assert not (world.records / f"{NEW_NS}{RT.T_RECOVERY_RECEIPT_SUFFIX}").exists()
+
+
+def test_real_dispatch_a_shutdown_within_the_test_still_refuses_a_new_child(real_dispatch, world, capsys, monkeypatch):
+    """Negative control (audit 842): the fixture's fresh state does not disable the shutdown guard."""
+    campaign = real_dispatch.campaign
+    _, digest = campaign.plan()
+    monkeypatch.setattr(M, "_CHILD_LAUNCH_BLOCKED", True)
+    assert campaign.run(*campaign.approve(digest)) == 1
+    assert "campaign shutdown has begun; refusing a new child process" in capsys.readouterr().err
+    assert real_dispatch.starts() == []                                   # no synthetic child started
+    assert not (world.records / f"{NEW_NS}{RT.T_RECOVERY_RECEIPT_SUFFIX}").exists()
+
+
+def test_real_dispatch_the_main_thread_is_still_refused(real_dispatch):
+    """Negative control (audit 842): the reset does not bypass the main-thread guard."""
+    with pytest.raises(CellRefused, match="must launch from a worker thread"):
+        _REAL_MANAGED([sys.executable, "-B", str(real_dispatch.child), "post", str(real_dispatch.marker),
+                       str(RT.RECOVERY_CLAIM_ROOT), "control"], cwd=str(Path(RT.REPO)), env=dict())
+    assert real_dispatch.starts() == []
