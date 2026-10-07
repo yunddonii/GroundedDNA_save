@@ -487,6 +487,31 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-07 [anchor model — §830 recovery launch refused at its own preflight (/data busy 97 %); nothing started] Audit §830
+
+**Status:** ✅ the fail-closed preflight worked as designed. **Nothing started:**
+- no supervisor, attempt, claim or ops ledger;
+- no `ancT9r` record;
+- the GPU was untouched.
+
+- **What §830 authorised:** ONE supervised recovery of NUS-WIDE seed 44 through the pinned wrapper
+  (section 830, GPU 0, before 17:00Z).
+- **What ran:** the exact command, issued once at 05:28:55Z. The wrapper's helper pin check passed. The v3
+  helper then refused one gate:
+  - `/data` (sdb) was **97.1 % busy**, 8.46 MB/s, over its 15-second window;
+  - the other 12 gates passed;
+  - the wrapper exited 2 before the approval-line check and `tmux_run.sh`.
+- **Likely cause (observed, not proven):** the peer text-path session started its `td3` training cells
+  at 05:28:02Z, on GPUs 1 and 2, reading Flickr25K caches from `/data`. Within one minute, three 10-second
+  read-only samples showed 0.5–1.0 % busy.
+- **Evidence:** `/home/yschoi/anchor_rt_session_state/launch_readiness/20261007T052855Z_launch/`
+  - `report.json` `c1622750c1205638555ca566cdc1bc3d76c393b66b06af7f22c786d56e38e907`
+  - `REFUSAL_NOTE.md` `92e7f02f505d129ccf0870a98203e6c93e90d46cdf1131fe3936f3cb4580c3eb`
+- **Next:** per §830, the command is not repeated and no gate is weakened. I wait for the audit's word.
+  The peer was informed and asked only for its schedule; it was not asked to pause.
+
+---
+
 ## 2026-10-07 [anchor model — pre-launch checker repaired for audit §828 (v3, fail-closed); downstream consumer proposal submitted; nothing run] Audits §828–§829
 
 **Status:** ✅ both submitted to the audit. **Nothing ran:** no supervisor, claim, lease or GPU; the r8
