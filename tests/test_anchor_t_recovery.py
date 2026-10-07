@@ -40,6 +40,8 @@ RUN_ID = "20261006T145139Z-b08e4ae2"
 RECOVERED = ("nuswide", 44)
 BIT2 = RT.BIT2_OUTPUT
 REQUIRED = [n for n in M.OFFICIAL_TEST_OUTPUTS if n != BIT2]
+#: the launcher's REAL managed-child launcher, captured before any fixture replaces it (audit 839)
+_REAL_MANAGED = M._run_managed_process
 REASON = "budget: projected 80001 s of 80000 s"
 
 
@@ -1113,3 +1115,99 @@ def test_composed_a_new_record_off_its_outputs_publishes_no_receipt(campaign, wo
     assert campaign.run(*campaign.approve(digest)) == 1
     assert not (world.records / f"{NEW_NS}{RT.T_RECOVERY_RECEIPT_SUFFIX}").exists()
     assert (world.records / f"{NEW_NS}_{world.recovered['tag']}.json").exists()
+
+
+# =============================================================================================
+# audit 839: the recovery through the REAL managed-child boundary (worker thread, session registry)
+# =============================================================================================
+_SYNTHETIC_CHILD = r"""
+import json, os, sys
+from pathlib import Path
+kind, marker, claim_root = sys.argv[1], Path(sys.argv[2]), Path(sys.argv[3])
+claims = sorted(p.name for p in claim_root.glob("*.json")) if claim_root.is_dir() else []
+with open(marker, "a") as log:
+    log.write(json.dumps({"kind": kind, "name": sys.argv[4], "pid": os.getpid(), "claims": claims}) + "\n")
+if kind == "entry":
+    repo, attempt, attempt_sha, run_dir, required, fail = sys.argv[5:11]
+    sys.path.insert(0, repo)
+    from scripts import anchor_terminal_test as TE
+    attempt = Path(attempt)
+    TE.claim_entry(attempt, attempt_sha, json.loads(attempt.read_bytes())["cell"])
+    if fail == "1":
+        sys.exit(1)
+    for out in json.loads(required):
+        (Path(run_dir) / out).write_bytes(("new:" + out).encode())
+sys.exit(0)
+"""
+
+
+@pytest.fixture
+def real_dispatch(campaign, world, tmp_path, monkeypatch):
+    """The campaign with the REAL M._run_managed_process: its main-thread guard, session registry and drain.
+    Only the scientific work is substituted: every producer command becomes one tiny private synthetic
+    child (the entry child performs the real entry claim and writes the outputs; post-chain children only
+    record their start). The dispatching thread of every launch is recorded."""
+    child = tmp_path / "synthetic_child.py"
+    child.write_text(_SYNTHETIC_CHILD)
+    marker = tmp_path / "child_starts.jsonl"
+    state = campaign.state
+    state.update(dispatch=[], entry_fail=False)
+
+    def managed(command, *, cwd, env):
+        name = Path(command[2] if command[1] == "-B" else command[1]).name
+        state["dispatch"].append((name, threading.current_thread() is threading.main_thread(),
+                                  threading.current_thread().name))
+        common = [sys.executable, "-B", str(child)]
+        if name == "anchor_terminal_test.py":
+            argv = common + ["entry", str(marker), str(RT.RECOVERY_CLAIM_ROOT), name, str(Path(RT.REPO)),
+                             command[command.index("--attempt") + 1], command[command.index("--attempt-sha256") + 1],
+                             command[command.index("--config_path") + 1], json.dumps(REQUIRED),
+                             "1" if state["entry_fail"] else "0"]
+        else:
+            argv = common + ["post", str(marker), str(RT.RECOVERY_CLAIM_ROOT), name]
+        state["commands"].append(name)
+        return _REAL_MANAGED(argv, cwd=cwd, env=env)        # the real guard, Popen, registry and drain
+    monkeypatch.setattr(M, "_run_managed_process", managed)
+
+    def starts():
+        return [json.loads(line) for line in marker.read_text().splitlines()] if marker.exists() else []
+    return SimpleNamespace(campaign=campaign, state=state, starts=starts)
+
+
+def test_real_dispatch_the_recovery_launches_its_children_from_a_worker_thread(real_dispatch, world):
+    campaign, state = real_dispatch.campaign, real_dispatch.state
+    _, digest = campaign.plan()
+    assert campaign.run(*campaign.approve(digest)) == 0
+    assert state["dispatch"] and not any(on_main for _n, on_main, _t in state["dispatch"])
+    assert len({t for _n, _m, t in state["dispatch"]}) == 1          # one worker runs the whole cell
+    starts = real_dispatch.starts()
+    entries = [s for s in starts if s["kind"] == "entry"]
+    assert len(entries) == 1                                        # the synthetic entry started once
+    assert entries[0]["claims"] == [f"{RT.recovery_claim_key(world.lineage)}.json"]   # claim before the entry
+    assert [s["name"] for s in starts] == CHAIN
+    assert (world.records / f"{NEW_NS}{RT.T_RECOVERY_RECEIPT_SUFFIX}").is_file()
+
+
+def test_real_dispatch_a_failed_entry_child_publishes_no_receipt(real_dispatch, world, capsys):
+    campaign, state = real_dispatch.campaign, real_dispatch.state
+    state["entry_fail"] = True
+    _, digest = campaign.plan()
+    assert campaign.run(*campaign.approve(digest)) == 1
+    assert "the T entry exited 1" in capsys.readouterr().err
+    assert [s["kind"] for s in real_dispatch.starts()] == ["entry"]   # nothing after the failed entry
+    assert not (world.records / f"{NEW_NS}{RT.T_RECOVERY_RECEIPT_SUFFIX}").exists()
+    assert list(RT.RECOVERY_CLAIM_ROOT.glob("*.json")) and list(world.records.glob(f"{NEW_NS}_attempt_*.json"))
+    assert not any(on_main for _n, on_main, _t in state["dispatch"])
+    assert M._owned_live_sessions() == []                          # the session registry is drained
+
+
+def test_real_dispatch_an_exception_in_the_worker_publishes_no_receipt(real_dispatch, world, capsys, monkeypatch):
+    campaign = real_dispatch.campaign
+    _, digest = campaign.plan()
+
+    def boom(*a, **k):
+        raise RuntimeError("injected closure failure")
+    monkeypatch.setattr(RT, "final_recovery_closure", boom)
+    assert campaign.run(*campaign.approve(digest)) == 1
+    assert "injected closure failure" in capsys.readouterr().err
+    assert not (world.records / f"{NEW_NS}{RT.T_RECOVERY_RECEIPT_SUFFIX}").exists()
