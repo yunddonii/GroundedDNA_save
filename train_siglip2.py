@@ -423,6 +423,9 @@ def _build_active_loss_types(args) -> list:
     # is a SEPARATE dict key from loss_cw_xmodal. It was previously summed into
     # the total but never logged, leaving its per-epoch curve invisible.
     if _on('lambda_xmodal_commit'):     keys.append('loss_xmodal_commit')
+    # TD (2026-10-07): text-dropout path consistency; column exists only
+    # when its lambda is on so log.csv stays bit-identical otherwise.
+    if _on('lambda_path_consistency'):  keys.append('path_consistency')
     if _on('lambda_sim_spread'):        keys.append('loss_sim_spread')
     if _on('lambda_bio_constraint'):    keys.append('loss_bio_constraint')
     if _on('lambda_codon_joint'):       keys.append('loss_codon_joint')
@@ -593,7 +596,79 @@ def _mid_train_eval(model, loader, device, distance_mode: str, codebook_size: in
     return retrieval, collapse
 
 
+def _validate_path_consistency_args(args) -> None:
+    """TD (2026-10-07): startup validator for the text-dropout path-consistency
+    arm. Runs as the FIRST statement of main() so a bad flag combination is
+    refused before the seed is set, the model is built, any checkpoint is
+    loaded or a DataLoader is created. Defaults (lambda 0.0) always pass.
+
+    Refused combinations (all raise ValueError):
+      * lambda > 0 with --disable_text_supervision: the teacher is the
+        caption-routed forward, so the term would always be zero.
+      * lambda > 0 with text_dropout_p outside (0, 1]: p == 0 means the
+        student forward never runs (silently inert); p > 1 is not a
+        probability.
+      * path_consistency_tau <= 0: softmax temperature must be positive.
+      * lambda > 0 with --eval_routing_mode text_prototype: the student is
+        the codebook_mean (no-text) forward, which would then NOT be the
+        routing that is served at evaluation.
+    """
+    lam = float(getattr(args, "lambda_path_consistency", 0.0))
+    p   = float(getattr(args, "text_dropout_p", 0.0))
+    tau = float(getattr(args, "path_consistency_tau", 0.1))
+    if tau <= 0.0:
+        raise ValueError(
+            f"--path_consistency_tau must be > 0 (got {tau})"
+        )
+    if lam <= 0.0:
+        return
+    if bool(getattr(args, "disable_text_supervision", False)):
+        raise ValueError(
+            "--disable_text_supervision is incompatible with "
+            "--lambda_path_consistency > 0 (the teacher is the caption-routed "
+            "forward); use --lambda_path_consistency 0.0 for a strict no-text "
+            "ablation"
+        )
+    if not (0.0 < p <= 1.0):
+        raise ValueError(
+            "--lambda_path_consistency > 0 requires 0 < --text_dropout_p <= 1 "
+            f"(got {p}); p = 0 would never run the no-text student forward"
+        )
+    if str(getattr(args, "eval_routing_mode", "codebook_mean")) == "text_prototype":
+        raise ValueError(
+            "--lambda_path_consistency > 0 is incompatible with "
+            "--eval_routing_mode text_prototype: the student path is the "
+            "codebook_mean (no-text) routing, which would not be the served path"
+        )
+
+
+# Backward-compatible alias (the first revision exposed only this name).
+_refuse_path_consistency_without_text = _validate_path_consistency_args
+
+
+def _td_should_run(train: bool, using_cache: bool, lam: float, p: float,
+                   gen: "torch.Generator") -> bool:
+    """TD (2026-10-07): per-step gate for the extra no-text student forward.
+
+    Draws from the DEDICATED generator `gen` only when 0 < p < 1 and the arm
+    is active; never from the global RNG, so data order / worker seeds are
+    identical across arms. No draw at all when lam == 0 (arm off) or
+    p >= 1.0 (every step).
+    """
+    if not (bool(train) and bool(using_cache) and float(lam) > 0.0):
+        return False
+    if float(p) >= 1.0:
+        return True
+    if float(p) <= 0.0:
+        return False
+    return bool(torch.rand((), generator=gen).item() < float(p))
+
+
 def main(args: Config):
+
+    # TD (2026-10-07): refuse bad path-consistency flag combinations before
+    # the seed, the model, any checkpoint load or any DataLoader exists.
+    _validate_path_consistency_args(args)
 
     # Seed before constructing the model, loaders, optimizer, or any auxiliary
     # clustering state. Keeping this inside main also covers programmatic
@@ -968,6 +1043,18 @@ def main(args: Config):
     csv_logger = EpochCSVLogger(csv_path, csv_fields)
     print(f"[csv-logger] writing per-epoch metrics to {csv_path}")
 
+    # TD (2026-10-07): text-dropout path consistency (Stage-3 arm N1).
+    _td_lambda = float(getattr(args, "lambda_path_consistency", 0.0))
+    _td_p      = float(getattr(args, "text_dropout_p", 0.0))
+    _td_routing_checked = [False]   # one-time routing_mode assertion
+    # Dedicated CPU generator for the per-step text-dropout draw. Creating it
+    # does not touch the global RNG, and _td_should_run only draws from it
+    # (and only when 0 < p < 1), so data order / worker seeds / dropout masks
+    # are bit-identical across arms. Offset 1009 keeps it distinct from the
+    # global seed stream.
+    _td_gen = torch.Generator().manual_seed(
+        int(getattr(args, "random_seed", 42)) + 1009)
+
     # ---------- loop --------------------------------------------------------
     def one_epoch(train, loader, epoch):
         result = {k: 0.0 for k in loss_types}
@@ -1142,6 +1229,50 @@ def main(args: Config):
                     compute_text_foil=False,
                 )
 
+            # ---- TD (2026-10-07): text-dropout path consistency ------------
+            # Train-only, cached path only. With probability text_dropout_p
+            # per step (1.0 = every step, no RNG draw) run a THIRD forward on
+            # the SAME view-1 visual inputs that `out` used but with NO text,
+            # so routing_mode is "codebook_mean" = the deployment routing
+            # (identical to what --disable_text_supervision would produce).
+            # The model stays in training mode here, so the quantizer EMA
+            # codebook update also sees the deployment-routed tokens
+            # (intended: the codebook is trained on the path it is served on).
+            # The criterion distils `out`'s caption-routed assignment into it.
+            #
+            # Two side effects of the extra training-mode forward, on the
+            # steps where it runs:
+            #   (1) the quantizer's revive counter (`_revive_step`) advances
+            #       once more per step, so dead-codeword revival fires about
+            #       1.5-2x more often than in the two-forward baseline;
+            #   (2) the teacher distances in `out` were computed against the
+            #       codebook BEFORE this step's EMA writes, while the
+            #       student's `codebook_distances` are measured against the
+            #       codebook AFTER them (the view-1 forward's EMA update has
+            #       already been applied when this forward runs).
+            # The per-step draw uses the dedicated `_td_gen` generator, never
+            # the global RNG (see _td_should_run).
+            out_notext = None
+            if _td_should_run(train, using_cache, _td_lambda, _td_p, _td_gen):
+                out_notext = model(
+                    pixel_values=None,
+                    part_input_ids=None,
+                    part_attention_mask=None,
+                    return_routing=True,
+                    cached_visual_tokens_raw=cached_vt,
+                    cached_visual_global=cached_vg,
+                    cached_text_part_raw=None,
+                    cached_has_text=None,
+                )
+                if not _td_routing_checked[0]:
+                    if out_notext.get("routing_mode") != "codebook_mean":
+                        raise RuntimeError(
+                            "[path_consistency] no-text forward returned "
+                            f"routing_mode={out_notext.get('routing_mode')!r}, "
+                            "expected 'codebook_mean'"
+                        )
+                    _td_routing_checked[0] = True
+
             # ---- labels ----------------------------------------------------
             mh_labels = batch.get('label',
                           batch.get('labels',
@@ -1170,6 +1301,7 @@ def main(args: Config):
                 pixel_target=pixel_target,
                 outputs_view2=out_view2,
                 enable_counterfactual=bool(train),
+                outputs_notext=out_notext,   # TD (2026-10-07); None when off
             )
             loss = loss_dict['loss']
 

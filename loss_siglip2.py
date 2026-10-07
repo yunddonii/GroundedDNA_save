@@ -305,6 +305,12 @@ class DNACodonHashLoss(nn.Module):
         # v176: skip cb0 (C_global) options for xmodal_commit + text_hash_ntxent
         self.xmodal_commit_skip_global    = bool(getattr(cfg, "xmodal_commit_skip_global",    False))
         self.text_hash_ntxent_skip_global = bool(getattr(cfg, "text_hash_ntxent_skip_global", False))
+        # TD (2026-10-07): text-dropout path consistency. KL between the
+        # caption-routed codeword assignment distribution (teacher, detached)
+        # and the deployment-routed (no-text) one, both from codebook_distances.
+        self.lambda_path_consistency         = float(getattr(cfg, "lambda_path_consistency", 0.0))
+        self.path_consistency_tau            = float(getattr(cfg, "path_consistency_tau", 0.1))
+        self.path_consistency_include_global = bool(getattr(cfg, "path_consistency_include_global", False))
         # v123: per-(codebook, codeword) text prototypes. The EMA prototype
         # is updated from text tokens assigned to each visual codeword, then
         # visual quantizer inputs are classified against those prototypes.
@@ -2641,6 +2647,7 @@ class DNACodonHashLoss(nn.Module):
         pixel_target: Optional[torch.Tensor] = None,
         outputs_view2: Optional[Dict[str, Any]] = None,
         enable_counterfactual: bool = True,
+        outputs_notext: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, torch.Tensor]:
         # ---- pull required tensors from the model output dict ------------
         u                            = outputs.get("continuous_code")          # [B, 18, 4]
@@ -3057,6 +3064,56 @@ class DNACodonHashLoss(nn.Module):
             # Average the two symmetric directions (so the lambda represents
             # the per-direction weight, matching the paper's beta/2 per side).
             loss_xmodal_commit = 0.5 * (loss_xmodal_visual + loss_xmodal_text)
+
+        # TD (2026-10-07): text-dropout path consistency. `outputs` is the
+        # caption-routed forward (teacher, no gradient); `outputs_notext` is
+        # the extra deployment-routed forward on the SAME view-1 visual inputs
+        # (student; gradient reaches the visual adapter through it). Both
+        # distributions come from the squared-Euclidean codebook_distances the
+        # argmin assignment uses (NOT the cosine logits of text_code_kl).
+        # Every other term stays on `outputs` exactly as before.
+        #
+        # The term is computed ONLY when the teacher forward was actually
+        # caption-routed (outputs["routing_mode"] == "text"). A batch with no
+        # real text routes `outputs` by codebook_mean too, and the KL would
+        # then self-distil two no-text forwards (identical inputs, identical
+        # routing) -- a meaningless, near-zero signal that would still spend
+        # a backward pass. Such batches return the zero tensor instead.
+        loss_path_consistency = u.new_zeros(())
+        if (
+            self.lambda_path_consistency > 0.0
+            and outputs_notext is not None
+            and outputs.get("routing_mode") == "text"
+        ):
+            d_notext = outputs_notext.get("codebook_distances")        # [B, M, K]
+            if d_notext is None or tuple(d_notext.shape) != tuple(distances.shape):
+                raise ValueError(
+                    "[DNACodonHashLoss] lambda_path_consistency > 0 requires "
+                    "outputs_notext['codebook_distances'] with the same shape "
+                    f"as outputs['codebook_distances'] ({tuple(distances.shape)})."
+                )
+            start_m = 0 if self.path_consistency_include_global else 1
+            tau_pc = max(float(self.path_consistency_tau), 1e-6)
+            d_text_pc = distances[:, start_m:, :]                      # [B, M', K]
+            logits_t = (-d_text_pc / tau_pc).detach()                  # teacher
+            logits_n = -d_notext[:, start_m:, :] / tau_pc              # student
+            # Inactive codewords: the quantizer fills their distances with
+            # +inf (model_siglip2.py `distances.masked_fill(inactive, inf)`),
+            # so `-inf / tau` would make log_softmax produce NaN. Build the
+            # mask from the teacher's non-finite entries, OR'ed with the
+            # explicit active mask when the model provides one, and apply it
+            # to BOTH logits so the two distributions share a support.
+            inactive_pc = ~torch.isfinite(d_text_pc)                   # [B, M', K]
+            active_pc = outputs.get("codebook_active_mask")           # [M, K] bool | None
+            if active_pc is not None:
+                inactive_from_mask = ~active_pc.to(device=logits_t.device, dtype=torch.bool)
+                inactive_pc = inactive_pc | inactive_from_mask[start_m:, :].unsqueeze(0)
+            logits_t = logits_t.masked_fill(inactive_pc, -1e9)
+            logits_n = logits_n.masked_fill(inactive_pc, -1e9)
+            log_p_t = F.log_softmax(logits_t, dim=-1)
+            log_p_n = F.log_softmax(logits_n, dim=-1)
+            kl_pc = (log_p_t.exp() * (log_p_t - log_p_n)).sum(dim=-1)   # [B, M']
+            loss_path_consistency = kl_pc.mean()
 
         # v123: codeword-level text prototype alignment. Use quantizer_input
         # instead of semantic_visual_tokens when v122 residual quantization is
@@ -3477,6 +3534,10 @@ class DNACodonHashLoss(nn.Module):
             + self.lambda_text_preq_contrastive     * loss_text_preq_contrastive
             + self.lambda_text_visual_hash_contrastive * loss_text_visual_hash_contrastive
         )
+        # TD (2026-10-07): added only when active so the default total is
+        # bit-identical to the legacy sum.
+        if self.lambda_path_consistency > 0.0 and outputs_notext is not None:
+            total = total + self.lambda_path_consistency * loss_path_consistency
 
         # v106: codeword <-> DNA codon bijection losses (None-safe).
         # Operate on the codeword-level codon decoder outputs supplied by
@@ -3814,6 +3875,7 @@ class DNACodonHashLoss(nn.Module):
             "counterfactual_valid_ratio": counterfactual_valid_ratio,
             "loss_cw_xmodal":    loss_cw_xmodal,
             "loss_xmodal_commit": loss_xmodal_commit,
+            "path_consistency":  loss_path_consistency,   # TD (2026-10-07)
             "loss_codeword_text_proto": loss_codeword_text_proto,
             "loss_codeword_codon_sinkhorn": loss_codeword_codon_sinkhorn,
             "loss_codeword_codon_agg_ent":  loss_codeword_codon_agg_ent,

@@ -122,6 +122,13 @@ def main() -> int:
               "reported as such")
     mh = batch.get("multi_hot_labels")
     lbl = batch.get("label", batch.get("labels"))
+    # TD (2026-10-07): path_consistency needs a THIRD (no-text) forward passed
+    # as outputs_notext; this audit does not build it, so the term reads as
+    # inert here by construction, not by recipe.
+    if float(getattr(args, "lambda_path_consistency", 0.0)) > 0.0:
+        print("  NOTE: lambda_path_consistency > 0 but this audit passes no "
+              "outputs_notext (no-text student forward); 'path_consistency' "
+              "will read as inert here and must not be reported as such")
     loss_dict = crit(outputs=out, labels=lbl, multi_hot_labels=mh,
                      epoch=a.epoch, outputs_view2=out_v2,
                      enable_counterfactual=True)

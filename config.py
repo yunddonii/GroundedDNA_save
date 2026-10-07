@@ -1835,6 +1835,34 @@ class Config():
             help='v176: skip cb0 (C_global) from xmodal_commit. Only local '
                  'codebooks (cb1..cb5) contribute. C_global codebook then '
                  'learns purely from visual + CIBHash NtXent.')
+        # TD (2026-10-07): text-dropout path consistency (Stage-3 arm N1).
+        # Per training step, with probability --text_dropout_p, run an extra
+        # no-text forward on the same view-1 visual inputs (routing_mode
+        # "codebook_mean" = deployment routing) and distil the caption-routed
+        # codeword assignment distribution into it:
+        #   KL( softmax(-d_text/tau).detach() || softmax(-d_notext/tau) )
+        # over codebook_distances, mean over batch and included slots.
+        # Default 0.0 disables (bit-identical to the legacy path).
+        loss_arg.add_argument('--lambda_path_consistency',
+            dest='lambda_path_consistency', type=float, default=0.0,
+            help='TD (2026-10-07): weight of the text->no-text codeword '
+                 'assignment KL (teacher = caption-routed forward, student = '
+                 'deployment-routed no-text forward). 0.0 disables (default). '
+                 'Incompatible with --disable_text_supervision.')
+        loss_arg.add_argument('--path_consistency_tau',
+            dest='path_consistency_tau', type=float, default=0.1,
+            help='TD (2026-10-07): softmax temperature applied to '
+                 '-codebook_distances on both paths. Default 0.1.')
+        loss_arg.add_argument('--path_consistency_include_global',
+            dest='path_consistency_include_global',
+            action='store_true', default=False,
+            help='TD (2026-10-07): also include slot 0 (C_global) in the '
+                 'path-consistency KL. Default OFF = local slots 1..4 only.')
+        loss_arg.add_argument('--text_dropout_p',
+            dest='text_dropout_p', type=float, default=0.0,
+            help='TD (2026-10-07): per-training-STEP probability that the '
+                 'extra no-text forward is run (only when '
+                 'lambda_path_consistency > 0). 1.0 = every step. Default 0.0.')
         # v161 (Uni-Code Section 4.3 simplified): bi-modal EMA codebook update.
         loss_arg.add_argument('--mm_ema',
             dest='mm_ema', action='store_true', default=False,
