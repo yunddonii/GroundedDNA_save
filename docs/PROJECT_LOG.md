@@ -487,6 +487,30 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-07 [anchor model — r8 recovery: user allowed the budget, peer GPU agreed, readiness 24/24; exact launch line requested, nothing run] Audits §823–§827
+
+**Status:** ✅ launch-readiness packet submitted to the audit. **Nothing ran:** no supervisor, claim,
+ops root, lease or GPU was taken.
+
+- **§823** accepted the r8 preparation and the archive at S = `04e7fe8`. Execution still needed the
+  user's decision.
+- **§824** queued a separate source-only downstream proposal.
+- **§825–§826** recorded the wait for the user's answer. They also noted that a "no" to the budget would
+  not by itself amend the protocol scope.
+- **§827** verified the user's "yes" and asked for this launch package. It issued no approval line.
+
+| Step | Result | Record (in `/home/yschoi/anchor_rt_session_state/`) |
+|---|---|---|
+| User decision | "허용 (15,000초, 1회)": at most 15,000 GPU-device-seconds, exactly one attempt, cumulative ceiling 94,482.14623009507 s, NUS-WIDE s44 only. Question `toolu_01LRRX8zAvUvgpEWWzqJxjV8`, answered 05:06:48Z | `decisions/user_recovery_budget_decision.json` `bbf65aeb8f5065c559a8ba64cfe8a28dbe5dbb16eef58d90b216085a3bea95d8` |
+| Peer GPU agreement | text-path session `groundeddna-05` agreed in writing: GPU 0 (`GPU-4ac2ea6b-1925-e1ba-5463-02827507d897`), owner this session, ≤ 8 h after launch, release at settlement. It lapses if not launched within 12 h. The peer plans no NUS-WIDE/MS-COCO `/data` reads | `coordination/gpu_recovery_ancT9r.json` `a2a0b98f6069225627b46f53f365a8bbe17a675a863747bc30b9c0c9f6c0c7f2` |
+| Read-only readiness check | **24/24 pass:** HEAD = S, clean, 594 additions-only vs `3fd0117`, 71 manifest pins, runtime = manifest pins, request identities unchanged, parent ledger unchanged, nothing started (absence by lstat), 13 target outputs absent, GPU 0 idle and unleased, `/data` busy 0 %. A tampered copy, including a dangling-symlink claim root, failed the 5 expected gates | `launch_readiness/20261007T051217Z/report.json` `ca5660d12e47307cda202775c1513e1a20387886f1bcd010f6dea39d26b6b235`; checker `tools/recovery_launch_readiness.py` `8f6465793c9774586699e2e98328fddeb0f3801dc3716a8bc84ffb0f1181e1f0` |
+| Request to the audit | exact command with `--gpus 0`. The same-command gate re-runs the checker, then requires the exact `stage-T-recovery` line for request `d34f505b…` in the named audit section | `launch_readiness/LAUNCH_READINESS_ancT9r_20261007.md` `3463e30981cdd32c88fc2746450cf724a5ed1e7ce9b0e025985cf612fee72191` |
+
+**Next:** the audit's exact launch line, then one attempt in tmux `ancT9r_v9r8` (no retry). After that,
+the §824 downstream proposal as a separate document. The r8 HEAD stays at S.
+
+---
+
 ## 2026-10-07 [anchor model — r8 recovery submission revised for audit §822: records and wording only, nothing run] Audit §822
 
 **Status:** ✅ revision committed and pushed. **Non-executable:** no rerun, no source change, no claim,
