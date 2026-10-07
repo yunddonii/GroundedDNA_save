@@ -24,7 +24,7 @@ PROMPT_ATTRIBUTES_MERGE_P = PROMPT_ATTRIBUTES_MERGE.replace(
     '"concepts": ["..."]}], "note": ""}.', '"concepts": ["..."]}], "note": ""} with at most 8 concepts per attribute.')
 assert PROMPT_ATTRIBUTES_P != PROMPT_ATTRIBUTES and PROMPT_ATTRIBUTES_MERGE_P != PROMPT_ATTRIBUTES_MERGE
 from stage2_concepts import (load_survey, render_concepts, parse_attributes, groupings_agree,  # noqa: E402
-                             validate_attributes, key_map_by_position, atomic_json_dump, LEGACY_LOCAL_KEYS, PROMPT_SHAS, PROMPT_VERSION)
+                             validate_attributes, key_map_by_position, atomic_json_dump, LEGACY_LOCAL_KEYS, PROMPT_SHAS, PROMPT_VERSION, ParseFailure)
 
 
 def dedupe_phrases(survey):
@@ -47,17 +47,33 @@ def run(gen, survey, out_dir, sample=300, shuffles=3, log=print):
     groupings = []
     for s in range(shuffles):
         p = out_dir / f"attributes_shuffle{s}.json"
+        if p.exists():  # resume: a completed shuffle is reused as is
+            g = json.load(open(p)); groupings.append(g)
+            log(f"  shuffle {s}: reused {p.name}: {[a['name'] for a in g['attributes']]}")
+            continue
         rng = np.random.default_rng(s)
-        idx = rng.choice(len(phrases), size=min(sample, len(phrases)), replace=False)
-        sampled = [phrases[i] for i in idx]
-        prompt = PROMPT_ATTRIBUTES_P.replace("<CONCEPTS>", render_concepts(sampled))
-        g = parse_attributes(gen(prompt))
+        order = rng.permutation(len(phrases))
+        g = None
+        # If the model still echoes the whole input and overflows max_new_tokens (COCO, 2026-10-08), retry the
+        # same shuffle with the first half / third of the same permutation; the prompt text is unchanged.
+        for attempt, n in enumerate((sample, sample // 2, sample // 3)):
+            sampled = [phrases[i] for i in order[:min(n, len(phrases))]]
+            prompt = PROMPT_ATTRIBUTES_P.replace("<CONCEPTS>", render_concepts(sampled))
+            try:
+                g = parse_attributes(gen(prompt))
+                break
+            except ParseFailure as e:
+                log(f"  shuffle {s}: attempt {attempt} with {len(sampled)} phrases failed: {str(e)[:160]}")
+        if g is None:
+            raise ParseFailure(f"shuffle {s}: all {attempt + 1} attempts overflowed/failed")
         assigned = set(c.lower().strip() for a in g["attributes"] for c in a.get("concepts", []))
-        g.update(seed=s, prompt_sha256=sha256_of(PROMPT_ATTRIBUTES_P), input="phrases", n_input=len(sampled),
+        g.update(seed=s, prompt_sha256=sha256_of(PROMPT_ATTRIBUTES_P), input="phrases", n_input=len(sampled), attempts=attempt + 1,
                  n_assigned=len(assigned & set(sampled)), input_sample=sampled)
         atomic_json_dump(g, p); groupings.append(g)
         log(f"  shuffle {s}: {[a['name'] for a in g['attributes']]} note={g.get('note','')!r} assigned {g['n_assigned']}/{len(sampled)}")
     agreement = groupings_agree(groupings)
+    agreement["note"] = ("membership jaccard is not informative here: each shuffle saw a different phrase sample and lists "
+                         "at most 8 example concepts; compare the attribute NAMES/definitions across shuffles instead")
     if agreement["agree"]:
         final, source = groupings[0], "shuffle0"
     else:
