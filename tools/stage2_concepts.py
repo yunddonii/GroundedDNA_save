@@ -2,15 +2,31 @@
 
 Input: the survey shards of one dataset (``<in_dir>/survey.shard*.jsonl``; rows with ``_parse_error``
 are ignored).  Output (all in ``--out_dir``):
-    concepts_shuffle{0,1,2}.json   cumulative list per phrase-order shuffle (step 2a; resume unit)
-    concepts.json                  three lists, pairwise agreement, the working list = union
-                                   de-duplicated by lowercased name (choice recorded in the file)
+    concepts_shuffle{0,1,2}.json   step 2a per phrase-order shuffle: one concept list PER MINI-BATCH
+                                   (PROMPT_CONCEPTS_BATCH, no cumulative input) and their union
+                                   de-duplicated by lowercased name (resume unit)
+    concepts_consolidated.json     PROMPT_CONCEPTS_CONSOLIDATE over the union of the three shuffle
+                                   unions; chunks of CONSOLIDATE_CHUNK when the union is larger, then
+                                   the chunk outputs are consolidated once more (re-chunked while they
+                                   still exceed the chunk size, at most MAX_CONSOLIDATE_LEVELS levels)
+    concepts.json                  per-shuffle sizes, agreement between the three shuffle unions,
+                                   consolidation levels, working list = the consolidated list
     concepts_visual.json           working list after PROMPT_VISUAL_CHECK, dropped concepts recorded
     attributes_shuffle{0,1,2}.json PROMPT_ATTRIBUTES on three concept-order shuffles
     attributes.json                final 4 attributes + positional key_map to the legacy slot keys
 
-Strict parsing: a reply whose JSON does not close or lacks the expected list raises (no silent skip).
+Why two levels (2026-10-07): the earlier cumulative design (PROMPT_CONCEPTS_UPDATE, kept unused in
+stage2_prompts.py) made the model restate the whole list every batch; on NUS-WIDE the reply overran
+max_new_tokens and was cut mid-string, on Flickr25k the count oscillated 69 -> 46 -> 81.  Per-batch
+extraction + consolidation (X-Cluster) bounds every reply to one batch's or one chunk's concepts.
+
+Strict parsing: a reply whose JSON does not close (after the ending-only repairs in
+``stage2_common.parse_json_object``) or lacks the expected list raises ParseFailure -- no silent skip.
+Concepts are sent to the model with at most RENDER_MAX_EXAMPLES examples each; files keep them all.
+Downstream files (visual check, attribute shuffles) record the sha of the list they were built from
+and are recomputed when that list changed, so stale files from an earlier method are never reused.
 All model calls go through one ``gen(prompt) -> str`` callable so tests drive the steps with a stub.
+Every JSON output is written to a sibling temp file and renamed into place.
 
 Usage:
     CUDA_VISIBLE_DEVICES=1 python tools/stage2_concepts.py --dataset Flickr25k \
@@ -20,23 +36,30 @@ from __future__ import annotations
 
 import argparse
 import glob
+import hashlib
 import json
 import os
 import sys
 from pathlib import Path
-from typing import Callable, Dict, List, Sequence
+from typing import Callable, Dict, List, Optional, Sequence
 
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from stage2_common import LEGACY_LOCAL_KEYS, MODEL_ID, DatasetSpec, parse_json_object, read_rows  # noqa: E402
-from stage2_prompts import (PROMPT_ATTRIBUTES, PROMPT_ATTRIBUTES_MERGE, PROMPT_CONCEPTS_UPDATE,  # noqa: E402
-                            PROMPT_SURVEY, PROMPT_VERSION, PROMPT_VISUAL_CHECK, sha256_of)
+from stage2_prompts import (PROMPT_ATTRIBUTES, PROMPT_ATTRIBUTES_MERGE, PROMPT_CONCEPTS_BATCH,  # noqa: E402
+                            PROMPT_CONCEPTS_CONSOLIDATE, PROMPT_CONCEPTS_UPDATE, PROMPT_SURVEY,
+                            PROMPT_VERSION, PROMPT_VISUAL_CHECK, sha256_of)
 
 AGREE_MIN_JACCARD = 0.6
 VISUAL_CHECK_CHUNK = 100
+CONSOLIDATE_CHUNK = 150
+MAX_CONSOLIDATE_LEVELS = 3
+RENDER_MAX_EXAMPLES = 2
+STEP2A_METHOD = "per_batch_extraction+consolidation"
 PROMPT_SHAS = {k: sha256_of(v) for k, v in {
-    "survey": PROMPT_SURVEY, "concepts_update": PROMPT_CONCEPTS_UPDATE, "visual_check": PROMPT_VISUAL_CHECK,
+    "survey": PROMPT_SURVEY, "concepts_update": PROMPT_CONCEPTS_UPDATE, "concepts_batch": PROMPT_CONCEPTS_BATCH,
+    "concepts_consolidate": PROMPT_CONCEPTS_CONSOLIDATE, "visual_check": PROMPT_VISUAL_CHECK,
     "attributes": PROMPT_ATTRIBUTES, "attributes_merge": PROMPT_ATTRIBUTES_MERGE}.items()}
 
 
@@ -52,6 +75,20 @@ def _lc(s) -> str:
 def key_form(name: str) -> str:
     """JSON-key form of an attribute display name: trimmed, spaces -> underscores."""
     return "_".join(str(name).strip().split())
+
+
+def atomic_json_dump(obj, path) -> None:
+    """Write JSON to a sibling temp file and rename it into place (readers never see a partial file)."""
+    path = Path(path)
+    tmp = path.with_name(path.name + f".tmp{os.getpid()}")
+    with open(tmp, "w") as f:
+        json.dump(obj, f, indent=1)
+    os.replace(tmp, path)
+
+
+def list_sha(items: Sequence[dict]) -> str:
+    """Order-free digest of a concept list by lowercased names (used to detect stale downstream files)."""
+    return hashlib.sha256(json.dumps(sorted(_lc(c["name"]) for c in items)).encode("utf-8")).hexdigest()
 
 
 def norm_concepts(items) -> List[dict]:
@@ -85,7 +122,7 @@ def dedupe_by_name(items: Sequence[dict]) -> List[dict]:
 
 
 def strict_list(raw: str, field: str) -> list:
-    """Parse a reply and return its ``field`` list; raise ParseFailure otherwise."""
+    """Parse a reply and return its ``field`` list; raise ParseFailure otherwise (fail hard)."""
     try:
         d = parse_json_object(raw)
     except Exception as e:  # noqa: BLE001
@@ -99,28 +136,67 @@ def jaccard(a: set, b: set) -> float:
     return len(a & b) / len(a | b) if (a | b) else 1.0
 
 
-def render_concepts(items: Sequence[dict]) -> str:
-    return json.dumps([{"name": c["name"], "examples": c["examples"]} for c in items], ensure_ascii=False, indent=0)
+def render_concepts(items: Sequence[dict], max_examples: Optional[int] = RENDER_MAX_EXAMPLES) -> str:
+    """Model-facing rendering: JSON list with at most ``max_examples`` examples per concept."""
+    return json.dumps([{"name": c["name"], "examples": c["examples"][:max_examples] if max_examples is not None
+                        else c["examples"]} for c in items], ensure_ascii=False, indent=0)
 
 
-# --------------------------------------------------------------------------- step 2a
-def concepts_update_pass(gen: Callable[[str], str], survey: Dict[str, List[str]], seed: int,
-                         batch_images: int, log=print) -> dict:
-    """One cumulative pass over the images in a seeded shuffle; returns the list and per-batch counts."""
+def _concept_reply(gen: Callable[[str], str], prompt: str) -> List[dict]:
+    return dedupe_by_name(norm_concepts(strict_list(gen(prompt), "concepts")))
+
+
+# --------------------------------------------------------------------------- step 2a (i): per-batch extraction
+def concepts_batch_pass(gen: Callable[[str], str], survey: Dict[str, List[str]], seed: int,
+                        batch_images: int, log=print) -> dict:
+    """One seeded shuffle of the images; every mini-batch is extracted independently (no cumulative
+    input).  Returns the per-batch lists and their union de-duplicated by lowercased name."""
     ids = sorted(survey)
     order = np.random.default_rng(seed).permutation(len(ids))
-    concepts: List[dict] = []
-    counts = []
+    n_batches = (len(ids) + batch_images - 1) // batch_images
+    batch_lists = []
     for b in range(0, len(ids), batch_images):
         batch = [ids[i] for i in order[b:b + batch_images]]
         lines = "\n".join(", ".join(survey[i]) for i in batch)
-        prompt = PROMPT_CONCEPTS_UPDATE.replace("<PHRASES>", lines).replace("<CONCEPTS>", render_concepts(concepts))
-        concepts = dedupe_by_name(norm_concepts(strict_list(gen(prompt), "concepts")))
-        counts.append(len(concepts))
-        log(f"  shuffle {seed} batch {b // batch_images + 1}/{(len(ids) + batch_images - 1) // batch_images}: "
-            f"{len(concepts)} concepts")
-    return {"seed": seed, "concepts": concepts, "counts_per_batch": counts, "n_images": len(ids),
-            "batch_images": batch_images}
+        lst = _concept_reply(gen, PROMPT_CONCEPTS_BATCH.replace("<PHRASES>", lines))
+        batch_lists.append({"batch": b // batch_images, "image_ids": batch, "concepts": lst})
+        log(f"  shuffle {seed} batch {b // batch_images + 1}/{n_batches}: {len(lst)} concepts "
+            f"(union so far {len(dedupe_by_name([c for bl in batch_lists for c in bl['concepts']]))})")
+    union = dedupe_by_name([c for bl in batch_lists for c in bl["concepts"]])
+    return {"method": STEP2A_METHOD, "seed": seed, "n_images": len(ids), "batch_images": batch_images,
+            "counts_per_batch": [len(bl["concepts"]) for bl in batch_lists], "batch_lists": batch_lists,
+            "union": union, "union_size": len(union), "prompt_sha256": PROMPT_SHAS["concepts_batch"]}
+
+
+# --------------------------------------------------------------------------- step 2a (ii): consolidation
+def consolidate(gen: Callable[[str], str], concepts: Sequence[dict], chunk: int = CONSOLIDATE_CHUNK,
+                max_levels: int = MAX_CONSOLIDATE_LEVELS, log=print) -> dict:
+    """PROMPT_CONCEPTS_CONSOLIDATE with bounded output per call: a list of at most ``chunk`` concepts
+    is consolidated in one call; a larger list is consolidated in chunks of ``chunk`` and the merged
+    chunk outputs are consolidated once more (re-chunked while they still exceed ``chunk``; stops
+    after ``max_levels`` levels or when a level no longer shrinks the list)."""
+    cur = dedupe_by_name(concepts)
+    levels = []
+    for level in range(1, max_levels + 1):
+        if len(cur) <= chunk:
+            out = _concept_reply(gen, PROMPT_CONCEPTS_CONSOLIDATE.replace("<CONCEPTS>", render_concepts(cur)))
+            levels.append({"level": level, "n_in": len(cur), "n_chunks": 1, "chunk_sizes_out": [len(out)], "n_out": len(out),
+                           "final": True})
+            log(f"  consolidate level {level}: {len(cur)} -> {len(out)} (single call)")
+            return {"concepts": out, "levels": levels, "chunk": chunk, "stopped": "single_call"}
+        chunks = [cur[i:i + chunk] for i in range(0, len(cur), chunk)]
+        outs = [_concept_reply(gen, PROMPT_CONCEPTS_CONSOLIDATE.replace("<CONCEPTS>", render_concepts(ch)))
+                for ch in chunks]
+        merged = dedupe_by_name([c for o in outs for c in o])
+        levels.append({"level": level, "n_in": len(cur), "n_chunks": len(chunks), "chunk_sizes_out": [len(o) for o in outs],
+                       "n_out": len(merged), "final": False})
+        log(f"  consolidate level {level}: {len(cur)} -> {len(merged)} in {len(chunks)} chunks of <= {chunk}")
+        if len(merged) >= len(cur):
+            log("  consolidation stopped: the level did not shrink the list")
+            return {"concepts": merged, "levels": levels, "chunk": chunk, "stopped": "not_shrinking"}
+        cur = merged
+    log(f"  consolidation stopped after {max_levels} levels with {len(cur)} concepts (> chunk {chunk})")
+    return {"concepts": cur, "levels": levels, "chunk": chunk, "stopped": "max_levels"}
 
 
 def agreement_report(lists: Sequence[Sequence[dict]]) -> dict:
@@ -231,16 +307,20 @@ def key_map_by_position(attrs: Sequence[dict]) -> Dict[str, str]:
 
 
 def attributes_step(gen: Callable[[str], str], concepts: Sequence[dict], out_dir, shuffles: int = 3, log=print) -> dict:
+    src_sha = list_sha(concepts)
     groupings = []
     for s in range(shuffles):
         p = Path(out_dir) / f"attributes_shuffle{s}.json"
         if p.exists():
-            groupings.append(json.load(open(p))); continue
+            g = json.load(open(p))
+            if g.get("concepts_sha256") == src_sha:
+                groupings.append(g); continue
+            log(f"  attributes shuffle {s}: {p} was built from a different concept list; recomputing")
         order = np.random.default_rng(s).permutation(len(concepts))
         prompt = PROMPT_ATTRIBUTES.replace("<CONCEPTS>", render_concepts([concepts[i] for i in order]))
         g = parse_attributes(gen(prompt))
-        g.update(seed=s, prompt_sha256=PROMPT_SHAS["attributes"])
-        json.dump(g, open(p, "w"), indent=1)
+        g.update(seed=s, prompt_sha256=PROMPT_SHAS["attributes"], concepts_sha256=src_sha)
+        atomic_json_dump(g, p)
         groupings.append(g)
         log(f"  attributes shuffle {s}: {[a['name'] for a in g['attributes']]} note={g['note']!r}")
     agreement = groupings_agree(groupings)
@@ -256,44 +336,74 @@ def attributes_step(gen: Callable[[str], str], concepts: Sequence[dict], out_dir
     attrs = validate_attributes(final["attributes"])
     return {"attributes": attrs, "note": final.get("note", ""), "key_map": key_map_by_position(attrs),
             "legacy_keys_in_order": list(LEGACY_LOCAL_KEYS), "source": source, "agreement": agreement,
-            "prompt_sha256s": PROMPT_SHAS, "prompt_version": PROMPT_VERSION, "vlm": MODEL_ID}
+            "concepts_sha256": src_sha, "prompt_sha256s": PROMPT_SHAS, "prompt_version": PROMPT_VERSION, "vlm": MODEL_ID}
 
 
 # --------------------------------------------------------------------------- driver
 def run_all(gen: Callable[[str], str], survey: Dict[str, List[str]], out_dir, batch_images: int = 80,
-            shuffles: int = 3, dataset: str = "", log=print) -> dict:
+            shuffles: int = 3, dataset: str = "", log=print, consolidate_chunk: int = CONSOLIDATE_CHUNK) -> dict:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    lists = []
+    # 2a (i): per-batch extraction, one file per shuffle (resume unit)
+    passes = []
     for s in range(shuffles):
         p = out_dir / f"concepts_shuffle{s}.json"
         if p.exists():
-            lists.append(json.load(open(p))); log(f"  shuffle {s}: reusing {p}"); continue
-        r = concepts_update_pass(gen, survey, s, batch_images, log)
-        json.dump(r, open(p, "w"), indent=1)
-        lists.append(r)
-    working = dedupe_by_name([c for r in lists for c in r["concepts"]])
-    concepts_json = {"dataset": dataset, "n_images": len(survey), "batch_images": batch_images,
-                     "shuffles": [{"seed": r["seed"], "n": len(r["concepts"]), "counts_per_batch": r["counts_per_batch"],
-                                   "concepts": r["concepts"]} for r in lists],
-                     "agreement": agreement_report([r["concepts"] for r in lists]),
-                     "working_list_rule": "union of the three shuffle lists, de-duplicated by lowercased name "
-                                          "(examples merged); order = first appearance in shuffle 0, 1, 2",
-                     "working": working, "prompt_sha256": PROMPT_SHAS["concepts_update"], "vlm": MODEL_ID}
-    json.dump(concepts_json, open(out_dir / "concepts.json", "w"), indent=1)
-    log(f"working list: {len(working)} concepts; agreement {concepts_json['agreement']}")
+            r = json.load(open(p))
+            if r.get("method") == STEP2A_METHOD and "union" in r:
+                passes.append(r); log(f"  shuffle {s}: reusing {p}"); continue
+            log(f"  shuffle {s}: {p} is from an earlier method; recomputing")
+        r = concepts_batch_pass(gen, survey, s, batch_images, log)
+        atomic_json_dump(r, p)
+        passes.append(r)
+    unions = [r["union"] for r in passes]
+    union_all = dedupe_by_name([c for u in unions for c in u])
+    union_sha = list_sha(union_all)
+    # 2a (ii): consolidation over the union of the shuffle unions
+    cons_p = out_dir / "concepts_consolidated.json"
+    cons = None
+    if cons_p.exists():
+        cons = json.load(open(cons_p))
+        if cons.get("union_sha256") != union_sha:
+            log(f"  {cons_p} was built from a different union; recomputing"); cons = None
+    if cons is None:
+        cons = consolidate(gen, union_all, consolidate_chunk, log=log)
+        cons.update(union_sha256=union_sha, n_union_in=len(union_all), prompt_sha256=PROMPT_SHAS["concepts_consolidate"])
+        atomic_json_dump(cons, cons_p)
+    working = cons["concepts"]
+    concepts_json = {"dataset": dataset, "method": STEP2A_METHOD, "n_images": len(survey), "batch_images": batch_images,
+                     "shuffles": [{"seed": r["seed"], "n_union": r["union_size"], "counts_per_batch": r["counts_per_batch"],
+                                   "union": r["union"]} for r in passes],
+                     "agreement": agreement_report(unions),
+                     "n_union_all": len(union_all), "consolidation": {k: cons[k] for k in ("levels", "chunk", "stopped")},
+                     "n_consolidated": len(working),
+                     "working_list_rule": "per-batch extraction (PROMPT_CONCEPTS_BATCH, 3 shuffles) -> union of all batch "
+                                          "lists de-duplicated by lowercased name (examples merged) -> "
+                                          "PROMPT_CONCEPTS_CONSOLIDATE (chunked when > chunk); working = consolidated list",
+                     "working": working, "prompt_sha256s": {k: PROMPT_SHAS[k] for k in ("concepts_batch", "concepts_consolidate")},
+                     "vlm": MODEL_ID}
+    atomic_json_dump(concepts_json, out_dir / "concepts.json")
+    log(f"step 2a: per-shuffle unions {[len(u) for u in unions]}, union of unions {len(union_all)}, consolidated "
+        f"{len(working)}; agreement {concepts_json['agreement']}")
+    # 2b
+    working_sha = list_sha(working)
     vis_p = out_dir / "concepts_visual.json"
+    vis = None
     if vis_p.exists():
         vis = json.load(open(vis_p))
-    else:
+        if vis.get("working_sha256") != working_sha:
+            log(f"  {vis_p} was built from a different working list; recomputing"); vis = None
+    if vis is None:
         vis = visual_check(gen, working)
-        vis.update(n_before=len(working), n_after=len(vis["concepts"]), prompt_sha256=PROMPT_SHAS["visual_check"])
-        json.dump(vis, open(vis_p, "w"), indent=1)
+        vis.update(n_before=len(working), n_after=len(vis["concepts"]), working_sha256=working_sha,
+                   prompt_sha256=PROMPT_SHAS["visual_check"])
+        atomic_json_dump(vis, vis_p)
     log(f"visual check: kept {len(vis['concepts'])}, dropped {len(vis['dropped_not_visible'])}, "
         f"unanswered {len(vis['unanswered_kept'])}")
+    # 3
     attrs = attributes_step(gen, vis["concepts"], out_dir, shuffles, log)
     attrs.update(dataset=dataset, n_concepts=len(vis["concepts"]))
-    json.dump(attrs, open(out_dir / "attributes.json", "w"), indent=1)
+    atomic_json_dump(attrs, out_dir / "attributes.json")
     log("ATTRIBUTES: " + json.dumps([{a["key"]: a["definition"]} for a in attrs["attributes"]], ensure_ascii=False))
     log(f"key_map: {attrs['key_map']}  source={attrs['source']}")
     return attrs
@@ -315,6 +425,7 @@ def main(argv=None):
     ap.add_argument("--batch_images", type=int, default=80)
     ap.add_argument("--shuffles", type=int, default=3)
     ap.add_argument("--max_new_tokens", type=int, default=4096)
+    ap.add_argument("--consolidate_chunk", type=int, default=CONSOLIDATE_CHUNK)
     a = ap.parse_args(argv)
     spec = DatasetSpec(a.dataset)
     survey = load_survey(a.in_dir)
@@ -323,7 +434,7 @@ def main(argv=None):
     proc, mdl = load_vlm()
     gen = make_text_generator(proc, mdl, a.max_new_tokens)
     run_all(gen, survey, a.out_dir, a.batch_images, a.shuffles, spec.loader,
-            log=lambda m: print(m, flush=True))
+            log=lambda m: print(m, flush=True), consolidate_chunk=a.consolidate_chunk)
     return 0
 
 

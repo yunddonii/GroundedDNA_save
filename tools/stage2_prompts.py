@@ -1,9 +1,15 @@
 """Stage-2 caption pipeline prompts (text-path line, design record 2026-10-07 in docs/MODI_PROJECT_LOG.md).
 
-The five prompt texts below are fixed verbatim; every output row of the Stage-2 tools records
+The prompt texts below are fixed verbatim; every output row of the Stage-2 tools records
 ``sha256_of(<prompt>)`` so a caption file can be tied to the exact wording that produced it.
 ``tests/test_stage2_tools.py`` pins the digests.  Do not edit the texts in place -- a new wording is a
 new constant (and a new prompt_version).
+
+Step 2a history: ``PROMPT_CONCEPTS_UPDATE`` (cumulative list restated every batch) is kept for the
+record but is UNUSED since 2026-10-07: in production the restated list overran max_new_tokens on
+NUS-WIDE (reply cut mid-string) and oscillated on Flickr25k (69 -> 46 -> 81).  Step 2a now uses the
+two-level X-Cluster procedure: ``PROMPT_CONCEPTS_BATCH`` per mini-batch, then
+``PROMPT_CONCEPTS_CONSOLIDATE`` over the union (chunked when large).
 
 Placeholders: ``<PHRASES>``, ``<CONCEPTS>``, ``<G1>``..``<G3>`` (text steps) and ``<A1>``..``<A4>``,
 ``<D1>``..``<D4>`` (caption step; attribute key names and definitions from attributes.json).
@@ -23,6 +29,7 @@ phrases as the image supports, at most 12; fewer is fine.
 Output ONLY a JSON object: {"phrases": ["...", "..."]}.
 Do not guess what is outside the image."""
 
+# UNUSED since 2026-10-07 (kept for the record; see module docstring).
 PROMPT_CONCEPTS_UPDATE = """Below are phrases describing images from one photo collection, one line per
 image, followed by the concepts found so far. Update the concept list: add
 concepts that are useful for telling the images in this collection apart,
@@ -36,6 +43,16 @@ Phrases:
 <PHRASES>
 
 Concepts found so far:
+<CONCEPTS>"""
+
+PROMPT_CONCEPTS_BATCH = """Below are phrases describing images from one photo collection, one line per image. From these, list the visual concepts that are useful for telling the images in this collection apart. Keep concepts that are visible in the image itself; drop concepts that are not visual, that mean the same thing as another concept (when two concepts differ only in wording, keep one name and list the other as an example), or that apply to nearly every image in the collection or to almost none. Output ONLY a JSON object: {"concepts": [{"name": "...", "examples": ["...", "..."]}]}.
+
+Phrases:
+<PHRASES>"""
+
+PROMPT_CONCEPTS_CONSOLIDATE = """Below is a list of visual concepts collected from one photo collection in several passes; it contains duplicates and noise. Consolidate it: merge concepts that mean the same thing (keep one name, list the others as examples), drop concepts that are not visual, and drop concepts that apply to nearly every image in the collection or to almost none. Output ONLY a JSON object: {"concepts": [{"name": "...", "examples": ["...", "..."]}]}.
+
+Concepts:
 <CONCEPTS>"""
 
 PROMPT_VISUAL_CHECK = """For each concept below, answer whether it can be seen in a photo without
@@ -105,6 +122,8 @@ Attributes:
 ALL_PROMPTS = {
     "survey": PROMPT_SURVEY,
     "concepts_update": PROMPT_CONCEPTS_UPDATE,
+    "concepts_batch": PROMPT_CONCEPTS_BATCH,
+    "concepts_consolidate": PROMPT_CONCEPTS_CONSOLIDATE,
     "visual_check": PROMPT_VISUAL_CHECK,
     "attributes": PROMPT_ATTRIBUTES,
     "attributes_merge": PROMPT_ATTRIBUTES_MERGE,
@@ -136,4 +155,4 @@ def build_caption_prompt(attributes: list) -> str:
 
 if __name__ == "__main__":
     for name, p in ALL_PROMPTS.items():
-        print(f"{name:18s} {sha256_of(p)}")
+        print(f"{name:22s} {sha256_of(p)}")
