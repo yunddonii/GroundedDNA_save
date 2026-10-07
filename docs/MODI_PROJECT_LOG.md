@@ -69,9 +69,20 @@ First smoke with τ .1 on raw squared distances collapsed the codebook (term 589
   ≈ .5 % of the objective; it does not move the deployed path toward the teacher. F6 in its weak form.
 - Descriptive, n = 3, no test. Nothing under the anchor trees or GPU 0 was touched (reservation agreement).
 
-**Next (within the pre-registration):** the single allowed escalation of λ (TDXM form, λ .5) and arm N1′
-S (`--train_routing_mode codebook_mean`, to be written). Both wait for the next /data window agreed
-with the anchor session.
+**λ escalation (TDXM form, λ .5; the single allowed escalation) — negative.** Cells `td3_TDXM5_s42-44`
+(2026-10-07 06:13Z, code `4a2b240` at default flags for everything but the TD flags):
+
+| arm | mAP@R Δ | dead | unique | train/deploy codeword agreement | deployed codon S | deployed codeword S | caption-routed S (500 rows) |
+|---|---|---|---|---|---|---|---|
+| TDXM5 | +.007 / +.005 / +.003 | .14–.21 | .42–.49 | **.73–.75** (B1 .56–.65; s44 primary slot .09) | **−.053 / −.028 / −.125** | +.027 / −.000 / −.081 | +.19 / +.08 / +.14 |
+
+At λ .5 the consistency term does what it was built for — the deployed codewords now agree with the
+caption-routed ones on ~74 % of images — yet the deployed codon S turns negative on 3/3 seeds and the
+codeword S is ~0, while unique codes fall (.56 → .45). Matching the caption-routed assignment
+distribution does not carry the slot-specific sharing across; it narrows the codebook instead. This is
+F6 in its strong form. **The N1 family (TD / TDXM / TDXM5) is closed.** Remaining Stage-3 arms: S
+(`--train_routing_mode codebook_mean`, code `4a2b240`, gate `td3_gate2_H2_s42` bit-identical) and N2.
+
 
 ---
 

@@ -1,0 +1,43 @@
+{
+ "B0": "/home/yschoi/gdna_textdiag/result/261006+flickr25k_setting1_td1_flickr_H2_s42+bs+64+e+60+proj_lr+0.001",
+ "H1": "/home/yschoi/gdna_textdiag/result/261007+flickr25k_setting1_td3_gate2_H2_s42+bs+64+e+60+proj_lr+0.001",
+ "tensors_compared": 1250,
+ "tensors_only_in_one": [],
+ "tensors_differing": [],
+ "max_abs_param_diff": 0.0,
+ "log_rows": [
+  5,
+  5
+ ],
+ "shared_log_columns_differing": {},
+ "columns_only_B0": [
+  "train_loss_anchor",
+  "train_loss_recon",
+  "val_loss_anchor",
+  "val_loss_recon"
+ ],
+ "columns_only_H1": [],
+ "train_loss_B0_minus_H1_vs_0.05xanchor": [
+  [
+   0.049241,
+   0.049241
+  ],
+  [
+   0.048848,
+   0.048848
+  ],
+  [
+   0.048797,
+   0.048797
+  ],
+  [
+   0.050755,
+   0.050755
+  ],
+  [
+   0.050804,
+   0.050804
+  ]
+ ],
+ "PASS": true
+}
