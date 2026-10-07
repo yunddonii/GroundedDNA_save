@@ -487,6 +487,49 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-07 [anchor model — r9 worker-dispatch repair tested (1561 passed); consumer v1 battery accepted; exception-contract design submitted; nothing run] Audits §840–§844
+
+**Status:** ✅ preparation only. No real data, claim, GPU or official test was touched.
+
+**r9 repair** (branch `arch-exp-2026-09-anchor-refit-r9`, worktree `/home/yschoi/gdna_anchor_refit_r9`,
+from S `04e7fe8`; pushed `5f63788`):
+- **`61f62e1`:** a failing-before regression through the **real** managed-child boundary. Only the
+  scientific work is replaced, by a tiny synthetic child. Three cases refused with the real main-thread
+  guard message.
+- **`f169b8b`:** `_run_recovery` runs its one cell in one worker thread, as stage T's `_stream` does. The
+  guard, sessions, leases, drain, claim/attempt order and closure are unchanged. §840 accepted it in scope.
+- **First full suite (`f169b8b`): 3 failed, 1556 passed.** The new cases saw a launcher left in shutdown by
+  `test_signal_cleanup_kills_managed_process_group_before_lease_release`. The order was reproduced in a
+  sparse copy (1 passed, 3 failed).
+- **`10af739`:** the fixture starts from a fresh child-registry state and asserts it drained at teardown.
+  Negative controls: a shutdown inside the test and the main thread still refuse.
+- **Pre-existing race:** the signal test failed once under load (an empty PID file at
+  `tests/test_phase3_selection_matrix.py:1504`), then passed on rerun. Both results are kept, and the test
+  is unchanged.
+- **Full suite at `10af739`: rc 0, 1561 passed, 11 skipped (same reasons).**
+
+**Consumer v1** (`arch-exp-2026-09-anchor-consumer`, tested `8532862`, submission `88951d2`):
+- 153 sandbox passes.
+- Mutation battery: 29/29 detected as declared (21 acceptance, 2 contract, 6 refusal-order only), every run
+  bound to its imported module hashes.
+- §842 accepted it as a source/synthetic preparation milestone. No input manifest is pinned, and TODO2/8 are
+  not done.
+
+**Exception contract** (§841; design draft `docs/ANCHOR_T_RECOVERY_EXCEPTION_CONTRACT_v1_DRAFT.md` on r9):
+- binds the original ancT9 lineage **and** the failed ancT9r run: claim, attempt, reservation, snapshot,
+  the ledger's first two lines, and lstat absences, rechecked at admission, claim and publication;
+- a stable exception claim key derived from the failed evidence alone;
+- a new namespace, `ancT9s`;
+- an append-only fixed recovery ledger, so the 5.70 s is carried and at most about 14,994.30 s remain under
+  the unchanged ceiling;
+- request schema 2;
+- the declared closure.
+
+Implementation follows review. The user's exception (requested by the audit), a tested generation, peer
+coordination and an exact approval remain separate gates. **Full T stays 11/12.**
+
+---
+
 ## 2026-10-07 [anchor model — correction to the failed-recovery entry (74c937b); audit §839 findings and the next allowed work] Audit §839
 
 **Correction:** the entry below (`74c937b`) says "No official-test access". That is **wrong**.
