@@ -80,8 +80,25 @@ At λ .5 the consistency term does what it was built for — the deployed codewo
 caption-routed ones on ~74 % of images — yet the deployed codon S turns negative on 3/3 seeds and the
 codeword S is ~0, while unique codes fall (.56 → .45). Matching the caption-routed assignment
 distribution does not carry the slot-specific sharing across; it narrows the codebook instead. This is
-F6 in its strong form. **The N1 family (TD / TDXM / TDXM5) is closed.** Remaining Stage-3 arms: S
-(`--train_routing_mode codebook_mean`, code `4a2b240`, gate `td3_gate2_H2_s42` bit-identical) and N2.
+F6 in its strong form. **The N1 family (TD / TDXM / TDXM5) is closed.**
+
+**Arm N1′ S (`--train_routing_mode codebook_mean`; code `4a2b240`, gate `td3_gate2_H2_s42` bit-identical
+to Stage-1 H2; cells `td3_S_s42-44`, 2026-10-07 06:19Z):** routing uses the codebook-mean anchors in
+training too; the text path and every text loss stay on.
+
+| arm | mAP@R Δ vs B1 | dead | unique | deployed codon S (B1: +.161/+.196/+.109) | deployed codeword S (B1: +.083/−.005/−.021) |
+|---|---|---|---|---|---|
+| S | **+.007 / +.003 / +.020** | .11–.22 | **.45** (B1 .56) | **+.050 / +.060 / +.103** (CI > 0 on 3/3) | +.063 / −.015 / +.040 |
+
+- Retrieval improves on 3/3 seeds (mean +.010): caption-anchor routing during training was costing
+  retrieval, not helping it. Unique codes fall by .11 (fails P-HEALTH's −.08 bound).
+- The text losses alone, applied to deployment-routed tokens, leave a consistent codon-level S
+  (+.05–.10, every CI > 0, S − OFF ≈ +.05–.10) — smaller than B1's (+.11–.20). So part of B1's
+  codon effect needs the caption-anchor routing (the caption-routed tokens that `xmodal_commit` and
+  the codon heads see), and part survives without it. Neither arm reaches T = .10 over the other.
+- `d4d6` is not applicable to S (its "caption-routed" forward is codebook-mean by construction).
+- **Verdict:** S fails P-DELTA (codon S below B1) and P-HEALTH (unique); it passes P-RET and P-TXT.
+  Next: N2 (cross-modal contrastive on the deployment-routed slot token) on top of S and of B1.
 
 
 ---
