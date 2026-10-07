@@ -421,8 +421,9 @@ def test_parse_json_object_repairs_bracket_typos():
     assert parse_json_object('{"phrases": ["a", "b"]]') == {"phrases": ["a", "b"]}        # ']]' typo (seen on NUS-WIDE)
     assert parse_json_object('{"phrases": ["a", "b"]') == {"phrases": ["a", "b"]}         # missing '}'
     assert parse_json_object('```json\n{"phrases": ["a"]]\n```') == {"phrases": ["a"]}
+    assert parse_json_object('{"phrases": ["a", "b"') == {"phrases": ["a", "b"]}          # closed after a complete string
     import pytest
     with pytest.raises(Exception):
-        parse_json_object('{"phrases": ["a", "b"')                                        # unrecoverable
+        parse_json_object('{"phrases": ["a", "b')                                         # unrecoverable (cut mid-string)
     with pytest.raises(ValueError):
         parse_json_object('["a", "b"]')                                                   # not an object
