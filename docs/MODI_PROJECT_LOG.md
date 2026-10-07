@@ -42,6 +42,69 @@ analysis / 🔴 reverted or negative); tables over prose for numbers; each model
 
 ---
 
+## 2026-10-07 [design record, no results] Stage 2 caption redesign: four VLM prompts fixed after a history review (PROJECT_LOG prompt issues V1–V9) and a literature review; user decisions (a) no relation-avoidance wording, (b) field length "about 5 to 10 words", no length A/B
+
+**Status:** 🟢 approved design (user, 2026-10-07). Principle: the VLM decides concepts and axes; the
+designer supplies only images, output format, the count (4 local attributes = slot count) and a rough
+length. No labels, no tags, no caption statistics, no designer taxonomy. Image-based survey only
+(label vocabulary rejected: it would narrow the unsupervised claim).
+
+**History review (what the plan must not repeat; PROJECT_LOG lines in the 2026-10-07 review):** V5
+NO-GO — universal/abstract axes collapse to image-independent phrases (L20068) and `scene_type` was the
+redundant slot (L6246); V8 critique — relations/colours are arguments of objects (vlm file L1181);
+frequency-selected concepts are the ones every image shares (A0 overlap 34–51); V7 hedging migrates
+when "none" is banned (34–83 %) and the extractor catches only literal ""/"none"; the .83 cosine stop
+rule was a SigLIP2 number (CLIP never reaches it); slot-name prefixes survive axis centring; V6b-style
+duplicate captions are false negatives for `text_hash_ntxent`; tools import the prompt from the main
+repo; whitening uses slots 1–5 (empty 5th slot = constant vector); positional key mapping fails
+silently; A3's lexical rule assumes noun/noun/verb/colour kinds by slot position.
+
+**Literature review (web, 2026-10-07; judge over three threads):** the four-step structure matches
+ALBM (summarise freely generated concepts rather than asking for attributes), X-Cluster / IC|TC /
+TnT-LLM (caption → propose → consolidate). Contradictions fixed: mini-batch concept updates instead
+of one 12k-line pass (VisDiff, GoalEx, TnT-LLM, Order Effect); C_global 10–15 words (Long-CLIP
+effective length ≈ 20 tokens); separate visual-check pass (ALBM q_vis; VLG-CBM/DN-CBM); phrase length
+1–4 words and "fewer is fine" (LeHaCE: hallucination ∝ output length; POPE). Supported: image input,
+"do not guess", generic/rare concept removal, 5–10-word fields (Long-CLIP; CLIP single words are OOD),
+"never state absence" (NegBench), no attribute-name prefix, greedy without few-shot. Open (to be
+measured): stability of a fixed K = 4 grouping, effect of "do not repeat", guessing induced by "nearest
+visible thing", survey saturation at 1,000 images, whether frozen CLIP separates the found axes
+(S_probe per attribute, after full generation).
+
+**Prompts (final; the exact text lives in `tools/stage2_prompts.py` with sha256 recorded in every
+output row):** ① SURVEY (image; 1,000 `opt_train_rows` per dataset; 1–4-word phrases, ≤ 12, fewer is
+fine; JSON; do not guess). ②-a CONCEPTS (text; 50–100-image mini-batches updating a cumulative list;
+drop non-visual / same-meaning / nearly-every-or-almost-none concepts). ②-b VISUAL CHECK (text; keep
+only concepts visible without outside knowledge; CLIP-cosine > .9 pairs merged and reported).
+③ ATTRIBUTES (text; exactly 4; "most images … differs from image to image"; minimal overlap;
+"describable without naming what another attribute describes"; `note` if fewer than 4; three
+concept-order shuffles, agreement reported, merge pass if they differ; no relation-avoidance sentence —
+user decision (a)). ④ CAPTIONS (image; attribute fields first, C_global last; each field "about 5 to
+10 words … keep it to what is actually in the image"; C_global 10–15 words; visible things only, never
+state absence; no repetition; no attribute-name prefix; greedy) — user decision (b): no length A/B.
+
+**Pilot (500 opt-train images per dataset, disjoint from evaluation rows) and gates:** parse or
+unmatched-key ≤ 1 %; none-like/negation/hedge patterns ≤ 1 %; field starts with attribute name ≤ 1 %;
+cross-attribute top-100 word overlap ≤ the V4 (COCO: V5b) value on the same rows; stop for a user
+decision if the within-image mean cosine of the four fields (raw CLIP EOS space, slots 1–4) exceeds the
+matched V4 value + .03 or any attribute's cross-image same-slot cosine ≥ .75. Reported only: length,
+per-field-position none/hedge/duplicate rates, per-attribute duplicate rate (user decision if > 5 %),
+type/token, unseen-noun rate (④ nouns not in ① phrases), survey saturation (new-phrase rate on 500
+extra images), shuffle agreement (Jaccard). At most two wording revisions of ④; ③ is never edited.
+S_probe per attribute after full generation, beside V4. Full generation starts automatically when the
+gates pass (user instruction 2026-10-07); the four attributes are reported at that point and the user
+may halt.
+
+**Pipeline:** new tools in this worktree (prompt imported locally, outputs to `cache_eval/stage2/`
+on /home, explicit attribute→legacy-key map with unmatched keys counted as failures and retried,
+original fields kept under `codebook_texts_v10`, resume-safe, 2 shards per GPU) → pooled text
+features → token features (donor = new pooled dir) → whitening fitted on slots 1–4 only (new option)
+with `GDNA_NUM_SEMANTIC_PARTS=5` → cell C = B1 + new captions, Flickr first. A3 v2's per-slot lexical
+kind is set from each attribute's definition before any caption is scored and validated with the
+oracle-mix control; V4/V5b re-scored under the same rule.
+
+---
+
 ## 2026-10-07 [OFF-PROTOCOL exploration, branch text-diag-2026-09 — not a paper result] Stage 3 arm N1 (TD, text-dropout path consistency): fails P-DELTA at the codon level; the codon-level text effect of B1 depends on `xmodal_commit`; the consistency term at λ .05 halves dead codewords but does not transfer the caption-routed signal to the deployed codes
 
 **Status:** 🔴 negative for N1 as configured; 🟡 diagnostics informative. Pre-registered in
