@@ -34,6 +34,7 @@ Plan: `/home/yschoi/.claude/plans/hidden-tinkering-pine.md` (approved 2026-10-05
 - Peer notice (anchor session, audit §795): GPU partition lifted; receipt sent 2026-10-07. Always nvidia-smi before launch.
 
 ## GPU constraint
+- 2026-10-07 06:11Z: anchor recovery run STARTED on GPU 0 (tmux ancT9r_v9r8, reads NUS caches from /data for hours, 8 h wall). Until its release message: GPUs 1-5 only; any /data-reading cell needs a heads-up message to groundeddna-29 first (quiet window promised until ~10:00Z).
 - 2026-10-07 05:3xZ: launch-window agreement (audit §831): the anchor recovery launch happens only AFTER I send 'td3 /data reads done <UTC time>' (planned ~06:20Z) and before 17:00Z; any later /data reads need a heads-up message first. MUST send that message after the td3 batch + CPU scoring finish.
 - 2026-10-07 ~05:30Z: agreed with anchor session groundeddna-29 to leave GPU 0 (GPU-4ac2ea6b...) for one recovery run, <= 8 h after its launch, lapses if not launched within 12 h of receipt; release message will follow. Use GPUs 1-5 only until the release (or lapse). Plan: no heavy /data reads of NUS caches in that window (Flickr-only cells, VLM captioning reads images from /home).
 
