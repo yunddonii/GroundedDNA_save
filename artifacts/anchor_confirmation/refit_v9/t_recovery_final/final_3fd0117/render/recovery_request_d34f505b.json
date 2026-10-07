@@ -1,0 +1,303 @@
+{
+ "carried": [
+  {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002.json",
+    "sha256": "791274a8f12ada59a0426ff88800c3f8854a4f0aa67cfa3719ce55bc0a0e5743"
+   },
+   "cell_id": "cifar10|N=4|P=0.3,0.7|JD=0.02|stage=refit|seed=42|axis_center=anchors",
+   "entry": {
+    "file": "ancT9_entry_ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002.json",
+    "sha256": "5aeea04ad52e61e4d0c0aa709fc8d0324a48fc2e4dd64ba024b770711460992e"
+   },
+   "record": {
+    "file": "ancT9_ancR9_cifar_A_v4_refit_N4_s42_AXanchors_JD002.json",
+    "sha256": "b11879ebe64e0026a4147e64d7b567d1bc7e381cc056cf23b3714e888286d3a2"
+   }
+  },
+  {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_cifar_A_v4_refit_N4_s43_AXanchors_JD002.json",
+    "sha256": "3f8c18985757d839e479794f87e624e67ed500da0fd5d8450a418457d44ccf7e"
+   },
+   "cell_id": "cifar10|N=4|P=0.3,0.7|JD=0.02|stage=refit|seed=43|axis_center=anchors",
+   "entry": {
+    "file": "ancT9_entry_ancR9_cifar_A_v4_refit_N4_s43_AXanchors_JD002.json",
+    "sha256": "094344882f8fe70c18a9f7c12d26960d88884ef6333f52d979acacc8c4a6b05a"
+   },
+   "record": {
+    "file": "ancT9_ancR9_cifar_A_v4_refit_N4_s43_AXanchors_JD002.json",
+    "sha256": "89dde2f90c95d06e8a5cf841683e65adbd59965e7c3f3dde22d28d0af97c33ae"
+   }
+  },
+  {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_cifar_A_v4_refit_N4_s44_AXanchors_JD002.json",
+    "sha256": "4d1bd40b717f0f951c51475e8141c0a3e7891e74b65f0dd52b7cd73725aed494"
+   },
+   "cell_id": "cifar10|N=4|P=0.3,0.7|JD=0.02|stage=refit|seed=44|axis_center=anchors",
+   "entry": {
+    "file": "ancT9_entry_ancR9_cifar_A_v4_refit_N4_s44_AXanchors_JD002.json",
+    "sha256": "1434980af70be180c6096802c427c9fa89dae77e0f62e58e869bf46155b1e570"
+   },
+   "record": {
+    "file": "ancT9_ancR9_cifar_A_v4_refit_N4_s44_AXanchors_JD002.json",
+    "sha256": "639b2bac963c633c1eb1018e05fe8f95821b2383d8ba37b99af8c737ac7d2b92"
+   }
+  },
+  {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002.json",
+    "sha256": "54fd258dd07f8a360fbe52fcbe036329bec11f289ffebe102b9269a41cd7ccad"
+   },
+   "cell_id": "flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=refit|seed=42|axis_center=anchors",
+   "entry": {
+    "file": "ancT9_entry_ancR9_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002.json",
+    "sha256": "e22024be34951b214305d290912af6c2418d74d72ce5316876a7d037c589c617"
+   },
+   "record": {
+    "file": "ancT9_ancR9_flickr_A_v4_refit_N4_s42_AXanchors_P06095_JD002.json",
+    "sha256": "1ec67d8757635d21730288ee6541ea73101a9114f57c760b2b852de52e1f7d14"
+   }
+  },
+  {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_flickr_A_v4_refit_N4_s43_AXanchors_P06095_JD002.json",
+    "sha256": "a8937ae7eb5b3ca75aab2f354ba46cc059a7dece193d5a6e3fd6eb534ed1b1cd"
+   },
+   "cell_id": "flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=refit|seed=43|axis_center=anchors",
+   "entry": {
+    "file": "ancT9_entry_ancR9_flickr_A_v4_refit_N4_s43_AXanchors_P06095_JD002.json",
+    "sha256": "2b16b5cf13859098279328c5c34246849a3a6b7409f334b0dcf5718039e475bd"
+   },
+   "record": {
+    "file": "ancT9_ancR9_flickr_A_v4_refit_N4_s43_AXanchors_P06095_JD002.json",
+    "sha256": "4f3b23420fc13e8d2987013fc7ffe89cd08e0a5ec6f1f09820e1f16d1bb5b251"
+   }
+  },
+  {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_flickr_A_v4_refit_N4_s44_AXanchors_P06095_JD002.json",
+    "sha256": "2ec8d12af554b2626067fda1babca186b03f40835424425253d270dd76de3a7e"
+   },
+   "cell_id": "flickr25k|N=4|P=0.6,0.95|JD=0.02|stage=refit|seed=44|axis_center=anchors",
+   "entry": {
+    "file": "ancT9_entry_ancR9_flickr_A_v4_refit_N4_s44_AXanchors_P06095_JD002.json",
+    "sha256": "ac42f04164e1d79cd6e760737cb03f27f399d1177c62feae8d08ffdc4b8d2add"
+   },
+   "record": {
+    "file": "ancT9_ancR9_flickr_A_v4_refit_N4_s44_AXanchors_P06095_JD002.json",
+    "sha256": "85cc1802a957e3a2a4c1697cc526c543fc251ba674dc699d0e91266bf3f30577"
+   }
+  },
+  {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_mscoco_A_v5b_refit_N39_s42_AXanchors_P06095_JD003.json",
+    "sha256": "f83403d0b80ff3da27043a5b558b9a33616b62663bde641effbea9b8f5b8db2b"
+   },
+   "cell_id": "mscoco|N=39|P=0.6,0.95|JD=0.03|stage=refit|seed=42|axis_center=anchors",
+   "entry": {
+    "file": "ancT9_entry_ancR9_mscoco_A_v5b_refit_N39_s42_AXanchors_P06095_JD003.json",
+    "sha256": "c691f7435342fcffd711f552693118b23fb7fdaa12b6ead39b567a3ceb304270"
+   },
+   "record": {
+    "file": "ancT9_ancR9_mscoco_A_v5b_refit_N39_s42_AXanchors_P06095_JD003.json",
+    "sha256": "e58cff75fdca32137da8c0c188b19b38249894799f9a70042459c1445114f72b"
+   }
+  },
+  {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_mscoco_A_v5b_refit_N39_s43_AXanchors_P06095_JD003.json",
+    "sha256": "6479c832242665bfcce0de7ba83a920821a3422171b11286a4676d57ab646f77"
+   },
+   "cell_id": "mscoco|N=39|P=0.6,0.95|JD=0.03|stage=refit|seed=43|axis_center=anchors",
+   "entry": {
+    "file": "ancT9_entry_ancR9_mscoco_A_v5b_refit_N39_s43_AXanchors_P06095_JD003.json",
+    "sha256": "f21e6d615b6df087a82454754f0b5d93728d18cfbe600c6ce67a045649315a31"
+   },
+   "record": {
+    "file": "ancT9_ancR9_mscoco_A_v5b_refit_N39_s43_AXanchors_P06095_JD003.json",
+    "sha256": "f333c485ce5b96f69e3f03fec844beb40450855cedb996c03717d9561c634ec6"
+   }
+  },
+  {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_mscoco_A_v5b_refit_N39_s44_AXanchors_P06095_JD003.json",
+    "sha256": "31ba4271c596b9f070d997b4626d41e9c60c242a12cfa5cf6795b2f888c2550d"
+   },
+   "cell_id": "mscoco|N=39|P=0.6,0.95|JD=0.03|stage=refit|seed=44|axis_center=anchors",
+   "entry": {
+    "file": "ancT9_entry_ancR9_mscoco_A_v5b_refit_N39_s44_AXanchors_P06095_JD003.json",
+    "sha256": "824432ffc06286200d5a7a14e1487762f4ab3289c9d2b85d4e079747442c65c0"
+   },
+   "record": {
+    "file": "ancT9_ancR9_mscoco_A_v5b_refit_N39_s44_AXanchors_P06095_JD003.json",
+    "sha256": "bf44cac7cb1ae8ef3c4a1b399b05934fbe018371ec889662142b976df219939b"
+   }
+  },
+  {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_nuswide_A_v4_refit_N4_s42_AXanchors_P0408_JD005.json",
+    "sha256": "6b7099176803e6bf29d891fa74f2ab5c2ba3e85460d08924659df9a6fd6c2af5"
+   },
+   "cell_id": "nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=42|axis_center=anchors",
+   "entry": {
+    "file": "ancT9_entry_ancR9_nuswide_A_v4_refit_N4_s42_AXanchors_P0408_JD005.json",
+    "sha256": "c738b83056c080fd7a11934bd91246e8f853f558f5120233f909c2f6287c2be9"
+   },
+   "record": {
+    "file": "ancT9_ancR9_nuswide_A_v4_refit_N4_s42_AXanchors_P0408_JD005.json",
+    "sha256": "6e8a7cf5ba1b75b2c57ae0d4288acecb81cab232ca1c4533a17a568dde5b6129"
+   }
+  },
+  {
+   "attempt": {
+    "file": "ancT9_attempt_ancR9_nuswide_A_v4_refit_N4_s43_AXanchors_P0408_JD005.json",
+    "sha256": "b332b94638f79b168755d7d67e9ba5c8b3723d1f1ded1f50f470dc5fafdb768c"
+   },
+   "cell_id": "nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=43|axis_center=anchors",
+   "entry": {
+    "file": "ancT9_entry_ancR9_nuswide_A_v4_refit_N4_s43_AXanchors_P0408_JD005.json",
+    "sha256": "b1a9e993c83602d2187849ec2d1c1016a3ca2755753da073f4c9e10e47f97652"
+   },
+   "record": {
+    "file": "ancT9_ancR9_nuswide_A_v4_refit_N4_s43_AXanchors_P0408_JD005.json",
+    "sha256": "7152f64b3956d059f391616a848e93490daa7c7114bf69a073c87a67fe62d1c0"
+   }
+  }
+ ],
+ "cells": [
+  {
+   "N": 4,
+   "cell_id": "nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=44|axis_center=anchors",
+   "checkpoint_runtime_sha256": "1166f9ace992b4481d0175373f35de6bed9f1c2caf65b40aa5ef8be07a8e7258",
+   "config_pt_sha256": "7e63262c0f19eb4f0205f2d6d0e31261a6e5424f1ff6cb7364c67bac39a93de3",
+   "dataset": "nuswide",
+   "final_checkpoint": "model_state_dict.pth",
+   "final_checkpoint_sha256": "7c852680611a6596b524cd253cdcde584362afd496ab4dbb30b49d7319aab117",
+   "phase3_campaign_evidence_sha256": "1f5f35d6a551b20e3ba31e714b94978342ba220ef99b3eae8030ef02ce29b697",
+   "record": "/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005.json",
+   "record_sha256": "7ad93ea380b8757cac40e9cc6790688fecdbf310db38f9280df2442671776ff1",
+   "run_dir": "/home/yschoi/gdna_anchorRT_result/261006+nuswide_setting1_ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005+bs+64+e+5+proj_lr+0.001",
+   "scientific_recipe_sha256": "8e9d0a77003f25ae0934964c86a242cb129fc1998d45a75b6fe2511d9e885d50",
+   "seed": 44,
+   "tag": "ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005",
+   "terminal_epoch": 4
+  }
+ ],
+ "chain": [
+  "scripts/anchor_terminal_test.py: extraction_siglip2.extract_code (query, db) + evaluation_siglip2.evaluation (raw, bio_project=False)",
+  "scripts/extract_train_split.py",
+  "scripts/eval_cell_bioproj.py --require-train",
+  "scripts/pairwise_nmi.py --require-train",
+  "scripts/seal_cell_analysis.py --require-train"
+ ],
+ "claim_key": "dc4a8bc061c5d286d74e21b158091710c165737403e1c85e957f810740f92c6d",
+ "claim_root": "/home/yschoi/gdna_anchorRT_recovery_claims",
+ "freeze": {
+  "acceptance_section": 744,
+  "acceptance_sha256": "13ef776bc1485b3917253e51ee4aa99879a8f1f30f5539e0d1e224d3faaa1c56",
+  "path": "/data/yschoi/gdna_anchor_lambda_v8/artifacts/anchor_confirmation/ancF_candidate_v1.json",
+  "sha256": "5165f5dc9fcfb8334270bc16aa9816d09db67b03a04abae7ff846d5235bdca1d"
+ },
+ "gpu_count": 1,
+ "historical_manifest": {
+  "path": "/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/authority_manifest_v9r7.json",
+  "sha256": "2f24fc80bb83e2c73b17ec473c2731ade6d34a356e02414e6719fe9e9bec947c"
+ },
+ "lineage": {
+  "path": "/data/yschoi/gdna_anchor_refit_v9r8/artifacts/anchor_confirmation/anchor_t_recovery_lineage_v1.json",
+  "sha256": "b767601961c489c469c8822988dcb66b9dc525f4539ef428456a2f8545ce8bda"
+ },
+ "manifest": "3537e297c0429c8ab5b02428651025903765a48c3c126eea172f30c37955c9f8",
+ "manifest_path": "/data/yschoi/gdna_anchor_refit_v9r8/artifacts/anchor_confirmation/authority_manifest_v9r8.json",
+ "mode": "recovery",
+ "namespace": "ancT9r",
+ "outputs": [
+  "extract_query.npz",
+  "extract_db.npz",
+  "extract_train.npz",
+  "extraction_manifest_query.json",
+  "extraction_manifest_db.json",
+  "extraction_manifest_train.json",
+  "extraction_complete.json",
+  "evaluation_siglip2_base.json",
+  "evaluation_siglip2_base_bioproj.json",
+  "evaluation_siglip2_bit2.json",
+  "analysis_complete.json",
+  "cell_result.json",
+  "pairwise_nmi.json"
+ ],
+ "record_dir": "/data/yschoi/gdna_anchor_refit_v9r8/artifacts/anchor_confirmation",
+ "recovery_of": {
+  "attempt": {
+   "file": "ancT9_attempt_ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005.json",
+   "sha256": "d626f950bcdc5a9131c317c23ecbe766e12913fc425c1c6a5d1d4cf66ac44143"
+  },
+  "cell_id": "nuswide|N=4|P=0.4,0.8|JD=0.05|stage=refit|seed=44|axis_center=anchors",
+  "entry": {
+   "file": "ancT9_entry_ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005.json",
+   "sha256": "7689d689c7cfe582ff559266ad837f6a0e89ed0799020a8437860923cb3a3f78"
+  }
+ },
+ "refit_approval": {
+  "line": "ANCHOR-CONFIRM-APPROVAL version=anchor-confirm/2 scope=stage-R-run manifest=2f24fc80bb83e2c73b17ec473c2731ade6d34a356e02414e6719fe9e9bec947c freeze=5165f5dc9fcfb8334270bc16aa9816d09db67b03a04abae7ff846d5235bdca1d request=2aa9bf99b5cb4b5ee73a4a4ac78767d62b297e0950f590bbbcac7b705afd179d",
+  "scope": "stage-R-run",
+  "section": 780
+ },
+ "refit_epochs": null,
+ "refit_receipt": {
+  "path": "/data/yschoi/gdna_anchor_refit_v9r6/artifacts/anchor_confirmation/ancR9_sweep_complete.json",
+  "sha256": "2897aa880dddd07cbb0aeb49ef090b7e5ccc06e6e9b540922a9ca77a30d81d4a"
+ },
+ "schema": "anchor-terminal-test-recovery-request/1",
+ "source_transition": {
+  "added": [
+   "docs/ANCHOR_T_RECOVERY_CONTRACT_v1.md",
+   "tests/test_anchor_t_recovery.py"
+  ],
+  "changed": [
+   "scripts/anchor_confirm_manifest.py",
+   "scripts/anchor_confirm_supervisor.py",
+   "scripts/anchor_refit_stage.py",
+   "scripts/anchor_terminal_test.py",
+   "scripts/phase3_selection_matrix.py",
+   "tests/test_anchor_confirm_launcher.py",
+   "tests/test_anchor_refit_stage.py"
+  ],
+  "changed_sources": {
+   "scripts/anchor_refit_stage.py": "3ddaa422f9dc333ace0e3a037429f577bde8914549aa10d927e08044727e8842",
+   "scripts/anchor_terminal_test.py": "99068bab4318c0cefd866102ab96a67d3a3aed4ec1123743d585e2e07d2bc3d1",
+   "scripts/phase3_selection_matrix.py": "d80924365656f5286ce834a89525c2cca8a77349b2d3b093e7ec33ea68222c9e"
+  },
+  "from": "2f24fc80bb83e2c73b17ec473c2731ade6d34a356e02414e6719fe9e9bec947c",
+  "to": "3537e297c0429c8ab5b02428651025903765a48c3c126eea172f30c37955c9f8"
+ },
+ "stage": "test",
+ "stopped": {
+  "approval": {
+   "line": "ANCHOR-CONFIRM-APPROVAL version=anchor-confirm/2 scope=stage-T-run manifest=2f24fc80bb83e2c73b17ec473c2731ade6d34a356e02414e6719fe9e9bec947c freeze=5165f5dc9fcfb8334270bc16aa9816d09db67b03a04abae7ff846d5235bdca1d request=a74b68e1db10c0d71d911ce491a25a2fa97dda6258c88d9f2c063223e1b40612",
+   "scope": "stage-T-run",
+   "section": 788
+  },
+  "namespace": "ancT9",
+  "request_sha256": "a74b68e1db10c0d71d911ce491a25a2fa97dda6258c88d9f2c063223e1b40612",
+  "reservation": {
+   "file": "ancT9_campaign_reservation.json",
+   "sha256": "83462894cdc4317134562191473e5fcd4ccec9ae755481aa93ef2dbd2285a6cb"
+  },
+  "settlement": {
+   "cumulative_charged_seconds": 79482.14623009507,
+   "final_line_sha256": "ab122e44ef7d3b4d3c68d02630c96561535748182776d99f2f10fbf6f5388ba1",
+   "ledger": "/home/yschoi/gdna_anchorRT_ops/device_budget_ledger.jsonl",
+   "ledger_sha256": "316915141fdfa215940014dbeb5efb63ba2b9e98bb84b49146cab69a96fd25bf",
+   "run_id": "20261006T145139Z-b08e4ae2"
+  },
+  "snapshot": {
+   "file": "ancT9_snapshot_da40a183d4ca9c85.json",
+   "semantic_sha256": "da40a183d4ca9c8547094ca13d14697dbefca6cfce7d20e9ab92f45f446955e2",
+   "sha256": "b6eb8a5eee6635f087da240049367afcb1e24ff454e037f4358ccf3cdd41fa32"
+  }
+ },
+ "version": "anchor-confirm/2"
+}

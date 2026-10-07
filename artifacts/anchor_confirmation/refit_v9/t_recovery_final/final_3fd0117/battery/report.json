@@ -1,0 +1,3710 @@
+{
+ "baseline": [
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 21.7,
+   "test": "test_composed_a_carried_entry_not_binding_its_attempt_refuses"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 19.9,
+   "test": "test_composed_a_carried_payload_off_its_record_refuses_before_any_lease_or_claim"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.8,
+   "test": "test_composed_a_carried_record_off_the_stopped_lineage_refuses[record-request]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.9,
+   "test": "test_composed_a_carried_run_directory_off_the_output_contract_refuses[bit2]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.7,
+   "test": "test_composed_a_carried_run_directory_off_the_output_contract_refuses[missing]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.7,
+   "test": "test_composed_a_changed_or_unsettled_parent_refuses_before_start[other-charge]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.7,
+   "test": "test_composed_a_changed_or_unsettled_parent_refuses_before_start[reformatted]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.8,
+   "test": "test_composed_a_changed_or_unsettled_parent_refuses_before_start[unsettled]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 19.0,
+   "test": "test_composed_a_changed_source_authority_outside_the_allowlist_refuses"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.9,
+   "test": "test_composed_a_changed_source_outside_the_allowlist_refuses"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.7,
+   "test": "test_composed_a_claim_for_another_namespace_or_line_refuses_the_entry[other-approval]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 21.2,
+   "test": "test_composed_a_claim_for_another_namespace_or_line_refuses_the_entry[other-namespace]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.5,
+   "test": "test_composed_a_counterfeit_lineage_in_an_approved_request_refuses_the_entry"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.6,
+   "test": "test_composed_a_manifest_without_the_recovery_contract_refuses"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 21.5,
+   "test": "test_composed_a_new_cell_chain_off_its_files_publishes_no_combined_receipt[new-attempt-changed]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 21.3,
+   "test": "test_composed_a_new_cell_chain_off_its_files_publishes_no_combined_receipt[new-attempt-missing]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 21.3,
+   "test": "test_composed_a_new_cell_chain_off_its_files_publishes_no_combined_receipt[new-entry-mismatched]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 21.5,
+   "test": "test_composed_a_new_cell_chain_off_its_files_publishes_no_combined_receipt[new-entry-missing]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 21.1,
+   "test": "test_composed_a_new_record_off_its_outputs_publishes_no_receipt"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 21.2,
+   "test": "test_composed_a_request_naming_another_claim_root_refuses"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 19.1,
+   "test": "test_composed_a_reservation_not_binding_its_snapshot_refuses"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.9,
+   "test": "test_composed_a_settlement_line_off_its_pin_refuses"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.8,
+   "test": "test_composed_a_stopped_campaign_with_a_receipt_refuses"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.7,
+   "test": "test_composed_an_allowlisted_source_off_its_r7_or_r8_bytes_refuses"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.8,
+   "test": "test_composed_an_approved_recovery_runs_one_cell_and_writes_the_lineage_receipt"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 21.4,
+   "test": "test_composed_an_authorized_recovery_entry_runs_the_terminal_function_once"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 21.1,
+   "test": "test_composed_an_entry_without_the_claim_refuses_before_any_load"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.6,
+   "test": "test_composed_an_uncommitted_allowlisted_source_refuses"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 21.2,
+   "test": "test_composed_any_other_transition_refuses[extra-change]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 21.2,
+   "test": "test_composed_any_other_transition_refuses[same-generation]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 21.2,
+   "test": "test_composed_drift_during_the_recovered_cell_publishes_no_combined_receipt[carried-binary]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.9,
+   "test": "test_composed_drift_during_the_recovered_cell_publishes_no_combined_receipt[carried-json]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.8,
+   "test": "test_composed_drift_during_the_recovered_cell_publishes_no_combined_receipt[claim]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.9,
+   "test": "test_composed_membership_is_exactly_the_twelve_minus_the_recovered_cell[crossed-tag]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.9,
+   "test": "test_composed_membership_is_exactly_the_twelve_minus_the_recovered_cell[missing-carried]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.7,
+   "test": "test_composed_only_a_recovery_line_for_this_exact_request_approves[stage-T-run]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 21.0,
+   "test": "test_composed_the_lineage_is_recovered_once_even_after_a_failure[0]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.8,
+   "test": "test_composed_the_plan_previews_one_cell_and_touches_nothing"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.2,
+   "test": "test_composed_the_plan_refuses_a_transition_other_than_the_declared_one"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.5,
+   "test": "test_composed_the_recorded_stopped_line_must_be_the_ledger_s"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.8,
+   "test": "test_composed_the_recovered_cell_attempted_in_another_namespace_refuses"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.0,
+   "test": "test_composed_the_recovered_cell_with_a_stage_t_record_refuses"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.5,
+   "test": "test_composed_the_recovery_is_one_gpu_and_five_producers"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.5,
+   "test": "test_composed_the_recovery_keeps_its_own_ledger_and_budget"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 18.4,
+   "test": "test_composed_the_recovery_takes_no_receipt_smoke_or_cell_selection"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 18.4,
+   "test": "test_composed_the_request_is_one_gpu_and_a_new_namespace[stopped-namespace]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 19.4,
+   "test": "test_composed_the_request_is_one_gpu_and_a_new_namespace[two-gpus]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.3,
+   "test": "test_composed_the_settlement_must_be_the_audited_clean_budget_stop[charge-reset]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.8,
+   "test": "test_composed_the_settlement_must_be_the_audited_clean_budget_stop[line-after-final]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.6,
+   "test": "test_composed_the_settlement_must_be_the_audited_clean_budget_stop[unclean]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.8,
+   "test": "test_composed_the_settlement_must_be_the_audited_clean_budget_stop[wall-stop]"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.8,
+   "test": "test_composed_the_stage_t_form_with_the_recovery_mode_refuses"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.8,
+   "test": "test_composed_the_stopped_snapshot_of_another_generation_refuses"
+  },
+  {
+   "one_passed": true,
+   "rc": 0,
+   "refused_opens": [],
+   "seconds": 20.4,
+   "test": "test_structural_the_recovery_scope_binds_the_f_record"
+  }
+ ],
+ "commit": "3fd0117",
+ "harness_children": [
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-tree"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ],
+  [
+   "git",
+   "-C",
+   "/data/yschoi/gdna_anchor_refit_v9r8",
+   "ls-files"
+  ]
+ ],
+ "harness_refused_opens": [],
+ "head_clean_after": true,
+ "head_clean_before": true,
+ "inventory": [
+  "config.py",
+  "dataloaders.py",
+  "dna_utils/__init__.py",
+  "dna_utils/bio_constraints.py",
+  "dna_utils/cache_provenance.py",
+  "dna_utils/csv_logger.py",
+  "dna_utils/dna_code_utils.py",
+  "dna_utils/extraction_validation.py",
+  "dna_utils/gc_policy.py",
+  "dna_utils/gpu_lease.py",
+  "dna_utils/run_identity.py",
+  "dna_utils/runtime_environment.py",
+  "dna_utils/runtime_state.py",
+  "dna_utils/scientific_recipe.py",
+  "dna_utils/text_description_processor.py",
+  "dna_utils/training_utils.py",
+  "dna_utils/visualization.py",
+  "dna_utils/vlm_qwen25_descriptions.py",
+  "docs/ANCHOR_CONFIRMATION_CONTRACT_v3.md",
+  "docs/ANCHOR_LAMBDA_CONTRACT_v1.md",
+  "docs/ANCHOR_REFIT_CONTRACT_v1.md",
+  "docs/ANCHOR_T_RECOVERY_CONTRACT_v1.md",
+  "evaluation_siglip2.py",
+  "extraction_siglip2.py",
+  "loss_siglip2.py",
+  "model_siglip2.py",
+  "models/__init__.py",
+  "models/adapters.py",
+  "models/cluster_attention_router.py",
+  "models/pretrained_backbone.py",
+  "models/pretrained_backbone_clip.py",
+  "models/semantic_router.py",
+  "models/text_cross_attention_router.py",
+  "models/text_encoder.py",
+  "models/visual_encoder.py",
+  "p0_protocol.py",
+  "scripts/__init__.py",
+  "scripts/anchor_confirm_code_axis.py",
+  "scripts/anchor_confirm_decision.py",
+  "scripts/anchor_confirm_manifest.py",
+  "scripts/anchor_confirm_supervisor.py",
+  "scripts/anchor_refit_stage.py",
+  "scripts/anchor_terminal_test.py",
+  "scripts/build_text_whiten_matrix.py",
+  "scripts/eval_cell_bioproj.py",
+  "scripts/extract_train_split.py",
+  "scripts/pairwise_nmi.py",
+  "scripts/phase3_launch_matrix.sh",
+  "scripts/phase3_select_n.py",
+  "scripts/phase3_selection_matrix.py",
+  "scripts/seal_cell_analysis.py",
+  "scripts/seal_phase3_inputs.py",
+  "scripts/train_cifar10_v185_bidirTokenPrune05_ccs01_clip.sh",
+  "scripts/train_flickr25k_v185_bidirTokenPrune05_clip.sh",
+  "scripts/train_mscoco_F2_sweep_clip.sh",
+  "scripts/train_nuswide_v185_sweep_clip.sh",
+  "terminal_official_test.py",
+  "tests/test_anchor_confirm_env_handoff.py",
+  "tests/test_anchor_confirm_input_bridge.py",
+  "tests/test_anchor_confirm_launcher.py",
+  "tests/test_anchor_confirm_lifecycle.py",
+  "tests/test_anchor_confirm_port.py",
+  "tests/test_anchor_confirm_recipe.py",
+  "tests/test_anchor_confirm_reducer.py",
+  "tests/test_anchor_confirm_supervisor.py",
+  "tests/test_anchor_lambda_stage.py",
+  "tests/test_anchor_refit_stage.py",
+  "tests/test_anchor_t_recovery.py",
+  "tests/test_seal_phase3_inputs.py",
+  "train_siglip2.py",
+  "val_split.py"
+ ],
+ "inventory_sha256_equal": true,
+ "mutants": [
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY1 carried cells skip the output-contract check",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.7,
+     "test": "test_composed_a_carried_run_directory_off_the_output_contract_refuses[missing]"
+    },
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.8,
+     "test": "test_composed_a_carried_run_directory_off_the_output_contract_refuses[bit2]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY2 the carried output contract is not enforced",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.9,
+     "test": "test_composed_a_carried_run_directory_off_the_output_contract_refuses[missing]"
+    },
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.7,
+     "test": "test_composed_a_carried_run_directory_off_the_output_contract_refuses[bit2]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY3 membership is not exact",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "Regex pattern did not match",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.7,
+     "test": "test_composed_membership_is_exactly_the_twelve_minus_the_recovered_cell[missing-carried]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY4 the carried pins may name another cell tag",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.8,
+     "test": "test_composed_membership_is_exactly_the_twelve_minus_the_recovered_cell[crossed-tag]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY5 a carried record, attempt and entry need not be one lineage",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.8,
+     "test": "test_composed_a_carried_record_off_the_stopped_lineage_refuses[record-request]"
+    },
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.8,
+     "test": "test_composed_a_carried_entry_not_binding_its_attempt_refuses"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY6 the recovered cell may already have a stage-T record",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.6,
+     "test": "test_composed_the_recovered_cell_with_a_stage_t_record_refuses"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY7 the recovered cell may have been attempted in another namespace",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 18.8,
+     "test": "test_composed_the_recovered_cell_attempted_in_another_namespace_refuses"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY8 a stopped campaign may have a receipt",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 19.3,
+     "test": "test_composed_a_stopped_campaign_with_a_receipt_refuses"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY9 the settlement need not be the clean budget stop",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 19.8,
+     "test": "test_composed_the_settlement_must_be_the_audited_clean_budget_stop[unclean]"
+    },
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 18.8,
+     "test": "test_composed_the_settlement_must_be_the_audited_clean_budget_stop[wall-stop]"
+    },
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 18.7,
+     "test": "test_composed_the_settlement_must_be_the_audited_clean_budget_stop[charge-reset]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY10 the stopped run need not end the ledger",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.0,
+     "test": "test_composed_the_settlement_must_be_the_audited_clean_budget_stop[line-after-final]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY11 the settlement lines need not be their pinned bytes",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.3,
+     "test": "test_composed_a_settlement_line_off_its_pin_refuses"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY12 the stopped snapshot need not be the r7 run request",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "Regex pattern did not match",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.1,
+     "test": "test_composed_the_stopped_snapshot_of_another_generation_refuses"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY13 the reservation need not bind its snapshot",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.0,
+     "test": "test_composed_a_reservation_not_binding_its_snapshot_refuses"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY14 the recorded stopped line need not be the ledger's",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.2,
+     "test": "test_composed_the_recorded_stopped_line_must_be_the_ledger_s"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY15 any r7 -> r8 transition is accepted",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.0,
+     "test": "test_composed_any_other_transition_refuses[extra-change]"
+    },
+    {
+     "declared_text": "assert 0 == 2",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.4,
+     "test": "test_composed_the_plan_refuses_a_transition_other_than_the_declared_one"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY16 the recovery may execute under r7",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.1,
+     "test": "test_composed_any_other_transition_refuses[same-generation]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY17 the boundary allowlist is not exact",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 19.9,
+     "test": "test_composed_a_changed_source_outside_the_allowlist_refuses"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY18 an allowlisted source need not be its r7 and committed r8 bytes",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.1,
+     "test": "test_composed_an_allowlisted_source_off_its_r7_or_r8_bytes_refuses"
+    },
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.3,
+     "test": "test_composed_an_uncommitted_allowlisted_source_refuses"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY19 the source authority outside the allowlist may change",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.2,
+     "test": "test_composed_a_changed_source_authority_outside_the_allowlist_refuses"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY20 the recovery claim is not exclusive",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert 0 == 1",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.4,
+     "test": "test_composed_the_lineage_is_recovered_once_even_after_a_failure[0]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY21 a request may name another claim root",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 18.2,
+     "test": "test_composed_a_request_naming_another_claim_root_refuses"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY22 the claim is not consumed before the attempt",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert 1 == 0",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 18.2,
+     "test": "test_composed_an_approved_recovery_runs_one_cell_and_writes_the_lineage_receipt"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_terminal_test.py",
+   "mutant": "RY23 the T entry does not verify the recovery authority",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert (0 == 2)",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.1,
+     "test": "test_composed_an_entry_without_the_claim_refuses_before_any_load"
+    },
+    {
+     "declared_text": "assert (0 == 2)",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.7,
+     "test": "test_composed_a_counterfeit_lineage_in_an_approved_request_refuses_the_entry"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY24 the entry accepts a request lineage off the pinned campaign",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert (0 == 2)",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.5,
+     "test": "test_composed_a_counterfeit_lineage_in_an_approved_request_refuses_the_entry"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY25 the entry accepts a claim for another namespace or record root",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert (0 == 2)",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.4,
+     "test": "test_composed_a_claim_for_another_namespace_or_line_refuses_the_entry[other-namespace]"
+    },
+    {
+     "declared_text": "assert (0 == 2)",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.5,
+     "test": "test_composed_a_claim_for_another_namespace_or_line_refuses_the_entry[other-approval]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_terminal_test.py",
+   "mutant": "RY26 the entry accepts the stage-T form in the recovery mode",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "no standing stage-T approval for this request",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.0,
+     "test": "test_composed_the_stage_t_form_with_the_recovery_mode_refuses"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_terminal_test.py",
+   "mutant": "RY27 the recovery entry expects a smoke horizon",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert (2 == 0)",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 19.9,
+     "test": "test_composed_an_authorized_recovery_entry_runs_the_terminal_function_once"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY28 a stage-T-run line approves the recovery",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert 0 == 2",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.2,
+     "test": "test_composed_only_a_recovery_line_for_this_exact_request_approves[stage-T-run]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY29 carried payloads are not verified before the leases",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert 1 == 2",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 18.6,
+     "test": "test_composed_a_carried_payload_off_its_record_refuses_before_any_lease_or_claim"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY30 the final closure does not re-verify the carried payloads",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert 0 == 1",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 18.2,
+     "test": "test_composed_drift_during_the_recovered_cell_publishes_no_combined_receipt[carried-binary]"
+    },
+    {
+     "declared_text": "assert 0 == 1",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.6,
+     "test": "test_composed_drift_during_the_recovered_cell_publishes_no_combined_receipt[carried-json]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY31 the final closure does not re-check the claim bytes",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert 0 == 1",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.4,
+     "test": "test_composed_drift_during_the_recovered_cell_publishes_no_combined_receipt[claim]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY32 the final closure does not check the new cell's outputs",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert 0 == 1",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.1,
+     "test": "test_composed_a_new_record_off_its_outputs_publishes_no_receipt"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY33 the final closure treats the executed cell as untouched",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert 1 == 0",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.2,
+     "test": "test_composed_an_approved_recovery_runs_one_cell_and_writes_the_lineage_receipt"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "RY34 the supervisor does not bind the parent ledger",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert 0 == 2",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 21.2,
+     "test": "test_composed_a_changed_or_unsettled_parent_refuses_before_start[unsettled]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "RY35 the parent ledger need not be its pinned bytes",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert 0 == 2",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 21.5,
+     "test": "test_composed_a_changed_or_unsettled_parent_refuses_before_start[reformatted]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "RY36 the parent ledger need not end settled at its charge",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert 0 == 2",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 21.2,
+     "test": "test_composed_a_changed_or_unsettled_parent_refuses_before_start[unsettled]"
+    },
+    {
+     "declared_text": "assert 0 == 2",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 21.3,
+     "test": "test_composed_a_changed_or_unsettled_parent_refuses_before_start[other-charge]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "RY37 the recovery has no ledger group of its own",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert (",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.0,
+     "test": "test_composed_the_recovery_keeps_its_own_ledger_and_budget"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_confirm_supervisor.py",
+   "mutant": "RY38 the recovered cell's producers are counted as one",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "KeyError",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 19.8,
+     "test": "test_composed_the_recovery_is_one_gpu_and_five_producers"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY39 the recovery may use more than one GPU",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert 0 == 2",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.2,
+     "test": "test_composed_the_request_is_one_gpu_and_a_new_namespace[two-gpus]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY40 the recovery may write the stopped namespace",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert 0 == 2",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.5,
+     "test": "test_composed_the_request_is_one_gpu_and_a_new_namespace[stopped-namespace]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY41 the recovery takes a stage-R receipt from the command",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert 0 == 2",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.6,
+     "test": "test_composed_the_recovery_takes_no_receipt_smoke_or_cell_selection"
+    }
+   ]
+  },
+  {
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "RY42 the recovery has no approval scope",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "KeyError",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.3,
+     "test": "test_structural_the_recovery_scope_binds_the_f_record"
+    }
+   ]
+  },
+  {
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "RY43 the launcher does not dispatch the recovery to the stage",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert 2 == 0",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 21.0,
+     "test": "test_composed_the_plan_previews_one_cell_and_touches_nothing"
+    }
+   ]
+  },
+  {
+   "file": "scripts/phase3_selection_matrix.py",
+   "mutant": "RY44 a manifest may omit the recovery contract",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "DID NOT RAISE",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.2,
+     "test": "test_composed_a_manifest_without_the_recovery_contract_refuses"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY45 the publication trusts the recorded attempt digest instead of the attempt file",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert 0 == 1",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.7,
+     "test": "test_composed_a_new_cell_chain_off_its_files_publishes_no_combined_receipt[new-attempt-changed]"
+    },
+    {
+     "declared_text": "assert 0 == 1",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.8,
+     "test": "test_composed_a_new_cell_chain_off_its_files_publishes_no_combined_receipt[new-attempt-missing]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY46 the new entry claim need not bind its attempt and cell",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert 0 == 1",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.8,
+     "test": "test_composed_a_new_cell_chain_off_its_files_publishes_no_combined_receipt[new-entry-mismatched]"
+    }
+   ]
+  },
+  {
+   "file": "scripts/anchor_refit_stage.py",
+   "mutant": "RY47 the new entry claim is not read",
+   "result": "detected",
+   "tests": [
+    {
+     "declared_text": "assert 0 == 1",
+     "intended": true,
+     "rc": 1,
+     "refused_opens": [],
+     "seconds": 20.7,
+     "test": "test_composed_a_new_cell_chain_off_its_files_publishes_no_combined_receipt[new-entry-missing]"
+    }
+   ]
+  }
+ ],
+ "other_tracked_identity_and_stat_equal": true,
+ "sandbox_has_artifacts": false,
+ "sandbox_restored": true,
+ "sandbox_top_level": [
+  ".git",
+  ".gitignore",
+  "README.md",
+  "baseline",
+  "compositional_eval.py",
+  "config.py",
+  "dataloaders.py",
+  "dataset",
+  "dna_utils",
+  "docs",
+  "evaluation_siglip2.py",
+  "extract_bert_text_features.py",
+  "extract_clip_features.py",
+  "extract_clip_features_cifar10.py",
+  "extract_clip_local_crops.py",
+  "extract_clip_text_features.py",
+  "extract_clip_text_phrase_features.py",
+  "extract_clip_text_token_features.py",
+  "extract_clip_text_tokens_cifar10.py",
+  "extract_siglip2_features.py",
+  "extract_siglip2_text_features.py",
+  "extraction_siglip2.py",
+  "hashing.yml",
+  "img_vis.ipynb",
+  "interpret_compositional_code.py",
+  "loss_siglip2.py",
+  "model_siglip2.py",
+  "models",
+  "p0_protocol.py",
+  "preprocess_qwen_codebook_texts.py",
+  "pytest.ini",
+  "requirements.txt",
+  "result_diagnostic",
+  "scripts",
+  "terminal_official_test.py",
+  "tests",
+  "tools",
+  "train_siglip2.py",
+  "val_split.py"
+ ],
+ "stray_processes": ""
+}

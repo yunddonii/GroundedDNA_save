@@ -1,0 +1,6 @@
+cd /data/yschoi/gdna_anchor_refit_v9r8 (HEAD 3fd0117, clean)
+env -u PYTHONPATH GDNA_NUM_SEMANTIC_PARTS=5 CUDA_VISIBLE_DEVICES= /home/yschoi/.conda/envs/dna_hashing/bin/python guarded_render_r8.py <log-dir> $(--allow each path of allow_list.json) --launcher-bundle -- \
+  scripts/phase3_selection_matrix.py --anchor-confirm recover --namespace ancT9r \
+  --anchor-manifest /data/yschoi/gdna_anchor_refit_v9r8/artifacts/anchor_confirmation/authority_manifest_v9r8.json \
+  --anchor-manifest-sha256 3537e297c0429c8ab5b02428651025903765a48c3c126eea172f30c37955c9f8 --run --gpus 0 --plan
+(guarded_render_r8.py = refit_v9/guarded_run.py with WORKTREE set to the r8 tree; the GPU index does not enter the request)
