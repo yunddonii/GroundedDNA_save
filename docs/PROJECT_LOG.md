@@ -487,6 +487,60 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-07 [anchor model — pre-launch checker repaired for audit §828 (v3, fail-closed); downstream consumer proposal submitted; nothing run] Audits §828–§829
+
+**Status:** ✅ both submitted to the audit. **Nothing ran:** no supervisor, claim, lease or GPU; the r8
+tree stays at S `04e7fe8`.
+
+**1. Pre-launch checker v3 (§828).** The audit found three checks that read a failed query as a pass:
+- tmux: any nonzero rc counted as "absent";
+- `lslocks`: rc was not checked;
+- compute-app query: rc was not checked.
+
+v3 is the external helper only; no r8 source changed.
+- **Fail-closed observations:** every command is recorded with argv, rc, stdout and stderr, and a failed
+  or unparseable query refuses.
+  - tmux "absent" only on its exact known reply.
+  - Leases are checked through both `/proc/locks`, by the lease file's inode (`lstat` only), and
+    `lslocks -J`.
+- **Exact identities:** request bytes **and** semantic digest; pinned decision and agreement bytes; the
+  agreement deadline 2026-10-07T17:00Z.
+- **Capacity:** `/home` free ≥ 10 GiB + 0.75 GiB.
+- **Launch wrapper:** it pins the helper bytes, runs it, and requires the exact approval line as a whole
+  line in the named section before `tmux_run.sh`.
+
+| Item | Result | Record (in `/home/yschoi/anchor_rt_session_state/`) |
+|---|---|---|
+| Helper versions | v1 `5947f5c5…` and v2 `8f646579…` kept as distinct superseded evidence; **v3 `1ea3e9ea59815cbd81ed771d4904eca0b9d6d87fc10eac1fa63392ba01dc7ba4`** | `tools/archive/`, `tools/recovery_launch_readiness.py` |
+| Wrapper | `e5f51917f031b89795241404358351e077c641b7b33185f5064c6ea1410c824a` | `tools/launch_recovery_ancT9r.sh` |
+| Synthetic controls | **54 passed**; every command faked, every path private | `tools/test_recovery_launch_readiness.py`, `launch_readiness/v3_controls/` |
+| Proven able to fail | **10/10 mutants caught**, each by its intended test. The first pass left the semantic-digest mutant alive because its test also changed `gpu_count`; after the fix it was caught | `launch_readiness/v3_controls/mutant_*` |
+| Host packet (read-only) | **13/13 gates pass** at 05:23:51Z: GPU 0 idle and unleased, tmux absent, 324.8 GB free on `/home`, `/data` busy 0 % | `launch_readiness/20261007T052334Z_v3/report.json` `9b8fa61ba538c2ff0d9d45a9b4f7171ed86bd0b281649346b3897e96abf0846f` |
+| Request document | supersedes §3–§4 of the earlier packet | `launch_readiness/LAUNCH_READINESS_ancT9r_v3_20261007.md` `3f04e4f81a3996ca0ede55b97ca2344b9c4599486f592474d38418fdfa8d8b1c` |
+
+**§829** verified the peer's GPU 0 receipt against the delivered message (05:08:28Z). It noted that the
+peer's own jobs are a separate session's work, not part of the anchor campaign.
+
+**2. Downstream consumer proposal (§798, §824)** — `docs/ANCHOR_DOWNSTREAM_CONSUMER_PROPOSAL_v1.md`,
+documentation only. It covers:
+- binding the recovery's **own** supervisor settlement (the receipt's settlement field is the stopped
+  parent's);
+- reading each of the 12 cells through its own record → attempt → entry lineage (11 carried r7 + 1
+  executed r8), with coordinates from `cell` and metric digests from `completion`;
+- three read tiers: JSON verified here / inherited reviewed authority / a binary scan that is out of
+  scope. The legacy `ours_closure` is not called; the legacy consumers stay unchanged;
+- TODO2/TODO8 reduction from the pinned evaluation/NMI JSONs only, with sample SD and explicit seed
+  vectors;
+- exclusive bundles outside `docs/paper_draft`;
+- a synthetic test plan with all §824 refusal cases.
+
+Implementation waits for recovery settlement and audit review.
+
+**Execution still waits on:** the audit's exact `stage-T-recovery` launch line, before
+2026-10-07T17:00Z; after that, the peer agreement must be renewed.
+
+---
+
 ## 2026-10-07 [anchor model — r8 recovery: user allowed the budget, peer GPU agreed, readiness 24/24; exact launch line requested, nothing run] Audits §823–§827
 
 **Status:** ✅ launch-readiness packet submitted to the audit. **Nothing ran:** no supervisor, claim,
