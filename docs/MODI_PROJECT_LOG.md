@@ -123,6 +123,27 @@ routing during training, on `xmodal_commit` and on `text_code_kl` together. The 
 replication of "B1 vs OFF codon S" on NUS-WIDE and MS-COCO (own H2 cells) is the next step; Stage 2
 (captions) waits for the user's caption-length decision.
 
+**Pre-registered replication on NUS-WIDE and MS-COCO (cells `td3_{nus,coco}_H2_s42-44`, 2026-10-07
+06:40Z; scored on all validation rows, 1,050 / 1,000; OFF and B0 from Stage 1; T = .15 / .18):**
+
+| dataset | seed | mAP@R H2 / B0 / OFF | unique H2 (B0) | codon S H2 [CI] / B0 / OFF | H2 − OFF |
+|---|---|---|---|---|---|
+| NUS | 42 | .7256 / .7225 / .6950 | .548 (.533) | +.086 [+.02,+.15] / +.098 / −.013 | +.10 |
+| NUS | 43 | .7217 / .7292 / .6985 | .548 (.512) | +.071 [−.00,+.14] / +.046 / −.018 | +.09 |
+| NUS | 44 | .7302 / .7247 / .6874 | .554 (.521) | −.032 [−.10,+.03] / +.078 / +.018 | −.05 |
+| COCO | 42 | .6375 / .6341 / .5825 | .385 (.403) | +.055 [+.00,+.11] / +.029 / −.008 | +.06 |
+| COCO | 43 | .6439 / .6426 / .5765 | .383 (.392) | +.081 [+.03,+.13] / +.040 / −.025 | +.11 |
+| COCO | 44 | .6331 / .6302 / .5855 | .392 (.385) | +.011 [−.05,+.06] / +.078 / +.030 | −.02 |
+
+- **H2 as a recipe holds on all three datasets:** retrieval equal to B0 (NUS mean +.000, COCO +.003),
+  dead codewords lower, unique codes equal or higher. **B1 = H2 is confirmed for NUS-WIDE and MS-COCO.**
+- **The codon-level text effect does NOT replicate at T:** H2 − OFF is positive on 4/6 seed–dataset
+  cells (+.06 to +.11) but negative on seed 44 of both datasets, and no cell reaches T (.15 / .18).
+  The Flickr finding (+.145 to +.187 on 3/3 seeds at 2,000 rows) stays a Flickr-only observation; on
+  NUS/COCO the deployed codes carry at most a small, seed-dependent text signal.
+- Descriptive, n = 3 per dataset, no test. This closes Stage 3 on the V4/V5b captions: no arm beats
+  B1, and B1's own effect is confirmed only on Flickr25K. Stage 2 (captions) is the next lever.
+
 
 ---
 

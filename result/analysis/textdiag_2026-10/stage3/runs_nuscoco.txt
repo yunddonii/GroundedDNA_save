@@ -1,0 +1,6 @@
+/home/yschoi/gdna_textdiag/result/261007+mscoco_setting1_td3_coco_H2_s42+bs+64+e+60+proj_lr+0.001
+/home/yschoi/gdna_textdiag/result/261007+mscoco_setting1_td3_coco_H2_s43+bs+64+e+60+proj_lr+0.001
+/home/yschoi/gdna_textdiag/result/261007+mscoco_setting1_td3_coco_H2_s44+bs+64+e+60+proj_lr+0.001
+/home/yschoi/gdna_textdiag/result/261007+nuswide_setting1_td3_nus_H2_s42+bs+64+e+60+proj_lr+0.001
+/home/yschoi/gdna_textdiag/result/261007+nuswide_setting1_td3_nus_H2_s43+bs+64+e+60+proj_lr+0.001
+/home/yschoi/gdna_textdiag/result/261007+nuswide_setting1_td3_nus_H2_s44+bs+64+e+60+proj_lr+0.001
