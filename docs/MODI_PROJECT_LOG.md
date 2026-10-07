@@ -42,6 +42,39 @@ analysis / 🔴 reverted or negative); tables over prose for numbers; each model
 
 ---
 
+## 2026-10-07 [OFF-PROTOCOL exploration, branch text-diag-2026-09 — not a paper result] Stage 3 arm N1 (TD, text-dropout path consistency): fails P-DELTA at the codon level; the codon-level text effect of B1 depends on `xmodal_commit`; the consistency term at λ .05 halves dead codewords but does not transfer the caption-routed signal to the deployed codes
+
+**Status:** 🔴 negative for N1 as configured; 🟡 diagnostics informative. Pre-registered in
+`result/analysis/textdiag_2026-10/stage3/PREREGISTRATION.md`. Code `498cc4a` + `f0dd43e` (flags
+`--lambda_path_consistency`, `--path_consistency_tau` (.5, on per-row standardised codebook
+distances), `--text_dropout_p`; 28 tests; gate `td3_gate_H2_s42` bit-identical to `td1_flickr_H2_s42`).
+Cells (Flickr25K, seeds 42/43/44, GPUs 1-5, 2026-10-07 05:28–05:58Z), scored on 2,000 rows (500 val +
+1,500 eval-DB) with A3 v2 and `d4d6`; records `stage3/{a3v2_2000,d4d6,A3V2_2000_SUMMARY.md}`.
+First smoke with τ .1 on raw squared distances collapsed the codebook (term 589, dead .76); fixed before any cell.
+
+| arm | delta vs B1 (= Stage-1 H2, 10 terms) | mAP@R Δ (42/43/44) | dead | **codon S** (B1: +.161/+.196/+.109) | codeword S (B1: +.083/−.005/−.021) | caption-routed S |
+|---|---|---|---|---|---|---|
+| **TD** (N1) | `xmodal_commit` → `path_consistency` .05, p = 1 | −.015 / −.012 / +.000 | .07–.09 | **+.131 / −.091 / −.046** | +.065 / −.021 / +.139 | +.08 / +.09 / +.11 |
+| XM0 | `xmodal_commit` 0 only | −.010 / −.010 / +.006 | .17–.21 | +.086 / +.115 / −.079 | −.054 / +.032 / −.051 | +.02 / +.04 / +.06 |
+| TDXM | + `path_consistency` .05, `xmodal_commit` kept (11 terms, diagnostic) | −.009 / +.006 / +.021 | **.07–.09** | +.070 / +.141 / +.111 | +.128 / +.078 / −.053 | +.17 / +.16 / +.17 |
+
+- **N1 verdict:** fails P-DELTA at the codon level (Δ vs B1 −.03 / −.29 / −.16) and is in the user-decision
+  zone on P-RET (mean −.009). Codeword level mean +.06 vs B1 +.02, not ≥ T = .10 on 3/3 seeds.
+- **Why:** removing `xmodal_commit` alone (XM0) lowers the codon S on 3/3 seeds (−.08 / −.08 / −.19) and
+  the caption-routed S (.02–.06 vs B1 .12–.20): the codon-level text effect of B1 is carried by
+  `xmodal_commit` (image slot token → caption's codeword). That term stays.
+- **The consistency term itself** (TDXM): keeps retrieval (mean +.006), halves dead codewords (EMA sees
+  deployment-routed tokens), raises the caption-routed S to .16–.17, but the deployed codon S is still
+  ≤ B1 on 2/3 seeds and train/deploy codeword agreement is unchanged (.52–.69). At λ .05 the term is
+  ≈ .5 % of the objective; it does not move the deployed path toward the teacher. F6 in its weak form.
+- Descriptive, n = 3, no test. Nothing under the anchor trees or GPU 0 was touched (reservation agreement).
+
+**Next (within the pre-registration):** the single allowed escalation of λ (TDXM form, λ .5) and arm N1′
+S (`--train_routing_mode codebook_mean`, to be written). Both wait for the next /data window agreed
+with the anchor session.
+
+---
+
 ## 2026-10-07 [OFF-PROTOCOL exploration, branch text-diag-2026-09 — not a paper result] Stage 1: baseline, text-OFF and two clean-ups at the approved recipe. Text keeps retrieval (OFF −.013 / −.032 / −.054) and gives a small codon-level slot signal (B0 − OFF > 0 on 9/9 seed–dataset cells) but nothing at the codeword level; the caption-input dependence of D4 is confirmed at the approved recipe; H1 bit-identical; H2 passes
 
 **Status:** 🟡 exploratory, pre-registered (`result/analysis/textdiag_2026-10/stage1/PREREGISTRATION.md`).
