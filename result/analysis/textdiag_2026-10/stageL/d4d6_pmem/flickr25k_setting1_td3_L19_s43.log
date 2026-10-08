@@ -1,0 +1,18 @@
+overrides: ['anchor_source=memory']
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 11845.46it/s]
+/home/yschoi/gdna_textdiag/dataloaders.py:562: UserWarning: The given NumPy array is not writable, and PyTorch does not support non-writable tensors. This means writing to this tensor will result in undefined behavior. You may want to copy the array to protect its data or make it writable before converting it to a tensor. This type of warning will be suppressed for the rest of this program. (Triggered internally at /pytorch/torch/csrc/utils/tensor_numpy.cpp:203.)
+  out["cached_text_token_mask"] = torch.from_numpy(np.asarray(self.text_token_mask[row_idx], dtype=np.bool_))[:_GDNA_N_PARTS]
+[model_siglip2] backbone_type=clip with d_model unset -> defaulting d_model=768 (= visual hidden_dim) so d_model % 3 == 0 holds for CodonHead.
+[model_siglip2] v113 partial whitening loaded: D=512, gamma=0.250, eps=1.0e-05
+[anchor-memory] built from opt_train_rows.npy: N=4500, L=4, D=512, sha256=f12046a83d39bb7d
+[siglip2-cache] loaded token-level text cache from /data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens (text_tokens (25000, 6, 32, 512)).
+[siglip2-cache] loaded 2 paired-aug view(s) from /data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens.
+[ImgRtvDataset] siglip2 feature cache loaded from /data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens -- N=5000 images mapped to cache rows.
+{"dataset": "Flickr25k", "rows": 500, "axis_center": "anchors", "use_gumbel_softmax": false, "prune_in_recipe": false}
+D4 {"C_primary_object": {"p_same_codeword_train_vs_deploy": 0.654, "cos_z_train_vs_deploy": 0.908, "plan_column_cos": 0.7391, "codewords_used_train": 120, "codewords_used_deploy": 118}, "C_secondary_object": {"p_same_codeword_train_vs_deploy": 0.618, "cos_z_train_vs_deploy": 0.8847, "plan_column_cos": 0.6757, "codewords_used_train": 120, "codewords_used_deploy": 116}, "C_activity_or_relation": {"p_same_codeword_train_vs_deploy": 0.696, "cos_z_train_vs_deploy": 0.9068, "plan_column_cos": 0.733, "codewords_used_train": 122, "codewords_used_deploy": 123}, "C_color_texture": {"p_same_codeword_train_vs_deploy": 0.642, "cos_z_train_vs_deploy": 0.8895, "plan_column_cos": 0.6844, "codewords_used_train": 124, "codewords_used_deploy": 119}}
+D4 cross-slot cos {'train': 0.7709, 'deploy': 0.7741}
+A3 lexical train_routed {'value': 0.1548, 'axes': 4, 'positive_axes': 4, 'ci95': [0.0027, 0.3097]}
+A3 lexical deployed {'value': 0.0548, 'axes': 4, 'positive_axes': 2, 'ci95': [-0.1088, 0.2062]}
+A3 lexical train_routed_no_prune {'value': 0.1548, 'axes': 4, 'positive_axes': 4, 'ci95': [0.0027, 0.3097]}
+D6 {"keep_ratio_per_slot_mean": null, "cos_adapted_anchor_pruned_vs_eos_per_slot": [1.0, 1.0, 1.0, 1.0], "cos_adapted_anchor_pruned_vs_eos_min": 1.0, "p_same_codeword_pruned_vs_eos_per_slot": [1.0, 1.0, 1.0, 1.0], "plan_column_cos_pruned_vs_eos": 1.0}

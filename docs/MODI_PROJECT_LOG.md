@@ -42,6 +42,33 @@ analysis / 🔴 reverted or negative); tables over prose for numbers; each model
 
 ---
 
+## 2026-10-09 [OFF-PROTOCOL exploration, branch text-diag-2026-09 — not a paper result] Stage L: training length. Every Stage 1–3 Flickr variation re-run to N = 19 (and B1 at N = 9): retrieval falls on every arm, the codebooks mature (dead → 0, unique +.05–.14), but slot specificity does not appear — no arm's deployed codon S at N = 19 reaches B1's at N = 4, and B1's own codon text effect shrinks from +.15–.19 to −.01/+.17/−.00
+
+**Status:** 🔴 for the "too short to learn" hypothesis (user question 2026-10-08); 🟢 as a control (it closes a confound that applied to every earlier campaign). Pre-registration `stage3/PREREGISTRATION.md` (Stage L and Stage L extension). Cells 2026-10-08 14:30Z – 2026-10-09 17:00Z: B1 at N = 9 (L9) and 19 (L19), P-mem+SS at 19 (L19p), P-mem+SS with p_start 1 at 4 (PmemSSp1), and 12 arms × 3 seeds at N = 19 (tags `<original>_N19_s<seed>`), all with `--sinkhorn_schedule_horizon N+1` (length and Sinkhorn schedule change together, for every arm alike). 2,000-row A3 v2 on the final checkpoint; validation metrics at epochs 4/9/14/19 from `log.csv`. Records: `/home/yschoi/GroundedDNA/result/analysis/textdiag_stageL_train_length_20261008/` (`length_table.txt`, `cells.txt`, `eval_runs.txt`, per-cell logs). d4d6 does not apply to OFF/S/SN2/MIX (no caption-routed training forward) and returned rc 1 for those 12 runs, as at N = 4.
+
+Mean ± SD over seeds 42/43/44 (validation, Flickr25K):
+
+| arm | mAP@R N4 | N19 @e9 | N19 @e19 | unique N4 → N19 | dead N4 → N19 | deployed codon S N4 → N19 | deployed codeword S N4 → N19 |
+|---|---|---|---|---|---|---|---|
+| B0 | .748 | .727 | .719 | .540 → .649 | .182 → .005 | +.011 → −.021 | +.012 → −.048 |
+| **B1 (H2)** | .748 | .727 | .709 | .558 → .646 | .157 → .013 | **+.155 → +.072** | +.019 → +.040 |
+| OFF | .735 | .700 | .687 | .459 → .539 | .151 → .000 | −.011 → +.021 | +.002 → +.009 |
+| TD | .739 | .731 | .728 | .515 → .591 | .083 → .019 | −.002 → +.037 | +.061 → +.027 |
+| XM0 | .744 | .727 | .718 | .507 → .597 | .192 → .013 | +.041 → −.004 | −.025 → +.015 |
+| TDXM | .754 | .725 | .714 | .542 → .589 | .084 → .009 | +.108 → +.033 | +.051 → +.042 |
+| TDXM5 | .753 | .722 | .714 | .457 → .555 | .177 → .001 | −.068 → −.003 | −.018 → +.045 |
+| S | .758 | .735 | .721 | .449 → .523 | .166 → .000 | +.071 → +.060 | +.029 → +.019 |
+| SN2 | .756 | .736 | .722 | .463 → .523 | .154 → .000 | +.022 → +.071 | +.012 → +.030 |
+| BN2 | .751 | .731 | .718 | .581 → .630 | .140 → .011 | +.055 → +.019 | +.021 → +.028 |
+| P-mem+SS | .756 | .735 | .721 | .449 → .569 | .191 → .000 | +.078 → +.059 | +.070 → +.032 |
+| P-head | .756 | .737 | .726 | .465 → .589 | .226 → .000 | +.100 → +.064 | +.079 → +.037 |
+| P-head noSS | .753 | .736 | .716 | .528 → .670 | .208 → .001 | +.023 → +.036 | +.040 → +.076 |
+| MIX | .755 | .736 | .720 | .455 → .545 | .179 → .000 | +.060 → +.035 | +.029 → +.033 |
+
+B1 at N = 9 (L9): mAP@R .730/.739/.734, unique .63–.65, dead .02–.03, codon S +.004/+.124/+.181. P-mem+SS with full deployment-regime exposure at N = 4 (PmemSSp1): codon S +.015/+.061/+.098, codeword S +.043/+.025/+.026 (below P-mem+SS). P-mem deploy-only on the B1 N = 19 checkpoints: codon S +.007/+.148/+.061 → +.026/+.064/+.066. **B1 − OFF codon S per seed: N4 +.145/+.187/+.166 → N19 −.012/+.169/−.004.**
+
+**Reading.** (1) Training length is not why the designs fail: with 4.75× the steps every codebook is healthy (dead ≈ 0) and unique codes rise on every arm, yet the slot-specific sharing that A3 measures does not grow on any arm; the largest N19 codeword S is +.076 (P-head noSS) and the largest codon S +.072 (B1), both below T = .10. (2) Longer training ERODES B1's codon effect (2 of 3 seeds lose it entirely) and costs .02–.05 mAP@R on every arm; only TD keeps retrieval (−.011). (3) Every arm's N = 19 codon S is close to OFF's (+.021), so whatever text adds at N = 4 is a transient of early training, consistent with the Stage 4-G finding that B1's codon S is largely global information copied into the local codons. (4) The two levers left untested by any campaign are on the input side: how distinct the four axis captions of one image are (local-local text cosine .58–.62; D2/D3 ceilings S_probe .13/.29/.20) and how separately the router hands patches to the slots. These go into the plan rewrite (user instruction 2026-10-08 #2). Descriptive, n = 3, no test.
+
 ## 2026-10-08 [OFF-PROTOCOL exploration, branch text-diag-2026-09 — not a paper result] Stage 4-D (plan 4d): `text_hash_ntxent` is not removable on either base (codon S and retrieval fall); `xmodal_commit` is removable on the P-mem+SS base by the pre-registered rule (codon S within T, retrieval −.005)
 
 **Status:** 🟡 one removable term (on the P-mem+SS base only). Pre-registration `stage3/PREREGISTRATION.md` (Stage 4-D); cells 2026-10-08 13:27Z onward (Flickr25K, seeds 42/43/44); `td3_TH0_s42` hung in its DataLoader for 2.2 h with no error and was killed by PID at 15:35Z and re-run in a per-GPU queue (record: `textdiag_stage4d_text_term_reduction_20261008/td3_TH0_s42.failed1.log`); 2,000-row scoring; `summarize_3c.py TH0 TH0p XM0p`. Removable = codon S within T = .10 of the base on 3/3 seeds AND P-RET (mean ≥ base − .008) AND P-HEALTH.

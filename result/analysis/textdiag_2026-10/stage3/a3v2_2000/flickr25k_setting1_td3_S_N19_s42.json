@@ -1,0 +1,343 @@
+{
+ "result_dir": "/home/yschoi/GroundedDNA/result/261009+flickr25k_setting1_td3_S_N19_s42+bs+64+e+60+proj_lr+0.001",
+ "dataset": "Flickr25k",
+ "axis_center": "anchors",
+ "text_supervision_disabled": false,
+ "use_gumbel_softmax": false,
+ "rows": 2000,
+ "rows_validation": 500,
+ "rows_extra": 1500,
+ "caption_file": "/home/yschoi/gdna_textdiag/cache_eval/flickr25k_v4_train_plus_evaldb.jsonl",
+ "caption_sha256": "861ac9008677e4f1d91558bb8c643779f4575b90e46b69b8cc39d87321b38374",
+ "reference_text_cache": "/home/yschoi/gdna_textdiag/cache_eval/ref_text_flickr_v4_plus_evaldb",
+ "module_provenance": {
+  "model_siglip2": {
+   "file": "/home/yschoi/gdna_textdiag/model_siglip2.py",
+   "sha256": "5d62945de9ddf08f7785484e3636bf6514d6c4fbe662e7579cbf22ae2f6837c2"
+  },
+  "dataloaders": {
+   "file": "/home/yschoi/gdna_textdiag/dataloaders.py",
+   "sha256": "fa7545908664502a5a4f20fe8d3441b42d5f441653d1310dc4fbf08c1bb14e27"
+  },
+  "dna_utils.runtime_state": {
+   "file": "/home/yschoi/gdna_textdiag/dna_utils/runtime_state.py",
+   "sha256": "cdab32494012f3f7199c7f05af81af547f5ddcbeb2131e166787dab94d26e333"
+  }
+ },
+ "pair_rule": {
+  "max_df": 0.2,
+  "cos_top_frac": 0.02,
+  "min_shared_colour": 2,
+  "boot": 1000,
+  "elements_per_row_mean": {
+   "C_primary_object": 4.98,
+   "C_secondary_object": 4.78,
+   "C_activity_or_relation": 0.94,
+   "C_color_texture": 4.45
+  },
+  "rows_with_element": {
+   "C_primary_object": 2000,
+   "C_secondary_object": 1999,
+   "C_activity_or_relation": 1314,
+   "C_color_texture": 1995
+  }
+ },
+ "codeword": {
+  "lexical": {
+   "per_axis": {
+    "C_primary_object": {
+     "pairs": 133001,
+     "lift_own": 3.808,
+     "lift_other_mean": 2.895,
+     "R": 0.2741,
+     "R_ci95": [
+      0.1986,
+      0.3468
+     ]
+    },
+    "C_secondary_object": {
+     "pairs": 133334,
+     "lift_own": 2.138,
+     "lift_other_mean": 2.232,
+     "R": -0.0431,
+     "R_ci95": [
+      -0.1162,
+      0.0323
+     ]
+    },
+    "C_activity_or_relation": {
+     "pairs": 23271,
+     "lift_own": 2.212,
+     "lift_other_mean": 2.557,
+     "R": -0.1448,
+     "R_ci95": [
+      -0.3557,
+      0.0758
+     ]
+    },
+    "C_color_texture": {
+     "pairs": 89512,
+     "lift_own": 2.093,
+     "lift_other_mean": 1.934,
+     "R": 0.0792,
+     "R_ci95": [
+      -0.0071,
+      0.1596
+     ]
+    }
+   },
+   "S": {
+    "value": 0.0414,
+    "axes": 4,
+    "positive_axes": 2,
+    "ci95": [
+     -0.0204,
+     0.1021
+    ]
+   }
+  },
+  "lexical_axis_exclusive": {
+   "per_axis": {
+    "C_primary_object": {
+     "pairs": 109831,
+     "lift_own": 3.095,
+     "lift_other_mean": 2.426,
+     "R": 0.2435,
+     "R_ci95": [
+      0.1602,
+      0.3267
+     ]
+    },
+    "C_secondary_object": {
+     "pairs": 112137,
+     "lift_own": 1.67,
+     "lift_other_mean": 1.668,
+     "R": 0.0013,
+     "R_ci95": [
+      -0.0866,
+      0.0887
+     ]
+    },
+    "C_activity_or_relation": {
+     "pairs": 17225,
+     "lift_own": 1.745,
+     "lift_other_mean": 1.469,
+     "R": 0.1721,
+     "R_ci95": [
+      -0.1529,
+      0.4749
+     ]
+    },
+    "C_color_texture": {
+     "pairs": 73202,
+     "lift_own": 1.498,
+     "lift_other_mean": 1.444,
+     "R": 0.0366,
+     "R_ci95": [
+      -0.0688,
+      0.1356
+     ]
+    }
+   },
+   "S": {
+    "value": 0.1134,
+    "axes": 4,
+    "positive_axes": 4,
+    "ci95": [
+     0.0206,
+     0.1996
+    ]
+   }
+  },
+  "caption_cos_top2pct": {
+   "per_axis": {
+    "C_primary_object": {
+     "pairs": 39981,
+     "lift_own": 6.161,
+     "lift_other_mean": 4.119,
+     "R": 0.4026,
+     "R_ci95": [
+      0.3131,
+      0.4954
+     ]
+    },
+    "C_secondary_object": {
+     "pairs": 39981,
+     "lift_own": 2.986,
+     "lift_other_mean": 3.172,
+     "R": -0.0605,
+     "R_ci95": [
+      -0.1624,
+      0.0339
+     ]
+    },
+    "C_activity_or_relation": {
+     "pairs": 39981,
+     "lift_own": 3.084,
+     "lift_other_mean": 5.152,
+     "R": -0.5132,
+     "R_ci95": [
+      -0.6429,
+      -0.3795
+     ]
+    },
+    "C_color_texture": {
+     "pairs": 39981,
+     "lift_own": 2.437,
+     "lift_other_mean": 2.077,
+     "R": 0.1597,
+     "R_ci95": [
+      0.0519,
+      0.2692
+     ]
+    }
+   },
+   "S": {
+    "value": -0.0029,
+    "axes": 4,
+    "positive_axes": 2,
+    "ci95": [
+     -0.0407,
+     0.0344
+    ]
+   }
+  }
+ },
+ "codon": {
+  "lexical": {
+   "per_axis": {
+    "C_primary_object": {
+     "pairs": 133001,
+     "lift_own": 3.157,
+     "lift_other_mean": 3.079,
+     "R": 0.0253,
+     "R_ci95": [
+      -0.0334,
+      0.0903
+     ]
+    },
+    "C_secondary_object": {
+     "pairs": 133334,
+     "lift_own": 2.269,
+     "lift_other_mean": 2.256,
+     "R": 0.0057,
+     "R_ci95": [
+      -0.0509,
+      0.0631
+     ]
+    },
+    "C_activity_or_relation": {
+     "pairs": 23271,
+     "lift_own": 2.575,
+     "lift_other_mean": 2.329,
+     "R": 0.1006,
+     "R_ci95": [
+      -0.0473,
+      0.251
+     ]
+    },
+    "C_color_texture": {
+     "pairs": 89512,
+     "lift_own": 1.928,
+     "lift_other_mean": 1.973,
+     "R": -0.023,
+     "R_ci95": [
+      -0.0886,
+      0.0452
+     ]
+    }
+   },
+   "S": {
+    "value": 0.0272,
+    "axes": 4,
+    "positive_axes": 3,
+    "ci95": [
+     -0.0154,
+     0.0743
+    ]
+   }
+  },
+  "lexical_axis_exclusive": {
+   "per_axis": {
+    "C_primary_object": {
+     "pairs": 109831,
+     "lift_own": 2.701,
+     "lift_other_mean": 2.62,
+     "R": 0.0306,
+     "R_ci95": [
+      -0.0358,
+      0.1057
+     ]
+    },
+    "C_secondary_object": {
+     "pairs": 112137,
+     "lift_own": 1.819,
+     "lift_other_mean": 1.757,
+     "R": 0.0343,
+     "R_ci95": [
+      -0.0355,
+      0.1027
+     ]
+    },
+    "C_activity_or_relation": {
+     "pairs": 17225,
+     "lift_own": 1.661,
+     "lift_other_mean": 1.491,
+     "R": 0.1076,
+     "R_ci95": [
+      -0.0875,
+      0.3015
+     ]
+    },
+    "C_color_texture": {
+     "pairs": 73202,
+     "lift_own": 1.467,
+     "lift_other_mean": 1.491,
+     "R": -0.0166,
+     "R_ci95": [
+      -0.1041,
+      0.0686
+     ]
+    }
+   },
+   "S": {
+    "value": 0.039,
+    "axes": 4,
+    "positive_axes": 3,
+    "ci95": [
+     -0.0222,
+     0.1021
+    ]
+   }
+  }
+ },
+ "calibration_lexical_codeword": {
+  "0.0": {
+   "value": 0.0414,
+   "axes": 4,
+   "positive_axes": 2,
+   "ci95": [
+    -0.0204,
+    0.1021
+   ]
+  },
+  "0.3": {
+   "value": 0.174,
+   "axes": 4,
+   "positive_axes": 4,
+   "ci95": [
+    0.1047,
+    0.2464
+   ]
+  },
+  "1.0": {
+   "value": 0.9191,
+   "axes": 4,
+   "positive_axes": 4,
+   "ci95": [
+    0.8637,
+    0.982
+   ]
+  }
+ }
+}

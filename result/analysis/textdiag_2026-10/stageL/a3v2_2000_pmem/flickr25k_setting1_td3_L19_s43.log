@@ -1,0 +1,19 @@
+overrides: ['anchor_source=memory']
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Loading weights:   0%|          | 0/398 [00:00<?, ?it/s]Loading weights: 100%|██████████| 398/398 [00:00<00:00, 9102.74it/s]
+/home/yschoi/gdna_textdiag/dataloaders.py:562: UserWarning: The given NumPy array is not writable, and PyTorch does not support non-writable tensors. This means writing to this tensor will result in undefined behavior. You may want to copy the array to protect its data or make it writable before converting it to a tensor. This type of warning will be suppressed for the rest of this program. (Triggered internally at /pytorch/torch/csrc/utils/tensor_numpy.cpp:203.)
+  out["cached_text_token_mask"] = torch.from_numpy(np.asarray(self.text_token_mask[row_idx], dtype=np.bool_))[:_GDNA_N_PARTS]
+[model_siglip2] backbone_type=clip with d_model unset -> defaulting d_model=768 (= visual hidden_dim) so d_model % 3 == 0 holds for CodonHead.
+[model_siglip2] v113 partial whitening loaded: D=512, gamma=0.250, eps=1.0e-05
+[anchor-memory] built from opt_train_rows.npy: N=4500, L=4, D=512, sha256=f12046a83d39bb7d
+[siglip2-cache] loaded token-level text cache from /data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens (text_tokens (25000, 6, 32, 512)).
+[siglip2-cache] loaded 2 paired-aug view(s) from /data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens.
+[ImgRtvDataset] siglip2 feature cache loaded from /data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens -- N=5000 images mapped to cache rows.
+rows: 500 validation + 1500 extra (non-training) from the caption file
+{"dataset": "Flickr25k", "axis_center": "anchors", "text_supervision_disabled": false, "use_gumbel_softmax": false, "rows": 2000}
+codeword lexical S= {'value': 0.0289, 'axes': 4, 'positive_axes': 2, 'ci95': [-0.0213, 0.0768]} {'C_primary_object': (133001, 3.145, 2.78, 0.1233), 'C_secondary_object': (133334, 2.073, 2.236, -0.0757), 'C_activity_or_relation': (23271, 2.631, 2.043, 0.2528), 'C_color_texture': (89512, 1.619, 1.948, -0.1849)}
+codeword lexical_axis_exclusive S= {'value': 0.0393, 'axes': 4, 'positive_axes': 2, 'ci95': [-0.0372, 0.1116]} {'C_primary_object': (109831, 2.609, 2.309, 0.1222), 'C_secondary_object': (112137, 1.624, 1.732, -0.0639), 'C_activity_or_relation': (17225, 1.619, 1.304, 0.2168), 'C_color_texture': (73202, 1.276, 1.436, -0.1179)}
+codeword caption_cos_top2pct S= {'value': 0.0978, 'axes': 4, 'positive_axes': 3, 'ci95': [0.0411, 0.1547]} {'C_primary_object': (39981, 4.868, 4.141, 0.1617), 'C_secondary_object': (39981, 2.649, 3.172, -0.1802), 'C_activity_or_relation': (39981, 5.599, 3.807, 0.3857), 'C_color_texture': (39981, 2.425, 2.367, 0.0241)}
+codon lexical S= {'value': 0.064, 'axes': 4, 'positive_axes': 4, 'ci95': [0.0172, 0.1111]} {'C_primary_object': (133001, 3.404, 3.042, 0.1124), 'C_secondary_object': (133334, 2.095, 2.057, 0.0183), 'C_activity_or_relation': (23271, 2.197, 2.092, 0.049), 'C_color_texture': (89512, 2.017, 1.869, 0.0763)}
+codon lexical_axis_exclusive S= {'value': 0.0814, 'axes': 4, 'positive_axes': 3, 'ci95': [0.0192, 0.1516]} {'C_primary_object': (109831, 2.997, 2.655, 0.1209), 'C_secondary_object': (112137, 1.614, 1.626, -0.0078), 'C_activity_or_relation': (17225, 1.468, 1.343, 0.0889), 'C_color_texture': (73202, 1.605, 1.418, 0.1237)}
+calibration {'0.0': (0.0289, [-0.0213, 0.0768]), '0.3': (0.1483, [0.0809, 0.2124]), '1.0': (0.9191, [0.8637, 0.982])}
