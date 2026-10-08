@@ -419,6 +419,11 @@ class DNACodonHashLoss(nn.Module):
         # concept cross-entropy of the named concept codebook.
         self.cibhash_local_target = str(getattr(cfg, "cibhash_local_target", "instance") or "instance")
         self.cibhash_local_target_tau = float(getattr(cfg, "cibhash_local_target_tau", 0.2))
+        # (2026-10-08, plan 4a) normalisation of the per-slot NT-Xent sum: "computed" (legacy
+        # mean over computed terms) or "all" (sum / M so a dropped local half is not re-weighted).
+        self.cibhash_ntxent_slot_norm = str(getattr(cfg, "cibhash_ntxent_slot_norm", "computed") or "computed")
+        if self.cibhash_ntxent_slot_norm not in ("computed", "all"):
+            raise ValueError(f"--cibhash_ntxent_slot_norm must be computed|all, got {self.cibhash_ntxent_slot_norm!r}")
         self.text_hash_ntxent_target = str(getattr(cfg, "text_hash_ntxent_target", "instance") or "instance")
         self.text_hash_ntxent_target_tau = float(getattr(cfg, "text_hash_ntxent_target_tau", 0.2))
         self._axis_mean_ema = None                  # per-axis caption mean, EMA over batches
@@ -1604,7 +1609,12 @@ class DNACodonHashLoss(nn.Module):
             ntxent_m = F.cross_entropy(sim, pos_idx)
             ntxent_per_cb.append(ntxent_m)
 
-        ntxent = torch.stack(ntxent_per_cb).mean()
+        if getattr(self, "cibhash_ntxent_slot_norm", "computed") == "all":
+            # (2026-10-08, plan 4a) sum / M: with local_target "none" only the global
+            # term remains and keeps its usual 1/M share instead of weight 1.
+            ntxent = torch.stack(ntxent_per_cb).sum() / float(M)
+        else:
+            ntxent = torch.stack(ntxent_per_cb).mean()
         kl = visual_tokens_view1.new_zeros(())
         return ntxent, kl
 

@@ -1024,6 +1024,14 @@ class Config():
                  'instance = unchanged; axis_soft = soft target over the batch, '
                  'softmax(cos of per-axis-centred axis-m captions / tau); none = no '
                  'instance NT-Xent on local slots.')
+        siglip2_arg.add_argument('--cibhash_ntxent_slot_norm', dest='cibhash_ntxent_slot_norm',
+            type=str, default='computed', choices=['computed', 'all'],
+            help='(2026-10-08, plan 4a) how the per-slot visual-token NT-Xent terms are '
+                 'averaged. computed (default, legacy): mean over the terms that were '
+                 'computed, so with --cibhash_local_target none the global term alone '
+                 'carries weight 1 (M times its usual share). all: divide the sum by the '
+                 'number of slots M, so dropping the local terms removes exactly the local '
+                 'half and the global term keeps its usual 1/M weight.')
         siglip2_arg.add_argument('--cibhash_local_target_tau', dest='cibhash_local_target_tau',
             type=float, default=0.2,
             help='(stage 7) temperature of the axis_soft target.')

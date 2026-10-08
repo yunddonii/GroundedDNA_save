@@ -100,3 +100,26 @@ Flickr mAP ±0, unique +.04, but CIFAR −.07 / NUS −.007 (Stage 11, discarded
 Expected if the "washing" reading is right: codon S follows the codeword S on the P-mem+SS base.
 Next after this (user order 2026-10-08): 4a (local instance-contrastive removal), then 4d (text-term
 reduction). n = 3, descriptive, no test.
+
+## Stage 4-A (written 2026-10-08 before any cell) — remove the local slots' instance-contrastive term (plan 4a), on two bases
+
+Stage 4-G refuted the codon-stage reading. Next in the user's order: 4a. B1's dominant term is the
+per-slot visual-token NT-Xent (λ 1.0, each of the 5 slots asked to identify the image alone); the
+plan's cause 1 says this makes every slot carry the whole image. `--cibhash_local_target none`
+(stage 7, existing) drops the four local terms but the legacy reduction then gives the global term
+weight 1 (5× its share). New option `--cibhash_ntxent_slot_norm all` (sum / M) keeps the global term
+at 1/5, so the delta is exactly "the local half removed". Code change: config + loss reduction only;
+tests `tests/test_cibhash_slot_norm.py` (defaults bit-identical: sum/M == mean when every term exists).
+
+| arm | base | delta |
+|---|---|---|
+| A0 | B1 | `--cibhash_local_target none --cibhash_ntxent_slot_norm all` |
+| A0p | P-mem+SS | same |
+| A1 (control) | B1 | `--cibhash_local_target none` (legacy norm: global term ×5) |
+
+Flickr25K seeds 42/43/44; 2,000-row scoring. Rules as Stage 4-G (P-DELTA codon T .10 vs own base;
+P-RET −.008; P-HEALTH dead ≤ max(.30, base+.05), unique ≥ base −.08). Prior record: with the term at
+0 for ALL slots Flickr fell .881 → .577 and used 10/128 codewords (plan §5-B); the local-only removal
+has not been run. Expected failure modes: dead codewords in the local codebooks (no instance pressure
+on local tokens); if P-HEALTH fails, Stage 5 (patch-feature decoder) is the pre-registered remedy, a
+user decision. n = 3, descriptive, no test.
