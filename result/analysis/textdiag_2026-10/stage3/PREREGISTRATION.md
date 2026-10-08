@@ -76,3 +76,27 @@ Entry gates: defaults bit-identical to B1 (unit test + seed-42 `log.csv` gate ce
 training arm); mutant battery on the new tests (5/5 caught, 2026-10-08); one-cell smoke
 (`td3_PmemSS_smoke_s42`, `--stop_after_epoch 1`) checked for `anchor_source memory`, SS flags,
 `anchor_memory.json`, `train_anchor_fidelity` and `train_anchor_ss_p` columns.
+
+## Stage 4-G (written 2026-10-08 before any cell) — codon-stage global mixing, on two bases
+
+Motivation: Stage 3-C raised the deployed CODEWORD S (P-mem+SS CI > 0 on 3/3) without moving the
+CODON S. The local codon head reads q_m + sigmoid(alpha_m)·sg(q_global) with the gate at ≈ .99
+(init 4.595), so a codeword-level slot signal can be washed out by the shared global codeword
+before the codon. Both flags exist (v23b / Stage 9); no code change.
+
+| arm | base | delta |
+|---|---|---|
+| G0 | B1 | `--disable_global_gate` (gate fixed at 0) |
+| G1 | B1 | `--global_gate_init_logit -3.0` (gate init .047, learnable; = plan 4c) |
+| G0p | P-mem+SS | `--disable_global_gate` |
+| G1p | P-mem+SS | `--global_gate_init_logit -3.0` |
+
+Flickr25K seeds 42/43/44; scored on 2,000 rows (`score_list.sh`). Rules: P-DELTA deployed codon S
+(arm) − S(own base) ≥ T = .10 on 3/3 seeds (bases: B1 +.161/+.196/+.109; P-mem+SS +.051/+.061/+.121);
+P-RET mean val mAP@R ≥ base − .008 (bases B1 .7569/.7474/.7405; P-mem+SS .7633/.7528/.7522);
+P-HEALTH dead ≤ max(.30, base + .05), unique ≥ base − .08. Prior records for the same flags (no A3
+then): disable → mAP −.013 (2026-07-20) or ±0 (P3gate 09-20), unique +.02–.05, dead down; weak gate →
+Flickr mAP ±0, unique +.04, but CIFAR −.07 / NUS −.007 (Stage 11, discarded outside Flickr).
+Expected if the "washing" reading is right: codon S follows the codeword S on the P-mem+SS base.
+Next after this (user order 2026-10-08): 4a (local instance-contrastive removal), then 4d (text-term
+reduction). n = 3, descriptive, no test.
