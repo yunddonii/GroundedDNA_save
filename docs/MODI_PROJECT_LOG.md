@@ -42,6 +42,20 @@ analysis / 🔴 reverted or negative); tables over prose for numbers; each model
 
 ---
 
+## 2026-10-08 [OFF-PROTOCOL exploration, branch text-diag-2026-09 — not a paper result] Stage 4-D (plan 4d): `text_hash_ntxent` is not removable on either base (codon S and retrieval fall); `xmodal_commit` is removable on the P-mem+SS base by the pre-registered rule (codon S within T, retrieval −.005)
+
+**Status:** 🟡 one removable term (on the P-mem+SS base only). Pre-registration `stage3/PREREGISTRATION.md` (Stage 4-D); cells 2026-10-08 13:27Z onward (Flickr25K, seeds 42/43/44); `td3_TH0_s42` hung in its DataLoader for 2.2 h with no error and was killed by PID at 15:35Z and re-run in a per-GPU queue (record: `textdiag_stage4d_text_term_reduction_20261008/td3_TH0_s42.failed1.log`); 2,000-row scoring; `summarize_3c.py TH0 TH0p XM0p`. Removable = codon S within T = .10 of the base on 3/3 seeds AND P-RET (mean ≥ base − .008) AND P-HEALTH.
+
+| arm | base | delta | val mAP@R Δ (42/43/44) | unique Δ | dead | deployed codon S (base) | deployed codeword S (base) |
+|---|---|---|---|---|---|---|---|
+| TH0 | B1 | `--lambda_text_hash_ntxent 0` | −.010 / −.023 / −.021 | −.03 / −.04 / −.00 | .209/.219/.145 | −.068 / +.035 / +.159 (+.161/+.196/+.109) | −.018 / −.004 / +.070 |
+| TH0p | P-mem+SS | same | −.013 / −.018 / −.029 | +.07 / +.04 / +.07 | .148/.167/.105 | −.043 / −.091 / +.044 (+.051/+.061/+.121) | −.022 / −.032 / +.022 |
+| XM0p | P-mem+SS | `--lambda_xmodal_commit 0` | −.004 / −.007 / −.003 | +.01 / −.03 / −.03 | .152/.117/.200 | +.064 / +.011 / +.044 | +.058 / −.003 / +.050 |
+
+**Verdicts.** TH0: not removable (codon S −.229/−.161/+.051; P-RET fails, mean −.018). TH0p: not removable (codon S −.095/−.152/−.077; P-RET fails, mean −.020). XM0p: removable by the rule (codon S +.013/−.050/−.077, all within T; mAP mean −.005; unique −.014; dead within bound), though its codeword S falls (−.042/−.049/−.014). On B1, `xmodal_commit` removal was already measured as XM0 (codon S −.08/−.08/−.19, Stage 3) and stays. So `text_hash_ntxent` (the codon heads' only text signal) is load-bearing for retrieval and codon S on both bases; `xmodal_commit` matters when the training router sees captions (B1) and not when it mostly sees memory anchors (P-mem+SS), consistent with its role of pulling caption-routed slot tokens toward the caption's codeword. Descriptive, n = 3, no test.
+
+**Recording change (user order 2026-10-09).** From this stage on, every run directory of this line lives in `/home/yschoi/GroundedDNA/result/` and every stage has a bundle in `/home/yschoi/GroundedDNA/result/analysis/textdiag_stage*/` (cells.txt, eval_runs.txt, per-cell logs, PREREGISTRATION.md, summary, RESULT.md), built by `result/analysis/textdiag_2026-10/make_main_bundles.py`; 107 earlier run directories were moved there on 2026-10-09 (old → new paths in `result/analysis/textdiag_2026-10/RUN_DIR_MOVES.tsv`). New cells run through `stageL/run_queue_main.sh` (per-cell timeout, records written as the cell finishes).
+
 ## 2026-10-08 [OFF-PROTOCOL exploration, branch text-diag-2026-09 — not a paper result] Stage 4-A (plan 4a): removing the local slots' instance-contrastive term collapses the local codebooks (dead .47–.61, unique .13–.35) on both bases; the codon S becomes seed-erratic; 4a fails P-HEALTH on 9/9 cells
 
 **Status:** 🔴 negative. Pre-registration `stage3/PREREGISTRATION.md` (Stage 4-A); code `92bed6e` (`--cibhash_ntxent_slot_norm {computed,all}`: sum / M so the global NT-Xent term keeps its 1/M share when the four local terms are dropped; test `tests/test_cibhash_slot_norm.py`, mutant caught; default bit-identical); cells 2026-10-08 13:05–13:13Z (Flickr25K, seeds 42/43/44); 2,000-row scoring; `summarize_3c.py A0 A0p A1`.

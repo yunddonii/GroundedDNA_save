@@ -157,3 +157,19 @@ effect); (c) mAP@R / unique / dead trajectories (eval every 5 epochs → epochs 
 If S rises with N on 3/3 seeds, the four 2026-10-08 campaigns are re-read as "within 350 steps" and
 the plan is rewritten around training length (user instruction: find an effective remedy, then
 rewrite the text-path plan). Descriptive, n = 3, no test.
+
+## Stage L extension (written 2026-10-09 before any of these cells) — every Stage 1–3 Flickr variation at N = 19
+
+User request (2026-10-09): compare every variation run so far (up to Stage 3) by training length,
+as was done for B1 (L19). All existing checkpoints of those variations were trained, evaluated and
+saved at epoch 4 only, so each is re-run with the same delta as L19: `--stop_after_epoch 19
+--sinkhorn_schedule_horizon 20` (and `--anchor_ss_horizon 20` / `--anchor_mix_horizon 20` for the
+scheduled-sampling / MIX arms), everything else identical to the original cell (eval_every 5 →
+validation mAP@R / unique / dead at epochs 4, 9, 14, 19 in one log; A3 v2 on the final checkpoint).
+Arms (×3 seeds): B0, OFF (Stage 1); TD, XM0, TDXM, TDXM5, S, SN2, BN2 (Stage 3); Phead, PheadNoSS, MIX
+(Stage 3-C); P-mem+SS is `L19p` above; P-mem (deploy-only) is scored on the L19 checkpoints with
+`--set anchor_source=memory`. Tags `<original tag>_N19_s<seed>`. Commands `stageL/cmds/`; runner
+`stageL/run_queue_main.sh` (per-cell timeout 2400 s; run dirs moved to the main tree's result/ and
+recorded in `result/analysis/textdiag_stageL_train_length_20261008/{cells.txt,eval_runs.txt,<tag>.log}`
+per the user's 2026-10-09 instruction). Readings as Stage L (descriptive, n = 3, no test); the
+confound "length + Sinkhorn horizon change together" applies to every arm alike.

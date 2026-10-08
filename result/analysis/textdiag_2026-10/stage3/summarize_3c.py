@@ -2,7 +2,11 @@
 (a3v2_2000), train/deploy codeword agreement (d4d6), against B1 (td1_flickr_H2). Usage: summarize_3c.py [arms...]"""
 import csv, glob, json, os, sys
 S3 = os.path.dirname(os.path.abspath(__file__)); S1 = os.path.join(os.path.dirname(S3), "stage1", "a3v2_2000")
-RES = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(S3))))  # .../result
+RES = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(S3))))  # .../result (worktree)
+MAIN_RES = "/home/yschoi/GroundedDNA/result"   # run dirs moved here on 2026-10-09 (RUN_DIR_MOVES.tsv)
+
+def _glob_runs(pattern):
+    return glob.glob(os.path.join(MAIN_RES, pattern)) + glob.glob(os.path.join(RES, pattern))
 ARMS = sys.argv[1:] or ["PmemSS", "Phead", "PheadNoSS", "MIX"]
 # arms whose pre-registered base is P-mem+SS instead of B1 (Stage 4-G primes)
 BASE_OF = {"G0p": "PmemSS", "G1p": "PmemSS", "A0p": "PmemSS", "TH0p": "PmemSS", "XM0p": "PmemSS", "L19p": "L19", "PmemSSp1": "PmemSS"}
@@ -21,7 +25,7 @@ def last_row(run_dir):
 
 b1 = {s: a3(os.path.join(S1, f"flickr25k_setting1_td1_flickr_H2_s{s}.json")) for s in (42, 43, 44)}
 for s in (42, 43, 44):
-    rd = glob.glob(os.path.join(RES, f"*td1_flickr_H2_s{s}+*"))[0]; lr = last_row(rd); B1["dead"][s] = lr["eval_dead_code_ratio_mean"]; B1["mAP"][s] = lr["eval_mAP_at_R"]; B1["unique"][s] = lr["eval_unique_code_ratio"]
+    rd = _glob_runs(f"*td1_flickr_H2_s{s}+*")[0]; lr = last_row(rd); B1["dead"][s] = lr["eval_dead_code_ratio_mean"]; B1["mAP"][s] = lr["eval_mAP_at_R"]; B1["unique"][s] = lr["eval_unique_code_ratio"]
 print("B1 (H2):", {s: {"mAP": B1["mAP"][s], "unique": B1["unique"][s], "dead": B1["dead"][s], "codon S": round(b1[s]["codon"][0], 3), "codeword S": round(b1[s]["codeword"][0], 3)} for s in (42, 43, 44)})
 def arm_a3(arm, s):
     ap = os.path.join(S3, "a3v2_2000", f"flickr25k_setting1_td3_{arm}_s{s}.json")
@@ -32,12 +36,12 @@ for arm in ARMS:
     print(f"\n=== {arm} (base {base_name})")
     for s in (42, 43, 44):
         if base_name != "B1":
-            brd = glob.glob(os.path.join(RES, f"*td3_{base_name}_s{s}+*"))
+            brd = _glob_runs(f"*td3_{base_name}_s{s}+*")
             blr = last_row(brd[0]); bx = arm_a3(base_name, s)
             base = {"mAP": blr["eval_mAP_at_R"], "unique": blr["eval_unique_code_ratio"], "dead": blr["eval_dead_code_ratio_mean"], "codon": bx["codon"][0], "codeword": bx["codeword"][0]}
         else:
             base = {"mAP": B1["mAP"][s], "unique": B1["unique"][s], "dead": B1["dead"][s], "codon": b1[s]["codon"][0], "codeword": b1[s]["codeword"][0]}
-        rds = glob.glob(os.path.join(RES, f"*td3_{arm}_s{s}+*"))
+        rds = _glob_runs(f"*td3_{arm}_s{s}+*")
         if not rds: print(f"s{s}: no run"); continue
         lr = last_row(rds[0]); ap = os.path.join(S3, "a3v2_2000", f"flickr25k_setting1_td3_{arm}_s{s}.json"); dp = os.path.join(S3, "d4d6", f"flickr25k_setting1_td3_{arm}_s{s}.json")
         line = f"s{s}: mAP@R {lr['eval_mAP_at_R']} ({lr['eval_mAP_at_R'] - base['mAP']:+.4f}) unique {lr['eval_unique_code_ratio']} ({lr['eval_unique_code_ratio'] - base['unique']:+.3f}) dead {lr['eval_dead_code_ratio_mean']} (base {base['dead']}) fid {lr['train_anchor_fidelity']} p {lr['train_anchor_ss_p']} pred {lr['train_loss_anchor_pred']} alpha {lr['train_anchor_mix_alpha']}"
