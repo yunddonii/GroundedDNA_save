@@ -5,7 +5,7 @@ S3 = os.path.dirname(os.path.abspath(__file__)); S1 = os.path.join(os.path.dirna
 RES = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(S3))))  # .../result
 ARMS = sys.argv[1:] or ["PmemSS", "Phead", "PheadNoSS", "MIX"]
 # arms whose pre-registered base is P-mem+SS instead of B1 (Stage 4-G primes)
-BASE_OF = {"G0p": "PmemSS", "G1p": "PmemSS"}
+BASE_OF = {"G0p": "PmemSS", "G1p": "PmemSS", "A0p": "PmemSS", "TH0p": "PmemSS", "XM0p": "PmemSS"}
 B1 = {"mAP": {42: .7569, 43: .7474, 44: .7405}, "unique": {42: .557, 43: .554, 44: .563}, "dead": {42: .155, 43: None, 44: None}}
 
 def a3(path):

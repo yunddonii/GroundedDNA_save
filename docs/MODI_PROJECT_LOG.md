@@ -42,6 +42,20 @@ analysis / 🔴 reverted or negative); tables over prose for numbers; each model
 
 ---
 
+## 2026-10-08 [OFF-PROTOCOL exploration, branch text-diag-2026-09 — not a paper result] Stage 4-A (plan 4a): removing the local slots' instance-contrastive term collapses the local codebooks (dead .47–.61, unique .13–.35) on both bases; the codon S becomes seed-erratic; 4a fails P-HEALTH on 9/9 cells
+
+**Status:** 🔴 negative. Pre-registration `stage3/PREREGISTRATION.md` (Stage 4-A); code `92bed6e` (`--cibhash_ntxent_slot_norm {computed,all}`: sum / M so the global NT-Xent term keeps its 1/M share when the four local terms are dropped; test `tests/test_cibhash_slot_norm.py`, mutant caught; default bit-identical); cells 2026-10-08 13:05–13:13Z (Flickr25K, seeds 42/43/44); 2,000-row scoring; `summarize_3c.py A0 A0p A1`.
+
+| arm | base | delta | val mAP@R Δ (42/43/44) | unique (base) | dead (base) | deployed codon S (base) | deployed codeword S (base) |
+|---|---|---|---|---|---|---|---|
+| A0 | B1 | `--cibhash_local_target none --cibhash_ntxent_slot_norm all` | **−.031 / −.011 / −.011** | .209/.207/.202 (.557/.554/.563) | **.508/.544/.606** (.155/.117/.200) | +.009 / +.179 / −.122 (+.161/+.196/+.109) | −.046 / +.021 / −.070 (+.083/−.005/−.021) |
+| A0p | P-mem+SS | same | +.004 / +.014 / +.007 | .300/.181/.349 (.429/.454/.463) | .520/.472/.575 (.186/.159/.228) | +.171 / −.045 / −.105 (+.051/+.061/+.121) | +.090 / +.007 / −.048 (+.100/+.046/+.064) |
+| A1 (control, legacy norm = global term ×5) | B1 | `--cibhash_local_target none` | −.002 / +.003 / +.020 | .212/.127/.269 | .477/.494/.588 | −.021 / +.140 / −.090 | −.005 / +.018 / −.066 |
+
+**Verdicts.** P-HEALTH fails on every cell (dead 2.4–5× the base, unique −.11 to −.43). P-DELTA fails (no arm ≥ T on 3/3; the per-seed codon S swings from −.12 to +.18 because the lexical statistic becomes unstable when a codebook keeps 50–70 dead codewords). P-RET: A0 fails (s42 −.031 = terminal bound), A0p and A1 pass. The train-routed codeword S of A0 s42 (+.275) shows the slot tokens still separate axes before quantisation; the collapse is in the codebooks, which the local instance pressure was keeping alive.
+
+**Reading.** The plan's cause 1 ("each slot asked to identify the image alone makes every slot carry the whole image") cannot be fixed by deleting the term: without instance pressure the local tokens of different images fall onto a few codewords. Stage 5 (a patch-feature reconstruction decoder as the replacement information-preserving term) is the pre-registered remedy and a user decision. Per the user's order the remaining structural lever is 4d (text-term reduction); `xmodal_commit` removal on B1 was already measured as XM0 (codon S −.08/−.08/−.19, Stage 3 entry), so 4d runs `--lambda_text_hash_ntxent 0` on both bases and `--lambda_xmodal_commit 0` on P-mem+SS. Descriptive, n = 3, no test.
+
 ## 2026-10-08 [OFF-PROTOCOL exploration, branch text-diag-2026-09 — not a paper result] Stage 4-G: removing (G0) or weakening (G1) the codon-stage global gate on B1 and on P-mem+SS. The deployed codon S FALLS on both bases: the global codeword mixed into every local codon is load-bearing for B1's codon S, not what washes a codeword-level signal out. Unique codes +.02–.09, dead codes down, retrieval within −.009
 
 **Status:** 🔴 both arms fail P-DELTA on both bases; the "washing" reading of Stage 3-C is refuted. Pre-registration `stage3/PREREGISTRATION.md` (Stage 4-G); cells 2026-10-08 12:31–12:55Z (Flickr25K, seeds 42/43/44, GPUs 0–5; the first wave-2 launch failed before python with an empty command — my launcher-path error, relaunched as `td3_G1r_*`/`td3_G1pr_*`, result dirs `td3_G1_*`/`td3_G1p_*`); scored on 2,000 rows (`stage3/a3v2_2000`, `d4d6`); `summarize_3c.py G0 G0p G1 G1p`. Flags are the existing `--disable_global_gate` (v23b) and `--global_gate_init_logit -3.0` (Stage 9); no code change; B1 trains with the gate at sigmoid(4.595) ≈ .99.

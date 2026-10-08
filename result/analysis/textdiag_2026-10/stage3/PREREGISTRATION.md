@@ -123,3 +123,15 @@ P-RET −.008; P-HEALTH dead ≤ max(.30, base+.05), unique ≥ base −.08). Pr
 has not been run. Expected failure modes: dead codewords in the local codebooks (no instance pressure
 on local tokens); if P-HEALTH fails, Stage 5 (patch-feature decoder) is the pre-registered remedy, a
 user decision. n = 3, descriptive, no test.
+
+## Stage 4-D (written 2026-10-08 before any cell) — text-term reduction (plan 4d), on two bases
+
+| arm | base | delta | note |
+|---|---|---|---|
+| TH0 | B1 | `--lambda_text_hash_ntxent 0` | the codon heads' only text signal removed (9 terms) |
+| TH0p | P-mem+SS | same | |
+| XM0p | P-mem+SS | `--lambda_xmodal_commit 0` | XM0 on B1 already measured (Stage 3: codon S −.08/−.08/−.19) |
+
+Flickr25K seeds 42/43/44; 2,000-row scoring; rules as Stage 4-G. Question: does the codon-level
+text effect of each base need `text_hash_ntxent` (and, on P-mem+SS, `xmodal_commit`)? A term is
+"removable" only if codon S stays within T of the base on 3/3 seeds AND P-RET/P-HEALTH hold.
