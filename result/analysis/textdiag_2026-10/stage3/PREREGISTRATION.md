@@ -135,3 +135,25 @@ user decision. n = 3, descriptive, no test.
 Flickr25K seeds 42/43/44; 2,000-row scoring; rules as Stage 4-G. Question: does the codon-level
 text effect of each base need `text_hash_ntxent` (and, on P-mem+SS, `xmodal_commit`)? A term is
 "removable" only if codon S stays within T of the base on 3/3 seeds AND P-RET/P-HEALTH hold.
+
+## Stage L (written 2026-10-08 before any cell) — training-length control
+
+User question (2026-10-08): every A3-scored checkpoint so far trained for N = 4 epochs (70 steps/epoch
+on the 4,500 opt-train rows → 350 steps); N = 4 was frozen for validation mAP@R (N 4/9/19/39 = .764/
+.736/.719/.706), while old 60-epoch records put codebook maturity later (unique peak e6, base entropy
+e37). Slot specificity has never been measured on a longer-trained model under the approved recipe.
+
+| cell | base | delta |
+|---|---|---|
+| L9 | B1 | `--stop_after_epoch 9 --sinkhorn_schedule_horizon 10` |
+| L19 | B1 | `--stop_after_epoch 19 --sinkhorn_schedule_horizon 20` |
+| L19p | P-mem+SS | same + `--anchor_ss_horizon 20` (deployment-regime exposure ≈ 15 epochs) |
+| PmemSSp1 | P-mem+SS | `--anchor_ss_p_start 1.0` at N = 4 (full 350-step exposure; separates "length" from "exposure") |
+
+Flickr25K seeds 42/43/44; 2,000-row scoring; `lr_schedule_horizon 60` unchanged (approved value).
+Readings, not pass/fail: (a) deployed codon and codeword S vs N (B1@4 +.161/+.196/+.109 codon,
++.083/−.005/−.021 codeword); (b) L19p vs L19 at equal length (SS effect) and vs P-mem+SS@4 (length
+effect); (c) mAP@R / unique / dead trajectories (eval every 5 epochs → epochs 4/9/14/19 in one log).
+If S rises with N on 3/3 seeds, the four 2026-10-08 campaigns are re-read as "within 350 steps" and
+the plan is rewritten around training length (user instruction: find an effective remedy, then
+rewrite the text-path plan). Descriptive, n = 3, no test.
