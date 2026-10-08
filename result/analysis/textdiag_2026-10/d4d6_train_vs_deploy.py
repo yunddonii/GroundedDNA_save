@@ -63,6 +63,8 @@ def main():
     ap.add_argument("--result_dir", required=True); ap.add_argument("--out", required=True)
     ap.add_argument("--caption_file", default=None); ap.add_argument("--n", type=int, default=0)
     ap.add_argument("--boot", type=int, default=500); ap.add_argument("--seed", type=int, default=1234)
+    ap.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
+                    help="override an args.txt field after parsing (e.g. anchor_source=memory, anchor_memory_tau=0.02); repeatable")
     ap.add_argument("--max_df", type=float, default=0.20); ap.add_argument("--min_shared_colour", type=int, default=2)
     a = ap.parse_args()
     os.environ.setdefault("GDNA_NUM_SEMANTIC_PARTS", "5")
@@ -70,7 +72,17 @@ def main():
     from dataloaders import load_dataset
     from dna_utils.runtime_state import apply_inference_epoch
     from slot_role_probe import parse_args_txt
-    args = parse_args_txt(os.path.join(a.result_dir, "args.txt")); args.lambda_mec = 0.0; args.device = "cpu"
+    args = parse_args_txt(os.path.join(a.result_dir, "args.txt"))
+    import ast as _ast
+    for _kv in a.set:                      # (2026-10-08, Stage 3-C) deploy-time overrides, e.g. anchor_source=memory
+        _k, _v = _kv.split("=", 1)
+        try:
+            _v = _ast.literal_eval(_v)
+        except Exception:
+            pass
+        setattr(args, _k, _v)
+    print("overrides:", a.set, flush=True)
+    args.lambda_mec = 0.0; args.device = "cpu"
     ckpt = os.path.join(a.result_dir, "model_state_dict.pth")
     model = MS.SigLIP2SemanticOTModel(args).eval()
     model.load_state_dict(torch.load(ckpt, map_location="cpu", weights_only=False), strict=False)
@@ -98,7 +110,7 @@ def main():
     A = forward(model, tr, idx, with_text=True, training=True, prune=bool(model.bidirectional_token_prune))
     B = forward(model, tr, idx, with_text=False, training=False, prune=bool(model.bidirectional_token_prune))
     A2 = forward(model, tr, idx, with_text=True, training=True, prune=False)
-    assert A["mode"] == "text" and B["mode"] == "codebook_mean", (A["mode"], B["mode"])
+    assert A["mode"] == "text" and B["mode"] in ("codebook_mean", "memory", "predictor"), (A["mode"], B["mode"])
 
     res = {"result_dir": a.result_dir, "dataset": args.dataset, "rows": N, "axis_center": getattr(args, "axis_center", None),
            "use_gumbel_softmax": bool(getattr(args, "use_gumbel_softmax", False)), "prune_in_recipe": bool(model.bidirectional_token_prune),

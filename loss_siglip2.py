@@ -309,6 +309,9 @@ class DNACodonHashLoss(nn.Module):
         # caption-routed codeword assignment distribution (teacher, detached)
         # and the deployment-routed (no-text) one, both from codebook_distances.
         self.lambda_path_consistency         = float(getattr(cfg, "lambda_path_consistency", 0.0))
+        # (2026-10-08, Stage 3-C) anchor predictor regression (1 - cos to the cached
+        # raw per-axis caption feature, stop-grad). 0 = off.
+        self.lambda_anchor_pred              = float(getattr(cfg, "lambda_anchor_pred", 0.0) or 0.0)
         self.path_consistency_tau            = float(getattr(cfg, "path_consistency_tau", 0.5))
         self.path_consistency_include_global = bool(getattr(cfg, "path_consistency_include_global", False))
         # v123: per-(codebook, codeword) text prototypes. The EMA prototype
@@ -3130,6 +3133,34 @@ class DNACodonHashLoss(nn.Module):
             kl_pc = (log_p_t.exp() * (log_p_t - log_p_n)).sum(dim=-1)   # [B, M']
             loss_path_consistency = kl_pc.mean()
 
+        # (2026-10-08, Stage 3-C) anchor predictor regression. The model emits
+        # anchor_pred_raw [B, L, D_proj] (with grad) and anchor_pred_target_raw
+        # (detached cached caption features) only under --anchor_source predictor
+        # with real text; rows without text are masked out.
+        loss_anchor_pred = u.new_zeros(())
+        anchor_fidelity_mean = u.new_zeros(())
+        _af = outputs.get("anchor_fidelity")
+        if _af is not None:
+            anchor_fidelity_mean = _af.detach().float().mean().to(u.dtype)
+        if self.lambda_anchor_pred > 0.0:
+            _ap = outputs.get("anchor_pred_raw")
+            _at = outputs.get("anchor_pred_target_raw")
+            if _ap is not None and _at is not None:
+                if tuple(_ap.shape) != tuple(_at.shape):
+                    raise ValueError(
+                        "[DNACodonHashLoss] anchor_pred_raw "
+                        f"{tuple(_ap.shape)} != anchor_pred_target_raw {tuple(_at.shape)}")
+                _cos = F.cosine_similarity(_ap.float(), _at.detach().float(), dim=-1)   # [B, L]
+                _ht = outputs.get("cached_has_text")
+                if _ht is not None:
+                    _keep = _ht.to(device=_cos.device, dtype=torch.bool)
+                    if bool(_keep.any()):
+                        _cos = _cos[_keep]
+                    else:
+                        _cos = None
+                if _cos is not None:
+                    loss_anchor_pred = (1.0 - _cos).mean().to(u.dtype)
+
         # v123: codeword-level text prototype alignment. Use quantizer_input
         # instead of semantic_visual_tokens when v122 residual quantization is
         # active, so the visual/text prototype spaces match.
@@ -3553,6 +3584,9 @@ class DNACodonHashLoss(nn.Module):
         # bit-identical to the legacy sum.
         if self.lambda_path_consistency > 0.0 and outputs_notext is not None:
             total = total + self.lambda_path_consistency * loss_path_consistency
+        # (2026-10-08, Stage 3-C) added only when active (default total unchanged).
+        if self.lambda_anchor_pred > 0.0:
+            total = total + self.lambda_anchor_pred * loss_anchor_pred
 
         # v106: codeword <-> DNA codon bijection losses (None-safe).
         # Operate on the codeword-level codon decoder outputs supplied by
@@ -3891,6 +3925,10 @@ class DNACodonHashLoss(nn.Module):
             "loss_cw_xmodal":    loss_cw_xmodal,
             "loss_xmodal_commit": loss_xmodal_commit,
             "path_consistency":  loss_path_consistency,   # TD (2026-10-07)
+            "loss_anchor_pred":  loss_anchor_pred,        # (2026-10-08, Stage 3-C)
+            "anchor_fidelity":   anchor_fidelity_mean,
+            "anchor_ss_p":       u.new_tensor(float(outputs.get("anchor_ss_p", 0.0) or 0.0)),
+            "anchor_mix_alpha":  u.new_tensor(float(outputs.get("anchor_mix_alpha", 1.0) if outputs.get("anchor_mix_alpha") is not None else 1.0)),
             "loss_codeword_text_proto": loss_codeword_text_proto,
             "loss_codeword_codon_sinkhorn": loss_codeword_codon_sinkhorn,
             "loss_codeword_codon_agg_ent":  loss_codeword_codon_agg_ent,

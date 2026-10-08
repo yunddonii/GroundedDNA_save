@@ -1754,7 +1754,43 @@ def train_routing_mode_conflicts(args) -> List[str]:
         reasons.append(
             "--router_type cross_attn (training queries are text_part_tokens)"
         )
+    # (2026-10-08, Stage 3-C) scheduled sampling swaps the CAPTION routing
+    # query for the image-conditioned one on a random subset of rows, and MIX
+    # blends the caption query with the codebook mean; neither has a caption
+    # query to start from under codebook_mean routing.
+    if (float(getattr(args, "anchor_ss_p_start", 0.0) or 0.0) > 0.0
+            or float(getattr(args, "anchor_ss_p_end", 0.0) or 0.0) > 0.0):
+        reasons.append(
+            "--anchor_ss_p_start/--anchor_ss_p_end > 0 (scheduled sampling replaces "
+            "the caption routing query; there is none under codebook_mean)"
+        )
+    if bool(getattr(args, "anchor_mix", False)):
+        reasons.append(
+            "--anchor_mix (blends the caption routing query with the codebook mean; "
+            "there is no caption query under codebook_mean)"
+        )
     return reasons
+
+
+class AnchorPredictor(nn.Module):
+    """(2026-10-08, Stage 3-C) image feature [B, D_proj] -> raw per-axis caption
+    features [B, L, D_proj] (modality-hallucination style: Hoffman et al. 2016;
+    CoCoOp meta-net). Residual on the image feature with a zero-initialised last
+    layer, so at step 0 the prediction IS the image feature. Trained only by
+    the regression loss (its anchor output is detached before the router)."""
+
+    def __init__(self, dim: int, hidden: int, num_local: int) -> None:
+        super().__init__()
+        self.num_local = int(num_local); self.dim = int(dim)
+        self.norm = nn.LayerNorm(dim)
+        self.fc1 = nn.Linear(dim, hidden)
+        self.fc2 = nn.Linear(hidden, dim * num_local)
+        nn.init.zeros_(self.fc2.weight); nn.init.zeros_(self.fc2.bias)
+
+    def forward(self, v: torch.Tensor) -> torch.Tensor:
+        delta = self.fc2(F.gelu(self.fc1(self.norm(v))))                     # [B, L*D]
+        delta = delta.view(v.shape[0], self.num_local, self.dim)
+        return v.unsqueeze(1) + delta                                          # [B, L, D]
 
 
 class SigLIP2SemanticOTModel(nn.Module):
@@ -2234,6 +2270,45 @@ class SigLIP2SemanticOTModel(nn.Module):
             self._text_whiten_ready = True
             print(f"[model_siglip2] v113 partial whitening loaded: "
                   f"D={_mu_np.shape[0]}, gamma={_gamma:.3f}, eps={_eps:.1e}")
+
+        # ---------- (2026-10-08, Stage 3-C) image-conditioned routing anchors
+        # Anchor used whenever the router is NOT caption-routed. "memory" =
+        # DeCap-style projection of the image feature onto the TRAINING rows'
+        # raw caption features; "predictor" = small MLP regressing the raw
+        # per-axis caption feature from the image feature. Both outputs are
+        # raw 512-d caption-space vectors and go through the SAME whitening and
+        # text adapter as real captions (_local_raw_to_anchor_tokens). Default
+        # "codebook_mean" leaves every code path untouched.
+        self.anchor_source: str = str(getattr(args, "anchor_source", "codebook_mean") or "codebook_mean")
+        if self.anchor_source not in ("codebook_mean", "memory", "predictor"):
+            raise ValueError(f"--anchor_source must be codebook_mean|memory|predictor, got {self.anchor_source!r}")
+        self.anchor_memory_tau: float = float(getattr(args, "anchor_memory_tau", 0.01) or 0.01)
+        self.anchor_memory_topk: int = int(getattr(args, "anchor_memory_topk", 0) or 0)
+        self.anchor_memory_meta: Optional[Dict[str, Any]] = None
+        self.anchor_predictor = None
+        self._anchor_ss_p: float = 0.0            # scheduled-sampling swap probability (set per epoch)
+        self._anchor_ss_gen = None                # dedicated CPU generator (trainer-owned)
+        self.anchor_mix: bool = bool(getattr(args, "anchor_mix", False))
+        self._anchor_mix_alpha: float = 1.0       # MIX blend weight on the caption query (set per epoch)
+        if self.anchor_source != "codebook_mean":
+            if self.anchor_source == "memory":
+                # Non-persistent: rebuilt from the training cache at construction, so a
+                # checkpoint trained WITHOUT the memory loads unchanged (deploy-only arm).
+                self.register_buffer("anchor_memory", torch.zeros(NUM_LOCAL_PARTS, 0, int(proj_dim)), persistent=False)
+                self.register_buffer("anchor_memory_ready", torch.tensor(False), persistent=False)
+                _cache_dir = getattr(args, "siglip2_feature_cache_dir", None)
+                if _cache_dir and os.path.exists(os.path.join(str(_cache_dir), "text_part.f16.npy")):
+                    from dna_utils.anchor_memory import build_anchor_memory
+                    _T, _meta = build_anchor_memory(args, NUM_LOCAL_PARTS)
+                    self.set_anchor_memory(_T, _meta)
+                    print(f"[anchor-memory] built from {_meta['rows_file']}: N={_meta['N']}, "
+                          f"L={_meta['num_local']}, D={_meta['dim']}, sha256={_meta['sha256_fp16'][:16]}")
+            else:
+                if float(getattr(args, "lambda_anchor_pred", 0.0) or 0.0) <= 0.0:
+                    raise ValueError("--anchor_source predictor requires --lambda_anchor_pred > 0 "
+                                     "(an untrained predictor would route with noise)")
+                self.anchor_predictor = AnchorPredictor(
+                    int(proj_dim), int(getattr(args, "anchor_pred_hidden", 1024) or 1024), NUM_LOCAL_PARTS)
 
         # ---------- Optional: visual-cross-attention text pooling (Option B / v22b)
         # When `--use_text_token_attention` is set, the model expects per-image
@@ -2825,6 +2900,69 @@ class SigLIP2SemanticOTModel(nn.Module):
 
     # ====================================================== sanity helpers
 
+
+    # ---------------- (2026-10-08, Stage 3-C) image-conditioned anchors ----
+    def set_anchor_memory(self, T: torch.Tensor, meta: Optional[Dict[str, Any]] = None) -> None:
+        """Install the caption memory [L, R, D] (training rows only)."""
+        if T.dim() != 3 or T.shape[0] != NUM_LOCAL_PARTS:
+            raise ValueError(f"anchor memory must be [{NUM_LOCAL_PARTS}, R, D], got {tuple(T.shape)}")
+        self.anchor_memory = T.detach().to(torch.float32).contiguous()
+        self.anchor_memory_ready = torch.tensor(True)
+        self.anchor_memory_meta = dict(meta or {})
+
+    def set_anchor_ss(self, p: float, gen=None) -> None:
+        """Trainer: per-epoch scheduled-sampling probability and its generator."""
+        self._anchor_ss_p = float(p)
+        if gen is not None:
+            self._anchor_ss_gen = gen
+
+    def set_anchor_mix_alpha(self, alpha: float) -> None:
+        self._anchor_mix_alpha = float(alpha)
+
+    def _whiten(self, flat: torch.Tensor) -> torch.Tensor:
+        """partial_whiten on [N, D] raw caption-space features."""
+        if not getattr(self, "_text_whiten_ready", False):
+            raise RuntimeError("[model_siglip2] partial_whiten selected but whitening buffers "
+                               "were not loaded (see --text_whiten_npz).")
+        return (flat.to(self.text_whiten_mu.dtype) - self.text_whiten_mu) @ self.text_whiten_W
+
+    def _local_raw_to_anchor_tokens(self, raw_local: torch.Tensor) -> torch.Tensor:
+        """Raw caption-space vectors [B, L, D_proj] -> routing anchors [B, L, D] through
+        EXACTLY the caption pipeline for the local slots: partial whitening (when
+        configured), per-codebook text prompt (when configured), text adapter."""
+        B, L, Dp = raw_local.shape
+        x = raw_local
+        _tx_mode = getattr(self, "text_embed_transform", "none")
+        if _tx_mode == "partial_whiten":
+            x = self._whiten(x.reshape(-1, Dp)).reshape(B, L, Dp).to(raw_local.dtype)
+        elif _tx_mode not in ("none", None):
+            raise RuntimeError(f"--anchor_source memory/predictor supports text_embed_transform "
+                               f"none|partial_whiten only (got {_tx_mode!r})")
+        if self.codebook_text_prompts is not None:
+            x = x + self.codebook_text_prompts[1:1 + L].unsqueeze(0)
+        if self.per_slot_text_adapter:
+            toks = [self.text_adapter[1 + m](x[:, m, :]) for m in range(L)]
+            return torch.stack(toks, dim=1)
+        return self.text_adapter(x)
+
+    def _image_conditioned_anchor_raw(self, feats, exclude_raw: Optional[torch.Tensor]):
+        """Raw [B, L, D_proj] anchor from the image feature (memory or predictor) and
+        the memory max-weight [B, L] (None for the predictor)."""
+        v = feats.get("visual_global")
+        if v is None:
+            raise RuntimeError("[anchor_source] needs feats['visual_global'] (cached_visual_global)")
+        if self.anchor_source == "memory":
+            if not bool(self.anchor_memory_ready.item()):
+                raise RuntimeError("[anchor_source memory] memory not built: the training cache "
+                                   "(--siglip2_feature_cache_dir) must hold text_part.f16.npy, or "
+                                   "call set_anchor_memory()")
+            from dna_utils.anchor_memory import memory_anchor_raw
+            with torch.no_grad():
+                a, mw = memory_anchor_raw(self.anchor_memory.to(v.device), v,
+                                          tau=self.anchor_memory_tau, topk=self.anchor_memory_topk,
+                                          exclude_raw=exclude_raw)
+            return a, mw
+        return self.anchor_predictor(v), None
 
     def _axis_center_local(self, x, n_global: int = 1, mask=None):
         """Subtract, per image, the mean across the LOCAL axis columns.
@@ -4101,14 +4239,8 @@ class SigLIP2SemanticOTModel(nn.Module):
                 _loc = F.normalize(_loc, dim=-1)
                 raw = torch.cat([_g, _loc], dim=1)
             elif _tx_mode == "partial_whiten":
-                if not getattr(self, "_text_whiten_ready", False):
-                    raise RuntimeError(
-                        "[model_siglip2] partial_whiten selected but whitening "
-                        "buffers were not loaded (see --text_whiten_npz)."
-                    )
                 _shape = raw.shape
-                _flat = raw.reshape(-1, _shape[-1]).to(self.text_whiten_mu.dtype)
-                _flat = (_flat - self.text_whiten_mu) @ self.text_whiten_W
+                _flat = self._whiten(raw.reshape(-1, _shape[-1]))
                 raw = _flat.reshape(_shape).to(feats["text_part_raw"].dtype)
             elif _tx_mode == "global_residual_whiten":
                 # v117: keep slot 0 raw; subtract slot 0 from local slots,
@@ -4288,12 +4420,50 @@ class SigLIP2SemanticOTModel(nn.Module):
         # compute_text_path: under --train_routing_mode codebook_mean the
         # else-branch (deployment anchors) is taken while text_part_tokens
         # above were still produced for the losses.
+        # (2026-10-08, Stage 3-C) image-conditioned anchor: computed whenever the
+        # source is on (deployment, SS swap, predictor training, fidelity diagnostic).
+        img_anchor_tokens: Optional[torch.Tensor] = None
+        anchor_pred_raw: Optional[torch.Tensor] = None
+        anchor_memory_max_w: Optional[torch.Tensor] = None
+        anchor_ss_mask: Optional[torch.Tensor] = None
+        anchor_fidelity: Optional[torch.Tensor] = None
+        if self.anchor_source != "codebook_mean":
+            _excl = feats["text_part_raw"][:, 1:1 + NUM_LOCAL_PARTS] if (
+                compute_text_path and feats.get("text_part_raw") is not None) else None
+            _raw_pred, anchor_memory_max_w = self._image_conditioned_anchor_raw(feats, _excl)
+            if self.anchor_source == "predictor":
+                anchor_pred_raw = _raw_pred                              # keeps grad (regression loss)
+            # detach: the router never trains the predictor / memory; the text adapter
+            # receives router gradient exactly as it does through caption anchors.
+            img_anchor_tokens = self._local_raw_to_anchor_tokens(_raw_pred.detach())   # [B, L, D]
+            if compute_text_path and local_text_tokens_for_routing is not None:
+                with torch.no_grad():
+                    anchor_fidelity = F.cosine_similarity(
+                        img_anchor_tokens.detach().float(),
+                        local_text_tokens_for_routing.detach().float(), dim=-1).mean(dim=-1)  # [B]
         if route_with_text:
             local_centroids   = (
                 local_text_tokens_for_routing
                 if local_text_tokens_for_routing is not None
                 else local_text_tokens
             )                                                            # [B, 5, D]
+            # scheduled sampling: swap the caption query for the image-conditioned
+            # one on a Bernoulli(p) subset of rows (dedicated generator; no draw at
+            # p == 0 or p >= 1). Both tensors are adapter outputs in one space.
+            if img_anchor_tokens is not None and self._anchor_ss_p > 0.0:
+                if self._anchor_ss_p >= 1.0:
+                    anchor_ss_mask = torch.ones(B, dtype=torch.bool, device=local_centroids.device)
+                else:
+                    _g = self._anchor_ss_gen
+                    _u = torch.rand((B,), generator=_g) if _g is not None else torch.rand((B,))
+                    anchor_ss_mask = (_u < self._anchor_ss_p).to(local_centroids.device)
+                local_centroids = torch.where(anchor_ss_mask.view(B, 1, 1), img_anchor_tokens, local_centroids)
+            # MIX control arm: blend the caption query with the codebook mean.
+            if self.anchor_mix:
+                _cb = local_codebook_mean_anchors_raw.unsqueeze(0).expand(B, -1, -1).to(local_centroids.dtype)
+                _a = float(self._anchor_mix_alpha)
+                local_centroids = F.normalize(_a * F.normalize(local_centroids, dim=-1) + (1.0 - _a) * _cb, dim=-1)
+                routing_mode = "mix"
             assert local_centroids is not None and local_centroids.shape == (B, NUM_LOCAL_PARTS, D), (
                 f"local_centroids shape {None if local_centroids is None else tuple(local_centroids.shape)} "
                 f"!= expected ({B}, {NUM_LOCAL_PARTS}, {D})"
@@ -4331,6 +4501,10 @@ class SigLIP2SemanticOTModel(nn.Module):
             ):
                 _tp = self.text_prototype_ema.to(local_codebook_mean_anchors_raw.dtype)  # [5, D]
                 local_anchor_tokens = _tp.unsqueeze(0).expand(B, -1, -1)   # [B, 5, D]
+            elif img_anchor_tokens is not None:
+                # (2026-10-08) image-conditioned deployment anchor
+                local_anchor_tokens = img_anchor_tokens                    # [B, L, D]
+                routing_mode = self.anchor_source                          # "memory" | "predictor"
             else:
                 local_anchor_tokens = local_codebook_mean_anchors_raw.unsqueeze(0).expand(B, -1, -1)  # [B, 5, D]
             local_centroids = local_anchor_tokens
@@ -4395,6 +4569,18 @@ class SigLIP2SemanticOTModel(nn.Module):
             "local_text_tokens":            local_text_tokens,
             "local_anchor_tokens":          local_anchor_tokens,
             "local_codebook_mean_anchors":  local_codebook_mean_anchors_raw,   # [5, D]
+            # (2026-10-08, Stage 3-C) image-conditioned anchor diagnostics / loss inputs
+            "anchor_img_tokens":            img_anchor_tokens,                 # [B, L, D] | None
+            "anchor_pred_raw":              anchor_pred_raw,                   # [B, L, D_proj] | None (grad)
+            "anchor_pred_target_raw":       (feats["text_part_raw"][:, 1:1 + NUM_LOCAL_PARTS].detach()
+                                             if (anchor_pred_raw is not None and compute_text_path
+                                                 and feats.get("text_part_raw") is not None) else None),
+            "anchor_memory_max_w":          anchor_memory_max_w,               # [B, L] | None
+            "anchor_ss_mask":               anchor_ss_mask,                    # [B] bool | None
+            "anchor_ss_p":                  float(self._anchor_ss_p),
+            "anchor_mix_alpha":             (float(self._anchor_mix_alpha) if self.anchor_mix else None),
+            "anchor_fidelity":              anchor_fidelity,                   # [B] | None
+            "cached_has_text":              (cached_has_text if anchor_pred_raw is not None else None),
             "visual_global_feat":           feats["visual_global"],
             "text_global_feat":             feats["text_part_raw"],     # [B, 6, D_proj] or None
             "local_routing_matrix":         None,

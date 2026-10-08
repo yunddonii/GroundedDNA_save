@@ -154,6 +154,8 @@ def main():
     ap.add_argument("--oracle_mix", type=float, nargs="+", default=[0.0, 0.1, 0.2, 0.3, 1.0])
     ap.add_argument("--oracle_k", type=int, default=128)
     ap.add_argument("--seed", type=int, default=1234)
+    ap.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
+                    help="override an args.txt field after parsing (e.g. anchor_source=memory, anchor_memory_tau=0.02); repeatable")
     a = ap.parse_args()
     os.environ.setdefault("GDNA_NUM_SEMANTIC_PARTS", "5")
     import model_siglip2 as MS
@@ -165,6 +167,15 @@ def main():
     provenance = {mod.__name__: {"file": mod.__file__, "sha256": hashlib.sha256(open(mod.__file__, "rb").read()).hexdigest()}
                   for mod in (MS, DL, RS)}
     args = parse_args_txt(os.path.join(a.result_dir, "args.txt"))
+    import ast as _ast
+    for _kv in a.set:                      # (2026-10-08, Stage 3-C) deploy-time overrides, e.g. anchor_source=memory
+        _k, _v = _kv.split("=", 1)
+        try:
+            _v = _ast.literal_eval(_v)
+        except Exception:
+            pass
+        setattr(args, _k, _v)
+    print("overrides:", a.set, flush=True)
     args.lambda_mec = 0.0
     args.device = "cpu"
     ckpt = os.path.join(a.result_dir, "model_state_dict.pth")

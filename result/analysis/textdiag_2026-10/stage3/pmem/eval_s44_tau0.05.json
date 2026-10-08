@@ -1,0 +1,93 @@
+{
+ "result_dir": "/home/yschoi/gdna_textdiag/result/261006+flickr25k_setting1_td1_flickr_H2_s44+bs+64+e+60+proj_lr+0.001",
+ "ckpt": "model_state_dict.pth",
+ "overrides": [
+  "anchor_source=memory",
+  "anchor_memory_tau=0.05"
+ ],
+ "module_provenance": {
+  "model_siglip2": {
+   "file": "/home/yschoi/gdna_textdiag/model_siglip2.py",
+   "sha256": "5d62945de9ddf08f7785484e3636bf6514d6c4fbe662e7579cbf22ae2f6837c2"
+  },
+  "train_siglip2": {
+   "file": "/home/yschoi/gdna_textdiag/train_siglip2.py",
+   "sha256": "b820ef133927fe250963b17d73e9867e60df299c149f8aae599afe86f2e66185"
+  },
+  "evaluation_siglip2": {
+   "file": "/home/yschoi/gdna_textdiag/evaluation_siglip2.py",
+   "sha256": "7cca26a04b1edc156955fdb721237c6cc69b3b60265b70606c241fb33619911d"
+  }
+ },
+ "val_split": {
+  "ratio": 0.1,
+  "n_opt": 4500,
+  "n_val": 500,
+  "strat": "random (multi-label split)"
+ },
+ "device": "cuda",
+ "log_csv_last": {
+  "epoch": "4",
+  "eval_mAP_at_R": "0.7404900922658606",
+  "eval_mAP": "0.7404900922658606",
+  "eval_dead_code_ratio_mean": "0.2",
+  "eval_unique_code_ratio": "0.5628888888888889"
+ },
+ "baseline": {
+  "retrieval": {
+   "mAP": 0.74049,
+   "mAP_at_R": 0.74049,
+   "mAP_R_cutoff": 5000.0,
+   "mean_positive_distance": 9.89777,
+   "mean_negative_distance": 11.68393,
+   "pair_weighted_mean_positive_distance": 10.09384,
+   "pair_weighted_mean_negative_distance": 11.62324
+  },
+  "collapse": {
+   "mean_base_entropy": 1.32235,
+   "mean_base_normalized_entropy": 0.95387,
+   "unique_code_ratio": 0.56289,
+   "duplicate_rate": 0.43711,
+   "mean_per_codebook_unique_ratio": 0.01196
+  },
+  "load": {
+   "missing": [],
+   "unexpected": []
+  }
+ },
+ "variant": {
+  "retrieval": {
+   "mAP": 0.74996,
+   "mAP_at_R": 0.74996,
+   "mAP_R_cutoff": 5000.0,
+   "mean_positive_distance": 9.96174,
+   "mean_negative_distance": 11.87876,
+   "pair_weighted_mean_positive_distance": 10.13336,
+   "pair_weighted_mean_negative_distance": 11.82628
+  },
+  "collapse": {
+   "mean_base_entropy": 1.33626,
+   "mean_base_normalized_entropy": 0.96391,
+   "unique_code_ratio": 0.57089,
+   "duplicate_rate": 0.42911,
+   "mean_per_codebook_unique_ratio": 0.012
+  },
+  "load": {
+   "missing": [],
+   "unexpected": []
+  },
+  "anchor_memory_meta": {
+   "cache_dir": "/data/yschoi/groundeddna_cache_v6prov/flickr25k_clip_tokens",
+   "rows_file": "opt_train_rows.npy",
+   "N": 4500,
+   "num_local": 4,
+   "dim": 512,
+   "dtype_on_disk": "float16",
+   "sha256_fp16": "f12046a83d39bb7d737b8cdf8949561bdbeafb204083a80a4d670b4d496813ca"
+  },
+  "anchor_fidelity_adapter_mean": 0.4375,
+  "anchor_fidelity_adapter_sd": 0.174,
+  "memory_max_w_median": 0.0024,
+  "memory_max_w_p90": 0.0043
+ }
+}

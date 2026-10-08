@@ -26,6 +26,7 @@ Required batch keys provided by `dataloaders.ImgRtvCIFAR10` /
 """
 
 import os
+import json
 import math
 from typing import Optional
 import torch
@@ -426,6 +427,12 @@ def _build_active_loss_types(args) -> list:
     # TD (2026-10-07): text-dropout path consistency; column exists only
     # when its lambda is on so log.csv stays bit-identical otherwise.
     if _on('lambda_path_consistency'):  keys.append('path_consistency')
+    # (2026-10-08, Stage 3-C) image-conditioned anchors: fidelity + SS probability
+    # columns only when the source is on (log.csv bit-identical otherwise).
+    if str(getattr(args, 'anchor_source', 'codebook_mean') or 'codebook_mean') != 'codebook_mean':
+        keys.extend(['anchor_fidelity', 'anchor_ss_p'])
+    if _on('lambda_anchor_pred'):       keys.append('loss_anchor_pred')
+    if bool(getattr(args, 'anchor_mix', False)): keys.append('anchor_mix_alpha')
     if _on('lambda_sim_spread'):        keys.append('loss_sim_spread')
     if _on('lambda_bio_constraint'):    keys.append('loss_bio_constraint')
     if _on('lambda_codon_joint'):       keys.append('loss_codon_joint')
@@ -688,6 +695,126 @@ def _validate_train_routing_mode_args(args) -> None:
         )
 
 
+def _validate_anchor_source_args(args) -> None:
+    """(2026-10-08, Stage 3-C) startup validator for the image-conditioned
+    routing anchors. Runs right after _validate_train_routing_mode_args, i.e.
+    before the seed, the model, any checkpoint load or any DataLoader. All
+    defaults (anchor_source codebook_mean, p 0/0, no MIX, lambda 0) pass.
+
+    Refused (ValueError):
+      * --anchor_source memory|predictor with --disable_text_supervision (a strict
+        no-text ablation must not read captions, not even a memory of them);
+        with --bidirectional_token_prune / --use_text_token_attention (the memory
+        rows are EOS-pooled raw caption features; those flags re-pool captions
+        from tokens, so the anchor would not be in the trained caption space);
+        with --eval_routing_mode text_prototype (two deployment anchor sources);
+        with --text_embed_transform other than none|partial_whiten (the other
+        transforms need the slot-0 caption, which the memory does not provide);
+        with --text_transform_routing_only, --route_global_text or
+        --router_type cross_attn (caption-only routing features).
+      * --anchor_source predictor with --lambda_anchor_pred <= 0, and
+        --lambda_anchor_pred > 0 without --anchor_source predictor.
+      * scheduled sampling (p_start or p_end > 0) with --anchor_source
+        codebook_mean (nothing to swap in) or --train_routing_mode codebook_mean
+        (no caption query to swap out); p outside [0, 1]; --anchor_ss_horizon <= 0.
+      * --anchor_mix with --anchor_source != codebook_mean (its deployment IS the
+        codebook mean), with scheduled sampling, with --train_routing_mode
+        codebook_mean, or --anchor_mix_horizon <= 0.
+      * --anchor_memory_tau <= 0, --anchor_memory_topk < 0.
+    """
+    src = str(getattr(args, "anchor_source", "codebook_mean") or "codebook_mean")
+    if src not in ("codebook_mean", "memory", "predictor"):
+        raise ValueError(f"--anchor_source must be codebook_mean|memory|predictor (got {src!r})")
+    p0 = float(getattr(args, "anchor_ss_p_start", 0.0) or 0.0)
+    p1 = float(getattr(args, "anchor_ss_p_end", 0.0) or 0.0)
+    lam = float(getattr(args, "lambda_anchor_pred", 0.0) or 0.0)
+    mix = bool(getattr(args, "anchor_mix", False))
+    tau = float(getattr(args, "anchor_memory_tau", 0.01) or 0.0)
+    topk = int(getattr(args, "anchor_memory_topk", 0) or 0)
+    ss_on = (p0 > 0.0) or (p1 > 0.0)
+    if tau <= 0.0:
+        raise ValueError(f"--anchor_memory_tau must be > 0 (got {tau})")
+    if topk < 0:
+        raise ValueError(f"--anchor_memory_topk must be >= 0 (got {topk})")
+    for name, p in (("--anchor_ss_p_start", p0), ("--anchor_ss_p_end", p1)):
+        if not (0.0 <= p <= 1.0):
+            raise ValueError(f"{name} must be in [0, 1] (got {p})")
+    for name in ("anchor_ss_horizon", "anchor_mix_horizon"):
+        h = getattr(args, name, None)
+        if h is not None and int(h) <= 0:
+            raise ValueError(f"--{name} must be > 0 when given (got {h})")
+    if src != "codebook_mean":
+        if bool(getattr(args, "disable_text_supervision", False)):
+            raise ValueError(f"--anchor_source {src} is incompatible with --disable_text_supervision "
+                             "(a strict no-text ablation must not read captions, not even a memory of them)")
+        if bool(getattr(args, "bidirectional_token_prune", False)):
+            raise ValueError(f"--anchor_source {src} is incompatible with --bidirectional_token_prune "
+                             "(memory rows are EOS-pooled raw caption features)")
+        if bool(getattr(args, "use_text_token_attention", False)):
+            raise ValueError(f"--anchor_source {src} is incompatible with --use_text_token_attention")
+        if str(getattr(args, "eval_routing_mode", "codebook_mean")) == "text_prototype":
+            raise ValueError(f"--anchor_source {src} is incompatible with --eval_routing_mode text_prototype "
+                             "(two deployment anchor sources)")
+        tx = str(getattr(args, "text_embed_transform", "none") or "none")
+        if tx not in ("none", "partial_whiten"):
+            raise ValueError(f"--anchor_source {src} supports --text_embed_transform none|partial_whiten "
+                             f"(got {tx!r})")
+        for flag in ("text_transform_routing_only", "route_global_text"):
+            if bool(getattr(args, flag, False)):
+                raise ValueError(f"--anchor_source {src} is incompatible with --{flag}")
+        if str(getattr(args, "router_type", "sinkhorn")) == "cross_attn":
+            raise ValueError(f"--anchor_source {src} is incompatible with --router_type cross_attn")
+    if src == "predictor" and lam <= 0.0:
+        raise ValueError("--anchor_source predictor requires --lambda_anchor_pred > 0")
+    if lam > 0.0 and src != "predictor":
+        raise ValueError("--lambda_anchor_pred > 0 requires --anchor_source predictor")
+    if ss_on:
+        if src == "codebook_mean":
+            raise ValueError("--anchor_ss_p_start/--anchor_ss_p_end > 0 require --anchor_source memory|predictor")
+        if str(getattr(args, "train_routing_mode", "text")) != "text":
+            raise ValueError("--anchor_ss_p_start/--anchor_ss_p_end > 0 require --train_routing_mode text "
+                             "(scheduled sampling swaps the caption routing query)")
+    if mix:
+        if src != "codebook_mean":
+            raise ValueError("--anchor_mix requires --anchor_source codebook_mean (its deployment anchor)")
+        if ss_on:
+            raise ValueError("--anchor_mix is exclusive with --anchor_ss_p_start/--anchor_ss_p_end")
+        if str(getattr(args, "train_routing_mode", "text")) != "text":
+            raise ValueError("--anchor_mix requires --train_routing_mode text")
+
+
+def _anchor_schedule_t(epoch: int, args) -> float:
+    """Normalised position in [0, 1] of `epoch` on the Stage 3-C schedules.
+    Horizon H: --anchor_ss_horizon / --anchor_mix_horizon (whichever is set)
+    -> --sinkhorn_schedule_horizon -> --epoch; t hits 1 at epoch H-1."""
+    H = getattr(args, "anchor_ss_horizon", None) or getattr(args, "anchor_mix_horizon", None) \
+        or getattr(args, "sinkhorn_schedule_horizon", None) or getattr(args, "epoch", 1)
+    H = max(int(H), 1)
+    return min(1.0, max(0.0, float(epoch) / float(max(1, H - 1))))
+
+
+def _anchor_ss_p_for_epoch(epoch: int, args) -> float:
+    """Scheduled-sampling probability at `epoch`: p_start -> p_end over the horizon,
+    linear or inverse-sigmoid (S-curve with the same endpoints)."""
+    p0 = float(getattr(args, "anchor_ss_p_start", 0.0) or 0.0)
+    p1 = float(getattr(args, "anchor_ss_p_end", 0.0) or 0.0)
+    if p0 <= 0.0 and p1 <= 0.0:
+        return 0.0
+    t = _anchor_schedule_t(epoch, args)
+    if str(getattr(args, "anchor_ss_schedule", "linear")) == "inv_sigmoid":
+        a = 10.0
+        sig = lambda x: 1.0 / (1.0 + math.exp(-x))
+        t = (sig((t - 0.5) * a) - sig(-0.5 * a)) / (sig(0.5 * a) - sig(-0.5 * a))
+    return p0 + (p1 - p0) * t
+
+
+def _anchor_mix_alpha_for_epoch(epoch: int, args) -> float:
+    """MIX blend weight on the caption query: 1 -> 0 over the horizon."""
+    if not bool(getattr(args, "anchor_mix", False)):
+        return 1.0
+    return 1.0 - _anchor_schedule_t(epoch, args)
+
+
 def _td_should_run(train: bool, using_cache: bool, lam: float, p: float,
                    gen: "torch.Generator") -> bool:
     """TD (2026-10-07): per-step gate for the extra no-text student forward.
@@ -714,6 +841,8 @@ def main(args: Config):
     # (2026-10-07) refuse --train_routing_mode codebook_mean with flags that
     # would still push caption-derived tensors into the router.
     _validate_train_routing_mode_args(args)
+    # (2026-10-08, Stage 3-C) refuse bad image-conditioned-anchor flag combinations.
+    _validate_anchor_source_args(args)
 
     # Seed before constructing the model, loaders, optimizer, or any auxiliary
     # clustering state. Keeping this inside main also covers programmatic
@@ -981,6 +1110,12 @@ def main(args: Config):
     if float(getattr(args, "routing_mass_alpha", 0.0) or 0.0) > 0.0:
         from dna_utils.arch_exp import init_routing_mass_stats
         print(f"[routing-mass] {init_routing_mass_stats(model, args)}")
+    # (2026-10-08, Stage 3-C) record the caption memory's provenance beside args.txt
+    if getattr(model, "anchor_memory_meta", None):
+        _am_path = os.path.join(args.save_log_path, "anchor_memory.json")
+        with open(_am_path, "w") as _f:
+            json.dump(model.anchor_memory_meta, _f, indent=1)
+        print(f"[anchor-memory] provenance -> {_am_path}: {model.anchor_memory_meta}")
 
     # ---------- optimizer ---------------------------------------------------
     backbone_params = [p for p in model.backbone.parameters()             if p.requires_grad]
@@ -1099,6 +1234,12 @@ def main(args: Config):
     # global seed stream.
     _td_gen = torch.Generator().manual_seed(
         int(getattr(args, "random_seed", 42)) + 1009)
+    # (2026-10-08, Stage 3-C) dedicated generator for the scheduled-sampling row
+    # mask; offset 2027 keeps it distinct from the global and TD streams.
+    _anchor_ss_gen = torch.Generator().manual_seed(
+        int(getattr(args, "random_seed", 42)) + 2027)
+    if hasattr(model, "set_anchor_ss"):
+        model.set_anchor_ss(0.0, _anchor_ss_gen)
 
     # ---------- loop --------------------------------------------------------
     def one_epoch(train, loader, epoch):
@@ -1310,11 +1451,11 @@ def main(args: Config):
                     cached_has_text=None,
                 )
                 if not _td_routing_checked[0]:
-                    if out_notext.get("routing_mode") != "codebook_mean":
+                    if out_notext.get("routing_mode") not in ("codebook_mean", "memory", "predictor"):
                         raise RuntimeError(
                             "[path_consistency] no-text forward returned "
                             f"routing_mode={out_notext.get('routing_mode')!r}, "
-                            "expected 'codebook_mean'"
+                            "expected a deployment routing mode"
                         )
                     _td_routing_checked[0] = True
 
@@ -1426,6 +1567,11 @@ def main(args: Config):
         # compute annealed epsilon (no-op when annealing is off).
         if hasattr(model, "set_current_epoch"):
             model.set_current_epoch(e)
+        # (2026-10-08, Stage 3-C) scheduled-sampling probability / MIX alpha for this epoch
+        if hasattr(model, "set_anchor_ss"):
+            model.set_anchor_ss(_anchor_ss_p_for_epoch(e, args), _anchor_ss_gen)
+        if hasattr(model, "set_anchor_mix_alpha"):
+            model.set_anchor_mix_alpha(_anchor_mix_alpha_for_epoch(e, args))
 
         # (c-1, 2026-09-20 branch arch-exp-2026-09) end of the VQ-free stage:
         # k-means the routed visual tokens into the codebook before this

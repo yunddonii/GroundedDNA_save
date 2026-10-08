@@ -40,3 +40,39 @@ Evaluation-only captions: 1,500 Flickr DB rows (`cache_eval/`), never a training
 ## Entry gates
 - Gate cell `td3_gate_H2_s42` (new code, flags at default) bit-identical to `td1_flickr_H2_s42`.
 - Smoke `td3_TD_s42`: `args.txt` shows the three TD flags, `train_path_consistency` column present and non-zero, run completes.
+
+## Stage 3-C (written 2026-10-08 before any Stage 3-C cell) — image-conditioned routing anchors
+
+Base stays B1 (= Stage-1 H2, 10 terms). Every arm is B1 + one change; Flickr25K seeds 42/43/44;
+claim endpoint = deployed CODON S on the 2,000-row set (same caption file, reference cache and
+`score_list.sh` as above). Prior-work basis: DeCap (ICLR 2023) projection-based decoding for the
+memory anchor; modality hallucination (Hoffman et al. 2016) for the predictor; scheduled sampling
+(Bengio et al. 2015) for the swap schedule. Offline feasibility (CPU, raw CLIP space, 1,000 held-out
+rows, memory = 4,500 opt-train rows): centred cos(memory anchor, true caption anchor) .48/.32/.49/.44
+per local axis (axis-mean baseline .01–.02; oracle 1-NN .62/.59/.61/.65).
+
+| arm | delta vs B1 | trains? | what it tests |
+|---|---|---|---|
+| **P-mem** | `--anchor_source memory` (τ .01) applied to the EXISTING B1 checkpoints at scoring time only (`a3_v2.py --set anchor_source=memory`, same for `d4d6`) | no | does a per-image caption-space query at deployment let the B1 weights emit the slot signal? (answers the v184 objection before any training) |
+| P-mem τ | τ .02 / .05 on the same checkpoints | no | τ sensitivity of the free arm (reported, not a selection) |
+| **P-mem+SS** | `--anchor_source memory --anchor_ss_p_end 1.0 --anchor_ss_horizon 5` (linear 0 → 1 over epochs 0–4; variant `_p05` with p_end .5 only if p_end 1 fails P-HEALTH) | yes | training the routing on the deployment-like query |
+| **P-head** | `--anchor_source predictor --lambda_anchor_pred 1.0 --anchor_ss_p_end 1.0 --anchor_ss_horizon 5`; control `PheadNoSS` (p 0: head trained, routing never swapped) | yes | memory-free deployment |
+| **MIX** (control) | `--anchor_mix --anchor_mix_horizon 5` (deployment = codebook mean) | yes | is the memory needed at all? expected to end as arm S (unique −.11) |
+
+Rules (unchanged from above): **P-DELTA** deployed codon S(arm) − S(B1) ≥ T = .10 on 3/3 seeds
+(B1 = +.161/+.196/+.109); **P-RET** mean val mAP@R ≥ B1 − .008 (P-mem: the retrieval of the rescored
+checkpoint is measured by `d4d6`/eval re-extraction, reported beside B1's); **P-HEALTH** dead ≤
+max(.30, B1 + .05), unique ≥ B1 − .08; **P-TXT** vs OFF as above.
+New diagnostics (every cell): anchor fidelity = cos(image-conditioned anchor, true caption anchor)
+in adapter space on held-out rows (threshold ≥ .30 raw-space centred cos is the feasibility level;
+own-vs-others rank accuracy ≥ .90), `d4d6` train/deploy codeword agreement (B1 .52–.69; expected to
+rise under SS), memory max-weight distribution (τ .01 with 4,500 rows is close to 1-NN).
+**F7 (new falsifier):** fidelity high (≥ .30) but deployed codon S unchanged → the caption signal that
+reaches the codes is not image-predictable; the image-conditioned family is then closed.
+**Ceiling note:** D3's S_probe (Flickr .13) bounds any image-predicted anchor; a pass is read against it.
+MIX is not bit-gated against B1 (α = 1 renormalises the caption query); it is compared at the
+codon/mAP level only. n = 3 seeds, descriptive, no significance test.
+Entry gates: defaults bit-identical to B1 (unit test + seed-42 `log.csv` gate cell before the first
+training arm); mutant battery on the new tests (5/5 caught, 2026-10-08); one-cell smoke
+(`td3_PmemSS_smoke_s42`, `--stop_after_epoch 1`) checked for `anchor_source memory`, SS flags,
+`anchor_memory.json`, `train_anchor_fidelity` and `train_anchor_ss_p` columns.

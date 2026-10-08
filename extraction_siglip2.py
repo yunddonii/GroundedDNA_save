@@ -117,8 +117,11 @@ def encode_split(
                     part_attention_mask=None,
                     return_routing=True,
                 )
-            assert outputs["routing_mode"] == "codebook_mean", (
-                f"[extraction] expected codebook_mean routing at eval, got "
+            # (2026-10-08, Stage 3-C) "memory" / "predictor" are text-free deployment
+            # routings computed from the image feature (--anchor_source); "text" is
+            # still refused here: extraction must never route with captions.
+            assert outputs["routing_mode"] in ("codebook_mean", "memory", "predictor"), (
+                f"[extraction] expected a text-free deployment routing at eval, got "
                 f"{outputs['routing_mode']!r}"
             )
             base_indices = outputs["base_indices"]               # [B, 18]

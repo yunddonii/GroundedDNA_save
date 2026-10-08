@@ -562,6 +562,56 @@ class Config():
                  '--routing_token_ot_*, --foreground_text_mask_topk_ratio, '
                  '--routing_cls_verified_consensus_mask, '
                  '--text_transform_routing_only, --router_type cross_attn).')
+        # (2026-10-08, Stage 3-C) image-conditioned routing anchors. All defaults
+        # are no-ops (bit-identical to the legacy path).
+        siglip2_arg.add_argument('--anchor_source',
+            dest='anchor_source', choices=['codebook_mean', 'memory', 'predictor'],
+            default='codebook_mean',
+            help='Routing anchor used whenever the router is NOT caption-routed '
+                 '(deployment / eval / no-text forwards / SS-swapped rows). '
+                 'codebook_mean (default, legacy): codebook-mean vectors, the same '
+                 'for every image. memory: DeCap-style projection of the image '
+                 'feature onto a memory of the TRAINING rows\' raw caption '
+                 'features (per axis softmax(cos/tau)-weighted average), then the '
+                 'same whitening + text adapter as real captions. predictor: a '
+                 'small MLP predicts the raw per-axis caption feature from the '
+                 'image feature (needs --lambda_anchor_pred > 0).')
+        siglip2_arg.add_argument('--anchor_memory_tau', dest='anchor_memory_tau',
+            type=float, default=0.01,
+            help='Softmax temperature on cos(image, memory caption) (DeCap 1/100).')
+        siglip2_arg.add_argument('--anchor_memory_topk', dest='anchor_memory_topk',
+            type=int, default=0,
+            help='Keep only the k most similar memory rows per axis before the '
+                 'softmax; 0 = dense (default).')
+        siglip2_arg.add_argument('--anchor_ss_p_start', dest='anchor_ss_p_start',
+            type=float, default=0.0,
+            help='Scheduled sampling: per-image probability at epoch 0 that the '
+                 'ROUTING query is the image-conditioned anchor instead of the '
+                 'caption anchor (text losses always see the caption). 0 = off.')
+        siglip2_arg.add_argument('--anchor_ss_p_end', dest='anchor_ss_p_end',
+            type=float, default=0.0,
+            help='Scheduled sampling probability reached at the last epoch of '
+                 '--anchor_ss_horizon. Both 0 = off (default).')
+        siglip2_arg.add_argument('--anchor_ss_schedule', dest='anchor_ss_schedule',
+            choices=['linear', 'inv_sigmoid'], default='linear',
+            help='Shape of p(epoch) between p_start and p_end.')
+        siglip2_arg.add_argument('--anchor_ss_horizon', dest='anchor_ss_horizon',
+            type=int, default=None,
+            help='Epochs the SS schedule spans (p_end reached at epoch H-1). '
+                 'None -> --sinkhorn_schedule_horizon -> --epoch.')
+        siglip2_arg.add_argument('--anchor_pred_hidden', dest='anchor_pred_hidden',
+            type=int, default=1024,
+            help='Hidden width of the anchor predictor MLP (--anchor_source predictor).')
+        siglip2_arg.add_argument('--anchor_mix', dest='anchor_mix',
+            action='store_true', default=False,
+            help='MIX control arm: training routing query = normalize(alpha * '
+                 'normalize(caption anchor) + (1 - alpha) * codebook mean), alpha '
+                 '1 -> 0 over --anchor_mix_horizon; deployment = codebook mean. '
+                 'Exclusive with scheduled sampling; needs --anchor_source codebook_mean.')
+        siglip2_arg.add_argument('--anchor_mix_horizon', dest='anchor_mix_horizon',
+            type=int, default=None,
+            help='Epochs the MIX alpha schedule spans (None -> '
+                 '--sinkhorn_schedule_horizon -> --epoch).')
         siglip2_arg.add_argument('--routing_perplexity_topk',
             dest='routing_perplexity_topk', action='store_true', default=False,
             help='v84a: per-patch top-k routing where k = ceil(M^H_norm). '
@@ -1880,6 +1930,12 @@ class Config():
             action='store_true', default=False,
             help='TD (2026-10-07): also include slot 0 (C_global) in the '
                  'path-consistency KL. Default OFF = local slots 1..4 only.')
+        loss_arg.add_argument('--lambda_anchor_pred',
+            dest='lambda_anchor_pred', type=float, default=0.0,
+            help='(2026-10-08) weight of the anchor-predictor regression '
+                 '1 - cos(predicted raw per-axis caption feature, stop-grad '
+                 'cached caption feature). 0.0 disables (default); required '
+                 '> 0 with --anchor_source predictor.')
         loss_arg.add_argument('--text_dropout_p',
             dest='text_dropout_p', type=float, default=0.0,
             help='TD (2026-10-07): per-training-STEP probability that the '
