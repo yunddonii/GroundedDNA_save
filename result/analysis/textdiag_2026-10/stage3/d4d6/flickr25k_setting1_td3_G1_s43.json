@@ -1,0 +1,219 @@
+{
+ "result_dir": "/home/yschoi/gdna_textdiag/result/261008+flickr25k_setting1_td3_G1_s43+bs+64+e+60+proj_lr+0.001",
+ "dataset": "Flickr25k",
+ "rows": 500,
+ "axis_center": "anchors",
+ "use_gumbel_softmax": false,
+ "prune_in_recipe": false,
+ "caption_sha256": "e01137bcc7f762da2bd6d824fa2727e9b9e3d1c584f526dee73ea8c6dacd9047",
+ "D4_pairwise": {
+  "C_primary_object": {
+   "p_same_codeword_train_vs_deploy": 0.584,
+   "cos_z_train_vs_deploy": 0.8598,
+   "plan_column_cos": 0.5457,
+   "codewords_used_train": 80,
+   "codewords_used_deploy": 82
+  },
+  "C_secondary_object": {
+   "p_same_codeword_train_vs_deploy": 0.61,
+   "cos_z_train_vs_deploy": 0.86,
+   "plan_column_cos": 0.5687,
+   "codewords_used_train": 90,
+   "codewords_used_deploy": 87
+  },
+  "C_activity_or_relation": {
+   "p_same_codeword_train_vs_deploy": 0.572,
+   "cos_z_train_vs_deploy": 0.851,
+   "plan_column_cos": 0.5307,
+   "codewords_used_train": 93,
+   "codewords_used_deploy": 86
+  },
+  "C_color_texture": {
+   "p_same_codeword_train_vs_deploy": 0.494,
+   "cos_z_train_vs_deploy": 0.7855,
+   "plan_column_cos": 0.5234,
+   "codewords_used_train": 87,
+   "codewords_used_deploy": 79
+  }
+ },
+ "D4_cross_slot_cos_mean": {
+  "train": 0.7801,
+  "deploy": 0.7897
+ },
+ "A3_codeword_lexical_train_routed": {
+  "per_axis": {
+   "C_primary_object": {
+    "pairs": 7896,
+    "lift_own": 3.647,
+    "lift_other_mean": 3.149,
+    "R": 0.1468,
+    "R_ci95": [
+     -0.0075,
+     0.3117
+    ]
+   },
+   "C_secondary_object": {
+    "pairs": 8253,
+    "lift_own": 3.127,
+    "lift_other_mean": 2.6,
+    "R": 0.1846,
+    "R_ci95": [
+     -0.0016,
+     0.3675
+    ]
+   },
+   "C_activity_or_relation": {
+    "pairs": 1566,
+    "lift_own": 2.589,
+    "lift_other_mean": 2.334,
+    "R": 0.1037,
+    "R_ci95": [
+     -0.3508,
+     0.5184
+    ]
+   },
+   "C_color_texture": {
+    "pairs": 5215,
+    "lift_own": 2.658,
+    "lift_other_mean": 2.272,
+    "R": 0.1568,
+    "R_ci95": [
+     -0.085,
+     0.4026
+    ]
+   }
+  },
+  "S": {
+   "value": 0.148,
+   "axes": 4,
+   "positive_axes": 4,
+   "ci95": [
+    0.0059,
+    0.2742
+   ]
+  }
+ },
+ "A3_codeword_lexical_deployed": {
+  "per_axis": {
+   "C_primary_object": {
+    "pairs": 7896,
+    "lift_own": 3.625,
+    "lift_other_mean": 2.755,
+    "R": 0.2744,
+    "R_ci95": [
+     0.1273,
+     0.4132
+    ]
+   },
+   "C_secondary_object": {
+    "pairs": 8253,
+    "lift_own": 2.776,
+    "lift_other_mean": 2.354,
+    "R": 0.1648,
+    "R_ci95": [
+     0.0046,
+     0.3236
+    ]
+   },
+   "C_activity_or_relation": {
+    "pairs": 1566,
+    "lift_own": 3.013,
+    "lift_other_mean": 2.339,
+    "R": 0.2535,
+    "R_ci95": [
+     -0.2042,
+     0.6476
+    ]
+   },
+   "C_color_texture": {
+    "pairs": 5215,
+    "lift_own": 1.441,
+    "lift_other_mean": 2.324,
+    "R": -0.4776,
+    "R_ci95": [
+     -0.7499,
+     -0.2053
+    ]
+   }
+  },
+  "S": {
+   "value": 0.0538,
+   "axes": 4,
+   "positive_axes": 3,
+   "ci95": [
+    -0.0836,
+    0.1793
+   ]
+  }
+ },
+ "A3_codeword_lexical_train_routed_no_prune": {
+  "per_axis": {
+   "C_primary_object": {
+    "pairs": 7896,
+    "lift_own": 3.647,
+    "lift_other_mean": 3.149,
+    "R": 0.1468,
+    "R_ci95": [
+     -0.0075,
+     0.3117
+    ]
+   },
+   "C_secondary_object": {
+    "pairs": 8253,
+    "lift_own": 3.127,
+    "lift_other_mean": 2.6,
+    "R": 0.1846,
+    "R_ci95": [
+     -0.0016,
+     0.3675
+    ]
+   },
+   "C_activity_or_relation": {
+    "pairs": 1566,
+    "lift_own": 2.589,
+    "lift_other_mean": 2.334,
+    "R": 0.1037,
+    "R_ci95": [
+     -0.3508,
+     0.5184
+    ]
+   },
+   "C_color_texture": {
+    "pairs": 5215,
+    "lift_own": 2.658,
+    "lift_other_mean": 2.272,
+    "R": 0.1568,
+    "R_ci95": [
+     -0.085,
+     0.4026
+    ]
+   }
+  },
+  "S": {
+   "value": 0.148,
+   "axes": 4,
+   "positive_axes": 4,
+   "ci95": [
+    0.0059,
+    0.2742
+   ]
+  }
+ },
+ "D6": {
+  "keep_ratio_per_slot_mean": null,
+  "cos_adapted_anchor_pruned_vs_eos_per_slot": [
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ],
+  "cos_adapted_anchor_pruned_vs_eos_min": 1.0,
+  "p_same_codeword_pruned_vs_eos_per_slot": [
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ],
+  "plan_column_cos_pruned_vs_eos": 1.0
+ }
+}

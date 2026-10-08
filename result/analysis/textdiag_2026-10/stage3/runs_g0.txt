@@ -1,0 +1,6 @@
+/home/yschoi/gdna_textdiag/result/261008+flickr25k_setting1_td3_G0p_s42+bs+64+e+60+proj_lr+0.001
+/home/yschoi/gdna_textdiag/result/261008+flickr25k_setting1_td3_G0p_s43+bs+64+e+60+proj_lr+0.001
+/home/yschoi/gdna_textdiag/result/261008+flickr25k_setting1_td3_G0p_s44+bs+64+e+60+proj_lr+0.001
+/home/yschoi/gdna_textdiag/result/261008+flickr25k_setting1_td3_G0_s42+bs+64+e+60+proj_lr+0.001
+/home/yschoi/gdna_textdiag/result/261008+flickr25k_setting1_td3_G0_s43+bs+64+e+60+proj_lr+0.001
+/home/yschoi/gdna_textdiag/result/261008+flickr25k_setting1_td3_G0_s44+bs+64+e+60+proj_lr+0.001

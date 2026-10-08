@@ -42,6 +42,21 @@ analysis / 🔴 reverted or negative); tables over prose for numbers; each model
 
 ---
 
+## 2026-10-08 [OFF-PROTOCOL exploration, branch text-diag-2026-09 — not a paper result] Stage 4-G: removing (G0) or weakening (G1) the codon-stage global gate on B1 and on P-mem+SS. The deployed codon S FALLS on both bases: the global codeword mixed into every local codon is load-bearing for B1's codon S, not what washes a codeword-level signal out. Unique codes +.02–.09, dead codes down, retrieval within −.009
+
+**Status:** 🔴 both arms fail P-DELTA on both bases; the "washing" reading of Stage 3-C is refuted. Pre-registration `stage3/PREREGISTRATION.md` (Stage 4-G); cells 2026-10-08 12:31–12:55Z (Flickr25K, seeds 42/43/44, GPUs 0–5; the first wave-2 launch failed before python with an empty command — my launcher-path error, relaunched as `td3_G1r_*`/`td3_G1pr_*`, result dirs `td3_G1_*`/`td3_G1p_*`); scored on 2,000 rows (`stage3/a3v2_2000`, `d4d6`); `summarize_3c.py G0 G0p G1 G1p`. Flags are the existing `--disable_global_gate` (v23b) and `--global_gate_init_logit -3.0` (Stage 9); no code change; B1 trains with the gate at sigmoid(4.595) ≈ .99.
+
+| arm | base | val mAP@R Δ (42/43/44) | unique Δ | dead (base) | **deployed codon S** (base) | deployed codeword S (base) | train/deploy agreement |
+|---|---|---|---|---|---|---|---|
+| G0 `--disable_global_gate` | B1 | −.005 / −.008 / +.007 | +.03 / +.03 / +.04 | .148/.067/.177 (.155/.117/.200) | **−.015 / +.047 / −.022** (+.161/+.196/+.109) | −.054 / +.058 / +.021 (+.083/−.005/−.021) | .54–.61 |
+| G0p | P-mem+SS | −.007 / −.004 / −.009 | +.09 / +.05 / +.05 | .106/.147/.192 (.186/.159/.228) | +.049 / +.004 / +.092 (+.051/+.061/+.121) | −.007 / +.084 / +.049 (+.100/+.046/+.064) | .81–.86 |
+| G1 gate init −3.0 | B1 | −.006 / −.005 / +.014 | +.03 / +.04 / +.02 | .089/.177/.203 | +.065 / +.020 / +.075 | +.034 / −.006 / −.010 | .49–.62 |
+| G1p | P-mem+SS | −.007 / −.001 / −.007 | +.08 / +.04 / +.05 | .150/.148/.181 | +.077 / −.027 / +.089 | +.056 / +.040 / +.022 | .81–.85 |
+
+**Verdicts.** P-DELTA (codon, T .10, 3/3): all four fail; codon S − base = G0 −.176/−.149/−.131, G0p −.003/−.056/−.030, G1 −.096/−.176/−.033, G1p +.026/−.088/−.033. P-RET: passes (means −.002 / −.007 / +.001 / −.005; G0 s43 −.0083 is at the bound). P-HEALTH: passes everywhere (unique up on 12/12 cells, dead down on 10/12).
+
+**Reading.** The global codeword added to each local codon (gate ≈ .99) is where a large part of B1's codon-level S comes from: pairs that share an axis-m word also share scene-level content, and a shared global codeword inside every local codon makes their slot-m codons coincide more often. Removing it does not release a hidden slot-specific signal; the codeword-level gain of P-mem+SS (+.10/+.05/+.06) stays at the codeword level with or without the gate. So the codon-level S that the paper's claim rests on is, in part, global information replicated into the local codons, and the codeword→codon stage is not the bottleneck that Stage 3-C suggested. Side effect confirmed from earlier records: the gate trades code diversity for retrieval (unique +.02–.09, dead −.01–.08, mAP −.002…−.007 mean). Next per the user's order (2026-10-08): 4a (remove the local slots' instance-contrastive term, with a new normalisation option so the global term keeps weight 1/M), then 4d. Descriptive, n = 3, no test.
+
 ## 2026-10-08 [OFF-PROTOCOL exploration, branch text-diag-2026-09 — not a paper result] Stage 3-C: image-conditioned routing anchors (caption-memory projection / predictor head, scheduled sampling, MIX control). Train/deploy codeword agreement rises to .83–.89 and the deployed CODEWORD-level S becomes consistently positive, but the CODON-level S does not exceed B1 on any arm and unique codes fall by ~.10; the image-conditioned family does not pass P-DELTA
 
 **Status:** 🔴 negative on the claim endpoint (codon S), 🟡 informative on the mechanism endpoint (codeword S, agreement). Plan §Stage 3-C (approved 2026-10-08); pre-registration `stage3/PREREGISTRATION.md` (Stage 3-C section); code `dd8b5f9` (tests 37, mutants 5/5 caught, defaults bit-identical); cells 2026-10-08 10:54–11:03Z (Flickr25K, seeds 42/43/44, GPUs 0–5); scored on 2,000 rows (`stage3/a3v2_2000`, `d4d6`); `stage3/summarize_3c.py` prints the table. Base B1 = Stage-1 H2.
