@@ -487,6 +487,60 @@ codebook) as a follow-up.
 
 ---
 
+## 2026-10-20 [anchor model — r9 strict absence repair for audits §845–§846 (a386bf84: 1600 passed; mutation 14/14); nothing run] Audits §845–§849
+
+**Status:** ✅ preparation submitted for review. **Nothing ran on real data.** The user's
+additional-attempt decision, a generation manifest and exact request, a fresh peer GPU agreement and an
+exact audit approval are still required before any execution.
+
+**What §845–§846 found:** the pre-execution "target outputs absent" check and the publication "bit2 absent"
+check used `Path.exists`, which follows links, so a dangling link counted as absent.
+
+**Repair** (`arch-exp-2026-09-anchor-refit-r9` commit `a386bf84`, pushed; stage source `aaa37d7e…`; the
+launcher, entry and supervisor are unchanged):
+- **Primitive:** `_lexists_observed`, by lstat. A file, directory or link (even dangling) exists; any
+  observation error refuses.
+- **Before execution:** `assert_target_outputs_absent` requires none of the 13 contracted outputs. It runs
+  at admission (`admit_stopped_campaign`, which the T entry also reaches) and immediately before the
+  exception claim.
+- **At publication:** `assert_carried_outputs` requires the twelve outputs present and bit2 absent by
+  lstat, for the carried cells and the new cell.
+- **Two lifecycle rules kept apart:** before execution nothing may exist; after success the twelve outputs
+  must exist and only bit2 must be absent.
+- **Documents:** the design draft and the contract match the code. The status is "implemented, not
+  executable". The wrong "13 outputs by lstat" claim is replaced by the two-condition table. There is no
+  `historical_generations` field; r8 is reachable only through `exception_of.request_sha256`.
+
+**Evidence** (OS sandbox, runner `a684299c`; `/home/yschoi/anchor_rt_session_state/r9_prep/`):
+
+| Run | Result |
+|---|---|
+| 11 new composed tests (`dev_absence_*`) | recovery file 143 passed |
+| The same tests on the pre-repair source `3112180` (`red_absence_a386bf8_tests_on_3112180_source`) | 8 failed (defective input accepted), 3 passed (directory/regular-file controls and the post-success positive) |
+| Full 28-file suite at clean `a386bf84` (`suite_a386bf84/result.json` `ceca13f2…`) | rc 0, **1600 passed**, 11 skipped (same reasons) |
+| Mutation battery (`battery_final_a386bf84`, harness `9539ed3a…`, declarations `76f3c00d…`) | baseline 13/13; **14/14 detected as declared** (13 acceptance, 1 regression); imported module hashes bound |
+
+The mutants cover:
+- the main-thread dispatch;
+- the failed-attempt recheck before the claim, in the entry and at publication;
+- target absence at admission and before the claim;
+- lstat versus stat;
+- an observation error read as absence;
+- bit2 by `exists`;
+- later rows of the failed run;
+- reuse of the failed namespace;
+- the exception key depending on the namespace;
+- the schema-1 request form;
+- the failed namespace's absence check.
+
+**Development history kept:**
+- A first red-run control used a helper that exists only in the repaired source. It was rewritten with
+  `os.path.lexists`.
+- A first full-suite launch exited before running, rc 91, because the 7-character hash did not match the
+  8-character short hash.
+
+---
+
 ## 2026-10-07 [anchor model — r9 recovery exception implemented and tested (3112180: 1589 passed); nothing run] Audit §841
 
 **Status:** ✅ preparation submitted for review. **Nothing ran.**
