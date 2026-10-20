@@ -1,7 +1,11 @@
-# Anchor model — r9 exception contract for a second recovery of NUS-WIDE seed 44 (design draft; audits 839–844)
+# Anchor model — r9 exception contract for a second recovery of NUS-WIDE seed 44 (audits 839–849)
 
-**Status: design for review.**
-- Nothing is implemented beyond the worker-dispatch repair (`f169b8b`) and its fixture fixes (`10af739`).
+**Status: implemented and synthetically tested; not executable.**
+- **Implemented on branch `arch-exp-2026-09-anchor-refit-r9`:**
+  - the worker-dispatch repair (`f169b8b`) and its fixture fixes (`10af739`);
+  - the exception (`3112180`);
+  - the strict absence repair of audits 845–846 (the commit that adds this revision).
+- No generation manifest or exact request exists yet.
 - Nothing runs.
 - Executing it would also need:
   - the user's exception (requested by the audit in §839; pending, not asked again here);
@@ -28,13 +32,23 @@ before the claim, and again at publication:
 | claim (consumed) | `/home/yschoi/gdna_anchorRT_recovery_claims/dc4a8bc0….json` `7de24931…` |
 | attempt | `ancT9r_attempt_ancR9_nuswide_A_v4_refit_N4_s44_AXanchors_P0408_JD005.json` `1add29fb…` |
 | reservation / snapshot | `ancT9r_campaign_reservation.json` `6dffbab0…`; `ancT9r_snapshot_7205adea6c6238e4.json` `07708b36…` (bytes) |
-| checked absence (lstat) | `ancT9r_entry_…`, `ancT9r_ancR9_…` (record), `ancT9r_recovery_complete.json`, and the target's 13 outputs |
+| checked absence of the failed namespace (lstat) | `ancT9r_entry_…`, `ancT9r_ancR9_…` (record), `ancT9r_recovery_complete.json` (`verify_failed_recovery`) |
 
 **Rules for these identities:**
 - They are pinned in a new JSON-only artifact, `anchor_t_recovery_exception_v1.json`. Its builder reads
   only the files above, and its digest is pinned in the stage source.
 - **Absence is checked, not pinned.** It is re-observed by `lstat` at each boundary; an observation error or
   a dangling link refuses.
+
+**The target cell's outputs follow two different conditions over its lifecycle** (audits 845–846; the code
+keeps them in separate predicates):
+
+| When | Required state | Predicate | Where it runs |
+|---|---|---|---|
+| Before execution | **none** of the 13 contracted outputs (the twelve and bit2) exists by lstat: a file, a directory or a link (even a dangling one) refuses, and so does an observation error | `assert_target_outputs_absent` (on top of the launcher's existing `assert_official_test_withheld`) | at admission (`admit_stopped_campaign`, also reached by the T entry through `verify_recovery_authority`); immediately before the exception claim (`_run_recovery` → `claim_once`) |
+| At publication | the **twelve** outputs present at the bytes the record binds, and **bit2 absent by lstat**: a dangling bit2 link or an observation error refuses | `assert_carried_outputs` via `assert_record_outputs` | the final closure, for the eleven carried cells and the newly executed cell |
+
+After a successful execution the twelve outputs are never required to be absent.
 - The pre-failure payload access of the failed attempt (§839) is stated in the artifact. It is never
   described as "no access".
 
@@ -69,8 +83,16 @@ prior run.
 
 ## 4. Request form `anchor-terminal-test-recovery-request/2`
 
-- **Carries everything from schema 1**, plus `exception_of` (the failed-recovery block of §1 and the
-  exception-artifact pin) and `historical_generations` (r7 `2f24fc80…`, r8 `3537e297…`).
+- **Carries everything from schema 1**, plus `exception_of`: the failed-recovery block of §1, including
+  the failed request digest `d34f505b…`, and the exception-artifact pin.
+- **How the generations appear in the request** (no `historical_generations` field is emitted):
+  - **r7:** `historical_manifest` names the r7 manifest (path, `2f24fc80…`); `source_transition` records
+    `from` r7 and `to` the executing r9 manifest, with the exact changed and added closure members and the
+    changed control-plane source digests.
+  - **r9:** `manifest` names the executing generation.
+  - **r8:** it is not a separate field. It is reachable only through `exception_of.request_sha256`: the
+    failed attempt binds that request object, and the object names manifest `3537e297…`.
+    `verify_failed_recovery` checks the digest, not a separately pinned r8 manifest.
 - **Claim fields:** `claim_key` is the exception key, and `claim_root` is unchanged.
 - **The T entry:**
   - accepts schema 2 only together with mode `recovery`;
@@ -82,7 +104,9 @@ prior run.
 ## 5. Publication (`final_recovery_closure`)
 
 - **Everything that holds today**, plus a re-check of the failed-recovery block: its pins, the ledger's
-  first two lines, and the lstat absences.
+  first two lines, and the lstat absences of the failed namespace's entry, record and receipt.
+- **Output state:** the twelve outputs present and bit2 absent by lstat, for every carried cell and the new
+  cell (see §1).
 - **The receipt** (`ancT9s_recovery_complete.json`) records:
   - `stopped` (ancT9);
   - `exception_of` (ancT9r, failed);

@@ -814,7 +814,9 @@ def assert_carried_outputs(run_dir: Path) -> list:
     bit2 evaluation does not (audit 776)."""
     required = [name for name in M.OFFICIAL_TEST_OUTPUTS if name != BIT2_OUTPUT]
     missing = [name for name in required if not (Path(run_dir) / name).is_file()]
-    if missing or (Path(run_dir) / BIT2_OUTPUT).exists():
+    # audit 846: the forbidden bit2 path is absent only by lstat -- a link, even a dangling one, is present,
+    # and an observation error refuses instead of reading as absence
+    if missing or _lexists_observed(Path(run_dir) / BIT2_OUTPUT, "the forbidden bit2 evaluation"):
         raise CellRefused(f"{run_dir}: a carried stage-T cell must hold exactly the twelve required "
                           f"outputs with bit2 absent; missing {missing}")
     return required
@@ -856,17 +858,34 @@ def exception_claim_key(failed: dict, cell_id: str) -> str:
                            "failed_attempt_sha256": failed["attempt"]["sha256"], "cell_id": cell_id})
 
 
-def _observed_absent(path: Path, what: str) -> None:
-    """Checked absence by lstat (audit 841.3): a link counts as present even when dangling, and an
-    observation error refuses instead of reading as absence."""
+def _lexists_observed(path: Path, what: str) -> bool:
+    """Whether a directory entry exists at `path` by lstat: a file, directory or link (even a dangling one)
+    exists; only FileNotFoundError means absent; any other observation error refuses (audits 841.3, 845)."""
     try:
         os.lstat(path)
     except FileNotFoundError:
-        return
+        return False
     except OSError as error:
         raise CellRefused(f"{what}: {path} cannot be observed ({type(error).__name__}); absence is not assumed") \
             from None
-    raise CellRefused(f"{what}: {path} exists (a link counts, even a dangling one)")
+    return True
+
+
+def _observed_absent(path: Path, what: str) -> None:
+    """Checked absence by lstat (audit 841.3): a link counts as present even when dangling, and an
+    observation error refuses instead of reading as absence."""
+    if _lexists_observed(path, what):
+        raise CellRefused(f"{what}: {path} exists (a link counts, even a dangling one)")
+
+
+def assert_target_outputs_absent(run_dir: Path, what: str) -> None:
+    """Audit 845: before execution, NONE of the contracted official-test outputs (the twelve and bit2) exists
+    in the recovered cell's run directory, by lstat -- files, directories and links (also dangling) refuse,
+    and so does an observation error. Applied at admission, immediately before the claim and in the T
+    entry. After a successful execution the publication contract is different (twelve present, bit2
+    absent: assert_carried_outputs); this predicate is never applied there."""
+    for name in M.OFFICIAL_TEST_OUTPUTS:
+        _observed_absent(Path(run_dir) / name, what)
 
 
 def verify_failed_recovery(exception: dict, lineage: dict) -> dict:
@@ -1013,6 +1032,7 @@ def admit_stopped_campaign(lineage: dict, *, freeze: dict) -> dict:
     directory still holding no official-test output (the pre-execution target absence)."""
     admitted = verify_stopped_lineage(lineage, freeze=freeze, target_executed=False)
     M.assert_official_test_withheld(Path(admitted["cell"]["run_dir"]))
+    assert_target_outputs_absent(Path(admitted["cell"]["run_dir"]), "the recovered cell before execution")
     return admitted
 
 
@@ -1423,6 +1443,8 @@ def _run_recovery(args, *, request: dict, approval: dict, manifest: dict, admitt
                 lineage_now = recovery_lineage()
                 if verify_failed_recovery(recovery_exception(), lineage_now) != request["exception_of"]:
                     raise CellRefused("the failed recovery changed after admission")
+                # audit 845: the target's contracted outputs still absent, by lstat, at the claim boundary
+                assert_target_outputs_absent(Path(cell["run_dir"]), "the recovered cell before its claim")
                 claim["path"], claim["sha256"] = consume_recovery_claim(request, approval)
             done = run_terminal_test_cell(cell, namespace=args.namespace, request=request, approval=approval,
                                           campaign_nonce=nonce, gpu_uuid=uuid, snapshot=snapshot,

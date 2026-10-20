@@ -251,6 +251,12 @@ No retry, deletion, namespace substitution or partial continuation follows.
    **Absence is observed, not pinned.** The failed attempt's entry, record and receipt are checked by
    lstat: a link, even a dangling one, refuses, and so does an observation error.
 
+   **Target outputs** (audits 845–846). Before execution, at admission (also in the T entry) and
+   immediately before the claim, none of the target's 13 contracted outputs may exist by lstat: files,
+   directories and links (also dangling) refuse, and so do observation errors. At publication the twelve
+   outputs must be present at their recorded bytes and bit2 absent by lstat, for carried and new cells. A
+   successful cell is never required to have absent outputs.
+
    **Rechecks:** at admission, immediately before the claim, in the T entry, and before publication.
 3. **The exception claim.** Its key is the digest of the failed run ID, the failed claim's and attempt's
    digests, and the cell ID, with no namespace, root, generation or caller in it. It sits in the same claim

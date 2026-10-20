@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 import sys
 import threading
@@ -1511,3 +1512,101 @@ def test_exception_the_carried_charge_counts_against_the_budget(rsupervised, tmp
     assert rsupervised.run(5, budget=13.0) == S.EXIT_REFUSED
     final = [r for r in rsupervised.rows() if r["event"] == "final"][-1]
     assert final["status"] == "refused-before-start" and final["reason"].startswith("budget:")
+
+
+# =============================================================================================
+# audits 845-846: strict (lstat) absence of the target's contracted outputs before execution, and of the
+# forbidden bit2 path at publication -- a dangling link is present, an observation error refuses
+# =============================================================================================
+def _target(world) -> Path:
+    return Path(world.recovered["run_dir"])
+
+
+def _lstat_fails_for(monkeypatch, target: Path):
+    real = RT.os.lstat
+
+    def lstat(path, *a, **k):
+        if str(path) == str(target):
+            raise PermissionError(13, "denied")
+        return real(path, *a, **k)
+    monkeypatch.setattr(RT.os, "lstat", lstat)
+
+
+@pytest.mark.parametrize("form", ["dangling-link", "directory", "regular-file", "observation-error"])
+def test_target_absence_at_admission_is_checked_by_lstat(world, monkeypatch, capsys, form):
+    path = _target(world) / "extract_db.npz"
+    if form == "dangling-link":
+        path.symlink_to(_target(world) / "nowhere")
+    elif form == "directory":
+        path.mkdir()
+    elif form == "regular-file":
+        path.write_bytes(b"x")
+    else:
+        _lstat_fails_for(monkeypatch, path)
+    rc, err = _plan_refuses(world, monkeypatch, capsys)
+    assert rc == 2 and new_claims() == []
+    want = {"dangling-link": "a link counts", "observation-error": "cannot be observed"}.get(form, "official-test")
+    assert want in err, err
+
+
+def test_target_absence_dangling_bit2_link_refuses_at_admission(world, monkeypatch, capsys):
+    (_target(world) / BIT2).symlink_to(_target(world) / "nowhere")
+    rc, err = _plan_refuses(world, monkeypatch, capsys)
+    assert rc == 2 and "a link counts" in err and new_claims() == []
+
+
+def test_target_absence_is_rechecked_immediately_before_the_claim(campaign, world, monkeypatch, capsys):
+    _, digest = campaign.plan()
+    stub = RT.recovery_boundary                          # the campaign fixture's boundary, run after admission
+
+    def boundary_then_link(*a, **k):
+        out = stub(*a, **k)
+        (_target(world) / "cell_result.json").symlink_to(_target(world) / "nowhere")
+        return out
+    monkeypatch.setattr(RT, "recovery_boundary", boundary_then_link)
+    assert campaign.run(*campaign.approve(digest)) == 1
+    assert "the recovered cell before its claim" in capsys.readouterr().err
+    assert new_claims() == [] and not list(world.records.glob(f"{NEW_NS}_attempt_*.json"))
+    assert campaign.state["commands"] == []                          # no producer started
+
+
+def test_target_absence_is_rechecked_by_the_t_entry(rentry, world, monkeypatch, capsys):
+    (_target(world) / "pairwise_nmi.json").symlink_to(_target(world) / "nowhere")
+    rc, calls, loads, attempt = _enter(world, monkeypatch, rentry.request, rentry.approval)
+    assert rc == 2 and calls == [] and loads == [] and not TE.entry_claim_path(attempt).exists()
+    assert "a link counts" in capsys.readouterr().err
+
+
+def _new_cell_bit2_link(world):
+    (_target(world) / BIT2).symlink_to(_target(world) / "nowhere")
+
+
+def _carried_cell_bit2_link(world):
+    run = Path(world.cells[sorted(world.lineage["carried"])[2]]["run_dir"])
+    (run / BIT2).symlink_to(run / "nowhere")
+
+
+def _new_cell_bit2_unobservable(world):
+    _lstat_fails_for(world.mp, _target(world) / BIT2)
+
+
+@pytest.mark.parametrize("during", [_new_cell_bit2_link, _carried_cell_bit2_link, _new_cell_bit2_unobservable],
+                         ids=["new-cell-dangling-bit2", "carried-cell-dangling-bit2", "new-cell-bit2-unobservable"])
+def test_forbidden_bit2_is_checked_by_lstat_before_publication(campaign, world, capsys, during):
+    """Audit 846: the twelve outputs present and bit2 absent by lstat at the final closure; no receipt."""
+    _, digest = campaign.plan()
+    campaign.state["during"] = during
+    assert campaign.run(*campaign.approve(digest)) == 1
+    err = capsys.readouterr().err
+    assert ("bit2 absent" in err) or ("cannot be observed" in err), err
+    assert campaign.state["commands"] == CHAIN                       # the cell itself completed
+    assert not (world.records / f"{NEW_NS}{RT.T_RECOVERY_RECEIPT_SUFFIX}").exists()
+
+
+def test_after_execution_the_twelve_outputs_are_required_not_absent(campaign, world):
+    """The two lifecycle conditions stay distinct: a completed recovery publishes with its twelve outputs
+    present (the pre-execution absence predicate is never applied after execution)."""
+    _, digest = campaign.plan()
+    assert campaign.run(*campaign.approve(digest)) == 0
+    assert all((_target(world) / name).is_file() for name in REQUIRED)
+    assert not os.path.lexists(_target(world) / BIT2)
